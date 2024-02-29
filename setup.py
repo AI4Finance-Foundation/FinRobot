@@ -9,7 +9,7 @@ except:
     REQUIRES = list()
 
 setup(
-    name="FinGPT",
+    name="FinRobot",
     version="0.0.1",
     include_package_data=True,
     author="AI4Finance Foundation",

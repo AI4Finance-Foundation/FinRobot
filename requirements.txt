@@ -1,3 +1,10 @@
+ipython
+pyautogen>=0.2.19
+
+# financial libraries
+finnhub-python
+yfinance
+
 # data handling
 numpy
 pandas

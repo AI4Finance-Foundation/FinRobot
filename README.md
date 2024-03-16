@@ -21,5 +21,6 @@
 + [Tsinghua University] [Large Language Models Empowered Agent-based Modeling and Simulation: A Survey and Perspectives](https://arxiv.org/abs/2312.11970)
 
 
-## AI Agent Platform
-+ [Microsoft Research] [AutoGen](https://github.com/microsoft/autogen)
+## AI Agent Framework
++ [Microsoft Research] [AutoGen](https://github.com/microsoft/autogen) 
+AutoGen is a framework for developing LLM applications with conversational agents that collaborate to solve tasks. These agents are customizable, support human interaction, and operate in modes combining LLMs, human inputs, and tools.

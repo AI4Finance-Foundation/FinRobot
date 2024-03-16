@@ -1,5 +1,5 @@
 # FinRobot: An Open-Source AI Agent Platform for Financial Applications using LLMs
-[![Downloads](https://static.pepy.tech/badge/finrobot)](https://pepy.tech/project/finrobot)
+[![Downloads](https://static.pepy.tech/badge/finrobot)]([https://pepy.tech/project/finrobot](https://pepy.tech/project/finrobot))
 [![Downloads](https://static.pepy.tech/badge/finrobot/week)](https://pepy.tech/project/finrobot)
 [![Python 3.8](https://img.shields.io/badge/python-3.6-blue.svg)](https://www.python.org/downloads/release/python-360/)
 [![PyPI](https://img.shields.io/pypi/v/finrobot.svg)](https://pypi.org/project/finrobot/)
@@ -18,3 +18,8 @@
 
 + [Stanford University + Microsoft Research] [AGENT AI: SURVEYING THE HORIZONS OF MULTIMODAL INTERACTION](https://arxiv.org/abs/2401.03568)
 + [Fudan NLP Group] [The Rise and Potential of Large Language Model Based Agents: A Survey](https://arxiv.org/abs/2309.07864)
++ [Tsinghua University] [Large Language Models Empowered Agent-based Modeling and Simulation: A Survey and Perspectives](https://arxiv.org/abs/2312.11970)
+
+
+## AI Agent Platform
++ [Microsoft Research] [AutoGen](https://github.com/microsoft/autogen)

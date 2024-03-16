@@ -27,6 +27,7 @@
 ## AI Agent Blogs
 + [Medium] [An Introduction to AI Agents](https://medium.com/humansdotai/an-introduction-to-ai-agents-e8c4afd2ee8f)
 + [Medium] [Unmasking the Best Character AI Chatbots | 2024](https://medium.com/@aitrendorbit/unmasking-the-best-character-ai-chatbots-2024-351de43792f4#the-best-character-ai-chatbots)
++ [big-picture] [CHATGPT, NEXT LEVEL: MEET 10 AUTONOMOUS AI AGENTS - AUTO-GPT, BABYAGI, AGENTGPT, MICROSOFT JARVIS, CHAOSGPT & FRIENDS]([https://medium.com/@aitrendorbit/unmasking-the-best-character-ai-chatbots-2024-351de43792f4#the-best-character-ai-chatbots](https://blog.big-picture.com/en/chatgpt-next-level-meet-10-autonomous-ai-agents-auto-gpt-babyagi-agentgpt-microsoft-jarvis-chaosgpt-friends/))
 
 
 ## AI Agent Open-Source Framework & Tool

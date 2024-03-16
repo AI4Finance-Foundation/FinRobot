@@ -22,5 +22,6 @@
 
 
 ## AI Agent Framework
-+ [Microsoft Research] [AutoGen](https://github.com/microsoft/autogen) 
-AutoGen is a framework for developing LLM applications with conversational agents that collaborate to solve tasks. These agents are customizable, support human interaction, and operate in modes combining LLMs, human inputs, and tools.
++ [AutoGen] [AutoGen](https://github.com/microsoft/autogen) is a framework for developing LLM applications with conversational agents that collaborate to solve tasks. These agents are customizable, support human interaction, and operate in modes combining LLMs, human inputs, and tools.
++ [AutoGPT] [AutoGPT](https://github.com/Significant-Gravitas/AutoGPT) is a tool for everyone to use, aiming to democratize AI, making it accessible for everyone to use and build upon.
+

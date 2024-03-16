@@ -16,4 +16,5 @@
 
 ## AI Agent Papers
 
-+ [Stanford University + Microsoft Research] [AGENT AI: SURVEYING THE HORIZONS OF MULTIMODAL INTERACTION](https://arxiv.org/pdf/2401.03568.pdf)
++ [Stanford University + Microsoft Research] [AGENT AI: SURVEYING THE HORIZONS OF MULTIMODAL INTERACTION](https://arxiv.org/abs/2401.03568)
++ [Fudan NLP Group] [The Rise and Potential of Large Language Model Based Agents: A Survey](https://arxiv.org/abs/2309.07864)

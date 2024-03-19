@@ -25,6 +25,7 @@ config_list = autogen.config_list_from_json(
 llm_config = {
     "config_list": config_list,
     "timeout": 120,
+    "temperature": 0
 }
 analyst = autogen.AssistantAgent(
     name="Market_Analyst",

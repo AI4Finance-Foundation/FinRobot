@@ -1,5 +1,7 @@
-ipython
 pyautogen>=0.2.19
+ipython
+huggingface_hub
+matplotlib
 
 # financial libraries
 finnhub-python

@@ -1,7 +1,7 @@
 import os
 import autogen
 from autogen.agentchat.contrib.agent_builder import AgentBuilder
-from utils import get_curday
+from utils import get_current_date
 
 
 config_file_or_env = "OAI_CONFIG_LIST"
@@ -43,5 +43,5 @@ manager = autogen.GroupChatManager(
     )
 agent_list[0].initiate_chat(
     manager, 
-    message=f"Today is {get_curday()}, predict next week's stock price for Nvidia with its recent market news and stock price movements."
+    message=f"Today is {get_current_date()}, predict next week's stock price for Nvidia with its recent market news and stock price movements."
 )

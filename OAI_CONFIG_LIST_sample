@@ -8,6 +8,10 @@
         "api_key": "<your OpenAI API key here>"
     },
     {
+        "model": "gpt-4-vision-preview",
+        "api_key": "<your OpenAI API key here>"
+    },
+    {
         "model": "<your Azure OpenAI deployment name>",
         "api_key": "<your Azure OpenAI API key here>",
         "base_url": "<your Azure OpenAI API base here>",

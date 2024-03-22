@@ -6,6 +6,7 @@ matplotlib
 # financial libraries
 finnhub-python
 yfinance
+mplfinance
 
 # data handling
 numpy

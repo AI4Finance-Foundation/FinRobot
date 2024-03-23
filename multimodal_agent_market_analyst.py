@@ -8,10 +8,10 @@ from autogen import AssistantAgent, UserProxyAgent
 from autogen.agentchat.contrib.multimodal_conversable_agent import MultimodalConversableAgent
 from autogen.cache import Cache
 
-from finnhub_utils import FinnHubUtils
-from visual_utils import plot_candlestick_chart
+from finrobot.data_source.finnhub_utils import FinnHubUtils
+from finrobot.functional.visual_utils import plot_candlestick_chart
 
-from utils import get_current_date
+from finrobot.utils import get_current_date
 
 config_list_4v = autogen.config_list_from_json(
     "OAI_CONFIG_LIST",

@@ -4,8 +4,8 @@ import autogen
 from autogen.cache import Cache
 from autogen.agentchat import register_function
 
-from utils import get_current_date
-from finnhub_utils import FinnHubUtils
+from finrobot.utils import get_current_date
+from finrobot.data_source.finnhub_utils import FinnHubUtils
 
 config_list = autogen.config_list_from_json(
     "OAI_CONFIG_LIST",

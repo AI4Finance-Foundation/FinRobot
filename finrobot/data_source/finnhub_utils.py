@@ -10,7 +10,7 @@ import random
 import json
 
 from config_api_keys import FINNHUB_API_KEY
-from utils import get_current_date
+from ..utils import get_current_date
 
 finnhub_client = finnhub.Client(api_key=FINNHUB_API_KEY)
 

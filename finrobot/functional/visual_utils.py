@@ -2,7 +2,7 @@ import yfinance as yf
 import mplfinance as mpf
 from typing import Annotated
 
-from data_source.yfinance_utils import YFinanceUtils
+from ..data_source.yfinance_utils import YFinanceUtils
 
 def plot_candlestick_chart(
     ticker_symbol: Annotated[str, "Ticker symbol of the stock (e.g., 'AAPL' for Apple)"],
@@ -15,7 +15,8 @@ def plot_candlestick_chart(
     and save the plot to a file.
     """
     # Fetch historical data
-    stock_data = YFinanceUtils.get_stock_data(ticker_symbol, start_date, end_date)    
+    stock_data = YFinanceUtils.get_stock_data(ticker_symbol, start_date, end_date)
+    print(stock_data)
 
     # Plot candlestick chart
     mpf.plot(stock_data, type='candle', style='charles',

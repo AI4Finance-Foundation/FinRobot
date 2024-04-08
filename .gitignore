@@ -6,3 +6,5 @@ __pycache__/
 *.csv
 *.jpg
 *.png
+quant/
+*.egg-info/

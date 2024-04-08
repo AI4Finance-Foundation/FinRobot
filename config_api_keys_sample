@@ -1,0 +1,4 @@
+# Fill in your own api keys below, rename this file to config_api_keys and remove this line before you kick off.
+{
+    "FINNHUB_API_KEY": "YOUR_FINNHUB_API_KEY"
+}

@@ -17,7 +17,7 @@ def stringify_output(func):
     return wrapper
 
 
-def register_tools(config: List[dict|Callable], caller: ConversableAgent, executor: ConversableAgent):
+def register_toolkit(config: List[dict|Callable], caller: ConversableAgent, executor: ConversableAgent):
 
     """Register tools from a configuration list."""
 

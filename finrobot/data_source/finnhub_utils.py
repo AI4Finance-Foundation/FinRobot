@@ -3,9 +3,11 @@ import os
 import finnhub
 import pandas as pd
 import json
+import random
 from typing import Annotated
 from collections import defaultdict
 from functools import wraps
+from datetime import datetime
 from ..utils import decorate_all_methods, save_output, SavePathType
 
 
@@ -46,6 +48,33 @@ class FinnHubUtils:
         
         return formatted_str
 
+
+
+    def get_company_news(
+            symbol: Annotated[str, "ticker symbol"],
+            start_date: Annotated[str, "start date of the search period for the company's basic financials, yyyy-mm-dd"],
+            end_date: Annotated[str, "end date of the search period for the company's basic financials, yyyy-mm-dd"],
+            max_news_num: Annotated[int, "maximum number of news to return, default to 10"] = 10,
+            save_path: SavePathType = None
+        ) -> pd.DataFrame:
+        
+        news = finnhub_client.company_news(symbol, _from=start_date, to=end_date)
+        if len(news) == 0:
+            print(f"No company news found for symbol {symbol} from finnhub!")
+        news = [{
+            "date": datetime.fromtimestamp(n['datetime']).strftime('%Y%m%d%H%M%S'),
+            "headline": n['headline'],
+            "summary": n['summary'],
+        } for n in news]
+        # Randomly select a subset of news if the number of news exceeds the maximum
+        if len(news) > max_news_num:
+            news = random.choices(news, k=max_news_num)
+        news.sort(key=lambda x: x['date'])
+        output = pd.DataFrame(news)
+        save_output(output, f"company news of {symbol}", save_path=save_path)
+        
+        return output
+    
 
     def get_basic_financials_history(
             symbol: Annotated[str, "ticker symbol"],

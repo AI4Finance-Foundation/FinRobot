@@ -1,5 +1,5 @@
 OAI_CONFIG_LIST
-config_api_keys.py
+config_api_keys
 __pycache__/
 .ipynb_checkpoints/
 .cache/

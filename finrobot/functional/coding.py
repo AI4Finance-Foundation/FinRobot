@@ -6,14 +6,14 @@ default_path = "coding/"
 
 class CodingUtils:  # Borrowed from https://microsoft.github.io/autogen/docs/notebooks/agentchat_function_call_code_writing
 
-    def list_dir(directory: Annotated[str, "Directory to check."]):
+    def list_dir(directory: Annotated[str, "Directory to check."]) -> str:
         """
         List files in choosen directory.
         """
         files = os.listdir(default_path + directory)
-        return files
+        return str(files)
 
-    def see_file(filename: Annotated[str, "Name and path of file to check."]):
+    def see_file(filename: Annotated[str, "Name and path of file to check."]) -> str:
         """
         Check the contents of a chosen file.
         """
@@ -22,7 +22,7 @@ class CodingUtils:  # Borrowed from https://microsoft.github.io/autogen/docs/not
         formatted_lines = [f"{i+1}:{line}" for i, line in enumerate(lines)]
         file_contents = "".join(formatted_lines)
 
-        return 0, file_contents
+        return file_contents
 
     def modify_code(
         filename: Annotated[str, "Name and path of file to change."],
@@ -32,7 +32,7 @@ class CodingUtils:  # Borrowed from https://microsoft.github.io/autogen/docs/not
             str,
             "New piece of code to replace old code with. Remember about providing indents.",
         ],
-    ):
+    ) -> str:
         """
         Replace old piece of code with new one. Proper indentation is important.
         """
@@ -42,15 +42,15 @@ class CodingUtils:  # Borrowed from https://microsoft.github.io/autogen/docs/not
             file.seek(0)
             file.truncate()
             file.write("".join(file_contents))
-        return 0, "Code modified"
+        return "Code modified"
 
     def create_file_with_code(
         filename: Annotated[str, "Name and path of file to create."],
         code: Annotated[str, "Code to write in the file."],
-    ):
+    ) -> str:
         """
         Create a new file with provided code.
         """
         with open(default_path + filename, "w") as file:
             file.write(code)
-        return 0, "File created successfully"
+        return "File created successfully"

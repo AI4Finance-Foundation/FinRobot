@@ -46,6 +46,7 @@
 + [FastGPT (12.5k stars)](https://github.com/labring/FastGPT) is a knowledge-based platform built on the LLM, offers out-of-the-box data processing and model invocation capabilities, allows for workflow orchestration through Flow visualization.
 + [CrewAI (12.1k stars)](https://github.com/joaomdmoura/crewAI) is a framework for orchestrating role-playing, autonomous AI agents. By fostering collaborative intelligence, CrewAI empowers agents to work together seamlessly, tackling complex tasks.
 + [XAgent (7.5k stars)](https://github.com/OpenBMB/XAgent) is an open-source experimental Large Language Model (LLM) driven autonomous agent that can automatically solve various tasks.
-+ [Bisheng (5.5k stars)](https://github.com/dataelement/bisheng) is a leading open-source platform for developing LLM applications. 
++ [Bisheng (5.5k stars)](https://github.com/dataelement/bisheng) is a leading open-source platform for developing LLM applications.
++ [Voyager (5.1k stars)](https://github.com/OpenBMB/XAgent) An Open-Ended Embodied Agent with Large Language Models.
 + [CAMEL (4.4k stars)](https://github.com/camel-ai/camel) is a framework that offers a comprehensive set of tools and algorithms for building multimodal AI Agents, enabling them to handle various data forms such as text, images, and speech.
 + [Langfuse (2.9k stars)](https://github.com/langfuse/langfuse) is a language fusion framework that can integrate the language abilities of multiple AI Agents, enabling them to simultaneously possess multilingual understanding and generation capabilities.

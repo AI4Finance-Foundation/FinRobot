@@ -1,7 +1,38 @@
 import os
 from typing_extensions import Annotated
+from IPython import get_ipython
 
 default_path = "coding/"
+
+
+class IPythonUtils:
+
+    def exec_python(cell: Annotated[str, "Valid Python cell to execute."]) -> str:
+        """
+        run cell in ipython and return the execution result.
+        """
+        ipython = get_ipython()
+        result = ipython.run_cell(cell)
+        log = str(result.result)
+        if result.error_before_exec is not None:
+            log += f"\n{result.error_before_exec}"
+        if result.error_in_exec is not None:
+            log += f"\n{result.error_in_exec}"
+        return log
+
+    def display_image(
+        image_path: Annotated[str, "Path to image file to display."]
+    ) -> str:
+        """
+        Display image in Jupyter Notebook.
+        """
+        log = __class__.exec_python(
+            f"from IPython.display import Image, display\n\ndisplay(Image(filename='{image_path}'))"
+        )
+        if not log:
+            return "Image displayed successfully"
+        else:
+            return log
 
 
 class CodingUtils:  # Borrowed from https://microsoft.github.io/autogen/docs/notebooks/agentchat_function_call_code_writing
@@ -51,6 +82,8 @@ class CodingUtils:  # Borrowed from https://microsoft.github.io/autogen/docs/not
         """
         Create a new file with provided code.
         """
+        directory = os.path.dirname(default_path + filename)
+        os.makedirs(directory, exist_ok=True)
         with open(default_path + filename, "w") as file:
             file.write(code)
         return "File created successfully"

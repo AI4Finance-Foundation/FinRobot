@@ -1,3 +1,4 @@
+import os
 import json
 import importlib
 import yfinance as yf
@@ -5,6 +6,33 @@ import backtrader as bt
 from backtrader.strategies import SMA_CrossOver
 from typing import Annotated, List, Tuple
 from matplotlib import pyplot as plt
+from pprint import pformat
+from IPython import get_ipython
+
+
+class DeployedCapitalAnalyzer(bt.Analyzer):
+    def start(self):
+        self.deployed_capital = []
+        self.initial_cash = self.strategy.broker.get_cash()  # Initial cash in account
+
+    def notify_order(self, order):
+        if order.status in [order.Completed]:
+            if order.isbuy():
+                self.deployed_capital.append(order.executed.price * order.executed.size)
+            elif order.issell():
+                self.deployed_capital.append(order.executed.price * order.executed.size)
+
+    def stop(self):
+        total_deployed = sum(self.deployed_capital)
+        final_cash = self.strategy.broker.get_value()
+        net_profit = final_cash - self.initial_cash
+        if total_deployed > 0:
+            self.retn = net_profit / total_deployed
+        else:
+            self.retn = 0
+
+    def get_analysis(self):
+        return {"return_on_deployed_capital": self.retn}
 
 
 class BackTraderUtils:
@@ -23,14 +51,32 @@ class BackTraderUtils:
             str,
             "BackTrader Strategy class to be backtested. Can be pre-defined or custom. Pre-defined options: 'SMA_CrossOver'. If custom, provide module path and class name as a string like 'my_module:TestStrategy'.",
         ],
-        params: Annotated[
+        strategy_params: Annotated[
             str,
             "Additional parameters to be passed to the strategy class formatted as json string. E.g. {'fast': 10, 'slow': 30} for SMACross.",
-        ] = {},
+        ] = "",
+        sizer: Annotated[
+            int | str | None,
+            "Sizer used for backtesting. Can be a fixed number or a custom Sizer class. If input is integer, a corresponding fixed sizer will be applied. If custom, provide module path and class name as a string like 'my_module:TestSizer'.",
+        ] = None,
+        sizer_params: Annotated[
+            str,
+            "Additional parameters to be passed to the sizer class formatted as json string.",
+        ] = "",
+        indicator: Annotated[
+            str | None,
+            "Custom indicator class added to strategy. Provide module path and class name as a string like 'my_module:TestIndicator'.",
+        ] = None,
+        indicator_params: Annotated[
+            str,
+            "Additional parameters to be passed to the indicator class formatted as json string.",
+        ] = "",
         cash: Annotated[
             float, "Initial cash amount for the backtest. Default to 10000.0"
         ] = 10000.0,
-        stake_size: Annotated[int, "Fixed stake size for each trade. Default to 1"] = 1,
+        save_fig: Annotated[
+            str | None, "Path to save the plot of backtest results. Default to None."
+        ] = None,
     ) -> str:
         """
         Use the Backtrader library to backtest a trading strategy on historical stock data.
@@ -47,8 +93,8 @@ class BackTraderUtils:
             module = importlib.import_module(module_path)
             strategy_class = getattr(module, class_name)
 
-        params = json.loads(params)
-        cerebro.addstrategy(strategy_class, **params)
+        strategy_params = json.loads(strategy_params) if strategy_params else {}
+        cerebro.addstrategy(strategy_class, **strategy_params)
 
         # Create a data feed
         data = bt.feeds.PandasData(
@@ -59,13 +105,36 @@ class BackTraderUtils:
         cerebro.broker.setcash(cash)
 
         # Set the size of the trades
-        cerebro.addsizer(bt.sizers.FixedSize, stake=stake_size)
+        if sizer is not None:
+            if isinstance(sizer, int):
+                cerebro.addsizer(bt.sizers.FixedSize, stake=sizer)
+            else:
+                assert (
+                    ":" in sizer
+                ), "Custom sizer should be module path and class name separated by a colon."
+                module_path, class_name = sizer.split(":")
+                module = importlib.import_module(module_path)
+                sizer_class = getattr(module, class_name)
+                sizer_params = json.loads(sizer_params) if sizer_params else {}
+                cerebro.addsizer(sizer_class, **sizer_params)
+
+        # Set additional indicator
+        if indicator is not None:
+            assert (
+                ":" in indicator
+            ), "Custom indicator should be module path and class name separated by a colon."
+            module_path, class_name = indicator.split(":")
+            module = importlib.import_module(module_path)
+            indicator_class = getattr(module, class_name)
+            indicator_params = json.loads(indicator_params) if indicator_params else {}
+            cerebro.addindicator(indicator_class, **indicator_params)
 
         # Attach analyzers
-        cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="mysharpe")
-        cerebro.addanalyzer(bt.analyzers.DrawDown, _name="mydrawdown")
-        cerebro.addanalyzer(bt.analyzers.Returns, _name="myreturns")
-        cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="mytradeanalyzer")
+        cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe_ratio")
+        cerebro.addanalyzer(bt.analyzers.DrawDown, _name="draw_down")
+        cerebro.addanalyzer(bt.analyzers.Returns, _name="returns")
+        cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trade_analyzer")
+        # cerebro.addanalyzer(DeployedCapitalAnalyzer, _name="deployed_capital")
 
         stats_dict = {"Starting Portfolio Value:": cerebro.broker.getvalue()}
 
@@ -73,19 +142,29 @@ class BackTraderUtils:
         first_strategy = results[0]
 
         # Access analysis results
-        stats_dict["Sharpe Ratio"] = first_strategy.analyzers.mysharpe.get_analysis()
-        stats_dict["Drawdown"] = first_strategy.analyzers.mydrawdown.get_analysis()
-        stats_dict["Returns"] = first_strategy.analyzers.myreturns.get_analysis()
-        stats_dict["Trade Analysis"] = (
-            first_strategy.analyzers.mytradeanalyzer.get_analysis()
-        )
         stats_dict["Final Portfolio Value"] = cerebro.broker.getvalue()
+        # stats_dict["Deployed Capital"] = pformat(
+        #     first_strategy.analyzers.deployed_capital.get_analysis(), indent=4
+        # )
+        stats_dict["Sharpe Ratio"] = (
+            first_strategy.analyzers.sharpe_ratio.get_analysis()
+        )
+        stats_dict["Drawdown"] = first_strategy.analyzers.draw_down.get_analysis()
+        stats_dict["Returns"] = first_strategy.analyzers.returns.get_analysis()
+        stats_dict["Trade Analysis"] = (
+            first_strategy.analyzers.trade_analyzer.get_analysis()
+        )
 
-        plt.figure()
-        cerebro.plot()  # and plot it with a single command
-        plt.show()
+        if save_fig:
+            directory = os.path.dirname(save_fig)
+            if directory:
+                os.makedirs(directory, exist_ok=True)
+            plt.figure(figsize=(12, 8))
+            cerebro.plot()
+            plt.savefig(save_fig)
+            plt.close()
 
-        return "Back Test Finished. Results: \n" + str(stats_dict)
+        return "Back Test Finished. Results: \n" + pformat(stats_dict, indent=2)
 
 
 if __name__ == "__main__":

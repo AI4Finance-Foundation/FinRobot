@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 # Read requirements.txt, ignore comments
 try:
     with open("requirements.txt", "r") as f:
-        REQUIRES = [line.split('#', 1)[0].strip() for line in f if line.strip()]
+        REQUIRES = [line.split("#", 1)[0].strip() for line in f if line.strip()]
 except:
     print("'requirements.txt' not found!")
     REQUIRES = list()
@@ -36,5 +36,5 @@ setup(
     ],
     keywords="Financial Large Language Models, AI Agents",
     platforms=["any"],
-    python_requires=">=3.6",
+    python_requires=">=3.10, <3.12",
 )

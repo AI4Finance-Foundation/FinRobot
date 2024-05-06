@@ -1,4 +1,3 @@
-
 import re
 import json
 import autogen
@@ -31,6 +30,13 @@ quant_group_config = json.load(open("quantitative_investment_group_config.json")
 #     code_execution_config=False
 # )
 
+group_descs = "\n\n".join(
+    [
+        "Name: {} \nResponsibility: {}".format(c["name"], c["profile"])
+        for c in quant_group_config
+    ]
+)
+
 group_leader = autogen.AssistantAgent(
     name="Group_Leader",
     system_message="""
@@ -40,16 +46,18 @@ group_leader = autogen.AssistantAgent(
     Orders should follow the format: \"[<name of staff>] <order>\" and appear at the end of your response.
     After receiving feedback from the team members, check the progress of the task, and make sure the task is well completed before proceding to th next order.
     If the task is not well completed, your order should be to provide assistance and guidance for the team members to complete it again.
-    Reply TERMINATE only when the whole project is done. Your team members are as follows:"
-    """ + "".join([f"\nName: {c["name"]} \nResponsibility: {c['profile']}" for c in quant_group_config]),
-    llm_config=llm_config
+    Reply TERMINATE only when the whole project is done. Your team members are as follows:\n\n
+    """
+    + group_descs,
+    llm_config=llm_config,
 )
 
 executor = autogen.UserProxyAgent(
     name="Executor",
     human_input_mode="NEVER",
     # human_input_mode="ALWAYS",
-    is_termination_msg=lambda x: x.get("content", "") and "TERMINATE" in x.get("content", ""),
+    is_termination_msg=lambda x: x.get("content", "")
+    and "TERMINATE" in x.get("content", ""),
     # max_consecutive_auto_reply=3,
     code_execution_config={
         "last_n_messages": 3,
@@ -60,21 +68,23 @@ executor = autogen.UserProxyAgent(
 
 quant_group = {
     c["name"]: autogen.agentchat.AssistantAgent(
-        name=c['name'],
-        system_message=c['profile'],
+        name=c["name"],
+        system_message=c["profile"],
         llm_config=llm_config,
-    ) for c in quant_group_config
+    )
+    for c in quant_group_config
 }
 
 
 def order_trigger(pattern, sender):
     # print(pattern)
     # print(sender.last_message()['content'])
-    return pattern in sender.last_message()['content']
+    return pattern in sender.last_message()["content"]
+
 
 def order_message(pattern, recipient, messages, sender, config):
-    full_order = recipient.chat_messages_for_summary(sender)[-1]['content']
-    pattern = fr"\[{pattern}\](?::)?\s*(.+?)(?=\n\[|$)"
+    full_order = recipient.chat_messages_for_summary(sender)[-1]["content"]
+    pattern = rf"\[{pattern}\](?::)?\s*(.+?)(?=\n\[|$)"
     match = re.search(pattern, full_order, re.DOTALL)
     if match:
         order = match.group(1).strip()
@@ -92,22 +102,20 @@ def order_message(pattern, recipient, messages, sender, config):
 
 for name, agent in quant_group.items():
     executor.register_nested_chats(
-        [{
-            "sender": executor,
-            "recipient": agent,
-            "message": partial(order_message, name), 
-            "summary_method": "reflection_with_llm",
-            "max_turns": 10,
-            "max_consecutive_auto_reply": 3,
-        }],
-        trigger=partial(order_trigger, f"[{name}]")
+        [
+            {
+                "sender": executor,
+                "recipient": agent,
+                "message": partial(order_message, name),
+                "summary_method": "reflection_with_llm",
+                "max_turns": 10,
+                "max_consecutive_auto_reply": 3,
+            }
+        ],
+        trigger=partial(order_trigger, f"[{name}]"),
     )
 
 quant_task = "Develop and test the feasibility of a quantitative investment strategy focusing on the Dow Jones 30 stocks, utilizing your multi-factor analysis expertise to identify potential investment opportunities and optimize the portfolio's performance. Ensure the strategy is robust, data-driven, and aligns with our risk management principles."
 
 with Cache.disk() as cache:
-    executor.initiate_chat(
-        group_leader,
-        message=quant_task,
-        cache=cache
-    )
+    executor.initiate_chat(group_leader, message=quant_task, cache=cache)

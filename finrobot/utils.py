@@ -1,7 +1,7 @@
 import os
 import json
 import pandas as pd
-from datetime import date
+from datetime import date, timedelta, datetime
 from typing import Annotated
 
 
@@ -41,11 +41,25 @@ def decorate_all_methods(decorator):
             if callable(attr_value):
                 setattr(cls, attr_name, decorator(attr_value))
         return cls
+
     return class_decorator
 
 
+def get_next_weekday(date):
+
+    if not isinstance(date, datetime):
+        date = datetime.strptime(date, "%Y-%m-%d")
+
+    if date.weekday() >= 5:
+        days_to_add = 7 - date.weekday()
+        next_weekday = date + timedelta(days=days_to_add)
+        return next_weekday
+    else:
+        return date
+
+
 # def create_inner_assistant(
-#         name, system_message, llm_config, max_round=10, 
+#         name, system_message, llm_config, max_round=10,
 #         code_execution_config=None
 #     ):
 
@@ -67,4 +81,3 @@ def decorate_all_methods(decorator):
 #         trigger=ConversableAgent
 #         )
 #     return manager
-

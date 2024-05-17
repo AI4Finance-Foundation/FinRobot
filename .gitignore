@@ -10,3 +10,4 @@ quant/
 coding/
 *.egg-info/
 .DS_Store
+projects/

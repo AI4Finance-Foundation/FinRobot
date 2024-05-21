@@ -1,59 +1,27 @@
 
-# from IPython import get_ipython
-
+from .agent_library import library
 from typing import Any, Callable, Dict, List, Literal
 import autogen
-from autogen.cache import Cache
-from autogen.agentchat import register_function
 
-from finrobot.utils import get_current_date
-from finrobot.data_source.finnhub_utils import FinnHubUtils
+from ..toolkits import register_toolkits
 
 
-def data_agent():
-    agent = autogen.AssistantAgent(
-        name="Financial_Data_Downloader",
-        system_message="""
-            As a Financial Data Downloader, you are responsible for collecting and aggregating financial data based on client's requirement. 
-            For coding tasks, only use the functions you have been provided with. Reply TERMINATE when the task is done.
-            """,
-        llm_config=llm_config,
-    )
+class FinRobot(autogen.AssistantAgent):
 
+    def __init__(self, name: str, system_message: str|None = None, toolkits: List[Callable|dict|type] = [], proxy: autogen.UserProxyAgent|None = None, **kwargs):
+        
+        assert name in library, f"FinRobot {name} not found in agent library."
 
-class DataAgent:
+        default_toolkits = library["name"].get("toolkits", [])
+        default_system_message = library["name"].get("profile", "")
 
-    def __init__(self, name: str, 
-                 system_message: str | List | None = ...,
-                 llm_config: Dict | None | Literal[False] = None, 
-                 is_termination_msg: Callable[[Dict], bool] | None = None, 
-                 max_consecutive_auto_reply: int | None = None, 
-                 human_input_mode: Literal['ALWAYS'] | Literal['TERMINATE'] | Literal['NEVER'] = "ALWAYS", 
-                 code_execution_config: Dict | Literal[False] = ..., 
-                 default_auto_reply: str | Dict | None = "", 
-                 description: str | None = None):
-        self.agent = autogen.AssistantAgent(
-            name, system_message, llm_config, is_termination_msg, max_consecutive_auto_reply, "NEVER", description)         
-        self.executor = autogen.UserProxyAgent(
-            name=name, max_consecutive_auto_reply=max_consecutive_auto_reply,
-            human_input_mode=human_input_mode, code_execution_config, default_auto_reply, llm_config=False, system_message, description)
+        self.tookits = toolkits or default_toolkits
+        self.system_message = system_message or default_system_message
 
+        assert bool(self.system_message), f"System message is required for {name}."
 
-    def __init__(self, name: str, system_message: str | None = ..., 
-                 llm_config: Dict | None | Literal[False] = None, 
-                 is_termination_msg: Callable[[Dict], bool] | None = None, 
-                 max_consecutive_auto_reply: int | None = None, 
-                 human_input_mode: str | None = "NEVER", 
-                 description: str | None = None, **kwargs):
-        super().__init__(name, system_message, llm_config, is_termination_msg, max_consecutive_auto_reply, human_input_mode, description, **kwargs)
+        super().__init__(name, self.system_message, **kwargs)
+        if proxy is not None:
+            register_toolkits(proxy)
 
-    def register_tools(self, user_proxy: autogen.UserProxyAgent):
-
-        user_proxy.register_for_execution(
-            self.register_for_llm(
-                FinnHubUtils.get_company_profile,
-                name="get_company_profile",
-                description="get a company's profile information",
-            )
-        )
 

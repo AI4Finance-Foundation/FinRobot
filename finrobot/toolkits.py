@@ -20,16 +20,25 @@ def stringify_output(func):
 
 
 def register_toolkits(
-    config: List[dict | Callable], caller: ConversableAgent, executor: ConversableAgent
+    config: List[dict | Callable | type],
+    caller: ConversableAgent,
+    executor: ConversableAgent,
+    **kwargs
 ):
     """Register tools from a configuration list."""
 
     for tool in config:
+
+        if isinstance(tool, type):
+            register_tookits_from_cls(caller, executor, tool, **kwargs)
+            continue
+
         tool_dict = {"function": tool} if callable(tool) else tool
         if "function" not in tool_dict or not callable(tool_dict["function"]):
             raise ValueError(
                 "Function not found in tool configuration or not callable."
             )
+
         tool_function = tool_dict["function"]
         name = tool_dict.get("name", tool_function.__name__)
         description = tool_dict.get("description", tool_function.__doc__)

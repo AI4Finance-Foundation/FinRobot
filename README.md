@@ -55,7 +55,8 @@ FinRobot
 │   ├── toolkits.py
 │   └── utils.py
 │
-├── examples
+├── configs
+├── experiments
 ├── tutorials (hands-on tutorial)
 │   ├── agent_annual_report.ipynb
 │   ├── agent_fingpt_forecaster.ipynb
@@ -63,6 +64,8 @@ FinRobot
 │   ├── lmm_agent_mplfinance.ipynb
 │   └── lmm_agent_opt_smacross.ipynb
 ├── setup.py
+├── OAI_CONFIG_LIST_sample
+├── config_api_keys_sample
 ├── requirements.txt
 └── README.md
 ```

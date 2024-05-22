@@ -24,6 +24,12 @@
 <img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/6b30d9c1-35e5-4d36-a138-7e2769718f62" width="90%"/>
 </div>
 
+### The overall framework of FinRobot is organized into four distinct layers, each designed to address specific aspects of financial AI processing and application:
+1. **Financial AI Agents Layer**: The Financial AI Agents Layer now includes Financial Chain-of-Thought (CoT) prompting, enhancing complex analysis and decision-making capacity. Market Forecasting Agents, Document Analysis Agents, and Trading Strategies Agents utilize CoT to dissect financial challenges into logical steps, aligning their advanced algorithms and domain expertise with the evolving dynamics of financial markets for precise, actionable insights.
+2. **Financial LLMs Algorithms Layer**: The Financial LLMs Algorithms Layer configures and utilizes specially tuned models tailored to specific domains and global market analysis. It employs FinGPT alongside multi-source LLMs such as the Llama series for the U.S. market and ChatGLM for the Chinese market, each optimized for regional specificities. The Falcon model excels in financial relationship analysis. Additionally, multimodal models integrate text with candlestick charts, while FinRL optimizes tasks like portfolio allocation, and traditional machine learning methods refine stock selection.
+3. **LLMOps and DataOps Layers**: The LLMOps layer implements a multi-source integration strategy that selects the most suitable LLMs for specific financial tasks, utilizing a range of state-of-the-art models. Initially, general LLMs are deployed; if performance is suboptimal, the system dynamically switches to fine-tune LLMs to enhance effectiveness. This adaptive approach ensures tailored solutions for diverse financial scenarios, enhancing the platform’s overall performance. Concurrently, the DataOps layer manages real-time data processing, which is crucial for rapid market responsiveness. This dual-layer configuration bolsters FinRobot’s ability to deliver timely and accurate financial insights under dynamic market conditions.
+4. **Multi-source LLM Foundation Models Layer**: This foundational layer supports the plug-and-play functionality of various general and specialized LLMs. It forms the backbone of the platform, ensuring that all models are up-to-date, optimized, and consistently aligned with the latest advancements in financial technologies and data standards
+
 
 ## FinRobot: Agent Workflow
 <div align="center">

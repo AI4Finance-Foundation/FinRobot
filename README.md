@@ -31,7 +31,7 @@
 
 ## File Structure
 
-The main folder **finrl** has three subfolders **agents, data_source, functional**. 
+The main folder **finrobot** has three subfolders **agents, data_source, functional**. 
 
 ```
 FinRobot

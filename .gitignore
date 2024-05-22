@@ -1,0 +1,13 @@
+OAI_CONFIG_LIST
+config_api_keys
+__pycache__/
+.ipynb_checkpoints/
+.cache/
+*.csv
+*.jpg
+*.png
+quant/
+coding/
+*.egg-info/
+.DS_Store
+projects/

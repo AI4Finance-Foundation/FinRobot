@@ -107,19 +107,22 @@ pip install -r requirements.txt
 ```
 3. modify OAI_CONFIG_LIST_sample file
 ```shell
-rename OAI_CONFIG_LIST_sample to OAI_CONFIG_LIST
-remove the four lines of comment within the OAI_CONFIG_LIST file
-add your own openai api-key <your OpenAI API key here>
+1) rename OAI_CONFIG_LIST_sample to OAI_CONFIG_LIST
+2) remove the four lines of comment within the OAI_CONFIG_LIST file
+3) add your own openai api-key <your OpenAI API key here>
 ```
 4. modify config_api_keys_sample file
 ```shell
-rename config_api_keys_sample to config_api_keys
-remove the comment within the config_api_keys file
-add your own finnhub-api "YOUR_FINNHUB_API_KEY"
-add your own financialmodelingprep and sec-api keys "YOUR_FMP_API_KEY" and "YOUR_SEC_API_KEY" (for financial report generation)
+1) rename config_api_keys_sample to config_api_keys
+2) remove the comment within the config_api_keys file
+3) add your own finnhub-api "YOUR_FINNHUB_API_KEY"
+4) add your own financialmodelingprep and sec-api keys "YOUR_FMP_API_KEY" and "YOUR_SEC_API_KEY" (for financial report generation)
 ```
-
-
+5. Run tutorials, use jupyter notebook navigate to the tutorials folder
+```shell
+in the beginning of the notebook write
+!pip install -e ..
+```
 
 
 ## AI Agent Papers

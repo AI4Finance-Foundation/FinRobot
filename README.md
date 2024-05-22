@@ -29,6 +29,43 @@
 <img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/06fa0b78-ac53-48d3-8a6e-98d15386327e" width="60%"/>
 </div>
 
+## File Structure
+
+The main folder **finrl** has three subfolders **agents, data_source, functional**. 
+
+```
+FinRobot
+├── finrobot (main folder)
+│   ├── agents
+│   	├── agent_library.py
+│   	└── data_agents.py
+│   ├── data_source
+│   	├── finnhub_utils.py
+│   	├── finnlp_utils.py
+│   	├── fmp_utils.py
+│   	├── sec_utils.py
+│   	└── yfinance_utils.py
+│   ├── functional
+│   	├── analyzer.py
+│   	├── charting.py
+│   	├── coding.py
+│   	├── quantitative.py
+│   	├── reportlab.py
+│   	└──  text.py
+│   ├── toolkits.py
+│   └── utils.py
+│
+├── examples
+├── tutorials (hands-on tutorial)
+│   ├── agent_annual_report.ipynb
+│   ├── agent_fingpt_forecaster.ipynb
+│   ├── agent_trade_strategist.ipynb
+│   ├── lmm_agent_mplfinance.ipynb
+│   └── lmm_agent_opt_smacross.ipynb
+├── setup.py
+├── requirements.txt
+└── README.md
+```
 
 ## AI Agent Papers
 

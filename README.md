@@ -95,19 +95,32 @@ FinRobot
 ```
 
 ## Installation:
+1. download the FinRobot repo use terminal or download it manually 
 ```shell
 git clone https://github.com/AI4Finance-Foundation/FinRobot.git
 ```
-
+2. install dependencies
 cd into this repository
 ```bash
 cd FinRobot
-```
-
-Dependencies
-```shell
 pip install -r requirements.txt
 ```
+3. modify OAI_CONFIG_LIST_sample file
+```shell
+rename OAI_CONFIG_LIST_sample to OAI_CONFIG_LIST
+remove the four lines of comment within the OAI_CONFIG_LIST file
+add your own openai api-key <your OpenAI API key here>
+```
+4. modify config_api_keys_sample file
+```shell
+rename config_api_keys_sample to config_api_keys
+remove the comment within the config_api_keys file
+add your own finnhub-api "YOUR_FINNHUB_API_KEY"
+add your own financialmodelingprep and sec-api keys "YOUR_FMP_API_KEY" and "YOUR_SEC_API_KEY" (for financial report generation)
+```
+
+
+
 
 ## AI Agent Papers
 

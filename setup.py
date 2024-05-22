@@ -10,10 +10,10 @@ except:
 
 setup(
     name="FinRobot",
-    version="0.0.1",
+    version="0.1.0",
     include_package_data=True,
     author="AI4Finance Foundation",
-    author_email="contact@ai4finance-foundation.org",
+    author_email="contact@ai4finance.org",
     url="https://github.com/AI4Finance-Foundation/FinRobot",
     license="MIT",
     packages=find_packages(),
@@ -31,6 +31,7 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: PyPy",
     ],

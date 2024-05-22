@@ -94,6 +94,11 @@ FinRobot
 └── README.md
 ```
 
+## Installation:
+```shell
+git clone https://github.com/AI4Finance-Foundation/FinRobot.git
+```
+
 ## AI Agent Papers
 
 + [Stanford University + Microsoft Research] [Agent AI: Surveying the Horizons of Multimodal Interaction](https://arxiv.org/abs/2401.03568)

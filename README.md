@@ -101,7 +101,7 @@ git clone https://github.com/AI4Finance-Foundation/FinRobot.git
 
 cd into this repository
 ```bash
-cd finrobot
+cd FinRobot
 ```
 
 Dependencies

@@ -51,7 +51,7 @@ FinRobot
 │   	├── coding.py
 │   	├── quantitative.py
 │   	├── reportlab.py
-│   	└──  text.py
+│   	└── text.py
 │   ├── toolkits.py
 │   └── utils.py
 │

@@ -120,7 +120,7 @@ pip install -r requirements.txt
 ```
 5. Run tutorials, use jupyter notebook navigate to the tutorials folder
 ```shell
-in the beginning of the notebook write
+1) in the beginning of the notebook write
 !pip install -e ..
 ```
 

@@ -99,6 +99,16 @@ FinRobot
 git clone https://github.com/AI4Finance-Foundation/FinRobot.git
 ```
 
+cd into this repository
+```bash
+cd finrobot
+```
+
+Dependencies
+```shell
+pip install -r requirements.txt
+```
+
 ## AI Agent Papers
 
 + [Stanford University + Microsoft Research] [Agent AI: Surveying the Horizons of Multimodal Interaction](https://arxiv.org/abs/2401.03568)

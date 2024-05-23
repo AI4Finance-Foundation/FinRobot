@@ -103,7 +103,7 @@ git clone https://github.com/AI4Finance-Foundation/FinRobot.git
 cd into this repository
 ```bash
 cd FinRobot
-pip install -e ..
+pip install FinRobot
 ```
 3. modify OAI_CONFIG_LIST_sample file
 ```shell

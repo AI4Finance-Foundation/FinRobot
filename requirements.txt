@@ -8,11 +8,13 @@ finnhub-python
 yfinance
 mplfinance
 backtrader
+sec_api
 
 # data handling
 numpy
 pandas
 pyPDF2
+reportlab
 
 # packaging
 setuptools>=41.4.0

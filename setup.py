@@ -10,7 +10,7 @@ except:
 
 setup(
     name="FinRobot",
-    version="0.1.2",
+    version="0.1.3",
     include_package_data=True,
     author="AI4Finance Foundation",
     author_email="contact@ai4finance.org",

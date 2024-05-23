@@ -21,7 +21,7 @@ def init_ticker(func: Callable) -> Callable:
 class YFinanceUtils:
 
     def get_stock_data(
-        ticker: Annotated[yf.Ticker, "Ticker object for the specified symbol"],
+        symbol: Annotated[str, "ticker symbol"],
         start_date: Annotated[
             str, "start date for retrieving stock price data, YYYY-mm-dd"
         ],
@@ -30,23 +30,26 @@ class YFinanceUtils:
         ],
         save_path: SavePathType = None,
     ) -> DataFrame:
+        ticker = symbol
         stock_data = ticker.history(start=start_date, end=end_date)
         save_output(stock_data, f"Stock data for {ticker.ticker}", save_path)
         return stock_data
 
     def get_stock_info(
-        ticker: Annotated[yf.Ticker, "Ticker object for the specified symbol"],
+        symbol: Annotated[str, "ticker symbol"],
     ) -> dict:
         """Fetches and returns stock information."""
+        ticker = symbol
         stock_info = ticker.info
         return stock_info
 
     def get_company_info(
         self,
-        ticker: Annotated[yf.Ticker, "Ticker object for the specified symbol"],
+        symbol: Annotated[str, "ticker symbol"],
         save_path: Optional[str] = None,
     ) -> DataFrame:
         """Fetches and returns company information as a DataFrame."""
+        ticker = symbol
         info = ticker.info
         company_info = {
             "Company Name": info.get("shortName", "N/A"),
@@ -63,41 +66,38 @@ class YFinanceUtils:
 
     def get_stock_dividends(
         self,
-        ticker: Annotated[yf.Ticker, "Ticker object for the specified symbol"],
+        symbol: Annotated[str, "ticker symbol"],
         save_path: Optional[str] = None,
     ) -> DataFrame:
         """Fetches and returns the dividends data as a DataFrame."""
+        ticker = symbol
         dividends = ticker.dividends
         if save_path:
             dividends.to_csv(save_path)
             print(f"Dividends for {ticker.ticker} saved to {save_path}")
         return dividends
 
-    def get_income_stmt(
-        ticker: Annotated[yf.Ticker, "Ticker object for the specified symbol"]
-    ) -> DataFrame:
+    def get_income_stmt(symbol: Annotated[str, "ticker symbol"]) -> DataFrame:
         """Fetches and returns the income statement of the company as a DataFrame."""
+        ticker = symbol
         income_stmt = ticker.financials
         return income_stmt
 
-    def get_balance_sheet(
-        ticker: Annotated[yf.Ticker, "Ticker object for the specified symbol"]
-    ) -> DataFrame:
+    def get_balance_sheet(symbol: Annotated[str, "ticker symbol"]) -> DataFrame:
         """Fetches and returns the balance sheet of the company as a DataFrame."""
+        ticker = symbol
         balance_sheet = ticker.balance_sheet
         return balance_sheet
 
-    def get_cash_flow(
-        ticker: Annotated[yf.Ticker, "Ticker object for the specified symbol"]
-    ) -> DataFrame:
+    def get_cash_flow(symbol: Annotated[str, "ticker symbol"]) -> DataFrame:
         """Fetches and returns the cash flow statement of the company as a DataFrame."""
+        ticker = symbol
         cash_flow = ticker.cashflow
         return cash_flow
 
-    def get_analyst_recommendations(
-        ticker: Annotated[yf.Ticker, "Ticker object for the specified symbol"]
-    ) -> tuple:
+    def get_analyst_recommendations(symbol: Annotated[str, "ticker symbol"]) -> tuple:
         """Fetches the latest analyst recommendations and returns the most common recommendation and its count."""
+        ticker = symbol
         recommendations = ticker.recommendations
         if recommendations.empty:
             return None, 0  # No recommendations available
@@ -113,5 +113,5 @@ class YFinanceUtils:
 
 
 if __name__ == "__main__":
-    # print(YFinanceUtils.get_stock_data("AAPL", "2021-01-01", "2021-12-31"))
-    print(YFinanceUtils.get_stock_info("AAPL"))
+    print(YFinanceUtils.get_stock_data("AAPL", "2021-01-01", "2021-12-31"))
+    # print(YFinanceUtils.get_stock_data())

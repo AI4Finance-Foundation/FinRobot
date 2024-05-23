@@ -150,7 +150,7 @@ check out the report folder for more examples
 Takes a company's ticker symbol, recent basic financials and market news as input and predict its stock movements.
 
 <div align="center">
-<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/812ec23a-9cb3-4fad-b716-78533ddcd9dc" width="60%"/>
+<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/812ec23a-9cb3-4fad-b716-78533ddcd9dc" width="40%"/>
 </div>
 
 ### 3. Trade Strategist Agent with multimodal capabilities

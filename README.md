@@ -127,14 +127,14 @@ pip install FinRobot
 
 ## Demos
 ### 1. Financial Analyst Agent for Report Writing (Equity Research Report)
-1. Gather Preliminary Data: 10-K report
-2. Analyze Financial Statements: balance sheet, income statement, cash flow
-3. Company Overview and Performance: company description, business highlights, segment analysis
-4. Risk Assessment: assess risks
-5. Financial Performance Visualization:  plot PE ratio and EPS
-6. Synthesize Findings into Paragraphs: combine all parts into a coherent summary
-7. Generate PDF Report: use tools to generate PDF automatically
-8. Quality Assurance: check word counts
+1. **Gather Preliminary Data**: 10-K report
+2. **Analyze Financial Statements**: balance sheet, income statement, cash flow
+3. **Company Overview and Performance**: company description, business highlights, segment analysis
+4. **Risk Assessment**: assess risks
+5. **Financial Performance Visualization**:  plot PE ratio and EPS
+6. **Synthesize Findings into Paragraphs**: combine all parts into a coherent summary
+7. **Generate PDF Report**: use tools to generate PDF automatically
+8. **Quality Assurance**: check word counts
 
 
 ## AI Agent Papers

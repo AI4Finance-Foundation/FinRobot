@@ -233,6 +233,6 @@ Takes a company's ticker symbol, recent basic financials and market news as inpu
 + [CAMEL (4.4k stars)](https://github.com/camel-ai/camel) is a framework that offers a comprehensive set of tools and algorithms for building multimodal AI Agents, enabling them to handle various data forms such as text, images, and speech.
 + [Langfuse (2.9k stars)](https://github.com/langfuse/langfuse) is a language fusion framework that can integrate the language abilities of multiple AI Agents, enabling them to simultaneously possess multilingual understanding and generation capabilities.
 
-**Disclaimer**: The codes and documents provided herein are released for academic purposes under the MIT education license. They should not be construed as financial counsel or recommendations for live trading. It is imperative to exercise caution and consult with qualified financial professionals prior to any trading or investment actions.
+**Disclaimer**: The codes and documents provided herein are released for academic purposes under the Apache-2.0 license. They should not be construed as financial counsel or recommendations for live trading. It is imperative to exercise caution and consult with qualified financial professionals prior to any trading or investment actions.
 
 

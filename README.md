@@ -136,6 +136,12 @@ pip install FinRobot
 7. **Generate PDF Report**: use tools to generate PDF automatically
 8. **Quality Assurance**: check word counts
 
+check out the report folder for more examples
+
+<div align="center">
+<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/43fa0f13-df3b-414e-a20d-d55023979c69" width="60%"/>
+</div>
+
 
 ## AI Agent Papers
 

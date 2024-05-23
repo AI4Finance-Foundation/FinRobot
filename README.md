@@ -139,8 +139,9 @@ pip install FinRobot
 check out the report folder for more examples
 
 <div align="center">
-<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/43fa0f13-df3b-414e-a20d-d55023979c69" width="60%"/>
+<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/d2d999e0-dc0e-4196-aca1-218f5fadcc5b" width="60%"/>
 </div>
+
 
 ### 2. Market Forecaster Agent (Predict Stock Movements Direction)
 Takes a company's ticker symbol, recent basic financials and market news as input and predict its stock movements.

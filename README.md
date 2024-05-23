@@ -119,11 +119,14 @@ pip install FinRobot
 4) add your own financialmodelingprep and sec-api keys "YOUR_FMP_API_KEY" and "YOUR_SEC_API_KEY" (for financial report generation)
 ```
 5. Run tutorials, use jupyter notebook navigate to the tutorials folder
-1) agent_annual_report.ipynb, use large language model as brain to generate reports such as equity research report
+```shell
+#run these notebooks
+1) agent_annual_report.ipynb
 2) agent_fingpt_forecaster.ipynb
 3) agent_trade_strategist.ipynb
 4) lmm_agent_mplfinance.ipynb
 5) lmm_agent_opt_smacross.ipynb
+```
 
 ## Demos
 ### 1. Financial Analyst Agent for Report Writing (Equity Research Report)

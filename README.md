@@ -129,6 +129,34 @@ pip install FinRobot
 5) lmm_agent_opt_smacross.ipynb
 ```
 
+### Example:
+1. Import 
+```python
+import autogen
+from finrobot.utils import get_current_date, register_keys_from_json
+from finrobot.agents.workflow import SingleAssistant
+```
+2. Config
+```python
+import autogen
+from finrobot.utils import get_current_date, register_keys_from_json
+from finrobot.agents.workflow import SingleAssistant
+```
+3. Run
+```python
+# Read OpenAI API keys from a JSON file
+llm_config = {
+    "config_list": autogen.config_list_from_json(
+        "../OAI_CONFIG_LIST",
+        filter_dict={"model": ["gpt-4-0125-preview"]},
+    ),
+    "timeout": 120,
+    "temperature": 0,
+}
+```
+
+# Register FINNHUB API keys
+register_keys_from_json("../config_api_keys")
 ## Demos
 ### 1. Financial Analyst Agent for Report Writing (Equity Research Report)
 Take a company's 10-k form, financial data as input and output an equity research report

@@ -81,9 +81,10 @@ FinRobot
 │
 ├── configs
 ├── experiments
-├── tutorials (hands-on tutorial)
-│   ├── agent_annual_report.ipynb
+├── tutorials_beginner (hands-on tutorial)
 │   ├── agent_fingpt_forecaster.ipynb
+├── tutorials_advanced (hands-on tutorial)
+│   ├── agent_annual_report.ipynb 
 │   ├── agent_trade_strategist.ipynb
 │   ├── lmm_agent_mplfinance.ipynb
 │   └── lmm_agent_opt_smacross.ipynb

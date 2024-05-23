@@ -1,3 +1,6 @@
+from finrobot.data_source import *
+from finrobot.functional import *
+
 library = [
     {
         "name": "Software_Developer",
@@ -6,7 +9,6 @@ library = [
     {
         "name": "Data_Analyst",
         "profile": "As a Data Analyst for this position, you must be adept at analyzing data using Python, completing tasks assigned by leaders or colleagues, and collaboratively solving problems in a group chat setting with professionals of various roles.",
-        
     },
     {
         "name": "Programmer",
@@ -31,6 +33,32 @@ library = [
     {
         "name": "Financial_Analyst",
         "profile": "As a Financial Analyst, one must possess strong analytical and problem-solving abilities, be proficient in Python for data analysis, have excellent communication skills to collaborate effectively in group chats, and be capable of completing assignments delegated by leaders or colleagues.",
-    }
+    },
+    {
+        "name": "Market_Analyst",
+        "profile": "As a Market Analyst, one must possess strong analytical and problem-solving abilities, collect necessary financial information and aggregate them based on client's requirement. For coding tasks, only use the functions you have been provided with. Reply TERMINATE when the task is done.",
+        "toolkits": [
+            {
+                "function": FinnHubUtils.get_company_profile,
+                "name": "get_company_profile",
+                "description": "get a company's profile information",
+            },
+            {
+                "function": FinnHubUtils.get_company_news,
+                "name": "get_company_news",
+                "description": "retrieve market news related to designated company",
+            },
+            {
+                "function": FinnHubUtils.get_basic_financials,
+                "name": "get_financial_basics",
+                "description": "get latest financial basics for a designated company",
+            },
+            {
+                "function": YFinanceUtils.get_stock_data,
+                "name": "get_stock_data",
+                "description": "retrieve stock price data for designated ticker symbol",
+            },
+        ],
+    },
 ]
-library = {d.pop("name"): d for d in library}
+library = {d["name"]: d for d in library}

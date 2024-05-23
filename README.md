@@ -130,6 +130,7 @@ pip install FinRobot
 
 ## Demos
 ### 1. Financial Analyst Agent for Report Writing (Equity Research Report)
+Take a company's 10-k form, financial data as input and output an equity research report
 1. **Gather Preliminary Data**: 10-K report
 2. **Analyze Financial Statements**: balance sheet, income statement, cash flow
 3. **Company Overview and Performance**: company description, business highlights, segment analysis

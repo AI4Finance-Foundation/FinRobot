@@ -103,7 +103,7 @@ git clone https://github.com/AI4Finance-Foundation/FinRobot.git
 cd into this repository
 ```bash
 cd FinRobot
-pip install -r requirements.txt
+pip install -e ..
 ```
 3. modify OAI_CONFIG_LIST_sample file
 ```shell
@@ -120,8 +120,6 @@ pip install -r requirements.txt
 ```
 5. Run tutorials, use jupyter notebook navigate to the tutorials folder
 ```shell
-1) in the beginning of the notebook write
-!pip install -e ..
 ```
 
 

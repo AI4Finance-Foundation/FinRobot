@@ -138,6 +138,7 @@ from finrobot.agents.workflow import SingleAssistant
 ```
 2. Config
 ```python
+# Read OpenAI API keys from a JSON file
 llm_config = {
     "config_list": autogen.config_list_from_json(
         "../OAI_CONFIG_LIST",
@@ -146,6 +147,9 @@ llm_config = {
     "timeout": 120,
     "temperature": 0,
 }
+
+# Register FINNHUB API keys
+register_keys_from_json("../config_api_keys")
 ```
 3. Run
 ```python
@@ -164,8 +168,6 @@ assitant.chat(
 )
 ```
 
-# Register FINNHUB API keys
-register_keys_from_json("../config_api_keys")
 ## Demos
 ### 1. Financial Analyst Agent for Report Writing (Equity Research Report)
 Take a company's 10-k form, financial data as input and output an equity research report

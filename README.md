@@ -156,7 +156,7 @@ register_keys_from_json("../config_api_keys")
 ```
 3. Run
 ```python
-company = "AAPL"
+company = "NVDA"
 
 assitant = SingleAssistant(
     "Market_Analyst",
@@ -176,8 +176,67 @@ assitant.chat(
 <img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/9a2f9f48-b0e1-489c-8679-9a4c530f313c" width="41%"/>
 </div>
 
-## Demos
-### 1. Financial Analyst Agent for Report Writing (Equity Research Report)
+### 2. Financial Analyst Agent for Report Writing (Equity Research Report)
+1. Import 
+```python
+import os
+import autogen
+from textwrap import dedent
+from finrobot.utils import register_keys_from_json
+from finrobot.agents.workflow import SingleAssistantShadow
+```
+2. Config
+```python
+llm_config = {
+    "config_list": autogen.config_list_from_json(
+        "../OAI_CONFIG_LIST",
+        filter_dict={
+            "model": ["gpt-4-0125-preview"],
+        },
+    ),
+    "timeout": 120,
+    "temperature": 0.5,
+}
+register_keys_from_json("../config_api_keys")
+
+# Intermediate strategy modules will be saved in this directory
+work_dir = "../report"
+os.makedirs(work_dir, exist_ok=True)
+
+assistant = SingleAssistantShadow(
+    "Expert_Investor",
+    llm_config,
+    max_consecutive_auto_reply=None,
+    human_input_mode="TERMINATE",
+)
+
+```
+3. Run
+```python
+company = "Microsoft"
+fyear = "2023"
+
+message = dedent(
+    f"""
+    With the tools you've been provided, write an annual report based on {company}'s {fyear} 10-k report, format it into a pdf.
+    Pay attention to the followings:
+    - Explicitly explain your working plan before you kick off.
+    - Use tools one by one for clarity, especially when asking for instructions. 
+    - All your file operations should be done in "{work_dir}". 
+    - Display any image in the chat once generated.
+    - All the paragraphs should combine between 400 and 450 words, don't generate the pdf until this is explicitly fulfilled.
+"""
+)
+
+assistant.chat(message, use_cache=True, max_turns=50,
+               summary_method="last_msg")
+```
+4. Result
+<div align="center">
+<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/d2d999e0-dc0e-4196-aca1-218f5fadcc5b" width="60%"/>
+</div>
+
+**Financial CoT**:
 Take a company's 10-k form, financial data as input and output an equity research report
 1. **Gather Preliminary Data**: 10-K report
 2. **Analyze Financial Statements**: balance sheet, income statement, cash flow
@@ -187,21 +246,6 @@ Take a company's 10-k form, financial data as input and output an equity researc
 6. **Synthesize Findings into Paragraphs**: combine all parts into a coherent summary
 7. **Generate PDF Report**: use tools to generate PDF automatically
 8. **Quality Assurance**: check word counts
-
-check out the report folder for more examples
-
-<div align="center">
-<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/d2d999e0-dc0e-4196-aca1-218f5fadcc5b" width="60%"/>
-</div>
-
-
-### 2. Market Forecaster Agent (Predict Stock Movements Direction)
-Takes a company's ticker symbol, recent basic financials and market news as input and predict its stock movements.
-
-<div align="center">
-<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/812ec23a-9cb3-4fad-b716-78533ddcd9dc" width="40%"/>
-<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/9a2f9f48-b0e1-489c-8679-9a4c530f313c" width="41%"/>
-</div>
 
 ### 3. Trade Strategist Agent with multimodal capabilities
 

@@ -83,8 +83,8 @@ FinRobot
 ├── experiments
 ├── tutorials_beginner (hands-on tutorial)
 │   ├── agent_fingpt_forecaster.ipynb
+│   └── agent_annual_report.ipynb 
 ├── tutorials_advanced (hands-on tutorial)
-│   ├── agent_annual_report.ipynb 
 │   ├── agent_trade_strategist.ipynb
 │   ├── lmm_agent_mplfinance.ipynb
 │   └── lmm_agent_opt_smacross.ipynb
@@ -129,7 +129,10 @@ pip install FinRobot
 5) lmm_agent_opt_smacross.ipynb
 ```
 
-### Example:
+## Demos
+### 1. Market Forecaster Agent (Predict Stock Movements Direction)
+Takes a company's ticker symbol, recent basic financials, and market news as input and predicts its stock movements.
+
 1. Import 
 ```python
 import autogen
@@ -167,6 +170,11 @@ assitant.chat(
     f"Then make a rough prediction (e.g. up/down by 2-3%) of the {company} stock price movement for next week. Provide a summary analysis to support your prediction."
 )
 ```
+4. Result
+<div align="center">
+<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/812ec23a-9cb3-4fad-b716-78533ddcd9dc" width="40%"/>
+<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/9a2f9f48-b0e1-489c-8679-9a4c530f313c" width="41%"/>
+</div>
 
 ## Demos
 ### 1. Financial Analyst Agent for Report Writing (Equity Research Report)

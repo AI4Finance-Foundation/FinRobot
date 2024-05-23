@@ -142,6 +142,15 @@ check out the report folder for more examples
 <img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/43fa0f13-df3b-414e-a20d-d55023979c69" width="60%"/>
 </div>
 
+### 2. Market Forecaster Agent (Predict Stock Movements Direction)
+Takes a company's ticker symbol, recent basic financials and market news as input and predict its stock movements.
+
+<div align="center">
+<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/812ec23a-9cb3-4fad-b716-78533ddcd9dc" width="60%"/>
+</div>
+
+### 3. Trade Strategist Agent with multimodal capabilities
+
 
 ## AI Agent Papers
 

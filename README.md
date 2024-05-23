@@ -238,7 +238,7 @@ assistant.chat(message, use_cache=True, max_turns=50,
 
 **Financial CoT**:
 Take a company's 10-k form, financial data as input and output an equity research report
-1. **Gather Preliminary Data**: 10-K report
+1. **Gather Preliminary Data**: 10-K report, market data, financial ratios
 2. **Analyze Financial Statements**: balance sheet, income statement, cash flow
 3. **Company Overview and Performance**: company description, business highlights, segment analysis
 4. **Risk Assessment**: assess risks

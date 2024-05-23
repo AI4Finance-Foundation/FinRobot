@@ -11,3 +11,4 @@ coding/
 *.egg-info/
 .DS_Store
 projects/
+dist/

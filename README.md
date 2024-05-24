@@ -62,7 +62,7 @@ FinRobot
 ├── finrobot (main folder)
 │   ├── agents
 │   	├── agent_library.py
-│   	└── data_agents.py
+│   	└── workflow.py
 │   ├── data_source
 │   	├── finnhub_utils.py
 │   	├── finnlp_utils.py
@@ -86,6 +86,8 @@ FinRobot
 │   └── agent_annual_report.ipynb 
 ├── tutorials_advanced (hands-on tutorial)
 │   ├── agent_trade_strategist.ipynb
+│   ├── agent_fingpt_forecaster.ipynb
+│   ├── agent_annual_report.ipynb 
 │   ├── lmm_agent_mplfinance.ipynb
 │   └── lmm_agent_opt_smacross.ipynb
 ├── setup.py
@@ -96,15 +98,24 @@ FinRobot
 ```
 
 ## Installation:
-1. download the FinRobot repo use terminal or download it manually 
+1. (Recommended) Create a new virtual environment
+```shell
+conda create --name finrobot python=3.10
+conda activate finrobot
+```
+2. download the FinRobot repo use terminal or download it manually 
 ```shell
 git clone https://github.com/AI4Finance-Foundation/FinRobot.git
-```
-2. install dependencies
-cd into this repository
-```bash
 cd FinRobot
-pip install FinRobot
+```
+2. install finrobot & dependencies from source or pypi
+from pypi you get our latest release
+```bash
+pip install -U finrobot
+```
+or you can install from this repo directly
+```
+pip install -e .
 ```
 3. modify OAI_CONFIG_LIST_sample file
 ```shell
@@ -118,15 +129,6 @@ pip install FinRobot
 2) remove the comment within the config_api_keys file
 3) add your own finnhub-api "YOUR_FINNHUB_API_KEY"
 4) add your own financialmodelingprep and sec-api keys "YOUR_FMP_API_KEY" and "YOUR_SEC_API_KEY" (for financial report generation)
-```
-5. Run tutorials, use jupyter notebook navigate to the tutorials folder
-```shell
-#run these notebooks
-1) agent_annual_report.ipynb
-2) agent_fingpt_forecaster.ipynb
-3) agent_trade_strategist.ipynb
-4) lmm_agent_mplfinance.ipynb
-5) lmm_agent_opt_smacross.ipynb
 ```
 
 ## Demos

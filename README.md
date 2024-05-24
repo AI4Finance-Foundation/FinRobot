@@ -17,6 +17,8 @@
 
 **Concept of AI Agent**: an AI Agent is an intelligent entity that uses large language models as its brain to perceive its environment, make decisions, and execute actions. Unlike traditional artificial intelligence, AI Agents possess the ability to independently think and utilize tools to progressively achieve given objectives.
 
+[Whitepaper of FinRobot](https://arxiv.org/abs/2405.14767)
+
 [![](https://dcbadge.vercel.app/api/server/trsr8SXpW5)](https://discord.gg/trsr8SXpW5)
 
 ## FinRobot Ecosystem

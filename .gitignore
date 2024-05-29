@@ -12,3 +12,4 @@ coding/
 .DS_Store
 projects/
 dist/
+tmp/

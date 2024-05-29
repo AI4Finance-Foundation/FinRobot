@@ -15,6 +15,7 @@ numpy
 pandas
 pyPDF2
 reportlab
+pyautogen[retrievechat]
 
 # packaging
 setuptools>=41.4.0
@@ -22,5 +23,4 @@ wheel>=0.33.6
 
 # historical data
 tushare
-
 pandas_datareader

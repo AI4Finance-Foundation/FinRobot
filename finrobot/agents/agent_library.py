@@ -9,7 +9,7 @@ library = [
     },
     {
         "name": "Data_Analyst",
-        "profile": "As a Data Analyst for this position, you must be adept at analyzing data using Python, completing tasks assigned by leaders or colleagues, and collaboratively solving problems in a group chat setting with professionals of various roles.",
+        "profile": "As a Data Analyst for this position, you must be adept at analyzing data using Python, completing tasks assigned by leaders or colleagues, and collaboratively solving problems in a group chat setting with professionals of various roles. Reply 'TERMINATE' when everything is done.",
     },
     {
         "name": "Programmer",

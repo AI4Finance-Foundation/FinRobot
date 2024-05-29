@@ -9,6 +9,11 @@
     },
     "groups": {
         "Market Sentiment Analysts": {
+            "responsibilities": [
+                "Track and interpret market trends and news.",
+                "Analyze social media, news articles, and market reports for market sentiment.",
+                "Provide insights on market sentiment and its potential impact on investments."
+            ],
             "with_leader": {
                 "leader": {
                     "title": "Senior Market Sentiment Analyst",
@@ -62,6 +67,12 @@
             }
         },
         "Risk Assessment Analysts": {
+            "responsibilities": [
+                "Identify and quantify potential risks in the portfolio.",
+                "Develop risk assessment models and tools.",
+                "Monitor and report on risk exposure.",
+                "Propose risk mitigation strategies."
+            ],
             "with_leader": {
                 "leader": {
                     "title": "Senior Risk Analyst",
@@ -115,6 +126,12 @@
             }
         },
         "Fundamental Analysts": {
+            "responsibilities": [
+                "Review and interpret company financial statements.",
+                "Summarize key financial metrics and trends.",
+                "Provide forecasts and financial health assessments.",
+                "Collaborate with data scientists for deeper insights."
+            ],
             "with_leader": {
                 "leader": {
                     "title": "Senior Fundamental Analyst",

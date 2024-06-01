@@ -4,7 +4,11 @@ import autogen
 from autogen.cache import Cache
 
 # from finrobot.utils import create_inner_assistant
-
+from finrobot.agents.prompts import (
+    leader_system_message,
+    role_system_message,
+    order_template,
+)
 from functools import partial
 from textwrap import dedent
 
@@ -19,61 +23,6 @@ llm_config = {
     "cache_seed": 42,
     "temperature": 0,
 }
-
-leader_system_message = dedent(
-    """
-    You are the leader of the following group members:
-    
-    {group_desc}
-    
-    As a group leader, you are responsible for coordinating the team's efforts to achieve the project's objectives. You must ensure that the team is working together effectively and efficiently. 
-    
-    Summarize the status of the whole project progess every time you respond, and assign task to one of the group members to progress the project. 
-    
-    Orders should follow the format: \"[<name of staff>] <order>\" and appear at the end of your response.
-
-    After receiving feedback from the team members, check the progress of the task, and make sure the task is well completed before proceding to th next order.
-
-    Reply "TERMINATE" in the end when everything is done.
-    """
-)
-role_system_message = dedent(
-    """
-    As a {title}, your reponsibilities are as follows:
-    {responsibilities}
-
-    Reply "TERMINATE" in the end when everything is done.
-    """
-)
-order_template = dedent(
-    """
-    Follow leader's order and complete the following task with your group members:
-
-    {order}
-
-    For coding tasks, provide python scripts and executor will run it for you.
-    Save your results or any intermediate data locally and let group leader know how to read them.
-    DO NOT include "TERMINATE" in your response until you have received the results from the execution of the Python scripts.
-    If the task cannot be done currently or need assistance from other members, report the reasons or requirements to group leader ended with TERMINATE. 
-"""
-)
-
-
-def order_trigger(sender, name, pattern):
-    # print(pattern)
-    # print(sender.name)
-    return sender.name == name and pattern in sender.last_message()["content"]
-
-
-def order_message(pattern, recipient, messages, sender, config):
-    full_order = recipient.chat_messages_for_summary(sender)[-1]["content"]
-    pattern = rf"\[{pattern}\](?::)?\s*(.+?)(?=\n\[|$)"
-    match = re.search(pattern, full_order, re.DOTALL)
-    if match:
-        order = match.group(1).strip()
-    else:
-        order = full_order
-    return order_template.format(order=order)
 
 
 group_config = json.load(open("investment_group.json"))
@@ -90,10 +39,6 @@ user_proxy = autogen.UserProxyAgent(
         "use_docker": False,
     },
 )
-
-
-def concat(responsiblities):
-    return "\n".join([f" - {r}" for r in responsiblities])
 
 
 with_leader_config = {

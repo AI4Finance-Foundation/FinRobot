@@ -2,6 +2,13 @@ from .agent_library import library
 from typing import Any, Callable, Dict, List, Optional, Annotated
 import autogen
 from autogen.cache import Cache
+from autogen import (
+    ConversableAgent,
+    AssistantAgent,
+    UserProxyAgent,
+    GroupChat,
+    GroupChatManager,
+)
 from autogen.agentchat.contrib.retrieve_user_proxy_agent import RetrieveUserProxyAgent
 
 # from autogen.agentchat.contrib.retrieve_assistant_agent import RetrieveAssistantAgent
@@ -13,16 +20,17 @@ from .utils import *
 from .prompts import leader_system_message, role_system_message
 
 
-class FinRobot(autogen.AssistantAgent):
+class FinRobot(AssistantAgent):
 
     def __init__(
         self,
         agent_config: str | Dict[str, Any],
         system_message: str | None = None,  # overwrites previous config
         toolkits: List[Callable | dict | type] = [],  # overwrites previous config
-        proxy: autogen.UserProxyAgent | None = None,
+        proxy: UserProxyAgent | None = None,
         **kwargs,
     ):
+        orig_name = ""
         if isinstance(agent_config, str):
             orig_name = agent_config
             name = orig_name.replace("_Shadow", "")
@@ -32,29 +40,31 @@ class FinRobot(autogen.AssistantAgent):
         agent_config = self._preprocess_config(agent_config)
 
         assert agent_config, f"agent_config is required."
-        assert name in agent_config, f"name needs to be in config."
+        assert agent_config.get("name", ""), f"name needs to be in config."
 
-        name = agent_config["name"]
+        name = orig_name if orig_name else agent_config["name"]
         default_system_message = agent_config.get("profile", None)
         default_toolkits = agent_config.get("toolkits", [])
 
         system_message = system_message or default_system_message
         self.toolkits = toolkits or default_toolkits
 
-        super().__init__(orig_name, system_message, **kwargs)
+        super().__init__(
+            name, system_message, description=agent_config["description"], **kwargs
+        )
 
         if proxy is not None:
-            self.register_toolkits(proxy)
+            self.register_proxy(proxy)
 
     def _preprocess_config(self, config):
 
-        role_prompt, leader_prompt = "", ""
+        role_prompt, leader_prompt, responsibilities = "", "", ""
 
-        if "reponsibilities" in config:
+        if "responsibilities" in config:
             title = config["title"] if "title" in config else config.get("name", "")
             if "name" not in config:
                 config["name"] = config["title"]
-            responsibilities = config["reponsibilities"]
+            responsibilities = config["responsibilities"]
             responsibilities = (
                 "\n".join([f" - {r}" for r in responsibilities])
                 if isinstance(responsibilities, list)
@@ -64,6 +74,14 @@ class FinRobot(autogen.AssistantAgent):
                 title=title,
                 responsibilities=responsibilities,
             )
+
+        name = config.get("name", "")
+        description = (
+            f"Name: {name}\nResponsibility:\n{responsibilities}"
+            if responsibilities
+            else f"Name: {name}"
+        )
+        config["description"] = description.strip()
 
         if "group_desc" in config:
             group_desc = config["group_desc"]
@@ -118,7 +136,7 @@ class SingleAssistant(SingleAssistantBase):
         **kwargs,
     ):
         super().__init__(agent_config, llm_config=llm_config)
-        self.user_proxy = autogen.UserProxyAgent(
+        self.user_proxy = UserProxyAgent(
             name="User_Proxy",
             is_termination_msg=is_termination_msg,
             human_input_mode=human_input_mode,
@@ -255,8 +273,11 @@ class MultiAssistantBase(ABC):
     def __init__(
         self,
         group_config: str | dict,
-        agent_configs: List[Dict[str, Any] | str] = [],  # overwrites previous config
+        agent_configs: List[
+            Dict[str, Any] | str | ConversableAgent
+        ] = [],  # overwrites previous config
         llm_config: Dict[str, Any] = {},
+        user_proxy: UserProxyAgent | None = None,
         is_termination_msg=lambda x: x.get("content", "")
         and x.get("content", "").endswith("TERMINATE"),
         human_input_mode="NEVER",
@@ -269,43 +290,47 @@ class MultiAssistantBase(ABC):
     ):
         self.group_config = group_config
         self.llm_config = llm_config
-        self.user_proxy = autogen.UserProxyAgent(
-            name="User_Proxy",
-            is_termination_msg=is_termination_msg,
-            human_input_mode=human_input_mode,
-            max_consecutive_auto_reply=max_consecutive_auto_reply,
-            code_execution_config=code_execution_config,
-            **kwargs,
-        )
-        self.agent_configs = group_config.get("agents", []) or agent_configs
+        if user_proxy is None:
+            self.user_proxy = UserProxyAgent(
+                name="User_Proxy",
+                is_termination_msg=is_termination_msg,
+                human_input_mode=human_input_mode,
+                max_consecutive_auto_reply=max_consecutive_auto_reply,
+                code_execution_config=code_execution_config,
+                **kwargs,
+            )
+        else:
+            self.user_proxy = user_proxy
+        self.agent_configs = agent_configs or group_config.get("agents", [])
         assert self.agent_configs, f"agent_configs is required."
         self.agents = []
         self._init_agents()
         self.representative = self._get_representative()
 
-    @abstractmethod
     def _init_single_agent(self, agent_config):
-        return FinRobot(
-            self._preprocess_config(agent_config),
-            llm_config=self.llm_config,
-            proxy=self.user_proxy,
-        )
+        if isinstance(agent_config, ConversableAgent):
+            return agent_config
+        else:
+            return FinRobot(
+                agent_config,
+                llm_config=self.llm_config,
+                proxy=self.user_proxy,
+            )
 
-    @abstractmethod
-    def _init_agents(self, agent_configs):
+    def _init_agents(self):
 
         agent_dict = defaultdict(list)
-        for c in enumerate(agent_configs):
+        for c in self.agent_configs:
             agent = self._init_single_agent(c)
             agent_dict[agent.name].append(agent)
 
         # add index indicator for duplicate name/title
         for name, agent_list in agent_dict.items():
-            if len(agent) == 1:
+            if len(agent_list) == 1:
                 self.agents.append(agent_list[0])
                 continue
             for idx, agent in enumerate(agent_list):
-                agent.name = f"{name}_{idx+1}"
+                agent._name = f"{name}_{idx+1}"
                 self.agents.append(agent)
 
     @abstractmethod
@@ -316,7 +341,6 @@ class MultiAssistantBase(ABC):
     def chat(self):
         pass
 
-    @abstractmethod
     def reset(self):
         self.user_proxy
         for agent in self.agents:
@@ -330,9 +354,10 @@ class MultiAssistant(MultiAssistantBase):
 
     def __init__(
         self,
-        group_name: str,
-        agent_configs: List[Dict[str, Any] | str],
-        llm_config: Dict[str, Any],
+        group_config: str | dict,
+        agent_configs: List[Dict[str, Any] | str | ConversableAgent] = [],
+        llm_config: Dict[str, Any] = {},
+        user_proxy: UserProxyAgent | None = None,
         is_termination_msg=lambda x: x.get("content", "")
         and x.get("content", "").endswith("TERMINATE"),
         human_input_mode="NEVER",
@@ -343,9 +368,10 @@ class MultiAssistant(MultiAssistantBase):
     ):
         self.speaker_selection_method = speaker_selection_method
         super().__init__(
-            group_name,
+            group_config,
             agent_configs,
             llm_config,
+            user_proxy,
             is_termination_msg,
             human_input_mode,
             max_consecutive_auto_reply,
@@ -354,13 +380,13 @@ class MultiAssistant(MultiAssistantBase):
         )
 
     def _get_representative(self):
-        self.group_chat = autogen.GroupChat(
+        self.group_chat = GroupChat(
             self.agents + [self.user_proxy],
             messages=[],
             speaker_selection_method=self.speaker_selection_method,
         )
         manager_name = (self.group_config.get("name", "") + "_chat_manager").strip("_")
-        manager = autogen.GroupChatManager(
+        manager = GroupChatManager(
             self.group_chat, name=manager_name, llm_config=self.llm_config
         )
         return manager
@@ -412,16 +438,22 @@ class MultiAssistantWithLeader(MultiAssistant):
         ), "At least one agent has to be defined in the group config."
 
         # We consider only two situations for now: all same name / title or all different
-        need_suffix = len(set([c["title"] for c in self.agent_configs])) == 1
+        need_suffix = (
+            len(set([c["title"] for c in self.agent_configs if isinstance(c, dict)]))
+            == 1
+        )
 
         group_desc = ""
         for i, c in enumerate(self.agent_configs):
-            name = c["title"] if "title" in c else c.get("name", "")
-            name = name + (f"_{i+1}" if need_suffix else "")
-            responsibilities = (
-                "\n".join([f" - {r}" for r in c.get("responsibilities", [])]),
-            )
-            group_descs += f"Name: {name}\nResponsibility:\n{responsibilities}\n\n"
+            if isinstance(c, ConversableAgent):
+                group_desc += c.description + "\n\n"
+            else:
+                name = c["title"] if "title" in c else c.get("name", "")
+                name = name + (f"_{i+1}" if need_suffix else "")
+                responsibilities = (
+                    "\n".join([f" - {r}" for r in c.get("responsibilities", [])]),
+                )
+                group_desc += f"Name: {name}\nResponsibility:\n{responsibilities}\n\n"
 
         self.leader_config = self.group_config["leader"]
         self.leader_config["group_desc"] = group_desc.strip()

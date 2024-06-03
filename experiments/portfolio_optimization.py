@@ -1,9 +1,11 @@
-import re
 import json
 import autogen
-from autogen.cache import Cache
 from finrobot.agents.workflow import MultiAssistant, MultiAssistantWithLeader
+from finrobot.functional import get_rag_function
+from finrobot.utils import register_keys_from_json
 from textwrap import dedent
+from autogen import register_function
+from investment_group import group_config
 
 
 llm_config = {
@@ -17,8 +19,9 @@ llm_config = {
     "temperature": 0,
 }
 
+register_keys_from_json("../config_api_keys")
 
-group_config = json.load(open("investment_group.json"))
+# group_config = json.load(open("investment_group.json"))
 
 user_proxy = autogen.UserProxyAgent(
     name="User",
@@ -33,6 +36,15 @@ user_proxy = autogen.UserProxyAgent(
     },
 )
 
+rag_func = get_rag_function(
+    retrieve_config={
+        "task": "qa",
+        "docs_path": "https://www.sec.gov/Archives/edgar/data/1737806/000110465923049927/pdd-20221231x20f.htm",
+        "chunk_token_size": 1000,
+        "collection_name": "pdd2022",
+        "get_or_create": True,
+    },
+)
 
 with_leader_config = {
     "Market Sentiment Analysts": True,
@@ -58,6 +70,14 @@ for group_name, single_group_config in group_config["groups"].items():
             group_members, llm_config=llm_config, user_proxy=user_proxy
         )
 
+    for agent in group.agents:
+        register_function(
+            rag_func,
+            caller=agent,
+            executor=group.user_proxy,
+            description="retrieve content from PDD's 2022 20-F Sec Filing for QA",
+        )
+
     representatives.append(group.representative)
 
 
@@ -69,84 +89,82 @@ main_group = MultiAssistantWithLeader(
 
 task = dedent(
     """
-    As the Chief Investment Officer, your task is to optimize our current investment portfolio based on the latest annual reports. This will involve coordinating with the Market Sentiment Analysts, Risk Assessment Analysts, and Fundamental Analysts to gather and analyze the relevant data. The goal is to ensure our portfolio is well-positioned for growth while managing risks effectively.
+    Subject: Evaluate Investment Potential and Determine 6-Month Target Price for Pinduoduo (PDD)
 
-    Specific Steps:
+    Task Description:
 
-    [Review New Annual Reports]:
-    Collect the latest annual reports from companies within our portfolio and potential new investments.
+    Today is 2023-04-26. As the Chief Investment Officer, your task is to evaluate the potential investment in Pinduoduo (PDD) based on the newly released 2022 annual report and recent market news. You will need to coordinate with the Market Sentiment Analysts, Risk Assessment Analysts, and Fundamental Analysts to gather and analyze the relevant information. Your final deliverable should include a comprehensive evaluation, a 6-month target price for PDD's stock, and a recommendation on whether to invest in Pinduoduo. 
 
-    [Coordinate with Market Sentiment Analysts]:
-    Task: Analyze the market sentiment for these companies based on recent trends and news.
-    Deliverable: Provide a comprehensive report on market sentiment and investor behavior for each company.
+    Notes:
 
-    [Coordinate with Risk Assessment Analysts]:
-    Task: Evaluate the risks associated with each company and their sectors.
-    Deliverable: Develop a risk assessment report highlighting potential risks and proposed mitigation strategies.
+    All members in your group should be informed:
+    - Do not use any data after 2023-04-26, which is cheating.
 
-    [Coordinate with Fundamental Analysts]:
-    Task: Perform a detailed financial analysis of each company, including key financial metrics, trends, and forecasts.
-    Deliverable: Provide a summary of financial health and growth prospects for each company.
-    
-    [Integrate Findings]:
-    Combine insights from all three groups to get a holistic view of each company’s potential.
-    Evaluate how these insights impact our current portfolio and identify any necessary adjustments.
-    
-    [Optimize Portfolio]:
-    Based on the integrated analysis, recommend adjustments to the portfolio.
-    Ensure the portfolio is balanced, with an optimal mix of high-growth, stable, and low-risk investments.
-
-    [Report and Implement]:
-    Present your final recommendations and the rationale behind them.
-    Oversee the implementation of the approved portfolio adjustments.
-
-    [Expected Outcome]:
-    A revised portfolio that leverages the latest financial insights and market sentiment to maximize growth and manage risks effectively.
-
-    If you have any questions or need additional resources, please let me know.
-"""
-)
-
-task = dedent(
-    """
-    As the Chief Investment Officer, your task is to evaluate the potential investment in Company ABC based on the provided data. You will need to coordinate with the Market Sentiment Analysts, Risk Assessment Analysts, and Fundamental Analysts to gather and analyze the relevant information. Your final deliverable should include a comprehensive evaluation and a recommendation on whether to invest in Company ABC.
 
     Specific Instructions:
+
+    [Coordinate with Market Sentiment Analysts]:
+    Task: Analyze recent market sentiment surrounding PDD based on social media, news articles, and investor behavior.
+    Deliverable: Provide a sentiment score based on positive and negative mentions in the past few months.
     
-    Coordinate with Market Sentiment Analysts:
+    [Coordinate with Risk Assessment Analysts]:
+    Task: Assess the financial and operational risks highlighted in PDD's 2022 annual report (Form 20-F).
+    Deliverable: Provide a risk score considering factors such as debt levels, liquidity, market volatility, regulatory risks, and any legal proceedings.
 
-    Task: Calculate the sentiment score based on the provided market sentiment data.
-    Data: Positive mentions (80), Negative mentions (20)
-    Formula: Sentiment Score = (Positive Mentions - Negative Mentions) / Total Mentions
-    Expected Output: Sentiment Score (percentage)
-    
-    Coordinate with Risk Assessment Analysts:
+    [Coordinate with Fundamental Analysts]:
+    Task: Perform a detailed analysis of PDD's financial health based on the 2022 annual report.
+    Deliverable: Calculate key financial metrics such as Profit Margin, Return on Assets (ROA), and other relevant ratios.
 
-    Task: Calculate the risk score using the provided financial ratios.
-    Data:
-    Debt-to-Equity Ratio: 1.5
-    Current Ratio: 2.0
-    Return on Equity (ROE): 0.1 (10%)
-    Weights: Debt-to-Equity (0.5), Current Ratio (0.3), ROE (0.2)
-    Formula: Risk Score = 0.5 * Debt-to-Equity + 0.3 * (1 / Current Ratio) - 0.2 * ROE
-    Expected Output: Risk Score
+    [Determine 6-Month Target Price]:
+    Task: Based on the integrated analysis from all three groups, calculate a 6-month target price for PDD's stock.
+    Considerations: Current stock price, market sentiment, risk assessment, and financial health as indicated in the annual report.
 
-    Coordinate with Fundamental Analysts:
-
-    Task: Calculate the Profit Margin and Return on Assets (ROA) based on the provided financial data.
-    Data:
-    Revenue: $1,000,000
-    Net Income: $100,000
-    Total Assets: $500,000
-    Formulas:
-    Profit Margin = (Net Income / Revenue) * 100
-    ROA = (Net Income / Total Assets) * 100
-    Expected Outputs: Profit Margin (percentage) and ROA (percentage)
-    
-    Final Deliverable:
-    Integrate Findings: Compile the insights from all three groups to get a holistic view of Company ABC's potential.
-    Evaluation and Recommendation: Based on the integrated analysis, provide a recommendation on whether to invest in Company ABC, including the rationale behind your decision.
-"""
+    [Final Deliverable]:
+    Integrate Findings: Compile the insights from all three groups to get a holistic view of Pinduoduo's potential.
+    Evaluation and 6-Month Target Price: Provide a 6-month target price for PDD's stock and a recommendation on whether to invest in Pinduoduo, including the rationale behind your decision.
+    """
 )
+
+# task = dedent(
+#     """
+#     As the Chief Investment Officer, your task is to evaluate the potential investment in Company ABC based on the provided data. You will need to coordinate with the Market Sentiment Analysts, Risk Assessment Analysts, and Fundamental Analysts to gather and analyze the relevant information. Your final deliverable should include a comprehensive evaluation and a recommendation on whether to invest in Company ABC.
+
+#     Specific Instructions:
+
+#     Coordinate with Market Sentiment Analysts:
+
+#     Task: Calculate the sentiment score based on the provided market sentiment data.
+#     Data: Positive mentions (80), Negative mentions (20)
+#     Formula: Sentiment Score = (Positive Mentions - Negative Mentions) / Total Mentions
+#     Expected Output: Sentiment Score (percentage)
+
+#     Coordinate with Risk Assessment Analysts:
+
+#     Task: Calculate the risk score using the provided financial ratios.
+#     Data:
+#     Debt-to-Equity Ratio: 1.5
+#     Current Ratio: 2.0
+#     Return on Equity (ROE): 0.1 (10%)
+#     Weights: Debt-to-Equity (0.5), Current Ratio (0.3), ROE (0.2)
+#     Formula: Risk Score = 0.5 * Debt-to-Equity + 0.3 * (1 / Current Ratio) - 0.2 * ROE
+#     Expected Output: Risk Score
+
+#     Coordinate with Fundamental Analysts:
+
+#     Task: Calculate the Profit Margin and Return on Assets (ROA) based on the provided financial data.
+#     Data:
+#     Revenue: $1,000,000
+#     Net Income: $100,000
+#     Total Assets: $500,000
+#     Formulas:
+#     Profit Margin = (Net Income / Revenue) * 100
+#     ROA = (Net Income / Total Assets) * 100
+#     Expected Outputs: Profit Margin (percentage) and ROA (percentage)
+
+#     Final Deliverable:
+#     Integrate Findings: Compile the insights from all three groups to get a holistic view of Company ABC's potential.
+#     Evaluation and Recommendation: Based on the integrated analysis, provide a recommendation on whether to invest in Company ABC, including the rationale behind your decision.
+# """
+# )
 
 main_group.chat(message=task, use_cache=True)

@@ -30,6 +30,7 @@ class YFinanceUtils:
         ],
         save_path: SavePathType = None,
     ) -> DataFrame:
+        """retrieve stock price data for designated ticker symbol"""
         ticker = symbol
         stock_data = ticker.history(start=start_date, end=end_date)
         save_output(stock_data, f"Stock data for {ticker.ticker}", save_path)
@@ -44,7 +45,6 @@ class YFinanceUtils:
         return stock_info
 
     def get_company_info(
-        self,
         symbol: Annotated[str, "ticker symbol"],
         save_path: Optional[str] = None,
     ) -> DataFrame:
@@ -65,7 +65,6 @@ class YFinanceUtils:
         return company_info_df
 
     def get_stock_dividends(
-        self,
         symbol: Annotated[str, "ticker symbol"],
         save_path: Optional[str] = None,
     ) -> DataFrame:

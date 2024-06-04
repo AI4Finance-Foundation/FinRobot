@@ -30,6 +30,7 @@ class YFinanceUtils:
         ],
         save_path: SavePathType = None,
     ) -> DataFrame:
+        """retrieve stock price data for designated ticker symbol"""
         ticker = symbol
         stock_data = ticker.history(start=start_date, end=end_date)
         save_output(stock_data, f"Stock data for {ticker.ticker}", save_path)
@@ -38,13 +39,12 @@ class YFinanceUtils:
     def get_stock_info(
         symbol: Annotated[str, "ticker symbol"],
     ) -> dict:
-        """Fetches and returns stock information."""
+        """Fetches and returns latest stock information."""
         ticker = symbol
         stock_info = ticker.info
         return stock_info
 
     def get_company_info(
-        self,
         symbol: Annotated[str, "ticker symbol"],
         save_path: Optional[str] = None,
     ) -> DataFrame:
@@ -65,11 +65,10 @@ class YFinanceUtils:
         return company_info_df
 
     def get_stock_dividends(
-        self,
         symbol: Annotated[str, "ticker symbol"],
         save_path: Optional[str] = None,
     ) -> DataFrame:
-        """Fetches and returns the dividends data as a DataFrame."""
+        """Fetches and returns the latest dividends data as a DataFrame."""
         ticker = symbol
         dividends = ticker.dividends
         if save_path:
@@ -78,19 +77,19 @@ class YFinanceUtils:
         return dividends
 
     def get_income_stmt(symbol: Annotated[str, "ticker symbol"]) -> DataFrame:
-        """Fetches and returns the income statement of the company as a DataFrame."""
+        """Fetches and returns the latest income statement of the company as a DataFrame."""
         ticker = symbol
         income_stmt = ticker.financials
         return income_stmt
 
     def get_balance_sheet(symbol: Annotated[str, "ticker symbol"]) -> DataFrame:
-        """Fetches and returns the balance sheet of the company as a DataFrame."""
+        """Fetches and returns the latest balance sheet of the company as a DataFrame."""
         ticker = symbol
         balance_sheet = ticker.balance_sheet
         return balance_sheet
 
     def get_cash_flow(symbol: Annotated[str, "ticker symbol"]) -> DataFrame:
-        """Fetches and returns the cash flow statement of the company as a DataFrame."""
+        """Fetches and returns the latest cash flow statement of the company as a DataFrame."""
         ticker = symbol
         cash_flow = ticker.cashflow
         return cash_flow

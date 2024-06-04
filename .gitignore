@@ -1,4 +1,5 @@
 OAI_CONFIG_LIST
+PERSONAL_KEYS
 config_api_keys
 __pycache__/
 .ipynb_checkpoints/

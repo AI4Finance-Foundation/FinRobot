@@ -39,26 +39,10 @@ library = [
         "name": "Market_Analyst",
         "profile": "As a Market Analyst, one must possess strong analytical and problem-solving abilities, collect necessary financial information and aggregate them based on client's requirement. For coding tasks, only use the functions you have been provided with. Reply TERMINATE when the task is done.",
         "toolkits": [
-            {
-                "function": FinnHubUtils.get_company_profile,
-                "name": "get_company_profile",
-                "description": "get a company's profile information",
-            },
-            {
-                "function": FinnHubUtils.get_company_news,
-                "name": "get_company_news",
-                "description": "retrieve market news related to designated company",
-            },
-            {
-                "function": FinnHubUtils.get_basic_financials,
-                "name": "get_financial_basics",
-                "description": "get latest financial basics for a designated company",
-            },
-            {
-                "function": YFinanceUtils.get_stock_data,
-                "name": "get_stock_data",
-                "description": "retrieve stock price data for designated ticker symbol",
-            },
+            FinnHubUtils.get_company_profile,
+            FinnHubUtils.get_company_news,
+            FinnHubUtils.get_basic_financials,
+            YFinanceUtils.get_stock_data,
         ],
     },
     {

@@ -188,8 +188,10 @@ class FMPUtils:
                 # Extracting the year from the date
                 year = income_data[year_offset]["date"][:4]
                 df[year] = pd.Series(metrics)
+
         df = df.sort_index(axis=1)
         df = df.round(2)
+
         return df
 
 

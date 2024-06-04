@@ -84,7 +84,19 @@ class RedditUtils:
                         ]
                     )
 
-        output = pd.DataFrame(post_data, columns=selected_columns)
+        output = pd.DataFrame(
+            post_data,
+            columns=[
+                "created_utc",
+                "id",
+                "title",
+                "selftext",
+                "score",
+                "num_comments",
+                "url",
+            ],
+        )
+        output = output[selected_columns]
 
         save_output(output, f"reddit posts related to {query}", save_path=save_path)
 

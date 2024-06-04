@@ -39,7 +39,7 @@ class YFinanceUtils:
     def get_stock_info(
         symbol: Annotated[str, "ticker symbol"],
     ) -> dict:
-        """Fetches and returns stock information."""
+        """Fetches and returns latest stock information."""
         ticker = symbol
         stock_info = ticker.info
         return stock_info
@@ -68,7 +68,7 @@ class YFinanceUtils:
         symbol: Annotated[str, "ticker symbol"],
         save_path: Optional[str] = None,
     ) -> DataFrame:
-        """Fetches and returns the dividends data as a DataFrame."""
+        """Fetches and returns the latest dividends data as a DataFrame."""
         ticker = symbol
         dividends = ticker.dividends
         if save_path:
@@ -77,19 +77,19 @@ class YFinanceUtils:
         return dividends
 
     def get_income_stmt(symbol: Annotated[str, "ticker symbol"]) -> DataFrame:
-        """Fetches and returns the income statement of the company as a DataFrame."""
+        """Fetches and returns the latest income statement of the company as a DataFrame."""
         ticker = symbol
         income_stmt = ticker.financials
         return income_stmt
 
     def get_balance_sheet(symbol: Annotated[str, "ticker symbol"]) -> DataFrame:
-        """Fetches and returns the balance sheet of the company as a DataFrame."""
+        """Fetches and returns the latest balance sheet of the company as a DataFrame."""
         ticker = symbol
         balance_sheet = ticker.balance_sheet
         return balance_sheet
 
     def get_cash_flow(symbol: Annotated[str, "ticker symbol"]) -> DataFrame:
-        """Fetches and returns the cash flow statement of the company as a DataFrame."""
+        """Fetches and returns the latest cash flow statement of the company as a DataFrame."""
         ticker = symbol
         cash_flow = ticker.cashflow
         return cash_flow

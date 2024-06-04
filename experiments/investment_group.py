@@ -32,6 +32,10 @@ group_config = {
                             "Track and interpret market trends and news.",
                             "Analyze social media and news articles for market sentiment.",
                         ],
+                        "toolkits": [
+                            FinnHubUtils.get_company_news,
+                            RedditUtils.get_reddit_posts,
+                        ],
                     },
                     {
                         "title": "Junior Market Sentiment Analyst",
@@ -53,6 +57,10 @@ group_config = {
                         "responsibilities": [
                             "Track and interpret market trends and news.",
                             "Analyze social media and news articles for market sentiment.",
+                        ],
+                        "toolkits": [
+                            FinnHubUtils.get_company_news,
+                            RedditUtils.get_reddit_posts,
                         ],
                     },
                     {
@@ -158,6 +166,12 @@ group_config = {
                             "Review and interpret company financial statements.",
                             "Summarize key financial metrics and trends.",
                         ],
+                        "toolkits": [
+                            YFinanceUtils.get_stock_data,
+                            FMPUtils.get_financial_metrics,
+                            FMPUtils.get_historical_bvps,
+                            FMPUtils.get_historical_market_cap,
+                        ],
                     },
                     {
                         "title": "Junior Fundamental Analyst",
@@ -166,7 +180,7 @@ group_config = {
                             "Support the senior analyst in preparing reports.",
                         ],
                         "toolkits": [
-                            YFinanceUtils,
+                            YFinanceUtils.get_stock_data,
                             FMPUtils.get_financial_metrics,
                             FMPUtils.get_historical_bvps,
                             FMPUtils.get_historical_market_cap,
@@ -181,6 +195,12 @@ group_config = {
                         "responsibilities": [
                             "Review and interpret company financial statements.",
                             "Summarize key financial metrics and trends.",
+                        ],
+                        "toolkits": [
+                            YFinanceUtils.get_stock_data,
+                            FMPUtils.get_financial_metrics,
+                            FMPUtils.get_historical_bvps,
+                            FMPUtils.get_historical_market_cap,
                         ],
                     },
                     {
@@ -197,7 +217,7 @@ group_config = {
                             "Collaborate with peers on financial analysis and reporting.",
                         ],
                         "toolkits": [
-                            YFinanceUtils,
+                            YFinanceUtils.get_stock_data,
                             FMPUtils.get_financial_metrics,
                             FMPUtils.get_historical_bvps,
                             FMPUtils.get_historical_market_cap,

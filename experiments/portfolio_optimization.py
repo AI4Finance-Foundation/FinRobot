@@ -1,4 +1,3 @@
-import json
 import autogen
 from finrobot.agents.workflow import MultiAssistant, MultiAssistantWithLeader
 from finrobot.functional import get_rag_function

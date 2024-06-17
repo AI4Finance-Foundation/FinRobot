@@ -8,14 +8,13 @@ from autogen import (
     UserProxyAgent,
     GroupChat,
     GroupChatManager,
+    register_function,
 )
-from autogen.agentchat.contrib.retrieve_user_proxy_agent import RetrieveUserProxyAgent
-
-# from autogen.agentchat.contrib.retrieve_assistant_agent import RetrieveAssistantAgent
 from collections import defaultdict
 from functools import partial
 from abc import ABC, abstractmethod
 from ..toolkits import register_toolkits
+from ..functional.rag import get_rag_function
 from .utils import *
 from .prompts import leader_system_message, role_system_message
 
@@ -48,6 +47,8 @@ class FinRobot(AssistantAgent):
 
         system_message = system_message or default_system_message
         self.toolkits = toolkits or default_toolkits
+
+        name = name.replace(" ", "_").strip()
 
         super().__init__(
             name, system_message, description=agent_config["description"], **kwargs
@@ -88,7 +89,9 @@ class FinRobot(AssistantAgent):
             leader_prompt = leader_system_message.format(group_desc=group_desc)
 
         config["profile"] = (
-            role_prompt + "\n\n" + leader_prompt + "\n\n" + config.get("profile", "")
+            (role_prompt + "\n\n").strip()
+            + (leader_prompt + "\n\n").strip()
+            + config.get("profile", "")
         ).strip()
 
         return config
@@ -163,7 +166,7 @@ class SingleAssistant(SingleAssistantBase):
         self.assistant.reset()
 
 
-class SingleAssistantRAG(SingleAssistantBase):
+class SingleAssistantRAG(SingleAssistant):
 
     def __init__(
         self,
@@ -177,37 +180,32 @@ class SingleAssistantRAG(SingleAssistantBase):
             "work_dir": "coding",
             "use_docker": False,
         },
-        retrieve_config=None,
+        retrieve_config={},
+        rag_description="",
         **kwargs,
     ):
-        super().__init__(agent_config, llm_config=llm_config)
-        self.user_proxy = RetrieveUserProxyAgent(
-            name="User_Proxy",
+        super().__init__(
+            agent_config,
+            llm_config=llm_config,
             is_termination_msg=is_termination_msg,
             human_input_mode=human_input_mode,
             max_consecutive_auto_reply=max_consecutive_auto_reply,
             code_execution_config=code_execution_config,
-            retrieve_config=retrieve_config,
             **kwargs,
         )
-        self.assistant.register_proxy(self.user_proxy)
-
-    def chat(self, message: str, use_cache=False, **kwargs):
-        with Cache.disk() as cache:
-            self.user_proxy.initiate_chat(
-                self.assistant,
-                message=self.user_proxy.message_generator,
-                problem=message,
-                cache=cache if use_cache else None,
-                **kwargs,
-            )
-
-        print("Current chat finished. Resetting agents ...")
-        self.reset()
+        assert retrieve_config, "retrieve config cannot be empty for RAG Agent."
+        rag_func, rag_assistant = get_rag_function(retrieve_config, rag_description)
+        self.rag_assistant = rag_assistant
+        register_function(
+            rag_func,
+            caller=self.assistant,
+            executor=self.user_proxy,
+            description=rag_description if rag_description else rag_func.__doc__,
+        )
 
     def reset(self):
-        self.user_proxy.reset()
-        self.assistant.reset()
+        super().reset()
+        self.rag_assistant.reset()
 
 
 class SingleAssistantShadow(SingleAssistant):
@@ -334,62 +332,8 @@ class MultiAssistantBase(ABC):
                 self.agents.append(agent)
 
     @abstractmethod
-    def _get_representative(self):
+    def _get_representative(self) -> ConversableAgent:
         pass
-
-    @abstractmethod
-    def chat(self):
-        pass
-
-    def reset(self):
-        self.user_proxy
-        for agent in self.agents:
-            agent.reset()
-
-
-class MultiAssistant(MultiAssistantBase):
-    """
-    Group Chat Workflow with multiple agents.
-    """
-
-    def __init__(
-        self,
-        group_config: str | dict,
-        agent_configs: List[Dict[str, Any] | str | ConversableAgent] = [],
-        llm_config: Dict[str, Any] = {},
-        user_proxy: UserProxyAgent | None = None,
-        is_termination_msg=lambda x: x.get("content", "")
-        and x.get("content", "").endswith("TERMINATE"),
-        human_input_mode="NEVER",
-        max_consecutive_auto_reply=10,
-        code_execution_config={"work_dir": "coding", "use_docker": False},
-        speaker_selection_method="round_robin",
-        **kwargs,
-    ):
-        self.speaker_selection_method = speaker_selection_method
-        super().__init__(
-            group_config,
-            agent_configs,
-            llm_config,
-            user_proxy,
-            is_termination_msg,
-            human_input_mode,
-            max_consecutive_auto_reply,
-            code_execution_config,
-            **kwargs,
-        )
-
-    def _get_representative(self):
-        self.group_chat = GroupChat(
-            self.agents + [self.user_proxy],
-            messages=[],
-            speaker_selection_method=self.speaker_selection_method,
-        )
-        manager_name = (self.group_config.get("name", "") + "_chat_manager").strip("_")
-        manager = GroupChatManager(
-            self.group_chat, name=manager_name, llm_config=self.llm_config
-        )
-        return manager
 
     def chat(self, message: str, use_cache=False, **kwargs):
         with Cache.disk() as cache:
@@ -399,16 +343,58 @@ class MultiAssistant(MultiAssistantBase):
                 cache=cache if use_cache else None,
                 **kwargs,
             )
-
         print("Current chat finished. Resetting agents ...")
         self.reset()
 
     def reset(self):
-        super().reset()
+        self.user_proxy.reset()
         self.representative.reset()
+        for agent in self.agents:
+            agent.reset()
 
 
-class MultiAssistantWithLeader(MultiAssistant):
+class MultiAssistant(MultiAssistantBase):
+    """
+    Group Chat Workflow with multiple agents.
+    """
+
+    def _get_representative(self):
+
+        def custom_speaker_selection_func(
+            last_speaker: autogen.Agent, groupchat: autogen.GroupChat
+        ):
+            """Define a customized speaker selection function.
+            A recommended way is to define a transition for each speaker in the groupchat.
+
+            Returns:
+                Return an `Agent` class or a string from ['auto', 'manual', 'random', 'round_robin'] to select a default method to use.
+            """
+            messages = groupchat.messages
+            if len(messages) <= 1:
+                return groupchat.agents[0]
+            if last_speaker is self.user_proxy:
+                return groupchat.agent_by_name(messages[-2]["name"])
+            elif "tool_calls" in messages[-1] or messages[-1]["content"].endswith(
+                "TERMINATE"
+            ):
+                return self.user_proxy
+            else:
+                return groupchat.next_agent(last_speaker, groupchat.agents[:-1])
+
+        self.group_chat = GroupChat(
+            self.agents + [self.user_proxy],
+            messages=[],
+            speaker_selection_method=custom_speaker_selection_func,
+            send_introductions=True,
+        )
+        manager_name = (self.group_config.get("name", "") + "_chat_manager").strip("_")
+        manager = GroupChatManager(
+            self.group_chat, name=manager_name, llm_config=self.llm_config
+        )
+        return manager
+
+
+class MultiAssistantWithLeader(MultiAssistantBase):
     """
     Leader based Workflow with multiple agents connected to a leader agent through nested chats.
 
@@ -449,7 +435,9 @@ class MultiAssistantWithLeader(MultiAssistant):
                 group_desc += c.description + "\n\n"
             else:
                 name = c["title"] if "title" in c else c.get("name", "")
-                name = name + (f"_{i+1}" if need_suffix else "")
+                name = name.replace(" ", "_").strip() + (
+                    f"_{i+1}" if need_suffix else ""
+                )
                 responsibilities = (
                     "\n".join([f" - {r}" for r in c.get("responsibilities", [])]),
                 )

@@ -195,6 +195,9 @@ group_config = {
                         "responsibilities": [
                             "Review and interpret company financial statements.",
                             "Summarize key financial metrics and trends.",
+                            "Ask for advice from Fundamental_Analyst_2 and Fundamental_Analyst_3 when you make any conclusion.",
+                            "Inspect analysis delivered by Fundamental_Analyst_2 and Fundamental_Analyst_3 and give out advices.",
+                            "Reach a consensus with Fundamental_Analyst_2 and Fundamental_Analyst_3 and provide the final analysis results.",
                         ],
                         "toolkits": [
                             YFinanceUtils.get_stock_data,
@@ -208,6 +211,9 @@ group_config = {
                         "responsibilities": [
                             "Conduct financial analysis and contribute to reports.",
                             "Collaborate with peers to ensure thorough analysis.",
+                            "Ask for advice from Fundamental_Analyst_1 and Fundamental_Analyst_3  when you make any conclusion.",
+                            "Inspect analysis delivered by Fundamental_Analyst_1 and Fundamental_Analyst_3 and give out advices.",
+                            "Reach a consensus with Fundamental_Analyst_1 and Fundamental_Analyst_3 and provide the final analysis results.",
                         ],
                     },
                     {
@@ -215,6 +221,9 @@ group_config = {
                         "responsibilities": [
                             "Gather and process financial data.",
                             "Collaborate with peers on financial analysis and reporting.",
+                            "Ask for advice from Fundamental_Analyst_1 and Fundamental_Analyst_2  when you make any conclusion.",
+                            "Inspect analysis delivered by Fundamental_Analyst_1 and Fundamental_Analyst_2 and give out advices.",
+                            "Reach a consensus with Fundamental_Analyst_1 and Fundamental_Analyst_2 and provide the final analysis results.",
                         ],
                         "toolkits": [
                             YFinanceUtils.get_stock_data,

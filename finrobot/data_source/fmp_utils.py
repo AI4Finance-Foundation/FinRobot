@@ -149,7 +149,7 @@ class FMPUtils:
     def get_financial_metrics(
         ticker_symbol: Annotated[str, "ticker symbol"],
         years: Annotated[int, "number of the years to search from, default to 4"] = 4,
-    ):
+    ) -> pd.DataFrame:
         """Get the financial metrics for a given stock for the last 'years' years"""
         # Base URL setup for FMP API
         base_url = "https://financialmodelingprep.com/api/v3"

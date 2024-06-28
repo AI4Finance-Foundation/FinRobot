@@ -8,6 +8,7 @@
 [![Python 3.8](https://img.shields.io/badge/python-3.6-blue.svg)](https://www.python.org/downloads/release/python-360/)
 [![PyPI](https://img.shields.io/pypi/v/finrobot.svg)](https://pypi.org/project/finrobot/)
 ![License](https://img.shields.io/github/license/AI4Finance-Foundation/finrobot.svg?color=brightgreen)
+![Visitors](https://api.visitorbadge.io/api/VisitorHit?user=AI4Finance-Foundation&repo=FinRobot&countColor=%237B1E7A)
 
 
 
@@ -22,14 +23,6 @@
 [Whitepaper of FinRobot](https://arxiv.org/abs/2405.14767)
 
 [![](https://dcbadge.vercel.app/api/server/trsr8SXpW5)](https://discord.gg/trsr8SXpW5)
-
-
-<p align="center">
-  <a href="#">
-      <img src="https://api.visitorbadge.io/api/VisitorHit?user=AI4Finance-Foundation&repo=FinRobot&countColor=%237B1E7A" />
-   </a>
-</p>
-
 
 
 ## FinRobot Ecosystem

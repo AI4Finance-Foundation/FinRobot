@@ -13,8 +13,7 @@
 ![](https://img.shields.io/github/issues-pr-raw/AI4Finance-Foundation/finrobot?label=Open+PRs)
 ![](https://img.shields.io/github/issues-pr-closed-raw/AI4Finance-Foundation/finrobot?label=Closed+PRs)
 
-![Visitors](https://api.visitorbadge.io/api/VisitorHit?user=AI4Finance-Foundation&repo=FinRobot&countColor=%237B1E7A)
-![Visitors](https://vbr.nathanchung.dev/badge?page_id=AI4Finance-Foundation-finrobot-visitors&lcolor=ffb3c1&color=555555&style=flat-square&logo=Github&hit=false)
+![Visitors](https://api.visitorbadge.io/api/VisitorHit?user=AI4Finance-Foundation&repo=FinRobot&countColor=%55acb7)
 
 
 

@@ -9,6 +9,9 @@
 [![PyPI](https://img.shields.io/pypi/v/finrobot.svg)](https://pypi.org/project/finrobot/)
 ![License](https://img.shields.io/github/license/AI4Finance-Foundation/finrobot.svg?color=brightgreen)
 
+
+![](https://api.visitorbadge.io/api/VisitorHit?user=AI4Finance-Foundation&repo=FinRobot&countColor=%237B1E7A)
+
 <div align="center">
 <img align="center" src=figs/logo_white_background.jpg width="40%"/>
 </div>

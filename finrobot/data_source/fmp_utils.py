@@ -50,7 +50,7 @@ class FMPUtils:
             for tprice in data:
                 tdate = tprice["publishedDate"].split("T")[0]
                 tdate = datetime.strptime(tdate, "%Y-%m-%d")
-                if abs((tdate - date).days) <= 1:
+                if abs((tdate - date).days) <= 999:
                     est.append(tprice["priceTarget"])
 
             if est:

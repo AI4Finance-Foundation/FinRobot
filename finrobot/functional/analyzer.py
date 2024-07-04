@@ -227,9 +227,8 @@ class ReportAnalysisUtils:
         )
         instruction = dedent(
             """
-            According to the given information, describe the performance highlights per business of the company. 
-            Each business description should contain one sentence of a summarization and one sentence of explanation. 
-            Less than 130 words.
+            According to the given information, describe the performance highlights for each business line of the company. 
+            The final output should have structures like: "Founded in xxxx, 'company name' is a xxxx that provides .....".
             """
         )
         prompt = combine_prompt(instruction, section_text, "")

@@ -1,12 +1,15 @@
 from autogen import register_function, ConversableAgent
 from .data_source import *
 from .functional.coding import CodingUtils
-
 from typing import List, Callable
 from functools import wraps
 from pandas import DataFrame
+import agentops
 
+# Initialize AgentOps
+agentops.init('<INSERT YOUR API KEY HERE>')
 
+@agentops.record_function('stringify_output')
 def stringify_output(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -15,10 +18,9 @@ def stringify_output(func):
             return result.to_string()
         else:
             return str(result)
-
     return wrapper
 
-
+@agentops.record_function('register_toolkits')
 def register_toolkits(
     config: List[dict | Callable | type],
     caller: ConversableAgent,
@@ -26,19 +28,15 @@ def register_toolkits(
     **kwargs
 ):
     """Register tools from a configuration list."""
-
     for tool in config:
-
         if isinstance(tool, type):
-            register_tookits_from_cls(caller, executor, tool, **kwargs)
+            register_toolkits_from_cls(caller, executor, tool, **kwargs)
             continue
-
         tool_dict = {"function": tool} if callable(tool) else tool
         if "function" not in tool_dict or not callable(tool_dict["function"]):
             raise ValueError(
                 "Function not found in tool configuration or not callable."
             )
-
         tool_function = tool_dict["function"]
         name = tool_dict.get("name", tool_function.__name__)
         description = tool_dict.get("description", tool_function.__doc__)
@@ -50,10 +48,9 @@ def register_toolkits(
             description=description,
         )
 
-
+@agentops.record_function('register_code_writing')
 def register_code_writing(caller: ConversableAgent, executor: ConversableAgent):
     """Register code writing tools."""
-
     register_toolkits(
         [
             {
@@ -81,8 +78,8 @@ def register_code_writing(caller: ConversableAgent, executor: ConversableAgent):
         executor,
     )
 
-
-def register_tookits_from_cls(
+@agentops.record_function('register_toolkits_from_cls')
+def register_toolkits_from_cls(
     caller: ConversableAgent,
     executor: ConversableAgent,
     cls: type,
@@ -104,3 +101,16 @@ def register_tookits_from_cls(
             and not func.startswith("_")
         ]
     register_toolkits([getattr(cls, func) for func in funcs], caller, executor)
+
+# If you have specific agent classes, you can decorate them like this:
+# @agentops.track_agent(name='my-expert-agent')
+# class MyExpertAgent(ConversableAgent):
+#     ...
+
+# Assuming you have a main function or execution point, you should add this at the end:
+# def main():
+#     ...
+#     agentops.end_session('Success')
+
+# if __name__ == "__main__":
+#     main()

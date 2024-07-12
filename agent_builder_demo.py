@@ -2,12 +2,19 @@ import os
 import autogen
 from autogen.agentchat.contrib.agent_builder import AgentBuilder
 from finrobot.utils import get_current_date
+import agentops
 
+# Initialize AgentOps
+agentops.init('<INSERT YOUR API KEY HERE>')
 
 config_file_or_env = "OAI_CONFIG_LIST"
 llm_config = {"temperature": 0}
 
-builder = AgentBuilder(
+@agentops.track_agent(name='AgentBuilder')
+class TrackedAgentBuilder(AgentBuilder):
+    pass
+
+builder = TrackedAgentBuilder(
     config_file_or_env=config_file_or_env,
     builder_model="gpt-4-0125-preview",
     agent_model="gpt-4-0125-preview",
@@ -34,11 +41,31 @@ else:
     )
     builder.save(config_path)
 
-group_chat = autogen.GroupChat(agents=agent_list, messages=[], max_round=20)
-manager = autogen.GroupChatManager(
+@agentops.track_agent(name='GroupChat')
+class TrackedGroupChat(autogen.GroupChat):
+    pass
+
+@agentops.track_agent(name='GroupChatManager')
+class TrackedGroupChatManager(autogen.GroupChatManager):
+    pass
+
+group_chat = TrackedGroupChat(agents=agent_list, messages=[], max_round=20)
+manager = TrackedGroupChatManager(
     groupchat=group_chat, llm_config={"config_list": config_list, **llm_config}
 )
-agent_list[0].initiate_chat(
+
+@agentops.record_function('initiate_chat')
+def initiate_chat(agent, manager, message):
+    agent.initiate_chat(
+        manager,
+        message=message,
+    )
+
+initiate_chat(
+    agent_list[0],
     manager,
-    message=f"Today is {get_current_date()}, predict next week's stock price for Nvidia with its recent market news and stock price movements.",
+    message=f"Today is {get_current_date()}, predict next week's stock price for Nvidia with its recent market news and stock price movements."
 )
+
+# End of program
+agentops.end_session('Success')

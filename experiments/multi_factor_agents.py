@@ -2,11 +2,11 @@ import re
 import json
 import autogen
 from autogen.cache import Cache
-
-# from finrobot.utils import create_inner_assistant
-
 from functools import partial
+import agentops
 
+# Initialize AgentOps
+agentops.init("YOUR_AGENTOPS_API_KEY_HERE")
 
 config_list_gpt4 = autogen.config_list_from_json(
     "OAI_CONFIG_LIST",
@@ -23,13 +23,6 @@ llm_config = {
 
 quant_group_config = json.load(open("quantitative_investment_group_config.json"))
 
-# user_proxy = autogen.UserProxyAgent(
-#     name="User",
-#     # human_input_mode="ALWAYS",
-#     human_input_mode="NEVER",
-#     code_execution_config=False
-# )
-
 group_descs = "\n\n".join(
     [
         "Name: {} \nResponsibility: {}".format(c["name"], c["profile"])
@@ -37,7 +30,12 @@ group_descs = "\n\n".join(
     ]
 )
 
-group_leader = autogen.AssistantAgent(
+@agentops.track_agent(name="Group_Leader")
+class GroupLeader(autogen.AssistantAgent):
+    def __init__(self, name, system_message, llm_config):
+        super().__init__(name=name, system_message=system_message, llm_config=llm_config)
+
+group_leader = GroupLeader(
     name="Group_Leader",
     system_message="""
     As a group leader, you are responsible for coordinating the team's efforts to achieve the project's objectives. 
@@ -52,13 +50,15 @@ group_leader = autogen.AssistantAgent(
     llm_config=llm_config,
 )
 
-executor = autogen.UserProxyAgent(
+class EnhancedExecutor(autogen.UserProxyAgent):
+    @agentops.record_function("execute_code")
+    def execute_code(self, code, **kwargs):
+        return super().execute_code(code, **kwargs)
+
+executor = EnhancedExecutor(
     name="Executor",
     human_input_mode="NEVER",
-    # human_input_mode="ALWAYS",
-    is_termination_msg=lambda x: x.get("content", "")
-    and "TERMINATE" in x.get("content", ""),
-    # max_consecutive_auto_reply=3,
+    is_termination_msg=lambda x: x.get("content", "") and "TERMINATE" in x.get("content", ""),
     code_execution_config={
         "last_n_messages": 3,
         "work_dir": "quant",
@@ -67,7 +67,7 @@ executor = autogen.UserProxyAgent(
 )
 
 quant_group = {
-    c["name"]: autogen.agentchat.AssistantAgent(
+    c["name"]: agentops.track_agent(name=c["name"])(autogen.agentchat.AssistantAgent)(
         name=c["name"],
         system_message=c["profile"],
         llm_config=llm_config,
@@ -75,13 +75,10 @@ quant_group = {
     for c in quant_group_config
 }
 
-
 def order_trigger(pattern, sender):
-    # print(pattern)
-    # print(sender.last_message()['content'])
     return pattern in sender.last_message()["content"]
 
-
+@agentops.record_function("process_order")
 def order_message(pattern, recipient, messages, sender, config):
     full_order = recipient.chat_messages_for_summary(sender)[-1]["content"]
     pattern = rf"\[{pattern}\](?::)?\s*(.+?)(?=\n\[|$)"
@@ -97,8 +94,6 @@ def order_message(pattern, recipient, messages, sender, config):
     DO NOT include TERMINATE in your response until you have received the results from the execution of the Python scripts.
     If the task cannot be done currently or need assistance from other members, report the reasons or requirements to group leader ended with TERMINATE. 
     """
-    # For coding tasks, only use the functions you have been provided with.
-
 
 for name, agent in quant_group.items():
     executor.register_nested_chats(
@@ -117,5 +112,11 @@ for name, agent in quant_group.items():
 
 quant_task = "Develop and test the feasibility of a quantitative investment strategy focusing on the Dow Jones 30 stocks, utilizing your multi-factor analysis expertise to identify potential investment opportunities and optimize the portfolio's performance. Ensure the strategy is robust, data-driven, and aligns with our risk management principles."
 
-with Cache.disk() as cache:
-    executor.initiate_chat(group_leader, message=quant_task, cache=cache)
+@agentops.record_function("run_quant_strategy")
+def run_quant_strategy():
+    with Cache.disk() as cache:
+        executor.initiate_chat(group_leader, message=quant_task, cache=cache)
+
+if __name__ == "__main__":
+    run_quant_strategy()
+    agentops.end_session('Success')

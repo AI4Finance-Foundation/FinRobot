@@ -3,8 +3,12 @@ from textwrap import dedent
 from typing import Annotated
 from datetime import timedelta, datetime
 from ..data_source import YFinanceUtils, SECUtils, FMPUtils
+import agentops
 
+# Initialize AgentOps
+agentops.init('<INSERT YOUR API KEY HERE>')
 
+@agentops.record_function('combine_prompt')
 def combine_prompt(instruction, resource, table_str=None):
     if table_str:
         prompt = f"{table_str}\n\nResource: {resource}\n\nInstruction: {instruction}"
@@ -12,15 +16,16 @@ def combine_prompt(instruction, resource, table_str=None):
         prompt = f"Resource: {resource}\n\nInstruction: {instruction}"
     return prompt
 
-
+@agentops.record_function('save_to_file')
 def save_to_file(data: str, file_path: str):
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, "w") as f:
         f.write(data)
 
-
 class ReportAnalysisUtils:
 
+    @staticmethod
+    @agentops.record_function('analyze_income_stmt')
     def analyze_income_stmt(
         ticker_symbol: Annotated[str, "ticker symbol"],
         fyear: Annotated[str, "fiscal year of the 10-K report"],
@@ -30,11 +35,9 @@ class ReportAnalysisUtils:
         Retrieve the income statement for the given ticker symbol with the related section of its 10-K report.
         Then return with an instruction on how to analyze the income statement.
         """
-        # Retrieve the income statement
         income_stmt = YFinanceUtils.get_income_stmt(ticker_symbol)
         df_string = "Income statement:\n" + income_stmt.to_string().strip()
 
-        # Analysis instruction
         instruction = dedent(
             """
             Conduct a comprehensive analysis of the company's income statement for the current fiscal year. 
@@ -44,21 +47,19 @@ class ReportAnalysisUtils:
             and net profit margins to evaluate cost efficiency, operational effectiveness, and overall profitability. 
             Analyze Earnings Per Share to understand investor perspectives. Compare these metrics with historical 
             data and industry or competitor benchmarks to identify growth patterns, profitability trends, and 
-            operational challenges. The output should be a strategic overview of the company’s financial health 
+            operational challenges. The output should be a strategic overview of the company's financial health 
             in a single paragraph, less than 130 words, summarizing the previous analysis into 4-5 key points under 
             respective subheadings with specific discussion and strong data support.
             """
         )
 
-        # Retrieve the related section from the 10-K report
         section_text = SECUtils.get_10k_section(ticker_symbol, fyear, 7)
-
-        # Combine the instruction, section text, and income statement
         prompt = combine_prompt(instruction, section_text, df_string)
-
         save_to_file(prompt, save_path)
         return f"instruction & resources saved to {save_path}"
 
+    @staticmethod
+    @agentops.record_function('analyze_balance_sheet')
     def analyze_balance_sheet(
         ticker_symbol: Annotated[str, "ticker symbol"],
         fyear: Annotated[str, "fiscal year of the 10-K report"],
@@ -88,6 +89,8 @@ class ReportAnalysisUtils:
         save_to_file(prompt, save_path)
         return f"instruction & resources saved to {save_path}"
 
+    @staticmethod
+    @agentops.record_function('analyze_cash_flow')
     def analyze_cash_flow(
         ticker_symbol: Annotated[str, "ticker symbol"],
         fyear: Annotated[str, "fiscal year of the 10-K report"],
@@ -117,6 +120,8 @@ class ReportAnalysisUtils:
         save_to_file(prompt, save_path)
         return f"instruction & resources saved to {save_path}"
 
+    @staticmethod
+    @agentops.record_function('analyze_segment_stmt')
     def analyze_segment_stmt(
         ticker_symbol: Annotated[str, "ticker symbol"],
         fyear: Annotated[str, "fiscal year of the 10-K report"],
@@ -149,6 +154,8 @@ class ReportAnalysisUtils:
         save_to_file(prompt, save_path)
         return f"instruction & resources saved to {save_path}"
 
+    @staticmethod
+    @agentops.record_function('income_summarization')
     def income_summarization(
         ticker_symbol: Annotated[str, "ticker symbol"],
         fyear: Annotated[str, "fiscal year of the 10-K report"],
@@ -160,9 +167,6 @@ class ReportAnalysisUtils:
         With the income statement and segment analysis for the given ticker symbol.
         Then return with an instruction on how to synthesize these analyses into a single coherent paragraph.
         """
-        # income_stmt_analysis = analyze_income_stmt(ticker_symbol)
-        # segment_analysis = analyze_segment_stmt(ticker_symbol)
-
         instruction = dedent(
             f"""
             Income statement analysis: {income_stmt_analysis},
@@ -183,6 +187,8 @@ class ReportAnalysisUtils:
         save_to_file(prompt, save_path)
         return f"instruction & resources saved to {save_path}"
 
+    @staticmethod
+    @agentops.record_function('get_risk_assessment')
     def get_risk_assessment(
         ticker_symbol: Annotated[str, "ticker symbol"],
         fyear: Annotated[str, "fiscal year of the 10-K report"],
@@ -207,6 +213,8 @@ class ReportAnalysisUtils:
         save_to_file(prompt, save_path)
         return f"instruction & resources saved to {save_path}"
 
+    @staticmethod
+    @agentops.record_function('analyze_business_highlights')
     def analyze_business_highlights(
         ticker_symbol: Annotated[str, "ticker symbol"],
         fyear: Annotated[str, "fiscal year of the 10-K report"],
@@ -236,6 +244,8 @@ class ReportAnalysisUtils:
         save_to_file(prompt, save_path)
         return f"instruction & resources saved to {save_path}"
 
+    @staticmethod
+    @agentops.record_function('analyze_company_description')
     def analyze_company_description(
         ticker_symbol: Annotated[str, "ticker symbol"],
         fyear: Annotated[str, "fiscal year of the 10-K report"],
@@ -263,9 +273,9 @@ class ReportAnalysisUtils:
         instruction = dedent(
             """
             According to the given information, 
-            1. Briefly describe the company’s industry,
+            1. Briefly describe the company's industry,
             2. Highlight core strengths and competitive advantages key products or services,
-            3. Identify current industry trends, opportunities, and challenges that influence the company’s strategy,
+            3. Identify current industry trends, opportunities, and challenges that influence the company's strategy,
             4. Outline recent strategic initiatives such as product launches, acquisitions, or new partnerships, and describe the company's response to market conditions. 
             Less than 400 words.
             """
@@ -276,6 +286,8 @@ class ReportAnalysisUtils:
         save_to_file(prompt, save_path)
         return f"instruction & resources saved to {save_path}"
 
+    @staticmethod
+    @agentops.record_function('get_key_data')
     def get_key_data(
         ticker_symbol: Annotated[str, "ticker symbol"],
         filing_date: Annotated[
@@ -315,13 +327,9 @@ class ReportAnalysisUtils:
         fiftyTwoWeekLow = hist["High"].min()
         fiftyTwoWeekHigh = hist["Low"].max()
 
-        # avg_daily_volume_6m = hist['Volume'].mean()
-
         # convert back to str for function calling
         filing_date = filing_date.strftime("%Y-%m-%d")
 
-        # Print the result
-        # print(f"Over the past 6 months, the average daily trading volume for {ticker_symbol} was: {avg_daily_volume_6m:.2f}")
         rating, _ = YFinanceUtils.get_analyst_recommendations(ticker_symbol)
         target_price = FMPUtils.get_target_price(ticker_symbol, filing_date)
         result = {
@@ -342,3 +350,8 @@ class ReportAnalysisUtils:
             ),
         }
         return result
+
+# End of ReportAnalysisUtils class
+
+# Add this at the end of your script or in your main execution point
+agentops.end_session('Success')

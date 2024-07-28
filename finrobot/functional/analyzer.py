@@ -228,6 +228,7 @@ class ReportAnalysisUtils:
         instruction = dedent(
             """
             According to the given information, describe the performance highlights for each company's business line.
+            Each business description should contain one sentence of a summarization and one sentence of explanation.
             """
         )
         prompt = combine_prompt(instruction, section_text, "")

@@ -261,11 +261,11 @@ class ReportAnalysisUtils:
         instruction = dedent(
             """
             According to the given information, 
-            1. Briefly describe the company’s industry,
+            1. Briefly describe the company overview and company’s industry, using the structure: "Founded in xxxx, 'company name' is a xxxx that provides .....
             2. Highlight core strengths and competitive advantages key products or services,
             3. Identify current industry trends, opportunities, and challenges that influence the company’s strategy,
             4. Outline recent strategic initiatives such as product launches, acquisitions, or new partnerships, and describe the company's response to market conditions. 
-            Less than 400 words.
+            Less than 300 words.
             """
         )
         step_prompt = combine_prompt(instruction, section_text, "")

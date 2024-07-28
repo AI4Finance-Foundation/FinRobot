@@ -29,17 +29,17 @@ class ReportLabUtils:
     def build_annual_report(
         ticker_symbol: Annotated[str, "ticker symbol"],
         save_path: Annotated[str, "path to save the annual report pdf"],
-        income_summarization: Annotated[
+        operating_results: Annotated[
             str,
             "a paragraph of text: the company's income summarization from its financial report",
         ],
-        business_highlights: Annotated[
+        market position: Annotated[
             str,
-            "a paragraph of text: the company's business highlights from its financial report",
+            "a paragraph of text: the company's current situation from its financial report",
         ],
-        company_description: Annotated[
+        business_overview: Annotated[
             str,
-            "a paragraph of text: the company's description and current situation from its financial report",
+            "a paragraph of text: the company's description and business highlights from its financial report",
         ],
         risk_assessment: Annotated[
             str,
@@ -195,14 +195,14 @@ class ReportLabUtils:
             )
 
             # 子标题
-            content.append(Paragraph("Income Summarization", subtitle_style))
-            content.append(Paragraph(income_summarization, custom_style))
+            content.append(Paragraph("Business Overview", subtitle_style))
+            content.append(Paragraph(business_overview, custom_style))
 
-            content.append(Paragraph("Business Highlights", subtitle_style))
-            content.append(Paragraph(business_highlights, custom_style))
+            content.append(Paragraph("Market Position", subtitle_style))
+            content.append(Paragraph(market_position, custom_style))
 
-            content.append(Paragraph("Company Situation", subtitle_style))
-            content.append(Paragraph(company_description, custom_style))
+            content.append(Paragraph("Operating results", subtitle_style))
+            content.append(Paragraph(operating_results, custom_style))
 
             content.append(Paragraph("Risk Assessment", subtitle_style))
             content.append(Paragraph(risk_assessment, custom_style))

@@ -54,7 +54,7 @@ class ReportLabUtils:
         filing_date: Annotated[str, "filing date of the analyzed financial report"],
     ) -> str:
         """
-        Aggregate a company's income summarization, business highlights, company description,
+        Aggregate a company's business_overview, market position, operating_results,
         risk assessment and share performance, PE & EPS performance charts all into a PDF report.
         """
         try:

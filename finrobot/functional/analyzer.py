@@ -227,7 +227,7 @@ class ReportAnalysisUtils:
         )
         instruction = dedent(
             """
-            According to the given information, describe the performance highlights for each company's business line, using the structure: "Founded in xxxx, 'company name' is a xxxx that provides .....".
+            According to the given information, describe the performance highlights for each company's business line.
             """
         )
         prompt = combine_prompt(instruction, section_text, "")

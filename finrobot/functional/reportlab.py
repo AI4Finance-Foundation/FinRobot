@@ -33,7 +33,7 @@ class ReportLabUtils:
             str,
             "a paragraph of text: the company's income summarization from its financial report",
         ],
-        market position: Annotated[
+        market_position: Annotated[
             str,
             "a paragraph of text: the company's current situation from its financial report",
         ],
@@ -54,7 +54,7 @@ class ReportLabUtils:
         filing_date: Annotated[str, "filing date of the analyzed financial report"],
     ) -> str:
         """
-        Aggregate a company's business_overview, market position, operating_results,
+        Aggregate a company's business_overview, market_position, operating_results,
         risk assessment and share performance, PE & EPS performance charts all into a PDF report.
         """
         try:
@@ -201,7 +201,7 @@ class ReportLabUtils:
             content.append(Paragraph("Market Position", subtitle_style))
             content.append(Paragraph(market_position, custom_style))
 
-            content.append(Paragraph("Operating results", subtitle_style))
+            content.append(Paragraph("Operating Results", subtitle_style))
             content.append(Paragraph(operating_results, custom_style))
 
             content.append(Paragraph("Risk Assessment", subtitle_style))

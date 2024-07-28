@@ -40,11 +40,11 @@ group_descs = "\n\n".join(
 group_leader = autogen.AssistantAgent(
     name="Group_Leader",
     system_message="""
-    As a group leader, you are responsible for coordinating the team's efforts to achieve the project's objectives. 
-    You must ensure that the team is working together effectively and efficiently. 
-    Summarize the status of the whole project progess every time you respond, and assign task to one of the group members to progress the project. 
+    As a group leader, you are responsible for coordinating the team's efforts to achieve the project's objectives.
+    You must ensure that the team is working together effectively and efficiently.
+    Summarize the status of the whole project progress every time you respond, and assign task to one of the group members to progress the project.
     Orders should follow the format: \"[<name of staff>] <order>\" and appear at the end of your response.
-    After receiving feedback from the team members, check the progress of the task, and make sure the task is well completed before proceding to th next order.
+    After receiving feedback from the team members, check the progress of the task, and make sure the task is well completed before proceeding to th next order.
     If the task is not well completed, your order should be to provide assistance and guidance for the team members to complete it again.
     Reply TERMINATE only when the whole project is done. Your team members are as follows:\n\n
     """
@@ -95,7 +95,7 @@ def order_message(pattern, recipient, messages, sender, config):
     For coding tasks, provide python scripts and executor will run it for you.
     Save your results or any intermediate data locally and let group leader know how to read them.
     DO NOT include TERMINATE in your response until you have received the results from the execution of the Python scripts.
-    If the task cannot be done currently or need assistance from other members, report the reasons or requirements to group leader ended with TERMINATE. 
+    If the task cannot be done currently or need assistance from other members, report the reasons or requirements to group leader ended with TERMINATE.
     """
     # For coding tasks, only use the functions you have been provided with.
 

@@ -35,7 +35,7 @@ class ReportLabUtils:
         ],
         market_position: Annotated[
             str,
-            "a paragraph of text: the company's current situation and end market (geography), major customers (blue chip or not), market share from its financial report, avoid sentences that explain the company's overview",
+            "a paragraph of text: the company's current situation and end market (geography), major customers (blue chip or not), market share from its financial report, avoid sentences that explain the company's overview. Additionally, avoid similar sentences also generated in the business overview section, classify it into either of the two",
         ],
         business_overview: Annotated[
             str,

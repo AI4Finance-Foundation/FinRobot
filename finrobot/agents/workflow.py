@@ -1,3 +1,6 @@
+# Install AgentOps SDK
+# pip install agentops
+
 from .agent_library import library
 from typing import Any, Callable, Dict, List, Optional, Annotated
 import autogen
@@ -17,8 +20,12 @@ from ..toolkits import register_toolkits
 from ..functional.rag import get_rag_function
 from .utils import *
 from .prompts import leader_system_message, role_system_message
+import agentops
 
+# Initialize AgentOps
+agentops.init('<INSERT YOUR API KEY HERE>')
 
+@agentops.track_agent(name='FinRobot')
 class FinRobot(AssistantAgent):
 
     def __init__(
@@ -467,3 +474,7 @@ class MultiAssistantWithLeader(MultiAssistantBase):
                 ),
             )
         return leader
+
+
+# End of program
+agentops.end_session('Success')

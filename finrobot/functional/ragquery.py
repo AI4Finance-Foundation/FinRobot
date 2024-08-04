@@ -11,104 +11,103 @@ from finrobot.data_source.marker_sec_src.pdf_to_md_parallel import run_marker_mp
 from finrobot.data_source.finance_data import get_data
 from typing import List, Optional
 import os
+import agentops
+
+# Initialize AgentOps with API key from environment variable
+agentops.init(os.getenv('AGENTOPS_API_KEY'))
+
 SAVE_DIR = "output/SEC_EDGAR_FILINGS_MD"
 
-
+@agentops.record_function('rag_database_earnings_call')
 def rag_database_earnings_call(
         ticker: str,
-        year: str)->str:
-        
-        #assert quarter in earnings_call_quarter_vals, "The quarter should be from Q1, Q2, Q3, Q4"
-        earnings_docs, earnings_call_quarter_vals, speakers_list_1, speakers_list_2, speakers_list_3, speakers_list_4 = get_data(ticker=ticker,year=year,data_source='earnings_calls')
-
-        emb_fn = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
-
-        text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1024,
-        chunk_overlap=100,
-        length_function=len,)
-        earnings_calls_split_docs = text_splitter.split_documents(earnings_docs)
-
-        earnings_call_db = Chroma.from_documents(earnings_calls_split_docs, emb_fn, persist_directory="./earnings-call-db",collection_name="earnings_call")
-
-
-        quarter_speaker_dict = {
-        "Q1":speakers_list_1,
-        "Q2":speakers_list_2,
-        "Q3":speakers_list_3,
-        "Q4":speakers_list_4}
+        year: str) -> str:
     
-        def query_database_earnings_call(
-        question: str,
-        quarter: str)->str:
-            """This tool will query the earnings call transcripts database for a given question and quarter and it will retrieve
-            the relevant text along from the earnings call and the speaker who addressed the relevant documents. This tool helps in answering questions
-            from the earnings call transcripts.
+    earnings_docs, earnings_call_quarter_vals, speakers_list_1, speakers_list_2, speakers_list_3, speakers_list_4 = get_data(ticker=ticker, year=year, data_source='earnings_calls')
 
-            Args:
-            question (str): _description_. Question to query the database for relevant documents.
-            quarter (str): _description_. the financial quarter that is discussed in the question and possible options are Q1, Q2, Q3, Q4
+    emb_fn = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
 
-            Returns:
-            str: relevant text along from the earnings call and the speaker who addressed the relevant documents
-            """
-            assert quarter in earnings_call_quarter_vals, "The quarter should be from Q1, Q2, Q3, Q4"
+    text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1024,
+    chunk_overlap=100,
+    length_function=len,)
+    earnings_calls_split_docs = text_splitter.split_documents(earnings_docs)
 
-            req_speaker_list = []
-            quarter_speaker_list = quarter_speaker_dict[quarter]
+    earnings_call_db = Chroma.from_documents(earnings_calls_split_docs, emb_fn, persist_directory="./earnings-call-db", collection_name="earnings_call")
 
-            for sl in quarter_speaker_list:
-                if sl in question or sl.lower() in question:
-                    req_speaker_list.append(sl)
-            if len(req_speaker_list) == 0:
-                req_speaker_list = quarter_speaker_list
+    quarter_speaker_dict = {
+    "Q1": speakers_list_1,
+    "Q2": speakers_list_2,
+    "Q3": speakers_list_3,
+    "Q4": speakers_list_4}
 
-            relevant_docs = earnings_call_db.similarity_search(
-            question,
-            k=5,
-            filter={
-                "$and":[
-                    {
-                        "quarter":{"$eq":quarter}
-                    },
-                    {
-                        "speaker":{"$in":req_speaker_list}
-                    }
-                ]
-            }
-        )
+    @agentops.record_function('query_database_earnings_call')
+    def query_database_earnings_call(
+    question: str,
+    quarter: str) -> str:
+        """This tool will query the earnings call transcripts database for a given question and quarter and it will retrieve
+        the relevant text along from the earnings call and the speaker who addressed the relevant documents. This tool helps in answering questions
+        from the earnings call transcripts.
 
-            speaker_releavnt_dict = {}
-            for doc in relevant_docs:
-                speaker = doc.metadata['speaker']
-                speaker_text = doc.page_content
-                if speaker not in speaker_releavnt_dict:
-                    speaker_releavnt_dict[speaker] = speaker_text
-                else:
-                    speaker_releavnt_dict[speaker] += " "+speaker_text
+        Args:
+        question (str): _description_. Question to query the database for relevant documents.
+        quarter (str): _description_. the financial quarter that is discussed in the question and possible options are Q1, Q2, Q3, Q4
 
-            relevant_speaker_text = ""
-            for speaker, text in speaker_releavnt_dict.items():
-                relevant_speaker_text += speaker + ": "
-                relevant_speaker_text += text + "\n\n"
+        Returns:
+        str: relevant text along from the earnings call and the speaker who addressed the relevant documents
+        """
+        assert quarter in earnings_call_quarter_vals, "The quarter should be from Q1, Q2, Q3, Q4"
 
-            return relevant_speaker_text
+        req_speaker_list = []
+        quarter_speaker_list = quarter_speaker_dict[quarter]
 
-        return query_database_earnings_call, earnings_call_quarter_vals, quarter_speaker_dict
+        for sl in quarter_speaker_list:
+            if sl in question or sl.lower() in question:
+                req_speaker_list.append(sl)
+        if len(req_speaker_list) == 0:
+            req_speaker_list = quarter_speaker_list
 
+        relevant_docs = earnings_call_db.similarity_search(
+        question,
+        k=5,
+        filter={
+            "$and":[
+                {
+                    "quarter":{"$eq":quarter}
+                },
+                {
+                    "speaker":{"$in":req_speaker_list}
+                }
+            ]
+        }
+    )
 
+        speaker_releavnt_dict = {}
+        for doc in relevant_docs:
+            speaker = doc.metadata['speaker']
+            speaker_text = doc.page_content
+            if speaker not in speaker_releavnt_dict:
+                speaker_releavnt_dict[speaker] = speaker_text
+            else:
+                speaker_releavnt_dict[speaker] += " "+speaker_text
 
+        relevant_speaker_text = ""
+        for speaker, text in speaker_releavnt_dict.items():
+            relevant_speaker_text += speaker + ": "
+            relevant_speaker_text += text + "\n\n"
 
+        return relevant_speaker_text
 
+    return query_database_earnings_call, earnings_call_quarter_vals, quarter_speaker_dict
 
-
+@agentops.record_function('rag_database_sec')
 def rag_database_sec(
         ticker: str,
         year: str,
         FROM_MARKDOWN = False,
-        filing_types = ['10-K','10-Q'])->str:
+        filing_types = ['10-K','10-Q']) -> str:
     if not FROM_MARKDOWN:
-        sec_data,sec_form_names = get_data(ticker=ticker, year=year,data_source='unstructured',include_amends=True,filing_types=filing_types)
+        sec_data, sec_form_names = get_data(ticker=ticker, year=year, data_source='unstructured', include_amends=True, filing_types=filing_types)
         emb_fn = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
         text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1024,
@@ -116,9 +115,10 @@ def rag_database_sec(
         length_function=len,)
         sec_filings_split_docs = text_splitter.split_documents(sec_data)
 
-        sec_filings_unstructured_db = Chroma.from_documents(sec_filings_split_docs, emb_fn, persist_directory="./sec-filings-db",collection_name="sec_filings")
+        sec_filings_unstructured_db = Chroma.from_documents(sec_filings_split_docs, emb_fn, persist_directory="./sec-filings-db", collection_name="sec_filings")
     
-        def query_database_unstructured_sec(question: str,sec_form_name: str)->str:
+        @agentops.record_function('query_database_unstructured_sec')
+        def query_database_unstructured_sec(question: str, sec_form_name: str) -> str:
             """This tool will query the SEC Filings database for a given question and form name, and it will retrieve
             the relevant text along from the SEC filings and the section names. This tool helps in answering questions
             from the sec filings.
@@ -127,8 +127,6 @@ def rag_database_sec(
             question (str): _description_. Question to query the database for relevant documents
             sec_form_name (str): _description_. SEC FORM NAME that the question is talking about. It can be 10-K for yearly data and 10-Q for quarterly data. For quarterly data, it can be 10-Q2 to represent Quarter 2 and similarly for other quarters.
             
-           
-
             Returns:
             str: Relevant context for the question from the sec filings
             """
@@ -157,8 +155,8 @@ def rag_database_sec(
         return query_database_unstructured_sec, sec_form_names
     
     elif FROM_MARKDOWN:
-        sec_data,sec_form_names = get_data(ticker=ticker, year=year,data_source='unstructured',include_amends=True,filing_types=filing_types)
-        get_data(ticker=ticker,year=year,data_source='marker_pdf',batch_processing=False,batch_multiplier=1)
+        sec_data, sec_form_names = get_data(ticker=ticker, year=year, data_source='unstructured', include_amends=True, filing_types=filing_types)
+        get_data(ticker=ticker, year=year, data_source='marker_pdf', batch_processing=False, batch_multiplier=1)
 
         headers_to_split_on = [
         ("#", "Header 1"),
@@ -168,11 +166,11 @@ def rag_database_sec(
         markdown_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
         markdown_dir = "output/SEC_EDGAR_FILINGS_MD"
         md_content_list = []
-        for md_dirs in os.listdir(os.path.join(markdown_dir,f"{ticker}-{year}")):
-            md_file_path = os.path.join(markdown_dir,f"{ticker}-{year}",md_dirs,f"{md_dirs}.md")
+        for md_dirs in os.listdir(os.path.join(markdown_dir, f"{ticker}-{year}")):
+            md_file_path = os.path.join(markdown_dir, f"{ticker}-{year}", md_dirs, f"{md_dirs}.md")
             with open(md_file_path, 'r') as file:
                 content = file.read()
-            md_content_list.append([content,'-'.join(md_dirs.split('-')[-2:])])
+            md_content_list.append([content, '-'.join(md_dirs.split('-')[-2:])])
         
         sec_markdown_docs = []
 
@@ -182,11 +180,12 @@ def rag_database_sec(
                 md_header_docs.metadata.update({"filing_type":md_content[1]})
             sec_markdown_docs.extend(md_header_splits)
 
-        sec_filings_md_db = Chroma.from_documents(sec_markdown_docs, emb_fn, persist_directory="./sec-filings-md-db",collection_name="sec_filings_md")
+        sec_filings_md_db = Chroma.from_documents(sec_markdown_docs, emb_fn, persist_directory="./sec-filings-md-db", collection_name="sec_filings_md")
 
+        @agentops.record_function('query_database_markdown_sec')
         def query_database_markdown_sec(
             question: str,
-            sec_form_name: str)->str:
+            sec_form_name: str) -> str:
             """This tool will query the SEC Filings database for a given question and form name, and it will retrieve
             the relevant text along from the SEC filings and the section names. This tool helps in answering questions
             from the sec filings.
@@ -195,8 +194,6 @@ def rag_database_sec(
             question (str): _description_. Question to query the database for relevant documents
             sec_form_name (str): _description_. SEC FORM NAME that the question is talking about. It can be 10-K for yearly data and 10-Q for quarterly data. For quarterly data, it can be 10-Q2 to represent Quarter 2 and similarly for other quarters.
             
-           
-
             Returns:
             str: Relevant context for the question from the sec filings
             """
@@ -216,3 +213,6 @@ def rag_database_sec(
 
             return relevant_section_text
         return query_database_markdown_sec, sec_form_names
+
+# Add this at the end of your script or in your main execution point
+agentops.end_session('Success')

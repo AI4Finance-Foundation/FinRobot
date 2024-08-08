@@ -233,7 +233,7 @@ class ReportLabUtils:
                     ("ALIGN", (0, 1), (0, -1), "LEFT"),
                     # 第二列右对齐
                     ("ALIGN", (1, 1), (1, -1), "RIGHT"),
-                    ("LEFTPADDING", (1, 1), (-1, -1), 5),
+                    ("LEFTPADDING", (1, 1), (-1, -1), 10),
                     # 标题栏下方添加横线
                     ("LINEBELOW", (0, 0), (-1, 0), 2, colors.black),
                 ]

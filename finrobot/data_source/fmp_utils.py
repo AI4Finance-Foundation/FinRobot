@@ -173,15 +173,19 @@ class FMPUtils:
             # Extracting needed metrics for each year
             if income_data and key_metrics_data and ratios_data:
                 metrics = {
-                    "Operating Revenue": income_data[year_offset]["revenue"] / 1e6,
-                    "Adjusted Net Profit": income_data[year_offset]["netIncome"] / 1e6,
-                    "Adjusted EPS": income_data[year_offset]["eps"],
-                    "EBIT Margin": ratios_data[year_offset]["ebitPerRevenue"],
-                    "ROE": key_metrics_data[year_offset]["roe"],
-                    "PE Ratio": ratios_data[year_offset]["priceEarningsRatio"],
+                    "Revenue": income_data[year_offset]["revenue"] / 1e6,
+                    "Revenue Growth Rate": (income_data[year_offset]["revenue"] - income_data[year_offset - 1]["revenue"]) / income_data[year_offset - 1]["revenue"],
+                    "Gross Revenue": income_data[year_offset]["grossProfit"] / 1e6,
+                    "Gross Margin": income_data[year_offset]["grossProfit"] / income_data[year_offset]["revenue"],
+                    "Reported EBITDA": income_data[year_offset]["ebitda"] / 1e6,
+                    "Reported EBITDA Margin": income_data[year_offset]["ebitdaratio"],
+                    "FCF": key_metrics_data[year_offset]["enterpriseValue"] / key_metrics_data[year_offset]["evToOperatingCashFlow"] / 1e6,
+                    "FCF Conversion Rate": (key_metrics_data[year_offset]["enterpriseValue"] / key_metrics_data[year_offset]["evToOperatingCashFlow"]) / income_data[year_offset]["netIncome"],
+                    "ROIC":key_metrics_data[year_offset]["roic"],
                     "EV/EBITDA": key_metrics_data[year_offset][
                         "enterpriseValueOverEBITDA"
                     ],
+                    "PE Ratio": ratios_data[year_offset]["priceEarningsRatio"],
                     "PB Ratio": key_metrics_data[year_offset]["pbRatio"],
                 }
                 # Append the year and metrics to the DataFrame

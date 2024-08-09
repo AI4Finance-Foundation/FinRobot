@@ -174,13 +174,13 @@ class FMPUtils:
             if income_data and key_metrics_data and ratios_data:
                 metrics = {
                     "Revenue": income_data[year_offset]["revenue"] / 1e6,
-                    "Revenue Growth Rate": (income_data[year_offset]["revenue"] - income_data[year_offset - 1]["revenue"]) / income_data[year_offset - 1]["revenue"],
+                    "Revenue Growth": (income_data[year_offset]["revenue"] - income_data[year_offset - 1]["revenue"]) / income_data[year_offset - 1]["revenue"],
                     "Gross Revenue": income_data[year_offset]["grossProfit"] / 1e6,
                     "Gross Margin": income_data[year_offset]["grossProfit"] / income_data[year_offset]["revenue"],
                     "EBITDA": income_data[year_offset]["ebitda"] / 1e6,
                     "EBITDA Margin": income_data[year_offset]["ebitdaratio"],
                     "FCF": key_metrics_data[year_offset]["enterpriseValue"] / key_metrics_data[year_offset]["evToOperatingCashFlow"] / 1e6,
-                    "FCF Conversion Rate": (key_metrics_data[year_offset]["enterpriseValue"] / key_metrics_data[year_offset]["evToOperatingCashFlow"]) / income_data[year_offset]["netIncome"],
+                    "FCF Conversion": (key_metrics_data[year_offset]["enterpriseValue"] / key_metrics_data[year_offset]["evToOperatingCashFlow"]) / income_data[year_offset]["netIncome"],
                     "ROIC":key_metrics_data[year_offset]["roic"],
                     "EV/EBITDA": key_metrics_data[year_offset][
                         "enterpriseValueOverEBITDA"

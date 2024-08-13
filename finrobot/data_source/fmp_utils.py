@@ -198,7 +198,7 @@ class FMPUtils:
 
         return df
 
-    def get_competitor_financial_metrics(self, ticker_symbol: Annotated[str, "ticker symbol"], competitors,  years: Annotated[int, "number of the years to search from, default to 4"] = 4):
+    def get_competitor_financial_metrics(self, ticker_symbol: Annotated[str, "ticker symbol"], competitors: Annotated[list[str], "list of competitor ticker symbols"],  years: Annotated[int, "number of the years to search from, default to 4"] = 4):
         """Get financial metrics for the company and its competitors."""
         all_data = {}
         all_data[ticker_symbol] = self.get_financial_metrics(ticker_symbol, years)

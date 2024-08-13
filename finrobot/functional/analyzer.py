@@ -206,7 +206,36 @@ class ReportAnalysisUtils:
         prompt = combine_prompt(instruction, section_text, "")
         save_to_file(prompt, save_path)
         return f"instruction & resources saved to {save_path}"
+        
+    def analyze_competitors(self, company, competitors, fmp_api_key, years=4):
+        """Prepare a prompt for analyzing financial metrics differences between a company and its competitors."""
+        fmp_utils = FMPUtils(fmp_api_key)
+        financial_data = fmp_utils.get_competitor_financial_metrics(company, competitors, years)
+        
+        # Prepare the instruction
+        instruction = (
+            f"Analyze the financial data for {company} and its competitors: {competitors}. "
+            "Provide insights on revenue growth rate, gross margin, EBITDA margin, FCF conversion, and ROIC. "
+            "Explain why the ROIC may or may not justify the current EV/EBITDA ratio for the company. "
+            "Provide a conclusion that ties these factors together."
+        )
 
+        # Construct the table string from financial data
+        table_str = ""
+        for metric in financial_data[company].index:
+            table_str += f"\n\n{metric}:\n"
+            company_value = financial_data[company].loc[metric].mean()
+            table_str += f"{company}: {company_value}\n"
+            for competitor in competitors:
+                competitor_value = financial_data[competitor].loc[metric].mean()
+                table_str += f"{competitor}: {competitor_value}\n"
+
+        # Create the final prompt using the combine_prompt method
+        resource = f"Financial metrics for {company} and competitors."
+        prompt = combine_prompt(instruction, resource, table_str)
+
+        return prompt
+        
     def analyze_business_highlights(
         ticker_symbol: Annotated[str, "ticker symbol"],
         fyear: Annotated[str, "fiscal year of the 10-K report"],

@@ -7,7 +7,7 @@ from ..utils import decorate_all_methods, get_next_weekday
 
 # from finrobot.utils import decorate_all_methods, get_next_weekday
 from functools import wraps
-from typing import Annotated
+from typing import Annotated, List
 
 
 def init_fmp_api(func):
@@ -198,14 +198,59 @@ class FMPUtils:
 
         return df
 
-    def get_competitor_financial_metrics(self, ticker_symbol: Annotated[str, "ticker symbol"], competitors: Annotated[list[str], "list of competitor ticker symbols"],  years: Annotated[int, "number of the years to search from, default to 4"] = 4):
-        """Get financial metrics for the company and its competitors."""
+    def get_competitor_financial_metrics(
+    ticker_symbol: Annotated[str, "ticker symbol"], 
+    competitors: Annotated[List[str], "list of competitor ticker symbols"],  
+    years: Annotated[int, "number of the years to search from, default to 4"] = 4
+) -> dict:
+    """Get financial metrics for the company and its competitors."""
+        base_url = "https://financialmodelingprep.com/api/v3"
         all_data = {}
-        all_data[ticker_symbol] = self.get_financial_metrics(ticker_symbol, years)
-        
+
+        def fetch_metrics(symbol: str) -> pd.DataFrame:
+        """Fetch metrics for a given symbol."""
+            income_statement_url = f"{base_url}/income-statement/{symbol}?limit={years}&apikey={FMP_API_KEY}"
+            ratios_url = f"{base_url}/ratios/{symbol}?limit={years}&apikey={FMP_API_KEY}"
+            key_metrics_url = f"{base_url}/key-metrics/{symbol}?limit={years}&apikey={FMP_API_KEY}"
+
+            income_data = requests.get(income_statement_url).json()
+            ratios_data = requests.get(ratios_url).json()
+            key_metrics_data = requests.get(key_metrics_url).json()
+
+            metrics = {}
+
+            if income_data and ratios_data and key_metrics_data:
+                for year_offset in range(years):
+                    metrics[year_offset] = {
+                        "Revenue": income_data[year_offset]["revenue"] / 1e6,
+                        "Revenue Growth": (
+                            (income_data[year_offset]["revenue"] - income_data[year_offset - 1]["revenue"])
+                            / income_data[year_offset - 1]["revenue"]
+                            if year_offset > 0 else None
+                        ),
+                        "Gross Margin": income_data[year_offset]["grossProfit"] / income_data[year_offset]["revenue"],
+                        "EBITDA Margin": income_data[year_offset]["ebitdaratio"],
+                        "FCF Conversion": (
+                            key_metrics_data[year_offset]["enterpriseValue"] 
+                            / key_metrics_data[year_offset]["evToOperatingCashFlow"] 
+                            / income_data[year_offset]["netIncome"]
+                            if key_metrics_data[year_offset]["evToOperatingCashFlow"] != 0 else None
+                        ),
+                        "ROIC": key_metrics_data[year_offset]["roic"],
+                        "EV/EBITDA": key_metrics_data[year_offset]["enterpriseValueOverEBITDA"],
+                    }
+
+            df = pd.DataFrame.from_dict(metrics, orient='index')
+            df = df.sort_index(axis=1).round(2)
+        return df
+
+        # Fetch metrics for the company
+        all_data[ticker_symbol] = fetch_metrics(ticker_symbol)
+    
+        # Fetch metrics for each competitor
         for competitor in competitors:
-            all_data[competitor] = self.get_financial_metrics(competitor, years)
-        
+            all_data[competitor] = fetch_metrics(competitor)
+    
         return all_data
 
 

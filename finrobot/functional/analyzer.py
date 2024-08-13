@@ -211,7 +211,7 @@ class ReportAnalysisUtils:
         self, 
         ticker_symbol: Annotated[str, "ticker symbol"], 
         competitors: list[str], 
-        years: Annotated[str], 
+        fyear: Annotated[str], 
         fmp_api_key: str, 
         save_path: Annotated[str, "txt file path, to which the returned instruction & resources are written."]
     ) -> str:

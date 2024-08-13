@@ -45,6 +45,10 @@ class ReportLabUtils:
             str,
             "a paragraph of text: the company's risk assessment from its financial report",
         ],
+        competitors_analysis: Annotated[
+            str,
+            "a paragraph of text: the company's competitors analysis from its financial metrics and competitor_1's, competitor_2's, competitor_3's financial metrics",
+        ],
         share_performance_image_path: Annotated[
             str, "path to the share performance image"
         ],
@@ -206,6 +210,9 @@ class ReportLabUtils:
 
             content.append(Paragraph("Risk Assessment", subtitle_style))
             content.append(Paragraph(risk_assessment, custom_style))
+
+            content.append(Paragraph("Competitors Analysis", subtitle_style))
+            content.append(Paragraph(competitors_analysis, custom_style))
 
             # content.append(Paragraph("Summarization", subtitle_style))
             df = FMPUtils.get_financial_metrics(ticker_symbol, years=5)

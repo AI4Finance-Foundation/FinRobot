@@ -199,16 +199,17 @@ class FMPUtils:
         return df
 
     def get_competitor_financial_metrics(
-    ticker_symbol: Annotated[str, "ticker symbol"], 
-    competitors: Annotated[List[str], "list of competitor ticker symbols"],  
-    years: Annotated[int, "number of the years to search from, default to 4"] = 4
-) -> dict:
-    """Get financial metrics for the company and its competitors."""
+        ticker_symbol: Annotated[str, "ticker symbol"], 
+        competitors: Annotated[List[str], "list of competitor ticker symbols"],  
+        years: Annotated[int, "number of the years to search from, default to 4"] = 4
+    ) -> dict:
+        """Get financial metrics for the company and its competitors."""
         base_url = "https://financialmodelingprep.com/api/v3"
         all_data = {}
 
-        def fetch_metrics(symbol: str) -> pd.DataFrame:
-        """Fetch metrics for a given symbol."""
+        symbols = [ticker_symbol] + competitors  # Combine company and competitors into one list
+    
+        for symbol in symbols:
             income_statement_url = f"{base_url}/income-statement/{symbol}?limit={years}&apikey={FMP_API_KEY}"
             ratios_url = f"{base_url}/ratios/{symbol}?limit={years}&apikey={FMP_API_KEY}"
             key_metrics_url = f"{base_url}/key-metrics/{symbol}?limit={years}&apikey={FMP_API_KEY}"
@@ -242,16 +243,10 @@ class FMPUtils:
 
             df = pd.DataFrame.from_dict(metrics, orient='index')
             df = df.sort_index(axis=1).round(2)
-        return df
+            all_data[symbol] = df
 
-        # Fetch metrics for the company
-        all_data[ticker_symbol] = fetch_metrics(ticker_symbol)
-    
-        # Fetch metrics for each competitor
-        for competitor in competitors:
-            all_data[competitor] = fetch_metrics(competitor)
-    
         return all_data
+
 
 
 if __name__ == "__main__":

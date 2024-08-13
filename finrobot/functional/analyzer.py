@@ -207,34 +207,48 @@ class ReportAnalysisUtils:
         save_to_file(prompt, save_path)
         return f"instruction & resources saved to {save_path}"
         
-    def analyze_competitors(self, company, competitors, fmp_api_key, years=4):
-        """Prepare a prompt for analyzing financial metrics differences between a company and its competitors."""
+    def get_competitors_analysis(
+        self, 
+        ticker_symbol: Annotated[str, "ticker symbol"], 
+        competitors: list[str], 
+        years: Annotated[str], 
+        fmp_api_key: str, 
+        save_path: Annotated[str, "txt file path, to which the returned instruction & resources are written."]
+    ) -> str:
+        """
+        Analyze financial metrics differences between a company and its competitors.
+        Prepare a prompt for analysis and save it to a file.
+        """
+        # Retrieve financial data
         fmp_utils = FMPUtils(fmp_api_key)
-        financial_data = fmp_utils.get_competitor_financial_metrics(company, competitors, years)
-        
-        # Prepare the instruction
-        instruction = (
-            f"Analyze the financial data for {company} and its competitors: {competitors}. "
-            "Provide insights on revenue growth rate, gross margin, EBITDA margin, FCF conversion, and ROIC. "
-            "Explain why the ROIC may or may not justify the current EV/EBITDA ratio for the company. "
-            "Provide a conclusion that ties these factors together."
-        )
+        financial_data = fmp_utils.get_competitor_financial_metrics(ticker_symbol, competitors, years=4)
 
-        # Construct the table string from financial data
+        # Construct the financial data summary
         table_str = ""
-        for metric in financial_data[company].index:
+        for metric in financial_data[ticker_symbol].index:
             table_str += f"\n\n{metric}:\n"
-            company_value = financial_data[company].loc[metric].mean()
-            table_str += f"{company}: {company_value}\n"
+            company_value = financial_data[ticker_symbol].loc[metric].mean()
+            table_str += f"{ticker_symbol}: {company_value}\n"
             for competitor in competitors:
                 competitor_value = financial_data[competitor].loc[metric].mean()
                 table_str += f"{competitor}: {competitor_value}\n"
 
-        # Create the final prompt using the combine_prompt method
-        resource = f"Financial metrics for {company} and competitors."
+        # Prepare the instructions for analysis
+        instruction = (
+            "Analyze the financial data provided, focusing on revenue growth rate, gross margin, EBITDA margin, "
+            "FCF conversion, and ROIC. Provide a conclusion on how these metrics compare with competitors and "
+            "whether they justify the current EV/EBITDA ratio for the company. The analysis should be less than 140 words."
+        )
+
+        # Combine the prompt
+        company_name = ticker_symbol  # Assuming the ticker symbol is the company name, otherwise, retrieve it.
+        resource = f"Financial metrics for {company_name} and competitors."
         prompt = combine_prompt(instruction, resource, table_str)
 
-        return prompt
+        # Save the instructions and resources to a file
+        save_to_file(prompt, save_path)
+        
+        return f"instruction & resources saved to {save_path}"
         
     def analyze_business_highlights(
         ticker_symbol: Annotated[str, "ticker symbol"],

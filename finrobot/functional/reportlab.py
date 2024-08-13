@@ -47,7 +47,7 @@ class ReportLabUtils:
         ],
         competitors_analysis: Annotated[
             str,
-            "a paragraph of text: the company's competitors analysis from its financial metrics and competitor_1's, competitor_2's, competitor_3's financial metrics",
+            "a paragraph of text: the company's competitors analysis from its financial report and competitors' financial report",
         ],
         share_performance_image_path: Annotated[
             str, "path to the share performance image"
@@ -59,7 +59,7 @@ class ReportLabUtils:
     ) -> str:
         """
         Aggregate a company's business_overview, market_position, operating_results,
-        risk assessment and share performance, PE & EPS performance charts all into a PDF report.
+        risk assessment, competitors analysis and share performance, PE & EPS performance charts all into a PDF report.
         """
         try:
             # 2. 创建PDF并插入图像

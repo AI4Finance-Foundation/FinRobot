@@ -145,10 +145,10 @@ class FMPUtils:
             return closest_data.get("bookValuePerShare", "No BVPS data available")
         else:
             return "No close date data found"
-
+        
     def get_financial_metrics(
         ticker_symbol: Annotated[str, "ticker symbol"],
-        years: Annotated[int, "number of the years to search from, default to 4"] = 4,
+        years: Annotated[int, "number of the years to search from, default to 4"] = 4
     ) -> pd.DataFrame:
         """Get the financial metrics for a given stock for the last 'years' years"""
         # Base URL setup for FMP API
@@ -197,6 +197,16 @@ class FMPUtils:
         df = df.round(2)
 
         return df
+
+    def get_competitor_financial_metrics(self, ticker_symbol, competitors, years=4):
+        """Get financial metrics for the company and its competitors."""
+        all_data = {}
+        all_data[ticker_symbol] = self.get_financial_metrics(ticker_symbol, years)
+        
+        for competitor in competitors:
+            all_data[competitor] = self.get_financial_metrics(competitor, years)
+        
+        return all_data
 
 
 if __name__ == "__main__":

@@ -208,7 +208,6 @@ class ReportAnalysisUtils:
         return f"instruction & resources saved to {save_path}"
         
     def get_competitors_analysis(
-        self, 
         ticker_symbol: Annotated[str, "ticker symbol"], 
         competitors: list[str], 
         fyear: Annotated[str, "fiscal year of the 10-K report"], 

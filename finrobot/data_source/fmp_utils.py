@@ -198,7 +198,7 @@ class FMPUtils:
 
         return df
 
-    def get_competitor_financial_metrics(self, ticker_symbol, competitors, years=4):
+    def get_competitor_financial_metrics(self, ticker_symbol: Annotated[str, "ticker symbol"], competitors,  years: Annotated[int, "number of the years to search from, default to 4"] = 4):
         """Get financial metrics for the company and its competitors."""
         all_data = {}
         all_data[ticker_symbol] = self.get_financial_metrics(ticker_symbol, years)
@@ -213,4 +213,4 @@ if __name__ == "__main__":
     from finrobot.utils import register_keys_from_json
 
     register_keys_from_json("config_api_keys")
-    FMPUtils.get_sec_report("MSFT", "2023")
+    FMPUtils.get_sec_report("NEE", "2024")

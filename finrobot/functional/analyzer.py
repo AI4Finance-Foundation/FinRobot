@@ -233,7 +233,7 @@ class ReportAnalysisUtils:
         # Prepare the instructions for analysis
         instruction = dedent(
           """
-          Analyze the financial data summary table provided, and compare the company's revenue growth rate, gross margin, EBITDA margin, FCF conversion, and ROIC with the competitors'. 
+          Analyze the following financial data for {company} and its competitors: {competitors}. Provide insights on revenue growth rate, gross margin, EBITDA margin, FCF conversion, and ROIC. Explain why the ROIC may or may not justify the current EV/EBITDA ratio for {company}. Provide a conclusion that ties these factors together. 
           The comparison should be fact-based and data-driven and a descriptive summary of how these company's metrics compare with competitors should be provided.
           Lastly, discuss whether your analysis of the comparison justifies the company's current EV/EBITDA ratio. The entire synthesis should be presented as a continuous paragraph without using bullet points.
           The analysis should be less than 140 words.

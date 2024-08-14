@@ -224,19 +224,28 @@ class ReportAnalysisUtils:
         table_str = ""
         for metric in financial_data[ticker_symbol].index:
             table_str += f"\n\n{metric}:\n"
-            company_value = financial_data[ticker_symbol].loc[metric].mean()
+            company_value = financial_data[ticker_symbol].loc[metric]
             table_str += f"{ticker_symbol}: {company_value}\n"
             for competitor in competitors:
-                competitor_value = financial_data[competitor].loc[metric].mean()
+                competitor_value = financial_data[competitor].loc[metric]
                 table_str += f"{competitor}: {competitor_value}\n"
 
         # Prepare the instructions for analysis
         instruction = dedent(
           """
-          Analyze the following financial data for {company} and its competitors: {competitors}. Provide insights on revenue growth rate, gross margin, EBITDA margin, FCF conversion, and ROIC. Explain why the ROIC may or may not justify the current EV/EBITDA ratio for {company}. Provide a conclusion that ties these factors together. 
-          The comparison should be fact-based and data-driven and a descriptive summary of how these company's metrics compare with competitors should be provided.
-          Lastly, discuss whether your analysis of the comparison justifies the company's current EV/EBITDA ratio. The entire synthesis should be presented as a continuous paragraph without using bullet points.
-          The analysis should be less than 140 words.
+          Analyze the financial metrics for {company}/ticker_symbol and its competitors: {competitors} across multiple years (indicated as 0, 1, 2, 3, with 0 being the latest year and 3 the earliest year). Focus on the following metrics: EBITDA Margin, EV/EBITDA, FCF Conversion, Gross Margin, ROIC, Revenue, and Revenue Growth. 
+          For each year: Year-over-Year Trends: Identify and discuss the trends for each metric from the earliest year (3) to the latest year (0) for {company}. Highlight any significant improvements, declines, or stability in these metrics over time.
+          Competitor Comparison: For each year, compare {company} against its {competitors} for each metric. Evaluate how {company} performs relative to its {competitors}, noting where it outperforms or lags behind.
+          Metric-Specific Insights:
+
+          EBITDA Margin: Discuss the profitability of {company} compared to its {competitors}, particularly in the most recent year (0).
+          EV/EBITDA: Provide insights on the valuation and whether {company} is over or undervalued compared to its {competitors} in each year.
+          FCF Conversion: Evaluate the cash flow efficiency of {company} relative to its {competitors} over time.
+          Gross Margin: Analyze the cost efficiency and profitability in each year.
+          ROIC: Discuss the return on invested capital and what it suggests about the company's efficiency in generating returns from its investments, especially focusing on recent trends.
+          Revenue and Revenue Growth: Provide a comprehensive view of {company}’s revenue performance and growth trajectory, noting any significant changes or patterns.
+          Conclusion: Summarize the overall financial health of {company} based on these metrics. Discuss how {company}’s performance over these years and across these metrics might justify or contradict its current market valuation (as reflected in the EV/EBITDA ratio).
+          Do not exceed 140 words.
           """
         )
 

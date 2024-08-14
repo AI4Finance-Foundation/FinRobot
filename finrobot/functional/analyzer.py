@@ -1,6 +1,6 @@
 import os
 from textwrap import dedent
-from typing import Annotated
+from typing import Annotated, List
 from datetime import timedelta, datetime
 from ..data_source import YFinanceUtils, SECUtils, FMPUtils
 
@@ -209,7 +209,7 @@ class ReportAnalysisUtils:
         
     def get_competitors_analysis(
         ticker_symbol: Annotated[str, "ticker symbol"], 
-        competitors: Annotated[List[str], "competitors company"]
+        competitors: Annotated[List[str], "competitors company"],
         fyear: Annotated[str, "fiscal year of the 10-K report"], 
         save_path: Annotated[str, "txt file path, to which the returned instruction & resources are written."]
     ) -> str:
@@ -231,15 +231,18 @@ class ReportAnalysisUtils:
                 table_str += f"{competitor}: {competitor_value}\n"
 
         # Prepare the instructions for analysis
-        instruction = (
-            "Analyze the financial data provided, focusing on revenue growth rate, gross margin, EBITDA margin, "
-            "FCF conversion, and ROIC. Provide a conclusion on how these metrics compare with competitors and "
-            "whether they justify the current EV/EBITDA ratio for the company. The analysis should be less than 140 words."
+        instruction = dedent(
+          """
+          Analyze the financial data summary table provided, and compare the company's revenue growth rate, gross margin, EBITDA margin, FCF conversion, and ROIC with the competitors'. 
+          The comparison should be fact-based and data-driven and a descriptive summary of how these company's metrics compare with competitors should be provided.
+          Lastly, discuss whether your analysis of the comparison justifies the company's current EV/EBITDA ratio. The entire synthesis should be presented as a continuous paragraph without using bullet points.
+          The analysis should be less than 140 words.
+          """
         )
 
         # Combine the prompt
         company_name = ticker_symbol  # Assuming the ticker symbol is the company name, otherwise, retrieve it.
-        resource = f"Financial metrics for {company_name} and competitors."
+        resource = f"Financial metrics for {company_name} and {competitors}."
         prompt = combine_prompt(instruction, resource, table_str)
 
         # Save the instructions and resources to a file

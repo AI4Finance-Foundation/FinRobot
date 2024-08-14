@@ -209,9 +209,8 @@ class ReportAnalysisUtils:
         
     def get_competitors_analysis(
         ticker_symbol: Annotated[str, "ticker symbol"], 
-        competitors: list[str], 
+        competitors: Annotated[List[str], "competitors company"]
         fyear: Annotated[str, "fiscal year of the 10-K report"], 
-        fmp_api_key: str, 
         save_path: Annotated[str, "txt file path, to which the returned instruction & resources are written."]
     ) -> str:
         """
@@ -219,8 +218,7 @@ class ReportAnalysisUtils:
         Prepare a prompt for analysis and save it to a file.
         """
         # Retrieve financial data
-        fmp_utils = FMPUtils(fmp_api_key)
-        financial_data = fmp_utils.get_competitor_financial_metrics(ticker_symbol, competitors, years=4)
+        financial_data = FMPUtils.get_competitor_financial_metrics(ticker_symbol, competitors, years=4)
 
         # Construct the financial data summary
         table_str = ""

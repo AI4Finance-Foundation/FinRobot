@@ -210,9 +210,9 @@ class FMPUtils:
         symbols = [ticker_symbol] + competitors  # Combine company and competitors into one list
     
         for symbol in symbols:
-            income_statement_url = f"{base_url}/income-statement/{symbol}?limit={years}&apikey={FMP_API_KEY}"
-            ratios_url = f"{base_url}/ratios/{symbol}?limit={years}&apikey={FMP_API_KEY}"
-            key_metrics_url = f"{base_url}/key-metrics/{symbol}?limit={years}&apikey={FMP_API_KEY}"
+            income_statement_url = f"{base_url}/income-statement/{symbol}?limit={years}&apikey={fmp_api_key}"
+            ratios_url = f"{base_url}/ratios/{symbol}?limit={years}&apikey={fmp_api_key}"
+            key_metrics_url = f"{base_url}/key-metrics/{symbol}?limit={years}&apikey={fmp_api_key}"
 
             income_data = requests.get(income_statement_url).json()
             ratios_data = requests.get(ratios_url).json()

@@ -65,8 +65,6 @@ class ReportLabUtils:
             # 2. 创建PDF并插入图像
             # 页面设置
             page_width, page_height = pagesizes.A4
-            left_column_width = page_width * 2 / 3
-            right_column_width = page_width - left_column_width
             margin = 4
 
             # 创建PDF文档路径
@@ -77,66 +75,76 @@ class ReportLabUtils:
             )
             os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
             doc = SimpleDocTemplate(pdf_path, pagesize=pagesizes.A4)
+            
+            # Full-width frame for the first page
+            full_width_frame = Frame(margin, margin, page_width - 2 * margin, page_height - 2 * margin, id="full_width")
+            # Define two-column frames for the second page
+            left_column_width = (page_width - 2 * margin) * 2 / 3
+            right_column_width = (page_width - 2 * margin) / 3
+            frame_left = Frame(margin, margin, left_column_width, page_height - 2 * margin, id="left")
+            frame_right = Frame(margin + left_column_width, margin, right_column_width, page_height - 2 * margin, id="right")
+            # Page Templates
+            first_page_template = PageTemplate(id="FirstPage", frames=[full_width_frame])
+            second_page_template = PageTemplate(id="SecondPage", frames=[frame_left, frame_right])
+
 
             # 定义两个栏位的Frame
-            frame_left = Frame(
-                margin,
-                margin,
-                left_column_width - margin * 2,
-                page_height - margin * 2,
-                id="left",
-            )
-            frame_right = Frame(
-                left_column_width,
-                margin,
-                right_column_width - margin * 2,
-                page_height - margin * 2,
-                id="right",
-            )
+            #frame_left = Frame(
+               # margin,
+               # margin,
+               # left_column_width - margin * 2,
+               # page_height - margin * 2,
+               # id="left",
+            #)
+            #frame_right = Frame(
+               # left_column_width,
+               # margin,
+               # right_column_width - margin * 2,
+               # page_height - margin * 2,
+               # id="right",
+            #)
 
             # single_frame = Frame(margin, margin, page_width-margin*2, page_height-margin*2, id='single')
             # single_column_layout = PageTemplate(id='OneCol', frames=[single_frame])
 
-            left_column_width_p2 = (page_width - margin * 3) // 2
-            right_column_width_p2 = left_column_width_p2
-            frame_left_p2 = Frame(
-                margin,
-                margin,
-                left_column_width_p2 - margin * 2,
-                page_height - margin * 2,
-                id="left",
-            )
-            frame_right_p2 = Frame(
-                left_column_width_p2,
-                margin,
-                right_column_width_p2 - margin * 2,
-                page_height - margin * 2,
-                id="right",
-            )
+            #left_column_width_p2 = (page_width - margin * 3) // 2
+            #right_column_width_p2 = left_column_width_p2
+            #frame_left_p2 = Frame(
+                #margin,
+                #margin,
+                #left_column_width_p2 - margin * 2,
+                #page_height - margin * 2,
+                #id="left",
+            #)
+            #frame_right_p2 = Frame(
+                #left_column_width_p2,
+                #margin,
+                #right_column_width_p2 - margin * 2,
+                #page_height - margin * 2,
+                #id="right",
+           # )
 
             # 创建PageTemplate，并添加到文档
-            page_template = PageTemplate(
-                id="TwoColumns", frames=[frame_left, frame_right]
-            )
-            page_template_p2 = PageTemplate(
-                id="TwoColumns_p2", frames=[frame_left_p2, frame_right_p2]
-            )
+            #page_template = PageTemplate(
+                #id="TwoColumns", frames=[frame_left, frame_right]
+            #)
+            #page_template_p2 = PageTemplate(
+               # id="TwoColumns_p2", frames=[frame_left_p2, frame_right_p2]
+           # )
 
             # Define single column Frame
-            single_frame = Frame(
-                margin,
-                margin,
-                page_width - 2 * margin,
-                page_height - 2 * margin,
-                id="single",
-            )
+            #single_frame = Frame(
+                #margin,
+               # margin,
+                #page_width - 2 * margin,
+                #page_height - 2 * margin,
+                #id="single",
+            #)
 
             # Create a PageTemplate with a single column
-            single_column_layout = PageTemplate(id="OneCol", frames=[single_frame])
+            #single_column_layout = PageTemplate(id="OneCol", frames=[single_frame])
 
-            doc.addPageTemplates(
-                [page_template, single_column_layout, page_template_p2]
-            )
+            doc.addPageTemplates([first_page_template, second_page_template])
 
             styles = getSampleStyleSheet()
 
@@ -155,7 +163,7 @@ class ReportLabUtils:
                 parent=styles["Title"],
                 fontName="Helvetica-Bold",
                 fontSize=16,
-                leading=20,
+                #leading=20,
                 alignment=TA_LEFT,
                 spaceAfter=10,
             )
@@ -165,7 +173,7 @@ class ReportLabUtils:
                 parent=styles["Heading2"],
                 fontName="Helvetica-Bold",
                 fontSize=14,
-                leading=12,
+                #leading=12,
                 alignment=TA_LEFT,
                 spaceAfter=6,
             )
@@ -207,6 +215,8 @@ class ReportLabUtils:
 
             content.append(Paragraph("Operating Results", subtitle_style))
             content.append(Paragraph(operating_results, custom_style))
+            
+            content.append(PageBreak())  # Force a new page for the second content section
 
             content.append(Paragraph("Risk Assessment", subtitle_style))
             content.append(Paragraph(risk_assessment, custom_style))

@@ -204,9 +204,9 @@ class ReportLabUtils:
 
             content.append(Paragraph("Market Position", subtitle_style))
             content.append(Paragraph(market_position, custom_style))
-
-            content.append(Paragraph("Competitors Analysis", subtitle_style))
-            content.append(Paragraph(competitors_analysis, custom_style))
+            
+            content.append(Paragraph("Operating Results", subtitle_style))
+            content.append(Paragraph(operating_results, custom_style))
 
             # content.append(Paragraph("Summarization", subtitle_style))
             df = FMPUtils.get_financial_metrics(ticker_symbol, years=5)
@@ -291,13 +291,12 @@ class ReportLabUtils:
             # # 开始新的一页
             content.append(NextPageTemplate("OneCol"))
             content.append(PageBreak())
-
-            content.append(Paragraph("Operating Results", subtitle_style))
-            content.append(Paragraph(operating_results, custom_style))
-
+            
             content.append(Paragraph("Risk Assessment", subtitle_style))
             content.append(Paragraph(risk_assessment, custom_style))
 
+            content.append(Paragraph("Competitors Analysis", subtitle_style))
+            content.append(Paragraph(competitors_analysis, custom_style))
             # def add_table(df, title):
             #     df = df.applymap(lambda x: "{:.2f}".format(x) if isinstance(x, float) else x)
             #     # df.columns = [col.strftime('%Y') for col in df.columns]

@@ -202,7 +202,17 @@ class ReportAnalysisUtils:
             + risk_factors
             + "\n\n"
         )
-        instruction = "According to the given information, summarize the top 3 key risks of the company. Less than 100 words."
+        instruction = dendet(
+            """
+            According to the given information, summarize the top 3 key risks of the company. Break down the risk assessment into the following aspects:
+            1. **Industry Vertical Risk**: How does this industry vertical compare with others in terms of risk? Consider factors such as regulation, market volatility, and competitive landscape.
+            2. **Cyclicality**: How cyclical is this industry? Discuss the impact of economic cycles on the company’s performance.
+            3. **Risk Quantification**: Enumerate the key risk factors with supporting data if the company or segment is deemed risky.
+            4. **Downside Protections**: If the company or segment is less risky, discuss the downside protections in place. Consider factors such as diversification, long-term contracts, and government regulation.
+
+            Finally, provide a detailed and nuanced assessment that reflects the true risk landscape of the company.
+            """
+        )
         prompt = combine_prompt(instruction, section_text, "")
         save_to_file(prompt, save_path)
         return f"instruction & resources saved to {save_path}"
@@ -234,11 +244,11 @@ class ReportAnalysisUtils:
         instruction = dedent(
           """
           Analyze the financial metrics for {company}/ticker_symbol and its competitors: {competitors} across multiple years (indicated as 0, 1, 2, 3, with 0 being the latest year and 3 the earliest year). Focus on the following metrics: EBITDA Margin, EV/EBITDA, FCF Conversion, Gross Margin, ROIC, Revenue, and Revenue Growth. 
-          For each year: Year-over-Year Trends: Identify and discuss the trends for each metric from the earliest year (3) to the latest year (0) for {company}. Highlight any significant improvements, declines, or stability in these metrics over time.
+          For each year: Year-over-Year Trends: Identify and discuss the trends for each metric from the earliest year (3) to the latest year (0) for {company}. But when generating analysis, you need to write 1: year 3 = year 2023, 2: year 2 = year 2022, 3: year 1 = year 2021 and 4: year 0 = year 2020. Highlight any significant improvements, declines, or stability in these metrics over time.
           Competitor Comparison: For each year, compare {company} against its {competitors} for each metric. Evaluate how {company} performs relative to its {competitors}, noting where it outperforms or lags behind.
           Metric-Specific Insights:
 
-          EBITDA Margin: Discuss the profitability of {company} compared to its {competitors}, particularly in the most recent year (0).
+          EBITDA Margin: Discuss the profitability of {company} compared to its {competitors}, particularly in the most recent year.
           EV/EBITDA: Provide insights on the valuation and whether {company} is over or undervalued compared to its {competitors} in each year.
           FCF Conversion: Evaluate the cash flow efficiency of {company} relative to its {competitors} over time.
           Gross Margin: Analyze the cost efficiency and profitability in each year.

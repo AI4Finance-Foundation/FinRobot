@@ -174,19 +174,19 @@ class FMPUtils:
             if income_data and key_metrics_data and ratios_data:
                 metrics = {
                     "Revenue": round(income_data[year_offset]["revenue"] / 1e6),
-                    "Revenue Growth": {}%.format(round((income_data[year_offset]["revenue"] - income_data[year_offset - 1]["revenue"]) / income_data[year_offset - 1]["revenue"]),1),
+                    "Revenue Growth": {}%.format(round((income_data[year_offset]["revenue"] - income_data[year_offset - 1]["revenue"]) / income_data[year_offset - 1]["revenue"],1)),
                     "Gross Revenue": round(income_data[year_offset]["grossProfit"] / 1e6),
-                    "Gross Margin": income_data[year_offset]["grossProfit"] / income_data[year_offset]["revenue"],
+                    "Gross Margin": round((income_data[year_offset]["grossProfit"] / income_data[year_offset]["revenue"]),2),
                     "EBITDA": round(income_data[year_offset]["ebitda"] / 1e6),
-                    "EBITDA Margin": income_data[year_offset]["ebitdaratio"],
+                    "EBITDA Margin": round((income_data[year_offset]["ebitdaratio"]),2),
                     "FCF": round(key_metrics_data[year_offset]["enterpriseValue"] / key_metrics_data[year_offset]["evToOperatingCashFlow"] / 1e6),
-                    "FCF Conversion": (key_metrics_data[year_offset]["enterpriseValue"] / key_metrics_data[year_offset]["evToOperatingCashFlow"]) / income_data[year_offset]["netIncome"],
+                    "FCF Conversion": round(((key_metrics_data[year_offset]["enterpriseValue"] / key_metrics_data[year_offset]["evToOperatingCashFlow"]) / income_data[year_offset]["netIncome"]),2),
                     "ROIC":{}%.format(round(key_metrics_data[year_offset]["roic"]),1),
-                    "EV/EBITDA": key_metrics_data[year_offset][
+                    "EV/EBITDA": round((key_metrics_data[year_offset][
                         "enterpriseValueOverEBITDA"
-                    ],
-                    "PE Ratio": ratios_data[year_offset]["priceEarningsRatio"],
-                    "PB Ratio": key_metrics_data[year_offset]["pbRatio"],
+                    ]),2),
+                    "PE Ratio": round(ratios_data[year_offset]["priceEarningsRatio"],2),
+                    "PB Ratio": round(key_metrics_data[year_offset]["pbRatio"],2),
                 }
                 # Append the year and metrics to the DataFrame
                 # Extracting the year from the date
@@ -194,7 +194,6 @@ class FMPUtils:
                 df[year] = pd.Series(metrics)
 
         df = df.sort_index(axis=1)
-        df = df.round(2)
 
         return df
 
@@ -225,23 +224,23 @@ class FMPUtils:
                     metrics[year_offset] = {
                         "Revenue": round(income_data[year_offset]["revenue"] / 1e6),
                         "Revenue Growth": (
-                            "{}%".format((round(income_data[year_offset]["revenue"] - income_data[year_offset - 1]["revenue"] / income_data[year_offset - 1]["revenue"], 1)*100)
+                            "{}%".format((round(income_data[year_offset]["revenue"] - income_data[year_offset - 1]["revenue"] / income_data[year_offset - 1]["revenue"]),1)*100)
                             if year_offset > 0 else None
                         ),
-                        "Gross Margin": income_data[year_offset]["grossProfit"] / income_data[year_offset]["revenue"],
-                        "EBITDA Margin": income_data[year_offset]["ebitdaratio"],
-                        "FCF Conversion": (
+                        "Gross Margin": round((income_data[year_offset]["grossProfit"] / income_data[year_offset]["revenue"]),2),
+                        "EBITDA Margin": round((income_data[year_offset]["ebitdaratio"]),2),
+                        "FCF Conversion": round((
                             key_metrics_data[year_offset]["enterpriseValue"] 
                             / key_metrics_data[year_offset]["evToOperatingCashFlow"] 
                             / income_data[year_offset]["netIncome"]
                             if key_metrics_data[year_offset]["evToOperatingCashFlow"] != 0 else None
-                        ),
-                        "ROIC":"{}%".format(round(key_metrics_data[year_offset]["roic"]),1),
-                        "EV/EBITDA": key_metrics_data[year_offset]["enterpriseValueOverEBITDA"],
+                        ),2),
+                        "ROIC":"{}%".format(round((key_metrics_data[year_offset]["roic"]),1)),
+                        "EV/EBITDA": round((key_metrics_data[year_offset]["enterpriseValueOverEBITDA"]),2),
                     }
 
             df = pd.DataFrame.from_dict(metrics, orient='index')
-            df = df.sort_index(axis=1).round(2)
+            df = df.sort_index(axis=1)
             all_data[symbol] = df
 
         return all_data

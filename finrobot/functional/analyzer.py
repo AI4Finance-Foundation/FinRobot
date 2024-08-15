@@ -202,7 +202,7 @@ class ReportAnalysisUtils:
             + risk_factors
             + "\n\n"
         )
-        instruction = dendet(
+        instruction = (
             """
             According to the given information in the 10-k report, summarize the top 3 key risks of the company. 
             Then, for each key risk, break down the risk assessment into the following aspects:

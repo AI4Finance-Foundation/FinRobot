@@ -174,14 +174,14 @@ class FMPUtils:
             if income_data and key_metrics_data and ratios_data:
                 metrics = {
                     "Revenue": round(income_data[year_offset]["revenue"] / 1e6),
-                    "Revenue Growth": {}%.format(round((income_data[year_offset]["revenue"] - income_data[year_offset - 1]["revenue"]) / income_data[year_offset - 1]["revenue"],1)),
+                    "Revenue Growth": "{}%".format(round((income_data[year_offset]["revenue"] - income_data[year_offset - 1]["revenue"]) / income_data[year_offset - 1]["revenue"],1)),
                     "Gross Revenue": round(income_data[year_offset]["grossProfit"] / 1e6),
                     "Gross Margin": round((income_data[year_offset]["grossProfit"] / income_data[year_offset]["revenue"]),2),
                     "EBITDA": round(income_data[year_offset]["ebitda"] / 1e6),
                     "EBITDA Margin": round((income_data[year_offset]["ebitdaratio"]),2),
                     "FCF": round(key_metrics_data[year_offset]["enterpriseValue"] / key_metrics_data[year_offset]["evToOperatingCashFlow"] / 1e6),
                     "FCF Conversion": round(((key_metrics_data[year_offset]["enterpriseValue"] / key_metrics_data[year_offset]["evToOperatingCashFlow"]) / income_data[year_offset]["netIncome"]),2),
-                    "ROIC":{}%.format(round(key_metrics_data[year_offset]["roic"]),1),
+                    "ROIC":"{}%".format(round(key_metrics_data[year_offset]["roic"]),1),
                     "EV/EBITDA": round((key_metrics_data[year_offset][
                         "enterpriseValueOverEBITDA"
                     ]),2),

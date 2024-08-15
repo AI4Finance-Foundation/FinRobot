@@ -71,7 +71,7 @@ class ReportLabUtils:
 
             # 创建PDF文档路径
             pdf_path = (
-                os.path.join(save_path, f"{ticker_symbol}_report.pdf")
+                os.path.join(save_path, f"{ticker_symbol}_Equity_Research_report.pdf")
                 if os.path.isdir(save_path)
                 else save_path
             )

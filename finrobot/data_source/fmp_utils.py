@@ -7,7 +7,7 @@ from ..utils import decorate_all_methods, get_next_weekday
 
 # from finrobot.utils import decorate_all_methods, get_next_weekday
 from functools import wraps
-from typing import Annotated
+from typing import Annotated, List
 
 
 def init_fmp_api(func):
@@ -50,7 +50,7 @@ class FMPUtils:
             for tprice in data:
                 tdate = tprice["publishedDate"].split("T")[0]
                 tdate = datetime.strptime(tdate, "%Y-%m-%d")
-                if abs((tdate - date).days) <= 1:
+                if abs((tdate - date).days) <= 999:
                     est.append(tprice["priceTarget"])
 
             if est:
@@ -145,10 +145,10 @@ class FMPUtils:
             return closest_data.get("bookValuePerShare", "No BVPS data available")
         else:
             return "No close date data found"
-
+        
     def get_financial_metrics(
         ticker_symbol: Annotated[str, "ticker symbol"],
-        years: Annotated[int, "number of the years to search from, default to 4"] = 4,
+        years: Annotated[int, "number of the years to search from, default to 4"] = 4
     ) -> pd.DataFrame:
         """Get the financial metrics for a given stock for the last 'years' years"""
         # Base URL setup for FMP API
@@ -173,16 +173,20 @@ class FMPUtils:
             # Extracting needed metrics for each year
             if income_data and key_metrics_data and ratios_data:
                 metrics = {
-                    "Operating Revenue": income_data[year_offset]["revenue"] / 1e6,
-                    "Adjusted Net Profit": income_data[year_offset]["netIncome"] / 1e6,
-                    "Adjusted EPS": income_data[year_offset]["eps"],
-                    "EBIT Margin": ratios_data[year_offset]["ebitPerRevenue"],
-                    "ROE": key_metrics_data[year_offset]["roe"],
-                    "PE Ratio": ratios_data[year_offset]["priceEarningsRatio"],
-                    "EV/EBITDA": key_metrics_data[year_offset][
+                    "Revenue": round(income_data[year_offset]["revenue"] / 1e6),
+                    "Revenue Growth": "{}%".format(round(((income_data[year_offset]["revenue"] - income_data[year_offset - 1]["revenue"]) / income_data[year_offset - 1]["revenue"])*100,1)),
+                    "Gross Revenue": round(income_data[year_offset]["grossProfit"] / 1e6),
+                    "Gross Margin": round((income_data[year_offset]["grossProfit"] / income_data[year_offset]["revenue"]),2),
+                    "EBITDA": round(income_data[year_offset]["ebitda"] / 1e6),
+                    "EBITDA Margin": round((income_data[year_offset]["ebitdaratio"]),2),
+                    "FCF": round(key_metrics_data[year_offset]["enterpriseValue"] / key_metrics_data[year_offset]["evToOperatingCashFlow"] / 1e6),
+                    "FCF Conversion": round(((key_metrics_data[year_offset]["enterpriseValue"] / key_metrics_data[year_offset]["evToOperatingCashFlow"]) / income_data[year_offset]["netIncome"]),2),
+                    "ROIC":"{}%".format(round((key_metrics_data[year_offset]["roic"])*100,1)),
+                    "EV/EBITDA": round((key_metrics_data[year_offset][
                         "enterpriseValueOverEBITDA"
-                    ],
-                    "PB Ratio": key_metrics_data[year_offset]["pbRatio"],
+                    ]),2),
+                    "PE Ratio": round(ratios_data[year_offset]["priceEarningsRatio"],2),
+                    "PB Ratio": round(key_metrics_data[year_offset]["pbRatio"],2),
                 }
                 # Append the year and metrics to the DataFrame
                 # Extracting the year from the date
@@ -190,13 +194,61 @@ class FMPUtils:
                 df[year] = pd.Series(metrics)
 
         df = df.sort_index(axis=1)
-        df = df.round(2)
 
         return df
+
+    def get_competitor_financial_metrics(
+        ticker_symbol: Annotated[str, "ticker symbol"], 
+        competitors: Annotated[List[str], "list of competitor ticker symbols"],  
+        years: Annotated[int, "number of the years to search from, default to 4"] = 4
+    ) -> dict:
+        """Get financial metrics for the company and its competitors."""
+        base_url = "https://financialmodelingprep.com/api/v3"
+        all_data = {}
+
+        symbols = [ticker_symbol] + competitors  # Combine company and competitors into one list
+    
+        for symbol in symbols:
+            income_statement_url = f"{base_url}/income-statement/{symbol}?limit={years}&apikey={fmp_api_key}"
+            ratios_url = f"{base_url}/ratios/{symbol}?limit={years}&apikey={fmp_api_key}"
+            key_metrics_url = f"{base_url}/key-metrics/{symbol}?limit={years}&apikey={fmp_api_key}"
+
+            income_data = requests.get(income_statement_url).json()
+            ratios_data = requests.get(ratios_url).json()
+            key_metrics_data = requests.get(key_metrics_url).json()
+
+            metrics = {}
+
+            if income_data and ratios_data and key_metrics_data:
+                for year_offset in range(years):
+                    metrics[year_offset] = {
+                        "Revenue": round(income_data[year_offset]["revenue"] / 1e6),
+                        "Revenue Growth": (
+                            "{}%".format((round(income_data[year_offset]["revenue"] - income_data[year_offset - 1]["revenue"] / income_data[year_offset - 1]["revenue"])*100,1))
+                            if year_offset > 0 else None
+                        ),
+                        "Gross Margin": round((income_data[year_offset]["grossProfit"] / income_data[year_offset]["revenue"]),2),
+                        "EBITDA Margin": round((income_data[year_offset]["ebitdaratio"]),2),
+                        "FCF Conversion": round((
+                            key_metrics_data[year_offset]["enterpriseValue"] 
+                            / key_metrics_data[year_offset]["evToOperatingCashFlow"] 
+                            / income_data[year_offset]["netIncome"]
+                            if key_metrics_data[year_offset]["evToOperatingCashFlow"] != 0 else None
+                        ),2),
+                        "ROIC":"{}%".format(round((key_metrics_data[year_offset]["roic"])*100,1)),
+                        "EV/EBITDA": round((key_metrics_data[year_offset]["enterpriseValueOverEBITDA"]),2),
+                    }
+
+            df = pd.DataFrame.from_dict(metrics, orient='index')
+            df = df.sort_index(axis=1)
+            all_data[symbol] = df
+
+        return all_data
+
 
 
 if __name__ == "__main__":
     from finrobot.utils import register_keys_from_json
 
     register_keys_from_json("config_api_keys")
-    FMPUtils.get_sec_report("MSFT", "2023")
+    FMPUtils.get_sec_report("NEE", "2024")

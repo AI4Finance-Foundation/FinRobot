@@ -29,21 +29,25 @@ class ReportLabUtils:
     def build_annual_report(
         ticker_symbol: Annotated[str, "ticker symbol"],
         save_path: Annotated[str, "path to save the annual report pdf"],
-        income_summarization: Annotated[
+        operating_results: Annotated[
             str,
             "a paragraph of text: the company's income summarization from its financial report",
         ],
-        business_highlights: Annotated[
+        market_position: Annotated[
             str,
-            "a paragraph of text: the company's business highlights from its financial report",
+            "a paragraph of text: the company's current situation and end market (geography), major customers (blue chip or not), market share from its financial report, avoid similar sentences also generated in the business overview section, classify it into either of the two",
         ],
-        company_description: Annotated[
+        business_overview: Annotated[
             str,
-            "a paragraph of text: the company's description and current situation from its financial report",
+            "a paragraph of text: the company's description and business highlights from its financial report",
         ],
         risk_assessment: Annotated[
             str,
             "a paragraph of text: the company's risk assessment from its financial report",
+        ],
+        competitors_analysis: Annotated[
+            str,
+            "a paragraph of text: the company's competitors analysis from its financial report and competitors' financial report",
         ],
         share_performance_image_path: Annotated[
             str, "path to the share performance image"
@@ -54,8 +58,8 @@ class ReportLabUtils:
         filing_date: Annotated[str, "filing date of the analyzed financial report"],
     ) -> str:
         """
-        Aggregate a company's income summarization, business highlights, company description,
-        risk assessment and share performance, PE & EPS performance charts all into a PDF report.
+        Aggregate a company's business_overview, market_position, operating_results,
+        risk assessment, competitors analysis and share performance, PE & EPS performance charts all into a PDF report.
         """
         try:
             # 2. 创建PDF并插入图像
@@ -67,12 +71,14 @@ class ReportLabUtils:
 
             # 创建PDF文档路径
             pdf_path = (
-                os.path.join(save_path, f"{ticker_symbol}_report.pdf")
+                os.path.join(save_path, f"{ticker_symbol}_Equity_Research_report.pdf")
                 if os.path.isdir(save_path)
                 else save_path
             )
             os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
             doc = SimpleDocTemplate(pdf_path, pagesize=pagesizes.A4)
+        
+
 
             # 定义两个栏位的Frame
             frame_left = Frame(
@@ -90,8 +96,8 @@ class ReportLabUtils:
                 id="right",
             )
 
-            # single_frame = Frame(margin, margin, page_width-margin*2, page_height-margin*2, id='single')
-            # single_column_layout = PageTemplate(id='OneCol', frames=[single_frame])
+            single_frame = Frame(margin, margin, page_width-margin*2, page_height-margin*2, id='single')
+            single_column_layout = PageTemplate(id='OneCol', frames=[single_frame])
 
             left_column_width_p2 = (page_width - margin * 3) // 2
             right_column_width_p2 = left_column_width_p2
@@ -110,7 +116,7 @@ class ReportLabUtils:
                 id="right",
             )
 
-            # 创建PageTemplate，并添加到文档
+            #创建PageTemplate，并添加到文档
             page_template = PageTemplate(
                 id="TwoColumns", frames=[frame_left, frame_right]
             )
@@ -118,7 +124,7 @@ class ReportLabUtils:
                 id="TwoColumns_p2", frames=[frame_left_p2, frame_right_p2]
             )
 
-            # Define single column Frame
+             #Define single column Frame
             single_frame = Frame(
                 margin,
                 margin,
@@ -130,9 +136,7 @@ class ReportLabUtils:
             # Create a PageTemplate with a single column
             single_column_layout = PageTemplate(id="OneCol", frames=[single_frame])
 
-            doc.addPageTemplates(
-                [page_template, single_column_layout, page_template_p2]
-            )
+            doc.addPageTemplates([page_template, single_column_layout, page_template_p2])
 
             styles = getSampleStyleSheet()
 
@@ -195,17 +199,14 @@ class ReportLabUtils:
             )
 
             # 子标题
-            content.append(Paragraph("Income Summarization", subtitle_style))
-            content.append(Paragraph(income_summarization, custom_style))
+            content.append(Paragraph("Business Overview", subtitle_style))
+            content.append(Paragraph(business_overview, custom_style))
 
-            content.append(Paragraph("Business Highlights", subtitle_style))
-            content.append(Paragraph(business_highlights, custom_style))
-
-            content.append(Paragraph("Company Situation", subtitle_style))
-            content.append(Paragraph(company_description, custom_style))
-
-            content.append(Paragraph("Risk Assessment", subtitle_style))
-            content.append(Paragraph(risk_assessment, custom_style))
+            content.append(Paragraph("Market Position", subtitle_style))
+            content.append(Paragraph(market_position, custom_style))
+            
+            content.append(Paragraph("Operating Results", subtitle_style))
+            content.append(Paragraph(operating_results, custom_style))
 
             # content.append(Paragraph("Summarization", subtitle_style))
             df = FMPUtils.get_financial_metrics(ticker_symbol, years=5)
@@ -288,9 +289,14 @@ class ReportLabUtils:
             content.append(Image(plot_path, width=width, height=height))
 
             # # 开始新的一页
-            # content.append(NextPageTemplate("OneCol"))
-            # content.append(PageBreak())
+            content.append(NextPageTemplate("OneCol"))
+            content.append(PageBreak())
+            
+            content.append(Paragraph("Risk Assessment", subtitle_style))
+            content.append(Paragraph(risk_assessment, custom_style))
 
+            content.append(Paragraph("Competitors Analysis", subtitle_style))
+            content.append(Paragraph(competitors_analysis, custom_style))
             # def add_table(df, title):
             #     df = df.applymap(lambda x: "{:.2f}".format(x) if isinstance(x, float) else x)
             #     # df.columns = [col.strftime('%Y') for col in df.columns]

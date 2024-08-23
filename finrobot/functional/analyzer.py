@@ -1,6 +1,6 @@
 import os
 from textwrap import dedent
-from typing import Annotated
+from typing import Annotated, List
 from datetime import timedelta, datetime
 from ..data_source import YFinanceUtils, SECUtils, FMPUtils
 
@@ -202,11 +202,74 @@ class ReportAnalysisUtils:
             + risk_factors
             + "\n\n"
         )
-        instruction = "According to the given information, summarize the top 3 key risks of the company. Less than 100 words."
+        instruction = (
+            """
+            According to the given information in the 10-k report, summarize the top 3 key risks of the company. 
+            Then, for each key risk, break down the risk assessment into the following aspects:
+            1. Industry Vertical Risk: How does this industry vertical compare with others in terms of risk? Consider factors such as regulation, market volatility, and competitive landscape.
+            2. Cyclicality: How cyclical is this industry? Discuss the impact of economic cycles on the company’s performance.
+            3. Risk Quantification: Enumerate the key risk factors with supporting data if the company or segment is deemed risky.
+            4. Downside Protections: If the company or segment is less risky, discuss the downside protections in place. Consider factors such as diversification, long-term contracts, and government regulation.
+
+            Finally, provide a detailed and nuanced assessment that reflects the true risk landscape of the company. And Avoid any bullet points in your response.
+            """
+        )
         prompt = combine_prompt(instruction, section_text, "")
         save_to_file(prompt, save_path)
         return f"instruction & resources saved to {save_path}"
+        
+    def get_competitors_analysis(
+        ticker_symbol: Annotated[str, "ticker symbol"], 
+        competitors: Annotated[List[str], "competitors company"],
+        fyear: Annotated[str, "fiscal year of the 10-K report"], 
+        save_path: Annotated[str, "txt file path, to which the returned instruction & resources are written."]
+    ) -> str:
+        """
+        Analyze financial metrics differences between a company and its competitors.
+        Prepare a prompt for analysis and save it to a file.
+        """
+        # Retrieve financial data
+        financial_data = FMPUtils.get_competitor_financial_metrics(ticker_symbol, competitors, years=4)
 
+        # Construct the financial data summary
+        table_str = ""
+        for metric in financial_data[ticker_symbol].index:
+            table_str += f"\n\n{metric}:\n"
+            company_value = financial_data[ticker_symbol].loc[metric]
+            table_str += f"{ticker_symbol}: {company_value}\n"
+            for competitor in competitors:
+                competitor_value = financial_data[competitor].loc[metric]
+                table_str += f"{competitor}: {competitor_value}\n"
+
+        # Prepare the instructions for analysis
+        instruction = dedent(
+          """
+          Analyze the financial metrics for {company}/ticker_symbol and its competitors: {competitors} across multiple years (indicated as 0, 1, 2, 3, with 0 being the latest year and 3 the earliest year). Focus on the following metrics: EBITDA Margin, EV/EBITDA, FCF Conversion, Gross Margin, ROIC, Revenue, and Revenue Growth. 
+          For each year: Year-over-Year Trends: Identify and discuss the trends for each metric from the earliest year (3) to the latest year (0) for {company}. But when generating analysis, you need to write 1: year 3 = year 2023, 2: year 2 = year 2022, 3: year 1 = year 2021 and 4: year 0 = year 2020. Highlight any significant improvements, declines, or stability in these metrics over time.
+          Competitor Comparison: For each year, compare {company} against its {competitors} for each metric. Evaluate how {company} performs relative to its {competitors}, noting where it outperforms or lags behind.
+          Metric-Specific Insights:
+
+          EBITDA Margin: Discuss the profitability of {company} compared to its {competitors}, particularly in the most recent year.
+          EV/EBITDA: Provide insights on the valuation and whether {company} is over or undervalued compared to its {competitors} in each year.
+          FCF Conversion: Evaluate the cash flow efficiency of {company} relative to its {competitors} over time.
+          Gross Margin: Analyze the cost efficiency and profitability in each year.
+          ROIC: Discuss the return on invested capital and what it suggests about the company's efficiency in generating returns from its investments, especially focusing on recent trends.
+          Revenue and Revenue Growth: Provide a comprehensive view of {company}’s revenue performance and growth trajectory, noting any significant changes or patterns.
+          Conclusion: Summarize the overall financial health of {company} based on these metrics. Discuss how {company}’s performance over these years and across these metrics might justify or contradict its current market valuation (as reflected in the EV/EBITDA ratio).
+          Avoid using any bullet points.
+          """
+        )
+
+        # Combine the prompt
+        company_name = ticker_symbol  # Assuming the ticker symbol is the company name, otherwise, retrieve it.
+        resource = f"Financial metrics for {company_name} and {competitors}."
+        prompt = combine_prompt(instruction, resource, table_str)
+
+        # Save the instructions and resources to a file
+        save_to_file(prompt, save_path)
+        
+        return f"instruction & resources saved to {save_path}"
+        
     def analyze_business_highlights(
         ticker_symbol: Annotated[str, "ticker symbol"],
         fyear: Annotated[str, "fiscal year of the 10-K report"],
@@ -227,9 +290,8 @@ class ReportAnalysisUtils:
         )
         instruction = dedent(
             """
-            According to the given information, describe the performance highlights per business of the company. 
-            Each business description should contain one sentence of a summarization and one sentence of explanation. 
-            Less than 130 words.
+            According to the given information, describe the performance highlights for each company's business line.
+            Each business description should contain one sentence of a summarization and one sentence of explanation.
             """
         )
         prompt = combine_prompt(instruction, section_text, "")
@@ -263,11 +325,12 @@ class ReportAnalysisUtils:
         instruction = dedent(
             """
             According to the given information, 
-            1. Briefly describe the company’s industry,
+            1. Briefly describe the company overview and company’s industry, using the structure: "Founded in xxxx, 'company name' is a xxxx that provides .....
             2. Highlight core strengths and competitive advantages key products or services,
-            3. Identify current industry trends, opportunities, and challenges that influence the company’s strategy,
-            4. Outline recent strategic initiatives such as product launches, acquisitions, or new partnerships, and describe the company's response to market conditions. 
-            Less than 400 words.
+            3. Include topics about end market (geography), major customers (blue chip or not), market share for market position section,
+            4. Identify current industry trends, opportunities, and challenges that influence the company’s strategy,
+            5. Outline recent strategic initiatives such as product launches, acquisitions, or new partnerships, and describe the company's response to market conditions. 
+            Less than 300 words.
             """
         )
         step_prompt = combine_prompt(instruction, section_text, "")

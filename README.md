@@ -321,6 +321,13 @@ author={Tianyu Zhou and Pinqiao Wang and Yilin Wu and Hongyang Yang},
 booktitle={The 1st Workshop on Large Language Models and Generative AI for Finance},
 year={2024}
 }
+
+@article{yang2024finrobot,
+  title={FinRobot: An Open-Source AI Agent Platform for Financial Applications using Large Language Models},
+  author={Yang, Hongyang and Zhang, Boyu and Wang, Neng and Guo, Cheng and Zhang, Xiaoli and Lin, Likun and Wang, Junlin and Zhou, Tianyu and Guan, Mao and Zhang, Runjia and others},
+  journal={arXiv preprint arXiv:2405.14767},
+  year={2024}
+}
 ```
 **Disclaimer**: The codes and documents provided herein are released under the Apache-2.0 license. They should not be construed as financial counsel or recommendations for live trading. It is imperative to exercise caution and consult with qualified financial professionals prior to any trading or investment actions.
 

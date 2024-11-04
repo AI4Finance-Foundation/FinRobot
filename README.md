@@ -312,7 +312,7 @@ assistant.chat(message, use_cache=True, max_turns=50,
 + [CAMEL (4.7k stars)](https://github.com/camel-ai/camel) is a framework that offers a comprehensive set of tools and algorithms for building multimodal AI Agents, enabling them to handle various data forms such as text, images, and speech.
 + [Langfuse (4.3k stars)](https://github.com/langfuse/langfuse) is a language fusion framework that can integrate the language abilities of multiple AI Agents, enabling them to simultaneously possess multilingual understanding and generation capabilities.
 
-## Citing FinGPT
+## Citing FinRobot
 ```
 @inproceedings{
 zhou2024finrobot,

@@ -319,8 +319,7 @@ zhou2024finrobot,
 title={FinRobot: {AI} Agent for Equity Research and Valuation with Large Language Models},
 author={Tianyu Zhou and Pinqiao Wang and Yilin Wu and Hongyang Yang},
 booktitle={The 1st Workshop on Large Language Models and Generative AI for Finance},
-year={2024},
-url={https://openreview.net/forum?id=7z9LvBKtSk}
+year={2024}
 }
 ```
 **Disclaimer**: The codes and documents provided herein are released under the Apache-2.0 license. They should not be construed as financial counsel or recommendations for live trading. It is imperative to exercise caution and consult with qualified financial professionals prior to any trading or investment actions.

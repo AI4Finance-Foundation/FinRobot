@@ -318,7 +318,7 @@ assistant.chat(message, use_cache=True, max_turns=50,
 zhou2024finrobot,
 title={FinRobot: {AI} Agent for Equity Research and Valuation with Large Language Models},
 author={Tianyu Zhou and Pinqiao Wang and Yilin Wu and Hongyang Yang},
-booktitle={The 1st Workshop on Large Language Models and Generative AI for Finance},
+booktitle={ICAIF 2024: The 1st Workshop on Large Language Models and Generative AI for Finance},
 year={2024}
 }
 
@@ -326,6 +326,14 @@ year={2024}
   title={FinRobot: An Open-Source AI Agent Platform for Financial Applications using Large Language Models},
   author={Yang, Hongyang and Zhang, Boyu and Wang, Neng and Guo, Cheng and Zhang, Xiaoli and Lin, Likun and Wang, Junlin and Zhou, Tianyu and Guan, Mao and Zhang, Runjia and others},
   journal={arXiv preprint arXiv:2405.14767},
+  year={2024}
+}
+
+@inproceedings{han2024enhancing,
+  title={Enhancing Investment Analysis: Optimizing AI-Agent Collaboration in Financial Research},
+  author={Han, Xuewen and Wang, Neng and Che, Shangkun and Yang, Hongyang and Zhang, Kunpeng and Xu, Sean Xin},
+  booktitle={ICAIF 2024: Proceedings of the 5th ACM International Conference on AI in Finance},
+  pages={538--546},
   year={2024}
 }
 ```

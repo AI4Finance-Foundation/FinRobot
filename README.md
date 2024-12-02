@@ -186,7 +186,7 @@ company = "NVDA"
 assitant = SingleAssistant(
     "Market_Analyst",
     llm_config,
-    # set to "ALWAYS" if you want to chat instead of simply receiving the prediciton
+    # set to "ALWAYS" if you want to chat instead of simply receiving the prediction
     human_input_mode="NEVER",
 )
 assitant.chat(

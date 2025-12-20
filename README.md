@@ -1,4 +1,3 @@
-<img width="1020" height="616" alt="image" src="https://github.com/user-attachments/assets/be18bdb4-ca83-4428-bced-4baee9929b65" /><div align="center">
 <img align="center" width="30%" alt="image" src="https://github.com/AI4Finance-Foundation/FinGPT/assets/31713746/e0371951-1ce1-488e-aa25-0992dafcc139">
 </div>
 

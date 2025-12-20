@@ -44,7 +44,7 @@
 
 - **Automated Report Generation** – Generate professional equity research reports instantly
 - **Financial Analysis** – Deep dive into income statements, balance sheets, and cash flows
-- **Valuation Models** – Built-in DCF and comparable analysis tools
+- **Valuation Analysis** – P/E ratio, EV/EBITDA multiples, and peer comparison
 - **Risk Assessment** – Comprehensive investment risk evaluation
 
 

@@ -15,8 +15,6 @@
 ![](https://img.shields.io/github/issues-pr-closed-raw/AI4Finance-Foundation/finrobot?label=Closed+PRs)
 
 
-
-
 <div align="center">
 <img align="center" src=figs/logo_white_background.jpg width="40%"/>
 </div>
@@ -40,7 +38,7 @@
 
 ## What is FinRobot Pro?
 
-[FinRobot Pro](https://finrobot.ai/ ) is an AI-powered equity research platform that automates professional stock analysis using Large Language Models (LLMs).
+[FinRobot Pro](https://finrobot.ai/ ) is an AI-powered equity research platform that automates professional stock analysis using Large Language Models (LLMs) and AI Agents.
 
 **Key Features:**
 

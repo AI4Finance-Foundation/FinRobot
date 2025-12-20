@@ -31,7 +31,7 @@
 ![Visitors](https://api.visitorbadge.io/api/VisitorHit?user=AI4Finance-Foundation&repo=FinRobot&countColor=%23B17A)
 [![](https://dcbadge.limes.pink/api/server/trsr8SXpW5?cb=1)](https://discord.gg/trsr8SXpW5)
 
-## FinRobot Pro — An AI-Powered Equity Research Platform: https://finrobot.ai/
+## FinRobot Pro—An AI-Powered Equity Research Platform: https://finrobot.ai/
 
 <div align="center">
 <img align="center" src="https://github.com/user-attachments/assets/de3b9f9c-50aa-49f0-82c6-3d2b938f4670" width="90%"/>

@@ -200,36 +200,51 @@ class FMPUtils:
         key_metrics_data = key_metrics_resp.json()
         ratios_data = ratios_resp.json()
 
+        # Data comes newest first (index 0 = most recent year)
         # Iterate over the years of data
         for year_offset in range(min(years, len(income_data))):
             if income_data and key_metrics_data and ratios_data:
                 try:
                     # Safe access with defaults
                     revenue = income_data[year_offset].get("revenue", 0) or 0
-                    prev_revenue = income_data[year_offset - 1].get("revenue", 1) if year_offset > 0 else revenue
                     gross_profit = income_data[year_offset].get("grossProfit", 0) or 0
                     ebitda = income_data[year_offset].get("ebitda", 0) or 0
                     ebitda_ratio = income_data[year_offset].get("ebitdaratio", 0) or 0
                     net_income = income_data[year_offset].get("netIncome", 1) or 1
                     
+                    # Revenue growth: compare current year to NEXT index (which is older year)
+                    # Since data is sorted newest first, index+1 is the previous year
+                    if year_offset + 1 < len(income_data):
+                        prev_revenue = income_data[year_offset + 1].get("revenue", 0) or 0
+                        revenue_growth = ((revenue - prev_revenue) / prev_revenue * 100) if prev_revenue else 0
+                    else:
+                        revenue_growth = 0  # No previous year to compare
+                    
+                    # Key metrics - using correct field names from stable API
                     enterprise_value = key_metrics_data[year_offset].get("enterpriseValue", 0) or 0
                     ev_to_ocf = key_metrics_data[year_offset].get("evToOperatingCashFlow", 1) or 1
-                    roic = key_metrics_data[year_offset].get("roic", 0) or 0
-                    ev_ebitda = key_metrics_data[year_offset].get("enterpriseValueOverEBITDA", 0) or 0
-                    pb_ratio = key_metrics_data[year_offset].get("pbRatio", 0) or 0
+                    # ROIC: stable API uses 'returnOnInvestedCapital'
+                    roic = key_metrics_data[year_offset].get("returnOnInvestedCapital", 0) or 0
+                    # EV/EBITDA: stable API uses 'evToEBITDA'
+                    ev_ebitda = key_metrics_data[year_offset].get("evToEBITDA", 0) or 0
                     
-                    pe_ratio = ratios_data[year_offset].get("priceEarningsRatio", 0) or 0
+                    # PE and PB from ratios endpoint - using correct field names
+                    pe_ratio = ratios_data[year_offset].get("priceToEarningsRatio", 0) or 0
+                    pb_ratio = ratios_data[year_offset].get("priceToBookRatio", 0) or 0
                     
-                    # Calculate FCF
+                    # EBITDA margin from ratios if available
+                    ebitda_margin = ratios_data[year_offset].get("ebitdaMargin", 0) or ebitda_ratio or 0
+                    
+                    # Calculate FCF from operating cash flow
                     fcf = enterprise_value / ev_to_ocf if ev_to_ocf != 0 else 0
                     
                     metrics = {
                         "Revenue": round(revenue / 1e6),
-                        "Revenue Growth": "{}%".format(round(((revenue - prev_revenue) / prev_revenue) * 100, 1)) if prev_revenue else "N/A",
-                        "Gross Revenue": round(gross_profit / 1e6),
+                        "Revenue Growth": "{}%".format(round(revenue_growth, 1)),
+                        "Gross Profit": round(gross_profit / 1e6),
                         "Gross Margin": round(gross_profit / revenue, 2) if revenue else 0,
                         "EBITDA": round(ebitda / 1e6),
-                        "EBITDA Margin": round(ebitda_ratio, 2),
+                        "EBITDA Margin": round(ebitda_margin * 100, 1) if ebitda_margin < 1 else round(ebitda_margin, 1),
                         "FCF": round(fcf / 1e6),
                         "FCF Conversion": round(fcf / net_income, 2) if net_income else 0,
                         "ROIC": "{}%".format(round(roic * 100, 1)),
@@ -238,10 +253,10 @@ class FMPUtils:
                         "PB Ratio": round(pb_ratio, 2),
                     }
                     
-                    # Extract year from date
-                    year = income_data[year_offset].get("date", "")[:4]
+                    # Extract fiscal year from fiscalYear or date
+                    year = income_data[year_offset].get("fiscalYear") or income_data[year_offset].get("date", "")[:4]
                     if year:
-                        df[year] = pd.Series(metrics)
+                        df[str(year)] = pd.Series(metrics)
                 except (KeyError, TypeError, ZeroDivisionError) as e:
                     print(f"Error processing year {year_offset}: {e}")
                     continue
@@ -285,20 +300,25 @@ class FMPUtils:
                     try:
                         # Safe access with defaults
                         revenue = income_data[year_offset].get("revenue", 0) or 0
-                        prev_revenue = income_data[year_offset - 1].get("revenue", 1) if year_offset > 0 else None
                         gross_profit = income_data[year_offset].get("grossProfit", 0) or 0
                         ebitda_ratio = income_data[year_offset].get("ebitdaratio", 0) or 0
                         net_income = income_data[year_offset].get("netIncome", 1) or 1
                         
+                        # Revenue growth: compare to NEXT index (older year since data is newest first)
+                        if year_offset + 1 < len(income_data):
+                            prev_revenue = income_data[year_offset + 1].get("revenue", 0) or 0
+                            revenue_growth = "{}%".format(round(((revenue - prev_revenue) / prev_revenue) * 100, 1)) if prev_revenue else "N/A"
+                        else:
+                            revenue_growth = "N/A"
+                        
                         enterprise_value = key_metrics_data[year_offset].get("enterpriseValue", 0) or 0
                         ev_to_ocf = key_metrics_data[year_offset].get("evToOperatingCashFlow", 1) or 1
-                        roic = key_metrics_data[year_offset].get("roic", 0) or 0
-                        ev_ebitda = key_metrics_data[year_offset].get("enterpriseValueOverEBITDA", 0) or 0
+                        # Use correct field names from stable API
+                        roic = key_metrics_data[year_offset].get("returnOnInvestedCapital", 0) or 0
+                        ev_ebitda = key_metrics_data[year_offset].get("evToEBITDA", 0) or 0
                         
-                        # Calculate revenue growth
-                        revenue_growth = None
-                        if year_offset > 0 and prev_revenue:
-                            revenue_growth = "{}%".format(round(((revenue - prev_revenue) / prev_revenue) * 100, 1))
+                        # EBITDA margin from ratios
+                        ebitda_margin = ratios_data[year_offset].get("ebitdaMargin", 0) or ebitda_ratio or 0
                         
                         # Calculate FCF conversion
                         fcf_conversion = None
@@ -310,7 +330,7 @@ class FMPUtils:
                             "Revenue": round(revenue / 1e6),
                             "Revenue Growth": revenue_growth,
                             "Gross Margin": round(gross_profit / revenue, 2) if revenue else 0,
-                            "EBITDA Margin": round(ebitda_ratio, 2),
+                            "EBITDA Margin": round(ebitda_margin * 100, 1) if ebitda_margin < 1 else round(ebitda_margin, 1),
                             "FCF Conversion": fcf_conversion,
                             "ROIC": "{}%".format(round(roic * 100, 1)),
                             "EV/EBITDA": round(ev_ebitda, 2),

@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 from textwrap import dedent
 from typing import Annotated, List
 from datetime import timedelta, datetime
@@ -19,6 +20,39 @@ def save_to_file(data: str, file_path: str):
         f.write(data)
 
 
+def filter_by_fiscal_year(df: pd.DataFrame, fyear: str, include_prior_years: int = 2) -> pd.DataFrame:
+    """
+    Filter a DataFrame with datetime columns to only include the specified fiscal year
+    and optionally prior years for comparison.
+    
+    Args:
+        df: DataFrame with Timestamp columns (from Yahoo Finance)
+        fyear: Target fiscal year as string (e.g., "2024")
+        include_prior_years: Number of prior years to include for comparison
+    
+    Returns:
+        Filtered DataFrame with only relevant fiscal years
+    """
+    try:
+        target_year = int(fyear)
+        filtered_cols = []
+        
+        for col in df.columns:
+            if hasattr(col, 'year'):
+                # Include target year and prior years, but NOT future years
+                if target_year - include_prior_years <= col.year <= target_year:
+                    filtered_cols.append(col)
+            else:
+                # Non-datetime column, include it
+                filtered_cols.append(col)
+        
+        if filtered_cols:
+            return df[filtered_cols]
+        return df  # Return original if no matching columns
+    except (ValueError, TypeError):
+        return df  # Return original if fyear is invalid
+
+
 class ReportAnalysisUtils:
 
     def analyze_income_stmt(
@@ -30,9 +64,11 @@ class ReportAnalysisUtils:
         Retrieve the income statement for the given ticker symbol with the related section of its 10-K report.
         Then return with an instruction on how to analyze the income statement.
         """
-        # Retrieve the income statement
+        # Retrieve the income statement and filter to requested fiscal year
         income_stmt = YFinanceUtils.get_income_stmt(ticker_symbol)
-        df_string = "Income statement:\n" + income_stmt.to_string().strip()
+        income_stmt = filter_by_fiscal_year(income_stmt, fyear)
+        df_string = f"Income statement for FY{fyear} (and prior years for comparison):\n" + income_stmt.to_string().strip()
+        df_string += f"\n\nNOTE: Use ONLY FY{fyear} data for the analysis. Prior years are for comparison only."
 
         # Analysis instruction
         instruction = dedent(
@@ -69,7 +105,9 @@ class ReportAnalysisUtils:
         Then return with an instruction on how to analyze the balance sheet.
         """
         balance_sheet = YFinanceUtils.get_balance_sheet(ticker_symbol)
-        df_string = "Balance sheet:\n" + balance_sheet.to_string().strip()
+        balance_sheet = filter_by_fiscal_year(balance_sheet, fyear)
+        df_string = f"Balance sheet for FY{fyear} (and prior years for comparison):\n" + balance_sheet.to_string().strip()
+        df_string += f"\n\nNOTE: Use ONLY FY{fyear} data for the analysis. Prior years are for comparison only."
 
         instruction = dedent(
             """
@@ -98,7 +136,9 @@ class ReportAnalysisUtils:
         Then return with an instruction on how to analyze the cash flow statement.
         """
         cash_flow = YFinanceUtils.get_cash_flow(ticker_symbol)
-        df_string = "Cash flow statement:\n" + cash_flow.to_string().strip()
+        cash_flow = filter_by_fiscal_year(cash_flow, fyear)
+        df_string = f"Cash flow statement for FY{fyear} (and prior years for comparison):\n" + cash_flow.to_string().strip()
+        df_string += f"\n\nNOTE: Use ONLY FY{fyear} data for the analysis. Prior years are for comparison only."
 
         instruction = dedent(
             """
@@ -127,9 +167,11 @@ class ReportAnalysisUtils:
         Then return with an instruction on how to create a segment analysis.
         """
         income_stmt = YFinanceUtils.get_income_stmt(ticker_symbol)
+        income_stmt = filter_by_fiscal_year(income_stmt, fyear)
         df_string = (
-            "Income statement (Segment Analysis):\n" + income_stmt.to_string().strip()
+            f"Income statement for FY{fyear} (Segment Analysis):\n" + income_stmt.to_string().strip()
         )
+        df_string += f"\n\nNOTE: Use ONLY FY{fyear} data for the analysis. Prior years are for comparison only."
 
         instruction = dedent(
             """

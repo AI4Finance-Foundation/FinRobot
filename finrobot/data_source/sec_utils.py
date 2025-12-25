@@ -136,6 +136,36 @@ class SECUtils:
         else:
             return f"No 2023 10-K filing found for {ticker}"
 
+    def get_10k_url_from_sec_api(
+        ticker_symbol: Annotated[str, "ticker symbol"],
+        fyear: Annotated[str, "fiscal year of the 10-K report"],
+    ) -> str:
+        """
+        Get the 10-K filing URL directly from SEC API.
+        """
+        # Calculate date range for the fiscal year
+        # Most companies file 10-K within 60-90 days after fiscal year end
+        start_date = f"{fyear}-01-01"
+        end_date = f"{int(fyear)+1}-12-31"
+        
+        query = {
+            "query": f'ticker:"{ticker_symbol}" AND formType:"10-K" AND filedAt:[{start_date} TO {end_date}]',
+            "from": 0,
+            "size": 5,
+            "sort": [{"filedAt": {"order": "desc"}}],
+        }
+        
+        try:
+            response = query_api.get_filings(query)
+            if response and response.get("filings"):
+                # Get the first (most recent) 10-K filing
+                filing = response["filings"][0]
+                return filing.get("linkToFilingDetails", "")
+        except Exception as e:
+            print(f"Error querying SEC API: {e}")
+        
+        return None
+
     def get_10k_section(
         ticker_symbol: Annotated[str, "ticker symbol"],
         fyear: Annotated[str, "fiscal year of the 10-K report"],
@@ -145,7 +175,7 @@ class SECUtils:
         ],
         report_address: Annotated[
             str,
-            "URL of the 10-K report, if not specified, will get report url from fmp api",
+            "URL of the 10-K report, if not specified, will get report url from SEC API",
         ] = None,
         save_path: SavePathType = None,
     ) -> str:
@@ -165,20 +195,21 @@ class SECUtils:
                 "Section must be in [1, 1A, 1B, 2, 3, 4, 5, 6, 7, 7A, 8, 9, 9A, 9B, 10, 11, 12, 13, 14, 15]"
             )
 
-        # os.makedirs(f"{self.project_dir}/10k", exist_ok=True)
-
-        # report_name = f"{self.project_dir}/10k/section_{section}.txt"
-
-        # if USE_CACHE and os.path.exists(report_name):
-        #     with open(report_name, "r") as f:
-        #         section_text = f.read()
-        # else:
+        # Get report URL if not provided
         if report_address is None:
-            report_address = FMPUtils.get_sec_report(ticker_symbol, fyear)
-            if report_address.startswith("Link: "):
-                report_address = report_address.lstrip("Link: ").split()[0]
-            else:
-                return report_address  # debug info
+            # First try to get URL directly from SEC API
+            report_address = SECUtils.get_10k_url_from_sec_api(ticker_symbol, fyear)
+            
+            # Fallback to FMP if SEC API fails
+            if not report_address:
+                fmp_result = FMPUtils.get_sec_report(ticker_symbol, fyear)
+                if fmp_result.startswith("Link: "):
+                    report_address = fmp_result.lstrip("Link: ").split()[0]
+                else:
+                    return f"SEC filings endpoint not available. Use SEC API for 10-K filings."
+
+        if not report_address:
+            return f"Could not find 10-K filing for {ticker_symbol} in fiscal year {fyear}"
 
         cache_path = os.path.join(
             CACHE_PATH, f"sec_utils/{ticker_symbol}_{fyear}_{section}.txt"
@@ -187,10 +218,13 @@ class SECUtils:
             with open(cache_path, "r") as f:
                 section_text = f.read()
         else:
-            section_text = extractor_api.get_section(report_address, section, "text")
-            os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-            with open(cache_path, "w") as f:
-                f.write(section_text)
+            try:
+                section_text = extractor_api.get_section(report_address, section, "text")
+                os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+                with open(cache_path, "w") as f:
+                    f.write(section_text)
+            except Exception as e:
+                return f"Error extracting section {section}: {e}"
 
         if save_path:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)

@@ -15,3 +15,21 @@ projects/
 dist/
 tmp/
 filings/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Virtual environment
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Reports (optional - remove if you want to keep)
+report/*.pdf
+report/*.png
+report/*.txt

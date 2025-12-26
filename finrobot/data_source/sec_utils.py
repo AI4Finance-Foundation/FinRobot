@@ -5,9 +5,13 @@ from functools import wraps
 from typing import Annotated
 from ..utils import SavePathType, decorate_all_methods
 from ..data_source import FMPUtils
+from .cache_utils import hybrid_cache, is_cache_valid, get_cache_path, read_disk_cache, write_disk_cache, TTL_CONFIG
 
 
 CACHE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache")
+
+# In-memory cache for SEC metadata to avoid redundant API calls
+_sec_metadata_cache = {}
 PDF_GENERATOR_API = "https://api.sec-api.io/filing-reader"
 
 
@@ -43,6 +47,20 @@ class SECUtils:
         """
         Search for 10-k filings within a given time period, and return the meta data of the latest one
         """
+        # Check in-memory cache first
+        cache_key = f"10k_metadata:{ticker}:{start_date}:{end_date}"
+        if cache_key in _sec_metadata_cache:
+            return _sec_metadata_cache[cache_key]
+
+        # Check disk cache with TTL
+        disk_cache_path = get_cache_path("sec", cache_key)
+        ttl = TTL_CONFIG.get("sec_metadata", TTL_CONFIG["default"])
+        if is_cache_valid(disk_cache_path, ttl):
+            cached_data = read_disk_cache(disk_cache_path)
+            if cached_data is not None:
+                _sec_metadata_cache[cache_key] = cached_data
+                return cached_data
+
         query = {
             "query": f'ticker:"{ticker}" AND formType:"10-K" AND filedAt:[{start_date} TO {end_date}]',
             "from": 0,
@@ -50,9 +68,14 @@ class SECUtils:
             "sort": [{"filedAt": {"order": "desc"}}],
         }
         response = query_api.get_filings(query)
-        if response["filings"]:
-            return response["filings"][0]
-        return None
+        result = response["filings"][0] if response["filings"] else None
+
+        # Cache the result
+        if result is not None:
+            _sec_metadata_cache[cache_key] = result
+            write_disk_cache(disk_cache_path, result)
+
+        return result
 
     def download_10k_filing(
         ticker: Annotated[str, "ticker symbol"],
@@ -143,28 +166,48 @@ class SECUtils:
         """
         Get the 10-K filing URL directly from SEC API.
         """
+        # Check in-memory cache first
+        cache_key = f"10k_url:{ticker_symbol}:{fyear}"
+        if cache_key in _sec_metadata_cache:
+            return _sec_metadata_cache[cache_key]
+
+        # Check disk cache with TTL
+        disk_cache_path = get_cache_path("sec", cache_key)
+        ttl = TTL_CONFIG.get("sec_metadata", TTL_CONFIG["default"])
+        if is_cache_valid(disk_cache_path, ttl):
+            cached_data = read_disk_cache(disk_cache_path)
+            if cached_data is not None:
+                _sec_metadata_cache[cache_key] = cached_data
+                return cached_data
+
         # Calculate date range for the fiscal year
         # Most companies file 10-K within 60-90 days after fiscal year end
         start_date = f"{fyear}-01-01"
         end_date = f"{int(fyear)+1}-12-31"
-        
+
         query = {
             "query": f'ticker:"{ticker_symbol}" AND formType:"10-K" AND filedAt:[{start_date} TO {end_date}]',
             "from": 0,
             "size": 5,
             "sort": [{"filedAt": {"order": "desc"}}],
         }
-        
+
+        result = None
         try:
             response = query_api.get_filings(query)
             if response and response.get("filings"):
                 # Get the first (most recent) 10-K filing
                 filing = response["filings"][0]
-                return filing.get("linkToFilingDetails", "")
+                result = filing.get("linkToFilingDetails", "")
         except Exception as e:
             print(f"Error querying SEC API: {e}")
-        
-        return None
+
+        # Cache the result
+        if result:
+            _sec_metadata_cache[cache_key] = result
+            write_disk_cache(disk_cache_path, result)
+
+        return result
 
     def get_10k_section(
         ticker_symbol: Annotated[str, "ticker symbol"],
@@ -211,20 +254,31 @@ class SECUtils:
         if not report_address:
             return f"Could not find 10-K filing for {ticker_symbol} in fiscal year {fyear}"
 
-        cache_path = os.path.join(
-            CACHE_PATH, f"sec_utils/{ticker_symbol}_{fyear}_{section}.txt"
-        )
-        if os.path.exists(cache_path):
-            with open(cache_path, "r") as f:
-                section_text = f.read()
+        # Use hybrid caching with TTL for 10-K sections
+        cache_key = f"10k_section:{ticker_symbol}:{fyear}:{section}"
+
+        # Check in-memory cache first
+        if cache_key in _sec_metadata_cache:
+            section_text = _sec_metadata_cache[cache_key]
         else:
-            try:
-                section_text = extractor_api.get_section(report_address, section, "text")
-                os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-                with open(cache_path, "w") as f:
-                    f.write(section_text)
-            except Exception as e:
-                return f"Error extracting section {section}: {e}"
+            # Check disk cache with TTL (30 days for 10-K data)
+            disk_cache_path = get_cache_path("sec", cache_key)
+            ttl = TTL_CONFIG.get("sec_10k", TTL_CONFIG["default"])
+
+            if is_cache_valid(disk_cache_path, ttl):
+                section_text = read_disk_cache(disk_cache_path)
+                if section_text is not None:
+                    _sec_metadata_cache[cache_key] = section_text
+            else:
+                # Fetch from API
+                try:
+                    section_text = extractor_api.get_section(report_address, section, "text")
+                    # Cache the result
+                    if section_text:
+                        _sec_metadata_cache[cache_key] = section_text
+                        write_disk_cache(disk_cache_path, section_text)
+                except Exception as e:
+                    return f"Error extracting section {section}: {e}"
 
         if save_path:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)

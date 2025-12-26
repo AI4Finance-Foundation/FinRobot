@@ -101,6 +101,7 @@ FinRobot
 │   	└── yfinance_utils.py
 │   ├── functional
 │   	├── analyzer.py
+│   	├── business_model_utils.py
 │   	├── charting.py
 │   	├── coding.py
 │   	├── quantitative.py
@@ -292,7 +293,60 @@ assistant.chat(message, use_cache=True, max_turns=50,
 7. **Generate PDF Report**: use tools to generate PDF automatically
 8. **Quality Assurance**: check word counts
 
-### 3. Trade Strategist Agent with multimodal capabilities
+### 3. Business Model Analyst Agent (Operating Model & Revenue Analysis)
+Analyzes company business models, revenue streams, and operating model mechanics using SEC filings and financial data.
+
+1. Import
+```python
+import os
+import autogen
+from finrobot.utils import register_keys_from_json
+from finrobot.agents.workflow import SingleAssistant
+```
+2. Config
+```python
+llm_config = {
+    "config_list": autogen.config_list_from_json(
+        "../OAI_CONFIG_LIST",
+        filter_dict={"model": ["gpt-4-0125-preview"]},
+    ),
+    "timeout": 120,
+    "temperature": 0.5,
+}
+register_keys_from_json("../config_api_keys")
+
+# Output directory for analysis
+work_dir = "../report"
+os.makedirs(work_dir, exist_ok=True)
+```
+3. Run
+```python
+company = "NFLX"
+fyear = "2024"
+
+assistant = SingleAssistant(
+    "Business_Model_Analyst",
+    llm_config,
+    human_input_mode="NEVER",
+)
+
+assistant.chat(
+    f"Analyze {company}'s business model for fiscal year {fyear}. "
+    "Include: 1) Revenue stream breakdown (subscription tiers, geographic distribution), "
+    "2) Unit economics (gross margin, operating leverage, R&D intensity), "
+    "3) Business Model Canvas classification (9 building blocks), "
+    "4) Revenue quality assessment (recurring vs non-recurring, customer concentration). "
+    f"Save all analysis files to '{work_dir}'."
+)
+```
+4. Capabilities
+- **Revenue Stream Analysis**: Identifies and categorizes revenue sources (subscription, licensing, advertising, transaction fees, etc.)
+- **Unit Economics**: Calculates gross margin, operating leverage, R&D intensity, and revenue per employee
+- **Business Model Canvas**: Classifies the 9 building blocks (customer segments, value propositions, channels, etc.)
+- **Competitor Comparison**: Compares operating models across industry peers
+- **Revenue Quality**: Assesses sustainability, recurring revenue percentage, and customer concentration
+
+### 4. Trade Strategist Agent with multimodal capabilities
 
 
 ## AI Agent Papers

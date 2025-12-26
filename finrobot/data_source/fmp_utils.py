@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from ..utils import decorate_all_methods, get_next_weekday
+from .cache_utils import get_cache_path, is_cache_valid, read_disk_cache, write_disk_cache, TTL_CONFIG
 
 # from finrobot.utils import decorate_all_methods, get_next_weekday
 from functools import wraps
@@ -12,6 +13,9 @@ from typing import Annotated, List
 
 # FMP API Base URLs - Updated to use stable endpoints (August 2025)
 FMP_STABLE_BASE = "https://financialmodelingprep.com/stable"
+
+# In-memory cache for FMP data to avoid redundant API calls
+_fmp_cache = {}
 
 
 def init_fmp_api(func):
@@ -349,89 +353,241 @@ class FMPUtils:
         ticker_symbol: Annotated[str, "ticker symbol"],
     ) -> dict:
         """Get company profile information"""
+        # Check in-memory cache first
+        cache_key = f"company_profile:{ticker_symbol}"
+        if cache_key in _fmp_cache:
+            return _fmp_cache[cache_key]
+
+        # Check disk cache with TTL (7 days for profile)
+        disk_cache_path = get_cache_path("fmp", cache_key)
+        ttl = TTL_CONFIG.get("fmp_profile", TTL_CONFIG["default"])
+        if is_cache_valid(disk_cache_path, ttl):
+            cached_data = read_disk_cache(disk_cache_path)
+            if cached_data is not None:
+                _fmp_cache[cache_key] = cached_data
+                return cached_data
+
+        # Fetch from API
         url = f"{FMP_STABLE_BASE}/profile?symbol={ticker_symbol}&apikey={fmp_api_key}"
-        
+
         response = requests.get(url)
+        result = {}
         if response.status_code == 200:
             data = response.json()
             if data and len(data) > 0:
-                return data[0]
-            return {}
-        return {}
+                result = data[0]
+
+        # Cache the result
+        if result:
+            _fmp_cache[cache_key] = result
+            write_disk_cache(disk_cache_path, result)
+
+        return result
 
     def get_quote(
         ticker_symbol: Annotated[str, "ticker symbol"],
     ) -> dict:
         """Get current stock quote"""
+        # Check in-memory cache first (5 minute TTL for quotes)
+        cache_key = f"quote:{ticker_symbol}"
+        if cache_key in _fmp_cache:
+            return _fmp_cache[cache_key]
+
+        # Check disk cache with TTL (5 minutes for quotes)
+        disk_cache_path = get_cache_path("fmp", cache_key)
+        ttl = TTL_CONFIG.get("fmp_quote", TTL_CONFIG["default"])
+        if is_cache_valid(disk_cache_path, ttl):
+            cached_data = read_disk_cache(disk_cache_path)
+            if cached_data is not None:
+                _fmp_cache[cache_key] = cached_data
+                return cached_data
+
+        # Fetch from API
         url = f"{FMP_STABLE_BASE}/quote?symbol={ticker_symbol}&apikey={fmp_api_key}"
-        
+
         response = requests.get(url)
+        result = {}
         if response.status_code == 200:
             data = response.json()
             if data and len(data) > 0:
-                return data[0]
-            return {}
-        return {}
+                result = data[0]
+
+        # Cache the result
+        if result:
+            _fmp_cache[cache_key] = result
+            write_disk_cache(disk_cache_path, result)
+
+        return result
 
     def get_income_statement(
         ticker_symbol: Annotated[str, "ticker symbol"],
         limit: Annotated[int, "number of periods to retrieve"] = 4,
     ) -> list:
         """Get income statement data"""
+        # Check in-memory cache first
+        cache_key = f"income_statement:{ticker_symbol}:{limit}"
+        if cache_key in _fmp_cache:
+            return _fmp_cache[cache_key]
+
+        # Check disk cache with TTL (7 days for financials)
+        disk_cache_path = get_cache_path("fmp", cache_key)
+        ttl = TTL_CONFIG.get("fmp_financials", TTL_CONFIG["default"])
+        if is_cache_valid(disk_cache_path, ttl):
+            cached_data = read_disk_cache(disk_cache_path)
+            if cached_data is not None:
+                _fmp_cache[cache_key] = cached_data
+                return cached_data
+
+        # Fetch from API
         url = f"{FMP_STABLE_BASE}/income-statement?symbol={ticker_symbol}&limit={limit}&apikey={fmp_api_key}"
-        
+
         response = requests.get(url)
+        result = []
         if response.status_code == 200:
-            return response.json()
-        return []
+            result = response.json()
+
+        # Cache the result
+        if result:
+            _fmp_cache[cache_key] = result
+            write_disk_cache(disk_cache_path, result)
+
+        return result
 
     def get_balance_sheet(
         ticker_symbol: Annotated[str, "ticker symbol"],
         limit: Annotated[int, "number of periods to retrieve"] = 4,
     ) -> list:
         """Get balance sheet data"""
+        # Check in-memory cache first
+        cache_key = f"balance_sheet:{ticker_symbol}:{limit}"
+        if cache_key in _fmp_cache:
+            return _fmp_cache[cache_key]
+
+        # Check disk cache with TTL (7 days for financials)
+        disk_cache_path = get_cache_path("fmp", cache_key)
+        ttl = TTL_CONFIG.get("fmp_financials", TTL_CONFIG["default"])
+        if is_cache_valid(disk_cache_path, ttl):
+            cached_data = read_disk_cache(disk_cache_path)
+            if cached_data is not None:
+                _fmp_cache[cache_key] = cached_data
+                return cached_data
+
+        # Fetch from API
         url = f"{FMP_STABLE_BASE}/balance-sheet-statement?symbol={ticker_symbol}&limit={limit}&apikey={fmp_api_key}"
-        
+
         response = requests.get(url)
+        result = []
         if response.status_code == 200:
-            return response.json()
-        return []
+            result = response.json()
+
+        # Cache the result
+        if result:
+            _fmp_cache[cache_key] = result
+            write_disk_cache(disk_cache_path, result)
+
+        return result
 
     def get_cash_flow(
         ticker_symbol: Annotated[str, "ticker symbol"],
         limit: Annotated[int, "number of periods to retrieve"] = 4,
     ) -> list:
         """Get cash flow statement data"""
+        # Check in-memory cache first
+        cache_key = f"cash_flow:{ticker_symbol}:{limit}"
+        if cache_key in _fmp_cache:
+            return _fmp_cache[cache_key]
+
+        # Check disk cache with TTL (7 days for financials)
+        disk_cache_path = get_cache_path("fmp", cache_key)
+        ttl = TTL_CONFIG.get("fmp_financials", TTL_CONFIG["default"])
+        if is_cache_valid(disk_cache_path, ttl):
+            cached_data = read_disk_cache(disk_cache_path)
+            if cached_data is not None:
+                _fmp_cache[cache_key] = cached_data
+                return cached_data
+
+        # Fetch from API
         url = f"{FMP_STABLE_BASE}/cash-flow-statement?symbol={ticker_symbol}&limit={limit}&apikey={fmp_api_key}"
-        
+
         response = requests.get(url)
+        result = []
         if response.status_code == 200:
-            return response.json()
-        return []
+            result = response.json()
+
+        # Cache the result
+        if result:
+            _fmp_cache[cache_key] = result
+            write_disk_cache(disk_cache_path, result)
+
+        return result
 
     def get_key_metrics(
         ticker_symbol: Annotated[str, "ticker symbol"],
         limit: Annotated[int, "number of periods to retrieve"] = 4,
     ) -> list:
         """Get key financial metrics"""
+        # Check in-memory cache first
+        cache_key = f"key_metrics:{ticker_symbol}:{limit}"
+        if cache_key in _fmp_cache:
+            return _fmp_cache[cache_key]
+
+        # Check disk cache with TTL (7 days for financials)
+        disk_cache_path = get_cache_path("fmp", cache_key)
+        ttl = TTL_CONFIG.get("fmp_financials", TTL_CONFIG["default"])
+        if is_cache_valid(disk_cache_path, ttl):
+            cached_data = read_disk_cache(disk_cache_path)
+            if cached_data is not None:
+                _fmp_cache[cache_key] = cached_data
+                return cached_data
+
+        # Fetch from API
         url = f"{FMP_STABLE_BASE}/key-metrics?symbol={ticker_symbol}&limit={limit}&apikey={fmp_api_key}"
-        
+
         response = requests.get(url)
+        result = []
         if response.status_code == 200:
-            return response.json()
-        return []
+            result = response.json()
+
+        # Cache the result
+        if result:
+            _fmp_cache[cache_key] = result
+            write_disk_cache(disk_cache_path, result)
+
+        return result
 
     def get_ratios(
         ticker_symbol: Annotated[str, "ticker symbol"],
         limit: Annotated[int, "number of periods to retrieve"] = 4,
     ) -> list:
         """Get financial ratios"""
+        # Check in-memory cache first
+        cache_key = f"ratios:{ticker_symbol}:{limit}"
+        if cache_key in _fmp_cache:
+            return _fmp_cache[cache_key]
+
+        # Check disk cache with TTL (7 days for financials)
+        disk_cache_path = get_cache_path("fmp", cache_key)
+        ttl = TTL_CONFIG.get("fmp_financials", TTL_CONFIG["default"])
+        if is_cache_valid(disk_cache_path, ttl):
+            cached_data = read_disk_cache(disk_cache_path)
+            if cached_data is not None:
+                _fmp_cache[cache_key] = cached_data
+                return cached_data
+
+        # Fetch from API
         url = f"{FMP_STABLE_BASE}/ratios?symbol={ticker_symbol}&limit={limit}&apikey={fmp_api_key}"
-        
+
         response = requests.get(url)
+        result = []
         if response.status_code == 200:
-            return response.json()
-        return []
+            result = response.json()
+
+        # Cache the result
+        if result:
+            _fmp_cache[cache_key] = result
+            write_disk_cache(disk_cache_path, result)
+
+        return result
 
 
 if __name__ == "__main__":

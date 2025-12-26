@@ -1,0 +1,61 @@
+Income statement for FY2024 (and prior years for comparison):
+2024-09-30    2023-09-30    2022-09-30
+Tax Effect Of Unusual Items                                 0.000000e+00  0.000000e+00  0.000000e+00
+Tax Rate For Calcs                                          2.410000e-01  1.470000e-01  1.620000e-01
+Normalized EBITDA                                           1.346610e+11  1.258200e+11  1.305410e+11
+Net Income From Continuing Operation Net Minority Interest  9.373600e+10  9.699500e+10  9.980300e+10
+Reconciled Depreciation                                     1.144500e+10  1.151900e+10  1.110400e+10
+Reconciled Cost Of Revenue                                  2.103520e+11  2.141370e+11  2.235460e+11
+EBITDA                                                      1.346610e+11  1.258200e+11  1.305410e+11
+EBIT                                                        1.232160e+11  1.143010e+11  1.194370e+11
+Net Interest Income                                                  NaN -1.830000e+08 -1.060000e+08
+Interest Expense                                                     NaN  3.933000e+09  2.931000e+09
+Interest Income                                                      NaN  3.750000e+09  2.825000e+09
+Normalized Income                                           9.373600e+10  9.699500e+10  9.980300e+10
+Net Income From Continuing And Discontinued Operation       9.373600e+10  9.699500e+10  9.980300e+10
+Total Expenses                                              2.678190e+11  2.689840e+11  2.748910e+11
+Total Operating Income As Reported                          1.232160e+11  1.143010e+11  1.194370e+11
+Diluted Average Shares                                      1.540810e+10  1.581255e+10  1.632582e+10
+Basic Average Shares                                        1.534378e+10  1.574423e+10  1.621596e+10
+Diluted EPS                                                 6.080000e+00  6.130000e+00  6.110000e+00
+Basic EPS                                                   6.110000e+00  6.160000e+00  6.150000e+00
+Diluted NI Availto Com Stockholders                         9.373600e+10  9.699500e+10  9.980300e+10
+Net Income Common Stockholders                              9.373600e+10  9.699500e+10  9.980300e+10
+Net Income                                                  9.373600e+10  9.699500e+10  9.980300e+10
+Net Income Including Noncontrolling Interests               9.373600e+10  9.699500e+10  9.980300e+10
+Net Income Continuous Operations                            9.373600e+10  9.699500e+10  9.980300e+10
+Tax Provision                                               2.974900e+10  1.674100e+10  1.930000e+10
+Pretax Income                                               1.234850e+11  1.137360e+11  1.191030e+11
+Other Income Expense                                        2.690000e+08 -5.650000e+08 -3.340000e+08
+Other Non Operating Income Expenses                         2.690000e+08 -5.650000e+08 -3.340000e+08
+Net Non Operating Interest Income Expense                            NaN -1.830000e+08 -1.060000e+08
+Interest Expense Non Operating                                       NaN  3.933000e+09  2.931000e+09
+Interest Income Non Operating                                        NaN  3.750000e+09  2.825000e+09
+Operating Income                                            1.232160e+11  1.143010e+11  1.194370e+11
+Operating Expense                                           5.746700e+10  5.484700e+10  5.134500e+10
+Research And Development                                    3.137000e+10  2.991500e+10  2.625100e+10
+Selling General And Administration                          2.609700e+10  2.493200e+10  2.509400e+10
+Gross Profit                                                1.806830e+11  1.691480e+11  1.707820e+11
+Cost Of Revenue                                             2.103520e+11  2.141370e+11  2.235460e+11
+Total Revenue                                               3.910350e+11  3.832850e+11  3.943280e+11
+Operating Revenue                                           3.910350e+11  3.832850e+11  3.943280e+11
+
+NOTE: Use ONLY FY2024 data for the analysis. Prior years are for comparison only.
+
+Resource: Business Description (10-K Item 1):
+(Business description not available - SEC API key may not be configured)
+
+Management's Discussion and Analysis (10-K Item 7):
+(MD&A section not available - SEC API key may not be configured)
+
+Instruction: 
+Analyze how this company generates revenue. Focus on:
+1. Primary Revenue Streams: Identify the main products or services that generate revenue, with percentages if available.
+2. Revenue Model Type: Classify the business model (subscription/SaaS, licensing, transaction fees, advertising,
+   hardware sales, professional services, freemium, marketplace, or hybrid).
+3. Geographic Distribution: Break down revenue by region or country if disclosed.
+4. Revenue Quality: Assess recurring vs non-recurring revenue mix, customer concentration risks,
+   and any major customer dependencies.
+
+Provide a concise, fact-based analysis with specific data points from the financial statements and business description.
+The output should be a single paragraph, less than 150 words, with clear evidence from the source documents.

@@ -447,3 +447,127 @@ class ReportAnalysisUtils:
             ),
         }
         return result
+
+    def analyze_revenue_model(
+        ticker_symbol: Annotated[str, "ticker symbol"],
+        fyear: Annotated[str, "fiscal year of the 10-K report"],
+        save_path: Annotated[str, "txt file path, to which the returned instruction & resources are written."]
+    ) -> str:
+        """
+        Retrieve the business description, MD&A, and income statement for the given ticker symbol.
+        Then return with an instruction on how to analyze the company's revenue model and how it generates revenue.
+        """
+        # Retrieve business description (Item 1) for revenue model context
+        business_desc = SECUtils.get_10k_section(ticker_symbol, fyear, 1)
+        if business_desc is None:
+            business_desc = "(Business description not available - SEC API key may not be configured)"
+
+        # Retrieve MD&A (Item 7) for revenue segment details
+        mda_section = SECUtils.get_10k_section(ticker_symbol, fyear, 7)
+        if mda_section is None:
+            mda_section = "(MD&A section not available - SEC API key may not be configured)"
+
+        # Retrieve income statement for revenue data
+        income_stmt = YFinanceUtils.get_income_stmt(ticker_symbol)
+        income_stmt = filter_by_fiscal_year(income_stmt, fyear)
+        df_string = f"Income statement for FY{fyear} (and prior years for comparison):\n" + income_stmt.to_string().strip()
+        df_string += f"\n\nNOTE: Use ONLY FY{fyear} data for the analysis. Prior years are for comparison only."
+
+        instruction = dedent(
+            """
+            Analyze how this company generates revenue. Focus on:
+            1. Primary Revenue Streams: Identify the main products or services that generate revenue, with percentages if available.
+            2. Revenue Model Type: Classify the business model (subscription/SaaS, licensing, transaction fees, advertising,
+               hardware sales, professional services, freemium, marketplace, or hybrid).
+            3. Geographic Distribution: Break down revenue by region or country if disclosed.
+            4. Revenue Quality: Assess recurring vs non-recurring revenue mix, customer concentration risks,
+               and any major customer dependencies.
+
+            Provide a concise, fact-based analysis with specific data points from the financial statements and business description.
+            The output should be a single paragraph, less than 150 words, with clear evidence from the source documents.
+            """
+        )
+
+        # Combine business description and MD&A as the resource
+        section_text = (
+            "Business Description (10-K Item 1):\n"
+            + business_desc
+            + "\n\n"
+            + "Management's Discussion and Analysis (10-K Item 7):\n"
+            + mda_section
+        )
+
+        prompt = combine_prompt(instruction, section_text, df_string)
+        save_to_file(prompt, save_path)
+        return f"instruction & resources saved to {save_path}"
+
+    @staticmethod
+    def analyze_business_model(
+        ticker_symbol: Annotated[str, "ticker symbol"],
+        fyear: Annotated[str, "fiscal year of the 10-K report"],
+        save_path: Annotated[str, "txt file path, to which the returned instruction & resources are written."]
+    ) -> str:
+        """
+        Retrieve the business description, MD&A, and financial data for the given ticker symbol.
+        Then return with an instruction on how to analyze the company's business model,
+        revenue streams, and unit economics for the equity research report.
+        """
+        # Retrieve SEC 10-K Item 1 (Business Description)
+        business_desc = SECUtils.get_10k_section(ticker_symbol, fyear, 1)
+        if business_desc is None:
+            business_desc = "(Business description not available - SEC API key may not be configured)"
+
+        # Retrieve SEC 10-K Item 7 (MD&A)
+        mda_section = SECUtils.get_10k_section(ticker_symbol, fyear, 7)
+        if mda_section is None:
+            mda_section = "(MD&A section not available - SEC API key may not be configured)"
+
+        # Retrieve income statement for financial metrics
+        income_stmt = YFinanceUtils.get_income_stmt(ticker_symbol)
+        income_stmt = filter_by_fiscal_year(income_stmt, fyear)
+        df_string = f"Income statement for FY{fyear} (and prior years for comparison):\n" + income_stmt.to_string().strip()
+        df_string += f"\n\nNOTE: Use ONLY FY{fyear} data for the analysis. Prior years are for comparison only."
+
+        instruction = dedent(
+            """
+            Analyze the company's business model and how it generates revenue. Provide a comprehensive
+            analysis covering:
+
+            1. BUSINESS MODEL CLASSIFICATION:
+               - Identify the primary business model type (subscription/SaaS, licensing, transaction fees,
+                 advertising, hardware sales, professional services, freemium, marketplace, or hybrid)
+               - Describe the value proposition and how the company creates and captures value
+
+            2. REVENUE STREAMS:
+               - List the main revenue streams with percentages if available
+               - Distinguish between recurring and non-recurring revenue
+               - Note any geographic or segment concentration
+
+            3. UNIT ECONOMICS:
+               - Gross margin analysis and trends
+               - Operating leverage indicators
+               - Key cost drivers (R&D, SG&A as % of revenue)
+
+            4. COMPETITIVE POSITIONING:
+               - Key differentiators in the business model
+               - Sustainability of competitive advantages
+               - Any notable risks to the business model
+
+            Provide a well-structured analysis (2-3 paragraphs, 200-300 words) with specific data points
+            from the financial statements and business description. Focus on insights that would be
+            valuable for an equity research report.
+            """
+        )
+
+        # Combine business description and MD&A as the resource
+        section_text = (
+            "Business Description (10-K Item 1):\n"
+            + business_desc
+            + "\n\n"
+            + "Management's Discussion and Analysis (10-K Item 7):\n"
+            + mda_section
+        )
+
+        prompt = combine_prompt(instruction, section_text, df_string)
+        save_to_file(prompt, save_path)
+        return f"instruction & resources saved to {save_path}"

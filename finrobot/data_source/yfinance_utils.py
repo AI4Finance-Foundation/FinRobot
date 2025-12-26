@@ -4,6 +4,10 @@ from pandas import DataFrame
 from functools import wraps
 
 from ..utils import save_output, SavePathType, decorate_all_methods
+from .cache_utils import get_cache_path, is_cache_valid, read_disk_cache, write_disk_cache, TTL_CONFIG
+
+# In-memory cache for YFinance data to avoid redundant API calls
+_yfinance_cache = {}
 
 
 def init_ticker(func: Callable) -> Callable:
@@ -41,7 +45,30 @@ class YFinanceUtils:
     ) -> dict:
         """Fetches and returns latest stock information."""
         ticker = symbol
+        ticker_symbol = ticker.ticker
+
+        # Check in-memory cache first
+        cache_key = f"stock_info:{ticker_symbol}"
+        if cache_key in _yfinance_cache:
+            return _yfinance_cache[cache_key]
+
+        # Check disk cache with TTL (1 day for stock info)
+        disk_cache_path = get_cache_path("yfinance", cache_key)
+        ttl = TTL_CONFIG.get("yfinance_info", TTL_CONFIG["default"])
+        if is_cache_valid(disk_cache_path, ttl):
+            cached_data = read_disk_cache(disk_cache_path)
+            if cached_data is not None:
+                _yfinance_cache[cache_key] = cached_data
+                return cached_data
+
+        # Fetch from API
         stock_info = ticker.info
+
+        # Cache the result
+        if stock_info:
+            _yfinance_cache[cache_key] = stock_info
+            write_disk_cache(disk_cache_path, stock_info)
+
         return stock_info
 
     def get_company_info(
@@ -79,19 +106,88 @@ class YFinanceUtils:
     def get_income_stmt(symbol: Annotated[str, "ticker symbol"]) -> DataFrame:
         """Fetches and returns the latest income statement of the company as a DataFrame."""
         ticker = symbol
+        ticker_symbol = ticker.ticker
+
+        # Check in-memory cache first
+        cache_key = f"income_stmt:{ticker_symbol}"
+        if cache_key in _yfinance_cache:
+            return _yfinance_cache[cache_key]
+
+        # Check disk cache with TTL (7 days for financials)
+        disk_cache_path = get_cache_path("yfinance", cache_key)
+        ttl = TTL_CONFIG.get("yfinance_financials", TTL_CONFIG["default"])
+        if is_cache_valid(disk_cache_path, ttl):
+            cached_data = read_disk_cache(disk_cache_path)
+            if cached_data is not None:
+                _yfinance_cache[cache_key] = cached_data
+                return cached_data
+
+        # Fetch from API
         income_stmt = ticker.financials
+
+        # Cache the result
+        if income_stmt is not None and not income_stmt.empty:
+            _yfinance_cache[cache_key] = income_stmt
+            write_disk_cache(disk_cache_path, income_stmt)
+
         return income_stmt
 
     def get_balance_sheet(symbol: Annotated[str, "ticker symbol"]) -> DataFrame:
         """Fetches and returns the latest balance sheet of the company as a DataFrame."""
         ticker = symbol
+        ticker_symbol = ticker.ticker
+
+        # Check in-memory cache first
+        cache_key = f"balance_sheet:{ticker_symbol}"
+        if cache_key in _yfinance_cache:
+            return _yfinance_cache[cache_key]
+
+        # Check disk cache with TTL (7 days for financials)
+        disk_cache_path = get_cache_path("yfinance", cache_key)
+        ttl = TTL_CONFIG.get("yfinance_financials", TTL_CONFIG["default"])
+        if is_cache_valid(disk_cache_path, ttl):
+            cached_data = read_disk_cache(disk_cache_path)
+            if cached_data is not None:
+                _yfinance_cache[cache_key] = cached_data
+                return cached_data
+
+        # Fetch from API
         balance_sheet = ticker.balance_sheet
+
+        # Cache the result
+        if balance_sheet is not None and not balance_sheet.empty:
+            _yfinance_cache[cache_key] = balance_sheet
+            write_disk_cache(disk_cache_path, balance_sheet)
+
         return balance_sheet
 
     def get_cash_flow(symbol: Annotated[str, "ticker symbol"]) -> DataFrame:
         """Fetches and returns the latest cash flow statement of the company as a DataFrame."""
         ticker = symbol
+        ticker_symbol = ticker.ticker
+
+        # Check in-memory cache first
+        cache_key = f"cash_flow:{ticker_symbol}"
+        if cache_key in _yfinance_cache:
+            return _yfinance_cache[cache_key]
+
+        # Check disk cache with TTL (7 days for financials)
+        disk_cache_path = get_cache_path("yfinance", cache_key)
+        ttl = TTL_CONFIG.get("yfinance_financials", TTL_CONFIG["default"])
+        if is_cache_valid(disk_cache_path, ttl):
+            cached_data = read_disk_cache(disk_cache_path)
+            if cached_data is not None:
+                _yfinance_cache[cache_key] = cached_data
+                return cached_data
+
+        # Fetch from API
         cash_flow = ticker.cashflow
+
+        # Cache the result
+        if cash_flow is not None and not cash_flow.empty:
+            _yfinance_cache[cache_key] = cash_flow
+            write_disk_cache(disk_cache_path, cash_flow)
+
         return cash_flow
 
     def get_analyst_recommendations(symbol: Annotated[str, "ticker symbol"]) -> tuple:

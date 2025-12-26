@@ -56,10 +56,15 @@ class ReportLabUtils:
             str, "path to the PE and EPS performance image"
         ],
         filing_date: Annotated[str, "filing date of the analyzed financial report"],
+        business_model_analysis: Annotated[
+            str,
+            "a paragraph of text: analysis of the company's business model, revenue streams, and unit economics (optional)",
+        ] = None,
     ) -> str:
         """
         Aggregate a company's business_overview, market_position, operating_results,
-        risk assessment, competitors analysis and share performance, PE & EPS performance charts all into a PDF report.
+        business model analysis, risk assessment, competitors analysis and share performance,
+        PE & EPS performance charts all into a PDF report.
         """
         try:
             # 2. 创建PDF并插入图像
@@ -291,7 +296,13 @@ class ReportLabUtils:
             # # 开始新的一页
             content.append(NextPageTemplate("OneCol"))
             content.append(PageBreak())
-            
+
+            # Add Business Model Analysis section if provided
+            if business_model_analysis:
+                content.append(Paragraph("Business Model Analysis", subtitle_style))
+                content.append(Paragraph(business_model_analysis, custom_style))
+                content.append(Spacer(1, 0.15 * inch))
+
             content.append(Paragraph("Risk Assessment", subtitle_style))
             content.append(Paragraph(risk_assessment, custom_style))
 

@@ -1,0 +1,405 @@
+Income statement for FY2024 (and prior years for comparison):
+2024-09-30    2023-09-30    2022-09-30
+Tax Effect Of Unusual Items                                 0.000000e+00  0.000000e+00  0.000000e+00
+Tax Rate For Calcs                                          2.410000e-01  1.470000e-01  1.620000e-01
+Normalized EBITDA                                           1.346610e+11  1.258200e+11  1.305410e+11
+Net Income From Continuing Operation Net Minority Interest  9.373600e+10  9.699500e+10  9.980300e+10
+Reconciled Depreciation                                     1.144500e+10  1.151900e+10  1.110400e+10
+Reconciled Cost Of Revenue                                  2.103520e+11  2.141370e+11  2.235460e+11
+EBITDA                                                      1.346610e+11  1.258200e+11  1.305410e+11
+EBIT                                                        1.232160e+11  1.143010e+11  1.194370e+11
+Net Interest Income                                                  NaN -1.830000e+08 -1.060000e+08
+Interest Expense                                                     NaN  3.933000e+09  2.931000e+09
+Interest Income                                                      NaN  3.750000e+09  2.825000e+09
+Normalized Income                                           9.373600e+10  9.699500e+10  9.980300e+10
+Net Income From Continuing And Discontinued Operation       9.373600e+10  9.699500e+10  9.980300e+10
+Total Expenses                                              2.678190e+11  2.689840e+11  2.748910e+11
+Total Operating Income As Reported                          1.232160e+11  1.143010e+11  1.194370e+11
+Diluted Average Shares                                      1.540810e+10  1.581255e+10  1.632582e+10
+Basic Average Shares                                        1.534378e+10  1.574423e+10  1.621596e+10
+Diluted EPS                                                 6.080000e+00  6.130000e+00  6.110000e+00
+Basic EPS                                                   6.110000e+00  6.160000e+00  6.150000e+00
+Diluted NI Availto Com Stockholders                         9.373600e+10  9.699500e+10  9.980300e+10
+Net Income Common Stockholders                              9.373600e+10  9.699500e+10  9.980300e+10
+Net Income                                                  9.373600e+10  9.699500e+10  9.980300e+10
+Net Income Including Noncontrolling Interests               9.373600e+10  9.699500e+10  9.980300e+10
+Net Income Continuous Operations                            9.373600e+10  9.699500e+10  9.980300e+10
+Tax Provision                                               2.974900e+10  1.674100e+10  1.930000e+10
+Pretax Income                                               1.234850e+11  1.137360e+11  1.191030e+11
+Other Income Expense                                        2.690000e+08 -5.650000e+08 -3.340000e+08
+Other Non Operating Income Expenses                         2.690000e+08 -5.650000e+08 -3.340000e+08
+Net Non Operating Interest Income Expense                            NaN -1.830000e+08 -1.060000e+08
+Interest Expense Non Operating                                       NaN  3.933000e+09  2.931000e+09
+Interest Income Non Operating                                        NaN  3.750000e+09  2.825000e+09
+Operating Income                                            1.232160e+11  1.143010e+11  1.194370e+11
+Operating Expense                                           5.746700e+10  5.484700e+10  5.134500e+10
+Research And Development                                    3.137000e+10  2.991500e+10  2.625100e+10
+Selling General And Administration                          2.609700e+10  2.493200e+10  2.509400e+10
+Gross Profit                                                1.806830e+11  1.691480e+11  1.707820e+11
+Cost Of Revenue                                             2.103520e+11  2.141370e+11  2.235460e+11
+Total Revenue                                               3.910350e+11  3.832850e+11  3.943280e+11
+Operating Revenue                                           3.910350e+11  3.832850e+11  3.943280e+11
+
+NOTE: Use ONLY FY2024 data for the analysis. Prior years are for comparison only.
+
+Resource: Business Description (10-K Item 1):
+ Item 1. Business 
+
+Company Background 
+
+The Company designs, manufactures and markets smartphones, personal computers, tablets, wearables and accessories, and sells a variety of related services. The Company&#8217;s fiscal year is the 52- or 53-week period that ends on the last Saturday of September. 
+
+Products 
+
+iPhone 
+
+iPhone &#174; is the Company&#8217;s line of smartphones based on its iOS operating system. The iPhone line includes iPhone 17 Pro, iPhone Air&#8482;, iPhone 17, iPhone 16 and iPhone 16e. 
+
+Mac 
+
+Mac &#174; is the Company&#8217;s line of personal computers based on its macOS &#174; operating system. The Mac line includes laptops MacBook Air &#174; and MacBook Pro &#174; , as well as desktops iMac &#174; , Mac mini &#174; , Mac Studio &#174; and Mac Pro &#174; . 
+
+iPad 
+
+iPad &#174; is the Company&#8217;s line of multipurpose tablets based on its iPadOS &#174; operating system. The iPad line includes iPad Pro &#174; , iPad Air &#174; , iPad and iPad mini &#174; . 
+
+Wearables, Home and Accessories 
+
+Wearables includes smartwatches, wireless headphones and spatial computers. The Company&#8217;s line of smartwatches, based on its watchOS &#174; operating system, includes Apple Watch &#174; Series 11, Apple Watch SE &#174; 3 and Apple Watch Ultra &#174; 3. The Company&#8217;s line of wireless headphones includes AirPods &#174; , AirPods Pro &#174; , AirPods Max &#174; and Beats &#174; products. Apple Vision Pro&#8482; is the Company&#8217;s spatial computer based on its visionOS &#174; operating system. 
+
+Home includes Apple TV 4K &#174; , the Company&#8217;s media streaming and gaming device based on its tvOS &#174; operating system, and HomePod &#174; and HomePod mini &#174; , high-fidelity wireless smart speakers. 
+
+Accessories includes Apple-branded and third-party accessories. 
+
+Apple Inc. | 2025 Form 10-K | 1 
+
+Services 
+
+Advertising 
+
+The Company&#8217;s advertising services include third-party licensing arrangements and the Company&#8217;s own advertising platforms. 
+
+AppleCare 
+
+The Company offers a portfolio of fee-based service and support products under the AppleCare &#174; brand. The offerings provide priority access to Apple technical support, access to the global Apple authorized service network for repair and replacement services, and in many cases additional coverage for instances of accidental damage or theft and loss, depending on the country and type of product. 
+
+Cloud Services 
+
+The Company&#8217;s cloud services store and keep customers&#8217; content up-to-date and available across multiple Apple devices and Windows personal computers. 
+
+Digital Content 
+
+The Company operates various platforms, including the App Store &#174; , that allow customers to discover and download applications and digital content, such as books, music, video, games and podcasts. 
+
+The Company also offers digital content through subscription-based services, including Apple Arcade &#174; , a game service; Apple Fitness+ &#174; , a personalized fitness service; Apple Music &#174; , which offers users a curated listening experience with on-demand radio stations; Apple News+ &#174; , a news and magazine service; and Apple TV &#174; , which offers exclusive original content and live sports. 
+
+Payment Services 
+
+The Company offers payment services, including Apple Card &#174; , a co-branded credit card, and Apple Pay &#174; , a cashless payment service. 
+
+Segments 
+
+The Company manages its business primarily on a geographic basis. The Company&#8217;s reportable segments consist of the Americas, Europe, Greater China, Japan and Rest of Asia Pacific. Americas includes both North and South America. Europe includes European countries, as well as India, the Middle East and Africa. Greater China includes China mainland, Hong Kong and Taiwan. Rest of Asia Pacific includes Australia, New Zealand and those Asian countries not included in the Company&#8217;s other reportable segments. Although the reportable segments provide similar hardware and software products and similar services, each one is managed separately to better align with the location of the Company&#8217;s customers and distribution partners and the unique market dynamics of each geographic region. 
+
+Markets and Distribution 
+
+The Company&#8217;s customers are primarily in the consumer, small and mid-sized business, education, enterprise and government markets. The Company sells its products and resells third-party products in most of its major markets directly to customers through its retail and online stores and its direct sales force. The Company sells its services in the same markets through its various service platforms. The Company also employs a variety of indirect distribution channels, such as third-party cellular network carriers and other resellers, for the sale of its products and certain of its services. During 2025, the Company&#8217;s net sales through its direct and indirect distribution channels accounted for 40% and 60%, respectively, of total net sales. 
+
+Competition 
+
+The markets for the Company&#8217;s products and services are highly competitive and are characterized by aggressive price competition, downward pressure on gross margins, continual improvement in product performance, and price sensitivity on the part of consumers and businesses. The markets in which the Company competes are further defined by frequent introduction of new products and services, short product life cycles, evolving industry standards, and rapid adoption of technological advancements by competitors. Many of the Company&#8217;s competitors seek to compete primarily through aggressive pricing and very low cost structures, and by imitating the Company&#8217;s products and infringing on its intellectual property. 
+
+Apple Inc. | 2025 Form 10-K | 2 
+
+The Company&#8217;s ability to compete successfully depends heavily on ensuring the continuing and timely introduction of innovative new products, services and technologies to the marketplace. The Company designs and develops nearly the entire solution for its products, including the hardware, operating system, numerous software applications and related services. Principal competitive factors important to the Company include price, product and service features (including security features), relative price and performance, product and service quality and reliability, design and technology innovation, a strong third-party software and accessories ecosystem, marketing and distribution capability, service and support, corporate reputation, and the ability to effectively protect and enforce the Company&#8217;s intellectual property rights. 
+
+The Company is focused on expanding its market opportunities related to smartphones, personal computers, tablets, wearables and accessories, and services. The Company&#8217;s products and services face substantial competition from companies that have significant technical, marketing, distribution and other resources, as well as established hardware, software, and service offerings with large customer bases. In addition, the Company faces significant competition as competitors imitate the Company&#8217;s product features and applications within their products to offer more competitive solutions. The Company also expects competition to intensify as competitors imitate the Company&#8217;s approach to providing components seamlessly within their offerings or work collaboratively to offer integrated solutions. Some of the Company&#8217;s competitors have broad product lines, low-priced products, large installed bases of active devices, and large customer bases. Competition has been particularly intense as competitors have aggressively cut prices and lowered product margins. Certain competitors have the resources, experience or cost structures to provide products and services at little or no profit or even at a loss. The Company has a minority market share in the global smartphone, personal computer, tablet and wearables markets, and some of the markets in which the Company competes have from time to time experienced little to no growth or contracted overall. 
+
+Supply of Components 
+
+Although most components essential to the Company&#8217;s business are generally available from multiple sources, certain components are currently obtained from single or limited sources. The Company also competes for various components with other participants in the markets for smartphones, personal computers, tablets, wearables and accessories. Therefore, many components used by the Company, including those that are available from multiple sources, are at times subject to industry-wide shortage and significant commodity pricing fluctuations. Restrictions on international trade can increase the cost or limit the availability of the Company&#8217;s products and the components and rare earths and other raw materials that go into them. 
+
+The Company uses some custom components that are not commonly used by its competitors, and new products introduced by the Company often utilize custom components available from only one source. When a component or product uses new technologies, initial capacity constraints may exist until the suppliers&#8217; yields have matured or their manufacturing capacities have increased. The Company has entered into agreements for the supply of many components; however, the Company may not be able to extend or renew agreements for the supply of components on similar terms, or at all, and may not be successful in obtaining sufficient quantities from its suppliers or in a timely manner, or in identifying and obtaining sufficient quantities from an alternative source. In addition, component suppliers may fail, be subject to consolidation within a particular industry, or decide to concentrate on the production of common components instead of components customized to meet the Company&#8217;s requirements, further limiting the Company&#8217;s ability to obtain sufficient quantities of components on commercially reasonable terms, or at all. 
+
+Research and Development 
+
+Because the industries in which the Company competes are characterized by rapid technological advances, the Company&#8217;s ability to compete successfully depends heavily upon its ability to ensure a continual and timely flow of competitive products, services and technologies to the marketplace. The Company continues to develop new technologies to enhance existing products and services, and to expand the range of its offerings through research and development (&#8220;R&#38;D&#8221;), licensing of intellectual property and acquisition of third-party businesses and technology. 
+
+Intellectual Property 
+
+The Company currently holds a broad collection of intellectual property rights relating to certain aspects of its hardware, software and services. This includes patents, designs, copyrights, trademarks, trade secrets and other forms of intellectual property rights in the U.S. and various foreign countries. Although the Company believes the ownership of such intellectual property rights is an important factor in differentiating its business and that its success does depend in part on such ownership, the Company relies primarily on the innovative skills, technical competence and marketing abilities of its personnel. 
+
+The Company regularly files patent, design, copyright and trademark applications to protect innovations arising from its hardware, software and service research, development, design and marketing, and is currently pursuing thousands of applications around the world. Over time, the Company has accumulated a large portfolio of issued and registered intellectual property rights around the world. No single intellectual property right is solely responsible for protecting the Company&#8217;s products and services. The Company believes the duration of its intellectual property rights is adequate relative to the expected lives of its products and services. 
+
+Apple Inc. | 2025 Form 10-K | 3 
+
+In addition to Company-owned intellectual property, many of the Company&#8217;s products and services include technology or intellectual property that must be licensed from third parties. It may be necessary in the future to seek or renew licenses relating to various aspects of the Company&#8217;s products, processes and services. While the Company has generally been able to obtain such licenses on commercially reasonable terms in the past, there is no guarantee that such licenses could be obtained in the future on reasonable terms or at all. 
+
+Business Seasonality and Product Introductions 
+
+The Company has historically experienced higher net sales in its first quarter compared to other quarters in its fiscal year due in part to seasonal holiday demand. Additionally, new product and service introductions can significantly impact net sales, cost of sales and operating expenses. The timing of product introductions can also impact the Company&#8217;s net sales to its indirect distribution channels as these channels are filled with new inventory following a product launch, and channel inventory of an older product often declines as the launch of a newer product approaches. Net sales can also be affected when consumers and distributors anticipate a product introduction. 
+
+Human Capital 
+
+The Company believes that its people play an important role in its success, and strives to attract, develop and retain the best talent. The Company works to create a culture of collaboration, one where people with a broad range of backgrounds and perspectives can come together to innovate and do the best work of their lives. The Company is an equal opportunity employer committed to inclusion and to providing a workplace free of harassment or discrimination. As of September 27, 2025, the Company had approximately 166,000 full-time equivalent employees. 
+
+The Company believes that compensation should be competitive and equitable, and offers discretionary cash and equity awards to enable employees to share in the Company&#8217;s success. The Company recognizes its people are most likely to thrive when they have the resources to meet their needs and the time and support to succeed in their professional and personal lives. In support of this, the Company offers a wide variety of benefits for employees around the world, including health, wellness and time away. 
+
+The Company invests in resources to help its people develop and achieve their career goals. The Company offers programs through Apple University on leadership, management and influence, as well as Apple culture and values. Team members can also take advantage of online classes for business, technical and personal development. 
+
+The Company believes that open and honest communication among team members, managers and leaders helps create an open, collaborative work environment where everyone can contribute, grow and succeed. Team members are encouraged to come to their managers with questions, feedback or concerns, and the Company conducts surveys that gauge employee sentiment in areas like career development, manager performance and inclusion. 
+
+The Company is committed to the safety and security of its team members everywhere it operates. The Company supports employees with general safety, security and crisis management training, and by putting specific programs in place for those working in potentially high-hazard environments. 
+
+Available Information 
+
+The Company&#8217;s Annual Reports on Form 10-K, Quarterly Reports on Form 10-Q, Current Reports on Form 8-K, and amendments to reports filed pursuant to Sections 13(a) and 15(d) of the Securities Exchange Act of 1934, as amended (&#8220;Exchange Act&#8221;), are filed with the U.S. Securities and Exchange Commission (&#8220;SEC&#8221;). Such reports and other information filed by the Company with the SEC are available free of charge at investor.apple.com/investor-relations/sec-filings/default.aspx when such reports are available on the SEC&#8217;s website. The Company periodically provides certain information for investors on its corporate website, www.apple.com, and its investor relations website, investor.apple.com. This includes press releases and other information about financial performance, information on corporate governance, and details related to the Company&#8217;s annual meeting of shareholders. The information contained on the websites referenced in this Form 10-K is not incorporated by reference into this filing. Further, the Company&#8217;s references to website URLs are intended to be inactive textual references only. 
+
+Apple Inc. | 2025 Form 10-K | 4 
+
+
+
+Management's Discussion and Analysis (10-K Item 7):
+ Item 7. Management&#8217;s Discussion and Analysis of Financial Condition and Results of Operations 
+
+The following discussion should be read in conjunction with the consolidated financial statements and accompanying notes included in Part II, Item 8 of this Form 10-K. This Item generally discusses 2025 and 2024 items and year-to-year comparisons between 2025 and 2024. Discussions of 2023 items and year-to-year comparisons between 2024 and 2023 are not included, and can be found in &#8220;Management&#8217;s Discussion and Analysis of Financial Condition and Results of Operations&#8221; in Part II, Item 7 of the Company&#8217;s Annual Report on Form 10-K for the fiscal year ended September 28, 2024. 
+
+Product, Service and Software Announcements 
+
+The Company announces new product, service and software offerings at various times during the year. Significant announcements during fiscal year 2025 included the following: 
+
+First Quarter 2025: 
+
+&#8226; MacBook Pro 
+
+&#8226; Mac mini 
+
+&#8226; iMac 
+
+&#8226; iPad mini 
+
+Second Quarter 2025: 
+
+&#8226; iPhone 16e 
+
+&#8226; iPad Air 
+
+&#8226; iPad 
+
+&#8226; MacBook Air 
+
+&#8226; Mac Studio 
+
+Third Quarter 2025: 
+
+&#8226; iOS 26, macOS Tahoe 26, iPadOS 26, watchOS 26, visionOS 26 and tvOS 26 
+
+Fourth Quarter 2025: 
+
+&#8226; iPhone 17, iPhone Air, iPhone 17 Pro and iPhone 17 Pro Max 
+
+&#8226; Apple Watch Series 11, Apple Watch SE 3 and Apple Watch Ultra 3 
+
+&#8226; AirPods Pro 3 
+
+Fiscal Period 
+
+The Company&#8217;s fiscal year is the 52- or 53-week period that ends on the last Saturday of September. An additional week is included in the first fiscal quarter every five or six years to realign the Company&#8217;s fiscal quarters with calendar quarters, which occurred in the first quarter of 2023. The Company&#8217;s fiscal years 2025 and 2024 spanned 52 weeks each, whereas fiscal year 2023 spanned 53 weeks. 
+
+Macroeconomic Conditions 
+
+Macroeconomic conditions, including inflation, interest rates and currency fluctuations, have directly and indirectly impacted, and could in the future materially impact, the Company&#8217;s results of operations and financial condition. 
+
+Apple Inc. | 2025 Form 10-K | 21 
+
+Tariffs and Other Measures 
+
+Beginning in the second quarter of 2025, new U.S. Tariffs were announced, including additional tariffs on imports from China, India, Japan, South Korea, Taiwan, Vietnam and the EU, among others. In response, several countries have imposed, or threatened to impose, reciprocal tariffs on imports from the U.S. and other retaliatory measures. Various modifications to the U.S. Tariffs have been announced and further changes could be made in the future, which may include additional sector-based tariffs or other measures. For example, the U.S. Department of Commerce has initiated an investigation under Section 232 of the Trade Expansion Act of 1962, as amended, into, among other things, imports of semiconductors, semiconductor manufacturing equipment, and their derivative products, including downstream products that contain semiconductors. Tariffs and other measures that are applied to the Company&#8217;s products or their components can have a material adverse impact on the Company&#8217;s business, results of operations and financial condition, including impacting the Company&#8217;s supply chain, the availability of rare earths and other raw materials and components, pricing and gross margin. The ultimate impact remains uncertain and will depend on several factors, including whether additional or incremental U.S. Tariffs or other measures are announced or imposed, to what extent other countries implement tariffs or other retaliatory measures in response, and the overall magnitude and duration of these measures. Trade and other international disputes can have an adverse impact on the overall macroeconomic environment and result in shifts and reductions in consumer spending and negative consumer sentiment for the Company&#8217;s products and services, all of which can further adversely affect the Company&#8217;s business and results of operations. 
+
+Segment Operating Performance 
+
+The following table shows net sales by reportable segment for 2025, 2024 and 2023 (dollars in millions): 
+
+##TABLE_START 2025 Change 2024 Change 2023 Americas $ 178,353 7 % $ 167,045 3 % $ 162,560 Europe 111,032 10 % 101,328 7 % 94,294 Greater China 64,377 (4) % 66,952 (8) % 72,559 Japan 28,703 15 % 25,052 3 % 24,257 Rest of Asia Pacific 33,696 10 % 30,658 4 % 29,615 Total net sales $ 416,161 6 % $ 391,035 2 % $ 383,285 ##TABLE_END
+
+Americas 
+
+Americas net sales increased during 2025 compared to 2024 primarily due to higher net sales of iPhone and Services. The weakness in foreign currencies relative to the U.S. dollar had an unfavorable year-over-year impact on Americas net sales during 2025. 
+
+Europe 
+
+Europe net sales increased during 2025 compared to 2024 primarily due to higher net sales of Services, iPhone and Mac. 
+
+Greater China 
+
+Greater China net sales decreased during 2025 compared to 2024 primarily due to lower net sales of iPhone, partially offset by higher net sales of Mac. 
+
+Japan 
+
+Japan net sales increased during 2025 compared to 2024 primarily due to higher net sales of iPhone, Services and iPad. 
+
+Rest of Asia Pacific 
+
+Rest of Asia Pacific net sales increased during 2025 compared to 2024 primarily due to higher net sales of iPhone, Services and Mac. 
+
+Apple Inc. | 2025 Form 10-K | 22 
+
+Products and Services Performance 
+
+The following table shows net sales by category for 2025, 2024 and 2023 (dollars in millions): 
+
+##TABLE_START 2025 Change 2024 Change 2023 iPhone $ 209,586 4 % $ 201,183 &#8212; % $ 200,583 Mac 33,708 12 % 29,984 2 % 29,357 iPad 28,023 5 % 26,694 (6) % 28,300 Wearables, Home and Accessories 35,686 (4) % 37,005 (7) % 39,845 
+
+Services (1) 
+
+109,158 14 % 96,169 13 % 85,200 Total net sales $ 416,161 6 % $ 391,035 2 % $ 383,285 ##TABLE_END
+
+(1) Services net sales include amortization of the deferred value of services bundled in the sales price of certain products. 
+
+iPhone 
+
+iPhone net sales increased during 2025 compared to 2024 due to higher net sales of Pro models. 
+
+Mac 
+
+Mac net sales increased during 2025 compared to 2024 primarily due to higher net sales of laptops and desktops. 
+
+iPad 
+
+iPad net sales increased during 2025 compared to 2024 primarily due to higher net sales of iPad Air, iPad mini and iPad, partially offset by lower net sales of iPad Pro. 
+
+Wearables, Home and Accessories 
+
+Wearables, Home and Accessories net sales decreased during 2025 compared to 2024 primarily due to lower net sales of Accessories and Wearables. 
+
+Services 
+
+Services net sales increased during 2025 compared to 2024 primarily due to higher net sales from advertising, the App Store and cloud services. 
+
+Apple Inc. | 2025 Form 10-K | 23 
+
+Gross Margin 
+
+Products and Services gross margin and gross margin percentage for 2025, 2024 and 2023 were as follows (dollars in millions): 
+
+##TABLE_START 2025 2024 2023 Gross margin: Products $ 112,887 $ 109,633 $ 108,803 Services 82,314 71,050 60,345 Total gross margin $ 195,201 $ 180,683 $ 169,148 ##TABLE_END
+
+##TABLE_START Gross margin percentage: Products 36.8 % 37.2 % 36.5 % Services 75.4 % 73.9 % 70.8 % Total gross margin percentage 46.9 % 46.2 % 44.1 % ##TABLE_END
+
+Products Gross Margin 
+
+Products gross margin increased during 2025 compared to 2024 primarily due to favorable costs and a different mix of products, partially offset by tariff costs. 
+
+Products gross margin percentage decreased during 2025 compared to 2024 primarily due to a different mix of products and tariff costs, partially offset by other favorable costs. 
+
+Services Gross Margin 
+
+Services gross margin increased during 2025 compared to 2024 primarily due to higher Services net sales and a different mix of services. 
+
+Services gross margin percentage increased during 2025 compared to 2024 primarily due to a different mix of services, partially offset by higher costs. 
+
+The Company&#8217;s future gross margins can be impacted by a variety of factors, as discussed in Part I, Item 1A of this Form 10-K under the heading &#8220;Risk Factors.&#8221; As a result, the Company believes, in general, gross margins will be subject to volatility and downward pressure. 
+
+Operating Expenses 
+
+Operating expenses for 2025, 2024 and 2023 were as follows (dollars in millions): 
+
+##TABLE_START 2025 Change 2024 Change 2023 Research and development $ 34,550 10 % $ 31,370 5 % $ 29,915 Percentage of total net sales 8 % 8 % 8 % Selling, general and administrative $ 27,601 6 % $ 26,097 5 % $ 24,932 Percentage of total net sales 7 % 7 % 7 % Total operating expenses $ 62,151 8 % $ 57,467 5 % $ 54,847 Percentage of total net sales 15 % 15 % 14 % ##TABLE_END
+
+Research and Development 
+
+The growth in R&#38;D expense during 2025 compared to 2024 was primarily driven by increases in headcount-related expenses and infrastructure-related costs. 
+
+Selling, General and Administrative 
+
+The growth in selling, general and administrative expense during 2025 compared to 2024 was primarily driven by increases in headcount-related expenses and variable selling expenses. 
+
+Apple Inc. | 2025 Form 10-K | 24 
+
+Provision for Income Taxes 
+
+Provision for income taxes, effective tax rate and statutory federal income tax rate for 2025, 2024 and 2023 were as follows (dollars in millions): 
+
+##TABLE_START 2025 2024 2023 Provision for income taxes $ 20,719 $ 29,749 $ 16,741 Effective tax rate 15.6 % 24.1 % 14.7 % Statutory federal income tax rate 21 % 21 % 21 % ##TABLE_END
+
+The Company&#8217;s effective tax rate for 2025 was lower than the statutory federal income tax rate primarily due to a lower effective tax rate on foreign earnings, including the impact of changes in unrecognized tax benefits, the impact of the U.S. federal R&#38;D credit, and tax benefits from share-based compensation, partially offset by a change in valuation allowance and state income taxes. 
+
+The Company&#8217;s effective tax rate for 2025 was lower compared to 2024 due to a $10.7 billion year-over-year decrease in the provision for income taxes related to the State Aid Decision (refer to Note 7, &#8220;Income Taxes&#8221; in the Notes to Consolidated Financial Statements in Part II, Item 8 of this Form 10-K) and the impact of changes in unrecognized tax benefits, partially offset by a change in valuation allowance and a higher effective tax rate on foreign earnings. 
+
+Liquidity and Capital Resources 
+
+The Company believes its balances of cash, cash equivalents and marketable securities, which totaled $132.4 billion as of September 27, 2025, along with cash generated by ongoing operations and continued access to debt markets, will be sufficient to satisfy its cash requirements and capital return program over the next 12 months and beyond. 
+
+The Company&#8217;s material cash requirements include the following contractual obligations: 
+
+Debt 
+
+As of September 27, 2025, the Company had outstanding fixed-rate notes with varying maturities for an aggregate principal amount of $91.3 billion (collectively the &#8220;Notes&#8221;), with $12.4 billion payable within 12 months. Future interest payments associated with the Notes total $37.0 billion, with $2.6 billion payable within 12 months. 
+
+The Company also issues unsecured short-term promissory notes pursuant to a commercial paper program. As of September 27, 2025, the Company had $8.0 billion of commercial paper outstanding, which was payable within 12 months. 
+
+Leases 
+
+The Company has lease arrangements for certain equipment and facilities, including corporate, data center, manufacturing and retail space. As of September 27, 2025, the Company had fixed lease payment obligations of $16.8 billion, with $2.6 billion payable within 12 months. 
+
+Manufacturing Purchase Obligations 
+
+The Company utilizes several outsourcing partners to manufacture subassemblies for the Company&#8217;s products and to perform final assembly and testing of finished products. The Company also obtains individual components for its products from a wide variety of individual suppliers. As of September 27, 2025, the Company had manufacturing purchase obligations of $56.2 billion, with $55.4 billion payable within 12 months. 
+
+Other Purchase Obligations 
+
+The Company&#8217;s other purchase obligations primarily consist of noncancelable obligations to acquire capital assets, including assets related to product manufacturing, and noncancelable obligations related to supplier arrangements, licensed intellectual property and content, and distribution rights. As of September 27, 2025, the Company had other purchase obligations of $14.8 billion, with $7.0 billion payable within 12 months. 
+
+Deemed Repatriation Tax Payable 
+
+As of September 27, 2025, the balance of the deemed repatriation tax payable imposed by the U.S. Tax Cuts and Jobs Act of 2017 (&#8220;TCJA&#8221;) was $8.8 billion, which was payable within 12 months. 
+
+Apple Inc. | 2025 Form 10-K | 25 
+
+Capital Return Program 
+
+In addition to its contractual cash requirements, the Company has an authorized share repurchase program. The program does not obligate the Company to acquire a minimum amount of shares. As of September 27, 2025, the Company&#8217;s quarterly cash dividend was $0.26 per share. The Company intends to increase its dividend on an annual basis, subject to declaration by the Board. 
+
+In May 2025, the Company announced a new share repurchase program of up to $100 billion and raised its quarterly dividend from $0.25 to $0.26 per share beginning in May 2025. During 2025, the Company repurchased $89.3 billion of its common stock and paid dividends and dividend equivalents of $15.4 billion. 
+
+Recent Accounting Pronouncements 
+
+Internal-Use Software 
+
+In September 2025, the Financial Accounting Standards Board (&#8220;FASB&#8221;) issued Accounting Standards Update (&#8220;ASU&#8221;) No. 2025-06, Intangibles&#8212;Goodwill and Other&#8212;Internal-Use Software (Subtopic 350-40): Targeted Improvements to the Accounting for Internal-Use Software (&#8220;ASU 2025-06&#8221;), which modernizes the accounting for internal-use software. ASU 2025-06 removes all references to software development stages and requires capitalization of software costs when management has committed to the software project and it is probable the software will be completed and perform its intended use. ASU 2025-06 will be effective for the Company in its first quarter of 2029, and early adoption is permitted. The Company is currently evaluating the timing and method of its adoption of ASU 2025-06. 
+
+Disaggregation of Income Statement Expenses 
+
+In November 2024, the FASB issued ASU No. 2024-03, Income Statement&#8212;Reporting Comprehensive Income&#8212;Expense Disaggregation Disclosures (Subtopic 220-40): Disaggregation of Income Statement Expenses (&#8220;ASU 2024-03&#8221;) and in January 2025, the FASB issued ASU No. 2025-01, Income Statement&#8212;Reporting Comprehensive Income&#8212;Expense Disaggregation Disclosures (Subtopic 220-40): Clarifying the Effective Date , which clarified the effective date of ASU 2024-03. ASU 2024-03 will require the Company to disclose the amounts of purchases of inventory, employee compensation, depreciation and intangible asset amortization, as applicable, included in certain expense captions in the Consolidated Statements of Operations, as well as qualitatively describe remaining amounts included in those captions. ASU 2024-03 will also require the Company to disclose both the amount and the Company&#8217;s definition of selling expenses. The Company will adopt ASU 2024-03 in its fourth quarter of 2028 using a prospective transition method. 
+
+Income Taxes 
+
+In December 2023, the FASB issued ASU No. 2023-09, Income Taxes (Topic 740): Improvements to Income Tax Disclosures (&#8220;ASU 2023-09&#8221;), which will require the Company to disclose specified additional information in its income tax rate reconciliation and provide additional information for reconciling items that meet a quantitative threshold. ASU 2023-09 will also require the Company to disaggregate its income taxes paid disclosure by federal, state and foreign taxes, with further disaggregation required for significant individual jurisdictions. The Company will adopt ASU 2023-09 in its fourth quarter of 2026 using a prospective transition method. 
+
+Critical Accounting Estimates 
+
+The preparation of financial statements and related disclosures in conformity with U.S. generally accepted accounting principles (&#8220;GAAP&#8221;) and the Company&#8217;s discussion and analysis of its financial condition and operating results require the Company&#8217;s management to make judgments, assumptions and estimates that affect the amounts reported. Note 1, &#8220;Summary of Significant Accounting Policies&#8221; of the Notes to Consolidated Financial Statements in Part II, Item 8 of this Form 10-K describes the significant accounting policies and methods used in the preparation of the Company&#8217;s consolidated financial statements. Management bases its estimates on historical experience and on various other assumptions it believes to be reasonable under the circumstances, the results of which form the basis for making judgments about the carrying values of assets and liabilities. 
+
+Uncertain Tax Positions 
+
+The Company is subject to income taxes in the U.S. and numerous foreign jurisdictions. The evaluation of the Company&#8217;s uncertain tax positions involves significant judgment in the interpretation and application of GAAP and complex domestic and international tax laws, including the TCJA and the allocation of international taxation rights between countries. Although management believes the Company&#8217;s reserves are reasonable, no assurance can be given that the final outcome of these uncertainties will not be different from that reflected in the Company&#8217;s reserves. Reserves are adjusted considering changing facts and circumstances, such as the closing of a tax examination. Resolution of these uncertainties in a manner inconsistent with management&#8217;s expectations could have a material impact on the Company&#8217;s financial condition and operating results. 
+
+Apple Inc. | 2025 Form 10-K | 26 
+
+Legal and Other Contingencies 
+
+The Company is subject to various legal proceedings and claims that arise in the ordinary course of business, the outcomes of which are inherently uncertain. The Company records a liability when it is probable a loss has been incurred and the amount is reasonably estimable, the determination of which requires significant judgment. Resolution of legal matters in a manner inconsistent with management&#8217;s expectations could have a material impact on the Company&#8217;s financial condition and operating results. 
+
+
+
+Instruction: 
+Analyze how this company generates revenue. Focus on:
+1. Primary Revenue Streams: Identify the main products or services that generate revenue, with percentages if available.
+2. Revenue Model Type: Classify the business model (subscription/SaaS, licensing, transaction fees, advertising,
+   hardware sales, professional services, freemium, marketplace, or hybrid).
+3. Geographic Distribution: Break down revenue by region or country if disclosed.
+4. Revenue Quality: Assess recurring vs non-recurring revenue mix, customer concentration risks,
+   and any major customer dependencies.
+
+Provide a concise, fact-based analysis with specific data points from the financial statements and business description.
+The output should be a single paragraph, less than 150 words, with clear evidence from the source documents.

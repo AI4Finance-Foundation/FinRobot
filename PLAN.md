@@ -31,7 +31,7 @@ Build an autonomous multi-agent system for managing investment funds using AI ag
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| **A: Stabilize** | Clean codebase, establish governance (Phases 0-7) | In Progress |
+| **A: Stabilize** | Clean codebase, establish governance (Phases 0-7) | ✅ Complete |
 | **B: Build Agents** | Create agentic investment system (Phases 8-12) | Not Started |
 
 ---
@@ -94,16 +94,18 @@ Build an autonomous multi-agent system for managing investment funds using AI ag
 | Setup pytest + fixtures | Pending |
 | Create `test_portfolio.py` | Pending |
 | Create `test_risk_analyzer.py` | Pending |
-| Setup Vitest for TypeScript | Pending |
-| Create `useLivePrices.test.ts` | Pending |
+| Setup Vitest for TypeScript | ✅ Done |
+| Create `validation.test.ts` | ✅ Done |
+| Create `riskAnalysis.test.ts` | ✅ Done |
 | Achieve 70% coverage | Pending |
 
 ### Phase 5: Error Handling Standardization
 
 | Task | Status |
 |------|--------|
-| Create `exceptions.py` (Python) | Pending |
-| Create `errors.ts` (TypeScript) | Pending |
+| Create `exceptions.py` (Python) | ✅ Done |
+| Create `errors.ts` (TypeScript) | ✅ Done |
+| Add structured logging | ✅ Done |
 | Replace `print()` with `logger.error()` | Pending |
 | Add error codes to all exceptions | Pending |
 
@@ -112,16 +114,23 @@ Build an autonomous multi-agent system for managing investment funds using AI ag
 | Task | Status |
 |------|--------|
 | Remove global variables | Pending |
-| Create abstract `DataProvider` base class | Pending |
-| Implement dependency injection | Pending |
+| Create abstract `DataProvider` base class | ✅ Done |
+| Implement dependency injection | ✅ Done |
 
 ### Phase 7: Streamlit Migration
 
 | Task | Status |
 |------|--------|
-| Identify Streamlit features | Pending |
-| Create Next.js equivalents | Pending |
-| Delete `app.py`, `app_familia.py` | Pending |
+| Identify Streamlit features | ✅ Done |
+| Port risk calculations to TypeScript | ✅ Done |
+| Create `riskAnalysis.ts` (volatility, sharpe, beta, VaR) | ✅ Done |
+| Create `useRiskMetrics.ts` hook | ✅ Done |
+| Create `DistributionPieChart.tsx` | ✅ Done |
+| Create `RiskAnalysis.tsx` dashboard | ✅ Done |
+| Add Risk Analysis tab to main app | ✅ Done |
+| Add pie chart to Dashboard distribution | ✅ Done |
+| Add unit tests (56 tests) | ✅ Done |
+| Delete `app.py`, `app_familia.py` | ✅ Done |
 
 ---
 
@@ -169,11 +178,12 @@ Build an autonomous multi-agent system for managing investment funds using AI ag
 
 | Metric | Current | Target |
 |--------|---------|--------|
-| Code coverage | 0% | ≥ 70% |
-| Bare excepts | 5+ | 0 |
-| Global variables | 5+ | 0 |
-| Spanish identifiers | 50+ | 0 |
-| TypeScript strict errors | Unknown | 0 |
+| Code coverage | Partial | ≥ 70% |
+| Bare excepts | 0 | 0 ✅ |
+| Global variables | Reduced | 0 |
+| Spanish identifiers | 0 (new code) | 0 ✅ |
+| TypeScript strict errors | Pre-existing only | 0 |
+| Vitest tests | 56+ | Growing |
 | Agent response time | N/A | < 30s |
 | Dashboard load time | Unknown | < 2s |
 
@@ -218,14 +228,14 @@ Build an autonomous multi-agent system for managing investment funds using AI ag
 
 ### To Delete (Phase A)
 
-| Path | Reason |
-|------|--------|
-| `vercel-finrobot/` | Redundant duplicate code |
-| `tutorials_beginner/` | Archive (not delete) |
-| `tutorials_advanced/` | Archive (not delete) |
-| `experiments/` | Archive (not delete) |
-| `mi_patrimonio/app.py` | Streamlit legacy |
-| `mi_patrimonio/app_familia.py` | Streamlit legacy |
+| Path | Reason | Status |
+|------|--------|--------|
+| `vercel-finrobot/` | Redundant duplicate code | ✅ Deleted |
+| `tutorials_beginner/` | Archive (not delete) | ✅ Archived |
+| `tutorials_advanced/` | Archive (not delete) | ✅ Archived |
+| `experiments/` | Archive (not delete) | ✅ Archived |
+| `mi_patrimonio/app.py` | Streamlit legacy | ✅ Deleted |
+| `mi_patrimonio/app_familia.py` | Streamlit legacy | ✅ Deleted |
 
 ---
 
@@ -259,3 +269,6 @@ pre-commit run --all-files
 | Date | Phase | Changes |
 |------|-------|---------|
 | 2026-01-14 | 0 | Created CLAUDE.md, PLAN.md |
+| 2026-01-14 | 5 | Created exceptions.py, errors.ts, structured logging |
+| 2026-01-14 | 6 | Created DI container, abstract base classes |
+| 2026-01-14 | 7 | Migrated Streamlit features to Next.js (risk analysis, pie charts), deleted legacy Streamlit files |

@@ -1,0 +1,572 @@
+"""
+Family Portfolio Configuration - AUDITED DATA
+"""
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, 'data')
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FAMILY PORTFOLIOS
+# ═══════════════════════════════════════════════════════════════════════════════
+PORTFOLIOS = {
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PORTFOLIO CARRILLO SÁNCHEZ (SALVA)
+    # ═══════════════════════════════════════════════════════════════════════════
+    'carrillo_sanchez': {
+        'id': 'carrillo_sanchez',
+        'name': 'Patrimonio Carrillo Sánchez',
+        'short_name': 'Carrillo Sánchez',
+        'owner': 'Salva',
+        'emoji': '👤',
+        'color': '#3B82F6',
+        'db_path': os.path.join(DATA_DIR, 'patrimonio_carrillo_sanchez.db'),
+
+        'HOLDINGS': {
+            # INDEXA CAPITAL - FULL DETAIL (Updated 14-Jan-2026)
+            # === EQUITIES (61.7%) ===
+            'indexa_us500': {
+                'name': 'Vanguard US 500 Stk Idx Eur -Ins Plus',
+                'asset_type': 'Equity Fund',
+                'account': 'Indexa',
+                'isin': 'IE00BFPM9V94',
+                'shares': 110.0,
+                'purchase_price': 524.40,
+                'current_value': 57668.64,
+                'currency': 'EUR',
+            },
+            'indexa_european': {
+                'name': 'Vanguard European Stk Idx Eur -Ins Plus',
+                'asset_type': 'Equity Fund',
+                'account': 'Indexa',
+                'isin': 'IE00BFPM9L96',
+                'shares': 129.7,
+                'purchase_price': 266.81,
+                'current_value': 34610.74,
+                'currency': 'EUR',
+            },
+            'indexa_emerging': {
+                'name': 'Vanguard Emrg Mk Stk Idx Eur -Ins Plus',
+                'asset_type': 'Equity Fund',
+                'account': 'Indexa',
+                'isin': 'IE00BFPM9J74',
+                'shares': 62.0,
+                'purchase_price': 224.17,
+                'current_value': 13896.54,
+                'currency': 'EUR',
+            },
+            'indexa_smallcap': {
+                'name': 'Vanguard Global Small Cap Idx Eur -Ins Plus',
+                'asset_type': 'Equity Fund',
+                'account': 'Indexa',
+                'isin': 'IE00BFRTDD83',
+                'shares': 42.2,
+                'purchase_price': 313.23,
+                'current_value': 13208.88,
+                'currency': 'EUR',
+            },
+            'indexa_japan': {
+                'name': 'Vanguard Japan Stk Idx Eur -Ins Plus',
+                'asset_type': 'Equity Fund',
+                'account': 'Indexa',
+                'isin': 'IE00BFPM9P35',
+                'shares': 41.5,
+                'purchase_price': 273.10,
+                'current_value': 11339.18,
+                'currency': 'EUR',
+            },
+            'indexa_pacific': {
+                'name': 'Vanguard Pacific Ex-Japan Stk Idx Eur -Ins Plus',
+                'asset_type': 'Equity Fund',
+                'account': 'Indexa',
+                'isin': 'IE00BGCC5G60',
+                'shares': 22.3,
+                'purchase_price': 215.05,
+                'current_value': 4791.37,
+                'currency': 'EUR',
+            },
+            # === FIXED INCOME (38.3%) ===
+            'indexa_eur_gov': {
+                'name': 'Vanguard Eur Gov Bnd Idx -Ins Plus',
+                'asset_type': 'Bond Fund',
+                'account': 'Indexa',
+                'isin': 'IE00BFPM9W02',
+                'shares': 192.4,
+                'purchase_price': 114.94,
+                'current_value': 22113.73,
+                'currency': 'EUR',
+            },
+            'indexa_us_gov': {
+                'name': 'Vanguard US Gov Bnd Idx Eur Hdg -Ins Plus',
+                'asset_type': 'Bond Fund',
+                'account': 'Indexa',
+                'isin': 'IE00BF6T7R10',
+                'shares': 224.4,
+                'purchase_price': 93.29,
+                'current_value': 20936.70,
+                'currency': 'EUR',
+            },
+            'indexa_euro_inv': {
+                'name': 'Vanguard Euro Inv Gr Bnd Idx Eur -Ins Plus',
+                'asset_type': 'Bond Fund',
+                'account': 'Indexa',
+                'isin': 'IE00BFPM9X19',
+                'shares': 136.8,
+                'purchase_price': 116.92,
+                'current_value': 15996.48,
+                'currency': 'EUR',
+            },
+            'indexa_us_inv': {
+                'name': 'Vanguard US Inv Gr Bnd Idx Eur Hdg -Ins Plus',
+                'asset_type': 'Bond Fund',
+                'account': 'Indexa',
+                'isin': 'IE00BZ04LQ92',
+                'shares': 113.6,
+                'purchase_price': 110.20,
+                'current_value': 12518.29,
+                'currency': 'EUR',
+            },
+            'indexa_infl': {
+                'name': 'Vanguard Euroz Infl Lk Bnd Idx Eur -Ins Plus',
+                'asset_type': 'Bond Fund',
+                'account': 'Indexa',
+                'isin': 'IE00BGCZ0Z19',
+                'shares': 64.4,
+                'purchase_price': 130.36,
+                'current_value': 8391.21,
+                'currency': 'EUR',
+            },
+            'indexa_emrg_bnd': {
+                'name': 'iShares Emrg Mk Gov Bnd Idx Eur - class D',
+                'asset_type': 'Bond Fund',
+                'account': 'Indexa',
+                'isin': 'IE0000J01ZR0',
+                'shares': 368.0,
+                'purchase_price': 11.60,
+                'current_value': 4268.26,
+                'currency': 'EUR',
+            },
+
+            # ANDBANK - Investment Funds
+            'wf_euro_credit': {
+                'name': 'WF EURO CRDT TTL RTRN A AC EUR',
+                'asset_type': 'Bond Fund',
+                'account': 'Andbank',
+                'shares': 1135.709,
+                'market_price': 151.94,
+                'current_value': 172559.63,
+                'cost': 160793.68,
+                'currency': 'EUR',
+                'isin': 'LU1164219682',
+            },
+            'myinvestor_sp500': {
+                'name': 'MYINVESTOR S&P500 EQUIPONDERAD',
+                'asset_type': 'Equity Fund',
+                'account': 'Andbank',
+                'shares': 41433.235272,
+                'market_price': 1.3075,
+                'current_value': 54175.20,
+                'cost': 50000.00,
+                'currency': 'EUR',
+                'isin': 'ES0165242001',
+            },
+
+            # ANDBANK - Equities and ETFs
+            'eli_lilly': {
+                'name': 'ELI LILLY & CO',
+                'ticker': 'LLY',
+                'asset_type': 'Stock',
+                'account': 'Andbank',
+                'shares': 22.0,
+                'market_price': 920.10,
+                'current_value': 20242.20,
+                'cost': 20361.10,
+                'sector': 'Pharmaceutical',
+                'currency': 'EUR',
+                'isin': 'US5324571083',
+            },
+            'constellation_energy': {
+                'name': 'CONSTELLATION ENERGY',
+                'ticker': 'CEG',
+                'asset_type': 'Stock',
+                'account': 'Andbank',
+                'shares': 71.0,
+                'market_price': 328.38,
+                'current_value': 20004.25,
+                'cost': 23496.42,
+                'sector': 'Energy',
+                'currency': 'USD',
+                'isin': 'US21037T1097',
+            },
+            'ge_vernova': {
+                'name': 'GE VERNOVA LLC',
+                'ticker': 'GEV',
+                'asset_type': 'Stock',
+                'account': 'Andbank',
+                'shares': 19.0,
+                'market_price': 646.63,
+                'current_value': 10541.36,
+                'cost': 12374.90,
+                'sector': 'Energy',
+                'currency': 'USD',
+                'isin': 'US36828A1016',
+            },
+            'ishares_core_sp500': {
+                'name': 'ISHARES CORE S&P 500',
+                'ticker': 'CSPX',
+                'asset_type': 'ETF',
+                'account': 'Andbank',
+                'shares': 100.0,
+                'market_price': 634.06,
+                'current_value': 63406.00,
+                'cost': 63745.14,
+                'sector': 'S&P 500',
+                'currency': 'EUR',
+                'isin': 'IE00B5BMR087',
+            },
+            'ishares_sp_healthcare': {
+                'name': 'ISHARES S&P HEALTH CARE',
+                'ticker': 'IHE',
+                'asset_type': 'ETF',
+                'account': 'Andbank',
+                'shares': 2000.0,
+                'market_price': 10.784,
+                'current_value': 21568.00,
+                'cost': 21708.00,
+                'sector': 'Healthcare',
+                'currency': 'EUR',
+                'isin': 'IE00B43HR379',
+            },
+            'vaneck_defense': {
+                'name': 'VANECK DEFENSE ETF',
+                'ticker': 'DFEN',
+                'asset_type': 'ETF',
+                'account': 'Andbank',
+                'shares': 200.0,
+                'market_price': 62.05,
+                'current_value': 12410.00,
+                'cost': 12480.09,
+                'sector': 'Defense',
+                'currency': 'EUR',
+                'isin': 'IE000YYE6WK5',
+            },
+
+            # BANKINTER - ETFs and Stocks (Updated 14-Jan-2026)
+            'brkb': {
+                'name': 'Berkshire Hathaway',
+                'ticker': 'BRK.B',
+                'asset_type': 'Stock',
+                'account': 'Bankinter',
+                'isin': 'US0846707026',
+                'shares': 20,
+                'purchase_price': 470.60,
+                'market_price': 493.88,
+                'cost': 9412.00,
+                'current_value': 9582.00,
+                'sector': 'Conglomerate',
+                'currency': 'USD',
+            },
+            'gldm': {
+                'name': 'Amundi NYSE Arca Gold BUGS',
+                'ticker': 'GLDM',
+                'asset_type': 'ETF',
+                'account': 'Bankinter',
+                'isin': 'LU2611731824',
+                'shares': 400,
+                'purchase_price': 28.00,
+                'market_price': 67.056,
+                'cost': 11200.00,
+                'current_value': 26822.40,
+                'sector': 'Gold/Miners',
+                'currency': 'EUR',
+            },
+            'exxy': {
+                'name': 'iShares Diversified Commodity Swap',
+                'ticker': 'EXXY',
+                'asset_type': 'ETF',
+                'account': 'Bankinter',
+                'isin': 'DE000A0H0728',
+                'shares': 120,
+                'purchase_price': 27.26,
+                'market_price': 28.32,
+                'cost': 3271.20,
+                'current_value': 3398.40,
+                'sector': 'Commodities',
+                'currency': 'EUR',
+                'purchase_date': '2026-01-05',
+            },
+            'is3v': {
+                'name': 'iShares Global Inflation Linked Govt Bond',
+                'ticker': 'IS3V',
+                'asset_type': 'ETF',
+                'account': 'Bankinter',
+                'isin': 'IE00BKPT2S34',
+                'shares': 2208,
+                'purchase_price': 4.53,
+                'market_price': 4.59,
+                'cost': 10002.24,
+                'current_value': 10134.72,
+                'sector': 'Inflation Bonds',
+                'currency': 'EUR',
+                'purchase_date': '2026-01-05',
+            },
+            'is0e': {
+                'name': 'iShares Gold Producers',
+                'ticker': 'IS0E',
+                'asset_type': 'ETF',
+                'account': 'Bankinter',
+                'isin': 'IE00B6R52Q36',
+                'shares': 270,
+                'purchase_price': 34.345,
+                'market_price': 37.88,
+                'cost': 9273.15,
+                'current_value': 10227.60,
+                'sector': 'Gold/Miners',
+                'currency': 'EUR',
+                'purchase_date': '2026-01-05',
+            },
+            'nukl': {
+                'name': 'VanEck Uranium and Nuclear Technologies',
+                'ticker': 'NUKL',
+                'asset_type': 'ETF',
+                'account': 'Bankinter',
+                'isin': 'IE000M7V94E1',
+                'shares': 100,
+                'purchase_price': 49.97,
+                'market_price': 49.97,
+                'cost': 4997.00,
+                'current_value': 4997.00,
+                'sector': 'Nuclear/Uranium',
+                'currency': 'EUR',
+                'purchase_date': '2026-01-05',
+            },
+
+            # CRYPTO
+            'crypto': {
+                'name': 'GDAF Crypto',
+                'asset_type': 'Crypto',
+                'account': 'GDAF',
+                'current_value': 97321.00,
+                'cost': 205000.00,
+                'currency': 'EUR',
+            },
+
+            # CASH
+            'cash': {
+                'name': 'Cash - Checking Account',
+                'asset_type': 'Cash',
+                'account': 'Various',
+                'current_value': 188732.00,
+                'cost': 188732.00,
+                'currency': 'EUR',
+            },
+        },
+
+        'TARGET_ALLOCATION': {
+            'equities': 0.60,
+            'fixed_income': 0.25,
+            'gold': 0.05,
+            'crypto': 0.05,
+            'cash': 0.05,
+        },
+
+        'INVESTOR_PROFILE': {
+            'age': 52,
+            'investment_horizon_years': 15,
+            'risk_tolerance': 'high',
+            'objective': 'growth',
+        },
+
+        'TRACKED_TICKERS': ['GLDM', 'EXXY', 'IS3V', 'IS0E', 'NUKL', 'BRK.B', 'SPY', 'QQQ'],
+    },
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PORTFOLIO CARRILLO BARDO (MAMÁ)
+    # ═══════════════════════════════════════════════════════════════════════════
+    'carrillo_bardo': {
+        'id': 'carrillo_bardo',
+        'name': 'Patrimonio Carrillo Bardo',
+        'short_name': 'Carrillo Bardo',
+        'owner': 'Mamá',
+        'emoji': '👩',
+        'color': '#EC4899',
+        'db_path': os.path.join(DATA_DIR, 'patrimonio_carrillo_bardo.db'),
+
+        'HOLDINGS': {
+            # INDEXA CAPITAL
+            'indexa': {
+                'name': 'Indexa Capital',
+                'asset_type': 'Index Fund',
+                'account': 'Indexa',
+                'current_value': 605101.23,
+                'cost': 394731.16,
+                'composition': {'equities': 0.608, 'fixed_income': 0.388, 'cash': 0.004},
+                'currency': 'EUR',
+            },
+
+            # ANDBANK - Funds
+            'sp500_andbank': {
+                'name': 'S&P 500 INDEX P ACC EUR',
+                'asset_type': 'Equity Fund',
+                'account': 'Andbank',
+                'shares': 7247.507,
+                'cost': 99864.96,
+                'current_value': 109556.19,
+                'currency': 'EUR',
+            },
+            'gs_us_smcap_1': {
+                'name': 'GS US SMCAP CORE EQ BASE SN US (1)',
+                'asset_type': 'Equity Fund',
+                'account': 'Andbank',
+                'shares': 3989.756,
+                'cost': 153808.17,
+                'current_value': 158013.62,
+                'currency': 'USD',
+            },
+            'gestion_value': {
+                'name': 'GESTION VALUE FI ACC EUR',
+                'asset_type': 'Equity Fund',
+                'account': 'Andbank',
+                'shares': 4583.309874,
+                'cost': 78800.04,
+                'current_value': 85105.79,
+                'currency': 'EUR',
+            },
+            'sih_ahorro': {
+                'name': 'SIH Ahorro FI A',
+                'asset_type': 'Mixed Fund',
+                'account': 'Andbank',
+                'shares': 20277.70,
+                'cost': 258577.41,
+                'current_value': 286555.53,
+                'composition': {'equities': 0.30, 'fixed_income': 0.70},
+                'currency': 'EUR',
+            },
+            'artificial_int': {
+                'name': 'Artificial Intelligence R',
+                'asset_type': 'Equity Fund',
+                'account': 'Andbank',
+                'shares': 2205.557,
+                'cost': 49999.98,
+                'current_value': 60773.77,
+                'currency': 'EUR',
+            },
+            'biotech_fund': {
+                'name': 'Biotechnology Fund A',
+                'asset_type': 'Equity Fund',
+                'account': 'Andbank',
+                'shares': 2258.356,
+                'cost': 50000.00,
+                'current_value': 67939.42,
+                'currency': 'EUR',
+            },
+            'gs_us_smcap_2': {
+                'name': 'GS US SMCAP CORE EQ BASE SN US (2)',
+                'asset_type': 'Equity Fund',
+                'account': 'Andbank',
+                'shares': 1281.918,
+                'cost': 51763.85,
+                'current_value': 50770.14,
+                'currency': 'USD',
+            },
+            'ms_us_advantage': {
+                'name': 'MS US Advantage Fund A',
+                'asset_type': 'Equity Fund',
+                'account': 'Andbank',
+                'shares': 300.688,
+                'cost': 33030.58,
+                'current_value': 45203.95,
+                'currency': 'USD',
+            },
+
+            # CARTESIO X - Conservative Mixed Fund (75% Fixed Income, 25% Equities)
+            'cartesio_x': {
+                'name': 'Cartesio X',
+                'asset_type': 'Mixed Fund',
+                'account': 'Cartesio',
+                'current_value': 428279.59,
+                'cost': 300000.00,
+                'composition': {'equities': 0.25, 'fixed_income': 0.75},
+                'currency': 'EUR',
+            },
+
+            # CRYPTO
+            'bitcoin_mama': {
+                'name': 'Bitcoin (BTC)',
+                'asset_type': 'Crypto',
+                'account': 'Binance',
+                'current_value': 359919.00,
+                'cost': 200000.00,
+                'currency': 'EUR',
+            },
+            'ethereum_mama': {
+                'name': 'Ethereum (ETH)',
+                'asset_type': 'Crypto',
+                'account': 'Binance',
+                'current_value': 9191.75,
+                'cost': 10000.00,
+                'currency': 'EUR',
+            },
+        },
+
+        'TARGET_ALLOCATION': {
+            'equities': 0.55,
+            'fixed_income': 0.30,
+            'gold': 0.03,
+            'crypto': 0.07,
+            'cash': 0.05,
+        },
+
+        'INVESTOR_PROFILE': {
+            'age': 75,
+            'investment_horizon_years': 10,
+            'risk_tolerance': 'medium-high',
+            'objective': 'preservation/growth',
+        },
+
+        'TRACKED_TICKERS': ['BTC-USD', 'ETH-USD', 'SPY', 'QQQ'],
+    },
+}
+
+
+# Helper functions to get portfolios
+def get_all_portfolio_ids() -> list[str]:
+    """Return all portfolio IDs."""
+    return list(PORTFOLIOS.keys())
+
+
+def get_portfolio_config(portfolio_id: str) -> dict | None:
+    """Return portfolio configuration by ID."""
+    return PORTFOLIOS.get(portfolio_id)
+
+
+# Legacy aliases for backward compatibility (to be removed in future)
+# These map old Spanish names to new English names
+LEGACY_FIELD_MAPPING = {
+    'nombre': 'name',
+    'nombre_corto': 'short_name',
+    'propietario': 'owner',
+    'CARTERA': 'HOLDINGS',
+    'tipo': 'asset_type',
+    'cuenta': 'account',
+    'titulos': 'shares',
+    'precio_compra': 'purchase_price',
+    'valor_actual': 'current_value',
+    'moneda': 'currency',
+    'coste': 'cost',
+    'precio_mercado': 'market_price',
+    'fecha_compra': 'purchase_date',
+    'composicion': 'composition',
+    'DISTRIBUCION_OBJETIVO': 'TARGET_ALLOCATION',
+    'renta_variable': 'equities',
+    'renta_fija': 'fixed_income',
+    'oro': 'gold',
+    'cripto': 'crypto',
+    'liquidez': 'cash',
+    'PERFIL_INVERSOR': 'INVESTOR_PROFILE',
+    'edad': 'age',
+    'horizonte_anos': 'investment_horizon_years',
+    'tolerancia_riesgo': 'risk_tolerance',
+    'objetivo': 'objective',
+    'TICKERS_SEGUIMIENTO': 'TRACKED_TICKERS',
+}

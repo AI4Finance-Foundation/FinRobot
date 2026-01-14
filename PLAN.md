@@ -71,13 +71,16 @@ Build an autonomous multi-agent system for managing investment funds using AI ag
 
 | Spanish | English | Status |
 |---------|---------|--------|
+| `config_portfolios.py` | All fields migrated to English | ✅ Done |
 | `PERFILES_RIESGO` | `RISK_PROFILES` | Pending |
 | `calcular_distribucion` | `calculate_distribution` | Pending |
 | `obtener_cotizacion` | `get_quote` | Pending |
 | `PerfilInversor` | `InvestorProfile` | Pending |
 | `Posicion` | `Position` | Pending |
-| `renta_variable` | `equities` | Pending |
-| `renta_fija` | `fixed_income` | Pending |
+| `renta_variable` | `equities` | ✅ Done |
+| `renta_fija` | `fixed_income` | ✅ Done |
+
+**Note**: `config_portfolios.py` includes `LEGACY_FIELD_MAPPING` for backward compatibility.
 
 ### Phase 4: Testing Infrastructure
 

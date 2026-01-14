@@ -63,9 +63,9 @@ Build an autonomous multi-agent system for managing investment funds using AI ag
 
 | Task | Status |
 |------|--------|
-| Delete `vercel-finrobot/` directory | Pending |
-| Archive `tutorials_beginner/`, `tutorials_advanced/`, `experiments/` | Pending |
-| Remove commented code in data sources | Pending |
+| Delete `vercel-finrobot/` directory | ✅ Done |
+| Archive `tutorials_beginner/`, `tutorials_advanced/`, `experiments/` | ✅ Done |
+| Remove commented code in data sources | ✅ Done |
 
 ### Phase 3: English Migration
 

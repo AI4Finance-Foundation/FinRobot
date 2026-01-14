@@ -165,14 +165,6 @@ class SECUtils:
                 "Section must be in [1, 1A, 1B, 2, 3, 4, 5, 6, 7, 7A, 8, 9, 9A, 9B, 10, 11, 12, 13, 14, 15]"
             )
 
-        # os.makedirs(f"{self.project_dir}/10k", exist_ok=True)
-
-        # report_name = f"{self.project_dir}/10k/section_{section}.txt"
-
-        # if USE_CACHE and os.path.exists(report_name):
-        #     with open(report_name, "r") as f:
-        #         section_text = f.read()
-        # else:
         if report_address is None:
             report_address = FMPUtils.get_sec_report(ticker_symbol, fyear)
             if report_address.startswith("Link: "):

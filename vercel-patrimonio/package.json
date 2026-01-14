@@ -6,28 +6,37 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@vercel/kv": "^1.0.1",
+    "autoprefixer": "^10.4.16",
+    "clsx": "^2.1.0",
+    "date-fns": "^3.0.6",
+    "lucide-react": "^0.303.0",
     "next": "14.0.4",
+    "openai": "^4.24.1",
+    "postcss": "^8.4.32",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "zod": "^3.22.4",
-    "openai": "^4.24.1",
+    "react-markdown": "^9.0.1",
     "recharts": "^2.10.3",
-    "lucide-react": "^0.303.0",
-    "clsx": "^2.1.0",
     "tailwindcss": "^3.4.0",
-    "autoprefixer": "^10.4.16",
-    "postcss": "^8.4.32",
-    "@vercel/kv": "^1.0.1",
-    "date-fns": "^3.0.6",
-    "react-markdown": "^9.0.1"
+    "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.2.0",
+    "@testing-library/react": "^14.1.0",
     "@types/node": "^20.10.6",
     "@types/react": "^18.2.46",
     "@types/react-dom": "^18.2.18",
-    "typescript": "^5.3.3"
+    "@vitejs/plugin-react": "^5.1.2",
+    "@vitest/coverage-v8": "^1.2.0",
+    "jsdom": "^23.0.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
   }
 }

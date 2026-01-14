@@ -1,7 +1,7 @@
 """
 Core module for mi_patrimonio.
 
-Contains domain models, exceptions, and utilities.
+Contains domain models, exceptions, utilities, and dependency injection.
 """
 from .exceptions import (
     FinRobotError,
@@ -12,6 +12,15 @@ from .exceptions import (
     PriceServiceError,
 )
 from .logging import get_logger, configure_root_logger
+from .container import (
+    ServiceContainer,
+    get_container,
+    reset_container,
+    get_data_provider,
+    get_risk_analyzer,
+    get_ai_advisor,
+    get_finrobot_advisor,
+)
 
 __all__ = [
     # Exceptions
@@ -24,4 +33,12 @@ __all__ = [
     # Logging
     "get_logger",
     "configure_root_logger",
+    # Dependency Injection
+    "ServiceContainer",
+    "get_container",
+    "reset_container",
+    "get_data_provider",
+    "get_risk_analyzer",
+    "get_ai_advisor",
+    "get_finrobot_advisor",
 ]

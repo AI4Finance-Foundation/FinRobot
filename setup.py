@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 try:
     with open("requirements.txt", "r") as f:
         REQUIRES = [line.split("#", 1)[0].strip() for line in f if line.strip()]
-except:
+except FileNotFoundError:
     print("'requirements.txt' not found!")
     REQUIRES = list()
 

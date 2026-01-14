@@ -51,11 +51,13 @@ Build an autonomous multi-agent system for managing investment funds using AI ag
 
 | Task | File | Status |
 |------|------|--------|
-| Remove bare `except:` | `sec_utils.py:87` | Pending |
-| Remove bare `except:` | `price_server.py:269` | Pending |
-| Remove bare `except:` | `ai_advisor.py:122` | Pending |
-| Fix API keys in URLs | `fmp_utils.py:37,74,105,126` | Pending |
-| Add input validation | `mi_patrimonio/`, `vercel-patrimonio/` | Pending |
+| Remove bare `except:` | `sec_utils.py:87` | ✅ Done |
+| Remove bare `except:` | `price_server.py:269` | ✅ Done |
+| Remove bare `except:` | `ai_advisor.py:122` | ✅ Done |
+| Remove bare `except:` | `setup.py:7` | ✅ Done |
+| Remove bare `except:` | `xbrl_parser.py:288` | ✅ Done |
+| API keys in URLs | `fmp_utils.py` | N/A (FMP API requires key in URL) |
+| Add input validation | `mi_patrimonio/`, `vercel-patrimonio/` | ✅ Done |
 
 ### Phase 2: Delete Redundant Code
 

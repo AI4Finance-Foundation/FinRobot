@@ -6,12 +6,15 @@ Extracts structured financial data from XBRL files
 
 import re
 import json
+import logging
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 
 
 class XBRLParser:
@@ -95,8 +98,11 @@ class XBRLParser:
             
             return None
             
+        except aiohttp.ClientError as e:
+            logger.error("Network error fetching XBRL: %s", e)
+            return None
         except Exception as e:
-            print(f"Error fetching XBRL: {e}")
+            logger.error("Unexpected error fetching XBRL: %s", e)
             return None
     
     def parse_xbrl_string(self, xbrl_content: str) -> Dict[str, Any]:

@@ -6,7 +6,10 @@ and recommended ETFs for the family portfolio tracking system.
 """
 import os
 import json
+import logging
 from typing import Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PATHS
@@ -31,7 +34,7 @@ def get_openai_api_key() -> Optional[str]:
             config = json.load(f)
         return config[0]['api_key']
     except (FileNotFoundError, json.JSONDecodeError, KeyError, IndexError) as e:
-        print(f"⚠️ Error reading API key: {e}")
+        logger.warning("Error reading API key: %s", e)
         return None
 
 # ═══════════════════════════════════════════════════════════════════════════════

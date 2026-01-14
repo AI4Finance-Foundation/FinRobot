@@ -72,15 +72,20 @@ Build an autonomous multi-agent system for managing investment funds using AI ag
 | Spanish | English | Status |
 |---------|---------|--------|
 | `config_portfolios.py` | All fields migrated to English | ✅ Done |
-| `PERFILES_RIESGO` | `RISK_PROFILES` | Pending |
-| `calcular_distribucion` | `calculate_distribution` | Pending |
-| `obtener_cotizacion` | `get_quote` | Pending |
-| `PerfilInversor` | `InvestorProfile` | Pending |
-| `Posicion` | `Position` | Pending |
+| `PERFILES_RIESGO` | `RISK_PROFILES` | ✅ Done |
+| `CATEGORIAS_ACTIVOS` | `ASSET_CATEGORIES` | ✅ Done |
+| `ETFS_RECOMENDADOS` | `RECOMMENDED_ETFS` | ✅ Done |
+| `calcular_distribucion` | `calculate_distribution` | ✅ Done |
+| `obtener_cotizacion` | `get_quote` | ✅ Done |
+| `obtener_cotizaciones_batch` | `get_quotes_batch` | ✅ Done |
+| `obtener_historico` | `get_historical` | ✅ Done |
+| `obtener_tipo_cambio` | `get_exchange_rate` | ✅ Done |
+| `PerfilInversor` | `InvestorProfile` | ✅ Done |
+| `Posicion` | `Position` | ✅ Done |
 | `renta_variable` | `equities` | ✅ Done |
 | `renta_fija` | `fixed_income` | ✅ Done |
 
-**Note**: `config_portfolios.py` includes `LEGACY_FIELD_MAPPING` for backward compatibility.
+**Note**: All core modules (`config.py`, `portfolio.py`, `data_provider.py`, `config_portfolios.py`) include legacy aliases for backward compatibility with existing code.
 
 ### Phase 4: Testing Infrastructure
 

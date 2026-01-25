@@ -41,3 +41,6 @@ tenacity==8.3.0
 tqdm==4.66.1
 typing_extensions==4.9.0
 unstructured==0.8.1
+
+# experimental / alternative data
+lunar_python

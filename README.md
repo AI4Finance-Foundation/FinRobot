@@ -201,13 +201,13 @@ register_keys_from_json("../config_api_keys")
 ```python
 company = "NVDA"
 
-assitant = SingleAssistant(
+assistant = SingleAssistant(
     "Market_Analyst",
     llm_config,
-    # set to "ALWAYS" if you want to chat instead of simply receiving the prediciton
+    # set to "ALWAYS" if you want to chat instead of simply receiving the prediction
     human_input_mode="NEVER",
 )
-assitant.chat(
+assistant.chat(
     f"Use all the tools provided to retrieve information available for {company} upon {get_current_date()}. Analyze the positive developments and potential concerns of {company} "
     "with 2-4 most important factors respectively and keep them concise. Most factors should be inferred from company related news. "
     f"Then make a rough prediction (e.g. up/down by 2-3%) of the {company} stock price movement for next week. Provide a summary analysis to support your prediction."
@@ -264,7 +264,7 @@ fyear = "2023"
 message = dedent(
     f"""
     With the tools you've been provided, write an annual report based on {company}'s {fyear} 10-k report, format it into a pdf.
-    Pay attention to the followings:
+    Pay attention to the following:
     - Explicitly explain your working plan before you kick off.
     - Use tools one by one for clarity, especially when asking for instructions. 
     - All your file operations should be done in "{work_dir}". 
@@ -317,7 +317,7 @@ assistant.chat(message, use_cache=True, max_turns=50,
 + [AutoGPT (163k stars)](https://github.com/Significant-Gravitas/AutoGPT) is a tool for everyone to use, aiming to democratize AI, making it accessible for everyone to use and build upon.
 + [LangChain (87.4k stars)](https://github.com/langchain-ai/langchain) is a framework for developing context-aware applications powered by language models, enabling them to connect to sources of context and rely on the model's reasoning capabilities for responses and actions.
 + [MetaGPT (41k stars)](https://github.com/geekan/MetaGPT) is a multi-agent open-source framework that assigns different roles to GPTs, forming a collaborative software entity to execute complex tasks.
-+ [dify (34.1.7k stars)](https://github.com/langgenius/dify) is an LLM application development platform. It integrates the concepts of Backend as a Service and LLMOps, covering the core tech stack required for building generative AI-native applications, including a built-in RAG engine
++ [dify (34.1k stars)](https://github.com/langgenius/dify) is an LLM application development platform. It integrates the concepts of Backend as a Service and LLMOps, covering the core tech stack required for building generative AI-native applications, including a built-in RAG engine
 + [AutoGen (27.4k stars)](https://github.com/microsoft/autogen) is a framework for developing LLM applications with conversational agents that collaborate to solve tasks. These agents are customizable, support human interaction, and operate in modes combining LLMs, human inputs, and tools.
 + [ChatDev (24.1k stars)](https://github.com/OpenBMB/ChatDev) is a framework that focuses on developing conversational AI Agents capable of dialogue and question-answering. It provides a range of pre-trained models and interactive interfaces, facilitating the development of customized chat Agents for users.
 + [BabyAGI (19.5k stars)](https://github.com/yoheinakajima/babyagi) is an AI-powered task management system, dedicated to building AI Agents with preliminary general intelligence.

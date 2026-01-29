@@ -1,0 +1,103 @@
+# Pre-commit configuration for FinRobot
+# Install: pre-commit install
+# Run: pre-commit run --all-files
+
+default_language_version:
+  python: python3.10
+
+repos:
+  # ==========================================================================
+  # General hooks
+  # ==========================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^(tutorials_|experiments/|archive/)
+      - id: end-of-file-fixer
+        exclude: ^(tutorials_|experiments/|archive/)
+      - id: check-yaml
+        args: [--unsafe]
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: check-case-conflict
+
+  # ==========================================================================
+  # Python: Ruff (linting + formatting)
+  # ==========================================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.9
+    hooks:
+      # Linter
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        exclude: ^(tutorials_|experiments/|archive/|vercel-finrobot/)
+      # Formatter
+      - id: ruff-format
+        exclude: ^(tutorials_|experiments/|archive/|vercel-finrobot/)
+
+  # ==========================================================================
+  # Python: Type checking with mypy
+  # ==========================================================================
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        args:
+          - --config-file=pyproject.toml
+          - --no-error-summary
+        additional_dependencies:
+          - types-requests
+          - pandas-stubs
+        exclude: ^(tutorials_|experiments/|archive/|vercel-finrobot/|tests/)
+        # Only run on mi_patrimonio for now (gradually enable more)
+        files: ^mi_patrimonio/
+
+  # ==========================================================================
+  # Security: Check for secrets
+  # ==========================================================================
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+        exclude: ^(tutorials_|experiments/|archive/|\.secrets\.baseline)
+
+  # ==========================================================================
+  # Conventional commits
+  # ==========================================================================
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.0.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, refactor, test, docs, chore, style, perf, ci, build]
+
+  # ==========================================================================
+  # Markdown
+  # ==========================================================================
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.38.0
+    hooks:
+      - id: markdownlint
+        args: [--fix, --disable, MD013, MD033, MD041]
+        exclude: ^(tutorials_|experiments/|archive/)
+
+# ==========================================================================
+# CI Configuration
+# ==========================================================================
+ci:
+  autofix_commit_msg: |
+    chore: auto-fix pre-commit issues
+
+    [pre-commit.ci]
+  autofix_prs: true
+  autoupdate_branch: ""
+  autoupdate_commit_msg: "chore: update pre-commit hooks"
+  autoupdate_schedule: weekly
+  skip: [mypy]  # Skip mypy in CI (run separately with full environment)
+  submodules: false

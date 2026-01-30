@@ -39,6 +39,10 @@
 
 ## What is FinRobot Pro?
 
+
+https://github.com/user-attachments/assets/93ec0f1e-e28b-4474-a0bf-a79e0c12f0ff
+
+
 [FinRobot Pro](https://finrobot.ai/ ) is an AI-powered equity research platform that automates professional stock analysis using Large Language Models (LLMs) and AI Agents.
 
 **Key Features:**

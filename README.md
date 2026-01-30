@@ -37,6 +37,20 @@
 <img align="center" src="https://github.com/user-attachments/assets/de3b9f9c-50aa-49f0-82c6-3d2b938f4670" width="90%"/>
 </div>
 
+## 🎬 FinRobot Pro — An AI Powered Equity Research Platform  
+🌐 https://finrobot.ai/
+
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=ebgPiJINi-k" target="_blank">
+    <img src="https://github.com/user-attachments/assets/de3b9f9c-50aa-49f0-82c6-3d2b938f4670" width="90%" />
+  </a>
+</div>
+
+<p align="center">
+  ▶️ Click the image above to watch the demo video
+</p>
+
+
 ## What is FinRobot Pro?
 
 

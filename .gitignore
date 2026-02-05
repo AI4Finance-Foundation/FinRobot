@@ -15,3 +15,11 @@ projects/
 dist/
 tmp/
 filings/
+
+# Test coverage
+.coverage
+htmlcov/
+coverage/
+
+# Logs
+*.log

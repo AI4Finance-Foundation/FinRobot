@@ -222,11 +222,6 @@ assitant.chat(
     f"Then make a rough prediction (e.g. up/down by 2-3%) of the {company} stock price movement for next week. Provide a summary analysis to support your prediction."
 )
 ```
-4. Result
-<div align="center">
-<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/812ec23a-9cb3-4fad-b716-78533ddcd9dc" width="40%"/>
-<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/9a2f9f48-b0e1-489c-8679-9a4c530f313c" width="41%"/>
-</div>
 
 ### 2. Financial Analyst Agent for Report Writing (Equity Research Report)
 Take a company's 10-k form, financial data, and market data as input and output an equity research report

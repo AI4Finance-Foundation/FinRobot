@@ -59,7 +59,7 @@ openai_api_key = YOUR_OPENAI_API_KEY    # https://platform.openai.com/account/ap
 chmod +x deploy.sh
 ./deploy.sh start
 
-#if not working then
+#if deploy.sh not working then
 python3 -m venv venv                                                                                                                                           
 source venv/bin/activate
 pip install -r requirements-equity.txt                                                                                                                         

@@ -1,0 +1,23 @@
+[API_KEYS]
+# Financial Modeling Prep API Key
+# Get your free API key at: https://financialmodelingprep.com/developer
+fmp_api_key = YOUR_FMP_API_KEY
+
+# OpenAI API Key (or compatible API provider)
+# Get your API key at: https://platform.openai.com/account/api-keys
+openai_api_key = YOUR_OPENAI_API_KEY
+
+# OpenAI Base URL (optional, change for proxy services like SiliconFlow)
+# Default: https://api.openai.com/v1
+openai_base_url = https://api.openai.com/v1
+
+# Model name (optional, change for proxy services)
+# Model name (optional, change for proxy services)
+# OpenAI Model (choose one of the following ):
+#   gpt-4.1       - Latest flagship model, best quality (recommended for production)
+#   gpt-4.1-mini  - Fast and cost-effective (recommended for development/testing)
+#   gpt-4o        - Previous generation flagship, stable and reliable
+#   gpt-4o-mini   - Previous generation lightweight model
+# Default: gpt-4.1-mini
+openai_model = gpt-4.1
+

@@ -15,3 +15,26 @@ projects/
 dist/
 tmp/
 filings/
+
+# Compiled Python
+*.pyc
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# Environment & secrets
+.env
+.env.*
+config.ini
+venv/
+.venv/
+
+# Runtime files
+.app.pid
+finrobot_equity/logs/
+finrobot_equity/web_app/data/*.db

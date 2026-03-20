@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinRobot Equity Research Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .log-container { font-family: 'Consolas', 'Monaco', monospace; font-size: 0.85rem; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.3); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.5); }
+        aside::-webkit-scrollbar { width: 4px; }
+        aside::-webkit-scrollbar-track { background: transparent; }
+        aside::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.4); border-radius: 10px; }
+        aside .overflow-y-auto::-webkit-scrollbar { width: 4px; }
+        aside .overflow-y-auto::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.4); border-radius: 10px; }
+        aside, aside .overflow-y-auto { scrollbar-width: thin; scrollbar-color: rgba(100, 116, 139, 0.4) transparent; }
+        aside>div:first-child, main>div, header, img { cursor: default; user-select: none; -webkit-user-select: none; }
+        input, textarea { cursor: text; user-select: auto; -webkit-user-select: auto; }
+        .halo-input-wrapper { position: relative; border-radius: 0.5rem; }
+        .halo-input-wrapper::before {
+            content: ''; position: absolute; inset: -1px; border-radius: 0.5rem; padding: 1px;
+            background: linear-gradient(90deg, #60a5fa, #a78bfa, #f9a8d4, #60a5fa);
+            background-size: 300% 100%; animation: borderGradient 4s linear infinite;
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor; mask-composite: exclude;
+            opacity: 0; transition: opacity 0.3s ease; pointer-events: none; z-index: 0;
+        }
+        .halo-input-wrapper:focus-within::before { opacity: 0.6; }
+        @keyframes borderGradient { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
+        .halo-input {
+            position: relative; z-index: 1; background: rgba(10, 10, 10, 0.95) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); color: #f8fafc !important;
+        }
+        .halo-input::placeholder { color: #94a3b8; }
+        .halo-input:hover { border-color: rgba(96, 165, 250, 0.5); background: black !important; }
+        .halo-input:focus { border-color: #3b82f6; background: black !important; box-shadow: 0 0 0 1px #3b82f6; outline: none; }
+        .animate-gradient-x { background-size: 200% 200%; animation: gradientX 3s ease infinite; }
+        @keyframes gradientX { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .hero-text { background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .nav-scroll::-webkit-scrollbar { display: none; }
+        .nav-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+        /* GitHub Gradient Button */
+        .gradient-btn {
+            position: relative;
+            display: inline-block;
+            padding: 2px;
+            border-radius: 0.5rem;
+            background: linear-gradient(90deg, #60a5fa, #a78bfa, #f472b6, #60a5fa);
+            background-size: 300% 100%;
+            animation: borderGradient 3s linear infinite;
+        }
+        .gradient-btn:hover {
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899, #3b82f6);
+            background-size: 300% 100%;
+            animation: borderGradient 2s linear infinite;
+        }
+        .gradient-btn-inner {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.375rem 0.75rem;
+            background: #000;
+            border-radius: 0.4rem;
+            transition: all 0.2s ease;
+        }
+        .gradient-btn:hover .gradient-btn-inner {
+            background: #1a1a1a;
+        }
+    </style>
+</head>
+<script>
+    window.USER_DATA = {
+        name: "{{ user.name if user else '' }}",
+        email: "{{ user.email if user else '' }}",
+        provider: "{{ user.provider if user and user.provider else '' }}"
+    };
+</script>
+{% raw %}
+<body class="bg-black text-white h-screen flex overflow-hidden" id="app">
+
+    <!-- Change Password Modal -->
+    <div v-if="showChangePassword" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50" @click.self="closePasswordModal">
+        <div class="bg-[#0a0a0a] border border-white/10 rounded-xl w-full max-w-md p-6 shadow-2xl">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-semibold text-white">Change Password</h3>
+                <button @click="closePasswordModal" class="text-slate-400 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div v-if="passwordError" class="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">{{ passwordError }}</div>
+            <div v-if="passwordSuccess" class="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 text-sm">{{ passwordSuccess }}</div>
+            <form @submit.prevent="changePassword" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Current Password</label>
+                    <input type="password" v-model="passwordForm.currentPassword" required class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:border-white/30 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">New Password</label>
+                    <input type="password" v-model="passwordForm.newPassword" required minlength="6" class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:border-white/30 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Confirm New Password</label>
+                    <input type="password" v-model="passwordForm.confirmPassword" required minlength="6" class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:border-white/30 focus:outline-none">
+                </div>
+                <div class="flex gap-3 pt-2">
+                    <button type="button" @click="closePasswordModal" class="flex-1 px-4 py-2.5 border border-white/10 rounded-lg text-slate-300 hover:bg-white/5 transition-colors text-sm">Cancel</button>
+                    <button type="submit" :disabled="passwordLoading" class="flex-1 px-4 py-2.5 bg-white text-black rounded-lg font-medium hover:bg-slate-200 transition-colors text-sm disabled:opacity-50">{{ passwordLoading ? 'Saving...' : 'Save' }}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="w-96 bg-[#0a0a0a] border-r border-white/5 text-white flex flex-col z-10">
+        <div class="p-3.5 border-b border-white/5">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <img src="/static/logo_transparent_background.png" alt="AI4Finance" class="w-16 h-16 object-contain flex-shrink-0">
+                    <div>
+                        <h1 class="text-lg font-semibold tracking-tight text-white">FinRobot <span class="text-blue-400 font-normal">Pro</span></h1>
+                        <p class="text-xs text-slate-500">AI-Powered Equity Research</p>
+                    </div>
+                </div>
+                <!-- User Menu -->
+                <div class="relative" @click.stop="showUserMenu = !showUserMenu">
+                    <button class="w-8 h-8 bg-gradient-to-br from-slate-600 to-slate-700 rounded-full flex items-center justify-center text-white text-xs font-semibold hover:from-slate-500 hover:to-slate-600 transition-all border border-white/10">{{ userInitial }}</button>
+                    <div v-if="showUserMenu" class="absolute right-0 top-10 w-56 bg-[#0a0a0a] border border-white/10 rounded-lg shadow-xl py-1 z-50">
+                        <div class="px-4 py-3 border-b border-slate-700">
+                            <p class="text-sm font-medium text-white truncate">{{ userName }}</p>
+                            <p class="text-xs text-slate-400 truncate">{{ userEmail }}</p>
+                        </div>
+                        <button v-if="!isGithubUser" @click="showChangePassword = true; showUserMenu = false" class="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                            Change Password
+                        </button>
+                        <button @click="switchAccount" class="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                            Switch Account
+                        </button>
+                        <div class="border-t border-slate-700 my-1"></div>
+                        <button @click="logout" class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-slate-700 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                            Sign out
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-3.5 space-y-3 nav-scroll flex flex-col">
+            <!-- CARD 1: Progress Stepper -->
+            <div class="bg-white/5 border border-white/5 rounded-xl p-4 relative overflow-hidden group">
+                <div class="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                <div class="flex items-center justify-between mb-3 relative z-10">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Progress</span>
+                    <span class="text-[10px] font-mono" :class="isValid ? 'text-emerald-400' : 'text-slate-500'">{{ isValid ? 'READY' : (form.ticker ? 'STEP 2/3' : 'STEP 1/3') }}</span>
+                </div>
+                <div class="space-y-3 relative z-10">
+                    <div class="flex items-center gap-3 transition-all duration-300" :class="form.ticker ? 'opacity-50' : 'opacity-100'">
+                        <div class="w-2 h-2 rounded-full transition-colors duration-300" :class="form.ticker ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]'"></div>
+                        <span class="text-xs font-medium" :class="form.ticker ? 'text-emerald-400 line-through decoration-emerald-500/50' : 'text-blue-100'">Enter Ticker Symbol</span>
+                    </div>
+                    <div class="flex items-center gap-3 transition-all duration-300" :class="form.company_name ? 'opacity-50' : (form.ticker ? 'opacity-100' : 'opacity-40')">
+                        <div class="w-1.5 h-1.5 rounded-full transition-colors duration-300" :class="form.company_name ? 'bg-emerald-500' : (form.ticker ? 'bg-blue-400' : 'bg-slate-700')"></div>
+                        <span class="text-xs font-medium" :class="form.company_name ? 'text-emerald-400 line-through decoration-emerald-500/50' : (form.ticker ? 'text-white' : 'text-slate-500')">Check Company Name</span>
+                    </div>
+                    <div class="flex items-center gap-3 transition-all duration-300" :class="isValid ? 'opacity-100' : 'opacity-40'">
+                        <div class="w-1.5 h-1.5 rounded-full transition-colors duration-300" :class="isValid ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse' : 'bg-slate-700'"></div>
+                        <span class="text-xs font-medium" :class="isValid ? 'text-white' : 'text-slate-500'">Ready to Generate</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD 2: Core Data -->
+            <div class="bg-white/5 border border-white/5 rounded-xl p-4 space-y-4 shadow-lg shadow-black/20">
+                <div class="flex items-center gap-2 mb-1">
+                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Core Data</span>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-400 mb-1.5 ml-1">Ticker Symbol</label>
+                    <div class="halo-input-wrapper">
+                        <input type="text" ref="tickerInput" v-model="form.ticker" placeholder="e.g. AAPL" class="halo-input w-full rounded-lg px-3 py-2.5 text-sm font-bold tracking-wide placeholder-slate-600" @input="form.ticker = form.ticker.toUpperCase()">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-400 mb-1.5 ml-1">Company Name</label>
+                    <div class="halo-input-wrapper">
+                        <input type="text" v-model="form.company_name" placeholder="Auto-filled or type..." class="halo-input w-full rounded-lg px-3 py-2.5 text-sm placeholder-slate-600">
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD 3: Options & Actions -->
+            <div class="bg-white/5 border border-white/5 rounded-xl p-4 space-y-5 shadow-lg shadow-black/20 flex-1 flex flex-col">
+                <div>
+                    <div class="flex items-center justify-between mb-1.5 ml-1">
+                        <label class="text-[10px] font-medium text-slate-400">Comparables</label>
+                        <span class="text-[9px] text-slate-600 uppercase tracking-wider">Optional</span>
+                    </div>
+                    <div class="halo-input-wrapper">
+                        <input type="text" v-model="form.peers_str" placeholder="Space separated (e.g. MSFT GOOG)" class="halo-input w-full rounded-lg px-3 py-2 text-xs font-medium placeholder-slate-600" @input="form.peers_str = form.peers_str.toUpperCase()">
+                    </div>
+                </div>
+
+                <!-- Report Components -->
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-400 mb-2 ml-1">Report Components</label>
+                    <div class="flex gap-2">
+                        <button type="button" @click="form.generate_text = !form.generate_text" class="flex-1 py-1.5 px-3 rounded-lg text-xs font-medium border transition-all duration-200 flex items-center justify-center gap-1.5" :class="form.generate_text ? 'bg-blue-500/20 text-blue-300 border-blue-500/50' : 'bg-white/5 text-slate-500 border-transparent hover:bg-white/10'">
+                            <span class="w-1.5 h-1.5 rounded-full" :class="form.generate_text ? 'bg-blue-400' : 'bg-slate-600'"></span>AI Text
+                        </button>
+                        <button type="button" @click="form.generate_pdf = !form.generate_pdf" class="flex-1 py-1.5 px-3 rounded-lg text-xs font-medium border transition-all duration-200 flex items-center justify-center gap-1.5" :class="form.generate_pdf ? 'bg-purple-500/20 text-purple-300 border-purple-500/50' : 'bg-white/5 text-slate-500 border-transparent hover:bg-white/10'">
+                            <span class="w-1.5 h-1.5 rounded-full" :class="form.generate_pdf ? 'bg-purple-400' : 'bg-slate-600'"></span>PDF Report
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Enhanced Analysis Options -->
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-400 mb-2 ml-1">Enhanced Analysis</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" @click="form.enable_sensitivity_analysis = !form.enable_sensitivity_analysis" class="py-1.5 px-2 rounded-lg text-[10px] font-medium border transition-all duration-200 flex items-center justify-center gap-1" :class="form.enable_sensitivity_analysis ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50' : 'bg-white/5 text-slate-500 border-transparent hover:bg-white/10'">
+                            <span class="w-1 h-1 rounded-full" :class="form.enable_sensitivity_analysis ? 'bg-emerald-400' : 'bg-slate-600'"></span>Sensitivity
+                        </button>
+                        <button type="button" @click="form.enable_catalyst_analysis = !form.enable_catalyst_analysis" class="py-1.5 px-2 rounded-lg text-[10px] font-medium border transition-all duration-200 flex items-center justify-center gap-1" :class="form.enable_catalyst_analysis ? 'bg-amber-500/20 text-amber-300 border-amber-500/50' : 'bg-white/5 text-slate-500 border-transparent hover:bg-white/10'">
+                            <span class="w-1 h-1 rounded-full" :class="form.enable_catalyst_analysis ? 'bg-amber-400' : 'bg-slate-600'"></span>Catalysts
+                        </button>
+                        <button type="button" @click="form.enable_enhanced_news = !form.enable_enhanced_news" class="py-1.5 px-2 rounded-lg text-[10px] font-medium border transition-all duration-200 flex items-center justify-center gap-1" :class="form.enable_enhanced_news ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50' : 'bg-white/5 text-slate-500 border-transparent hover:bg-white/10'">
+                            <span class="w-1 h-1 rounded-full" :class="form.enable_enhanced_news ? 'bg-cyan-400' : 'bg-slate-600'"></span>News+
+                        </button>
+                        <button type="button" @click="form.enable_enhanced_charts = !form.enable_enhanced_charts" class="py-1.5 px-2 rounded-lg text-[10px] font-medium border transition-all duration-200 flex items-center justify-center gap-1" :class="form.enable_enhanced_charts ? 'bg-pink-500/20 text-pink-300 border-pink-500/50' : 'bg-white/5 text-slate-500 border-transparent hover:bg-white/10'">
+                            <span class="w-1 h-1 rounded-full" :class="form.enable_enhanced_charts ? 'bg-pink-400' : 'bg-slate-600'"></span>Charts+
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex-1"></div>
+
+                <!-- CTA Section -->
+                <div class="border-t border-white/5 pt-4">
+                    <div class="flex items-center justify-between mb-3 px-1 h-5">
+                        <transition name="fade" mode="out-in">
+                            <span v-if="isValid" class="text-[10px] font-bold text-emerald-400 flex items-center gap-1.5 tracking-wide uppercase">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Ready to Generate
+                            </span>
+                            <span v-else class="text-[10px] font-medium text-amber-500/90 flex items-center gap-1.5 italic transition-colors">
+                                <span class="w-1 h-1 rounded-full bg-amber-500/50"></span>
+                                <span v-if="!form.ticker">Waiting for Ticker Symbol...</span>
+                                <span v-else>Waiting for Company Name...</span>
+                            </span>
+                        </transition>
+                    </div>
+                    <button @click="startAnalysis" :disabled="status === 'running' || !isValid" class="w-full relative group overflow-hidden rounded-xl transition-all duration-300" :class="isValid && status !== 'running' ? 'shadow-lg shadow-blue-500/25' : 'opacity-80 cursor-not-allowed'">
+                        <div class="absolute inset-0 transition-opacity duration-300" :class="isValid && status !== 'running' ? 'opacity-100' : 'opacity-0'">
+                            <div class="absolute inset-0 bg-blue-600"></div>
+                            <div class="absolute inset-0 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 animate-gradient-x"></div>
+                        </div>
+                        <div class="absolute inset-0 bg-slate-800 transition-opacity duration-300" :class="isValid && status !== 'running' ? 'opacity-0' : 'opacity-100'"></div>
+                        <div class="relative py-3.5 px-4 flex items-center justify-center gap-2">
+                            <span v-if="status === 'running'" class="flex items-center gap-2 text-white font-semibold">
+                                <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>Generating...
+                            </span>
+                            <span v-else class="flex items-center gap-2 transition-colors duration-300" :class="isValid ? 'text-white font-bold tracking-wide text-sm' : 'text-slate-500 font-medium'">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                Generate Research Report
+                            </span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col bg-[#050505] relative overflow-hidden">
+        <!-- Background Decor -->
+        <div class="absolute inset-0 pointer-events-none">
+            <div class="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-600/5 rounded-full blur-[100px]"></div>
+            <div class="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-600/5 rounded-full blur-[100px]"></div>
+        </div>
+
+        <!-- Header -->
+        <header class="h-16 border-b border-white/5 flex items-center justify-between px-8 z-10 bg-[#050505]/80 backdrop-blur-md">
+            <div class="flex items-center gap-4">
+                <h2 class="font-semibold text-slate-300">Mission Control</h2>
+                <div v-if="activeTasks.length > 0" class="flex items-center gap-2 text-xs font-medium px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>{{ activeTasks.length }} Active
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <!-- Status Indicator -->
+                <div class="flex items-center gap-2 px-2.5 py-1 rounded-md bg-slate-800/40 border border-slate-700/30">
+                    <span class="w-1.5 h-1.5 rounded-full" :class="form.ticker ? 'bg-emerald-400' : 'bg-slate-600'"></span>
+                    <span class="text-[11px] text-slate-500 font-medium">{{ form.ticker ? 'Active' : 'Idle' }}</span>
+                    <span v-if="form.ticker" class="font-mono text-[11px] text-slate-300">· {{ form.ticker }}</span>
+                </div>
+                <!-- GitHub Button with Gradient Border -->
+                <a href="https://github.com/AI4Finance-Foundation/FinRobot" target="_blank" class="gradient-btn">
+                    <div class="gradient-btn-inner">
+                        <svg class="w-4 h-4 text-slate-300" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                        <span class="text-xs font-medium text-slate-300">GitHub</span>
+                    </div>
+                </a>
+            </div>
+        </header>
+
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto p-8 z-10">
+            <div class="max-w-7xl mx-auto space-y-12">
+
+                <!-- Hero Section (show when no tasks) -->
+                <div v-if="tasks.length === 0" class="h-full flex flex-col items-center justify-center pt-20">
+                    <div class="mb-8 relative">
+                        <div class="absolute inset-0 bg-blue-500/30 blur-3xl rounded-full scale-110"></div>
+                        <img src="/static/logo_transparent_background.png" alt="AI4Finance" class="w-56 h-56 relative z-10 drop-shadow-2xl object-contain">
+                    </div>
+                    <div class="text-center mb-12 space-y-6">
+                        <h1 class="text-5xl font-bold tracking-tight hero-text pb-2">Ready to Generate Reports</h1>
+                        <p class="text-lg text-slate-400 max-w-2xl mx-auto font-light leading-relaxed">Enter a stock ticker to generate comprehensive AI-powered equity research reports with professional valuation and risk analysis.</p>
+                        <button @click="focusTickerInput" class="inline-flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-white rounded-full font-medium transition-all duration-300 border border-white/10 hover:border-blue-500/30 group">
+                            Start New Analysis
+                            <svg class="w-4 h-4 text-slate-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                        </button>
+                    </div>
+                    <!-- Feature Cards -->
+                    <div class="grid grid-cols-3 gap-6 w-full max-w-4xl">
+                        <div class="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 text-center hover:bg-slate-800 hover:border-blue-500/30 hover:-translate-y-1 transition-all duration-300 group cursor-default">
+                            <div class="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-all">
+                                <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                            </div>
+                            <h4 class="text-base font-semibold text-white mb-1.5 group-hover:text-blue-300 transition-colors">Report Highlights</h4>
+                            <p class="text-sm text-slate-400 font-light">Key metrics & insights</p>
+                        </div>
+                        <div class="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 text-center hover:bg-slate-800 hover:border-emerald-500/30 hover:-translate-y-1 transition-all duration-300 group cursor-default">
+                            <div class="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-all">
+                                <svg class="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </div>
+                            <h4 class="text-base font-semibold text-white mb-1.5 group-hover:text-emerald-300 transition-colors">Valuation</h4>
+                            <p class="text-sm text-slate-400 font-light">DCF & peer comparison</p>
+                        </div>
+                        <div class="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 text-center hover:bg-slate-800 hover:border-amber-500/30 hover:-translate-y-1 transition-all duration-300 group cursor-default">
+                            <div class="w-12 h-12 bg-amber-500/10 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-all">
+                                <svg class="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                            </div>
+                            <h4 class="text-base font-semibold text-white mb-1.5 group-hover:text-amber-300 transition-colors">Risk Analysis</h4>
+                            <p class="text-sm text-slate-400 font-light">Key risks & catalysts</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Tasks Section -->
+                <section v-if="activeTasks.length > 0">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Processing Queue
+                        </h3>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div v-for="task in activeTasks" :key="task.id" class="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 hover:border-blue-500/30 transition-all duration-300">
+                            <div class="px-5 py-4 border-b border-white/5 bg-black/20 flex justify-between items-start">
+                                <div>
+                                    <div class="flex items-center gap-3 mb-1">
+                                        <h4 class="text-xl font-bold font-mono tracking-tight text-white">{{ task.ticker }}</h4>
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 animate-pulse">RUNNING</span>
+                                    </div>
+                                    <p class="text-xs text-slate-400 font-medium truncate max-w-[150px]">{{ task.company }}</p>
+                                </div>
+                                <div class="text-sm font-mono text-blue-400 font-bold">{{ task.progress }}%</div>
+                            </div>
+                            <div class="p-5 space-y-4">
+                                <div class="space-y-2">
+                                    <div class="flex justify-between text-xs text-slate-400">
+                                        <span>Current Stage</span>
+                                        <span class="text-white font-medium">{{ task.stage }}</span>
+                                    </div>
+                                    <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                        <div class="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500" :style="{ width: task.progress + '%' }"></div>
+                                    </div>
+                                </div>
+                                <div class="mt-4 p-3 bg-black/50 rounded border border-white/5 font-mono text-[10px] text-slate-400 h-20 overflow-hidden relative">
+                                    <div class="absolute inset-0 bg-gradient-to-b from-transparent to-black/90 pointer-events-none"></div>
+                                    <div class="flex flex-col justify-end h-full">
+                                        <p v-if="task.logs.length > 1" class="text-slate-600 truncate opacity-50">{{ task.logs[task.logs.length - 2] }}</p>
+                                        <p v-if="task.logs.length > 0" class="text-emerald-400/90 truncate">> {{ task.logs[task.logs.length - 1] }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="px-4 py-3 bg-white/5 border-t border-white/5">
+                                <button @click="task.showLogs = !task.showLogs" class="w-full py-1.5 px-3 rounded text-xs font-medium bg-white/5 hover:bg-white/10 text-slate-300 transition-colors border border-white/5">{{ task.showLogs ? 'Hide Logs' : 'View Logs' }}</button>
+                            </div>
+                            <div v-if="task.showLogs" class="absolute inset-x-0 bottom-0 top-[60px] bg-[#0a0a0a]/95 backdrop-blur-md z-20 flex flex-col">
+                                <div class="flex-1 overflow-y-auto p-4 font-mono text-xs space-y-1">
+                                    <div v-for="(log, idx) in task.logs" :key="idx" class="break-words" :class="log.includes('Error') ? 'text-red-400' : 'text-slate-400'">
+                                        <span class="text-slate-600 mr-2">[{{ idx + 1 }}]</span>{{ log }}
+                                    </div>
+                                </div>
+                                <div class="p-2 border-t border-white/10 bg-black/50 text-center">
+                                    <button @click="task.showLogs = false" class="text-xs text-slate-400 hover:text-white uppercase tracking-wider font-bold">Close Logs</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Completed Reports Section -->
+                <section v-if="completedTasks.length > 0">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
+                            Research Archive
+                        </h3>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div v-for="task in completedTasks" :key="task.id" class="group relative rounded-xl p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl border border-white/5 bg-white/5" :class="task.status === 'failed' ? 'hover:shadow-red-500/10 hover:border-red-500/20' : 'hover:shadow-emerald-500/10 hover:border-emerald-500/20'">
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="w-10 h-10 rounded-lg flex items-center justify-center transition-colors" :class="task.status === 'failed' ? 'bg-red-500/10 text-red-500 group-hover:bg-red-500 group-hover:text-white' : 'bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white'">
+                                    <svg v-if="task.status === 'failed'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                    <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </div>
+                                <span class="text-[10px] text-slate-500">{{ new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}</span>
+                            </div>
+                            <h4 class="font-bold text-white mb-0.5 tracking-tight">{{ task.ticker }}</h4>
+                            <p class="text-xs text-slate-400 mb-4 line-clamp-1 h-4">{{ task.company }}</p>
+                            <div v-if="task.status === 'completed' && task.result" class="grid gap-2" :class="(task.result.pdf && task.result.pdf.length) || (task.result.html && task.result.html.length) ? 'grid-cols-3' : 'grid-cols-1'">
+                                <a v-if="task.result.pdf && task.result.pdf.length" :href="'/output/' + task.ticker + '/report/' + task.result.pdf[0]" target="_blank" class="flex items-center justify-center gap-1 py-1.5 rounded bg-white/5 hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-400 text-[10px] font-bold transition-all border border-white/5 hover:border-emerald-500/30">PDF</a>
+                                <a v-if="task.result.html && task.result.html.length" :href="'/output/' + task.ticker + '/report/' + task.result.html[0]" target="_blank" class="flex items-center justify-center gap-1 py-1.5 rounded bg-white/5 hover:bg-blue-500/20 text-slate-300 hover:text-blue-400 text-[10px] font-bold transition-all border border-white/5 hover:border-blue-500/30">HTML</a>
+                                <button @click="viewTaskLog(task)" class="flex items-center justify-center gap-1 py-1.5 rounded bg-white/5 hover:bg-amber-500/20 text-slate-300 hover:text-amber-400 text-[10px] font-bold transition-all border border-white/5 hover:border-amber-500/30">LOG</button>
+                            </div>
+                            <div v-else-if="task.status === 'failed'" class="grid grid-cols-1 gap-2">
+                                <button @click="viewTaskLog(task)" class="flex items-center justify-center gap-1 py-1.5 rounded bg-white/5 hover:bg-red-500/20 text-slate-300 hover:text-red-400 text-[10px] font-bold transition-all border border-white/5 hover:border-red-500/30">VIEW LOG</button>
+                            </div>
+                            <div v-else class="text-center text-[10px] text-slate-500 italic">Finalizing...</div>
+                            <!-- Log Viewer Overlay -->
+                            <div v-if="task.showLogs" class="absolute inset-0 bg-[#0a0a0a] z-30 flex flex-col p-4 rounded-xl">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-xs font-bold" :class="task.status === 'failed' ? 'text-red-500' : 'text-amber-500'">{{ task.ticker }} - Task Log</span>
+                                    <div class="flex items-center gap-2">
+                                        <a v-if="task.id && !task.id.startsWith('pending_')" :href="'/api/logs/' + task.id + '/download'" target="_blank" class="text-[10px] text-slate-400 hover:text-amber-400 transition-colors" title="Download full log">Download</a>
+                                        <button @click="task.showLogs = false" class="text-xs text-slate-400 hover:text-white">✕</button>
+                                    </div>
+                                </div>
+                                <div class="flex-1 overflow-y-auto font-mono text-[10px] space-y-0.5 leading-relaxed" :class="task.status === 'failed' ? 'text-red-300/80' : 'text-slate-300/80'">
+                                    <div v-for="(log, idx) in task.logs" :key="idx" class="py-0.5 border-b border-white/5">{{ log }}</div>
+                                    <div v-if="!task.logs || task.logs.length === 0" class="text-slate-500 italic">No logs available for this task.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    userName: window.USER_DATA?.name || '',
+                    userEmail: window.USER_DATA?.email || '',
+                    userProvider: window.USER_DATA?.provider || '',
+                    showUserMenu: false,
+                    showChangePassword: false,
+                    passwordForm: { currentPassword: '', newPassword: '', confirmPassword: '' },
+                    passwordError: '',
+                    passwordSuccess: '',
+                    passwordLoading: false,
+                    status: 'idle',
+                    form: {
+                        ticker: '',
+                        company_name: '',
+                        peers_str: '',
+                        years_limit: 5,
+                        revenue_growth_2025: 0.05,
+                        revenue_growth_2026: 0.06,
+                        revenue_growth_2027: 0.04,
+                        margin_improvement: 0.01,
+                        generate_text: true,
+                        generate_pdf: true,
+                        enable_sensitivity_analysis: false,
+                        enable_catalyst_analysis: false,
+                        enable_enhanced_news: false,
+                        enable_enhanced_charts: false,
+                        enable_valuation_analysis: false
+                    },
+                    tasks: [],
+                    pollInterval: null,
+                    isLogsExpanded: false
+                }
+            },
+            computed: {
+                isValid() { return this.form.ticker && this.form.company_name; },
+                userInitial() { return this.userName ? this.userName.charAt(0).toUpperCase() : 'U'; },
+                isGithubUser() { return this.userProvider === 'github' || this.userEmail.startsWith('github:'); },
+                activeTasks() { return this.tasks.filter(t => t.status === 'running' || t.status === 'pending'); },
+                completedTasks() { return this.tasks.filter(t => t.status === 'completed' || t.status === 'failed').reverse(); }
+            },
+            mounted() {
+                document.addEventListener('click', () => { this.showUserMenu = false; });
+                this.pollInterval = setInterval(this.pollTasks, 1000);
+            },
+            methods: {
+                async viewTaskLog(task) {
+                    // Toggle log overlay; if opening, try to fetch persisted logs from server
+                    if (task.showLogs) {
+                        task.showLogs = false;
+                        return;
+                    }
+                    // Try to load full logs from the server API
+                    if (task.id && !task.id.startsWith('pending_')) {
+                        try {
+                            const response = await fetch(`/api/logs/${task.id}`);
+                            if (response.ok) {
+                                const data = await response.json();
+                                if (data.logs && data.logs.length > 0) {
+                                    task.logs = data.logs;
+                                }
+                            }
+                        } catch (e) {
+                            console.error('Failed to fetch logs:', e);
+                        }
+                    }
+                    task.showLogs = true;
+                },
+                async startAnalysis() {
+                    if (!this.isValid) return;
+                    const newTask = {
+                        id: 'pending_' + Date.now(),
+                        ticker: this.form.ticker,
+                        company: this.form.company_name,
+                        status: 'pending',
+                        progress: 5,
+                        stage: 'Initializing...',
+                        logs: ['Requesting analysis start...'],
+                        showLogs: false,
+                        startTime: new Date()
+                    };
+                    this.tasks.unshift(newTask);
+                    const peers = this.form.peers_str.split(' ').map(s => s.trim()).filter(s => s);
+                    const payload = { ...this.form, peers: peers };
+                    this.form.ticker = '';
+                    this.form.company_name = '';
+                    this.form.peers_str = '';
+                    try {
+                        const response = await fetch('/api/run', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        if (!response.ok) throw new Error('Failed to start analysis');
+                        const data = await response.json();
+                        newTask.id = data.task_id;
+                        newTask.status = 'running';
+                        newTask.logs.push('Task started successfully. ID: ' + data.task_id);
+                    } catch (e) {
+                        console.error(e);
+                        newTask.status = 'failed';
+                        newTask.stage = 'Submission Failed';
+                        newTask.logs.push(`Error starting analysis: ${e.message}`);
+                    }
+                },
+                async pollTasks() {
+                    const active = this.activeTasks;
+                    if (active.length === 0) return;
+                    for (const task of active) {
+                        if (task.id.startsWith('pending_')) continue;
+                        try {
+                            const response = await fetch(`/api/status/${task.id}`);
+                            const data = await response.json();
+                            if (data.logs && data.logs.length > 0) { task.logs = data.logs; }
+                            if (data.status === 'completed' || data.status === 'failed') {
+                                task.status = data.status;
+                                if (data.status === 'completed') {
+                                    task.progress = 100;
+                                    task.stage = 'Analysis Completed';
+                                    this.fetchTaskReports(task);
+                                } else { task.stage = 'Analysis Failed'; }
+                            } else { this.updateTaskProgress(task); }
+                        } catch (e) { console.error(`Polling error for ${task.id}`, e); }
+                    }
+                },
+                updateTaskProgress(task) {
+                    const allLogs = task.logs.join(" ");
+                    if (allLogs.includes("Pipeline completed successfully")) { task.progress = 100; task.stage = "Completed"; }
+                    else if (allLogs.includes("Generating PDF report") || allLogs.includes("create_equity_report.py")) { task.progress = 75; task.stage = "Report Compilation..."; }
+                    else if (allLogs.includes("AI") || allLogs.includes("text")) { task.progress = 50; task.stage = "AI Reasoning..."; }
+                    else if (allLogs.includes("generate_financial_analysis.py") || allLogs.includes("financial")) { task.progress = 35; task.stage = "Financial Analysis..."; }
+                    else if (allLogs.includes("Starting analysis pipeline") || allLogs.includes("Executing")) { task.progress = 10; task.stage = "Data Acquisition..."; }
+                },
+                async fetchTaskReports(task) {
+                    try {
+                        const response = await fetch(`/api/reports/${task.ticker}`);
+                        const data = await response.json();
+                        // 优先显示完整的PDF报告（Professional_Equity_Report），而不是单页图表
+                        const allPdfs = data.reports.filter(r => r.endsWith('.pdf'));
+                        const professionalPdf = allPdfs.filter(r => r.includes('Professional_Equity_Report') || r.includes('Professional'));
+                        const sortedPdfs = professionalPdf.length > 0 ? [...professionalPdf, ...allPdfs.filter(r => !r.includes('Professional'))] : allPdfs;
+                        // 优先显示完整的HTML报告（Professional_Equity_Report），而不是单页
+                        const allHtmls = data.reports.filter(r => r.endsWith('.html'));
+                        const professionalHtml = allHtmls.filter(r => r.includes('Professional_Equity_Report'));
+                        const combinedHtml = allHtmls.filter(r => r.includes('Combined_Equity_Report'));
+                        const otherHtmls = allHtmls.filter(r => !r.includes('Professional_Equity_Report') && !r.includes('Combined_Equity_Report') && !r.includes('Page'));
+                        const sortedHtmls = [...professionalHtml, ...combinedHtml, ...otherHtmls];
+                        task.result = {
+                            html: sortedHtmls.length > 0 ? sortedHtmls : allHtmls,
+                            pdf: sortedPdfs
+                        };
+                    } catch (e) { console.error("Error fetching reports", e); }
+                },
+                async logout() {
+                    try { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; }
+                    catch (e) { console.error("Logout error", e); window.location.href = '/login'; }
+                },
+                switchAccount() { this.logout(); },
+                async changePassword() {
+                    this.passwordError = '';
+                    this.passwordSuccess = '';
+                    if (this.passwordForm.newPassword !== this.passwordForm.confirmPassword) { this.passwordError = 'New passwords do not match'; return; }
+                    if (this.passwordForm.newPassword.length < 6) { this.passwordError = 'Password must be at least 6 characters'; return; }
+                    this.passwordLoading = true;
+                    try {
+                        const response = await fetch('/api/auth/change-password', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ currentPassword: this.passwordForm.currentPassword, newPassword: this.passwordForm.newPassword })
+                        });
+                        const data = await response.json();
+                        if (!response.ok) throw new Error(data.detail || 'Failed to change password');
+                        this.passwordSuccess = 'Password changed successfully';
+                        this.passwordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
+                        setTimeout(() => { this.showChangePassword = false; this.passwordSuccess = ''; }, 2000);
+                    } catch (e) { this.passwordError = e.message; }
+                    finally { this.passwordLoading = false; }
+                },
+                closePasswordModal() {
+                    this.showChangePassword = false;
+                    this.passwordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
+                    this.passwordError = '';
+                    this.passwordSuccess = '';
+                },
+                focusTickerInput() { if (this.$refs.tickerInput) { this.$refs.tickerInput.focus(); } }
+            }
+        }).mount('#app');
+    </script>
+</body>
+{% endraw %}
+</html>

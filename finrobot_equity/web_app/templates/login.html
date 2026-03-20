@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - FinRobot Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script type="module" src="https://unpkg.com/@splinetool/viewer@1.9.54/build/spline-viewer.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        body { font-family: 'Inter', sans-serif; cursor: none; }
+        /* GPU acceleration for animations */
+        .letter-pullup span, .morphing-text .text-item, .halo-input-wrapper::before, .shimmer-button, .cursor-dot {
+            will-change: transform, opacity;
+            transform: translateZ(0);
+            backface-visibility: hidden;
+        }
+        /* Sleek Line Cursor */
+        .cursor-dot {
+            position: fixed;
+            width: 8px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+            transition: transform 0.1s ease;
+        }
+        .cursor-trail {
+            display: none;
+        }
+        .cursor-line {
+            position: fixed;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(59, 130, 246, 0.6), rgba(147, 51, 234, 0.4), transparent);
+            pointer-events: none;
+            z-index: 9997;
+            transform-origin: left center;
+        }
+        input, button, a { cursor: none; }
+        input:focus ~ .cursor-dot, button:hover ~ .cursor-dot { transform: translate(-50%, -50%) scale(1.5); }
+        .glass-input-dark {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        .glass-input-dark:focus {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(59, 130, 246, 0.5);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .light-input {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+            color: #1e293b;
+        }
+        .light-input:focus {
+            background: #fff;
+            border-color: #3b82f6;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .light-input::placeholder {
+            color: #94a3b8;
+        }
+        /* Letter Pull Up Animation */
+        .letter-pullup {
+            display: inline-flex;
+        }
+        .letter-pullup span {
+            display: inline-block;
+            opacity: 0;
+            transform: translateY(100%);
+            animation: pullUp 0.5s ease forwards;
+        }
+        @keyframes pullUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        /* Morphing Text Animation */
+        .morphing-text {
+            position: relative;
+            display: block;
+            height: 2.5rem;
+            overflow: visible;
+        }
+        .morphing-text .text-item {
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+            white-space: nowrap;
+        }
+        .morphing-text .text-item.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        /* Halo Input Effect */
+        .halo-input-wrapper {
+            position: relative;
+            border-radius: 0.5rem;
+        }
+        .halo-input-wrapper::before {
+            content: '';
+            position: absolute;
+            inset: -1px;
+            border-radius: 0.5rem;
+            padding: 1px;
+            background: linear-gradient(90deg, 
+                #6b7280, #9ca3af, #d1d5db, #9ca3af, #6b7280);
+            background-size: 300% 100%;
+            animation: borderGradient 4s linear infinite;
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            opacity: 0.4;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .halo-input-wrapper:focus-within::before {
+            opacity: 0.6;
+        }
+        @keyframes borderGradient {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 300% 50%; }
+        }
+        .halo-input {
+            position: relative;
+            z-index: 1;
+            background: rgba(0, 0, 0, 0.9) !important;
+            border: 1px solid transparent;
+            transition: all 0.3s ease;
+            color: white !important;
+            -webkit-text-fill-color: white !important;
+        }
+        .halo-input:hover {
+            background: rgba(0, 0, 0, 0.95) !important;
+        }
+        .halo-input:focus {
+            border-color: rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 1) !important;
+            outline: none;
+        }
+        /* Override browser autofill styles */
+        .halo-input:-webkit-autofill,
+        .halo-input:-webkit-autofill:hover,
+        .halo-input:-webkit-autofill:focus,
+        .halo-input:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 30px black inset !important;
+            -webkit-text-fill-color: white !important;
+            background-color: black !important;
+            transition: background-color 5000s ease-in-out 0s;
+        }
+        /* Shimmer Button Effect */
+        .shimmer-button {
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(110deg, #1e293b 45%, #334155 55%, #1e293b);
+            background-size: 200% 100%;
+            animation: shimmer 5s linear infinite;
+            border: none;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        .shimmer-button::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(110deg, transparent 25%, rgba(255,255,255,0.08) 50%, transparent 75%);
+            background-size: 200% 100%;
+            animation: shimmer 5s linear infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .shimmer-button:hover {
+            box-shadow: 0 10px 50px rgba(59, 130, 246, 0.2);
+        }
+        .shimmer-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        /* Error Alert Styles - Compact Version */
+        .error-shake {
+            animation: shake 0.4s ease-in-out;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+        }
+        .error-alert-small {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+        }
+        .input-error {
+            border-color: rgba(239, 68, 68, 0.5) !important;
+        }
+        .input-error:focus {
+            border-color: rgba(239, 68, 68, 0.7) !important;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+        }
+    </style>
+</head>
+<body class="h-screen w-full flex flex-col overflow-hidden bg-[#0a0a0a] text-white">
+    <!-- Sleek Line Cursor -->
+    <div class="cursor-dot" id="cursorDot"></div>
+    <div class="cursor-trail" id="cursorTrail"></div>
+    <canvas id="cursorCanvas" class="fixed inset-0 pointer-events-none z-[9996]"></canvas>
+    
+    <div id="app" class="w-full h-full flex flex-col">
+        <!-- 全局顶部栏 -->
+        <header class="h-20 flex-shrink-0 bg-[#0a0a0a] flex items-center px-6 justify-between">
+            <div class="flex items-center gap-3">
+                <img src="/static/logo.png" alt="Logo" class="w-12 h-12 object-contain">
+                <span class="text-lg font-semibold tracking-tight letter-pullup">
+                    <span style="animation-delay: 0.00s">F</span><span style="animation-delay: 0.05s">i</span><span style="animation-delay: 0.10s">n</span><span style="animation-delay: 0.15s">R</span><span style="animation-delay: 0.20s">o</span><span style="animation-delay: 0.25s">b</span><span style="animation-delay: 0.30s">o</span><span style="animation-delay: 0.35s">t</span><span style="animation-delay: 0.45s; margin-left: 0.25rem;" class="text-blue-400 font-normal">P</span><span style="animation-delay: 0.50s" class="text-blue-400 font-normal">r</span><span style="animation-delay: 0.55s" class="text-blue-400 font-normal">o</span>
+                </span>
+            </div>
+            <div class="text-sm font-bold text-white">AI-Powered Equity Research</div>
+        </header>
+
+        <!-- 主内容区：左右分栏 -->
+        <div class="flex-1 flex overflow-hidden">
+            <!-- 左栏：3D 机器人动画 (70%) -->
+            <div class="hidden lg:flex w-[70%] relative bg-[#0a0a0a] items-center justify-center overflow-hidden">
+                <div class="absolute bottom-8 left-8 right-8 z-10">
+                    <h2 class="text-3xl font-bold text-white mb-3 morphing-text">
+                        <span class="text-item" :class="{ active: currentTextIndex === 0 }">AI-Powered Equity Research</span>
+                        <span class="text-item" :class="{ active: currentTextIndex === 1 }">Professional Stock Analysis</span>
+                        <span class="text-item" :class="{ active: currentTextIndex === 2 }">Smart Financial Insights</span>
+                        <span class="text-item" :class="{ active: currentTextIndex === 3 }">Automated Report Generation</span>
+                    </h2>
+                    <p class="text-slate-400 text-sm">Generate professional equity research reports with financial analysis, valuation models, and risk assessment</p>
+                </div>
+                <div class="w-full h-full flex items-end justify-center relative overflow-hidden">
+                    <spline-viewer url="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode" class="w-full h-[130%] -mb-32"></spline-viewer>
+                </div>
+            </div>
+
+            <!-- 右栏：登录表单 (30%) -->
+            <div class="w-full lg:w-[30%] flex flex-col bg-[#0a0a0a]/80 backdrop-blur-md">
+                <div class="lg:hidden p-6 border-b border-slate-200">
+                    <div class="flex items-center gap-3">
+                        <img src="/static/logo.png" alt="Logo" class="w-8 h-8 object-contain">
+                        <span class="text-lg font-semibold text-slate-800">FinRobot <span class="text-blue-500 font-normal">Pro</span></span>
+                    </div>
+                </div>
+
+                <div class="flex-1 flex items-center justify-center p-8 overflow-y-auto">
+                    <div class="w-full max-w-sm space-y-6">
+                        <!-- Login Form -->
+                        <div v-if="!isRegister">
+                            <div class="text-left mb-6">
+                                <h2 class="text-2xl font-bold tracking-tight text-white">Welcome Back</h2>
+                                <p class="mt-1 text-sm text-slate-400">Sign in to access your research dashboard</p>
+                            </div>
+
+                            <form class="space-y-4" v-on:submit.prevent="handleLogin">
+                                <div class="space-y-3">
+                                    <!-- Error Alert - Compact Style -->
+                                    <div v-if="error" class="error-alert-small error-shake rounded-md px-2.5 py-1.5 text-red-400 text-xs flex items-center gap-1.5">
+                                        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293z" clip-rule="evenodd"/>
+                                        </svg>
+                                        <span>Invalid email or password</span>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-slate-400 mb-1">Email Address</label>
+                                        <div class="halo-input-wrapper">
+                                            <input type="email" autocomplete="email" required v-model="email" v-bind:class="['halo-input block w-full rounded-lg px-3 py-2.5 text-white placeholder-slate-500 text-sm', { 'input-error': hasError }]" placeholder="name@example.com">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-slate-400 mb-1">Password</label>
+                                        <div class="halo-input-wrapper">
+                                            <input type="password" autocomplete="current-password" required v-model="password" v-bind:class="['halo-input block w-full rounded-lg px-3 py-2.5 text-white placeholder-slate-500 text-sm', { 'input-error': hasError }]" placeholder="Enter password">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between text-sm">
+                                    <div class="flex items-center">
+                                        <input id="remember-me" type="checkbox" v-model="remember" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-800 text-blue-500">
+                                        <label for="remember-me" class="ml-2 text-slate-400">Remember me</label>
+                                    </div>
+                                    <a href="#" class="text-blue-400 hover:text-blue-300">Forgot password?</a>
+                                </div>
+                                <button type="submit" v-bind:disabled="loading" class="shimmer-button w-full flex justify-center items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-all">
+                                    <span v-if="loading">Signing in...</span>
+                                    <span v-else>Sign In</span>
+                                </button>
+                            </form>
+
+                            <p class="text-center text-sm text-slate-400 mt-6">Don't have an account?<a href="#" v-on:click.prevent="isRegister = true" class="text-white hover:text-blue-400 ml-1">Sign up</a></p>
+                        </div>
+
+                        <!-- Register Form -->
+                        <div v-else>
+                            <div class="text-left mb-6">
+                                <h2 class="text-2xl font-bold tracking-tight text-white">Create Account</h2>
+                                <p class="mt-1 text-sm text-slate-400">Start generating professional equity research reports</p>
+                            </div>
+
+                            <form class="space-y-4" v-on:submit.prevent="handleRegister">
+                                <!-- Error Alert for Register Form - Compact Style -->
+                                <div v-if="error" class="error-alert-small error-shake rounded-md px-2.5 py-1.5 text-red-400 text-xs flex items-center gap-1.5 mb-3">
+                                    <svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span>{{ error }}</span>
+                                </div>
+                                <div class="space-y-3">
+                                    <div>
+                                        <label class="block text-xs font-medium text-slate-400 mb-1">Full Name</label>
+                                        <div class="halo-input-wrapper">
+                                            <input type="text" required v-model="regName" v-bind:class="['halo-input block w-full rounded-lg px-3 py-2.5 text-white placeholder-slate-500 text-sm', { 'input-error': hasRegError }]" placeholder="Enter your name">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-slate-400 mb-1">Email Address</label>
+                                        <div class="halo-input-wrapper">
+                                            <input type="email" autocomplete="email" required v-model="regEmail" v-bind:class="['halo-input block w-full rounded-lg px-3 py-2.5 text-white placeholder-slate-500 text-sm', { 'input-error': hasRegError }]" placeholder="name@example.com">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-slate-400 mb-1">Password</label>
+                                        <div class="halo-input-wrapper">
+                                            <input type="password" required minlength="6" v-model="regPassword" v-bind:class="['halo-input block w-full rounded-lg px-3 py-2.5 text-white placeholder-slate-500 text-sm', { 'input-error': hasRegError }]" placeholder="At least 6 characters">
+                                        </div>
+                                    </div>
+                                </div>
+                                <button type="submit" v-bind:disabled="loading" class="shimmer-button w-full flex justify-center items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-all">
+                                    <span v-if="loading">Creating...</span>
+                                    <span v-else>Create Account</span>
+                                </button>
+                            </form>
+
+                            <p class="text-center text-sm text-slate-400 mt-6">Already have an account?<a href="#" v-on:click.prevent="isRegister = false" class="text-white hover:text-blue-400 ml-1">Sign in</a></p>
+                        </div>
+
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+        createApp({
+            data() {
+                return { 
+                    isRegister: false, 
+                    loading: false, 
+                    error: '', 
+                    email: '', 
+                    password: '', 
+                    remember: false, 
+                    regName: '', 
+                    regEmail: '', 
+                    regPassword: '',
+                    hasError: false,
+                    hasRegError: false,
+                    morphTexts: [
+                        'AI-Powered Equity Research',
+                        'Professional Stock Analysis',
+                        'Smart Financial Insights',
+                        'Automated Report Generation'
+                    ],
+                    currentTextIndex: 0
+                }
+            },
+            mounted() {
+                setInterval(() => {
+                    this.currentTextIndex = (this.currentTextIndex + 1) % this.morphTexts.length;
+                }, 3000);
+            },
+            watch: { 
+                isRegister() { 
+                    this.error = ''; 
+                    this.hasError = false;
+                    this.hasRegError = false;
+                } 
+            },
+            methods: {
+                async handleLogin() {
+                    this.loading = true; 
+                    this.error = '';
+                    this.hasError = false;
+                    try {
+                        const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: this.email, password: this.password, remember: this.remember }) });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error('Invalid email or password');
+                        window.location.href = '/';
+                    } catch (e) { 
+                        this.error = e.message;
+                        this.hasError = true;
+                    } finally { 
+                        this.loading = false; 
+                    }
+                },
+                async handleRegister() {
+                    this.loading = true; 
+                    this.error = '';
+                    this.hasRegError = false;
+                    try {
+                        const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: this.regEmail, password: this.regPassword, name: this.regName }) });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.detail || 'Registration failed');
+                        window.location.href = '/';
+                    } catch (e) { 
+                        this.error = e.message;
+                        this.hasRegError = true;
+                    } finally { 
+                        this.loading = false; 
+                    }
+                }
+            }
+        }).mount('#app');
+    </script>
+    
+    <!-- Advanced Sleek Line Cursor Script -->
+    <script>
+        const dot = document.getElementById('cursorDot');
+        const canvas = document.getElementById('cursorCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Config - reduced for better performance
+        const E = { friction: 0.5, trails: 12, size: 30, dampening: 0.25, tension: 0.98 };
+        let pos = { x: 0, y: 0 };
+        let lines = [];
+        let running = true;
+        let frame = 1;
+        
+        // Wave for color animation
+        class Wave {
+            constructor(opt = {}) {
+                this.phase = opt.phase || 0;
+                this.offset = opt.offset || 0;
+                this.frequency = opt.frequency || 0.001;
+                this.amplitude = opt.amplitude || 1;
+                this.value = 0;
+            }
+            update() {
+                this.phase += this.frequency;
+                this.value = this.offset + Math.sin(this.phase) * this.amplitude;
+                return this.value;
+            }
+        }
+        
+        // Node for physics
+        class Node { constructor() { this.x = 0; this.y = 0; this.vx = 0; this.vy = 0; } }
+        
+        // Line with spring physics
+        class Line {
+            constructor(spring) {
+                this.spring = spring + 0.1 * Math.random() - 0.02;
+                this.friction = E.friction + 0.01 * Math.random() - 0.002;
+                this.nodes = [];
+                for (let i = 0; i < E.size; i++) {
+                    const n = new Node();
+                    n.x = pos.x; n.y = pos.y;
+                    this.nodes.push(n);
+                }
+            }
+            update() {
+                let e = this.spring;
+                let t = this.nodes[0];
+                t.vx += (pos.x - t.x) * e;
+                t.vy += (pos.y - t.y) * e;
+                for (let i = 0; i < this.nodes.length; i++) {
+                    t = this.nodes[i];
+                    if (i > 0) {
+                        const n = this.nodes[i - 1];
+                        t.vx += (n.x - t.x) * e;
+                        t.vy += (n.y - t.y) * e;
+                        t.vx += n.vx * E.dampening;
+                        t.vy += n.vy * E.dampening;
+                    }
+                    t.vx *= this.friction;
+                    t.vy *= this.friction;
+                    t.x += t.vx;
+                    t.y += t.vy;
+                    e *= E.tension;
+                }
+            }
+            draw() {
+                let n = this.nodes[0].x, i = this.nodes[0].y;
+                ctx.beginPath();
+                ctx.moveTo(n, i);
+                for (let a = 1; a < this.nodes.length - 2; a++) {
+                    const e = this.nodes[a], t = this.nodes[a + 1];
+                    n = 0.5 * (e.x + t.x);
+                    i = 0.5 * (e.y + t.y);
+                    ctx.quadraticCurveTo(e.x, e.y, n, i);
+                }
+                const e = this.nodes[this.nodes.length - 2], t = this.nodes[this.nodes.length - 1];
+                ctx.quadraticCurveTo(e.x, e.y, t.x, t.y);
+                ctx.stroke();
+                ctx.closePath();
+            }
+        }
+        
+        const wave = new Wave({ phase: Math.random() * 2 * Math.PI, amplitude: 85, frequency: 0.0015, offset: 285 });
+        
+        function createLines() {
+            lines = [];
+            for (let i = 0; i < E.trails; i++) {
+                lines.push(new Line(0.4 + (i / E.trails) * 0.025));
+            }
+        }
+        
+        let lastTime = 0;
+        const targetFPS = 60;
+        const frameInterval = 1000 / targetFPS;
+        
+        function render(currentTime) {
+            if (!running) return;
+            requestAnimationFrame(render);
+            
+            const deltaTime = currentTime - lastTime;
+            if (deltaTime < frameInterval) return;
+            lastTime = currentTime - (deltaTime % frameInterval);
+            
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.globalCompositeOperation = 'lighter';
+            const lightness = 50 + Math.sin(wave.update() * 0.01) * 30;
+            ctx.strokeStyle = `hsla(0, 0%, ${lightness}%, 0.15)`;
+            ctx.lineWidth = 1;
+            for (let i = 0; i < E.trails; i++) {
+                lines[i].update();
+                lines[i].draw();
+            }
+            frame++;
+        }
+        
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        
+        function onMove(e) {
+            if (e.touches) { pos.x = e.touches[0].pageX; pos.y = e.touches[0].pageY; }
+            else { pos.x = e.clientX; pos.y = e.clientY; }
+            dot.style.left = pos.x + 'px';
+            dot.style.top = pos.y + 'px';
+        }
+        
+        function init(e) {
+            document.removeEventListener('mousemove', init);
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('touchmove', onMove);
+            onMove(e);
+            createLines();
+            requestAnimationFrame(render);
+        }
+        
+        resize();
+        document.addEventListener('mousemove', init);
+        window.addEventListener('resize', resize);
+    </script>
+</body>
+</html>

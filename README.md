@@ -58,6 +58,12 @@ openai_api_key = YOUR_OPENAI_API_KEY    # https://platform.openai.com/account/ap
 ```bash
 chmod +x deploy.sh
 ./deploy.sh start
+
+#if not working then
+python3 -m venv venv                                                                                                                                           
+source venv/bin/activate
+pip install -r requirements-equity.txt                                                                                                                         
+python run_web_app.py  
 ```
 Access at `http://127.0.0.1:8001`
 

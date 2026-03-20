@@ -302,21 +302,20 @@ assitant.chat(
 + [YouTube] [Introducing Devin - The "First" AI Agent Software Engineer](https://www.youtube.com/watch?v=iVbN95ica_k)
 
 
-## AI Agent Open-Source Framework & Tool
-+ [AutoGPT (183k stars)](https://github.com/Significant-Gravitas/AutoGPT) is a tool for everyone to use, aiming to democratize AI, making it accessible for everyone to use and build upon.
-+ [dify (134k stars)](https://github.com/langgenius/dify) is an LLM application development platform. It integrates the concepts of Backend as a Service and LLMOps, covering the core tech stack required for building generative AI-native applications, including a built-in RAG engine
-+ [LangChain (130k stars)](https://github.com/langchain-ai/langchain) is a framework for developing context-aware applications powered by language models, enabling them to connect to sources of context and rely on the model's reasoning capabilities for responses and actions.
-+ [MetaGPT (65.6k stars)](https://github.com/geekan/MetaGPT) is a multi-agent open-source framework that assigns different roles to GPTs, forming a collaborative software entity to execute complex tasks.
-+ [AutoGen (56k stars)](https://github.com/microsoft/autogen) is a framework for developing LLM applications with conversational agents that collaborate to solve tasks. These agents are customizable, support human interaction, and operate in modes combining LLMs, human inputs, and tools.
-+ [CrewAI (46.6k stars)](https://github.com/joaomdmoura/crewAI) is a framework for orchestrating role-playing, autonomous AI agents. By fostering collaborative intelligence, CrewAI empowers agents to work together seamlessly, tackling complex tasks.
-+ [ChatDev (31.7k stars)](https://github.com/OpenBMB/ChatDev) is a framework that focuses on developing conversational AI Agents capable of dialogue and question-answering. It provides a range of pre-trained models and interactive interfaces, facilitating the development of customized chat Agents for users.
-+ [FastGPT (27.4k stars)](https://github.com/labring/FastGPT) is a knowledge-based platform built on the LLM, offers out-of-the-box data processing and model invocation capabilities, allows for workflow orchestration through Flow visualization.
-+ [Langfuse (23.4k stars)](https://github.com/langfuse/langfuse) is a language fusion framework that can integrate the language abilities of multiple AI Agents, enabling them to simultaneously possess multilingual understanding and generation capabilities.
-+ [BabyAGI (22.2k stars)](https://github.com/yoheinakajima/babyagi) is an AI-powered task management system, dedicated to building AI Agents with preliminary general intelligence.
-+ [SuperAGI (17.3k stars)](https://github.com/TransformerOptimus/SuperAGI) is a dev-first open-source autonomous AI agent framework enabling developers to build, manage & run useful autonomous agents.
-+ [CAMEL (16.4k stars)](https://github.com/camel-ai/camel) is a framework that offers a comprehensive set of tools and algorithms for building multimodal AI Agents, enabling them to handle various data forms such as text, images, and speech.
-+ [Bisheng (11.2k stars)](https://github.com/dataelement/bisheng) is a leading open-source platform for developing LLM applications.
-
+## AI Agent Open-Source Frameworks & Tools
++ [AutoGPT (183k stars)](https://github.com/Significant-Gravitas/AutoGPT): autonomous AI agent platform.
++ [Dify (134k stars)](https://github.com/langgenius/dify): LLM app development platform with workflow orchestration and RAG.
++ [LangChain (130k stars)](https://github.com/langchain-ai/langchain): framework for building context-aware LLM applications.
++ [MetaGPT (65.6k stars)](https://github.com/geekan/MetaGPT): multi-agent framework with role-based collaboration.
++ [AutoGen (56k stars)](https://github.com/microsoft/autogen): framework for multi-agent LLM applications with tools and human interaction.
++ [CrewAI (46.6k stars)](https://github.com/joaomdmoura/crewAI): framework for orchestrating collaborative AI agents.
++ [ChatDev (31.7k stars)](https://github.com/OpenBMB/ChatDev): multi-agent framework for software development tasks.
++ [FastGPT (27.4k stars)](https://github.com/labring/FastGPT): knowledge-based LLM platform with workflow support.
++ [Langfuse (23.4k stars)](https://github.com/langfuse/langfuse): open-source LLM observability and evaluation platform.
++ [BabyAGI (22.2k stars)](https://github.com/yoheinakajima/babyagi): task-driven experimental autonomous agent framework.
++ [SuperAGI (17.3k stars)](https://github.com/TransformerOptimus/SuperAGI): developer-focused autonomous agent framework.
++ [CAMEL (16.4k stars)](https://github.com/camel-ai/camel): framework for cooperative and communicative AI agents.
++ [Bisheng (11.2k stars)](https://github.com/dataelement/bisheng): enterprise open-source LLM application platform.
 
 ## Citing FinRobot
 ```

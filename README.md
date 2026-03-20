@@ -334,6 +334,61 @@ assistant.chat(message, use_cache=True, max_turns=50,
 + [CAMEL (4.7k stars)](https://github.com/camel-ai/camel) is a framework that offers a comprehensive set of tools and algorithms for building multimodal AI Agents, enabling them to handle various data forms such as text, images, and speech.
 + [Langfuse (4.3k stars)](https://github.com/langfuse/langfuse) is a language fusion framework that can integrate the language abilities of multiple AI Agents, enabling them to simultaneously possess multilingual understanding and generation capabilities.
 
+## FinRobot Equity Research — Personal AI Equity Research Assistant
+
+A locally-deployed, AI-powered equity research assistant that fetches financial data, runs LLM-based analysis, and generates professional HTML/PDF reports.
+
+### Quick Start
+
+**1. Configure API Keys**
+```bash
+cp finrobot_equity/core/config/config.ini.example finrobot_equity/core/config/config.ini
+```
+Edit `config.ini` with your keys:
+```ini
+[API_KEYS]
+fmp_api_key = YOUR_FMP_API_KEY          # https://financialmodelingprep.com/developer
+openai_api_key = YOUR_OPENAI_API_KEY    # https://platform.openai.com/account/api-keys
+```
+
+**2. Install & Run**
+```bash
+chmod +x deploy.sh
+./deploy.sh start
+```
+Access the web interface at `http://127.0.0.1:8001`.
+
+**3. Or Run via Command Line**
+```bash
+# Step 1: Financial analysis
+python finrobot_equity/core/src/generate_financial_analysis.py \
+    --company-ticker NVDA \
+    --company-name "NVIDIA Corporation" \
+    --config-file finrobot_equity/core/config/config.ini \
+    --peer-tickers AMD INTC \
+    --generate-text-sections
+
+# Step 2: Generate report
+python finrobot_equity/core/src/create_equity_report.py \
+    --company-ticker NVDA \
+    --company-name "NVIDIA Corporation" \
+    --analysis-csv output/NVDA/analysis/financial_metrics_and_forecasts.csv \
+    --ratios-csv output/NVDA/analysis/ratios_raw_data.csv \
+    --config-file finrobot_equity/core/config/config.ini
+```
+
+### Deployment Commands
+
+| Command | Description |
+|:---|:---|
+| `./deploy.sh start` | Start the web application (auto-installs dependencies) |
+| `./deploy.sh stop` | Stop the application |
+| `./deploy.sh restart` | Restart the application |
+| `./deploy.sh status` | Check running status and recent logs |
+| `./deploy.sh install` | Install/update dependencies only |
+
+For full documentation, see [finrobot_equity/README.md](finrobot_equity/README.md).
+
 ## Citing FinRobot
 ```
 @inproceedings{

@@ -41,6 +41,60 @@
   ▶️ Click the image above to watch the demo video, or see the short preview below.
 </p>
 
+A locally-deployed AI assistant that fetches financial data, runs multi-agent LLM analysis, and generates professional equity research reports.
+
+**1. Configure API Keys**
+```bash
+cp finrobot_equity/core/config/config.ini.example finrobot_equity/core/config/config.ini
+```
+Edit `config.ini` with your keys:
+```ini
+[API_KEYS]
+fmp_api_key = YOUR_FMP_API_KEY          # https://financialmodelingprep.com/developer
+openai_api_key = YOUR_OPENAI_API_KEY    # https://platform.openai.com/account/api-keys
+```
+
+**2. One-Command Deploy (Web Interface)**
+```bash
+chmod +x deploy.sh
+./deploy.sh start
+```
+Access at `http://127.0.0.1:8001`
+
+| Command | Description |
+|:---|:---|
+| `./deploy.sh start` | Start the web app (auto-installs dependencies) |
+| `./deploy.sh stop` | Stop the application |
+| `./deploy.sh restart` | Restart the application |
+| `./deploy.sh status` | Check running status |
+
+**3. Or Run via Command Line**
+```bash
+# Step 1: Financial analysis
+python finrobot_equity/core/src/generate_financial_analysis.py \
+    --company-ticker NVDA \
+    --company-name "NVIDIA Corporation" \
+    --config-file finrobot_equity/core/config/config.ini \
+    --peer-tickers AMD INTC \
+    --generate-text-sections
+
+# Step 2: Generate report
+python finrobot_equity/core/src/create_equity_report.py \
+    --company-ticker NVDA \
+    --company-name "NVIDIA Corporation" \
+    --analysis-csv output/NVDA/analysis/financial_metrics_and_forecasts.csv \
+    --ratios-csv output/NVDA/analysis/ratios_raw_data.csv \
+    --config-file finrobot_equity/core/config/config.ini
+```
+
+**Pipeline**:
+1. **Fetch Financial Data**: income statements, balance sheets, cash flows via FMP API
+2. **Process & Forecast**: 3-year financial projections, DCF valuation, peer comparison
+3. **AI Agent Analysis**: 8 specialized agents generate investment thesis, risk assessment, valuation overview, etc.
+4. **Report Generation**: professional multi-page HTML/PDF with 15+ chart types
+
+For full documentation, see [finrobot_equity/README.md](finrobot_equity/README.md).
+
 
 ## What is FinRobot Pro?
 
@@ -224,61 +278,6 @@ assitant.chat(
 ```
 
 ### 2. Personal AI Equity Research Assistant (Equity Research Report)
-
-A locally-deployed AI assistant that fetches financial data, runs multi-agent LLM analysis, and generates professional equity research reports.
-
-**1. Configure API Keys**
-```bash
-cp finrobot_equity/core/config/config.ini.example finrobot_equity/core/config/config.ini
-```
-Edit `config.ini` with your keys:
-```ini
-[API_KEYS]
-fmp_api_key = YOUR_FMP_API_KEY          # https://financialmodelingprep.com/developer
-openai_api_key = YOUR_OPENAI_API_KEY    # https://platform.openai.com/account/api-keys
-```
-
-**2. One-Command Deploy (Web Interface)**
-```bash
-chmod +x deploy.sh
-./deploy.sh start
-```
-Access at `http://127.0.0.1:8001`
-
-| Command | Description |
-|:---|:---|
-| `./deploy.sh start` | Start the web app (auto-installs dependencies) |
-| `./deploy.sh stop` | Stop the application |
-| `./deploy.sh restart` | Restart the application |
-| `./deploy.sh status` | Check running status |
-
-**3. Or Run via Command Line**
-```bash
-# Step 1: Financial analysis
-python finrobot_equity/core/src/generate_financial_analysis.py \
-    --company-ticker NVDA \
-    --company-name "NVIDIA Corporation" \
-    --config-file finrobot_equity/core/config/config.ini \
-    --peer-tickers AMD INTC \
-    --generate-text-sections
-
-# Step 2: Generate report
-python finrobot_equity/core/src/create_equity_report.py \
-    --company-ticker NVDA \
-    --company-name "NVIDIA Corporation" \
-    --analysis-csv output/NVDA/analysis/financial_metrics_and_forecasts.csv \
-    --ratios-csv output/NVDA/analysis/ratios_raw_data.csv \
-    --config-file finrobot_equity/core/config/config.ini
-```
-
-**Pipeline**:
-1. **Fetch Financial Data**: income statements, balance sheets, cash flows via FMP API
-2. **Process & Forecast**: 3-year financial projections, DCF valuation, peer comparison
-3. **AI Agent Analysis**: 8 specialized agents generate investment thesis, risk assessment, valuation overview, etc.
-4. **Report Generation**: professional multi-page HTML/PDF with 15+ chart types
-
-For full documentation, see [finrobot_equity/README.md](finrobot_equity/README.md).
-
 ### 3. Trade Strategist Agent with multimodal capabilities
 
 

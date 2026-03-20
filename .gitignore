@@ -7,6 +7,7 @@ __pycache__/
 *.csv
 *.jpg
 *.png
+!finrobot_equity/web_app/static/*.png
 quant/
 coding/
 *.egg-info/

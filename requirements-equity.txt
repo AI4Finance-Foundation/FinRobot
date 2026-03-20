@@ -34,6 +34,10 @@ beautifulsoup4>=4.11.0
 # YAML configuration
 pyyaml>=6.0
 
+# Web application
+fastapi>=0.100.0
+sqlalchemy>=2.0.0
+
 # Password hashing
 bcrypt>=4.0.0
 

@@ -22,11 +22,8 @@
 
 [Whitepaper of FinRobot](https://arxiv.org/abs/2405.14767)
 
-[![](https://dcbadge.vercel.app/api/server/trsr8SXpW5)](https://discord.gg/trsr8SXpW5)
-
-
 ![Visitors](https://api.visitorbadge.io/api/VisitorHit?user=AI4Finance-Foundation&repo=FinRobot&countColor=%23B17A)
-[![](https://dcbadge.limes.pink/api/server/trsr8SXpW5?cb=1)](https://discord.gg/trsr8SXpW5)
+[![Discord](https://dcbadge.limes.pink/api/server/trsr8SXpW5?v=20260320)](https://discord.gg/trsr8SXpW5)
 
 ## 🎬 FinRobot Pro — Your Personal AI-Powered Equity Research Assistant
 🌐 https://finrobot.ai/

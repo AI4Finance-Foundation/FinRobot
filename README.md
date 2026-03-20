@@ -223,78 +223,61 @@ assitant.chat(
 )
 ```
 
-### 2. Financial Analyst Agent for Report Writing (Equity Research Report)
-Take a company's 10-k form, financial data, and market data as input and output an equity research report
+### 2. Personal AI Equity Research Assistant (Equity Research Report)
 
-1. Import 
-```python
-import os
-import autogen
-from textwrap import dedent
-from finrobot.utils import register_keys_from_json
-from finrobot.agents.workflow import SingleAssistantShadow
+A locally-deployed AI assistant that fetches financial data, runs multi-agent LLM analysis, and generates professional equity research reports.
+
+**1. Configure API Keys**
+```bash
+cp finrobot_equity/core/config/config.ini.example finrobot_equity/core/config/config.ini
 ```
-2. Config
-```python
-llm_config = {
-    "config_list": autogen.config_list_from_json(
-        "../OAI_CONFIG_LIST",
-        filter_dict={
-            "model": ["gpt-4-0125-preview"],
-        },
-    ),
-    "timeout": 120,
-    "temperature": 0.5,
-}
-register_keys_from_json("../config_api_keys")
-
-# Intermediate strategy modules will be saved in this directory
-work_dir = "../report"
-os.makedirs(work_dir, exist_ok=True)
-
-assistant = SingleAssistantShadow(
-    "Expert_Investor",
-    llm_config,
-    max_consecutive_auto_reply=None,
-    human_input_mode="TERMINATE",
-)
-
+Edit `config.ini` with your keys:
+```ini
+[API_KEYS]
+fmp_api_key = YOUR_FMP_API_KEY          # https://financialmodelingprep.com/developer
+openai_api_key = YOUR_OPENAI_API_KEY    # https://platform.openai.com/account/api-keys
 ```
-3. Run
-```python
-company = "Microsoft"
-fyear = "2023"
 
-message = dedent(
-    f"""
-    With the tools you've been provided, write an annual report based on {company}'s {fyear} 10-k report, format it into a pdf.
-    Pay attention to the followings:
-    - Explicitly explain your working plan before you kick off.
-    - Use tools one by one for clarity, especially when asking for instructions. 
-    - All your file operations should be done in "{work_dir}". 
-    - Display any image in the chat once generated.
-    - All the paragraphs should combine between 400 and 450 words, don't generate the pdf until this is explicitly fulfilled.
-"""
-)
-
-assistant.chat(message, use_cache=True, max_turns=50,
-               summary_method="last_msg")
+**2. One-Command Deploy (Web Interface)**
+```bash
+chmod +x deploy.sh
+./deploy.sh start
 ```
-4. Result
-<div align="center">
-<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/d2d999e0-dc0e-4196-aca1-218f5fadcc5b" width="60%"/>
-<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/3a21873f-9498-4d73-896b-3740bf6d116d" width="60%"/>
-</div>
+Access at `http://127.0.0.1:8001`
 
-**Financial CoT**:
-1. **Gather Preliminary Data**: 10-K report, market data, financial ratios
-2. **Analyze Financial Statements**: balance sheet, income statement, cash flow
-3. **Company Overview and Performance**: company description, business highlights, segment analysis
-4. **Risk Assessment**: assess risks
-5. **Financial Performance Visualization**:  plot PE ratio and EPS
-6. **Synthesize Findings into Paragraphs**: combine all parts into a coherent summary
-7. **Generate PDF Report**: use tools to generate PDF automatically
-8. **Quality Assurance**: check word counts
+| Command | Description |
+|:---|:---|
+| `./deploy.sh start` | Start the web app (auto-installs dependencies) |
+| `./deploy.sh stop` | Stop the application |
+| `./deploy.sh restart` | Restart the application |
+| `./deploy.sh status` | Check running status |
+
+**3. Or Run via Command Line**
+```bash
+# Step 1: Financial analysis
+python finrobot_equity/core/src/generate_financial_analysis.py \
+    --company-ticker NVDA \
+    --company-name "NVIDIA Corporation" \
+    --config-file finrobot_equity/core/config/config.ini \
+    --peer-tickers AMD INTC \
+    --generate-text-sections
+
+# Step 2: Generate report
+python finrobot_equity/core/src/create_equity_report.py \
+    --company-ticker NVDA \
+    --company-name "NVIDIA Corporation" \
+    --analysis-csv output/NVDA/analysis/financial_metrics_and_forecasts.csv \
+    --ratios-csv output/NVDA/analysis/ratios_raw_data.csv \
+    --config-file finrobot_equity/core/config/config.ini
+```
+
+**Pipeline**:
+1. **Fetch Financial Data**: income statements, balance sheets, cash flows via FMP API
+2. **Process & Forecast**: 3-year financial projections, DCF valuation, peer comparison
+3. **AI Agent Analysis**: 8 specialized agents generate investment thesis, risk assessment, valuation overview, etc.
+4. **Report Generation**: professional multi-page HTML/PDF with 15+ chart types
+
+For full documentation, see [finrobot_equity/README.md](finrobot_equity/README.md).
 
 ### 3. Trade Strategist Agent with multimodal capabilities
 
@@ -334,60 +317,6 @@ assistant.chat(message, use_cache=True, max_turns=50,
 + [CAMEL (4.7k stars)](https://github.com/camel-ai/camel) is a framework that offers a comprehensive set of tools and algorithms for building multimodal AI Agents, enabling them to handle various data forms such as text, images, and speech.
 + [Langfuse (4.3k stars)](https://github.com/langfuse/langfuse) is a language fusion framework that can integrate the language abilities of multiple AI Agents, enabling them to simultaneously possess multilingual understanding and generation capabilities.
 
-## FinRobot Equity Research — Personal AI Equity Research Assistant
-
-A locally-deployed, AI-powered equity research assistant that fetches financial data, runs LLM-based analysis, and generates professional HTML/PDF reports.
-
-### Quick Start
-
-**1. Configure API Keys**
-```bash
-cp finrobot_equity/core/config/config.ini.example finrobot_equity/core/config/config.ini
-```
-Edit `config.ini` with your keys:
-```ini
-[API_KEYS]
-fmp_api_key = YOUR_FMP_API_KEY          # https://financialmodelingprep.com/developer
-openai_api_key = YOUR_OPENAI_API_KEY    # https://platform.openai.com/account/api-keys
-```
-
-**2. Install & Run**
-```bash
-chmod +x deploy.sh
-./deploy.sh start
-```
-Access the web interface at `http://127.0.0.1:8001`.
-
-**3. Or Run via Command Line**
-```bash
-# Step 1: Financial analysis
-python finrobot_equity/core/src/generate_financial_analysis.py \
-    --company-ticker NVDA \
-    --company-name "NVIDIA Corporation" \
-    --config-file finrobot_equity/core/config/config.ini \
-    --peer-tickers AMD INTC \
-    --generate-text-sections
-
-# Step 2: Generate report
-python finrobot_equity/core/src/create_equity_report.py \
-    --company-ticker NVDA \
-    --company-name "NVIDIA Corporation" \
-    --analysis-csv output/NVDA/analysis/financial_metrics_and_forecasts.csv \
-    --ratios-csv output/NVDA/analysis/ratios_raw_data.csv \
-    --config-file finrobot_equity/core/config/config.ini
-```
-
-### Deployment Commands
-
-| Command | Description |
-|:---|:---|
-| `./deploy.sh start` | Start the web application (auto-installs dependencies) |
-| `./deploy.sh stop` | Stop the application |
-| `./deploy.sh restart` | Restart the application |
-| `./deploy.sh status` | Check running status and recent logs |
-| `./deploy.sh install` | Install/update dependencies only |
-
-For full documentation, see [finrobot_equity/README.md](finrobot_equity/README.md).
 
 ## Citing FinRobot
 ```

@@ -40,7 +40,7 @@ from modules.chart_generator import (
     generate_quarterly_comparison_chart,
     generate_cash_flow_chart
 )
-from modules.market_data_api import get_comprehensive_company_metrics
+from modules.market_data_api import get_comprehensive_company_metrics, get_technical_indicators
 from modules.pdf_generator import generate_equity_report_pdf
 from modules.professional_pdf_report import generate_professional_report
 
@@ -470,9 +470,18 @@ def main():
     
     # 2. 获取市场数据
     market_data = {}
+    tech_indicators = {}
     if not args.skip_market_fetch:
         market_data = fetch_market_data(ticker, args.config_file)
-    
+        # Fetch technical indicators
+        try:
+            config = load_config(args.config_file)
+            fmp_key = get_api_key(config, "API_KEYS", "fmp_api_key")
+            if fmp_key:
+                tech_indicators = get_technical_indicators(ticker, fmp_key)
+        except Exception as e:
+            print(f"⚠️ Could not compute technical indicators: {e}")
+
     # 3. 生成图表（包括高级图表）
     print("\n📊 Generating charts...")
     charts = generate_all_charts(
@@ -494,9 +503,89 @@ def main():
         loaded_data.get('ratios_df', pd.DataFrame())
     )
     
+    # 4.5 Fix stale dates in cached text (e.g. "June 2024" → current report date)
+    import re as _re
+    _stale_date_pattern = _re.compile(
+        r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+20\d{2}')
+    _report_date_label = args.report_date  # e.g. "March 2026"
+
+    def _fix_stale_dates(text: str) -> str:
+        if not text:
+            return text
+        lines = text.split('\n')
+        for i in range(min(3, len(lines))):
+            if _stale_date_pattern.search(lines[i]):
+                lines[i] = _stale_date_pattern.sub(_report_date_label, lines[i])
+        return '\n'.join(lines)
+
+    for key in ['company_overview', 'investment_overview', 'valuation_overview']:
+        if key in loaded_data and loaded_data[key]:
+            loaded_data[key] = _fix_stale_dates(loaded_data[key])
+
+    # 4.6 Re-classify catalyst sentiments from cached JSON
+    ANALYST_POS = _re.compile(
+        r'(initiates?\s+coverage|acquires?\s+new\s+holdings|increases?\s+stake|'
+        r'overweight|buy\s+rating|outperform|upgrade)', _re.IGNORECASE)
+    catalyst_data = loaded_data.get('catalyst_analysis', {})
+    if catalyst_data and 'top_catalysts' in catalyst_data:
+        for cat in catalyst_data['top_catalysts']:
+            desc = cat.get('description', '') or cat.get('catalyst', '')
+            if cat.get('sentiment') == 'negative' and ANALYST_POS.search(desc):
+                cat['sentiment'] = 'positive'
+    # Also fix categorized negative → positive
+    if catalyst_data and 'categorized' in catalyst_data:
+        neg_list = catalyst_data['categorized'].get('negative', [])
+        pos_list = catalyst_data['categorized'].get('positive', [])
+        to_move = []
+        for item in neg_list:
+            desc = item.get('description', '') or item.get('catalyst', '')
+            if ANALYST_POS.search(desc):
+                to_move.append(item)
+        for item in to_move:
+            neg_list.remove(item)
+            item['sentiment'] = 'positive'
+            pos_list.append(item)
+    # Fix summary text: remove mis-classified lines (analyst positive actions listed under Risk)
+    if catalyst_data and catalyst_data.get('summary'):
+        fixed_lines = []
+        skip_next_impact = False
+        for line in catalyst_data['summary'].split('\n'):
+            if skip_next_impact:
+                # Skip the "Impact: HIGH, Probability: XX%" line that follows a removed catalyst
+                if 'Impact:' in line and 'Probability:' in line:
+                    skip_next_impact = False
+                    continue
+                skip_next_impact = False
+            if ANALYST_POS.search(line):
+                skip_next_impact = True
+                continue
+            fixed_lines.append(line)
+        catalyst_data['summary'] = '\n'.join(fixed_lines)
+
+    # 4.7 Derive rating from target vs share price
+    def _derive_rating_pdf(share_price, target_price, api_rating):
+        try:
+            price = float(str(share_price).replace('$', '').replace(',', ''))
+            target = float(str(target_price).replace('$', '').replace(',', ''))
+            if price <= 0:
+                return api_rating or 'N/A'
+            upside = (target - price) / price
+            if upside >= 0.15:
+                return 'Buy'
+            elif upside >= 0.05:
+                return 'Outperform'
+            elif upside >= -0.05:
+                return 'Hold'
+            elif upside >= -0.15:
+                return 'Underperform'
+            else:
+                return 'Sell'
+        except (ValueError, TypeError, ZeroDivisionError):
+            return api_rating or 'N/A'
+
     # 5. 组装报告数据
     print("\n📝 Assembling report data...")
-    
+
     # 从 ratios_df 提取最新数据
     ratios_df = loaded_data.get('ratios_df', pd.DataFrame())
     local_metrics = {}
@@ -532,13 +621,14 @@ def main():
         'sector': get_value(args.sector, 'sector', None, 'Technology', None),
         
         # 市场数据
-        'share_price': get_value(args.share_price, 'share_price', None, 'N/A', 
+        'share_price': get_value(args.share_price, 'share_price', None, 'N/A',
                                 lambda x: f"${x:.2f}"),
         'target_price': get_value(args.target_price, 'target_price', None, 'N/A',
                                  lambda x: f"${x:.2f}"),
-        'rating': get_value(args.rating, 'rating', None, 'Hold', None),
+        'rating': 'Hold',  # placeholder, will be derived below
         'market_cap': get_value(args.market_cap, 'market_cap', None, 'N/A',
                                lambda x: f"${x:,.2f}B"),
+        '52w_range': market_data.get('52w_range', 'N/A'),
         'volume': market_data.get('volume', 'N/A'),
         'fwd_pe': get_value(None, 'fwd_pe', 'pe_ratio', 'N/A', None),
         'pb_ratio': get_value(None, 'pb_ratio', 'pb_ratio', 'N/A', None),
@@ -556,7 +646,8 @@ def main():
         'competitor_analysis': loaded_data.get('competitor_analysis', 'Competitor analysis not available.'),
         'major_takeaways': loaded_data.get('major_takeaways', 'Key takeaways not available.'),
         'news_summary': loaded_data.get('news_summary', ''),
-        
+        'technical_indicators': tech_indicators,
+
         # 图表路径（基础图表）
         'revenue_chart_path': charts.get('revenue_chart_path', ''),
         'eps_pe_chart_path': charts.get('eps_pe_chart_path', ''),
@@ -595,11 +686,17 @@ def main():
         ),
     }
     
+    # 5.5 Derive rating from target vs share price
+    api_rating = get_value(args.rating, 'rating', None, 'Hold', None)
+    report_data['rating'] = _derive_rating_pdf(
+        report_data['share_price'], report_data['target_price'], api_rating)
+    print(f"📊 Derived rating: {report_data['rating']} (API: {api_rating})")
+
     # 6. 生成PDF（专业版）
     print("\n📄 Generating Professional PDF report...")
-    pdf_filename = f"Professional_Equity_Report_{ticker}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    pdf_filename = f"Professional_Equity_Report_{ticker}.pdf"
     pdf_path = os.path.join(output_dir, pdf_filename)
-    
+
     # 补充 analysis_df 到报告数据
     report_data['analysis_df'] = loaded_data.get('analysis_df', pd.DataFrame())
     

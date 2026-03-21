@@ -352,11 +352,11 @@ class AnalysisRequest(BaseModel):
     fmp_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
     # 新增增强功能选项
-    enable_sensitivity_analysis: bool = False
-    enable_catalyst_analysis: bool = False
-    enable_enhanced_news: bool = False
-    enable_enhanced_charts: bool = False
-    enable_valuation_analysis: bool = False
+    enable_sensitivity_analysis: bool = True
+    enable_catalyst_analysis: bool = True
+    enable_enhanced_news: bool = True
+    enable_enhanced_charts: bool = True
+    enable_valuation_analysis: bool = True
 
 def run_process(command, task_id, cwd=None):
     """Run a shell command and capture output to the task logs."""

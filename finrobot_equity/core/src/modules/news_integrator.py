@@ -62,15 +62,31 @@ class NewsIntegrator:
     
     # 情感关键词
     SENTIMENT_KEYWORDS = {
-        'positive': ['growth', 'increase', 'beat', 'exceed', 'strong', 'positive', 
+        'positive': ['growth', 'increase', 'beat', 'exceed', 'strong', 'positive',
                     'upgrade', 'success', 'win', 'gain', 'improve', 'record', 'surge',
-                    'outperform', 'bullish', 'optimistic'],
-        'negative': ['decline', 'decrease', 'miss', 'weak', 'negative', 'downgrade', 
+                    'outperform', 'bullish', 'optimistic',
+                    'initiate', 'initiates', 'overweight', 'accumulate', 'top pick'],
+        'negative': ['decline', 'decrease', 'miss', 'weak', 'negative', 'downgrade',
                     'loss', 'fail', 'drop', 'concern', 'risk', 'challenge', 'plunge',
-                    'underperform', 'bearish', 'pessimistic', 'warning']
+                    'underperform', 'bearish', 'pessimistic', 'warning',
+                    'underweight', 'recall', 'investigation']
     }
-    
-    def __init__(self, ticker: str, api_key: str = None):
+
+    # 分析师动作短语（优先级匹配）
+    ANALYST_POSITIVE_PATTERNS = [
+        'initiates coverage', 'initiate coverage', 'initiates with',
+        'starts coverage', 'begins coverage', 'upgrades to',
+        'price target raised', 'raises target', 'overweight',
+        'buy rating', 'outperform rating', 'top pick', 'conviction buy',
+        'adds to', 'build position', 'maintains buy', 'reiterate buy',
+    ]
+    ANALYST_NEGATIVE_PATTERNS = [
+        'downgrades to', 'cuts to', 'lowers to', 'underweight',
+        'sell rating', 'underperform rating', 'removes from',
+        'drops coverage', 'cuts target', 'lowers target', 'reduces target',
+    ]
+
+    def __init__(self, ticker: str, api_key: str = None, company_name: str = None):
         """
         初始化新闻整合器
         
@@ -80,8 +96,23 @@ class NewsIntegrator:
         """
         self.ticker = ticker
         self.api_key = api_key
+        self.company_name = company_name
         self.articles: List[NewsArticle] = []
         self.raw_news: List[Dict] = []
+
+    def _is_relevant_to_ticker(self, title: str, text: str) -> bool:
+        """检查新闻是否与目标公司相关"""
+        search_terms = [self.ticker.upper()]
+        if self.company_name:
+            search_terms.append(self.company_name.lower())
+            skip = {'inc', 'inc.', 'corp', 'corp.', 'ltd', 'ltd.', 'co', 'co.',
+                    'the', 'and', 'of', 'group', 'holdings', 'plc'}
+            for w in self.company_name.split():
+                if w.lower() not in skip and len(w) > 2:
+                    search_terms.append(w.lower())
+        title_lower = title.lower()
+        text_lower = (text[:500] if text else '').lower()
+        return any(t.lower() in title_lower or t.lower() in text_lower for t in search_terms)
 
     def set_news_data(self, news_data: List[Dict]):
         """
@@ -131,14 +162,22 @@ class NewsIntegrator:
         return category_importance.get(category, 3)
     
     def _analyze_sentiment(self, text: str) -> str:
-        """分析新闻情感"""
+        """分析新闻情感，优先匹配分析师动作短语"""
         text_lower = text.lower()
-        
-        positive_count = sum(1 for kw in self.SENTIMENT_KEYWORDS['positive'] 
+
+        # 优先：分析师动作短语
+        for p in self.ANALYST_POSITIVE_PATTERNS:
+            if p in text_lower:
+                return 'positive'
+        for p in self.ANALYST_NEGATIVE_PATTERNS:
+            if p in text_lower:
+                return 'negative'
+
+        positive_count = sum(1 for kw in self.SENTIMENT_KEYWORDS['positive']
                             if kw in text_lower)
-        negative_count = sum(1 for kw in self.SENTIMENT_KEYWORDS['negative'] 
+        negative_count = sum(1 for kw in self.SENTIMENT_KEYWORDS['negative']
                             if kw in text_lower)
-        
+
         if positive_count > negative_count + 1:
             return 'positive'
         elif negative_count > positive_count + 1:
@@ -190,7 +229,11 @@ class NewsIntegrator:
             # 检查时间窗口
             if not self._is_within_time_window(published_date, days_window):
                 continue
-            
+
+            # 过滤无关公司新闻
+            if not self._is_relevant_to_ticker(title, text):
+                continue
+
             combined_text = f"{title} {text}"
             
             # 分类和评估

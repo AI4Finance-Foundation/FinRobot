@@ -441,7 +441,9 @@ def get_comprehensive_company_metrics(ticker: str, api_key: str) -> dict:
         'beta': None,
         'sector': None,
         'industry': None,
-        'exchange': None
+        'exchange': None,
+        '52w_range': None,
+        'shares_outstanding': None,
     }
     
     # 1. Get current price and basic quote data
@@ -468,20 +470,30 @@ def get_comprehensive_company_metrics(ticker: str, api_key: str) -> dict:
         metrics['industry'] = profile.get('industry', 'N/A')
         metrics['exchange'] = profile.get('exchangeShortName', 'N/A')
     
-    # 4. Get detailed quote for volume if not in profile
-    if not metrics['volume']:
-        try:
-            quote_url = f"https://financialmodelingprep.com/api/v3/quote/{ticker}?apikey={api_key}"
-            response = requests.get(quote_url)
-            response.raise_for_status()
-            quote_data = response.json()
-            if quote_data and isinstance(quote_data, list) and len(quote_data) > 0:
-                quote = quote_data[0]
+    # 4. Get detailed quote data (volume, 52w range, shares outstanding)
+    try:
+        quote_url = f"https://financialmodelingprep.com/api/v3/quote/{ticker}?apikey={api_key}"
+        response = requests.get(quote_url)
+        response.raise_for_status()
+        quote_data = response.json()
+        if quote_data and isinstance(quote_data, list) and len(quote_data) > 0:
+            quote = quote_data[0]
+            # Volume
+            if not metrics['volume']:
                 avg_volume = quote.get('avgVolume')
                 if avg_volume:
                     metrics['volume'] = avg_volume / 1e6  # Convert to millions
-        except Exception as e:
-            print(f"Warning: Could not fetch quote data for volume: {e}")
+            # 52-week range
+            year_high = quote.get('yearHigh')
+            year_low = quote.get('yearLow')
+            if year_high is not None and year_low is not None:
+                metrics['52w_range'] = f"${year_low:.2f} - ${year_high:.2f}"
+            # Shares outstanding
+            shares_out = quote.get('sharesOutstanding')
+            if shares_out:
+                metrics['shares_outstanding'] = float(shares_out)
+    except Exception as e:
+        print(f"Warning: Could not fetch quote data: {e}")
     
     # 5. Get financial ratios
     try:
@@ -532,6 +544,121 @@ def get_comprehensive_company_metrics(ticker: str, api_key: str) -> dict:
     
     print(f"Successfully fetched metrics for {ticker}")
     return metrics
+
+
+def get_technical_indicators(ticker: str, api_key: str) -> dict:
+    """从 FMP 获取历史价格并计算 SMA50/200、RSI14、MACD、成交量信号。"""
+    result = {
+        'sma50': None, 'sma200': None, 'rsi14': None,
+        'macd': None, 'macd_signal': None, 'macd_histogram': None,
+        'avg_volume_20d': None, 'latest_volume': None,
+        'price': None,
+        'ma_signal': 'N/A', 'rsi_signal': 'N/A',
+        'macd_signal_label': 'N/A', 'volume_signal': 'N/A',
+        'overall_signal': 'N/A',
+    }
+    try:
+        import numpy as np
+        url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}?timeseries=250&apikey={api_key}"
+        resp = requests.get(url, timeout=15)
+        data = resp.json()
+        prices = data.get('historical', [])
+        if len(prices) < 50:
+            return result
+
+        df = pd.DataFrame(prices).sort_values('date').reset_index(drop=True)
+        close = df['close'].astype(float)
+        volume = df['volume'].astype(float)
+
+        result['price'] = close.iloc[-1]
+
+        # SMA
+        sma50 = close.rolling(50).mean().iloc[-1]
+        sma200 = close.rolling(200).mean().iloc[-1] if len(close) >= 200 else None
+        result['sma50'] = round(sma50, 2)
+        if sma200 is not None:
+            result['sma200'] = round(sma200, 2)
+
+        # MA signal
+        price = close.iloc[-1]
+        if sma200 is not None:
+            if price > sma50 > sma200:
+                result['ma_signal'] = 'Bullish'
+            elif price < sma50 < sma200:
+                result['ma_signal'] = 'Bearish'
+            elif price > sma200:
+                result['ma_signal'] = 'Neutral-Bullish'
+            else:
+                result['ma_signal'] = 'Neutral-Bearish'
+        elif price > sma50:
+            result['ma_signal'] = 'Bullish'
+        else:
+            result['ma_signal'] = 'Bearish'
+
+        # RSI 14
+        delta = close.diff()
+        gain = delta.where(delta > 0, 0.0).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0.0)).rolling(14).mean()
+        rs = gain / loss.replace(0, np.nan)
+        rsi = 100 - (100 / (1 + rs))
+        rsi_val = rsi.iloc[-1]
+        result['rsi14'] = round(rsi_val, 1)
+        if rsi_val > 70:
+            result['rsi_signal'] = 'Overbought'
+        elif rsi_val < 30:
+            result['rsi_signal'] = 'Oversold'
+        elif rsi_val > 55:
+            result['rsi_signal'] = 'Bullish'
+        elif rsi_val < 45:
+            result['rsi_signal'] = 'Bearish'
+        else:
+            result['rsi_signal'] = 'Neutral'
+
+        # MACD (12, 26, 9)
+        ema12 = close.ewm(span=12).mean()
+        ema26 = close.ewm(span=26).mean()
+        macd_line = ema12 - ema26
+        signal_line = macd_line.ewm(span=9).mean()
+        histogram = macd_line - signal_line
+        result['macd'] = round(macd_line.iloc[-1], 2)
+        result['macd_signal'] = round(signal_line.iloc[-1], 2)
+        result['macd_histogram'] = round(histogram.iloc[-1], 2)
+        if macd_line.iloc[-1] > signal_line.iloc[-1] and histogram.iloc[-1] > 0:
+            result['macd_signal_label'] = 'Bullish'
+        elif macd_line.iloc[-1] < signal_line.iloc[-1] and histogram.iloc[-1] < 0:
+            result['macd_signal_label'] = 'Bearish'
+        else:
+            result['macd_signal_label'] = 'Neutral'
+
+        # Volume
+        avg_vol = volume.tail(20).mean()
+        latest_vol = volume.iloc[-1]
+        result['avg_volume_20d'] = round(avg_vol)
+        result['latest_volume'] = round(latest_vol)
+        vol_ratio = latest_vol / avg_vol if avg_vol > 0 else 1
+        if vol_ratio > 1.5:
+            result['volume_signal'] = 'High Activity'
+        elif vol_ratio < 0.5:
+            result['volume_signal'] = 'Low Activity'
+        else:
+            result['volume_signal'] = 'Normal'
+
+        # Overall signal
+        signals = [result['ma_signal'], result['rsi_signal'],
+                   result['macd_signal_label']]
+        bullish = sum(1 for s in signals if 'Bullish' in s or s == 'Oversold')
+        bearish = sum(1 for s in signals if 'Bearish' in s or s == 'Overbought')
+        if bullish >= 2:
+            result['overall_signal'] = 'Bullish'
+        elif bearish >= 2:
+            result['overall_signal'] = 'Bearish'
+        else:
+            result['overall_signal'] = 'Neutral'
+
+        print(f"✅ Computed technical indicators for {ticker}: {result['overall_signal']}")
+    except Exception as e:
+        print(f"⚠️ Could not compute technical indicators: {e}")
+    return result
 
 
 def get_company_news(ticker: str, api_key: str, days_back: int = 5, limit: int = 50) -> list[dict] | None:

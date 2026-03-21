@@ -316,7 +316,7 @@ def main():
     if args.enable_catalyst_analysis and company_news:
         print(f"\nPerforming catalyst analysis...")
         try:
-            catalyst_analyzer = CatalystAnalyzer(args.company_ticker, fmp_api_key)
+            catalyst_analyzer = CatalystAnalyzer(args.company_ticker, fmp_api_key, company_name=args.company_name)
             
             # 识别催化剂
             catalysts = catalyst_analyzer.identify_catalysts(company_news)

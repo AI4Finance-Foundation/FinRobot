@@ -27,7 +27,7 @@ from modules.chart_generator import (
     generate_quarterly_comparison_chart,
     generate_cash_flow_chart
 )
-from modules.market_data_api import get_comprehensive_company_metrics
+from modules.market_data_api import get_comprehensive_company_metrics, get_technical_indicators
 
 # Import the single, unified text generation function
 from modules.text_generator_agents import generate_text_section
@@ -402,6 +402,18 @@ def main():
         try:
             auto_fetched_metrics = get_comprehensive_company_metrics(args.company_ticker, fmp_api_key)
             print("✅ Successfully auto-fetched market data")
+            # Validate market cap vs share price consistency
+            try:
+                _price = auto_fetched_metrics.get('share_price')
+                _mktcap_b = auto_fetched_metrics.get('market_cap')
+                if _price and _mktcap_b and _price > 0 and _mktcap_b > 0:
+                    _implied_shares = (_mktcap_b * 1e9) / _price
+                    if _implied_shares < 1e7 or _implied_shares > 1e11:
+                        print(f"  ⚠️  Market cap (${_mktcap_b:.2f}B) may be inconsistent with share price (${_price:.2f})")
+                    else:
+                        auto_fetched_metrics.setdefault('shares_outstanding', _implied_shares)
+            except Exception:
+                pass
         except Exception as e:
             print(f"⚠️  Warning: Auto-fetch failed: {e}")
             print("Will use provided values or defaults")
@@ -434,6 +446,7 @@ def main():
     roe = get_value(args.roe, 'roe', "N/A", lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) else str(x))
     net_debt_to_equity = get_value(args.net_debt_to_equity, 'net_debt_to_equity', "N/A", lambda x: f"{x:.2f}%" if isinstance(x, (int, float)) else str(x))
     sector = get_value(args.sector, 'sector', "Industrials")
+    week_52_range = get_value(None, '52w_range', 'N/A')
 
     # Print summary of what was auto-fetched vs. provided
     print(f"\n📊 Market Data Summary for {args.company_ticker}:")
@@ -455,15 +468,39 @@ def main():
     # Process text content with AI enhancement
     processed_texts = process_text_content(args, analysis_df, peer_ebitda_df, peer_ev_ebitda_df, openai_api_key)
     
+    # Fix stale dates in cached text (e.g. "June 2024" → actual report date)
+    import re as _re
+    _report_date_label = args.report_date  # e.g. "March 2026"
+    _stale_date_pattern = _re.compile(
+        r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+20\d{2}')
+    def _fix_stale_dates(text: str) -> str:
+        """Replace old month-year dates in title lines with current report date."""
+        if not text:
+            return text
+        lines = text.split('\n')
+        # Only fix the first 3 lines (titles/headers)
+        for i in range(min(3, len(lines))):
+            if _stale_date_pattern.search(lines[i]):
+                lines[i] = _stale_date_pattern.sub(_report_date_label, lines[i])
+        return '\n'.join(lines)
+
     # Assign processed texts
     tagline_text = processed_texts["tagline"]
-    company_overview_text = processed_texts["company_overview"] 
-    investment_overview_text = processed_texts["investment_overview"]
-    valuation_overview_text = processed_texts["valuation_overview"]
+    company_overview_text = _fix_stale_dates(processed_texts["company_overview"])
+    investment_overview_text = _fix_stale_dates(processed_texts["investment_overview"])
+    valuation_overview_text = _fix_stale_dates(processed_texts["valuation_overview"])
     risks_text = processed_texts["risks"]
     competitor_analysis_text = processed_texts["competitor_analysis"]
     major_takeaways_text = processed_texts["major_takeaways"]
     news_summary_text = processed_texts["news_summary"]  # NEW
+
+    # --- Compute technical indicators ---
+    technical_indicators = {}
+    if fmp_api_key:
+        try:
+            technical_indicators = get_technical_indicators(args.company_ticker, fmp_api_key)
+        except Exception as e:
+            print(f"⚠️ Could not compute technical indicators: {e}")
 
     # --- Prepare report data ---
     report_data = {
@@ -483,6 +520,7 @@ def main():
         "free_float": free_float,
         "dividend_yield": dividend_yield,
         "net_debt_to_equity": net_debt_to_equity,
+        "52w_range": week_52_range,
         "tagline": tagline_text,
         "company_overview": company_overview_text,
         "investment_overview": investment_overview_text,
@@ -497,7 +535,8 @@ def main():
         "logo_image_path": args.logo_image_path,
         "analyst_names": args.analyst_names,
         "analyst_emails": args.analyst_emails,
-        "closing_price_date": args.closing_price_date
+        "closing_price_date": args.closing_price_date,
+        "technical_indicators": technical_indicators,
     }
 
     # --- Generate or load charts ---
@@ -720,29 +759,45 @@ def main():
                 'current_price': float(share_price.replace('$', '').replace(',', '')) if isinstance(share_price, str) else share_price,
                 'shares_outstanding': auto_fetched_metrics.get('shares_outstanding', 1e9)
             }
-            
+
             # Prepare peer data if available
             peer_data_for_valuation = {}
             if peer_ev_ebitda_df is not None and not peer_ev_ebitda_df.empty:
                 peer_data_for_valuation['ev_ebitda'] = peer_ev_ebitda_df
-            
+
             valuation_engine = ValuationEngine(financial_data_for_valuation, peer_data_for_valuation)
-            
-            # Calculate different valuation methods
-            valuation_results = {}
-            
-            # EV/EBITDA valuation
-            ev_ebitda_result = valuation_engine.calculate_ev_ebitda_valuation()
-            if ev_ebitda_result:
-                valuation_results['ev_ebitda'] = {
-                    'method': ev_ebitda_result.method,
-                    'target_price': ev_ebitda_result.target_price,
-                    'upside': ev_ebitda_result.upside_potential,
-                    'confidence': ev_ebitda_result.confidence
-                }
-            
+
+            # Run all three valuation methods
+            valuation_engine.calculate_ev_ebitda_valuation()
+            valuation_engine.calculate_dcf_valuation()
+            valuation_engine.calculate_peer_comparison_valuation()
+
+            # Synthesize weighted average
+            synthesis = valuation_engine.synthesize_valuation()
+
+            # Build structured results for HTML rendering
+            valuation_results = {
+                'synthesis': synthesis,
+                'methods': []
+            }
+            for r in valuation_engine.valuation_results:
+                if r.target_price > 0:
+                    valuation_results['methods'].append({
+                        'method': r.method,
+                        'target_price': r.target_price,
+                        'low_estimate': r.low_estimate,
+                        'high_estimate': r.high_estimate,
+                        'assumptions': r.assumptions,
+                        'confidence': r.confidence,
+                        'description': r.description,
+                    })
+
             report_data['valuation_analysis'] = valuation_results
-            print(f"✅ Valuation analysis completed")
+            print(f"✅ Valuation analysis completed with {len(valuation_results['methods'])} methods")
+            if synthesis.get('target_price') and synthesis['target_price'] > 0:
+                print(f"  Synthesized target: ${synthesis['target_price']:.2f} "
+                      f"(range ${synthesis['range'][0]:.2f}-${synthesis['range'][1]:.2f}, "
+                      f"upside {synthesis['upside']:.1f}%)")
         except Exception as e:
             print(f"⚠️ Error performing valuation analysis: {e}")
             import traceback
@@ -768,8 +823,43 @@ def main():
         print(f"Loading catalyst analysis from {args.catalyst_analysis_file}...")
         try:
             with open(args.catalyst_analysis_file, 'r', encoding='utf-8') as f:
-                report_data['catalyst_analysis'] = json.load(f)
-            print("✅ Catalyst analysis loaded")
+                catalyst_data = json.load(f)
+            # Re-classify sentiments for cached data (fix analyst action misclassification)
+            _pos_patterns = ['acquires new holdings', 'initiates coverage', 'initiate coverage',
+                             'starts coverage', 'begins coverage', 'upgrades to', 'builds position',
+                             'overweight', 'buy rating', 'outperform', 'top pick', 'new position']
+            def _fix_sentiment(desc):
+                dl = desc.lower()
+                for p in _pos_patterns:
+                    if p in dl:
+                        return 'positive'
+                return None
+            # Fix catalysts list
+            if 'catalysts' in catalyst_data:
+                for cat in catalyst_data['catalysts']:
+                    fix = _fix_sentiment(cat.get('description', ''))
+                    if fix:
+                        cat['sentiment'] = fix
+            # Fix categorized lists
+            if 'categorized' in catalyst_data:
+                moved = []
+                for cat_item in catalyst_data['categorized'].get('negative', []):
+                    fix = _fix_sentiment(cat_item.get('description', ''))
+                    if fix:
+                        cat_item['sentiment'] = fix
+                        moved.append(cat_item)
+                for m in moved:
+                    catalyst_data['categorized']['negative'].remove(m)
+                    catalyst_data['categorized'].setdefault('positive', []).append(m)
+            # Fix top_catalysts
+            if 'top_catalysts' in catalyst_data:
+                for tc in catalyst_data['top_catalysts']:
+                    fix = _fix_sentiment(tc.get('catalyst', ''))
+                    if fix:
+                        tc['sentiment'] = fix
+                        tc['weighted_impact'] = abs(tc.get('weighted_impact', 0))
+            report_data['catalyst_analysis'] = catalyst_data
+            print("✅ Catalyst analysis loaded (sentiments re-validated)")
         except Exception as e:
             print(f"⚠️ Error loading catalyst analysis: {e}")
             report_data['catalyst_analysis'] = {}
@@ -844,7 +934,11 @@ def main():
         print(f"Peer EV/EBITDA index: {peer_ev_ebitda_df.index.tolist()}")
 
         if not peer_ev_ebitda_df.empty:
-            report_data["peer_ev_ebitda_table_html"] = format_dataframe_to_html_table(peer_ev_ebitda_df.T, table_id="peer-ev-ebitda-summary")
+            # Replace negative EV/EBITDA with "N/M" (not meaningful — negative EBITDA)
+            peer_ev_ebitda_display = peer_ev_ebitda_df.copy()
+            _nm_func = lambda x: "N/M" if isinstance(x, (int, float)) and x < 0 else x
+            peer_ev_ebitda_display = peer_ev_ebitda_display.apply(lambda col: col.map(_nm_func))
+            report_data["peer_ev_ebitda_table_html"] = format_dataframe_to_html_table(peer_ev_ebitda_display.T, table_id="peer-ev-ebitda-summary")
             print("✅ Successfully formatted peer EV/EBITDA table")
         else:
             report_data["peer_ev_ebitda_table_html"] = "<p>Peer EV/EBITDA data not available.</p>"

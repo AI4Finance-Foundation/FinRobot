@@ -51,13 +51,31 @@ class CatalystAnalyzer:
     
     # 情感关键词
     SENTIMENT_KEYWORDS = {
-        'positive': ['growth', 'increase', 'beat', 'exceed', 'strong', 'positive', 
-                    'upgrade', 'success', 'win', 'gain', 'improve', 'record'],
-        'negative': ['decline', 'decrease', 'miss', 'weak', 'negative', 'downgrade', 
-                    'loss', 'fail', 'drop', 'concern', 'risk', 'challenge']
+        'positive': ['growth', 'increase', 'beat', 'exceed', 'strong', 'positive',
+                    'upgrade', 'success', 'win', 'gain', 'improve', 'record',
+                    'initiate', 'initiates', 'overweight', 'outperform',
+                    'accumulate', 'bullish', 'optimistic', 'top pick'],
+        'negative': ['decline', 'decrease', 'miss', 'weak', 'negative', 'downgrade',
+                    'loss', 'fail', 'drop', 'concern', 'risk', 'challenge',
+                    'underweight', 'underperform', 'bearish', 'pessimistic',
+                    'recall', 'investigation', 'warning']
     }
-    
-    def __init__(self, ticker: str, api_key: str = None):
+
+    # 分析师动作短语（优先级匹配）
+    ANALYST_POSITIVE_PATTERNS = [
+        'initiates coverage', 'initiate coverage', 'initiates with',
+        'starts coverage', 'begins coverage', 'upgrades to',
+        'price target raised', 'raises target', 'overweight',
+        'buy rating', 'outperform rating', 'top pick', 'conviction buy',
+        'adds to', 'build position', 'maintains buy', 'reiterate buy',
+    ]
+    ANALYST_NEGATIVE_PATTERNS = [
+        'downgrades to', 'cuts to', 'lowers to', 'underweight',
+        'sell rating', 'underperform rating', 'removes from',
+        'drops coverage', 'cuts target', 'lowers target', 'reduces target',
+    ]
+
+    def __init__(self, ticker: str, api_key: str = None, company_name: str = None):
         """
         初始化催化剂分析器
         
@@ -67,9 +85,24 @@ class CatalystAnalyzer:
         """
         self.ticker = ticker
         self.api_key = api_key
+        self.company_name = company_name
         self.catalysts: List[CatalystData] = []
         self.news_data: List[Dict] = []
-    
+
+    def _is_relevant_to_ticker(self, title: str, text: str) -> bool:
+        """检查新闻是否与目标公司相关（ticker 或公司名出现在标题/正文前500字）"""
+        search_terms = [self.ticker.upper()]
+        if self.company_name:
+            search_terms.append(self.company_name.lower())
+            skip = {'inc', 'inc.', 'corp', 'corp.', 'ltd', 'ltd.', 'co', 'co.',
+                    'the', 'and', 'of', 'group', 'holdings', 'plc'}
+            for w in self.company_name.split():
+                if w.lower() not in skip and len(w) > 2:
+                    search_terms.append(w.lower())
+        title_lower = title.lower()
+        text_lower = (text[:500] if text else '').lower()
+        return any(t.lower() in title_lower or t.lower() in text_lower for t in search_terms)
+
     def set_news_data(self, news_data: List[Dict]):
         """设置新闻数据"""
         self.news_data = news_data or []
@@ -86,14 +119,22 @@ class CatalystAnalyzer:
         return 'other'
     
     def _analyze_sentiment(self, text: str) -> str:
-        """分析文本情感"""
+        """分析文本情感，优先匹配分析师动作短语"""
         text_lower = text.lower()
-        
-        positive_count = sum(1 for kw in self.SENTIMENT_KEYWORDS['positive'] 
+
+        # 优先：分析师动作短语
+        for p in self.ANALYST_POSITIVE_PATTERNS:
+            if p in text_lower:
+                return 'positive'
+        for p in self.ANALYST_NEGATIVE_PATTERNS:
+            if p in text_lower:
+                return 'negative'
+
+        positive_count = sum(1 for kw in self.SENTIMENT_KEYWORDS['positive']
                             if kw in text_lower)
-        negative_count = sum(1 for kw in self.SENTIMENT_KEYWORDS['negative'] 
+        negative_count = sum(1 for kw in self.SENTIMENT_KEYWORDS['negative']
                             if kw in text_lower)
-        
+
         if positive_count > negative_count:
             return 'positive'
         elif negative_count > positive_count:
@@ -158,8 +199,12 @@ class CatalystAnalyzer:
             date = article.get('publishedDate', '')
             source = article.get('site', '')
             
+            # 过滤无关公司新闻
+            if not self._is_relevant_to_ticker(title, text):
+                continue
+
             combined_text = f"{title} {text}"
-            
+
             event_type = self._classify_event_type(combined_text)
             sentiment = self._analyze_sentiment(combined_text)
             impact = self._assess_impact_level(event_type, sentiment)
@@ -349,9 +394,9 @@ class CatalystAnalyzer:
         return [item[2] for item in scored_catalysts[:n]]
 
 
-def create_catalyst_analyzer(ticker: str, api_key: str = None) -> CatalystAnalyzer:
+def create_catalyst_analyzer(ticker: str, api_key: str = None, company_name: str = None) -> CatalystAnalyzer:
     """创建催化剂分析器实例"""
-    return CatalystAnalyzer(ticker, api_key)
+    return CatalystAnalyzer(ticker, api_key, company_name=company_name)
 
 
 if __name__ == "__main__":

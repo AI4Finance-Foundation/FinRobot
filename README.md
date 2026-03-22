@@ -312,6 +312,13 @@ assitant.chat(
 
 ## Citing FinRobot
 ```
+@article{yang2024finrobot,
+  title={FinRobot: An Open-Source AI Agent Platform for Financial Applications using Large Language Models},
+  author={Yang, Hongyang and Zhang, Boyu and Wang, Neng and Guo, Cheng and Zhang, Xiaoli and Lin, Likun and Wang, Junlin and Zhou, Tianyu and Guan, Mao and Zhang, Runjia and others},
+  journal={arXiv preprint arXiv:2405.14767},
+  year={2024}
+}
+
 @inproceedings{
 zhou2024finrobot,
 title={FinRobot: {AI} Agent for Equity Research and Valuation with Large Language Models},
@@ -320,12 +327,6 @@ booktitle={ICAIF 2024: The 1st Workshop on Large Language Models and Generative 
 year={2024}
 }
 
-@article{yang2024finrobot,
-  title={FinRobot: An Open-Source AI Agent Platform for Financial Applications using Large Language Models},
-  author={Yang, Hongyang and Zhang, Boyu and Wang, Neng and Guo, Cheng and Zhang, Xiaoli and Lin, Likun and Wang, Junlin and Zhou, Tianyu and Guan, Mao and Zhang, Runjia and others},
-  journal={arXiv preprint arXiv:2405.14767},
-  year={2024}
-}
 
 @inproceedings{han2024enhancing,
   title={Enhancing Investment Analysis: Optimizing AI-Agent Collaboration in Financial Research},

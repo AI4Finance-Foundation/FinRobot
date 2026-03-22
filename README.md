@@ -96,6 +96,13 @@ python finrobot_equity/core/src/create_equity_report.py \
 3. **AI Agent Analysis**: 8 specialized agents generate investment thesis, risk assessment, valuation overview, etc.
 4. **Report Generation**: professional multi-page HTML/PDF with 15+ chart types
 
+### Example Reports
+- [NVDA Equity Research Report](https://ai4finance-foundation.github.io/FinRobot/finrobot_equity/core/output/NVDA_Equity_Research_Report.html)
+- [MSFT Equity Research Report](https://ai4finance-foundation.github.io/FinRobot/finrobot_equity/core/output/MSFT_Equity_Research_Report.html)
+- [COP Equity Research Report](https://ai4finance-foundation.github.io/FinRobot/finrobot_equity/core/output/COP_Equity_Research_Report.html)
+- [TSLA Equity Research Report](https://ai4finance-foundation.github.io/FinRobot/finrobot_equity/core/output/TSLA_Equity_Research_Report.html)
+- [META Equity Research Report](https://ai4finance-foundation.github.io/FinRobot/finrobot_equity/core/output/META_Equity_Research_Report.html)
+
 For full documentation, see [finrobot_equity/README.md](finrobot_equity/README.md).
 
 

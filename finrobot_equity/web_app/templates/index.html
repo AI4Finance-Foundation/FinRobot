@@ -433,13 +433,15 @@
                                     <svg v-if="task.status === 'failed'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                     <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                 </div>
-                                <span class="text-[10px] text-slate-500">{{ new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}</span>
+                                <button @click.stop="deleteTask(task)" class="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-500/20 text-slate-500 hover:text-red-400" title="Delete">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
                             </div>
                             <h4 class="font-bold text-white mb-0.5 tracking-tight">{{ task.ticker }}</h4>
-                            <p class="text-xs text-slate-400 mb-4 line-clamp-1 h-4">{{ task.company }}</p>
+                            <p class="text-xs text-slate-400 mb-4 line-clamp-1 h-4">{{ task.company || task.company_name }}</p>
                             <div v-if="task.status === 'completed' && task.result" class="grid gap-2" :class="(task.result.pdf && task.result.pdf.length) || (task.result.html && task.result.html.length) ? 'grid-cols-3' : 'grid-cols-1'">
-                                <a v-if="task.result.pdf && task.result.pdf.length" :href="'/output/' + task.ticker + '/report/' + task.result.pdf[0]" target="_blank" class="flex items-center justify-center gap-1 py-1.5 rounded bg-white/5 hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-400 text-[10px] font-bold transition-all border border-white/5 hover:border-emerald-500/30">PDF</a>
                                 <a v-if="task.result.html && task.result.html.length" :href="'/output/' + task.ticker + '/report/' + task.result.html[0]" target="_blank" class="flex items-center justify-center gap-1 py-1.5 rounded bg-white/5 hover:bg-blue-500/20 text-slate-300 hover:text-blue-400 text-[10px] font-bold transition-all border border-white/5 hover:border-blue-500/30">HTML</a>
+                                <a v-if="task.result.pdf && task.result.pdf.length" :href="'/output/' + task.ticker + '/report/' + task.result.pdf[0]" target="_blank" class="flex items-center justify-center gap-1 py-1.5 rounded bg-white/5 hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-400 text-[10px] font-bold transition-all border border-white/5 hover:border-emerald-500/30">PDF</a>
                                 <button @click="viewTaskLog(task)" class="flex items-center justify-center gap-1 py-1.5 rounded bg-white/5 hover:bg-amber-500/20 text-slate-300 hover:text-amber-400 text-[10px] font-bold transition-all border border-white/5 hover:border-amber-500/30">LOG</button>
                             </div>
                             <div v-else-if="task.status === 'failed'" class="grid grid-cols-1 gap-2">
@@ -516,8 +518,48 @@
             mounted() {
                 document.addEventListener('click', () => { this.showUserMenu = false; });
                 this.pollInterval = setInterval(this.pollTasks, 1000);
+                this.loadHistory();
             },
             methods: {
+                async loadHistory() {
+                    try {
+                        const resp = await fetch('/api/history');
+                        if (!resp.ok) return;
+                        const history = await resp.json();
+                        // Only add completed/failed history items that aren't already in tasks
+                        const existingIds = new Set(this.tasks.map(t => t.id));
+                        for (const h of history) {
+                            if (existingIds.has(h.task_id)) continue;
+                            this.tasks.push({
+                                id: h.task_id,
+                                ticker: h.ticker,
+                                company_name: h.company_name,
+                                status: h.status,
+                                logs: [`Report generated: ${h.company_name} (${h.ticker})`],
+                                result: (h.html.length || h.pdf.length) ? {
+                                    report_dir: `/output/${h.ticker}/report`,
+                                    ticker: h.ticker,
+                                    html: h.html,
+                                    pdf: h.pdf
+                                } : null,
+                                showLogs: false
+                            });
+                        }
+                    } catch (e) {
+                        console.warn('Failed to load history:', e);
+                    }
+                },
+                async deleteTask(task) {
+                    if (!confirm(`Delete report for ${task.ticker}?`)) return;
+                    try {
+                        const resp = await fetch(`/api/history/${task.id}`, { method: 'DELETE' });
+                        if (resp.ok) {
+                            this.tasks = this.tasks.filter(t => t.id !== task.id);
+                        }
+                    } catch (e) {
+                        console.error('Failed to delete task:', e);
+                    }
+                },
                 async viewTaskLog(task) {
                     // Toggle log overlay; if opening, try to fetch persisted logs from server
                     if (task.showLogs) {

@@ -1,7 +1,7 @@
 """
 CRUD operations for database
 """
-import bcrypt
+import hashlib
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
@@ -15,13 +15,13 @@ from .models import User, Session as SessionModel, RequestLog, ReportRequest
 # =============================================================================
 
 def hash_password(password: str) -> str:
-    """Hash password using bcrypt"""
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    """Hash password using SHA-256"""
+    return hashlib.sha256(password.encode()).hexdigest()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify password against bcrypt hash"""
-    return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
+    """Verify password against hash"""
+    return hash_password(plain_password) == hashed_password
 
 
 # =============================================================================
@@ -249,6 +249,19 @@ def get_user_reports(db: Session, user_id: int, limit: int = 50) -> List[ReportR
     return db.query(ReportRequest).filter(
         ReportRequest.user_id == user_id
     ).order_by(desc(ReportRequest.created_at)).limit(limit).all()
+
+
+def delete_report_request(db: Session, task_id: str, user_id: int) -> bool:
+    """Delete a report request (only if it belongs to the user)"""
+    report = db.query(ReportRequest).filter(
+        ReportRequest.task_id == task_id,
+        ReportRequest.user_id == user_id
+    ).first()
+    if report:
+        db.delete(report)
+        db.commit()
+        return True
+    return False
 
 
 # =============================================================================

@@ -49,6 +49,7 @@ templates = Jinja2Templates(directory=os.path.join(PROJECT_ROOT, "web_app", "tem
 # ============== Database Integration ==============
 from .database.connection import init_db, SessionLocal
 from .database import crud
+from .database.models import ReportRequest
 from .auth import (
     get_current_user, require_auth, create_user_session, delete_user_session,
     authenticate_user, register_user, get_or_create_github_user, 
@@ -547,19 +548,19 @@ def execute_analysis_pipeline(task_id: str, req: AnalysisRequest):
     if os.path.exists(report_output_dir):
         report_files = [f for f in os.listdir(report_output_dir) if f.endswith((".html", ".pdf"))]
     
-    # Separate HTML and PDF files
+    # Separate HTML and PDF files — only Professional reports
     html_files = [f for f in report_files if f.endswith('.html')]
     pdf_files = [f for f in report_files if f.endswith('.pdf')]
-    
-    # Prioritize Professional HTML reports (matching PDF structure)
-    professional_htmls = [f for f in html_files if 'Professional_Equity_Report' in f]
-    other_htmls = [f for f in html_files if f not in professional_htmls]
-    sorted_htmls = professional_htmls + other_htmls
-    
-    # Prioritize Professional PDF reports
-    professional_pdfs = [f for f in pdf_files if 'Professional_Equity_Report' in f or 'Professional' in f]
-    other_pdfs = [f for f in pdf_files if f not in professional_pdfs]
-    sorted_pdfs = professional_pdfs + other_pdfs
+
+    # Only Professional HTML; fallback to others only if no Professional exists
+    prof_htmls = [f for f in html_files if 'Professional' in f]
+    sorted_htmls = prof_htmls if prof_htmls else html_files
+
+    # Only Professional/Equity Report PDFs (exclude chart PDFs like *_ebitda_margin.pdf)
+    prof_pdfs = [f for f in pdf_files if 'Professional_Equity_Report' in f]
+    if not prof_pdfs:
+        prof_pdfs = [f for f in pdf_files if 'Equity_Report' in f]
+    sorted_pdfs = prof_pdfs
     
     tasks[task_id]["result"] = {
         "report_dir": report_output_dir,
@@ -697,6 +698,87 @@ async def list_all_logs(request: Request):
         "total_files": len(log_files),
         "files": log_files
     }
+
+@app.get("/api/history")
+async def get_history(request: Request):
+    """返回当前用户的历史报告列表，供前端刷新后恢复。"""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        db = SessionLocal()
+        reports = crud.get_user_reports(db, user["id"], limit=50)
+        result = []
+        seen_tickers = set()
+        for r in reports:
+            # 同一 ticker 只显示一条（最新的），因为输出文件是覆盖的
+            if r.ticker in seen_tickers:
+                continue
+            seen_tickers.add(r.ticker)
+            # 检查报告文件是否存在
+            report_dir = os.path.join(OUTPUT_DIR, r.ticker, "report")
+            html_files = []
+            pdf_files = []
+            if os.path.exists(report_dir):
+                all_files = os.listdir(report_dir)
+                # 只要 Professional 报告，排除 Combined
+                prof_html = [f for f in all_files if f.endswith('.html') and 'Professional' in f]
+                other_html = [f for f in all_files if f.endswith('.html') and 'Professional' not in f] if not prof_html else []
+                html_files = prof_html + other_html
+                # 只要 Professional PDF 报告，排除图表 PDF
+                prof_pdf = [f for f in all_files if f.endswith('.pdf') and 'Professional_Equity_Report' in f]
+                other_pdf = [f for f in all_files if f.endswith('.pdf') and 'Equity_Report' in f and f not in prof_pdf] if not prof_pdf else []
+                pdf_files = prof_pdf + other_pdf
+            result.append({
+                "task_id": r.task_id,
+                "ticker": r.ticker,
+                "company_name": r.company_name,
+                "status": r.status or "completed",
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "html": html_files,
+                "pdf": pdf_files,
+            })
+        db.close()
+        return result
+    except Exception as e:
+        logger.warning(f"Failed to load history: {e}")
+        return []
+
+
+@app.delete("/api/history/{task_id}")
+async def delete_history(task_id: str, request: Request):
+    """删除指定的历史报告记录（同时删除同一 ticker 的所有记录）"""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        db = SessionLocal()
+        # 先找到该 task_id 对应的 ticker
+        report = db.query(ReportRequest).filter(
+            ReportRequest.task_id == task_id,
+            ReportRequest.user_id == user["id"]
+        ).first()
+        if not report:
+            db.close()
+            raise HTTPException(status_code=404, detail="Report not found")
+        ticker = report.ticker
+        # 删除该用户该 ticker 的所有记录
+        db.query(ReportRequest).filter(
+            ReportRequest.ticker == ticker,
+            ReportRequest.user_id == user["id"]
+        ).delete()
+        db.commit()
+        db.close()
+        # 同时从内存中移除
+        if task_id in tasks:
+            del tasks[task_id]
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Failed to delete report: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete report")
+
 
 @app.get("/api/reports/{ticker}")
 async def list_reports(ticker: str, request: Request):

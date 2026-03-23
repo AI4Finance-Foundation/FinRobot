@@ -314,7 +314,7 @@ async def read_root(request: Request):
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
         return response
-    return templates.TemplateResponse("index.html", {"request": request, "user": user})
+    return templates.TemplateResponse(request, "index.html", {"user": user})
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
@@ -325,7 +325,7 @@ async def login_page(request: Request):
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
         return response
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(request, "login.html")
 
 # ============== Chrome DevTools Route ==============
 

@@ -84,10 +84,10 @@ class SECUtils:
                 with open(file_path, "w") as f:
                     f.write(file_content)
                 return f"{ticker}: download succeeded. Saved to {file_path}"
-            except:
-                return f"❌ {ticker}: downloaded failed: {url}"
+            except Exception as e:
+                return f"❌ {ticker}: download failed: {url} - {e}"
         else:
-            return f"No 2023 10-K filing found for {ticker}"
+            return f"No 10-K filing found for {ticker} between {start_date} and {end_date}"
 
     def download_10k_pdf(
         ticker: Annotated[str, "ticker symbol"],
@@ -132,9 +132,9 @@ class SECUtils:
                         file.write(chunk)
                 return f"{ticker}: download succeeded. Saved to {file_path}"
             except Exception as e:
-                return f"❌ {ticker}: downloaded failed: {filing_url}, {e}"
+                return f"❌ {ticker}: download failed: {filing_url} - {e}"
         else:
-            return f"No 2023 10-K filing found for {ticker}"
+            return f"No 10-K filing found for {ticker} between {start_date} and {end_date}"
 
     def get_10k_section(
         ticker_symbol: Annotated[str, "ticker symbol"],

@@ -21,3 +21,9 @@ openai_base_url = https://api.openai.com/v1
 # Default: gpt-4.1-mini
 openai_model = gpt-4.1
 
+# Adanos Finance API key (optional, enables retail sentiment insights in equity reports)
+adanos_api_key = YOUR_ADANOS_API_KEY
+
+# Adanos base URL (optional)
+# Default: https://api.adanos.org
+adanos_base_url = https://api.adanos.org

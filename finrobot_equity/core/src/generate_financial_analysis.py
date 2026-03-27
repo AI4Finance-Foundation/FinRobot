@@ -20,6 +20,7 @@ from modules.text_generator_agents import generate_text_section
 from modules.sensitivity_analyzer import SensitivityAnalyzer
 from modules.catalyst_analyzer import CatalystAnalyzer
 from modules.news_integrator import NewsIntegrator, get_enhanced_company_news
+from modules.retail_sentiment_client import RetailSentimentClient
 
 def main():
     parser = argparse.ArgumentParser(description="Generate financial analysis data using FMP API instead of PDF extraction.")
@@ -46,6 +47,7 @@ def main():
     # NEWS PARAMETERS
     parser.add_argument("--news-days-back", type=int, default=5, help="Number of days to look back for company news (default: 5)")
     parser.add_argument("--news-limit", type=int, default=50, help="Maximum number of news articles to fetch (default: 50)")
+    parser.add_argument("--retail-sentiment-days-back", type=int, default=7, help="Number of days to look back for retail sentiment insights (default: 7)")
 
     # 新增分析选项
     parser.add_argument("--enable-sensitivity-analysis", action="store_true", help="Enable sensitivity analysis for forecasts")
@@ -80,9 +82,13 @@ def main():
 
     # Load configuration and API keys
     openai_base_url = None
+    adanos_api_key = os.getenv("ADANOS_API_KEY")
+    adanos_base_url = os.getenv("ADANOS_BASE_URL", "https://api.adanos.org")
     try:
         config = load_config(args.config_file)
         fmp_api_key = get_api_key(config, section="API_KEYS", key="fmp_api_key")
+        adanos_api_key = config.get("API_KEYS", "adanos_api_key", fallback=adanos_api_key)
+        adanos_base_url = config.get("API_KEYS", "adanos_base_url", fallback=adanos_base_url)
         if args.generate_text_sections:
             openai_api_key = get_api_key(config, section="API_KEYS", key="openai_api_key")
             # Try to get base_url for proxy services (like SiliconFlow)
@@ -267,6 +273,30 @@ def main():
     else:
         print("Skipping news fetch (no FMP API key)")
 
+    # 4.55 Fetch Retail Sentiment Insights
+    retail_sentiment_data = None
+    if adanos_api_key:
+        print(f"\nFetching retail sentiment insights for {args.company_ticker}...")
+        try:
+            retail_client = RetailSentimentClient(
+                api_key=adanos_api_key,
+                base_url=adanos_base_url,
+            )
+            retail_sentiment_data = retail_client.get_snapshot(
+                args.company_ticker,
+                days_back=args.retail_sentiment_days_back,
+            )
+
+            retail_sentiment_path = os.path.join(output_dir, "retail_sentiment.json")
+            with open(retail_sentiment_path, "w", encoding="utf-8") as f:
+                json.dump(retail_sentiment_data, f, indent=2, ensure_ascii=False)
+            print(f"Saved retail sentiment insights to: {retail_sentiment_path}")
+        except Exception as e:
+            print(f"Error fetching retail sentiment insights: {e}")
+            print("Continuing without retail sentiment insights...")
+    else:
+        print("Skipping retail sentiment insights (no ADANOS_API_KEY / adanos_api_key configured)")
+
     # 4.6 敏感性分析
     sensitivity_results = None
     if args.enable_sensitivity_analysis:
@@ -379,6 +409,7 @@ def main():
                 "peer_ev_ebitda": df_ev_ebitda_peers,
                 "company_news": company_news,
                 "enhanced_news": enhanced_news_data,
+                "retail_sentiment": retail_sentiment_data,
                 "sensitivity_analysis": sensitivity_results,
                 "catalyst_analysis": catalyst_results
             }

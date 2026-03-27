@@ -885,6 +885,55 @@ def format_analyst_contacts(names, emails):
         html.append(f'<p class="text-gray-500">{name} | {email}</p>')
     return "\n".join(html)
 
+
+def format_retail_sentiment_html(sentiment_data: dict) -> str:
+    """Format retail sentiment insights for legacy and combined HTML templates."""
+    if not sentiment_data or not sentiment_data.get("sources"):
+        return ""
+
+    summary_items = []
+    if sentiment_data.get("average_buzz") is not None:
+        summary_items.append(f"Average Buzz: {sentiment_data['average_buzz']}/100")
+    if sentiment_data.get("bullish_avg") is not None:
+        summary_items.append(f"Bullish Avg: {sentiment_data['bullish_avg']}%")
+    summary_items.append(f"Source Alignment: {sentiment_data.get('source_alignment', 'No coverage')}")
+    summary_items.append(f"Coverage: {sentiment_data.get('coverage', '0/3')}")
+
+    source_rows = []
+    for source in sentiment_data.get("sources", []):
+        if not source.get("has_data"):
+            continue
+        bullish = (
+            f"{source['bullish_pct']}%"
+            if source.get("bullish_pct") is not None
+            else "N/A"
+        )
+        source_rows.append(
+            "<li style=\"font-size:10px; color:#1a1a1a; margin-bottom:2px;\">"
+            f"<strong>{source['label']}</strong>: "
+            f"Buzz {source.get('buzz_score', 'N/A')}/100, "
+            f"Bullish {bullish}, "
+            f"{source.get('activity_label', 'Activity')} {source.get('activity_value', 0)}, "
+            f"Trend {source.get('trend', 'n/a')}"
+            "</li>"
+        )
+
+    if not source_rows:
+        return ""
+
+    summary_html = " &middot; ".join(summary_items)
+    sources_html = "".join(source_rows)
+
+    return (
+        "<div style=\"background:#f5f7fa; border-top:2px solid #8B6914; padding:12px 16px; margin:12px 0;\">"
+        "<h3 style=\"font-size:11px; font-weight:600; color:#002855; text-transform:uppercase; letter-spacing:0.03em; margin:0 0 8px 0;\">"
+        "Retail Sentiment Insights"
+        "</h3>"
+        f"<p style=\"font-size:10px; color:#555555; margin:0 0 8px 0;\">{summary_html}</p>"
+        f"<ul style=\"list-style:none; padding-left:0; margin:0;\">{sources_html}</ul>"
+        "</div>"
+    )
+
 def render_html_report(template_str: str, data: dict) -> str:
     """Renders an HTML report from a template string and data dictionary."""
     try:
@@ -910,6 +959,7 @@ def render_html_report(template_str: str, data: dict) -> str:
         data.setdefault("peer_ev_ebitda_table_html", "<p>Peer EV/EBITDA data not available.</p>")
         data.setdefault("credit_cashflow_table_html", "<p>Credit & Cashflow metrics not available.</p>")
         data.setdefault("news_summary", "Recent news coverage not available.")
+        data["retail_sentiment_html"] = format_retail_sentiment_html(data.get("retail_sentiment", {}))
         
         # Safely format enhanced analysis data for Page 4
         # Wrap each call in try-except to prevent one failure from breaking everything
@@ -1083,6 +1133,7 @@ HTML_TEMPLATE_COMBINED = """
           <div class="mb-4 text-xs leading-tight" style="color: #1a1a1a;">{investment_overview}</div>
           <h3 class="section-label">Recent News Summary</h3>
           <div class="mb-4 text-xs leading-tight" style="color: #1a1a1a;">{news_summary}</div>
+          {retail_sentiment_html}
           <h3 class="section-label">Valuation</h3>
           <div class="mb-4 text-xs leading-tight" style="color: #1a1a1a;">{valuation_overview}</div>
           {valuation_breakdown_html}
@@ -1181,6 +1232,9 @@ HTML_TEMPLATE_COMBINED = """
         <h1 class="text-xl font-normal" style="font-family: 'Georgia', 'Times New Roman', serif; letter-spacing: 0.03em;">NEWS & ENHANCED CHARTS</h1>
       </div>
       <div class="mb-6">
+        <div class="text-xs leading-tight">{retail_sentiment_html}</div>
+      </div>
+      <div class="mb-6">
         <h2 class="section-label mb-3">News Impact Analysis</h2>
         <div class="text-xs leading-tight">{enhanced_news_html}</div>
       </div>
@@ -1234,6 +1288,7 @@ def render_combined_html_report(data: dict) -> str:
         data.setdefault("peer_ev_ebitda_table_html_comp", data.get("peer_ev_ebitda_table_html", "<p>Peer EV/EBITDA data not available.</p>"))
         data.setdefault("credit_cashflow_table_html", "<p>Credit & Cashflow metrics not available.</p>")
         data.setdefault("news_summary", "Recent news coverage not available.")
+        data["retail_sentiment_html"] = format_retail_sentiment_html(data.get("retail_sentiment", {}))
 
         # Convert text fields to HTML with auto-bold
         for key in ['company_overview', 'investment_overview', 'valuation_overview',

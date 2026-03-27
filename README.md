@@ -49,6 +49,7 @@ Edit `config.ini` with your keys:
 [API_KEYS]
 fmp_api_key = YOUR_FMP_API_KEY          # https://financialmodelingprep.com/developer
 openai_api_key = YOUR_OPENAI_API_KEY    # https://platform.openai.com/account/api-keys
+adanos_api_key = YOUR_ADANOS_API_KEY    # Optional: enables Retail Sentiment Insights
 ```
 
 **2. One-Command Deploy (Web Interface)**
@@ -349,6 +350,5 @@ year={2024}
 <div align="center">
 <img align="center" width="30%" alt="image" src="https://github.com/AI4Finance-Foundation/FinGPT/assets/31713746/e0371951-1ce1-488e-aa25-0992dafcc139">
 </div>
-
 
 

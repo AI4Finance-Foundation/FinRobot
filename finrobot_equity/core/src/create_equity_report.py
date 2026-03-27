@@ -38,8 +38,6 @@ from modules.valuation_engine import ValuationEngine
 from modules.report_structure import ReportStructureManager
 from modules.enhanced_text_generator import EnhancedTextGenerator
 
-import pandas as pd
-
 def load_credit_cashflow_metrics_from_csv(file_path: str) -> pd.DataFrame:
     """Load credit and cashflow metrics from a pre-computed CSV file."""
     if not file_path or not os.path.exists(file_path):

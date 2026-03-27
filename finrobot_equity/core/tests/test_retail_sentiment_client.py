@@ -4,11 +4,9 @@
 import os
 import sys
 
-import pytest
-
-
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 
+from modules.html_template_professional import render_professional_html_report
 from modules.retail_sentiment_client import (
     RetailSentimentClient,
     format_retail_sentiment_for_prompt,
@@ -182,3 +180,37 @@ def test_html_formatter_renders_retail_sentiment_block():
     assert "Average Buzz: 70.3/100" in html
     assert "Source Alignment: Neutral alignment" in html
     assert "Reddit" in html
+
+
+def test_professional_report_renders_retail_sentiment_section():
+    html = render_professional_html_report(
+        {
+            "company_name_full": "Tesla, Inc.",
+            "company_ticker": "TSLA",
+            "share_price": "$180.00",
+            "target_price": "$210.00",
+            "news_summary": "Recent developments remain mixed.",
+            "retail_sentiment": {
+                "average_buzz": 74.4,
+                "bullish_avg": 58.8,
+                "source_alignment": "Bullish alignment",
+                "coverage": "2/3",
+                "sources": [
+                    {
+                        "label": "Reddit",
+                        "buzz_score": 79.1,
+                        "bullish_pct": 55.0,
+                        "activity_label": "Mentions",
+                        "activity_value": 1220,
+                        "trend": "rising",
+                        "has_data": True,
+                    }
+                ],
+            },
+        }
+    )
+
+    assert "Retail Sentiment Insights" in html
+    assert "Average Buzz" in html
+    assert "74.4/100" in html
+    assert "Bullish alignment" in html

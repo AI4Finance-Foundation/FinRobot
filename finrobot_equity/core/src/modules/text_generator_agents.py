@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import os
 import pandas as pd
 from typing import Dict, Optional
 from openai import OpenAI

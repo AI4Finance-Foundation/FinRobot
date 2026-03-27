@@ -6,6 +6,8 @@ import pandas as pd
 from typing import Dict, Optional
 from openai import OpenAI
 
+from modules.retail_sentiment_client import format_retail_sentiment_for_prompt
+
 
 def _get_fallback_text(prompt_type: str, company_name: str) -> str:
     """Returns fallback text when agent generation fails."""
@@ -52,6 +54,7 @@ def _prepare_user_prompt(data: Dict, prompt_type: str, company_name: str, compan
     peer_ebitda = data.get('peer_ebitda')
     peer_ev_ebitda = data.get('peer_ev_ebitda')
     company_news = data.get('company_news')
+    retail_sentiment = data.get('retail_sentiment')
     
     prompt = f"Company: {company_name} ({company_ticker})\n\n"
     
@@ -69,7 +72,10 @@ def _prepare_user_prompt(data: Dict, prompt_type: str, company_name: str, compan
         for i, article in enumerate(company_news[:10], 1):  # Limit to 10 articles
             prompt += f"{i}. {article.get('title', 'N/A')} ({article.get('publishedDate', 'N/A')[:10]})\n"
             prompt += f"   {article.get('text', 'N/A')[:200]}...\n\n"
-    
+
+    if prompt_type == "news_summary" and retail_sentiment:
+        prompt += "\n" + format_retail_sentiment_for_prompt(retail_sentiment) + "\n"
+
     prompt += f"\nPlease provide the {prompt_type.replace('_', ' ')} based on the above data."
     return prompt
 

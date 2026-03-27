@@ -430,6 +430,7 @@ HTML_PROFESSIONAL_TEMPLATE = """
             <div class="content-card">
                 <h3 class="heading-3" style="margin-top:0;">News Summary</h3>
                 <div class="body-text">{news_summary}</div>
+                {retail_sentiment_html}
                 {enhanced_news_html}
             </div>
         </section>
@@ -661,6 +662,59 @@ def format_catalyst_analysis_html_professional(catalyst_data: dict) -> str:
             html += '</div>'
 
     return html if html else "<p class='body-text' style='color:#94a3b8; font-style:italic;'>Catalyst analysis not available.</p>"
+
+
+def format_retail_sentiment_html_professional(sentiment_data: dict) -> str:
+    """Format retail sentiment insights for the professional HTML report."""
+    if not sentiment_data:
+        return ""
+
+    avg_buzz = sentiment_data.get("average_buzz")
+    bullish_avg = sentiment_data.get("bullish_avg")
+    coverage = sentiment_data.get("coverage", "0/3")
+    alignment = sentiment_data.get("source_alignment", "No coverage")
+    sources = sentiment_data.get("sources", [])
+
+    html = '<h3 class="heading-3">Retail Sentiment Insights</h3>'
+    html += '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0.75rem; margin-bottom:0.75rem;">'
+
+    summary_cards = [
+        ("Average Buzz", f"{avg_buzz}/100" if avg_buzz is not None else "N/A"),
+        ("Bullish Avg", f"{bullish_avg}%" if bullish_avg is not None else "N/A"),
+        ("Source Alignment", alignment),
+        ("Coverage", coverage),
+    ]
+    for label, value in summary_cards:
+        html += (
+            '<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:0.625rem; '
+            'padding:0.7rem 0.85rem;">'
+            f'<div style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em; color:#64748b; margin-bottom:0.25rem;">{label}</div>'
+            f'<div style="font-size:0.95rem; font-weight:600; color:#0f172a;">{value}</div>'
+            '</div>'
+        )
+    html += '</div>'
+
+    visible_sources = [source for source in sources if source.get("has_data")]
+    if visible_sources:
+        html += '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:0.75rem; margin-bottom:0.5rem;">'
+        for source in visible_sources:
+            bullish_text = (
+                f"{source['bullish_pct']}%"
+                if source.get("bullish_pct") is not None
+                else "N/A"
+            )
+            html += (
+                '<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:0.625rem; padding:0.75rem 0.85rem;">'
+                f'<div style="font-size:0.82rem; font-weight:700; color:#0f172a; margin-bottom:0.45rem;">{source["label"]}</div>'
+                f'<div style="font-size:0.78rem; color:#475569;">Buzz <strong>{source["buzz_score"]}/100</strong></div>'
+                f'<div style="font-size:0.78rem; color:#475569;">Bullish <strong>{bullish_text}</strong></div>'
+                f'<div style="font-size:0.78rem; color:#475569;">{source["activity_label"]} <strong>{source["activity_value"]}</strong></div>'
+                f'<div style="font-size:0.78rem; color:#475569;">Trend <strong>{source["trend"]}</strong></div>'
+                '</div>'
+            )
+        html += '</div>'
+
+    return html
 
 
 def format_enhanced_news_html_professional(news_data: dict) -> str:
@@ -983,6 +1037,7 @@ def render_professional_html_report(data: dict) -> str:
         'peer_ev_ebitda_table_html': data.get('peer_ev_ebitda_table_html', '<p class="body-text" style="color:#94a3b8; font-style:italic;">Peer comparison data not available.</p>'),
         'ev_ebitda_chart_path': data.get('ev_ebitda_chart_path', ''),
         'news_summary': _markdown_to_html(data.get('news_summary', 'Recent news coverage not available.')),
+        'retail_sentiment_html': format_retail_sentiment_html_professional(data.get('retail_sentiment', {})),
         'enhanced_news_html': format_enhanced_news_html_professional(data.get('enhanced_news', {})),
         'sensitivity_analysis_html': format_sensitivity_analysis_html_professional(data.get('sensitivity_analysis', {})),
         'catalyst_analysis_html': format_catalyst_analysis_html_professional(data.get('catalyst_analysis', {})),

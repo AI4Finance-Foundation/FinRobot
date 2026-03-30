@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+> **PydanticAI API 注意**：pydantic-ai 从 0.x 到 1.7x 有大量 breaking change（如 `result.data` → `result.output`，Agent 构造参数等）。遇到任何 pydantic-ai API 不确定时，先查 https://ai.pydantic.dev/ 文档，不要凭记忆写。
+
 ## Project
 
 FinAgent — A financial AI agent platform with extensible skill ecosystem.
@@ -352,10 +354,10 @@ class FinAgentDeps:
 
 **Implement exactly as shown in ARCHITECTURE.md section 2.4**:
 - lead_agent = Agent(...) with deps_type=FinAgentDeps
-- instructions loaded from engine/instructions.md
+- instructions loaded via `(Path(__file__).parent / "instructions.md").read_text()` — NOT relative to cwd
 - Tool: query_financial_data (Mode A)
 - Tool: activate_skill (Mode A, with None guard)
-- Tool: run_equity_research (Mode B)
+- Tool: run_equity_research (Mode B) — uses create_equity_research_pipeline(lead_agent) from File 9
 - Do NOT register run_comps_analysis or run_dcf_valuation (P1b pipelines)
 
 **Also create**: `finagent/engine/instructions.md`
@@ -391,10 +393,33 @@ When presenting data, include the source and timestamp.
 **Purpose**: The 5-step equity research pipeline. Implement exactly as in ARCHITECTURE.md section 2.3.
 
 **Key details**:
-- All 5 steps use lead_agent (imported from orchestrator)
+- Do NOT import lead_agent from orchestrator (circular import). Instead, the pipeline accepts the agent as a constructor parameter. orchestrator.py creates the pipeline and passes lead_agent into it.
 - Steps 2-5 use validate_is_non_empty (P0 lenient validators)
 - Step 1 uses validate_has_fields(["revenue", "ebitda", "price_history"])
+- required_data for step 1: ["financials", "price", "news"] — NOT "filings" (yfinance doesn't support it, would crash P0)
 - skill_section values are strings ("comps-analysis", "dcf-model", "initiating-coverage") but they won't resolve in P0 because skill_runtime is None — this is expected
+
+**How to avoid circular import**:
+```python
+# equity_research.py — does NOT import from orchestrator
+from finagent.engine.pipelines.base import Pipeline, PipelineStep
+from finagent.engine.pipelines.validators import validate_has_fields, validate_is_non_empty
+from pydantic_ai import Agent
+
+def create_equity_research_pipeline(agent: Agent) -> Pipeline:
+    """Factory function. Called by orchestrator.py with lead_agent."""
+    return Pipeline(
+        steps=[
+            PipelineStep(name="data_collection", agent=agent, ...),
+            PipelineStep(name="peer_analysis", agent=agent, ...),
+            # ... all 5 steps
+        ]
+    )
+
+# orchestrator.py — imports from equity_research, no reverse dependency
+from finagent.engine.pipelines.equity_research import create_equity_research_pipeline
+equity_research_pipeline = create_equity_research_pipeline(lead_agent)
+```
 
 **Tests** (`tests/unit/test_equity_research_pipeline.py`):
 - Pipeline has exactly 5 steps

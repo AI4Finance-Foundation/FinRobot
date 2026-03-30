@@ -15,7 +15,8 @@ def validate_is_non_empty(output: str) -> ValidationResult:
 
 def validate_has_fields(output: str, fields: list[str]) -> ValidationResult:
     """P0 validator. Checks that output string mentions all required field names."""
-    missing = [f for f in fields if f.lower() not in output.lower()]
+    normalized = output.lower()
+    missing = [f for f in fields if f.replace("_", " ").lower() not in normalized]
     if not missing:
         return ValidationResult(passed=True)
     return ValidationResult(

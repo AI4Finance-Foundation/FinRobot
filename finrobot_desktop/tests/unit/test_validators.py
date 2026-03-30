@@ -48,6 +48,14 @@ class TestValidateHasFields:
         r = validate_has_fields("REVENUE: $100B, EBITDA: $50B", ["revenue", "ebitda"])
         assert r.passed is True
 
+    def test_underscore_matches_space(self):
+        r = validate_has_fields("Price History: see chart below", ["price_history"])
+        assert r.passed is True
+
+    def test_underscore_matches_uppercase_spaced(self):
+        r = validate_has_fields("PRICE HISTORY and NET INCOME shown", ["price_history", "net_income"])
+        assert r.passed is True
+
     def test_empty_fields_list_passes(self):
         r = validate_has_fields("anything", [])
         assert r.passed is True

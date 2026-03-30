@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 
 import yfinance as yf
@@ -11,18 +12,12 @@ except Exception:
     pass  # non-critical, ignore if not supported
 
 _SUPPORTED = ["financials", "price", "news"]
-_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+_CALL_DELAY = 0.5  # seconds between consecutive yfinance calls
 
 
 def _make_ticker(symbol: str) -> yf.Ticker:
-    """Create a Ticker with User-Agent header to avoid rate limiting."""
-    t = yf.Ticker(symbol)
-    try:
-        if hasattr(t, "_session") and t._session is not None:
-            t._session.headers.update({"User-Agent": _USER_AGENT})
-    except Exception:
-        pass  # header injection is best-effort
-    return t
+    """Create a Ticker. Let yfinance use its internal curl_cffi session for rate-limit handling."""
+    return yf.Ticker(symbol)
 
 
 class YFinanceProvider(DataProvider):
@@ -51,8 +46,11 @@ class YFinanceProvider(DataProvider):
             t = _make_ticker(ticker)
             # Validate ticker by checking if info is non-empty
             info = t.info
-            if not info or info.get("regularMarketPrice") is None and info.get("currentPrice") is None and info.get("marketCap") is None:
-                # yfinance returns a minimal dict for invalid tickers
+            if not info or (
+                info.get("regularMarketPrice") is None
+                and info.get("currentPrice") is None
+                and info.get("marketCap") is None
+            ):
                 if len(info) <= 1:
                     raise ProviderError(f"Ticker '{ticker}' not found or returned no data")
         except ProviderError:
@@ -61,11 +59,15 @@ class YFinanceProvider(DataProvider):
             raise ProviderError(f"Failed to fetch ticker '{ticker}': {e}") from e
 
         if data_type == "financials":
-            return self._fetch_financials(ticker, t)
+            result = self._fetch_financials(ticker, t)
         elif data_type == "price":
-            return self._fetch_price(ticker, t)
+            await asyncio.sleep(_CALL_DELAY)  # delay before second network call
+            result = self._fetch_price(ticker, t)
         elif data_type == "news":
-            return self._fetch_news(ticker, t)
+            await asyncio.sleep(_CALL_DELAY)
+            result = self._fetch_news(ticker, t)
+
+        return result
 
     def _fetch_financials(self, ticker: str, t: yf.Ticker) -> DataResult:
         try:

@@ -119,11 +119,15 @@ class TestProviderFailure:
         assert result is not None
         assert any("stale" in w for w in result.warnings)
 
-    async def test_provider_fails_no_cache_raises_provider_error(self, cache):
+    async def test_provider_fails_no_cache_returns_error_result(self, cache):
+        """No crash — returns a DataResult the LLM can relay to the user."""
         failing = MockProvider("fail", ["financials"], raises=ProviderError("down"))
         layer = DataLayer([failing], cache)
-        with pytest.raises(ProviderError):
-            await layer.fetch("financials", "AAPL")
+        result = await layer.fetch("financials", "AAPL")
+        assert result is not None
+        assert result.provider == "none"
+        assert len(result.warnings) > 0
+        assert any("unavailable" in w.lower() or "failed" in w.lower() for w in result.warnings)
 
 
 class TestMultipleProviders:

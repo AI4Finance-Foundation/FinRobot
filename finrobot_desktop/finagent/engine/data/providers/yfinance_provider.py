@@ -4,7 +4,25 @@ import yfinance as yf
 
 from finagent.engine.data.interface import DataProvider, DataResult, ProviderError
 
+# Reduce "Too Many Requests" errors from Yahoo Finance
+try:
+    yf.set_tz_cache_dir("/tmp/yf_cache")
+except Exception:
+    pass  # non-critical, ignore if not supported
+
 _SUPPORTED = ["financials", "price", "news"]
+_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+
+
+def _make_ticker(symbol: str) -> yf.Ticker:
+    """Create a Ticker with User-Agent header to avoid rate limiting."""
+    t = yf.Ticker(symbol)
+    try:
+        if hasattr(t, "_session") and t._session is not None:
+            t._session.headers.update({"User-Agent": _USER_AGENT})
+    except Exception:
+        pass  # header injection is best-effort
+    return t
 
 
 class YFinanceProvider(DataProvider):
@@ -30,7 +48,7 @@ class YFinanceProvider(DataProvider):
             )
 
         try:
-            t = yf.Ticker(ticker)
+            t = _make_ticker(ticker)
             # Validate ticker by checking if info is non-empty
             info = t.info
             if not info or info.get("regularMarketPrice") is None and info.get("currentPrice") is None and info.get("marketCap") is None:

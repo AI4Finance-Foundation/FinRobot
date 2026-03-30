@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 
 from finagent.engine.data.cache import DataCache
 from finagent.engine.data.interface import DataProvider, DataResult, ProviderError
@@ -19,7 +20,7 @@ class DataLayer:
         3. Try fetch → success → cache → return
         4. If fails → try fallback provider
         5. If all fail → return stale cache with warning
-        6. If no cache at all → raise ProviderError
+        6. If no cache at all → return error DataResult (LLM relays to user, no crash)
         """
         # 1. Fresh cache hit
         cached = await self._cache.get(data_type, ticker)
@@ -54,9 +55,16 @@ class DataLayer:
             )
             return stale_copy
 
-        # 6. No data anywhere
-        raise ProviderError(
-            f"No data available for {ticker}/{data_type}: all providers failed and no cache exists."
+        # 6. No data anywhere — return error result so the LLM can relay it to the user
+        msg = f"Data unavailable for {ticker}/{data_type}: all providers failed and no cache exists."
+        logger.error(msg)
+        return DataResult(
+            data={"error": msg},
+            provider="none",
+            ticker=ticker,
+            data_type=data_type,
+            timestamp=datetime.now(tz=timezone.utc),
+            warnings=[msg],
         )
 
     def _select_provider(self, data_type: str) -> DataProvider | None:

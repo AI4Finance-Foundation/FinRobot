@@ -10,8 +10,11 @@ class TestDefaults:
         s = get_settings()
         assert s.model_name == "deepseek:deepseek-chat"
 
-    def test_default_api_keys_empty(self):
-        s = get_settings()
+    def test_default_api_keys_empty(self, monkeypatch):
+        # Clear env vars + skip .env file so we test true defaults
+        for key in ["FINAGENT_ANTHROPIC_API_KEY", "FINAGENT_DEEPSEEK_API_KEY", "FINAGENT_OPENAI_API_KEY"]:
+            monkeypatch.delenv(key, raising=False)
+        s = FinAgentSettings(_env_file=None)
         assert s.anthropic_api_key == ""
         assert s.deepseek_api_key == ""
         assert s.openai_api_key == ""

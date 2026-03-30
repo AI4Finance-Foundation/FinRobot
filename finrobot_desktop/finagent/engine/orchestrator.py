@@ -2,12 +2,13 @@ from pathlib import Path
 
 from pydantic_ai import Agent, RunContext
 
+from finagent.config import get_settings
 from finagent.engine.deps import FinAgentDeps
 
 _instructions = (Path(__file__).parent / "instructions.md").read_text()
 
 lead_agent: Agent[FinAgentDeps, str] = Agent(
-    "anthropic:claude-sonnet-4-6",
+    get_settings().model_name,
     deps_type=FinAgentDeps,
     instructions=_instructions,
     defer_model_check=True,   # don't validate API key at import time

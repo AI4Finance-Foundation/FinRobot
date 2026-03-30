@@ -12,6 +12,7 @@ import time
 
 import pytest
 
+from finagent.config import get_settings
 from finagent.engine.data.cache import DataCache
 from finagent.engine.data.layer import DataLayer
 from finagent.engine.data.providers.yfinance_provider import YFinanceProvider
@@ -21,8 +22,11 @@ from finagent.engine.pipelines.equity_research import create_equity_research_pip
 
 
 def _build_deps() -> FinAgentDeps:
+    settings = get_settings()
+    settings.apply_api_keys()
     return FinAgentDeps(
-        data_layer=DataLayer(providers=[YFinanceProvider()], cache=DataCache()),
+        data_layer=DataLayer(providers=[YFinanceProvider()], cache=DataCache(settings.cache_db_path)),
+        settings=settings,
     )
 
 

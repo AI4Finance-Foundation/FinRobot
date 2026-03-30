@@ -27,16 +27,12 @@ class FakeDataLayer:
 
 
 def _patch_deps(monkeypatch):
-    """Patch _build_deps to return fake deps with TestModel override."""
-    from finagent.engine.data.cache import DataCache
-    from finagent.engine.data.layer import DataLayer
+    """Patch _build_deps to return fake deps."""
+    from finagent.config import get_settings
     from finagent.engine.deps import FinAgentDeps
 
-    class FakeDeps(FinAgentDeps):
-        pass
-
-    fake_deps = FinAgentDeps(data_layer=FakeDataLayer())
-    monkeypatch.setattr("finagent.cli._build_deps", lambda model_name: fake_deps)
+    fake_deps = FinAgentDeps(data_layer=FakeDataLayer(), settings=get_settings())
+    monkeypatch.setattr("finagent.cli._build_deps", lambda settings=None: fake_deps)
     return fake_deps
 
 

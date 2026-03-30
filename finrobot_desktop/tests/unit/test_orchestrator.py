@@ -7,6 +7,7 @@ import pytest
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
+from finagent.config import get_settings
 from finagent.engine.data.interface import DataResult
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.orchestrator import activate_skill, lead_agent, query_financial_data
@@ -28,7 +29,7 @@ class FakeDataLayer:
 
 
 def _deps(skill_runtime=None) -> FinAgentDeps:
-    return FinAgentDeps(data_layer=FakeDataLayer(), skill_runtime=skill_runtime)
+    return FinAgentDeps(data_layer=FakeDataLayer(), settings=get_settings(), skill_runtime=skill_runtime)
 
 
 # ---------------------------------------------------------------------------

@@ -2,15 +2,22 @@ import asyncio
 
 import click
 
+from finagent.config import get_settings
 
-def _build_deps(model_name: str):
+
+def _build_deps(settings=None):
     from finagent.engine.data.cache import DataCache
     from finagent.engine.data.layer import DataLayer
     from finagent.engine.data.providers.yfinance_provider import YFinanceProvider
     from finagent.engine.deps import FinAgentDeps
 
-    data_layer = DataLayer(providers=[YFinanceProvider()], cache=DataCache())
-    return FinAgentDeps(data_layer=data_layer, model_name=model_name)
+    if settings is None:
+        settings = get_settings()
+    data_layer = DataLayer(
+        providers=[YFinanceProvider()],
+        cache=DataCache(settings.cache_db_path),
+    )
+    return FinAgentDeps(data_layer=data_layer, settings=settings)
 
 
 @click.group()
@@ -20,25 +27,33 @@ def cli() -> None:
 
 @cli.command()
 @click.argument("question")
-@click.option("--model", default="anthropic:claude-sonnet-4-6", show_default=True)
-def run(question: str, model: str) -> None:
+@click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
+def run(question: str, model: str | None) -> None:
     """Ask a quick financial question (Mode A)."""
     from finagent.engine.orchestrator import lead_agent
 
-    deps = _build_deps(model)
-    result = lead_agent.run_sync(question, deps=deps)
+    settings = get_settings(model_name=model) if model else get_settings()
+    settings.apply_api_keys()
+    deps = _build_deps(settings)
+
+    if model:
+        result = lead_agent.run_sync(question, deps=deps, model=model)
+    else:
+        result = lead_agent.run_sync(question, deps=deps)
     click.echo(result.output)
 
 
 @cli.command()
 @click.argument("ticker")
-@click.option("--model", default="anthropic:claude-sonnet-4-6", show_default=True)
-def research(ticker: str, model: str) -> None:
+@click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
+def research(ticker: str, model: str | None) -> None:
     """Run equity research pipeline on a ticker (Mode B)."""
     from finagent.engine.orchestrator import lead_agent
     from finagent.engine.pipelines.equity_research import create_equity_research_pipeline
 
-    deps = _build_deps(model)
+    settings = get_settings(model_name=model) if model else get_settings()
+    settings.apply_api_keys()
+    deps = _build_deps(settings)
     pipeline = create_equity_research_pipeline(lead_agent)
 
     class FakeCtx:

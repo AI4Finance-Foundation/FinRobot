@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-> **PydanticAI API 注意**：pydantic-ai 从 0.x 到 1.7x 有大量 breaking change（如 `result.data` → `result.output`，Agent 构造参数等）。遇到任何 pydantic-ai API 不确定时，先查 https://ai.pydantic.dev/ 文档，不要凭记忆写。
-
 ## Project
 
 FinAgent — A financial AI agent platform with extensible skill ecosystem.
@@ -24,8 +22,10 @@ Both must pass before P0 is considered done:
    - Peer company list (minimum 3 peers with justification)
    - Valuation range (with methodology stated)
    - Terminal shows: Step 1/5... Step 2/5... Step 3/5... Step 4/5... Step 5/5...
-   - Total time < 60 seconds on Claude Sonnet 4.6
+   - Total time < 60 seconds (on a capable model like Claude Sonnet or DeepSeek-Chat; slower models may exceed this — the hard requirement is all 5 steps complete successfully)
    - Each step provably ran (logged), no steps skipped
+
+**Model-agnostic**: P0 acceptance tests run against whatever model is configured in `.env`. The pipeline framework is model-independent; output quality varies by model but step execution must be correct regardless.
 
 ---
 
@@ -66,6 +66,7 @@ Do not write code for P1a+ features. If you need something from a future phase, 
 
 ```
 pydantic-ai
+pydantic-settings
 fastapi
 uvicorn
 aiosqlite
@@ -84,6 +85,98 @@ The architecture document contains exact class names, method signatures, tool do
 ---
 
 ## P0 Implementation Order — Detailed Specs
+
+### File 0: `finagent/config.py`
+
+**Purpose**: Centralized configuration with multi-layer resolution. Single source of truth for all runtime settings.
+
+**Class**:
+```python
+import os
+from pydantic_settings import BaseSettings
+
+class FinAgentSettings(BaseSettings):
+    """FinAgent configuration.
+
+    Resolution order (highest priority first):
+    1. Constructor kwargs (code override)
+    2. Environment variables (FINAGENT_* prefix)
+    3. .env file in project root
+    4. Defaults below
+    """
+    # Model
+    model_name: str = "deepseek:deepseek-chat"
+
+    # API Keys — only fill the one you use
+    anthropic_api_key: str = ""
+    deepseek_api_key: str = ""
+    openai_api_key: str = ""
+
+    # Infrastructure
+    cache_db_path: str = "finagent_cache.db"
+    log_level: str = "INFO"
+
+    model_config = {"env_prefix": "FINAGENT_", "env_file": ".env"}
+
+    def apply_api_keys(self) -> None:
+        """Sync configured keys to env vars that pydantic-ai expects.
+        Only sets env var if the value is non-empty AND the env var is not already set
+        (explicit env vars always win over .env file values)."""
+        key_map = {
+            "anthropic_api_key": "ANTHROPIC_API_KEY",
+            "deepseek_api_key": "DEEPSEEK_API_KEY",
+            "openai_api_key": "OPENAI_API_KEY",
+        }
+        for attr, env_var in key_map.items():
+            val = getattr(self, attr)
+            if val and not os.environ.get(env_var):
+                os.environ[env_var] = val
+
+
+def get_settings(**overrides) -> FinAgentSettings:
+    """Get settings singleton. Pass overrides for testing."""
+    return FinAgentSettings(**overrides)
+```
+
+**Also create**: `.env.example` in project root
+```ini
+# FinAgent Configuration
+# Copy to .env and fill in your values: cp .env.example .env
+
+# Model — change this line to switch providers
+FINAGENT_MODEL_NAME=deepseek:deepseek-chat
+
+# API Keys — only fill the one matching your model
+FINAGENT_ANTHROPIC_API_KEY=
+FINAGENT_DEEPSEEK_API_KEY=
+FINAGENT_OPENAI_API_KEY=
+
+# Optional
+# FINAGENT_CACHE_DB_PATH=finagent_cache.db
+# FINAGENT_LOG_LEVEL=INFO
+```
+
+**Also add to `.gitignore`**:
+```
+.env
+```
+
+**Key details**:
+- Uses `pydantic-settings` (separate package from `pydantic`), add to approved dependencies
+- `apply_api_keys()` bridges the gap between our `FINAGENT_*` namespace and pydantic-ai's expected env var names
+- All downstream code reads from `FinAgentSettings`, never hardcodes model names or API keys
+- `get_settings()` is a factory, not a global singleton — tests can pass overrides without monkey-patching
+
+**Tests** (`tests/unit/test_config.py`):
+- Default model_name is "deepseek:deepseek-chat"
+- Constructor override: `get_settings(model_name="anthropic:claude-sonnet-4-6")` works
+- `apply_api_keys()` sets env var when value is non-empty and env var is unset
+- `apply_api_keys()` does NOT overwrite an existing env var
+- Empty API key values are not written to env
+
+**Dependencies**: None (this is the foundation alongside File 1)
+
+---
 
 ### File 1: `finagent/engine/data/interface.py`
 
@@ -187,6 +280,7 @@ class CachedResult(BaseModel):
 ```
 
 **Key details**:
+- Constructor takes `db_path` as parameter; callers (cli.py, server.py) pass `settings.cache_db_path`
 - SQLite table: `cache(data_type TEXT, ticker TEXT, data JSON, cached_at TIMESTAMP, PRIMARY KEY (data_type, ticker))`
 - get() returns None if not in cache
 - get() returns CachedResult with is_stale=True if older than max_age_hours (but still returns the data — stale data is better than no data)
@@ -330,15 +424,18 @@ Use PydanticAI's TestModel for mock agents.
 ```python
 from dataclasses import dataclass
 from finagent.engine.data.layer import DataLayer
+from finagent.config import FinAgentSettings
 
 @dataclass
 class FinAgentDeps:
     data_layer: DataLayer
+    settings: FinAgentSettings
     skill_runtime: object | None = None   # P0: None. P1a: SkillRegistry
-    model_name: str = "anthropic:claude-sonnet-4-6"
 ```
 
 **Key details**:
+- `settings` replaces the old hardcoded `model_name` field — all config comes from FinAgentSettings
+- Access model name via `deps.settings.model_name`
 - skill_runtime is None in P0. This is why Pipeline.execute() and activate_skill have None guards.
 - Keep this file minimal. Do not add fields for P1a+ features.
 
@@ -455,8 +552,9 @@ async def health():
 ```
 
 **Key details**:
-- Agent creation can accept model override from request body
-- deps construction: create DataLayer with yfinance provider + DataCache
+- On startup, call `get_settings().apply_api_keys()` before creating any Agent
+- Agent creation uses `settings.model_name`; can accept model override from request body
+- deps construction: create DataLayer with yfinance provider + DataCache(settings.cache_db_path)
 - /health endpoint is needed for Electron startup (P1c) — implement it now
 
 **Tests** (`tests/unit/test_server.py`):
@@ -474,21 +572,32 @@ async def health():
 
 ```python
 import click
+from finagent.config import get_settings
 
 @click.group()
 def cli(): ...
 
 @cli.command()
 @click.argument("question")
-@click.option("--model", default="anthropic:claude-sonnet-4-6")
-def run(question: str, model: str):
+@click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
+def run(question: str, model: str | None):
     """Ask a quick financial question (Mode A)."""
+    settings = get_settings()
+    if model:
+        settings = get_settings(model_name=model)
+    settings.apply_api_keys()
+    # ... build agent with settings.model_name, build deps with settings, run
 
 @cli.command()
 @click.argument("ticker")
-@click.option("--model", default="anthropic:claude-sonnet-4-6")
-def research(ticker: str, model: str):
+@click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
+def research(ticker: str, model: str | None):
     """Run equity research pipeline on a ticker (Mode B)."""
+    settings = get_settings()
+    if model:
+        settings = get_settings(model_name=model)
+    settings.apply_api_keys()
+    # ... build agent with settings.model_name, build deps with settings, run pipeline
 
 @cli.command()
 @click.option("--port", default=8000)
@@ -497,8 +606,10 @@ def serve(port: int):
 ```
 
 **Key details**:
-- `run` command: creates agent + deps, calls agent.run_sync(), prints result
-- `research` command: creates agent + deps, calls equity_research_pipeline.execute(), prints formatted report with step progress
+- `get_settings()` loads from `.env` automatically. `--model` flag overrides if provided.
+- `settings.apply_api_keys()` MUST be called before any pydantic-ai Agent is created — it bridges FINAGENT_* keys to the env vars pydantic-ai expects.
+- `run` command: creates agent with `settings.model_name` + deps, calls agent.run_sync(), prints result
+- `research` command: creates agent with `settings.model_name` + deps, calls equity_research_pipeline.execute(), prints formatted report with step progress
 - `serve` command: starts uvicorn with server.app
 - Entry point in pyproject.toml: `[project.scripts] finagent = "finagent.cli:cli"`
 
@@ -543,6 +654,7 @@ async def test_mode_b_equity_research():
 ```
 finagent/
 ├── __init__.py
+├── config.py
 ├── engine/
 │   ├── __init__.py
 │   ├── orchestrator.py

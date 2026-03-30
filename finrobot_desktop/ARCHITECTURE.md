@@ -263,7 +263,7 @@ equity_research_pipeline = Pipeline(
             skill_section=None,  # no skill needed, pure data fetch
             agent=lead_agent,    # P0: all steps use lead_agent
                                  # P1b: switch to dedicated data_agent
-            required_data=["financials", "price", "news", "filings"],
+            required_data=["financials", "price", "news"],  # "filings" added in P2b (SEC EDGAR)
             validate=lambda out: validate_has_fields(out, ["revenue", "ebitda", "price_history"]),
         ),
         
@@ -368,13 +368,15 @@ More pipelines follow the same pattern: LBO, IC Memo, Earnings Analysis. Each is
 
 ### 2.4 How the Lead Agent Dispatches
 
+The code below shows the **full target state (P1b+)**. In P0, only `query_financial_data`, `activate_skill`, and `run_equity_research` are registered. `run_comps_analysis` and `run_dcf_valuation` are added in P1b.
+
 ```python
 # finagent/engine/orchestrator.py
 
 lead_agent = Agent(
     'anthropic:claude-sonnet-4-6',
     deps_type=FinAgentDeps,
-    instructions=Path("instructions.md").read_text(),
+    instructions=(Path(__file__).parent / "instructions.md").read_text(),
 )
 
 # --- Mode A tools: conversational, direct response ---
@@ -384,7 +386,7 @@ async def query_financial_data(
     ctx: RunContext[FinAgentDeps], ticker: str, data_type: str
 ) -> str:
     """Fetch financial data for quick questions.
-    data_type: financials | price | news | filings"""
+    data_type: financials | price | news (filings available from P2b)"""
     return await ctx.deps.data_layer.fetch(data_type, ticker)
 
 
@@ -498,12 +500,11 @@ Provider interface + routing + caching + graceful degradation:
 ```python
 class DataProvider(ABC):
     @abstractmethod
-    async def fetch(self, ticker: str, **kwargs) -> DataResult: ...
+    async def fetch(self, ticker: str, data_type: str, **kwargs) -> DataResult: ...
 
 class DataLayer:
     """cache check → primary provider → fallback → stale cache with warning."""
-    providers: dict[str, DataProvider]
-    cache: DataCache  # SQLite, keyed by (type, ticker, date)
+    def __init__(self, providers: list[DataProvider], cache: DataCache): ...
 ```
 
 Built-in providers:

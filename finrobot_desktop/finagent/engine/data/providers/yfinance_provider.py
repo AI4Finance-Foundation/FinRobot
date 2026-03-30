@@ -12,12 +12,19 @@ except Exception:
     pass  # non-critical, ignore if not supported
 
 _SUPPORTED = ["financials", "price", "news"]
-_CALL_DELAY = 0.5  # seconds between consecutive yfinance calls
+_CALL_DELAY = 1.0        # seconds between the info fetch and subsequent calls
+_MAX_RETRIES = 3         # retry attempts on rate-limit errors
+_RETRY_DELAYS = [2, 5, 10]  # seconds to wait before each retry
 
 
 def _make_ticker(symbol: str) -> yf.Ticker:
-    """Create a Ticker. Let yfinance use its internal curl_cffi session for rate-limit handling."""
+    """Create a Ticker. Let yfinance use its internal curl_cffi session."""
     return yf.Ticker(symbol)
+
+
+def _is_rate_limit_error(e: Exception) -> bool:
+    msg = str(e).lower()
+    return "too many requests" in msg or "rate limit" in msg or "429" in msg
 
 
 class YFinanceProvider(DataProvider):
@@ -42,36 +49,44 @@ class YFinanceProvider(DataProvider):
                 f"Supported: {_SUPPORTED}"
             )
 
-        try:
-            t = _make_ticker(ticker)
-            # Validate ticker by checking if info is non-empty
-            info = t.info
-            if not info or (
-                info.get("regularMarketPrice") is None
-                and info.get("currentPrice") is None
-                and info.get("marketCap") is None
-            ):
-                if len(info) <= 1:
-                    raise ProviderError(f"Ticker '{ticker}' not found or returned no data")
-        except ProviderError:
-            raise
-        except Exception as e:
-            raise ProviderError(f"Failed to fetch ticker '{ticker}': {e}") from e
+        # Fetch and validate ticker info with retry on rate limiting.
+        # info is passed to sub-methods to avoid a redundant second HTTP call.
+        info = None
+        t = None
+        for attempt in range(_MAX_RETRIES + 1):
+            try:
+                t = _make_ticker(ticker)
+                info = t.info
+                if not info or (
+                    info.get("regularMarketPrice") is None
+                    and info.get("currentPrice") is None
+                    and info.get("marketCap") is None
+                ):
+                    if len(info) <= 1:
+                        raise ProviderError(f"Ticker '{ticker}' not found or returned no data")
+                break  # success
+            except ProviderError:
+                raise
+            except Exception as e:
+                if _is_rate_limit_error(e) and attempt < _MAX_RETRIES:
+                    wait = _RETRY_DELAYS[attempt]
+                    await asyncio.sleep(wait)
+                    continue
+                raise ProviderError(f"Failed to fetch ticker '{ticker}': {e}") from e
 
         if data_type == "financials":
-            result = self._fetch_financials(ticker, t)
+            result = self._fetch_financials(ticker, info)
         elif data_type == "price":
-            await asyncio.sleep(_CALL_DELAY)  # delay before second network call
-            result = self._fetch_price(ticker, t)
+            await asyncio.sleep(_CALL_DELAY)
+            result = self._fetch_price(ticker, t, info)
         elif data_type == "news":
             await asyncio.sleep(_CALL_DELAY)
             result = self._fetch_news(ticker, t)
 
         return result
 
-    def _fetch_financials(self, ticker: str, t: yf.Ticker) -> DataResult:
+    def _fetch_financials(self, ticker: str, info: dict) -> DataResult:
         try:
-            info = t.info
             data = {
                 "revenue": info.get("totalRevenue"),
                 "ebitda": info.get("ebitda"),
@@ -93,9 +108,8 @@ class YFinanceProvider(DataProvider):
             timestamp=datetime.now(tz=timezone.utc),
         )
 
-    def _fetch_price(self, ticker: str, t: yf.Ticker) -> DataResult:
+    def _fetch_price(self, ticker: str, t: yf.Ticker, info: dict) -> DataResult:
         try:
-            info = t.info
             current_price = info.get("currentPrice") or info.get("regularMarketPrice")
             hist = t.history(period="1y")
             price_history = []

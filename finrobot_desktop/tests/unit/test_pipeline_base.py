@@ -57,12 +57,8 @@ def _make_step(name: str, required_data: list[str] | None = None, output: str = 
 
 
 async def _run_pipeline(pipeline: Pipeline, ticker: str = "AAPL") -> PipelineResult:
-    """Run pipeline with a minimal fake RunContext-like object."""
-
-    class FakeCtx:
-        deps = FakeDeps()
-
-    return await pipeline.execute(FakeCtx(), ticker)
+    """Run pipeline with FakeDeps (P1a: execute takes deps directly)."""
+    return await pipeline.execute(FakeDeps(), ticker)
 
 
 # ---------------------------------------------------------------------------

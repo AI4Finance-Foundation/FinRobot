@@ -23,6 +23,10 @@ class TestDefaults:
         s = get_settings()
         assert s.cache_db_path == "finagent_cache.db"
 
+    def test_default_skills_dir(self):
+        s = get_settings()
+        assert s.skills_dir == "skills"
+
 
 class TestConstructorOverride:
     def test_model_name_override(self):

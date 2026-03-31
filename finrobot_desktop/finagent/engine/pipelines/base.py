@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from pydantic import BaseModel
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent
 
 from finagent.engine.pipelines.validators import ValidationResult
 
@@ -34,7 +34,7 @@ class Pipeline:
     steps: list[PipelineStep]
     max_retries: int = 2
 
-    async def execute(self, ctx: "RunContext", ticker: str, **kwargs) -> "PipelineResult":
+    async def execute(self, deps: "FinAgentDeps", ticker: str, **kwargs) -> "PipelineResult":
         results: dict[str, str] = {}
         total = len(self.steps)
 
@@ -42,18 +42,18 @@ class Pipeline:
             print(f"Step {i}/{total}: {step.name}...", flush=True)
 
             # 1. Gather required data
-            step_data = await self._gather_data(ctx, step.required_data, ticker, results)
+            step_data = await self._gather_data(deps, step.required_data, ticker, results)
 
             # 2. Load skill methodology (P1a+ — None in P0)
             methodology = ""
-            if step.skill_section and ctx.deps.skill_runtime:
-                skill = ctx.deps.skill_runtime.get(step.skill_section)
+            if step.skill_section and deps.skill_runtime:
+                skill = deps.skill_runtime.get(step.skill_section)
                 if skill:
                     methodology = skill.full_content
 
             # 3. Run agent with methodology + data
             prompt = self._build_step_prompt(step, step_data, methodology)
-            step_result = await step.agent.run(prompt, deps=ctx.deps)
+            step_result = await step.agent.run(prompt, deps=deps)
 
             # 4. Validate output, retry up to max_retries
             for attempt in range(self.max_retries):
@@ -67,7 +67,7 @@ class Pipeline:
                 step_result = await step.agent.run(
                     f"Previous output failed validation: {validation.error}\n"
                     f"Fix the issues and try again.\n\n{step_result.output}",
-                    deps=ctx.deps,
+                    deps=deps,
                 )
             else:
                 # Retries exhausted — continue with best-effort output rather than crash
@@ -84,7 +84,7 @@ class Pipeline:
 
     async def _gather_data(
         self,
-        ctx: "RunContext",
+        deps: "FinAgentDeps",
         required_data: list[str],
         ticker: str,
         previous_results: dict[str, str],
@@ -102,7 +102,7 @@ class Pipeline:
         parts = []
         for data_type in required_data:
             try:
-                result = await ctx.deps.data_layer.fetch(data_type, ticker)
+                result = await deps.data_layer.fetch(data_type, ticker)
                 parts.append(result.to_context_string())
             except Exception as e:
                 logger.warning(f"Failed to fetch {data_type} for {ticker}: {e}")

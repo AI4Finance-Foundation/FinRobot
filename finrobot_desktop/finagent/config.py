@@ -23,6 +23,7 @@ class FinAgentSettings(BaseSettings):
 
     # Infrastructure
     cache_db_path: str = "finagent_cache.db"
+    skills_dir: str = "skills"  # path to vendored skills (relative to project root or absolute)
     log_level: str = "INFO"
 
     model_config = {"env_prefix": "FINAGENT_", "env_file": ".env"}

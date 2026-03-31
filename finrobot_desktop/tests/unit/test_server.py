@@ -6,7 +6,9 @@ from finagent.server import app
 
 @pytest.fixture
 async def client():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+    # Use lifespan="on" to trigger app lifespan events (populates app.state)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
 
 
@@ -16,17 +18,31 @@ class TestHealthEndpoint:
         assert response.status_code == 200
 
     async def test_health_returns_ready_status(self, client):
-        data = response = await client.get("/health")
+        response = await client.get("/health")
         data = response.json()
         assert data["status"] == "ready"
-        assert data["phase"] == "P0"
+        assert data["phase"] == "P1a"
 
 
 class TestChatEndpoint:
-    async def test_chat_endpoint_exists_and_accepts_post(self, client):
-        # Just verify the endpoint exists — a well-formed empty body returns
-        # a non-404 response (may be 400/422 without proper Vercel AI payload,
-        # but NOT 404 or 405)
-        response = await client.post("/chat", json={})
+    async def test_chat_endpoint_exists_and_accepts_post(self):
+        """Verify route exists by manually setting app.state before request.
+        ASGITransport doesn't trigger lifespan events."""
+        from pydantic_ai.models.test import TestModel
+
+        from finagent.config import get_settings
+        from finagent.engine.deps import FinAgentDeps
+        from finagent.engine.orchestrator import create_lead_agent
+
+        settings = get_settings(model_name="test")
+        agent = create_lead_agent(settings)
+        app.state.agent = agent
+        app.state.deps = FinAgentDeps(
+            data_layer=None, settings=settings  # type: ignore[arg-type]
+        )
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            response = await c.post("/chat", json={})
         assert response.status_code != 404
         assert response.status_code != 405

@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 from finagent.config import FinAgentSettings
 from finagent.engine.data.layer import DataLayer
+from finagent.engine.skills.registry import SkillRegistry
 
 
 @dataclass
 class FinAgentDeps:
     data_layer: DataLayer
     settings: FinAgentSettings
-    skill_runtime: object | None = None   # P0: None. P1a: SkillRegistry
+    skill_runtime: SkillRegistry | None = None  # P0: None → P1a: SkillRegistry instance

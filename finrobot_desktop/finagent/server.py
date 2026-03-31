@@ -1,3 +1,6 @@
+from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI
 from starlette.requests import Request
 from starlette.responses import Response
@@ -9,29 +12,40 @@ from finagent.engine.data.cache import DataCache
 from finagent.engine.data.layer import DataLayer
 from finagent.engine.data.providers.yfinance_provider import YFinanceProvider
 from finagent.engine.deps import FinAgentDeps
-from finagent.engine.orchestrator import lead_agent
-
-# Apply API keys from .env before any Agent is used
-get_settings().apply_api_keys()
-
-app = FastAPI(title="FinAgent")
+from finagent.engine.orchestrator import create_lead_agent
+from finagent.engine.skills.registry import SkillRegistry
 
 
-def _build_deps() -> FinAgentDeps:
+@asynccontextmanager
+async def lifespan(app):
     settings = get_settings()
-    data_layer = DataLayer(
-        providers=[YFinanceProvider()],
-        cache=DataCache(settings.cache_db_path),
-    )
-    return FinAgentDeps(data_layer=data_layer, settings=settings)
+    settings.apply_api_keys()
+
+    # Load skills if available
+    skills_path = Path(settings.skills_dir)
+    registry = SkillRegistry(skills_path) if skills_path.exists() else None
+
+    # Create agent and deps
+    agent = create_lead_agent(settings, skill_registry=registry)
+    cache = DataCache(settings.cache_db_path)
+    data_layer = DataLayer(providers=[YFinanceProvider()], cache=cache)
+    deps = FinAgentDeps(data_layer=data_layer, settings=settings, skill_runtime=registry)
+
+    app.state.agent = agent
+    app.state.deps = deps
+    yield
+
+
+app = FastAPI(title="FinAgent", lifespan=lifespan)
 
 
 @app.post("/chat")
 async def chat(request: Request) -> Response:
-    deps = _build_deps()
-    return await VercelAIAdapter.dispatch_request(request, agent=lead_agent, deps=deps)
+    return await VercelAIAdapter.dispatch_request(
+        request, agent=request.app.state.agent, deps=request.app.state.deps
+    )
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ready", "phase": "P0"}
+    return {"status": "ready", "phase": "P1a"}

@@ -528,17 +528,27 @@ The first client, not the product.
 ```
 desktop/
 ├── electron/
-│   ├── main.ts              # Window + Python process lifecycle
+│   ├── main.ts              # Window + Python process lifecycle (uv sidecar)
 │   ├── preload.ts           # IPC for safeStorage (Key encryption)
 │   └── updater.ts           # electron-updater
-└── renderer/                # React 19 + Vite + Tailwind CSS 4
-    ├── app/
-    │   ├── chat/             # Vercel AI SDK useChat
-    │   ├── workspace/        # Multi-panel: chart, report, data, skills
-    │   └── settings/         # API keys, model, skill management
-    ├── stores/               # Zustand
-    └── components/
+├── renderer/                # React 19 + Vite + Tailwind CSS 4
+│   ├── app/
+│   │   ├── chat/             # Vercel AI SDK useChat
+│   │   ├── workspace/        # Multi-panel: chart, report, data, skills
+│   │   └── settings/         # API keys, model, skill management
+│   ├── stores/               # Zustand
+│   └── components/
+└── resources/               # Bundled at build time by electron-builder
+    ├── uv-darwin-arm64       # Platform-specific uv binaries
+    ├── uv-darwin-x86_64
+    ├── uv-win32-x64.exe
+    └── python/              # pyproject.toml + uv.lock for the engine
 ```
+
+**Python lifecycle** (managed by `main.ts`):
+1. First launch: `uv sync` creates a local venv from `uv.lock` (~30-60s, shown as loading screen)
+2. Every launch: `uv run finagent serve --port <port>` starts the FastAPI engine
+3. Electron window connects to `localhost:<port>` — pure HTTP/SSE, no IPC for data
 
 PydanticAI's VercelAIAdapter outputs Vercel AI Data Stream Protocol SSE. React's `useChat` consumes it. Zero custom protocol code.
 
@@ -652,8 +662,7 @@ finagent/
 │
 ├── scripts/
 │   ├── sync-skills.sh              # Pull Anthropic plugins + convert → FinAgent native format
-│   ├── build-python.sh             # PyInstaller packaging (P3b)
-│   └── build-electron.sh           # electron-builder packaging (P3b)
+│   └── build-electron.sh           # electron-builder + uv sidecar packaging (P3b)
 │
 ├── tests/
 │   ├── unit/
@@ -695,6 +704,55 @@ Proprietary platform. FinAgent makes those skills runnable with any model, on an
 
 The pipeline system with per-step validation, the data layer with provider abstraction + fallback chain, the subprocess-isolated FinRobot adapter, and the two-mode orchestrator (conversational + pipeline) are original engineering. Adapters are necessary but not the product.
 
+**"How does this compare to OpenBB, FinChat, Bloomberg Copilot?"**
+
+These are the real competitive benchmarks — not FinRobot (which is an academic tool, not a product).
+
+- **OpenBB Terminal**: Open-source, local-first, excellent financial data aggregation. But no AI pipelines, no skill system, no LLM-enforced analysis workflows. FinAgent's differentiator is the pipeline + skill layer on top of similar data sources. If OpenBB adds AI pipelines with step enforcement, that's the real threat.
+- **FinChat**: AI-powered financial Q&A with high-quality output. But closed-source SaaS, single-model (proprietary), no local execution, no extensibility. FinAgent trades output polish for model-agnosticism, local data control, and extensible skill ecosystem.
+- **Bloomberg Copilot**: Enterprise-grade, deeply integrated with Bloomberg data. Inaccessible to individual developers, quants, and small firms. FinAgent targets the audience Bloomberg doesn't serve.
+
+The honest positioning: FinAgent occupies a gap — local + model-agnostic + code-enforced pipelines + extensible skills — that no mature open-source project fills today. Whether the gap is large enough to sustain a project depends on execution quality from P2a onward and whether developers actually build on it.
+
+**"Will the skill ecosystem actually develop?"**
+
+Unknown. 56 Anthropic built-in skills provide cold-start value, but "ecosystem" requires external contributors, and contributors don't appear by default. The realistic strategy:
+
+1. P1a-P1b: Make built-in skills genuinely useful (measurable output quality improvement in pipelines).
+2. Post-P1b: Author 5-10 high-quality example skills ourselves as templates.
+3. Validate organic adoption before investing in skill marketplace, publishing tools, or community infrastructure.
+
+If no one writes skills after step 2, the "ecosystem" claim should be downgraded to "extensible library" in project messaging.
+
+**"Electron + PyInstaller is a known nightmare."**
+
+It is — which is why we don't use PyInstaller. P3b uses **uv sidecar** instead.
+
+uv is a single Rust-compiled binary (~15MB) that replaces pip, virtualenv, and PyInstaller in one shot. The Electron app bundles platform-specific uv binaries in `resources/` and runs `uv sync` on first launch to create a local venv from the locked `uv.lock`. After that, `uv run finagent serve --port <port>` starts the Python engine, and Electron connects to `localhost:<port>`.
+
+Why this is fundamentally different from PyInstaller:
+- **No binary repackaging** — uv installs native wheels directly. numpy/pandas just work, no DLL hell, no fragile hooks.
+- **`uv.lock` guarantees reproducibility** across platforms — same as cargo.lock or yarn.lock.
+- **Dependency upgrades** are trivial — update uv.lock and re-release. No re-tuning PyInstaller hooks.
+- **uv binary itself is cross-platform** — electron-builder selects the right one per OS at build time.
+
+The only trade-off: first launch requires internet to install Python deps (~30-60 seconds with a loading screen). For offline installs: pre-download wheel cache into `resources/wheels/`, then `uv sync --offline --find-links ./wheels/` — adds ~150-200MB to package size but removes the network requirement.
+
+This approach affects only `desktop/electron/main.ts` (launch logic) and `scripts/build-electron.sh` (packaging). The engine layer is completely unchanged.
+
+### Value Validation Milestones
+
+P0 and P1a only prove the framework runs — not that it produces value. The real validation points:
+
+| Milestone | What it proves | When |
+|---|---|---|
+| P1b complete | Pipeline output quality with skill injection + strict validators. **Compare equity research output vs FinChat on same tickers.** If no quality advantage, reassess project direction. | After P1b |
+| P2a complete | FinRobot data adapter works. Multi-source data (FMP + Finnhub + yfinance) actually improves output vs yfinance-only. | After P2a |
+| 5 external skills authored | Someone outside the core team wrote a skill and it works. Ecosystem is viable. | Post-P1b, ongoing |
+| First non-author user runs `finagent research` and finds output useful | Product-market fit signal. | Anytime post-P1b |
+
+If P1b output quality doesn't meaningfully exceed a well-prompted single Claude/GPT-4o call with the same data, the pipeline architecture is over-engineering and the project should pivot to a simpler tool.
+
 ---
 
 ## Implementation Priority
@@ -709,7 +767,7 @@ The pipeline system with per-step validation, the data layer with provider abstr
 | P2b | Full data layer | SEC EDGAR, cache, fallback chain, MCP bridge |
 | P2c | More pipelines + tools | LBO, earnings, IC memo pipelines. spreadsheet_gen tool (openpyxl). |
 | P3a | Advanced | Memory, skill composition, Python SDK |
-| P3b | Packaging | PyInstaller + electron-builder (known risk: heavy science deps need dedicated validation time) |
+| P3b | Packaging | uv sidecar + electron-builder. Bundled uv binary creates venv on first launch; no PyInstaller. |
 
 **P0 scope note**: P0 uses one lead_agent for all pipeline steps. This is intentional — the goal is proving the Pipeline framework forces step order, not optimizing per-step agent quality. Sub-agent specialization is P1b.
 

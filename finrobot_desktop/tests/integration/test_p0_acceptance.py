@@ -13,21 +13,24 @@ import time
 import pytest
 
 from finagent.config import get_settings
+from finagent.engine.agents.factory import create_sub_agents
 from finagent.engine.data.cache import DataCache
 from finagent.engine.data.layer import DataLayer
 from finagent.engine.data.providers.yfinance_provider import YFinanceProvider
 from finagent.engine.deps import FinAgentDeps
-from finagent.engine.orchestrator import lead_agent
+from finagent.engine.orchestrator import create_lead_agent
 from finagent.engine.pipelines.equity_research import create_equity_research_pipeline
 
 
-def _build_deps() -> FinAgentDeps:
+def _build_runtime():
     settings = get_settings()
     settings.apply_api_keys()
-    return FinAgentDeps(
+    deps = FinAgentDeps(
         data_layer=DataLayer(providers=[YFinanceProvider()], cache=DataCache(settings.cache_db_path)),
         settings=settings,
     )
+    agent = create_lead_agent(settings)
+    return agent, deps
 
 
 @pytest.mark.integration
@@ -35,9 +38,9 @@ def _build_deps() -> FinAgentDeps:
 async def test_mode_a_quick_query():
     """P0 acceptance: finagent run 'What is AAPL's PE ratio?'
     Must return real data in < 10 seconds."""
-    deps = _build_deps()
+    agent, deps = _build_runtime()
     start = time.time()
-    result = await lead_agent.run("What is AAPL's PE ratio?", deps=deps)
+    result = await agent.run("What is AAPL's PE ratio?", deps=deps)
     elapsed = time.time() - start
 
     assert isinstance(result.output, str)
@@ -52,16 +55,12 @@ async def test_mode_b_equity_research():
     """P0 acceptance: finagent research AAPL
     Must produce a Markdown report with real data in < 60 seconds,
     all 5 pipeline steps logged."""
-    deps = _build_deps()
-    pipeline = create_equity_research_pipeline(lead_agent)
-
-    class Ctx:
-        pass
-    ctx = Ctx()
-    ctx.deps = deps
+    agent, deps = _build_runtime()
+    sub_agents = create_sub_agents(deps.settings)
+    pipeline = create_equity_research_pipeline(sub_agents)
 
     start = time.time()
-    result = await pipeline.execute(ctx, "AAPL")
+    result = await pipeline.execute(deps, "AAPL")
     elapsed = time.time() - start
 
     summary = result.format_summary()

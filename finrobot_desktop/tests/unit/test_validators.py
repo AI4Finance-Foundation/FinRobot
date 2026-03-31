@@ -1,6 +1,15 @@
 import pytest
 
-from finagent.engine.pipelines.validators import validate_has_fields, validate_is_non_empty
+from finagent.engine.pipelines.validators import (
+    validate_has_fields,
+    validate_is_non_empty,
+    validate_has_peers,
+    validate_has_valuation,
+    validate_has_thesis,
+    validate_report_format,
+    validate_has_comps_table,
+    validate_dcf_output,
+)
 
 
 class TestValidateIsNonEmpty:
@@ -59,3 +68,103 @@ class TestValidateHasFields:
     def test_empty_fields_list_passes(self):
         r = validate_has_fields("anything", [])
         assert r.passed is True
+
+
+class TestValidateHasPeers:
+    def test_with_3_tickers_passes(self):
+        r = validate_has_peers("Peers: MSFT, GOOGL, META — all large-cap tech")
+        assert r.passed is True
+
+    def test_with_1_ticker_fails(self):
+        r = validate_has_peers("The company's main competitor is MSFT in the market.")
+        assert r.passed is False
+        assert "ticker" in r.error.lower()
+
+    def test_excludes_financial_acronyms(self):
+        # WACC, DCF, EBITDA are NOT tickers
+        r = validate_has_peers("We used WACC and DCF and EBITDA methods")
+        assert r.passed is False
+
+    def test_mixed_tickers_and_acronyms(self):
+        r = validate_has_peers("MSFT, GOOGL, META with EBITDA and WACC analysis")
+        assert r.passed is True
+
+
+class TestValidateHasValuation:
+    def test_dcf_wacc_terminal_passes(self):
+        r = validate_has_valuation(
+            "Our DCF analysis uses a WACC of 10% and terminal value of $500B"
+        )
+        assert r.passed is True
+
+    def test_empty_text_fails(self):
+        r = validate_has_valuation("")
+        assert r.passed is False
+
+    def test_single_indicator_fails(self):
+        r = validate_has_valuation("The DCF model suggests upside")
+        assert r.passed is False
+
+
+class TestValidateHasThesis:
+    def test_recommendation_catalyst_risk_passes(self):
+        r = validate_has_thesis(
+            "We rate the stock Buy. Key catalyst: new product launch. "
+            "Primary risk: regulatory headwinds."
+        )
+        assert r.passed is True
+
+    def test_just_recommendation_fails(self):
+        r = validate_has_thesis("Buy the stock.")
+        assert r.passed is False
+
+
+class TestValidateReportFormat:
+    def test_proper_report_passes(self):
+        report = "## Executive Summary\n\n" + "word " * 100 + "\n\n"
+        report += "## Valuation\n\n" + "word " * 80 + "\n\n"
+        report += "## Risks\n\n" + "word " * 50
+        r = validate_report_format(report)
+        assert r.passed is True
+
+    def test_no_headers_fails(self):
+        r = validate_report_format("word " * 300)
+        assert r.passed is False
+        assert "header" in r.error.lower()
+
+    def test_too_short_fails(self):
+        r = validate_report_format("## Summary\n## Risk\n## Peer\nshort")
+        assert r.passed is False
+        assert "word" in r.error.lower()
+
+
+class TestValidateHasCompsTable:
+    def test_tickers_multiples_stats_passes(self):
+        r = validate_has_comps_table(
+            "MSFT: EV/EBITDA 20x, P/E 30x\n"
+            "GOOGL: EV/EBITDA 18x, P/E 25x\n"
+            "META: EV/EBITDA 15x, P/E 22x\n"
+            "Median EV/EBITDA: 18x"
+        )
+        assert r.passed is True
+
+    def test_missing_stats_fails(self):
+        r = validate_has_comps_table(
+            "MSFT EV/EBITDA 20x, P/E 30x, GOOGL, META multiple comparison"
+        )
+        assert r.passed is False
+        assert "statistical" in r.error.lower() or "median" in r.error.lower()
+
+
+class TestValidateDcfOutput:
+    def test_3_components_passes(self):
+        r = validate_dcf_output(
+            "WACC: 10%, Terminal Value: $500B, Free Cash Flow projections, "
+            "Sensitivity analysis shows range"
+        )
+        assert r.passed is True
+
+    def test_just_dcf_mentioned_fails(self):
+        r = validate_dcf_output("DCF analysis completed.")
+        assert r.passed is False
+        assert "component" in r.error.lower()

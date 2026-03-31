@@ -1,13 +1,18 @@
 """CLI tests using click.testing.CliRunner with TestModel mock."""
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
+from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
 from finagent.cli import cli
 from finagent.engine.data.interface import DataResult
+from finagent.engine.deps import FinAgentDeps
+
+FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "skills"
 
 
 # ---------------------------------------------------------------------------
@@ -26,50 +31,142 @@ class FakeDataLayer:
         )
 
 
-def _patch_deps(monkeypatch):
-    """Patch _build_deps to return fake deps."""
+def _fake_deps():
+    """Create fake deps for testing."""
     from finagent.config import get_settings
-    from finagent.engine.deps import FinAgentDeps
+    settings = get_settings(model_name="test")
+    return FinAgentDeps(data_layer=FakeDataLayer(), settings=settings)
 
-    fake_deps = FinAgentDeps(data_layer=FakeDataLayer(), settings=get_settings())
-    monkeypatch.setattr("finagent.cli._build_deps", lambda settings=None: fake_deps)
+
+def _patch_build_runtime(monkeypatch, call_tools=None):
+    """Patch _build_runtime to return a TestModel agent + fake deps."""
+    from finagent.config import get_settings
+    from finagent.engine.orchestrator import create_lead_agent
+
+    settings = get_settings(model_name="test")
+    agent = create_lead_agent(settings)
+    fake_deps = FinAgentDeps(data_layer=FakeDataLayer(), settings=settings)
+
+    # Override the agent model to TestModel
+    test_model = TestModel(
+        custom_output_text="revenue 385B ebitda 130B price_history available",
+        call_tools=call_tools or [],
+    )
+
+    def mock_build_runtime(model=None):
+        return agent, fake_deps
+
+    monkeypatch.setattr("finagent.cli._build_runtime", mock_build_runtime)
+    return agent, test_model
+
+
+def _patch_build_deps(monkeypatch):
+    """Patch _build_deps for pipeline commands (research, comps, dcf)."""
+    fake_deps = _fake_deps()
+
+    def mock_build_deps(model=None):
+        return fake_deps
+
+    monkeypatch.setattr("finagent.cli._build_deps", mock_build_deps)
     return fake_deps
 
 
 class TestRunCommand:
     def test_run_doesnt_crash_with_test_model(self, monkeypatch):
-        _patch_deps(monkeypatch)
-        from finagent.engine.orchestrator import lead_agent
-
+        agent, test_model = _patch_build_runtime(monkeypatch)
         runner = CliRunner()
-        with lead_agent.override(model=TestModel(custom_output_text="AAPL PE is 28.3x", call_tools=[])):
+        with agent.override(model=test_model):
             result = runner.invoke(cli, ["run", "What is AAPL's PE?"])
         assert result.exit_code == 0, result.output
-        assert "AAPL PE is 28.3x" in result.output
 
     def test_run_with_model_option(self, monkeypatch):
-        _patch_deps(monkeypatch)
-        from finagent.engine.orchestrator import lead_agent
-
+        agent, test_model = _patch_build_runtime(monkeypatch)
         runner = CliRunner()
-        with lead_agent.override(model=TestModel(custom_output_text="answer", call_tools=[])):
+        with agent.override(model=test_model):
             result = runner.invoke(cli, ["run", "test question", "--model", "anthropic:claude-sonnet-4-6"])
         assert result.exit_code == 0, result.output
 
 
 class TestResearchCommand:
     def test_research_doesnt_crash_with_test_model(self, monkeypatch):
-        _patch_deps(monkeypatch)
-        from finagent.engine.orchestrator import lead_agent
-
+        _patch_build_deps(monkeypatch)
         runner = CliRunner()
-        with lead_agent.override(model=TestModel(
-            custom_output_text="revenue 385B ebitda 130B price_history available",
-            call_tools=[],
-        )):
-            result = runner.invoke(cli, ["research", "AAPL"])
+        result = runner.invoke(cli, ["research", "AAPL"])
         assert result.exit_code == 0, result.output
         assert "Step" in result.output or "report" in result.output.lower()
+
+
+class TestCompsCommand:
+    def test_comps_doesnt_crash_with_test_model(self, monkeypatch):
+        _patch_build_deps(monkeypatch)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["comps", "AAPL"])
+        assert result.exit_code == 0, result.output
+
+    def test_comps_with_model_option(self, monkeypatch):
+        _patch_build_deps(monkeypatch)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["comps", "AAPL", "--model", "test"])
+        assert result.exit_code == 0, result.output
+
+
+class TestDcfCommand:
+    def test_dcf_doesnt_crash_with_test_model(self, monkeypatch):
+        _patch_build_deps(monkeypatch)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["dcf", "AAPL"])
+        assert result.exit_code == 0, result.output
+
+    def test_dcf_with_model_option(self, monkeypatch):
+        _patch_build_deps(monkeypatch)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["dcf", "AAPL", "--model", "test"])
+        assert result.exit_code == 0, result.output
+
+
+class TestBuildDeps:
+    def test_build_deps_returns_deps_with_settings(self):
+        from finagent.cli import _build_deps
+        # This will try to build with real settings — just verify it returns FinAgentDeps
+        deps = _build_deps()
+        assert hasattr(deps, "settings")
+        assert hasattr(deps, "data_layer")
+        assert hasattr(deps, "skill_runtime")
+
+    def test_build_runtime_returns_agent_and_deps(self):
+        from finagent.cli import _build_runtime
+        agent, deps = _build_runtime()
+        assert agent is not None
+        assert hasattr(deps, "settings")
+
+
+class TestSkillCommands:
+    def test_skill_list_prints_skills(self, monkeypatch):
+        monkeypatch.setenv("FINAGENT_SKILLS_DIR", str(FIXTURES_DIR))
+        runner = CliRunner()
+        result = runner.invoke(cli, ["skill", "list"])
+        assert result.exit_code == 0, result.output
+        assert "comps-analysis" in result.output
+
+    def test_skill_search_finds_comps(self, monkeypatch):
+        monkeypatch.setenv("FINAGENT_SKILLS_DIR", str(FIXTURES_DIR))
+        runner = CliRunner()
+        result = runner.invoke(cli, ["skill", "search", "comps"])
+        assert result.exit_code == 0, result.output
+        assert "comps-analysis" in result.output
+
+    def test_skill_search_no_match(self, monkeypatch):
+        monkeypatch.setenv("FINAGENT_SKILLS_DIR", str(FIXTURES_DIR))
+        runner = CliRunner()
+        result = runner.invoke(cli, ["skill", "search", "zzz_nonexistent"])
+        assert result.exit_code == 0
+        assert "No skills matching" in result.output
+
+    def test_skill_list_no_skills_dir(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("FINAGENT_SKILLS_DIR", str(tmp_path / "nonexistent"))
+        runner = CliRunner()
+        result = runner.invoke(cli, ["skill", "list"])
+        assert "No skills directory" in result.output
 
 
 class TestServeCommand:

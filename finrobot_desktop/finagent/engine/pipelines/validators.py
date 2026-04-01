@@ -1,3 +1,5 @@
+import re
+
 from pydantic import BaseModel
 
 
@@ -24,8 +26,6 @@ def validate_has_fields(output: str, fields: list[str]) -> ValidationResult:
         error=f"Output missing required fields: {', '.join(missing)}",
     )
 
-import re
-
 
 # Non-ticker acronyms to exclude from peer detection
 _NON_TICKER_ACRONYMS = {
@@ -50,6 +50,8 @@ def validate_has_peers(output: str, min_peers: int = 3) -> ValidationResult:
     )
 
 
+# DEPRECATED: P0/P1b keyword-based validators below.
+# Kept for backward compatibility. New code should use typed validators (bottom of file).
 def validate_has_valuation(output: str) -> ValidationResult:
     """Strict validator for financial modeling step.
     Checks that output contains valuation methodology and numbers.
@@ -162,3 +164,94 @@ def validate_dcf_output(output: str) -> ValidationResult:
         passed=False,
         error=f"Expected at least 3 DCF components, found {found}",
     )
+
+
+import math as _math
+
+from finagent.engine.models.financial import (
+    FinancialData, PeerComps, DCFResult, ThesisResult,
+)
+
+_VALID_RECOMMENDATIONS = {
+    "Buy", "Hold", "Sell", "Overweight", "Underweight", "Outperform", "Underperform"
+}
+
+
+def validate_financial_data(data: FinancialData) -> ValidationResult:
+    """Validate extracted financial data is reasonable."""
+    if data.revenue <= 0:
+        return ValidationResult(passed=False, error="Revenue must be positive")
+    if data.market_cap <= 0:
+        return ValidationResult(passed=False, error="Market cap must be positive")
+    margin = data.ebitda / data.revenue
+    if not (-0.5 <= margin <= 0.8):
+        return ValidationResult(
+            passed=False,
+            error=f"EBITDA margin {margin:.1%} out of range (-50% to 80%)"
+        )
+    if data.pe_ratio is not None and data.pe_ratio <= 0:
+        return ValidationResult(passed=False, error="PE ratio must be positive if set")
+    return ValidationResult(passed=True)
+
+
+def validate_peer_comps(comps: PeerComps) -> ValidationResult:
+    """Validate peer analysis result."""
+    if len(comps.peers) < 3:
+        return ValidationResult(
+            passed=False,
+            error=f"Need at least 3 peers, got {len(comps.peers)}"
+        )
+    for peer in comps.peers:
+        if peer.revenue <= 0:
+            return ValidationResult(
+                passed=False,
+                error=f"Peer {peer.ticker} has non-positive revenue"
+            )
+        if peer.ev_ebitda is not None and not (1 <= peer.ev_ebitda <= 100):
+            return ValidationResult(
+                passed=False,
+                error=f"Peer {peer.ticker} EV/EBITDA {peer.ev_ebitda:.1f}x out of range 1-100x"
+            )
+    if comps.median_ev_ebitda is None:
+        return ValidationResult(passed=False, error="Median EV/EBITDA statistics not computed")
+    return ValidationResult(passed=True)
+
+
+def validate_dcf_result(result: DCFResult) -> ValidationResult:
+    """Validate DCF output."""
+    if result.wacc <= 0:
+        return ValidationResult(passed=False, error=f"WACC must be positive, got {result.wacc}")
+    if result.wacc > 0.25:
+        return ValidationResult(
+            passed=False,
+            error=f"WACC {result.wacc:.4f} exceeds maximum 0.25"
+        )
+    if result.wacc < 0.03:
+        return ValidationResult(
+            passed=False,
+            error=f"WACC {result.wacc:.4f} below minimum 0.03"
+        )
+    if result.implied_price <= 0:
+        return ValidationResult(passed=False, error="Implied price must be positive")
+    if result.enterprise_value <= 0:
+        return ValidationResult(passed=False, error="Enterprise value must be positive")
+    for fcf in result.projected_fcf:
+        if not _math.isfinite(fcf):
+            return ValidationResult(passed=False, error=f"Non-finite FCF value: {fcf}")
+    return ValidationResult(passed=True)
+
+
+def validate_thesis(thesis: ThesisResult) -> ValidationResult:
+    """Validate thesis structure."""
+    if thesis.recommendation not in _VALID_RECOMMENDATIONS:
+        return ValidationResult(
+            passed=False,
+            error=f"Recommendation '{thesis.recommendation}' must be one of {sorted(_VALID_RECOMMENDATIONS)}"
+        )
+    if thesis.price_target <= 0:
+        return ValidationResult(passed=False, error="Price target must be positive")
+    if len(thesis.catalysts) < 1:
+        return ValidationResult(passed=False, error="At least 1 catalyst required")
+    if len(thesis.risks) < 1:
+        return ValidationResult(passed=False, error="At least 1 risk required")
+    return ValidationResult(passed=True)

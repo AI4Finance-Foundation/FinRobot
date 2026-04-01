@@ -84,6 +84,7 @@ def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 agent=agents["analysis"],
                 required_data=[],
                 validate=lambda out: validate_is_non_empty(out),
+                validate_structured=validate_peer_comps,
                 execute_fn=_execute_statistical_bench,
             ),
             PipelineStep(

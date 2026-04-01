@@ -56,7 +56,7 @@ async def _execute_dcf_calc(agent, deps, prompt, structured_context, ticker):
 
 
 def create_dcf_pipeline(agents: dict[str, Agent]) -> Pipeline:
-    """6-step DCF valuation pipeline. Steps 2-5 collapsed into dcf_calc."""
+    """3-step DCF valuation pipeline (steps 2-5 collapsed into dcf_calc)."""
     return Pipeline(
         steps=[
             PipelineStep(

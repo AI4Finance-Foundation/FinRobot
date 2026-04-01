@@ -55,8 +55,8 @@ class YFinanceProvider(DataProvider):
         t = None
         for attempt in range(_MAX_RETRIES + 1):
             try:
-                t = _make_ticker(ticker)
-                info = t.info
+                t = await asyncio.to_thread(_make_ticker, ticker)
+                info = await asyncio.to_thread(lambda: t.info)
                 if not info or (
                     info.get("regularMarketPrice") is None
                     and info.get("currentPrice") is None
@@ -78,10 +78,10 @@ class YFinanceProvider(DataProvider):
             result = self._fetch_financials(ticker, info)
         elif data_type == "price":
             await asyncio.sleep(_CALL_DELAY)
-            result = self._fetch_price(ticker, t, info)
+            result = await self._fetch_price(ticker, t, info)
         elif data_type == "news":
             await asyncio.sleep(_CALL_DELAY)
-            result = self._fetch_news(ticker, t)
+            result = await self._fetch_news(ticker, t)
 
         return result
 
@@ -96,6 +96,8 @@ class YFinanceProvider(DataProvider):
                 "pe_ratio": info.get("trailingPE"),
                 "market_cap": info.get("marketCap"),
                 "shares_outstanding": info.get("sharesOutstanding"),
+                "total_debt": info.get("totalDebt", 0),
+                "total_cash": info.get("totalCash", 0),
             }
         except Exception as e:
             raise ProviderError(f"Failed to fetch financials for '{ticker}': {e}") from e
@@ -108,10 +110,10 @@ class YFinanceProvider(DataProvider):
             timestamp=datetime.now(tz=timezone.utc),
         )
 
-    def _fetch_price(self, ticker: str, t: yf.Ticker, info: dict) -> DataResult:
+    async def _fetch_price(self, ticker: str, t: yf.Ticker, info: dict) -> DataResult:
         try:
             current_price = info.get("currentPrice") or info.get("regularMarketPrice")
-            hist = t.history(period="1y")
+            hist = await asyncio.to_thread(t.history, period="1y")
             price_history = []
             for date, row in hist.iterrows():
                 price_history.append({
@@ -133,9 +135,9 @@ class YFinanceProvider(DataProvider):
             timestamp=datetime.now(tz=timezone.utc),
         )
 
-    def _fetch_news(self, ticker: str, t: yf.Ticker) -> DataResult:
+    async def _fetch_news(self, ticker: str, t: yf.Ticker) -> DataResult:
         try:
-            raw_news = t.news or []
+            raw_news = await asyncio.to_thread(lambda: t.news or [])
             headlines = []
             for item in raw_news:
                 content = item.get("content", {})

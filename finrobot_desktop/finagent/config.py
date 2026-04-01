@@ -22,6 +22,11 @@ class FinAgentSettings(BaseSettings):
     deepseek_api_key: str = ""
     openai_api_key: str = ""
 
+    # Data provider API keys (P2a)
+    fmp_api_key: str = ""
+    finnhub_api_key: str = ""
+    sec_user_agent: str = "FinAgent admin@example.com"
+
     # Infrastructure
     cache_db_path: str = "finagent_cache.db"
     skills_dir: str = "skills"  # path to vendored skills (relative to project root or absolute)

@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -12,7 +11,10 @@ from finagent.engine.data.layer import DataLayer
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_result(ticker: str = "AAPL", data_type: str = "financials", provider: str = "mock") -> DataResult:
+
+def _make_result(
+    ticker: str = "AAPL", data_type: str = "financials", provider: str = "mock"
+) -> DataResult:
     return DataResult(
         data={"revenue": 1_000},
         provider=provider,
@@ -23,7 +25,13 @@ def _make_result(ticker: str = "AAPL", data_type: str = "financials", provider: 
 
 
 class MockProvider(DataProvider):
-    def __init__(self, name_: str, caps: list[str], result: DataResult | None = None, raises: Exception | None = None):
+    def __init__(
+        self,
+        name_: str,
+        caps: list[str],
+        result: DataResult | None = None,
+        raises: Exception | None = None,
+    ):
         self._name = name_
         self._caps = caps
         self._result = result
@@ -52,6 +60,7 @@ async def cache(tmp_path):
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestFetchFromProvider:
     async def test_empty_cache_calls_provider(self, cache):
@@ -90,7 +99,7 @@ class TestFetchFromProvider:
             await conn.commit()
 
         provider.fetch_called = 0
-        result = await layer.fetch("financials", "AAPL")
+        await layer.fetch("financials", "AAPL")
         assert provider.fetch_called == 1
 
 
@@ -113,7 +122,9 @@ class TestProviderFailure:
             await conn.commit()
 
         # Now provider fails
-        failing_provider = MockProvider("fail", ["financials"], raises=ProviderError("network error"))
+        failing_provider = MockProvider(
+            "fail", ["financials"], raises=ProviderError("network error")
+        )
         layer2 = DataLayer([failing_provider], cache)
         result = await layer2.fetch("financials", "AAPL")
         assert result is not None
@@ -151,3 +162,49 @@ class TestMultipleProviders:
         assert result.provider == "p2"
         assert p1.fetch_called == 1
         assert p2.fetch_called == 1
+
+
+class TestChainFallback:
+    """P2a: chain fallback iterates all providers, not just primary + 1 fallback."""
+
+    async def test_three_provider_chain_first_succeeds(self, cache):
+        p1 = MockProvider("fmp", ["financials"], result=_make_result(provider="fmp"))
+        p2 = MockProvider("finnhub", ["financials"])
+        p3 = MockProvider("yfinance", ["financials"])
+        layer = DataLayer([p1, p2, p3], cache)
+        result = await layer.fetch("financials", "AAPL")
+        assert result.provider == "fmp"
+        assert p1.fetch_called == 1
+        assert p2.fetch_called == 0
+        assert p3.fetch_called == 0
+
+    async def test_three_provider_chain_first_fails_second_succeeds(self, cache):
+        p1 = MockProvider("fmp", ["financials"], raises=ProviderError("fmp down"))
+        p2 = MockProvider("finnhub", ["financials"], result=_make_result(provider="finnhub"))
+        p3 = MockProvider("yfinance", ["financials"])
+        layer = DataLayer([p1, p2, p3], cache)
+        result = await layer.fetch("financials", "AAPL")
+        assert result.provider == "finnhub"
+        assert p1.fetch_called == 1
+        assert p2.fetch_called == 1
+        assert p3.fetch_called == 0
+
+    async def test_three_provider_chain_first_two_fail_third_succeeds(self, cache):
+        p1 = MockProvider("fmp", ["financials"], raises=ProviderError("fmp down"))
+        p2 = MockProvider("finnhub", ["financials"], raises=ProviderError("finnhub down"))
+        p3 = MockProvider("yfinance", ["financials"], result=_make_result(provider="yfinance"))
+        layer = DataLayer([p1, p2, p3], cache)
+        result = await layer.fetch("financials", "AAPL")
+        assert result.provider == "yfinance"
+        assert p1.fetch_called == 1
+        assert p2.fetch_called == 1
+        assert p3.fetch_called == 1
+
+    async def test_all_three_fail_returns_error(self, cache):
+        p1 = MockProvider("fmp", ["financials"], raises=ProviderError("fmp down"))
+        p2 = MockProvider("finnhub", ["financials"], raises=ProviderError("finnhub down"))
+        p3 = MockProvider("yfinance", ["financials"], raises=ProviderError("yfinance down"))
+        layer = DataLayer([p1, p2, p3], cache)
+        result = await layer.fetch("financials", "AAPL")
+        assert result.provider == "none"
+        assert any("unavailable" in w.lower() or "failed" in w.lower() for w in result.warnings)

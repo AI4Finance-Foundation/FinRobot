@@ -23,8 +23,23 @@ def _build_deps(model: str | None = None):
     skills_path = Path(settings.skills_dir)
     registry = SkillRegistry(skills_path) if skills_path.exists() else None
 
+    # Build provider chain: FMP (if key) → Finnhub (if key) → yfinance (always) + SEC EDGAR
+    from finagent.engine.data.providers.sec_provider import SECEdgarProvider
+
+    providers: list = []
+    if settings.fmp_api_key:
+        from finagent.engine.data.providers.fmp_provider import FMPProvider
+
+        providers.append(FMPProvider(api_key=settings.fmp_api_key))
+    if settings.finnhub_api_key:
+        from finagent.engine.data.providers.finnhub_provider import FinnhubProvider
+
+        providers.append(FinnhubProvider(api_key=settings.finnhub_api_key))
+    providers.append(YFinanceProvider())  # always last (free fallback)
+    providers.append(SECEdgarProvider(user_agent=settings.sec_user_agent))  # filings only
+
     cache = DataCache(settings.cache_db_path)
-    data_layer = DataLayer(providers=[YFinanceProvider()], cache=cache)
+    data_layer = DataLayer(providers=providers, cache=cache)
     deps = FinAgentDeps(data_layer=data_layer, settings=settings, skill_runtime=registry)
 
     return deps
@@ -45,6 +60,7 @@ def cli() -> None:
 
 
 # --- Skill subcommands ---
+
 
 @cli.group()
 def skill():
@@ -88,6 +104,7 @@ def skill_search(query: str):
 
 
 # --- Main commands ---
+
 
 @cli.command()
 @click.argument("question")

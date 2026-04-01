@@ -67,7 +67,7 @@ def test_peer_statistics_excludes_none_pe():
     comps = PeerComps(target=target, peers=companies)
     calculate_peer_statistics(comps)
     # median P/E computed from only A and C (B excluded)
-    assert comps.median_pe is not None
+    assert abs(comps.median_pe - 50.0) < 1e-9
 
 def test_peer_statistics_all_none_pe():
     companies = [

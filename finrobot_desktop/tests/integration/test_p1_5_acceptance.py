@@ -59,6 +59,8 @@ class TestDeterminism:
         assert r1.implied_price == r2.implied_price
         assert r1.cost_of_equity is None
         assert r1.wacc == 0.12
+        assert r2.cost_of_equity is None
+        assert r2.wacc == 0.12
 
     def test_wacc_deterministic(self):
         coe1, wacc1 = calculate_wacc(0.04, 1.2, 0.05, 0.04, 0.21, 0.3)

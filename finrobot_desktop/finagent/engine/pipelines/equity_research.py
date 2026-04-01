@@ -1,6 +1,5 @@
 import logging
 from pydantic_ai import Agent
-from pydantic_ai import Agent as PydanticAgent
 
 from finagent.engine.models.financial import (
     FinancialData, CompanyFinancials, PeerComps, PeerSelection,
@@ -33,7 +32,7 @@ async def _execute_data_collection(agent, deps, prompt, structured_context, tick
 
 async def _execute_peer_analysis(agent, deps, prompt, structured_context, ticker):
     """LLM selects peer tickers (structured output); code fetches and computes multiples."""
-    peer_agent = PydanticAgent(
+    peer_agent = Agent(
         deps.settings.model_name,
         output_type=PeerSelection,
         instructions=(
@@ -65,7 +64,9 @@ async def _execute_peer_analysis(agent, deps, prompt, structured_context, ticker
             f"Attempted: {selection.tickers}."
         )
 
-    target_fin: FinancialData = structured_context["data_collection"]
+    target_fin: FinancialData = structured_context.get("data_collection")
+    if target_fin is None:
+        raise ValueError("data_collection structured output not available; cannot build peer target.")
     target = CompanyFinancials(
         ticker=ticker,
         revenue=target_fin.revenue,
@@ -86,10 +87,12 @@ async def _execute_peer_analysis(agent, deps, prompt, structured_context, ticker
     )
     calculate_peer_statistics(peer_comps)
 
+    ev_ebitda_str = f"{peer_comps.median_ev_ebitda:.1f}x" if peer_comps.median_ev_ebitda is not None else "N/A"
+    pe_str = f"{peer_comps.median_pe:.1f}x" if peer_comps.median_pe is not None else "N/A"
     narrative = (
         f"Peer set ({len(peers)} companies): {', '.join(p.ticker for p in peers)}. "
-        f"Median EV/EBITDA: {peer_comps.median_ev_ebitda:.1f}x. "
-        f"Median P/E: {peer_comps.median_pe:.1f}x. "
+        f"Median EV/EBITDA: {ev_ebitda_str}. "
+        f"Median P/E: {pe_str}. "
         f"{selection.rationale}"
     )
     return StepOutput(text=narrative, structured=peer_comps)
@@ -97,7 +100,7 @@ async def _execute_peer_analysis(agent, deps, prompt, structured_context, ticker
 
 async def _execute_financial_modeling(agent, deps, prompt, structured_context, ticker):
     """param_agent selects DCF assumptions; calculate_dcf() does all math."""
-    param_agent = PydanticAgent(
+    param_agent = Agent(
         deps.settings.model_name,
         output_type=DCFInputs,
         instructions=(
@@ -121,7 +124,7 @@ async def _execute_financial_modeling(agent, deps, prompt, structured_context, t
     sensitivity = calculate_sensitivity(dcf_inputs, wacc_range=wacc_range, tg_range=tg_range)
     dcf_result = dcf_result.model_copy(update={"sensitivity_table": sensitivity})
 
-    valid_prices = [p for row in sensitivity["implied_prices"] for p in row if p is not None]
+    valid_prices = [p for row in sensitivity["implied_prices"] for p in row if p is not None and p > 0]
     price_range = (
         f"${min(valid_prices):.0f}-${max(valid_prices):.0f}"
         if valid_prices else "N/A"
@@ -137,7 +140,7 @@ async def _execute_financial_modeling(agent, deps, prompt, structured_context, t
 
 async def _execute_thesis(agent, deps, prompt, structured_context, ticker):
     """synthesis_agent writes thesis with structured output."""
-    synthesis_agent = PydanticAgent(
+    synthesis_agent = Agent(
         deps.settings.model_name,
         output_type=ThesisResult,
         instructions=(

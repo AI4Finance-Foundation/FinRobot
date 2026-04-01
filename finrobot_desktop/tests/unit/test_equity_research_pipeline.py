@@ -252,10 +252,61 @@ async def test_step3_dcf_deterministic(mock_deps):
     mock_agent_instance = MagicMock()
     mock_agent_instance.run = AsyncMock(return_value=mock_param_result)
 
-    with patch("finagent.engine.pipelines.equity_research.PydanticAgent",
+    with patch("finagent.engine.pipelines.equity_research.Agent",
                return_value=mock_agent_instance):
         out1 = await _execute_financial_modeling(mock_agent, mock_deps, "prompt", {}, "AAPL")
         out2 = await _execute_financial_modeling(mock_agent, mock_deps, "prompt", {}, "AAPL")
 
     assert isinstance(out1.structured, DCFResult)
     assert out1.structured.implied_price == out2.structured.implied_price
+
+
+@pytest.mark.asyncio
+async def test_peer_analysis_raises_when_data_collection_missing(mock_deps):
+    """_execute_peer_analysis raises ValueError when data_collection not in structured_context."""
+    from finagent.engine.pipelines.equity_research import _execute_peer_analysis
+    from finagent.engine.models.financial import PeerSelection
+
+    mock_peer_result = MagicMock()
+    mock_peer_result.output = PeerSelection(
+        tickers=["MSFT", "GOOGL", "META"],
+        rationale="Large-cap tech peers",
+    )
+    mock_agent_instance = MagicMock()
+    mock_agent_instance.run = AsyncMock(return_value=mock_peer_result)
+
+    fin_result = DataResult(
+        data=dict(revenue=50e9, ebitda=15e9, net_income=10e9,
+                  gross_margin=0.40, operating_margin=0.25,
+                  pe_ratio=25.0, market_cap=1e12, shares_outstanding=5e9,
+                  current_price=100.0, total_debt=10e9, total_cash=5e9),
+        provider="yfinance", ticker="MSFT", data_type="financials",
+        timestamp=datetime.now(tz=timezone.utc),
+    )
+    mock_deps.data_layer.fetch = AsyncMock(return_value=fin_result)
+
+    mock_agent = MagicMock()
+
+    with patch("finagent.engine.pipelines.equity_research.Agent",
+               return_value=mock_agent_instance):
+        with pytest.raises(ValueError, match="data_collection"):
+            await _execute_peer_analysis(mock_agent, mock_deps, "prompt", {}, "AAPL")
+
+
+def test_build_sensitivity_ranges_returns_valid_ranges():
+    """_build_sensitivity_ranges returns non-empty tg_range that stays below min(wacc_range)."""
+    from finagent.engine.pipelines.equity_research import _build_sensitivity_ranges
+
+    dcf_result = MagicMock()
+    dcf_result.wacc = 0.09
+    dcf_result.inputs = MagicMock()
+    dcf_result.inputs.terminal_growth_rate = 0.025
+
+    wacc_range, tg_range = _build_sensitivity_ranges(dcf_result)
+
+    assert len(wacc_range) == 5
+    assert len(tg_range) >= 1
+    min_wacc = min(wacc_range)
+    assert all(g < min_wacc for g in tg_range), (
+        f"All tg values must be < min_wacc {min_wacc}, got {tg_range}"
+    )

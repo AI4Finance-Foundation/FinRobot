@@ -72,13 +72,22 @@ class TestPipelineExecution:
     async def test_three_step_pipeline_executes_all_in_order(self):
         order = []
 
-        async def fake_run(step_name):
-            order.append(step_name)
-            return "output"
+        def make_fn(step_name):
+            async def fn(agent, deps, prompt, structured_context, ticker):
+                order.append(step_name)
+                return f"output from {step_name}"
+            return fn
 
-        steps = [_make_step(n) for n in ["step_a", "step_b", "step_c"]]
+        steps = [
+            PipelineStep(name=n, agent=MagicMock(), validate=validate_is_non_empty, execute_fn=make_fn(n))
+            for n in ["step_a", "step_b", "step_c"]
+        ]
+        mock_deps = MagicMock()
+        mock_deps.skill_runtime = None
         pipeline = Pipeline(steps=steps)
-        result = await _run_pipeline(pipeline)
+        result = await pipeline.execute(mock_deps, "AAPL")
+        # Verify ORDER was preserved, not just that all steps ran
+        assert order == ["step_a", "step_b", "step_c"]
         assert set(result.steps.keys()) == {"step_a", "step_b", "step_c"}
 
     async def test_all_step_outputs_stored(self):

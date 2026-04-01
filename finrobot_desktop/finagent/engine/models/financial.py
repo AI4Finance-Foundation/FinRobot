@@ -5,6 +5,7 @@ from datetime import datetime
 
 class FinancialData(BaseModel):
     """Structured financial data for a single company."""
+
     model_config = ConfigDict(frozen=False)
 
     ticker: str
@@ -38,6 +39,12 @@ class FinancialData(BaseModel):
     price_52w_high: float | None = None
     price_52w_low: float | None = None
 
+    # P2a: detailed income statement items (None when provider doesn't supply them)
+    depreciation_amortization: float | None = None
+    rd_expense: float | None = None
+    sga_expense: float | None = None
+    interest_expense: float | None = None
+
     # Metadata
     data_source: str = "yfinance"
     warnings: list[str] = Field(default_factory=list)
@@ -45,6 +52,7 @@ class FinancialData(BaseModel):
 
 class PriceHistory(BaseModel):
     """Structured price history."""
+
     ticker: str
     period: str
     data_points: int
@@ -56,6 +64,7 @@ class PriceHistory(BaseModel):
 
 class CompanyFinancials(BaseModel):
     """Financial data for one company in a peer set."""
+
     model_config = ConfigDict(frozen=False)
 
     ticker: str
@@ -76,6 +85,7 @@ class CompanyFinancials(BaseModel):
 
 class PeerComps(BaseModel):
     """Comparable company analysis result."""
+
     model_config = ConfigDict(frozen=False)
 
     target: CompanyFinancials
@@ -95,14 +105,13 @@ class PeerComps(BaseModel):
 
 class PeerSelection(BaseModel):
     """LLM structured output for peer selection step."""
+
     tickers: list[str] = Field(
         min_length=3,
         max_length=10,
         description="Peer ticker symbols. Exactly 3-10 publicly traded companies.",
     )
-    rationale: str = Field(
-        description="One sentence: why these peers were selected."
-    )
+    rationale: str = Field(description="One sentence: why these peers were selected.")
 
 
 class DCFInputs(BaseModel):
@@ -121,11 +130,22 @@ class DCFInputs(BaseModel):
     This over-taxes by not deducting D&A before tax. Acceptable because yfinance
     doesn't provide D&A separately.
     """
+
     revenue_base: float = Field(description="Base year revenue in USD")
-    revenue_growth_rates: list[float] = Field(min_length=1, description="Projected annual growth rates as decimals")
+    revenue_growth_rates: list[float] = Field(
+        min_length=1, description="Projected annual growth rates as decimals"
+    )
     ebitda_margin: float = Field(ge=0, le=1, description="Projected EBITDA margin")
     capex_pct_revenue: float = Field(ge=0, le=1, description="Capex as % of revenue")
-    nwc_pct_revenue: float = Field(ge=-0.2, le=0.5, description="Net working capital change as % of revenue")
+    nwc_pct_revenue: float = Field(
+        ge=-0.2, le=0.5, description="Net working capital change as % of revenue"
+    )
+    da_pct_revenue: float | None = Field(
+        default=None,
+        ge=0,
+        le=0.5,
+        description="D&A as % of revenue. None = use simplified FCF formula (P1.5).",
+    )
     tax_rate: float = Field(ge=0, le=1, default=0.21)
 
     # WACC inputs
@@ -144,6 +164,7 @@ class DCFInputs(BaseModel):
 
 class DCFResult(BaseModel):
     """DCF valuation output. All numbers computed by code, not LLM."""
+
     # WACC
     cost_of_equity: float | None  # None when wacc_override was used
     wacc: float
@@ -170,9 +191,12 @@ class DCFResult(BaseModel):
     # Inputs used (for reproducibility)
     inputs: DCFInputs
 
+    fcf_formula: str = "simplified"  # "simplified" | "standard_with_da"
+
 
 class ThesisResult(BaseModel):
     """Investment thesis. LLM provides judgment, code validates structure."""
+
     recommendation: str = Field(description="Buy/Hold/Sell")
     price_target: float = Field(gt=0)
     price_target_basis: str
@@ -183,5 +207,6 @@ class ThesisResult(BaseModel):
 
 class StepOutput(BaseModel):
     """Wrapper for pipeline step output: text for report + optional structured data."""
+
     text: str
     structured: Any = None

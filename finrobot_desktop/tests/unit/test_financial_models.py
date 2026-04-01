@@ -114,6 +114,46 @@ def test_thesis_requires_catalyst_and_risk():
         ThesisResult(recommendation="Buy", price_target=200.0,
                      price_target_basis="DCF", catalysts=[], risks=["competition"],
                      narrative="bullish")
+    with pytest.raises(ValidationError):
+        ThesisResult(recommendation="Buy", price_target=200.0,
+                     price_target_basis="DCF", catalysts=["growth"], risks=[],
+                     narrative="bullish")
+
+def test_dcf_result_stores_required_fields():
+    inputs = DCFInputs(
+        revenue_base=100e9, revenue_growth_rates=[0.05], ebitda_margin=0.35,
+        capex_pct_revenue=0.05, nwc_pct_revenue=0.02, tax_rate=0.21,
+        risk_free_rate=0.04, beta=1.2, equity_risk_premium=0.05,
+        cost_of_debt=0.04, debt_ratio=0.1, terminal_growth_rate=0.025,
+        shares_outstanding=1e9, net_debt=10e9,
+    )
+    result = DCFResult(
+        cost_of_equity=0.10, wacc=0.09, projection_years=2,
+        projected_revenue=[105e9, 110.25e9], projected_ebitda=[36.75e9, 38.6e9],
+        projected_fcf=[21e9, 22e9], terminal_value=300e9, pv_terminal=200e9,
+        pv_fcf_total=38e9, enterprise_value=238e9,
+        equity_value=228e9, implied_price=228.0, inputs=inputs,
+    )
+    assert result.wacc == 0.09
+    assert result.enterprise_value == 238e9
+    assert result.implied_price == 228.0
+    assert result.inputs.revenue_base == 100e9
+    assert len(result.projected_revenue) == 2
+
+def test_company_financials_accepts_none_optional_fields():
+    cf = CompanyFinancials(ticker="X", revenue=100e9, ebitda=30e9,
+                           net_income=10e9, market_cap=500e9, gross_margin=0.4,
+                           operating_margin=0.2, name=None, pe_ratio=None,
+                           ev_ebitda=None, ev_revenue=None, enterprise_value=None)
+    assert cf.name is None
+    assert cf.pe_ratio is None
+    assert cf.ev_ebitda is None
+
+def test_peer_selection_validates_ticker_count():
+    with pytest.raises(ValidationError):
+        PeerSelection(tickers=["AAPL", "MSFT"], rationale="same sector")
+    ps = PeerSelection(tickers=["AAPL", "MSFT", "GOOGL"], rationale="same sector")
+    assert len(ps.tickers) == 3
 
 def test_company_financials_total_debt_cash():
     cf = CompanyFinancials(ticker="X", revenue=100e9, ebitda=30e9,

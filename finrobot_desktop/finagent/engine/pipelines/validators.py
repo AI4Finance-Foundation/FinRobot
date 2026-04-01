@@ -1,6 +1,11 @@
+import math as _math
 import re
 
 from pydantic import BaseModel
+
+from finagent.engine.models.financial import (
+    FinancialData, PeerComps, DCFResult, ThesisResult,
+)
 
 
 class ValidationResult(BaseModel):
@@ -165,12 +170,6 @@ def validate_dcf_output(output: str) -> ValidationResult:
         error=f"Expected at least 3 DCF components, found {found}",
     )
 
-
-import math as _math
-
-from finagent.engine.models.financial import (
-    FinancialData, PeerComps, DCFResult, ThesisResult,
-)
 
 _VALID_RECOMMENDATIONS = {
     "Buy", "Hold", "Sell", "Overweight", "Underweight", "Outperform", "Underperform"

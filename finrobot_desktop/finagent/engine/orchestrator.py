@@ -21,10 +21,9 @@ def create_lead_agent(
         instructions += "\n\n" + skill_registry.list_summary()
 
     agent: Agent[FinAgentDeps, str] = Agent(
-        settings.model_name,
+        settings.create_model(),
         deps_type=FinAgentDeps,
         instructions=instructions,
-        defer_model_check=True,
     )
 
     # Create sub-agents for pipelines

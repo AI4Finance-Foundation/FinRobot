@@ -1,5 +1,3 @@
-import os
-
 import pytest
 
 from finagent.config import FinAgentSettings, get_settings
@@ -39,29 +37,37 @@ class TestConstructorOverride:
         assert s.cache_db_path == "/tmp/test.db"
 
 
-class TestApplyApiKeys:
-    def test_sets_env_var_when_value_nonempty_and_unset(self, monkeypatch):
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-        s = get_settings(anthropic_api_key="sk-test-123")
-        s.apply_api_keys()
-        assert os.environ.get("ANTHROPIC_API_KEY") == "sk-test-123"
+class TestCreateModel:
+    def test_deepseek_returns_openai_chat_model(self):
+        from pydantic_ai.models.openai import OpenAIChatModel
 
-    def test_does_not_overwrite_existing_env_var(self, monkeypatch):
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "already-set")
-        s = get_settings(anthropic_api_key="sk-should-not-win")
-        s.apply_api_keys()
-        assert os.environ.get("ANTHROPIC_API_KEY") == "already-set"
+        s = get_settings(model_name="deepseek:deepseek-chat", deepseek_api_key="sk-test")
+        model = s.create_model()
+        assert isinstance(model, OpenAIChatModel)
 
-    def test_empty_api_key_not_written(self, monkeypatch):
+    def test_anthropic_returns_anthropic_model(self):
+        from pydantic_ai.models.anthropic import AnthropicModel
+
+        s = get_settings(model_name="anthropic:claude-sonnet-4-6", anthropic_api_key="sk-test")
+        model = s.create_model()
+        assert isinstance(model, AnthropicModel)
+
+    def test_openai_returns_openai_chat_model(self):
+        from pydantic_ai.models.openai import OpenAIChatModel
+
+        s = get_settings(model_name="openai:gpt-4o", openai_api_key="sk-test")
+        model = s.create_model()
+        assert isinstance(model, OpenAIChatModel)
+
+    def test_unknown_provider_raises(self):
+        s = get_settings(model_name="unknown:model")
+        with pytest.raises(ValueError, match="Unknown provider 'unknown'"):
+            s.create_model()
+
+    def test_does_not_pollute_environ(self, monkeypatch):
+        import os
+
         monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-        s = get_settings(deepseek_api_key="")
-        s.apply_api_keys()
+        s = get_settings(model_name="deepseek:deepseek-chat", deepseek_api_key="sk-secret")
+        s.create_model()
         assert os.environ.get("DEEPSEEK_API_KEY") is None
-
-    def test_sets_multiple_keys(self, monkeypatch):
-        monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-        s = get_settings(deepseek_api_key="ds-key", openai_api_key="oai-key")
-        s.apply_api_keys()
-        assert os.environ.get("DEEPSEEK_API_KEY") == "ds-key"
-        assert os.environ.get("OPENAI_API_KEY") == "oai-key"

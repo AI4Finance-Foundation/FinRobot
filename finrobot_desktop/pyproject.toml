@@ -32,6 +32,7 @@ dependencies = [
     "aiosqlite>=0.20",
     "yfinance>=0.2",
     "click>=8.1",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -44,10 +45,6 @@ dev = [
 
 [project.scripts]
 finagent = "finagent.cli:cli"
-
-[project.urls]
-Repository = "https://github.com/yourname/finagent"
-Documentation = "https://github.com/yourname/finagent#readme"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

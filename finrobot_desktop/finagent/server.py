@@ -19,7 +19,6 @@ from finagent.engine.skills.registry import SkillRegistry
 @asynccontextmanager
 async def lifespan(app):
     settings = get_settings()
-    settings.apply_api_keys()
 
     # Load skills if available
     skills_path = Path(settings.skills_dir)
@@ -34,8 +33,11 @@ async def lifespan(app):
     app.state.agent = agent
     app.state.deps = deps
     yield
+    await cache.close()
 
 
+# WARNING: This server has no authentication. For local development only.
+# Do not expose to public network without adding auth middleware.
 app = FastAPI(title="FinAgent", lifespan=lifespan)
 
 

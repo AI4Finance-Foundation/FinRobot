@@ -31,10 +31,11 @@ class TestCreateSubAgents:
             assert "query_financial_data" not in tool_names, \
                 f"{role} agent should NOT have query_financial_data"
 
-    def test_all_agents_use_settings_model_name(self):
+    def test_all_agents_use_settings_model(self):
+        from pydantic_ai.models.test import TestModel
+
         settings = _settings()
         agents = create_sub_agents(settings)
         for role, agent in agents.items():
-            # With defer_model_check=True, model is stored as a string
-            assert agent.model == settings.model_name, \
-                f"{role} agent model mismatch"
+            assert isinstance(agent.model, TestModel), \
+                f"{role} agent should use TestModel from settings.create_model()"

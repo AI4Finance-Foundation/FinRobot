@@ -66,7 +66,6 @@ class TestP1aAcceptance:
         from finagent.engine.pipelines.equity_research import create_equity_research_pipeline
 
         settings = get_settings()
-        settings.apply_api_keys()
         registry = SkillRegistry(SKILLS_DIR)
 
         sub_agents = create_sub_agents(settings, skill_registry=registry)

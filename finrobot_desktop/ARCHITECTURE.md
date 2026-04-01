@@ -40,13 +40,13 @@ It solves a specific gap: **academic financial AI tools** (FinRobot, FinRL) have
 
 ### Why it's worth starring
 
-1. **Skill Ecosystem** — A unified format for financial AI workflows. Anthropic's 41 institutional-grade skills ship built-in. Anyone can write, publish, and compose skills. Skills are Markdown + YAML — no code needed.
+1. **Skill Ecosystem** — A unified format for financial AI workflows. 56 skills (sourced from Anthropic's financial-services-plugins) ship built-in. Anyone can write, publish, and compose skills. Skills are Markdown + YAML — no code needed.
 
 2. **Financial Agent Engine** — Not a chatbot wrapper. Core financial analysis flows (equity research, DCF, comps) are **code-enforced pipelines** where each step must complete before the next begins. Skills provide the methodology for each step; code guarantees execution order. The LLM decides *how* to analyze, but never *whether* to skip a step.
 
-3. **Unified Data Layer** — Abstracts FMP, Finnhub, yfinance, SEC EDGAR, and MCP data sources behind a single interface. Skills and agents don't care where data comes from.
+3. **Unified Data Layer** — Abstracts data sources behind a single interface. yfinance built-in; FMP, Finnhub, SEC EDGAR planned for P2a-P2b; MCP bridge planned for P2b.
 
-4. **Desktop-First Runtime** — Runs locally on Win + macOS. Data stays on your machine. But the engine is also a Python library and a CLI — the desktop app is the first client, not the product.
+4. **Desktop-First Runtime** *(planned for P1c)* — Will run locally on Win + macOS. Data stays on your machine. Currently available as CLI and Python library; desktop app is planned.
 
 ---
 
@@ -55,9 +55,9 @@ It solves a specific gap: **academic financial AI tools** (FinRobot, FinRL) have
 ```
 ┌──────────────────────────────────────────────────────┐
 │  Layer 3: Clients                                    │
-│  Desktop App (Electron + React) — first client       │
-│  CLI — finagent run "analyze AAPL"                   │
-│  Python SDK — from finagent import FinAgent          │
+│  Desktop App (Electron + React) — P1c, not started    │
+│  CLI — finagent run "analyze AAPL"   ✓ implemented   │
+│  Python SDK — P3a, not started                       │
 │  Future: Web, Mobile, MCP Server                     │
 └──────────────────────────┬───────────────────────────┘
                            │ Vercel AI Data Stream (SSE)
@@ -72,7 +72,8 @@ It solves a specific gap: **academic financial AI tools** (FinRobot, FinRL) have
 │  │ Lead agent  │ │ Loader       │ │ Provider ABC   │ │
 │  │ Pipelines   │ │ Registry     │ │ Cache + fallbk │ │
 │  │ Sub-agents  │ │ Validator    │ │ MCP bridge     │ │
-│  │ Streaming   │ │ Composer     │ │                │ │
+│  │ Streaming   │ │ Composer     │ │ (P2b)          │ │
+│  │ (P1c)       │ │ (P3a)       │ │                │ │
 │  └─────────────┘ └──────────────┘ └───────────────┘ │
 │                                                      │
 │  Built on: PydanticAI (MIT) + FastAPI (MIT)          │
@@ -84,7 +85,7 @@ It solves a specific gap: **academic financial AI tools** (FinRobot, FinRL) have
 │  ┌─────────────────────┐ ┌─────────────────────────┐ │
 │  │ FinRobot Data       │ │ Anthropic Skill         │ │
 │  │ Adapter             │ │ Format Adapter          │ │
-│  │ (runtime)           │ │ (vendor-time only)      │ │
+│  │ (P2a — not started) │ │ (vendor-time only) ✓    │ │
 │  │                     │ │                         │ │
 │  │ Wraps ONLY:         │ │ Reads:                  │ │
 │  │ - fmp_utils.py      │ │ - financial-services-   │ │

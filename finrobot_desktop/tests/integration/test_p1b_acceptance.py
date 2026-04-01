@@ -18,7 +18,6 @@ SKILLS_DIR = Path(get_settings().skills_dir)
 
 def _build_test_env():
     settings = get_settings()
-    settings.apply_api_keys()
     registry = SkillRegistry(SKILLS_DIR) if SKILLS_DIR.exists() else None
     sub_agents = create_sub_agents(settings, skill_registry=registry)
     cache = DataCache(":memory:")

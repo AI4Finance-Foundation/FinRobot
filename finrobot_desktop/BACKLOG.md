@@ -7,14 +7,22 @@
 - [ ] Add finagent_cache.db to .gitignore
 
 ## P1a: Skill Runtime
-- [ ] Skill loader + registry + activate_skill tool
-- [ ] 41 Anthropic skills in FinAgent native format
+- [x] Skill loader + registry + activate_skill tool
+- [x] 56 Anthropic skills in FinAgent native format
 
 ## P1b: Sub-agents + Optimization
-- [ ] Split lead_agent into data/analysis/modeling/synthesis/report agents
+- [x] Split lead_agent into data/analysis/modeling/synthesis/report agents
 - [ ] Use smaller/faster models for simple steps (data collection doesn't need LLM)
 - [ ] Parallelize independent steps (peer_analysis and financial_modeling can run concurrently)
-- [ ] Strict validators (replace validate_is_non_empty with domain-specific validators)
+- [x] Strict validators (replace validate_is_non_empty with domain-specific validators)
+- [x] Comps pipeline (6 steps)
+- [x] DCF pipeline (6 steps)
+
+## P1.5: Financial Computing Core (Current)
+- [ ] Pydantic models for inter-step data (FinancialData, PeerComps, DCFResult)
+- [ ] Deterministic WACC, DCF, multiples calculation
+- [ ] Numerical validators (replace keyword-search validators)
+- [ ] Data extractor (yfinance → typed models)
 
 ## P1c: Desktop App + Streaming
 - [ ] Electron + React + useChat
@@ -28,8 +36,6 @@
 - [ ] Full cache + fallback chain
 
 ## P2c: Advanced Pipelines + Tools
-- [ ] Comps pipeline (6 steps)
-- [ ] DCF pipeline (6 steps)
 - [ ] LBO, earnings, IC memo pipelines
 - [ ] spreadsheet_gen tool — Excel output with formulas (openpyxl)
 

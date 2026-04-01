@@ -2,18 +2,24 @@
 
 > A financial AI agent platform with extensible skill ecosystem.
 
-**Status: P0 — Engine Core (In Development)**
+**Status: P1.5 — Financial Computing Core (In Development)**
 
 ## What is FinAgent
 
 FinAgent is a financial-domain AI agent platform that bridges the gap between academic financial AI tools (powerful but notebook-only) and generic agent frameworks (capable but financially illiterate).
 
-- **Skill Ecosystem** — 41 institutional-grade financial skills built-in. Write your own in Markdown.
+- **Skill Ecosystem** — 56 financial analysis skills (sourced from Anthropic's financial-services-plugins). Write your own in Markdown.
 - **Code-Enforced Pipelines** — Equity research, DCF, comps analysis run as step-by-step pipelines. Code guarantees execution order; skills provide methodology. The LLM decides *how* to analyze, never *whether* to skip a step.
-- **Unified Data Layer** — yfinance, FMP, Finnhub, SEC EDGAR, MCP — one interface.
-- **Desktop + CLI + SDK** — Use it however you work.
+- **Data Layer** — yfinance built-in. FMP, Finnhub, SEC EDGAR planned for P2.
+- **CLI** — `finagent run` / `finagent research` / `finagent comps` / `finagent dcf`. Desktop app and SDK planned.
 
-## Quick Start (P0)
+## Who is FinAgent for
+
+FinAgent is for **financial professionals who want AI-assisted analysis with computational discipline** — buy-side researchers, independent analysts, small fund managers. If you use ChatGPT for financial analysis but worry about hallucinated numbers and skipped steps, FinAgent gives you code-enforced pipelines where the math is deterministic and every step must complete.
+
+**Current status**: P1.5 (adding deterministic financial calculations). The engine runs pipelines but financial math is not yet code-enforced. See [Roadmap](#roadmap) for timeline.
+
+## Quick Start
 
 ```bash
 pip install -e ".[dev]"
@@ -23,6 +29,12 @@ finagent run "What's AAPL's PE ratio?"
 
 # Full equity research pipeline
 finagent research AAPL
+
+# Comparable company analysis
+finagent comps AAPL
+
+# DCF valuation
+finagent dcf AAPL
 
 # Start server (for desktop app)
 finagent serve

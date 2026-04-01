@@ -18,7 +18,6 @@ def _build_deps(model: str | None = None):
     settings = get_settings()
     if model:
         settings = get_settings(model_name=model)
-    settings.apply_api_keys()
 
     # Load skills if available
     skills_path = Path(settings.skills_dir)
@@ -159,10 +158,11 @@ def dcf(ticker: str, model: str | None) -> None:
 
 
 @cli.command()
+@click.option("--host", default="127.0.0.1", show_default=True, help="Bind address")
 @click.option("--port", default=8000, show_default=True)
-def serve(port: int) -> None:
+def serve(host: str, port: int) -> None:
     """Start the FinAgent server."""
     import uvicorn
     from finagent.server import app
 
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host=host, port=port)

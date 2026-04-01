@@ -24,7 +24,6 @@ from finagent.engine.pipelines.equity_research import create_equity_research_pip
 
 def _build_runtime():
     settings = get_settings()
-    settings.apply_api_keys()
     deps = FinAgentDeps(
         data_layer=DataLayer(providers=[YFinanceProvider()], cache=DataCache(settings.cache_db_path)),
         settings=settings,

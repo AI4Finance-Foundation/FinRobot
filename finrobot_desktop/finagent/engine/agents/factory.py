@@ -31,10 +31,9 @@ def create_sub_agents(
         instructions = (INSTRUCTIONS_DIR / f"{role}_agent.md").read_text()
 
         agent = Agent(
-            settings.model_name,
+            settings.create_model(),
             deps_type=FinAgentDeps,
             instructions=instructions,
-            defer_model_check=True,
         )
 
         agents[role] = agent

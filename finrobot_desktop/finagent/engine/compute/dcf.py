@@ -21,8 +21,12 @@ def calculate_dcf(
         wacc = wacc_override
     else:
         cost_of_equity, wacc = calculate_wacc(
-            inputs.risk_free_rate, inputs.beta, inputs.equity_risk_premium,
-            inputs.cost_of_debt, inputs.tax_rate, inputs.debt_ratio,
+            inputs.risk_free_rate,
+            inputs.beta,
+            inputs.equity_risk_premium,
+            inputs.cost_of_debt,
+            inputs.tax_rate,
+            inputs.debt_ratio,
         )
 
     tg = tg_override if tg_override is not None else inputs.terminal_growth_rate
@@ -41,9 +45,25 @@ def calculate_dcf(
     for g in inputs.revenue_growth_rates:
         rev = prev_revenue * (1 + g)
         ebitda = rev * inputs.ebitda_margin
-        fcf = (ebitda * (1 - inputs.tax_rate)
-               - rev * inputs.capex_pct_revenue
-               - rev * inputs.nwc_pct_revenue)
+
+        if inputs.da_pct_revenue is not None:
+            # P2a standard: EBIT(1-T) + D&A - CapEx - ΔNWC
+            da = rev * inputs.da_pct_revenue
+            ebit = ebitda - da
+            fcf = (
+                ebit * (1 - inputs.tax_rate)
+                + da
+                - rev * inputs.capex_pct_revenue
+                - rev * inputs.nwc_pct_revenue
+            )
+        else:
+            # P1.5 simplified: EBITDA(1-T) - CapEx - ΔNWC
+            fcf = (
+                ebitda * (1 - inputs.tax_rate)
+                - rev * inputs.capex_pct_revenue
+                - rev * inputs.nwc_pct_revenue
+            )
+
         projected_revenue.append(rev)
         projected_ebitda.append(ebitda)
         projected_fcf.append(fcf)
@@ -78,6 +98,7 @@ def calculate_dcf(
         equity_value=equity_value,
         implied_price=implied_price,
         inputs=inputs,
+        fcf_formula="standard_with_da" if inputs.da_pct_revenue is not None else "simplified",
     )
 
 

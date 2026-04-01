@@ -16,8 +16,26 @@ from finagent.engine.pipelines.comps import create_comps_pipeline
 
 class FakeDataLayer:
     async def fetch(self, data_type: str, ticker: str, **kwargs) -> DataResult:
+        if data_type == "price":
+            data = {
+                "current_price": 180.0,
+                "price_history": [{"close": 170.0}, {"close": 180.0}, {"close": 190.0}],
+            }
+        else:
+            data = {
+                "revenue": 385_000_000_000,
+                "ebitda": 130_000_000_000,
+                "net_income": 100_000_000_000,
+                "market_cap": 2_800_000_000_000,
+                "total_debt": 110_000_000_000,
+                "total_cash": 60_000_000_000,
+                "gross_margin": 0.44,
+                "operating_margin": 0.30,
+                "shares_outstanding": 15_500_000_000,
+                "current_price": 180.0,
+            }
         return DataResult(
-            data={"revenue": 385_000_000_000, "ebitda": 130_000_000_000},
+            data=data,
             provider="fake",
             ticker=ticker,
             data_type=data_type,
@@ -94,3 +112,25 @@ class TestCompsPipelineExecution:
             "target_data", "peer_selection", "peer_data",
             "multiples_calc", "statistical_bench", "output_gen",
         }
+
+
+# ---------------------------------------------------------------------------
+# P1.5: execute_fn / validate_structured hook tests
+# ---------------------------------------------------------------------------
+
+def test_comps_pipeline_has_validate_structured_on_target_data():
+    from finagent.engine.pipelines.comps import create_comps_pipeline
+    from unittest.mock import MagicMock
+    agents = {k: MagicMock() for k in ["data", "analysis", "modeling", "report"]}
+    pipeline = create_comps_pipeline(agents)
+    step = next(s for s in pipeline.steps if s.name == "target_data")
+    assert step.execute_fn is not None
+    assert step.validate_structured is not None
+
+def test_comps_pipeline_multiples_calc_has_execute_fn():
+    from finagent.engine.pipelines.comps import create_comps_pipeline
+    from unittest.mock import MagicMock
+    agents = {k: MagicMock() for k in ["data", "analysis", "modeling", "report"]}
+    pipeline = create_comps_pipeline(agents)
+    step = next(s for s in pipeline.steps if s.name == "multiples_calc")
+    assert step.execute_fn is not None

@@ -147,12 +147,42 @@ class TestCompsCommand:
 class TestDcfCommand:
     def test_dcf_doesnt_crash_with_test_model(self, monkeypatch):
         _patch_build_deps(monkeypatch)
+        from finagent.engine.pipelines.base import PipelineResult
+
+        async def mock_execute(self, deps, ticker, **kwargs):
+            return PipelineResult(
+                steps={
+                    "historical_data": "revenue 385B ebitda 130B",
+                    "dcf_calc": "DCF implies $200/share. WACC: 10.0%. EV: $2.5B. Sensitivity: $180-$220.",
+                    "output_gen": "DCF output: wacc terminal value free cash flow sensitivity implied price",
+                },
+            )
+
+        monkeypatch.setattr(
+            "finagent.engine.pipelines.base.Pipeline.execute",
+            mock_execute,
+        )
         runner = CliRunner()
         result = runner.invoke(cli, ["dcf", "AAPL"])
         assert result.exit_code == 0, result.output
 
     def test_dcf_with_model_option(self, monkeypatch):
         _patch_build_deps(monkeypatch)
+        from finagent.engine.pipelines.base import PipelineResult
+
+        async def mock_execute(self, deps, ticker, **kwargs):
+            return PipelineResult(
+                steps={
+                    "historical_data": "revenue 385B ebitda 130B",
+                    "dcf_calc": "DCF implies $200/share. WACC: 10.0%. EV: $2.5B. Sensitivity: $180-$220.",
+                    "output_gen": "DCF output: wacc terminal value free cash flow sensitivity implied price",
+                },
+            )
+
+        monkeypatch.setattr(
+            "finagent.engine.pipelines.base.Pipeline.execute",
+            mock_execute,
+        )
         runner = CliRunner()
         result = runner.invoke(cli, ["dcf", "AAPL", "--model", "test"])
         assert result.exit_code == 0, result.output

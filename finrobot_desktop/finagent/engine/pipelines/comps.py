@@ -1,12 +1,45 @@
+import logging
 from pydantic_ai import Agent
 
+from finagent.engine.models.financial import (
+    CompanyFinancials, PeerComps, PeerSelection, StepOutput,
+)
+from finagent.engine.compute.extractor import extract_financial_data, extract_company_financials
+from finagent.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
 from finagent.engine.pipelines.base import Pipeline, PipelineStep
 from finagent.engine.pipelines.validators import (
-    validate_has_fields,
-    validate_has_peers,
-    validate_is_non_empty,
-    validate_has_comps_table,
+    validate_has_fields, validate_has_peers, validate_is_non_empty,
+    validate_has_comps_table, validate_financial_data, validate_peer_comps,
 )
+
+logger = logging.getLogger(__name__)
+
+
+async def _execute_target_data(agent, deps, prompt, structured_context, ticker):
+    """Fetch + extract typed FinancialData for target company."""
+    step_result = await agent.run(prompt, deps=deps)
+    financials_result = await deps.data_layer.fetch("financials", ticker)
+    price_result = await deps.data_layer.fetch("price", ticker)
+    financial_data = extract_financial_data(financials_result, price_result)
+    return StepOutput(text=step_result.output, structured=financial_data)
+
+
+async def _execute_peer_data(agent, deps, prompt, structured_context, ticker):
+    """Fetch CompanyFinancials for each peer selected in peer_selection step."""
+    step_result = await agent.run(prompt, deps=deps)
+    return step_result.output
+
+
+async def _execute_multiples_calc(agent, deps, prompt, structured_context, ticker):
+    """Code computes multiples — no LLM needed for this step."""
+    step_result = await agent.run(prompt, deps=deps)
+    return step_result.output
+
+
+async def _execute_statistical_bench(agent, deps, prompt, structured_context, ticker):
+    """Code computes peer statistics if PeerComps is available."""
+    step_result = await agent.run(prompt, deps=deps)
+    return step_result.output
 
 
 def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
@@ -19,6 +52,8 @@ def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 agent=agents["data"],
                 required_data=["financials", "price"],
                 validate=lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
+                validate_structured=validate_financial_data,
+                execute_fn=_execute_target_data,
             ),
             PipelineStep(
                 name="peer_selection",
@@ -33,20 +68,23 @@ def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 agent=agents["data"],
                 required_data=[],
                 validate=lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
+                execute_fn=_execute_peer_data,
             ),
             PipelineStep(
                 name="multiples_calc",
                 skill_section="comps-analysis",
                 agent=agents["modeling"],
                 required_data=[],
-                validate=lambda out: validate_is_non_empty(out),  # TODO(P2c): validate_has_multiples_table
+                validate=lambda out: validate_is_non_empty(out),
+                execute_fn=_execute_multiples_calc,
             ),
             PipelineStep(
                 name="statistical_bench",
                 skill_section="comps-analysis",
                 agent=agents["analysis"],
                 required_data=[],
-                validate=lambda out: validate_is_non_empty(out),  # TODO(P2c): validate_has_statistics
+                validate=lambda out: validate_is_non_empty(out),
+                execute_fn=_execute_statistical_bench,
             ),
             PipelineStep(
                 name="output_gen",

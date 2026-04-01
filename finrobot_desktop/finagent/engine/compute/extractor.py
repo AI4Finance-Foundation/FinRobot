@@ -7,7 +7,7 @@ def extract_financial_data(
     financials_result: DataResult,
     price_result: DataResult,
 ) -> FinancialData:
-    """Extract structured FinancialData from raw yfinance DataResults."""
+    """Extract structured FinancialData from raw DataResults."""
     data = financials_result.data
     ticker = financials_result.ticker
 
@@ -52,6 +52,11 @@ def extract_financial_data(
         ev_revenue=ev_revenue,
         price_52w_high=high_52w,
         price_52w_low=low_52w,
+        depreciation_amortization=data.get("depreciation_amortization"),
+        rd_expense=data.get("rd_expense"),
+        sga_expense=data.get("sga_expense"),
+        interest_expense=data.get("interest_expense"),
+        data_source=financials_result.provider,
     )
 
 

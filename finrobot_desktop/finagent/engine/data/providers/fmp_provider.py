@@ -33,8 +33,12 @@ class FMPProvider(DataProvider):
             raise ProviderError(
                 f"data_type '{data_type}' is not supported by FMP. Supported: {_SUPPORTED}"
             )
+        years: int | None = kwargs.get("years")
+        limit = years if years and years > 1 else 1
         try:
-            income = (await self._get(f"/income-statement/{ticker}", params={"limit": 1})).json()
+            income = (
+                await self._get(f"/income-statement/{ticker}", params={"limit": limit})
+            ).json()
             balance = (
                 await self._get(f"/balance-sheet-statement/{ticker}", params={"limit": 1})
             ).json()
@@ -48,12 +52,32 @@ class FMPProvider(DataProvider):
         except Exception as e:
             raise ProviderError(f"FMP fetch failed for '{ticker}': {e}") from e
 
-        inc = income[0] if income else {}
         bal = balance[0] if balance else {}
         prof = profile[0] if profile else {}
 
-        # Key normalization: FMP camelCase keys → common snake_case keys
-        data = {
+        if years and years > 1 and len(income) > 1:
+            data: dict = {
+                "yearly_data": [
+                    self._build_single_year_data(inc_i, bal, prof)
+                    for inc_i in income
+                ],
+            }
+        else:
+            inc = income[0] if income else {}
+            data = self._build_single_year_data(inc, bal, prof)
+
+        return DataResult(
+            data=data,
+            provider=self.name,
+            ticker=ticker,
+            data_type=data_type,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+    @staticmethod
+    def _build_single_year_data(inc: dict, bal: dict, prof: dict) -> dict:
+        """Extract a flat dict of normalized financial fields for one year."""
+        return {
             "revenue": inc.get("revenue"),
             "ebitda": inc.get("ebitda"),
             "net_income": inc.get("netIncome"),
@@ -93,14 +117,6 @@ class FMPProvider(DataProvider):
             "industry": prof.get("industry"),
             "sector": prof.get("sector"),
         }
-
-        return DataResult(
-            data=data,
-            provider=self.name,
-            ticker=ticker,
-            data_type=data_type,
-            timestamp=datetime.now(tz=timezone.utc),
-        )
 
     async def _get(self, path: str, params: dict | None = None) -> httpx.Response:
         """Make authenticated GET request to FMP API."""

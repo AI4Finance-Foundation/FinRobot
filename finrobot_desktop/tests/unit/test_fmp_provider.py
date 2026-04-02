@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from finagent.engine.data.interface import ProviderError
+from finagent.engine.data.interface import DataResult, ProviderError
 from finagent.engine.data.providers.fmp_provider import FMPProvider
 
 
@@ -127,6 +127,54 @@ class TestFMPFetch:
         ):
             with pytest.raises(ProviderError, match="timeout"):
                 await provider.fetch("AAPL", "financials")
+
+
+def _fmp_multi_year_income(ticker="AAPL", years=3):
+    base_revenue = 394_328_000_000
+    return [
+        {
+            "date": f"{2024 - i}-09-30", "symbol": ticker,
+            "revenue": base_revenue - i * 10_000_000_000,
+            "ebitda": 130_000_000_000 - i * 5_000_000_000,
+            "netIncome": 97_000_000_000 - i * 3_000_000_000,
+            "grossProfit": 181_000_000_000 - i * 4_000_000_000,
+            "operatingIncome": 119_000_000_000 - i * 3_000_000_000,
+            "depreciationAndAmortization": 11_000_000_000,
+            "researchAndDevelopmentExpenses": 30_000_000_000,
+            "sellingGeneralAndAdministrative": 25_000_000_000,
+            "interestExpense": 3_500_000_000,
+        }
+        for i in range(years)
+    ]
+
+
+class TestFMPFetchHistorical:
+    @pytest.mark.asyncio
+    async def test_fetch_with_years_packs_yearly_data(self, provider):
+        responses = [
+            _mock_response(_fmp_multi_year_income("AAPL", 3)),
+            _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_profile_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials", years=3)
+        assert isinstance(result, DataResult)
+        assert "yearly_data" in result.data
+        assert len(result.data["yearly_data"]) == 3
+        assert result.data["yearly_data"][0]["revenue"] == 394_328_000_000
+
+    @pytest.mark.asyncio
+    async def test_fetch_without_years_returns_flat(self, provider):
+        responses = [
+            _mock_response(_fmp_income_response()),
+            _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_profile_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials")
+        assert isinstance(result, DataResult)
+        assert "yearly_data" not in result.data
+        assert result.data["revenue"] == 394_328_000_000
 
 
 class TestFMPProviderInterface:

@@ -58,3 +58,55 @@ class DataLayer:
             timestamp=datetime.now(tz=timezone.utc),
             warnings=[msg],
         )
+
+    async def fetch_historical(
+        self, data_type: str, ticker: str, years: int = 5, **kwargs
+    ) -> list[DataResult]:
+        """Fetch multi-year historical data.
+
+        What this code does that raw LLM cannot: deterministic provider chain
+        fallback for historical data — iterates providers in priority order,
+        passes years kwarg, splits single DataResult into list[DataResult].
+
+        Provider.fetch() always returns DataResult (interface unchanged).
+        When years kwarg is passed, providers pack multi-year data inside
+        DataResult.data["yearly_data"]. This method splits it into a list.
+        """
+        for provider in self._providers:
+            if data_type not in provider.capabilities():
+                continue
+            try:
+                result = await provider.fetch(ticker, data_type, years=years, **kwargs)
+                return self._split_yearly(result)
+            except ProviderError as e:
+                logger.warning(
+                    f"Provider '{provider.name}' failed for {ticker}/{data_type} "
+                    f"(historical, {years}y): {e}"
+                )
+                continue
+
+        msg = f"Historical data unavailable for {ticker}/{data_type}: all providers failed."
+        logger.error(msg)
+        return []
+
+    @staticmethod
+    def _split_yearly(result: DataResult) -> list[DataResult]:
+        """Split a DataResult with yearly_data into list[DataResult].
+
+        If the result has no yearly_data key, return as single-element list.
+        """
+        yearly = result.data.get("yearly_data")
+        if not yearly or not isinstance(yearly, list):
+            return [result]
+
+        return [
+            DataResult(
+                data=year_data,
+                provider=result.provider,
+                ticker=result.ticker,
+                data_type=result.data_type,
+                timestamp=result.timestamp,
+                warnings=result.warnings,
+            )
+            for year_data in yearly
+        ]

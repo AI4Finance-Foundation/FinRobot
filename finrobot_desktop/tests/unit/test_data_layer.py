@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -208,3 +209,109 @@ class TestChainFallback:
         result = await layer.fetch("financials", "AAPL")
         assert result.provider == "none"
         assert any("unavailable" in w.lower() or "failed" in w.lower() for w in result.warnings)
+
+
+# ---------------------------------------------------------------------------
+# fetch_historical helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_data_result(ticker: str = "AAPL", year: int = 2024) -> DataResult:
+    return DataResult(
+        data={"revenue": 100e9 + year, "year": year},
+        provider="mock",
+        ticker=ticker,
+        data_type="financials",
+        timestamp=datetime.now(tz=timezone.utc),
+    )
+
+
+def _make_multi_year_data_result(ticker: str = "AAPL", years: int = 5) -> DataResult:
+    """Provider packs multi-year data inside a single DataResult."""
+    yearly = [{"revenue": 100e9 + y, "year": 2020 + y} for y in range(years)]
+    return DataResult(
+        data={"yearly_data": yearly},
+        provider="mock",
+        ticker=ticker,
+        data_type="financials",
+        timestamp=datetime.now(tz=timezone.utc),
+    )
+
+
+class TestFetchHistorical:
+    @pytest.mark.asyncio
+    async def test_fetch_historical_returns_list_of_data_results(self):
+        mock_provider = MagicMock(spec=DataProvider)
+        mock_provider.name = "mock"
+        mock_provider.capabilities.return_value = ["financials"]
+        mock_provider.fetch = AsyncMock(return_value=_make_multi_year_data_result("AAPL", 5))
+
+        mock_cache = MagicMock(spec=DataCache)
+        mock_cache.get = AsyncMock(return_value=None)
+        mock_cache.set = AsyncMock()
+
+        layer = DataLayer(providers=[mock_provider], cache=mock_cache)
+        results = await layer.fetch_historical("financials", "AAPL", years=5)
+
+        assert isinstance(results, list)
+        assert len(results) == 5
+        mock_provider.fetch.assert_called_once_with("AAPL", "financials", years=5)
+
+    @pytest.mark.asyncio
+    async def test_fetch_historical_falls_back_to_next_provider(self):
+        failing_provider = MagicMock(spec=DataProvider)
+        failing_provider.name = "failing"
+        failing_provider.capabilities.return_value = ["financials"]
+        failing_provider.fetch = AsyncMock(side_effect=ProviderError("down"))
+
+        good_provider = MagicMock(spec=DataProvider)
+        good_provider.name = "good"
+        good_provider.capabilities.return_value = ["financials"]
+        good_provider.fetch = AsyncMock(return_value=_make_multi_year_data_result("AAPL", 3))
+
+        mock_cache = MagicMock(spec=DataCache)
+        mock_cache.get = AsyncMock(return_value=None)
+        mock_cache.set = AsyncMock()
+
+        layer = DataLayer(providers=[failing_provider, good_provider], cache=mock_cache)
+        results = await layer.fetch_historical("financials", "AAPL", years=3)
+
+        assert len(results) == 3
+
+    @pytest.mark.asyncio
+    async def test_fetch_historical_skips_unsupported_providers(self):
+        price_only = MagicMock(spec=DataProvider)
+        price_only.name = "price_only"
+        price_only.capabilities.return_value = ["price"]
+
+        full = MagicMock(spec=DataProvider)
+        full.name = "full"
+        full.capabilities.return_value = ["financials"]
+        full.fetch = AsyncMock(return_value=_make_multi_year_data_result("AAPL", 1))
+
+        mock_cache = MagicMock(spec=DataCache)
+        mock_cache.get = AsyncMock(return_value=None)
+        mock_cache.set = AsyncMock()
+
+        layer = DataLayer(providers=[price_only, full], cache=mock_cache)
+        results = await layer.fetch_historical("financials", "AAPL", years=1)
+
+        assert len(results) == 1
+        price_only.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_fetch_historical_single_year_fallback(self):
+        mock_provider = MagicMock(spec=DataProvider)
+        mock_provider.name = "mock"
+        mock_provider.capabilities.return_value = ["financials"]
+        mock_provider.fetch = AsyncMock(return_value=_make_data_result())
+
+        mock_cache = MagicMock(spec=DataCache)
+        mock_cache.get = AsyncMock(return_value=None)
+        mock_cache.set = AsyncMock()
+
+        layer = DataLayer(providers=[mock_provider], cache=mock_cache)
+        results = await layer.fetch_historical("financials", "AAPL", years=5)
+
+        assert isinstance(results, list)
+        assert len(results) == 1

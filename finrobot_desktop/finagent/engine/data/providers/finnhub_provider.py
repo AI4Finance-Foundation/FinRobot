@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
 from finagent.engine.data.interface import DataProvider, DataResult, ProviderError
 
 _BASE_URL = "https://finnhub.io/api/v1"
-_SUPPORTED = ["financials", "profile"]
+_SUPPORTED = ["financials", "profile", "news"]
 _TIMEOUT = 15.0
 
 
@@ -39,6 +39,8 @@ class FinnhubProvider(DataProvider):
                 data = await self._fetch_financials(ticker, years=years)
             elif data_type == "profile":
                 data = await self._fetch_profile(ticker)
+            elif data_type == "news":
+                return await self._fetch_news(ticker)
             else:
                 raise ProviderError(f"Unhandled data_type: {data_type}")
         except httpx.TimeoutException as e:
@@ -132,6 +134,38 @@ class FinnhubProvider(DataProvider):
             "shares_outstanding": (profile.get("shareOutstanding", 0) or 0) * 1_000_000,
             "exchange": profile.get("exchange"),
         }
+
+    async def _fetch_news(self, ticker: str) -> DataResult:
+        """Fetch recent company news from Finnhub /company-news (last 90 days)."""
+        today = datetime.now(tz=timezone.utc).date()
+        from_date = (today - timedelta(days=90)).isoformat()
+        to_date = today.isoformat()
+        raw: list[dict] = (
+            await self._get(
+                "/company-news",
+                params={"symbol": ticker, "from": from_date, "to": to_date},
+            )
+        ).json()
+        news_items = [
+            {
+                "title": item.get("headline", ""),
+                "source": item.get("source", ""),
+                "published": datetime.fromtimestamp(
+                    item["datetime"], tz=timezone.utc
+                ).isoformat()
+                if item.get("datetime")
+                else "",
+                "url": item.get("url", ""),
+            }
+            for item in raw
+        ]
+        return DataResult(
+            data={"news_items": news_items},
+            provider=self.name,
+            ticker=ticker,
+            data_type="news",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
 
     async def _get(self, path: str, params: dict | None = None) -> httpx.Response:
         """Make authenticated GET request to Finnhub API."""

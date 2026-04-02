@@ -95,7 +95,7 @@ class TestFinnhubFetch:
     @pytest.mark.asyncio
     async def test_unsupported_type_raises(self, provider):
         with pytest.raises(ProviderError, match="not supported"):
-            await provider.fetch("AAPL", "news")
+            await provider.fetch("AAPL", "unknown_type")
 
     @pytest.mark.asyncio
     async def test_timeout_raises_provider_error(self, provider):
@@ -160,3 +160,25 @@ class TestFinnhubInterface:
         caps = provider.capabilities()
         assert "financials" in caps
         assert "profile" in caps
+
+
+def _finnhub_news_response():
+    return [
+        {"headline": "Apple Q4 Beat", "source": "Reuters", "datetime": 1730390400, "url": "https://example.com/1", "category": "company news"},
+        {"headline": "iPhone strong", "source": "Bloomberg", "datetime": 1730304000, "url": "https://example.com/2", "category": "company news"},
+    ]
+
+
+class TestFinnhubNews:
+    @pytest.mark.asyncio
+    async def test_fetch_news(self, provider):
+        with patch.object(provider, "_get", AsyncMock(return_value=_mock_response(_finnhub_news_response()))):
+            result = await provider.fetch("AAPL", "news")
+        assert result.data_type == "news"
+        items = result.data["news_items"]
+        assert len(items) == 2
+        assert items[0]["title"] == "Apple Q4 Beat"
+
+    @pytest.mark.asyncio
+    async def test_news_in_capabilities(self, provider):
+        assert "news" in provider.capabilities()

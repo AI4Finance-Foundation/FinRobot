@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from finagent.engine.data.interface import ProviderError
+from finagent.engine.data.interface import DataResult, ProviderError
 from finagent.engine.data.providers.finnhub_provider import FinnhubProvider
 
 
@@ -104,6 +104,52 @@ class TestFinnhubFetch:
         ):
             with pytest.raises(ProviderError, match="timeout"):
                 await provider.fetch("AAPL", "financials")
+
+
+def _finnhub_multi_year_reported(ticker="AAPL", years=3):
+    return {
+        "data": [
+            {
+                "year": 2024 - i,
+                "report": {
+                    "ic": [
+                        {"concept": "Revenues", "value": 394e9 - i * 10e9},
+                        {"concept": "NetIncomeLoss", "value": 97e9 - i * 3e9},
+                        {"concept": "DepreciationAndAmortization", "value": 11e9},
+                        {"concept": "OperatingIncomeLoss", "value": 119e9 - i * 3e9},
+                        {"concept": "CostOfGoodsAndServicesSold", "value": 213e9 + i * 5e9},
+                    ],
+                    "bs": [
+                        {"concept": "LongTermDebt", "value": 100e9},
+                        {"concept": "CashAndCashEquivalentsAtCarryingValue", "value": 30e9},
+                    ],
+                },
+            }
+            for i in range(years)
+        ]
+    }
+
+
+class TestFinnhubFetchHistorical:
+    @pytest.mark.asyncio
+    async def test_fetch_with_years_packs_yearly_data(self, provider):
+        profile_resp = _mock_response(_finnhub_profile_response())
+        reported_resp = _mock_response(_finnhub_multi_year_reported("AAPL", 3))
+        with patch.object(provider, "_get", AsyncMock(side_effect=[profile_resp, reported_resp])):
+            result = await provider.fetch("AAPL", "financials", years=3)
+        assert isinstance(result, DataResult)
+        assert "yearly_data" in result.data
+        assert len(result.data["yearly_data"]) == 3
+        assert result.data["yearly_data"][0]["revenue"] == 394e9
+
+    @pytest.mark.asyncio
+    async def test_fetch_without_years_returns_flat(self, provider):
+        profile_resp = _mock_response(_finnhub_profile_response())
+        reported_resp = _mock_response(_finnhub_financials_reported_response())
+        with patch.object(provider, "_get", AsyncMock(side_effect=[profile_resp, reported_resp])):
+            result = await provider.fetch("AAPL", "financials")
+        assert isinstance(result, DataResult)
+        assert "yearly_data" not in result.data
 
 
 class TestFinnhubInterface:

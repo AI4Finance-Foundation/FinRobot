@@ -35,7 +35,8 @@ class FinnhubProvider(DataProvider):
             )
         try:
             if data_type == "financials":
-                data = await self._fetch_financials(ticker)
+                years = kwargs.get("years")
+                data = await self._fetch_financials(ticker, years=years)
             elif data_type == "profile":
                 data = await self._fetch_profile(ticker)
             else:
@@ -57,7 +58,7 @@ class FinnhubProvider(DataProvider):
             timestamp=datetime.now(tz=timezone.utc),
         )
 
-    async def _fetch_financials(self, ticker: str) -> dict:
+    async def _fetch_financials(self, ticker: str, *, years: int | None = None) -> dict:
         profile = (await self._get("/stock/profile2", params={"symbol": ticker})).json()
 
         reported = (
@@ -67,10 +68,22 @@ class FinnhubProvider(DataProvider):
             )
         ).json()
 
-        # Extract latest annual filing
         filings = reported.get("data", [])
+
+        if years is not None and years > 1:
+            parsed = [
+                self._parse_filing(filing, profile) for filing in filings[:years]
+            ]
+            return {"yearly_data": parsed}
+
+        # Single-year (default): return flat dict
         latest = filings[0] if filings else {}
-        report = latest.get("report", {})
+        return self._parse_filing(latest, profile)
+
+    @staticmethod
+    def _parse_filing(filing: dict, profile: dict) -> dict:
+        """Parse a single Finnhub SEC filing into a normalized dict."""
+        report = filing.get("report", {})
 
         def _find_concept(section: str, concept: str) -> float | None:
             items = report.get(section, [])

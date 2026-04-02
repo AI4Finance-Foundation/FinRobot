@@ -255,6 +255,12 @@ class TestFetchHistorical:
 
         assert isinstance(results, list)
         assert len(results) == 5
+        for i, r in enumerate(results):
+            assert r.data["year"] == 2020 + i
+            assert r.data["revenue"] == 100e9 + i
+            assert r.provider == "mock"
+            assert r.ticker == "AAPL"
+            assert r.data_type == "financials"
         mock_provider.fetch.assert_called_once_with("AAPL", "financials", years=5)
 
     @pytest.mark.asyncio
@@ -315,3 +321,18 @@ class TestFetchHistorical:
 
         assert isinstance(results, list)
         assert len(results) == 1
+
+    @pytest.mark.asyncio
+    async def test_fetch_historical_all_fail_returns_empty(self):
+        failing = MagicMock(spec=DataProvider)
+        failing.name = "failing"
+        failing.capabilities.return_value = ["financials"]
+        failing.fetch = AsyncMock(side_effect=ProviderError("down"))
+
+        mock_cache = MagicMock(spec=DataCache)
+        mock_cache.get = AsyncMock(return_value=None)
+
+        layer = DataLayer(providers=[failing], cache=mock_cache)
+        results = await layer.fetch_historical("financials", "AAPL", years=5)
+
+        assert results == []

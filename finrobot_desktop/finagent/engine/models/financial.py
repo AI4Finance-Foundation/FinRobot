@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 
@@ -210,3 +210,101 @@ class StepOutput(BaseModel):
 
     text: str
     structured: Any = None
+
+
+class HistoricalMetrics(BaseModel):
+    """Multi-year historical financial metrics extracted from provider data."""
+
+    years: list[int]
+    revenue: list[float]
+    revenue_growth_yoy: list[float | None]
+    cogs: list[float]
+    gross_profit: list[float]
+    gross_margin: list[float]
+    sga: list[float]
+    sga_ratio: list[float]
+    ebitda: list[float]
+    ebitda_margin: list[float]
+    operating_income: list[float]
+    operating_margin: list[float]
+    net_income: list[float]
+    eps: list[float]
+    pe_ratio: list[float | None]
+    cagr_revenue: float | None
+    ticker: str
+    price_data_available: bool = False
+
+
+class MarginAssumptions(BaseModel):
+    """User-provided or default margin targets for forecasting."""
+
+    gross_margin_target: float | None = None
+    ebitda_margin_target: float | None = None
+    sga_ratio_target: float | None = None
+
+
+class ForecastAssumptions(BaseModel):
+    """Records exactly which assumptions were used in a forecast."""
+
+    revenue_growth_rates: list[float]
+    gross_margin: float
+    ebitda_margin: float
+    sga_ratio: float
+    tax_rate: float = 0.21
+
+
+class ForecastResult(BaseModel):
+    """Deterministic 3-year financial forecast output."""
+
+    years: list[int]
+    revenue: list[float]
+    ebitda: list[float]
+    net_income: list[float]
+    eps: list[float]
+    assumptions: ForecastAssumptions
+
+
+class CatalystEvent(BaseModel):
+    """Single catalyst event extracted by LLM from news."""
+
+    category: Literal[
+        "product_launch",
+        "earnings",
+        "regulatory",
+        "acquisition",
+        "management",
+        "market",
+    ]
+    headline: str
+    sentiment: Literal["positive", "negative", "neutral"]
+    impact_score: int = Field(ge=1, le=5)
+    probability: float = Field(ge=0, le=1)
+    reasoning: str
+
+
+class CatalystAnalysis(BaseModel):
+    """LLM-structured catalyst analysis output."""
+
+    events: list[CatalystEvent]
+    overall_sentiment: Literal["bullish", "bearish", "neutral"]
+    key_catalysts: list[str]
+
+
+class ValuationMethod(BaseModel):
+    """One valuation method's result range."""
+
+    name: str
+    low: float
+    mid: float
+    high: float
+    confidence: float = Field(ge=0, le=1)
+    source: str
+
+
+class ValuationSynthesis(BaseModel):
+    """Multi-method valuation synthesis. Football field data derives from methods."""
+
+    methods: list[ValuationMethod]
+    weighted_price: float
+    current_price: float
+    upside_downside: float

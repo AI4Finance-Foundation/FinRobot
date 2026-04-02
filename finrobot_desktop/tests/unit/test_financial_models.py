@@ -10,6 +10,14 @@ from finagent.engine.models.financial import (
     DCFResult,
     ThesisResult,
     StepOutput,
+    HistoricalMetrics,
+    MarginAssumptions,
+    ForecastAssumptions,
+    ForecastResult,
+    CatalystEvent,
+    CatalystAnalysis,
+    ValuationMethod,
+    ValuationSynthesis,
 )
 
 
@@ -428,3 +436,91 @@ def test_dcf_result_fcf_formula_default():
         inputs=inputs,
     )
     assert result.fcf_formula == "simplified"
+
+
+# --- P2c: New models ---
+
+
+class TestHistoricalMetrics:
+    def test_valid_construction(self):
+        hm = HistoricalMetrics(
+            years=[2022, 2023, 2024],
+            revenue=[300e9, 350e9, 394e9],
+            revenue_growth_yoy=[None, 0.167, 0.126],
+            cogs=[165e9, 185e9, 213e9],
+            gross_profit=[135e9, 165e9, 181e9],
+            gross_margin=[0.45, 0.471, 0.459],
+            sga=[20e9, 22e9, 25e9],
+            sga_ratio=[0.067, 0.063, 0.063],
+            ebitda=[100e9, 120e9, 130e9],
+            ebitda_margin=[0.333, 0.343, 0.330],
+            operating_income=[90e9, 108e9, 117e9],
+            operating_margin=[0.30, 0.309, 0.297],
+            net_income=[70e9, 85e9, 97e9],
+            eps=[4.67, 5.67, 6.47],
+            pe_ratio=[None, 25.0, 28.3],
+            cagr_revenue=0.146,
+            ticker="AAPL",
+        )
+        assert hm.ticker == "AAPL"
+        assert len(hm.years) == 3
+
+
+class TestForecastResult:
+    def test_valid_construction(self):
+        fr = ForecastResult(
+            years=[2025, 2026, 2027],
+            revenue=[420e9, 445e9, 467e9],
+            ebitda=[140e9, 150e9, 158e9],
+            net_income=[100e9, 107e9, 112e9],
+            eps=[6.8, 7.2, 7.5],
+            assumptions=ForecastAssumptions(
+                revenue_growth_rates=[0.07, 0.06, 0.05],
+                gross_margin=0.46,
+                ebitda_margin=0.33,
+                sga_ratio=0.063,
+            ),
+        )
+        assert fr.assumptions.tax_rate == 0.21
+
+
+class TestCatalystEvent:
+    def test_valid_event(self):
+        event = CatalystEvent(
+            category="product_launch",
+            headline="Vision Pro Gen 2 announced",
+            sentiment="positive",
+            impact_score=4,
+            probability=0.8,
+            reasoning="Strong pre-orders",
+        )
+        assert event.impact_score == 4
+
+    def test_impact_score_bounds(self):
+        with pytest.raises(ValidationError):
+            CatalystEvent(
+                category="earnings", headline="x", sentiment="positive",
+                impact_score=6, probability=0.5, reasoning="x",
+            )
+
+    def test_probability_bounds(self):
+        with pytest.raises(ValidationError):
+            CatalystEvent(
+                category="earnings", headline="x", sentiment="positive",
+                impact_score=3, probability=1.5, reasoning="x",
+            )
+
+
+class TestValuationSynthesis:
+    def test_valid_synthesis(self):
+        vs = ValuationSynthesis(
+            methods=[
+                ValuationMethod(name="DCF", low=200, mid=245, high=290, confidence=0.5, source="DCF"),
+                ValuationMethod(name="Comps", low=220, mid=250, high=280, confidence=0.3, source="EV/EBITDA"),
+            ],
+            weighted_price=247.0,
+            current_price=230.0,
+            upside_downside=0.074,
+        )
+        assert len(vs.methods) == 2
+        assert vs.upside_downside == pytest.approx(0.074)

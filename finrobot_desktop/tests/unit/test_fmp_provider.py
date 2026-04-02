@@ -102,7 +102,7 @@ class TestFMPFetch:
     @pytest.mark.asyncio
     async def test_fetch_unsupported_data_type_raises(self, provider):
         with pytest.raises(ProviderError, match="not supported"):
-            await provider.fetch("AAPL", "news")
+            await provider.fetch("AAPL", "unknown_type")
 
     @pytest.mark.asyncio
     async def test_api_error_raises_provider_error(self, provider):
@@ -184,3 +184,27 @@ class TestFMPProviderInterface:
     def test_capabilities(self, provider):
         caps = provider.capabilities()
         assert "financials" in caps
+
+
+def _fmp_news_response(ticker="AAPL"):
+    return [
+        {"title": "Apple Q4 earnings beat", "site": "Reuters", "publishedDate": "2024-10-31T16:00:00.000Z", "url": "https://example.com/1"},
+        {"title": "iPhone 16 sales strong", "site": "Bloomberg", "publishedDate": "2024-10-30T14:00:00.000Z", "url": "https://example.com/2"},
+    ]
+
+
+class TestFMPNews:
+    @pytest.mark.asyncio
+    async def test_fetch_news_returns_news_items(self, provider):
+        with patch.object(provider, "_get", AsyncMock(return_value=_mock_response(_fmp_news_response()))):
+            result = await provider.fetch("AAPL", "news")
+        assert isinstance(result, DataResult)
+        assert result.data_type == "news"
+        items = result.data["news_items"]
+        assert len(items) == 2
+        assert items[0]["title"] == "Apple Q4 earnings beat"
+        assert items[0]["source"] == "Reuters"
+
+    @pytest.mark.asyncio
+    async def test_news_in_capabilities(self, provider):
+        assert "news" in provider.capabilities()

@@ -7,7 +7,7 @@ import httpx
 from finagent.engine.data.interface import DataProvider, DataResult, ProviderError
 
 _BASE_URL = "https://financialmodelingprep.com/api/v3"
-_SUPPORTED = ["financials"]
+_SUPPORTED = ["financials", "news"]
 _TIMEOUT = 15.0
 
 
@@ -33,6 +33,8 @@ class FMPProvider(DataProvider):
             raise ProviderError(
                 f"data_type '{data_type}' is not supported by FMP. Supported: {_SUPPORTED}"
             )
+        if data_type == "news":
+            return await self._fetch_news(ticker)
         years: int | None = kwargs.get("years")
         limit = years if years and years > 1 else 1
         try:
@@ -117,6 +119,37 @@ class FMPProvider(DataProvider):
             "industry": prof.get("industry"),
             "sector": prof.get("sector"),
         }
+
+    async def _fetch_news(self, ticker: str) -> DataResult:
+        """Fetch recent news articles for a ticker from FMP /stock_news endpoint."""
+        try:
+            resp = await self._get("/stock_news", params={"tickers": ticker, "limit": 20})
+        except httpx.TimeoutException as e:
+            raise ProviderError(f"FMP timeout fetching news for '{ticker}': {e}") from e
+        except httpx.HTTPStatusError as e:
+            raise ProviderError(f"FMP API error fetching news for '{ticker}': {e}") from e
+        except ProviderError:
+            raise
+        except Exception as e:
+            raise ProviderError(f"FMP news fetch failed for '{ticker}': {e}") from e
+
+        raw: list[dict] = resp.json()
+        news_items = [
+            {
+                "title": item.get("title", ""),
+                "source": item.get("site", ""),
+                "published": item.get("publishedDate", ""),
+                "url": item.get("url", ""),
+            }
+            for item in raw
+        ]
+        return DataResult(
+            data={"news_items": news_items},
+            provider=self.name,
+            ticker=ticker,
+            data_type="news",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
 
     async def _get(self, path: str, params: dict | None = None) -> httpx.Response:
         """Make authenticated GET request to FMP API."""

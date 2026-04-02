@@ -1,4 +1,5 @@
 import pytest
+import httpx
 from httpx import ASGITransport, AsyncClient
 
 from finagent.server import app
@@ -46,3 +47,32 @@ class TestChatEndpoint:
             response = await c.post("/chat", json={})
         assert response.status_code != 404
         assert response.status_code != 405
+
+
+class TestReportEndpoints:
+    @pytest.mark.asyncio
+    async def test_report_html_returns_200(self):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/report/html?ticker=AAPL")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert "AAPL" in response.text
+
+    @pytest.mark.asyncio
+    async def test_report_html_requires_ticker(self):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/report/html")
+        assert response.status_code == 422  # FastAPI validation error
+
+    @pytest.mark.asyncio
+    async def test_report_pdf_endpoint_exists(self):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/report/pdf?ticker=AAPL")
+        # Either 200 (weasyprint installed) or 501 (not installed)
+        assert response.status_code in (200, 501)

@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -66,4 +67,62 @@ async def chat(request: Request) -> Response:
 
 @app.get("/health")
 async def health():
-    return {"status": "ready", "phase": "P1a"}
+    return {"status": "ready", "phase": "P2c"}
+
+
+@app.get("/api/report/html")
+async def report_html(ticker: str):
+    """Generate and return HTML equity research report."""
+    from finagent.engine.reports.html_renderer import render_equity_report
+
+    # Minimal context for now — full integration happens when pipeline wiring is done
+    context = {
+        "ticker": ticker.upper(),
+        "company_name": ticker.upper(),
+        "current_price": 0,
+        "market_cap": 0,
+        "recommendation": "N/A",
+        "price_target": 0,
+        "charts": {},
+        "historical_metrics": None,
+        "forecast": None,
+        "dcf_result": None,
+        "peer_comps": None,
+        "catalyst_analysis": None,
+        "valuation_synthesis": None,
+    }
+    html = render_equity_report(context)
+    return HTMLResponse(content=html)
+
+
+@app.get("/api/report/pdf")
+async def report_pdf(ticker: str):
+    """Generate and return PDF equity research report."""
+    from finagent.engine.reports.html_renderer import render_equity_report
+    from finagent.engine.reports.pdf_renderer import render_pdf
+
+    context = {
+        "ticker": ticker.upper(),
+        "company_name": ticker.upper(),
+        "current_price": 0,
+        "market_cap": 0,
+        "recommendation": "N/A",
+        "price_target": 0,
+        "charts": {},
+        "historical_metrics": None,
+        "forecast": None,
+        "dcf_result": None,
+        "peer_comps": None,
+        "catalyst_analysis": None,
+        "valuation_synthesis": None,
+    }
+    html = render_equity_report(context)
+    try:
+        pdf_bytes = render_pdf(html)
+    except RuntimeError as e:
+        return Response(content=str(e), status_code=501)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={ticker}_report.pdf"},
+    )

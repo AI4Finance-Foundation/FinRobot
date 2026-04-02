@@ -1,0 +1,88 @@
+{
+  "name": "finagent-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "lint": "eslint src/ electron/ --ext .ts,.tsx",
+    "format": "prettier --write 'src/**/*.{ts,tsx}' 'electron/**/*.ts'",
+    "format:check": "prettier --check 'src/**/*.{ts,tsx}' 'electron/**/*.ts'",
+    "prebuild:dist": "node scripts/prepare-uv.mjs",
+    "dist:mac": "npm run prebuild:dist && electron-vite build && electron-builder --mac",
+    "dist:win": "npm run prebuild:dist && electron-vite build && electron-builder --win",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "electron-store": "^11.0.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^3.8.1",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0",
+    "@typescript-eslint/parser": "^8.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "electron-vite": "^3.0.0",
+    "eslint": "^9.0",
+    "eslint-plugin-react": "^7.37",
+    "eslint-plugin-react-hooks": "^5.0",
+    "jsdom": "^29.0.1",
+    "prettier": "^3.4",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0",
+    "vitest": "^4.1.2"
+  },
+  "build": {
+    "appId": "com.finagent.desktop",
+    "productName": "FinAgent",
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.finance"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "extraResources": [
+      {
+        "from": "../pyproject.toml",
+        "to": "."
+      },
+      {
+        "from": "../uv.lock",
+        "to": "."
+      },
+      {
+        "from": "../finagent",
+        "to": "finagent",
+        "filter": [
+          "**/*.py",
+          "!__pycache__"
+        ]
+      },
+      {
+        "from": "build/uv-sidecar",
+        "to": "."
+      }
+    ]
+  }
+}

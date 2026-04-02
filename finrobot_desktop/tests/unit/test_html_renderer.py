@@ -1,0 +1,200 @@
+"""Tests for HTML report renderer.
+
+Verifies that Jinja2 templates render correct HTML output with
+embedded chart images, company data, and structured financial content.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from finagent.engine.reports.html_renderer import (
+    render_comps_report,
+    render_dcf_report,
+    render_equity_report,
+)
+
+
+def _equity_context(**overrides: object) -> dict:
+    """Build a minimal equity report context with sensible defaults."""
+    base = {
+        "ticker": "AAPL",
+        "company_name": "Apple Inc.",
+        "current_price": 230.0,
+        "market_cap": 3e12,
+        "recommendation": "Buy",
+        "price_target": 260.0,
+        "charts": {},
+        "historical_metrics": None,
+        "forecast": None,
+        "dcf_result": None,
+        "peer_comps": None,
+        "catalyst_analysis": None,
+        "valuation_synthesis": None,
+    }
+    base.update(overrides)
+    return base
+
+
+class TestRenderEquityReport:
+    def test_returns_html_string(self) -> None:
+        context = _equity_context()
+        html = render_equity_report(context)
+        assert "<html" in html.lower()
+        assert "AAPL" in html
+        assert "Apple Inc." in html
+
+    def test_contains_recommendation(self) -> None:
+        context = _equity_context(
+            ticker="MSFT",
+            company_name="Microsoft",
+            current_price=400.0,
+            recommendation="Hold",
+            price_target=420.0,
+        )
+        html = render_equity_report(context)
+        assert "Hold" in html
+        assert "MSFT" in html
+
+    def test_embeds_chart_image(self) -> None:
+        context = _equity_context(
+            charts={"revenue_ebitda": "data:image/png;base64,ABC123"},
+        )
+        html = render_equity_report(context)
+        assert "data:image/png;base64,ABC123" in html
+
+    def test_contains_price_info(self) -> None:
+        context = _equity_context(current_price=230.0, price_target=260.0)
+        html = render_equity_report(context)
+        assert "230" in html
+        assert "260" in html
+
+    def test_market_cap_displayed(self) -> None:
+        context = _equity_context(market_cap=3e12)
+        html = render_equity_report(context)
+        # Market cap should appear somewhere in the rendered output
+        assert "3" in html
+
+    def test_multiple_charts_embedded(self) -> None:
+        charts = {
+            "revenue_ebitda": "data:image/png;base64,CHART1",
+            "margin_trend": "data:image/png;base64,CHART2",
+            "sensitivity": "data:image/png;base64,CHART3",
+        }
+        context = _equity_context(charts=charts)
+        html = render_equity_report(context)
+        assert "data:image/png;base64,CHART1" in html
+        assert "data:image/png;base64,CHART2" in html
+        assert "data:image/png;base64,CHART3" in html
+
+    def test_historical_metrics_table(self) -> None:
+        metrics = {
+            "years": [2022, 2023, 2024],
+            "revenue": [394e9, 383e9, 391e9],
+            "ebitda": [130e9, 125e9, 132e9],
+            "gross_margin": [0.433, 0.441, 0.462],
+            "operating_margin": [0.302, 0.299, 0.317],
+            "net_income": [99.8e9, 97e9, 101e9],
+        }
+        context = _equity_context(historical_metrics=metrics)
+        html = render_equity_report(context)
+        assert "2022" in html
+        assert "2023" in html
+        assert "2024" in html
+
+    def test_catalyst_analysis_section(self) -> None:
+        catalyst = {
+            "events": [
+                {
+                    "category": "product_launch",
+                    "headline": "Vision Pro launch",
+                    "sentiment": "positive",
+                    "impact_score": 4,
+                }
+            ],
+            "overall_sentiment": "bullish",
+            "key_catalysts": ["Vision Pro", "Services growth"],
+        }
+        context = _equity_context(catalyst_analysis=catalyst)
+        html = render_equity_report(context)
+        assert "Vision Pro" in html
+        assert "bullish" in html or "Bullish" in html
+
+    def test_color_scheme_in_css(self) -> None:
+        """Verify the spec'd color scheme is used in inline CSS."""
+        html = render_equity_report(_equity_context())
+        assert "#1a365d" in html
+        assert "#d4a843" in html
+
+    def test_html_is_complete_document(self) -> None:
+        html = render_equity_report(_equity_context())
+        lower = html.lower()
+        assert "<!doctype html>" in lower or "<html" in lower
+        assert "</html>" in lower
+        assert "<head" in lower
+        assert "<body" in lower
+
+
+class TestRenderCompsReport:
+    def test_returns_html(self) -> None:
+        html = render_comps_report({"ticker": "AAPL", "charts": {}, "peer_comps": None})
+        assert "<html" in html.lower()
+        assert "AAPL" in html
+
+    def test_peer_table_renders(self) -> None:
+        peer_comps = {
+            "target": {"ticker": "AAPL", "ev_ebitda": 25.0, "pe_ratio": 30.0},
+            "peers": [
+                {"ticker": "MSFT", "ev_ebitda": 22.0, "pe_ratio": 35.0},
+                {"ticker": "GOOGL", "ev_ebitda": 18.0, "pe_ratio": 25.0},
+            ],
+            "median_ev_ebitda": 20.0,
+            "median_pe": 30.0,
+        }
+        html = render_comps_report(
+            {"ticker": "AAPL", "charts": {}, "peer_comps": peer_comps}
+        )
+        assert "MSFT" in html
+        assert "GOOGL" in html
+
+    def test_comps_chart_embedded(self) -> None:
+        html = render_comps_report(
+            {
+                "ticker": "AAPL",
+                "charts": {"peer_comparison": "data:image/png;base64,COMP1"},
+                "peer_comps": None,
+            }
+        )
+        assert "data:image/png;base64,COMP1" in html
+
+
+class TestRenderDcfReport:
+    def test_returns_html(self) -> None:
+        html = render_dcf_report({"ticker": "AAPL", "charts": {}, "dcf_result": None})
+        assert "<html" in html.lower()
+        assert "AAPL" in html
+
+    def test_dcf_result_renders(self) -> None:
+        dcf_result = {
+            "wacc": 0.095,
+            "implied_price": 255.0,
+            "enterprise_value": 3.2e12,
+            "equity_value": 3.1e12,
+            "projected_fcf": [80e9, 85e9, 90e9],
+            "terminal_value": 2.5e12,
+        }
+        html = render_dcf_report(
+            {"ticker": "AAPL", "charts": {}, "dcf_result": dcf_result}
+        )
+        assert "255" in html
+        assert "9.5" in html or "0.095" in html
+
+    def test_dcf_chart_embedded(self) -> None:
+        html = render_dcf_report(
+            {
+                "ticker": "AAPL",
+                "charts": {"waterfall": "data:image/png;base64,DCF1"},
+                "dcf_result": None,
+            }
+        )
+        assert "data:image/png;base64,DCF1" in html

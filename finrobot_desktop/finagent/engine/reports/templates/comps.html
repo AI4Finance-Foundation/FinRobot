@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ ticker }} — Comparable Company Analysis</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    color: #1a365d;
+    background: #ffffff;
+    line-height: 1.6;
+    font-size: 14px;
+    padding: 40px 48px;
+  }
+  .report-header {
+    border-bottom: 3px solid #d4a843;
+    padding-bottom: 20px;
+    margin-bottom: 28px;
+  }
+  .report-header h1 { font-size: 28px; font-weight: 700; color: #1a365d; }
+  .report-header .subtitle { font-size: 14px; color: #6b7280; }
+  h2 {
+    font-size: 20px;
+    color: #1a365d;
+    border-bottom: 2px solid #d4a843;
+    padding-bottom: 6px;
+    margin: 28px 0 14px 0;
+  }
+  h3 { font-size: 15px; color: #1a365d; margin: 20px 0 8px 0; }
+  .muted { color: #6b7280; }
+  /* Table */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  th {
+    background: #1a365d;
+    color: #ffffff;
+    padding: 10px 12px;
+    text-align: right;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  th:first-child { text-align: left; }
+  td { padding: 8px 12px; text-align: right; border-bottom: 1px solid #e5e7eb; }
+  td:first-child { text-align: left; font-weight: 600; }
+  tr:hover { background: #f8f9fa; }
+  .target-row { font-weight: 700; background: #f0f4f8; }
+  .median-row { border-top: 2px solid #1a365d; font-weight: 600; }
+  /* Metrics */
+  .metrics-row { display: flex; gap: 20px; margin: 20px 0; flex-wrap: wrap; }
+  .metric-card {
+    background: #f8f9fa;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 14px 20px;
+    flex: 1;
+    min-width: 120px;
+  }
+  .metric-card .label { font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; }
+  .metric-card .value { font-size: 22px; font-weight: 700; color: #1a365d; }
+  /* Chart */
+  .chart-container { margin: 20px 0; text-align: center; }
+  .chart-container img { max-width: 100%; height: auto; border: 1px solid #e5e7eb; border-radius: 4px; }
+  .report-footer {
+    margin-top: 28px;
+    padding-top: 14px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 11px;
+    color: #6b7280;
+  }
+</style>
+</head>
+<body>
+
+<div class="report-header">
+  <h1>{{ ticker }} — Comparable Company Analysis</h1>
+  <div class="subtitle">Peer Valuation Benchmarking</div>
+</div>
+
+{% if peer_comps %}
+<div class="metrics-row">
+  <div class="metric-card">
+    <div class="label">Median EV/EBITDA</div>
+    <div class="value">{{ peer_comps.median_ev_ebitda|fmtmult if peer_comps.median_ev_ebitda else 'N/A' }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="label">Median P/E</div>
+    <div class="value">{{ peer_comps.median_pe|fmtmult if peer_comps.median_pe else 'N/A' }}</div>
+  </div>
+</div>
+
+<h2>Peer Comparison Table</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Company</th>
+      <th>EV/EBITDA</th>
+      <th>P/E</th>
+      <th>EV/Revenue</th>
+      <th>Gross Margin</th>
+      <th>Op. Margin</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="target-row">
+      <td>{{ peer_comps.target.ticker }}</td>
+      <td>{{ peer_comps.target.ev_ebitda|fmtmult if peer_comps.target.ev_ebitda else 'N/A' }}</td>
+      <td>{{ peer_comps.target.pe_ratio|fmtmult if peer_comps.target.pe_ratio else 'N/A' }}</td>
+      <td>{{ peer_comps.target.ev_revenue|fmtmult if peer_comps.target.ev_revenue is defined and peer_comps.target.ev_revenue else 'N/A' }}</td>
+      <td>{{ peer_comps.target.gross_margin|fmtpct if peer_comps.target.gross_margin is defined and peer_comps.target.gross_margin else 'N/A' }}</td>
+      <td>{{ peer_comps.target.operating_margin|fmtpct if peer_comps.target.operating_margin is defined and peer_comps.target.operating_margin else 'N/A' }}</td>
+    </tr>
+    {% for peer in peer_comps.peers %}
+    <tr>
+      <td>{{ peer.ticker }}</td>
+      <td>{{ peer.ev_ebitda|fmtmult if peer.ev_ebitda else 'N/A' }}</td>
+      <td>{{ peer.pe_ratio|fmtmult if peer.pe_ratio else 'N/A' }}</td>
+      <td>{{ peer.ev_revenue|fmtmult if peer.ev_revenue is defined and peer.ev_revenue else 'N/A' }}</td>
+      <td>{{ peer.gross_margin|fmtpct if peer.gross_margin is defined and peer.gross_margin else 'N/A' }}</td>
+      <td>{{ peer.operating_margin|fmtpct if peer.operating_margin is defined and peer.operating_margin else 'N/A' }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="median-row">
+      <td>Median</td>
+      <td>{{ peer_comps.median_ev_ebitda|fmtmult if peer_comps.median_ev_ebitda else 'N/A' }}</td>
+      <td>{{ peer_comps.median_pe|fmtmult if peer_comps.median_pe else 'N/A' }}</td>
+      <td colspan="3"></td>
+    </tr>
+  </tbody>
+</table>
+
+{% if peer_comps.positioning_narrative is defined and peer_comps.positioning_narrative %}
+<h3>Positioning</h3>
+<p>{{ peer_comps.positioning_narrative }}</p>
+{% endif %}
+
+{% else %}
+<p class="muted">Peer comparison data not available.</p>
+{% endif %}
+
+{% if charts.get('peer_comparison') %}
+<h2>Peer Comparison Chart</h2>
+<div class="chart-container">
+  <img src="{{ charts.peer_comparison }}" alt="Peer Comparison" />
+</div>
+{% endif %}
+
+<div class="report-footer">
+  <p>Generated by <strong>FinAgent</strong> &mdash; Open-source financial AI agent platform.</p>
+</div>
+
+</body>
+</html>

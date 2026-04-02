@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ ticker }} — DCF Valuation</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    color: #1a365d;
+    background: #ffffff;
+    line-height: 1.6;
+    font-size: 14px;
+    padding: 40px 48px;
+  }
+  .report-header {
+    border-bottom: 3px solid #d4a843;
+    padding-bottom: 20px;
+    margin-bottom: 28px;
+  }
+  .report-header h1 { font-size: 28px; font-weight: 700; color: #1a365d; }
+  .report-header .subtitle { font-size: 14px; color: #6b7280; }
+  h2 {
+    font-size: 20px;
+    color: #1a365d;
+    border-bottom: 2px solid #d4a843;
+    padding-bottom: 6px;
+    margin: 28px 0 14px 0;
+  }
+  h3 { font-size: 15px; color: #1a365d; margin: 20px 0 8px 0; }
+  .muted { color: #6b7280; }
+  /* Table */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  th {
+    background: #1a365d;
+    color: #ffffff;
+    padding: 10px 12px;
+    text-align: right;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  th:first-child { text-align: left; }
+  td { padding: 8px 12px; text-align: right; border-bottom: 1px solid #e5e7eb; }
+  td:first-child { text-align: left; font-weight: 600; }
+  tr:hover { background: #f8f9fa; }
+  /* Metrics */
+  .metrics-row { display: flex; gap: 20px; margin: 20px 0; flex-wrap: wrap; }
+  .metric-card {
+    background: #f8f9fa;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 14px 20px;
+    flex: 1;
+    min-width: 120px;
+  }
+  .metric-card .label { font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; }
+  .metric-card .value { font-size: 22px; font-weight: 700; color: #1a365d; }
+  /* Assumptions grid */
+  .assumptions-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 24px;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+  .assumptions-grid .item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dotted #e5e7eb; }
+  .assumptions-grid .item-label { color: #6b7280; }
+  .assumptions-grid .item-value { font-weight: 600; }
+  /* Chart */
+  .chart-container { margin: 20px 0; text-align: center; }
+  .chart-container img { max-width: 100%; height: auto; border: 1px solid #e5e7eb; border-radius: 4px; }
+  /* Sensitivity */
+  .sensitivity-table td { font-size: 13px; padding: 6px 10px; }
+  .sensitivity-table th { font-size: 11px; padding: 6px 10px; }
+  .sensitivity-highlight { background: #d4a843; color: #1a365d; font-weight: 700; }
+  .report-footer {
+    margin-top: 28px;
+    padding-top: 14px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 11px;
+    color: #6b7280;
+  }
+</style>
+</head>
+<body>
+
+<div class="report-header">
+  <h1>{{ ticker }} — DCF Valuation</h1>
+  <div class="subtitle">Discounted Cash Flow Analysis</div>
+</div>
+
+{% if dcf_result %}
+<div class="metrics-row">
+  <div class="metric-card">
+    <div class="label">WACC</div>
+    <div class="value">{{ dcf_result.wacc|fmtpct }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="label">Implied Share Price</div>
+    <div class="value">${{ "%.2f"|format(dcf_result.implied_price) }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="label">Enterprise Value</div>
+    <div class="value">{{ dcf_result.enterprise_value|fmtnum }}</div>
+  </div>
+  <div class="metric-card">
+    <div class="label">Equity Value</div>
+    <div class="value">{{ dcf_result.equity_value|fmtnum }}</div>
+  </div>
+</div>
+
+{% if dcf_result.inputs is defined and dcf_result.inputs %}
+<h2>DCF Assumptions</h2>
+<div class="assumptions-grid">
+  {% if dcf_result.inputs.ebitda_margin is defined %}
+  <div class="item">
+    <span class="item-label">EBITDA Margin</span>
+    <span class="item-value">{{ dcf_result.inputs.ebitda_margin|fmtpct }}</span>
+  </div>
+  {% endif %}
+  {% if dcf_result.inputs.tax_rate is defined %}
+  <div class="item">
+    <span class="item-label">Tax Rate</span>
+    <span class="item-value">{{ dcf_result.inputs.tax_rate|fmtpct }}</span>
+  </div>
+  {% endif %}
+  {% if dcf_result.inputs.capex_pct_revenue is defined %}
+  <div class="item">
+    <span class="item-label">Capex % Revenue</span>
+    <span class="item-value">{{ dcf_result.inputs.capex_pct_revenue|fmtpct }}</span>
+  </div>
+  {% endif %}
+  {% if dcf_result.inputs.terminal_growth_rate is defined %}
+  <div class="item">
+    <span class="item-label">Terminal Growth Rate</span>
+    <span class="item-value">{{ dcf_result.inputs.terminal_growth_rate|fmtpct }}</span>
+  </div>
+  {% endif %}
+  {% if dcf_result.inputs.risk_free_rate is defined %}
+  <div class="item">
+    <span class="item-label">Risk-Free Rate</span>
+    <span class="item-value">{{ dcf_result.inputs.risk_free_rate|fmtpct }}</span>
+  </div>
+  {% endif %}
+  {% if dcf_result.inputs.beta is defined %}
+  <div class="item">
+    <span class="item-label">Beta</span>
+    <span class="item-value">{{ "%.2f"|format(dcf_result.inputs.beta) }}</span>
+  </div>
+  {% endif %}
+  {% if dcf_result.inputs.equity_risk_premium is defined %}
+  <div class="item">
+    <span class="item-label">Equity Risk Premium</span>
+    <span class="item-value">{{ dcf_result.inputs.equity_risk_premium|fmtpct }}</span>
+  </div>
+  {% endif %}
+  {% if dcf_result.inputs.debt_ratio is defined %}
+  <div class="item">
+    <span class="item-label">Debt Ratio</span>
+    <span class="item-value">{{ dcf_result.inputs.debt_ratio|fmtpct }}</span>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<h2>Projected Free Cash Flow</h2>
+<table>
+  <thead>
+    <tr>
+      {% for i in range(dcf_result.projected_fcf|length) %}
+      <th>Year {{ i + 1 }}</th>
+      {% endfor %}
+      <th>Terminal Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% if dcf_result.projected_revenue is defined and dcf_result.projected_revenue %}
+    <tr>
+      {% for v in dcf_result.projected_revenue %}<td>{{ v|fmtnum }}</td>{% endfor %}
+      <td>—</td>
+    </tr>
+    {% endif %}
+    {% if dcf_result.projected_ebitda is defined and dcf_result.projected_ebitda %}
+    <tr>
+      {% for v in dcf_result.projected_ebitda %}<td>{{ v|fmtnum }}</td>{% endfor %}
+      <td>—</td>
+    </tr>
+    {% endif %}
+    <tr>
+      {% for v in dcf_result.projected_fcf %}<td>{{ v|fmtnum }}</td>{% endfor %}
+      <td>{{ dcf_result.terminal_value|fmtnum }}</td>
+    </tr>
+  </tbody>
+</table>
+
+{% if dcf_result.sensitivity_table is defined and dcf_result.sensitivity_table %}
+<h2>Sensitivity Analysis</h2>
+<p class="muted">Implied share price under varying WACC and terminal growth rate assumptions.</p>
+{% if charts.get('sensitivity') %}
+<div class="chart-container">
+  <img src="{{ charts.sensitivity }}" alt="Sensitivity Heatmap" />
+</div>
+{% endif %}
+{% endif %}
+
+{% else %}
+<p class="muted">DCF valuation data not available.</p>
+{% endif %}
+
+{% if charts.get('waterfall') %}
+<h2>Valuation Waterfall</h2>
+<div class="chart-container">
+  <img src="{{ charts.waterfall }}" alt="DCF Waterfall" />
+</div>
+{% endif %}
+
+<div class="report-footer">
+  <p>Generated by <strong>FinAgent</strong> &mdash; Open-source financial AI agent platform.</p>
+</div>
+
+</body>
+</html>

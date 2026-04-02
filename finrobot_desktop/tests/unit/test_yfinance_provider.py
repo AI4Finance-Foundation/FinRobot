@@ -17,7 +17,12 @@ from finagent.engine.data.providers.yfinance_provider import YFinanceProvider
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_mock_ticker(info: dict, news: list | None = None, history: pd.DataFrame | None = None):
+def _make_mock_ticker(
+    info: dict,
+    news: list | None = None,
+    history: pd.DataFrame | None = None,
+    income_stmt: pd.DataFrame | None = None,
+):
     mock = MagicMock()
     mock.info = info
     mock.news = news or []
@@ -33,6 +38,10 @@ def _make_mock_ticker(info: dict, news: list | None = None, history: pd.DataFram
             index=pd.to_datetime(["2024-01-01"]),
         )
     mock.history.return_value = history
+    # income_stmt defaults to empty DataFrame (no historical data)
+    if income_stmt is None:
+        income_stmt = pd.DataFrame()
+    mock.income_stmt = income_stmt
     return mock
 
 
@@ -136,6 +145,139 @@ class TestUnsupportedDataType:
         with patch("finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker):
             with pytest.raises(ProviderError):
                 await provider.fetch("AAPL", "unknown_type")
+
+
+class TestFetchHistoricalFinancials:
+    """Tests for multi-year financials via income_stmt DataFrame."""
+
+    @staticmethod
+    def _build_income_stmt(years: int = 3) -> pd.DataFrame:
+        """Build a mock income_stmt DataFrame with `years` columns.
+
+        Columns are fiscal-year-end dates (most recent first).
+        Rows are standard yfinance income statement labels.
+        """
+        columns = pd.to_datetime(
+            [f"{2024 - i}-09-30" for i in range(years)]
+        )
+        data = {
+            col: {
+                "Total Revenue": (400 - i * 10) * 1e9,
+                "EBITDA": (130 - i * 5) * 1e9,
+                "Net Income": (95 - i * 3) * 1e9,
+                "Gross Profit": (170 - i * 4) * 1e9,
+                "Operating Income": (120 - i * 5) * 1e9,
+            }
+            for i, col in enumerate(columns)
+        }
+        return pd.DataFrame(data)
+
+    @pytest.mark.asyncio
+    async def test_multi_year_returns_yearly_data(self):
+        """When years > 1, result.data['yearly_data'] has N entries."""
+        income_stmt = self._build_income_stmt(3)
+        mock_ticker = _make_mock_ticker(VALID_INFO, income_stmt=income_stmt)
+        provider = YFinanceProvider()
+        with patch(
+            "finagent.engine.data.providers.yfinance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            result = await provider.fetch("AAPL", "financials", years=3)
+        assert isinstance(result, DataResult)
+        assert "yearly_data" in result.data
+        yearly = result.data["yearly_data"]
+        assert len(yearly) == 3
+        # Most recent year first
+        assert yearly[0]["revenue"] == 400e9
+        assert yearly[1]["revenue"] == 390e9
+        assert yearly[2]["revenue"] == 380e9
+
+    @pytest.mark.asyncio
+    async def test_multi_year_extracts_margins(self):
+        """Each year entry includes computed margins."""
+        income_stmt = self._build_income_stmt(2)
+        mock_ticker = _make_mock_ticker(VALID_INFO, income_stmt=income_stmt)
+        provider = YFinanceProvider()
+        with patch(
+            "finagent.engine.data.providers.yfinance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            result = await provider.fetch("AAPL", "financials", years=2)
+        yearly = result.data["yearly_data"]
+        # gross_margin = Gross Profit / Total Revenue
+        expected_gm = 170e9 / 400e9
+        assert abs(yearly[0]["gross_margin"] - expected_gm) < 1e-6
+        # operating_margin = Operating Income / Total Revenue
+        expected_om = 120e9 / 400e9
+        assert abs(yearly[0]["operating_margin"] - expected_om) < 1e-6
+
+    @pytest.mark.asyncio
+    async def test_multi_year_includes_fiscal_year(self):
+        """Each yearly entry includes the fiscal_year string."""
+        income_stmt = self._build_income_stmt(2)
+        mock_ticker = _make_mock_ticker(VALID_INFO, income_stmt=income_stmt)
+        provider = YFinanceProvider()
+        with patch(
+            "finagent.engine.data.providers.yfinance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            result = await provider.fetch("AAPL", "financials", years=2)
+        yearly = result.data["yearly_data"]
+        assert yearly[0]["fiscal_year"] == "2024-09-30"
+        assert yearly[1]["fiscal_year"] == "2023-09-30"
+
+    @pytest.mark.asyncio
+    async def test_multi_year_caps_at_available_columns(self):
+        """If years > available columns, return only available data."""
+        income_stmt = self._build_income_stmt(2)
+        mock_ticker = _make_mock_ticker(VALID_INFO, income_stmt=income_stmt)
+        provider = YFinanceProvider()
+        with patch(
+            "finagent.engine.data.providers.yfinance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            result = await provider.fetch("AAPL", "financials", years=5)
+        assert len(result.data["yearly_data"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_multi_year_empty_income_stmt_falls_back(self):
+        """If income_stmt is empty, fall back to single-year from info."""
+        mock_ticker = _make_mock_ticker(VALID_INFO, income_stmt=pd.DataFrame())
+        provider = YFinanceProvider()
+        with patch(
+            "finagent.engine.data.providers.yfinance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            result = await provider.fetch("AAPL", "financials", years=3)
+        # Falls back to single-year: no yearly_data key, has revenue directly
+        assert "revenue" in result.data
+        assert result.data["revenue"] == 385_000_000_000
+
+    @pytest.mark.asyncio
+    async def test_years_one_uses_single_year_path(self):
+        """years=1 should use single-year (info dict) path."""
+        mock_ticker = _make_mock_ticker(VALID_INFO)
+        provider = YFinanceProvider()
+        with patch(
+            "finagent.engine.data.providers.yfinance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            result = await provider.fetch("AAPL", "financials", years=1)
+        assert "revenue" in result.data
+        assert "yearly_data" not in result.data
+
+    @pytest.mark.asyncio
+    async def test_no_years_kwarg_uses_single_year(self):
+        """No years kwarg → single-year path (backward compatible)."""
+        mock_ticker = _make_mock_ticker(VALID_INFO)
+        provider = YFinanceProvider()
+        with patch(
+            "finagent.engine.data.providers.yfinance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            result = await provider.fetch("AAPL", "financials")
+        assert "revenue" in result.data
+        assert "yearly_data" not in result.data
 
 
 # ---------------------------------------------------------------------------

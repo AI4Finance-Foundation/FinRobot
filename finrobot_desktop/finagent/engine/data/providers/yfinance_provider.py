@@ -12,8 +12,8 @@ except Exception:
     pass  # non-critical, ignore if not supported
 
 _SUPPORTED = ["financials", "price", "news"]
-_CALL_DELAY = 1.0        # seconds between the info fetch and subsequent calls
-_MAX_RETRIES = 3         # retry attempts on rate-limit errors
+_CALL_DELAY = 1.0  # seconds between the info fetch and subsequent calls
+_MAX_RETRIES = 3  # retry attempts on rate-limit errors
 _RETRY_DELAYS = [2, 5, 10]  # seconds to wait before each retry
 
 
@@ -40,13 +40,12 @@ class YFinanceProvider(DataProvider):
     async def fetch(self, ticker: str, data_type: str, **kwargs) -> DataResult:
         if data_type == "filings":
             raise ProviderError(
-                f"data_type 'filings' is not supported by yfinance. "
-                f"SEC EDGAR provider will be added in P2b."
+                "data_type 'filings' is not supported by yfinance. "
+                "SEC EDGAR provider will be added in P2b."
             )
         if data_type not in _SUPPORTED:
             raise ProviderError(
-                f"data_type '{data_type}' is not supported by yfinance. "
-                f"Supported: {_SUPPORTED}"
+                f"data_type '{data_type}' is not supported by yfinance. Supported: {_SUPPORTED}"
             )
 
         # Fetch and validate ticker info with retry on rate limiting.
@@ -75,7 +74,11 @@ class YFinanceProvider(DataProvider):
                 raise ProviderError(f"Failed to fetch ticker '{ticker}': {e}") from e
 
         if data_type == "financials":
-            result = self._fetch_financials(ticker, info)
+            years_kwarg = kwargs.get("years")
+            if years_kwarg and years_kwarg > 1:
+                result = await self._fetch_historical_financials(ticker, info, t, years_kwarg)
+            else:
+                result = self._fetch_financials(ticker, info)
         elif data_type == "price":
             await asyncio.sleep(_CALL_DELAY)
             result = await self._fetch_price(ticker, t, info)
@@ -110,20 +113,69 @@ class YFinanceProvider(DataProvider):
             timestamp=datetime.now(tz=timezone.utc),
         )
 
+    async def _fetch_historical_financials(
+        self, ticker: str, info: dict, t: yf.Ticker, years: int
+    ) -> DataResult:
+        """Fetch multi-year financials from income_stmt DataFrame.
+
+        Falls back to single-year (_fetch_financials) if income_stmt is empty.
+        """
+        try:
+            income_stmt = await asyncio.to_thread(lambda: t.income_stmt)
+        except Exception:
+            return self._fetch_financials(ticker, info)
+
+        if income_stmt is None or income_stmt.empty:
+            return self._fetch_financials(ticker, info)
+
+        # Columns are fiscal-year-end dates, most recent first.
+        cols = income_stmt.columns[:years]
+        yearly_data = []
+        for col in cols:
+            series = income_stmt[col]
+            revenue = series.get("Total Revenue")
+            gross_profit = series.get("Gross Profit")
+            operating_income = series.get("Operating Income")
+            entry = {
+                "fiscal_year": str(col.date()) if hasattr(col, "date") else str(col),
+                "revenue": revenue,
+                "ebitda": series.get("EBITDA"),
+                "net_income": series.get("Net Income"),
+                "gross_profit": gross_profit,
+                "operating_income": operating_income,
+                "gross_margin": (
+                    gross_profit / revenue if revenue and gross_profit else None
+                ),
+                "operating_margin": (
+                    operating_income / revenue if revenue and operating_income else None
+                ),
+            }
+            yearly_data.append(entry)
+
+        return DataResult(
+            data={"yearly_data": yearly_data},
+            provider=self.name,
+            ticker=ticker,
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
     async def _fetch_price(self, ticker: str, t: yf.Ticker, info: dict) -> DataResult:
         try:
             current_price = info.get("currentPrice") or info.get("regularMarketPrice")
             hist = await asyncio.to_thread(t.history, period="1y")
             price_history = []
             for date, row in hist.iterrows():
-                price_history.append({
-                    "date": str(date.date()),
-                    "open": row["Open"],
-                    "high": row["High"],
-                    "low": row["Low"],
-                    "close": row["Close"],
-                    "volume": row["Volume"],
-                })
+                price_history.append(
+                    {
+                        "date": str(date.date()),
+                        "open": row["Open"],
+                        "high": row["High"],
+                        "low": row["Low"],
+                        "close": row["Close"],
+                        "volume": row["Volume"],
+                    }
+                )
         except Exception as e:
             raise ProviderError(f"Failed to fetch price for '{ticker}': {e}") from e
 

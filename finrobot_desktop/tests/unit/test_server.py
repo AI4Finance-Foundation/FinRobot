@@ -21,7 +21,7 @@ class TestHealthEndpoint:
         response = await client.get("/health")
         data = response.json()
         assert data["status"] == "ready"
-        assert data["phase"] == "P1a"
+        assert data["phase"] == "P2c"
 
 
 class TestChatEndpoint:

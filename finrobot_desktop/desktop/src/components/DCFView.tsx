@@ -1,5 +1,8 @@
 import { useState } from 'react'
-import { usePipelineStream } from '../hooks/usePipelineStream'
+import { usePipelineStream, PipelineEvent } from '../hooks/usePipelineStream'
+import Layout from './Layout'
+import DataPanel from './DataPanel'
+import { SensitivityHeatmap, WaterfallChart, FootballField } from './charts'
 
 interface SensitivityData {
   wacc_values: number[]
@@ -16,6 +19,12 @@ interface DCFResultData {
   pv_terminal?: number
   terminal_value?: number
   sensitivity_table?: SensitivityData
+}
+
+interface ChartEntry {
+  chart_type: string
+  title: string
+  data: Record<string, number | string | boolean | null>[]
 }
 
 function isDCFResult(data: unknown): data is DCFResultData {
@@ -41,6 +50,31 @@ function isSensitivityData(data: unknown): data is SensitivityData {
   )
 }
 
+function extractCharts(events: PipelineEvent[]): ChartEntry[] {
+  return events
+    .filter((e) => {
+      const s = e.structured as Record<string, unknown> | null
+      return s?.chart_data && typeof s.chart_data === 'object'
+    })
+    .flatMap((e) => {
+      const cd = (e.structured as Record<string, unknown>).chart_data as Record<string, unknown>
+      return Array.isArray(cd.charts) ? (cd.charts as ChartEntry[]) : []
+    })
+}
+
+function renderChart(chart: ChartEntry, key: number) {
+  switch (chart.chart_type) {
+    case 'sensitivity':
+      return <SensitivityHeatmap key={key} data={chart.data} title={chart.title} />
+    case 'waterfall':
+      return <WaterfallChart key={key} data={chart.data} title={chart.title} />
+    case 'football_field':
+      return <FootballField key={key} data={chart.data} title={chart.title} />
+    default:
+      return null
+  }
+}
+
 export default function DCFView() {
   const [ticker, setTicker] = useState('')
   const stream = usePipelineStream('/stream/dcf', { ticker })
@@ -51,9 +85,14 @@ export default function DCFView() {
   const sensitivity =
     dcfData && isSensitivityData(dcfData.sensitivity_table) ? dcfData.sensitivity_table : null
   const lastText = completedEvents.map((e) => e.text).join('\n\n')
+  const chartData = extractCharts(stream.events)
 
-  return (
-    <div className="view-container">
+  const currentStep = stream.events.length > 0
+    ? stream.events[stream.events.length - 1].step.replace(/_/g, ' ')
+    : undefined
+
+  const leftContent = (
+    <>
       <h2 style={{ marginBottom: 16 }}>DCF Valuation</h2>
       <div className="input-row">
         <input
@@ -71,15 +110,6 @@ export default function DCFView() {
           {stream.status === 'running' ? 'Running...' : 'Run DCF'}
         </button>
       </div>
-
-      {stream.status !== 'idle' && (
-        <div className="progress-bar">
-          <div
-            className="progress-fill"
-            style={{ width: `${stream.progress * 100}%` }}
-          />
-        </div>
-      )}
 
       {stream.error && <div className="error-msg">{stream.error}</div>}
 
@@ -108,7 +138,22 @@ export default function DCFView() {
       {sensitivity && <SensitivityTable data={sensitivity} />}
 
       {lastText && <div className="output-area">{lastText}</div>}
-    </div>
+    </>
+  )
+
+  const rightContent = chartData.length > 0 ? (
+    <DataPanel title="DCF Charts">
+      {chartData.map((chart, i) => renderChart(chart, i))}
+    </DataPanel>
+  ) : null
+
+  return (
+    <Layout
+      leftPanel={leftContent}
+      rightPanel={rightContent}
+      progress={stream.status !== 'idle' ? stream.progress : undefined}
+      progressLabel={currentStep}
+    />
   )
 }
 

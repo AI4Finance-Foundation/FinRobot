@@ -1,5 +1,8 @@
 import { useState } from 'react'
-import { usePipelineStream } from '../hooks/usePipelineStream'
+import { usePipelineStream, PipelineEvent } from '../hooks/usePipelineStream'
+import Layout from './Layout'
+import DataPanel from './DataPanel'
+import { PeerComparisonChart, CompanyRadarChart } from './charts'
 
 interface CompanyRow {
   ticker: string
@@ -18,6 +21,12 @@ interface PeerCompsData {
   median_ev_revenue?: number | null
 }
 
+interface ChartEntry {
+  chart_type: string
+  title: string
+  data: Record<string, number | string | boolean | null>[]
+}
+
 function isPeerCompsData(data: unknown): data is PeerCompsData {
   if (data == null || typeof data !== 'object') return false
   const d = data as Record<string, unknown>
@@ -29,6 +38,29 @@ function isPeerCompsData(data: unknown): data is PeerCompsData {
   )
 }
 
+function extractCharts(events: PipelineEvent[]): ChartEntry[] {
+  return events
+    .filter((e) => {
+      const s = e.structured as Record<string, unknown> | null
+      return s?.chart_data && typeof s.chart_data === 'object'
+    })
+    .flatMap((e) => {
+      const cd = (e.structured as Record<string, unknown>).chart_data as Record<string, unknown>
+      return Array.isArray(cd.charts) ? (cd.charts as ChartEntry[]) : []
+    })
+}
+
+function renderChart(chart: ChartEntry, key: number) {
+  switch (chart.chart_type) {
+    case 'peer_comparison':
+      return <PeerComparisonChart key={key} data={chart.data} title={chart.title} />
+    case 'radar':
+      return <CompanyRadarChart key={key} data={chart.data} title={chart.title} />
+    default:
+      return null
+  }
+}
+
 export default function CompsView() {
   const [ticker, setTicker] = useState('')
   const [peers, setPeers] = useState('')
@@ -38,12 +70,17 @@ export default function CompsView() {
   const compsEvent = completedEvents.find((e) => isPeerCompsData(e.structured))
   const compsData = compsEvent && isPeerCompsData(compsEvent.structured) ? compsEvent.structured : null
   const lastText = completedEvents.map((e) => e.text).join('\n\n')
+  const chartData = extractCharts(stream.events)
 
   const peersList = compsData?.peers ?? []
   const target = compsData?.target ?? null
 
-  return (
-    <div className="view-container">
+  const currentStep = stream.events.length > 0
+    ? stream.events[stream.events.length - 1].step.replace(/_/g, ' ')
+    : undefined
+
+  const leftContent = (
+    <>
       <h2 style={{ marginBottom: 16 }}>Comparable Companies</h2>
       <div className="input-row">
         <input
@@ -68,15 +105,6 @@ export default function CompsView() {
           {stream.status === 'running' ? 'Running...' : 'Run Comps'}
         </button>
       </div>
-
-      {stream.status !== 'idle' && (
-        <div className="progress-bar">
-          <div
-            className="progress-fill"
-            style={{ width: `${stream.progress * 100}%` }}
-          />
-        </div>
-      )}
 
       {stream.error && <div className="error-msg">{stream.error}</div>}
 
@@ -123,7 +151,22 @@ export default function CompsView() {
       )}
 
       {lastText && <div className="output-area">{lastText}</div>}
-    </div>
+    </>
+  )
+
+  const rightContent = chartData.length > 0 ? (
+    <DataPanel title="Comps Charts">
+      {chartData.map((chart, i) => renderChart(chart, i))}
+    </DataPanel>
+  ) : null
+
+  return (
+    <Layout
+      leftPanel={leftContent}
+      rightPanel={rightContent}
+      progress={stream.status !== 'idle' ? stream.progress : undefined}
+      progressLabel={currentStep}
+    />
   )
 }
 

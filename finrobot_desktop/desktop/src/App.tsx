@@ -3,8 +3,9 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import ResearchView from './components/ResearchView'
 import DCFView from './components/DCFView'
 import CompsView from './components/CompsView'
+import SettingsView from './components/SettingsView'
 
-type View = 'research' | 'dcf' | 'comps'
+type View = 'research' | 'dcf' | 'comps' | 'settings'
 
 export default function App() {
   const [view, setView] = useState<View>('research')
@@ -33,12 +34,19 @@ export default function App() {
             >
               Comps
             </button>
+            <button
+              className={view === 'settings' ? 'active' : ''}
+              onClick={() => setView('settings')}
+            >
+              Settings
+            </button>
           </div>
         </nav>
         <main className="main">
           {view === 'research' && <ResearchView />}
           {view === 'dcf' && <DCFView />}
           {view === 'comps' && <CompsView />}
+          {view === 'settings' && <SettingsView />}
         </main>
       </div>
     </ErrorBoundary>

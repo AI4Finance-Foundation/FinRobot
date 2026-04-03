@@ -2,13 +2,13 @@
 
 ## Overview
 
-[FinancialReports.eu](https://financialreports.eu) provides API access to **14M+ regulatory filings** from 35 official sources across 30+ countries. Its Markdown conversion endpoint returns LLM-ready text from annual reports, making it ideal for FinRobot's multi-agent financial analysis pipeline.
+[FinancialReports.eu](https://financialreports.eu) provides API access to **14M+ filings** from data sources across 30+ countries. Its Markdown conversion endpoint returns LLM-ready text from annual reports, making it ideal for FinRobot's multi-agent financial analysis pipeline.
 
 ## Why This Fits FinRobot
 
 FinRobot's agents analyze financial documents and generate research reports. FinancialReports.eu adds:
 
-- **Global regulatory filings** — annual reports, interim results, ESG disclosures, M&A announcements from 35 official regulators
+- **Global filings** — annual reports, interim results, ESG disclosures, M&A announcements from 30+ countries
 - **Markdown endpoint** (`GET /filings/{id}/markdown/`) — returns clean text from filing PDFs, ready to feed into LLM agent pipelines
 - **33,000+ companies** with ISIN, LEI, and GICS classification
 - **11 standardized categories** — Financial Reporting, ESG, M&A, Debt/Equity, Management changes, and more
@@ -18,7 +18,7 @@ FinRobot's agents analyze financial documents and generate research reports. Fin
 
 ### 1. Filing Analysis Agent Tool
 
-Add FinancialReports.eu as a tool that agents can call to fetch and analyze regulatory filings:
+Add FinancialReports.eu as a tool that agents can call to fetch and analyze filings:
 
 ```python
 import requests
@@ -78,15 +78,15 @@ content = filings_markdown_retrieve.sync(client=client, id=filings.results[0].id
 | **Rate Limiting** | Burst limit + monthly quota |
 | **Companies** | 33,230+ |
 | **Total Filings** | 14,135,359+ |
-| **Sources** | 35 official regulators |
+| **Coverage** | 30+ countries |
 
 ## Agent Use Cases
 
 | Agent Task | How FinancialReports.eu Helps |
 |---|---|
-| Company research | Pull annual reports and regulatory filings globally |
-| ESG analysis | Dedicated ESG filing category across all regulators |
+| Company research | Pull annual reports and filings globally |
+| ESG analysis | Dedicated ESG filing category across all countries |
 | M&A monitoring | M&A/Partnerships/Legal filing category |
 | Earnings analysis | Financial Reporting filings with Markdown text |
-| Cross-market comparison | Standardized categories across 35 regulators |
+| Cross-market comparison | Standardized categories across 30+ countries |
 | Report generation | Source filing documents for evidence-based reports |

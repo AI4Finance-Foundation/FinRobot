@@ -38,8 +38,6 @@ from modules.valuation_engine import ValuationEngine
 from modules.report_structure import ReportStructureManager
 from modules.enhanced_text_generator import EnhancedTextGenerator
 
-import pandas as pd
-
 def load_credit_cashflow_metrics_from_csv(file_path: str) -> pd.DataFrame:
     """Load credit and cashflow metrics from a pre-computed CSV file."""
     if not file_path or not os.path.exists(file_path):
@@ -371,6 +369,7 @@ def main():
     parser.add_argument("--sensitivity-analysis-file", type=str, default=None, help="Path to sensitivity analysis JSON file.")
     parser.add_argument("--catalyst-analysis-file", type=str, default=None, help="Path to catalyst analysis JSON file.")
     parser.add_argument("--enhanced-news-file", type=str, default=None, help="Path to enhanced news JSON file.")
+    parser.add_argument("--retail-sentiment-file", type=str, default=None, help="Path to retail sentiment JSON file.")
 
     args = parser.parse_args()
 
@@ -537,6 +536,7 @@ def main():
         "analyst_emails": args.analyst_emails,
         "closing_price_date": args.closing_price_date,
         "technical_indicators": technical_indicators,
+        "retail_sentiment": {},
     }
 
     # --- Generate or load charts ---
@@ -874,6 +874,22 @@ def main():
         except Exception as e:
             print(f"⚠️ Error loading enhanced news: {e}")
             report_data['enhanced_news'] = {}
+
+    retail_sentiment_path = args.retail_sentiment_file
+    if not retail_sentiment_path:
+        candidate_path = os.path.join(os.path.dirname(args.analysis_csv), "retail_sentiment.json")
+        if os.path.exists(candidate_path):
+            retail_sentiment_path = candidate_path
+
+    if retail_sentiment_path and os.path.exists(retail_sentiment_path):
+        print(f"Loading retail sentiment insights from {retail_sentiment_path}...")
+        try:
+            with open(retail_sentiment_path, "r", encoding="utf-8") as f:
+                report_data["retail_sentiment"] = json.load(f)
+            print("✅ Retail sentiment insights loaded")
+        except Exception as e:
+            print(f"⚠️ Error loading retail sentiment insights: {e}")
+            report_data["retail_sentiment"] = {}
 
     # --- Format tables for HTML (EXCLUDE ESTIMATES FOR PAGE 3 TABLES) ---
     print("Formatting tables for HTML...")

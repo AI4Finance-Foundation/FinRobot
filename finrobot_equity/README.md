@@ -30,6 +30,7 @@ finrobot_equity/
 │   │       ├── sensitivity_analyzer.py      #   Sensitivity analysis
 │   │       ├── catalyst_analyzer.py         #   Market catalyst identification
 │   │       ├── news_integrator.py           #   News data integration
+│   │       ├── retail_sentiment_client.py   #   Optional retail sentiment insights
 │   │       ├── valuation_engine.py          #   Valuation modeling
 │   │       ├── pdf_generator.py             #   PDF report generation
 │   │       ├── professional_pdf_report.py   #   Professional PDF templates
@@ -94,7 +95,10 @@ Edit `config.ini` with your keys:
 [API_KEYS]
 fmp_api_key = YOUR_FMP_API_KEY          # https://financialmodelingprep.com/developer
 openai_api_key = YOUR_OPENAI_API_KEY    # https://platform.openai.com/account/api-keys
+adanos_api_key = YOUR_ADANOS_API_KEY    # Optional: enables Retail Sentiment Insights
 ```
+
+If `adanos_api_key` is configured, the report pipeline adds an optional **Retail Sentiment Insights** layer to the equity research output. It supplements the existing news workflow with structured public-retail activity snapshots across Reddit, X.com, and Polymarket.
 
 ### 2. Deploy via Script
 
@@ -161,6 +165,7 @@ python finrobot_equity/core/src/create_equity_report.py \
 |:---|:---|:---|
 | [Financial Modeling Prep](https://financialmodelingprep.com/developer) | Yes | Financial data, market metrics, peer comparison |
 | [OpenAI](https://platform.openai.com/) | Yes | AI-powered text generation for report sections |
+| Adanos Finance API | No | Optional retail sentiment insights for Reddit, X.com, and Polymarket |
 
 ## License
 

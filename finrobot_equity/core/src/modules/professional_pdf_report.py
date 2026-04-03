@@ -828,10 +828,11 @@ class ProfessionalEquityReport:
         """构建新闻分析部分"""
         news_summary = self.data.get('news_summary', '')
         enhanced_news = self.data.get('enhanced_news', {})
+        retail_sentiment = self.data.get('retail_sentiment', {})
         company_news = self.data.get('company_news', [])
         
         # 如果没有新闻数据，跳过
-        if not news_summary and not enhanced_news:
+        if not news_summary and not enhanced_news and not retail_sentiment:
             return
         
         self.elements.append(Spacer(1, 8*mm))
@@ -871,6 +872,40 @@ class ProfessionalEquityReport:
                 self.elements.append(Paragraph("News by Category:", self.styles['BodyBold']))
                 for cat, count in enhanced_news['categories'].items():
                     self.elements.append(Paragraph(f"• {cat}: {count} articles", self.styles['BulletPoint']))
+
+        if retail_sentiment:
+            self.elements.append(Spacer(1, 4 * mm))
+            self.elements.append(Paragraph("Retail Sentiment Insights", self.styles['Heading2']))
+
+            summary_items = []
+            if retail_sentiment.get('average_buzz') is not None:
+                summary_items.append(f"Average Buzz: {retail_sentiment['average_buzz']}/100")
+            if retail_sentiment.get('bullish_avg') is not None:
+                summary_items.append(f"Bullish Avg: {retail_sentiment['bullish_avg']}%")
+            summary_items.append(f"Source Alignment: {retail_sentiment.get('source_alignment', 'No coverage')}")
+            summary_items.append(f"Coverage: {retail_sentiment.get('coverage', '0/3')}")
+
+            for item in summary_items:
+                self.elements.append(Paragraph(f"• {item}", self.styles['BulletPoint']))
+
+            for source in retail_sentiment.get('sources', []):
+                if not source.get('has_data'):
+                    continue
+                bullish_text = (
+                    f"{source['bullish_pct']}%"
+                    if source.get('bullish_pct') is not None
+                    else 'N/A'
+                )
+                self.elements.append(
+                    Paragraph(
+                        f"{source['label']}: Buzz {source['buzz_score']}/100, "
+                        f"Bullish {bullish_text}, "
+                        f"{source['activity_label']} {source['activity_value']}, "
+                        f"Trend {source['trend']}",
+                        self.styles['Body'],
+                    )
+                )
+                self.elements.append(Spacer(1, 1.5 * mm))
         
         # Recent Headlines 已禁用 - 不显示单条新闻标题列表
         # if company_news and len(company_news) > 0:

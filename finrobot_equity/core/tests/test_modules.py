@@ -26,6 +26,7 @@ def test_import_modules():
         ('enhanced_text_generator', 'EnhancedTextGenerator'),
         ('report_structure', 'ReportStructureManager'),
         ('news_integrator', 'NewsIntegrator'),
+        ('retail_sentiment_client', 'RetailSentimentClient'),
     ]
     
     results = []

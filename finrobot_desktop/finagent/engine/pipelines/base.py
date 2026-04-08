@@ -175,7 +175,7 @@ class Pipeline:
     async def _gather_data(
         self,
         deps: "FinAgentDeps",
-        required_data: list[str],
+        required_data: "list[str | DataType]",
         ticker: str,
         previous_results: dict[str, str],
     ) -> str:

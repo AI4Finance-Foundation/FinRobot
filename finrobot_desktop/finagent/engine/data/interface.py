@@ -3,16 +3,18 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from finagent.engine.data.types import DataType
+
 
 class DataResult(BaseModel):
     """Structured result from any data provider."""
 
-    data: dict                   # the actual financial data
-    provider: str                # which provider returned this
+    data: dict  # the actual financial data
+    provider: str  # which provider returned this
     ticker: str
-    data_type: str               # 'financials' | 'price' | 'news' | 'filings'
-    timestamp: datetime          # when this data was fetched
-    warnings: list[str] = []    # e.g. "stale data from cache"
+    data_type: str | DataType  # use DataType constants; str accepted for backwards-compat
+    timestamp: datetime  # when this data was fetched
+    warnings: list[str] = []  # e.g. "stale data from cache"
 
     def to_context_string(self) -> str:
         """Format data for LLM consumption. Human-readable, includes warnings."""
@@ -36,11 +38,11 @@ class DataProvider(ABC):
     def name(self) -> str: ...
 
     @abstractmethod
-    def capabilities(self) -> list[str]:
+    def capabilities(self) -> list[str | DataType]:
         """Returns list of data_types this provider supports."""
 
     @abstractmethod
-    async def fetch(self, ticker: str, data_type: str, **kwargs) -> DataResult: ...
+    async def fetch(self, ticker: str, data_type: str | DataType, **kwargs) -> DataResult: ...
 
 
 class ProviderError(Exception):

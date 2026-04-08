@@ -1,15 +1,19 @@
 import logging
 from pydantic_ai import Agent
 
+from finagent.engine.data.types import DataType
 from finagent.engine.models.financial import (
-    CompanyFinancials, PeerComps, PeerSelection, StepOutput,
+    StepOutput,
 )
-from finagent.engine.compute.extractor import extract_financial_data, extract_company_financials
-from finagent.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
+from finagent.engine.compute.extractor import extract_financial_data
 from finagent.engine.pipelines.base import Pipeline, PipelineStep
 from finagent.engine.pipelines.validators import (
-    validate_has_fields, validate_has_peers, validate_is_non_empty,
-    validate_has_comps_table, validate_financial_data, validate_peer_comps,
+    validate_has_fields,
+    validate_has_peers,
+    validate_is_non_empty,
+    validate_has_comps_table,
+    validate_financial_data,
+    validate_peer_comps,
 )
 
 logger = logging.getLogger(__name__)
@@ -18,8 +22,8 @@ logger = logging.getLogger(__name__)
 async def _execute_target_data(agent, deps, prompt, structured_context, ticker):
     """Fetch + extract typed FinancialData for target company."""
     step_result = await agent.run(prompt, deps=deps)
-    financials_result = await deps.data_layer.fetch("financials", ticker)
-    price_result = await deps.data_layer.fetch("price", ticker)
+    financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
+    price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
     financial_data = extract_financial_data(financials_result, price_result)
     return StepOutput(text=step_result.output, structured=financial_data)
 
@@ -50,7 +54,7 @@ def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 name="target_data",
                 skill_section=None,
                 agent=agents["data"],
-                required_data=["financials", "price"],
+                required_data=[DataType.FINANCIALS, DataType.PRICE],
                 validate=lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
                 validate_structured=validate_financial_data,
                 execute_fn=_execute_target_data,

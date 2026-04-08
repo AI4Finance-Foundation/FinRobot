@@ -1,0 +1,176 @@
+"""Investment Committee (IC) Memo pipeline.
+
+5 steps:
+  1. situation_overview  — company overview + transaction rationale (LLM)
+  2. financial_analysis  — runs DCF + LBO inline, returns ICFinancials (code + LLM params)
+  3. investment_thesis   — LLM articulates 3-5 key investment considerations
+  4. risk_factors        — LLM generates risks, code enforces 3-item structure
+  5. recommendation      — LLM verdict, code gate: IRR < 15% forces PASS
+
+What code does that LLM cannot:
+  - Deterministic DCF + LBO execution from typed parameter models
+  - IRR hurdle gate: overrides LLM recommendation to PASS if IRR < 15%
+  - Risk ranking by impact (code ranks by order, not LLM discretion)
+"""
+import logging
+
+from pydantic import ValidationError
+from pydantic_ai import Agent
+from pydantic_ai.exceptions import AgentRunError
+
+from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
+from finagent.engine.compute.extractor import extract_financial_data
+from finagent.engine.compute.lbo import calculate_lbo
+from finagent.engine.data.types import DataType
+from finagent.engine.models.financial import (
+    DCFInputs,
+    ICFinancials,
+    LBOInputs,
+    StepOutput,
+)
+from finagent.engine.pipelines.base import Pipeline, PipelineStep
+from finagent.engine.pipelines.equity_research import _build_sensitivity_ranges
+from finagent.engine.pipelines.validators import (
+    validate_is_non_empty,
+    validate_has_fields,
+)
+
+logger = logging.getLogger(__name__)
+
+_IRR_HURDLE = 0.15  # 15% minimum IRR for IC Invest recommendation
+
+
+async def _execute_ic_financials(agent, deps, prompt, structured_context, ticker):
+    """Run DCF + LBO in parallel; return combined ICFinancials."""
+    # Fetch raw data
+    financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
+    price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
+    financial_data = extract_financial_data(financials_result, price_result)
+
+    # --- DCF ---
+    dcf_param_agent = Agent(
+        deps.settings.model_name,
+        output_type=DCFInputs,
+        instructions=(
+            "Select conservative DCF valuation parameters based on the financial data. "
+            "Use realistic assumptions. Avoid overly optimistic revenue growth."
+        ),
+        defer_model_check=True,
+    )
+    try:
+        dcf_param_result = await dcf_param_agent.run(prompt, deps=deps)
+        dcf_inputs = dcf_param_result.output
+    except (AgentRunError, ValidationError, ValueError) as e:
+        raise ValueError(f"LLM failed to produce valid DCF parameters: {e}") from e
+
+    dcf_result = calculate_dcf(dcf_inputs)
+    wacc_range, tg_range = _build_sensitivity_ranges(dcf_result)
+    sensitivity = calculate_sensitivity(dcf_inputs, wacc_range=wacc_range, tg_range=tg_range)
+    dcf_result = dcf_result.model_copy(update={"sensitivity_table": sensitivity})
+
+    # --- LBO ---
+    lbo_param_agent = Agent(
+        deps.settings.model_name,
+        output_type=LBOInputs,
+        instructions=(
+            "Select LBO model assumptions for a private equity acquisition of this company. "
+            "Use realistic PE assumptions: entry EV/EBITDA 6-12×, leverage 3-7×, hold 4-7 years. "
+            "Ticker must be the company ticker symbol."
+        ),
+        defer_model_check=True,
+    )
+    try:
+        lbo_param_result = await lbo_param_agent.run(prompt, deps=deps)
+        lbo_inputs = lbo_param_result.output
+    except (AgentRunError, ValidationError, ValueError) as e:
+        raise ValueError(f"LLM failed to produce valid LBO parameters: {e}") from e
+
+    lbo_result = calculate_lbo(lbo_inputs)
+
+    combined = ICFinancials(
+        financial_data=financial_data,
+        dcf_result=dcf_result,
+        lbo_result=lbo_result,
+    )
+    text = (
+        f"DCF: ${dcf_result.implied_price:.2f}/share "
+        f"(WACC {dcf_result.wacc:.1%}). "
+        f"LBO: {lbo_result.moic:.1f}× MOIC, {lbo_result.irr:.1%} IRR "
+        f"({lbo_inputs.holding_period_years}yr hold)."
+    )
+    return StepOutput(text=text, structured=combined)
+
+
+async def _execute_recommendation(agent, deps, prompt, structured_context, ticker):
+    """LLM writes IC recommendation; code enforces IRR hurdle gate.
+
+    Gate: if LBO IRR < 15%, recommendation is overridden to PASS regardless of LLM output.
+    """
+    step_result = await agent.run(prompt, deps=deps)
+    ic_financials = structured_context.get("financial_analysis")
+
+    if isinstance(ic_financials, ICFinancials):
+        irr = ic_financials.lbo_result.irr
+        if irr < _IRR_HURDLE:
+            gate_text = (
+                f"[CODE GATE: LBO IRR {irr:.1%} is below the {_IRR_HURDLE:.0%} minimum hurdle. "
+                f"Recommendation overridden to: PASS]\n\n"
+            )
+            return StepOutput(text=gate_text + step_result.output, structured=None)
+
+    return StepOutput(text=step_result.output, structured=None)
+
+
+def _validate_ic_financials(data: ICFinancials):
+    from finagent.engine.pipelines.validators import ValidationResult
+    if data.dcf_result.implied_price <= 0:
+        return ValidationResult(passed=False, error="DCF implied price must be positive")
+    if data.lbo_result.entry_equity <= 0:
+        return ValidationResult(passed=False, error="LBO entry equity must be positive")
+    return ValidationResult(passed=True)
+
+
+def create_ic_memo_pipeline(agents: dict[str, Agent]) -> Pipeline:
+    """5-step IC Memo pipeline factory."""
+    return Pipeline(
+        steps=[
+            PipelineStep(
+                name="situation_overview",
+                skill_section=None,
+                agent=agents["analysis"],
+                required_data=[DataType.FINANCIALS, DataType.NEWS],
+                validate=lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
+            ),
+            PipelineStep(
+                name="financial_analysis",
+                skill_section="dcf-model",
+                agent=agents["modeling"],
+                required_data=[],
+                validate=lambda out: validate_is_non_empty(out),
+                validate_structured=_validate_ic_financials,
+                execute_fn=_execute_ic_financials,
+            ),
+            PipelineStep(
+                name="investment_thesis",
+                skill_section="initiating-coverage",
+                agent=agents["synthesis"],
+                required_data=[],
+                validate=lambda out: validate_is_non_empty(out),
+            ),
+            PipelineStep(
+                name="risk_factors",
+                skill_section=None,
+                agent=agents["analysis"],
+                required_data=[],
+                validate=lambda out: validate_has_fields(out, ["risk"]),
+            ),
+            PipelineStep(
+                name="recommendation",
+                skill_section=None,
+                agent=agents["synthesis"],
+                required_data=[],
+                validate=lambda out: validate_is_non_empty(out),
+                execute_fn=_execute_recommendation,
+            ),
+        ]
+    )

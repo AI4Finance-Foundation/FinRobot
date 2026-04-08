@@ -1,17 +1,21 @@
 import asyncio
+import logging
 from datetime import datetime, timezone
 
 import yfinance as yf
 
 from finagent.engine.data.interface import DataProvider, DataResult, ProviderError
+from finagent.engine.data.types import DataType
+
+logger = logging.getLogger(__name__)
 
 # Reduce "Too Many Requests" errors from Yahoo Finance
 try:
     yf.set_tz_cache_dir("/tmp/yf_cache")
-except Exception:
-    pass  # non-critical, ignore if not supported
+except (AttributeError, OSError, TypeError):
+    pass  # non-critical, ignore if not supported by this yfinance version
 
-_SUPPORTED = ["financials", "price", "news"]
+_SUPPORTED = [DataType.FINANCIALS, DataType.PRICE, DataType.NEWS]
 _CALL_DELAY = 1.0  # seconds between the info fetch and subsequent calls
 _MAX_RETRIES = 3  # retry attempts on rate-limit errors
 _RETRY_DELAYS = [2, 5, 10]  # seconds to wait before each retry
@@ -34,13 +38,13 @@ class YFinanceProvider(DataProvider):
     def name(self) -> str:
         return "yfinance"
 
-    def capabilities(self) -> list[str]:
+    def capabilities(self) -> list[str | DataType]:
         return list(_SUPPORTED)
 
-    async def fetch(self, ticker: str, data_type: str, **kwargs) -> DataResult:
-        if data_type == "filings":
+    async def fetch(self, ticker: str, data_type: str | DataType, **kwargs) -> DataResult:
+        if data_type == DataType.FILINGS:
             raise ProviderError(
-                "data_type 'filings' is not supported by yfinance. "
+                f"data_type '{DataType.FILINGS}' is not supported by yfinance. "
                 "SEC EDGAR provider will be added in P2b."
             )
         if data_type not in _SUPPORTED:
@@ -66,50 +70,47 @@ class YFinanceProvider(DataProvider):
                 break  # success
             except ProviderError:
                 raise
-            except Exception as e:
+            except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
                 if _is_rate_limit_error(e) and attempt < _MAX_RETRIES:
                     wait = _RETRY_DELAYS[attempt]
                     await asyncio.sleep(wait)
                     continue
                 raise ProviderError(f"Failed to fetch ticker '{ticker}': {e}") from e
 
-        if data_type == "financials":
+        if data_type == DataType.FINANCIALS:
             years_kwarg = kwargs.get("years")
             if years_kwarg and years_kwarg > 1:
                 result = await self._fetch_historical_financials(ticker, info, t, years_kwarg)
             else:
                 result = self._fetch_financials(ticker, info)
-        elif data_type == "price":
+        elif data_type == DataType.PRICE:
             await asyncio.sleep(_CALL_DELAY)
             result = await self._fetch_price(ticker, t, info)
-        elif data_type == "news":
+        elif data_type == DataType.NEWS:
             await asyncio.sleep(_CALL_DELAY)
             result = await self._fetch_news(ticker, t)
 
         return result
 
     def _fetch_financials(self, ticker: str, info: dict) -> DataResult:
-        try:
-            data = {
-                "revenue": info.get("totalRevenue"),
-                "ebitda": info.get("ebitda"),
-                "net_income": info.get("netIncomeToCommon"),
-                "gross_margin": info.get("grossMargins"),
-                "operating_margin": info.get("operatingMargins"),
-                "pe_ratio": info.get("trailingPE"),
-                "market_cap": info.get("marketCap"),
-                "shares_outstanding": info.get("sharesOutstanding"),
-                "total_debt": info.get("totalDebt", 0),
-                "total_cash": info.get("totalCash", 0),
-            }
-        except Exception as e:
-            raise ProviderError(f"Failed to fetch financials for '{ticker}': {e}") from e
-
+        # dict.get() never raises; no try/except needed here
+        data = {
+            "revenue": info.get("totalRevenue"),
+            "ebitda": info.get("ebitda"),
+            "net_income": info.get("netIncomeToCommon"),
+            "gross_margin": info.get("grossMargins"),
+            "operating_margin": info.get("operatingMargins"),
+            "pe_ratio": info.get("trailingPE"),
+            "market_cap": info.get("marketCap"),
+            "shares_outstanding": info.get("sharesOutstanding"),
+            "total_debt": info.get("totalDebt"),
+            "total_cash": info.get("totalCash"),
+        }
         return DataResult(
             data=data,
             provider=self.name,
             ticker=ticker,
-            data_type="financials",
+            data_type=DataType.FINANCIALS,
             timestamp=datetime.now(tz=timezone.utc),
         )
 
@@ -122,7 +123,11 @@ class YFinanceProvider(DataProvider):
         """
         try:
             income_stmt = await asyncio.to_thread(lambda: t.income_stmt)
-        except Exception:
+        except (AttributeError, KeyError, ValueError, TypeError) as e:
+            logger.warning(
+                f"Historical data extraction failed for {ticker}, "
+                f"falling back to single-year: {e}"
+            )
             return self._fetch_financials(ticker, info)
 
         if income_stmt is None or income_stmt.empty:
@@ -156,7 +161,7 @@ class YFinanceProvider(DataProvider):
             data={"yearly_data": yearly_data},
             provider=self.name,
             ticker=ticker,
-            data_type="financials",
+            data_type=DataType.FINANCIALS,
             timestamp=datetime.now(tz=timezone.utc),
         )
 
@@ -176,33 +181,48 @@ class YFinanceProvider(DataProvider):
                         "volume": row["Volume"],
                     }
                 )
-        except Exception as e:
+        except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
             raise ProviderError(f"Failed to fetch price for '{ticker}': {e}") from e
 
         return DataResult(
             data={"current_price": current_price, "price_history": price_history},
             provider=self.name,
             ticker=ticker,
-            data_type="price",
+            data_type=DataType.PRICE,
             timestamp=datetime.now(tz=timezone.utc),
         )
 
     async def _fetch_news(self, ticker: str, t: yf.Ticker) -> DataResult:
         try:
             raw_news = await asyncio.to_thread(lambda: t.news or [])
-            headlines = []
+            news_items = []
             for item in raw_news:
                 content = item.get("content", {})
                 title = content.get("title") or item.get("title", "")
-                if title:
-                    headlines.append(title)
-        except Exception as e:
+                if not title:
+                    continue
+                news_items.append({
+                    "title": title,
+                    "source": (
+                        content.get("provider", {}).get("displayName")
+                        or item.get("publisher", "yfinance")
+                    ),
+                    "published": (
+                        content.get("pubDate")
+                        or item.get("providerPublishTime", "")
+                    ),
+                    "url": (
+                        content.get("canonicalUrl", {}).get("url")
+                        or item.get("link", "")
+                    ),
+                })
+        except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
             raise ProviderError(f"Failed to fetch news for '{ticker}': {e}") from e
 
         return DataResult(
-            data={"headlines": headlines},
+            data={"news_items": news_items},
             provider=self.name,
             ticker=ticker,
-            data_type="news",
+            data_type=DataType.NEWS,
             timestamp=datetime.now(tz=timezone.utc),
         )

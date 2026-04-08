@@ -1,9 +1,11 @@
+import asyncio
 from datetime import datetime, timezone
 
 import aiosqlite
 from pydantic import BaseModel
 
 from finagent.engine.data.interface import DataResult
+from finagent.engine.data.types import DataType
 
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS cache (
@@ -26,16 +28,27 @@ class DataCache:
     def __init__(self, db_path: str = "finagent_cache.db") -> None:
         self._db_path = db_path
         self._conn: aiosqlite.Connection | None = None
+        self._conn_lock = asyncio.Lock()
 
     async def _ensure_connection(self) -> aiosqlite.Connection:
-        """Lazily create connection and table on first use, then reuse."""
-        if self._conn is None:
-            self._conn = await aiosqlite.connect(self._db_path)
-            await self._conn.execute(_CREATE_TABLE)
-            await self._conn.commit()
+        """Lazily create connection and table on first use, then reuse.
+
+        Lock prevents TOCTOU race when multiple coroutines call _ensure_connection
+        simultaneously before the first connection is established.
+        WAL mode is enabled on first open so concurrent set() calls don't SQLITE_BUSY.
+        """
+        async with self._conn_lock:
+            if self._conn is None:
+                self._conn = await aiosqlite.connect(self._db_path)
+                await self._conn.execute("PRAGMA journal_mode=WAL")
+                await self._conn.execute("PRAGMA synchronous=NORMAL")
+                await self._conn.execute(_CREATE_TABLE)
+                await self._conn.commit()
         return self._conn
 
-    async def get(self, data_type: str, ticker: str, max_age_hours: int = 24) -> CachedResult | None:
+    async def get(
+        self, data_type: str | DataType, ticker: str, max_age_hours: int = 24
+    ) -> CachedResult | None:
         conn = await self._ensure_connection()
         async with conn.execute(
             "SELECT data, cached_at FROM cache WHERE data_type = ? AND ticker = ?",
@@ -58,7 +71,7 @@ class DataCache:
         result = DataResult.model_validate_json(raw_data)
         return CachedResult(data=result, is_stale=is_stale, cached_at=cached_at)
 
-    async def set(self, data_type: str, ticker: str, result: DataResult) -> None:
+    async def set(self, data_type: str | DataType, ticker: str, result: DataResult) -> None:
         cached_at = datetime.now(tz=timezone.utc).isoformat()
         conn = await self._ensure_connection()
         await conn.execute(

@@ -1,18 +1,36 @@
+import asyncio
 import logging
-from pydantic_ai import Agent
 
+from pydantic import ValidationError
+from pydantic_ai import Agent
+from pydantic_ai.exceptions import AgentRunError
+
+from finagent.engine.data.interface import ProviderError
+from finagent.engine.data.types import DataType
 from finagent.engine.models.financial import (
-    FinancialData, CompanyFinancials, PeerComps, PeerSelection,
-    DCFInputs, DCFResult, ThesisResult, StepOutput,
+    FinancialData,
+    CompanyFinancials,
+    PeerComps,
+    PeerSelection,
+    DCFInputs,
+    DCFResult,
+    ThesisResult,
+    StepOutput,
 )
 from finagent.engine.compute.extractor import extract_financial_data, extract_company_financials
 from finagent.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
 from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 from finagent.engine.pipelines.base import Pipeline, PipelineStep
 from finagent.engine.pipelines.validators import (
-    validate_has_fields, validate_has_peers, validate_has_valuation,
-    validate_has_thesis, validate_report_format, validate_is_non_empty,
-    validate_financial_data, validate_peer_comps, validate_dcf_result, validate_thesis,
+    validate_has_fields,
+    validate_has_peers,
+    validate_has_thesis,
+    validate_report_format,
+    validate_is_non_empty,
+    validate_financial_data,
+    validate_peer_comps,
+    validate_dcf_result,
+    validate_thesis,
 )
 
 logger = logging.getLogger(__name__)
@@ -23,8 +41,8 @@ async def _execute_data_collection(agent, deps, prompt, structured_context, tick
     step_result = await agent.run(prompt, deps=deps)
     raw_text = step_result.output
 
-    financials_result = await deps.data_layer.fetch("financials", ticker)
-    price_result = await deps.data_layer.fetch("price", ticker)
+    financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
+    price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
     financial_data = extract_financial_data(financials_result, price_result)
 
     return StepOutput(text=raw_text, structured=financial_data)
@@ -45,18 +63,21 @@ async def _execute_peer_analysis(agent, deps, prompt, structured_context, ticker
     try:
         peer_result = await peer_agent.run(prompt, deps=deps)
         selection = peer_result.output
-    except Exception as e:
+    except (AgentRunError, ValidationError, ValueError) as e:
         raise ValueError(f"Failed to select peer companies: {e}") from e
 
-    peers: list[CompanyFinancials] = []
-    for peer_ticker in selection.tickers:
+    async def _fetch_one_peer(peer_ticker: str) -> CompanyFinancials | None:
         try:
-            fin_result = await deps.data_layer.fetch("financials", peer_ticker)
+            fin_result = await deps.data_layer.fetch(DataType.FINANCIALS, peer_ticker)
             company = extract_company_financials(fin_result)
             calculate_multiples(company)
-            peers.append(company)
-        except Exception as e:
+            return company
+        except (ProviderError, ValueError, KeyError, ArithmeticError) as e:
             logger.warning(f"Skipping peer {peer_ticker}: {e}")
+            return None
+
+    peer_results = await asyncio.gather(*[_fetch_one_peer(t) for t in selection.tickers])
+    peers: list[CompanyFinancials] = [p for p in peer_results if p is not None]
 
     if len(peers) < 3:
         raise ValueError(
@@ -66,7 +87,9 @@ async def _execute_peer_analysis(agent, deps, prompt, structured_context, ticker
 
     target_fin: FinancialData = structured_context.get("data_collection")
     if target_fin is None:
-        raise ValueError("data_collection structured output not available; cannot build peer target.")
+        raise ValueError(
+            "data_collection structured output not available; cannot build peer target."
+        )
     target = CompanyFinancials(
         ticker=ticker,
         revenue=target_fin.revenue,
@@ -87,7 +110,9 @@ async def _execute_peer_analysis(agent, deps, prompt, structured_context, ticker
     )
     calculate_peer_statistics(peer_comps)
 
-    ev_ebitda_str = f"{peer_comps.median_ev_ebitda:.1f}x" if peer_comps.median_ev_ebitda is not None else "N/A"
+    ev_ebitda_str = (
+        f"{peer_comps.median_ev_ebitda:.1f}x" if peer_comps.median_ev_ebitda is not None else "N/A"
+    )
     pe_str = f"{peer_comps.median_pe:.1f}x" if peer_comps.median_pe is not None else "N/A"
     narrative = (
         f"Peer set ({len(peers)} companies): {', '.join(p.ticker for p in peers)}. "
@@ -113,26 +138,25 @@ async def _execute_financial_modeling(agent, deps, prompt, structured_context, t
     try:
         param_result = await param_agent.run(prompt, deps=deps)
         dcf_inputs = param_result.output
-    except Exception as e:
+    except (AgentRunError, ValidationError, ValueError) as e:
         raise ValueError(f"LLM failed to produce valid DCF parameters: {e}") from e
 
     try:
         dcf_result = calculate_dcf(dcf_inputs)
-    except ValueError as e:
+    except (ValueError, ArithmeticError) as e:
         raise ValueError(f"DCF calculation failed with provided parameters: {e}") from e
     wacc_range, tg_range = _build_sensitivity_ranges(dcf_result)
     sensitivity = calculate_sensitivity(dcf_inputs, wacc_range=wacc_range, tg_range=tg_range)
     dcf_result = dcf_result.model_copy(update={"sensitivity_table": sensitivity})
 
-    valid_prices = [p for row in sensitivity["implied_prices"] for p in row if p is not None and p > 0]
-    price_range = (
-        f"${min(valid_prices):.0f}-${max(valid_prices):.0f}"
-        if valid_prices else "N/A"
-    )
+    valid_prices = [
+        p for row in sensitivity["implied_prices"] for p in row if p is not None and p > 0
+    ]
+    price_range = f"${min(valid_prices):.0f}-${max(valid_prices):.0f}" if valid_prices else "N/A"
     narrative = (
         f"DCF base case implies ${dcf_result.implied_price:.2f} per share. "
         f"WACC: {dcf_result.wacc:.1%}, Terminal growth: {dcf_inputs.terminal_growth_rate:.1%}. "
-        f"Enterprise value: ${dcf_result.enterprise_value/1e9:.1f}B. "
+        f"Enterprise value: ${dcf_result.enterprise_value / 1e9:.1f}B. "
         f"Sensitivity range: {price_range}."
     )
     return StepOutput(text=narrative, structured=dcf_result)
@@ -152,7 +176,7 @@ async def _execute_thesis(agent, deps, prompt, structured_context, ticker):
     try:
         result = await synthesis_agent.run(prompt, deps=deps)
         thesis = result.output
-    except Exception as e:
+    except (AgentRunError, ValidationError, ValueError) as e:
         raise ValueError(f"LLM failed to produce valid thesis: {e}") from e
 
     narrative = (
@@ -189,7 +213,7 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 name="data_collection",
                 skill_section=None,
                 agent=agents["data"],
-                required_data=["financials", "price", "news"],
+                required_data=[DataType.FINANCIALS, DataType.PRICE, DataType.NEWS],
                 validate=lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
                 validate_structured=validate_financial_data,
                 execute_fn=_execute_data_collection,

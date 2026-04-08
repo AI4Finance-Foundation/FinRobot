@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from finagent.engine.data.cache import DataCache
 from finagent.engine.data.interface import DataProvider, DataResult, ProviderError
+from finagent.engine.data.types import DataType
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,7 @@ class DataLayer:
         self._providers = providers
         self._cache = cache
 
-    async def fetch(self, data_type: str, ticker: str, **kwargs) -> DataResult:
+    async def fetch(self, data_type: str | DataType, ticker: str, **kwargs) -> DataResult:
         """
         Flow:
         1. Check cache → if fresh, return
@@ -38,11 +39,20 @@ class DataLayer:
                 logger.warning(f"Provider '{provider.name}' failed for {ticker}/{data_type}: {e}")
                 continue
 
-        # 3. All providers failed — return stale cache with warning if available
+        # 3. All providers failed — return stale cache with PROMINENT warning
         if cached is not None:
             stale = cached.data
+            age_hours = (
+                datetime.now(tz=timezone.utc) - cached.cached_at
+            ).total_seconds() / 3600
+            stale_warning = (
+                f"WARNING: Using stale cached data ({age_hours:.0f}h old). "
+                f"All live providers failed for {ticker}/{data_type}. "
+                f"Financial figures may be outdated — verify before acting on this data."
+            )
+            logger.warning(stale_warning)
             return stale.model_copy(
-                update={"warnings": stale.warnings + ["stale data: all providers failed"]}
+                update={"warnings": [stale_warning] + stale.warnings}
             )
 
         # 4. No data anywhere
@@ -60,7 +70,7 @@ class DataLayer:
         )
 
     async def fetch_historical(
-        self, data_type: str, ticker: str, years: int = 5, **kwargs
+        self, data_type: str | DataType, ticker: str, years: int = 5, **kwargs
     ) -> list[DataResult]:
         """Fetch multi-year historical data.
 

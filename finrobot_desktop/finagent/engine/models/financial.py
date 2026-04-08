@@ -1,53 +1,218 @@
 from typing import Any, Literal
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from datetime import datetime
 
 
+# ---------------------------------------------------------------------------
+# FinancialData sub-models (S1 refactor)
+# ---------------------------------------------------------------------------
+
+
+class IncomeStatement(BaseModel):
+    """Income statement metrics."""
+
+    revenue: float = Field(description="Annual revenue in USD")
+    ebitda: float = Field(description="EBITDA in USD")
+    net_income: float = Field(description="Net income in USD")
+    gross_margin: float = Field(ge=0, le=1, description="Gross margin as decimal")
+    operating_margin: float = Field(ge=-5, le=1, description="Operating margin as decimal")
+    depreciation_amortization: float | None = None
+    rd_expense: float | None = None
+    sga_expense: float | None = None
+    interest_expense: float | None = None
+
+
+class BalanceSheet(BaseModel):
+    """Balance sheet metrics."""
+
+    total_debt: float = Field(default=0, description="Total debt in USD")
+    total_cash: float = Field(default=0, description="Total cash in USD")
+
+
+class MarketData(BaseModel):
+    """Market and price data."""
+
+    market_cap: float = Field(description="Market cap in USD")
+    shares_outstanding: float = Field(gt=0)
+    current_price: float = Field(gt=0)
+    pe_ratio: float | None = None
+    price_52w_high: float | None = None
+    price_52w_low: float | None = None
+
+
+class ValuationMetrics(BaseModel):
+    """Derived valuation multiples. Computed by code, not LLM."""
+
+    model_config = ConfigDict(frozen=False)
+
+    enterprise_value: float | None = None
+    ev_ebitda: float | None = None
+    ev_revenue: float | None = None
+
+
+# ---------------------------------------------------------------------------
+# FinancialData — flat-kwargs backwards-compatible wrapper
+# ---------------------------------------------------------------------------
+
+_INCOME_KEYS = frozenset({
+    "revenue", "ebitda", "net_income", "gross_margin", "operating_margin",
+    "depreciation_amortization", "rd_expense", "sga_expense", "interest_expense",
+})
+_BALANCE_KEYS = frozenset({"total_debt", "total_cash"})
+_MARKET_KEYS = frozenset({
+    "market_cap", "shares_outstanding", "current_price", "pe_ratio",
+    "price_52w_high", "price_52w_low",
+})
+_VALUATION_KEYS = frozenset({"enterprise_value", "ev_ebitda", "ev_revenue"})
+
+
 class FinancialData(BaseModel):
-    """Structured financial data for a single company."""
+    """Structured financial data for a single company.
+
+    Accepts both flat kwargs (backwards compat) and structured sub-models:
+
+        # Old flat style — still works
+        FinancialData(ticker="AAPL", revenue=1e9, market_cap=5e9, ...)
+
+        # New structured style — also works
+        FinancialData(ticker="AAPL", income=IncomeStatement(...), ...)
+
+    Property getters delegate reads to sub-models so existing code like
+    ``fd.revenue`` and ``fd.ev_ebitda = 25.0`` continues to work unchanged.
+    """
 
     model_config = ConfigDict(frozen=False)
 
     ticker: str
     timestamp: datetime
 
-    # Income statement
-    revenue: float = Field(description="Annual revenue in USD")
-    ebitda: float = Field(description="EBITDA in USD")
-    net_income: float = Field(description="Net income in USD")
+    income: IncomeStatement
+    balance: BalanceSheet = Field(default_factory=BalanceSheet)
+    market: MarketData
+    valuation: ValuationMetrics = Field(default_factory=ValuationMetrics)
 
-    # Balance sheet
-    total_debt: float = Field(default=0, description="Total debt in USD")
-    total_cash: float = Field(default=0, description="Total cash in USD")
-
-    # Margins (as decimals)
-    gross_margin: float = Field(ge=0, le=1, description="Gross margin as decimal")
-    operating_margin: float = Field(ge=-5, le=1, description="Operating margin as decimal")
-
-    # Valuation
-    market_cap: float = Field(description="Market cap in USD")
-    shares_outstanding: float = Field(gt=0)
-    current_price: float = Field(gt=0)
-    pe_ratio: float | None = Field(default=None)
-
-    # Derived (computed by code, not LLM)
-    enterprise_value: float | None = Field(default=None)
-    ev_ebitda: float | None = Field(default=None)
-    ev_revenue: float | None = Field(default=None)
-
-    # Price history summary
-    price_52w_high: float | None = None
-    price_52w_low: float | None = None
-
-    # P2a: detailed income statement items (None when provider doesn't supply them)
-    depreciation_amortization: float | None = None
-    rd_expense: float | None = None
-    sga_expense: float | None = None
-    interest_expense: float | None = None
-
-    # Metadata
     data_source: str = "yfinance"
     warnings: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _route_flat_kwargs(cls, data: Any) -> Any:
+        """Route flat kwargs into sub-model dicts for backwards compatibility."""
+        if not isinstance(data, dict):
+            return data
+        # Already structured — don't touch
+        if "income" in data:
+            return data
+
+        income_data = {k: data.pop(k) for k in list(data) if k in _INCOME_KEYS}
+        balance_data = {k: data.pop(k) for k in list(data) if k in _BALANCE_KEYS}
+        market_data = {k: data.pop(k) for k in list(data) if k in _MARKET_KEYS}
+        valuation_data = {k: data.pop(k) for k in list(data) if k in _VALUATION_KEYS}
+
+        if income_data:
+            data["income"] = income_data
+        if balance_data:
+            data["balance"] = balance_data
+        if market_data:
+            data["market"] = market_data
+        if valuation_data:
+            data["valuation"] = valuation_data
+
+        return data
+
+    # --- Property getters: read from sub-models ---
+
+    @property
+    def revenue(self) -> float:
+        return self.income.revenue
+
+    @property
+    def ebitda(self) -> float:
+        return self.income.ebitda
+
+    @property
+    def net_income(self) -> float:
+        return self.income.net_income
+
+    @property
+    def gross_margin(self) -> float:
+        return self.income.gross_margin
+
+    @property
+    def operating_margin(self) -> float:
+        return self.income.operating_margin
+
+    @property
+    def depreciation_amortization(self) -> float | None:
+        return self.income.depreciation_amortization
+
+    @property
+    def rd_expense(self) -> float | None:
+        return self.income.rd_expense
+
+    @property
+    def sga_expense(self) -> float | None:
+        return self.income.sga_expense
+
+    @property
+    def interest_expense(self) -> float | None:
+        return self.income.interest_expense
+
+    @property
+    def total_debt(self) -> float:
+        return self.balance.total_debt
+
+    @property
+    def total_cash(self) -> float:
+        return self.balance.total_cash
+
+    @property
+    def market_cap(self) -> float:
+        return self.market.market_cap
+
+    @property
+    def shares_outstanding(self) -> float:
+        return self.market.shares_outstanding
+
+    @property
+    def current_price(self) -> float:
+        return self.market.current_price
+
+    @property
+    def pe_ratio(self) -> float | None:
+        return self.market.pe_ratio
+
+    @property
+    def price_52w_high(self) -> float | None:
+        return self.market.price_52w_high
+
+    @property
+    def price_52w_low(self) -> float | None:
+        return self.market.price_52w_low
+
+    @property
+    def enterprise_value(self) -> float | None:
+        return self.valuation.enterprise_value
+
+    @enterprise_value.setter
+    def enterprise_value(self, value: float | None) -> None:
+        self.valuation.enterprise_value = value
+
+    @property
+    def ev_ebitda(self) -> float | None:
+        return self.valuation.ev_ebitda
+
+    @ev_ebitda.setter
+    def ev_ebitda(self, value: float | None) -> None:
+        self.valuation.ev_ebitda = value
+
+    @property
+    def ev_revenue(self) -> float | None:
+        return self.valuation.ev_revenue
+
+    @ev_revenue.setter
+    def ev_revenue(self, value: float | None) -> None:
+        self.valuation.ev_revenue = value
 
 
 class PriceHistory(BaseModel):
@@ -207,10 +372,18 @@ class ThesisResult(BaseModel):
 
 
 class StepOutput(BaseModel):
-    """Wrapper for pipeline step output: text for report + optional structured data."""
+    """Wrapper for pipeline step output: text for report + optional structured data.
+
+    The `structured` field accepts a BaseModel instance, a dict, or None.
+    Uses ConfigDict(arbitrary_types_allowed=True) to prevent Pydantic validation
+    that would try to instantiate BaseModel directly. The type annotation
+    `object` is intentionally broad to prevent Pydantic coercion.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     text: str
-    structured: Any = None
+    structured: object | None = Field(default=None)  # Accepts BaseModel, dict, or any object
 
 
 class HistoricalMetrics(BaseModel):

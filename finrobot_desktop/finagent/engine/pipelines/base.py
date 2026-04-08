@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Awaitable
+from typing import Callable, Awaitable
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
@@ -31,7 +31,7 @@ class PipelineStep:
     """
 
     # NEW in P1.5: typed output validator
-    validate_structured: Callable[[Any], ValidationResult] | None = None
+    validate_structured: Callable[[object], ValidationResult] | None = None
     """Optional validator for structured data (e.g., validate_dcf_result(DCFResult))."""
 
 
@@ -44,7 +44,7 @@ class Pipeline:
 
     async def execute(self, deps: "FinAgentDeps", ticker: str, **kwargs) -> "PipelineResult":
         results: dict[str, str] = {}
-        structured_results: dict[str, Any] = {}
+        structured_results: dict[str, object] = {}
         failed_validations: list[dict[str, str]] = []
         total = len(self.steps)
 
@@ -78,9 +78,9 @@ class Pipeline:
         step: PipelineStep,
         deps: "FinAgentDeps",
         prompt: str,
-        structured_results: dict[str, Any],
+        structured_results: dict[str, object],
         ticker: str,
-    ) -> "StepOutput | str":
+    ) -> StepOutput | str:
         """Execute a single step once (via execute_fn or default agent.run()).
 
         Returns the raw output before it is stored into results dicts.
@@ -93,9 +93,9 @@ class Pipeline:
     @staticmethod
     def _store_output(
         step_name: str,
-        output: "StepOutput | str | Any",
+        output: StepOutput | str,
         results: dict[str, str],
-        structured_results: dict[str, Any],
+        structured_results: dict[str, object],
     ) -> None:
         """Parse step output and store text/structured data into the result dicts."""
         if isinstance(output, StepOutput):
@@ -116,7 +116,7 @@ class Pipeline:
         step: PipelineStep,
         step_name: str,
         results: dict[str, str],
-        structured_results: dict[str, Any],
+        structured_results: dict[str, object],
     ) -> "ValidationResult":
         """Choose the right validator and return the validation result."""
         if step.validate_structured is not None and step_name in structured_results:
@@ -130,7 +130,7 @@ class Pipeline:
         prompt: str,
         ticker: str,
         results: dict[str, str],
-        structured_results: dict[str, Any],
+        structured_results: dict[str, object],
     ) -> str | None:
         """Execute a single pipeline step with retry logic.
 
@@ -223,10 +223,10 @@ class Pipeline:
 
 class PipelineResult(BaseModel):
     steps: dict[str, str]
-    structured_data: dict[str, Any] = Field(default_factory=dict)
+    structured_data: dict[str, object] = Field(default_factory=dict)
     failed_validations: list[dict[str, str]] = Field(default_factory=list)
 
-    def get_data(self, step_name: str) -> Any:
+    def get_data(self, step_name: str) -> object | None:
         """Get structured data from a previous step. Returns None if not found."""
         return self.structured_data.get(step_name)
 

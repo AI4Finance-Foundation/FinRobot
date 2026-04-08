@@ -1,6 +1,6 @@
 import pytest
 from datetime import datetime, timezone
-from pydantic import ValidationError
+from pydantic import ValidationError, BaseModel
 from finagent.engine.models.financial import (
     FinancialData,
     CompanyFinancials,

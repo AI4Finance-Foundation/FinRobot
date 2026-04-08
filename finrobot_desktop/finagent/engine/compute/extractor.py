@@ -1,6 +1,14 @@
 from finagent.engine.data.interface import DataResult
 from finagent.engine.data.keys import REQUIRED_KEYS  # noqa: F401 — documents expected keys
-from finagent.engine.models.financial import FinancialData, PriceHistory, CompanyFinancials
+from finagent.engine.models.financial import (
+    FinancialData,
+    IncomeStatement,
+    BalanceSheet,
+    MarketData,
+    ValuationMetrics,
+    PriceHistory,
+    CompanyFinancials,
+)
 from finagent.engine.compute.multiples import calculate_ev
 
 
@@ -68,26 +76,34 @@ def extract_financial_data(
     return FinancialData(
         ticker=ticker,
         timestamp=financials_result.timestamp,
-        revenue=revenue,
-        ebitda=ebitda or 0,
-        net_income=data.get("net_income") or 0,
-        total_debt=total_debt,
-        total_cash=total_cash,
-        gross_margin=data.get("gross_margin") or 0,
-        operating_margin=data.get("operating_margin") or 0,
-        market_cap=market_cap,
-        shares_outstanding=data.get("shares_outstanding") or 1,
-        current_price=current_price,
-        pe_ratio=data.get("pe_ratio"),
-        enterprise_value=ev,
-        ev_ebitda=ev_ebitda,
-        ev_revenue=ev_revenue,
-        price_52w_high=high_52w,
-        price_52w_low=low_52w,
-        depreciation_amortization=da,
-        rd_expense=data.get("rd_expense"),
-        sga_expense=data.get("sga_expense"),
-        interest_expense=data.get("interest_expense"),
+        income=IncomeStatement(
+            revenue=revenue,
+            ebitda=ebitda or 0,
+            net_income=data.get("net_income") or 0,
+            gross_margin=data.get("gross_margin") or 0,
+            operating_margin=data.get("operating_margin") or 0,
+            depreciation_amortization=da,
+            rd_expense=data.get("rd_expense"),
+            sga_expense=data.get("sga_expense"),
+            interest_expense=data.get("interest_expense"),
+        ),
+        balance=BalanceSheet(
+            total_debt=total_debt,
+            total_cash=total_cash,
+        ),
+        market=MarketData(
+            market_cap=market_cap,
+            shares_outstanding=data.get("shares_outstanding") or 1,
+            current_price=current_price,
+            pe_ratio=data.get("pe_ratio"),
+            price_52w_high=high_52w,
+            price_52w_low=low_52w,
+        ),
+        valuation=ValuationMetrics(
+            enterprise_value=ev,
+            ev_ebitda=ev_ebitda,
+            ev_revenue=ev_revenue,
+        ),
         data_source=financials_result.provider,
         warnings=warnings,
     )

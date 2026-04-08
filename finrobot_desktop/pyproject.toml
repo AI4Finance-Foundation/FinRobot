@@ -45,6 +45,7 @@ dev = [
     "pytest-asyncio>=0.24",
     "httpx>=0.27",
     "ruff>=0.8",
+    "mypy>=1.10",
 ]
 
 [project.scripts]
@@ -60,3 +61,25 @@ markers = [
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_any_generics = true
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "finagent.*"
+disallow_untyped_defs = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = [
+    "yfinance.*",
+    "pydantic_ai.*",
+    "rank_bm25.*",
+    "openpyxl.*",
+    "aiosqlite.*",
+]
+ignore_missing_imports = true

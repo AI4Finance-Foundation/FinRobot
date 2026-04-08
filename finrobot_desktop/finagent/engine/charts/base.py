@@ -85,3 +85,17 @@ def render_to_base64(fig: Figure, dpi: int = 150) -> str:
 def validate_png(data: bytes) -> bool:
     """Check whether *data* starts with the PNG magic bytes (``\\x89PNG``)."""
     return data[:4] == b"\x89PNG"
+
+
+def _num(v: float | str | None | bool) -> float:
+    """Safely coerce any chart data value to float.
+
+    ChartDataPoint.data uses ``dict[str, float | str | None | bool]`` to
+    accommodate any chart schema. Individual chart renderers call ``_num``
+    instead of bare ``float()`` so the conversion is null-safe and mypy-clean.
+
+    Returns 0.0 for None; delegates to float() for all other inputs.
+    """
+    if v is None:
+        return 0.0
+    return float(v)

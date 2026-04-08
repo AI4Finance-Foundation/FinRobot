@@ -202,6 +202,11 @@ def forecast_financials(
         year = last_year + 1 + i
         revenue = prev_revenue * (1 + growth_rate)
         ebitda = revenue * ebitda_margin
+        # Simplified: net_income ≈ EBITDA × (1 - tax_rate)
+        # This over-taxes by not deducting D&A before tax.
+        # Standard formula: net_income = (EBITDA - D&A) × (1 - tax_rate) + D&A
+        # Impact: understates net income by ~5-15% for capital-intensive companies.
+        # P2d will add D&A support when available from FMP provider.
         net_income = ebitda * (1 - tax_rate)
         eps = net_income / shares_outstanding
 
@@ -228,6 +233,11 @@ def forecast_financials(
         net_income=forecast_net_income,
         eps=forecast_eps,
         assumptions=assumptions,
+        warnings=[
+            "Net income uses simplified formula: EBITDA*(1-tax). "
+            "Understates by ~5-15% for capital-intensive companies. "
+            "Standard formula requires D&A (available via FMP provider in P2d)."
+        ],
     )
 
 

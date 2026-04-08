@@ -110,15 +110,32 @@ class TestFetchPrice:
 
 class TestFetchNews:
     @pytest.mark.asyncio
-    async def test_returns_headlines_list(self):
+    async def test_returns_news_items_list(self):
         provider = YFinanceProvider()
-        raw_news = [{"content": {"title": "Apple hits new high"}}, {"content": {"title": "AAPL earnings beat"}}]
+        raw_news = [
+            {"content": {
+                "title": "Apple hits new high",
+                "provider": {"displayName": "Reuters"},
+                "pubDate": "2024-10-31T16:00:00Z",
+                "canonicalUrl": {"url": "https://example.com/1"},
+            }},
+            {"content": {
+                "title": "AAPL earnings beat",
+                "provider": {"displayName": "Bloomberg"},
+                "pubDate": "2024-10-30T14:00:00Z",
+                "canonicalUrl": {"url": "https://example.com/2"},
+            }},
+        ]
         mock_ticker = _make_mock_ticker(VALID_INFO, news=raw_news)
         with patch("finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker):
             result = await provider.fetch("AAPL", "news")
         assert isinstance(result, DataResult)
-        assert "headlines" in result.data
-        assert "Apple hits new high" in result.data["headlines"]
+        assert "news_items" in result.data
+        items = result.data["news_items"]
+        assert len(items) == 2
+        assert items[0]["title"] == "Apple hits new high"
+        assert items[0]["source"] == "Reuters"
+        assert items[0]["url"] == "https://example.com/1"
 
     @pytest.mark.asyncio
     async def test_empty_news_returns_empty_list(self):
@@ -126,7 +143,52 @@ class TestFetchNews:
         mock_ticker = _make_mock_ticker(VALID_INFO, news=[])
         with patch("finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker):
             result = await provider.fetch("AAPL", "news")
-        assert result.data["headlines"] == []
+        assert result.data["news_items"] == []
+
+    @pytest.mark.asyncio
+    async def test_news_items_compatible_with_parse_raw_news(self):
+        """Verify yfinance news format is parseable by parse_raw_news."""
+        from finagent.engine.compute.news import RawNewsItem, parse_raw_news
+
+        provider = YFinanceProvider()
+        raw_news = [
+            {"content": {
+                "title": "Apple Q4 beat",
+                "provider": {"displayName": "Reuters"},
+                "pubDate": "2024-10-31T16:00:00Z",
+                "canonicalUrl": {"url": "https://example.com/1"},
+            }},
+            {"content": {
+                "title": "iPhone sales surge",
+                "provider": {"displayName": "CNBC"},
+                "pubDate": "2024-10-30T10:00:00Z",
+                "canonicalUrl": {"url": "https://example.com/2"},
+            }},
+        ]
+        mock_ticker = _make_mock_ticker(VALID_INFO, news=raw_news)
+        with patch("finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker):
+            result = await provider.fetch("AAPL", "news")
+        items = parse_raw_news(result)
+        assert len(items) == 2
+        assert all(isinstance(item, RawNewsItem) for item in items)
+        assert items[0].title == "Apple Q4 beat"
+        assert items[0].source == "Reuters"
+
+    @pytest.mark.asyncio
+    async def test_news_fallback_fields(self):
+        """When content sub-fields are missing, falls back to top-level fields."""
+        provider = YFinanceProvider()
+        # Old-style yfinance news format (no nested content.provider etc.)
+        raw_news = [
+            {"content": {"title": "Old format news"}, "publisher": "Yahoo", "link": "https://y.com"},
+        ]
+        mock_ticker = _make_mock_ticker(VALID_INFO, news=raw_news)
+        with patch("finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker):
+            result = await provider.fetch("AAPL", "news")
+        items = result.data["news_items"]
+        assert len(items) == 1
+        assert items[0]["source"] == "Yahoo"
+        assert items[0]["url"] == "https://y.com"
 
 
 class TestUnsupportedDataType:
@@ -300,7 +362,7 @@ class TestYFinanceIntegration:
     @pytest.mark.asyncio
     async def test_fetch_news_real(self):
         result = await YFinanceProvider().fetch("AAPL", "news")
-        assert isinstance(result.data["headlines"], list)
+        assert isinstance(result.data["news_items"], list)
 
     @pytest.mark.asyncio
     async def test_invalid_ticker_raises_real(self):

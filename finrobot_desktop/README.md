@@ -2,7 +2,7 @@
 
 > A financial AI agent platform with extensible skill ecosystem.
 
-**Status: P1.5 — Financial Computing Core (In Development)**
+**Status: P2c — FinRobot Baseline + Desktop UI (In Development)**
 
 ## What is FinAgent
 
@@ -10,14 +10,14 @@ FinAgent is a financial-domain AI agent platform that bridges the gap between ac
 
 - **Skill Ecosystem** — 56 financial analysis skills (sourced from Anthropic's financial-services-plugins). Write your own in Markdown.
 - **Code-Enforced Pipelines** — Equity research, DCF, comps analysis run as step-by-step pipelines. Code guarantees execution order; skills provide methodology. The LLM decides *how* to analyze, never *whether* to skip a step.
-- **Data Layer** — yfinance built-in. FMP, Finnhub, SEC EDGAR planned for P2.
+- **Data Layer** — yfinance (built-in, free), FMP (optional, requires API key — provides D&A data for standard DCF formula), Finnhub (optional, requires API key), SEC EDGAR (free, 10-K summaries). Automatic chain fallback: FMP → Finnhub → yfinance.
 - **CLI** — `finagent run` / `finagent research` / `finagent comps` / `finagent dcf`. Desktop app and SDK planned.
 
 ## Who is FinAgent for
 
 FinAgent is for **financial professionals who want AI-assisted analysis with computational discipline** — buy-side researchers, independent analysts, small fund managers. If you use ChatGPT for financial analysis but worry about hallucinated numbers and skipped steps, FinAgent gives you code-enforced pipelines where the math is deterministic and every step must complete.
 
-**Current status**: P1.5 (adding deterministic financial calculations). The engine runs pipelines but financial math is not yet code-enforced. See [Roadmap](#roadmap) for timeline.
+**Current status**: P2c (FinRobot baseline + Desktop UI). The engine runs pipelines with deterministic financial math, multi-source data (FMP/Finnhub/SEC EDGAR/yfinance with chain fallback), and standard DCF formulas. See [Roadmap](#roadmap) for timeline.
 
 ## Quick Start
 

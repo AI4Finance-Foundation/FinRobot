@@ -19,7 +19,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint  # noqa: E402
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num  # noqa: E402
 
 
 def _create_figure(
@@ -39,9 +39,9 @@ def _create_figure(
     rows = data.data
 
     methods: list[str] = [str(r["method"]) for r in rows]
-    lows: list[float] = [float(r["low"]) for r in rows]  # type: ignore[arg-type]
-    mids: list[float] = [float(r["mid"]) for r in rows]  # type: ignore[arg-type]
-    highs: list[float] = [float(r["high"]) for r in rows]  # type: ignore[arg-type]
+    lows: list[float] = [_num(r.get("low")) for r in rows]
+    mids: list[float] = [_num(r.get("mid")) for r in rows]
+    highs: list[float] = [_num(r.get("high")) for r in rows]
 
     widths = [h - lo for h, lo in zip(highs, lows)]
 

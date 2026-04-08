@@ -18,7 +18,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint  # noqa: E402
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num  # noqa: E402
 
 # Colours for positive / negative / total bars
 _COLOR_POSITIVE = "#2e7d32"
@@ -39,7 +39,7 @@ def _create_figure(
     rows = data.data
 
     labels: list[str] = [str(r["label"]) for r in rows]
-    values: list[float] = [float(r["value"]) for r in rows]  # type: ignore[arg-type]
+    values: list[float] = [_num(r.get("value")) for r in rows]
     is_totals: list[bool] = [bool(r.get("is_total", False)) for r in rows]
 
     # Compute bottoms for each bar

@@ -18,7 +18,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint  # noqa: E402
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num  # noqa: E402
 
 
 def _create_figure(
@@ -33,10 +33,10 @@ def _create_figure(
     cfg = config or ChartConfig()
     rows = data.data
 
-    years = [int(r["year"]) for r in rows]  # type: ignore[arg-type]
-    gross = [float(r["gross_margin"]) * 100 for r in rows]  # type: ignore[arg-type]
-    ebitda = [float(r["ebitda_margin"]) * 100 for r in rows]  # type: ignore[arg-type]
-    operating = [float(r["operating_margin"]) * 100 for r in rows]  # type: ignore[arg-type]
+    years = [int(_num(r.get("year"))) for r in rows]
+    gross = [_num(r.get("gross_margin")) * 100 for r in rows]
+    ebitda = [_num(r.get("ebitda_margin")) * 100 for r in rows]
+    operating = [_num(r.get("operating_margin")) * 100 for r in rows]
 
     fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
     fig.patch.set_facecolor(cfg.background_color)

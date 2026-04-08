@@ -208,3 +208,102 @@ class TestFMPNews:
     @pytest.mark.asyncio
     async def test_news_in_capabilities(self, provider):
         assert "news" in provider.capabilities()
+
+
+def _fmp_earnings_response(ticker="AAPL"):
+    return [
+        {
+            "date": "2024-10-31",
+            "symbol": ticker,
+            "epsActual": 1.64,
+            "epsEstimated": 1.60,
+            "revenueActual": 94_930_000_000,
+            "revenueEstimated": 94_210_000_000,
+        },
+        {
+            "date": "2024-07-31",
+            "symbol": ticker,
+            "epsActual": 1.40,
+            "epsEstimated": 1.35,
+            "revenueActual": 85_778_000_000,
+            "revenueEstimated": 84_530_000_000,
+        },
+    ]
+
+
+class TestFMPEarnings:
+    @pytest.mark.asyncio
+    async def test_fetch_earnings_returns_normalized_keys(self, provider):
+        """FMP earnings-surprises response is normalized to common format."""
+        with patch.object(
+            provider, "_get", AsyncMock(return_value=_mock_response(_fmp_earnings_response()))
+        ):
+            result = await provider.fetch("AAPL", "earnings")
+        assert result.provider == "fmp"
+        assert result.data_type == "earnings"
+        history = result.data["earnings_history"]
+        assert len(history) == 2
+        first = history[0]
+        assert first["date"] == "2024-10-31"
+        assert first["eps_actual"] == 1.64
+        assert first["eps_estimated"] == 1.60
+        assert first["revenue_actual"] == 94_930_000_000
+        assert first["revenue_estimated"] == 94_210_000_000
+
+    @pytest.mark.asyncio
+    async def test_earnings_in_capabilities(self, provider):
+        assert "earnings" in provider.capabilities()
+
+    @pytest.mark.asyncio
+    async def test_earnings_skips_entries_with_null_eps(self, provider):
+        """Entries without epsActual or epsEstimated should be filtered out."""
+        raw = [
+            {"date": "2024-10-31", "epsActual": 1.64, "epsEstimated": 1.60,
+             "revenueActual": 90e9, "revenueEstimated": 89e9},
+            {"date": "2024-07-31", "epsActual": None, "epsEstimated": 1.35,
+             "revenueActual": 85e9, "revenueEstimated": 84e9},
+        ]
+        with patch.object(provider, "_get", AsyncMock(return_value=_mock_response(raw))):
+            result = await provider.fetch("AAPL", "earnings")
+        assert len(result.data["earnings_history"]) == 1
+
+
+class TestFMPRateLimiter:
+    def test_provider_has_rate_limit_attributes(self, provider):
+        """Rate limiter requires _lock and _last_call on every instance."""
+        import asyncio
+        assert hasattr(provider, "_lock")
+        assert isinstance(provider._lock, asyncio.Lock)
+        assert hasattr(provider, "_last_call")
+        assert isinstance(provider._last_call, float)
+
+    @pytest.mark.asyncio
+    async def test_rate_limiter_sleeps_on_rapid_calls(self, provider, monkeypatch):
+        """Second call within MIN_INTERVAL must trigger asyncio.sleep."""
+        import asyncio
+        import time
+        from finagent.engine.data.providers.fmp_provider import _MIN_INTERVAL
+
+        sleep_durations: list[float] = []
+
+        async def mock_sleep(secs: float) -> None:
+            sleep_durations.append(secs)
+
+        monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+
+        # Simulate last call happening just now (elapsed << _MIN_INTERVAL)
+        provider._last_call = time.monotonic()
+
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(return_value=mock_resp)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            await provider._get("/test")
+
+        assert len(sleep_durations) == 1
+        assert sleep_durations[0] <= _MIN_INTERVAL
+        assert sleep_durations[0] > 0

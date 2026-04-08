@@ -92,6 +92,20 @@ class TestStaleness:
         assert cached.data.data["revenue"] == 385_000_000_000
 
 
+class TestWalMode:
+    async def test_wal_mode_enabled_on_first_connection(self, tmp_path):
+        """WAL mode must be set so concurrent set() calls don't SQLITE_BUSY."""
+        cache = DataCache(db_path=str(tmp_path / "wal_test.db"))
+        await cache._ensure_connection()
+        import aiosqlite
+        async with aiosqlite.connect(cache._db_path) as conn:
+            async with conn.execute("PRAGMA journal_mode") as cursor:
+                row = await cursor.fetchone()
+        await cache.close()
+        assert row is not None
+        assert row[0] == "wal"
+
+
 class TestClear:
     async def test_clear_specific_ticker_only_clears_that_ticker(self, cache):
         await cache.set("financials", "AAPL", _result("AAPL"))

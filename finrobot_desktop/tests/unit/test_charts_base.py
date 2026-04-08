@@ -3,7 +3,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from finagent.engine.charts.base import ChartConfig, render_to_base64, validate_png, ChartDataPoint, StepChartData
+from finagent.engine.charts.base import ChartConfig, render_to_base64, validate_png, ChartDataPoint, StepChartData, _num
 
 
 class TestChartConfig:
@@ -57,3 +57,23 @@ class TestStepChartData:
     def test_default_empty(self):
         scd = StepChartData()
         assert scd.charts == []
+
+
+class TestNum:
+    def test_float_passthrough(self):
+        assert _num(3.14) == 3.14
+
+    def test_int_to_float(self):
+        assert _num(2024) == 2024.0
+
+    def test_none_returns_zero(self):
+        assert _num(None) == 0.0
+
+    def test_string_numeric(self):
+        assert _num("42.5") == 42.5
+
+    def test_bool_true(self):
+        assert _num(True) == 1.0
+
+    def test_bool_false(self):
+        assert _num(False) == 0.0

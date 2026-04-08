@@ -10,23 +10,31 @@ Full architecture: see `ARCHITECTURE.md` in project root.
 Tech stack: PydanticAI + FastAPI + Electron + React 19.
 No LangChain. No LangGraph. No AutoGen. No LiteLLM.
 
-## Current Phase: P1.5
+## Phase Status
 
-Read the current phase spec before writing any code:
-
-```
-specs/P1.5.md
-```
-
-Previous completed phases (read if you need context on existing code):
-
-```
-specs/P0.md
-specs/P1a.md
-specs/P1b.md
-```
+| Phase | Description | Status |
+|-------|-------------|--------|
+| P0 | 核心引擎 | ✅ 完成 |
+| P1a | Skill 运行时 | ✅ 完成 |
+| P1b | 子 agent 拆分 | ✅ 完成 |
+| P1.5 | 金融计算核心 | ✅ 完成 |
+| P1c | Desktop app 骨架 | ✅ 完成 |
+| P2a | 数据源扩展 | ✅ 完成 |
+| **P2c** | **补齐 FinRobot 基线 + Desktop UI** | **← 当前阶段** |
 
 All phase specs are in `specs/` directory. Each contains: goal, acceptance criteria, file-by-file implementation order, and package structure.
+
+## 下一步工作
+
+读 `specs/P2c.md`（补齐 FinRobot 基线：图表 + 报告 + 数据处理 + 催化剂分析 + Desktop UI），按里面的实现顺序进行。
+
+如果 `specs/P2c.md` 不存在，先停下来，告诉用户需要先写 spec，不要凭空开始实现。
+
+## 已知技术债
+
+| 优先级 | 问题 | 修复计划 |
+|--------|------|----------|
+| 高 | P2a 数据清洗缺失（FinRobot 的 clean_financial_number 等逻辑被跳过） | P2c 模块 7 修复 |
 
 ---
 

@@ -223,9 +223,11 @@ class TestExtractHistoricalMetrics:
         )
         result = extract_historical_metrics(three_year_data, price_data=price)
         assert result.price_data_available is True
-        # PE uses current price / each year's EPS
-        assert result.pe_ratio[0] == pytest.approx(198.0 / 4.667, abs=0.1)
-        assert result.pe_ratio[2] == pytest.approx(198.0 / 6.333, abs=0.1)
+        # PE = current_price / EPS (hand-calculated literals)
+        # Year 1: 198.0 / 4.667 = 42.43
+        # Year 3: 198.0 / 6.333 = 31.27
+        assert result.pe_ratio[0] == pytest.approx(42.43, abs=0.1)
+        assert result.pe_ratio[2] == pytest.approx(31.27, abs=0.1)
 
     def test_cagr_revenue(self, three_year_data: list[FinancialData]):
         """Revenue CAGR over 2 periods (3 data points):
@@ -370,18 +372,18 @@ class TestForecastFinancials:
 
     def test_forecast_eps(self, historical: HistoricalMetrics):
         """EPS = net_income / shares_outstanding.
-        shares = last year's data: we need to derive from historical.
-        EPS(last) = 6.333, net_income(last) = 95e9 -> shares ~ 95e9/6.333 ~ 15.0e9
-        Year 1 EPS: 109.905906e9 / 15.0e9 ~ 7.327"""
+
+        Hand calculation:
+        1. shares = last_ni / last_eps = 95e9 / 6.333 ≈ 15.001e9
+        2. Year 1 net_income = 109.905906e9 (from test_forecast_net_income)
+        3. Year 1 EPS = 109.905906e9 / 15.001e9 ≈ 7.327
+        """
         result = forecast_financials(
             historical,
             revenue_growth_assumptions=[0.07, 0.06, 0.05],
             margin_assumptions=MarginAssumptions(ebitda_margin_target=0.33),
         )
-        # shares = 95e9 / 6.333 ~ 15.001e9 (from last year's ni/eps)
-        expected_shares = 95e9 / 6.333
-        expected_eps = 109.905906e9 / expected_shares
-        assert result.eps[0] == pytest.approx(expected_eps, rel=1e-3)
+        assert result.eps[0] == pytest.approx(7.327, abs=0.01)
 
     def test_forecast_years(self, historical: HistoricalMetrics):
         """Forecast years continue from last historical year."""
@@ -396,16 +398,19 @@ class TestForecastFinancials:
         self, historical: HistoricalMetrics
     ):
         """When no ebitda_margin_target, use avg of historical EBITDA margins.
-        avg = (0.3333+0.3429+0.3299)/3 ~ 0.33537"""
+
+        Hand calculation:
+        avg margin = (0.3333 + 0.3429 + 0.3299) / 3 = 0.33537
+        year 1 revenue = 394e9 * 1.07 = 421.58e9
+        year 1 ebitda = 421.58e9 * 0.33537 = 141.393e9
+        """
         result = forecast_financials(
             historical,
             revenue_growth_assumptions=[0.07],
             margin_assumptions=MarginAssumptions(),  # no targets
         )
-        expected_margin = (0.3333 + 0.3429 + 0.3299) / 3
-        expected_ebitda = 394e9 * 1.07 * expected_margin
-        assert result.ebitda[0] == pytest.approx(expected_ebitda, rel=1e-4)
-        assert result.assumptions.ebitda_margin == pytest.approx(expected_margin, rel=1e-4)
+        assert result.assumptions.ebitda_margin == pytest.approx(0.33537, rel=1e-4)
+        assert result.ebitda[0] == pytest.approx(141.393e9, rel=1e-3)
 
     def test_forecast_assumptions_recorded(self, historical: HistoricalMetrics):
         """ForecastAssumptions must record the exact values used."""

@@ -68,7 +68,11 @@ class FinAgentSettings(BaseSettings):
 
             return TestModel()
         else:
-            raise ValueError(f"Unknown provider '{provider}' in model_name '{name}'")
+            raise ValueError(
+                f"Unknown provider '{provider}' in model_name '{name}'. "
+                f"Valid providers: deepseek, anthropic, openai, test. "
+                f"Format: provider:model_id (e.g. anthropic:claude-sonnet-4-6)"
+            )
 
 
 def get_settings(**overrides) -> FinAgentSettings:

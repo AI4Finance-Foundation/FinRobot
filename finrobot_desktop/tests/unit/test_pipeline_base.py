@@ -135,7 +135,9 @@ class TestValidationRetry:
         pipeline = Pipeline(steps=[step], max_retries=2)
         result = await _run_pipeline(pipeline)
         assert "always_bad" in result.steps
-        assert result.failed_validations == ["always_bad"]
+        assert len(result.failed_validations) == 1
+        assert result.failed_validations[0]["step"] == "always_bad"
+        assert "always fails" in result.failed_validations[0]["error"]
 
 
 class TestGatherData:

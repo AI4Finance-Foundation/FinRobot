@@ -90,3 +90,33 @@ def render_dcf_report(context: dict) -> str:
     env = _get_env()
     template = env.get_template("dcf.html")
     return template.render(**context)
+
+
+def render_lbo_report(context: dict) -> str:
+    """Render LBO analysis HTML report.
+
+    context keys: ticker, lbo_result
+    """
+    env = _get_env()
+    template = env.get_template("lbo.html")
+    return template.render(**context)
+
+
+def render_earnings_report(context: dict) -> str:
+    """Render earnings analysis HTML report.
+
+    context keys: ticker, earnings_result
+    """
+    env = _get_env()
+    template = env.get_template("earnings.html")
+    return template.render(**context)
+
+
+def render_ic_memo_report(context: dict) -> str:
+    """Render IC memo HTML report.
+
+    context keys: ticker, ic_financials, steps
+    """
+    env = _get_env()
+    template = env.get_template("ic_memo.html")
+    return template.render(**context)

@@ -19,7 +19,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint  # noqa: E402
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num  # noqa: E402
 
 
 def _create_figure(
@@ -34,9 +34,9 @@ def _create_figure(
     cfg = config or ChartConfig()
     rows = data.data
 
-    years: list[int] = [int(r["year"]) for r in rows]  # type: ignore[arg-type]
-    revenues: list[float] = [float(r["revenue"]) / 1e9 for r in rows]  # type: ignore[arg-type]
-    ebitdas: list[float] = [float(r["ebitda"]) / 1e9 for r in rows]  # type: ignore[arg-type]
+    years: list[int] = [int(_num(r.get("year"))) for r in rows]
+    revenues: list[float] = [_num(r.get("revenue")) / 1e9 for r in rows]
+    ebitdas: list[float] = [_num(r.get("ebitda")) / 1e9 for r in rows]
     forecasts: list[bool] = [bool(r.get("is_forecast", False)) for r in rows]
 
     x_labels = [f"{y}E" if fc else str(y) for y, fc in zip(years, forecasts)]

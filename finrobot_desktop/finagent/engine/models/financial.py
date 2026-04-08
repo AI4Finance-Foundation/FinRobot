@@ -192,6 +192,7 @@ class DCFResult(BaseModel):
     inputs: DCFInputs
 
     fcf_formula: str = "simplified"  # "simplified" | "standard_with_da"
+    fcf_formula_warning: str | None = None  # Non-None when simplified formula was used
 
 
 class ThesisResult(BaseModel):
@@ -262,6 +263,7 @@ class ForecastResult(BaseModel):
     net_income: list[float]
     eps: list[float]
     assumptions: ForecastAssumptions
+    warnings: list[str] = Field(default_factory=list)
 
 
 class CatalystEvent(BaseModel):
@@ -308,3 +310,118 @@ class ValuationSynthesis(BaseModel):
     weighted_price: float
     current_price: float
     upside_downside: float
+
+
+# ---------------------------------------------------------------------------
+# LBO Models (P2d)
+# ---------------------------------------------------------------------------
+
+
+class LBOInputs(BaseModel):
+    """Assumptions driving the LBO model. LLM selects these, code computes math."""
+
+    ticker: str
+    ltm_ebitda: float = Field(gt=0, description="LTM EBITDA at entry (USD)")
+    entry_ev_ebitda: float = Field(gt=0, description="Entry EV/EBITDA multiple")
+    exit_ev_ebitda: float = Field(gt=0, description="Exit EV/EBITDA multiple")
+    holding_period_years: int = Field(default=5, ge=1, le=10)
+    revenue_base: float = Field(gt=0, description="LTM revenue at entry (USD)")
+    revenue_growth_rate: float = Field(ge=-0.5, le=1.0, description="Annual revenue growth (constant)")
+    ebitda_margin: float = Field(ge=0, le=1, description="EBITDA/revenue (constant)")
+    da_pct_revenue: float = Field(default=0.04, ge=0, le=0.3)
+    capex_pct_revenue: float = Field(default=0.04, ge=0, le=0.5)
+    nwc_change_pct_revenue: float = Field(default=0.01, ge=-0.2, le=0.3)
+    leverage_multiple: float = Field(default=5.0, ge=0, le=20, description="Total debt / EBITDA at entry")
+    interest_rate: float = Field(default=0.07, ge=0, le=0.5, description="Blended debt rate")
+    mandatory_amort_pct: float = Field(default=0.01, ge=0, le=0.5, description="Mandatory amortization as % of entry debt per year")
+    cash_sweep: bool = Field(default=True, description="Sweep all excess FCF to debt")
+    tax_rate: float = Field(default=0.25, ge=0, le=1)
+
+
+class LBOYear(BaseModel):
+    """One year of LBO operations. All numbers deterministically computed."""
+
+    year: int
+    revenue: float
+    ebitda: float
+    da: float
+    ebit: float
+    interest_expense: float
+    ebt: float
+    taxes: float
+    net_income: float
+    capex: float
+    delta_nwc: float
+    fcf: float                      # Cash available for debt service
+    mandatory_amort: float
+    cash_sweep_amount: float
+    total_debt_paydown: float
+    ending_debt: float
+
+
+class LBOResult(BaseModel):
+    """Full LBO model output. All returns computed by code, not LLM."""
+
+    entry_ev: float
+    entry_debt: float
+    entry_equity: float
+    schedule: list[LBOYear] = Field(min_length=1)
+    exit_ebitda: float
+    exit_ev: float
+    exit_equity: float
+    moic: float
+    irr: float = Field(description="Annualized IRR (decimal). -1.0 = total loss.")
+    sensitivity: dict[str, list] = Field(
+        default_factory=dict,
+        description="entry_multiples, exit_multiples, irr_grid, moic_grid",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Earnings Models (P2d)
+# ---------------------------------------------------------------------------
+
+
+class SurpriseDirection(str):
+    """Beat/miss/inline classification. Not an Enum to avoid Pydantic v2 coercion issues."""
+    BEAT = "beat"
+    MISS = "miss"
+    INLINE = "inline"
+
+
+class EarningsSurprise(BaseModel):
+    """Single quarter earnings surprise. All computed by code from raw provider data."""
+
+    date: str
+    eps_actual: float
+    eps_estimated: float
+    eps_surprise_pct: float         # (actual - est) / |est| × 100
+    eps_direction: str              # "beat" | "miss" | "inline"
+    revenue_actual: float
+    revenue_estimated: float
+    revenue_surprise_pct: float
+    revenue_direction: str          # "beat" | "miss" | "inline"
+
+
+class EarningsResult(BaseModel):
+    """Aggregated earnings quality metrics. Computed from N quarters of data."""
+
+    ticker: str
+    surprises: list[EarningsSurprise]
+    beat_rate: float = Field(ge=0, le=1, description="% of quarters with EPS beat")
+    avg_eps_surprise_pct: float
+    avg_revenue_surprise_pct: float
+    consecutive_beats: int = Field(ge=0, description="Current consecutive beat streak (most recent first)")
+
+
+# ---------------------------------------------------------------------------
+# IC Memo Models (P2d)
+# ---------------------------------------------------------------------------
+
+
+class ICFinancials(BaseModel):
+    """Combined DCF + LBO results for IC Memo financial analysis step."""
+
+    financial_data: "FinancialData"
+    dcf_result: DCFResult
+    lbo_result: LBOResult

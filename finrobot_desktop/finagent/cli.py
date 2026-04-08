@@ -1,9 +1,58 @@
 import asyncio
+import logging
+import sys
 from pathlib import Path
 
 import click
 
 from finagent.config import get_settings
+
+# Show pipeline progress on stderr so users see what's happening.
+# This surfaces base.py's logger.info("Step 1/5: ...") to the terminal.
+logging.basicConfig(
+    level=logging.INFO,
+    stream=sys.stderr,
+    format="%(message)s",
+)
+# Silence noisy third-party loggers
+for _quiet in ("httpx", "httpcore", "urllib3", "yfinance", "filelock"):
+    logging.getLogger(_quiet).setLevel(logging.WARNING)
+
+_VALID_PROVIDERS = {"deepseek", "anthropic", "openai", "test"}
+_PROVIDER_KEY_MAP = {
+    "deepseek": "FINAGENT_DEEPSEEK_API_KEY",
+    "anthropic": "FINAGENT_ANTHROPIC_API_KEY",
+    "openai": "FINAGENT_OPENAI_API_KEY",
+}
+
+
+def _validate_model_config(settings) -> None:
+    """Fail fast if the model provider's API key is missing.
+
+    Called at startup before any data fetching or LLM calls,
+    so users don't wait 60 seconds only to hit an auth error.
+    """
+    name = settings.model_name
+    provider, _, model_id = name.partition(":")
+
+    if provider not in _VALID_PROVIDERS:
+        raise click.ClickException(
+            f"Unknown provider '{provider}' in model_name '{name}'. "
+            f"Valid providers: {', '.join(sorted(_VALID_PROVIDERS))}. "
+            f"Format: provider:model_id (e.g. anthropic:claude-sonnet-4-6)"
+        )
+
+    env_var = _PROVIDER_KEY_MAP.get(provider)
+    if env_var is None:
+        return  # "test" provider needs no key
+
+    key_value = getattr(settings, env_var.replace("FINAGENT_", "").lower(), "")
+    if not key_value:
+        raise click.ClickException(
+            f"{env_var} is not set. "
+            f"Set it in .env or as an environment variable.\n"
+            f"  export {env_var}=your-key-here"
+        )
 
 
 def _build_deps(model: str | None = None):
@@ -18,6 +67,8 @@ def _build_deps(model: str | None = None):
     settings = get_settings()
     if model:
         settings = get_settings(model_name=model)
+
+    _validate_model_config(settings)
 
     # Load skills if available
     skills_path = Path(settings.skills_dir)
@@ -55,6 +106,7 @@ def _build_runtime(model: str | None = None):
 
 
 @click.group()
+@click.version_option(version="0.1.0", prog_name="finagent")
 def cli() -> None:
     """FinAgent — financial AI agent platform."""
 
@@ -135,6 +187,11 @@ def research(ticker: str, model: str | None) -> None:
 
     result = asyncio.run(pipeline.execute(deps, ticker))
     click.echo(result.format_summary())
+    click.echo(
+        f"\nNote: HTML reports require the server. Run 'finagent serve', "
+        f"then trigger the analysis via the /chat API or Desktop app. "
+        f"CLI results are not shared with the server (separate processes)."
+    )
 
 
 @cli.command()
@@ -172,6 +229,81 @@ def dcf(ticker: str, model: str | None) -> None:
 
     result = asyncio.run(pipeline.execute(deps, ticker))
     click.echo(result.format_summary())
+    click.echo(
+        f"\nNote: HTML reports require the server. Run 'finagent serve', "
+        f"then trigger the analysis via the /chat API or Desktop app. "
+        f"CLI results are not shared with the server (separate processes)."
+    )
+
+
+@cli.command()
+@click.argument("ticker")
+@click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
+def lbo(ticker: str, model: str | None) -> None:
+    """Run LBO (leveraged buyout) analysis pipeline.
+
+    Deterministic IRR/MOIC arithmetic — LLM selects assumptions, code computes returns.
+    """
+    deps = _build_deps(model)
+
+    from finagent.engine.agents.factory import create_sub_agents
+    from finagent.engine.pipelines.lbo import create_lbo_pipeline
+
+    sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
+    pipeline = create_lbo_pipeline(sub_agents)
+
+    result = asyncio.run(pipeline.execute(deps, ticker))
+    click.echo(result.format_summary())
+    click.echo(
+        f"\nNote: HTML reports require the server. Run 'finagent serve', "
+        f"then trigger the analysis via the /chat API or Desktop app. "
+        f"CLI results are not shared with the server (separate processes)."
+    )
+
+
+@cli.command()
+@click.argument("ticker")
+@click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
+def earnings(ticker: str, model: str | None) -> None:
+    """Run earnings quality analysis pipeline.
+
+    Requires FMP API key for earnings surprise data (set FINAGENT_FMP_API_KEY).
+    """
+    deps = _build_deps(model)
+
+    from finagent.engine.agents.factory import create_sub_agents
+    from finagent.engine.pipelines.earnings_analysis import create_earnings_analysis_pipeline
+
+    sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
+    pipeline = create_earnings_analysis_pipeline(sub_agents)
+
+    result = asyncio.run(pipeline.execute(deps, ticker))
+    click.echo(result.format_summary())
+
+
+@cli.command(name="ic-memo")
+@click.argument("ticker")
+@click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
+def ic_memo(ticker: str, model: str | None) -> None:
+    """Run Investment Committee (IC) memo pipeline.
+
+    Runs DCF + LBO inline and applies IRR hurdle gate (PASS if IRR < 15%).
+    """
+    deps = _build_deps(model)
+
+    from finagent.engine.agents.factory import create_sub_agents
+    from finagent.engine.pipelines.ic_memo import create_ic_memo_pipeline
+
+    sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
+    pipeline = create_ic_memo_pipeline(sub_agents)
+
+    result = asyncio.run(pipeline.execute(deps, ticker))
+    click.echo(result.format_summary())
+    click.echo(
+        f"\nNote: HTML reports require the server. Run 'finagent serve', "
+        f"then trigger the analysis via the /chat API or Desktop app. "
+        f"CLI results are not shared with the server (separate processes)."
+    )
 
 
 @cli.command()

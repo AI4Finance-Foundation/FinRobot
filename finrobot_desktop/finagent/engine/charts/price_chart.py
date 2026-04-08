@@ -19,7 +19,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint  # noqa: E402
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num  # noqa: E402
 
 
 def _create_figure(
@@ -35,8 +35,8 @@ def _create_figure(
     rows = data.data
 
     dates: list[str] = [str(r["date"]) for r in rows]
-    closes: list[float] = [float(r["close"]) for r in rows]  # type: ignore[arg-type]
-    volumes: list[float] = [float(r["volume"]) / 1e6 for r in rows]  # type: ignore[arg-type]
+    closes: list[float] = [_num(r.get("close")) for r in rows]
+    volumes: list[float] = [_num(r.get("volume")) / 1e6 for r in rows]
 
     fig, ax_price = plt.subplots(figsize=(cfg.width, cfg.height))
     fig.patch.set_facecolor(cfg.background_color)

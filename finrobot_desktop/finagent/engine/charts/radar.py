@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint  # noqa: E402
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num  # noqa: E402
 
 
 def _create_figure(
@@ -36,8 +36,8 @@ def _create_figure(
     rows = data.data
 
     dimensions: list[str] = [str(r["dimension"]) for r in rows]
-    values: list[float] = [float(r["value"]) for r in rows]  # type: ignore[arg-type]
-    benchmarks: list[float] = [float(r["benchmark"]) for r in rows]  # type: ignore[arg-type]
+    values: list[float] = [_num(r.get("value")) for r in rows]
+    benchmarks: list[float] = [_num(r.get("benchmark")) for r in rows]
 
     n = len(dimensions)
     # Compute angle for each dimension — equally spaced

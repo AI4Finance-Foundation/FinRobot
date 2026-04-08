@@ -63,8 +63,8 @@ def test_validate_financial_data_zero_revenue():
     assert "Revenue" in result.error
 
 def test_validate_financial_data_ebitda_margin_too_high():
-    # ebitda=90e9 / revenue=100e9 = 90% > 80% limit
-    result = validate_financial_data(_make_fd(ebitda=90e9))
+    # ebitda=95e9 / revenue=100e9 = 95% > 90% default limit
+    result = validate_financial_data(_make_fd(ebitda=95e9))
     assert not result.passed
 
 def test_validate_dcf_result_valid():

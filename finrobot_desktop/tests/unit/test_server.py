@@ -50,18 +50,30 @@ class TestChatEndpoint:
 
 
 class TestReportEndpoints:
+    @staticmethod
+    def _setup_deps_with_cache(cache: dict | None = None):
+        from finagent.config import get_settings
+        from finagent.engine.deps import FinAgentDeps
+
+        settings = get_settings(model_name="test")
+        app.state.deps = FinAgentDeps(
+            data_layer=None,  # type: ignore[arg-type]
+            settings=settings,
+            report_cache=cache or {},
+        )
+
     @pytest.mark.asyncio
-    async def test_report_html_returns_200(self):
+    async def test_report_html_returns_404_without_cache(self):
+        self._setup_deps_with_cache()
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"
         ) as client:
             response = await client.get("/api/report/html?ticker=AAPL")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-        assert "AAPL" in response.text
+        assert response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_report_html_requires_ticker(self):
+        self._setup_deps_with_cache()
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -69,10 +81,10 @@ class TestReportEndpoints:
         assert response.status_code == 422  # FastAPI validation error
 
     @pytest.mark.asyncio
-    async def test_report_pdf_endpoint_exists(self):
+    async def test_report_pdf_returns_404_without_cache(self):
+        self._setup_deps_with_cache()
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"
         ) as client:
             response = await client.get("/api/report/pdf?ticker=AAPL")
-        # Either 200 (weasyprint installed) or 501 (not installed)
-        assert response.status_code in (200, 501)
+        assert response.status_code == 404

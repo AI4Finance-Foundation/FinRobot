@@ -182,3 +182,44 @@ class TestFinnhubNews:
     @pytest.mark.asyncio
     async def test_news_in_capabilities(self, provider):
         assert "news" in provider.capabilities()
+
+
+class TestFinnhubRateLimiter:
+    def test_provider_has_rate_limit_attributes(self, provider):
+        """Rate limiter requires _lock and _last_call on every instance."""
+        import asyncio
+        assert hasattr(provider, "_lock")
+        assert isinstance(provider._lock, asyncio.Lock)
+        assert hasattr(provider, "_last_call")
+        assert isinstance(provider._last_call, float)
+
+    @pytest.mark.asyncio
+    async def test_rate_limiter_sleeps_on_rapid_calls(self, provider, monkeypatch):
+        """Second call within MIN_INTERVAL must trigger asyncio.sleep."""
+        import asyncio
+        import time
+        from finagent.engine.data.providers.finnhub_provider import _MIN_INTERVAL
+
+        sleep_durations: list[float] = []
+
+        async def mock_sleep(secs: float) -> None:
+            sleep_durations.append(secs)
+
+        monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+
+        # Simulate last call happening just now
+        provider._last_call = time.monotonic()
+
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(return_value=mock_resp)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            await provider._get("/test")
+
+        assert len(sleep_durations) == 1
+        assert sleep_durations[0] <= _MIN_INTERVAL
+        assert sleep_durations[0] > 0

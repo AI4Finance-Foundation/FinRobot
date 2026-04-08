@@ -18,7 +18,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint  # noqa: E402
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num  # noqa: E402
 
 
 def _create_figure(
@@ -34,7 +34,7 @@ def _create_figure(
     rows = data.data
 
     tickers: list[str] = [str(r["ticker"]) for r in rows]
-    ev_ebitdas: list[float] = [float(r["ev_ebitda"]) for r in rows]  # type: ignore[arg-type]
+    ev_ebitdas: list[float] = [_num(r.get("ev_ebitda")) for r in rows]
     is_targets: list[bool] = [bool(r.get("is_target", False)) for r in rows]
 
     colors = [

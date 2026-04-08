@@ -18,7 +18,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint  # noqa: E402
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num  # noqa: E402
 
 
 def _create_figure(
@@ -33,8 +33,8 @@ def _create_figure(
     cfg = config or ChartConfig()
     rows = data.data
 
-    years: list[int] = [int(r["year"]) for r in rows]  # type: ignore[arg-type]
-    eps_values: list[float] = [float(r["eps"]) for r in rows]  # type: ignore[arg-type]
+    years: list[int] = [int(_num(r.get("year"))) for r in rows]
+    eps_values: list[float] = [_num(r.get("eps")) for r in rows]
 
     # PE ratio can be None — collect only valid points for the line
     pe_years: list[int] = []
@@ -42,8 +42,8 @@ def _create_figure(
     for r in rows:
         pe = r.get("pe_ratio")
         if pe is not None:
-            pe_years.append(int(r["year"]))  # type: ignore[arg-type]
-            pe_values.append(float(pe))
+            pe_years.append(int(_num(r.get("year"))))
+            pe_values.append(_num(pe))
 
     fig, ax_eps = plt.subplots(figsize=(cfg.width, cfg.height))
     fig.patch.set_facecolor(cfg.background_color)

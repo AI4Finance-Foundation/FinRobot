@@ -19,8 +19,7 @@ def calculate_multiples(company: CompanyFinancials) -> CompanyFinancials:
 
     company.ev_ebitda = ev / company.ebitda if company.ebitda > 0 else None
     company.ev_revenue = ev / company.revenue if company.revenue > 0 else None
-    company.pe_ratio = (company.market_cap / company.net_income
-                        if company.net_income > 0 else None)
+    company.pe_ratio = company.market_cap / company.net_income if company.net_income > 0 else None
     return company
 
 

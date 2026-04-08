@@ -65,7 +65,7 @@ def _parse_frontmatter(content: str) -> tuple[dict, str]:
         raise SkillLoadError("No closing '---' for YAML frontmatter")
 
     yaml_str = content[3:end_idx].strip()
-    body = content[end_idx + 3:].strip()
+    body = content[end_idx + 3 :].strip()
 
     try:
         frontmatter = yaml.safe_load(yaml_str)

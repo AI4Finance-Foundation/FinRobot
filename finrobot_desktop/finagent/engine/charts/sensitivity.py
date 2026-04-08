@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint  # noqa: E402
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num  # noqa: E402
 
 
 def _create_figure(
@@ -39,14 +39,14 @@ def _create_figure(
     rows = data.data
 
     # Extract unique axis values (sorted)
-    wacc_vals = sorted({float(r["wacc"]) for r in rows})  # type: ignore[arg-type]
-    tg_vals = sorted({float(r["tg"]) for r in rows})  # type: ignore[arg-type]
+    wacc_vals = sorted({_num(r.get("wacc")) for r in rows})
+    tg_vals = sorted({_num(r.get("tg")) for r in rows})
 
     # Build lookup: (wacc, tg) -> implied_price | None
     lookup: dict[tuple[float, float], float | None] = {}
     for r in rows:
-        w = float(r["wacc"])  # type: ignore[arg-type]
-        t = float(r["tg"])  # type: ignore[arg-type]
+        w = _num(r.get("wacc"))
+        t = _num(r.get("tg"))
         price = r["implied_price"]
         lookup[(w, t)] = float(price) if price is not None else None
 

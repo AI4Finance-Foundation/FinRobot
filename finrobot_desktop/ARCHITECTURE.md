@@ -1,7 +1,7 @@
 # FinAgent Architecture
 
 > A financial AI agent platform with extensible skill ecosystem.
-> Version 0.4 | 2026-03-30
+> Version 0.5 | 2026-04-02
 
 ---
 
@@ -44,9 +44,9 @@ It solves a specific gap: **academic financial AI tools** (FinRobot, FinRL) have
 
 2. **Financial Agent Engine** — Not a chatbot wrapper. Core financial analysis flows (equity research, DCF, comps) are **code-enforced pipelines** where each step must complete before the next begins. Skills provide the methodology for each step; code guarantees execution order. The LLM decides *how* to analyze, but never *whether* to skip a step.
 
-3. **Unified Data Layer** — Abstracts data sources behind a single interface. yfinance built-in; FMP, Finnhub, SEC EDGAR planned for P2a-P2b; MCP bridge planned for P2b.
+3. **Unified Data Layer** — Abstracts data sources behind a single interface. yfinance built-in; FMP, Finnhub, SEC EDGAR implemented in P2a (direct providers, not via FinRobot adapter). MCP bridge planned for future.
 
-4. **Desktop-First Runtime** *(planned for P1c)* — Will run locally on Win + macOS. Data stays on your machine. Currently available as CLI and Python library; desktop app is planned.
+4. **Desktop-First Runtime** — P1c implemented (Electron + React, SSE streaming). Full UI completion in P2c. Runs locally on Win + macOS. Data stays on your machine. Available as CLI, Python library, and desktop app.
 
 ---
 
@@ -55,7 +55,7 @@ It solves a specific gap: **academic financial AI tools** (FinRobot, FinRL) have
 ```
 ┌──────────────────────────────────────────────────────┐
 │  Layer 3: Clients                                    │
-│  Desktop App (Electron + React) — P1c, not started    │
+│  Desktop App (Electron + React) — P1c basic, P2c full UI │
 │  CLI — finagent run "analyze AAPL"   ✓ implemented   │
 │  Python SDK — P3a, not started                       │
 │  Future: Web, Mobile, MCP Server                     │
@@ -80,55 +80,37 @@ It solves a specific gap: **academic financial AI tools** (FinRobot, FinRL) have
 └──────────────────────────┬───────────────────────────┘
                            │
 ┌──────────────────────────▼───────────────────────────┐
-│  Layer 1: Adapters                                   │
+│  Layer 1: Data Providers                             │
 │                                                      │
-│  ┌─────────────────────┐ ┌─────────────────────────┐ │
-│  │ FinRobot Data       │ │ Anthropic Skill         │ │
-│  │ Adapter             │ │ Format Adapter          │ │
-│  │ (P2a — not started) │ │ (vendor-time only) ✓    │ │
-│  │                     │ │                         │ │
-│  │ Wraps ONLY:         │ │ Reads:                  │ │
-│  │ - fmp_utils.py      │ │ - financial-services-   │ │
-│  │ - finnhub_utils.py  │ │   plugins format        │ │
-│  │ - yfinance_utils.py │ │                         │ │
-│  │ - sec_utils.py      │ │ Converts to:            │ │
-│  │                     │ │ - FinAgent native format │ │
-│  │ Does NOT wrap:      │ │ - stored in repo        │ │
-│  │ - agents/workflow   │ │                         │ │
-│  │ - AutoGen pipeline  │ │                         │ │
-│  └─────────────────────┘ └─────────────────────────┘ │
+│  ┌──────────────┐ ┌────────────┐ ┌───────────────┐  │
+│  │ FMP          │ │ Finnhub    │ │ SEC EDGAR     │  │
+│  │ (if API key) │ │ (if key)   │ │ (free)        │  │
+│  └──────┬───────┘ └─────┬──────┘ └──────┬────────┘  │
+│         └───────────┬────┘───────────────┘           │
+│              chain fallback → yfinance (always)      │
 │                                                      │
-│  Never modifies upstream code. Adapter pattern only. │
+│  Anthropic Skill Format Adapter                      │
+│  (vendor-time only, not runtime) ✓                   │
 └──────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Layer 1: Adapters
+## Layer 1: Data Providers
 
-### FinRobot Adapter — Data Only
+### 决策变更：FinRobot adapter 已弃用
 
-**We only adapt FinRobot's data utilities, not its analysis pipeline.**
-
-FinRobot's analysis pipeline (`agents/workflow.py`, `SingleAssistantShadow`, the multi-agent CoT system) is built on AutoGen 0.2, which Microsoft has deprecated. The pipeline already has active dependency breakage in GitHub issues. Instead of wrapping a rotting runtime, we rebuild the analysis capability — better — using our own code-enforced pipelines + Anthropic's institutional-grade skill methodology (see Layer 2).
-
-What IS reliable: FinRobot's `data_source/` module — clean utility functions for FMP, Finnhub, yfinance, and SEC EDGAR. Pure data-fetching, no AutoGen dependency.
-
-```python
-# finagent/adapters/finrobot_data.py
-class FinRobotDataAdapter:
-    """Wraps finrobot.data_source.* behind typed async interfaces.
-    Runs in subprocess to isolate FinRobot's dep chain from engine."""
-
-    async def get_financials(self, ticker: str, period: str = "annual") -> FinancialData
-    async def get_news(self, ticker: str, days: int = 7) -> list[NewsItem]
-    async def get_price_history(self, ticker: str, period: str = "1y") -> PriceHistory
-    async def get_filings(self, ticker: str, filing_type: str = "10-K") -> list[Filing]
-```
-
-**Subprocess isolation**: even `import finrobot` pulls in AutoGen's entire dep chain. The subprocess boundary keeps it from infecting the engine process.
-
-**FinRobot is optional.** The engine works without it — yfinance covers basic use cases. FinRobot adapter unlocks FMP/Finnhub for users who have API keys.
+> FinRobot adapter 方案在 P2a 实施时放弃。FMP/Finnhub/SEC EDGAR 均通过直接 provider 实现（各 ~120 行 httpx 代码），不经过 FinRobot。
+>
+> **理由**：
+> 1. FMP/Finnhub/SEC API 很简单，直接调用只需几十行代码
+> 2. FinRobot adapter 需要 subprocess 隔离 + JSON-RPC 协议，复杂度远超直接调 API
+> 3. FinRobot 依赖 AutoGen 0.2（已废弃），引入废弃依赖增加维护风险
+> 4. subprocess 通信增加延迟，对用户体验有负面影响
+>
+> **代价**：跳过了 FinRobot `data_source/` 的数据清洗逻辑。当前用自写的 key 归一化替代。P2c 模块 7 计划补上缺失的数据清洗。
+>
+> `finagent/adapters/` 目录不存在。所有数据获取逻辑在 `engine/data/providers/` 中。
 
 ### Anthropic Skill Format Adapter
 
@@ -191,10 +173,13 @@ logger = logging.getLogger(__name__)
 class PipelineStep:
     """A single enforced step in a financial analysis pipeline."""
     name: str
-    skill_section: str | None    # which part of the skill to inject
     agent: Agent                 # dedicated sub-agent for this step
-    required_data: list[str]     # data types this step needs
     validate: Callable           # output validation function
+    required_data: list[str] = []
+    skill_section: str | None = None    # which part of the skill to inject
+    # P1.5 新增：确定性计算支持
+    execute_fn: Callable[..., Awaitable[StepOutput | str]] | None = None  # 自定义执行函数（WACC/DCF 等）
+    validate_structured: Callable[[Any], ValidationResult] | None = None  # 结构化数据验证
 
 class Pipeline:
     """Code-enforced sequence of analysis steps.
@@ -209,23 +194,26 @@ class Pipeline:
     steps: list[PipelineStep]
     max_retries: int = 2
     
-    async def execute(self, ctx: RunContext[FinAgentDeps], ticker: str, **kwargs) -> PipelineResult:
+    async def execute(self, deps: FinAgentDeps, ticker: str, **kwargs) -> PipelineResult:
         results = {}
         for step in self.steps:
             # 1. Gather required data (code-enforced, cannot skip)
-            step_data = await self._gather_data(ctx, step.required_data, ticker, results)
-            
+            step_data = await self._gather_data(deps, step.required_data, ticker, results)
+
             # 2. Load skill methodology for this step
             methodology = ""
-            if step.skill_section and ctx.deps.skill_runtime:  # skill_runtime is None in P0
-                skill = ctx.deps.skill_runtime.get(step.skill_section)
+            if step.skill_section and deps.skill_runtime:
+                skill = deps.skill_runtime.get(step.skill_section)
                 if skill:
                     methodology = skill.full_content
-            
-            # 3. Run sub-agent with methodology + data
+
+            # 3. Run sub-agent with methodology + data (or execute_fn if provided)
             prompt = self._build_step_prompt(step, step_data, methodology)
-            step_result = await step.agent.run(prompt, deps=ctx.deps)
-            
+            if step.execute_fn:
+                step_result = await step.execute_fn(step.agent, deps, prompt, results, ticker)
+            else:
+                step_result = await step.agent.run(prompt, deps=deps)
+
             # 4. Validate output, retry up to max_retries
             for attempt in range(self.max_retries):
                 validation = step.validate(step_result.output)
@@ -234,18 +222,25 @@ class Pipeline:
                 step_result = await step.agent.run(
                     f"Previous output failed validation: {validation.error}\n"
                     f"Fix the issues and try again.\n\n{step_result.output}",
-                    deps=ctx.deps,
+                    deps=deps,
                 )
             else:
                 # Retries exhausted, validation still failing.
                 # Best-effort: continue with imperfect output rather than crash the pipeline.
                 logger.warning(f"Pipeline step '{step.name}' failed validation after {self.max_retries} retries. Continuing with best-effort output.")
-            
+
             # 5. Store for next steps
             results[step.name] = step_result.output
-        
+
         return PipelineResult(steps=results)
 ```
+
+> **实现说明（N1 重构后）**：实际代码将上述 for 循环拆分为三个方法：
+> - `_execute_step_once()` — 执行单步（dispatch 到 execute_fn 或 agent.run）
+> - `_store_output()` — 解析并存储步骤输出
+> - `_run_step()` — 编排首次执行 + 重试循环
+>
+> 外部接口不变，内部消除了执行/重试代码的重复。
 
 ### 2.3 Built-in Pipelines
 
@@ -510,19 +505,23 @@ class DataLayer:
 
 Built-in providers:
 
-| Provider | Data Types | Cost | Role |
+| Provider | Data Types | Cost | Status |
 |---|---|---|---|
-| yfinance | Price, basic financials | Free | Default fallback |
-| FMP (via FinRobot adapter) | Detailed financials, ratios | $15-50/mo | Primary for fundamentals |
-| Finnhub (via FinRobot adapter) | News, company profile | Free tier | Primary for news |
-| SEC EDGAR | 10-K, 10-Q, proxy statements | Free | Primary for filings |
-| MCP Bridge | Any external MCP data server | Varies | User-extensible |
+| yfinance | Price, basic financials | Free | ✅ P0 实现 |
+| FMP | Detailed financials, D&A, ratios | $15-50/mo | ✅ P2a 实现（直接 provider） |
+| Finnhub | Financials, company profile | Free tier | ✅ P2a 实现（直接 provider） |
+| SEC EDGAR | 10-K summary | Free | ✅ P2a 实现（直接 provider） |
+| MCP Bridge | Any external MCP data server | Varies | 📋 待定 |
 
 ---
 
 ## Layer 3: Clients
 
 ### Desktop App (Electron + React 19)
+
+> **当前状态（P1c 完成）**：骨架已实现（Electron + React + SSE 通信 + 三个基础 View）。使用纯 CSS，无 Tailwind、无 Zustand。
+>
+> **P2c 将补完**：多面板 workspace、Settings 页面、图表可视化、Tailwind CSS 迁移、Zustand 状态管理。
 
 The first client, not the product.
 
@@ -532,18 +531,16 @@ desktop/
 │   ├── main.ts              # Window + Python process lifecycle (uv sidecar)
 │   ├── preload.ts           # IPC for safeStorage (Key encryption)
 │   └── updater.ts           # electron-updater
-├── renderer/                # React 19 + Vite + Tailwind CSS 4
+├── src/                     # React 19 + Vite（纯 CSS，P2c 迁移 Tailwind + Zustand）
 │   ├── app/
-│   │   ├── chat/             # Vercel AI SDK useChat
-│   │   ├── workspace/        # Multi-panel: chart, report, data, skills
-│   │   └── settings/         # API keys, model, skill management
-│   ├── stores/               # Zustand
+│   │   ├── chat/             # SSE streaming
+│   │   ├── workspace/        # P2c: Multi-panel workspace
+│   │   └── settings/         # P2c: API keys, model, skill management
 │   └── components/
+├── build/                   # electron-builder output
+│   └── uv-sidecar/          # Platform-specific uv binaries (scripts/prepare-uv.mjs)
 └── resources/               # Bundled at build time by electron-builder
-    ├── uv-darwin-arm64       # Platform-specific uv binaries
-    ├── uv-darwin-x86_64
-    ├── uv-win32-x64.exe
-    └── python/              # pyproject.toml + uv.lock for the engine
+    # pyproject.toml + uv.lock + finagent/ via extraResources
 ```
 
 **Python lifecycle** (managed by `main.ts`):
@@ -608,11 +605,18 @@ finagent/
 │   ├── pipelines/                  # CODE-ENFORCED analysis flows
 │   │   ├── base.py                 # Pipeline + PipelineStep classes
 │   │   ├── equity_research.py      # 5-step equity research
-│   │   ├── comps.py                # 6-step comps analysis — P1b
-│   │   ├── dcf.py                  # 6-step DCF valuation — P1b
-│   │   ├── lbo.py                  # LBO modeling — P2c
-│   │   ├── earnings.py             # Earnings analysis — P2c
+│   │   ├── comps.py                # 6-step comps analysis — P1b ✅
+│   │   ├── dcf.py                  # 6-step DCF valuation — P1b ✅
+│   │   ├── lbo.py                  # LBO modeling — P2d 待实现
+│   │   ├── earnings.py             # Earnings analysis — P2d 待实现
 │   │   └── validators.py           # Per-step output validation
+│   ├── compute/                    # P1.5: 确定性金融计算（纯函数，不依赖 agent/pipeline）
+│   │   ├── extractor.py            # P2a ✅
+│   │   ├── wacc.py                 # P1.5 ✅
+│   │   ├── dcf.py                  # P1.5 ✅
+│   │   └── multiples.py            # P1.5 ✅
+│   ├── models/
+│   │   └── financial.py            # P1.5 ✅ — Pydantic 类型化金融数据模型
 │   ├── agents/                     # P1b: dedicated sub-agents for pipelines
 │   │   ├── data_agent.py           # P0: lead_agent handles all steps
 │   │   ├── analysis_agent.py       # P1b: split into specialists
@@ -623,62 +627,60 @@ finagent/
 │   │   ├── spec.py                 # Skill Pydantic model
 │   │   ├── registry.py             # Load, search, validate, install
 │   │   ├── loader.py               # Parse SKILL.md + frontmatter
-│   │   └── composer.py             # Dependency resolution (P3a)
+│   │   └── composer.py             # Dependency resolution — P3a 待实现
 │   ├── data/
 │   │   ├── interface.py            # DataProvider ABC
-│   │   ├── layer.py                # P0: basic routing; P2b: full cache + fallback chain
+│   │   ├── layer.py                # P0: basic routing; P2a: full cache + fallback chain
 │   │   ├── cache.py                # P0: basic get/set; P2b: stale fallback + TTL
 │   │   └── providers/
-│   │       ├── yfinance_provider.py
-│   │       ├── fmp_provider.py     # P2a
-│   │       ├── finnhub_provider.py # P2a
-│   │       ├── sec_provider.py     # P2b
-│   │       └── mcp_bridge.py       # P2b
+│   │       ├── yfinance_provider.py     # P0 ✅
+│   │       ├── fmp_provider.py          # P2a ✅
+│   │       ├── finnhub_provider.py      # P2a ✅
+│   │       ├── sec_provider.py          # P2a ✅
+│   │       └── mcp_bridge.py            # 待定
 │   ├── tools/                          # Shared tools used by pipelines
-│   │   └── spreadsheet_gen.py          # Excel generation (openpyxl) — P2c
-│   └── memory/                         # P3a
+│   │   └── spreadsheet_gen.py          # Excel generation (openpyxl) — P2d 待实现
+│   └── memory/                         # P3a 待实现
 │       ├── store.py
 │       └── context.py
 │
-├── adapters/
-│   ├── finrobot_data.py            # Wraps finrobot.data_source.* — P2a
-│   ├── finrobot_worker.py          # Subprocess JSON-RPC runner — P2a
-│   └── anthropic_skill_loader.py   # Used by scripts/sync-skills.sh at vendor time (not runtime)
-│
 ├── server.py                       # FastAPI + VercelAIAdapter
 ├── cli.py                          # Click CLI
-├── sdk.py                          # FinAgent Python API — P3a
+├── sdk.py                          # FinAgent Python API — P3a 待实现
 │
-├── skills/                         # Built-in skills (pre-converted to FinAgent native format)
-│   ├── financial-analysis/         # Converted from Anthropic plugins at vendor time
-│   ├── investment-banking/         # by scripts/sync-skills.sh
-│   ├── equity-research/
-│   ├── private-equity/
-│   ├── wealth-management/
-│   └── UPSTREAM_VERSION.txt        # Source commit hash for traceability
+# adapters/ — 原始设计已弃用（见 Layer 1 "决策变更" 说明），直接在 providers/ 中实现
 │
-├── desktop/                        # Electron + React — P1c
-│   ├── electron/
-│   └── renderer/
+skills/                             # 项目根目录，不在 finagent/ 内
+├── ATTRIBUTION.md
+├── UPSTREAM_VERSION.txt            # Source commit hash for traceability
+├── equity-research/
+├── financial-analysis/
+├── investment-banking/
+├── private-equity/
+└── wealth-management/
 │
-├── scripts/
-│   ├── sync-skills.sh              # Pull Anthropic plugins + convert → FinAgent native format
-│   └── build-electron.sh           # electron-builder + uv sidecar packaging (P3b)
+desktop/                            # Electron + React — P1c ✅
+├── electron/
+└── src/                            # React 19 + Vite
 │
-├── tests/
-│   ├── unit/
-│   │   ├── test_pipelines/         # Pipeline step logic with TestModel
-│   │   ├── test_validators/        # Output validation functions
-│   │   └── test_data_layer/        # Provider + cache logic
-│   ├── integration/
-│   │   ├── test_equity_research/   # Full pipeline with real yfinance
-│   │   └── test_comps/             # Full pipeline with real data
-│   └── e2e/
+scripts/
+├── sync-skills.sh              # Pull Anthropic plugins + convert → FinAgent native format
+└── build-electron.sh           # electron-builder + uv sidecar packaging (P3b)
 │
-├── pyproject.toml
-├── LICENSE                         # Apache 2.0
-├── README.md
-└── ARCHITECTURE.md
+tests/
+├── unit/
+│   ├── test_pipelines/         # Pipeline step logic with TestModel
+│   ├── test_validators/        # Output validation functions
+│   └── test_data_layer/        # Provider + cache logic
+├── integration/
+│   ├── test_equity_research/   # Full pipeline with real yfinance
+│   └── test_comps/             # Full pipeline with real data
+└── e2e/
+│
+pyproject.toml
+LICENSE                         # Apache 2.0
+README.md
+ARCHITECTURE.md
 ```
 
 ---
@@ -687,7 +689,7 @@ finagent/
 
 **"Why not just use FinRobot directly?"**
 
-FinRobot's data utilities are excellent — we adapt them. But its analysis pipeline is on AutoGen 0.2 (deprecated by Microsoft, active breakage in GitHub issues). Our pipelines provide the same code-enforced step guarantee with better methodology (Anthropic's institutional-grade skills vs hand-tuned prompts), better inter-step data passing (structured + validated vs free-text conversation), and model freedom (any model vs OpenAI-only).
+FinRobot's data utilities are well-designed, but its analysis pipeline is on AutoGen 0.2 (deprecated by Microsoft, active breakage in GitHub issues). We implement FMP/Finnhub/SEC EDGAR as direct providers (P2a) rather than wrapping FinRobot. Our pipelines provide the same code-enforced step guarantee with better methodology (Anthropic's institutional-grade skills vs hand-tuned prompts), better inter-step data passing (structured + validated vs free-text conversation), and model freedom (any model vs OpenAI-only).
 
 **"How do you guarantee pipelines are as good as FinRobot's CoT?"**
 
@@ -703,7 +705,7 @@ Proprietary platform. FinAgent makes those skills runnable with any model, on an
 
 **"This is just glue code."**
 
-The pipeline system with per-step validation, the data layer with provider abstraction + fallback chain, the subprocess-isolated FinRobot adapter, and the two-mode orchestrator (conversational + pipeline) are original engineering. Adapters are necessary but not the product.
+The pipeline system with per-step validation, the multi-provider data layer with chain fallback, the deterministic compute layer (WACC/DCF/multiples — code, not LLM), and the two-mode orchestrator (conversational + pipeline) are original engineering.
 
 **"How does this compare to OpenBB, FinChat, Bloomberg Copilot?"**
 
@@ -748,7 +750,7 @@ P0 and P1a only prove the framework runs — not that it produces value. The rea
 | Milestone | What it proves | When |
 |---|---|---|
 | P1b complete | Pipeline output quality with skill injection + strict validators. **Compare equity research output vs FinChat on same tickers.** If no quality advantage, reassess project direction. | After P1b |
-| P2a complete | FinRobot data adapter works. Multi-source data (FMP + Finnhub + yfinance) actually improves output vs yfinance-only. | After P2a |
+| P2a complete | Multi-source data providers work. Multi-source data (FMP + Finnhub + yfinance) actually improves output vs yfinance-only. | ✅ P2a 完成 |
 | 5 external skills authored | Someone outside the core team wrote a skill and it works. Ecosystem is viable. | Post-P1b, ongoing |
 | First non-author user runs `finagent research` and finds output useful | Product-market fit signal. | Anytime post-P1b |
 
@@ -758,17 +760,17 @@ If P1b output quality doesn't meaningfully exceed a well-prompted single Claude/
 
 ## Implementation Priority
 
-| Phase | Deliverable | What's in it |
+| Phase | Deliverable | Status |
 |---|---|---|
-| **P0** | `finagent run` + `finagent research AAPL` | Lead agent handles both modes. Mode A: direct tool calls. Mode B: equity_research pipeline (all 5 steps, all using lead_agent — no sub-agents yet). yfinance provider + CLI. Proves Pipeline.execute() enforced sequencing works. See P0 acceptance criteria below. |
-| P1a | Skill runtime | Loader + registry + `activate_skill` tool. Skills in repo are already in FinAgent native format (converted at vendor time — see below). Must ship before P1b because strict validators depend on skill methodology injection. |
-| P1b | Dedicated sub-agents + full pipelines | Split lead_agent into data/analysis/modeling/synthesis/report agents. Complete equity_research (5 steps) + comps + dcf pipelines. Strict validators on (skill methodology now available from P1a). |
-| P1c | Desktop app | Electron + React + useChat + pipeline progress UI |
-| P2a | FinRobot data adapter | Subprocess isolation, FMP + Finnhub providers |
-| P2b | Full data layer | SEC EDGAR, cache, fallback chain, MCP bridge |
-| P2c | More pipelines + tools | LBO, earnings, IC memo pipelines. spreadsheet_gen tool (openpyxl). |
-| P3a | Advanced | Memory, skill composition, Python SDK |
-| P3b | Packaging | uv sidecar + electron-builder. Bundled uv binary creates venv on first launch; no PyInstaller. |
+| **P0** | `finagent run` + `finagent research AAPL` | ✅ 完成 |
+| **P1a** | Skill runtime（loader + registry + activate_skill） | ✅ 完成 |
+| **P1b** | Sub-agents + comps/dcf pipelines + strict validators | ✅ 完成 |
+| **P1.5** | 金融计算核心（确定性 WACC/DCF/multiples + Pydantic 类型化） | ✅ 完成 |
+| **P1c** | Desktop app 骨架（Electron + React + SSE + 三个基础 View） | ✅ 完成 |
+| **P2a** | 数据源扩展（FMP/Finnhub/SEC EDGAR 直接 provider + 链式回退 + FCF 修复） | ✅ 完成 |
+| **P2c** | **高级管线 + Desktop 完整 UI + Excel 输出** | **← 当前** |
+| P3a | Memory + skill composition + Python SDK | 待定 |
+| P3b | Packaging（uv sidecar + electron-builder 打包发布） | 待定 |
 
 **P0 scope note**: P0 uses one lead_agent for all pipeline steps. This is intentional — the goal is proving the Pipeline framework forces step order, not optimizing per-step agent quality. Sub-agent specialization is P1b.
 

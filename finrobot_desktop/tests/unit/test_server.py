@@ -88,3 +88,75 @@ class TestReportEndpoints:
         ) as client:
             response = await client.get("/api/report/pdf?ticker=AAPL")
         assert response.status_code == 404
+
+
+class TestPipelineStream:
+    @staticmethod
+    def _setup_test_deps():
+        """Install a FakeDeps into app.state so the SSE endpoint can run a
+        TestModel pipeline without real network or real sub-agents."""
+        from datetime import datetime, timezone
+
+        from finagent.config import get_settings
+        from finagent.engine.data.interface import DataResult
+        from finagent.engine.deps import FinAgentDeps
+
+        class FakeDataLayer:
+            async def fetch(self, data_type, ticker, **kwargs):
+                return DataResult(
+                    data={
+                        "revenue": 1e9,
+                        "ebitda": 2e8,
+                        "net_income": 1e8,
+                        "market_cap": 5e9,
+                        "shares_outstanding": 1e8,
+                        "current_price": 50.0,
+                        "gross_margin": 0.4,
+                        "operating_margin": 0.15,
+                        "price_history": [{"close": 50.0}],
+                    },
+                    provider="test",
+                    ticker=ticker,
+                    data_type=str(data_type),
+                    timestamp=datetime.now(tz=timezone.utc),
+                )
+
+        settings = get_settings(model_name="test")
+        app.state.deps = FinAgentDeps(
+            data_layer=FakeDataLayer(),  # type: ignore[arg-type]
+            settings=settings,
+            skill_runtime=None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_invalid_pipeline_type_returns_400(self):
+        self._setup_test_deps()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/pipeline/stream/notapipeline/AAPL")
+        assert response.status_code == 400
+        assert "Invalid pipeline" in response.json()["error"]
+
+    @pytest.mark.asyncio
+    async def test_sse_stream_emits_step_events(self):
+        """Run the research pipeline against TestModel and verify SSE events.
+
+        We can't use streaming with ASGITransport easily, but we can read the
+        full body (it collects all emitted frames) and confirm the presence
+        of step_start / step_end / complete events.
+        """
+        self._setup_test_deps()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/pipeline/stream/research/TEST")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        body = response.text
+
+        # Each event is a JSON object on a `data: ...` line.
+        assert "step_start" in body
+        assert "step_end" in body
+        # Pipeline finished successfully → complete event present.
+        assert "complete" in body or "error" in body

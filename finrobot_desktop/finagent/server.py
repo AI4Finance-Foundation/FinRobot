@@ -1,10 +1,12 @@
+import json
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any, Callable
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response, StreamingResponse
 
 from pydantic_ai.ui.vercel_ai import VercelAIAdapter
 
@@ -12,8 +14,40 @@ from finagent.config import get_settings
 from finagent.engine.data.cache import DataCache
 from finagent.engine.data.layer import DataLayer
 from finagent.engine.deps import FinAgentDeps
-from finagent.engine.orchestrator import create_lead_agent
+from finagent.engine.orchestrator import build_report_context, create_lead_agent
 from finagent.engine.skills.registry import SkillRegistry
+
+
+# Lazy-loaded pipeline factory map. Each factory takes a sub_agents dict and
+# returns a Pipeline. Populated on first SSE request, then cached.
+_PIPELINE_FACTORIES: dict[str, Callable[..., Any]] | None = None
+
+
+def _get_pipeline_factories() -> dict[str, Callable[..., Any]]:
+    """Return the pipeline factory map, importing lazily on first call."""
+    global _PIPELINE_FACTORIES
+    if _PIPELINE_FACTORIES is not None:
+        return _PIPELINE_FACTORIES
+    from finagent.engine.pipelines.comps import create_comps_pipeline
+    from finagent.engine.pipelines.dcf import create_dcf_pipeline
+    from finagent.engine.pipelines.earnings_analysis import (
+        create_earnings_analysis_pipeline,
+    )
+    from finagent.engine.pipelines.equity_research import (
+        create_equity_research_pipeline,
+    )
+    from finagent.engine.pipelines.ic_memo import create_ic_memo_pipeline
+    from finagent.engine.pipelines.lbo import create_lbo_pipeline
+
+    _PIPELINE_FACTORIES = {
+        "research": create_equity_research_pipeline,
+        "comps": create_comps_pipeline,
+        "dcf": create_dcf_pipeline,
+        "lbo": create_lbo_pipeline,
+        "earnings": create_earnings_analysis_pipeline,
+        "ic-memo": create_ic_memo_pipeline,
+    }
+    return _PIPELINE_FACTORIES
 
 
 @asynccontextmanager
@@ -63,6 +97,108 @@ async def chat(request: Request) -> Response:
     return await VercelAIAdapter.dispatch_request(
         request, agent=request.app.state.agent, deps=request.app.state.deps
     )
+
+
+@app.get("/api/pipeline/stream/{pipeline_type}/{ticker}")
+async def pipeline_stream(pipeline_type: str, ticker: str, request: Request):
+    """Stream pipeline progress as Server-Sent Events.
+
+    Events emitted (one JSON object per SSE `data:` frame):
+      - step_start: {step, total, name}
+      - step_end:   {step, total, name, duration}
+      - step_retry: {step, name, attempt}
+      - complete:   {summary}
+      - error:      {message}
+    """
+    import asyncio
+
+    factories = _get_pipeline_factories()
+    if pipeline_type not in factories:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": (
+                    f"Invalid pipeline: {pipeline_type}. "
+                    f"Valid: {sorted(factories.keys())}"
+                )
+            },
+        )
+
+    queue: asyncio.Queue = asyncio.Queue()
+
+    class SseProgress:
+        """ProgressCallback that pushes events into the SSE queue."""
+
+        async def on_step_start(self, step_index: int, total: int, name: str) -> None:
+            await queue.put(
+                {"event": "step_start", "step": step_index, "total": total, "name": name}
+            )
+
+        async def on_step_end(
+            self, step_index: int, total: int, name: str, duration: float
+        ) -> None:
+            await queue.put(
+                {
+                    "event": "step_end",
+                    "step": step_index,
+                    "total": total,
+                    "name": name,
+                    "duration": round(duration, 1),
+                }
+            )
+
+        async def on_step_retry(
+            self, step_index: int, name: str, attempt: int, error: str
+        ) -> None:
+            await queue.put(
+                {
+                    "event": "step_retry",
+                    "step": step_index,
+                    "name": name,
+                    "attempt": attempt,
+                }
+            )
+
+    async def run_pipeline() -> None:
+        try:
+            deps = request.app.state.deps
+            from finagent.engine.agents.factory import create_sub_agents
+
+            sub_agents = create_sub_agents(
+                deps.settings, skill_registry=deps.skill_runtime
+            )
+            pipeline = factories[pipeline_type](sub_agents)
+            result = await pipeline.execute(deps, ticker, progress=SseProgress())
+            deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
+            await queue.put(
+                {"event": "complete", "summary": result.format_summary()[:2000]}
+            )
+        except Exception as e:
+            await queue.put({"event": "error", "message": str(e)[:500]})
+        finally:
+            await queue.put(None)  # sentinel — signals event_stream to exit
+
+    async def event_stream():
+        task = asyncio.create_task(run_pipeline())
+        try:
+            while True:
+                msg = await queue.get()
+                if msg is None:
+                    break
+                yield f"data: {json.dumps(msg)}\n\n"
+            # Propagate any exception that escaped run_pipeline's try/except
+            # (shouldn't happen, but defensive).
+            await task
+        except (asyncio.CancelledError, GeneratorExit):
+            # Client disconnected — cancel the pipeline task so it doesn't leak.
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            raise
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @app.get("/health")

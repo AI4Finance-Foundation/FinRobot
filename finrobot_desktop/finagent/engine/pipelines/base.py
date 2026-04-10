@@ -224,9 +224,22 @@ class Pipeline:
         if not required_data:
             if not previous_results:
                 return ""
-            parts = []
-            for step_name, output in previous_results.items():
-                parts.append(f"=== {step_name} ===\n{output}")
+            # Compact mode: pass the last 2 steps' full text + 1-line summaries of
+            # everything before them. Step N often needs both step N-1 and N-2
+            # (e.g., thesis reads financial_modeling AND peer_analysis), so 2 is
+            # the sweet spot between context completeness and prompt size. Structured
+            # data from earlier steps is still available via structured_context.
+            keys = list(previous_results.keys())
+            parts: list[str] = []
+            for name in keys[:-2]:
+                text = previous_results[name]
+                word_count = len(text.split())
+                parts.append(
+                    f"[Previous: {name} \u2014 {word_count} words, "
+                    f"see structured_context for data]"
+                )
+            for name in keys[-2:]:
+                parts.append(f"=== {name} ===\n{previous_results[name]}")
             return "\n\n".join(parts)
 
         parts = []

@@ -105,6 +105,33 @@ def _build_runtime(model: str | None = None):
     return agent, deps
 
 
+class CliProgress:
+    """Print pipeline progress to the terminal.
+
+    Implements the ProgressCallback Protocol from
+    finagent.engine.pipelines.base. Writes to stdout so users see real-time
+    step progress instead of waiting for the full pipeline to finish.
+    """
+
+    async def on_step_start(
+        self, step_index: int, total: int, step_name: str
+    ) -> None:
+        label = step_name.replace("_", " ").title()
+        click.echo(f"  [{step_index}/{total}] {label}...", nl=False)
+
+    async def on_step_end(
+        self, step_index: int, total: int, step_name: str, duration_s: float
+    ) -> None:
+        click.echo(f" done ({duration_s:.1f}s)")
+
+    async def on_step_retry(
+        self, step_index: int, step_name: str, attempt: int, error: str
+    ) -> None:
+        # Newline so the retry note is on its own line (the preceding start
+        # line was written without a newline).
+        click.echo(f" retry {attempt} ({error[:60]})")
+
+
 @click.group()
 @click.version_option(version="0.1.0", prog_name="finagent")
 def cli() -> None:
@@ -185,7 +212,7 @@ def research(ticker: str, model: str | None) -> None:
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
     pipeline = create_equity_research_pipeline(sub_agents)
 
-    result = asyncio.run(pipeline.execute(deps, ticker))
+    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
     click.echo(result.format_summary())
     click.echo(
         f"\nNote: HTML reports require the server. Run 'finagent serve', "
@@ -210,7 +237,7 @@ def comps(ticker: str, model: str | None) -> None:
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
     pipeline = create_comps_pipeline(sub_agents)
 
-    result = asyncio.run(pipeline.execute(deps, ticker))
+    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
     click.echo(result.format_summary())
 
 
@@ -227,7 +254,7 @@ def dcf(ticker: str, model: str | None) -> None:
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
     pipeline = create_dcf_pipeline(sub_agents)
 
-    result = asyncio.run(pipeline.execute(deps, ticker))
+    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
     click.echo(result.format_summary())
     click.echo(
         f"\nNote: HTML reports require the server. Run 'finagent serve', "
@@ -252,7 +279,7 @@ def lbo(ticker: str, model: str | None) -> None:
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
     pipeline = create_lbo_pipeline(sub_agents)
 
-    result = asyncio.run(pipeline.execute(deps, ticker))
+    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
     click.echo(result.format_summary())
     click.echo(
         f"\nNote: HTML reports require the server. Run 'finagent serve', "
@@ -277,7 +304,7 @@ def earnings(ticker: str, model: str | None) -> None:
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
     pipeline = create_earnings_analysis_pipeline(sub_agents)
 
-    result = asyncio.run(pipeline.execute(deps, ticker))
+    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
     click.echo(result.format_summary())
 
 
@@ -297,7 +324,7 @@ def ic_memo(ticker: str, model: str | None) -> None:
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
     pipeline = create_ic_memo_pipeline(sub_agents)
 
-    result = asyncio.run(pipeline.execute(deps, ticker))
+    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
     click.echo(result.format_summary())
     click.echo(
         f"\nNote: HTML reports require the server. Run 'finagent serve', "

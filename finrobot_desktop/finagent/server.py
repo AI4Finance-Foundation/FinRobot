@@ -237,17 +237,39 @@ async def export_excel(analysis_type: str, ticker: str, request: Request) -> Res
     Requires the corresponding pipeline to have been run first (results cached).
     """
     from finagent.engine.compute.spreadsheet_gen import (
-        generate_dcf_excel,
-        generate_lbo_excel,
         generate_comps_excel,
+        generate_dcf_excel,
     )
-    from finagent.engine.models.financial import DCFResult, LBOResult, PeerComps
+    from finagent.engine.models.financial import DCFResult, PeerComps
 
     _VALID_TYPES = {"dcf", "lbo", "comps"}
     if analysis_type not in _VALID_TYPES:
         raise HTTPException(
             status_code=400,
             detail=f"analysis_type must be one of {sorted(_VALID_TYPES)}",
+        )
+
+    # P3 audit D3: LBO Excel export is temporarily disabled. The original
+    # LBOInputs are not persisted in report_cache (only the LBOResult is),
+    # and the prior reconstruction produced incorrect values:
+    #   ltm_ebitda = entry_ev / (entry_ev / entry_debt) == entry_debt
+    # plus hard-coded revenue_base=1.0, revenue_growth=5%, ebitda_margin=20%
+    # that had nothing to do with the actual LBO run. Returning that Excel
+    # was a credibility problem, so we 501 it until the pipeline is taught
+    # to cache its own LBOInputs under report_cache[ticker]["lbo_inputs"].
+    if analysis_type == "lbo":
+        raise HTTPException(
+            status_code=501,
+            detail=(
+                "LBO Excel export is temporarily disabled: original "
+                "LBOInputs are not persisted in report_cache, and "
+                "reconstructing them post-hoc produced incorrect values "
+                "(ltm_ebitda was computed as entry_debt; revenue_base, "
+                "revenue_growth_rate and ebitda_margin were hard-coded "
+                "placeholders unrelated to the actual LBO run). "
+                "Re-enable once the LBO pipeline caches its inputs "
+                "alongside its result. Tracking: P3 audit D3."
+            ),
         )
 
     cache = request.app.state.deps.report_cache.get(ticker.upper())
@@ -262,24 +284,6 @@ async def export_excel(analysis_type: str, ticker: str, request: Request) -> Res
         if dcf_result is None:
             raise HTTPException(status_code=404, detail="No DCF result cached for this ticker.")
         xlsx_bytes = generate_dcf_excel(dcf_result, dcf_result.inputs)
-
-    elif analysis_type == "lbo":
-        lbo_result: LBOResult | None = cache.get("lbo_result")
-        if lbo_result is None:
-            raise HTTPException(status_code=404, detail="No LBO result cached for this ticker.")
-        # Reconstruct inputs from result fields (stored as part of LBOResult sensitivity)
-        from finagent.engine.models.financial import LBOInputs
-        # Build minimal inputs from result for Excel header — full inputs not separately cached
-        lbo_inputs = LBOInputs(
-            ticker=ticker.upper(),
-            ltm_ebitda=lbo_result.entry_ev / (lbo_result.entry_ev / max(lbo_result.entry_debt, 1)),
-            entry_ev_ebitda=round(lbo_result.entry_ev / max(lbo_result.exit_ebitda, 1), 1),
-            exit_ev_ebitda=round(lbo_result.exit_ev / max(lbo_result.exit_ebitda, 1), 1),
-            revenue_base=1.0,  # not available post-hoc; placeholder
-            revenue_growth_rate=0.05,
-            ebitda_margin=0.20,
-        )
-        xlsx_bytes = generate_lbo_excel(lbo_result, lbo_inputs)
 
     else:  # comps
         peer_comps: PeerComps | None = cache.get("peer_comps")

@@ -1,0 +1,153 @@
+"""Tests for finagent.sdk.FinAgent (Track 2 Tasks 5-7).
+
+Covers:
+- Lazy deps construction
+- Model override at __init__ time
+- Sync methods in async context raise a clear RuntimeError (no coro leak)
+- aresearch() returns a PipelineResult when driven by TestModel + mock deps
+- Context manager closes the data layer on __aexit__
+- close() is safe to call twice
+
+Every test injects a mock DataLayer so we never touch the network or disk.
+"""
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from finagent import FinAgent, PipelineResult
+from finagent.engine.data.interface import DataResult
+from finagent.engine.pipelines.base import Pipeline, PipelineStep
+from finagent.engine.pipelines.validators import validate_is_non_empty
+
+
+def _fake_result() -> DataResult:
+    return DataResult(
+        data={
+            "revenue": 1e9,
+            "ebitda": 2e8,
+            "net_income": 1e8,
+            "market_cap": 5e9,
+            "shares_outstanding": 1e8,
+            "current_price": 50.0,
+            "gross_margin": 0.4,
+            "operating_margin": 0.15,
+            "price_history": [{"close": 50.0}],
+        },
+        provider="test",
+        ticker="TEST",
+        data_type="financials",
+        timestamp=datetime.now(tz=timezone.utc),
+    )
+
+
+def _inject_mock_deps(agent: FinAgent):
+    """Replace agent's deps/sub_agents so no real IO happens."""
+    from finagent.engine.agents.factory import create_sub_agents
+    from finagent.engine.deps import FinAgentDeps
+
+    mock_layer = MagicMock()
+    mock_layer.fetch = AsyncMock(return_value=_fake_result())
+    mock_layer.close = AsyncMock()
+
+    agent._deps = FinAgentDeps(
+        data_layer=mock_layer,
+        settings=agent._settings,
+        skill_runtime=None,
+    )
+    agent._sub_agents = create_sub_agents(agent._settings)
+    return mock_layer
+
+
+def _trivial_pipeline(*args, **kwargs) -> Pipeline:
+    """Replacement factory that returns a 1-step pipeline that always succeeds.
+
+    Used to monkey-patch create_equity_research_pipeline in SDK tests so we
+    exercise SDK plumbing without running DCF math against TestModel output.
+    """
+    async def fn(agent, deps, prompt, structured_context, ticker):
+        return f"trivial result for {ticker}"
+
+    step = PipelineStep(
+        name="trivial",
+        agent=MagicMock(),
+        validate=validate_is_non_empty,
+        execute_fn=fn,
+    )
+    return Pipeline(steps=[step])
+
+
+def test_init_with_model_override():
+    agent = FinAgent(model="test")
+    assert agent._settings.model_name == "test"
+
+
+def test_init_default_model_is_not_empty():
+    agent = FinAgent()
+    assert isinstance(agent._settings.model_name, str)
+    assert len(agent._settings.model_name) > 0
+
+
+def test_lazy_deps_not_built_on_init():
+    """__init__ must not construct providers or cache."""
+    agent = FinAgent(model="test")
+    assert agent._deps is None
+    assert agent._sub_agents is None
+
+
+async def test_sync_method_in_async_context_raises():
+    """Sync methods must detect an already-running loop and raise a clear
+    error instead of crashing or silently creating orphaned coroutines."""
+    agent = FinAgent(model="test")
+    with pytest.raises(RuntimeError, match="async context"):
+        agent.research("TEST")
+
+
+async def test_aresearch_returns_pipeline_result(monkeypatch):
+    """SDK plumbing test — monkeypatch the pipeline factory so we exercise
+    dep injection + return type, not equity_research's DCF math."""
+    import finagent.engine.pipelines.equity_research as er
+
+    monkeypatch.setattr(er, "create_equity_research_pipeline", _trivial_pipeline)
+
+    agent = FinAgent(model="test")
+    _inject_mock_deps(agent)
+
+    result = await agent.aresearch("TEST")
+    assert isinstance(result, PipelineResult)
+    assert "trivial" in result.steps
+    assert "TEST" in result.steps["trivial"]
+
+
+async def test_context_manager_closes_data_layer(monkeypatch):
+    import finagent.engine.pipelines.equity_research as er
+
+    monkeypatch.setattr(er, "create_equity_research_pipeline", _trivial_pipeline)
+
+    async with FinAgent(model="test") as agent:
+        mock_layer = _inject_mock_deps(agent)
+        result = await agent.aresearch("TEST")
+        assert isinstance(result, PipelineResult)
+    # After __aexit__, close() must have been awaited on the data layer.
+    mock_layer.close.assert_awaited()
+
+
+async def test_close_safe_without_deps():
+    """close() is a no-op if the agent never built deps."""
+    agent = FinAgent(model="test")
+    await agent.close()  # must not raise
+
+
+async def test_close_safe_called_twice(monkeypatch):
+    import finagent.engine.pipelines.equity_research as er
+
+    monkeypatch.setattr(er, "create_equity_research_pipeline", _trivial_pipeline)
+
+    agent = FinAgent(model="test")
+    mock_layer = _inject_mock_deps(agent)
+    _ = await agent.aresearch("TEST")
+    await agent.close()
+    # Second call must not raise — DataLayer.close is idempotent.
+    await agent.close()
+    # DataLayer.close() was called at least once through the agent
+    mock_layer.close.assert_awaited()

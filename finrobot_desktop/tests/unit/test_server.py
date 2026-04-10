@@ -160,3 +160,29 @@ class TestPipelineStream:
         assert "step_end" in body
         # Pipeline finished successfully → complete event present.
         assert "complete" in body or "error" in body
+
+    def test_no_bare_except_exception_in_finagent(self):
+        """Regression guard for P3 audit D1 / CLAUDE.md N2 discipline.
+
+        The SSE endpoint previously used `except Exception as e:` which
+        swallowed BaseException subclasses (KeyboardInterrupt, SystemExit,
+        MemoryError) and, worse, CancelledError — breaking client-disconnect
+        cleanup. This test fails the moment someone reintroduces a bare
+        `except Exception` anywhere under finagent/.
+        """
+        import pathlib
+
+        root = pathlib.Path(__file__).resolve().parents[2] / "finagent"
+        offenders: list[str] = []
+        for py in root.rglob("*.py"):
+            for lineno, line in enumerate(py.read_text().splitlines(), start=1):
+                stripped = line.strip()
+                if stripped.startswith("#"):
+                    continue
+                if "except Exception" in stripped and "BaseException" not in stripped:
+                    offenders.append(f"{py.relative_to(root.parent)}:{lineno}: {stripped}")
+        assert offenders == [], (
+            "`except Exception` is banned in finagent/ (P3 audit D1). "
+            "Catch concrete exception types and re-raise CancelledError. "
+            f"Found: {offenders}"
+        )

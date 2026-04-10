@@ -5,6 +5,7 @@ from typing import Any, Callable
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
+from pydantic import ValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 
@@ -12,6 +13,7 @@ from pydantic_ai.ui.vercel_ai import VercelAIAdapter
 
 from finagent.config import get_settings
 from finagent.engine.data.cache import DataCache
+from finagent.engine.data.interface import ProviderError
 from finagent.engine.data.layer import DataLayer
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.orchestrator import build_report_context, create_lead_agent
@@ -173,7 +175,17 @@ async def pipeline_stream(pipeline_type: str, ticker: str, request: Request):
             await queue.put(
                 {"event": "complete", "summary": result.format_summary()[:2000]}
             )
-        except Exception as e:
+        except asyncio.CancelledError:
+            # Client disconnected. Let event_stream's except-and-cancel path
+            # observe the cancellation by re-raising through the task. The
+            # finally block still runs so the sentinel is queued.
+            raise
+        except (ProviderError, ValidationError, ValueError, RuntimeError) as e:
+            # Known failure modes: data provider exhausted, LLM output failed
+            # validation, pipeline arithmetic/config error. Everything else
+            # (KeyboardInterrupt, SystemExit, MemoryError, programming bugs)
+            # is intentionally NOT caught here so it surfaces as a real crash
+            # instead of being hidden inside an SSE "error" event.
             await queue.put({"event": "error", "message": str(e)[:500]})
         finally:
             await queue.put(None)  # sentinel — signals event_stream to exit

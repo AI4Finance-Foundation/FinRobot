@@ -57,6 +57,10 @@ class FinAgent:
             overrides["model_name"] = model
         overrides.update(kwargs)
         self._settings = get_settings(**overrides)
+        # Fail fast on bad model config (P3 audit D2). ValueError bubbles
+        # out of __init__ so the SDK user sees the error immediately
+        # instead of waiting for the first LLM call to surface it.
+        self._settings.validate_runtime_config()
         self._deps: FinAgentDeps | None = None
         self._sub_agents: dict | None = None
         # Persistent loop for sync calls — see ``_run_sync``.

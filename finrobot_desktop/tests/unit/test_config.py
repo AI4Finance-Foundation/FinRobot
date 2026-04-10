@@ -71,3 +71,37 @@ class TestCreateModel:
         s = get_settings(model_name="deepseek:deepseek-chat", deepseek_api_key="sk-secret")
         s.create_model()
         assert os.environ.get("DEEPSEEK_API_KEY") is None
+
+
+class TestValidateRuntimeConfig:
+    """P3 audit D2: single source of truth for model config validation,
+    shared between CLI and SDK. Raises ValueError (not ClickException)."""
+
+    def test_valid_config_passes(self):
+        s = get_settings(model_name="deepseek:deepseek-chat", deepseek_api_key="sk-x")
+        s.validate_runtime_config()  # must not raise
+
+    def test_test_provider_needs_no_key(self):
+        s = get_settings(model_name="test")
+        s.validate_runtime_config()
+
+    def test_unknown_provider_raises_value_error(self):
+        s = get_settings(model_name="bogus:model-x")
+        with pytest.raises(ValueError, match="Unknown provider 'bogus'"):
+            s.validate_runtime_config()
+
+    def test_missing_api_key_raises_value_error(self, monkeypatch):
+        # Make sure .env doesn't inject a real key during this test.
+        monkeypatch.delenv("FINAGENT_DEEPSEEK_API_KEY", raising=False)
+        s = FinAgentSettings(_env_file=None, model_name="deepseek:deepseek-chat")
+        with pytest.raises(ValueError, match="FINAGENT_DEEPSEEK_API_KEY is not set"):
+            s.validate_runtime_config()
+
+    def test_bad_per_role_override_also_caught(self):
+        """Per-role overrides must be validated too, not just model_name."""
+        s = get_settings(
+            model_name="test",
+            model_modeling="bogus:x",
+        )
+        with pytest.raises(ValueError, match="Unknown provider 'bogus'"):
+            s.validate_runtime_config()

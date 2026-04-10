@@ -3,6 +3,15 @@ from __future__ import annotations
 from pydantic_ai.models import Model
 from pydantic_settings import BaseSettings
 
+# Valid providers and the settings field holding their API key. A provider
+# listed here but absent from _PROVIDER_KEY_FIELD needs no key (e.g. "test").
+_VALID_PROVIDERS: frozenset[str] = frozenset({"deepseek", "anthropic", "openai", "test"})
+_PROVIDER_KEY_FIELD: dict[str, str] = {
+    "deepseek": "deepseek_api_key",
+    "anthropic": "anthropic_api_key",
+    "openai": "openai_api_key",
+}
+
 
 class FinAgentSettings(BaseSettings):
     """FinAgent configuration.
@@ -52,6 +61,44 @@ class FinAgentSettings(BaseSettings):
         """
         override = getattr(self, f"model_{role}", None)
         return override or self.model_name
+
+    def validate_runtime_config(self) -> None:
+        """Fail fast if the model configuration is incoherent.
+
+        Checks the global ``model_name`` and every per-role override:
+        - provider prefix must be one of the supported backends;
+        - the provider's API key field must be populated (except "test").
+
+        Called from ``cli._build_deps`` and ``sdk.FinAgent.__init__`` so
+        users get an immediate error message instead of waiting 60 seconds
+        for the first LLM call to fail. Raises ``ValueError`` on failure;
+        CLI callers wrap that into ``click.ClickException``.
+        """
+        names_to_check: list[str] = [self.model_name]
+        for role in ("data", "analysis", "modeling", "synthesis", "report"):
+            override = getattr(self, f"model_{role}", None)
+            if override:
+                names_to_check.append(override)
+
+        for name in names_to_check:
+            provider, _, _model_id = name.partition(":")
+            if provider not in _VALID_PROVIDERS:
+                raise ValueError(
+                    f"Unknown provider '{provider}' in model_name '{name}'. "
+                    f"Valid providers: {', '.join(sorted(_VALID_PROVIDERS))}. "
+                    f"Format: provider:model_id "
+                    f"(e.g. anthropic:claude-sonnet-4-6)"
+                )
+            key_field = _PROVIDER_KEY_FIELD.get(provider)
+            if key_field is None:
+                continue  # "test" provider — no key required
+            if not getattr(self, key_field, ""):
+                env_var = f"FINAGENT_{key_field.upper()}"
+                raise ValueError(
+                    f"{env_var} is not set but model_name '{name}' needs it. "
+                    f"Set it in .env or as an environment variable.\n"
+                    f"  export {env_var}=your-key-here"
+                )
 
     def create_model(self, model_name: str | None = None) -> Model:
         """Create a PydanticAI Model with API key passed directly.

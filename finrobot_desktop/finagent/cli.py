@@ -18,43 +18,6 @@ logging.basicConfig(
 for _quiet in ("httpx", "httpcore", "urllib3", "yfinance", "filelock"):
     logging.getLogger(_quiet).setLevel(logging.WARNING)
 
-_VALID_PROVIDERS = {"deepseek", "anthropic", "openai", "test"}
-_PROVIDER_KEY_MAP = {
-    "deepseek": "FINAGENT_DEEPSEEK_API_KEY",
-    "anthropic": "FINAGENT_ANTHROPIC_API_KEY",
-    "openai": "FINAGENT_OPENAI_API_KEY",
-}
-
-
-def _validate_model_config(settings) -> None:
-    """Fail fast if the model provider's API key is missing.
-
-    Called at startup before any data fetching or LLM calls,
-    so users don't wait 60 seconds only to hit an auth error.
-    """
-    name = settings.model_name
-    provider, _, model_id = name.partition(":")
-
-    if provider not in _VALID_PROVIDERS:
-        raise click.ClickException(
-            f"Unknown provider '{provider}' in model_name '{name}'. "
-            f"Valid providers: {', '.join(sorted(_VALID_PROVIDERS))}. "
-            f"Format: provider:model_id (e.g. anthropic:claude-sonnet-4-6)"
-        )
-
-    env_var = _PROVIDER_KEY_MAP.get(provider)
-    if env_var is None:
-        return  # "test" provider needs no key
-
-    key_value = getattr(settings, env_var.replace("FINAGENT_", "").lower(), "")
-    if not key_value:
-        raise click.ClickException(
-            f"{env_var} is not set. "
-            f"Set it in .env or as an environment variable.\n"
-            f"  export {env_var}=your-key-here"
-        )
-
-
 def _build_deps(model: str | None = None):
     """Build deps only. No agent creation.
     Used by pipeline commands that create their own sub-agents."""
@@ -68,7 +31,14 @@ def _build_deps(model: str | None = None):
     if model:
         settings = get_settings(model_name=model)
 
-    _validate_model_config(settings)
+    # Runtime config validation is defined on FinAgentSettings (P3 audit D2)
+    # so CLI and SDK share one definition of "coherent settings". The
+    # settings method raises ValueError; we convert that into the
+    # CLI-specific ClickException so click formats it correctly.
+    try:
+        settings.validate_runtime_config()
+    except ValueError as e:
+        raise click.ClickException(str(e)) from e
 
     # Load skills if available
     skills_path = Path(settings.skills_dir)

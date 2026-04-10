@@ -82,6 +82,21 @@ def test_init_with_model_override():
     assert agent._settings.model_name == "test"
 
 
+def test_init_bad_provider_fails_fast():
+    """P3 audit D2: SDK must fail fast on bad model config instead of
+    waiting for the first LLM call to blow up 60 seconds later."""
+    with pytest.raises(ValueError, match="Unknown provider"):
+        FinAgent(model="bogus:model-x")
+
+
+def test_init_missing_api_key_fails_fast(monkeypatch):
+    """Missing API key should raise during __init__, not at first call."""
+    monkeypatch.delenv("FINAGENT_DEEPSEEK_API_KEY", raising=False)
+    # Pass an explicit empty key to bypass .env file resolution.
+    with pytest.raises(ValueError, match="FINAGENT_DEEPSEEK_API_KEY is not set"):
+        FinAgent(model="deepseek:deepseek-chat", deepseek_api_key="")
+
+
 def test_init_default_model_is_not_empty():
     agent = FinAgent()
     assert isinstance(agent._settings.model_name, str)

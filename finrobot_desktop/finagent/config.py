@@ -17,6 +17,15 @@ class FinAgentSettings(BaseSettings):
     # Model
     model_name: str = "deepseek:deepseek-chat"
 
+    # Per-role model overrides. None = use global model_name.
+    # Lets users pick a cheap/fast model for data_agent (just transcribes
+    # data) and a stronger model for modeling (needs reliable JSON output).
+    model_data: str | None = None
+    model_analysis: str | None = None
+    model_modeling: str | None = None
+    model_synthesis: str | None = None
+    model_report: str | None = None
+
     # API Keys — only fill the one you use
     anthropic_api_key: str = ""
     deepseek_api_key: str = ""
@@ -34,12 +43,26 @@ class FinAgentSettings(BaseSettings):
 
     model_config = {"env_prefix": "FINAGENT_", "env_file": ".env"}
 
-    def create_model(self) -> Model:
+    def get_model_for_role(self, role: str) -> str:
+        """Return the model name for a specific agent role.
+
+        Falls back to the global ``model_name`` if no override is configured
+        for this role or if the role is unknown. Roles currently used by the
+        sub-agent factory: data, analysis, modeling, synthesis, report.
+        """
+        override = getattr(self, f"model_{role}", None)
+        return override or self.model_name
+
+    def create_model(self, model_name: str | None = None) -> Model:
         """Create a PydanticAI Model with API key passed directly.
+
+        Args:
+            model_name: Optional per-call override. When omitted, uses
+                ``self.model_name`` (the global default).
 
         No os.environ pollution. The API key is baked into the provider instance.
         """
-        name = self.model_name  # e.g. "deepseek:deepseek-chat"
+        name = model_name or self.model_name  # e.g. "deepseek:deepseek-chat"
         provider, _, model_id = name.partition(":")
 
         if provider == "deepseek":

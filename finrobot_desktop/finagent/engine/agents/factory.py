@@ -30,8 +30,11 @@ def create_sub_agents(
     for role in ["data", "analysis", "modeling", "synthesis", "report"]:
         instructions = (INSTRUCTIONS_DIR / f"{role}_agent.md").read_text()
 
+        # Resolve per-role model override; falls back to global model_name
+        # when settings.model_<role> is None.
+        model_name = settings.get_model_for_role(role)
         agent = Agent(
-            settings.create_model(),
+            settings.create_model(model_name=model_name),
             deps_type=FinAgentDeps,
             instructions=instructions,
         )

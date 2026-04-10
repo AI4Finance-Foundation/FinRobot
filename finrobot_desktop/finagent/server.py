@@ -203,7 +203,7 @@ async def pipeline_stream(pipeline_type: str, ticker: str, request: Request):
 
 @app.get("/health")
 async def health():
-    return {"status": "ready", "phase": "P2c"}
+    return {"status": "ready", "phase": "P3"}
 
 
 @app.get("/api/report/html")

@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from finagent.engine.data.cache import DataCache
 from finagent.engine.data.interface import DataProvider, DataResult, ProviderError
 from finagent.engine.data.types import DataType
+from finagent.engine.data.validator import cross_validate
 
 logger = logging.getLogger(__name__)
 
@@ -13,12 +14,25 @@ class DataLayer:
         self._providers = providers
         self._cache = cache
 
+    async def close(self) -> None:
+        """Close the underlying cache connection.
+
+        Safe to call multiple times. Exposed as a public method so SDK
+        consumers can release resources via ``DataLayer.close()`` instead
+        of reaching into ``_cache``.
+        """
+        await self._cache.close()
+
     async def fetch(self, data_type: str | DataType, ticker: str, **kwargs) -> DataResult:
         """
         Flow:
         1. Check cache → if fresh, return
         2. Iterate all providers supporting this data_type (in priority order)
-        3. First successful fetch → cache → return
+        3. For non-financials: first successful fetch → cache → return
+           For financials: first success is kept, then a second provider is
+           tried so ``cross_validate`` can flag discrepancies (15% revenue,
+           5% market_cap, 10pp margin). Any warnings are appended to the
+           primary result before it's cached and returned.
         4. All providers failed → return stale cache with warning
         5. No cache at all → return error DataResult
         """
@@ -28,16 +42,40 @@ class DataLayer:
             return cached.data
 
         # 2. Try each provider in order
+        primary_result: DataResult | None = None
         for provider in self._providers:
             if data_type not in provider.capabilities():
                 continue
             try:
                 result = await provider.fetch(ticker, data_type, **kwargs)
-                await self._cache.set(data_type, ticker, result)
-                return result
             except ProviderError as e:
-                logger.warning(f"Provider '{provider.name}' failed for {ticker}/{data_type}: {e}")
+                logger.warning(
+                    f"Provider '{provider.name}' failed for {ticker}/{data_type}: {e}"
+                )
                 continue
+
+            if primary_result is None:
+                primary_result = result
+                # For financials we keep looking so we can cross-validate the
+                # numbers with a second provider. For every other data_type
+                # (price, news, etc.) the first success is enough.
+                if data_type == DataType.FINANCIALS:
+                    continue
+                break
+            else:
+                # Second provider succeeded → cross-validate numeric fields.
+                discrepancies = cross_validate(primary_result, result)
+                if discrepancies:
+                    for w in discrepancies:
+                        logger.warning(w)
+                    primary_result = primary_result.model_copy(
+                        update={"warnings": primary_result.warnings + discrepancies}
+                    )
+                break  # two providers checked — done
+
+        if primary_result is not None:
+            await self._cache.set(data_type, ticker, primary_result)
+            return primary_result
 
         # 3. All providers failed — return stale cache with PROMINENT warning
         if cached is not None:

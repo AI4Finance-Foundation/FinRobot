@@ -169,17 +169,22 @@ class TestChainFallback:
     """P2a: chain fallback iterates all providers, not just primary + 1 fallback."""
 
     async def test_three_provider_chain_first_succeeds(self, cache):
+        """P3 cross-validation: for ``financials`` data the layer also calls
+        the second provider so cross_validate() can check for discrepancies.
+        Third provider is still skipped."""
         p1 = MockProvider("fmp", ["financials"], result=_make_result(provider="fmp"))
         p2 = MockProvider("finnhub", ["financials"])
         p3 = MockProvider("yfinance", ["financials"])
         layer = DataLayer([p1, p2, p3], cache)
         result = await layer.fetch("financials", "AAPL")
-        assert result.provider == "fmp"
+        assert result.provider == "fmp"  # primary wins
         assert p1.fetch_called == 1
-        assert p2.fetch_called == 0
+        assert p2.fetch_called == 1  # P3: also called for cross-validation
         assert p3.fetch_called == 0
 
     async def test_three_provider_chain_first_fails_second_succeeds(self, cache):
+        """P3 cross-validation: after p1 fails and p2 succeeds, p3 is ALSO
+        called so cross_validate() has two numbers to compare."""
         p1 = MockProvider("fmp", ["financials"], raises=ProviderError("fmp down"))
         p2 = MockProvider("finnhub", ["financials"], result=_make_result(provider="finnhub"))
         p3 = MockProvider("yfinance", ["financials"])
@@ -188,7 +193,7 @@ class TestChainFallback:
         assert result.provider == "finnhub"
         assert p1.fetch_called == 1
         assert p2.fetch_called == 1
-        assert p3.fetch_called == 0
+        assert p3.fetch_called == 1  # P3: called for cross-validation
 
     async def test_three_provider_chain_first_two_fail_third_succeeds(self, cache):
         p1 = MockProvider("fmp", ["financials"], raises=ProviderError("fmp down"))
@@ -209,6 +214,79 @@ class TestChainFallback:
         result = await layer.fetch("financials", "AAPL")
         assert result.provider == "none"
         assert any("unavailable" in w.lower() or "failed" in w.lower() for w in result.warnings)
+
+
+class TestCrossValidationIntegration:
+    """P3 Track 3: DataLayer.fetch calls cross_validate for FINANCIALS."""
+
+    async def test_cross_validation_warning_appended_on_discrepancy(self, cache):
+        """Two providers disagree on revenue → warning appended to primary."""
+        payload_p1 = {"revenue": 100_000_000}
+        payload_p2 = {"revenue": 150_000_000}  # 33% discrepancy
+        r1 = DataResult(
+            data=payload_p1,
+            provider="fmp",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        r2 = DataResult(
+            data=payload_p2,
+            provider="finnhub",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        p1 = MockProvider("fmp", ["financials"], result=r1)
+        p2 = MockProvider("finnhub", ["financials"], result=r2)
+        layer = DataLayer([p1, p2], cache)
+        result = await layer.fetch("financials", "AAPL")
+        assert result.provider == "fmp"
+        assert any("revenue" in w and "discrepancy" in w for w in result.warnings)
+
+    async def test_cross_validation_no_warning_when_agreeing(self, cache):
+        """Two providers agree → no discrepancy warning on primary."""
+        payload = {"revenue": 100_000_000, "ebitda": 20_000_000}
+        r1 = DataResult(
+            data=payload,
+            provider="fmp",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        r2 = DataResult(
+            data=payload,
+            provider="finnhub",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        p1 = MockProvider("fmp", ["financials"], result=r1)
+        p2 = MockProvider("finnhub", ["financials"], result=r2)
+        layer = DataLayer([p1, p2], cache)
+        result = await layer.fetch("financials", "AAPL")
+        assert result.provider == "fmp"
+        assert not any("discrepancy" in w for w in result.warnings)
+
+    async def test_non_financials_does_not_cross_validate(self, cache):
+        """For data_type != financials, second provider is NOT called."""
+        p1 = MockProvider("p1", ["price"])
+        p2 = MockProvider("p2", ["price"])
+        layer = DataLayer([p1, p2], cache)
+        await layer.fetch("price", "AAPL")
+        assert p1.fetch_called == 1
+        assert p2.fetch_called == 0  # short-circuit for non-financials
+
+
+class TestClose:
+    """P3 Track 2: DataLayer.close() public method (T9)."""
+
+    async def test_close_is_safe_to_call(self, cache):
+        layer = DataLayer([MockProvider("mock", ["financials"])], cache)
+        await layer.close()  # first close: actually closes the cache
+        # Second close must not raise — DataCache.close is already idempotent,
+        # and DataLayer.close just delegates to it.
+        await layer.close()
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 import logging
+import time
 from dataclasses import dataclass, field
-from typing import Callable, Awaitable
+from typing import Awaitable, Callable, Protocol
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
@@ -11,6 +12,27 @@ from finagent.engine.models.financial import StepOutput
 from finagent.engine.pipelines.validators import ValidationResult
 
 logger = logging.getLogger(__name__)
+
+
+class ProgressCallback(Protocol):
+    """Called at start/end of each pipeline step and on every retry.
+
+    This is a structural Protocol: any object implementing these three async
+    methods can be passed to Pipeline.execute(progress=...). CLI, server SSE,
+    and SDK consumers each provide their own implementation.
+    """
+
+    async def on_step_start(
+        self, step_index: int, total: int, step_name: str
+    ) -> None: ...
+
+    async def on_step_end(
+        self, step_index: int, total: int, step_name: str, duration_s: float
+    ) -> None: ...
+
+    async def on_step_retry(
+        self, step_index: int, step_name: str, attempt: int, error: str
+    ) -> None: ...
 
 
 @dataclass
@@ -42,7 +64,13 @@ class Pipeline:
     steps: list[PipelineStep]
     max_retries: int = 3
 
-    async def execute(self, deps: "FinAgentDeps", ticker: str, **kwargs) -> "PipelineResult":
+    async def execute(
+        self,
+        deps: "FinAgentDeps",
+        ticker: str,
+        progress: ProgressCallback | None = None,
+        **kwargs,
+    ) -> "PipelineResult":
         results: dict[str, str] = {}
         structured_results: dict[str, object] = {}
         failed_validations: list[dict[str, str]] = []
@@ -50,6 +78,8 @@ class Pipeline:
 
         for i, step in enumerate(self.steps, start=1):
             logger.info(f"Step {i}/{total}: {step.name}...")
+            if progress is not None:
+                await progress.on_step_start(i, total, step.name)
 
             step_data = await self._gather_data(deps, step.required_data, ticker, results)
 
@@ -61,11 +91,17 @@ class Pipeline:
 
             prompt = self._build_step_prompt(step, step_data, methodology, structured_results)
 
+            t0 = time.monotonic()
             validation_error = await self._run_step(
                 step, deps, prompt, ticker, results, structured_results,
+                step_index=i, progress=progress,
             )
+            elapsed = time.monotonic() - t0
             if validation_error:
                 failed_validations.append({"step": step.name, "error": validation_error})
+
+            if progress is not None:
+                await progress.on_step_end(i, total, step.name, elapsed)
 
             logger.info(f"Step {i}/{total}: {step.name} \u2713")
 
@@ -131,6 +167,8 @@ class Pipeline:
         ticker: str,
         results: dict[str, str],
         structured_results: dict[str, object],
+        step_index: int = 0,
+        progress: ProgressCallback | None = None,
     ) -> str | None:
         """Execute a single pipeline step with retry logic.
 
@@ -152,6 +190,10 @@ class Pipeline:
                 f"Step '{step.name}' retry {attempt + 1}/{self.max_retries}: "
                 f"{validation.error}"
             )
+            if progress is not None:
+                await progress.on_step_retry(
+                    step_index, step.name, attempt + 1, validation.error or ""
+                )
             retry_prompt = (
                 f"Previous output failed validation: {validation.error}\n"
                 f"Fix the issues and try again.\n\n{results[step.name]}"

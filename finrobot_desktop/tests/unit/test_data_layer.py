@@ -277,6 +277,60 @@ class TestCrossValidationIntegration:
         assert p1.fetch_called == 1
         assert p2.fetch_called == 0  # short-circuit for non-financials
 
+    async def test_secondary_provider_warnings_preserved(self, cache):
+        """P3 audit I4: warnings from the secondary provider must survive
+        the cross-validation merge. Dropping them would hide useful
+        operational info such as 'data delayed 15 minutes'."""
+        primary = DataResult(
+            data={"revenue": 100_000_000},
+            provider="fmp",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+            warnings=["primary warning A"],
+        )
+        secondary = DataResult(
+            data={"revenue": 100_000_000},  # agreement → no discrepancy
+            provider="finnhub",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+            warnings=["finnhub: data delayed 15 min"],
+        )
+        p1 = MockProvider("fmp", ["financials"], result=primary)
+        p2 = MockProvider("finnhub", ["financials"], result=secondary)
+        layer = DataLayer([p1, p2], cache)
+        result = await layer.fetch("financials", "AAPL")
+        assert result.provider == "fmp"
+        assert "primary warning A" in result.warnings
+        assert "finnhub: data delayed 15 min" in result.warnings
+
+    async def test_cross_validation_merge_dedupes_warnings(self, cache):
+        """If primary and secondary share an identical warning string, the
+        merged result should contain it only once (de-dup preserves order)."""
+        shared = "data delayed 15 min"
+        primary = DataResult(
+            data={"revenue": 100_000_000},
+            provider="fmp",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+            warnings=[shared],
+        )
+        secondary = DataResult(
+            data={"revenue": 100_000_000},
+            provider="finnhub",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+            warnings=[shared],
+        )
+        p1 = MockProvider("fmp", ["financials"], result=primary)
+        p2 = MockProvider("finnhub", ["financials"], result=secondary)
+        layer = DataLayer([p1, p2], cache)
+        result = await layer.fetch("financials", "AAPL")
+        assert result.warnings.count(shared) == 1
+
 
 class TestClose:
     """P3 Track 2: DataLayer.close() public method (T9)."""

@@ -424,7 +424,12 @@ class ForecastAssumptions(BaseModel):
     gross_margin: float
     ebitda_margin: float
     sga_ratio: float
-    tax_rate: float = 0.21
+    tax_rate: float = Field(
+        default=0.21,
+        ge=0,
+        le=1.0,
+        description="Corporate tax rate. Default 0.21 (US federal). Override for non-US companies.",
+    )
 
 
 class ForecastResult(BaseModel):

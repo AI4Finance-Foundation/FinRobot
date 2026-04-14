@@ -147,6 +147,7 @@ def forecast_financials(
     historical: HistoricalMetrics,
     revenue_growth_assumptions: list[float],
     margin_assumptions: MarginAssumptions,
+    tax_rate: float = 0.21,
 ) -> ForecastResult:
     """Deterministic multi-year financial forecast.
 
@@ -155,10 +156,13 @@ def forecast_financials(
     Net income = EBITDA * (1 - tax_rate)
     EPS = net_income / shares_outstanding
 
+    Args:
+        tax_rate: Corporate tax rate as decimal. Default 0.21 (US federal).
+            Override for non-US companies (e.g. 0.196 Japan, 0.25 EU average).
+
     Uses target margins from margin_assumptions if provided, otherwise
     historical averages. Records all assumptions in ForecastAssumptions.
     """
-    tax_rate = 0.21
 
     # Derive shares_outstanding from most recent year with non-zero EPS.
     # Refuse fallback to 1.0 — that would make EPS ≈ net_income (off by ~10⁹x).

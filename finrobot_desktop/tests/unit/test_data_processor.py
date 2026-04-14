@@ -447,6 +447,24 @@ class TestForecastFinancials:
             assert len(result.eps) == n
 
 
+    def test_forecast_custom_tax_rate(self, historical: HistoricalMetrics):
+        """C2 regression: tax_rate must be parameterized, not hardcoded 0.21.
+
+        With tax_rate=0.25 (e.g. EU average):
+        Year 1 EBITDA = 421.58e9 * 0.33 = 139.1214e9
+        Year 1 net_income = 139.1214e9 * (1 - 0.25) = 104.34105e9
+        (vs 109.905906e9 with US 0.21 — ~5% difference)
+        """
+        result = forecast_financials(
+            historical,
+            revenue_growth_assumptions=[0.07],
+            margin_assumptions=MarginAssumptions(ebitda_margin_target=0.33),
+            tax_rate=0.25,
+        )
+        assert result.net_income[0] == pytest.approx(104.34105e9, rel=1e-4)
+        assert result.assumptions.tax_rate == 0.25
+
+
 class TestForecastSharesFallback:
     """C1 regression: shares_outstanding must never silently fall back to 1.0."""
 

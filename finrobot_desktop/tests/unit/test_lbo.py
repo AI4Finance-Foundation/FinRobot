@@ -169,3 +169,16 @@ class TestComputeIRR:
 
     def test_irr_zero_entry_equity(self):
         assert _compute_irr(0.0, 200.0, 5) == pytest.approx(-1.0)
+
+
+class TestIRRFormulaWarning:
+    """C4 regression: LBOResult must carry irr_formula_warning for user transparency."""
+
+    def test_irr_formula_warning_present(self):
+        result = calculate_lbo(_base_inputs())
+        assert result.irr_formula_warning is not None
+        assert "closed-form" in result.irr_formula_warning
+
+    def test_irr_formula_warning_mentions_interim_flows(self):
+        result = calculate_lbo(_base_inputs())
+        assert "interim" in result.irr_formula_warning.lower()

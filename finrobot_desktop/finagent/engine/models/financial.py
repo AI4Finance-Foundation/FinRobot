@@ -553,6 +553,7 @@ class LBOResult(BaseModel):
         default_factory=dict,
         description="entry_multiples, exit_multiples, irr_grid, moic_grid",
     )
+    irr_formula_warning: str | None = None
 
 
 # ---------------------------------------------------------------------------

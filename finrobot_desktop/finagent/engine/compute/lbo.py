@@ -54,6 +54,12 @@ def _calculate_lbo_core(inputs: LBOInputs) -> LBOResult:
         exit_equity=exit_equity,
         moic=moic,
         irr=irr,
+        irr_formula_warning=(
+            "IRR uses closed-form (entry_equity → exit_equity)^(1/n) − 1, assuming "
+            "no interim cash flows. Dividend recaps, management fee recaps, and "
+            "partial exits are ignored — actual IRR may be materially different. "
+            "For complex LBO structures, use a full NPV=0 solver."
+        ),
     )
 
 

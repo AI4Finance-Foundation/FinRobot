@@ -66,17 +66,20 @@ async def _execute_lbo_calc(agent, deps, prompt, structured_context, ticker):
 
     result: LBOResult = calculate_lbo(inputs)
 
+    warning_prefix = (
+        f"[WARNING: {result.irr_formula_warning}]\n\n"
+        if result.irr_formula_warning
+        else ""
+    )
     narrative = (
+        f"{warning_prefix}"
         f"LBO implies {result.moic:.1f}× MOIC and {result.irr:.1%} IRR over "
         f"{inputs.holding_period_years} years. "
         f"Entry equity: ${result.entry_equity / 1e6:.0f}M, "
         f"Exit equity: ${result.exit_equity / 1e6:.0f}M. "
         f"Entry EV: ${result.entry_ev / 1e6:.0f}M "
         f"({inputs.entry_ev_ebitda:.1f}× EBITDA), "
-        f"Entry debt: ${result.entry_debt / 1e6:.0f}M.\n"
-        f"[NOTE: IRR uses closed-form formula assuming single entry/exit cash flow. "
-        f"Does not account for interim dividends or recapitalizations. "
-        f"Actual PE returns may differ.]"
+        f"Entry debt: ${result.entry_debt / 1e6:.0f}M."
     )
     return StepOutput(text=narrative, structured=result)
 

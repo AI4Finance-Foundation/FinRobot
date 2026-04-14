@@ -1,7 +1,12 @@
+from __future__ import annotations
+
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable, Protocol
+from typing import TYPE_CHECKING, Awaitable, Callable, Protocol
+
+if TYPE_CHECKING:
+    from finagent.engine.deps import FinAgentDeps
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
@@ -53,7 +58,7 @@ class PipelineStep:
     """
 
     # NEW in P1.5: typed output validator
-    validate_structured: Callable[[object], ValidationResult] | None = None
+    validate_structured: Callable[..., ValidationResult] | None = None
     """Optional validator for structured data (e.g., validate_dcf_result(DCFResult))."""
 
 
@@ -69,7 +74,7 @@ class Pipeline:
         deps: "FinAgentDeps",
         ticker: str,
         progress: ProgressCallback | None = None,
-        **kwargs,
+        **kwargs: object,
     ) -> "PipelineResult":
         results: dict[str, str] = {}
         structured_results: dict[str, object] = {}
@@ -123,8 +128,8 @@ class Pipeline:
         """
         if step.execute_fn is not None:
             return await step.execute_fn(step.agent, deps, prompt, structured_results, ticker)
-        step_result = await step.agent.run(prompt, deps=deps)
-        return step_result.output
+        step_result = await step.agent.run(prompt, deps=deps)  # type: ignore[call-overload]
+        return step_result.output  # type: ignore[no-any-return]
 
     @staticmethod
     def _store_output(
@@ -145,7 +150,7 @@ class Pipeline:
         elif isinstance(output, str):
             results[step_name] = output
         else:
-            results[step_name] = str(output)
+            results[step_name] = str(output)  # type: ignore[unreachable]
 
     @staticmethod
     def _validate_step(
@@ -257,7 +262,7 @@ class Pipeline:
         step: PipelineStep,
         step_data: str,
         methodology: str,
-        structured_context: dict,
+        structured_context: dict[str, object],
     ) -> str:
         parts = [f"Step: {step.name}"]
         if step_data:

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -9,7 +10,7 @@ from finagent.engine.data.types import DataType
 class DataResult(BaseModel):
     """Structured result from any data provider."""
 
-    data: dict  # the actual financial data
+    data: dict[str, Any]  # the actual financial data
     provider: str  # which provider returned this
     ticker: str
     data_type: str | DataType  # use DataType constants; str accepted for backwards-compat
@@ -42,7 +43,7 @@ class DataProvider(ABC):
         """Returns list of data_types this provider supports."""
 
     @abstractmethod
-    async def fetch(self, ticker: str, data_type: str | DataType, **kwargs) -> DataResult: ...
+    async def fetch(self, ticker: str, data_type: str | DataType, **kwargs: Any) -> DataResult: ...
 
 
 class ProviderError(Exception):

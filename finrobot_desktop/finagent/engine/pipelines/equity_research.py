@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import asyncio
 import logging
+from typing import Any
 
 from pydantic import ValidationError
 from pydantic_ai import Agent
@@ -7,6 +10,7 @@ from pydantic_ai.exceptions import AgentRunError
 
 from finagent.engine.data.interface import ProviderError
 from finagent.engine.data.types import DataType
+from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import (
     FinancialData,
     CompanyFinancials,
@@ -36,9 +40,15 @@ from finagent.engine.pipelines.validators import (
 logger = logging.getLogger(__name__)
 
 
-async def _execute_data_collection(agent, deps, prompt, structured_context, ticker):
+async def _execute_data_collection(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> StepOutput:
     """Agent provides narrative; code extracts typed FinancialData from yfinance."""
-    step_result = await agent.run(prompt, deps=deps)
+    step_result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
     raw_text = step_result.output
 
     financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
@@ -48,7 +58,13 @@ async def _execute_data_collection(agent, deps, prompt, structured_context, tick
     return StepOutput(text=raw_text, structured=financial_data)
 
 
-async def _execute_peer_analysis(agent, deps, prompt, structured_context, ticker):
+async def _execute_peer_analysis(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> StepOutput:
     """LLM selects peer tickers (structured output); code fetches and computes multiples."""
     peer_agent = Agent(
         deps.settings.model_name,
@@ -61,7 +77,7 @@ async def _execute_peer_analysis(agent, deps, prompt, structured_context, ticker
         defer_model_check=True,
     )
     try:
-        peer_result = await peer_agent.run(prompt, deps=deps)
+        peer_result = await peer_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
         selection = peer_result.output
     except (AgentRunError, ValidationError, ValueError) as e:
         raise ValueError(f"Failed to select peer companies: {e}") from e
@@ -85,11 +101,12 @@ async def _execute_peer_analysis(agent, deps, prompt, structured_context, ticker
             f"Attempted: {selection.tickers}."
         )
 
-    target_fin: FinancialData = structured_context.get("data_collection")
-    if target_fin is None:
+    target_fin_raw = structured_context.get("data_collection")
+    if not isinstance(target_fin_raw, FinancialData):
         raise ValueError(
             "data_collection structured output not available; cannot build peer target."
         )
+    target_fin = target_fin_raw
     target = CompanyFinancials(
         ticker=ticker,
         revenue=target_fin.revenue,
@@ -123,7 +140,13 @@ async def _execute_peer_analysis(agent, deps, prompt, structured_context, ticker
     return StepOutput(text=narrative, structured=peer_comps)
 
 
-async def _execute_financial_modeling(agent, deps, prompt, structured_context, ticker):
+async def _execute_financial_modeling(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> StepOutput:
     """param_agent selects DCF assumptions; calculate_dcf() does all math."""
     param_agent = Agent(
         deps.settings.model_name,
@@ -136,7 +159,7 @@ async def _execute_financial_modeling(agent, deps, prompt, structured_context, t
         defer_model_check=True,
     )
     try:
-        param_result = await param_agent.run(prompt, deps=deps)
+        param_result = await param_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
         dcf_inputs = param_result.output
     except (AgentRunError, ValidationError, ValueError) as e:
         raise ValueError(f"LLM failed to produce valid DCF parameters: {e}") from e
@@ -162,7 +185,13 @@ async def _execute_financial_modeling(agent, deps, prompt, structured_context, t
     return StepOutput(text=narrative, structured=dcf_result)
 
 
-async def _execute_thesis(agent, deps, prompt, structured_context, ticker):
+async def _execute_thesis(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> StepOutput:
     """synthesis_agent writes thesis with structured output."""
     synthesis_agent = Agent(
         deps.settings.model_name,
@@ -174,7 +203,7 @@ async def _execute_thesis(agent, deps, prompt, structured_context, ticker):
         defer_model_check=True,
     )
     try:
-        result = await synthesis_agent.run(prompt, deps=deps)
+        result = await synthesis_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
         thesis = result.output
     except (AgentRunError, ValidationError, ValueError) as e:
         raise ValueError(f"LLM failed to produce valid thesis: {e}") from e

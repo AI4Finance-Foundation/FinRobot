@@ -59,7 +59,7 @@ def _get_env() -> Environment:
     return env
 
 
-def render_equity_report(context: dict) -> str:
+def render_equity_report(context: dict[str, object]) -> str:
     """Render full equity research HTML report.
 
     context keys: ticker, company_name, current_price, market_cap,
@@ -72,7 +72,7 @@ def render_equity_report(context: dict) -> str:
     return template.render(**context)
 
 
-def render_comps_report(context: dict) -> str:
+def render_comps_report(context: dict[str, object]) -> str:
     """Render comparable company analysis HTML report.
 
     context keys: ticker, charts (dict of base64 strings), peer_comps
@@ -82,7 +82,7 @@ def render_comps_report(context: dict) -> str:
     return template.render(**context)
 
 
-def render_dcf_report(context: dict) -> str:
+def render_dcf_report(context: dict[str, object]) -> str:
     """Render DCF valuation HTML report.
 
     context keys: ticker, charts (dict of base64 strings), dcf_result
@@ -92,7 +92,7 @@ def render_dcf_report(context: dict) -> str:
     return template.render(**context)
 
 
-def render_lbo_report(context: dict) -> str:
+def render_lbo_report(context: dict[str, object]) -> str:
     """Render LBO analysis HTML report.
 
     context keys: ticker, lbo_result
@@ -102,7 +102,7 @@ def render_lbo_report(context: dict) -> str:
     return template.render(**context)
 
 
-def render_earnings_report(context: dict) -> str:
+def render_earnings_report(context: dict[str, object]) -> str:
     """Render earnings analysis HTML report.
 
     context keys: ticker, earnings_result
@@ -112,7 +112,7 @@ def render_earnings_report(context: dict) -> str:
     return template.render(**context)
 
 
-def render_ic_memo_report(context: dict) -> str:
+def render_ic_memo_report(context: dict[str, object]) -> str:
     """Render IC memo HTML report.
 
     context keys: ticker, ic_financials, steps

@@ -11,7 +11,7 @@ class Skill(BaseModel):
     domain: str  # e.g. "equity-research"
     description: str  # first paragraph of body, or frontmatter description
     triggers: list[str] = []  # search keywords
-    requires_data: list[dict] = []  # parsed but not enforced until P1b
+    requires_data: list[dict[str, str]] = []  # parsed but not enforced until P1b
     requires_tools: list[str] = []  # parsed but not enforced until P2c
     requires_skills: list[str] = []  # parsed but not enforced until P3a
     compatible_models: list[str] = []  # optional, informational only

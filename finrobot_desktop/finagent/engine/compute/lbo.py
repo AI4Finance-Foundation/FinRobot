@@ -13,6 +13,7 @@ Key formula notes:
 """
 
 import logging
+from typing import Any
 
 from finagent.engine.models.financial import LBOInputs, LBOResult, LBOYear
 
@@ -149,14 +150,14 @@ def _compute_irr(entry_equity: float, exit_equity: float, years: int) -> float:
     """
     if entry_equity <= 0 or exit_equity <= 0:
         return -1.0
-    return (exit_equity / entry_equity) ** (1.0 / years) - 1.0
+    return float((exit_equity / entry_equity) ** (1.0 / years) - 1.0)
 
 
 def calculate_lbo_sensitivity(
     inputs: LBOInputs,
     entry_range: list[float] | None = None,
     exit_range: list[float] | None = None,
-) -> dict[str, list]:
+) -> dict[str, Any]:
     """Build IRR and MOIC sensitivity grids vs entry/exit EV/EBITDA multiples.
 
     Grid axes:

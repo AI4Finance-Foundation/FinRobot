@@ -1,3 +1,5 @@
+from typing import Any
+
 from finagent.engine.models.financial import DCFInputs, DCFResult
 from finagent.engine.compute.wacc import calculate_wacc
 
@@ -112,14 +114,14 @@ def calculate_sensitivity(
     inputs: DCFInputs,
     wacc_range: list[float],
     tg_range: list[float],
-) -> dict[str, list]:
+) -> dict[str, Any]:
     """Generate sensitivity table: implied price for each (WACC, terminal_growth) pair.
 
     Returns None for cells where tg >= wacc (Gordon Growth Model undefined).
     """
-    implied_prices = []
+    implied_prices: list[list[float | None]] = []
     for w in wacc_range:
-        row = []
+        row: list[float | None] = []
         for g in tg_range:
             if g >= w:
                 row.append(None)

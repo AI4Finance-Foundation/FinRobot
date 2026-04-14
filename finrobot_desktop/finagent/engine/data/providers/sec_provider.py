@@ -4,6 +4,7 @@ import asyncio
 import logging
 import re
 from datetime import datetime, timezone
+from typing import Any
 
 import httpx
 
@@ -44,7 +45,7 @@ class SECEdgarProvider(DataProvider):
     def capabilities(self) -> list[str | DataType]:
         return list(_SUPPORTED)
 
-    async def fetch(self, ticker: str, data_type: str | DataType, **kwargs) -> DataResult:
+    async def fetch(self, ticker: str, data_type: str | DataType, **kwargs: Any) -> DataResult:
         if data_type not in _SUPPORTED:
             raise ProviderError(
                 f"data_type '{data_type}' is not supported by SEC EDGAR. Supported: {_SUPPORTED}"
@@ -71,7 +72,7 @@ class SECEdgarProvider(DataProvider):
             warnings=warnings,
         )
 
-    async def _fetch_filings(self, ticker: str) -> tuple[dict, list[str]]:
+    async def _fetch_filings(self, ticker: str) -> tuple[dict[str, Any], list[str]]:
         """Fetch latest 10-K filing metadata and MD&A from SEC EDGAR.
 
         Returns:

@@ -11,15 +11,20 @@ What code does that LLM cannot:
   - Exact beat_rate computation over N quarters
   - Consecutive streak arithmetic
 """
+from __future__ import annotations
+
 import logging
+from typing import Any
 
 from pydantic_ai import Agent
 
 from finagent.engine.compute.earnings import calculate_earnings_surprises
 from finagent.engine.data.types import DataType
+from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import EarningsResult, StepOutput
 from finagent.engine.pipelines.base import Pipeline, PipelineStep
 from finagent.engine.pipelines.validators import (
+    ValidationResult,
     validate_has_fields,
     validate_is_non_empty,
 )
@@ -28,7 +33,13 @@ from finagent.engine.data.interface import ProviderError
 logger = logging.getLogger(__name__)
 
 
-async def _execute_earnings_data(agent, deps, prompt, structured_context, ticker):
+async def _execute_earnings_data(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> StepOutput:
     """Fetch earnings history and compute surprise statistics."""
     try:
         earnings_result = await deps.data_layer.fetch(DataType.EARNINGS, ticker)
@@ -48,8 +59,7 @@ async def _execute_earnings_data(agent, deps, prompt, structured_context, ticker
     return StepOutput(text=text, structured=calculated)
 
 
-def _validate_earnings_result(result: EarningsResult):
-    from finagent.engine.pipelines.validators import ValidationResult
+def _validate_earnings_result(result: EarningsResult) -> ValidationResult:
     if result.beat_rate < 0 or result.beat_rate > 1:
         return ValidationResult(passed=False, error=f"beat_rate {result.beat_rate} out of [0,1]")
     return ValidationResult(passed=True)

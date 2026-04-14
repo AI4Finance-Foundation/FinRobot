@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import httpx
 
@@ -34,7 +35,7 @@ class FinnhubProvider(DataProvider):
     def capabilities(self) -> list[str | DataType]:
         return list(_SUPPORTED)
 
-    async def fetch(self, ticker: str, data_type: str | DataType, **kwargs) -> DataResult:
+    async def fetch(self, ticker: str, data_type: str | DataType, **kwargs: Any) -> DataResult:
         if data_type not in _SUPPORTED:
             raise ProviderError(
                 f"data_type '{data_type}' is not supported by Finnhub. Supported: {_SUPPORTED}"
@@ -66,7 +67,7 @@ class FinnhubProvider(DataProvider):
             timestamp=datetime.now(tz=timezone.utc),
         )
 
-    async def _fetch_financials(self, ticker: str, *, years: int | None = None) -> dict:
+    async def _fetch_financials(self, ticker: str, *, years: int | None = None) -> dict[str, Any]:
         profile = (await self._get("/stock/profile2", params={"symbol": ticker})).json()
 
         reported = (
@@ -89,7 +90,7 @@ class FinnhubProvider(DataProvider):
         return self._parse_filing(latest, profile)
 
     @staticmethod
-    def _parse_filing(filing: dict, profile: dict) -> dict:
+    def _parse_filing(filing: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
         """Parse a single Finnhub SEC filing into a normalized dict."""
         report = filing.get("report", {})
 
@@ -97,7 +98,8 @@ class FinnhubProvider(DataProvider):
             items = report.get(section, [])
             for item in items:
                 if item.get("concept") == concept:
-                    return item.get("value")
+                    val: Any = item.get("value")
+                    return float(val) if val is not None else None
             return None
 
         mkt_cap_millions = profile.get("marketCapitalization", 0)
@@ -131,7 +133,7 @@ class FinnhubProvider(DataProvider):
             "industry": profile.get("finnhubIndustry"),
         }
 
-    async def _fetch_profile(self, ticker: str) -> dict:
+    async def _fetch_profile(self, ticker: str) -> dict[str, Any]:
         profile = (await self._get("/stock/profile2", params={"symbol": ticker})).json()
         return {
             "company_name": profile.get("name"),
@@ -146,7 +148,7 @@ class FinnhubProvider(DataProvider):
         today = datetime.now(tz=timezone.utc).date()
         from_date = (today - timedelta(days=90)).isoformat()
         to_date = today.isoformat()
-        raw: list[dict] = (
+        raw: list[dict[str, Any]] = (
             await self._get(
                 "/company-news",
                 params={"symbol": ticker, "from": from_date, "to": to_date},
@@ -173,7 +175,7 @@ class FinnhubProvider(DataProvider):
             timestamp=datetime.now(tz=timezone.utc),
         )
 
-    async def _get(self, path: str, params: dict | None = None) -> httpx.Response:
+    async def _get(self, path: str, params: dict[str, Any] | None = None) -> httpx.Response:
         """Make authenticated, rate-limited GET request to Finnhub API.
 
         Serialises concurrent calls via asyncio.Lock and enforces a minimum

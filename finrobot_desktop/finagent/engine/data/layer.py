@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timezone
+from typing import Any
 
 from finagent.engine.data.cache import DataCache
 from finagent.engine.data.interface import DataProvider, DataResult, ProviderError
@@ -23,7 +24,7 @@ class DataLayer:
         """
         await self._cache.close()
 
-    async def fetch(self, data_type: str | DataType, ticker: str, **kwargs) -> DataResult:
+    async def fetch(self, data_type: str | DataType, ticker: str, **kwargs: Any) -> DataResult:
         """
         Flow:
         1. Check cache → if fresh, return
@@ -125,7 +126,7 @@ class DataLayer:
         )
 
     async def fetch_historical(
-        self, data_type: str | DataType, ticker: str, years: int = 5, **kwargs
+        self, data_type: str | DataType, ticker: str, years: int = 5, **kwargs: Any
     ) -> list[DataResult]:
         """Fetch multi-year historical data.
 

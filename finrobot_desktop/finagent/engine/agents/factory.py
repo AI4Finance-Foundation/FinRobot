@@ -50,4 +50,4 @@ def create_sub_agents(
         result = await ctx.deps.data_layer.fetch(data_type, ticker)
         return result.to_context_string()
 
-    return agents
+    return agents  # type: ignore[return-value]

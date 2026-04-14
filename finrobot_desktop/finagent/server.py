@@ -1,4 +1,5 @@
 import json
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Callable
@@ -53,7 +54,7 @@ def _get_pipeline_factories() -> dict[str, Callable[..., Any]]:
 
 
 @asynccontextmanager
-async def lifespan(app):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
 
     # Load skills if available
@@ -64,7 +65,7 @@ async def lifespan(app):
     from finagent.engine.data.providers.yfinance_provider import YFinanceProvider
     from finagent.engine.data.providers.sec_provider import SECEdgarProvider
 
-    providers: list = []
+    providers: list[Any] = []
     if settings.fmp_api_key:
         from finagent.engine.data.providers.fmp_provider import FMPProvider
 
@@ -102,7 +103,7 @@ async def chat(request: Request) -> Response:
 
 
 @app.get("/api/pipeline/stream/{pipeline_type}/{ticker}")
-async def pipeline_stream(pipeline_type: str, ticker: str, request: Request):
+async def pipeline_stream(pipeline_type: str, ticker: str, request: Request) -> Response:
     """Stream pipeline progress as Server-Sent Events.
 
     Events emitted (one JSON object per SSE `data:` frame):
@@ -126,7 +127,7 @@ async def pipeline_stream(pipeline_type: str, ticker: str, request: Request):
             },
         )
 
-    queue: asyncio.Queue = asyncio.Queue()
+    queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
 
     class SseProgress:
         """ProgressCallback that pushes events into the SSE queue."""
@@ -190,7 +191,7 @@ async def pipeline_stream(pipeline_type: str, ticker: str, request: Request):
         finally:
             await queue.put(None)  # sentinel — signals event_stream to exit
 
-    async def event_stream():
+    async def event_stream() -> Any:
         task = asyncio.create_task(run_pipeline())
         try:
             while True:
@@ -214,12 +215,12 @@ async def pipeline_stream(pipeline_type: str, ticker: str, request: Request):
 
 
 @app.get("/health")
-async def health():
+async def health() -> dict[str, str]:
     return {"status": "ready", "phase": "P3"}
 
 
 @app.get("/api/report/html")
-async def report_html(request: Request, ticker: str):
+async def report_html(request: Request, ticker: str) -> HTMLResponse:
     """Generate and return HTML equity research report from cached pipeline results."""
     from finagent.engine.reports.html_renderer import render_equity_report
 
@@ -304,7 +305,7 @@ async def export_excel(analysis_type: str, ticker: str, request: Request) -> Res
 
 
 @app.get("/api/report/pdf")
-async def report_pdf(request: Request, ticker: str):
+async def report_pdf(request: Request, ticker: str) -> Response:
     """Generate and return PDF equity research report from cached pipeline results."""
     from finagent.engine.reports.html_renderer import render_equity_report
     from finagent.engine.reports.pdf_renderer import render_pdf

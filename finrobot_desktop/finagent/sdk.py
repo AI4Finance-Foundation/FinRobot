@@ -62,7 +62,7 @@ class FinAgent:
         # instead of waiting for the first LLM call to surface it.
         self._settings.validate_runtime_config()
         self._deps: FinAgentDeps | None = None
-        self._sub_agents: dict | None = None
+        self._sub_agents: dict[str, Any] | None = None
         # Persistent loop for sync calls — see ``_run_sync``.
         self._loop: asyncio.AbstractEventLoop | None = None
 
@@ -73,7 +73,7 @@ class FinAgent:
     async def __aenter__(self) -> "FinAgent":
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any) -> None:
         await self.close()
 
     # ------------------------------------------------------------------ #
@@ -92,7 +92,7 @@ class FinAgent:
         from finagent.engine.data.providers.yfinance_provider import YFinanceProvider
         from finagent.engine.skills.registry import SkillRegistry
 
-        providers: list = []
+        providers: list[Any] = []
         if self._settings.fmp_api_key:
             from finagent.engine.data.providers.fmp_provider import FMPProvider
 
@@ -119,7 +119,7 @@ class FinAgent:
         )
         return self._deps
 
-    def _get_sub_agents(self) -> dict:
+    def _get_sub_agents(self) -> dict[str, Any]:
         self._ensure_deps()
         assert self._sub_agents is not None  # set by _ensure_deps
         return self._sub_agents
@@ -128,7 +128,7 @@ class FinAgent:
     # Sync API                                                           #
     # ------------------------------------------------------------------ #
 
-    def _run_sync(self, coro_fn):
+    def _run_sync(self, coro_fn: Any) -> Any:
         """Run an async coroutine factory synchronously.
 
         ``coro_fn`` must be a **callable** that returns a coroutine (typically
@@ -165,32 +165,38 @@ class FinAgent:
 
         Use :meth:`aresearch` in async contexts (Jupyter, FastAPI, etc.).
         """
-        return self._run_sync(lambda: self.aresearch(ticker, progress=progress))
+        result: PipelineResult = self._run_sync(lambda: self.aresearch(ticker, progress=progress))
+        return result
 
     def dcf(
         self, ticker: str, progress: "ProgressCallback | None" = None
     ) -> PipelineResult:
-        return self._run_sync(lambda: self.adcf(ticker, progress=progress))
+        result: PipelineResult = self._run_sync(lambda: self.adcf(ticker, progress=progress))
+        return result
 
     def comps(
         self, ticker: str, progress: "ProgressCallback | None" = None
     ) -> PipelineResult:
-        return self._run_sync(lambda: self.acomps(ticker, progress=progress))
+        result: PipelineResult = self._run_sync(lambda: self.acomps(ticker, progress=progress))
+        return result
 
     def lbo(
         self, ticker: str, progress: "ProgressCallback | None" = None
     ) -> PipelineResult:
-        return self._run_sync(lambda: self.albo(ticker, progress=progress))
+        result: PipelineResult = self._run_sync(lambda: self.albo(ticker, progress=progress))
+        return result
 
     def earnings(
         self, ticker: str, progress: "ProgressCallback | None" = None
     ) -> PipelineResult:
-        return self._run_sync(lambda: self.aearnings(ticker, progress=progress))
+        result: PipelineResult = self._run_sync(lambda: self.aearnings(ticker, progress=progress))
+        return result
 
     def ic_memo(
         self, ticker: str, progress: "ProgressCallback | None" = None
     ) -> PipelineResult:
-        return self._run_sync(lambda: self.aic_memo(ticker, progress=progress))
+        result: PipelineResult = self._run_sync(lambda: self.aic_memo(ticker, progress=progress))
+        return result
 
     # ------------------------------------------------------------------ #
     # Async API                                                          #

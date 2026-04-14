@@ -1,5 +1,6 @@
-import yaml
+import yaml  # type: ignore[import-untyped]
 from pathlib import Path
+from typing import Any
 
 from finagent.engine.skills.spec import Skill
 
@@ -52,7 +53,7 @@ def load_skill(path: Path) -> Skill:
     )
 
 
-def _parse_frontmatter(content: str) -> tuple[dict, str]:
+def _parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
     """Split YAML frontmatter from Markdown body.
     Returns (frontmatter_dict, markdown_body).
     Raises SkillLoadError if no valid frontmatter found."""
@@ -78,7 +79,7 @@ def _parse_frontmatter(content: str) -> tuple[dict, str]:
     return frontmatter, body
 
 
-def _extract_description(frontmatter: dict, body: str) -> str:
+def _extract_description(frontmatter: dict[str, Any], body: str) -> str:
     """Get description from frontmatter, or fall back to first paragraph of body."""
     if "description" in frontmatter and frontmatter["description"]:
         return str(frontmatter["description"])

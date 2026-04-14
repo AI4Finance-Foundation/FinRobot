@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 import logging
+from typing import Any
 
 from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import AgentRunError
 
 from finagent.engine.data.types import DataType
+from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import DCFInputs, StepOutput
 from finagent.engine.compute.extractor import extract_financial_data
 from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
@@ -21,16 +25,28 @@ from finagent.engine.pipelines.equity_research import _build_sensitivity_ranges
 logger = logging.getLogger(__name__)
 
 
-async def _execute_historical_data(agent, deps, prompt, structured_context, ticker):
+async def _execute_historical_data(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> StepOutput:
     """Fetch + extract typed FinancialData."""
-    step_result = await agent.run(prompt, deps=deps)
+    step_result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
     financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
     price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
     financial_data = extract_financial_data(financials_result, price_result)
     return StepOutput(text=step_result.output, structured=financial_data)
 
 
-async def _execute_dcf_calc(agent, deps, prompt, structured_context, ticker):
+async def _execute_dcf_calc(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> StepOutput:
     """param_agent selects DCFInputs; code computes full DCFResult + sensitivity."""
     param_agent = Agent(
         deps.settings.model_name,
@@ -42,7 +58,7 @@ async def _execute_dcf_calc(agent, deps, prompt, structured_context, ticker):
         defer_model_check=True,
     )
     try:
-        param_result = await param_agent.run(prompt, deps=deps)
+        param_result = await param_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
         dcf_inputs = param_result.output
     except (AgentRunError, ValidationError, ValueError) as e:
         raise ValueError(f"LLM failed to produce valid DCF parameters: {e}") from e

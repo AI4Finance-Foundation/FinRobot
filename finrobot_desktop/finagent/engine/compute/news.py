@@ -135,8 +135,8 @@ async def classify_news(
     prompt = f"Classify these {len(raw_items)} news items:\n{news_text}"
 
     try:
-        result = await classification_agent.run(prompt, deps=deps)
-        return result.output.items
+        result = await classification_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
+        return list(result.output.items)
     except (AgentRunError, ValueError, TypeError) as e:
         logger.warning(f"News classification failed: {e}")
         return []

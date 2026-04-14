@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic_ai.models import Model
 from pydantic_settings import BaseSettings
 
@@ -145,6 +147,6 @@ class FinAgentSettings(BaseSettings):
             )
 
 
-def get_settings(**overrides) -> FinAgentSettings:
+def get_settings(**overrides: Any) -> FinAgentSettings:
     """Get settings. Pass overrides for testing."""
     return FinAgentSettings(**overrides)

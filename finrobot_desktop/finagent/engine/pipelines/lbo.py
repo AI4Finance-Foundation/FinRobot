@@ -6,15 +6,19 @@
   3. lbo_calculation  — deterministic calculate_lbo() + sensitivity
   4. lbo_narrative    — LLM writes narrative / investment memo section
 """
+from __future__ import annotations
+
 import logging
+from typing import Any
 
 from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import AgentRunError
 
 from finagent.engine.compute.extractor import extract_financial_data
-from finagent.engine.compute.lbo import calculate_lbo, calculate_lbo_sensitivity
+from finagent.engine.compute.lbo import calculate_lbo
 from finagent.engine.data.types import DataType
+from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import LBOInputs, LBOResult, StepOutput
 from finagent.engine.pipelines.base import Pipeline, PipelineStep
 from finagent.engine.pipelines.validators import (
@@ -28,16 +32,28 @@ from finagent.engine.pipelines.validators import (
 logger = logging.getLogger(__name__)
 
 
-async def _execute_lbo_data(agent, deps, prompt, structured_context, ticker):
+async def _execute_lbo_data(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> StepOutput:
     """Fetch financials + price, extract typed FinancialData."""
-    step_result = await agent.run(prompt, deps=deps)
+    step_result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
     financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
     price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
     financial_data = extract_financial_data(financials_result, price_result)
     return StepOutput(text=step_result.output, structured=financial_data)
 
 
-async def _execute_lbo_params(agent, deps, prompt, structured_context, ticker):
+async def _execute_lbo_params(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> StepOutput:
     """LLM selects LBOInputs assumptions from financial data."""
     param_agent = Agent(
         deps.settings.model_name,
@@ -50,7 +66,7 @@ async def _execute_lbo_params(agent, deps, prompt, structured_context, ticker):
         defer_model_check=True,
     )
     try:
-        result = await param_agent.run(prompt, deps=deps)
+        result = await param_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
         inputs = result.output
     except (AgentRunError, ValidationError, ValueError) as e:
         raise ValueError(f"LLM failed to produce valid LBO parameters: {e}") from e
@@ -58,7 +74,13 @@ async def _execute_lbo_params(agent, deps, prompt, structured_context, ticker):
     return StepOutput(text=inputs.model_dump_json(), structured=inputs)
 
 
-async def _execute_lbo_calc(agent, deps, prompt, structured_context, ticker):
+async def _execute_lbo_calc(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> StepOutput:
     """Deterministic LBO calculation from LBOInputs."""
     inputs = structured_context.get("lbo_parameters")
     if not isinstance(inputs, LBOInputs):

@@ -29,4 +29,5 @@ def render_pdf(html: str) -> bytes:
         )
 
     doc = HTML(string=html)
-    return doc.write_pdf()
+    result: bytes = doc.write_pdf()
+    return result

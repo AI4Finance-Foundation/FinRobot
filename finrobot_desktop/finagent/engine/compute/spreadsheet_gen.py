@@ -16,10 +16,9 @@ from __future__ import annotations
 import io
 from typing import Any
 
-import openpyxl
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
-from openpyxl.formatting.rule import ColorScaleRule, CellIsRule
+from openpyxl.formatting.rule import CellIsRule
 from openpyxl.utils import get_column_letter
 
 from finagent.engine.models.financial import (
@@ -96,7 +95,7 @@ def generate_comps_excel(peers: list[CompanyFinancials]) -> bytes:
 # ---------------------------------------------------------------------------
 
 
-def _build_dcf_summary(ws, result: DCFResult, inputs: DCFInputs) -> None:
+def _build_dcf_summary(ws: Any, result: DCFResult, inputs: DCFInputs) -> None:
     rows = [
         ("Metric", "Value"),
         ("Implied Price", result.implied_price),
@@ -122,7 +121,7 @@ def _build_dcf_summary(ws, result: DCFResult, inputs: DCFInputs) -> None:
         ws.cell(row=row_idx, column=2).number_format = fmt
 
 
-def _build_dcf_projections(ws, result: DCFResult, inputs: DCFInputs) -> None:
+def _build_dcf_projections(ws: Any, result: DCFResult, inputs: DCFInputs) -> None:
     n = result.projection_years
     years = list(range(1, n + 1))
     header = ["Metric"] + [f"Year {y}" for y in years]
@@ -138,9 +137,9 @@ def _build_dcf_projections(ws, result: DCFResult, inputs: DCFInputs) -> None:
     ws.append(ebitda_row)
     ws.append(fcf_row)
 
-    margin_row = ["EBITDA Margin"]
+    margin_row: list[str | float] = ["EBITDA Margin"]
     for r, e in zip(result.projected_revenue, result.projected_ebitda):
-        margin_row.append(e / r if r else 0)
+        margin_row.append(e / r if r else 0.0)
     ws.append(margin_row)
 
     for row in ws.iter_rows(min_row=2, max_row=4, min_col=2):
@@ -155,7 +154,7 @@ def _build_dcf_projections(ws, result: DCFResult, inputs: DCFInputs) -> None:
         ws.column_dimensions[get_column_letter(i)].width = 12
 
 
-def _build_dcf_sensitivity(ws, result: DCFResult) -> None:
+def _build_dcf_sensitivity(ws: Any, result: DCFResult) -> None:
     if not result.sensitivity_table:
         ws.append(["No sensitivity data available"])
         return
@@ -196,7 +195,7 @@ def _build_dcf_sensitivity(ws, result: DCFResult) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _build_lbo_summary(ws, result: LBOResult, inputs: LBOInputs) -> None:
+def _build_lbo_summary(ws: Any, result: LBOResult, inputs: LBOInputs) -> None:
     rows = [
         ("Metric", "Value"),
         ("Entry EV ($M)", result.entry_ev / 1e6),
@@ -228,7 +227,7 @@ def _build_lbo_summary(ws, result: LBOResult, inputs: LBOInputs) -> None:
         ws.cell(row=row_idx, column=2).number_format = fmt
 
 
-def _build_lbo_debt_schedule(ws, result: LBOResult) -> None:
+def _build_lbo_debt_schedule(ws: Any, result: LBOResult) -> None:
     header = [
         "Year", "Revenue ($M)", "EBITDA ($M)", "DA ($M)", "EBIT ($M)",
         "Interest ($M)", "Net Income ($M)", "FCF ($M)",
@@ -260,7 +259,7 @@ def _build_lbo_debt_schedule(ws, result: LBOResult) -> None:
         ws.column_dimensions[get_column_letter(col_idx)].width = 16
 
 
-def _build_lbo_sensitivity(ws, result: LBOResult) -> None:
+def _build_lbo_sensitivity(ws: Any, result: LBOResult) -> None:
     sens = result.sensitivity
     if not sens:
         ws.append(["No sensitivity data available"])
@@ -297,7 +296,7 @@ def _build_lbo_sensitivity(ws, result: LBOResult) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _build_comps_table(ws, peers: list[CompanyFinancials]) -> None:
+def _build_comps_table(ws: Any, peers: list[CompanyFinancials]) -> None:
     header = ["Ticker", "Revenue ($M)", "EBITDA ($M)", "Market Cap ($M)",
               "EV/EBITDA", "EV/Revenue", "P/E"]
     ws.append(header)
@@ -334,12 +333,12 @@ def _build_comps_table(ws, peers: list[CompanyFinancials]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _write_rows(ws, rows: list[tuple[str, Any]]) -> None:
+def _write_rows(ws: Any, rows: list[tuple[str, Any]]) -> None:
     for row in rows:
         ws.append(list(row))
 
 
-def _apply_header(ws, row_idx: int) -> None:
+def _apply_header(ws: Any, row_idx: int) -> None:
     for cell in ws[row_idx]:
         cell.font = _HEADER_FONT
         cell.fill = _HEADER_FILL

@@ -1,7 +1,12 @@
+from __future__ import annotations
+
 import logging
+from typing import Any
+
 from pydantic_ai import Agent
 
 from finagent.engine.data.types import DataType
+from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import (
     StepOutput,
 )
@@ -19,31 +24,55 @@ from finagent.engine.pipelines.validators import (
 logger = logging.getLogger(__name__)
 
 
-async def _execute_target_data(agent, deps, prompt, structured_context, ticker):
+async def _execute_target_data(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> StepOutput:
     """Fetch + extract typed FinancialData for target company."""
-    step_result = await agent.run(prompt, deps=deps)
+    step_result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
     financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
     price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
     financial_data = extract_financial_data(financials_result, price_result)
     return StepOutput(text=step_result.output, structured=financial_data)
 
 
-async def _execute_peer_data(agent, deps, prompt, structured_context, ticker):
+async def _execute_peer_data(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> str:
     """Fetch CompanyFinancials for each peer selected in peer_selection step."""
-    step_result = await agent.run(prompt, deps=deps)
-    return step_result.output
+    step_result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
+    return step_result.output  # type: ignore[no-any-return]
 
 
-async def _execute_multiples_calc(agent, deps, prompt, structured_context, ticker):
+async def _execute_multiples_calc(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> str:
     """Code computes multiples — no LLM needed for this step."""
-    step_result = await agent.run(prompt, deps=deps)
-    return step_result.output
+    step_result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
+    return step_result.output  # type: ignore[no-any-return]
 
 
-async def _execute_statistical_bench(agent, deps, prompt, structured_context, ticker):
+async def _execute_statistical_bench(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> str:
     """Code computes peer statistics if PeerComps is available."""
-    step_result = await agent.run(prompt, deps=deps)
-    return step_result.output
+    step_result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
+    return step_result.output  # type: ignore[no-any-return]
 
 
 def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:

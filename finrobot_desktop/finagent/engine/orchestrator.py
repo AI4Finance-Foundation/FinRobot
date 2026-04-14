@@ -226,4 +226,4 @@ def create_lead_agent(
         ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
         return result.format_summary()
 
-    return agent
+    return agent  # type: ignore[return-value]

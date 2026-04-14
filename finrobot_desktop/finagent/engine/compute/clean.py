@@ -8,6 +8,7 @@ symbols, percentages, N/A). Same input always produces the same float output.
 from __future__ import annotations
 
 import re
+from typing import Any
 
 _NA_VALUES = {"n/a", "na", "none", "null", "-", "--", "\u2014", ""}
 
@@ -105,14 +106,14 @@ FIELD_ALIASES: dict[str, list[str]] = {
 
 
 def normalize_field_names(
-    data: dict, aliases: dict[str, list[str]] = FIELD_ALIASES
-) -> dict:
+    data: dict[str, Any], aliases: dict[str, list[str]] = FIELD_ALIASES
+) -> dict[str, Any]:
     """Map provider-specific field names to canonical names.
 
     For each canonical name in *aliases*, the first matching variant found
     in *data* wins.  Keys that don't match any alias pass through unchanged.
     """
-    result: dict = {}
+    result: dict[str, Any] = {}
     used_keys: set[str] = set()
 
     for canonical, variants in aliases.items():

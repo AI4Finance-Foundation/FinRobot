@@ -28,7 +28,7 @@ def calculate_cagr(start: float, end: float, years: int) -> float | None:
     """
     if start <= 0 or years <= 0:
         return None
-    return (end / start) ** (1 / years) - 1
+    return float((end / start) ** (1 / years) - 1)
 
 
 def extract_historical_metrics(
@@ -108,7 +108,8 @@ def extract_historical_metrics(
         net_income_list.append(fd.net_income)
 
         # EPS = net_income / shares_outstanding
-        eps = fd.net_income / fd.shares_outstanding
+        so = fd.shares_outstanding
+        eps = fd.net_income / so
         eps_list.append(eps)
 
         # PE ratio: only if price_data is provided
@@ -214,7 +215,7 @@ def forecast_financials(
         # Impact: understates net income by ~5-15% for capital-intensive companies.
         # P2d will add D&A support when available from FMP provider.
         net_income = ebitda * (1 - tax_rate)
-        eps = net_income / shares_outstanding if can_compute_eps else 0.0
+        eps = net_income / shares_outstanding if can_compute_eps and shares_outstanding else 0.0
 
         forecast_years.append(year)
         forecast_revenue.append(revenue)

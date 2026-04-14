@@ -1,11 +1,17 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import click
 
 from finagent.config import get_settings
+
+if TYPE_CHECKING:
+    from finagent.engine.deps import FinAgentDeps
 
 # Show pipeline progress on stderr so users see what's happening.
 # This surfaces base.py's logger.info("Step 1/5: ...") to the terminal.
@@ -18,7 +24,7 @@ logging.basicConfig(
 for _quiet in ("httpx", "httpcore", "urllib3", "yfinance", "filelock"):
     logging.getLogger(_quiet).setLevel(logging.WARNING)
 
-def _build_deps(model: str | None = None):
+def _build_deps(model: str | None = None) -> "FinAgentDeps":
     """Build deps only. No agent creation.
     Used by pipeline commands that create their own sub-agents."""
     from finagent.engine.data.cache import DataCache
@@ -47,7 +53,7 @@ def _build_deps(model: str | None = None):
     # Build provider chain: FMP (if key) → Finnhub (if key) → yfinance (always) + SEC EDGAR
     from finagent.engine.data.providers.sec_provider import SECEdgarProvider
 
-    providers: list = []
+    providers: list[Any] = []
     if settings.fmp_api_key:
         from finagent.engine.data.providers.fmp_provider import FMPProvider
 
@@ -66,7 +72,7 @@ def _build_deps(model: str | None = None):
     return deps
 
 
-def _build_runtime(model: str | None = None):
+def _build_runtime(model: str | None = None) -> tuple[Any, "FinAgentDeps"]:
     """Build lead agent + deps. Used by `run` command (Mode A)."""
     from finagent.engine.orchestrator import create_lead_agent
 
@@ -112,12 +118,12 @@ def cli() -> None:
 
 
 @cli.group()
-def skill():
+def skill() -> None:
     """Manage FinAgent skills."""
 
 
 @skill.command("list")
-def skill_list():
+def skill_list() -> None:
     """List all available skills grouped by domain."""
     from finagent.engine.skills.registry import SkillRegistry
 
@@ -133,7 +139,7 @@ def skill_list():
 
 @skill.command("search")
 @click.argument("query")
-def skill_search(query: str):
+def skill_search(query: str) -> None:
     """Search skills by keyword."""
     from finagent.engine.skills.registry import SkillRegistry
 
@@ -185,9 +191,9 @@ def research(ticker: str, model: str | None) -> None:
     result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
     click.echo(result.format_summary())
     click.echo(
-        f"\nNote: HTML reports require the server. Run 'finagent serve', "
-        f"then trigger the analysis via the /chat API or Desktop app. "
-        f"CLI results are not shared with the server (separate processes)."
+        "\nNote: HTML reports require the server. Run 'finagent serve', "
+        "then trigger the analysis via the /chat API or Desktop app. "
+        "CLI results are not shared with the server (separate processes)."
     )
 
 
@@ -227,9 +233,9 @@ def dcf(ticker: str, model: str | None) -> None:
     result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
     click.echo(result.format_summary())
     click.echo(
-        f"\nNote: HTML reports require the server. Run 'finagent serve', "
-        f"then trigger the analysis via the /chat API or Desktop app. "
-        f"CLI results are not shared with the server (separate processes)."
+        "\nNote: HTML reports require the server. Run 'finagent serve', "
+        "then trigger the analysis via the /chat API or Desktop app. "
+        "CLI results are not shared with the server (separate processes)."
     )
 
 
@@ -252,9 +258,9 @@ def lbo(ticker: str, model: str | None) -> None:
     result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
     click.echo(result.format_summary())
     click.echo(
-        f"\nNote: HTML reports require the server. Run 'finagent serve', "
-        f"then trigger the analysis via the /chat API or Desktop app. "
-        f"CLI results are not shared with the server (separate processes)."
+        "\nNote: HTML reports require the server. Run 'finagent serve', "
+        "then trigger the analysis via the /chat API or Desktop app. "
+        "CLI results are not shared with the server (separate processes)."
     )
 
 
@@ -297,9 +303,9 @@ def ic_memo(ticker: str, model: str | None) -> None:
     result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
     click.echo(result.format_summary())
     click.echo(
-        f"\nNote: HTML reports require the server. Run 'finagent serve', "
-        f"then trigger the analysis via the /chat API or Desktop app. "
-        f"CLI results are not shared with the server (separate processes)."
+        "\nNote: HTML reports require the server. Run 'finagent serve', "
+        "then trigger the analysis via the /chat API or Desktop app. "
+        "CLI results are not shared with the server (separate processes)."
     )
 
 

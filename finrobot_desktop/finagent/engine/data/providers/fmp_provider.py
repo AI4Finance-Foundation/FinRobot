@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 from datetime import datetime, timezone
+from typing import Any
 
 import httpx
 
@@ -34,7 +35,7 @@ class FMPProvider(DataProvider):
     def capabilities(self) -> list[str | DataType]:
         return list(_SUPPORTED)
 
-    async def fetch(self, ticker: str, data_type: str | DataType, **kwargs) -> DataResult:
+    async def fetch(self, ticker: str, data_type: str | DataType, **kwargs: Any) -> DataResult:
         if data_type not in _SUPPORTED:
             raise ProviderError(
                 f"data_type '{data_type}' is not supported by FMP. Supported: {_SUPPORTED}"
@@ -66,7 +67,7 @@ class FMPProvider(DataProvider):
         prof = profile[0] if profile else {}
 
         if years and years > 1 and len(income) > 1:
-            data: dict = {
+            data: dict[str, Any] = {
                 "yearly_data": [
                     self._build_single_year_data(inc_i, bal, prof)
                     for inc_i in income
@@ -85,7 +86,7 @@ class FMPProvider(DataProvider):
         )
 
     @staticmethod
-    def _build_single_year_data(inc: dict, bal: dict, prof: dict) -> dict:
+    def _build_single_year_data(inc: dict[str, Any], bal: dict[str, Any], prof: dict[str, Any]) -> dict[str, Any]:
         """Extract a flat dict of normalized financial fields for one year."""
         return {
             "revenue": inc.get("revenue"),
@@ -141,7 +142,7 @@ class FMPProvider(DataProvider):
         except (ValueError, KeyError, TypeError, AttributeError) as e:
             raise ProviderError(f"FMP news fetch failed for '{ticker}': {e}") from e
 
-        raw: list[dict] = resp.json()
+        raw: list[dict[str, Any]] = resp.json()
         news_items = [
             {
                 "title": item.get("title", ""),
@@ -172,7 +173,7 @@ class FMPProvider(DataProvider):
         except (ValueError, KeyError, TypeError, AttributeError) as e:
             raise ProviderError(f"FMP earnings fetch failed for '{ticker}': {e}") from e
 
-        raw: list[dict] = resp.json()
+        raw: list[dict[str, Any]] = resp.json()
         earnings_history = [
             {
                 "date": item.get("date", ""),
@@ -192,7 +193,7 @@ class FMPProvider(DataProvider):
             timestamp=datetime.now(tz=timezone.utc),
         )
 
-    async def _get(self, path: str, params: dict | None = None) -> httpx.Response:
+    async def _get(self, path: str, params: dict[str, Any] | None = None) -> httpx.Response:
         """Make authenticated, rate-limited GET request to FMP API.
 
         Serialises concurrent calls via asyncio.Lock and enforces a minimum
@@ -203,7 +204,7 @@ class FMPProvider(DataProvider):
             if elapsed < _MIN_INTERVAL:
                 await asyncio.sleep(_MIN_INTERVAL - elapsed)
             self._last_call = time.monotonic()
-            p: dict = {"apikey": self._api_key}
+            p: dict[str, Any] = {"apikey": self._api_key}
             if params:
                 p.update(params)
             async with httpx.AsyncClient(timeout=_TIMEOUT) as client:

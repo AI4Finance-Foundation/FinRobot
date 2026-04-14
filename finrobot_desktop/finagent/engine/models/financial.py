@@ -351,7 +351,7 @@ class DCFResult(BaseModel):
     implied_price: float
 
     # Sensitivity
-    sensitivity_table: dict[str, list] | None = None
+    sensitivity_table: dict[str, Any] | None = None
 
     # Inputs used (for reproducibility)
     inputs: DCFInputs
@@ -549,7 +549,7 @@ class LBOResult(BaseModel):
     exit_equity: float
     moic: float
     irr: float = Field(description="Annualized IRR (decimal). -1.0 = total loss.")
-    sensitivity: dict[str, list] = Field(
+    sensitivity: dict[str, Any] = Field(
         default_factory=dict,
         description="entry_multiples, exit_multiples, irr_grid, moic_grid",
     )

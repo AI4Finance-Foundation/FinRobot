@@ -12,7 +12,10 @@ What code does that LLM cannot:
   - IRR hurdle gate: overrides LLM recommendation to PASS if IRR < 15%
   - Risk ranking by impact (code ranks by order, not LLM discretion)
 """
+from __future__ import annotations
+
 import logging
+from typing import Any
 
 from pydantic import ValidationError
 from pydantic_ai import Agent
@@ -22,6 +25,7 @@ from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 from finagent.engine.compute.extractor import extract_financial_data
 from finagent.engine.compute.lbo import calculate_lbo
 from finagent.engine.data.types import DataType
+from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import (
     DCFInputs,
     ICFinancials,
@@ -31,6 +35,7 @@ from finagent.engine.models.financial import (
 from finagent.engine.pipelines.base import Pipeline, PipelineStep
 from finagent.engine.pipelines.equity_research import _build_sensitivity_ranges
 from finagent.engine.pipelines.validators import (
+    ValidationResult,
     validate_is_non_empty,
     validate_has_fields,
 )
@@ -40,7 +45,13 @@ logger = logging.getLogger(__name__)
 _IRR_HURDLE = 0.15  # 15% minimum IRR for IC Invest recommendation
 
 
-async def _execute_ic_financials(agent, deps, prompt, structured_context, ticker):
+async def _execute_ic_financials(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> StepOutput:
     """Run DCF + LBO in parallel; return combined ICFinancials."""
     # Fetch raw data
     financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
@@ -58,7 +69,7 @@ async def _execute_ic_financials(agent, deps, prompt, structured_context, ticker
         defer_model_check=True,
     )
     try:
-        dcf_param_result = await dcf_param_agent.run(prompt, deps=deps)
+        dcf_param_result = await dcf_param_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
         dcf_inputs = dcf_param_result.output
     except (AgentRunError, ValidationError, ValueError) as e:
         raise ValueError(f"LLM failed to produce valid DCF parameters: {e}") from e
@@ -80,7 +91,7 @@ async def _execute_ic_financials(agent, deps, prompt, structured_context, ticker
         defer_model_check=True,
     )
     try:
-        lbo_param_result = await lbo_param_agent.run(prompt, deps=deps)
+        lbo_param_result = await lbo_param_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
         lbo_inputs = lbo_param_result.output
     except (AgentRunError, ValidationError, ValueError) as e:
         raise ValueError(f"LLM failed to produce valid LBO parameters: {e}") from e
@@ -101,12 +112,18 @@ async def _execute_ic_financials(agent, deps, prompt, structured_context, ticker
     return StepOutput(text=text, structured=combined)
 
 
-async def _execute_recommendation(agent, deps, prompt, structured_context, ticker):
+async def _execute_recommendation(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> StepOutput:
     """LLM writes IC recommendation; code enforces IRR hurdle gate.
 
     Gate: if LBO IRR < 15%, recommendation is overridden to PASS regardless of LLM output.
     """
-    step_result = await agent.run(prompt, deps=deps)
+    step_result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
     ic_financials = structured_context.get("financial_analysis")
 
     if isinstance(ic_financials, ICFinancials):
@@ -121,8 +138,7 @@ async def _execute_recommendation(agent, deps, prompt, structured_context, ticke
     return StepOutput(text=step_result.output, structured=None)
 
 
-def _validate_ic_financials(data: ICFinancials):
-    from finagent.engine.pipelines.validators import ValidationResult
+def _validate_ic_financials(data: ICFinancials) -> ValidationResult:
     if data.dcf_result.implied_price <= 0:
         return ValidationResult(passed=False, error="DCF implied price must be positive")
     if data.lbo_result.entry_equity <= 0:

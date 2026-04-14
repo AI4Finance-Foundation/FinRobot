@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
+from typing import Any
 
 import yfinance as yf
 
@@ -41,7 +42,7 @@ class YFinanceProvider(DataProvider):
     def capabilities(self) -> list[str | DataType]:
         return list(_SUPPORTED)
 
-    async def fetch(self, ticker: str, data_type: str | DataType, **kwargs) -> DataResult:
+    async def fetch(self, ticker: str, data_type: str | DataType, **kwargs: Any) -> DataResult:
         if data_type == DataType.FILINGS:
             raise ProviderError(
                 f"data_type '{DataType.FILINGS}' is not supported by yfinance. "
@@ -59,13 +60,15 @@ class YFinanceProvider(DataProvider):
         for attempt in range(_MAX_RETRIES + 1):
             try:
                 t = await asyncio.to_thread(_make_ticker, ticker)
-                info = await asyncio.to_thread(lambda: t.info)
+                assert t is not None
+                _t: yf.Ticker = t  # capture for lambda — avoids mypy union-attr on closure
+                info = await asyncio.to_thread(lambda: _t.info)
                 if not info or (
                     info.get("regularMarketPrice") is None
                     and info.get("currentPrice") is None
                     and info.get("marketCap") is None
                 ):
-                    if len(info) <= 1:
+                    if info is not None and len(info) <= 1:
                         raise ProviderError(f"Ticker '{ticker}' not found or returned no data")
                 break  # success
             except ProviderError:
@@ -76,6 +79,9 @@ class YFinanceProvider(DataProvider):
                     await asyncio.sleep(wait)
                     continue
                 raise ProviderError(f"Failed to fetch ticker '{ticker}': {e}") from e
+
+        assert t is not None, "Ticker object must be initialized after retry loop"
+        assert info is not None, "Ticker info must be initialized after retry loop"
 
         if data_type == DataType.FINANCIALS:
             years_kwarg = kwargs.get("years")
@@ -92,7 +98,7 @@ class YFinanceProvider(DataProvider):
 
         return result
 
-    def _fetch_financials(self, ticker: str, info: dict) -> DataResult:
+    def _fetch_financials(self, ticker: str, info: dict[str, Any]) -> DataResult:
         # dict.get() never raises; no try/except needed here
         data = {
             "revenue": info.get("totalRevenue"),
@@ -115,7 +121,7 @@ class YFinanceProvider(DataProvider):
         )
 
     async def _fetch_historical_financials(
-        self, ticker: str, info: dict, t: yf.Ticker, years: int
+        self, ticker: str, info: dict[str, Any], t: yf.Ticker, years: int
     ) -> DataResult:
         """Fetch multi-year financials from income_stmt DataFrame.
 
@@ -165,7 +171,7 @@ class YFinanceProvider(DataProvider):
             timestamp=datetime.now(tz=timezone.utc),
         )
 
-    async def _fetch_price(self, ticker: str, t: yf.Ticker, info: dict) -> DataResult:
+    async def _fetch_price(self, ticker: str, t: yf.Ticker, info: dict[str, Any]) -> DataResult:
         try:
             current_price = info.get("currentPrice") or info.get("regularMarketPrice")
             hist = await asyncio.to_thread(t.history, period="1y")

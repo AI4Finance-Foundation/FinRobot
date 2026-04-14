@@ -12,7 +12,7 @@ _BEAT_THRESHOLD = 2.0   # pct
 _MISS_THRESHOLD = -2.0  # pct
 
 
-def calculate_earnings_surprises(ticker: str, earnings_history: list[dict]) -> EarningsResult:
+def calculate_earnings_surprises(ticker: str, earnings_history: list[dict[str, float | str]]) -> EarningsResult:
     """Compute beat/miss/inline classification for each quarter.
 
     Args:

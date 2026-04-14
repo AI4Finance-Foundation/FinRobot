@@ -65,6 +65,25 @@ def test_extract_company_financials_has_debt_cash():
     assert cf.total_debt == 50e9
     assert cf.total_cash == 20e9
 
+def test_extract_financial_data_missing_shares_outstanding_warns():
+    """When shares_outstanding is missing, derive from market_cap/price and warn."""
+    fr = _make_financials_result()
+    del fr.data["shares_outstanding"]
+    fd = extract_financial_data(fr, _make_price_result())
+    # Derived: market_cap / current_price = 3e12 / 200 = 15e9
+    assert fd.shares_outstanding == pytest.approx(15e9, rel=1e-6)
+    assert any("shares_outstanding" in w for w in fd.warnings)
+
+
+def test_extract_financial_data_zero_shares_outstanding_warns():
+    """When shares_outstanding is 0, derive from market_cap/price and warn."""
+    fd = extract_financial_data(
+        _make_financials_result(shares_outstanding=0), _make_price_result()
+    )
+    assert fd.shares_outstanding == pytest.approx(15e9, rel=1e-6)
+    assert any("shares_outstanding" in w for w in fd.warnings)
+
+
 def test_extract_price_history_valid():
     ph = extract_price_history(_make_price_result())
     assert ph.ticker == "AAPL"

@@ -160,13 +160,15 @@ def forecast_financials(
     """
     tax_rate = 0.21
 
-    # Derive shares outstanding from last year's net_income / eps
-    last_eps = historical.eps[-1]
-    last_ni = historical.net_income[-1]
-    if last_eps != 0:
-        shares_outstanding = last_ni / last_eps
-    else:
-        shares_outstanding = 1.0  # fallback to avoid division by zero
+    # Derive shares_outstanding from most recent year with non-zero EPS.
+    # Refuse fallback to 1.0 — that would make EPS ≈ net_income (off by ~10⁹x).
+    shares_outstanding: float | None = None
+    for i in range(len(historical.eps) - 1, -1, -1):
+        if historical.eps[i] != 0:
+            shares_outstanding = historical.net_income[i] / historical.eps[i]
+            break
+
+    can_compute_eps = shares_outstanding is not None and shares_outstanding > 0
 
     # Determine margins: use target if provided, else historical average
     ebitda_margin = (
@@ -208,7 +210,7 @@ def forecast_financials(
         # Impact: understates net income by ~5-15% for capital-intensive companies.
         # P2d will add D&A support when available from FMP provider.
         net_income = ebitda * (1 - tax_rate)
-        eps = net_income / shares_outstanding
+        eps = net_income / shares_outstanding if can_compute_eps else 0.0
 
         forecast_years.append(year)
         forecast_revenue.append(revenue)
@@ -226,6 +228,18 @@ def forecast_financials(
         tax_rate=tax_rate,
     )
 
+    warnings: list[str] = [
+        "Net income uses simplified formula: EBITDA*(1-tax). "
+        "Understates by ~5-15% for capital-intensive companies. "
+        "Standard formula requires D&A (available via FMP provider in P2d)."
+    ]
+    if not can_compute_eps:
+        warnings.append(
+            "Cannot derive shares_outstanding from historical data "
+            "(all years have zero EPS). Forecast EPS set to 0.0 — "
+            "do not use for per-share valuation."
+        )
+
     return ForecastResult(
         years=forecast_years,
         revenue=forecast_revenue,
@@ -233,11 +247,7 @@ def forecast_financials(
         net_income=forecast_net_income,
         eps=forecast_eps,
         assumptions=assumptions,
-        warnings=[
-            "Net income uses simplified formula: EBITDA*(1-tax). "
-            "Understates by ~5-15% for capital-intensive companies. "
-            "Standard formula requires D&A (available via FMP provider in P2d)."
-        ],
+        warnings=warnings,
     )
 
 

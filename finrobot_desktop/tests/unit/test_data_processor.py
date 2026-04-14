@@ -445,3 +445,72 @@ class TestForecastFinancials:
             assert len(result.ebitda) == n
             assert len(result.net_income) == n
             assert len(result.eps) == n
+
+
+class TestForecastSharesFallback:
+    """C1 regression: shares_outstanding must never silently fall back to 1.0."""
+
+    def test_zero_eps_no_fallback_to_one(self):
+        """When all historical EPS are zero, forecast EPS should be 0.0
+        with a warning — not net_income / 1.0."""
+        historical = HistoricalMetrics(
+            years=[2023, 2024],
+            revenue=[100e9, 110e9],
+            revenue_growth_yoy=[None, 0.10],
+            cogs=[60e9, 66e9],
+            gross_profit=[40e9, 44e9],
+            gross_margin=[0.40, 0.40],
+            sga=[10e9, 11e9],
+            sga_ratio=[0.10, 0.10],
+            ebitda=[30e9, 33e9],
+            ebitda_margin=[0.30, 0.30],
+            operating_income=[25e9, 27.5e9],
+            operating_margin=[0.25, 0.25],
+            net_income=[0.0, 0.0],
+            eps=[0.0, 0.0],
+            pe_ratio=[None, None],
+            cagr_revenue=0.10,
+            ticker="TEST",
+        )
+        result = forecast_financials(
+            historical,
+            revenue_growth_assumptions=[0.05],
+            margin_assumptions=MarginAssumptions(ebitda_margin_target=0.30),
+        )
+        assert result.eps[0] == 0.0
+        assert any("shares_outstanding" in w for w in result.warnings)
+
+    def test_earlier_year_eps_used_when_last_is_zero(self):
+        """When last year EPS is 0 but earlier year has valid EPS,
+        derive shares from the earlier year."""
+        historical = HistoricalMetrics(
+            years=[2022, 2023, 2024],
+            revenue=[100e9, 110e9, 120e9],
+            revenue_growth_yoy=[None, 0.10, 0.0909],
+            cogs=[60e9, 66e9, 72e9],
+            gross_profit=[40e9, 44e9, 48e9],
+            gross_margin=[0.40, 0.40, 0.40],
+            sga=[10e9, 11e9, 12e9],
+            sga_ratio=[0.10, 0.10, 0.10],
+            ebitda=[30e9, 33e9, 36e9],
+            ebitda_margin=[0.30, 0.30, 0.30],
+            operating_income=[25e9, 27.5e9, 30e9],
+            operating_margin=[0.25, 0.25, 0.25],
+            net_income=[10e9, 12e9, 0.0],
+            eps=[2.0, 2.4, 0.0],  # Last year zero, earlier years valid
+            pe_ratio=[None, None, None],
+            cagr_revenue=0.0954,
+            ticker="TEST",
+        )
+        result = forecast_financials(
+            historical,
+            revenue_growth_assumptions=[0.05],
+            margin_assumptions=MarginAssumptions(ebitda_margin_target=0.30),
+        )
+        # Shares derived from year 2023: 12e9 / 2.4 = 5e9
+        # Year 1 forecast: revenue = 120e9*1.05 = 126e9
+        # EBITDA = 126e9 * 0.30 = 37.8e9
+        # Net income = 37.8e9 * (1-0.21) = 29.862e9
+        # EPS = 29.862e9 / 5e9 = 5.9724
+        assert result.eps[0] == pytest.approx(5.9724, abs=0.01)
+        assert not any("shares_outstanding" in w for w in result.warnings)

@@ -73,6 +73,16 @@ def extract_financial_data(
             "Ensure the price provider is configured and returning data."
         )
 
+    # --- shares_outstanding: refuse silent fallback to 1 ---
+    shares = data.get("shares_outstanding")
+    if shares is None or shares <= 0:
+        shares = market_cap / current_price
+        warnings.append(
+            f"shares_outstanding missing or invalid from {financials_result.provider} "
+            f"for {ticker} — derived as market_cap/price ({shares:,.0f}). "
+            "Per-share metrics (EPS, P/E) may be approximate."
+        )
+
     return FinancialData(
         ticker=ticker,
         timestamp=financials_result.timestamp,
@@ -93,7 +103,7 @@ def extract_financial_data(
         ),
         market=MarketData(
             market_cap=market_cap,
-            shares_outstanding=data.get("shares_outstanding") or 1,
+            shares_outstanding=shares,
             current_price=current_price,
             pe_ratio=data.get("pe_ratio"),
             price_52w_high=high_52w,

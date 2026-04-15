@@ -7,7 +7,9 @@ from pydantic_ai import Agent
 
 from finagent.engine.data.types import DataType
 from finagent.engine.deps import FinAgentDeps
-from finagent.engine.pipelines.base import Pipeline, PipelineStep
+from finagent.engine.pipelines.base import (
+    Pipeline, PipelineStep, StructuredValidator, TextValidator,
+)
 from finagent.engine.pipelines._helpers import execute_financial_data_step
 from finagent.engine.pipelines.validators import (
     validate_has_fields,
@@ -66,48 +68,52 @@ def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 skill_section=None,
                 agent=agents["data"],
                 required_data=[DataType.FINANCIALS, DataType.PRICE],
-                validate=lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
-                validate_structured=validate_financial_data,
-                execute_fn=execute_financial_data_step,
+                validator=StructuredValidator(
+                    validate_financial_data,
+                    lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
+                ),
+                executor=execute_financial_data_step,
             ),
             PipelineStep(
                 name="peer_selection",
                 skill_section="comps-analysis",
                 agent=agents["analysis"],
                 required_data=[],
-                validate=lambda out: validate_has_peers(out, min_peers=3),
+                validator=TextValidator(lambda out: validate_has_peers(out, min_peers=3)),
             ),
             PipelineStep(
                 name="peer_data",
                 skill_section=None,
                 agent=agents["data"],
                 required_data=[],
-                validate=lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
-                execute_fn=_execute_peer_data,
+                validator=TextValidator(lambda out: validate_has_fields(out, ["revenue", "ebitda"])),
+                executor=_execute_peer_data,
             ),
             PipelineStep(
                 name="multiples_calc",
                 skill_section="comps-analysis",
                 agent=agents["modeling"],
                 required_data=[],
-                validate=lambda out: validate_is_non_empty(out),
-                execute_fn=_execute_multiples_calc,
+                validator=TextValidator(validate_is_non_empty),
+                executor=_execute_multiples_calc,
             ),
             PipelineStep(
                 name="statistical_bench",
                 skill_section="comps-analysis",
                 agent=agents["analysis"],
                 required_data=[],
-                validate=lambda out: validate_is_non_empty(out),
-                validate_structured=validate_peer_comps,
-                execute_fn=_execute_statistical_bench,
+                validator=StructuredValidator(
+                    validate_peer_comps,
+                    validate_is_non_empty,
+                ),
+                executor=_execute_statistical_bench,
             ),
             PipelineStep(
                 name="output_gen",
                 skill_section="comps-analysis",
                 agent=agents["report"],
                 required_data=[],
-                validate=lambda out: validate_has_comps_table(out),
+                validator=TextValidator(validate_has_comps_table),
             ),
         ]
     )

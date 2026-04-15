@@ -149,11 +149,12 @@ class TestPipelineExecution:
         pipeline = create_equity_research_pipeline(_make_test_agents(
             "revenue 385B ebitda 130B price_history available"
         ))
-        # Patch execute_fn to avoid real compute in unit test of orchestration
+        # Stub executor to avoid real compute in unit test of orchestration
+        from finagent.engine.pipelines.base import TextValidator
+        from finagent.engine.pipelines.validators import validate_is_non_empty
         for step in pipeline.steps:
-            if step.execute_fn is not None:
-                step.execute_fn = _make_stub_execute_fn(step.name)
-            step.validate_structured = None
+            step.executor = _make_stub_execute_fn(step.name)
+            step.validator = TextValidator(validate_is_non_empty)
         result = await pipeline.execute(FakeDeps(), "AAPL")
         assert set(result.steps.keys()) == {
             "data_collection", "peer_analysis", "financial_modeling", "thesis", "report"
@@ -166,11 +167,12 @@ class TestPipelineExecution:
             pipeline = create_equity_research_pipeline(_make_test_agents(
                 "revenue 385B ebitda 130B price_history available"
             ))
-            # Patch execute_fn to avoid real compute in unit test of orchestration
+            # Stub executor to avoid real compute in unit test of orchestration
+            from finagent.engine.pipelines.base import TextValidator
+            from finagent.engine.pipelines.validators import validate_is_non_empty
             for step in pipeline.steps:
-                if step.execute_fn is not None:
-                    step.execute_fn = _make_stub_execute_fn(step.name)
-                step.validate_structured = None
+                step.executor = _make_stub_execute_fn(step.name)
+                step.validator = TextValidator(validate_is_non_empty)
             await pipeline.execute(FakeDeps(), "AAPL")
         messages = " ".join(r.message for r in caplog.records)
         for i in range(1, 6):

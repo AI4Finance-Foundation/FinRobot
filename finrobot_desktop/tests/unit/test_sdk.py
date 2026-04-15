@@ -68,11 +68,12 @@ def _trivial_pipeline(*args, **kwargs) -> Pipeline:
     async def fn(agent, deps, prompt, structured_context, ticker):
         return f"trivial result for {ticker}"
 
+    from finagent.engine.pipelines.base import TextValidator
     step = PipelineStep(
         name="trivial",
         agent=MagicMock(),
-        validate=validate_is_non_empty,
-        execute_fn=fn,
+        validator=TextValidator(validate_is_non_empty),
+        executor=fn,
     )
     return Pipeline(steps=[step])
 

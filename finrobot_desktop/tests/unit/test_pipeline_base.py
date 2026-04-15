@@ -15,7 +15,9 @@ from pydantic_ai.models.test import TestModel
 
 from finagent.engine.data.interface import DataProvider, DataResult, ProviderError
 from finagent.engine.models.financial import StepOutput
-from finagent.engine.pipelines.base import Pipeline, PipelineResult, PipelineStep
+from finagent.engine.pipelines.base import (
+    Pipeline, PipelineResult, PipelineStep, StructuredValidator, TextValidator,
+)
 from finagent.engine.pipelines.validators import ValidationResult, validate_is_non_empty
 
 
@@ -55,7 +57,7 @@ def _make_step(name: str, required_data: list[str] | None = None, output: str = 
         name=name,
         agent=_make_agent(output),
         required_data=required_data or [],
-        validate=validate_is_non_empty,
+        validator=TextValidator(validate_is_non_empty),
     )
 
 
@@ -79,7 +81,7 @@ class TestPipelineExecution:
             return fn
 
         steps = [
-            PipelineStep(name=n, agent=MagicMock(), validate=validate_is_non_empty, execute_fn=make_fn(n))
+            PipelineStep(name=n, agent=MagicMock(), validator=TextValidator(validate_is_non_empty), executor=make_fn(n))
             for n in ["step_a", "step_b", "step_c"]
         ]
         mock_deps = MagicMock()
@@ -114,7 +116,7 @@ class TestValidationRetry:
         step = PipelineStep(
             name="flaky",
             agent=_make_agent("eventual success"),
-            validate=flaky_validate,
+            validator=TextValidator(flaky_validate),
         )
         pipeline = Pipeline(steps=[step], max_retries=3)
         result = await _run_pipeline(pipeline)
@@ -129,7 +131,7 @@ class TestValidationRetry:
         step = PipelineStep(
             name="always_bad",
             agent=_make_agent("bad output"),
-            validate=always_fail,
+            validator=TextValidator(always_fail),
         )
         # Should complete without raising
         pipeline = Pipeline(steps=[step], max_retries=2)
@@ -184,12 +186,12 @@ class TestPipelineResult:
 
 
 @pytest.mark.asyncio
-async def test_execute_fn_called_instead_of_agent_run():
-    """execute_fn replaces agent.run()"""
-    execute_fn_called = []
+async def test_executor_called_instead_of_agent_run():
+    """Custom executor replaces default agent.run()"""
+    executor_called = []
 
     async def my_fn(agent, deps, prompt, structured_context, ticker):
-        execute_fn_called.append(True)
+        executor_called.append(True)
         return StepOutput(text="structured result", structured={"key": "val"})
 
     mock_agent = MagicMock()
@@ -198,8 +200,8 @@ async def test_execute_fn_called_instead_of_agent_run():
     step = PipelineStep(
         name="test_step",
         agent=mock_agent,
-        validate=validate_is_non_empty,
-        execute_fn=my_fn,
+        validator=TextValidator(validate_is_non_empty),
+        executor=my_fn,
     )
     pipeline = Pipeline(steps=[step])
 
@@ -207,14 +209,14 @@ async def test_execute_fn_called_instead_of_agent_run():
     mock_deps.skill_runtime = None
 
     result = await pipeline.execute(mock_deps, "AAPL")
-    assert execute_fn_called == [True]
+    assert executor_called == [True]
     mock_agent.run.assert_not_called()
     assert "test_step" in result.structured_data
 
 
 @pytest.mark.asyncio
-async def test_no_execute_fn_uses_agent_run():
-    """Without execute_fn, default agent.run() is used"""
+async def test_default_executor_uses_agent_run():
+    """Without custom executor, DefaultAgentExecutor calls agent.run()"""
     mock_result = MagicMock()
     mock_result.output = "agent output"
     mock_agent = MagicMock()
@@ -223,7 +225,7 @@ async def test_no_execute_fn_uses_agent_run():
     step = PipelineStep(
         name="test_step",
         agent=mock_agent,
-        validate=validate_is_non_empty,
+        validator=TextValidator(validate_is_non_empty),
     )
     pipeline = Pipeline(steps=[step])
     mock_deps = MagicMock()
@@ -235,23 +237,22 @@ async def test_no_execute_fn_uses_agent_run():
 
 
 @pytest.mark.asyncio
-async def test_validate_structured_called_when_structured_data_present():
-    """validate_structured is called when step returns structured data"""
+async def test_structured_validator_called_when_structured_data_present():
+    """StructuredValidator receives structured data when available"""
     validated_with = []
 
     async def my_fn(agent, deps, prompt, structured_context, ticker):
         return StepOutput(text="result", structured={"data": True})
 
-    def my_validator(data):
+    def my_structured_validator(data):
         validated_with.append(data)
         return ValidationResult(passed=True)
 
     step = PipelineStep(
         name="test_step",
         agent=MagicMock(),
-        validate=validate_is_non_empty,
-        execute_fn=my_fn,
-        validate_structured=my_validator,
+        validator=StructuredValidator(my_structured_validator, validate_is_non_empty),
+        executor=my_fn,
     )
     pipeline = Pipeline(steps=[step])
     mock_deps = MagicMock()
@@ -273,8 +274,8 @@ async def test_step_output_stored_in_structured_data():
     step = PipelineStep(
         name="test_step",
         agent=MagicMock(),
-        validate=validate_is_non_empty,
-        execute_fn=my_fn,
+        validator=TextValidator(validate_is_non_empty),
+        executor=my_fn,
     )
     pipeline = Pipeline(steps=[step])
     mock_deps = MagicMock()
@@ -293,7 +294,7 @@ async def test_str_output_no_structured_data():
     mock_agent = MagicMock()
     mock_agent.run = AsyncMock(return_value=mock_result)
 
-    step = PipelineStep(name="test_step", agent=mock_agent, validate=validate_is_non_empty)
+    step = PipelineStep(name="test_step", agent=mock_agent, validator=TextValidator(validate_is_non_empty))
     pipeline = Pipeline(steps=[step])
     mock_deps = MagicMock()
     mock_deps.skill_runtime = None
@@ -310,7 +311,7 @@ def test_pipeline_result_get_data():
 
 def test_build_step_prompt_includes_structured_context():
     pipeline = Pipeline(steps=[])
-    step = PipelineStep(name="s", agent=MagicMock(), validate=validate_is_non_empty)
+    step = PipelineStep(name="s", agent=MagicMock(), validator=TextValidator(validate_is_non_empty))
 
     class FakeModel:
         def model_dump_json(self, indent=2):
@@ -330,8 +331,8 @@ async def test_pipeline_logs_structured_data_type(caplog):
     step = PipelineStep(
         name="test_step",
         agent=MagicMock(),
-        validate=validate_is_non_empty,
-        execute_fn=my_fn,
+        validator=TextValidator(validate_is_non_empty),
+        executor=my_fn,
     )
     pipeline = Pipeline(steps=[step])
     mock_deps = MagicMock()
@@ -347,8 +348,8 @@ async def test_pipeline_logs_structured_data_type(caplog):
 
 
 @pytest.mark.asyncio
-async def test_retry_with_execute_fn():
-    """Retry path: validation fails → execute_fn called again → passes on retry."""
+async def test_retry_with_custom_executor():
+    """Retry path: validation fails → executor called again → passes on retry."""
     call_count = []
 
     async def my_fn(agent, deps, prompt, structured_context, ticker):
@@ -365,8 +366,8 @@ async def test_retry_with_execute_fn():
     step = PipelineStep(
         name="test_step",
         agent=MagicMock(),
-        validate=my_validate,
-        execute_fn=my_fn,
+        validator=TextValidator(my_validate),
+        executor=my_fn,
     )
     pipeline = Pipeline(steps=[step], max_retries=2)
     mock_deps = MagicMock()
@@ -379,7 +380,7 @@ async def test_retry_with_execute_fn():
 
 @pytest.mark.asyncio
 async def test_retry_revalidates_structured_data():
-    """Retry path with validate_structured: re-validates structured data on retry."""
+    """Retry path with StructuredValidator: re-validates structured data on retry."""
     call_count = []
 
     async def my_fn(agent, deps, prompt, structured_context, ticker):
@@ -387,11 +388,10 @@ async def test_retry_revalidates_structured_data():
         val = -5 if len(call_count) == 1 else 10  # bad then good
         return StepOutput(text="result", structured={"value": val})
 
-    def my_validator(data):
+    def my_structured_validator(data):
         if isinstance(data, dict):
             value = data.get("value")
         else:
-            # Handle any object that has a "value" attribute/key
             value = getattr(data, "value", None) if hasattr(data, "value") else None
 
         if value is None:
@@ -403,9 +403,8 @@ async def test_retry_revalidates_structured_data():
     step = PipelineStep(
         name="test_step",
         agent=MagicMock(),
-        validate=validate_is_non_empty,
-        execute_fn=my_fn,
-        validate_structured=my_validator,
+        validator=StructuredValidator(my_structured_validator, validate_is_non_empty),
+        executor=my_fn,
     )
     pipeline = Pipeline(steps=[step], max_retries=2)
     mock_deps = MagicMock()

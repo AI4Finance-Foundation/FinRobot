@@ -32,7 +32,9 @@ from finagent.engine.models.financial import (
     LBOInputs,
     StepOutput,
 )
-from finagent.engine.pipelines.base import Pipeline, PipelineStep
+from finagent.engine.pipelines.base import (
+    Pipeline, PipelineStep, StructuredValidator, TextValidator,
+)
 from finagent.engine.pipelines.equity_research import _build_sensitivity_ranges
 from finagent.engine.pipelines.validators import (
     ValidationResult,
@@ -155,38 +157,37 @@ def create_ic_memo_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 skill_section=None,
                 agent=agents["analysis"],
                 required_data=[DataType.FINANCIALS, DataType.NEWS],
-                validate=lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
+                validator=TextValidator(lambda out: validate_has_fields(out, ["revenue", "ebitda"])),
             ),
             PipelineStep(
                 name="financial_analysis",
                 skill_section="dcf-model",
                 agent=agents["modeling"],
                 required_data=[],
-                validate=lambda out: validate_is_non_empty(out),
-                validate_structured=_validate_ic_financials,
-                execute_fn=_execute_ic_financials,
+                validator=StructuredValidator(_validate_ic_financials, validate_is_non_empty),
+                executor=_execute_ic_financials,
             ),
             PipelineStep(
                 name="investment_thesis",
                 skill_section="initiating-coverage",
                 agent=agents["synthesis"],
                 required_data=[],
-                validate=lambda out: validate_is_non_empty(out),
+                validator=TextValidator(validate_is_non_empty),
             ),
             PipelineStep(
                 name="risk_factors",
                 skill_section=None,
                 agent=agents["analysis"],
                 required_data=[],
-                validate=lambda out: validate_has_fields(out, ["risk"]),
+                validator=TextValidator(lambda out: validate_has_fields(out, ["risk"])),
             ),
             PipelineStep(
                 name="recommendation",
                 skill_section=None,
                 agent=agents["synthesis"],
                 required_data=[],
-                validate=lambda out: validate_is_non_empty(out),
-                execute_fn=_execute_recommendation,
+                validator=TextValidator(validate_is_non_empty),
+                executor=_execute_recommendation,
             ),
         ]
     )

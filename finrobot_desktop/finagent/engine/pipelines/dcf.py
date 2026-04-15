@@ -11,7 +11,9 @@ from finagent.engine.data.types import DataType
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import DCFInputs, StepOutput
 from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
-from finagent.engine.pipelines.base import Pipeline, PipelineStep
+from finagent.engine.pipelines.base import (
+    Pipeline, PipelineStep, StructuredValidator, TextValidator,
+)
 from finagent.engine.pipelines._helpers import execute_financial_data_step
 from finagent.engine.pipelines.validators import (
     validate_has_fields,
@@ -76,25 +78,26 @@ def create_dcf_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 skill_section=None,
                 agent=agents["data"],
                 required_data=[DataType.FINANCIALS, DataType.PRICE],
-                validate=lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
-                validate_structured=validate_financial_data,
-                execute_fn=execute_financial_data_step,
+                validator=StructuredValidator(
+                    validate_financial_data,
+                    lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
+                ),
+                executor=execute_financial_data_step,
             ),
             PipelineStep(
                 name="dcf_calc",
                 skill_section="dcf-model",
                 agent=agents["modeling"],
                 required_data=[],
-                validate=lambda out: validate_is_non_empty(out),
-                validate_structured=validate_dcf_result,
-                execute_fn=_execute_dcf_calc,
+                validator=StructuredValidator(validate_dcf_result, validate_is_non_empty),
+                executor=_execute_dcf_calc,
             ),
             PipelineStep(
                 name="output_gen",
                 skill_section="dcf-model",
                 agent=agents["report"],
                 required_data=[],
-                validate=lambda out: validate_dcf_output(out),
+                validator=TextValidator(validate_dcf_output),
             ),
         ]
     )

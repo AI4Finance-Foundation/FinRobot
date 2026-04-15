@@ -5,7 +5,7 @@ and that progress=None keeps the original behavior (backwards compatibility).
 """
 from unittest.mock import MagicMock
 
-from finagent.engine.pipelines.base import Pipeline, PipelineStep
+from finagent.engine.pipelines.base import Pipeline, PipelineStep, TextValidator
 from finagent.engine.pipelines.validators import ValidationResult, validate_is_non_empty
 
 
@@ -36,8 +36,8 @@ def _make_step(name: str, output: str = "step output") -> PipelineStep:
     return PipelineStep(
         name=name,
         agent=MagicMock(),
-        validate=validate_is_non_empty,
-        execute_fn=fn,
+        validator=TextValidator(validate_is_non_empty),
+        executor=fn,
     )
 
 
@@ -87,8 +87,8 @@ async def test_progress_retry_events():
     step = PipelineStep(
         name="flaky",
         agent=MagicMock(),
-        validate=flaky_validate,
-        execute_fn=fn,
+        validator=TextValidator(flaky_validate),
+        executor=fn,
     )
     pipeline = Pipeline(steps=[step], max_retries=2)
     progress = FakeProgress()

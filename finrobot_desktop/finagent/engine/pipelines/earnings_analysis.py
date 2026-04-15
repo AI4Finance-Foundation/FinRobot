@@ -22,7 +22,9 @@ from finagent.engine.compute.earnings import calculate_earnings_surprises
 from finagent.engine.data.types import DataType
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import EarningsResult, StepOutput
-from finagent.engine.pipelines.base import Pipeline, PipelineStep
+from finagent.engine.pipelines.base import (
+    Pipeline, PipelineStep, StructuredValidator, TextValidator,
+)
 from finagent.engine.pipelines.validators import (
     ValidationResult,
     validate_has_fields,
@@ -74,30 +76,29 @@ def create_earnings_analysis_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 skill_section=None,
                 agent=agents["data"],
                 required_data=[],
-                validate=lambda out: validate_is_non_empty(out),
-                validate_structured=_validate_earnings_result,
-                execute_fn=_execute_earnings_data,
+                validator=StructuredValidator(_validate_earnings_result, validate_is_non_empty),
+                executor=_execute_earnings_data,
             ),
             PipelineStep(
                 name="financial_context",
                 skill_section=None,
                 agent=agents["data"],
                 required_data=[DataType.FINANCIALS],
-                validate=lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
+                validator=TextValidator(lambda out: validate_has_fields(out, ["revenue", "ebitda"])),
             ),
             PipelineStep(
                 name="earnings_analysis",
                 skill_section=None,
                 agent=agents["analysis"],
                 required_data=[],
-                validate=lambda out: validate_is_non_empty(out),
+                validator=TextValidator(validate_is_non_empty),
             ),
             PipelineStep(
                 name="forward_outlook",
                 skill_section=None,
                 agent=agents["synthesis"],
                 required_data=[],
-                validate=lambda out: validate_is_non_empty(out),
+                validator=TextValidator(validate_is_non_empty),
             ),
         ]
     )

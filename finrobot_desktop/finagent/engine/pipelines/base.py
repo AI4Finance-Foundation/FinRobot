@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Awaitable, Callable, Protocol
+from typing import TYPE_CHECKING, Callable, Protocol
 
 if TYPE_CHECKING:
     from finagent.engine.deps import FinAgentDeps
@@ -40,26 +40,82 @@ class ProgressCallback(Protocol):
     ) -> None: ...
 
 
+# ---------------------------------------------------------------------------
+# Strategy protocols for step execution and validation
+# ---------------------------------------------------------------------------
+
+
+class StepExecutor(Protocol):
+    """How a pipeline step produces its output."""
+
+    async def __call__(
+        self,
+        agent: Agent,
+        deps: "FinAgentDeps",
+        prompt: str,
+        structured_context: dict[str, object],
+        ticker: str,
+    ) -> "StepOutput | str": ...
+
+
+class StepValidator(Protocol):
+    """How a pipeline step validates its output."""
+
+    def __call__(self, output: str | object) -> ValidationResult: ...
+
+
+class DefaultAgentExecutor:
+    """Runs agent.run(prompt) — the default for steps without custom execute_fn."""
+
+    async def __call__(
+        self,
+        agent: Agent,
+        deps: "FinAgentDeps",
+        prompt: str,
+        structured_context: dict[str, object],
+        ticker: str,
+    ) -> str:
+        result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
+        return result.output  # type: ignore[no-any-return]
+
+
+class TextValidator:
+    """Wraps a Callable[[str], ValidationResult] for text-only validation."""
+
+    def __init__(self, fn: Callable[[str], ValidationResult]) -> None:
+        self._fn = fn
+
+    def __call__(self, output: str | object) -> ValidationResult:
+        return self._fn(str(output))
+
+
+class StructuredValidator:
+    """Validates structured output, falling back to text validation."""
+
+    def __init__(
+        self,
+        structured_fn: Callable[..., ValidationResult],
+        text_fn: Callable[[str], ValidationResult],
+    ) -> None:
+        self._structured_fn = structured_fn
+        self._text_fn = text_fn
+
+    def __call__(self, output: str | object) -> ValidationResult:
+        if not isinstance(output, str):
+            return self._structured_fn(output)
+        return self._text_fn(output)
+
+
 @dataclass
 class PipelineStep:
     """A single enforced step in a financial analysis pipeline."""
 
     name: str
     agent: Agent
-    validate: Callable[[str], ValidationResult]
+    validator: StepValidator
+    executor: StepExecutor = field(default_factory=DefaultAgentExecutor)
     required_data: list[str | DataType] = field(default_factory=list)
     skill_section: str | None = None
-
-    # NEW in P1.5: custom execution hook
-    execute_fn: Callable[..., Awaitable["StepOutput | str"]] | None = None
-    """Optional async function that replaces the default agent.run() behavior.
-
-    Signature: async (agent, deps, prompt, structured_context, ticker) -> StepOutput | str
-    """
-
-    # NEW in P1.5: typed output validator
-    validate_structured: Callable[..., ValidationResult] | None = None
-    """Optional validator for structured data (e.g., validate_dcf_result(DCFResult))."""
 
 
 @dataclass
@@ -122,14 +178,11 @@ class Pipeline:
         structured_results: dict[str, object],
         ticker: str,
     ) -> StepOutput | str:
-        """Execute a single step once (via execute_fn or default agent.run()).
+        """Execute a single step once via step.executor.
 
         Returns the raw output before it is stored into results dicts.
         """
-        if step.execute_fn is not None:
-            return await step.execute_fn(step.agent, deps, prompt, structured_results, ticker)
-        step_result = await step.agent.run(prompt, deps=deps)  # type: ignore[call-overload]
-        return step_result.output  # type: ignore[no-any-return]
+        return await step.executor(step.agent, deps, prompt, structured_results, ticker)
 
     @staticmethod
     def _store_output(
@@ -159,10 +212,9 @@ class Pipeline:
         results: dict[str, str],
         structured_results: dict[str, object],
     ) -> "ValidationResult":
-        """Choose the right validator and return the validation result."""
-        if step.validate_structured is not None and step_name in structured_results:
-            return step.validate_structured(structured_results[step_name])
-        return step.validate(results[step_name])
+        """Delegate to step.validator with the best available output."""
+        output: str | object = structured_results.get(step_name, results[step_name])
+        return step.validator(output)
 
     async def _run_step(
         self,

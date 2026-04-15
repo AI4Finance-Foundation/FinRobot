@@ -24,7 +24,9 @@ from finagent.engine.models.financial import (
 from finagent.engine.compute.extractor import extract_company_financials
 from finagent.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
 from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
-from finagent.engine.pipelines.base import Pipeline, PipelineStep
+from finagent.engine.pipelines.base import (
+    Pipeline, PipelineStep, StructuredValidator, TextValidator,
+)
 from finagent.engine.pipelines._helpers import execute_financial_data_step
 from finagent.engine.pipelines.validators import (
     validate_has_fields,
@@ -226,43 +228,48 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 skill_section=None,
                 agent=agents["data"],
                 required_data=[DataType.FINANCIALS, DataType.PRICE, DataType.NEWS],
-                validate=lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
-                validate_structured=validate_financial_data,
-                execute_fn=execute_financial_data_step,
+                validator=StructuredValidator(
+                    validate_financial_data,
+                    lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
+                ),
+                executor=execute_financial_data_step,
             ),
             PipelineStep(
                 name="peer_analysis",
                 skill_section="comps-analysis",
                 agent=agents["analysis"],
                 required_data=[],
-                validate=lambda out: validate_has_peers(out, min_peers=3),
-                validate_structured=validate_peer_comps,
-                execute_fn=_execute_peer_analysis,
+                validator=StructuredValidator(
+                    validate_peer_comps,
+                    lambda out: validate_has_peers(out, min_peers=3),
+                ),
+                executor=_execute_peer_analysis,
             ),
             PipelineStep(
                 name="financial_modeling",
                 skill_section="dcf-model",
                 agent=agents["modeling"],
                 required_data=[],
-                validate=lambda out: validate_is_non_empty(out),
-                validate_structured=validate_dcf_result,
-                execute_fn=_execute_financial_modeling,
+                validator=StructuredValidator(validate_dcf_result, validate_is_non_empty),
+                executor=_execute_financial_modeling,
             ),
             PipelineStep(
                 name="thesis",
                 skill_section="initiating-coverage",
                 agent=agents["synthesis"],
                 required_data=[],
-                validate=lambda out: validate_has_thesis(out),
-                validate_structured=validate_thesis,
-                execute_fn=_execute_thesis,
+                validator=StructuredValidator(
+                    validate_thesis,
+                    lambda out: validate_has_thesis(out),
+                ),
+                executor=_execute_thesis,
             ),
             PipelineStep(
                 name="report",
                 skill_section=None,
                 agent=agents["report"],
                 required_data=[],
-                validate=lambda out: validate_report_format(out),
+                validator=TextValidator(validate_report_format),
             ),
         ]
     )

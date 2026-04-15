@@ -129,11 +129,12 @@ class TestDcfPipelineExecution:
         pipeline = create_dcf_pipeline(_make_test_agents(
             "revenue 385B ebitda 130B"
         ))
-        # Stub execute_fn to avoid real LLM/compute calls in orchestration test
+        # Stub executor to avoid real LLM/compute calls in orchestration test
+        from finagent.engine.pipelines.base import TextValidator
+        from finagent.engine.pipelines.validators import validate_is_non_empty
         for step in pipeline.steps:
-            if step.execute_fn is not None:
-                step.execute_fn = _make_stub_execute_fn(step.name)
-            step.validate_structured = None
+            step.executor = _make_stub_execute_fn(step.name)
+            step.validator = TextValidator(validate_is_non_empty)
         result = await pipeline.execute(FakeDeps(), "AAPL")
         assert set(result.steps.keys()) == {
             "historical_data", "dcf_calc", "output_gen",
@@ -144,21 +145,22 @@ class TestDcfPipelineExecution:
 # P1.5: execute_fn / validate_structured hook tests
 # ---------------------------------------------------------------------------
 
-def test_dcf_pipeline_historical_data_has_execute_fn():
+def test_dcf_pipeline_historical_data_has_custom_executor():
     from finagent.engine.pipelines.dcf import create_dcf_pipeline
+    from finagent.engine.pipelines.base import DefaultAgentExecutor, StructuredValidator
     from unittest.mock import MagicMock
     agents = {k: MagicMock() for k in ["data", "modeling", "report"]}
     pipeline = create_dcf_pipeline(agents)
     step = next(s for s in pipeline.steps if s.name == "historical_data")
-    assert step.execute_fn is not None
-    assert step.validate_structured is not None
+    assert not isinstance(step.executor, DefaultAgentExecutor)
+    assert isinstance(step.validator, StructuredValidator)
 
-def test_dcf_pipeline_dcf_calc_step_has_execute_fn():
+def test_dcf_pipeline_dcf_calc_step_has_custom_executor():
     from finagent.engine.pipelines.dcf import create_dcf_pipeline
+    from finagent.engine.pipelines.base import DefaultAgentExecutor, StructuredValidator
     from unittest.mock import MagicMock
     agents = {k: MagicMock() for k in ["data", "modeling", "report"]}
     pipeline = create_dcf_pipeline(agents)
-    # The combined dcf_calc step (collapsed from projection+wacc+terminal+sensitivity)
     step = next(s for s in pipeline.steps if s.name == "dcf_calc")
-    assert step.execute_fn is not None
-    assert step.validate_structured is not None
+    assert not isinstance(step.executor, DefaultAgentExecutor)
+    assert isinstance(step.validator, StructuredValidator)

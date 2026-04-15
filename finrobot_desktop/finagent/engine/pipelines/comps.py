@@ -7,11 +7,8 @@ from pydantic_ai import Agent
 
 from finagent.engine.data.types import DataType
 from finagent.engine.deps import FinAgentDeps
-from finagent.engine.models.financial import (
-    StepOutput,
-)
-from finagent.engine.compute.extractor import extract_financial_data
 from finagent.engine.pipelines.base import Pipeline, PipelineStep
+from finagent.engine.pipelines._helpers import execute_financial_data_step
 from finagent.engine.pipelines.validators import (
     validate_has_fields,
     validate_has_peers,
@@ -22,21 +19,6 @@ from finagent.engine.pipelines.validators import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-async def _execute_target_data(
-    agent: Agent[Any, Any],
-    deps: FinAgentDeps,
-    prompt: str,
-    structured_context: dict[str, object],
-    ticker: str,
-) -> StepOutput:
-    """Fetch + extract typed FinancialData for target company."""
-    step_result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
-    financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
-    price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
-    financial_data = extract_financial_data(financials_result, price_result)
-    return StepOutput(text=step_result.output, structured=financial_data)
 
 
 async def _execute_peer_data(
@@ -86,7 +68,7 @@ def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[DataType.FINANCIALS, DataType.PRICE],
                 validate=lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
                 validate_structured=validate_financial_data,
-                execute_fn=_execute_target_data,
+                execute_fn=execute_financial_data_step,
             ),
             PipelineStep(
                 name="peer_selection",

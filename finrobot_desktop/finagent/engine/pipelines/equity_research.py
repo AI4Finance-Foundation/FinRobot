@@ -21,10 +21,11 @@ from finagent.engine.models.financial import (
     ThesisResult,
     StepOutput,
 )
-from finagent.engine.compute.extractor import extract_financial_data, extract_company_financials
+from finagent.engine.compute.extractor import extract_company_financials
 from finagent.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
 from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 from finagent.engine.pipelines.base import Pipeline, PipelineStep
+from finagent.engine.pipelines._helpers import execute_financial_data_step
 from finagent.engine.pipelines.validators import (
     validate_has_fields,
     validate_has_peers,
@@ -38,24 +39,6 @@ from finagent.engine.pipelines.validators import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-async def _execute_data_collection(
-    agent: Agent[Any, Any],
-    deps: FinAgentDeps,
-    prompt: str,
-    structured_context: dict[str, object],
-    ticker: str,
-) -> StepOutput:
-    """Agent provides narrative; code extracts typed FinancialData from yfinance."""
-    step_result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
-    raw_text = step_result.output
-
-    financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
-    price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
-    financial_data = extract_financial_data(financials_result, price_result)
-
-    return StepOutput(text=raw_text, structured=financial_data)
 
 
 async def _execute_peer_analysis(
@@ -245,7 +228,7 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[DataType.FINANCIALS, DataType.PRICE, DataType.NEWS],
                 validate=lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
                 validate_structured=validate_financial_data,
-                execute_fn=_execute_data_collection,
+                execute_fn=execute_financial_data_step,
             ),
             PipelineStep(
                 name="peer_analysis",

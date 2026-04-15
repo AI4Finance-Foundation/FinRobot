@@ -198,7 +198,7 @@ def mock_deps():
 @pytest.mark.asyncio
 async def test_step1_produces_financial_data(mock_deps):
     """Step 1 data_collection execute_fn returns StepOutput with FinancialData."""
-    from finagent.engine.pipelines.equity_research import _execute_data_collection
+    from finagent.engine.pipelines._helpers import execute_financial_data_step
     from finagent.engine.models.financial import FinancialData, StepOutput
 
     fin_result = DataResult(
@@ -227,7 +227,7 @@ async def test_step1_produces_financial_data(mock_deps):
 
     mock_deps.data_layer.fetch = mock_fetch
 
-    output = await _execute_data_collection(mock_agent, mock_deps, "prompt", {}, "AAPL")
+    output = await execute_financial_data_step(mock_agent, mock_deps, "prompt", {}, "AAPL")
     assert isinstance(output, StepOutput)
     assert isinstance(output.structured, FinancialData)
     assert output.structured.revenue == 100e9

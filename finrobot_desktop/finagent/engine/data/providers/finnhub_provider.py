@@ -35,6 +35,14 @@ class FinnhubProvider(DataProvider):
     def capabilities(self) -> list[str | DataType]:
         return list(_SUPPORTED)
 
+    @property
+    def financials_fields(self) -> set[str]:
+        return {
+            "revenue", "ebitda", "net_income", "market_cap", "shares_outstanding",
+            "gross_margin", "operating_margin", "depreciation_amortization",
+            "total_debt", "total_cash",
+        }
+
     async def fetch(self, ticker: str, data_type: str | DataType, **kwargs: Any) -> DataResult:
         if data_type not in _SUPPORTED:
             raise ProviderError(

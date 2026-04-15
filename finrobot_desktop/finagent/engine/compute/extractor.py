@@ -1,5 +1,5 @@
 from finagent.engine.data.interface import DataResult
-from finagent.engine.data.keys import REQUIRED_KEYS  # noqa: F401 — documents expected keys
+from finagent.engine.data.keys import NormalizedFinancialKeys
 from finagent.engine.models.financial import (
     FinancialData,
     IncomeStatement,
@@ -18,12 +18,21 @@ def extract_financial_data(
 ) -> FinancialData:
     """Extract structured FinancialData from raw DataResults.
 
-    Raises ValueError for missing critical fields (revenue, market_cap, current_price).
+    Raises ValueError for missing critical fields (revenue, market_cap).
     Non-critical missing fields (debt, cash, D&A) are defaulted and recorded in
     FinancialData.warnings so the caller can surface them to the user.
     """
-    data = financials_result.data
+    data: NormalizedFinancialKeys = financials_result.data  # type: ignore[assignment]
     ticker = financials_result.ticker
+
+    # Batch-check required fields
+    _REQUIRED = {"revenue", "market_cap"}
+    missing = _REQUIRED - set(data.keys())
+    if missing:
+        raise ValueError(
+            f"Provider {financials_result.provider} missing required fields for "
+            f"{ticker}: {missing}"
+        )
 
     revenue = data.get("revenue")
     ebitda = data.get("ebitda")

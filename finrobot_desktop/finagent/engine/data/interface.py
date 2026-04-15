@@ -45,6 +45,15 @@ class DataProvider(ABC):
     @abstractmethod
     async def fetch(self, ticker: str, data_type: str | DataType, **kwargs: Any) -> DataResult: ...
 
+    @property
+    def financials_fields(self) -> set[str]:
+        """Fields this provider guarantees to include in financials DataResult.data.
+
+        Used by DataLayer to warn when a provider doesn't cover a needed field.
+        Default: empty (no guarantees). Override in subclasses.
+        """
+        return set()
+
 
 class ProviderError(Exception):
     """Raised when a provider fails to fetch data."""

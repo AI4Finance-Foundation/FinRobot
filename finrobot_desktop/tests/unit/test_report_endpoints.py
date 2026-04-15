@@ -13,12 +13,16 @@ import pytest
 from httpx import ASGITransport
 
 from finagent.engine.models.financial import (
+    BalanceSheet,
     CompanyFinancials,
     DCFInputs,
     DCFResult,
     FinancialData,
+    IncomeStatement,
+    MarketData,
     PeerComps,
     ThesisResult,
+    ValuationMetrics,
 )
 from finagent.engine.orchestrator import build_report_context
 from finagent.engine.pipelines.base import PipelineResult
@@ -29,16 +33,22 @@ def _make_financial_data(ticker: str = "AAPL") -> FinancialData:
     return FinancialData(
         ticker=ticker,
         timestamp=datetime(2025, 1, 1, tzinfo=timezone.utc),
-        revenue=400e9,
-        ebitda=130e9,
-        net_income=100e9,
-        total_debt=120e9,
-        total_cash=60e9,
-        gross_margin=0.45,
-        operating_margin=0.30,
-        market_cap=3e12,
-        shares_outstanding=15e9,
-        current_price=200.0,
+        income=IncomeStatement(
+            revenue=400e9,
+            ebitda=130e9,
+            net_income=100e9,
+            gross_margin=0.45,
+            operating_margin=0.30,
+        ),
+        balance=BalanceSheet(
+            total_debt=120e9,
+            total_cash=60e9,
+        ),
+        market=MarketData(
+            market_cap=3e12,
+            shares_outstanding=15e9,
+            current_price=200.0,
+        ),
     )
 
 

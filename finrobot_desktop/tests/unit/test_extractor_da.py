@@ -40,14 +40,14 @@ def test_extract_da_from_fmp():
     """When provider supplies D&A, it appears in FinancialData."""
     fin = _make_financials_result(depreciation_amortization=11.5e9)
     result = extract_financial_data(fin, _make_price_result())
-    assert result.depreciation_amortization == 11.5e9
+    assert result.income.depreciation_amortization == 11.5e9
 
 
 def test_extract_da_none_from_yfinance():
     """When provider doesn't supply D&A, field is None."""
     fin = _make_financials_result()  # no depreciation_amortization key
     result = extract_financial_data(fin, _make_price_result())
-    assert result.depreciation_amortization is None
+    assert result.income.depreciation_amortization is None
 
 
 def test_extract_rd_sga_interest():
@@ -57,9 +57,9 @@ def test_extract_rd_sga_interest():
         interest_expense=4e9,
     )
     result = extract_financial_data(fin, _make_price_result())
-    assert result.rd_expense == 30e9
-    assert result.sga_expense == 28e9
-    assert result.interest_expense == 4e9
+    assert result.income.rd_expense == 30e9
+    assert result.income.sga_expense == 28e9
+    assert result.income.interest_expense == 4e9
 
 
 def test_data_source_reflects_provider():

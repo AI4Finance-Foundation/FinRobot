@@ -2,11 +2,10 @@
 
 Verifies:
 - Sub-models construct and validate independently.
-- New structured constructor works.
-- Flat-kwargs constructor (backwards compat) still works.
-- Property getters delegate to sub-models.
-- Mutable valuation setters write through to ValuationMetrics.
-- Validation constraints are preserved through the model_validator route.
+- Structured constructor works with sub-model instances.
+- Field access goes through sub-models (fd.income.revenue, fd.market.market_cap, etc.).
+- Valuation metrics are mutable via sub-model.
+- Validation constraints are preserved.
 """
 
 import pytest
@@ -43,16 +42,27 @@ def _base_market(**overrides) -> dict:
     return defaults
 
 
-def _make_fd(**overrides) -> FinancialData:
-    """Build FinancialData via flat kwargs (backwards-compat path)."""
-    defaults = dict(
+def _make_fd(
+    income_overrides: dict | None = None,
+    market_overrides: dict | None = None,
+    balance: BalanceSheet | None = None,
+    valuation: ValuationMetrics | None = None,
+) -> FinancialData:
+    """Build FinancialData via sub-model construction."""
+    inc_kw = _base_income()
+    if income_overrides:
+        inc_kw.update(income_overrides)
+    mkt_kw = _base_market()
+    if market_overrides:
+        mkt_kw.update(market_overrides)
+    return FinancialData(
         ticker="AAPL",
         timestamp=_NOW,
-        **_base_income(),
-        **_base_market(),
+        income=IncomeStatement(**inc_kw),
+        balance=balance or BalanceSheet(),
+        market=MarketData(**mkt_kw),
+        valuation=valuation or ValuationMetrics(),
     )
-    defaults.update(overrides)
-    return FinancialData(**defaults)
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +187,7 @@ class TestNewStructuredConstructor:
         assert fd.market.current_price == 50.0
         assert fd.valuation.ev_ebitda == 26.5
 
-    def test_property_getters_read_from_sub_models(self):
+    def test_sub_model_field_access(self):
         fd = FinancialData(
             ticker="AAPL",
             timestamp=_NOW,
@@ -186,22 +196,22 @@ class TestNewStructuredConstructor:
             market=MarketData(**_base_market()),
             valuation=ValuationMetrics(enterprise_value=5.3e9, ev_ebitda=26.5),
         )
-        # Income properties
-        assert fd.revenue == 1e9
-        assert fd.ebitda == 2e8
-        assert fd.net_income == 1e8
-        assert fd.gross_margin == 0.4
-        assert fd.operating_margin == 0.15
-        # Balance properties
-        assert fd.total_debt == 5e8
-        assert fd.total_cash == 2e8
-        # Market properties
-        assert fd.market_cap == 5e9
-        assert fd.shares_outstanding == 1e8
-        assert fd.current_price == 50.0
-        # Valuation properties
-        assert fd.enterprise_value == 5.3e9
-        assert fd.ev_ebitda == 26.5
+        # Income fields via sub-model
+        assert fd.income.revenue == 1e9
+        assert fd.income.ebitda == 2e8
+        assert fd.income.net_income == 1e8
+        assert fd.income.gross_margin == 0.4
+        assert fd.income.operating_margin == 0.15
+        # Balance fields via sub-model
+        assert fd.balance.total_debt == 5e8
+        assert fd.balance.total_cash == 2e8
+        # Market fields via sub-model
+        assert fd.market.market_cap == 5e9
+        assert fd.market.shares_outstanding == 1e8
+        assert fd.market.current_price == 50.0
+        # Valuation fields via sub-model
+        assert fd.valuation.enterprise_value == 5.3e9
+        assert fd.valuation.ev_ebitda == 26.5
 
     def test_balance_and_valuation_optional(self):
         """balance and valuation have defaults so only income+market are required."""
@@ -211,97 +221,95 @@ class TestNewStructuredConstructor:
             income=IncomeStatement(**_base_income()),
             market=MarketData(**_base_market()),
         )
-        assert fd.total_debt == 0
-        assert fd.enterprise_value is None
+        assert fd.balance.total_debt == 0
+        assert fd.valuation.enterprise_value is None
 
 
 # ---------------------------------------------------------------------------
-# FinancialData — flat-kwargs backwards compatibility
+# FinancialData — sub-model construction tests
 # ---------------------------------------------------------------------------
 
 
-class TestFlatKwargsBackwardsCompat:
-    def test_flat_constructor_works(self):
+class TestSubModelConstruction:
+    def test_basic_construction(self):
         fd = _make_fd()
         assert fd.ticker == "AAPL"
-        assert fd.revenue == 1e9
+        assert fd.income.revenue == 1e9
 
-    def test_flat_kwargs_sub_models_populated(self):
-        """Flat kwargs must route into sub-model instances."""
-        fd = _make_fd(total_debt=5e8, total_cash=2e8)
+    def test_sub_models_populated(self):
+        fd = _make_fd(balance=BalanceSheet(total_debt=5e8, total_cash=2e8))
         assert fd.income.revenue == 1e9
         assert fd.balance.total_debt == 5e8
         assert fd.market.current_price == 50.0
 
-    def test_flat_kwargs_property_access(self):
-        fd = _make_fd(total_debt=5e8, enterprise_value=5.3e9, ev_ebitda=26.5)
-        assert fd.total_debt == 5e8
-        assert fd.enterprise_value == 5.3e9
-        assert fd.ev_ebitda == 26.5
-
-    def test_flat_rejects_negative_gross_margin(self):
-        with pytest.raises(ValidationError):
-            _make_fd(gross_margin=-0.1)
-
-    def test_flat_rejects_zero_shares(self):
-        with pytest.raises(ValidationError):
-            _make_fd(shares_outstanding=0)
-
-    def test_flat_defaults_debt_cash_to_zero(self):
-        fd = _make_fd()
-        assert fd.total_debt == 0
-        assert fd.total_cash == 0
-
-    def test_flat_da_fields_default_none(self):
-        fd = _make_fd()
-        assert fd.depreciation_amortization is None
-        assert fd.rd_expense is None
-        assert fd.sga_expense is None
-        assert fd.interest_expense is None
-
-    def test_flat_da_fields_set(self):
-        fd = _make_fd(depreciation_amortization=1e7, rd_expense=5e6)
-        assert fd.depreciation_amortization == 1e7
-        assert fd.rd_expense == 5e6
-
-    def test_flat_allows_negative_operating_margin(self):
-        fd = _make_fd(operating_margin=-2.5)
-        assert fd.operating_margin == -2.5
-
-    def test_flat_with_all_valuation_fields(self):
-        fd = _make_fd(enterprise_value=5.3e9, ev_ebitda=26.5, ev_revenue=5.3)
-        assert fd.enterprise_value == 5.3e9
-        assert fd.ev_ebitda == 26.5
-        assert fd.ev_revenue == 5.3
-
-
-# ---------------------------------------------------------------------------
-# Mutation write-through tests
-# ---------------------------------------------------------------------------
-
-
-class TestMutationWriteThrough:
-    def test_ev_ebitda_setter_writes_to_valuation(self):
-        fd = _make_fd()
-        fd.ev_ebitda = 25.0
-        assert fd.ev_ebitda == 25.0
-        assert fd.valuation.ev_ebitda == 25.0  # in sync with sub-model
-
-    def test_enterprise_value_setter(self):
-        fd = _make_fd()
-        fd.enterprise_value = 5.3e9
-        assert fd.enterprise_value == 5.3e9
+    def test_sub_model_field_access(self):
+        fd = _make_fd(
+            balance=BalanceSheet(total_debt=5e8),
+            valuation=ValuationMetrics(enterprise_value=5.3e9, ev_ebitda=26.5),
+        )
+        assert fd.balance.total_debt == 5e8
         assert fd.valuation.enterprise_value == 5.3e9
+        assert fd.valuation.ev_ebitda == 26.5
 
-    def test_ev_revenue_setter(self):
+    def test_rejects_negative_gross_margin(self):
+        with pytest.raises(ValidationError):
+            _make_fd(income_overrides={"gross_margin": -0.1})
+
+    def test_rejects_zero_shares(self):
+        with pytest.raises(ValidationError):
+            _make_fd(market_overrides={"shares_outstanding": 0})
+
+    def test_defaults_debt_cash_to_zero(self):
         fd = _make_fd()
-        fd.ev_revenue = 5.3
-        assert fd.ev_revenue == 5.3
+        assert fd.balance.total_debt == 0
+        assert fd.balance.total_cash == 0
+
+    def test_da_fields_default_none(self):
+        fd = _make_fd()
+        assert fd.income.depreciation_amortization is None
+        assert fd.income.rd_expense is None
+        assert fd.income.sga_expense is None
+        assert fd.income.interest_expense is None
+
+    def test_da_fields_set(self):
+        fd = _make_fd(income_overrides={"depreciation_amortization": 1e7, "rd_expense": 5e6})
+        assert fd.income.depreciation_amortization == 1e7
+        assert fd.income.rd_expense == 5e6
+
+    def test_allows_negative_operating_margin(self):
+        fd = _make_fd(income_overrides={"operating_margin": -2.5})
+        assert fd.income.operating_margin == -2.5
+
+    def test_all_valuation_fields(self):
+        fd = _make_fd(valuation=ValuationMetrics(enterprise_value=5.3e9, ev_ebitda=26.5, ev_revenue=5.3))
+        assert fd.valuation.enterprise_value == 5.3e9
+        assert fd.valuation.ev_ebitda == 26.5
         assert fd.valuation.ev_revenue == 5.3
 
-    def test_setter_to_none(self):
-        fd = _make_fd(ev_ebitda=26.5)
-        assert fd.ev_ebitda == 26.5
-        fd.ev_ebitda = None
-        assert fd.ev_ebitda is None
+
+# ---------------------------------------------------------------------------
+# Mutation via sub-model tests
+# ---------------------------------------------------------------------------
+
+
+class TestMutationViaSubModel:
+    def test_ev_ebitda_mutation(self):
+        fd = _make_fd()
+        fd.valuation.ev_ebitda = 25.0
+        assert fd.valuation.ev_ebitda == 25.0
+
+    def test_enterprise_value_mutation(self):
+        fd = _make_fd()
+        fd.valuation.enterprise_value = 5.3e9
+        assert fd.valuation.enterprise_value == 5.3e9
+
+    def test_ev_revenue_mutation(self):
+        fd = _make_fd()
+        fd.valuation.ev_revenue = 5.3
+        assert fd.valuation.ev_revenue == 5.3
+
+    def test_set_to_none(self):
+        fd = _make_fd(valuation=ValuationMetrics(ev_ebitda=26.5))
+        assert fd.valuation.ev_ebitda == 26.5
+        fd.valuation.ev_ebitda = None
         assert fd.valuation.ev_ebitda is None

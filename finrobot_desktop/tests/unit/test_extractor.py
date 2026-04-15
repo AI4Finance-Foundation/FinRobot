@@ -32,9 +32,9 @@ def _make_price_result():
 def test_extract_financial_data_valid():
     fd = extract_financial_data(_make_financials_result(), _make_price_result())
     assert fd.ticker == "AAPL"
-    assert fd.revenue == 100e9
-    assert fd.ebitda == 35e9
-    assert fd.gross_margin == 0.47
+    assert fd.income.revenue == 100e9
+    assert fd.income.ebitda == 35e9
+    assert fd.income.gross_margin == 0.47
 
 def test_extract_financial_data_missing_revenue_raises():
     with pytest.raises(ValueError, match="revenue"):
@@ -43,22 +43,22 @@ def test_extract_financial_data_missing_revenue_raises():
 def test_extract_financial_data_computes_ev():
     fd = extract_financial_data(_make_financials_result(), _make_price_result())
     # EV = 3e12 + 50e9 - 20e9 = 3.03e12
-    assert abs(fd.enterprise_value - 3.03e12) < 1e6
+    assert abs(fd.valuation.enterprise_value - 3.03e12) < 1e6
 
 def test_extract_financial_data_ev_ebitda():
     fd = extract_financial_data(_make_financials_result(), _make_price_result())
-    assert fd.ev_ebitda is not None
-    assert abs(fd.ev_ebitda - fd.enterprise_value / fd.ebitda) < 1e-6
+    assert fd.valuation.ev_ebitda is not None
+    assert abs(fd.valuation.ev_ebitda - fd.valuation.enterprise_value / fd.income.ebitda) < 1e-6
 
 def test_extract_financial_data_ev_ebitda_none_when_negative_ebitda():
     fd = extract_financial_data(_make_financials_result(ebitda=-1e9), _make_price_result())
-    assert fd.ev_ebitda is None
+    assert fd.valuation.ev_ebitda is None
 
 def test_extract_financial_data_zero_debt_cash():
     fd = extract_financial_data(
         _make_financials_result(total_debt=0, total_cash=0), _make_price_result()
     )
-    assert abs(fd.enterprise_value - fd.market_cap) < 1
+    assert abs(fd.valuation.enterprise_value - fd.market.market_cap) < 1
 
 def test_extract_company_financials_has_debt_cash():
     cf = extract_company_financials(_make_financials_result())
@@ -71,7 +71,7 @@ def test_extract_financial_data_missing_shares_outstanding_warns():
     del fr.data["shares_outstanding"]
     fd = extract_financial_data(fr, _make_price_result())
     # Derived: market_cap / current_price = 3e12 / 200 = 15e9
-    assert fd.shares_outstanding == pytest.approx(15e9, rel=1e-6)
+    assert fd.market.shares_outstanding == pytest.approx(15e9, rel=1e-6)
     assert any("shares_outstanding" in w for w in fd.warnings)
 
 
@@ -80,7 +80,7 @@ def test_extract_financial_data_zero_shares_outstanding_warns():
     fd = extract_financial_data(
         _make_financials_result(shares_outstanding=0), _make_price_result()
     )
-    assert fd.shares_outstanding == pytest.approx(15e9, rel=1e-6)
+    assert fd.market.shares_outstanding == pytest.approx(15e9, rel=1e-6)
     assert any("shares_outstanding" in w for w in fd.warnings)
 
 

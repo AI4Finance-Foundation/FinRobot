@@ -15,10 +15,13 @@ from finagent.engine.compute.data_processor import (
     forecast_financials,
 )
 from finagent.engine.models.financial import (
+    BalanceSheet,
     FinancialData,
     ForecastResult,
     HistoricalMetrics,
+    IncomeStatement,
     MarginAssumptions,
+    MarketData,
     PriceHistory,
 )
 
@@ -86,15 +89,19 @@ def _make_financial_data(
     return FinancialData(
         ticker=ticker,
         timestamp=datetime(year, 12, 31),
-        revenue=revenue,
-        ebitda=ebitda,
-        net_income=net_income,
-        gross_margin=gross_margin,
-        operating_margin=operating_margin,
-        market_cap=market_cap,
-        shares_outstanding=shares_outstanding,
-        current_price=current_price,
-        sga_expense=sga_expense,
+        income=IncomeStatement(
+            revenue=revenue,
+            ebitda=ebitda,
+            net_income=net_income,
+            gross_margin=gross_margin,
+            operating_margin=operating_margin,
+            sga_expense=sga_expense,
+        ),
+        market=MarketData(
+            market_cap=market_cap,
+            shares_outstanding=shares_outstanding,
+            current_price=current_price,
+        ),
     )
 
 

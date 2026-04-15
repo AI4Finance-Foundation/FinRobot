@@ -2,7 +2,16 @@ import math
 import pytest
 from datetime import datetime, timezone
 from finagent.engine.models.financial import (
-    FinancialData, PeerComps, CompanyFinancials, DCFInputs, DCFResult, ThesisResult,
+    BalanceSheet,
+    FinancialData,
+    IncomeStatement,
+    MarketData,
+    ValuationMetrics,
+    PeerComps,
+    CompanyFinancials,
+    DCFInputs,
+    DCFResult,
+    ThesisResult,
 )
 from finagent.engine.pipelines.validators import (
     validate_financial_data, validate_peer_comps,
@@ -10,14 +19,29 @@ from finagent.engine.pipelines.validators import (
 )
 
 def _make_fd(**overrides):
-    defaults = dict(
-        ticker="AAPL", timestamp=datetime.now(tz=timezone.utc),
+    """Build FinancialData with sub-models. Accepts flat-style overrides for convenience."""
+    flat = dict(
         revenue=100e9, ebitda=35e9, net_income=20e9,
         gross_margin=0.47, operating_margin=0.28,
         market_cap=3e12, shares_outstanding=15e9, current_price=200.0,
     )
-    defaults.update(overrides)
-    return FinancialData(**defaults)
+    flat.update(overrides)
+    return FinancialData(
+        ticker="AAPL",
+        timestamp=datetime.now(tz=timezone.utc),
+        income=IncomeStatement(
+            revenue=flat["revenue"],
+            ebitda=flat["ebitda"],
+            net_income=flat["net_income"],
+            gross_margin=flat["gross_margin"],
+            operating_margin=flat["operating_margin"],
+        ),
+        market=MarketData(
+            market_cap=flat["market_cap"],
+            shares_outstanding=flat["shares_outstanding"],
+            current_price=flat["current_price"],
+        ),
+    )
 
 def _make_dcf_result(**overrides):
     inputs = DCFInputs(

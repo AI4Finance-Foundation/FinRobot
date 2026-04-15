@@ -2,7 +2,11 @@ import pytest
 from datetime import datetime, timezone
 from pydantic import ValidationError, BaseModel
 from finagent.engine.models.financial import (
+    BalanceSheet,
     FinancialData,
+    IncomeStatement,
+    MarketData,
+    ValuationMetrics,
     CompanyFinancials,
     PeerComps,
     PeerSelection,
@@ -22,7 +26,13 @@ from finagent.engine.models.financial import (
 
 
 def _base_financial_data(**overrides):
-    defaults = dict(
+    """Build kwargs dict for FinancialData with sub-model construction.
+
+    Accepts flat-style overrides for convenience, then routes them into
+    the correct sub-model kwargs.
+    """
+    # Flat defaults
+    flat = dict(
         ticker="AAPL",
         timestamp=datetime.now(tz=timezone.utc),
         revenue=100e9,
@@ -33,15 +43,53 @@ def _base_financial_data(**overrides):
         market_cap=3e12,
         shares_outstanding=15e9,
         current_price=200.0,
+        total_debt=0,
+        total_cash=0,
+        depreciation_amortization=None,
+        rd_expense=None,
+        sga_expense=None,
+        interest_expense=None,
+        enterprise_value=None,
+        ev_ebitda=None,
+        ev_revenue=None,
     )
-    defaults.update(overrides)
-    return defaults
+    flat.update(overrides)
+
+    return dict(
+        ticker=flat["ticker"],
+        timestamp=flat["timestamp"],
+        income=IncomeStatement(
+            revenue=flat["revenue"],
+            ebitda=flat["ebitda"],
+            net_income=flat["net_income"],
+            gross_margin=flat["gross_margin"],
+            operating_margin=flat["operating_margin"],
+            depreciation_amortization=flat["depreciation_amortization"],
+            rd_expense=flat["rd_expense"],
+            sga_expense=flat["sga_expense"],
+            interest_expense=flat["interest_expense"],
+        ),
+        balance=BalanceSheet(
+            total_debt=flat["total_debt"],
+            total_cash=flat["total_cash"],
+        ),
+        market=MarketData(
+            market_cap=flat["market_cap"],
+            shares_outstanding=flat["shares_outstanding"],
+            current_price=flat["current_price"],
+        ),
+        valuation=ValuationMetrics(
+            enterprise_value=flat["enterprise_value"],
+            ev_ebitda=flat["ev_ebitda"],
+            ev_revenue=flat["ev_revenue"],
+        ),
+    )
 
 
 def test_financial_data_valid():
     fd = FinancialData(**_base_financial_data())
     assert fd.ticker == "AAPL"
-    assert fd.revenue == 100e9
+    assert fd.income.revenue == 100e9
 
 
 def test_financial_data_rejects_negative_gross_margin():
@@ -56,21 +104,21 @@ def test_financial_data_rejects_zero_shares():
 
 def test_financial_data_allows_mutation():
     fd = FinancialData(**_base_financial_data())
-    fd.ev_ebitda = 25.0
-    assert fd.ev_ebitda == 25.0
+    fd.valuation.ev_ebitda = 25.0
+    assert fd.valuation.ev_ebitda == 25.0
 
 
 def test_financial_data_allows_negative_operating_margin():
     fd = FinancialData(**_base_financial_data(operating_margin=-2.5))
-    assert fd.operating_margin == -2.5
+    assert fd.income.operating_margin == -2.5
 
 
 def test_financial_data_has_total_debt_total_cash():
     fd = FinancialData(**_base_financial_data())
-    assert fd.total_debt == 0
-    assert fd.total_cash == 0
+    assert fd.balance.total_debt == 0
+    assert fd.balance.total_cash == 0
     fd2 = FinancialData(**_base_financial_data(total_debt=100e9, total_cash=50e9))
-    assert fd2.total_debt == 100e9
+    assert fd2.balance.total_debt == 100e9
 
 
 def test_dcf_inputs_rejects_high_beta():
@@ -306,40 +354,38 @@ def test_financial_data_da_fields_default_none():
     fd = FinancialData(
         ticker="AAPL",
         timestamp=datetime.now(tz=timezone.utc),
-        revenue=100e9,
-        ebitda=35e9,
-        net_income=20e9,
-        gross_margin=0.43,
-        operating_margin=0.30,
-        market_cap=2.5e12,
-        shares_outstanding=15e9,
-        current_price=170.0,
+        income=IncomeStatement(
+            revenue=100e9, ebitda=35e9, net_income=20e9,
+            gross_margin=0.43, operating_margin=0.30,
+        ),
+        market=MarketData(
+            market_cap=2.5e12, shares_outstanding=15e9, current_price=170.0,
+        ),
     )
-    assert fd.depreciation_amortization is None
-    assert fd.rd_expense is None
-    assert fd.sga_expense is None
-    assert fd.interest_expense is None
+    assert fd.income.depreciation_amortization is None
+    assert fd.income.rd_expense is None
+    assert fd.income.sga_expense is None
+    assert fd.income.interest_expense is None
 
 
 def test_financial_data_da_fields_set():
     fd = FinancialData(
         ticker="AAPL",
         timestamp=datetime.now(tz=timezone.utc),
-        revenue=100e9,
-        ebitda=35e9,
-        net_income=20e9,
-        gross_margin=0.43,
-        operating_margin=0.30,
-        market_cap=2.5e12,
-        shares_outstanding=15e9,
-        current_price=170.0,
-        depreciation_amortization=11e9,
-        rd_expense=22e9,
-        sga_expense=18e9,
-        interest_expense=3e9,
+        income=IncomeStatement(
+            revenue=100e9, ebitda=35e9, net_income=20e9,
+            gross_margin=0.43, operating_margin=0.30,
+            depreciation_amortization=11e9,
+            rd_expense=22e9,
+            sga_expense=18e9,
+            interest_expense=3e9,
+        ),
+        market=MarketData(
+            market_cap=2.5e12, shares_outstanding=15e9, current_price=170.0,
+        ),
     )
-    assert fd.depreciation_amortization == 11e9
-    assert fd.rd_expense == 22e9
+    assert fd.income.depreciation_amortization == 11e9
+    assert fd.income.rd_expense == 22e9
 
 
 def test_dcf_inputs_da_pct_revenue_default_none():

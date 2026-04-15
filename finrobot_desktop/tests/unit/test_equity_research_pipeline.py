@@ -232,7 +232,7 @@ async def test_step1_produces_financial_data(mock_deps):
     output = await execute_financial_data_step(mock_agent, mock_deps, "prompt", {}, "AAPL")
     assert isinstance(output, StepOutput)
     assert isinstance(output.structured, FinancialData)
-    assert output.structured.revenue == 100e9
+    assert output.structured.income.revenue == 100e9
 
 
 @pytest.mark.asyncio

@@ -94,14 +94,14 @@ async def _execute_peer_analysis(
     target_fin = target_fin_raw
     target = CompanyFinancials(
         ticker=ticker,
-        revenue=target_fin.revenue,
-        ebitda=target_fin.ebitda,
-        net_income=target_fin.net_income,
-        market_cap=target_fin.market_cap,
-        total_debt=target_fin.total_debt,
-        total_cash=target_fin.total_cash,
-        gross_margin=target_fin.gross_margin,
-        operating_margin=target_fin.operating_margin,
+        revenue=target_fin.income.revenue,
+        ebitda=target_fin.income.ebitda,
+        net_income=target_fin.income.net_income,
+        market_cap=target_fin.market.market_cap,
+        total_debt=target_fin.balance.total_debt,
+        total_cash=target_fin.balance.total_cash,
+        gross_margin=target_fin.income.gross_margin,
+        operating_margin=target_fin.income.operating_margin,
     )
     calculate_multiples(target)
 

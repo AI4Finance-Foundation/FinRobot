@@ -252,11 +252,11 @@ def validate_financial_data(
             Default (-500%, 90%) covers pre-revenue biotech through high-margin software.
             Tighten for specific industry analysis if needed.
     """
-    if data.revenue <= 0:
+    if data.income.revenue <= 0:
         return ValidationResult(passed=False, error="Revenue must be positive")
-    if data.market_cap <= 0:
+    if data.market.market_cap <= 0:
         return ValidationResult(passed=False, error="Market cap must be positive")
-    margin = data.ebitda / data.revenue
+    margin = data.income.ebitda / data.income.revenue
     margin_min, margin_max = ebitda_margin_range
     if not (margin_min <= margin <= margin_max):
         return ValidationResult(
@@ -264,7 +264,7 @@ def validate_financial_data(
             error=f"EBITDA margin {margin:.1%} out of range "
                   f"({margin_min:.0%} to {margin_max:.0%})",
         )
-    if data.pe_ratio is not None and data.pe_ratio <= 0:
+    if data.market.pe_ratio is not None and data.market.pe_ratio <= 0:
         return ValidationResult(passed=False, error="PE ratio must be positive if set")
     return ValidationResult(passed=True)
 

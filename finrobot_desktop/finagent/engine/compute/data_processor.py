@@ -69,47 +69,47 @@ def extract_historical_metrics(
 
     for i, fd in enumerate(sorted_data):
         year_list.append(fd.timestamp.year)
-        revenue_list.append(fd.revenue)
+        revenue_list.append(fd.income.revenue)
 
         # YoY revenue growth: None for first year
         if i == 0:
             revenue_growth.append(None)
         else:
-            prev_rev = sorted_data[i - 1].revenue
+            prev_rev = sorted_data[i - 1].income.revenue
             if prev_rev != 0:
-                revenue_growth.append((fd.revenue - prev_rev) / prev_rev)
+                revenue_growth.append((fd.income.revenue - prev_rev) / prev_rev)
             else:
                 revenue_growth.append(None)
 
         # COGS = revenue * (1 - gross_margin)
-        cogs = fd.revenue * (1 - fd.gross_margin)
+        cogs = fd.income.revenue * (1 - fd.income.gross_margin)
         cogs_list.append(cogs)
 
         # Gross profit = revenue - COGS
-        gross_profit_list.append(fd.revenue - cogs)
+        gross_profit_list.append(fd.income.revenue - cogs)
 
         # Margins (passthrough from provider)
-        gross_margin_list.append(fd.gross_margin)
+        gross_margin_list.append(fd.income.gross_margin)
 
         # SGA
-        sga = fd.sga_expense if fd.sga_expense is not None else 0.0
+        sga = fd.income.sga_expense if fd.income.sga_expense is not None else 0.0
         sga_list.append(sga)
-        sga_ratio_list.append(sga / fd.revenue if fd.revenue != 0 else 0.0)
+        sga_ratio_list.append(sga / fd.income.revenue if fd.income.revenue != 0 else 0.0)
 
         # EBITDA
-        ebitda_list.append(fd.ebitda)
-        ebitda_margin_list.append(fd.ebitda / fd.revenue if fd.revenue != 0 else 0.0)
+        ebitda_list.append(fd.income.ebitda)
+        ebitda_margin_list.append(fd.income.ebitda / fd.income.revenue if fd.income.revenue != 0 else 0.0)
 
         # Operating income = revenue * operating_margin
-        operating_income_list.append(fd.revenue * fd.operating_margin)
-        operating_margin_list.append(fd.operating_margin)
+        operating_income_list.append(fd.income.revenue * fd.income.operating_margin)
+        operating_margin_list.append(fd.income.operating_margin)
 
         # Net income
-        net_income_list.append(fd.net_income)
+        net_income_list.append(fd.income.net_income)
 
         # EPS = net_income / shares_outstanding
-        so = fd.shares_outstanding
-        eps = fd.net_income / so
+        so = fd.market.shares_outstanding
+        eps = fd.income.net_income / so
         eps_list.append(eps)
 
         # PE ratio: only if price_data is provided

@@ -52,6 +52,21 @@ def test_wacc_example():
     assert abs(wacc - 0.09316) < 1e-9
 ```
 
+## Pre-commit hooks
+
+Install once after cloning:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+Hooks run automatically on `git commit`. To run manually:
+
+```bash
+pre-commit run --all-files
+```
+
 ## Pull Request Process
 
 1. Fork the repo

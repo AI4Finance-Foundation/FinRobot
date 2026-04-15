@@ -24,6 +24,8 @@ Thumbs.db
 
 # Project
 finagent_cache.db
+*.db-shm
+*.db-wal
 *.log
 .env
 

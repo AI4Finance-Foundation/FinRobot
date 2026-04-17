@@ -40,6 +40,22 @@ finagent dcf AAPL
 finagent serve
 ```
 
+### Financial Assumptions
+
+Default financial assumptions are calibrated for US equities:
+- Tax rate: 21% (US federal corporate rate)
+- Risk-free rate: US 10-Year Treasury yield
+
+For non-US markets, override via the SDK:
+
+```python
+from finagent.engine.models.financial import ForecastAssumptions
+
+assumptions = ForecastAssumptions(tax_rate=0.196)  # Japan corporate tax
+```
+
+CLI flag support for non-US defaults is planned for a future release.
+
 ## Architecture
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design document.

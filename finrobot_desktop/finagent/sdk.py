@@ -276,6 +276,11 @@ class FinAgent:
         """
         if self._deps is not None:
             await self._deps.data_layer.close()
+        # I6: yield once so any pending callbacks (e.g. aiosqlite worker
+        # thread posting via call_soon_threadsafe) are processed before
+        # we close the loop.  Without this, loop.close() can race with
+        # still-queued callbacks → RuntimeError("Event loop is closed").
+        await asyncio.sleep(0)
         if self._loop is not None and not self._loop.is_closed():
             self._loop.close()
             self._loop = None

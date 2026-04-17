@@ -167,3 +167,23 @@ async def test_close_safe_called_twice(monkeypatch):
     await agent.close()
     # DataLayer.close() was called at least once through the agent
     mock_layer.close.assert_awaited()
+
+
+async def test_close_does_not_emit_event_loop_closed_warning():
+    """I6: close() must flush pending callbacks before closing the loop.
+
+    Without ``await asyncio.sleep(0)`` before ``loop.close()``, the
+    aiosqlite worker thread may still have pending ``call_soon_threadsafe``
+    callbacks that hit RuntimeError('Event loop is closed').
+    """
+    import asyncio
+    import warnings
+
+    agent = FinAgent(model="test")
+    # Simulate the persistent sync loop that _run_sync creates.
+    agent._loop = asyncio.new_event_loop()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        await agent.close()
+    assert agent._loop is None

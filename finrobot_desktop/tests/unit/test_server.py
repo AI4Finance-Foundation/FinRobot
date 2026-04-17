@@ -128,6 +128,10 @@ class TestPipelineStream:
             skill_runtime=None,
         )
 
+        from finagent.engine.agents.factory import create_sub_agents
+
+        app.state.sub_agents = create_sub_agents(settings, skill_registry=None)
+
     @pytest.mark.asyncio
     async def test_invalid_pipeline_type_returns_400(self):
         self._setup_test_deps()
@@ -270,3 +274,52 @@ class TestExcelExportEndpoint:
         ) as client:
             response = await client.get("/api/export/excel/bogus/TEST")
         assert response.status_code == 400
+
+
+class TestSubAgentsCaching:
+    """I1: sub-agents created once in lifespan, not per-request."""
+
+    @pytest.mark.asyncio
+    async def test_app_state_has_sub_agents_after_setup(self):
+        from finagent.config import get_settings
+        from finagent.engine.agents.factory import create_sub_agents
+
+        settings = get_settings(model_name="test")
+        sub_agents = create_sub_agents(settings, skill_registry=None)
+        app.state.sub_agents = sub_agents
+        assert hasattr(app.state, "sub_agents")
+        assert isinstance(app.state.sub_agents, dict)
+        assert len(app.state.sub_agents) > 0
+
+    @pytest.mark.asyncio
+    async def test_sse_uses_cached_sub_agents(self):
+        """SSE endpoint must use app.state.sub_agents, not call create_sub_agents."""
+        TestPipelineStream._setup_test_deps()
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/pipeline/stream/research/TEST")
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_server_run_pipeline_no_create_sub_agents_import(self):
+        """The run_pipeline() function must NOT import create_sub_agents."""
+        import ast
+        from pathlib import Path
+
+        server_path = Path(__file__).resolve().parents[2] / "finagent" / "server.py"
+        source = server_path.read_text()
+        tree = ast.parse(source)
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "run_pipeline":
+                # Walk the body of run_pipeline looking for imports of
+                # create_sub_agents
+                for child in ast.walk(node):
+                    if isinstance(child, ast.ImportFrom):
+                        for alias in child.names:
+                            assert alias.name != "create_sub_agents", (
+                                "run_pipeline() still imports create_sub_agents — "
+                                "it should use request.app.state.sub_agents instead"
+                            )

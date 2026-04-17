@@ -84,8 +84,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     agent = create_lead_agent(settings, skill_registry=registry)
     deps = FinAgentDeps(data_layer=data_layer, settings=settings, skill_runtime=registry)
 
+    from finagent.engine.agents.factory import create_sub_agents
+
     app.state.agent = agent
     app.state.deps = deps
+    app.state.sub_agents = create_sub_agents(
+        deps.settings, skill_registry=deps.skill_runtime
+    )
     yield
     await cache.close()
 
@@ -165,11 +170,7 @@ async def pipeline_stream(pipeline_type: str, ticker: str, request: Request) -> 
     async def run_pipeline() -> None:
         try:
             deps = request.app.state.deps
-            from finagent.engine.agents.factory import create_sub_agents
-
-            sub_agents = create_sub_agents(
-                deps.settings, skill_registry=deps.skill_runtime
-            )
+            sub_agents = request.app.state.sub_agents
             pipeline = factories[pipeline_type](sub_agents)
             result = await pipeline.execute(deps, ticker, progress=SseProgress())
             deps.report_cache[ticker.upper()] = build_report_context(ticker, result)

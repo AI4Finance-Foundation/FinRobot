@@ -9,6 +9,8 @@ from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import (
     DCFResult,
     FinancialData,
+    LBOInputs,
+    LBOResult,
     PeerComps,
     ThesisResult,
     CatalystAnalysis,
@@ -80,6 +82,14 @@ def build_report_context(ticker: str, result: PipelineResult) -> dict[str, Any]:
     if not isinstance(valuation_synthesis, ValuationSynthesis):
         valuation_synthesis = None
 
+    lbo_inputs = sd.get("lbo_parameters")
+    if not isinstance(lbo_inputs, LBOInputs):
+        lbo_inputs = None
+
+    lbo_result = sd.get("lbo_calculation")
+    if not isinstance(lbo_result, LBOResult):
+        lbo_result = None
+
     return {
         "ticker": ticker.upper(),
         "company_name": fin.ticker if fin else ticker.upper(),
@@ -94,6 +104,8 @@ def build_report_context(ticker: str, result: PipelineResult) -> dict[str, Any]:
         "peer_comps": peer_comps,
         "catalyst_analysis": catalyst_analysis,
         "valuation_synthesis": valuation_synthesis,
+        "lbo_inputs": lbo_inputs,
+        "lbo_result": lbo_result,
     }
 
 

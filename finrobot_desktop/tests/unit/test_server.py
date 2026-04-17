@@ -235,14 +235,8 @@ class TestPipelineStream:
 
 
 class TestExcelExportEndpoint:
-    """P3 audit D3: regression guard — LBO Excel export must return 501
-    until LBOInputs are persisted alongside LBOResult in report_cache.
-
-    Before this fix, the endpoint reconstructed LBOInputs post-hoc with
-    arithmetic that evaluated to entry_debt (not ltm_ebitda) plus hard-
-    coded 1.0 / 5% / 20% placeholders that had nothing to do with the
-    actual LBO run. The endpoint happily returned an Excel file with
-    those fabricated values in the header — a credibility disaster.
+    """D3-root: LBO Excel export returns 404 when inputs/result missing,
+    and 200 with a valid spreadsheet when both are cached.
     """
 
     @staticmethod
@@ -258,11 +252,9 @@ class TestExcelExportEndpoint:
         )
 
     @pytest.mark.asyncio
-    async def test_lbo_excel_export_returns_501_until_inputs_cached(self):
-        """Even with a fresh-looking LBOResult in the cache, the endpoint
-        must refuse to generate Excel because the inputs it needs are
-        not persisted. This test pins the behaviour so nobody silently
-        restores the broken post-hoc reconstruction."""
+    async def test_lbo_excel_export_returns_404_without_inputs(self):
+        """When LBOInputs are missing from the cache, the endpoint must
+        return 404 with guidance to re-run the pipeline."""
         from finagent.engine.models.financial import LBOResult, LBOYear
 
         fake_year = LBOYear(
@@ -301,15 +293,47 @@ class TestExcelExportEndpoint:
         ) as client:
             response = await client.get("/api/export/excel/lbo/TEST")
 
-        assert response.status_code == 501
-        detail = response.json()["detail"]
-        assert "LBOInputs" in detail
-        assert "P3 audit D3" in detail  # audit trail must stay in the message
+        assert response.status_code == 404
+        assert "re-run" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_lbo_excel_export_returns_200_when_inputs_cached(self):
+        """When both LBOInputs and LBOResult are cached, the endpoint
+        must return a valid .xlsx spreadsheet."""
+        from finagent.engine.models.financial import LBOInputs, LBOResult, LBOYear
+
+        fake_year = LBOYear(
+            year=1, revenue=500_000_000, ebitda=100_000_000, da=10_000_000,
+            ebit=90_000_000, interest_expense=49_000_000, ebt=41_000_000,
+            taxes=10_250_000, net_income=30_750_000, capex=20_000_000,
+            delta_nwc=5_000_000, fcf=15_750_000, mandatory_amort=7_000_000,
+            cash_sweep_amount=8_750_000, total_debt_paydown=15_750_000,
+            ending_debt=684_250_000,
+        )
+        fake_result = LBOResult(
+            entry_ev=1_000_000_000, entry_equity=300_000_000,
+            entry_debt=700_000_000, schedule=[fake_year],
+            exit_ev=1_800_000_000, exit_ebitda=250_000_000,
+            exit_equity=1_400_000_000, irr=0.22, moic=4.5,
+        )
+        fake_inputs = LBOInputs(
+            ticker="TEST", ltm_ebitda=100_000_000, entry_ev_ebitda=10.0,
+            exit_ev_ebitda=10.0, revenue_base=500_000_000,
+            revenue_growth_rate=0.05, ebitda_margin=0.2,
+        )
+        self._setup_deps_with_cache({
+            "TEST": {"lbo_result": fake_result, "lbo_inputs": fake_inputs}
+        })
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/export/excel/lbo/TEST")
+        assert response.status_code == 200
+        assert "spreadsheetml" in response.headers["content-type"]
 
     @pytest.mark.asyncio
     async def test_invalid_analysis_type_still_400(self):
-        """Unrelated to D3, but close enough in scope to warrant a regression
-        anchor — the 400 branch should be hit before the 501 branch."""
+        """The 400 branch for invalid analysis types must still work."""
         self._setup_deps_with_cache()
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"

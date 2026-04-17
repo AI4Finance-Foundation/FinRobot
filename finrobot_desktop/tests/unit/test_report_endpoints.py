@@ -207,6 +207,37 @@ class TestBuildReportContext:
         ctx = build_report_context("aapl", result)
         assert ctx["ticker"] == "AAPL"
 
+    def test_lbo_pipeline_extracts_inputs_and_result(self):
+        """D3-root: LBOInputs and LBOResult must appear in report context."""
+        from finagent.engine.models.financial import LBOInputs, LBOResult, LBOYear
+
+        fake_year = LBOYear(
+            year=1, revenue=500_000_000, ebitda=100_000_000, da=10_000_000,
+            ebit=90_000_000, interest_expense=49_000_000, ebt=41_000_000,
+            taxes=10_250_000, net_income=30_750_000, capex=20_000_000,
+            delta_nwc=5_000_000, fcf=15_750_000, mandatory_amort=7_000_000,
+            cash_sweep_amount=8_750_000, total_debt_paydown=15_750_000,
+            ending_debt=684_250_000,
+        )
+        inputs = LBOInputs(
+            ticker="TEST", ltm_ebitda=100_000_000, entry_ev_ebitda=10.0,
+            exit_ev_ebitda=10.0, revenue_base=500_000_000,
+            revenue_growth_rate=0.05, ebitda_margin=0.2,
+        )
+        lbo_result = LBOResult(
+            entry_ev=1_000_000_000, entry_equity=300_000_000,
+            entry_debt=700_000_000, schedule=[fake_year],
+            exit_ev=1_800_000_000, exit_ebitda=250_000_000,
+            exit_equity=1_400_000_000, irr=0.22, moic=4.5,
+        )
+        pipeline_result = PipelineResult(
+            steps={"lbo_parameters": "...", "lbo_calculation": "..."},
+            structured_data={"lbo_parameters": inputs, "lbo_calculation": lbo_result},
+        )
+        ctx = build_report_context("TEST", pipeline_result)
+        assert ctx.get("lbo_inputs") is inputs
+        assert ctx.get("lbo_result") is lbo_result
+
 
 # --- HTTP endpoint tests ---
 

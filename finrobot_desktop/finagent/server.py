@@ -253,29 +253,6 @@ async def export_excel(analysis_type: str, ticker: str, request: Request) -> Res
             detail=f"analysis_type must be one of {sorted(_VALID_TYPES)}",
         )
 
-    # P3 audit D3: LBO Excel export is temporarily disabled. The original
-    # LBOInputs are not persisted in report_cache (only the LBOResult is),
-    # and the prior reconstruction produced incorrect values:
-    #   ltm_ebitda = entry_ev / (entry_ev / entry_debt) == entry_debt
-    # plus hard-coded revenue_base=1.0, revenue_growth=5%, ebitda_margin=20%
-    # that had nothing to do with the actual LBO run. Returning that Excel
-    # was a credibility problem, so we 501 it until the pipeline is taught
-    # to cache its own LBOInputs under report_cache[ticker]["lbo_inputs"].
-    if analysis_type == "lbo":
-        raise HTTPException(
-            status_code=501,
-            detail=(
-                "LBO Excel export is temporarily disabled: original "
-                "LBOInputs are not persisted in report_cache, and "
-                "reconstructing them post-hoc produced incorrect values "
-                "(ltm_ebitda was computed as entry_debt; revenue_base, "
-                "revenue_growth_rate and ebitda_margin were hard-coded "
-                "placeholders unrelated to the actual LBO run). "
-                "Re-enable once the LBO pipeline caches its inputs "
-                "alongside its result. Tracking: P3 audit D3."
-            ),
-        )
-
     cache = request.app.state.deps.report_cache.get(ticker.upper())
     if cache is None:
         raise HTTPException(
@@ -283,7 +260,23 @@ async def export_excel(analysis_type: str, ticker: str, request: Request) -> Res
             detail=f"No cached results for {ticker.upper()}. Run analysis first.",
         )
 
-    if analysis_type == "dcf":
+    if analysis_type == "lbo":
+        from finagent.engine.compute.spreadsheet_gen import generate_lbo_excel
+        from finagent.engine.models.financial import LBOInputs, LBOResult
+
+        lbo_result: LBOResult | None = cache.get("lbo_result")
+        lbo_inputs: LBOInputs | None = cache.get("lbo_inputs")
+        if lbo_result is None or lbo_inputs is None:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "LBO inputs/result not in cache. Re-run the LBO pipeline "
+                    "to populate them."
+                ),
+            )
+        xlsx_bytes = generate_lbo_excel(lbo_result, lbo_inputs)
+
+    elif analysis_type == "dcf":
         dcf_result: DCFResult | None = cache.get("dcf_result")
         if dcf_result is None:
             raise HTTPException(status_code=404, detail="No DCF result cached for this ticker.")

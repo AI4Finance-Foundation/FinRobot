@@ -233,6 +233,24 @@ class TestSkillCommands:
         assert "No skills directory" in result.output
 
 
+class TestCliProgress:
+    @pytest.mark.asyncio
+    async def test_cli_progress_retry_reprints_step_label(self, capsys):
+        """I3: after retry, step label must be reprinted so 'done' has context."""
+        from finagent.cli import CliProgress
+
+        progress = CliProgress()
+        await progress.on_step_start(1, 3, "data_collection")
+        await progress.on_step_retry(1, "data_collection", 1, "timeout")
+        await progress.on_step_end(1, 3, "data_collection", 2.5)
+        output = capsys.readouterr().out
+        lines = output.strip().split("\n")
+        # Last line should contain both the step label and "done"
+        assert "Data Collection" in lines[-1] and "done" in lines[-1], (
+            f"Expected step label before 'done' on last line, got: {lines[-1]}"
+        )
+
+
 class TestServeCommand:
     def test_serve_doesnt_crash_on_import(self):
         """Just verify the serve command can be parsed without import errors."""

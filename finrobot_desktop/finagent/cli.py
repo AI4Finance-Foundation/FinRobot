@@ -89,9 +89,13 @@ class CliProgress:
     step progress instead of waiting for the full pipeline to finish.
     """
 
+    def __init__(self) -> None:
+        self._total: int = 0
+
     async def on_step_start(
         self, step_index: int, total: int, step_name: str
     ) -> None:
+        self._total = total
         label = step_name.replace("_", " ").title()
         click.echo(f"  [{step_index}/{total}] {label}...", nl=False)
 
@@ -106,6 +110,9 @@ class CliProgress:
         # Newline so the retry note is on its own line (the preceding start
         # line was written without a newline).
         click.echo(f" retry {attempt} ({error[:60]})")
+        # Reprint the step label so the subsequent on_step_end has context.
+        label = step_name.replace("_", " ").title()
+        click.echo(f"  [{step_index}/{self._total}] {label}...", nl=False)
 
 
 @click.group()

@@ -142,7 +142,10 @@ class Pipeline:
             if progress is not None:
                 await progress.on_step_start(i, total, step.name)
 
-            step_data = await self._gather_data(deps, step.required_data, ticker, results)
+            step_data = await self._gather_data(
+                deps, step.required_data, ticker, results,
+                structured_results=structured_results,
+            )
 
             methodology = ""
             if step.skill_section and deps.skill_runtime:
@@ -277,6 +280,8 @@ class Pipeline:
         required_data: "list[str | DataType]",
         ticker: str,
         previous_results: dict[str, str],
+        *,
+        structured_results: dict[str, object] | None = None,
     ) -> str:
         if not required_data:
             if not previous_results:
@@ -286,15 +291,27 @@ class Pipeline:
             # (e.g., thesis reads financial_modeling AND peer_analysis), so 2 is
             # the sweet spot between context completeness and prompt size. Structured
             # data from earlier steps is still available via structured_context.
+            sr = structured_results or {}
             keys = list(previous_results.keys())
             parts: list[str] = []
             for name in keys[:-2]:
                 text = previous_results[name]
                 word_count = len(text.split())
-                parts.append(
-                    f"[Previous: {name} \u2014 {word_count} words, "
-                    f"see structured_context for data]"
-                )
+                if name in sr:
+                    # Step has structured data available via structured_context
+                    parts.append(
+                        f"[Previous: {name} \u2014 {word_count} words, "
+                        f"see structured_context for data]"
+                    )
+                else:
+                    # D6: no structured data — include first 300 chars so
+                    # information is not completely lost in compact mode.
+                    snippet = text[:300]
+                    ellipsis = "..." if len(text) > 300 else ""
+                    parts.append(
+                        f"[Previous: {name} \u2014 {word_count} words] "
+                        f"{snippet}{ellipsis}"
+                    )
             for name in keys[-2:]:
                 parts.append(f"=== {name} ===\n{previous_results[name]}")
             return "\n\n".join(parts)

@@ -158,6 +158,49 @@ class TestGatherData:
         result = await _run_pipeline(pipeline)
         assert "s2" in result.steps
 
+    async def test_compact_context_includes_snippet_for_unstructured_steps(self):
+        """D6: steps without structured_context get 300-char text snippet."""
+        captured_prompts: list[str] = []
+
+        async def capture_fn(agent, deps, prompt, structured_context, ticker):
+            captured_prompts.append(prompt)
+            return "step output text that is meaningful"
+
+        # All steps have empty required_data so compact mode kicks in for
+        # step_d (which has 3 prior results, compacting step_a and step_b).
+        steps = [
+            PipelineStep(name="step_a", agent=MagicMock(),
+                         validator=TextValidator(validate_is_non_empty), executor=capture_fn),
+            PipelineStep(name="step_b", agent=MagicMock(),
+                         validator=TextValidator(validate_is_non_empty), executor=capture_fn),
+            PipelineStep(name="step_c", agent=MagicMock(),
+                         validator=TextValidator(validate_is_non_empty), executor=capture_fn),
+            PipelineStep(name="step_d", agent=MagicMock(),
+                         validator=TextValidator(validate_is_non_empty), executor=capture_fn),
+        ]
+        mock_deps = MagicMock()
+        mock_deps.skill_runtime = None
+        pipeline = Pipeline(steps=steps)
+        await pipeline.execute(mock_deps, "TEST")
+
+        # step_d's prompt uses compact mode for step_a and step_b.
+        # Since executor returns plain string (no StepOutput), there's no
+        # structured data for step_a/step_b -> the D6 snippet should include text.
+        last_prompt = captured_prompts[-1]  # step_d
+
+        # The compacted section for step_a (which has no structured data)
+        # must include the text snippet, not just a pointer to structured_context.
+        # Find the line for step_a's compact summary.
+        step_a_line = [
+            line for line in last_prompt.splitlines()
+            if "step_a" in line and "Previous" in line
+        ]
+        assert len(step_a_line) == 1, f"Expected one compact line for step_a, got: {step_a_line}"
+        # D6 fix: the compact line should contain actual text content
+        assert "step output text" in step_a_line[0], (
+            f"Step_a compact line missing text snippet: {step_a_line[0]}"
+        )
+
 
 class TestPipelineLogging:
     async def test_execute_logs_step_progress(self, caplog):

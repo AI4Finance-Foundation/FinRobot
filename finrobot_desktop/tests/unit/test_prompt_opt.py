@@ -23,11 +23,13 @@ async def test_gather_data_last_two_steps():
     # Last 2 steps: full text
     assert "step3" in gathered and "output3 body text" in gathered
     assert "step4" in gathered and "output4 body text" in gathered
-    # Earlier steps: summary lines only (not full body)
-    assert "output1 body text" not in gathered
-    assert "output2 body text" not in gathered
+    # Earlier steps: summary lines with text snippet (D6: steps without
+    # structured data include first 300 chars so info isn't lost)
     assert "[Previous: step1" in gathered
     assert "[Previous: step2" in gathered
+    # D6: text snippet IS included for steps without structured data
+    assert "output1 body text" in gathered
+    assert "output2 body text" in gathered
 
 
 async def test_gather_data_two_steps_both_full():

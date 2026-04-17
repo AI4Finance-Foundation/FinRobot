@@ -165,6 +165,48 @@ class TestPipelineStream:
         # Pipeline finished successfully → complete event present.
         assert "complete" in body or "error" in body
 
+    @pytest.mark.asyncio
+    async def test_sse_complete_event_has_report_url_not_summary(self):
+        """I2: complete event must contain report_url, not summary."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        self._setup_test_deps()
+
+        # Mock the pipeline to succeed immediately with a fake result.
+        # format_summary is a sync method so use MagicMock, not AsyncMock.
+        fake_result = MagicMock()
+        fake_result.format_summary.return_value = "fake summary"
+
+        fake_pipeline = AsyncMock()
+        fake_pipeline.execute.return_value = fake_result
+
+        fake_factory = lambda sub_agents: fake_pipeline  # noqa: E731
+
+        with patch(
+            "finagent.server._get_pipeline_factories",
+            return_value={"research": fake_factory},
+        ), patch(
+            "finagent.server.build_report_context",
+            return_value={"mocked": True},
+        ):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.get("/api/pipeline/stream/research/TEST")
+        body = response.text
+        import json
+
+        for line in body.split("\n"):
+            if line.startswith("data: "):
+                event = json.loads(line[6:])
+                if event.get("event") == "complete":
+                    assert "report_url" in event, "complete event missing report_url"
+                    assert "summary" not in event, "complete event should not contain summary"
+                    assert event["ticker"] == "TEST"
+                    assert "/api/report/html" in event["report_url"]
+                    return
+        pytest.fail("No complete event found in SSE stream")
+
     def test_no_bare_except_exception_in_finagent(self):
         """Regression guard for P3 audit D1 / CLAUDE.md N2 discipline.
 

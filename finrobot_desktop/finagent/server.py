@@ -115,7 +115,7 @@ async def pipeline_stream(pipeline_type: str, ticker: str, request: Request) -> 
       - step_start: {step, total, name}
       - step_end:   {step, total, name, duration}
       - step_retry: {step, name, attempt}
-      - complete:   {summary}
+      - complete:   {ticker, report_url}
       - error:      {message}
     """
     import asyncio
@@ -174,9 +174,11 @@ async def pipeline_stream(pipeline_type: str, ticker: str, request: Request) -> 
             pipeline = factories[pipeline_type](sub_agents)
             result = await pipeline.execute(deps, ticker, progress=SseProgress())
             deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
-            await queue.put(
-                {"event": "complete", "summary": result.format_summary()[:2000]}
-            )
+            await queue.put({
+                "event": "complete",
+                "ticker": ticker,
+                "report_url": f"/api/report/html?ticker={ticker}",
+            })
         except asyncio.CancelledError:
             # Client disconnected. Let event_stream's except-and-cancel path
             # observe the cancellation by re-raising through the task. The

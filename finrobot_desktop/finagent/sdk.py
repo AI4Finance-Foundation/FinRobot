@@ -38,6 +38,8 @@ from finagent.engine.deps import FinAgentDeps
 from finagent.engine.pipelines.base import PipelineResult
 
 if TYPE_CHECKING:
+    from pydantic_ai import Agent
+
     from finagent.engine.pipelines.base import ProgressCallback
 
 
@@ -62,7 +64,7 @@ class FinAgent:
         # instead of waiting for the first LLM call to surface it.
         self._settings.validate_runtime_config()
         self._deps: FinAgentDeps | None = None
-        self._sub_agents: dict[str, Any] | None = None
+        self._sub_agents: dict[str, Agent] | None = None
         # Persistent loop for sync calls — see ``_run_sync``.
         self._loop: asyncio.AbstractEventLoop | None = None
 
@@ -119,7 +121,7 @@ class FinAgent:
         )
         return self._deps
 
-    def _get_sub_agents(self) -> dict[str, Any]:
+    def _get_sub_agents(self) -> dict[str, Agent]:
         self._ensure_deps()
         assert self._sub_agents is not None  # set by _ensure_deps
         return self._sub_agents

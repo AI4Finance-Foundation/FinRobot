@@ -191,6 +191,35 @@ class TestFetchNews:
         assert items[0]["url"] == "https://y.com"
 
 
+class TestNonUSTickerFormat:
+    """Track E: A-share / HK tickers must reach yfinance without format rejection."""
+
+    @pytest.mark.asyncio
+    async def test_non_us_ticker_format_not_rejected(self):
+        """600519.SS (A-share), 000858.SZ (Shenzhen), 0700.HK must pass through."""
+        received_symbols: list[str] = []
+
+        original_make_mock = _make_mock_ticker
+
+        def tracking_ticker(symbol: str):
+            received_symbols.append(symbol)
+            return original_make_mock(VALID_INFO)
+
+        provider = YFinanceProvider()
+        for ticker in ("600519.SS", "000858.SZ", "0700.HK"):
+            received_symbols.clear()
+            with patch(
+                "finagent.engine.data.providers.yfinance_provider.yf.Ticker",
+                side_effect=tracking_ticker,
+            ):
+                result = await provider.fetch(ticker, "financials")
+            assert received_symbols == [ticker], (
+                f"Ticker '{ticker}' was not passed through to yfinance"
+            )
+            assert isinstance(result, DataResult)
+            assert result.ticker == ticker
+
+
 class TestUnsupportedDataType:
     @pytest.mark.asyncio
     async def test_filings_raises_provider_error(self):

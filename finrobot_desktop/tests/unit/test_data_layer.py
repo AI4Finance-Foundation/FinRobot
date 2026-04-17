@@ -169,9 +169,9 @@ class TestChainFallback:
     """P2a: chain fallback iterates all providers, not just primary + 1 fallback."""
 
     async def test_three_provider_chain_first_succeeds(self, cache):
-        """P3 cross-validation: for ``financials`` data the layer also calls
-        the second provider so cross_validate() can check for discrepancies.
-        Third provider is still skipped."""
+        """D4 cross-validation: for ``financials`` data the layer calls up to
+        2 secondary providers so cross_validate() can flag discrepancies from
+        multiple sources."""
         p1 = MockProvider("fmp", ["financials"], result=_make_result(provider="fmp"))
         p2 = MockProvider("finnhub", ["financials"])
         p3 = MockProvider("yfinance", ["financials"])
@@ -179,8 +179,8 @@ class TestChainFallback:
         result = await layer.fetch("financials", "AAPL")
         assert result.provider == "fmp"  # primary wins
         assert p1.fetch_called == 1
-        assert p2.fetch_called == 1  # P3: also called for cross-validation
-        assert p3.fetch_called == 0
+        assert p2.fetch_called == 1  # cross-validation secondary #1
+        assert p3.fetch_called == 1  # D4: cross-validation secondary #2
 
     async def test_three_provider_chain_first_fails_second_succeeds(self, cache):
         """P3 cross-validation: after p1 fails and p2 succeeds, p3 is ALSO
@@ -330,6 +330,43 @@ class TestCrossValidationIntegration:
         layer = DataLayer([p1, p2], cache)
         result = await layer.fetch("financials", "AAPL")
         assert result.warnings.count(shared) == 1
+
+    async def test_cross_validation_uses_all_three_providers(self, cache):
+        """D4: third provider's discrepancy must appear in warnings."""
+        base = {"revenue": 100_000, "ebitda": 50_000}
+        r_base = DataResult(
+            data=base, provider="placeholder", ticker="TEST",
+            data_type="financials", timestamp=datetime.now(tz=timezone.utc),
+        )
+        r_discrepant = DataResult(
+            data={"revenue": 200_000, "ebitda": 50_000},
+            provider="p3", ticker="TEST", data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        p1 = MockProvider("p1", ["financials"], result=r_base.model_copy(update={"provider": "p1"}))
+        p2 = MockProvider("p2", ["financials"], result=r_base.model_copy(update={"provider": "p2"}))
+        p3 = MockProvider("p3", ["financials"], result=r_discrepant)
+        layer = DataLayer([p1, p2, p3], cache)
+        result = await layer.fetch("financials", "TEST")
+        assert p3.fetch_called == 1, "Third provider was not called"
+        assert any("p3" in w for w in result.warnings), (
+            f"Third provider discrepancy not in warnings: {result.warnings}"
+        )
+
+    async def test_cross_validation_caps_at_three_providers(self, cache):
+        """D4: at most 3 providers attempted for financials, even if more configured."""
+        base_data = {"revenue": 100_000}
+        providers = []
+        for i in range(5):
+            r = DataResult(
+                data=base_data, provider=f"p{i}", ticker="TEST",
+                data_type="financials", timestamp=datetime.now(tz=timezone.utc),
+            )
+            providers.append(MockProvider(f"p{i}", ["financials"], result=r))
+        layer = DataLayer(providers, cache)
+        await layer.fetch("financials", "TEST")
+        fetched = [p for p in providers if p.fetch_called > 0]
+        assert len(fetched) <= 3, f"Expected max 3 providers, got {len(fetched)}"
 
 
 class TestClose:

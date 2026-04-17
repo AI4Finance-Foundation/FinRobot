@@ -44,6 +44,7 @@ class DataLayer:
 
         # 2. Try each provider in order
         primary_result: DataResult | None = None
+        secondary_count = 0
         for provider in self._providers:
             if data_type not in provider.capabilities():
                 continue
@@ -89,7 +90,9 @@ class DataLayer:
                     primary_result = primary_result.model_copy(
                         update={"warnings": merged}
                     )
-                break  # two providers checked — done
+                secondary_count += 1
+                if data_type != DataType.FINANCIALS or secondary_count >= 2:
+                    break
 
         if primary_result is not None:
             await self._cache.set(data_type, ticker, primary_result)

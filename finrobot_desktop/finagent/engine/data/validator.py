@@ -60,6 +60,13 @@ def cross_validate(primary: DataResult, secondary: DataResult) -> list[str]:
     warnings: list[str] = []
     p, s = primary.data, secondary.data
 
+    # D5: empty secondary data → warn instead of silently passing all checks
+    if not s:
+        return [
+            f"Secondary provider {secondary.provider} returned empty data "
+            f"— cross-validation skipped"
+        ]
+
     for field, tolerance in _RELATIVE_FIELDS.items():
         pv, sv = p.get(field), s.get(field)
         if pv is None or sv is None:

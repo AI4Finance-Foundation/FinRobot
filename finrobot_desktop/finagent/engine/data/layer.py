@@ -65,6 +65,21 @@ class DataLayer:
                     continue
                 break
             else:
+                # D5: skip empty secondary, add warning, try next provider
+                if not result.data:
+                    empty_warn = (
+                        f"Secondary provider {provider.name} returned empty data "
+                        f"— cross-validation skipped"
+                    )
+                    logger.warning(empty_warn)
+                    if empty_warn not in primary_result.warnings:
+                        updated_warns = list(primary_result.warnings) + [empty_warn]
+                        primary_result = primary_result.model_copy(
+                            update={"warnings": updated_warns}
+                        )
+                    # Don't count toward secondary_count — keep trying
+                    continue
+
                 # Second provider succeeded → cross-validate numeric fields,
                 # then merge: primary's own warnings + secondary's own
                 # warnings + any new discrepancies. Dropping secondary's

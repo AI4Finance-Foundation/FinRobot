@@ -93,3 +93,21 @@ def test_cross_validate_market_cap_tighter_threshold():
     assert len(warnings) == 1
     assert "market_cap" in warnings[0]
     assert "5%" in warnings[0]
+
+
+def test_cross_validate_empty_secondary_warns():
+    """D5: empty secondary data must produce a warning, not silent pass."""
+    primary = DataResult(
+        provider="p1", data={"revenue": 100_000, "ebitda": 50_000},
+        ticker="TEST", data_type="financials",
+        timestamp=datetime.now(tz=timezone.utc),
+    )
+    secondary = DataResult(
+        provider="p2", data={},
+        ticker="TEST", data_type="financials",
+        timestamp=datetime.now(tz=timezone.utc),
+    )
+    warnings = cross_validate(primary, secondary)
+    assert len(warnings) == 1
+    assert "empty data" in warnings[0].lower()
+    assert "p2" in warnings[0]

@@ -353,6 +353,30 @@ class TestCrossValidationIntegration:
             f"Third provider discrepancy not in warnings: {result.warnings}"
         )
 
+    async def test_empty_secondary_skipped_tries_next_provider(self, cache):
+        """D5: empty secondary data → warning added, next provider tried."""
+        base = {"revenue": 100_000, "ebitda": 50_000}
+        r1 = DataResult(
+            data=base, provider="p1", ticker="TEST",
+            data_type="financials", timestamp=datetime.now(tz=timezone.utc),
+        )
+        r2_empty = DataResult(
+            data={}, provider="p2", ticker="TEST",
+            data_type="financials", timestamp=datetime.now(tz=timezone.utc),
+        )
+        r3 = DataResult(
+            data={"revenue": 200_000, "ebitda": 50_000}, provider="p3",
+            ticker="TEST", data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        p1 = MockProvider("p1", ["financials"], result=r1)
+        p2 = MockProvider("p2", ["financials"], result=r2_empty)
+        p3 = MockProvider("p3", ["financials"], result=r3)
+        layer = DataLayer([p1, p2, p3], cache)
+        result = await layer.fetch("financials", "TEST")
+        assert any("empty data" in w.lower() for w in result.warnings)
+        assert p3.fetch_called > 0
+
     async def test_cross_validation_caps_at_three_providers(self, cache):
         """D4: at most 3 providers attempted for financials, even if more configured."""
         base_data = {"revenue": 100_000}

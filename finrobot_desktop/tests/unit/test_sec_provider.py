@@ -332,6 +332,156 @@ class TestExtractItems:
         assert len(items["item_7_mdna"]) <= _MDNA_MAX_CHARS + 100  # header + some margin
 
 
+class TestFetch10kRag:
+    """P6-T15: Tests for _fetch_10k_rag multi-section RAG indexing."""
+
+    _SAMPLE_10K_ALL_SECTIONS = (
+        "<html><body>"
+        "<h2>Item 1. Business</h2>"
+        "<p>We are a global technology company specializing in consumer electronics.</p>"
+        "<h2>Item 1A. Risk Factors</h2>"
+        "<p>We face significant supply chain concentration risk.</p>"
+        "<h2>Item 7. Management's Discussion and Analysis</h2>"
+        "<p>Revenue increased 12% driven by services growth.</p>"
+        "<h2>Item 8. Financial Statements and Supplementary Data</h2>"
+        "<p>Total assets were $352 billion at year end.</p>"
+        "<h2>Item 9. Changes in and Disagreements With Accountants</h2>"
+        "<p>None.</p>"
+        "</body></html>"
+    )
+
+    async def test_fetch_10k_rag_indexes_all_sections(self, provider):
+        """P6-T15: RAG chunks should include content from all four sections."""
+        responses = [
+            _mock_response(_sec_company_tickers_response()),
+            _mock_response(_sec_submissions_response()),
+            _mock_response(text_data=self._SAMPLE_10K_ALL_SECTIONS),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "10k_rag")
+
+        assert result.data_type == "10k_rag"
+        assert result.data["chunk_count"] > 0
+
+        # All four sections should be represented in the chunks
+        rag_index = result.data["rag_index"]
+        all_chunk_text = " ".join(c.text for c in rag_index._chunks)
+        assert "consumer electronics" in all_chunk_text
+        assert "supply chain" in all_chunk_text
+        assert "services growth" in all_chunk_text
+        assert "352 billion" in all_chunk_text
+
+        # Backward compatibility: mdna_text is still available
+        assert "Management" in result.data["mdna_text"] or "Revenue" in result.data["mdna_text"]
+
+    async def test_rag_chunks_have_section_labels(self, provider):
+        """P6-T15: Each chunk in the RAG index should contain [Item N - Label] prefixes."""
+        responses = [
+            _mock_response(_sec_company_tickers_response()),
+            _mock_response(_sec_submissions_response()),
+            _mock_response(text_data=self._SAMPLE_10K_ALL_SECTIONS),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "10k_rag")
+
+        rag_index = result.data["rag_index"]
+        all_chunk_text = " ".join(c.text for c in rag_index._chunks)
+
+        # Section label prefixes should appear in the chunked text
+        assert "[Item 1 - Business]" in all_chunk_text
+        assert "[Item 1A - Risk Factors]" in all_chunk_text
+        assert "[Item 7 - MD&A]" in all_chunk_text
+        assert "[Item 8 - Financial Statements]" in all_chunk_text
+
+    async def test_rag_empty_sections_excluded(self, provider):
+        """P6-T15: Sections missing from the filing should not produce labeled chunks."""
+        # HTML with only Item 7 and Item 8
+        html_partial = (
+            "<html><body>"
+            "<h2>Item 7. Management's Discussion and Analysis</h2>"
+            "<p>Revenue grew 5%.</p>"
+            "<h2>Item 8. Financial Statements and Supplementary Data</h2>"
+            "<p>See statements.</p>"
+            "<h2>Item 9. Changes in Disagreements</h2>"
+            "</body></html>"
+        )
+        responses = [
+            _mock_response(_sec_company_tickers_response()),
+            _mock_response(_sec_submissions_response()),
+            _mock_response(text_data=html_partial),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "10k_rag")
+
+        rag_index = result.data["rag_index"]
+        all_chunk_text = " ".join(c.text for c in rag_index._chunks)
+
+        # Only Item 7 and 8 should have labels
+        assert "[Item 7 - MD&A]" in all_chunk_text
+        assert "[Item 8 - Financial Statements]" in all_chunk_text
+        # Item 1 and 1A should NOT appear since they weren't in the filing
+        assert "[Item 1 - Business]" not in all_chunk_text
+        assert "[Item 1A - Risk Factors]" not in all_chunk_text
+
+    async def test_rag_no_sections_yields_empty_index(self, provider):
+        """P6-T15: If no sections extracted, chunk_count is 0."""
+        html_empty = "<html><body><p>No recognizable sections.</p></body></html>"
+        responses = [
+            _mock_response(_sec_company_tickers_response()),
+            _mock_response(_sec_submissions_response()),
+            _mock_response(text_data=html_empty),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "10k_rag")
+
+        assert result.data["chunk_count"] == 0
+        assert result.data["mdna_text"] == ""
+
+
+class TestRagSectionLabelMerging:
+    """P6-T15: Pure-function test for section label merging logic."""
+
+    _SECTION_LABELS = {
+        "item_1_business": "Item 1 - Business",
+        "item_1a_risks": "Item 1A - Risk Factors",
+        "item_7_mdna": "Item 7 - MD&A",
+        "item_8_financials": "Item 8 - Financial Statements",
+    }
+
+    def test_rag_chunks_have_section_labels(self):
+        """P6-T15: RAG chunks from multi-section should have [Item N] prefixes."""
+        text = (
+            "Item 1. Business\nWe make widgets.\n"
+            "Item 7. Management's Discussion\nRevenue grew.\n"
+        )
+        items = _extract_items(text)
+        # Simulate what _fetch_10k_rag does: merge with labels
+        merged_parts = []
+        for key, label in self._SECTION_LABELS.items():
+            section_text = items.get(key, "")
+            if section_text:
+                merged_parts.append(f"[{label}]\n{section_text}")
+        merged = "\n\n".join(merged_parts)
+        assert "[Item 1 - Business]" in merged
+        assert "[Item 7 - MD&A]" in merged
+        assert "widgets" in merged
+
+    def test_empty_sections_excluded_from_merge(self):
+        """P6-T15: Only non-empty sections appear in merged text."""
+        text = "Item 7. Management's Discussion\nAnalysis here.\n"
+        items = _extract_items(text)
+        merged_parts = []
+        for key, label in self._SECTION_LABELS.items():
+            section_text = items.get(key, "")
+            if section_text:
+                merged_parts.append(f"[{label}]\n{section_text}")
+        merged = "\n\n".join(merged_parts)
+        assert "[Item 7 - MD&A]" in merged
+        assert "[Item 1 - Business]" not in merged
+        assert "[Item 1A - Risk Factors]" not in merged
+        assert "[Item 8 - Financial Statements]" not in merged
+
+
 class TestSECEdgarInterface:
     def test_name(self, provider):
         assert provider.name == "sec_edgar"

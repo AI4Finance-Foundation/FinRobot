@@ -109,19 +109,20 @@ class SECEdgarProvider(DataProvider):
         accession = accessions[latest_10k_idx]
         primary_doc = primary_docs[latest_10k_idx] if latest_10k_idx < len(primary_docs) else ""
 
-        # Attempt MD&A extraction — graceful degradation on failure
-        mdna_text = ""
+        # Attempt multi-section extraction — graceful degradation on failure
+        items: dict[str, str] = {key: "" for key, _ in _ITEM_PATTERNS}
         if primary_doc:
             try:
                 full_text = await self._fetch_10k_content(cik, accession, primary_doc)
-                mdna_text = _extract_mdna(full_text)
+                items = _extract_items(full_text)
             except (
                 ValueError, KeyError, IndexError, AttributeError,
                 httpx.HTTPStatusError, httpx.TimeoutException,
             ) as e:
-                logger.warning("Failed to extract MD&A for %s: %s", ticker, e)
+                logger.warning("Failed to extract 10-K sections for %s: %s", ticker, e)
                 warnings.append(f"MD&A extraction failed: {e}")
 
+        mdna_text = items.get("item_7_mdna", "")
         if not mdna_text:
             warnings.append("MD&A section not found in 10-K filing")
 
@@ -132,30 +133,50 @@ class SECEdgarProvider(DataProvider):
             "latest_10k_accession": accession,
             "has_10k": True,
             "primary_document": primary_doc,
+            "items": items,
             "mdna_text": mdna_text,
             "mdna_available": bool(mdna_text),
         }, warnings
 
     async def _fetch_10k_rag(self, ticker: str) -> DataResult:
-        """Fetch 10-K MD&A and build a BM25 index for RAG queries.
+        """Fetch 10-K sections and build a BM25 index for RAG queries.
+
+        Merges all non-empty extracted sections (Item 1/1A/7/8) into a
+        single text corpus with section labels, then indexes it.
 
         Returns DataResult with:
             data["rag_index"] — BM25Index instance (not JSON-serializable; in-memory only)
-            data["mdna_text"] — raw MD&A text (for display)
+            data["mdna_text"] — raw MD&A text (for backward compatibility)
             data["chunk_count"] — number of chunks indexed
         """
         from finagent.engine.compute.rag import BM25Index, chunk_text
 
-        # Reuse existing filing fetch for MD&A text
+        _SECTION_LABELS: dict[str, str] = {
+            "item_1_business": "Item 1 - Business",
+            "item_1a_risks": "Item 1A - Risk Factors",
+            "item_7_mdna": "Item 7 - MD&A",
+            "item_8_financials": "Item 8 - Financial Statements",
+        }
+
+        # Reuse existing filing fetch for multi-section extraction
         data, warnings = await self._fetch_filings(ticker)
+        items: dict[str, str] = data.get("items", {})
         mdna_text: str = data.get("mdna_text", "")
 
-        if not mdna_text:
-            logger.warning("10k_rag: MD&A text unavailable for %s — empty index", ticker)
+        # Merge all non-empty sections for RAG indexing
+        merged_sections: list[str] = []
+        for key, label in _SECTION_LABELS.items():
+            section_text = items.get(key, "")
+            if section_text:
+                merged_sections.append(f"[{label}]\n{section_text}")
+
+        if not merged_sections:
+            logger.warning("10k_rag: No 10-K sections available for %s — empty index", ticker)
             chunks = []
         else:
-            source_label = f"10-K/{data.get('latest_10k_date', 'unknown')}/MD&A"
-            chunks = chunk_text(mdna_text, chunk_size=300, overlap=30, source=source_label)
+            merged_text = "\n\n".join(merged_sections)
+            source_label = f"10-K/{data.get('latest_10k_date', 'unknown')}"
+            chunks = chunk_text(merged_text, chunk_size=300, overlap=30, source=source_label)
 
         rag_index = BM25Index(chunks)
         return DataResult(
@@ -232,6 +253,61 @@ class SECEdgarProvider(DataProvider):
                 self._last_request = asyncio.get_event_loop().time()
                 resp.raise_for_status()
                 return resp
+
+
+_ITEM_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
+    ("item_1_business", re.compile(r"(?i)item\s+1[.\s\u2014\u2013\-]+business")),
+    ("item_1a_risks", re.compile(r"(?i)item\s+1a[.\s\u2014\u2013\-]+risk\s+factor")),
+    ("item_7_mdna", re.compile(r"(?i)item\s+7[.\s\u2014\u2013\-]+management")),
+    ("item_8_financials", re.compile(r"(?i)item\s+8[.\s\u2014\u2013\-]+financial\s+statement")),
+]
+
+
+def _extract_items(full_text: str) -> dict[str, str]:
+    """Extract multiple 10-K sections by regex pattern matching.
+
+    Extracts Item 1 (Business), Item 1A (Risk Factors), Item 7 (MD&A),
+    and Item 8 (Financial Statements) from SEC 10-K filing text.
+
+    For each item, finds the section header and reads until the next
+    item header (any ``Item N`` pattern, not just the next expected one).
+    Missing sections return empty string.
+    Each section truncated to ``_MDNA_MAX_CHARS`` individually.
+
+    **What this code does that raw LLM cannot**: deterministic regex-based
+    section boundary detection with guaranteed truncation — an LLM cannot
+    reliably parse multi-megabyte filings or enforce length limits.
+    """
+    # Find positions of our target sections
+    all_positions: list[tuple[str, int]] = []
+    for key, pattern in _ITEM_PATTERNS:
+        match = pattern.search(full_text)
+        if match:
+            all_positions.append((key, match.start()))
+
+    # Find all "Item N" headers for boundary detection (including ours)
+    other_items = re.finditer(r"(?i)\bitem\s+\d+[a-z]?[.\s\u2014\u2013\-]", full_text)
+    boundaries = sorted(set(m.start() for m in other_items))
+
+    # Sort found items by position
+    all_positions.sort(key=lambda x: x[1])
+
+    result: dict[str, str] = {key: "" for key, _ in _ITEM_PATTERNS}
+
+    for _i, (key, start) in enumerate(all_positions):
+        # Find end: next item header position after start (skip self-match)
+        end = len(full_text)
+        for b in boundaries:
+            if b > start + 50:  # skip self-match — header is shorter than 50 chars
+                end = b
+                break
+
+        section = full_text[start:end].strip()
+        if len(section) > _MDNA_MAX_CHARS:
+            section = section[:_MDNA_MAX_CHARS]
+        result[key] = section
+
+    return result
 
 
 def _extract_mdna(full_text: str) -> str:

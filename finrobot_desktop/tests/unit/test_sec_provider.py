@@ -9,6 +9,7 @@ from finagent.engine.data.interface import ProviderError
 from finagent.engine.data.providers.sec_provider import (
     SECEdgarProvider,
     _MDNA_MAX_CHARS,
+    _extract_items,
     _extract_mdna,
 )
 
@@ -285,6 +286,50 @@ class TestExtractMdna:
         mdna = _extract_mdna(text)
         assert "Revenue increased by 15%" in mdna
         assert "Financial Statements" not in mdna
+
+
+class TestExtractItems:
+    """P6-T14: Tests for _extract_items multi-section extraction."""
+
+    def test_extract_items_finds_all_four_sections(self):
+        """P6-T14: _extract_items extracts Item 1, 1A, 7, 8."""
+        text = (
+            "Some preamble text\n"
+            "Item 1. Business\n"
+            "We are a technology company.\n"
+            "Item 1A. Risk Factors\n"
+            "We face market risks.\n"
+            "Item 7. Management's Discussion and Analysis\n"
+            "Revenue grew 10%.\n"
+            "Item 8. Financial Statements and Supplementary Data\n"
+            "See consolidated statements.\n"
+            "Item 9. Changes in Disagreements\n"
+        )
+        items = _extract_items(text)
+        assert "item_1_business" in items
+        assert "technology company" in items["item_1_business"]
+        assert "item_1a_risks" in items
+        assert "market risks" in items["item_1a_risks"]
+        assert "item_7_mdna" in items
+        assert "Revenue grew" in items["item_7_mdna"]
+        assert "item_8_financials" in items
+        assert "consolidated statements" in items["item_8_financials"]
+
+    def test_extract_items_missing_section_returns_empty(self):
+        """P6-T14: missing sections return empty string, not error."""
+        text = "Item 7. Management's Discussion\nSome analysis.\nItem 8. Financial Statements\nNumbers."
+        items = _extract_items(text)
+        assert items.get("item_1_business") == ""
+        assert items.get("item_1a_risks") == ""
+        assert "analysis" in items["item_7_mdna"]
+        assert "Numbers" in items["item_8_financials"]
+
+    def test_extract_items_truncates_long_sections(self):
+        """P6-T14: each section truncated to _MDNA_MAX_CHARS individually."""
+        long_text = "x" * 100_000
+        text = f"Item 7. Management's Discussion\n{long_text}\nItem 8. Financial Statements\nShort."
+        items = _extract_items(text)
+        assert len(items["item_7_mdna"]) <= _MDNA_MAX_CHARS + 100  # header + some margin
 
 
 class TestSECEdgarInterface:

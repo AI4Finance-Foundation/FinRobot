@@ -4,6 +4,7 @@ import re
 from pydantic import BaseModel
 
 from finagent.engine.models.financial import (
+    CatalystAnalysis,
     FinancialData,
     LBOInputs,
     LBOResult,
@@ -353,4 +354,26 @@ def validate_lbo_result(result: LBOResult) -> ValidationResult:
         )
     if result.entry_equity <= 0:
         return ValidationResult(passed=False, error="Entry equity must be positive")
+    return ValidationResult(passed=True)
+
+
+# ---------------------------------------------------------------------------
+# Catalyst validators (P6)
+# ---------------------------------------------------------------------------
+
+
+def validate_catalyst_analysis(analysis: CatalystAnalysis) -> ValidationResult:
+    """Validate catalyst analysis output."""
+    if not analysis.events:
+        return ValidationResult(passed=False, error="No catalyst events found")
+    if not (-5.0 <= analysis.net_sentiment <= 5.0):
+        return ValidationResult(
+            passed=False,
+            error=f"net_sentiment {analysis.net_sentiment} out of range [-5, 5]",
+        )
+    if analysis.overall_sentiment not in ("bullish", "bearish", "neutral"):
+        return ValidationResult(
+            passed=False,
+            error=f"Invalid overall_sentiment: {analysis.overall_sentiment}",
+        )
     return ValidationResult(passed=True)

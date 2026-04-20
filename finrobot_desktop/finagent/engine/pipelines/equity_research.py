@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import ValidationError
 from pydantic_ai import Agent
@@ -12,6 +12,7 @@ from finagent.engine.data.interface import ProviderError
 from finagent.engine.data.types import DataType
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import (
+    CatalystAnalysis,
     FinancialData,
     CompanyFinancials,
     PeerComps,
@@ -21,14 +22,21 @@ from finagent.engine.models.financial import (
     ThesisResult,
     StepOutput,
 )
+from finagent.engine.compute.catalyst import (
+    extract_catalysts_from_news,
+    compute_expected_impact,
+    summarize_catalyst_outlook,
+)
 from finagent.engine.compute.extractor import extract_company_financials
 from finagent.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
 from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
+from finagent.engine.compute.news import fetch_news, classify_news
 from finagent.engine.pipelines.base import (
     Pipeline, PipelineStep, StructuredValidator, TextValidator,
 )
 from finagent.engine.pipelines._helpers import execute_financial_data_step
 from finagent.engine.pipelines.validators import (
+    validate_catalyst_analysis,
     validate_has_fields,
     validate_has_peers,
     validate_has_thesis,
@@ -41,6 +49,66 @@ from finagent.engine.pipelines.validators import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def _execute_catalyst_analysis(
+    agent: Agent[Any, Any],
+    deps: FinAgentDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> StepOutput:
+    """Fetch news, classify, extract catalysts, compute impact, summarize.
+
+    What this code does that raw LLM cannot:
+    - Deterministic extraction of catalyst events from classified news
+    - Quantitative expected-impact scoring with sentiment multiplier
+    - Structured summary with net sentiment, category breakdown, top events
+    - All computation is reproducible -- no LLM randomness in scoring
+    """
+    # Fetch and classify news
+    raw_news = await fetch_news(deps.data_layer, ticker)
+    news_items = await classify_news(raw_news, deps)
+
+    # Extract catalysts from high-importance news
+    catalysts = extract_catalysts_from_news(news_items)
+    catalysts = compute_expected_impact(catalysts)
+    summary = summarize_catalyst_outlook(catalysts)
+
+    # Build CatalystAnalysis
+    net = summary["net_sentiment"]
+    overall: Literal["bullish", "bearish", "neutral"]
+    if net > 0.5:
+        overall = "bullish"
+    elif net < -0.5:
+        overall = "bearish"
+    else:
+        overall = "neutral"
+
+    top_pos = summary["top_positive"]
+    analysis = CatalystAnalysis(
+        events=catalysts,
+        overall_sentiment=overall,
+        key_catalysts=[e.headline for e in top_pos[:3]],
+        net_sentiment=net,
+        category_breakdown=summary["category_breakdown"],
+        top_positive=summary["top_positive"],
+        top_negative=summary["top_negative"],
+    )
+
+    # Build narrative
+    cat_labels = ", ".join(
+        f"{cat}({cnt})" for cat, cnt in summary["category_breakdown"].items()
+    )
+    narrative = (
+        f"Catalyst analysis: {summary['total_catalysts']} events identified. "
+        f"Net sentiment: {net:+.2f} ({overall}). "
+        f"Categories: {cat_labels or 'none'}."
+    )
+    if top_pos:
+        narrative += f" Top catalyst: {top_pos[0].headline}."
+
+    return StepOutput(text=narrative, structured=analysis)
 
 
 async def _execute_peer_analysis(
@@ -178,17 +246,47 @@ async def _execute_thesis(
     ticker: str,
 ) -> StepOutput:
     """synthesis_agent writes thesis with structured output."""
+    # Inject catalyst context into the thesis prompt if available
+    catalyst_section = ""
+    catalyst_data = structured_context.get("catalyst_analysis")
+    if isinstance(catalyst_data, CatalystAnalysis):
+        cat_lines = [
+            f"Catalyst outlook: {catalyst_data.overall_sentiment} "
+            f"(net sentiment: {catalyst_data.net_sentiment:+.2f})"
+        ]
+        if catalyst_data.top_positive:
+            cat_lines.append("Key positive catalysts:")
+            for e in catalyst_data.top_positive[:3]:
+                cat_lines.append(f"  - {e.headline} (impact: {e.impact_score}, {e.category})")
+        if catalyst_data.top_negative:
+            cat_lines.append("Key negative catalysts:")
+            for e in catalyst_data.top_negative[:3]:
+                cat_lines.append(f"  - {e.headline} (impact: {e.impact_score}, {e.category})")
+        if catalyst_data.category_breakdown:
+            breakdown = ", ".join(
+                f"{cat}: {cnt}" for cat, cnt in catalyst_data.category_breakdown.items()
+            )
+            cat_lines.append(f"Category breakdown: {breakdown}")
+        catalyst_section = "\n".join(cat_lines)
+
+    thesis_prompt = prompt
+    if catalyst_section:
+        thesis_prompt = f"{prompt}\n\nCatalyst Analysis:\n{catalyst_section}"
+
     synthesis_agent = Agent(
         deps.settings.model_name,
         output_type=ThesisResult,
         instructions=(
-            "Write an investment thesis based on the DCF valuation and peer analysis. "
+            "Write an investment thesis based on the DCF valuation, peer analysis, "
+            "and catalyst analysis. "
+            "Reference specific catalysts from the catalyst analysis when discussing "
+            "upside drivers and risks. "
             "Provide a recommendation (Buy/Hold/Sell), price target, catalysts, and risks."
         ),
         defer_model_check=True,
     )
     try:
-        result = await synthesis_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
+        result = await synthesis_agent.run(thesis_prompt, deps=deps)  # type: ignore[call-overload]
         thesis = result.output
     except (AgentRunError, ValidationError, ValueError) as e:
         raise ValueError(f"LLM failed to produce valid thesis: {e}") from e
@@ -233,6 +331,17 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
                     lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
                 ),
                 executor=execute_financial_data_step,
+            ),
+            PipelineStep(
+                name="catalyst_analysis",
+                skill_section=None,
+                agent=agents["data"],
+                required_data=[],
+                validator=StructuredValidator(
+                    validate_catalyst_analysis,
+                    validate_is_non_empty,
+                ),
+                executor=_execute_catalyst_analysis,
             ),
             PipelineStep(
                 name="peer_analysis",

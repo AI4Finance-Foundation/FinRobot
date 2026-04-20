@@ -324,6 +324,11 @@ class CatalystAnalysis(BaseModel):
     events: list[CatalystEvent]
     overall_sentiment: Literal["bullish", "bearish", "neutral"]
     key_catalysts: list[str]
+    # P6 additions
+    net_sentiment: float = Field(default=0.0, description="Sum of expected impacts, -5 to +5 scale")
+    category_breakdown: dict[str, int] = Field(default_factory=dict)
+    top_positive: list[CatalystEvent] = Field(default_factory=list)
+    top_negative: list[CatalystEvent] = Field(default_factory=list)
 
 
 class ValuationMethod(BaseModel):

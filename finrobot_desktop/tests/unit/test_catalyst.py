@@ -42,3 +42,16 @@ class TestFilterByImpact:
     def test_filter_combined(self):
         filtered = filter_by_impact(_make_events(), min_score=4, sentiment="positive")
         assert len(filtered) == 2
+
+
+class TestCatalystAnalysisNewFields:
+    def test_catalyst_analysis_new_fields_defaulted(self):
+        from finagent.engine.models.financial import CatalystAnalysis
+
+        ca = CatalystAnalysis(
+            events=[], overall_sentiment="neutral", key_catalysts=[]
+        )
+        assert ca.net_sentiment == 0.0
+        assert ca.category_breakdown == {}
+        assert ca.top_positive == []
+        assert ca.top_negative == []

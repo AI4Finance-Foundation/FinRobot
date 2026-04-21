@@ -248,6 +248,23 @@
     {% endif %}
   </div>
 
+  <div class="chart-row">
+    {% if charts.get('revenue_yoy') %}
+    <div class="chart-half">
+      <div class="chart-container">
+        <img src="{{ charts.revenue_yoy }}" alt="Revenue YoY Growth" />
+      </div>
+    </div>
+    {% endif %}
+    {% if charts.get('time_series_multi') %}
+    <div class="chart-half">
+      <div class="chart-container">
+        <img src="{{ charts.time_series_multi }}" alt="Multi-Metric Trends" />
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
   {% if forecast %}
   <h3>Financial Forecast</h3>
   <table>
@@ -319,11 +336,22 @@
   {% endif %}
   {% endif %}
 
-  {% if charts.get('sensitivity') %}
-  <div class="chart-container">
-    <img src="{{ charts.sensitivity }}" alt="Sensitivity Analysis" />
+  <div class="chart-row">
+    {% if charts.get('sensitivity') %}
+    <div class="chart-half">
+      <div class="chart-container">
+        <img src="{{ charts.sensitivity }}" alt="Sensitivity Analysis" />
+      </div>
+    </div>
+    {% endif %}
+    {% if charts.get('waterfall') %}
+    <div class="chart-half">
+      <div class="chart-container">
+        <img src="{{ charts.waterfall }}" alt="Valuation Waterfall" />
+      </div>
+    </div>
+    {% endif %}
   </div>
-  {% endif %}
 
   {% if peer_comps %}
   <h3>Comparable Company Analysis</h3>
@@ -359,6 +387,12 @@
       </tr>
     </tbody>
   </table>
+  {% endif %}
+
+  {% if charts.get('peer_comparison') %}
+  <div class="chart-container">
+    <img src="{{ charts.peer_comparison }}" alt="Peer Comparison" />
+  </div>
   {% endif %}
 
   {% if charts.get('football_field') %}

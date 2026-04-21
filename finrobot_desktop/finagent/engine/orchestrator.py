@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -266,6 +267,17 @@ def _generate_charts(
     return charts
 
 
+def _collect_warnings(result: PipelineResult) -> list[str]:
+    """Collect all warnings from structured data for the Data Source Notes section."""
+    warnings: list[str] = []
+    for model in result.structured_data.values():
+        if hasattr(model, "warnings"):
+            for w in model.warnings:
+                if w not in warnings:
+                    warnings.append(w)
+    return warnings
+
+
 def build_report_context(ticker: str, result: PipelineResult) -> dict[str, Any]:
     """Extract structured data from PipelineResult into a report template context.
 
@@ -368,6 +380,13 @@ def build_report_context(ticker: str, result: PipelineResult) -> dict[str, Any]:
         "valuation_synthesis": valuation_synthesis,
         "lbo_inputs": lbo_inputs,
         "lbo_result": lbo_result,
+        "report_date": datetime.now().strftime("%B %d, %Y"),
+        "data_source": fin.data_source if fin else "N/A",
+        "data_timestamp": fin.timestamp.strftime("%Y-%m-%d %H:%M UTC") if fin else "N/A",
+        "sector": "Technology",  # placeholder, can be enhanced later
+        "thesis_text": thesis.price_target_basis if thesis else "",
+        "report_text": result.steps.get("report", ""),
+        "data_warnings": _collect_warnings(result),
     }
 
 

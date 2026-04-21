@@ -31,6 +31,13 @@ def _equity_context(**overrides: object) -> dict:
         "peer_comps": None,
         "catalyst_analysis": None,
         "valuation_synthesis": None,
+        "report_date": "April 17, 2026",
+        "data_source": "yfinance",
+        "data_timestamp": "2026-04-17 12:00 UTC",
+        "sector": "Technology",
+        "thesis_text": "",
+        "report_text": "",
+        "data_warnings": [],
     }
     base.update(overrides)
     return base
@@ -118,13 +125,13 @@ class TestRenderEquityReport:
         context = _equity_context(catalyst_analysis=catalyst)
         html = render_equity_report(context)
         assert "Vision Pro" in html
-        assert "bullish" in html or "Bullish" in html
+        assert "product launch" in html or "product_launch" in html
 
     def test_color_scheme_in_css(self) -> None:
-        """Verify the spec'd color scheme is used in inline CSS."""
+        """Verify the FinTech color scheme is used in inline CSS."""
         html = render_equity_report(_equity_context())
-        assert "#1a365d" in html
-        assert "#d4a843" in html
+        assert "#0f172a" in html
+        assert "#6366f1" in html
 
     def test_html_is_complete_document(self) -> None:
         html = render_equity_report(_equity_context())

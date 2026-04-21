@@ -4,483 +4,319 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ ticker }} — Equity Research Report</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  /* Reset & base */
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: 'Helvetica Neue', Arial, sans-serif;
-    color: #1a365d;
-    background: #ffffff;
-    line-height: 1.6;
-    font-size: 14px;
-  }
-  /* Page break for print/PDF */
-  .page { page-break-after: always; padding: 40px 48px; min-height: 100vh; }
-  .page:last-child { page-break-after: auto; }
-  /* Colors */
-  .primary { color: #1a365d; }
-  .accent { color: #d4a843; }
-  .muted { color: #6b7280; }
-  .bg-primary { background-color: #1a365d; }
-  .bg-accent { background-color: #d4a843; }
-  /* Header */
-  .report-header {
-    border-bottom: 3px solid #d4a843;
-    padding-bottom: 24px;
-    margin-bottom: 32px;
-  }
-  .report-header h1 {
-    font-size: 32px;
-    font-weight: 700;
-    color: #1a365d;
-    margin-bottom: 4px;
-  }
-  .report-header .subtitle {
-    font-size: 16px;
-    color: #6b7280;
-  }
-  /* Key metrics row */
-  .metrics-row {
-    display: flex;
-    gap: 24px;
-    margin: 24px 0;
-    flex-wrap: wrap;
-  }
-  .metric-card {
-    background: #f8f9fa;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 16px 24px;
-    flex: 1;
-    min-width: 140px;
-  }
-  .metric-card .label { font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; }
-  .metric-card .value { font-size: 24px; font-weight: 700; color: #1a365d; }
-  /* Recommendation badge */
-  .rec-badge {
-    display: inline-block;
-    padding: 8px 24px;
-    border-radius: 4px;
-    font-size: 18px;
-    font-weight: 700;
-    color: #ffffff;
-  }
-  .rec-buy { background: #059669; }
-  .rec-sell { background: #dc2626; }
-  .rec-hold { background: #d4a843; color: #1a365d; }
-  /* Tables */
-  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-  th {
-    background: #1a365d;
-    color: #ffffff;
-    padding: 10px 12px;
-    text-align: right;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  th:first-child { text-align: left; }
-  td { padding: 8px 12px; text-align: right; border-bottom: 1px solid #e5e7eb; }
-  td:first-child { text-align: left; font-weight: 600; }
-  tr:hover { background: #f8f9fa; }
-  /* Section headings */
-  h2 {
-    font-size: 22px;
-    color: #1a365d;
-    border-bottom: 2px solid #d4a843;
-    padding-bottom: 8px;
-    margin: 32px 0 16px 0;
-  }
-  h3 { font-size: 16px; color: #1a365d; margin: 24px 0 8px 0; }
-  /* Charts */
-  .chart-container { margin: 20px 0; text-align: center; }
-  .chart-container img { max-width: 100%; height: auto; border: 1px solid #e5e7eb; border-radius: 4px; }
-  .chart-row { display: flex; gap: 24px; flex-wrap: wrap; }
-  .chart-half { flex: 1; min-width: 300px; }
-  /* Lists */
-  ul { margin: 8px 0; padding-left: 20px; }
-  li { margin-bottom: 6px; }
-  /* Catalyst cards */
-  .catalyst-card {
-    background: #f8f9fa;
-    border-left: 4px solid #d4a843;
-    padding: 12px 16px;
-    margin: 8px 0;
-    border-radius: 0 4px 4px 0;
-  }
-  .catalyst-card .cat-type { font-size: 11px; text-transform: uppercase; color: #6b7280; }
-  .catalyst-card .cat-headline { font-weight: 600; color: #1a365d; }
-  .sentiment-positive { border-left-color: #059669; }
-  .sentiment-negative { border-left-color: #dc2626; }
-  .sentiment-neutral { border-left-color: #6b7280; }
-  /* Footer */
-  .report-footer {
-    margin-top: 32px;
-    padding-top: 16px;
-    border-top: 1px solid #e5e7eb;
-    font-size: 11px;
-    color: #6b7280;
-  }
-  @media print {
-    .page { padding: 20px 24px; }
-    body { font-size: 12px; }
-  }
+  body { font-family: 'Inter', sans-serif; color: #0f172a; background: #ffffff; }
+  @media print { .page-break { page-break-before: always; } }
+  .section-title { font-size: 1.25rem; font-weight: 700; color: #0f172a; border-left: 4px solid #6366f1; padding-left: 0.75rem; margin-bottom: 1.25rem; }
+  .highlight-box { background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%); border-left: 4px solid #6366f1; border-radius: 0.75rem; padding: 1.25rem 1.5rem; margin: 1rem 0; position: relative; }
+  .highlight-box::before { content: '\201C'; font-size: 3rem; color: #a5b4fc; position: absolute; top: -0.25rem; left: 0.75rem; font-family: Georgia, serif; }
+  .metric-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 0.75rem; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); position: relative; overflow: hidden; }
+  .metric-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #6366f1, #8b5cf6); }
+  .rating-buy { background: #d1fae5; color: #065f46; }
+  .rating-sell { background: #fee2e2; color: #991b1b; }
+  .rating-hold { background: #fef3c7; color: #92400e; }
+  .rating-badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.875rem; font-weight: 700; }
+  .data-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem; border-radius: 0.5rem; overflow: hidden; border: 1px solid #e2e8f0; }
+  .data-table th { background: #f1f5f9; color: #475569; padding: 0.6rem 0.75rem; text-align: left; font-weight: 600; font-size: 0.75rem; }
+  .data-table td { padding: 0.55rem 0.75rem; border-top: 1px solid #f1f5f9; }
+  .data-table tr:hover { background: #f8fafc; }
+  .chart-card { background: white; border: 1px solid #e2e8f0; border-radius: 0.75rem; padding: 1rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .chart-card img { max-width: 100%; height: auto; border-radius: 0.5rem; }
+  .caption { font-size: 0.75rem; color: #94a3b8; }
+  .positive { color: #10b981; }
+  .negative { color: #ef4444; }
+  .neutral-color { color: #f59e0b; }
+  .catalyst-card { border-radius: 0.5rem; padding: 0.75rem 1rem; margin-bottom: 0.5rem; border-left: 4px solid; }
+  .catalyst-positive { background: #f0fdf4; border-color: #10b981; }
+  .catalyst-negative { background: #fef2f2; border-color: #ef4444; }
+  .catalyst-neutral { background: #f8fafc; border-color: #94a3b8; }
 </style>
 </head>
 <body>
 
-{# ========== PAGE 1: Company Overview ========== #}
-<div class="page">
-  <div class="report-header">
-    <h1>{{ company_name }} ({{ ticker }})</h1>
-    <div class="subtitle">Equity Research Report</div>
-  </div>
-
-  <div class="metrics-row">
-    <div class="metric-card">
-      <div class="label">Current Price</div>
-      <div class="value">${{ "%.2f"|format(current_price) }}</div>
+{# ========== 1. Hero Header ========== #}
+<div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); padding: 2.5rem 2rem 2rem;">
+  <div class="max-w-4xl mx-auto">
+    <div class="flex items-center gap-3 mb-4">
+      <span style="background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 0.2rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.05em;">AI EQUITY RESEARCH</span>
+      <span style="color: #64748b; font-size: 0.8rem;">{{ report_date }}</span>
     </div>
-    <div class="metric-card">
-      <div class="label">Price Target</div>
-      <div class="value">${{ "%.2f"|format(price_target) }}</div>
+    <h1 style="color: #fff; font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem;">{{ company_name }}</h1>
+    <div class="flex items-center gap-3 mb-6">
+      <span style="background: #1e293b; border: 1px solid #334155; color: #94a3b8; padding: 0.2rem 0.6rem; border-radius: 0.375rem; font-size: 0.8rem; font-weight: 500;">{{ ticker }}</span>
+      <span style="color: #64748b; font-size: 0.85rem;">{{ sector }}</span>
     </div>
-    <div class="metric-card">
-      <div class="label">Market Cap</div>
-      <div class="value">{{ market_cap|fmtnum }}</div>
-    </div>
-    <div class="metric-card">
-      <div class="label">Recommendation</div>
-      <div class="value">
-        {% set rec_lower = recommendation|lower %}
-        <span class="rec-badge {% if rec_lower == 'buy' %}rec-buy{% elif rec_lower == 'sell' %}rec-sell{% else %}rec-hold{% endif %}">
-          {{ recommendation }}
-        </span>
+    <div class="flex items-end gap-8">
+      <div>
+        <p style="color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.2rem;">Rating</p>
+        {% set rec = recommendation|lower %}
+        <span class="rating-badge {% if 'buy' in rec %}rating-buy{% elif 'sell' in rec %}rating-sell{% else %}rating-hold{% endif %}">{{ recommendation }}</span>
+      </div>
+      <div>
+        <p style="color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.2rem;">Price</p>
+        <p style="color: #fff; font-size: 1.5rem; font-weight: 700;">${{ "%.2f"|format(current_price) }}</p>
+      </div>
+      <div>
+        <p style="color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.2rem;">Target</p>
+        <p style="color: #a5b4fc; font-size: 1.5rem; font-weight: 700;">${{ "%.2f"|format(price_target) }}</p>
+      </div>
+      <div>
+        <p style="color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.2rem;">Market Cap</p>
+        <p style="color: #fff; font-size: 1.5rem; font-weight: 700;">{{ market_cap|fmtnum }}</p>
       </div>
     </div>
   </div>
-
-  {% if valuation_synthesis %}
-  <h2>Valuation Summary</h2>
-  <div class="metrics-row">
-    <div class="metric-card">
-      <div class="label">Weighted Price</div>
-      <div class="value">${{ "%.2f"|format(valuation_synthesis.weighted_price) }}</div>
-    </div>
-    <div class="metric-card">
-      <div class="label">Upside/Downside</div>
-      <div class="value">{{ valuation_synthesis.upside_downside|fmtpct }}</div>
-    </div>
-  </div>
-  {% endif %}
-
-  {% if charts.get('price') %}
-  <div class="chart-container">
-    <img src="{{ charts.price }}" alt="Price Chart" />
-  </div>
-  {% endif %}
 </div>
 
-{# ========== PAGE 2: Financial Summary ========== #}
-<div class="page">
-  <h2>Financial Summary</h2>
+<div class="max-w-4xl mx-auto px-6 pb-12" style="margin-top: -1rem;">
 
+{# ========== 2. Investment Thesis ========== #}
+<section class="mb-10">
+  <h2 class="section-title">Investment Thesis</h2>
+  <div class="highlight-box">
+    <p style="padding-left: 1.5rem; font-size: 0.875rem; color: #334155; line-height: 1.7;">
+      {% if thesis_text %}{{ thesis_text|autobold|safe }}{% else %}Investment thesis not available.{% endif %}
+    </p>
+  </div>
+</section>
+
+{# ========== 3. Company Overview ========== #}
+<section class="mb-10">
+  <h2 class="section-title">Company Overview</h2>
+  <div style="font-size: 0.875rem; color: #334155; line-height: 1.7;">
+    {% if report_text %}{{ report_text|autobold|safe }}{% else %}Company overview not available.{% endif %}
+  </div>
+</section>
+
+{# ========== 4. Financial Analysis ========== #}
+<section class="mb-10 page-break">
+  <h2 class="section-title">Financial Analysis</h2>
   {% if historical_metrics %}
-  <h3>Historical Performance</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Metric</th>
-        {% for yr in historical_metrics.years %}
-        <th>{{ yr }}</th>
-        {% endfor %}
-      </tr>
-    </thead>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+    <div class="metric-card"><p class="caption">Revenue</p><p style="font-size: 1rem; font-weight: 600;">{{ historical_metrics.revenue[-1]|fmtnum }}</p></div>
+    <div class="metric-card"><p class="caption">EBITDA</p><p style="font-size: 1rem; font-weight: 600;">{{ historical_metrics.ebitda[-1]|fmtnum }}</p></div>
+    <div class="metric-card"><p class="caption">Gross Margin</p><p style="font-size: 1rem; font-weight: 600;">{{ historical_metrics.gross_margin[-1]|fmtpct }}</p></div>
+    <div class="metric-card"><p class="caption">Op. Margin</p><p style="font-size: 1rem; font-weight: 600;">{{ historical_metrics.operating_margin[-1]|fmtpct }}</p></div>
+  </div>
+  {% endif %}
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    {% for key in ['revenue_ebitda', 'margin_trend', 'revenue_yoy', 'time_series_multi'] %}
+    {% if charts.get(key) %}
+    <div class="chart-card"><img src="{{ charts[key] }}" alt="{{ key }}"></div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% if historical_metrics %}
+  <table class="data-table">
+    <thead><tr><th>Year</th>{% for y in historical_metrics.years %}<th>{{ y }}</th>{% endfor %}</tr></thead>
     <tbody>
-      {% if historical_metrics.revenue is defined %}
-      <tr>
-        <td>Revenue</td>
-        {% for v in historical_metrics.revenue %}<td>{{ v|fmtnum }}</td>{% endfor %}
-      </tr>
-      {% endif %}
-      {% if historical_metrics.ebitda is defined %}
-      <tr>
-        <td>EBITDA</td>
-        {% for v in historical_metrics.ebitda %}<td>{{ v|fmtnum }}</td>{% endfor %}
-      </tr>
-      {% endif %}
-      {% if historical_metrics.gross_margin is defined %}
-      <tr>
-        <td>Gross Margin</td>
-        {% for v in historical_metrics.gross_margin %}<td>{{ v|fmtpct }}</td>{% endfor %}
-      </tr>
-      {% endif %}
-      {% if historical_metrics.operating_margin is defined %}
-      <tr>
-        <td>Operating Margin</td>
-        {% for v in historical_metrics.operating_margin %}<td>{{ v|fmtpct }}</td>{% endfor %}
-      </tr>
-      {% endif %}
-      {% if historical_metrics.net_income is defined %}
-      <tr>
-        <td>Net Income</td>
-        {% for v in historical_metrics.net_income %}<td>{{ v|fmtnum }}</td>{% endfor %}
-      </tr>
-      {% endif %}
+      <tr><td>Revenue</td>{% for v in historical_metrics.revenue %}<td>{{ v|fmtnum }}</td>{% endfor %}</tr>
+      <tr><td>EBITDA</td>{% for v in historical_metrics.ebitda %}<td>{{ v|fmtnum }}</td>{% endfor %}</tr>
+      <tr><td>Net Income</td>{% for v in historical_metrics.net_income %}<td>{{ v|fmtnum }}</td>{% endfor %}</tr>
+      <tr><td>Gross Margin</td>{% for v in historical_metrics.gross_margin %}<td>{{ v|fmtpct }}</td>{% endfor %}</tr>
+      <tr><td>Op. Margin</td>{% for v in historical_metrics.operating_margin %}<td>{{ v|fmtpct }}</td>{% endfor %}</tr>
+      <tr><td>EPS</td>{% for v in historical_metrics.eps %}<td>${{ "%.2f"|format(v) }}</td>{% endfor %}</tr>
     </tbody>
   </table>
   {% endif %}
-
-  <div class="chart-row">
-    {% if charts.get('revenue_ebitda') %}
-    <div class="chart-half">
-      <div class="chart-container">
-        <img src="{{ charts.revenue_ebitda }}" alt="Revenue & EBITDA" />
-      </div>
-    </div>
-    {% endif %}
-    {% if charts.get('margin_trend') %}
-    <div class="chart-half">
-      <div class="chart-container">
-        <img src="{{ charts.margin_trend }}" alt="Margin Trends" />
-      </div>
-    </div>
-    {% endif %}
-  </div>
-
-  <div class="chart-row">
-    {% if charts.get('revenue_yoy') %}
-    <div class="chart-half">
-      <div class="chart-container">
-        <img src="{{ charts.revenue_yoy }}" alt="Revenue YoY Growth" />
-      </div>
-    </div>
-    {% endif %}
-    {% if charts.get('time_series_multi') %}
-    <div class="chart-half">
-      <div class="chart-container">
-        <img src="{{ charts.time_series_multi }}" alt="Multi-Metric Trends" />
-      </div>
-    </div>
-    {% endif %}
-  </div>
-
   {% if forecast %}
-  <h3>Financial Forecast</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Metric</th>
-        {% for yr in forecast.years %}<th>{{ yr }}E</th>{% endfor %}
-      </tr>
-    </thead>
+  <h3 style="font-size: 1.05rem; font-weight: 600; color: #1e293b; margin-top: 1.5rem; margin-bottom: 0.75rem;">Financial Forecast</h3>
+  <table class="data-table">
+    <thead><tr><th>Year</th>{% for y in forecast.years %}<th>{{ y }}E</th>{% endfor %}</tr></thead>
     <tbody>
-      <tr>
-        <td>Revenue</td>
-        {% for v in forecast.revenue %}<td>{{ v|fmtnum }}</td>{% endfor %}
-      </tr>
-      <tr>
-        <td>EBITDA</td>
-        {% for v in forecast.ebitda %}<td>{{ v|fmtnum }}</td>{% endfor %}
-      </tr>
-      <tr>
-        <td>Net Income</td>
-        {% for v in forecast.net_income %}<td>{{ v|fmtnum }}</td>{% endfor %}
-      </tr>
-      <tr>
-        <td>EPS</td>
-        {% for v in forecast.eps %}<td>${{ "%.2f"|format(v) }}</td>{% endfor %}
-      </tr>
+      <tr><td>Revenue</td>{% for v in forecast.revenue %}<td>{{ v|fmtnum }}</td>{% endfor %}</tr>
+      <tr><td>EBITDA</td>{% for v in forecast.ebitda %}<td>{{ v|fmtnum }}</td>{% endfor %}</tr>
+      <tr><td>Net Income</td>{% for v in forecast.net_income %}<td>{{ v|fmtnum }}</td>{% endfor %}</tr>
+      <tr><td>EPS</td>{% for v in forecast.eps %}<td>${{ "%.2f"|format(v) }}</td>{% endfor %}</tr>
     </tbody>
   </table>
   {% endif %}
-</div>
+  <p class="caption mt-2">Source: {{ data_source }} | As of {{ data_timestamp }}</p>
+</section>
 
-{# ========== PAGE 3: Valuation ========== #}
-<div class="page">
-  <h2>Valuation Analysis</h2>
-
+{# ========== 5. Valuation Analysis ========== #}
+<section class="mb-10 page-break">
+  <h2 class="section-title">Valuation Analysis</h2>
   {% if dcf_result %}
-  <h3>DCF Valuation</h3>
-  <div class="metrics-row">
-    <div class="metric-card">
-      <div class="label">WACC</div>
-      <div class="value">{{ dcf_result.wacc|fmtpct }}</div>
-    </div>
-    <div class="metric-card">
-      <div class="label">Implied Share Price</div>
-      <div class="value">${{ "%.2f"|format(dcf_result.implied_price) }}</div>
-    </div>
-    <div class="metric-card">
-      <div class="label">Enterprise Value</div>
-      <div class="value">{{ dcf_result.enterprise_value|fmtnum }}</div>
-    </div>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+    <div class="metric-card"><p class="caption">Implied Price</p><p style="font-size: 1rem; font-weight: 600;">${{ "%.2f"|format(dcf_result.implied_price) }}</p></div>
+    <div class="metric-card"><p class="caption">WACC</p><p style="font-size: 1rem; font-weight: 600;">{{ dcf_result.wacc|fmtpct }}</p></div>
+    <div class="metric-card"><p class="caption">Terminal Growth</p><p style="font-size: 1rem; font-weight: 600;">{{ dcf_result.inputs.terminal_growth_rate|fmtpct }}</p></div>
+    <div class="metric-card"><p class="caption">Enterprise Value</p><p style="font-size: 1rem; font-weight: 600;">{{ dcf_result.enterprise_value|fmtnum }}</p></div>
   </div>
+  {% endif %}
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    {% for key in ['sensitivity', 'waterfall', 'football_field'] %}
+    {% if charts.get(key) %}
+    <div class="chart-card"><img src="{{ charts[key] }}" alt="{{ key }}"></div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</section>
 
-  {% if dcf_result.projected_fcf %}
-  <h3>Projected Free Cash Flow</h3>
-  <table>
-    <thead>
-      <tr>
-        {% for i in range(dcf_result.projected_fcf|length) %}<th>Year {{ i + 1 }}</th>{% endfor %}
-        <th>Terminal Value</th>
-      </tr>
-    </thead>
+{# ========== 6. Recent News & Events ========== #}
+{% if catalyst_analysis and catalyst_analysis.events %}
+<section class="mb-10">
+  <h2 class="section-title">Recent News &amp; Events</h2>
+  {% for event in catalyst_analysis.events[:5] %}
+  <div class="catalyst-card catalyst-{{ event.sentiment }}">
+    <div style="font-weight: 600; font-size: 0.875rem;">{{ event.headline }}</div>
+    {% if event.reasoning is defined and event.reasoning %}<div class="caption mt-1">{{ event.reasoning }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# ========== 7. Sensitivity Analysis (table) ========== #}
+{% if dcf_result and dcf_result.sensitivity_table %}
+<section class="mb-10">
+  <h2 class="section-title">Sensitivity Analysis</h2>
+  {% set st = dcf_result.sensitivity_table %}
+  <table class="data-table">
+    <thead><tr><th>WACC \ TG</th>{% for tg in st.tg_values %}<th>{{ tg|fmtpct }}</th>{% endfor %}</tr></thead>
     <tbody>
-      <tr>
-        {% for v in dcf_result.projected_fcf %}<td>{{ v|fmtnum }}</td>{% endfor %}
-        <td>{{ dcf_result.terminal_value|fmtnum }}</td>
+    {% for i in range(st.wacc_values|length) %}
+      <tr><td style="font-weight: 600;">{{ st.wacc_values[i]|fmtpct }}</td>
+      {% for j in range(st.tg_values|length) %}
+        {% set price = st.implied_prices[i][j] %}
+        <td>{% if price is not none %}${{ "%.0f"|format(price) }}{% else %}&mdash;{% endif %}</td>
+      {% endfor %}
       </tr>
+    {% endfor %}
     </tbody>
   </table>
-  {% endif %}
-  {% endif %}
+</section>
+{% endif %}
 
-  <div class="chart-row">
-    {% if charts.get('sensitivity') %}
-    <div class="chart-half">
-      <div class="chart-container">
-        <img src="{{ charts.sensitivity }}" alt="Sensitivity Analysis" />
+{# ========== 8. Key Catalysts ========== #}
+{% if catalyst_analysis %}
+<section class="mb-10 page-break">
+  <h2 class="section-title">Key Catalysts</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+  {% for event in catalyst_analysis.events %}
+    <div class="catalyst-card catalyst-{{ event.sentiment }}">
+      <div class="flex items-center gap-2 mb-1">
+        <span style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b;">{{ event.category|replace('_', ' ') }}</span>
+        <span style="font-size: 0.7rem; color: #94a3b8;">|</span>
+        <span style="font-size: 0.7rem;" class="{% if event.sentiment == 'positive' %}positive{% elif event.sentiment == 'negative' %}negative{% else %}neutral-color{% endif %}">{{ event.sentiment }}</span>
       </div>
+      <div style="font-weight: 600; font-size: 0.875rem;">{{ event.headline }}</div>
+      {% if event.reasoning is defined and event.reasoning %}<div class="caption mt-1">{{ event.reasoning }}</div>{% endif %}
+      <div class="caption mt-1">Impact: {{ event.impact_score }}/5{% if event.probability is defined and event.probability is not none %} | Prob: {{ event.probability|fmtpct }}{% endif %}</div>
     </div>
-    {% endif %}
-    {% if charts.get('waterfall') %}
-    <div class="chart-half">
-      <div class="chart-container">
-        <img src="{{ charts.waterfall }}" alt="Valuation Waterfall" />
-      </div>
-    </div>
-    {% endif %}
+  {% endfor %}
   </div>
+</section>
+{% endif %}
 
-  {% if peer_comps %}
-  <h3>Comparable Company Analysis</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Company</th>
-        <th>EV/EBITDA</th>
-        <th>P/E</th>
-        <th>EV/Revenue</th>
-      </tr>
-    </thead>
+{# ========== 9. Peer Comparison ========== #}
+{% if peer_comps %}
+<section class="mb-10 page-break">
+  <h2 class="section-title">Peer Comparison</h2>
+  <table class="data-table mb-4">
+    <thead><tr><th>Company</th><th>Revenue</th><th>EBITDA</th><th>Gross Margin</th><th>EV/EBITDA</th><th>P/E</th></tr></thead>
     <tbody>
       <tr style="font-weight: 700; background: #f0f4f8;">
         <td>{{ peer_comps.target.ticker }}</td>
+        <td>{{ peer_comps.target.revenue|fmtnum }}</td>
+        <td>{{ peer_comps.target.ebitda|fmtnum }}</td>
+        <td>{{ peer_comps.target.gross_margin|fmtpct }}</td>
         <td>{{ peer_comps.target.ev_ebitda|fmtmult if peer_comps.target.ev_ebitda else 'N/A' }}</td>
         <td>{{ peer_comps.target.pe_ratio|fmtmult if peer_comps.target.pe_ratio else 'N/A' }}</td>
-        <td>{{ peer_comps.target.ev_revenue|fmtmult if peer_comps.target.ev_revenue is defined and peer_comps.target.ev_revenue else 'N/A' }}</td>
       </tr>
       {% for peer in peer_comps.peers %}
       <tr>
         <td>{{ peer.ticker }}</td>
+        <td>{{ peer.revenue|fmtnum }}</td>
+        <td>{{ peer.ebitda|fmtnum }}</td>
+        <td>{{ peer.gross_margin|fmtpct }}</td>
         <td>{{ peer.ev_ebitda|fmtmult if peer.ev_ebitda else 'N/A' }}</td>
         <td>{{ peer.pe_ratio|fmtmult if peer.pe_ratio else 'N/A' }}</td>
-        <td>{{ peer.ev_revenue|fmtmult if peer.ev_revenue is defined and peer.ev_revenue else 'N/A' }}</td>
       </tr>
       {% endfor %}
       <tr style="border-top: 2px solid #1a365d; font-weight: 600;">
-        <td>Median</td>
+        <td>Median</td><td></td><td></td><td></td>
         <td>{{ peer_comps.median_ev_ebitda|fmtmult if peer_comps.median_ev_ebitda else 'N/A' }}</td>
         <td>{{ peer_comps.median_pe|fmtmult if peer_comps.median_pe else 'N/A' }}</td>
-        <td>N/A</td>
       </tr>
     </tbody>
   </table>
-  {% endif %}
-
-  {% if charts.get('peer_comparison') %}
-  <div class="chart-container">
-    <img src="{{ charts.peer_comparison }}" alt="Peer Comparison" />
-  </div>
-  {% endif %}
-
-  {% if charts.get('football_field') %}
-  <div class="chart-container">
-    <img src="{{ charts.football_field }}" alt="Football Field Valuation" />
-  </div>
-  {% endif %}
-</div>
-
-{# ========== PAGE 4: Catalysts & Risks ========== #}
-<div class="page">
-  <h2>Catalysts &amp; Risks</h2>
-
-  {% if catalyst_analysis %}
-  <h3>Overall Sentiment: <span class="accent">{{ catalyst_analysis.overall_sentiment|capitalize }}</span></h3>
-
-  {% if catalyst_analysis.key_catalysts %}
-  <h3>Key Catalysts</h3>
-  <ul>
-    {% for cat in catalyst_analysis.key_catalysts %}
-    <li>{{ cat }}</li>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {% for key in ['peer_comparison', 'radar'] %}
+    {% if charts.get(key) %}
+    <div class="chart-card"><img src="{{ charts[key] }}" alt="{{ key }}"></div>
+    {% endif %}
     {% endfor %}
-  </ul>
-  {% endif %}
-
-  {% if catalyst_analysis.events %}
-  <h3>Catalyst Events</h3>
-  {% for event in catalyst_analysis.events %}
-  <div class="catalyst-card sentiment-{{ event.sentiment }}">
-    <div class="cat-type">{{ event.category|replace('_', ' ') }}</div>
-    <div class="cat-headline">{{ event.headline }}</div>
-    {% if event.reasoning is defined %}
-    <div class="muted" style="margin-top: 4px; font-size: 13px;">{{ event.reasoning }}</div>
-    {% endif %}
-    {% if event.impact_score is defined %}
-    <div class="muted" style="font-size: 12px; margin-top: 2px;">
-      Impact: {{ event.impact_score }}/5
-      {% if event.probability is defined %} | Probability: {{ event.probability|fmtpct }}{% endif %}
-    </div>
-    {% endif %}
   </div>
-  {% endfor %}
-  {% endif %}
+</section>
+{% endif %}
 
-  {% else %}
-  <p class="muted">Catalyst analysis not available.</p>
-  {% endif %}
+{# ========== 10. Technical & Advanced ========== #}
+<section class="mb-10">
+  <h2 class="section-title">Technical &amp; Advanced Analysis</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {% for key in ['eps_pe', 'time_series_multi'] %}
+    {% if charts.get(key) %}
+    <div class="chart-card"><img src="{{ charts[key] }}" alt="{{ key }}"></div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</section>
 
-  {% if charts.get('radar') %}
-  <div class="chart-container">
-    <img src="{{ charts.radar }}" alt="Radar Analysis" />
+{# ========== 11. Financial Data Appendix ========== #}
+<section class="mb-10 page-break">
+  <h2 class="section-title">Financial Data Appendix</h2>
+  {% if historical_metrics %}
+  <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem;">Historical Data</h3>
+  <table class="data-table mb-4">
+    <thead><tr><th>Year</th>{% for y in historical_metrics.years %}<th>{{ y }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      <tr><td>Revenue</td>{% for v in historical_metrics.revenue %}<td>{{ v|fmtnum }}</td>{% endfor %}</tr>
+      <tr><td>EBITDA</td>{% for v in historical_metrics.ebitda %}<td>{{ v|fmtnum }}</td>{% endfor %}</tr>
+      <tr><td>Net Income</td>{% for v in historical_metrics.net_income %}<td>{{ v|fmtnum }}</td>{% endfor %}</tr>
+      <tr><td>Gross Margin</td>{% for v in historical_metrics.gross_margin %}<td>{{ v|fmtpct }}</td>{% endfor %}</tr>
+      <tr><td>Op. Margin</td>{% for v in historical_metrics.operating_margin %}<td>{{ v|fmtpct }}</td>{% endfor %}</tr>
+      <tr><td>EPS</td>{% for v in historical_metrics.eps %}<td>${{ "%.2f"|format(v) }}</td>{% endfor %}</tr>
+    </tbody>
+  </table>
+  {% endif %}
+  {% if forecast %}
+  <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem;">Forecast</h3>
+  <table class="data-table mb-4">
+    <thead><tr><th>Year</th>{% for y in forecast.years %}<th>{{ y }}E</th>{% endfor %}</tr></thead>
+    <tbody>
+      <tr><td>Revenue</td>{% for v in forecast.revenue %}<td>{{ v|fmtnum }}</td>{% endfor %}</tr>
+      <tr><td>EBITDA</td>{% for v in forecast.ebitda %}<td>{{ v|fmtnum }}</td>{% endfor %}</tr>
+      <tr><td>Net Income</td>{% for v in forecast.net_income %}<td>{{ v|fmtnum }}</td>{% endfor %}</tr>
+      <tr><td>EPS</td>{% for v in forecast.eps %}<td>${{ "%.2f"|format(v) }}</td>{% endfor %}</tr>
+    </tbody>
+  </table>
+  {% endif %}
+  {% if data_warnings %}
+  <h3 style="font-size: 1rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem;">Data Source Notes</h3>
+  <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 0.5rem; padding: 0.75rem 1rem; font-size: 0.8rem; color: #92400e;">
+    <ul style="margin: 0; padding-left: 1rem;">
+      {% for w in data_warnings %}
+      <li>{{ w }}</li>
+      {% endfor %}
+    </ul>
+    <p class="caption mt-2">These discrepancies were detected by cross-provider validation. Primary data source ({{ data_source }}) values were used.</p>
   </div>
   {% endif %}
+</section>
+
+{# ========== 12. Disclaimer ========== #}
+<div style="border-top: 1px solid #e2e8f0; padding-top: 1.5rem; margin-top: 2rem;">
+  <p style="font-size: 0.75rem; color: #94a3b8; line-height: 1.6;">
+    <strong>Disclaimer:</strong> This report is generated by FinAgent for informational purposes only. It does not constitute investment advice. Financial data may contain errors. All projections are based on assumptions that may not materialize. Past performance does not guarantee future results. Consult a qualified financial advisor before making investment decisions.
+  </p>
+  <p style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.5rem;">
+    Generated by <strong>FinAgent</strong> — Open-source financial AI agent platform.
+  </p>
 </div>
 
-{# ========== PAGE 5: Appendix ========== #}
-<div class="page">
-  <h2>Appendix</h2>
-
-  <h3>Data Sources</h3>
-  <ul>
-    <li>Financial data: Yahoo Finance, SEC EDGAR, FMP, Finnhub</li>
-    <li>Price data: Yahoo Finance</li>
-    <li>News & catalysts: Finnhub News API</li>
-  </ul>
-
-  {% if charts.get('eps_pe') %}
-  <h3>EPS & P/E Trend</h3>
-  <div class="chart-container">
-    <img src="{{ charts.eps_pe }}" alt="EPS & P/E History" />
-  </div>
-  {% endif %}
-
-  <div class="report-footer">
-    <h3>Disclaimer</h3>
-    <p>
-      This report is generated by FinAgent for informational purposes only.
-      It does not constitute investment advice, a recommendation, or a solicitation
-      to buy or sell any security. Financial data may contain errors or be outdated.
-      All projections and valuations are based on assumptions that may not materialize.
-      Past performance does not guarantee future results. Consult a qualified financial
-      advisor before making investment decisions.
-    </p>
-    <p style="margin-top: 8px;">
-      Generated by <strong>FinAgent</strong> &mdash; Open-source financial AI agent platform.
-    </p>
-  </div>
-</div>
-
+</div><!-- close max-w-4xl -->
 </body>
 </html>

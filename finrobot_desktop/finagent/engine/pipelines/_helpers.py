@@ -50,13 +50,26 @@ async def execute_financial_data_step(
 
     # Build multi-year historical metrics + forecast for chart generation.
     # These are deterministic — no LLM call needed.
+    # structured_context IS structured_results (same dict reference) so
+    # writes here persist into PipelineResult.structured_data.
     hm = await _build_historical_metrics(deps, ticker, financial_data)
     if hm is not None:
         structured_context["historical_metrics"] = hm
+        logger.info(
+            "HistoricalMetrics built for %s: %d years (%s)",
+            ticker, len(hm.years), hm.years,
+        )
         forecast = _build_forecast(hm)
         if forecast is not None:
             structured_context["forecast"] = forecast
+            logger.info("ForecastResult built for %s: %d years", ticker, len(forecast.years))
+    else:
+        logger.info("HistoricalMetrics not available for %s — charts will be limited", ticker)
 
+    logger.info(
+        "structured_context keys after data_collection: %s",
+        list(structured_context.keys()),
+    )
     return StepOutput(text=step_result.output, structured=financial_data)
 
 

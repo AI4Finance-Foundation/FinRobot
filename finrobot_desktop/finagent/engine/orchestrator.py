@@ -262,6 +262,7 @@ def _generate_charts(
         if uri:
             charts["football_field"] = uri
 
+    logger.info("Generated %d charts: %s", len(charts), list(charts.keys()))
     return charts
 
 
@@ -331,6 +332,16 @@ def build_report_context(ticker: str, result: PipelineResult) -> dict[str, Any]:
     lbo_result = sd.get("lbo_calculation")
     if not isinstance(lbo_result, LBOResult):
         lbo_result = None
+
+    logger.info(
+        "build_report_context: sd_keys=%s hm=%s forecast=%s dcf=%s peers=%s vs=%s",
+        list(sd.keys()),
+        type(historical_metrics).__name__ if historical_metrics else None,
+        type(forecast).__name__ if forecast else None,
+        type(dcf_result).__name__ if dcf_result else None,
+        type(peer_comps).__name__ if peer_comps else None,
+        type(valuation_synthesis).__name__ if valuation_synthesis else None,
+    )
 
     charts = _generate_charts(
         fin=fin,

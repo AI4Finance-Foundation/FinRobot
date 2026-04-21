@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,247 @@ from finagent.engine.models.financial import (
 from finagent.engine.data.types import DataType
 from finagent.engine.pipelines.base import PipelineResult
 from finagent.engine.skills.registry import SkillRegistry
+
+logger = logging.getLogger(__name__)
+
+
+def _safe_render(chart_name: str, render_fn: Any, *args: Any) -> str | None:
+    """Call a chart render function; return base64 data URI or None on failure."""
+    import base64
+
+    try:
+        png_bytes: bytes = render_fn(*args)
+        encoded = base64.b64encode(png_bytes).decode("ascii")
+        return f"data:image/png;base64,{encoded}"
+    except (ValueError, TypeError, KeyError, IndexError, RuntimeError) as e:
+        logger.warning("Chart '%s' skipped: %s", chart_name, e)
+        return None
+
+
+def _generate_charts(
+    *,
+    fin: FinancialData | None,
+    historical_metrics: HistoricalMetrics | None,
+    forecast: ForecastResult | None,
+    dcf_result: DCFResult | None,
+    peer_comps: PeerComps | None,
+    valuation_synthesis: ValuationSynthesis | None,
+) -> dict[str, str]:
+    """Generate all available charts from structured pipeline data.
+
+    Each chart is wrapped in try/except so one failure never blocks the report.
+    Returns a dict of chart_name → base64 data URI string.
+    """
+    from finagent.engine.charts.base import ChartDataPoint
+
+    charts: dict[str, str] = {}
+
+    # --- Charts from HistoricalMetrics ---
+    if historical_metrics and len(historical_metrics.years) >= 2:
+        hm = historical_metrics
+        years = hm.years
+
+        # revenue_ebitda: grouped bars
+        rev_ebitda_rows: list[dict[str, Any]] = []
+        for i, y in enumerate(years):
+            rev_ebitda_rows.append({
+                "year": y,
+                "revenue": hm.revenue[i],
+                "ebitda": hm.ebitda[i],
+                "is_forecast": False,
+            })
+        if forecast:
+            for i, y in enumerate(forecast.years):
+                rev_ebitda_rows.append({
+                    "year": y,
+                    "revenue": forecast.revenue[i],
+                    "ebitda": forecast.ebitda[i],
+                    "is_forecast": True,
+                })
+        data = ChartDataPoint(
+            chart_type="revenue_ebitda",
+            title=f"{hm.ticker} Revenue & EBITDA",
+            data=rev_ebitda_rows,
+        )
+        from finagent.engine.charts.revenue_ebitda import render as render_rev
+        uri = _safe_render("revenue_ebitda", render_rev, data)
+        if uri:
+            charts["revenue_ebitda"] = uri
+
+        # margin_trend: 3 margin lines
+        margin_rows: list[dict[str, Any]] = [
+            {
+                "year": years[i],
+                "gross_margin": hm.gross_margin[i],
+                "ebitda_margin": hm.ebitda_margin[i],
+                "operating_margin": hm.operating_margin[i],
+            }
+            for i in range(len(years))
+        ]
+        data = ChartDataPoint(
+            chart_type="margin_trend",
+            title=f"{hm.ticker} Margin Trends",
+            data=margin_rows,
+        )
+        from finagent.engine.charts.margin_trend import render as render_margin
+        uri = _safe_render("margin_trend", render_margin, data)
+        if uri:
+            charts["margin_trend"] = uri
+
+        # eps_pe
+        eps_rows: list[dict[str, Any]] = [
+            {"year": years[i], "eps": hm.eps[i], "pe_ratio": hm.pe_ratio[i]}
+            for i in range(len(years))
+        ]
+        if forecast:
+            for i, y in enumerate(forecast.years):
+                eps_rows.append({"year": y, "eps": forecast.eps[i], "pe_ratio": None})
+        data = ChartDataPoint(
+            chart_type="eps_pe",
+            title=f"{hm.ticker} EPS & P/E",
+            data=eps_rows,
+        )
+        from finagent.engine.charts.eps_pe import render as render_eps
+        uri = _safe_render("eps_pe", render_eps, data)
+        if uri:
+            charts["eps_pe"] = uri
+
+        # revenue_yoy
+        rev_yoy_rows: list[dict[str, Any]] = [
+            {"year": str(years[i]), "revenue": hm.revenue[i]}
+            for i in range(len(years))
+        ]
+        data = ChartDataPoint(
+            chart_type="revenue_yoy",
+            title=f"{hm.ticker} Revenue YoY Growth",
+            data=rev_yoy_rows,
+        )
+        from finagent.engine.charts.revenue_yoy import render as render_yoy
+        uri = _safe_render("revenue_yoy", render_yoy, data)
+        if uri:
+            charts["revenue_yoy"] = uri
+
+        # time_series_multi: dual-axis (revenue + margin)
+        ts_rows: list[dict[str, Any]] = [
+            {
+                "year": str(years[i]),
+                "revenue": hm.revenue[i],
+                "net_income": hm.net_income[i],
+                "operating_margin": hm.operating_margin[i],
+            }
+            for i in range(len(years))
+        ]
+        data = ChartDataPoint(
+            chart_type="time_series_multi",
+            title=f"{hm.ticker} Key Metrics",
+            data=ts_rows,
+        )
+        from finagent.engine.charts.time_series_multi import render as render_ts
+        uri = _safe_render("time_series_multi", render_ts, data)
+        if uri:
+            charts["time_series_multi"] = uri
+
+    # --- Charts from DCFResult ---
+    if dcf_result:
+        # sensitivity heatmap
+        st = dcf_result.sensitivity_table
+        if st and isinstance(st, dict):
+            wacc_values = st.get("wacc_values", [])
+            tg_values = st.get("tg_values", [])
+            prices = st.get("prices", [])
+            if wacc_values and tg_values and prices:
+                sens_rows: list[dict[str, Any]] = []
+                for i, w in enumerate(wacc_values):
+                    for j, tg in enumerate(tg_values):
+                        price = prices[i][j] if i < len(prices) and j < len(prices[i]) else 0
+                        sens_rows.append({"wacc": w, "tg": tg, "implied_price": price})
+                data = ChartDataPoint(
+                    chart_type="sensitivity",
+                    title="DCF Sensitivity",
+                    data=sens_rows,
+                )
+                from finagent.engine.charts.sensitivity import render as render_sens
+                uri = _safe_render("sensitivity", render_sens, data)
+                if uri:
+                    charts["sensitivity"] = uri
+
+        # waterfall: EV bridge
+        wf_rows: list[dict[str, Any]] = [
+            {"label": "PV of FCFs", "value": dcf_result.pv_fcf_total, "is_total": False},
+            {"label": "PV Terminal", "value": dcf_result.pv_terminal, "is_total": False},
+            {"label": "Enterprise Value", "value": dcf_result.pv_fcf_total + dcf_result.pv_terminal, "is_total": True},
+        ]
+        data = ChartDataPoint(chart_type="waterfall", title="DCF Waterfall", data=wf_rows)
+        from finagent.engine.charts.waterfall import render as render_wf
+        uri = _safe_render("waterfall", render_wf, data)
+        if uri:
+            charts["waterfall"] = uri
+
+    # --- Charts from PeerComps ---
+    if peer_comps:
+        # peer_comparison: horizontal bars
+        pc_rows: list[dict[str, Any]] = []
+        pc_rows.append({
+            "ticker": peer_comps.target.ticker,
+            "ev_ebitda": peer_comps.target.ev_ebitda or 0,
+            "is_target": True,
+        })
+        for p in peer_comps.peers:
+            pc_rows.append({
+                "ticker": p.ticker,
+                "ev_ebitda": p.ev_ebitda or 0,
+                "is_target": False,
+            })
+        data = ChartDataPoint(
+            chart_type="peer_comparison",
+            title="EV/EBITDA Peer Comparison",
+            data=pc_rows,
+        )
+        from finagent.engine.charts.peer_comparison import render as render_peer
+        uri = _safe_render("peer_comparison", render_peer, data)
+        if uri:
+            charts["peer_comparison"] = uri
+
+        # radar: target vs peer median
+        target = peer_comps.target
+        if peer_comps.peers:
+            import statistics
+
+            def _median(vals: list[float]) -> float:
+                return statistics.median(vals) if vals else 0.0
+
+            peer_gm = [p.gross_margin for p in peer_comps.peers if p.gross_margin]
+            peer_om = [p.operating_margin for p in peer_comps.peers if p.operating_margin]
+            peer_ev = [p.ev_ebitda for p in peer_comps.peers if p.ev_ebitda]
+
+            radar_rows: list[dict[str, Any]] = [
+                {"dimension": "Gross Margin", "value": target.gross_margin, "benchmark": _median(peer_gm)},
+                {"dimension": "Op. Margin", "value": target.operating_margin, "benchmark": _median(peer_om)},
+                {"dimension": "EV/EBITDA", "value": target.ev_ebitda or 0, "benchmark": _median(peer_ev)},
+            ]
+            data = ChartDataPoint(chart_type="radar", title=f"{target.ticker} vs Peers", data=radar_rows)
+            from finagent.engine.charts.radar import render as render_radar
+            uri = _safe_render("radar", render_radar, data)
+            if uri:
+                charts["radar"] = uri
+
+    # --- Charts from ValuationSynthesis ---
+    if valuation_synthesis and valuation_synthesis.methods:
+        ff_rows: list[dict[str, Any]] = [
+            {"method": m.name, "low": m.low, "mid": m.mid, "high": m.high}
+            for m in valuation_synthesis.methods
+        ]
+        data = ChartDataPoint(
+            chart_type="football_field",
+            title="Valuation Range",
+            data=ff_rows,
+        )
+        from finagent.engine.charts.football_field import render as render_ff
+        uri = _safe_render("football_field", render_ff, data)
+        if uri:
+            charts["football_field"] = uri
+
+    return charts
 
 
 def build_report_context(ticker: str, result: PipelineResult) -> dict[str, Any]:
@@ -90,6 +332,15 @@ def build_report_context(ticker: str, result: PipelineResult) -> dict[str, Any]:
     if not isinstance(lbo_result, LBOResult):
         lbo_result = None
 
+    charts = _generate_charts(
+        fin=fin,
+        historical_metrics=historical_metrics,
+        forecast=forecast,
+        dcf_result=dcf_result,
+        peer_comps=peer_comps,
+        valuation_synthesis=valuation_synthesis,
+    )
+
     return {
         "ticker": ticker.upper(),
         "company_name": fin.ticker if fin else ticker.upper(),
@@ -97,7 +348,7 @@ def build_report_context(ticker: str, result: PipelineResult) -> dict[str, Any]:
         "market_cap": fin.market.market_cap if fin else 0,
         "recommendation": thesis.recommendation if thesis else "N/A",
         "price_target": thesis.price_target if thesis else 0,
-        "charts": {},
+        "charts": charts,
         "historical_metrics": historical_metrics,
         "forecast": forecast,
         "dcf_result": dcf_result,

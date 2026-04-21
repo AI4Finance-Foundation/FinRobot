@@ -160,6 +160,63 @@ class TestBuildReportContext:
         assert ctx["dcf_result"].implied_price == 137.33
         assert len(ctx["peer_comps"].peers) == 3
 
+    def test_charts_generated_from_structured_data(self):
+        """Charts dict must contain base64 PNGs when structured data is present."""
+        from finagent.engine.models.financial import HistoricalMetrics
+
+        hm = HistoricalMetrics(
+            years=[2020, 2021, 2022, 2023],
+            revenue=[260e9, 274e9, 366e9, 394e9],
+            revenue_growth_yoy=[None, 0.054, 0.336, 0.077],
+            cogs=[170e9, 180e9, 220e9, 240e9],
+            gross_profit=[90e9, 94e9, 146e9, 154e9],
+            gross_margin=[0.346, 0.343, 0.399, 0.391],
+            sga=[20e9, 21e9, 25e9, 26e9],
+            sga_ratio=[0.077, 0.077, 0.068, 0.066],
+            ebitda=[80e9, 85e9, 130e9, 135e9],
+            ebitda_margin=[0.308, 0.310, 0.355, 0.343],
+            operating_income=[60e9, 64e9, 105e9, 110e9],
+            operating_margin=[0.231, 0.234, 0.287, 0.279],
+            net_income=[50e9, 55e9, 95e9, 100e9],
+            eps=[3.28, 3.69, 6.15, 6.42],
+            pe_ratio=[32.0, 38.0, 25.0, 30.0],
+            cagr_revenue=0.149,
+            ticker="AAPL",
+        )
+        result = PipelineResult(
+            steps={
+                "data_collection": "...",
+                "peer_analysis": "...",
+                "financial_modeling": "...",
+                "thesis": "...",
+            },
+            structured_data={
+                "data_collection": _make_financial_data(),
+                "historical_metrics": hm,
+                "peer_analysis": _make_peer_comps(),
+                "financial_modeling": _make_dcf_result(),
+                "thesis": _make_thesis(),
+            },
+        )
+        ctx = build_report_context("aapl", result)
+        charts = ctx["charts"]
+        assert isinstance(charts, dict)
+        # Should have generated charts from HistoricalMetrics
+        assert "revenue_ebitda" in charts, f"Missing revenue_ebitda, got: {list(charts.keys())}"
+        assert "margin_trend" in charts
+        assert "revenue_yoy" in charts
+        # From PeerComps
+        assert "peer_comparison" in charts
+        # All values should be base64 data URIs
+        for name, uri in charts.items():
+            assert uri.startswith("data:image/png;base64,"), f"Chart {name} not a data URI"
+
+    def test_charts_empty_when_no_structured_data(self):
+        """No charts generated when structured_data is empty."""
+        result = PipelineResult(steps={"report": "text"}, structured_data={})
+        ctx = build_report_context("AAPL", result)
+        assert ctx["charts"] == {}
+
     def test_dcf_only_pipeline(self):
         result = PipelineResult(
             steps={"historical_data": "...", "dcf_calc": "...", "output_gen": "..."},

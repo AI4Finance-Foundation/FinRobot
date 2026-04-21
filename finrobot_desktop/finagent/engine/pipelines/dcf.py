@@ -36,7 +36,7 @@ async def _execute_dcf_calc(
 ) -> StepOutput:
     """param_agent selects DCFInputs; code computes full DCFResult + sensitivity."""
     param_agent = Agent(
-        deps.settings.model_name,
+        deps.settings.create_model(),
         output_type=DCFInputs,
         instructions=(
             "Select DCF valuation parameters based on the historical financial data. "

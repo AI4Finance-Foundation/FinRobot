@@ -120,7 +120,7 @@ async def _execute_peer_analysis(
 ) -> StepOutput:
     """LLM selects peer tickers (structured output); code fetches and computes multiples."""
     peer_agent = Agent(
-        deps.settings.model_name,
+        deps.settings.create_model(),
         output_type=PeerSelection,
         instructions=(
             "Select 3-5 comparable publicly traded companies for peer analysis. "
@@ -202,7 +202,7 @@ async def _execute_financial_modeling(
 ) -> StepOutput:
     """param_agent selects DCF assumptions; calculate_dcf() does all math."""
     param_agent = Agent(
-        deps.settings.model_name,
+        deps.settings.create_model(),
         output_type=DCFInputs,
         instructions=(
             "Select DCF valuation parameters based on the financial data and peer analysis. "
@@ -274,7 +274,7 @@ async def _execute_thesis(
         thesis_prompt = f"{prompt}\n\nCatalyst Analysis:\n{catalyst_section}"
 
     synthesis_agent = Agent(
-        deps.settings.model_name,
+        deps.settings.create_model(),
         output_type=ThesisResult,
         instructions=(
             "Write an investment thesis based on the DCF valuation, peer analysis, "

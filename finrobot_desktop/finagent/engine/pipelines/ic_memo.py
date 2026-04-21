@@ -62,7 +62,7 @@ async def _execute_ic_financials(
 
     # --- DCF ---
     dcf_param_agent = Agent(
-        deps.settings.model_name,
+        deps.settings.create_model(),
         output_type=DCFInputs,
         instructions=(
             "Select conservative DCF valuation parameters based on the financial data. "
@@ -83,7 +83,7 @@ async def _execute_ic_financials(
 
     # --- LBO ---
     lbo_param_agent = Agent(
-        deps.settings.model_name,
+        deps.settings.create_model(),
         output_type=LBOInputs,
         instructions=(
             "Select LBO model assumptions for a private equity acquisition of this company. "

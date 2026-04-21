@@ -114,7 +114,7 @@ async def classify_news(
         return []
 
     classification_agent = PydanticAgent(
-        deps.settings.model_name,
+        deps.settings.create_model(),
         output_type=ClassifiedNewsBatch,
         instructions=(
             "Classify each news item. For each, provide:\n"

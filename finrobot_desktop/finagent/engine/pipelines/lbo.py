@@ -43,7 +43,7 @@ async def _execute_lbo_params(
 ) -> StepOutput:
     """LLM selects LBOInputs assumptions from financial data."""
     param_agent = Agent(
-        deps.settings.model_name,
+        deps.settings.create_model(),
         output_type=LBOInputs,
         instructions=(
             "Select LBO model assumptions for a private equity acquisition of this company. "

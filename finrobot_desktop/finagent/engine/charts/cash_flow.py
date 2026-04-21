@@ -11,8 +11,6 @@ visual encoding cannot be produced by text-only LLM output.
 
 from __future__ import annotations
 
-import io
-
 import matplotlib
 
 matplotlib.use("Agg")
@@ -21,22 +19,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num  # noqa: E402
-
-
-def _scale_label(values: list[float]) -> tuple[float, str]:
-    """Determine a human-friendly divisor and unit suffix for the Y-axis.
-
-    Returns (divisor, suffix) — e.g. (1e9, "$B") or (1e6, "$M").
-    """
-    max_abs = max((abs(v) for v in values), default=0)
-    if max_abs >= 1e9:
-        return 1e9, "$B"
-    if max_abs >= 1e6:
-        return 1e6, "$M"
-    if max_abs >= 1e3:
-        return 1e3, "$K"
-    return 1.0, "$"
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, figure_to_png, scale_label  # noqa: E402
 
 
 def _create_figure(
@@ -66,7 +49,7 @@ def _create_figure(
 
     # Determine scale for readable Y-axis
     all_values = operating + investing + financing
-    divisor, suffix = _scale_label(all_values)
+    divisor, suffix = scale_label(all_values)
 
     op_scaled = [v / divisor for v in operating]
     inv_scaled = [v / divisor for v in investing]
@@ -142,8 +125,4 @@ def render(
     """
     cfg = config or ChartConfig()
     fig = _create_figure(data, cfg)
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=cfg.dpi, bbox_inches="tight")
-    plt.close(fig)
-    buf.seek(0)
-    return buf.getvalue()
+    return figure_to_png(fig, cfg)

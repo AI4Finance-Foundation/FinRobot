@@ -38,7 +38,8 @@ class TestP1bAcceptance:
         result = await pipeline.execute(deps, "AAPL")
 
         assert set(result.steps.keys()) == {
-            "data_collection", "peer_analysis", "financial_modeling", "thesis", "report"
+            "data_collection", "catalyst_analysis", "peer_analysis",
+            "financial_modeling", "thesis", "report",
         }
 
         # Strict validator checks

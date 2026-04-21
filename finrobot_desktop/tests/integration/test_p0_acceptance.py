@@ -66,8 +66,9 @@ async def test_mode_b_equity_research():
 
     assert elapsed < 60, f"Too slow: {elapsed:.1f}s (limit: 60s)"
     assert set(result.steps.keys()) == {
-        "data_collection", "peer_analysis", "financial_modeling", "thesis", "report"
-    }, "Not all 5 steps ran"
+        "data_collection", "catalyst_analysis", "peer_analysis",
+        "financial_modeling", "thesis", "report",
+    }, "Not all 6 steps ran"
     assert len(summary) > 200, "Report too short"
 
     # Check for real financial data markers (not hallucinated)

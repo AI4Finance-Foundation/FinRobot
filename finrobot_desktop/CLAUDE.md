@@ -20,21 +20,28 @@ No LangChain. No LangGraph. No AutoGen. No LiteLLM.
 | P1.5 | 金融计算核心 | ✅ 完成 |
 | P1c | Desktop app 骨架 | ✅ 完成 |
 | P2a | 数据源扩展 | ✅ 完成 |
-| **P2c** | **补齐 FinRobot 基线 + Desktop UI** | **← 当前阶段** |
+| P2c | 补齐 FinRobot 基线 + Desktop UI | ✅ 完成 |
+| P2d | 超越 FinRobot (LBO/IC Memo/Earnings/Excel/RAG) | ✅ 完成 |
+| S1-S7 | 结构性债务修复 | ✅ 完成 |
+| P3 | 从壳子到产品 (Streaming/SDK/验证/路由) | ✅ 完成 |
+| P4-A | 金融正确性 + CI 清零 (C1-C4) | ✅ 完成 |
+| P4-B | 结构债清理 (S3-S6 refactor) | ✅ 完成 |
+| P4-C | 基础设施 + 外部参照测试 (M3/M5/M7/S1-test) | ✅ 完成 |
+| P5 | 质量收尾 + 功能补完 (D4-D6/I1-I6/D3/A股/分发) | ✅ 完成 |
 
-All phase specs are in `specs/` directory. Each contains: goal, acceptance criteria, file-by-file implementation order, and package structure.
+All phase specs are in `specs/` directory.
 
-## 下一步工作
+## 当前状态
 
-读 `specs/P2c.md`（补齐 FinRobot 基线：图表 + 报告 + 数据处理 + 催化剂分析 + Desktop UI），按里面的实现顺序进行。
+ruff: 0 errors. mypy: 0 errors (66 files). 680+ tests passed.
+pre-commit 已配置. SECURITY.md / CONTRIBUTING.md / CHANGELOG.md / CODE_OF_CONDUCT.md 齐备.
 
-如果 `specs/P2c.md` 不存在，先停下来，告诉用户需要先写 spec，不要凭空开始实现。
+## 剩余技术债
 
-## 已知技术债
-
-| 优先级 | 问题 | 修复计划 |
-|--------|------|----------|
-| 高 | P2a 数据清洗缺失（FinRobot 的 clean_financial_number 等逻辑被跳过） | P2c 模块 7 修复 |
+| 优先级 | 问题 | 备注 |
+|--------|------|------|
+| 高 | A 股国际化（完整方案） | P5 做了 ticker 松绑 + 税率文档化，货币转换/交易所感知路由/非美数据源未做 |
+| 低 | I7 | 见 BACKLOG.md "P3 审计待办" 节 |
 
 ---
 

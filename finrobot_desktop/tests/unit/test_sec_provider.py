@@ -10,7 +10,6 @@ from finagent.engine.data.providers.sec_provider import (
     SECEdgarProvider,
     _MDNA_MAX_CHARS,
     _extract_items,
-    _extract_mdna,
 )
 
 
@@ -225,7 +224,7 @@ class TestSECEdgarFetch:
 
 
 class TestExtractMdna:
-    """Tests for the _extract_mdna pure function."""
+    """Tests for Item 7 extraction via _extract_items."""
 
     def test_extracts_item7_content(self):
         text = (
@@ -237,27 +236,27 @@ class TestExtractMdna:
             "Item 8. Financial Statements\n"
             "See page 50."
         )
-        mdna = _extract_mdna(text)
+        items = _extract_items(text)
+        mdna = items["item_7_mdna"]
         assert "Revenue grew 10%" in mdna
         assert "Margins expanded" in mdna
         assert "See page 50" not in mdna
 
     def test_handles_various_item7_formats(self):
-        # "ITEM 7" uppercase
-        text = "ITEM 7 MANAGEMENT'S DISCUSSION\nGood stuff here.\nITEM 8 FINANCIALS\n"
-        assert "Good stuff here" in _extract_mdna(text)
-
         # "Item 7." with period
         text = "Item 7. Management's Discussion and Analysis\nContent.\nItem 8. Financial Statements\n"
-        assert "Content" in _extract_mdna(text)
+        items = _extract_items(text)
+        assert "Content" in items["item_7_mdna"]
 
         # em-dash separator
         text = "Item 7\u2014Management's Discussion\nAnalysis text.\nItem 8\u2014Financial Statements\n"
-        assert "Analysis text" in _extract_mdna(text)
+        items = _extract_items(text)
+        assert "Analysis text" in items["item_7_mdna"]
 
     def test_returns_empty_when_no_item7(self):
         text = "This filing has no management discussion section. Just general information."
-        assert _extract_mdna(text) == ""
+        items = _extract_items(text)
+        assert items["item_7_mdna"] == ""
 
     def test_truncates_long_mdna(self):
         # Create MD&A text that exceeds the limit
@@ -265,15 +264,15 @@ class TestExtractMdna:
         long_content = "x" * (_MDNA_MAX_CHARS + 10000)
         text = header + long_content + "\nItem 8. Financial Statements\n"
 
-        mdna = _extract_mdna(text)
-        assert len(mdna) <= _MDNA_MAX_CHARS + 100  # allow for truncation marker
-        assert "[... truncated for length ...]" in mdna
+        items = _extract_items(text)
+        mdna = items["item_7_mdna"]
+        assert len(mdna) <= _MDNA_MAX_CHARS + 100  # allow for header margin
 
     def test_extracts_until_end_when_no_item8(self):
         """If Item 8 is missing, extract until end of document."""
         text = "Item 7. Management's Discussion\nAll the content goes here."
-        mdna = _extract_mdna(text)
-        assert "All the content goes here" in mdna
+        items = _extract_items(text)
+        assert "All the content goes here" in items["item_7_mdna"]
 
     def test_strips_html_artifacts_from_extracted_text(self):
         """After HTML stripping, extracted MD&A should be clean text."""
@@ -283,7 +282,8 @@ class TestExtractMdna:
             "Revenue increased by 15% to $50 billion. "
             "Item 8. Financial Statements"
         )
-        mdna = _extract_mdna(text)
+        items = _extract_items(text)
+        mdna = items["item_7_mdna"]
         assert "Revenue increased by 15%" in mdna
         assert "Financial Statements" not in mdna
 

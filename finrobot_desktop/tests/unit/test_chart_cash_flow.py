@@ -2,8 +2,8 @@
 
 import matplotlib.pyplot as plt
 
-from finagent.engine.charts.base import ChartDataPoint, validate_png
-from finagent.engine.charts.cash_flow import _create_figure, _scale_label, render
+from finagent.engine.charts.base import ChartDataPoint, scale_label, validate_png
+from finagent.engine.charts.cash_flow import _create_figure, render
 
 
 def _sample_data():
@@ -65,23 +65,23 @@ class TestCashFlowChart:
         assert "B" in ylabel  # Values are in billions
         plt.close(fig)
 
-    def test_scale_label_billions(self):
-        divisor, suffix = _scale_label([1e10, -5e9, 2e10])
+    def testscale_label_billions(self):
+        divisor, suffix = scale_label([1e10, -5e9, 2e10])
         assert divisor == 1e9
         assert suffix == "$B"
 
-    def test_scale_label_millions(self):
-        divisor, suffix = _scale_label([5e6, -3e6])
+    def testscale_label_millions(self):
+        divisor, suffix = scale_label([5e6, -3e6])
         assert divisor == 1e6
         assert suffix == "$M"
 
-    def test_scale_label_thousands(self):
-        divisor, suffix = _scale_label([5000, -3000])
+    def testscale_label_thousands(self):
+        divisor, suffix = scale_label([5000, -3000])
         assert divisor == 1e3
         assert suffix == "$K"
 
-    def test_scale_label_small(self):
-        divisor, suffix = _scale_label([50, -30])
+    def testscale_label_small(self):
+        divisor, suffix = scale_label([50, -30])
         assert divisor == 1.0
         assert suffix == "$"
 

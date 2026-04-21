@@ -32,7 +32,8 @@ class BM25Index:
     def __init__(self, chunks: list[Chunk]) -> None:
         self._chunks = chunks
         tokenized = [c.text.lower().split() for c in chunks]
-        self._bm25 = BM25Okapi(tokenized)
+        # BM25Okapi raises ZeroDivisionError on empty corpus
+        self._bm25: BM25Okapi | None = BM25Okapi(tokenized) if tokenized else None
 
     def search(self, query: str, top_k: int = 5) -> list[tuple[Chunk, float]]:
         """Return top_k chunks ranked by BM25 score (descending).
@@ -46,6 +47,8 @@ class BM25Index:
         Returns:
             List of (Chunk, score) pairs, highest score first.
         """
+        if self._bm25 is None:
+            return []
         scores = self._bm25.get_scores(query.lower().split())
         ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)
         return [(self._chunks[i], float(s)) for i, s in ranked[:top_k] if s > 0]

@@ -11,8 +11,6 @@ that a text-only LLM cannot perform reliably.
 
 from __future__ import annotations
 
-import io
-
 import matplotlib
 
 matplotlib.use("Agg")
@@ -20,7 +18,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num  # noqa: E402
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, figure_to_png  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -33,19 +31,28 @@ def _bollinger(
 ) -> tuple[list[float], list[float], list[float]]:
     """Return (upper, middle, lower) Bollinger Bands.
 
-    Uses simple rolling mean and rolling standard deviation.
+    Uses a running sum/sum-of-squares approach for O(n) performance.
     Points before the window is full are filled with NaN.
     """
     n = len(closes)
     upper: list[float] = [float("nan")] * n
     middle: list[float] = [float("nan")] * n
     lower: list[float] = [float("nan")] * n
+    if n < window:
+        return upper, middle, lower
+
+    window_sum = sum(closes[:window])
+    window_sq_sum = sum(x * x for x in closes[:window])
 
     for i in range(window - 1, n):
-        segment = closes[i - window + 1 : i + 1]
-        mean = sum(segment) / window
-        variance = sum((x - mean) ** 2 for x in segment) / window
-        std = variance**0.5
+        if i > window - 1:
+            outgoing = closes[i - window]
+            incoming = closes[i]
+            window_sum += incoming - outgoing
+            window_sq_sum += incoming * incoming - outgoing * outgoing
+        mean = window_sum / window
+        variance = window_sq_sum / window - mean * mean
+        std = variance**0.5 if variance > 0 else 0.0
         middle[i] = mean
         upper[i] = mean + num_std * std
         lower[i] = mean - num_std * std
@@ -251,8 +258,4 @@ def render(data: ChartDataPoint, config: ChartConfig | None = None) -> bytes:
     """
     cfg = config or ChartConfig()
     fig = _create_figure(data, cfg)
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=cfg.dpi, bbox_inches="tight")
-    plt.close(fig)
-    buf.seek(0)
-    return buf.getvalue()
+    return figure_to_png(fig, cfg)

@@ -10,8 +10,6 @@ series discovery cannot be produced by text-only LLM output.
 
 from __future__ import annotations
 
-import io
-
 import matplotlib
 
 matplotlib.use("Agg")
@@ -19,7 +17,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num  # noqa: E402
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, figure_to_png  # noqa: E402
 
 # Styling palette for up to 6 series; cycles if more are needed.
 _LINE_STYLES: list[tuple[str, str]] = [
@@ -53,13 +51,18 @@ def _create_figure(
     cfg = config or ChartConfig()
     rows = data.data
 
+    if not rows:
+        fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
+        ax.set_title(data.title)
+        return fig
+
     dates = [str(r.get("date", "")) for r in rows]
     x_indices = list(range(len(dates)))
 
     # Discover all series: keys ending with "_return"
-    series_keys: list[str] = []
-    if rows:
-        series_keys = sorted(k for k in rows[0] if isinstance(k, str) and k.endswith("_return"))
+    series_keys: list[str] = sorted(
+        k for k in rows[0] if isinstance(k, str) and k.endswith("_return")
+    )
 
     fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
     fig.patch.set_facecolor(cfg.background_color)
@@ -83,8 +86,17 @@ def _create_figure(
     # Reference line at 100
     ax.axhline(100, color=cfg.neutral_color, linestyle="--", linewidth=1, label="Base (100)")
 
-    ax.set_xticks(x_indices)
-    ax.set_xticklabels(dates, rotation=45, ha="right")
+    # Tick density guard for long series
+    max_labels = 12
+    if len(dates) > max_labels:
+        step = max(1, len(dates) // max_labels)
+        tick_positions = list(range(0, len(dates), step))
+        ax.set_xticks(tick_positions)
+        ax.set_xticklabels([dates[i] for i in tick_positions], rotation=45, ha="right")
+    else:
+        ax.set_xticks(x_indices)
+        ax.set_xticklabels(dates, rotation=45, ha="right")
+
     ax.set_ylabel("Indexed Return (Base=100)")
     ax.set_title(data.title)
     ax.legend()
@@ -106,8 +118,4 @@ def render(
     """
     cfg = config or ChartConfig()
     fig = _create_figure(data, cfg)
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=cfg.dpi, bbox_inches="tight")
-    plt.close(fig)
-    buf.seek(0)
-    return buf.getvalue()
+    return figure_to_png(fig, cfg)

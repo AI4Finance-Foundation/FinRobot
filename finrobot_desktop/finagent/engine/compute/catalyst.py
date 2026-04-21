@@ -167,23 +167,23 @@ def summarize_catalyst_outlook(events: list[CatalystEvent]) -> dict[str, Any]:
     Args:
         events: Catalyst events to summarize.
     """
-    net = sum(
-        e.impact_score * e.probability * _SENTIMENT_MULT.get(e.sentiment, 0.0)
-        for e in events
-    )
-    # Clamp to [-5, 5]
-    net = max(-5.0, min(5.0, net))
-
+    net = 0.0
     breakdown: dict[str, int] = {}
+    positives: list[CatalystEvent] = []
+    negatives: list[CatalystEvent] = []
+
     for e in events:
+        mult = _SENTIMENT_MULT.get(e.sentiment, 0.0)
+        net += e.impact_score * e.probability * mult
         breakdown[e.category] = breakdown.get(e.category, 0) + 1
+        if e.sentiment == "positive":
+            positives.append(e)
+        elif e.sentiment == "negative":
+            negatives.append(e)
 
-    positives = [e for e in events if e.sentiment == "positive"]
-    negatives = [e for e in events if e.sentiment == "negative"]
-
-    # Sort by impact_score * probability desc, take top 3
-    top_pos = sorted(positives, key=lambda e: e.impact_score * e.probability, reverse=True)[:3]
-    top_neg = sorted(negatives, key=lambda e: e.impact_score * e.probability, reverse=True)[:3]
+    net = max(-5.0, min(5.0, net))
+    top_pos = rank_catalysts(positives, top_n=3)
+    top_neg = rank_catalysts(negatives, top_n=3)
 
     return {
         "total_catalysts": len(events),

@@ -11,7 +11,6 @@ figure cannot be produced by text-only LLM output.
 
 from __future__ import annotations
 
-import io
 import re
 
 import matplotlib
@@ -21,7 +20,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num  # noqa: E402
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, figure_to_png  # noqa: E402
 
 # Pattern for keys that represent percentage/ratio metrics
 _RATIO_PATTERN = re.compile(r"(margin|ratio|pct)", re.IGNORECASE)
@@ -57,6 +56,11 @@ def _create_figure(
     """
     cfg = config or ChartConfig()
     rows = data.data
+
+    if not rows:
+        fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
+        ax.set_title(data.title)
+        return fig
 
     # Determine x-axis values (year or date)
     time_key = "year" if "year" in rows[0] else "date"
@@ -139,8 +143,4 @@ def render(
     """
     cfg = config or ChartConfig()
     fig = _create_figure(data, cfg)
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=cfg.dpi, bbox_inches="tight")
-    plt.close(fig)
-    buf.seek(0)
-    return buf.getvalue()
+    return figure_to_png(fig, cfg)

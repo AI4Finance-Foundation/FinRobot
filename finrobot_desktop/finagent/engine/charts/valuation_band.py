@@ -9,7 +9,6 @@ fill_between) cannot be produced by text-only LLM output.
 
 from __future__ import annotations
 
-import io
 import statistics
 
 import matplotlib
@@ -19,7 +18,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num  # noqa: E402
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, figure_to_png  # noqa: E402
 
 
 def _create_figure(
@@ -122,8 +121,4 @@ def render(
     """
     cfg = config or ChartConfig()
     fig = _create_figure(data, cfg)
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=cfg.dpi, bbox_inches="tight")
-    plt.close(fig)
-    buf.seek(0)
-    return buf.getvalue()
+    return figure_to_png(fig, cfg)

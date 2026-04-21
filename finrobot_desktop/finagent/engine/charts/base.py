@@ -79,6 +79,32 @@ class StepChartData(BaseModel):
     charts: list[ChartDataPoint] = []
 
 
+def scale_label(values: list[float]) -> tuple[float, str]:
+    """Determine a human-friendly divisor and unit suffix for the Y-axis.
+
+    Returns (divisor, suffix) — e.g. (1e9, "$B") or (1e6, "$M").
+    """
+    max_abs = max((abs(v) for v in values), default=0)
+    if max_abs >= 1e9:
+        return 1e9, "$B"
+    if max_abs >= 1e6:
+        return 1e6, "$M"
+    if max_abs >= 1e3:
+        return 1e3, "$K"
+    return 1.0, "$"
+
+
+def figure_to_png(fig: "Figure", cfg: ChartConfig) -> bytes:
+    """Render a matplotlib Figure to PNG bytes and close the figure."""
+    import matplotlib.pyplot as plt
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=cfg.dpi, bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+    return buf.getvalue()
+
+
 def render_to_base64(fig: Figure, dpi: int = 150) -> str:
     """Render a matplotlib Figure to a base64-encoded PNG data URI.
 

@@ -34,8 +34,8 @@ def _safe_render(chart_name: str, render_fn: Any, *args: Any) -> str | None:
         png_bytes: bytes = render_fn(*args)
         encoded = base64.b64encode(png_bytes).decode("ascii")
         return f"data:image/png;base64,{encoded}"
-    except (ValueError, TypeError, KeyError, IndexError, RuntimeError) as e:
-        logger.warning("Chart '%s' skipped: %s", chart_name, e)
+    except (ValueError, TypeError, KeyError, IndexError, RuntimeError, AttributeError) as e:
+        logger.warning("Chart '%s' skipped: %s", chart_name, e, exc_info=True)
         return None
 
 
@@ -169,12 +169,12 @@ def _generate_charts(
         if st and isinstance(st, dict):
             wacc_values = st.get("wacc_values", [])
             tg_values = st.get("tg_values", [])
-            prices = st.get("prices", [])
-            if wacc_values and tg_values and prices:
+            implied_prices = st.get("implied_prices", [])
+            if wacc_values and tg_values and implied_prices:
                 sens_rows: list[dict[str, Any]] = []
                 for i, w in enumerate(wacc_values):
                     for j, tg in enumerate(tg_values):
-                        price = prices[i][j] if i < len(prices) and j < len(prices[i]) else 0
+                        price = implied_prices[i][j] if i < len(implied_prices) and j < len(implied_prices[i]) else None
                         sens_rows.append({"wacc": w, "tg": tg, "implied_price": price})
                 data = ChartDataPoint(
                     chart_type="sensitivity",

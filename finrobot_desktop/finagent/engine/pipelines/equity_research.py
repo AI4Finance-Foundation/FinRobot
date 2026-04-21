@@ -235,6 +235,17 @@ async def _execute_financial_modeling(
         f"Enterprise value: ${dcf_result.enterprise_value / 1e9:.1f}B. "
         f"Sensitivity range: {price_range}."
     )
+
+    # Build ValuationSynthesis from DCF + peer comps for football field chart.
+    fin = structured_context.get("data_collection")
+    current_price = fin.market.current_price if hasattr(fin, "market") else 0
+    if current_price > 0:
+        from finagent.engine.pipelines._helpers import build_valuation_synthesis
+
+        vs = build_valuation_synthesis(structured_context, current_price)
+        if vs is not None:
+            structured_context["valuation_synthesis"] = vs
+
     return StepOutput(text=narrative, structured=dcf_result)
 
 

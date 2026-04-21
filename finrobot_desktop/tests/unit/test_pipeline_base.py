@@ -224,6 +224,39 @@ class TestPipelineResult:
         result = PipelineResult(steps={})
         assert result.format_summary() == ""
 
+    def test_format_summary_includes_data_source_notes(self):
+        """Warnings from structured data appear in Data Source Notes section."""
+
+        class FakeModel:
+            warnings = [
+                "Data discrepancy: revenue differs by 33% (fmp: 100 vs yfinance: 75).",
+                "total_debt not available — defaulted to 0",
+            ]
+            data_source = "fmp"
+
+        result = PipelineResult(
+            steps={"data_collection": "some output"},
+            structured_data={"data_collection": FakeModel()},
+        )
+        summary = result.format_summary()
+        assert "## Data Source Notes" in summary
+        assert "revenue differs by 33%" in summary
+        assert "total_debt not available" in summary
+        assert "Primary data source (fmp)" in summary
+
+    def test_format_summary_no_notes_when_no_warnings(self):
+        """No Data Source Notes section when there are no warnings."""
+
+        class CleanModel:
+            warnings: list[str] = []
+
+        result = PipelineResult(
+            steps={"step_a": "output"},
+            structured_data={"step_a": CleanModel()},
+        )
+        summary = result.format_summary()
+        assert "Data Source Notes" not in summary
+
 
 # --- P1.5 additions ---
 

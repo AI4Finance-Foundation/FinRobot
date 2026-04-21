@@ -384,4 +384,29 @@ class PipelineResult(BaseModel):
         for step_name, output in self.steps.items():
             title = step_name.replace("_", " ").title()
             parts.append(f"## {title}\n\n{output}")
+
+        # Collect all warnings from structured data (cross-validation
+        # discrepancies, missing-field defaults, etc.) and surface them.
+        all_warnings: list[str] = []
+        primary_source: str | None = None
+        for model in self.structured_data.values():
+            if hasattr(model, "warnings"):
+                for w in model.warnings:  # type: ignore[union-attr]
+                    if w not in all_warnings:
+                        all_warnings.append(w)
+            if hasattr(model, "data_source") and primary_source is None:
+                primary_source = model.data_source  # type: ignore[union-attr]
+
+        if all_warnings:
+            notes = ["## Data Source Notes\n"]
+            for w in all_warnings:
+                notes.append(f"- {w}")
+            if primary_source:
+                notes.append(
+                    f"\n> These discrepancies were detected by cross-provider "
+                    f"validation.\n> Primary data source ({primary_source}) "
+                    f"values were used in this report."
+                )
+            parts.append("\n".join(notes))
+
         return "\n\n---\n\n".join(parts)

@@ -28,4 +28,9 @@ async def execute_financial_data_step(
     financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
     price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
     financial_data = extract_financial_data(financials_result, price_result)
+    # Merge cross-validation warnings from DataResult into FinancialData so
+    # they reach PipelineResult and the final report.
+    for w in financials_result.warnings:
+        if w not in financial_data.warnings:
+            financial_data.warnings.append(w)
     return StepOutput(text=step_result.output, structured=financial_data)

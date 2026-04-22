@@ -119,6 +119,7 @@ class YFinanceProvider(DataProvider):
             "shares_outstanding": info.get("sharesOutstanding"),
             "total_debt": info.get("totalDebt"),
             "total_cash": info.get("totalCash"),
+            "company_name": info.get("shortName") or info.get("longName"),
         }
         return DataResult(
             data=data,

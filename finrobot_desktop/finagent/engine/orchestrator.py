@@ -366,7 +366,7 @@ def build_report_context(ticker: str, result: PipelineResult) -> dict[str, Any]:
 
     return {
         "ticker": ticker.upper(),
-        "company_name": fin.ticker if fin else ticker.upper(),
+        "company_name": (fin.company_name or fin.ticker) if fin else ticker.upper(),
         "current_price": fin.market.current_price if fin else 0,
         "market_cap": fin.market.market_cap if fin else 0,
         "recommendation": thesis.recommendation if thesis else "N/A",

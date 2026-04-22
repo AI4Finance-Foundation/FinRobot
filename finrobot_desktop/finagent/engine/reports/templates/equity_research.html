@@ -77,7 +77,7 @@
   <h2 class="section-title">Investment Thesis</h2>
   <div class="highlight-box">
     <p style="padding-left: 1.5rem; font-size: 0.875rem; color: #334155; line-height: 1.7;">
-      {% if thesis_text %}{{ thesis_text|autobold|safe }}{% else %}Investment thesis not available.{% endif %}
+      {% if thesis_text %}{{ thesis_text|md2html|safe }}{% else %}Investment thesis not available.{% endif %}
     </p>
   </div>
 </section>
@@ -86,7 +86,7 @@
 <section class="mb-10">
   <h2 class="section-title">Company Overview</h2>
   <div style="font-size: 0.875rem; color: #334155; line-height: 1.7;">
-    {% if report_text %}{{ report_text|autobold|safe }}{% else %}Company overview not available.{% endif %}
+    {% if report_text %}{{ report_text|md2html|safe }}{% else %}Company overview not available.{% endif %}
   </div>
 </section>
 

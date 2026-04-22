@@ -60,6 +60,7 @@ class FinancialData(BaseModel):
     model_config = ConfigDict(frozen=False)
 
     ticker: str
+    company_name: str = ""
     timestamp: datetime
 
     income: IncomeStatement

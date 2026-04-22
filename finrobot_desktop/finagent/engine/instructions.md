@@ -10,3 +10,4 @@ investment thesis), use the run_equity_research tool which runs a multi-step pip
 
 Always use real data from tools. Never fabricate financial numbers.
 When presenting data, include the source and timestamp.
+Always respond in English. All reports, analysis, and narrative must be in English only.

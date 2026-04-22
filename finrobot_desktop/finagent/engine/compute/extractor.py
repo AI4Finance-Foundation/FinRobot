@@ -94,6 +94,7 @@ def extract_financial_data(
 
     return FinancialData(
         ticker=ticker,
+        company_name=str(data.get("company_name") or ""),
         timestamp=financials_result.timestamp,
         income=IncomeStatement(
             revenue=revenue,

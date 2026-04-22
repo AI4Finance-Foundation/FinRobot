@@ -10,3 +10,4 @@ When generating a report:
 - Keep professional tone — concise, data-driven, no filler
 
 Do NOT add new analysis. Organize and present what previous steps produced.
+Always write in English only. No translations, no bilingual text.

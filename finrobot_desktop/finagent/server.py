@@ -19,6 +19,7 @@ from finagent.engine.data.layer import DataLayer
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.orchestrator import build_report_context, create_lead_agent
 from finagent.engine.skills.registry import SkillRegistry
+from finagent.web import web_router
 
 
 # Lazy-loaded pipeline factory map. Each factory takes a sub_agents dict and
@@ -98,6 +99,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 # WARNING: This server has no authentication. For local development only.
 # Do not expose to public network without adding auth middleware.
 app = FastAPI(title="FinAgent", lifespan=lifespan)
+app.include_router(web_router)
 
 
 @app.post("/chat")

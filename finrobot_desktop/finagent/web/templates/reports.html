@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports - FinAgent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <!-- Header -->
+  <nav class="bg-white border-b border-gray-200 shadow-sm">
+    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/web/" class="flex items-center gap-3 hover:opacity-80 transition-opacity">
+          <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+            <span class="text-white font-bold text-sm">FA</span>
+          </div>
+          <h1 class="text-xl font-semibold text-gray-900">FinAgent</h1>
+        </a>
+      </div>
+      <a href="/web/" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+        &larr; Back to Dashboard
+      </a>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="max-w-5xl mx-auto px-6 py-10">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+      <h2 class="text-lg font-semibold text-gray-900 mb-6">Completed Reports</h2>
+      <div id="reports-list" class="text-sm text-gray-500">Loading...</div>
+    </div>
+  </main>
+
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    async function loadReports() {
+      const el = document.getElementById('reports-list');
+      try {
+        const res = await fetch('/api/web/history');
+        const tasks = await res.json();
+        const completed = tasks.filter(t => t.status === 'complete' && t.report_url);
+        if (!completed.length) {
+          el.innerHTML = '<p class="text-gray-400">No completed reports yet. <a href="/web/" class="text-indigo-600 hover:underline">Run a pipeline</a> to generate one.</p>';
+          return;
+        }
+        const cards = completed.map(t => `
+          <div class="border border-gray-200 rounded-lg p-5 hover:border-indigo-300 hover:shadow-sm transition-all">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="font-semibold text-gray-900 text-base">${escapeHtml(t.ticker)}</h3>
+                <p class="text-gray-500 text-sm mt-0.5">${escapeHtml(t.pipeline_type)} &middot; ${escapeHtml(t.created_at || 'Unknown time')}</p>
+              </div>
+              <a href="/web/report/${escapeHtml(t.task_id)}" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg px-4 py-2 text-sm transition-colors">
+                View Report
+              </a>
+            </div>
+          </div>
+        `).join('');
+        el.innerHTML = `<div class="space-y-3">${cards}</div>`;
+      } catch (err) {
+        el.innerHTML = '<p class="text-red-500">Failed to load reports.</p>';
+      }
+    }
+    loadReports();
+  </script>
+</body>
+</html>

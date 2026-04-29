@@ -40,6 +40,7 @@ from finagent.engine.pipelines.base import PipelineResult
 if TYPE_CHECKING:
     from pydantic_ai import Agent
 
+    from finagent.engine.backtest.engine import BacktestConfig, BacktestResult
     from finagent.engine.pipelines.base import ProgressCallback
 
 
@@ -200,6 +201,27 @@ class FinAgent:
         result: PipelineResult = self._run_sync(lambda: self.aic_memo(ticker, progress=progress))
         return result
 
+    def analyze(self, ticker: str, analysis_type: str) -> str:
+        """Run standalone financial analysis. Blocking.
+
+        analysis_type: income | balance | cashflow | risk | competitors | overview
+        """
+        result: str = self._run_sync(lambda: self.aanalyze(ticker, analysis_type))
+        return result
+
+    def ask(self, ticker: str, question: str) -> str:
+        """Ask a question about a company's 10-K filing using RAG. Blocking."""
+        result: str = self._run_sync(lambda: self.aask(ticker, question))
+        return result
+
+    def backtest(self, config: "BacktestConfig") -> "BacktestResult":
+        """Run a backtest. Blocking.
+
+        Requires ``pip install 'finagent[backtest]'``.
+        """
+        result: BacktestResult = self._run_sync(lambda: self.abacktest(config))
+        return result
+
     # ------------------------------------------------------------------ #
     # Async API                                                          #
     # ------------------------------------------------------------------ #
@@ -267,6 +289,35 @@ class FinAgent:
         return await pipeline.execute(
             self._ensure_deps(), ticker, progress=progress
         )
+
+    async def aanalyze(self, ticker: str, analysis_type: str) -> str:
+        """Run standalone financial analysis. Async.
+
+        analysis_type: income | balance | cashflow | risk | competitors | overview
+        """
+        from finagent.engine.analysis.prompts import run_analysis
+
+        deps = self._ensure_deps()
+        return await run_analysis(
+            deps.data_layer, deps.settings, ticker, analysis_type,
+        )
+
+    async def aask(self, ticker: str, question: str) -> str:
+        """Ask a question about a company's 10-K filing using RAG. Async."""
+        from finagent.engine.analysis.qa import run_qa
+
+        deps = self._ensure_deps()
+        return await run_qa(deps.data_layer, deps.settings, ticker, question)
+
+    async def abacktest(self, config: "BacktestConfig") -> "BacktestResult":
+        """Run a backtest. Async.
+
+        Requires ``pip install 'finagent[backtest]'``.
+        """
+        from finagent.engine.backtest.backtrader_adapter import BackTraderAdapter
+
+        engine = BackTraderAdapter()
+        return await engine.run(config)
 
     async def close(self) -> None:
         """Close the data cache connection and persistent sync loop.

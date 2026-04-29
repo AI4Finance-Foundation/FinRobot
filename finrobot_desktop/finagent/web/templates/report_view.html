@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ ticker }} {{ pipeline_type }} Report - FinAgent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+  <!-- Header -->
+  <nav class="bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
+    <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/web/" class="flex items-center gap-3 hover:opacity-80 transition-opacity">
+          <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+            <span class="text-white font-bold text-sm">FA</span>
+          </div>
+          <h1 class="text-lg font-semibold text-gray-900">FinAgent</h1>
+        </a>
+        <span class="text-gray-300 mx-1">/</span>
+        <span class="text-sm text-gray-600 font-medium">{{ ticker }} &mdash; {{ pipeline_type }}</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="/web/reports" class="text-sm text-gray-500 hover:text-gray-700">All Reports</a>
+        <a href="/web/" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Report iframe -->
+  <div class="flex-1 p-4">
+    <iframe
+      src="{{ report_url }}"
+      class="w-full h-full min-h-[calc(100vh-80px)] rounded-lg border border-gray-200 bg-white shadow-sm"
+      title="Report for {{ ticker }}"
+    ></iframe>
+  </div>
+</body>
+</html>

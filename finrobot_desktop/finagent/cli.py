@@ -317,6 +317,102 @@ def ic_memo(ticker: str, model: str | None) -> None:
 
 
 @cli.command()
+@click.argument("ticker")
+@click.option("--strategy", default="sma_crossover", show_default=True, help="Strategy name or module:ClassName")
+@click.option("--start", required=True, help="Start date (YYYY-MM-DD)")
+@click.option("--end", required=True, help="End date (YYYY-MM-DD)")
+@click.option("--cash", default=100_000.0, show_default=True, help="Initial cash")
+@click.option("--params", default=None, help='Strategy params as JSON, e.g. \'{"fast":10,"slow":30}\'')
+@click.option("--save-chart", default=None, type=click.Path(), help="Save equity curve PNG to this path")
+def backtest(
+    ticker: str,
+    strategy: str,
+    start: str,
+    end: str,
+    cash: float,
+    params: str | None,
+    save_chart: str | None,
+) -> None:
+    """Run a backtest on a ticker with a given strategy.
+
+    Example:
+        finagent backtest AAPL --strategy sma_crossover --start 2023-01-01 --end 2024-01-01
+    """
+    import json
+
+    from finagent.engine.backtest.backtrader_adapter import BackTraderAdapter
+    from finagent.engine.backtest.engine import BacktestConfig
+
+    strategy_params: dict[str, float | int | str] = {}
+    if params:
+        try:
+            strategy_params = json.loads(params)
+        except json.JSONDecodeError as e:
+            raise click.ClickException(f"Invalid --params JSON: {e}") from e
+
+    config = BacktestConfig(
+        ticker=ticker,
+        start_date=start,
+        end_date=end,
+        strategy=strategy,
+        strategy_params=strategy_params,
+        initial_cash=cash,
+    )
+
+    engine = BackTraderAdapter()
+    result = asyncio.run(engine.run(config))
+    click.echo(result.format_summary())
+
+    if save_chart and result.chart_base64:
+        import base64
+
+        chart_bytes = base64.b64decode(result.chart_base64)
+        Path(save_chart).write_bytes(chart_bytes)
+        click.echo(f"\nEquity curve saved to {save_chart}")
+
+
+@cli.command()
+@click.argument("ticker")
+@click.argument("question")
+@click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
+@click.option("--top-k", default=5, show_default=True, help="Number of RAG chunks to retrieve")
+def ask(ticker: str, question: str, model: str | None, top_k: int) -> None:
+    """Ask a question about a company's 10-K filing using RAG.
+
+    Fetches the latest 10-K from SEC EDGAR, retrieves relevant passages
+    via BM25, and answers the question with source citations.
+    """
+    from finagent.engine.analysis.qa import run_qa
+
+    deps = _build_deps(model)
+    result = asyncio.run(
+        run_qa(deps.data_layer, deps.settings, ticker, question, top_k=top_k)
+    )
+    click.echo(result)
+
+
+@cli.command()
+@click.argument("ticker")
+@click.argument("analysis_type", type=click.Choice(
+    sorted(("income", "balance", "cashflow", "risk", "competitors", "overview")),
+    case_sensitive=False,
+))
+@click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
+def analyze(ticker: str, analysis_type: str, model: str | None) -> None:
+    """Run standalone financial analysis on a ticker.
+
+    ANALYSIS_TYPE: balance | cashflow | competitors | income | overview | risk
+    """
+    from finagent.engine.analysis.prompts import run_analysis
+
+    deps = _build_deps(model)
+    result = asyncio.run(
+        run_analysis(deps.data_layer, deps.settings, ticker, analysis_type.lower())
+    )
+    click.echo(result)
+
+
+@cli.command()
 @click.option("--host", default="127.0.0.1", show_default=True, help="Bind address")
 @click.option("--port", default=8000, show_default=True)
 def serve(host: str, port: int) -> None:

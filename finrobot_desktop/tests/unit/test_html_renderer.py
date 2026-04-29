@@ -6,9 +6,9 @@ embedded chart images, company data, and structured financial content.
 
 from __future__ import annotations
 
-import pytest
-
 from finagent.engine.reports.html_renderer import (
+    _auto_bold,
+    _markdown_to_html,
     render_comps_report,
     render_dcf_report,
     render_equity_report,
@@ -140,6 +140,83 @@ class TestRenderEquityReport:
         assert "</html>" in lower
         assert "<head" in lower
         assert "<body" in lower
+
+
+class TestAutoBold:
+    def test_bolds_dollar_amounts(self) -> None:
+        assert "<strong>$5.2B</strong>" in _auto_bold("Revenue was $5.2B last year")
+
+    def test_bolds_percentages(self) -> None:
+        result = _auto_bold("Margin improved to 25.3% from 20%")
+        assert "<strong>25.3%</strong>" in result
+        assert "<strong>20%</strong>" in result
+
+    def test_bolds_multiples(self) -> None:
+        assert "<strong>12.5x</strong>" in _auto_bold("Trading at 12.5x EV/EBITDA")
+
+    def test_skips_already_bolded(self) -> None:
+        text = "<strong>$5B</strong> revenue"
+        assert _auto_bold(text) == text
+
+    def test_empty_input(self) -> None:
+        assert _auto_bold("") == ""
+
+
+class TestMarkdownToHtml:
+    def test_headings(self) -> None:
+        result = _markdown_to_html("## Summary\n\nText here")
+        assert "<h3" in result
+        assert "Summary" in result
+
+    def test_bold(self) -> None:
+        result = _markdown_to_html("This is **important** text")
+        assert "<strong>important</strong>" in result
+
+    def test_list_items(self) -> None:
+        result = _markdown_to_html("- Item one\n- Item two")
+        assert "<li" in result
+        assert "Item one" in result
+        assert "Item two" in result
+
+    def test_empty_input(self) -> None:
+        assert _markdown_to_html("") == ""
+
+
+class TestAutoBoldInTemplate:
+    """Verify that autobold filter is applied to catalyst event text."""
+
+    def test_catalyst_headline_gets_autobold(self) -> None:
+        catalyst = {
+            "events": [
+                {
+                    "category": "earnings",
+                    "headline": "Revenue beat at $95.4B vs $93.2B expected",
+                    "sentiment": "positive",
+                    "impact_score": 4,
+                }
+            ],
+        }
+        context = _equity_context(catalyst_analysis=catalyst)
+        html = render_equity_report(context)
+        assert "<strong>$95.4B</strong>" in html
+        assert "<strong>$93.2B</strong>" in html
+
+    def test_catalyst_reasoning_gets_autobold(self) -> None:
+        catalyst = {
+            "events": [
+                {
+                    "category": "guidance",
+                    "headline": "Q2 guidance raised",
+                    "reasoning": "Management expects 15% growth to $100B",
+                    "sentiment": "positive",
+                    "impact_score": 3,
+                }
+            ],
+        }
+        context = _equity_context(catalyst_analysis=catalyst)
+        html = render_equity_report(context)
+        assert "<strong>15%</strong>" in html
+        assert "<strong>$100B</strong>" in html
 
 
 class TestRenderCompsReport:

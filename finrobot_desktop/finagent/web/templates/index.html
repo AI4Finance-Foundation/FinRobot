@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinAgent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .pulse-dot { animation: pulse-dot 1.2s ease-in-out infinite; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <!-- Header -->
+  <nav class="bg-white border-b border-gray-200 shadow-sm">
+    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+          <span class="text-white font-bold text-sm">FA</span>
+        </div>
+        <h1 class="text-xl font-semibold text-gray-900">FinAgent</h1>
+      </div>
+      <a href="/web/reports" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+        View Reports &rarr;
+      </a>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="max-w-5xl mx-auto px-6 py-10">
+    <!-- Run Pipeline Card -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+      <h2 class="text-lg font-semibold text-gray-900 mb-6">Run Analysis Pipeline</h2>
+      <form id="run-form" class="space-y-6">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <!-- Ticker -->
+          <div>
+            <label for="ticker" class="block text-sm font-medium text-gray-700 mb-1">Ticker</label>
+            <input
+              type="text" id="ticker" name="ticker"
+              placeholder="e.g. AAPL"
+              required
+              class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none uppercase placeholder:normal-case"
+            />
+          </div>
+          <!-- Pipeline Type -->
+          <div>
+            <label for="pipeline_type" class="block text-sm font-medium text-gray-700 mb-1">Pipeline</label>
+            <select
+              id="pipeline_type" name="pipeline_type"
+              class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white"
+            >
+              <option value="research">Equity Research</option>
+              <option value="comps">Comparable Companies</option>
+              <option value="dcf">DCF Valuation</option>
+              <option value="lbo">LBO Analysis</option>
+              <option value="earnings">Earnings Analysis</option>
+              <option value="ic-memo">IC Memo</option>
+            </select>
+          </div>
+          <!-- Submit -->
+          <div class="flex items-end">
+            <button
+              type="submit" id="run-btn"
+              class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg px-6 py-2.5 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Run Pipeline
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <!-- Status Area -->
+      <div id="status-area" class="mt-8 hidden">
+        <div class="border border-gray-200 rounded-lg overflow-hidden">
+          <!-- Status Header -->
+          <div id="status-header" class="bg-gray-50 px-5 py-3 flex items-center justify-between border-b border-gray-200">
+            <div class="flex items-center gap-2">
+              <div id="status-indicator" class="w-2.5 h-2.5 rounded-full bg-yellow-400 pulse-dot"></div>
+              <span id="status-label" class="text-sm font-medium text-gray-700">Starting...</span>
+            </div>
+            <span id="status-task-id" class="text-xs text-gray-400 font-mono"></span>
+          </div>
+          <!-- Log Lines -->
+          <div id="status-log" class="px-5 py-4 max-h-72 overflow-y-auto bg-white space-y-1 font-mono text-xs text-gray-600">
+          </div>
+        </div>
+
+        <!-- Result Actions -->
+        <div id="result-actions" class="mt-4 hidden">
+          <a id="report-link" href="#" target="_blank"
+             class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg px-5 py-2.5 text-sm transition-colors">
+            View Report &rarr;
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Tasks -->
+    <div class="mt-8 bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900">Recent Tasks</h2>
+        <button id="refresh-btn" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">Refresh</button>
+      </div>
+      <div id="history-list" class="text-sm text-gray-500">Loading...</div>
+    </div>
+  </main>
+
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    const form = document.getElementById('run-form');
+    const runBtn = document.getElementById('run-btn');
+    const statusArea = document.getElementById('status-area');
+    const statusHeader = document.getElementById('status-header');
+    const statusIndicator = document.getElementById('status-indicator');
+    const statusLabel = document.getElementById('status-label');
+    const statusTaskId = document.getElementById('status-task-id');
+    const statusLog = document.getElementById('status-log');
+    const resultActions = document.getElementById('result-actions');
+    const reportLink = document.getElementById('report-link');
+
+    let pollingInterval = null;
+
+    function addLogLine(text, type) {
+      const line = document.createElement('div');
+      const colors = {
+        info: 'text-gray-600',
+        success: 'text-emerald-600 font-medium',
+        error: 'text-red-600 font-medium',
+        step: 'text-indigo-600',
+      };
+      line.className = colors[type] || 'text-gray-600';
+      line.textContent = text;
+      statusLog.appendChild(line);
+      statusLog.scrollTop = statusLog.scrollHeight;
+    }
+
+    function setStatus(status) {
+      const configs = {
+        pending:  { color: 'bg-gray-400', label: 'Pending', pulse: true },
+        running:  { color: 'bg-yellow-400', label: 'Running...', pulse: true },
+        complete: { color: 'bg-emerald-500', label: 'Complete', pulse: false },
+        error:    { color: 'bg-red-500', label: 'Error', pulse: false },
+      };
+      const c = configs[status] || configs.pending;
+      statusIndicator.className = `w-2.5 h-2.5 rounded-full ${c.color}` + (c.pulse ? ' pulse-dot' : '');
+      statusLabel.textContent = c.label;
+    }
+
+    async function pollStatus(taskId) {
+      try {
+        const res = await fetch(`/api/web/status/${taskId}`);
+        const data = await res.json();
+        setStatus(data.status);
+
+        // Update log from task logs
+        statusLog.innerHTML = '';
+        (data.logs || []).forEach(log => {
+          const type = log.includes('[ERROR]') ? 'error' :
+                       log.includes('[COMPLETE]') ? 'success' :
+                       log.includes('[STEP]') ? 'step' : 'info';
+          addLogLine(log, type);
+        });
+
+        if (data.status === 'complete') {
+          clearInterval(pollingInterval);
+          pollingInterval = null;
+          runBtn.disabled = false;
+          if (data.report_url) {
+            reportLink.href = data.report_url;
+            resultActions.classList.remove('hidden');
+          }
+          loadHistory();
+        } else if (data.status === 'error') {
+          clearInterval(pollingInterval);
+          pollingInterval = null;
+          runBtn.disabled = false;
+          loadHistory();
+        }
+      } catch (err) {
+        // Polling error is transient; keep trying
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const ticker = document.getElementById('ticker').value.trim().toUpperCase();
+      const pipelineType = document.getElementById('pipeline_type').value;
+      if (!ticker) return;
+
+      // Reset UI
+      statusArea.classList.remove('hidden');
+      resultActions.classList.add('hidden');
+      statusLog.innerHTML = '';
+      setStatus('pending');
+      statusTaskId.textContent = '';
+      runBtn.disabled = true;
+
+      try {
+        const res = await fetch('/api/web/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticker, pipeline_type: pipelineType }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setStatus('error');
+          addLogLine(`[ERROR] ${data.detail || 'Failed to start pipeline'}`, 'error');
+          runBtn.disabled = false;
+          return;
+        }
+        const taskId = data.task_id;
+        statusTaskId.textContent = taskId;
+        setStatus('running');
+        addLogLine(`[INFO] Task ${taskId} started: ${pipelineType} for ${ticker}`, 'info');
+
+        // Poll every 1.5s
+        if (pollingInterval) clearInterval(pollingInterval);
+        pollingInterval = setInterval(() => pollStatus(taskId), 1500);
+      } catch (err) {
+        setStatus('error');
+        addLogLine(`[ERROR] ${err.message}`, 'error');
+        runBtn.disabled = false;
+      }
+    });
+
+    async function loadHistory() {
+      const el = document.getElementById('history-list');
+      try {
+        const res = await fetch('/api/web/history');
+        const tasks = await res.json();
+        if (!tasks.length) {
+          el.innerHTML = '<p class="text-gray-400">No tasks yet.</p>';
+          return;
+        }
+        const rows = tasks.map(t => {
+          const statusColors = {
+            pending: 'bg-gray-100 text-gray-600',
+            running: 'bg-yellow-100 text-yellow-700',
+            complete: 'bg-emerald-100 text-emerald-700',
+            error: 'bg-red-100 text-red-700',
+          };
+          const badge = statusColors[t.status] || 'bg-gray-100 text-gray-600';
+          const safeUrl = t.report_url && t.report_url.startsWith('/') ? t.report_url : '#';
+          const reportHtml = t.status === 'complete' && t.report_url
+            ? `<a href="${escapeHtml(safeUrl)}" target="_blank" class="text-indigo-600 hover:underline">View</a>`
+            : '';
+          return `
+            <tr class="border-t border-gray-100">
+              <td class="py-2.5 pr-4 font-mono font-medium text-gray-900">${escapeHtml(t.ticker)}</td>
+              <td class="py-2.5 pr-4 text-gray-600">${escapeHtml(t.pipeline_type)}</td>
+              <td class="py-2.5 pr-4"><span class="px-2 py-0.5 rounded-full text-xs font-medium ${badge}">${escapeHtml(t.status)}</span></td>
+              <td class="py-2.5 pr-4 text-gray-400 text-xs">${escapeHtml(t.created_at || '')}</td>
+              <td class="py-2.5 text-right">${reportHtml}</td>
+            </tr>`;
+        }).join('');
+        el.innerHTML = `
+          <table class="w-full">
+            <thead><tr class="text-left text-xs text-gray-400 uppercase tracking-wider">
+              <th class="pb-2 pr-4">Ticker</th>
+              <th class="pb-2 pr-4">Pipeline</th>
+              <th class="pb-2 pr-4">Status</th>
+              <th class="pb-2 pr-4">Started</th>
+              <th class="pb-2 text-right">Report</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+      } catch (err) {
+        el.innerHTML = '<p class="text-red-500">Failed to load history.</p>';
+      }
+    }
+
+    document.getElementById('refresh-btn').addEventListener('click', loadHistory);
+    loadHistory();
+  </script>
+</body>
+</html>

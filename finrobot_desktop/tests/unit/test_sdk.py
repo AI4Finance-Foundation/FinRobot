@@ -169,6 +169,91 @@ async def test_close_safe_called_twice(monkeypatch):
     mock_layer.close.assert_awaited()
 
 
+async def test_aanalyze_returns_string(monkeypatch):
+    """SDK analyze method returns LLM analysis text."""
+    import finagent.engine.analysis.prompts as ap
+
+    async def mock_run_analysis(data_layer, settings, ticker, analysis_type):
+        return f"## {analysis_type.title()} Analysis for {ticker}"
+
+    monkeypatch.setattr(ap, "run_analysis", mock_run_analysis)
+
+    agent = FinAgent(model="test")
+    _inject_mock_deps(agent)
+
+    result = await agent.aanalyze("AAPL", "income")
+    assert isinstance(result, str)
+    assert "Income Analysis" in result
+    assert "AAPL" in result
+
+
+async def test_aask_returns_string(monkeypatch):
+    """SDK ask method returns RAG-based answer text."""
+    import finagent.engine.analysis.qa as qa
+
+    async def mock_run_qa(data_layer, settings, ticker, question, top_k=5):
+        return f"Based on [Item 1A], {ticker} faces regulatory risks."
+
+    monkeypatch.setattr(qa, "run_qa", mock_run_qa)
+
+    agent = FinAgent(model="test")
+    _inject_mock_deps(agent)
+
+    result = await agent.aask("AAPL", "What are the risk factors?")
+    assert isinstance(result, str)
+    assert "regulatory risks" in result
+    assert "AAPL" in result
+
+
+async def test_abacktest_returns_result(monkeypatch):
+    """SDK backtest method returns BacktestResult."""
+    from finagent.engine.backtest.engine import BacktestConfig, BacktestResult
+    import finagent.engine.backtest.backtrader_adapter as bta
+
+    async def mock_run(self, config):
+        return BacktestResult(
+            initial_value=100_000,
+            final_value=115_000,
+            total_return=0.15,
+            sharpe_ratio=1.3,
+            total_trades=10,
+            winning_trades=7,
+            losing_trades=3,
+        )
+
+    monkeypatch.setattr(bta.BackTraderAdapter, "run", mock_run)
+
+    agent = FinAgent(model="test")
+    _inject_mock_deps(agent)
+
+    config = BacktestConfig(
+        ticker="AAPL",
+        start_date="2023-01-01",
+        end_date="2024-01-01",
+    )
+    result = await agent.abacktest(config)
+    assert isinstance(result, BacktestResult)
+    assert result.total_return == pytest.approx(0.15)
+    assert result.winning_trades == 7
+
+
+async def test_aanalyze_all_types(monkeypatch):
+    """All 6 analysis types work through the SDK."""
+    import finagent.engine.analysis.prompts as ap
+
+    async def mock_run_analysis(data_layer, settings, ticker, analysis_type):
+        return f"Result: {analysis_type}"
+
+    monkeypatch.setattr(ap, "run_analysis", mock_run_analysis)
+
+    agent = FinAgent(model="test")
+    _inject_mock_deps(agent)
+
+    for atype in ("income", "balance", "cashflow", "risk", "competitors", "overview"):
+        result = await agent.aanalyze("TEST", atype)
+        assert atype in result
+
+
 async def test_close_does_not_emit_event_loop_closed_warning():
     """I6: close() must flush pending callbacks before closing the loop.
 

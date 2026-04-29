@@ -162,8 +162,8 @@
   <h2 class="section-title">Recent News &amp; Events</h2>
   {% for event in catalyst_analysis.events[:5] %}
   <div class="catalyst-card catalyst-{{ event.sentiment }}">
-    <div style="font-weight: 600; font-size: 0.875rem;">{{ event.headline }}</div>
-    {% if event.reasoning is defined and event.reasoning %}<div class="caption mt-1">{{ event.reasoning }}</div>{% endif %}
+    <div style="font-weight: 600; font-size: 0.875rem;">{{ event.headline|autobold|safe }}</div>
+    {% if event.reasoning is defined and event.reasoning %}<div class="caption mt-1">{{ event.reasoning|autobold|safe }}</div>{% endif %}
   </div>
   {% endfor %}
 </section>
@@ -202,8 +202,8 @@
         <span style="font-size: 0.7rem; color: #94a3b8;">|</span>
         <span style="font-size: 0.7rem;" class="{% if event.sentiment == 'positive' %}positive{% elif event.sentiment == 'negative' %}negative{% else %}neutral-color{% endif %}">{{ event.sentiment }}</span>
       </div>
-      <div style="font-weight: 600; font-size: 0.875rem;">{{ event.headline }}</div>
-      {% if event.reasoning is defined and event.reasoning %}<div class="caption mt-1">{{ event.reasoning }}</div>{% endif %}
+      <div style="font-weight: 600; font-size: 0.875rem;">{{ event.headline|autobold|safe }}</div>
+      {% if event.reasoning is defined and event.reasoning %}<div class="caption mt-1">{{ event.reasoning|autobold|safe }}</div>{% endif %}
       <div class="caption mt-1">Impact: {{ event.impact_score }}/5{% if event.probability is defined and event.probability is not none %} | Prob: {{ event.probability|fmtpct }}{% endif %}</div>
     </div>
   {% endfor %}

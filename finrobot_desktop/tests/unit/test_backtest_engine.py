@@ -49,6 +49,39 @@ class TestBacktestConfig:
         )
         assert config.strategy == "my_module:MyStrategy"
 
+    def test_start_after_end_raises(self) -> None:
+        with pytest.raises(ValueError, match="must be before"):
+            BacktestConfig(
+                ticker="AAPL",
+                start_date="2024-01-01",
+                end_date="2023-01-01",
+            )
+
+    def test_start_equals_end_raises(self) -> None:
+        with pytest.raises(ValueError, match="must be before"):
+            BacktestConfig(
+                ticker="AAPL",
+                start_date="2024-01-01",
+                end_date="2024-01-01",
+            )
+
+    def test_risk_free_rate_default(self) -> None:
+        config = BacktestConfig(
+            ticker="AAPL",
+            start_date="2023-01-01",
+            end_date="2024-01-01",
+        )
+        assert config.risk_free_rate == pytest.approx(0.04)
+
+    def test_risk_free_rate_custom(self) -> None:
+        config = BacktestConfig(
+            ticker="AAPL",
+            start_date="2023-01-01",
+            end_date="2024-01-01",
+            risk_free_rate=0.05,
+        )
+        assert config.risk_free_rate == pytest.approx(0.05)
+
 
 class TestBacktestResult:
     def test_win_rate(self) -> None:

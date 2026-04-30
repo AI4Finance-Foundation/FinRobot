@@ -25,6 +25,13 @@ from finagent.engine.backtest.engine import (
 
 logger = logging.getLogger(__name__)
 
+try:
+    import matplotlib
+
+    matplotlib.use("Agg")
+except ImportError:
+    pass
+
 
 def _check_backtrader() -> None:
     """Raise ImportError with a helpful message if backtrader is not installed."""
@@ -86,12 +93,27 @@ class BackTraderAdapter(BacktestEngine):
         data = self._load_data(config)
         cerebro.adddata(data)
 
+        # Validate SMA params before adding strategy
+        if config.strategy == "sma_crossover":
+            fast = config.strategy_params.get("fast", 10)
+            slow = config.strategy_params.get("slow", 30)
+            if isinstance(fast, (int, float)) and isinstance(slow, (int, float)):
+                if fast >= slow:
+                    raise ValueError(
+                        f"SMA crossover requires fast ({fast}) < slow ({slow}). "
+                        f"Swap the values or adjust parameters."
+                    )
+
         # Add strategy
         strategy_cls = self._resolve_strategy(config.strategy)
         cerebro.addstrategy(strategy_cls, **config.strategy_params)
 
         # Add analyzers
-        cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe", riskfreerate=0.04)
+        cerebro.addanalyzer(
+            bt.analyzers.SharpeRatio,
+            _name="sharpe",
+            riskfreerate=config.risk_free_rate,
+        )
         cerebro.addanalyzer(bt.analyzers.DrawDown, _name="drawdown")
         cerebro.addanalyzer(bt.analyzers.Returns, _name="returns")
         cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
@@ -106,12 +128,21 @@ class BackTraderAdapter(BacktestEngine):
         warnings: list[str] = []
         sharpe = self._extract_sharpe(strat, warnings)
         max_dd = self._extract_drawdown(strat, warnings)
-        total_trades, winning, losing = self._extract_trades(strat)
+        total_trades, winning, losing = self._extract_trades(strat, warnings)
 
         # Generate equity curve chart
         chart_b64 = self._render_chart(cerebro, config, warnings)
 
         total_return = (final_value - initial_value) / initial_value
+
+        # Financial assumption warnings
+        warnings.append(
+            f"Sharpe ratio assumes risk-free rate of {config.risk_free_rate:.1%}."
+        )
+        warnings.append(
+            "Backtest assumes zero commission and zero slippage. "
+            "Real trading returns will be lower."
+        )
 
         return BacktestResult(
             initial_value=initial_value,
@@ -194,9 +225,16 @@ class BackTraderAdapter(BacktestEngine):
             return -abs(max_dd) / 100  # convert to negative fraction
         return None
 
-    def _extract_trades(self, strat: Any) -> tuple[int, int, int]:
+    def _extract_trades(
+        self, strat: Any, warnings: list[str]
+    ) -> tuple[int, int, int]:
         analysis = strat.analyzers.trades.get_analysis()
-        total = analysis.get("total", {}).get("total", 0)
+        total_info = analysis.get("total", {})
+        total = total_info.get("closed", total_info.get("total", 0))
+        if "closed" not in total_info and total > 0:
+            warnings.append(
+                "Trade count may include open positions at backtest end."
+            )
         won = analysis.get("won", {}).get("total", 0)
         lost = analysis.get("lost", {}).get("total", 0)
         return total, won, lost
@@ -206,9 +244,6 @@ class BackTraderAdapter(BacktestEngine):
     ) -> str | None:
         """Render equity curve to base64 PNG."""
         try:
-            import matplotlib
-
-            matplotlib.use("Agg")
             import matplotlib.pyplot as plt
 
             fig = cerebro.plot(

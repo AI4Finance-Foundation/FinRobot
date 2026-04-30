@@ -96,7 +96,23 @@ class TestExtractAnalyzers:
         result = adapter._extract_drawdown(strat, warnings)
         assert result == pytest.approx(-0.155)
 
-    def test_extract_trades(self) -> None:
+    def test_extract_trades_closed(self) -> None:
+        adapter = BackTraderAdapter()
+        strat = MagicMock()
+        strat.analyzers.trades.get_analysis.return_value = {
+            "total": {"total": 22, "closed": 20},
+            "won": {"total": 12},
+            "lost": {"total": 8},
+        }
+        warnings: list[str] = []
+        total, won, lost = adapter._extract_trades(strat, warnings)
+        assert total == 20  # uses closed, not total
+        assert won == 12
+        assert lost == 8
+        assert not any("open positions" in w for w in warnings)
+
+    def test_extract_trades_fallback_to_total(self) -> None:
+        """When 'closed' key is absent, falls back to 'total' with a warning."""
         adapter = BackTraderAdapter()
         strat = MagicMock()
         strat.analyzers.trades.get_analysis.return_value = {
@@ -104,19 +120,46 @@ class TestExtractAnalyzers:
             "won": {"total": 12},
             "lost": {"total": 8},
         }
-        total, won, lost = adapter._extract_trades(strat)
+        warnings: list[str] = []
+        total, won, lost = adapter._extract_trades(strat, warnings)
         assert total == 20
-        assert won == 12
-        assert lost == 8
+        assert any("open positions" in w for w in warnings)
 
     def test_extract_trades_empty(self) -> None:
         adapter = BackTraderAdapter()
         strat = MagicMock()
         strat.analyzers.trades.get_analysis.return_value = {}
-        total, won, lost = adapter._extract_trades(strat)
+        warnings: list[str] = []
+        total, won, lost = adapter._extract_trades(strat, warnings)
         assert total == 0
         assert won == 0
         assert lost == 0
+
+
+class TestSMAValidation:
+    def test_fast_gte_slow_raises(self) -> None:
+        adapter = BackTraderAdapter()
+        config = BacktestConfig(
+            ticker="AAPL",
+            start_date="2023-01-01",
+            end_date="2024-01-01",
+            strategy="sma_crossover",
+            strategy_params={"fast": 50, "slow": 10},
+        )
+        with pytest.raises(ValueError, match="fast.*< slow"):
+            adapter._run_sync(config)
+
+    def test_fast_equals_slow_raises(self) -> None:
+        adapter = BackTraderAdapter()
+        config = BacktestConfig(
+            ticker="AAPL",
+            start_date="2023-01-01",
+            end_date="2024-01-01",
+            strategy="sma_crossover",
+            strategy_params={"fast": 20, "slow": 20},
+        )
+        with pytest.raises(ValueError, match="fast.*< slow"):
+            adapter._run_sync(config)
 
 
 class TestLoadData:

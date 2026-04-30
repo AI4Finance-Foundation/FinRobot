@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class BacktestConfig(BaseModel):
@@ -21,8 +21,12 @@ class BacktestConfig(BaseModel):
     start_date: str  # YYYY-MM-DD
     end_date: str  # YYYY-MM-DD
     strategy: str = "sma_crossover"  # built-in or "module:ClassName"
-    strategy_params: dict[str, float | int | str] = {}
+    strategy_params: dict[str, float | int | str] = Field(default_factory=dict)
     initial_cash: float = 100_000.0
+    risk_free_rate: float = Field(
+        default=0.04,
+        description="Annual risk-free rate for Sharpe ratio calculation",
+    )
 
     @field_validator("start_date", "end_date")
     @classmethod
@@ -41,6 +45,14 @@ class BacktestConfig(BaseModel):
         if v <= 0:
             raise ValueError(f"initial_cash must be positive, got {v}")
         return v
+
+    @model_validator(mode="after")
+    def _check_date_order(self) -> BacktestConfig:
+        if self.start_date >= self.end_date:
+            raise ValueError(
+                f"start_date ({self.start_date}) must be before end_date ({self.end_date})"
+            )
+        return self
 
 
 class BacktestResult(BaseModel):

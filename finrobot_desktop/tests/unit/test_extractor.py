@@ -84,6 +84,36 @@ def test_extract_financial_data_zero_shares_outstanding_warns():
     assert any("shares_outstanding" in w for w in fd.warnings)
 
 
+def test_extract_financial_data_ev_none_when_debt_missing():
+    """N15: EV should be None (not computed with default 0) when total_debt missing."""
+    fr = _make_financials_result()
+    del fr.data["total_debt"]
+    fd = extract_financial_data(fr, _make_price_result())
+    assert fd.valuation.enterprise_value is None
+    assert fd.valuation.ev_ebitda is None
+    assert fd.valuation.ev_revenue is None
+    assert any("total_debt" in w and "EV" in w for w in fd.warnings)
+
+
+def test_extract_financial_data_ev_none_when_cash_missing():
+    """N15: EV should be None when total_cash missing."""
+    fr = _make_financials_result()
+    del fr.data["total_cash"]
+    fd = extract_financial_data(fr, _make_price_result())
+    assert fd.valuation.enterprise_value is None
+    assert any("total_cash" in w and "EV" in w for w in fd.warnings)
+
+
+def test_extract_financial_data_ev_none_when_both_missing():
+    """N15: Warning should list both missing components."""
+    fr = _make_financials_result()
+    del fr.data["total_debt"]
+    del fr.data["total_cash"]
+    fd = extract_financial_data(fr, _make_price_result())
+    assert fd.valuation.enterprise_value is None
+    assert any("total_debt" in w and "total_cash" in w for w in fd.warnings)
+
+
 def test_extract_price_history_valid():
     ph = extract_price_history(_make_price_result())
     assert ph.ticker == "AAPL"

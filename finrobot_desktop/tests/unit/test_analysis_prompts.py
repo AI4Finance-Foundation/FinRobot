@@ -219,7 +219,6 @@ class TestEVEBITDAComputation:
         }
         table = _build_financials_table(data)
         assert "| Enterprise Value | N/A |" in table
-        assert "| EV/EBITDA | N/A |" in table
         assert "EV unavailable" in table
         assert "total_debt" in table
 
@@ -237,6 +236,7 @@ class TestEVEBITDAComputation:
         assert "total_cash" in table
 
     def test_ev_ebitda_na_when_ebitda_zero(self) -> None:
+        """N16: EV/EBITDA explains why it's N/A when EBITDA <= 0."""
         data = {
             "revenue": 400e9,
             "ebitda": 0,
@@ -245,12 +245,33 @@ class TestEVEBITDAComputation:
             "total_cash": 60e9,
         }
         table = _build_financials_table(data)
-        # EV should be computed, but EV/EBITDA should be N/A
-        assert "| EV/EBITDA | N/A |" in table
-        # EV itself should still be present
-        assert "Enterprise Value" in table
-        assert "N/A" not in table.split("Enterprise Value")[1].split("\n")[0] or \
-            "$" in table.split("Enterprise Value")[1].split("\n")[0]
+        assert "negative EBITDA" in table
+        # EV itself should still be computed
+        assert "$" in table.split("Enterprise Value")[1].split("\n")[0]
+
+    def test_ev_ebitda_na_when_ebitda_negative(self) -> None:
+        """N16: Negative EBITDA explicitly noted."""
+        data = {
+            "revenue": 400e9,
+            "ebitda": -5e9,
+            "market_cap": 3e12,
+            "total_debt": 100e9,
+            "total_cash": 60e9,
+        }
+        table = _build_financials_table(data)
+        assert "negative EBITDA" in table
+
+    def test_ev_ebitda_na_reason_when_ev_unavailable(self) -> None:
+        """N16: When EV itself is N/A, EV/EBITDA says 'EV unavailable'."""
+        data = {
+            "revenue": 400e9,
+            "ebitda": 130e9,
+            "market_cap": 3e12,
+            # total_debt missing
+            "total_cash": 60e9,
+        }
+        table = _build_financials_table(data)
+        assert "EV unavailable" in table
 
     def test_no_default_zero_for_missing_debt(self) -> None:
         """Ensure missing debt is NOT defaulted to 0 to produce a fake EV."""

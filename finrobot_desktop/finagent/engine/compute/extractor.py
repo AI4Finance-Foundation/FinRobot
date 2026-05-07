@@ -49,13 +49,28 @@ def extract_financial_data(
     raw_cash = data.get("total_cash")
     total_debt = raw_debt if raw_debt is not None else 0
     total_cash = raw_cash if raw_cash is not None else 0
-    if raw_debt is None:
+
+    # --- N15: consistent EV handling ---
+    # Only compute EV when both total_debt and total_cash are available.
+    # Matches prompts.py behavior: no defaulting missing components to 0.
+    ev: float | None = None
+    ev_ebitda: float | None = None
+    ev_revenue: float | None = None
+
+    if raw_debt is not None and raw_cash is not None:
+        ev = calculate_ev(market_cap, total_debt, total_cash)
+        ev_ebitda = ev / ebitda if (ebitda and ebitda > 0) else None
+        ev_revenue = ev / revenue if revenue > 0 else None
+    else:
+        missing_ev_parts = []
+        if raw_debt is None:
+            missing_ev_parts.append("total_debt")
+        if raw_cash is None:
+            missing_ev_parts.append("total_cash")
         warnings.append(
-            "total_debt not available from provider — defaulted to 0; "
-            "EV-based multiples (EV/EBITDA, EV/Revenue) may be understated"
+            f"{', '.join(missing_ev_parts)} not available from provider — "
+            "EV and EV-based multiples (EV/EBITDA, EV/Revenue) cannot be computed"
         )
-    if raw_cash is None:
-        warnings.append("total_cash not available from provider — defaulted to 0")
 
     da = data.get("depreciation_amortization")
     if da is None:
@@ -64,10 +79,6 @@ def extract_financial_data(
             "implied price may be overstated 10-20% for capital-intensive companies. "
             "Configure FMP or Finnhub API key to get D&A data."
         )
-
-    ev = calculate_ev(market_cap, total_debt, total_cash)
-    ev_ebitda = ev / ebitda if (ebitda and ebitda > 0) else None
-    ev_revenue = ev / revenue if revenue > 0 else None
 
     price_data = price_result.data
     price_history = price_data.get("price_history", [])

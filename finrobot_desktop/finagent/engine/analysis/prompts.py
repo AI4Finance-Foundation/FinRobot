@@ -74,7 +74,15 @@ def _build_financials_table(data: dict[str, Any]) -> str:
         ev_note = f"EV unavailable — missing: {', '.join(missing_parts)}"
 
     ev_str = _fmt_num(ev) if ev is not None else "N/A"
-    ev_ebitda_str = f"{ev_ebitda:.1f}x" if ev_ebitda is not None else "N/A"
+    # N16: explain why EV/EBITDA is N/A
+    if ev_ebitda is not None:
+        ev_ebitda_str = f"{ev_ebitda:.1f}x"
+    elif ev is not None and ebitda is not None and ebitda <= 0:
+        ev_ebitda_str = "N/A (negative EBITDA)"
+    elif ev is None:
+        ev_ebitda_str = "N/A (EV unavailable)"
+    else:
+        ev_ebitda_str = "N/A"
 
     rows = [
         ("Revenue", _fmt_num(data.get("revenue"))),

@@ -40,17 +40,54 @@ _fmt_pct = _format_percent
 
 
 def _build_financials_table(data: dict[str, Any]) -> str:
-    """Format raw financials dict into a readable table for the prompt."""
+    """Format raw financials dict into a readable table for the prompt.
+
+    Fix 3.2: Computes EV and EV/EBITDA from components when all are present.
+    Does NOT default missing total_debt or total_cash to 0 — skips EV and
+    tells the user which component is missing.
+
+    Fix 3.3: Adds data quality notes when D&A is unavailable so the LLM
+    includes approximation warnings in user-visible output.
+    """
+    # --- Fix 3.2: compute EV and EV/EBITDA ---
+    market_cap = data.get("market_cap")
+    total_debt = data.get("total_debt")
+    total_cash = data.get("total_cash")
+    ebitda = data.get("ebitda")
+
+    ev: float | None = None
+    ev_ebitda: float | None = None
+    ev_note = ""
+
+    if market_cap is not None and total_debt is not None and total_cash is not None:
+        ev = market_cap + total_debt - total_cash
+        if ebitda and ebitda > 0:
+            ev_ebitda = ev / ebitda
+    else:
+        missing_parts = []
+        if total_debt is None:
+            missing_parts.append("total_debt")
+        if total_cash is None:
+            missing_parts.append("total_cash")
+        if market_cap is None:
+            missing_parts.append("market_cap")
+        ev_note = f"EV unavailable — missing: {', '.join(missing_parts)}"
+
+    ev_str = _fmt_num(ev) if ev is not None else "N/A"
+    ev_ebitda_str = f"{ev_ebitda:.1f}x" if ev_ebitda is not None else "N/A"
+
     rows = [
         ("Revenue", _fmt_num(data.get("revenue"))),
-        ("EBITDA", _fmt_num(data.get("ebitda"))),
+        ("EBITDA", _fmt_num(ebitda)),
         ("Net Income", _fmt_num(data.get("net_income"))),
         ("Gross Margin", _fmt_pct(data.get("gross_margin"))),
         ("Operating Margin", _fmt_pct(data.get("operating_margin"))),
-        ("Market Cap", _fmt_num(data.get("market_cap"))),
+        ("Market Cap", _fmt_num(market_cap)),
         ("P/E Ratio", f"{data['pe_ratio']:.1f}x" if data.get("pe_ratio") else "N/A"),
-        ("Total Debt", _fmt_num(data.get("total_debt"))),
-        ("Total Cash", _fmt_num(data.get("total_cash"))),
+        ("Enterprise Value", ev_str),
+        ("EV/EBITDA", ev_ebitda_str),
+        ("Total Debt", _fmt_num(total_debt)),
+        ("Total Cash", _fmt_num(total_cash)),
         ("D&A", _fmt_num(data.get("depreciation_amortization"))),
         ("R&D Expense", _fmt_num(data.get("rd_expense"))),
         ("SG&A Expense", _fmt_num(data.get("sga_expense"))),
@@ -72,6 +109,23 @@ def _build_financials_table(data: dict[str, Any]) -> str:
             fmt = _fmt_pct if "margin" in metric else _fmt_num
             vals = [fmt(y.get(metric)) for y in yearly]
             lines.append(f"| {label} | " + " | ".join(vals) + " |")
+
+    # --- Data quality notes (Fix 3.2 + Fix 3.3) ---
+    notes: list[str] = []
+    if ev_note:
+        notes.append(ev_note)
+    if data.get("depreciation_amortization") is None:
+        notes.append(
+            "D&A data unavailable — FCF estimates use simplified formula "
+            "(EBITDA × (1-T) − CapEx − ΔNWC) which may overstate FCF by 10-20% "
+            "for capital-intensive companies"
+        )
+    if notes:
+        lines.append("")
+        lines.append("### Data Quality Notes")
+        for note in notes:
+            lines.append(f"- **WARNING**: {note}")
+
     return "\n".join(lines)
 
 
@@ -119,10 +173,17 @@ _CASHFLOW_PROMPT = """You are a senior equity analyst. Analyze the cash flow pro
 ## Analysis Framework
 Provide a structured analysis covering:
 1. **Operating Cash Flow Quality**: Accrual ratio (net income vs OCF), earnings quality
-2. **Free Cash Flow**: FCF = EBITDA - CapEx (estimate from D&A), FCF yield vs market cap
-3. **Capital Intensity**: D&A/Revenue ratio, reinvestment requirements
+2. **Free Cash Flow**: If D&A data is available, use FCF = EBIT(1-T) + D&A - CapEx - ΔNWC. \
+If D&A is listed as N/A, use the simplified formula FCF ≈ EBITDA(1-T) - CapEx - ΔNWC. \
+Report FCF yield vs market cap.
+3. **Capital Intensity**: D&A/Revenue ratio (if D&A available), reinvestment requirements
 4. **Cash Conversion**: How efficiently earnings convert to cash
 5. **Shareholder Returns Capacity**: FCF available for buybacks + dividends
+
+IMPORTANT: If D&A is listed as N/A in the data above, you MUST include a clearly labeled \
+"⚠ Data Limitation" note in your Free Cash Flow section stating that the FCF estimate uses \
+a simplified formula without separate D&A, which may overstate FCF by 10-20% for \
+capital-intensive companies. Do NOT omit this warning.
 
 Use concrete numbers. Estimate FCF margin and compare to operating margin.
 Output in Markdown format."""
@@ -214,6 +275,54 @@ def build_analysis_prompt(
 
 
 # ------------------------------------------------------------------ #
+# Data validation                                                    #
+# ------------------------------------------------------------------ #
+
+# Minimum fields required for any analysis to be meaningful
+_CRITICAL_FIELDS = {"revenue"}
+
+
+def _validate_analysis_data(fin_result: DataResult) -> None:
+    """Reject error/empty/insufficient data before it reaches the LLM.
+
+    Raises ValueError with a user-facing message explaining what went wrong.
+    """
+    data = fin_result.data
+
+    # Provider returned an explicit error payload
+    if "error" in data:
+        raise ValueError(
+            f"Data fetch failed for {fin_result.ticker} "
+            f"(provider: {fin_result.provider}): {data['error']}"
+        )
+
+    # Completely empty response
+    if not data:
+        raise ValueError(
+            f"No financial data returned for {fin_result.ticker} "
+            f"from {fin_result.provider}. Cannot run analysis on empty data."
+        )
+
+    # Missing critical fields
+    missing = _CRITICAL_FIELDS - set(data.keys())
+    if missing:
+        raise ValueError(
+            f"Incomplete financial data for {fin_result.ticker} "
+            f"(provider: {fin_result.provider}): missing {sorted(missing)}. "
+            "Analysis requires at least revenue data."
+        )
+
+    # Revenue present but zero/None — data is unusable
+    rev = data.get("revenue")
+    if not rev or (isinstance(rev, (int, float)) and rev <= 0):
+        raise ValueError(
+            f"Revenue is {rev!r} for {fin_result.ticker} "
+            f"(provider: {fin_result.provider}). "
+            "Cannot run analysis on zero or missing revenue."
+        )
+
+
+# ------------------------------------------------------------------ #
 # Runner                                                             #
 # ------------------------------------------------------------------ #
 
@@ -236,6 +345,9 @@ async def run_analysis(
     """
     # Fetch financials for the target (build_analysis_prompt validates the type)
     fin_result: DataResult = await data_layer.fetch(DataType.FINANCIALS, ticker)
+
+    # --- Fix 3.1: validate data before passing to LLM ---
+    _validate_analysis_data(fin_result)
 
     peer_table = ""
     if analysis_type == "competitors":

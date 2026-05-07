@@ -24,16 +24,6 @@ from finagent.engine.reports.html_renderer import _format_number, _format_percen
 
 logger = logging.getLogger(__name__)
 
-# Valid analysis types
-ANALYSIS_TYPES = frozenset({
-    "income",
-    "balance",
-    "cashflow",
-    "risk",
-    "competitors",
-    "overview",
-})
-
 # Reuse the shared formatters from html_renderer
 _fmt_num = _format_number
 _fmt_pct = _format_percent
@@ -257,6 +247,9 @@ _PROMPTS: dict[str, str] = {
     "competitors": _COMPETITORS_PROMPT,
     "overview": _OVERVIEW_PROMPT,
 }
+
+# Fix 4.6: Single source of truth — derived from _PROMPTS keys.
+ANALYSIS_TYPES: frozenset[str] = frozenset(_PROMPTS)
 
 
 def build_analysis_prompt(

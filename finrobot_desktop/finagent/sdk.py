@@ -222,6 +222,23 @@ class FinAgent:
         result: BacktestResult = self._run_sync(lambda: self.abacktest(config))
         return result
 
+    def auto_backtest(
+        self,
+        ticker: str,
+        start_date: str,
+        end_date: str,
+        initial_cash: float = 100_000.0,
+    ) -> "BacktestResult":
+        """LLM-guided strategy selection with iterative tuning. Blocking.
+
+        The LLM picks an initial strategy/params, runs the backtest, reviews
+        results, and iterates up to 3 times to improve performance.
+        """
+        result: BacktestResult = self._run_sync(
+            lambda: self.aauto_backtest(ticker, start_date, end_date, initial_cash)
+        )
+        return result
+
     # ------------------------------------------------------------------ #
     # Async API                                                          #
     # ------------------------------------------------------------------ #
@@ -318,6 +335,23 @@ class FinAgent:
 
         engine = BackTraderAdapter()
         return await engine.run(config)
+
+    async def aauto_backtest(
+        self,
+        ticker: str,
+        start_date: str,
+        end_date: str,
+        initial_cash: float = 100_000.0,
+    ) -> "BacktestResult":
+        """LLM-guided strategy selection with iterative tuning. Async.
+
+        Requires ``pip install 'finagent[backtest]'``.
+        """
+        from finagent.engine.backtest.strategy_agent import run_strategy_selection
+
+        return await run_strategy_selection(
+            self._settings, ticker, start_date, end_date, initial_cash=initial_cash,
+        )
 
     async def close(self) -> None:
         """Close the data cache connection and persistent sync loop.

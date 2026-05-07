@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 import click
 
 from finagent.config import get_settings
+from finagent.engine.analysis.prompts import ANALYSIS_TYPES
 
 if TYPE_CHECKING:
     from finagent.engine.deps import FinAgentDeps
@@ -324,6 +325,8 @@ def ic_memo(ticker: str, model: str | None) -> None:
 @click.option("--cash", default=100_000.0, show_default=True, help="Initial cash")
 @click.option("--params", default=None, help='Strategy params as JSON, e.g. \'{"fast":10,"slow":30}\'')
 @click.option("--save-chart", default=None, type=click.Path(), help="Save equity curve PNG to this path")
+@click.option("--auto", is_flag=True, default=False, help="LLM-guided strategy selection (iterative)")
+@click.option("--model", default=None, help="Override model for --auto mode")
 def backtest(
     ticker: str,
     strategy: str,
@@ -332,36 +335,50 @@ def backtest(
     cash: float,
     params: str | None,
     save_chart: str | None,
+    auto: bool,
+    model: str | None,
 ) -> None:
     """Run a backtest on a ticker with a given strategy.
 
     Example:
         finagent backtest AAPL --strategy sma_crossover --start 2023-01-01 --end 2024-01-01
+
+    With --auto, the LLM picks and iteratively tunes strategy parameters:
+        finagent backtest AAPL --start 2023-01-01 --end 2024-01-01 --auto
     """
-    import json
+    if auto:
+        from finagent.engine.backtest.strategy_agent import run_strategy_selection
 
-    from finagent.engine.backtest.backtrader_adapter import BackTraderAdapter
-    from finagent.engine.backtest.engine import BacktestConfig
+        settings = get_settings(model_name=model)
+        result = asyncio.run(
+            run_strategy_selection(settings, ticker, start, end, initial_cash=cash)
+        )
+        click.echo(result.format_summary())
+    else:
+        import json
 
-    strategy_params: dict[str, float | int | str] = {}
-    if params:
-        try:
-            strategy_params = json.loads(params)
-        except json.JSONDecodeError as e:
-            raise click.ClickException(f"Invalid --params JSON: {e}") from e
+        from finagent.engine.backtest.backtrader_adapter import BackTraderAdapter
+        from finagent.engine.backtest.engine import BacktestConfig
 
-    config = BacktestConfig(
-        ticker=ticker,
-        start_date=start,
-        end_date=end,
-        strategy=strategy,
-        strategy_params=strategy_params,
-        initial_cash=cash,
-    )
+        strategy_params: dict[str, float | int | str] = {}
+        if params:
+            try:
+                strategy_params = json.loads(params)
+            except json.JSONDecodeError as e:
+                raise click.ClickException(f"Invalid --params JSON: {e}") from e
 
-    engine = BackTraderAdapter()
-    result = asyncio.run(engine.run(config))
-    click.echo(result.format_summary())
+        config = BacktestConfig(
+            ticker=ticker,
+            start_date=start,
+            end_date=end,
+            strategy=strategy,
+            strategy_params=strategy_params,
+            initial_cash=cash,
+        )
+
+        engine = BackTraderAdapter()
+        result = asyncio.run(engine.run(config))
+        click.echo(result.format_summary())
 
     if save_chart and result.chart_base64:
         import base64
@@ -394,7 +411,7 @@ def ask(ticker: str, question: str, model: str | None, top_k: int) -> None:
 @cli.command()
 @click.argument("ticker")
 @click.argument("analysis_type", type=click.Choice(
-    sorted(("income", "balance", "cashflow", "risk", "competitors", "overview")),
+    sorted(ANALYSIS_TYPES),
     case_sensitive=False,
 ))
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")

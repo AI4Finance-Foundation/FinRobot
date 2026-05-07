@@ -22,6 +22,7 @@ from finagent.web.tasks import (
     create_task,
     get_task,
     list_tasks,
+    register_async_task,
     run_task,
     running_count,
 )
@@ -114,8 +115,10 @@ async def run_pipeline(body: RunRequest, request: Request) -> JSONResponse:
         )
 
     task = create_task(ticker, body.pipeline_type)
-    # Fire-and-forget: run the pipeline in the background
-    asyncio.create_task(run_task(task, request.app.state))
+    # Fire-and-forget: run the pipeline in the background.
+    # Fix 4.3: store the asyncio.Task so eviction can cancel it.
+    bg = asyncio.create_task(run_task(task, request.app.state))
+    register_async_task(task.task_id, bg)
     return JSONResponse(
         status_code=201,
         content={"task_id": task.task_id, "status": task.status},

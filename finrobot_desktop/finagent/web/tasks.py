@@ -44,6 +44,8 @@ class TaskInfo(BaseModel):
 _MAX_TASKS = 500
 _MAX_RUNNING = 3
 _tasks: dict[str, TaskInfo] = {}
+# Parallel store for asyncio.Task references so we can cancel on eviction.
+_async_tasks: dict[str, asyncio.Task[None]] = {}
 
 
 def running_count() -> int:
@@ -61,11 +63,18 @@ def list_tasks() -> list[TaskInfo]:
 
 
 def _evict_oldest() -> None:
-    """Remove oldest tasks when the store exceeds _MAX_TASKS."""
+    """Remove oldest tasks when the store exceeds _MAX_TASKS.
+
+    Fix 4.3: Cancel the associated asyncio.Task before removing references,
+    preventing background coroutines from leaking resources (LLM calls, etc.).
+    """
     if len(_tasks) <= _MAX_TASKS:
         return
     by_time = sorted(_tasks.keys(), key=lambda k: _tasks[k].created_at)
     for key in by_time[: len(_tasks) - _MAX_TASKS]:
+        async_task = _async_tasks.pop(key, None)
+        if async_task is not None and not async_task.done():
+            async_task.cancel()
         del _tasks[key]
 
 
@@ -96,12 +105,12 @@ async def run_task(task: TaskInfo, app_state: Any) -> None:
     from pydantic import ValidationError
 
     from finagent.engine.orchestrator import build_report_context
-    from finagent.server import _get_pipeline_factories
+    from finagent.engine.pipelines.registry import get_pipeline_factories
 
     task.status = TaskStatus.RUNNING
     task.logs.append(f"[INFO] Pipeline {task.pipeline_type} started for {task.ticker}")
 
-    factories = _get_pipeline_factories()
+    factories = get_pipeline_factories()
     if task.pipeline_type not in factories:
         task.status = TaskStatus.ERROR
         task.logs.append(
@@ -156,6 +165,15 @@ async def run_task(task: TaskInfo, app_state: Any) -> None:
         task.logs.append(f"[ERROR] {str(e)[:500]}")
 
 
+def register_async_task(task_id: str, async_task: asyncio.Task[None]) -> None:
+    """Store the asyncio.Task reference so eviction can cancel it."""
+    _async_tasks[task_id] = async_task
+
+
 def clear_tasks() -> None:
     """Clear all tasks. Used by tests."""
+    for at in _async_tasks.values():
+        if not at.done():
+            at.cancel()
+    _async_tasks.clear()
     _tasks.clear()

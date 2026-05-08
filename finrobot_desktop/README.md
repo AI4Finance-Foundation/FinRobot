@@ -44,8 +44,8 @@ finagent earnings AAPL
 finagent ic-memo AAPL
 
 # Standalone financial analysis (6 types)
-finagent analyze income AAPL
-finagent analyze cashflow AAPL
+finagent analyze AAPL income
+finagent analyze AAPL cashflow
 
 # 10-K RAG Q&A
 finagent ask AAPL "What are the main risk factors?"
@@ -71,6 +71,9 @@ agent = FinAgent(model="anthropic:claude-sonnet-4-6")
 result = agent.research("AAPL")
 result = agent.dcf("AAPL")
 result = agent.comps("AAPL")
+result = agent.lbo("AAPL")
+result = agent.earnings("AAPL")
+result = agent.ic_memo("AAPL")
 
 # Standalone analysis
 text = agent.analyze("AAPL", "cashflow")

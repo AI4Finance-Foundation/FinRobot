@@ -563,7 +563,7 @@ finagent dcf AAPL                         # DCF valuation
 finagent lbo AAPL                         # LBO model
 finagent earnings AAPL                    # earnings analysis
 finagent ic-memo AAPL                     # IC memo (DCF + LBO)
-finagent analyze income AAPL              # standalone analysis (6 types)
+finagent analyze AAPL income              # standalone analysis (6 types)
 finagent ask AAPL "risk factors?"         # 10-K RAG Q&A
 finagent backtest AAPL --start 2023-01-01 --end 2024-01-01 --auto  # LLM-guided backtest
 finagent serve --port 8000                # Web UI + API
@@ -601,76 +601,116 @@ result = agent.auto_backtest("AAPL", "2023-01-01", "2024-01-01")  # LLM-guided
 
 ```
 finagent/
+├── config.py                       # FinAgentSettings (env vars, API keys, model)
+├── server.py                       # FastAPI + VercelAIAdapter + SSE
+├── cli.py                          # Click CLI (all commands)
+├── sdk.py                          # Python SDK (FinAgent class)
+│
+├── web/                            # Web UI (FastAPI + Jinja2 + Tailwind CDN)
+│   ├── __init__.py                 # Router + HTML page endpoints
+│   ├── tasks.py                    # In-memory task store + pipeline runner
+│   └── templates/                  # index.html, reports.html, report_view.html
+│
 ├── engine/
 │   ├── orchestrator.py             # Lead agent + tool registration
 │   ├── deps.py                     # FinAgentDeps
-│   ├── instructions.md             # System prompt
-│   ├── pipelines/                  # CODE-ENFORCED analysis flows
+│   ├── instructions.md             # Lead agent system prompt
+│   │
+│   ├── agents/                     # Sub-agent definitions
+│   │   ├── factory.py              # create_sub_agents() — builds 5 agents
+│   │   └── instructions/           # Per-agent system prompts
+│   │       ├── data_agent.md
+│   │       ├── analysis_agent.md
+│   │       ├── modeling_agent.md
+│   │       ├── synthesis_agent.md
+│   │       └── report_agent.md
+│   │
+│   ├── pipelines/                  # Code-enforced analysis flows
 │   │   ├── base.py                 # Pipeline + PipelineStep classes
-│   │   ├── equity_research.py      # 5-step equity research ✅
-│   │   ├── comps.py                # 6-step comps analysis ✅
-│   │   ├── dcf.py                  # 6-step DCF valuation ✅
-│   │   ├── lbo.py                  # LBO modeling ✅
-│   │   ├── earnings_analysis.py    # Earnings beat/miss analysis ✅
-│   │   ├── ic_memo.py              # IC memo (DCF + LBO combined) ✅
+│   │   ├── _helpers.py             # Shared pipeline utilities
+│   │   ├── equity_research.py      # 5-step equity research
+│   │   ├── comps.py                # 6-step comps analysis
+│   │   ├── dcf.py                  # 6-step DCF valuation
+│   │   ├── lbo.py                  # LBO modeling
+│   │   ├── earnings_analysis.py    # Earnings beat/miss analysis
+│   │   ├── ic_memo.py              # IC memo (DCF + LBO combined)
 │   │   ├── registry.py             # Pipeline factory map (shared by server + web)
 │   │   └── validators.py           # Per-step output validation
-│   ├── compute/                    # 确定性金融计算（纯函数，不依赖 agent/pipeline）
-│   │   ├── extractor.py            # Raw data → typed FinancialData ✅
-│   │   ├── wacc.py                 # WACC calculation ✅
-│   │   ├── dcf.py                  # DCF valuation ✅
-│   │   ├── lbo.py                  # LBO model (IRR/MOIC) ✅
-│   │   ├── multiples.py            # EV/EBITDA, EV/Revenue, P/E ✅
-│   │   ├── data_processor.py       # Historical metrics + forecast ✅
-│   │   └── spreadsheet_gen.py      # Excel export (openpyxl) ✅
+│   │
+│   ├── compute/                    # Deterministic calculations (pure functions)
+│   │   ├── extractor.py            # Raw provider data → typed FinancialData
+│   │   ├── wacc.py                 # WACC (CAPM + weighted average)
+│   │   ├── dcf.py                  # DCF valuation + sensitivity
+│   │   ├── lbo.py                  # LBO model (IRR/MOIC)
+│   │   ├── multiples.py            # EV/EBITDA, EV/Revenue, P/E
+│   │   ├── data_processor.py       # Historical metrics + 3-year forecast
+│   │   ├── catalyst.py             # Catalyst sorting/filtering/scoring
+│   │   ├── clean.py                # Financial number cleaning + normalization
+│   │   ├── earnings.py             # Earnings surprise (beat/miss/inline)
+│   │   ├── news.py                 # News fetch + LLM classification
+│   │   ├── valuation_synthesis.py  # Multi-method weighted valuation
+│   │   ├── spreadsheet_gen.py      # Excel export (openpyxl)
+│   │   └── rag.py                  # BM25Index + chunk_text (zero-dep RAG)
+│   │
 │   ├── models/
-│   │   └── financial.py            # P1.5 ✅ — Pydantic 类型化金融数据模型
-│   ├── agents/                     # P1b: dedicated sub-agents for pipelines
-│   │   ├── data_agent.py           # P0: lead_agent handles all steps
-│   │   ├── analysis_agent.py       # P1b: split into specialists
-│   │   ├── modeling_agent.py
-│   │   ├── synthesis_agent.py
-│   │   └── report_agent.py
-│   ├── skills/                     # P1a
-│   │   ├── spec.py                 # Skill Pydantic model
-│   │   ├── registry.py             # Load, search, validate, install
-│   │   ├── loader.py               # Parse SKILL.md + frontmatter
-│   │   └── composer.py             # Dependency resolution — P3a 待实现
-│   ├── data/
-│   │   ├── interface.py            # DataProvider ABC
-│   │   ├── layer.py                # P0: basic routing; P2a: full cache + fallback chain
-│   │   ├── cache.py                # P0: basic get/set; P2b: stale fallback + TTL
+│   │   └── financial.py            # Pydantic models (FinancialData, DCFInputs, etc.)
+│   │
+│   ├── data/                       # Multi-provider data layer
+│   │   ├── interface.py            # DataProvider ABC + DataResult
+│   │   ├── layer.py                # Chain fallback + cross-validation
+│   │   ├── cache.py                # SQLite cache (aiosqlite)
+│   │   ├── keys.py                 # NormalizedFinancialKeys type
+│   │   ├── types.py                # DataType enum
+│   │   ├── validator.py            # Cross-source validation
 │   │   └── providers/
-│   │       ├── yfinance_provider.py     # P0 ✅
-│   │       ├── fmp_provider.py          # P2a ✅
-│   │       ├── finnhub_provider.py      # P2a ✅
-│   │       ├── sec_provider.py          # P2a ✅
-│   │       └── mcp_bridge.py            # 待定
-│   ├── backtest/                       # Quantitative backtesting ✅
-│   │   ├── engine.py                   # BacktestConfig/Result/Engine ABC
-│   │   ├── backtrader_adapter.py       # BackTrader implementation
-│   │   └── strategy_agent.py           # LLM-guided strategy selection
-│   ├── analysis/                       # Standalone financial analysis ✅
-│   │   ├── prompts.py                  # 6 analysis types + runner
-│   │   └── qa.py                       # 10-K RAG Q&A
-│   ├── rag/                            # RAG implementations
-│   │   ├── bm25_index.py              # BM25 (zero-dep, default) ✅
-│   │   └── embedding_index.py         # Cosine similarity (numpy) ✅
-│   └── reports/                        # HTML/PDF report generation ✅
-│       ├── html_renderer.py
-│       └── templates/
+│   │       ├── yfinance_provider.py
+│   │       ├── fmp_provider.py
+│   │       ├── finnhub_provider.py
+│   │       └── sec_provider.py
+│   │
+│   ├── charts/                     # Matplotlib chart generators (18 types)
+│   │   ├── base.py                 # ChartSpec + render_chart()
+│   │   ├── revenue_ebitda.py       # Revenue/EBITDA bar chart
+│   │   ├── margin_trend.py         # Margin trend lines
+│   │   ├── peer_comparison.py      # Peer EV/EBITDA comparison
+│   │   ├── sensitivity.py          # DCF sensitivity heatmap
+│   │   ├── football_field.py       # Valuation range football field
+│   │   ├── price_chart.py          # 52-week price chart
+│   │   ├── eps_pe.py               # EPS + P/E dual axis
+│   │   ├── waterfall.py            # Revenue waterfall
+│   │   ├── radar.py                # Multi-metric radar chart
+│   │   ├── cash_flow.py            # OCF/ICF/FCF breakdown
+│   │   ├── valuation_band.py       # Historical EV/EBITDA band
+│   │   ├── quarterly_comparison.py # QoQ revenue/earnings
+│   │   ├── relative_performance.py # Stock vs index/peers
+│   │   ├── revenue_segments.py     # Revenue by segment
+│   │   ├── revenue_yoy.py          # YoY revenue growth bars
+│   │   ├── technical_indicators.py # SMA/RSI overlay
+│   │   └── time_series_multi.py    # Multi-metric time series
+│   │
+│   ├── backtest/                   # Quantitative backtesting
+│   │   ├── engine.py               # BacktestConfig/Result/Engine ABC
+│   │   ├── backtrader_adapter.py   # BackTrader implementation
+│   │   └── strategy_agent.py       # LLM-guided strategy selection
+│   │
+│   ├── analysis/                   # Standalone financial analysis
+│   │   ├── prompts.py              # 6 analysis types + data validation + runner
+│   │   └── qa.py                   # 10-K RAG Q&A
+│   │
+│   ├── rag/                        # Optional embedding RAG
+│   │   └── embedding_index.py      # Cosine similarity (numpy, optional)
+│   │
+│   ├── reports/                    # Report generation
+│   │   ├── html_renderer.py        # Jinja2 HTML reports
+│   │   ├── pdf_renderer.py         # WeasyPrint PDF output
+│   │   └── templates/              # 6 HTML templates (equity_research, comps, dcf, lbo, earnings, ic_memo)
+│   │
+│   └── skills/                     # Skill runtime
+│       ├── spec.py                 # Skill Pydantic model
+│       ├── registry.py             # Load, search, validate
+│       └── loader.py               # Parse SKILL.md + frontmatter
 │
-├── web/                            # Web UI (FastAPI + Jinja2 + Tailwind) ✅
-│   ├── __init__.py                 # Router + endpoints
-│   ├── tasks.py                    # Task store + pipeline runner
-│   └── templates/                  # HTML templates
-├── server.py                       # FastAPI + VercelAIAdapter
-├── cli.py                          # Click CLI (all commands)
-├── sdk.py                          # FinAgent Python SDK ✅
-│
-# adapters/ — 原始设计已弃用（见 Layer 1 "决策变更" 说明），直接在 providers/ 中实现
-│
-skills/                             # 项目根目录，不在 finagent/ 内
+skills/                             # Project root (not in finagent/)
 ├── ATTRIBUTION.md
 ├── UPSTREAM_VERSION.txt            # Source commit hash for traceability
 ├── equity-research/
@@ -679,26 +719,18 @@ skills/                             # 项目根目录，不在 finagent/ 内
 ├── private-equity/
 └── wealth-management/
 │
-desktop/                            # Electron + React — P1c ✅
+desktop/                            # Electron + React 19 + Vite
 ├── electron/
-└── src/                            # React 19 + Vite
+└── src/
 │
-scripts/
-├── sync-skills.sh              # Pull Anthropic plugins + convert → FinAgent native format
-└── build-electron.sh           # electron-builder + uv sidecar packaging (P3b)
+tutorials/                          # Jupyter notebooks (4)
 │
 tests/
-├── unit/
-│   ├── test_pipelines/         # Pipeline step logic with TestModel
-│   ├── test_validators/        # Output validation functions
-│   └── test_data_layer/        # Provider + cache logic
-├── integration/
-│   ├── test_equity_research/   # Full pipeline with real yfinance
-│   └── test_comps/             # Full pipeline with real data
-└── e2e/
+├── unit/                           # 925+ unit tests
+└── integration/                    # Full pipeline tests with real data
 │
 pyproject.toml
-LICENSE                         # Apache 2.0
+LICENSE                             # Apache 2.0
 README.md
 ARCHITECTURE.md
 ```

@@ -2,29 +2,27 @@
 
 > A financial AI agent platform with extensible skill ecosystem.
 
-**Status: P2c — FinRobot Baseline + Desktop UI (In Development)**
+**Status: Feature-complete (P7 delivered) — packaging + memory system planned**
 
 ## What is FinAgent
 
 FinAgent is a financial-domain AI agent platform that bridges the gap between academic financial AI tools (powerful but notebook-only) and generic agent frameworks (capable but financially illiterate).
 
 - **Skill Ecosystem** — 56 financial analysis skills (sourced from Anthropic's financial-services-plugins). Write your own in Markdown.
-- **Code-Enforced Pipelines** — Equity research, DCF, comps analysis run as step-by-step pipelines. Code guarantees execution order; skills provide methodology. The LLM decides *how* to analyze, never *whether* to skip a step.
+- **Code-Enforced Pipelines** — Equity research, DCF, comps, LBO, IC memo, and earnings analysis run as step-by-step pipelines. Code guarantees execution order; skills provide methodology. The LLM decides *how* to analyze, never *whether* to skip a step.
 - **Data Layer** — yfinance (built-in, free), FMP (optional, requires API key — provides D&A data for standard DCF formula), Finnhub (optional, requires API key), SEC EDGAR (free, 10-K summaries). Automatic chain fallback: FMP → Finnhub → yfinance.
-- **CLI** — `finagent run` / `finagent research` / `finagent comps` / `finagent dcf`. Desktop app and SDK planned.
+- **Interfaces** — CLI, Python SDK, Web UI, Desktop app (Electron + React).
 
 ## Who is FinAgent for
 
 FinAgent is for **financial professionals who want AI-assisted analysis with computational discipline** — buy-side researchers, independent analysts, small fund managers. If you use ChatGPT for financial analysis but worry about hallucinated numbers and skipped steps, FinAgent gives you code-enforced pipelines where the math is deterministic and every step must complete.
-
-**Current status**: P2c (FinRobot baseline + Desktop UI). The engine runs pipelines with deterministic financial math, multi-source data (FMP/Finnhub/SEC EDGAR/yfinance with chain fallback), and standard DCF formulas. See [Roadmap](#roadmap) for timeline.
 
 ## Quick Start
 
 ```bash
 pip install -e ".[dev]"
 
-# Quick question
+# Quick question (conversational mode)
 finagent run "What's AAPL's PE ratio?"
 
 # Full equity research pipeline
@@ -36,8 +34,54 @@ finagent comps AAPL
 # DCF valuation
 finagent dcf AAPL
 
-# Start server (for desktop app)
+# LBO model
+finagent lbo AAPL
+
+# Earnings analysis
+finagent earnings AAPL
+
+# IC memo (combines DCF + LBO)
+finagent ic-memo AAPL
+
+# Standalone financial analysis (6 types)
+finagent analyze income AAPL
+finagent analyze cashflow AAPL
+
+# 10-K RAG Q&A
+finagent ask AAPL "What are the main risk factors?"
+
+# Quantitative backtest
+finagent backtest AAPL --strategy sma_crossover --start 2023-01-01 --end 2024-01-01
+
+# LLM-guided automatic strategy selection
+finagent backtest AAPL --start 2023-01-01 --end 2024-01-01 --auto
+
+# Start server (Web UI + Desktop app)
 finagent serve
+```
+
+### Python SDK
+
+```python
+from finagent import FinAgent
+
+agent = FinAgent(model="anthropic:claude-sonnet-4-6")
+
+# Pipeline analysis
+result = agent.research("AAPL")
+result = agent.dcf("AAPL")
+result = agent.comps("AAPL")
+
+# Standalone analysis
+text = agent.analyze("AAPL", "cashflow")
+
+# RAG Q&A
+answer = agent.ask("AAPL", "What are the risk factors?")
+
+# Backtest (manual or LLM-guided)
+from finagent.engine.backtest.engine import BacktestConfig
+result = agent.backtest(BacktestConfig(ticker="AAPL", strategy="sma_crossover", start_date="2023-01-01", end_date="2024-01-01"))
+result = agent.auto_backtest("AAPL", "2023-01-01", "2024-01-01")
 ```
 
 ### Financial Assumptions

@@ -56,9 +56,10 @@ It solves a specific gap: **academic financial AI tools** (FinRobot, FinRL) have
 ┌──────────────────────────────────────────────────────┐
 │  Layer 3: Clients                                    │
 │  Desktop App (Electron + React) — P1c basic, P2c full UI │
-│  CLI — finagent run "analyze AAPL"   ✓ implemented   │
-│  Python SDK — P3a, not started                       │
-│  Future: Web, Mobile, MCP Server                     │
+│  CLI — finagent run / research / dcf / backtest etc  │
+│  Python SDK — from finagent import FinAgent   ✓      │
+│  Web UI — finagent serve → /web/              ✓      │
+│  Future: Mobile, MCP Server                          │
 └──────────────────────────┬───────────────────────────┘
                            │ Vercel AI Data Stream (SSE)
                            │ or Python async generator
@@ -556,12 +557,16 @@ PydanticAI's VercelAIAdapter outputs Vercel AI Data Stream Protocol SSE. React's
 
 ```bash
 finagent run "What's AAPL's PE ratio?"
-finagent research AAPL                    # runs equity research pipeline
-finagent comps AAPL --peers MSFT,GOOGL    # runs comps pipeline
-finagent dcf AAPL                         # runs DCF pipeline
-finagent serve --port 8000
-finagent skill list
-finagent skill install https://github.com/user/my-skill
+finagent research AAPL                    # equity research pipeline
+finagent comps AAPL --peers MSFT,GOOGL    # comps pipeline
+finagent dcf AAPL                         # DCF valuation
+finagent lbo AAPL                         # LBO model
+finagent earnings AAPL                    # earnings analysis
+finagent ic-memo AAPL                     # IC memo (DCF + LBO)
+finagent analyze income AAPL              # standalone analysis (6 types)
+finagent ask AAPL "risk factors?"         # 10-K RAG Q&A
+finagent backtest AAPL --start 2023-01-01 --end 2024-01-01 --auto  # LLM-guided backtest
+finagent serve --port 8000                # Web UI + API
 ```
 
 ### Python SDK
@@ -571,25 +576,23 @@ from finagent import FinAgent
 
 agent = FinAgent(model="anthropic:claude-sonnet-4-6")
 
-# Quick question (Mode A)
-result = await agent.run("What's AAPL's PE ratio?")
+# Pipeline analysis (sync API; async equivalents: aresearch, adcf, etc.)
+report = agent.research("AAPL")         # equity research pipeline
+comps = agent.comps("AAPL")             # comps pipeline
+dcf = agent.dcf("AAPL")                # DCF pipeline
+lbo = agent.lbo("AAPL")                # LBO pipeline
 
-# Deep analysis (Mode B — pipeline)
-report = await agent.research("AAPL")         # equity research pipeline
-comps = await agent.comps("AAPL")             # comps pipeline
-dcf = await agent.dcf("AAPL")                # DCF pipeline
+# Standalone analysis
+text = agent.analyze("AAPL", "cashflow")
 
-# Streaming pipeline with progress
-async for event in agent.research_stream("AAPL"):
-    if event.type == "step_start":
-        print(f"Starting: {event.step_name}...")
-    elif event.type == "step_complete":
-        print(f"Done: {event.step_name} ✓")
-    elif event.type == "text":
-        print(event.content, end="")
+# RAG Q&A
+answer = agent.ask("AAPL", "What are the main risk factors?")
 
-# Direct data access (no LLM)
-data = await agent.data.fetch("financials", "AAPL")
+# Backtesting
+from finagent.engine.backtest.engine import BacktestConfig
+result = agent.backtest(BacktestConfig(ticker="AAPL", strategy="sma_crossover",
+    start_date="2023-01-01", end_date="2024-01-01"))
+result = agent.auto_backtest("AAPL", "2023-01-01", "2024-01-01")  # LLM-guided
 ```
 
 ---
@@ -604,17 +607,22 @@ finagent/
 │   ├── instructions.md             # System prompt
 │   ├── pipelines/                  # CODE-ENFORCED analysis flows
 │   │   ├── base.py                 # Pipeline + PipelineStep classes
-│   │   ├── equity_research.py      # 5-step equity research
-│   │   ├── comps.py                # 6-step comps analysis — P1b ✅
-│   │   ├── dcf.py                  # 6-step DCF valuation — P1b ✅
-│   │   ├── lbo.py                  # LBO modeling — P2d 待实现
-│   │   ├── earnings.py             # Earnings analysis — P2d 待实现
+│   │   ├── equity_research.py      # 5-step equity research ✅
+│   │   ├── comps.py                # 6-step comps analysis ✅
+│   │   ├── dcf.py                  # 6-step DCF valuation ✅
+│   │   ├── lbo.py                  # LBO modeling ✅
+│   │   ├── earnings_analysis.py    # Earnings beat/miss analysis ✅
+│   │   ├── ic_memo.py              # IC memo (DCF + LBO combined) ✅
+│   │   ├── registry.py             # Pipeline factory map (shared by server + web)
 │   │   └── validators.py           # Per-step output validation
-│   ├── compute/                    # P1.5: 确定性金融计算（纯函数，不依赖 agent/pipeline）
-│   │   ├── extractor.py            # P2a ✅
-│   │   ├── wacc.py                 # P1.5 ✅
-│   │   ├── dcf.py                  # P1.5 ✅
-│   │   └── multiples.py            # P1.5 ✅
+│   ├── compute/                    # 确定性金融计算（纯函数，不依赖 agent/pipeline）
+│   │   ├── extractor.py            # Raw data → typed FinancialData ✅
+│   │   ├── wacc.py                 # WACC calculation ✅
+│   │   ├── dcf.py                  # DCF valuation ✅
+│   │   ├── lbo.py                  # LBO model (IRR/MOIC) ✅
+│   │   ├── multiples.py            # EV/EBITDA, EV/Revenue, P/E ✅
+│   │   ├── data_processor.py       # Historical metrics + forecast ✅
+│   │   └── spreadsheet_gen.py      # Excel export (openpyxl) ✅
 │   ├── models/
 │   │   └── financial.py            # P1.5 ✅ — Pydantic 类型化金融数据模型
 │   ├── agents/                     # P1b: dedicated sub-agents for pipelines
@@ -638,15 +646,27 @@ finagent/
 │   │       ├── finnhub_provider.py      # P2a ✅
 │   │       ├── sec_provider.py          # P2a ✅
 │   │       └── mcp_bridge.py            # 待定
-│   ├── tools/                          # Shared tools used by pipelines
-│   │   └── spreadsheet_gen.py          # Excel generation (openpyxl) — P2d 待实现
-│   └── memory/                         # P3a 待实现
-│       ├── store.py
-│       └── context.py
+│   ├── backtest/                       # Quantitative backtesting ✅
+│   │   ├── engine.py                   # BacktestConfig/Result/Engine ABC
+│   │   ├── backtrader_adapter.py       # BackTrader implementation
+│   │   └── strategy_agent.py           # LLM-guided strategy selection
+│   ├── analysis/                       # Standalone financial analysis ✅
+│   │   ├── prompts.py                  # 6 analysis types + runner
+│   │   └── qa.py                       # 10-K RAG Q&A
+│   ├── rag/                            # RAG implementations
+│   │   ├── bm25_index.py              # BM25 (zero-dep, default) ✅
+│   │   └── embedding_index.py         # Cosine similarity (numpy) ✅
+│   └── reports/                        # HTML/PDF report generation ✅
+│       ├── html_renderer.py
+│       └── templates/
 │
+├── web/                            # Web UI (FastAPI + Jinja2 + Tailwind) ✅
+│   ├── __init__.py                 # Router + endpoints
+│   ├── tasks.py                    # Task store + pipeline runner
+│   └── templates/                  # HTML templates
 ├── server.py                       # FastAPI + VercelAIAdapter
-├── cli.py                          # Click CLI
-├── sdk.py                          # FinAgent Python API — P3a 待实现
+├── cli.py                          # Click CLI (all commands)
+├── sdk.py                          # FinAgent Python SDK ✅
 │
 # adapters/ — 原始设计已弃用（见 Layer 1 "决策变更" 说明），直接在 providers/ 中实现
 │
@@ -768,9 +788,11 @@ If P1b output quality doesn't meaningfully exceed a well-prompted single Claude/
 | **P1.5** | 金融计算核心（确定性 WACC/DCF/multiples + Pydantic 类型化） | ✅ 完成 |
 | **P1c** | Desktop app 骨架（Electron + React + SSE + 三个基础 View） | ✅ 完成 |
 | **P2a** | 数据源扩展（FMP/Finnhub/SEC EDGAR 直接 provider + 链式回退 + FCF 修复） | ✅ 完成 |
-| **P2c** | **高级管线 + Desktop 完整 UI + Excel 输出** | **← 当前** |
-| P3a | Memory + skill composition + Python SDK | 待定 |
-| P3b | Packaging（uv sidecar + electron-builder 打包发布） | 待定 |
+| **P2c** | 高级管线 + Desktop 完整 UI + Excel 输出 | ✅ 完成 |
+| **P2d** | LBO/IC Memo/Earnings/Excel/RAG | ✅ 完成 |
+| **P3** | Streaming + SDK + 交叉验证 + 模型路由 | ✅ 完成 |
+| **P7** | FinRobot 完整对标（backtest/analyze/ask/web/tutorials） | ✅ 完成 |
+| P4 | Memory + skill composition + packaging | 待定 |
 
 **P0 scope note**: P0 uses one lead_agent for all pipeline steps. This is intentional — the goal is proving the Pipeline framework forces step order, not optimizing per-step agent quality. Sub-agent specialization is P1b.
 

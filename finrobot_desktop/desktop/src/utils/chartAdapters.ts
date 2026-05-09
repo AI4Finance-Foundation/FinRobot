@@ -1,4 +1,4 @@
-import type { DCFResult, DCFInputs, SensitivityResult } from '../stores/appStore'
+import type { DCFResult, DCFInputs, SensitivityResult, CompsResult } from '../stores/appStore'
 
 /**
  * Convert backend DcfSensitivityResult grid to the flat array format
@@ -86,6 +86,22 @@ export function dcfResultToMarginData(
   }
 
   return rows
+}
+
+/**
+ * Convert CompsResult into PeerComparisonChart format.
+ * Target row is flagged with is_target: true.
+ */
+export function compsResultToPeerChartData(
+  result: CompsResult
+): Array<Record<string, number | string | boolean | null>> {
+  const all = [result.target, ...result.peers]
+  return all.map((c) => ({
+    ticker: c.ticker,
+    ev_ebitda: c.ev_ebitda,
+    pe_ratio: c.pe_ratio,
+    is_target: c.ticker === result.target.ticker,
+  }))
 }
 
 /**

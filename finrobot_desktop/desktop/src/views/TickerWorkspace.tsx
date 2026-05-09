@@ -8,15 +8,18 @@ import AssumptionsEditor from '../components/AssumptionsEditor'
 import ValuationCard from '../components/ValuationCard'
 import ExportBar from '../components/ExportBar'
 import ResearchSummary from '../components/ResearchSummary'
+import CompsSummary from '../components/CompsSummary'
 import SensitivityHeatmap from '../components/charts/SensitivityHeatmap'
 import WaterfallChart from '../components/charts/WaterfallChart'
 import RevenueEbitdaChart from '../components/charts/RevenueEbitdaChart'
 import MarginTrendChart from '../components/charts/MarginTrendChart'
+import PeerComparisonChart from '../components/charts/PeerComparisonChart'
 import {
   sensitivityGridToHeatmapRows,
   dcfResultToWaterfallData,
   dcfResultToRevenueEbitdaData,
   dcfResultToMarginData,
+  compsResultToPeerChartData,
 } from '../utils/chartAdapters'
 import type { PipelineType } from '../stores/appStore'
 
@@ -25,8 +28,9 @@ interface Props {
 }
 
 const PIPELINE_OPTIONS: { value: PipelineType; label: string }[] = [
-  { value: 'equity_research', label: 'Equity Research' },
-  { value: 'dcf', label: 'DCF Only' },
+  { value: 'equity_research', label: 'Research' },
+  { value: 'dcf', label: 'DCF' },
+  { value: 'comps', label: 'Comps' },
 ]
 
 export default function TickerWorkspace({ onOpenSettings }: Props) {
@@ -39,12 +43,14 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
     sensitivityData,
     currentPrice,
     researchResult,
+    compsResult,
     setPipelineType,
   } = useAppStore()
 
   const showResults = phase === 'pipeline_done' || phase === 'interactive'
   const showControls = phase === 'data_ready' || phase === 'running_pipeline' || showResults
   const isResearch = pipelineType === 'equity_research'
+  const isComps = pipelineType === 'comps'
 
   return (
     <>
@@ -216,8 +222,26 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
             </>
           )}
 
+          {/* ── Comps Results ── */}
+          {showResults && isComps && compsResult && (
+            <>
+              <ErrorBoundary>
+                <CompsSummary
+                  result={compsResult}
+                  currentPrice={currentPrice}
+                />
+              </ErrorBoundary>
+              <ErrorBoundary>
+                <PeerComparisonChart
+                  data={compsResultToPeerChartData(compsResult)}
+                  title="Peer Multiples Comparison"
+                />
+              </ErrorBoundary>
+            </>
+          )}
+
           {/* ── DCF-Only Results ── */}
-          {showResults && !isResearch && dcfResult && (
+          {showResults && !isResearch && !isComps && dcfResult && (
             <>
               <ErrorBoundary>
                 <ValuationCard
@@ -264,7 +288,7 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
           {/* Empty chart placeholders before pipeline completes */}
           {!showResults && phase !== 'idle' && (
             <div className="grid-2">
-              <ChartPlaceholder title={isResearch ? 'Research Summary' : 'Valuation'} />
+              <ChartPlaceholder title={isResearch ? 'Research Summary' : isComps ? 'Comps Table' : 'Valuation'} />
               <ChartPlaceholder title="Sensitivity Analysis" />
               <ChartPlaceholder title="DCF Bridge" />
               <ChartPlaceholder title="Revenue & EBITDA" />

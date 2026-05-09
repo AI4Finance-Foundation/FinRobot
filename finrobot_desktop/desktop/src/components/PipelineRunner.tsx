@@ -3,7 +3,7 @@ import { useRunStream } from '../hooks/useRunStream'
 import { useAppStore } from '../stores/appStore'
 import { useDcfSensitivity } from '../hooks/useCompute'
 import { BASE_URL } from '../api/client'
-import type { DCFResult, DCFInputs, SensitivityResult, ResearchResult } from '../stores/appStore'
+import type { DCFResult, DCFInputs, SensitivityResult, ResearchResult, CompsResult } from '../stores/appStore'
 
 function buildSensitivityRanges(wacc: number, tg: number) {
   const waccRange = Array.from({ length: 7 }, (_, i) => Math.max(0, wacc - 0.03 + i * 0.01))
@@ -21,6 +21,7 @@ const STATUS_MAP: Record<string, string> = {
 const PIPELINE_LABELS: Record<string, string> = {
   equity_research: 'Equity Research',
   dcf: 'DCF Analysis',
+  comps: 'Comps Analysis',
 }
 
 export default function PipelineRunner() {
@@ -35,6 +36,7 @@ export default function PipelineRunner() {
     setDcfResult,
     setSensitivityData,
     setResearchResult,
+    setCompsResult,
   } = useAppStore()
   const sensitivityMut = useDcfSensitivity()
   const [runId, setRunId] = useState<string | null>(null)
@@ -93,6 +95,13 @@ export default function PipelineRunner() {
               { onSuccess: (data: SensitivityResult) => setSensitivityData(data) }
             )
           }
+        } else if (runPipelineTypeRef.current === 'comps') {
+          // Comps pipeline — look for statistical_bench (PeerComps output)
+          const comps: CompsResult | undefined =
+            structured.statistical_bench || structured.peer_comps
+          if (comps) {
+            setCompsResult(comps)
+          }
         } else {
           // DCF-only pipeline
           const dcfCalc: DCFResult | undefined =
@@ -121,7 +130,7 @@ export default function PipelineRunner() {
     }
 
     fetchResult()
-  }, [status, phase, runId, setPhase, setDcfInputs, setOriginalDcfInputs, setDcfResult, setSensitivityData, setResearchResult, sensitivityMut])
+  }, [status, phase, runId, setPhase, setDcfInputs, setOriginalDcfInputs, setDcfResult, setSensitivityData, setResearchResult, setCompsResult, sensitivityMut])
 
   const canRun = phase === 'data_ready' && !!ticker
   const isRunning = phase === 'running_pipeline' || phase === 'pipeline_done'

@@ -8,7 +8,7 @@ type Phase =
   | 'pipeline_done'
   | 'interactive'
 
-export type PipelineType = 'equity_research' | 'dcf'
+export type PipelineType = 'equity_research' | 'dcf' | 'comps'
 export type ViewMode = 'workspace' | 'history'
 
 export interface ResearchResult {
@@ -18,6 +18,35 @@ export interface ResearchResult {
   catalysts: string[]
   risks: string[]
   narrative: string
+}
+
+export interface CompanyFinancials {
+  ticker: string
+  name: string | null
+  revenue: number
+  ebitda: number
+  net_income: number
+  market_cap: number
+  total_debt: number
+  total_cash: number
+  enterprise_value: number | null
+  gross_margin: number
+  operating_margin: number
+  pe_ratio: number | null
+  ev_ebitda: number | null
+  ev_revenue: number | null
+}
+
+export interface CompsResult {
+  target: CompanyFinancials
+  peers: CompanyFinancials[]
+  median_ev_ebitda: number | null
+  median_pe: number | null
+  median_ev_revenue: number | null
+  mean_ev_ebitda: number | null
+  mean_pe: number | null
+  peer_justification: string
+  positioning_narrative: string
 }
 
 export interface DCFInputs {
@@ -82,6 +111,9 @@ interface WorkspaceState {
   // Equity Research state
   researchResult: ResearchResult | null
 
+  // Comps state
+  compsResult: CompsResult | null
+
   // UI navigation
   view: ViewMode
   showSettings: boolean
@@ -98,6 +130,7 @@ interface WorkspaceState {
   setSensitivityData: (data: SensitivityResult) => void
   setCurrentPrice: (price: number) => void
   setResearchResult: (result: ResearchResult) => void
+  setCompsResult: (result: CompsResult) => void
   setShowSettings: (show: boolean) => void
   reset: () => void
 }
@@ -113,6 +146,7 @@ const initialState = {
   sensitivityData: null,
   currentPrice: null,
   researchResult: null,
+  compsResult: null,
   view: 'workspace' as ViewMode,
   showSettings: false,
 }
@@ -131,6 +165,7 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   setSensitivityData: (sensitivityData) => set({ sensitivityData }),
   setCurrentPrice: (currentPrice) => set({ currentPrice }),
   setResearchResult: (researchResult) => set({ researchResult }),
+  setCompsResult: (compsResult) => set({ compsResult }),
   setShowSettings: (showSettings) => set({ showSettings }),
   reset: () => set(initialState),
 }))

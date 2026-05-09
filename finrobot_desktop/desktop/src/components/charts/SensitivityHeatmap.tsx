@@ -6,23 +6,17 @@ interface ChartProps {
 }
 
 /**
- * Interpolate between red and green based on a normalized value [0, 1].
- * 0 → red (#ef4444), 0.5 → yellow (#eab308), 1 → green (#22c55e)
+ * Map normalised value [0, 1] to heatmap CSS class.
  */
-function priceColor(normalised: number): string {
-  const clamped = Math.max(0, Math.min(1, normalised))
-  if (clamped < 0.5) {
-    const t = clamped / 0.5
-    const r = Math.round(239 + (234 - 239) * t)
-    const g = Math.round(68 + (179 - 68) * t)
-    const b = Math.round(68 + (8 - 68) * t)
-    return `rgb(${r},${g},${b})`
-  }
-  const t = (clamped - 0.5) / 0.5
-  const r = Math.round(234 + (34 - 234) * t)
-  const g = Math.round(179 + (197 - 179) * t)
-  const b = Math.round(8 + (94 - 8) * t)
-  return `rgb(${r},${g},${b})`
+function heatmapClass(normalised: number): string {
+  if (normalised >= 0.9) return 'hm-5'
+  if (normalised >= 0.75) return 'hm-4'
+  if (normalised >= 0.6) return 'hm-3'
+  if (normalised >= 0.5) return 'hm-2'
+  if (normalised >= 0.4) return 'hm-1'
+  if (normalised >= 0.25) return 'hm-0'
+  if (normalised >= 0.1) return 'hm--1'
+  return 'hm--2'
 }
 
 interface GridCell {
@@ -60,49 +54,53 @@ export default function SensitivityHeatmap({ data, title }: ChartProps) {
   }, [data])
 
   const range = maxPrice - minPrice || 1
+  // Find the "current" cell (middle row, middle col)
+  const midWacc = waccValues[Math.floor(waccValues.length / 2)]
+  const midTg = tgValues[Math.floor(tgValues.length / 2)]
 
   return (
-    <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-      <h4 className="text-sm font-medium text-gray-400 mb-3">{title}</h4>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs" role="table">
-          <thead>
-            <tr>
-              <th className="p-1 text-gray-500 text-left">WACC \ TG</th>
-              {tgValues.map((tg) => (
-                <th key={tg} className="p-1 text-gray-400 text-center">
-                  {(tg * 100).toFixed(1)}%
+    <div className="card animate-in">
+      <div className="card-header">
+        <span className="card-title">{title}</span>
+      </div>
+      <div className="card-body">
+        <div className="heatmap-container">
+          <table className="heatmap" role="table">
+            <thead>
+              <tr>
+                <th className="corner" style={{ fontSize: '0.65rem' }}>
+                  <span style={{ color: 'var(--gold)' }}>WACC</span>
+                  {' \\ '}
+                  <span style={{ color: 'var(--chart-1)' }}>TGR</span>
                 </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {waccValues.map((wacc) => (
-              <tr key={wacc}>
-                <td className="p-1 text-gray-400 font-medium">
-                  {(wacc * 100).toFixed(1)}%
-                </td>
-                {tgValues.map((tg) => {
-                  const price = grid.get(`${wacc}_${tg}`)
-                  const normalised =
-                    price != null ? (price - minPrice) / range : 0.5
-                  return (
-                    <td
-                      key={`${wacc}_${tg}`}
-                      className="p-1 text-center font-mono rounded"
-                      style={{
-                        backgroundColor: priceColor(normalised),
-                        color: normalised > 0.6 || normalised < 0.4 ? '#fff' : '#1f2937',
-                      }}
-                    >
-                      {price != null ? `$${price.toFixed(0)}` : '—'}
-                    </td>
-                  )
-                })}
+                {tgValues.map((tg) => (
+                  <th key={tg}>{(tg * 100).toFixed(1)}%</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {waccValues.map((wacc) => (
+                <tr key={wacc}>
+                  <th>{(wacc * 100).toFixed(1)}%</th>
+                  {tgValues.map((tg) => {
+                    const price = grid.get(`${wacc}_${tg}`)
+                    const normalised =
+                      price != null ? (price - minPrice) / range : 0.5
+                    const isCurrent = wacc === midWacc && tg === midTg
+                    return (
+                      <td
+                        key={`${wacc}_${tg}`}
+                        className={`${heatmapClass(normalised)}${isCurrent ? ' current' : ''}`}
+                      >
+                        {price != null ? `$${price.toFixed(0)}` : '\u2014'}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )

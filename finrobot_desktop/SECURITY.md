@@ -16,11 +16,17 @@
 ## Security Considerations
 
 ### API Key Management
-- API keys are passed via environment variables (`.env` file) and loaded through pydantic-settings dependency injection.
-- Supported keys: `FINAGENT_ANTHROPIC_API_KEY`, `FINAGENT_DEEPSEEK_API_KEY`, `FINAGENT_OPENAI_API_KEY`, `FINAGENT_FMP_API_KEY`, `FINAGENT_FINNHUB_API_KEY`, `FINAGENT_SEC_USER_AGENT`.
-- Keys are never logged, cached to disk, or included in error messages.
-- **Never commit `.env` to version control.** The `.env` file is in `.gitignore`; use `.env.example` as a template.
-- Copy `.env.example` to `.env` and fill in only the API keys needed for your configured LLM provider.
+- Desktop V1 stores API keys through the `SecretStore` abstraction. The default backend is the operating system keychain (macOS Keychain, Windows Credential Manager, or the platform backend exposed by `keyring`).
+- `FileSecretStore` is used automatically when:
+  1. `FINAGENT_DEV_MODE=1` is set (explicit dev mode), or
+  2. the `keyring` Python package is not installed, or
+  3. the OS keyring backend is not functional (headless environments: CI, Docker, WSL without a desktop session).
+  A warning is logged when the fallback triggers. Its file lives at `~/.finagent/.secrets` and must have `0600` permissions.
+- Non-sensitive settings such as model name, SEC user-agent, and log level may be stored in `~/.finagent/settings.json`. API keys must not be stored there.
+- Supported secret keys: `anthropic_api_key`, `deepseek_api_key`, `openai_api_key`, `fmp_api_key`, `finnhub_api_key`.
+- `GET /api/settings` never returns API key plaintext. It only returns `*_api_key_set: true/false`.
+- Keys must never be logged, included in error messages, cached in analysis artifacts, or persisted in frontend state/localStorage.
+- `.env` variables remain supported for CLI/development compatibility, but the desktop settings flow should use `/api/settings` and `SecretStore`.
 
 ### Local Server
 - FastAPI server binds to `127.0.0.1:8000` by default (localhost, local-only).

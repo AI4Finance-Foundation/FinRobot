@@ -29,6 +29,6 @@ describe('FootballField', () => {
   it('renders heading element', () => {
     render(<FootballField data={SAMPLE_DATA} title="Football Field" />)
     const heading = screen.getByText('Football Field')
-    expect(heading.tagName).toBe('H4')
+    expect(heading.tagName).toBe('SPAN')
   })
 })

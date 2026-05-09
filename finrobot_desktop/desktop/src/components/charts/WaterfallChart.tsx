@@ -15,9 +15,19 @@ interface ChartProps {
   title: string
 }
 
-const POSITIVE_COLOR = '#22c55e'
-const NEGATIVE_COLOR = '#ef4444'
-const TOTAL_COLOR = '#1a365d'
+// Design system colors
+const POSITIVE_COLOR = '#34D399'
+const NEGATIVE_COLOR = '#F87171'
+const TOTAL_COLOR = '#C9A84C'
+
+const CHART_TOOLTIP = {
+  backgroundColor: '#1A1F2E',
+  border: '1px solid #252A37',
+  borderRadius: 6,
+  color: '#E8ECF4',
+  fontFamily: "'JetBrains Mono', monospace",
+  fontSize: '0.78rem',
+}
 
 interface WaterfallBar {
   label: string
@@ -28,10 +38,6 @@ interface WaterfallBar {
   fill: string
 }
 
-/**
- * Waterfall chart: each non-total bar floats from a running base.
- * Total bars always start from 0 and go to the cumulative value.
- */
 export default function WaterfallChart({ data, title }: ChartProps) {
   if (!data || data.length === 0) return null
 
@@ -67,48 +73,45 @@ export default function WaterfallChart({ data, title }: ChartProps) {
   }, [data])
 
   return (
-    <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-      <h4 className="text-sm font-medium text-gray-400 mb-3">{title}</h4>
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={bars}>
-          <XAxis
-            dataKey="label"
-            tick={{ fill: '#9ca3af', fontSize: 11 }}
-            axisLine={{ stroke: '#4b5563' }}
-            interval={0}
-            angle={-30}
-            textAnchor="end"
-            height={60}
-          />
-          <YAxis
-            tick={{ fill: '#9ca3af', fontSize: 12 }}
-            axisLine={{ stroke: '#4b5563' }}
-            tickFormatter={(v: number) => `$${v}`}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: '#1f2937',
-              border: '1px solid #374151',
-              borderRadius: 8,
-              color: '#e5e7eb',
-            }}
-            formatter={(_val: number, _name: string, props: { payload: WaterfallBar }) => {
-              const entry = props.payload
-              if (entry.is_total) return [`$${entry.delta.toFixed(0)}`, 'Total']
-              return [`$${entry.value.toFixed(0)}`, entry.value >= 0 ? 'Add' : 'Subtract']
-            }}
-          />
-          <ReferenceLine y={0} stroke="#4b5563" />
-          {/* Invisible base bar */}
-          <Bar dataKey="base" stackId="waterfall" fill="transparent" />
-          {/* Visible delta bar */}
-          <Bar dataKey="delta" stackId="waterfall" radius={[4, 4, 0, 0]}>
-            {bars.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.fill} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+    <div className="card animate-in">
+      <div className="card-header">
+        <span className="card-title">{title}</span>
+      </div>
+      <div className="card-body">
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={bars}>
+            <XAxis
+              dataKey="label"
+              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#252A37' }}
+              interval={0}
+              angle={-30}
+              textAnchor="end"
+              height={60}
+            />
+            <YAxis
+              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#252A37' }}
+              tickFormatter={(v: number) => `$${v}`}
+            />
+            <Tooltip
+              contentStyle={CHART_TOOLTIP}
+              formatter={(_val: number, _name: string, props: { payload: WaterfallBar }) => {
+                const entry = props.payload
+                if (entry.is_total) return [`$${entry.delta.toFixed(0)}`, 'Total']
+                return [`$${entry.value.toFixed(0)}`, entry.value >= 0 ? 'Add' : 'Subtract']
+              }}
+            />
+            <ReferenceLine y={0} stroke="#252A37" />
+            <Bar dataKey="base" stackId="waterfall" fill="transparent" />
+            <Bar dataKey="delta" stackId="waterfall" radius={[3, 3, 0, 0]}>
+              {bars.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.fill} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   )
 }

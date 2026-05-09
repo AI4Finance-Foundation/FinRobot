@@ -29,6 +29,6 @@ describe('PriceChart', () => {
   it('renders heading element', () => {
     render(<PriceChart data={SAMPLE_DATA} title="Price & Volume" />)
     const heading = screen.getByText('Price & Volume')
-    expect(heading.tagName).toBe('H4')
+    expect(heading.tagName).toBe('SPAN')
   })
 })

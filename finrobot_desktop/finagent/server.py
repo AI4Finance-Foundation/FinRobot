@@ -1,3 +1,4 @@
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -5,6 +6,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 from starlette.requests import Request
@@ -13,12 +15,19 @@ from starlette.responses import JSONResponse, Response, StreamingResponse
 from pydantic_ai.ui.vercel_ai import VercelAIAdapter
 
 from finagent.config import get_settings
-from finagent.engine.data.cache import DataCache
+from finagent.data_layer_factory import build_data_layer
 from finagent.engine.data.interface import ProviderError
-from finagent.engine.data.layer import DataLayer
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.orchestrator import build_report_context, create_lead_agent
 from finagent.engine.skills.registry import SkillRegistry
+from finagent.routes.compute import router as compute_router
+from finagent.routes.data import router as data_router
+from finagent.routes.export import router as export_router
+from finagent.routes.runs import router as runs_router
+from finagent.routes.settings import load_non_secret_settings
+from finagent.routes.settings import router as settings_router
+from finagent.run_store import RunStore
+from finagent.secret_store import SecretStore, create_secret_store
 from finagent.web import web_router
 
 
@@ -32,32 +41,34 @@ def _get_pipeline_factories() -> dict[str, Callable[..., Any]]:
     return get_pipeline_factories()
 
 
+async def hydrate_settings_from_secrets(settings: Any, secret_store: SecretStore) -> Any:
+    """Return settings with API keys loaded from SecretStore."""
+    update: dict[str, str] = {}
+    for key in (
+        "anthropic_api_key",
+        "deepseek_api_key",
+        "openai_api_key",
+        "fmp_api_key",
+        "finnhub_api_key",
+    ):
+        value = await secret_store.get(key)
+        if value:
+            update[key] = value
+    return settings.model_copy(update=update)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    settings = get_settings()
+    settings_path = Path.home() / ".finagent" / "settings.json"
+    settings = get_settings(**load_non_secret_settings(settings_path))
+    secret_store = create_secret_store()
+    settings = await hydrate_settings_from_secrets(settings, secret_store)
 
     # Load skills if available
     skills_path = Path(settings.skills_dir)
     registry = SkillRegistry(skills_path) if skills_path.exists() else None
 
-    # Build provider chain: FMP (if key) → Finnhub (if key) → yfinance (always) + SEC EDGAR
-    from finagent.engine.data.providers.yfinance_provider import YFinanceProvider
-    from finagent.engine.data.providers.sec_provider import SECEdgarProvider
-
-    providers: list[Any] = []
-    if settings.fmp_api_key:
-        from finagent.engine.data.providers.fmp_provider import FMPProvider
-
-        providers.append(FMPProvider(api_key=settings.fmp_api_key))
-    if settings.finnhub_api_key:
-        from finagent.engine.data.providers.finnhub_provider import FinnhubProvider
-
-        providers.append(FinnhubProvider(api_key=settings.finnhub_api_key))
-    providers.append(YFinanceProvider())
-    providers.append(SECEdgarProvider(user_agent=settings.sec_user_agent))
-
-    cache = DataCache(settings.cache_db_path)
-    data_layer = DataLayer(providers=providers, cache=cache)
+    data_layer = build_data_layer(settings)
 
     # Create agent
     agent = create_lead_agent(settings, skill_registry=registry)
@@ -67,17 +78,43 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     app.state.agent = agent
     app.state.deps = deps
+    app.state.secret_store = secret_store
+    app.state.settings_path = settings_path
+    app.state.run_store = RunStore()
+    app.state.run_tasks = {}
     app.state.sub_agents = create_sub_agents(
         deps.settings, skill_registry=deps.skill_runtime
     )
     yield
-    await cache.close()
+    for task in list(app.state.run_tasks.values()):
+        if not task.done():
+            task.cancel()
+    # Await cancelled tasks so in-flight pipelines finish cleanup before
+    # we tear down shared resources (data_layer, run_store).
+    await asyncio.gather(*app.state.run_tasks.values(), return_exceptions=True)
+    await data_layer.close()
+    await app.state.run_store.close()
 
 
 # WARNING: This server has no authentication. For local development only.
 # Do not expose to public network without adding auth middleware.
 app = FastAPI(title="FinAgent", lifespan=lifespan)
+
+# CORS: allow Vite dev server origin (electron dev mode uses http://localhost:5173).
+# Production Electron loads from file:// so this has no effect on packaged builds.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(web_router)
+app.include_router(compute_router)
+app.include_router(data_router)
+app.include_router(export_router)
+app.include_router(settings_router)
+app.include_router(runs_router)
 
 
 @app.post("/chat")
@@ -199,7 +236,7 @@ async def pipeline_stream(pipeline_type: str, ticker: str, request: Request) -> 
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {"status": "ready", "phase": "P3"}
+    return {"status": "ready"}
 
 
 @app.get("/api/report/html")

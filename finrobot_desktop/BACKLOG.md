@@ -103,20 +103,20 @@
 
 ### Tier 2 — 数据可信度（P4 前修）
 
-- [ ] **D4: 交叉校验只比对前两个 provider** — `finagent/engine/data/layer.py`。
+- [x] **D4: 交叉校验只比对前两个 provider** — `finagent/engine/data/layer.py`。
   当 FMP/Finnhub/yfinance 三个都启用时，FMP 只和 Finnhub 对账，yfinance 永远不参与。
   两个 TTM 数据源恰好一致时，FY 源本可暴露的差异被错过。
   **决策点**：先定语义——迭代所有后续 provider 合并 discrepancy（推荐），还是
   文档化为「只比对主备两源」？语义定了再动代码。
 
-- [ ] **D5: 交叉校验对空数据 secondary 无告警** — `validator.py` + `layer.py`。
+- [x] **D5: 交叉校验对空数据 secondary 无告警** — `validator.py` + `layer.py`。
   secondary 返回 `DataResult(data={})`（不抛 `ProviderError` 但数据为空）时，
   `cross_validate` 对每个字段都 continue，返回空 list → 用户看不到 secondary 实际没数据。
   真实场景：FMP 免费额度耗尽时返回 error payload 被包成空 `DataResult`。
   **修法**：`cross_validate` 开头检查空数据并返回 explicit warning；`DataLayer.fetch`
   在 secondary 明显为空时跳过而非当作"已校验"。
 
-- [ ] **D6: compact context mode 对纯文本步骤有信息损失** — `pipelines/base.py:_gather_data`。
+- [x] **D6: compact context mode 对纯文本步骤有信息损失** — `pipelines/base.py:_gather_data`。
   Step N-3 及更早的纯文本输出（无 `StepOutput.structured`）在 prompt 里只剩
   `[Previous: xxx — N words]` 占位符，全文丢失。40-60% 节省 claim 没有基准测试佐证。
   **修法**：先量化——跑一次真实 5 步 pipeline，比对 step 5 产出质量是否退化；
@@ -125,24 +125,24 @@
 
 ### Tier 3 — 工程质量（P4 候选）
 
-- [ ] **I1: SSE 端点每次请求重建 5 个 sub-agents** — `server.py`。
+- [x] **I1: SSE 端点每次请求重建 5 个 sub-agents** — `server.py`。
   每次 `/api/pipeline/stream/...` 都调 `create_sub_agents(...)`，重新加载 5 个
   instructions markdown + 初始化 5 个 `Agent`。SDK 的 `_ensure_deps` 会缓存，行为不一致。
   **修法**：在 lifespan 里建好 `app.state.sub_agents`，SSE handler 直接取。
 
-- [ ] **I2: SSE `complete` 事件截断 2000 字** — `server.py`。
+- [x] **I2: SSE `complete` 事件截断 2000 字** — `server.py`。
   `result.format_summary()[:2000]` 截断完整报告，前端可能误以为这就是完整结果。
   **修法**：`complete` 事件改为只返回 `{"event": "complete", "full_report_url":
   "/api/report/html?ticker=..."}`，不内嵌任何内容，强迫消费者走正规通道。
 
-- [ ] **I3: `CliProgress` 在重试时产生乱序终端输出** — `cli.py:CliProgress`。
+- [x] **I3: `CliProgress` 在重试时产生乱序终端输出** — `cli.py:CliProgress`。
   `on_step_start` 用 `nl=False`，但 retry 后的 `on_step_end` 会写出孤立的 ` done (3.2s)`。
   **修法**：retry 后的 end 重新打印步骤名，或全部 progress 改换行模式。
 
-- [ ] **I5: SDK `_sub_agents: dict | None` 类型弱化** — `sdk.py`。
+- [x] **I5: SDK `_sub_agents: dict | None` 类型弱化** — `sdk.py`。
   没有泛型。SDK 是对外契约面，类型应该打满 `dict[str, Agent] | None`。
 
-- [ ] **I6: SDK sync API 与 `DataCache` 的事件循环耦合脆弱** — `sdk.py:_run_sync`。
+- [x] **I6: SDK sync API 与 `DataCache` 的事件循环耦合脆弱** — `sdk.py:_run_sync`。
   持久事件循环 + aiosqlite worker thread 在 `_connection.close()` 返回后可能仍有异步回调
   （测试输出已出现 `Event loop is closed` warning）。多 FinAgent 实例会互相干扰。
   **修法**（任选）：1) `close()` 关 loop 前 `await asyncio.sleep(0)` 让 aiosqlite
@@ -153,10 +153,95 @@
   `layer.py`。能工作，但是 S3 魔法字符串问题的子案例。
   **修法**：`fetch()` 开头 `data_type = DataType(data_type)` 强制类型化。
 
+## P7: FinRobot 完整功能对标 + 报告质量修复
+
+> Spec: `specs/P7.md` + `specs/P7-fixes.md`
+
+### Track 0 — 报告质量修复
+- [x] 0.1: 删除中英文重复翻译
+- [x] 0.2: Markdown → HTML 渲染（`_markdown_to_html` filter）
+- [x] 0.3: 公司名显示修复（`company_name` 字段透传）
+- [x] 0.4: auto_bold filter 接入模板
+
+### Track A — 量化回测
+- [x] A.1: 回测引擎抽象层（`BacktestConfig`/`BacktestResult`/`BacktestEngine`）
+- [x] A.2: BackTrader 适配器（SMA 策略 + 4 分析器 + equity curve PNG）
+- [x] A.3: CLI `finagent backtest`
+- [x] A.4: SDK `abacktest`/`backtest`
+- [x] A.5: LLM 策略选择 agent（`run_strategy_selection`）
+
+### Track B — 独立财务分析
+- [x] B.1: CLI `finagent analyze`（6 种分析类型）
+- [x] B.2: 分析指令库（`prompts.py`）
+- [x] B.3: SDK `aanalyze`/`analyze`
+
+### Track C — RAG Q&A
+- [x] C.1: CLI `finagent ask`
+- [x] C.2: 可选 embedding RAG（`EmbeddingIndex`，numpy cosine similarity）
+- [x] C.3: SDK `aask`/`ask`
+
+### Track D — Web App
+- [x] D.1: Web 前端（FastAPI + Jinja2 + Tailwind CDN）
+- [x] D.2: 任务管理（`tasks.py`，SSE streaming）
+- [x] D.3: 集成到 `server.py`
+- [x] D.4: 部署脚本（`deploy.sh`）
+
+### Track E — Tutorials
+- [x] E.1: `tutorials/01_equity_research.ipynb`
+- [x] E.2: `tutorials/02_dcf_valuation.ipynb`
+- [x] E.3: `tutorials/03_backtest.ipynb`
+- [x] E.4: `tutorials/04_rag_qa.ipynb`
+
+## Desktop V1 Rewrite (Current)
+
+> Spec: `PHASE2-desktop-rewrite.md` + `SPEC-desktop-v1.md`
+
+### Phase 1 — 功能连通（完成）
+- [x] OpenAPI 类型生成 + openapi-fetch client
+- [x] React Query + Zustand 状态管理
+- [x] Settings 视图（keychain 存储 API keys）
+- [x] TickerWorkspace 主视图（单页工作流）
+- [x] FinancialsPanel（实时数据）
+- [x] PipelineRunner（SSE 进度流）
+- [x] AssumptionsEditor（DCF 假设滑块）
+- [x] ValuationCard + SensitivityHeatmap + WaterfallChart
+- [x] ExportBar（Excel/HTML/PDF）
+- [x] WarningBanner（数据质量警告）
+- [x] 后端路由拆分（settings/compute/data/export/runs）
+- [x] 端口从 8000 改为 8321（避免与其他服务冲突）
+
+### Phase 2 — UI 打磨（待做）
+- [ ] 专业金融界面视觉升级（配色/排版/间距/卡片设计）
+- [ ] 左右双栏布局（左栏操作面板，右栏分析结果）
+- [ ] 图表交互增强（tooltip/zoom/切换时间段）
+- [ ] 加载状态/骨架屏/动画过渡
+- [ ] 响应式布局适配
+
 ## P4: Packaging + Memory (Future)
 - [ ] Memory system（跨会话上下文）
 - [ ] Skill composition（链式 skill 组合）
 - [ ] PyInstaller + electron-builder（可执行文件分发）
+
+## Future — QuantDinger 借鉴项
+
+> 参考项目: QuantDinger (`/Desktop/code/Fin/QuantDinger`)
+> 成熟的量化交易平台，以下功能可直接参考其实现模式。
+
+### 数据源架构升级
+- [ ] DataSourceFactory 模式重构 — 参考 QuantDinger `data_sources/factory.py`，统一归一化返回格式，新增 provider 不碰上层代码
+- [ ] A 股数据源（akshare） — 参考 `akshare_data_source.py`，解决 A 股/港股数据空白
+- [ ] 港股数据源（腾讯接口） — 参考 `tencent_data_source.py`
+- [ ] 断路器（Circuit Breaker） — provider 连续失败时自动熔断，防止拖慢整个 pipeline
+- [ ] 数据源缓存分层（TTL 按 timeframe 差异化：日内 5m / 日线 30m）
+
+### Agent 集成（MCP Gateway）
+- [ ] MCP Server — 参考 QuantDinger `mcp_server/`，让 Claude/Cursor/Codex 直接调用 FinAgent 做分析
+- [ ] Agent Token 认证 — 独立于用户 session，scope 控制（R=Read/W=Write/B=Backtest）
+- [ ] 审计日志 — 每次 Agent 调用记录参数和结果
+
+### AI 分析闭环
+- [ ] 分析校准反馈环 — 参考 `FastAnalysisService`，记录分析结论 + 后续市场表现，校准信号阈值
+- [ ] 分析记忆/RAG — 跨会话积累分析上下文，避免重复工作
 
 ## Future Optimizations
 - [ ] CLI streaming output: use agent.run_stream() instead of run_sync() for real-time text output

@@ -139,8 +139,7 @@ async def _execute_peer_analysis(
         try:
             fin_result = await deps.data_layer.fetch(DataType.FINANCIALS, peer_ticker)
             company = extract_company_financials(fin_result)
-            calculate_multiples(company)
-            return company
+            return calculate_multiples(company)
         except (ProviderError, ValueError, KeyError, ArithmeticError) as e:
             logger.warning(f"Skipping peer {peer_ticker}: {e}")
             return None
@@ -171,14 +170,14 @@ async def _execute_peer_analysis(
         gross_margin=target_fin.income.gross_margin,
         operating_margin=target_fin.income.operating_margin,
     )
-    calculate_multiples(target)
+    target = calculate_multiples(target)
 
     peer_comps = PeerComps(
         target=target,
         peers=peers,
         peer_justification=selection.rationale,
     )
-    calculate_peer_statistics(peer_comps)
+    peer_comps = calculate_peer_statistics(peer_comps)
 
     ev_ebitda_str = (
         f"{peer_comps.median_ev_ebitda:.1f}x" if peer_comps.median_ev_ebitda is not None else "N/A"

@@ -13,10 +13,20 @@ interface ChartProps {
   title: string
 }
 
+// Design system chart palette
 const COLORS = {
-  gross_margin: '#d4a843',
-  ebitda_margin: '#1a365d',
-  operating_margin: '#6b7280',
+  gross_margin: '#34D399',   // chart-3 (green)
+  ebitda_margin: '#C9A84C',  // chart-2 (gold)
+  operating_margin: '#60A5FA', // chart-1 (blue)
+}
+
+const CHART_TOOLTIP = {
+  backgroundColor: '#1A1F2E',
+  border: '1px solid #252A37',
+  borderRadius: 6,
+  color: '#E8ECF4',
+  fontFamily: "'JetBrains Mono', monospace",
+  fontSize: '0.78rem',
 }
 
 function formatPercent(value: number): string {
@@ -27,56 +37,56 @@ export default function MarginTrendChart({ data, title }: ChartProps) {
   if (!data || data.length === 0) return null
 
   return (
-    <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-      <h4 className="text-sm font-medium text-gray-400 mb-3">{title}</h4>
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data}>
-          <XAxis
-            dataKey="year"
-            tick={{ fill: '#9ca3af', fontSize: 12 }}
-            axisLine={{ stroke: '#4b5563' }}
-          />
-          <YAxis
-            tickFormatter={formatPercent}
-            tick={{ fill: '#9ca3af', fontSize: 12 }}
-            axisLine={{ stroke: '#4b5563' }}
-          />
-          <Tooltip
-            formatter={(value: number) => formatPercent(value)}
-            contentStyle={{
-              backgroundColor: '#1f2937',
-              border: '1px solid #374151',
-              borderRadius: 8,
-              color: '#e5e7eb',
-            }}
-          />
-          <Legend wrapperStyle={{ color: '#9ca3af' }} />
-          <Line
-            type="monotone"
-            dataKey="gross_margin"
-            name="Gross Margin"
-            stroke={COLORS.gross_margin}
-            strokeWidth={2}
-            dot={{ r: 4, fill: COLORS.gross_margin }}
-          />
-          <Line
-            type="monotone"
-            dataKey="ebitda_margin"
-            name="EBITDA Margin"
-            stroke={COLORS.ebitda_margin}
-            strokeWidth={2}
-            dot={{ r: 4, fill: COLORS.ebitda_margin }}
-          />
-          <Line
-            type="monotone"
-            dataKey="operating_margin"
-            name="Operating Margin"
-            stroke={COLORS.operating_margin}
-            strokeWidth={2}
-            dot={{ r: 4, fill: COLORS.operating_margin }}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+    <div className="card animate-in">
+      <div className="card-header">
+        <span className="card-title">{title}</span>
+      </div>
+      <div className="card-body">
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart data={data}>
+            <XAxis
+              dataKey="year"
+              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#252A37' }}
+            />
+            <YAxis
+              tickFormatter={formatPercent}
+              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#252A37' }}
+            />
+            <Tooltip
+              formatter={(value: number) => formatPercent(value)}
+              contentStyle={CHART_TOOLTIP}
+            />
+            <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />
+            <Line
+              type="monotone"
+              dataKey="gross_margin"
+              name="Gross"
+              stroke={COLORS.gross_margin}
+              strokeWidth={2}
+              dot={{ r: 3, fill: COLORS.gross_margin }}
+            />
+            <Line
+              type="monotone"
+              dataKey="ebitda_margin"
+              name="EBITDA"
+              stroke={COLORS.ebitda_margin}
+              strokeWidth={2}
+              dot={{ r: 3, fill: COLORS.ebitda_margin }}
+            />
+            <Line
+              type="monotone"
+              dataKey="operating_margin"
+              name="Operating"
+              stroke={COLORS.operating_margin}
+              strokeWidth={2}
+              dot={{ r: 3, fill: COLORS.operating_margin }}
+              opacity={0.7}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   )
 }

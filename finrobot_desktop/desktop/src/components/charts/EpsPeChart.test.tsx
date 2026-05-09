@@ -29,6 +29,6 @@ describe('EpsPeChart', () => {
   it('renders heading element', () => {
     render(<EpsPeChart data={SAMPLE_DATA} title="EPS & P/E" />)
     const heading = screen.getByText('EPS & P/E')
-    expect(heading.tagName).toBe('H4')
+    expect(heading.tagName).toBe('SPAN')
   })
 })

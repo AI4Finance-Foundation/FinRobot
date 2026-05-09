@@ -145,7 +145,7 @@ class TestNumericalCorrectness:
             market_cap=500, total_debt=30, total_cash=10,
             gross_margin=0.4, operating_margin=0.2,
         )
-        calculate_multiples(c)
+        c = calculate_multiples(c)
         # EV = 500 + 30 - 10 = 520
         assert abs(c.enterprise_value - 520) < 1e-9
         assert abs(c.ev_ebitda - 520/35) < 1e-9

@@ -14,81 +14,90 @@ interface ChartProps {
   title: string
 }
 
-const PRIMARY = '#1a365d'
-const ACCENT = '#d4a843'
+// Design system chart palette
+const EPS_COLOR = '#60A5FA'   // chart-1
+const PE_COLOR = '#C9A84C'    // chart-2
+
+const CHART_TOOLTIP = {
+  backgroundColor: '#1A1F2E',
+  border: '1px solid #252A37',
+  borderRadius: 6,
+  color: '#E8ECF4',
+  fontFamily: "'JetBrains Mono', monospace",
+  fontSize: '0.78rem',
+}
 
 export default function EpsPeChart({ data, title }: ChartProps) {
   if (!data || data.length === 0) return null
 
   return (
-    <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-      <h4 className="text-sm font-medium text-gray-400 mb-3">{title}</h4>
-      <ResponsiveContainer width="100%" height={300}>
-        <ComposedChart data={data}>
-          <XAxis
-            dataKey="year"
-            tick={{ fill: '#9ca3af', fontSize: 12 }}
-            axisLine={{ stroke: '#4b5563' }}
-          />
-          <YAxis
-            yAxisId="eps"
-            orientation="left"
-            tick={{ fill: '#9ca3af', fontSize: 12 }}
-            axisLine={{ stroke: '#4b5563' }}
-            tickFormatter={(v: number) => `$${v.toFixed(2)}`}
-            label={{
-              value: 'EPS',
-              angle: -90,
-              position: 'insideLeft',
-              fill: '#9ca3af',
-              fontSize: 12,
-            }}
-          />
-          <YAxis
-            yAxisId="pe"
-            orientation="right"
-            tick={{ fill: '#9ca3af', fontSize: 12 }}
-            axisLine={{ stroke: '#4b5563' }}
-            tickFormatter={(v: number) => `${v.toFixed(0)}x`}
-            label={{
-              value: 'P/E',
-              angle: 90,
-              position: 'insideRight',
-              fill: '#9ca3af',
-              fontSize: 12,
-            }}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: '#1f2937',
-              border: '1px solid #374151',
-              borderRadius: 8,
-              color: '#e5e7eb',
-            }}
-            formatter={(value: number, name: string) => {
-              if (name === 'P/E Ratio') return [`${value.toFixed(1)}x`, name]
-              return [`$${value.toFixed(2)}`, name]
-            }}
-          />
-          <Legend wrapperStyle={{ color: '#9ca3af' }} />
-          <Bar
-            yAxisId="eps"
-            dataKey="eps"
-            name="EPS"
-            fill={PRIMARY}
-            radius={[4, 4, 0, 0]}
-          />
-          <Line
-            yAxisId="pe"
-            type="monotone"
-            dataKey="pe_ratio"
-            name="P/E Ratio"
-            stroke={ACCENT}
-            strokeWidth={2}
-            dot={{ r: 4, fill: ACCENT }}
-          />
-        </ComposedChart>
-      </ResponsiveContainer>
+    <div className="card animate-in">
+      <div className="card-header">
+        <span className="card-title">{title}</span>
+      </div>
+      <div className="card-body">
+        <ResponsiveContainer width="100%" height={260}>
+          <ComposedChart data={data}>
+            <XAxis
+              dataKey="year"
+              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#252A37' }}
+            />
+            <YAxis
+              yAxisId="eps"
+              orientation="left"
+              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#252A37' }}
+              tickFormatter={(v: number) => `$${v.toFixed(2)}`}
+              label={{
+                value: 'EPS',
+                angle: -90,
+                position: 'insideLeft',
+                fill: '#7A8299',
+                fontSize: 11,
+              }}
+            />
+            <YAxis
+              yAxisId="pe"
+              orientation="right"
+              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#252A37' }}
+              tickFormatter={(v: number) => `${v.toFixed(0)}x`}
+              label={{
+                value: 'P/E',
+                angle: 90,
+                position: 'insideRight',
+                fill: '#7A8299',
+                fontSize: 11,
+              }}
+            />
+            <Tooltip
+              contentStyle={CHART_TOOLTIP}
+              formatter={(value: number, name: string) => {
+                if (name === 'P/E Ratio') return [`${value.toFixed(1)}x`, name]
+                return [`$${value.toFixed(2)}`, name]
+              }}
+            />
+            <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />
+            <Bar
+              yAxisId="eps"
+              dataKey="eps"
+              name="EPS"
+              fill={EPS_COLOR}
+              radius={[3, 3, 0, 0]}
+            />
+            <Line
+              yAxisId="pe"
+              type="monotone"
+              dataKey="pe_ratio"
+              name="P/E Ratio"
+              stroke={PE_COLOR}
+              strokeWidth={2}
+              dot={{ r: 3, fill: PE_COLOR }}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   )
 }

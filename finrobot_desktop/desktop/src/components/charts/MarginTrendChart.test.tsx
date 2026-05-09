@@ -29,6 +29,6 @@ describe('MarginTrendChart', () => {
   it('renders heading element', () => {
     render(<MarginTrendChart data={SAMPLE_DATA} title="Margin Trends" />)
     const heading = screen.getByText('Margin Trends')
-    expect(heading.tagName).toBe('H4')
+    expect(heading.tagName).toBe('SPAN')
   })
 })

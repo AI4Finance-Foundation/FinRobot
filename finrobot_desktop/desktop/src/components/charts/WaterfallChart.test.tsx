@@ -31,6 +31,6 @@ describe('WaterfallChart', () => {
   it('renders heading element', () => {
     render(<WaterfallChart data={SAMPLE_DATA} title="P&L Waterfall" />)
     const heading = screen.getByText('P&L Waterfall')
-    expect(heading.tagName).toBe('H4')
+    expect(heading.tagName).toBe('SPAN')
   })
 })

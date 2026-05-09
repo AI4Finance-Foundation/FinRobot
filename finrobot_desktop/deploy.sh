@@ -5,7 +5,7 @@
 set -euo pipefail
 
 HOST="${FINAGENT_HOST:-127.0.0.1}"
-PORT="${FINAGENT_PORT:-8000}"
+PORT="${FINAGENT_PORT:-8321}"
 
 case "${1:-help}" in
   start)

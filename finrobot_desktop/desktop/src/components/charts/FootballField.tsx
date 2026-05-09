@@ -14,16 +14,18 @@ interface ChartProps {
   title: string
 }
 
-const COLORS = ['#1a365d', '#d4a843', '#6b7280', '#3b82f6', '#10b981', '#f59e0b']
+// Design system chart palette
+const COLORS = ['#60A5FA', '#C9A84C', '#34D399', '#A78BFA', '#FB923C', '#F87171']
 
-/**
- * Football field chart: horizontal stacked bars showing valuation ranges.
- *
- * Each row is a valuation method. The bar spans from `low` to `high`,
- * with `mid` shown as a reference dot. We achieve the floating bar by
- * using a transparent "base" bar (from 0 to low) plus a visible "range"
- * bar (from low to high).
- */
+const CHART_TOOLTIP = {
+  backgroundColor: '#1A1F2E',
+  border: '1px solid #252A37',
+  borderRadius: 6,
+  color: '#E8ECF4',
+  fontFamily: "'JetBrains Mono', monospace",
+  fontSize: '0.78rem',
+}
+
 export default function FootballField({ data, title }: ChartProps) {
   if (!data || data.length === 0) return null
 
@@ -37,55 +39,51 @@ export default function FootballField({ data, title }: ChartProps) {
   }))
 
   return (
-    <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-      <h4 className="text-sm font-medium text-gray-400 mb-3">{title}</h4>
-      <ResponsiveContainer width="100%" height={Math.max(200, shaped.length * 50 + 60)}>
-        <BarChart data={shaped} layout="vertical" barSize={20}>
-          <XAxis
-            type="number"
-            tick={{ fill: '#9ca3af', fontSize: 12 }}
-            axisLine={{ stroke: '#4b5563' }}
-            tickFormatter={(v: number) => `$${v}`}
-          />
-          <YAxis
-            type="category"
-            dataKey="method"
-            tick={{ fill: '#9ca3af', fontSize: 12 }}
-            axisLine={{ stroke: '#4b5563' }}
-            width={100}
-          />
-          <Tooltip
-            formatter={(value: number, name: string) => {
-              if (name === 'base') return [null, null]
-              return [`$${value.toFixed(0)}`, 'Range']
-            }}
-            contentStyle={{
-              backgroundColor: '#1f2937',
-              border: '1px solid #374151',
-              borderRadius: 8,
-              color: '#e5e7eb',
-            }}
-          />
-          {/* Invisible base bar */}
-          <Bar dataKey="base" stackId="stack" fill="transparent" />
-          {/* Visible range bar */}
-          <Bar dataKey="range" stackId="stack" radius={[0, 4, 4, 0]}>
-            {shaped.map((_, index) => (
-              <Cell key={`range-${index}`} fill={COLORS[index % COLORS.length]} />
-            ))}
-          </Bar>
-          {/* Mid-point reference lines */}
-          {shaped.map((entry) => (
-            <ReferenceLine
-              key={`mid-${entry.method}`}
-              x={entry.mid}
-              stroke="#e5e7eb"
-              strokeDasharray="3 3"
-              strokeWidth={1}
+    <div className="card animate-in">
+      <div className="card-header">
+        <span className="card-title">{title}</span>
+      </div>
+      <div className="card-body">
+        <ResponsiveContainer width="100%" height={Math.max(200, shaped.length * 50 + 60)}>
+          <BarChart data={shaped} layout="vertical" barSize={20}>
+            <XAxis
+              type="number"
+              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#252A37' }}
+              tickFormatter={(v: number) => `$${v}`}
             />
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
+            <YAxis
+              type="category"
+              dataKey="method"
+              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#252A37' }}
+              width={100}
+            />
+            <Tooltip
+              formatter={(value: number, name: string) => {
+                if (name === 'base') return [null, null]
+                return [`$${value.toFixed(0)}`, 'Range']
+              }}
+              contentStyle={CHART_TOOLTIP}
+            />
+            <Bar dataKey="base" stackId="stack" fill="transparent" />
+            <Bar dataKey="range" stackId="stack" radius={[0, 3, 3, 0]}>
+              {shaped.map((_, index) => (
+                <Cell key={`range-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Bar>
+            {shaped.map((entry) => (
+              <ReferenceLine
+                key={`mid-${entry.method}`}
+                x={entry.mid}
+                stroke="#252A37"
+                strokeDasharray="3 3"
+                strokeWidth={1}
+              />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   )
 }

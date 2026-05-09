@@ -1,63 +1,110 @@
 import { create } from 'zustand'
 
-interface Settings {
-  fmpApiKey: string
-  finnhubApiKey: string
-  anthropicApiKey: string
-  deepseekApiKey: string
-  openaiApiKey: string
-  modelName: string
-  secUserAgent: string
-  dataSourcePriority: string[]
+type Phase =
+  | 'idle'
+  | 'loading_data'
+  | 'data_ready'
+  | 'running_pipeline'
+  | 'pipeline_done'
+  | 'interactive'
+
+export interface DCFInputs {
+  revenue_base: number
+  revenue_growth_rates: number[]
+  ebitda_margin: number
+  capex_pct_revenue: number
+  nwc_pct_revenue: number
+  da_pct_revenue?: number
+  tax_rate: number
+  risk_free_rate: number
+  beta: number
+  equity_risk_premium: number
+  cost_of_debt: number
+  debt_ratio: number
+  terminal_growth_rate: number
+  shares_outstanding: number
+  net_debt: number
 }
 
-interface AppState {
-  // Current analysis
+export interface DCFResult {
+  cost_of_equity: number
+  wacc: number
+  projection_years: number
+  projected_revenue: number[]
+  projected_ebitda: number[]
+  projected_fcf: number[]
+  terminal_value: number
+  pv_terminal: number
+  pv_fcf_total: number
+  enterprise_value: number
+  equity_value: number
+  implied_price: number
+  sensitivity_table: unknown
+  inputs: DCFInputs
+  fcf_formula: string
+  fcf_formula_warning: string | null
+}
+
+export interface SensitivityResult {
+  wacc_values: number[]
+  tg_values: number[]
+  implied_prices: (number | null)[][]
+}
+
+interface WorkspaceState {
+  // UI state
   ticker: string
-  setTicker: (ticker: string) => void
+  phase: Phase
 
-  // Settings
-  settings: Settings
-  updateSettings: (partial: Partial<Settings>) => void
+  // Financial data warnings
+  warnings: string[]
 
-  // Analysis history
-  analysisHistory: Array<{ ticker: string; timestamp: number; type: string }>
-  addToHistory: (entry: { ticker: string; type: string }) => void
+  // DCF state (filled after pipeline, updated on slider changes)
+  dcfInputs: DCFInputs | null
+  originalDcfInputs: DCFInputs | null
+  dcfResult: DCFResult | null
+  sensitivityData: SensitivityResult | null
+  currentPrice: number | null
 
-  // Theme
-  theme: 'dark' | 'light'
-  toggleTheme: () => void
+  // Settings UI
+  showSettings: boolean
+
+  // Actions
+  setTicker: (t: string) => void
+  setPhase: (p: Phase) => void
+  setWarnings: (w: string[]) => void
+  setDcfInputs: (inputs: DCFInputs) => void
+  setOriginalDcfInputs: (inputs: DCFInputs) => void
+  setDcfResult: (result: DCFResult) => void
+  setSensitivityData: (data: SensitivityResult) => void
+  setCurrentPrice: (price: number) => void
+  setShowSettings: (show: boolean) => void
+  reset: () => void
 }
 
-const defaultSettings: Settings = {
-  fmpApiKey: '',
-  finnhubApiKey: '',
-  anthropicApiKey: '',
-  deepseekApiKey: '',
-  openaiApiKey: '',
-  modelName: 'claude-sonnet-4-20250514',
-  secUserAgent: '',
-  dataSourcePriority: ['fmp', 'finnhub', 'yfinance'],
-}
-
-export const useAppStore = create<AppState>((set) => ({
+const initialState = {
   ticker: '',
+  phase: 'idle' as Phase,
+  warnings: [] as string[],
+  dcfInputs: null,
+  originalDcfInputs: null,
+  dcfResult: null,
+  sensitivityData: null,
+  currentPrice: null,
+  showSettings: false,
+}
+
+export const useAppStore = create<WorkspaceState>((set) => ({
+  ...initialState,
+
   setTicker: (ticker) => set({ ticker }),
-
-  settings: { ...defaultSettings },
-  updateSettings: (partial) =>
-    set((state) => ({ settings: { ...state.settings, ...partial } })),
-
-  analysisHistory: [],
-  addToHistory: (entry) =>
-    set((state) => ({
-      analysisHistory: [
-        { ...entry, timestamp: Date.now() },
-        ...state.analysisHistory.slice(0, 49), // Keep last 50
-      ],
-    })),
-
-  theme: 'dark',
-  toggleTheme: () =>
-    set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
+  setPhase: (phase) => set({ phase }),
+  setWarnings: (warnings) => set({ warnings }),
+  setDcfInputs: (dcfInputs) => set({ dcfInputs }),
+  setOriginalDcfInputs: (originalDcfInputs) => set({ originalDcfInputs }),
+  setDcfResult: (dcfResult) => set({ dcfResult }),
+  setSensitivityData: (sensitivityData) => set({ sensitivityData }),
+  setCurrentPrice: (currentPrice) => set({ currentPrice }),
+  setShowSettings: (showSettings) => set({ showSettings }),
+  reset: () => set(initialState),
 }))

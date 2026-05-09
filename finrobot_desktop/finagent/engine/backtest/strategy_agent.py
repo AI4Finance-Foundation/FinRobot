@@ -156,5 +156,6 @@ async def run_strategy_selection(
             }
         )
 
-    assert best_result is not None  # At least one iteration always runs
+    if best_result is None:
+        raise RuntimeError("No successful backtest result after all iterations")
     return best_result

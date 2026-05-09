@@ -31,6 +31,6 @@ describe('CompanyRadarChart', () => {
   it('renders heading element', () => {
     render(<CompanyRadarChart data={SAMPLE_DATA} title="Company Radar" />)
     const heading = screen.getByText('Company Radar')
-    expect(heading.tagName).toBe('H4')
+    expect(heading.tagName).toBe('SPAN')
   })
 })

@@ -86,14 +86,7 @@ class BackTraderAdapter(BacktestEngine):
         """Synchronous backtest execution."""
         import backtrader as bt
 
-        cerebro = bt.Cerebro()
-        cerebro.broker.setcash(config.initial_cash)
-
-        # Load price data via yfinance
-        data = self._load_data(config)
-        cerebro.adddata(data)
-
-        # Validate SMA params before adding strategy
+        # Validate SMA params before any I/O
         if config.strategy == "sma_crossover":
             fast = config.strategy_params.get("fast", 10)
             slow = config.strategy_params.get("slow", 30)
@@ -103,6 +96,13 @@ class BackTraderAdapter(BacktestEngine):
                         f"SMA crossover requires fast ({fast}) < slow ({slow}). "
                         f"Swap the values or adjust parameters."
                     )
+
+        cerebro = bt.Cerebro()
+        cerebro.broker.setcash(config.initial_cash)
+
+        # Load price data via yfinance
+        data = self._load_data(config)
+        cerebro.adddata(data)
 
         # Add strategy
         strategy_cls = self._resolve_strategy(config.strategy)

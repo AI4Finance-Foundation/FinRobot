@@ -25,6 +25,13 @@ export default defineConfig({
   renderer: {
     plugins: [react(), tailwindcss()],
     root: resolve(__dirname, '.'),
+    server: {
+      proxy: {
+        '/api': 'http://127.0.0.1:8321',
+        '/health': 'http://127.0.0.1:8321',
+        '/openapi.json': 'http://127.0.0.1:8321',
+      },
+    },
     build: {
       outDir: 'out/renderer',
       rollupOptions: {

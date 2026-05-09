@@ -431,7 +431,7 @@ def analyze(ticker: str, analysis_type: str, model: str | None) -> None:
 
 @cli.command()
 @click.option("--host", default="127.0.0.1", show_default=True, help="Bind address")
-@click.option("--port", default=8000, show_default=True)
+@click.option("--port", default=8321, show_default=True)
 def serve(host: str, port: int) -> None:
     """Start the FinAgent server."""
     import uvicorn

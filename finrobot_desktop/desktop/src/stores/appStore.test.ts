@@ -3,21 +3,7 @@ import { useAppStore } from './appStore'
 
 describe('appStore', () => {
   beforeEach(() => {
-    useAppStore.setState({
-      ticker: '',
-      settings: {
-        fmpApiKey: '',
-        finnhubApiKey: '',
-        anthropicApiKey: '',
-        deepseekApiKey: '',
-        openaiApiKey: '',
-        modelName: 'claude-sonnet-4-20250514',
-        secUserAgent: '',
-        dataSourcePriority: ['fmp', 'finnhub', 'yfinance'],
-      },
-      analysisHistory: [],
-      theme: 'dark',
-    })
+    useAppStore.getState().reset()
   })
 
   it('sets ticker', () => {
@@ -25,21 +11,45 @@ describe('appStore', () => {
     expect(useAppStore.getState().ticker).toBe('AAPL')
   })
 
-  it('updates settings partially', () => {
-    useAppStore.getState().updateSettings({ fmpApiKey: 'test-key' })
-    expect(useAppStore.getState().settings.fmpApiKey).toBe('test-key')
-    expect(useAppStore.getState().settings.modelName).toBe('claude-sonnet-4-20250514')
+  it('sets phase', () => {
+    useAppStore.getState().setPhase('data_ready')
+    expect(useAppStore.getState().phase).toBe('data_ready')
   })
 
-  it('adds to history', () => {
-    useAppStore.getState().addToHistory({ ticker: 'AAPL', type: 'research' })
-    const history = useAppStore.getState().analysisHistory
-    expect(history).toHaveLength(1)
-    expect(history[0].ticker).toBe('AAPL')
+  it('sets and resets DCF inputs', () => {
+    const inputs = {
+      revenue_base: 1e9,
+      revenue_growth_rates: [0.05, 0.05],
+      ebitda_margin: 0.35,
+      capex_pct_revenue: 0.04,
+      nwc_pct_revenue: 0.02,
+      tax_rate: 0.21,
+      risk_free_rate: 0.043,
+      beta: 1.2,
+      equity_risk_premium: 0.055,
+      cost_of_debt: 0.035,
+      debt_ratio: 0.15,
+      terminal_growth_rate: 0.025,
+      shares_outstanding: 1e8,
+      net_debt: 2e8,
+    }
+    useAppStore.getState().setDcfInputs(inputs)
+    expect(useAppStore.getState().dcfInputs).toEqual(inputs)
+
+    useAppStore.getState().reset()
+    expect(useAppStore.getState().dcfInputs).toBeNull()
+    expect(useAppStore.getState().ticker).toBe('')
+    expect(useAppStore.getState().phase).toBe('idle')
   })
 
-  it('toggles theme', () => {
-    useAppStore.getState().toggleTheme()
-    expect(useAppStore.getState().theme).toBe('light')
+  it('sets warnings', () => {
+    useAppStore.getState().setWarnings(['test warning'])
+    expect(useAppStore.getState().warnings).toEqual(['test warning'])
+  })
+
+  it('tracks showSettings', () => {
+    expect(useAppStore.getState().showSettings).toBe(false)
+    useAppStore.getState().setShowSettings(true)
+    expect(useAppStore.getState().showSettings).toBe(true)
   })
 })

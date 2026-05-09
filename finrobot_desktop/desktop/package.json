@@ -13,14 +13,20 @@
     "prebuild:dist": "node scripts/prepare-uv.mjs",
     "dist:mac": "npm run prebuild:dist && electron-vite build && electron-builder --mac",
     "dist:win": "npm run prebuild:dist && electron-vite build && electron-builder --win",
+    "generate:api": "npx openapi-typescript http://127.0.0.1:8321/openapi.json -o src/api/schema.d.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@fontsource/dm-sans": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@tanstack/react-query": "^5.100.9",
     "electron-store": "^11.0.2",
+    "openapi-fetch": "^0.17.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^3.8.1",
+    "use-debounce": "^10.1.1",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
@@ -39,6 +45,7 @@
     "eslint-plugin-react": "^7.37",
     "eslint-plugin-react-hooks": "^5.0",
     "jsdom": "^29.0.1",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.4",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.6.0",
@@ -82,6 +89,13 @@
       {
         "from": "build/uv-sidecar",
         "to": "."
+      },
+      {
+        "from": "../skills",
+        "to": "skills",
+        "filter": [
+          "**/*"
+        ]
       }
     ]
   }

@@ -29,6 +29,6 @@ describe('RevenueEbitdaChart', () => {
   it('renders container with correct styling', () => {
     render(<RevenueEbitdaChart data={SAMPLE_DATA} title="Revenue & EBITDA" />)
     const heading = screen.getByText('Revenue & EBITDA')
-    expect(heading.tagName).toBe('H4')
+    expect(heading.tagName).toBe('SPAN')
   })
 })

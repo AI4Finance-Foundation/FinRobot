@@ -29,8 +29,8 @@ export class ErrorBoundary extends Component<Props, State> {
         <div
           style={{
             padding: 40,
-            color: '#c9d1d9',
-            background: '#0f1117',
+            color: 'var(--text-primary)',
+            background: 'var(--base)',
             minHeight: '100vh',
             display: 'flex',
             flexDirection: 'column',
@@ -39,7 +39,7 @@ export class ErrorBoundary extends Component<Props, State> {
           }}
         >
           <h2>Something went wrong</h2>
-          <p style={{ color: '#f85149', maxWidth: 600, wordBreak: 'break-word' }}>
+          <p style={{ color: 'var(--negative)', maxWidth: 600, wordBreak: 'break-word' }}>
             {this.state.error?.message}
           </p>
           <button
@@ -47,8 +47,8 @@ export class ErrorBoundary extends Component<Props, State> {
             style={{
               marginTop: 16,
               padding: '8px 16px',
-              background: '#1f6feb',
-              color: 'white',
+              background: 'var(--info)',
+              color: 'var(--base)',
               border: 'none',
               borderRadius: 6,
               cursor: 'pointer',

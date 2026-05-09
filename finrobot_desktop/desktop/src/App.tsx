@@ -1,54 +1,79 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { QueryClientProvider, useQuery } from '@tanstack/react-query'
+import { queryClient } from './api/queryClient'
+import { api } from './api/client'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import ResearchView from './components/ResearchView'
-import DCFView from './components/DCFView'
-import CompsView from './components/CompsView'
-import SettingsView from './components/SettingsView'
+import SettingsView from './views/SettingsView'
+import TickerWorkspace from './views/TickerWorkspace'
 
-type View = 'research' | 'dcf' | 'comps' | 'settings'
+function AppInner() {
+  const [forceSettings, setForceSettings] = useState(false)
 
-export default function App() {
-  const [view, setView] = useState<View>('research')
+  const {
+    data: settings,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ['settings'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/settings')
+      if (error) throw new Error('Failed to load settings')
+      return data
+    },
+  })
+
+  // Determine if the required provider key is set
+  const settingsReady = (() => {
+    if (!settings) return false
+    const provider = settings.model_name.split(':')[0]
+    if (provider === 'test') return true
+    const keyField = `${provider}_api_key_set` as keyof typeof settings
+    return Boolean(settings[keyField])
+  })()
+
+  const showSettings = forceSettings || (!isLoading && !settingsReady)
+
+  if (isLoading) {
+    return (
+      <div className="app" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: 'var(--text-secondary)' }}>Connecting to backend...</div>
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="app" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: 'var(--negative)' }}>
+          Failed to connect to backend. Make sure the server is running.
+        </div>
+      </div>
+    )
+  }
+
+  if (showSettings) {
+    return (
+      <div className="app">
+        <SettingsView
+          onComplete={() => setForceSettings(false)}
+        />
+      </div>
+    )
+  }
 
   return (
-    <ErrorBoundary>
-      <div className="app">
-        <nav className="nav">
-          <span className="nav-title">FinAgent</span>
-          <div className="nav-tabs">
-            <button
-              className={view === 'research' ? 'active' : ''}
-              onClick={() => setView('research')}
-            >
-              Research
-            </button>
-            <button
-              className={view === 'dcf' ? 'active' : ''}
-              onClick={() => setView('dcf')}
-            >
-              DCF
-            </button>
-            <button
-              className={view === 'comps' ? 'active' : ''}
-              onClick={() => setView('comps')}
-            >
-              Comps
-            </button>
-            <button
-              className={view === 'settings' ? 'active' : ''}
-              onClick={() => setView('settings')}
-            >
-              Settings
-            </button>
-          </div>
-        </nav>
-        <main className="main">
-          {view === 'research' && <ResearchView />}
-          {view === 'dcf' && <DCFView />}
-          {view === 'comps' && <CompsView />}
-          {view === 'settings' && <SettingsView />}
-        </main>
-      </div>
-    </ErrorBoundary>
+    <div className="app">
+      <TickerWorkspace onOpenSettings={() => setForceSettings(true)} />
+    </div>
+  )
+}
+
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ErrorBoundary>
+        <AppInner />
+      </ErrorBoundary>
+    </QueryClientProvider>
   )
 }

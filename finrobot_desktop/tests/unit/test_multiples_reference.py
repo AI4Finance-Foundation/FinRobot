@@ -33,8 +33,7 @@ def _make(ticker, rev, ebitda, ni, mcap, debt, cash):
         market_cap=mcap, total_debt=debt, total_cash=cash,
         gross_margin=0.5, operating_margin=0.3,
     )
-    calculate_multiples(c)
-    return c
+    return calculate_multiples(c)
 
 
 def test_multiples_big_tech_fy2024():
@@ -55,7 +54,7 @@ def test_multiples_big_tech_fy2024():
 
     # Peer statistics (peers = MSFT, GOOG, META; target = AAPL)
     comps = PeerComps(target=aapl, peers=[msft, goog, meta])
-    calculate_peer_statistics(comps)
+    comps = calculate_peer_statistics(comps)
 
     # Median EV/EBITDA of peers: sorted [18.30, 19.67, 25.03] → median 19.67
     assert abs(comps.median_ev_ebitda - 19.67) < 0.5

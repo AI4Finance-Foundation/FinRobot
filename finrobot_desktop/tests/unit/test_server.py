@@ -22,7 +22,6 @@ class TestHealthEndpoint:
         response = await client.get("/health")
         data = response.json()
         assert data["status"] == "ready"
-        assert data["phase"] == "P3"
 
 
 class TestChatEndpoint:
@@ -340,6 +339,55 @@ class TestExcelExportEndpoint:
         ) as client:
             response = await client.get("/api/export/excel/bogus/TEST")
         assert response.status_code == 400
+
+
+class TestInteractiveExport:
+    """POST /api/export/excel/dcf — interactive DCF export from client data."""
+
+    @pytest.mark.asyncio
+    async def test_post_dcf_excel_returns_xlsx(self):
+        from finagent.engine.models.financial import DCFInputs, DCFResult
+
+        inputs = DCFInputs(
+            revenue_base=1_000_000_000,
+            revenue_growth_rates=[0.05, 0.05, 0.04, 0.04, 0.03],
+            ebitda_margin=0.35,
+            capex_pct_revenue=0.04,
+            nwc_pct_revenue=0.02,
+            tax_rate=0.21,
+            risk_free_rate=0.043,
+            beta=1.2,
+            equity_risk_premium=0.055,
+            cost_of_debt=0.035,
+            debt_ratio=0.15,
+            terminal_growth_rate=0.025,
+            shares_outstanding=100_000_000,
+            net_debt=200_000_000,
+        )
+        from finagent.engine.compute.dcf import calculate_dcf
+
+        result = calculate_dcf(inputs)
+
+        body = {
+            "ticker": "TEST",
+            "inputs": inputs.model_dump(mode="json"),
+            "result": result.model_dump(mode="json"),
+        }
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post("/api/export/excel/dcf", json=body)
+        assert response.status_code == 200
+        assert "spreadsheetml" in response.headers["content-type"]
+        assert "TEST_dcf.xlsx" in response.headers["content-disposition"]
+
+    @pytest.mark.asyncio
+    async def test_post_dcf_excel_rejects_invalid_body(self):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post("/api/export/excel/dcf", json={"ticker": "X"})
+        assert response.status_code == 422
 
 
 class TestSubAgentsCaching:

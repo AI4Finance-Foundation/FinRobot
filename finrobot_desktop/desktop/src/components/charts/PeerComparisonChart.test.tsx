@@ -29,6 +29,6 @@ describe('PeerComparisonChart', () => {
   it('renders heading element', () => {
     render(<PeerComparisonChart data={SAMPLE_DATA} title="Peer Comparison" />)
     const heading = screen.getByText('Peer Comparison')
-    expect(heading.tagName).toBe('H4')
+    expect(heading.tagName).toBe('SPAN')
   })
 })

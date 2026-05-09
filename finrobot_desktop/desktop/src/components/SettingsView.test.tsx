@@ -1,33 +1,53 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { useAppStore } from '../stores/appStore'
-import SettingsView from './SettingsView'
+import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
+import SettingsView from '../views/SettingsView'
+
+// Mock the API client module
+vi.mock('../api/client', () => ({
+  api: {
+    GET: vi.fn().mockResolvedValue({
+      data: {
+        model_name: 'deepseek:deepseek-chat',
+        anthropic_api_key_set: false,
+        deepseek_api_key_set: false,
+        openai_api_key_set: false,
+        fmp_api_key_set: false,
+        finnhub_api_key_set: false,
+        sec_user_agent: '',
+        log_level: 'INFO',
+        available_providers: ['yfinance'],
+        valid_model_providers: ['deepseek', 'anthropic', 'openai'],
+      },
+      error: undefined,
+    }),
+    PUT: vi.fn().mockResolvedValue({ data: {}, error: undefined }),
+  },
+  BASE_URL: 'http://127.0.0.1:8321',
+}))
+
+function renderWithQuery(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+  )
+}
 
 describe('SettingsView', () => {
-  beforeEach(() => {
-    useAppStore.setState({
-      settings: {
-        fmpApiKey: '', finnhubApiKey: '', anthropicApiKey: '',
-        deepseekApiKey: '', openaiApiKey: '',
-        modelName: 'claude-sonnet-4-20250514', secUserAgent: '',
-        dataSourcePriority: ['fmp', 'finnhub', 'yfinance'],
-      },
-    })
+  it('renders settings title', async () => {
+    renderWithQuery(<SettingsView onComplete={() => {}} />)
+    expect(await screen.findByText('Settings')).toBeInTheDocument()
   })
 
-  it('renders settings title', () => {
-    render(<SettingsView />)
-    expect(screen.getByText('Settings')).toBeInTheDocument()
+  it('renders model selector', async () => {
+    renderWithQuery(<SettingsView onComplete={() => {}} />)
+    expect(await screen.findByText('LLM Provider')).toBeInTheDocument()
   })
 
-  it('renders API key inputs', () => {
-    render(<SettingsView />)
-    expect(screen.getByPlaceholderText(/FMP/)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/Finnhub/)).toBeInTheDocument()
-  })
-
-  it('renders model selector', () => {
-    render(<SettingsView />)
-    expect(screen.getByText('Model')).toBeInTheDocument()
+  it('renders save button', async () => {
+    renderWithQuery(<SettingsView onComplete={() => {}} />)
+    expect(await screen.findByText('Save Settings')).toBeInTheDocument()
   })
 })

@@ -4,7 +4,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as http from 'http'
 
-const SERVER_PORT = 8000
+const SERVER_PORT = 8321
 const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`
 const HEALTH_URL = `${SERVER_URL}/health`
 

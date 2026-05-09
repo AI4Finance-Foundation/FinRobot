@@ -9,6 +9,7 @@ type Phase =
   | 'interactive'
 
 export type PipelineType = 'equity_research' | 'dcf'
+export type ViewMode = 'workspace' | 'history'
 
 export interface ResearchResult {
   recommendation: string
@@ -81,13 +82,15 @@ interface WorkspaceState {
   // Equity Research state
   researchResult: ResearchResult | null
 
-  // Settings UI
+  // UI navigation
+  view: ViewMode
   showSettings: boolean
 
   // Actions
   setTicker: (t: string) => void
   setPhase: (p: Phase) => void
   setPipelineType: (t: PipelineType) => void
+  setView: (v: ViewMode) => void
   setWarnings: (w: string[]) => void
   setDcfInputs: (inputs: DCFInputs) => void
   setOriginalDcfInputs: (inputs: DCFInputs) => void
@@ -110,6 +113,7 @@ const initialState = {
   sensitivityData: null,
   currentPrice: null,
   researchResult: null,
+  view: 'workspace' as ViewMode,
   showSettings: false,
 }
 
@@ -119,6 +123,7 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   setTicker: (ticker) => set({ ticker }),
   setPhase: (phase) => set({ phase }),
   setPipelineType: (pipelineType) => set({ pipelineType }),
+  setView: (view) => set({ view }),
   setWarnings: (warnings) => set({ warnings }),
   setDcfInputs: (dcfInputs) => set({ dcfInputs }),
   setOriginalDcfInputs: (originalDcfInputs) => set({ originalDcfInputs }),

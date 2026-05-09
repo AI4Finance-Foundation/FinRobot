@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { queryClient } from './api/queryClient'
 import { api } from './api/client'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { useAppStore } from './stores/appStore'
 import SettingsView from './views/SettingsView'
 import TickerWorkspace from './views/TickerWorkspace'
+import RunHistory from './views/RunHistory'
 
 function AppInner() {
   const [forceSettings, setForceSettings] = useState(false)
@@ -57,6 +59,16 @@ function AppInner() {
         <SettingsView
           onComplete={() => setForceSettings(false)}
         />
+      </div>
+    )
+  }
+
+  const view = useAppStore((s) => s.view)
+
+  if (view === 'history') {
+    return (
+      <div className="app">
+        <RunHistory onBack={() => useAppStore.getState().setView('workspace')} />
       </div>
     )
   }

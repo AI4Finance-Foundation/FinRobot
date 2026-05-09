@@ -8,6 +8,17 @@ type Phase =
   | 'pipeline_done'
   | 'interactive'
 
+export type PipelineType = 'equity_research' | 'dcf'
+
+export interface ResearchResult {
+  recommendation: string
+  price_target: number
+  price_target_basis: string
+  catalysts: string[]
+  risks: string[]
+  narrative: string
+}
+
 export interface DCFInputs {
   revenue_base: number
   revenue_growth_rates: number[]
@@ -55,6 +66,7 @@ interface WorkspaceState {
   // UI state
   ticker: string
   phase: Phase
+  pipelineType: PipelineType
 
   // Financial data warnings
   warnings: string[]
@@ -66,18 +78,23 @@ interface WorkspaceState {
   sensitivityData: SensitivityResult | null
   currentPrice: number | null
 
+  // Equity Research state
+  researchResult: ResearchResult | null
+
   // Settings UI
   showSettings: boolean
 
   // Actions
   setTicker: (t: string) => void
   setPhase: (p: Phase) => void
+  setPipelineType: (t: PipelineType) => void
   setWarnings: (w: string[]) => void
   setDcfInputs: (inputs: DCFInputs) => void
   setOriginalDcfInputs: (inputs: DCFInputs) => void
   setDcfResult: (result: DCFResult) => void
   setSensitivityData: (data: SensitivityResult) => void
   setCurrentPrice: (price: number) => void
+  setResearchResult: (result: ResearchResult) => void
   setShowSettings: (show: boolean) => void
   reset: () => void
 }
@@ -85,12 +102,14 @@ interface WorkspaceState {
 const initialState = {
   ticker: '',
   phase: 'idle' as Phase,
+  pipelineType: 'equity_research' as PipelineType,
   warnings: [] as string[],
   dcfInputs: null,
   originalDcfInputs: null,
   dcfResult: null,
   sensitivityData: null,
   currentPrice: null,
+  researchResult: null,
   showSettings: false,
 }
 
@@ -99,12 +118,14 @@ export const useAppStore = create<WorkspaceState>((set) => ({
 
   setTicker: (ticker) => set({ ticker }),
   setPhase: (phase) => set({ phase }),
+  setPipelineType: (pipelineType) => set({ pipelineType }),
   setWarnings: (warnings) => set({ warnings }),
   setDcfInputs: (dcfInputs) => set({ dcfInputs }),
   setOriginalDcfInputs: (originalDcfInputs) => set({ originalDcfInputs }),
   setDcfResult: (dcfResult) => set({ dcfResult }),
   setSensitivityData: (sensitivityData) => set({ sensitivityData }),
   setCurrentPrice: (currentPrice) => set({ currentPrice }),
+  setResearchResult: (researchResult) => set({ researchResult }),
   setShowSettings: (showSettings) => set({ showSettings }),
   reset: () => set(initialState),
 }))

@@ -465,6 +465,40 @@ body {
 .btn-run:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ═══════════════════════════
+   SEGMENTED CONTROL
+   ═══════════════════════════ */
+.segmented {
+  display: flex;
+  background: var(--base);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 2px;
+  gap: 2px;
+}
+.segmented-btn {
+  flex: 1;
+  padding: 4px var(--sp-3);
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.segmented-btn:hover {
+  color: var(--text-secondary);
+}
+.segmented-btn.active {
+  background: var(--elevated);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ═══════════════════════════
    SECTION LABELS
    ═══════════════════════════ */
 .section-label {

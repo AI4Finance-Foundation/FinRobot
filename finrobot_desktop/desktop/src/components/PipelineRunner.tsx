@@ -3,7 +3,7 @@ import { useRunStream } from '../hooks/useRunStream'
 import { useAppStore } from '../stores/appStore'
 import { useDcfSensitivity } from '../hooks/useCompute'
 import { BASE_URL } from '../api/client'
-import type { DCFResult, DCFInputs, SensitivityResult } from '../stores/appStore'
+import type { DCFResult, DCFInputs, SensitivityResult, ResearchResult } from '../stores/appStore'
 
 function buildSensitivityRanges(wacc: number, tg: number) {
   const waccRange = Array.from({ length: 7 }, (_, i) => Math.max(0, wacc - 0.03 + i * 0.01))
@@ -18,40 +18,47 @@ const STATUS_MAP: Record<string, string> = {
   retrying: 'retrying',
 }
 
+const PIPELINE_LABELS: Record<string, string> = {
+  equity_research: 'Equity Research',
+  dcf: 'DCF Analysis',
+}
+
 export default function PipelineRunner() {
   const { steps, status, error, progress, startRun } = useRunStream()
   const {
     ticker,
     phase,
+    pipelineType,
     setPhase,
     setDcfInputs,
     setOriginalDcfInputs,
     setDcfResult,
     setSensitivityData,
+    setResearchResult,
   } = useAppStore()
   const sensitivityMut = useDcfSensitivity()
   const [runId, setRunId] = useState<string | null>(null)
-  // F2 fix: guard against double-fire
   const fetchingRef = useRef(false)
+  // Track which pipeline type was used for the current run
+  const runPipelineTypeRef = useRef(pipelineType)
 
   const handleRun = useCallback(async () => {
     if (!ticker) return
+    runPipelineTypeRef.current = pipelineType
     setPhase('running_pipeline')
     try {
-      const id = await startRun('dcf', ticker)
+      const id = await startRun(pipelineType, ticker)
       setRunId(id)
     } catch {
       setPhase('data_ready')
     }
-  }, [ticker, startRun, setPhase])
+  }, [ticker, pipelineType, startRun, setPhase])
 
-  // F2 fix: move handleComplete into useEffect to avoid calling it in render body
   useEffect(() => {
     if (status !== 'completed' || phase !== 'running_pipeline' || !runId) return
     if (fetchingRef.current) return
     fetchingRef.current = true
 
-    // F5 fix: transition to pipeline_done while fetching result
     setPhase('pipeline_done')
 
     const fetchResult = async () => {
@@ -62,29 +69,50 @@ export default function PipelineRunner() {
         const structured = detail.result?.structured
         if (!structured) return
 
-        // Find DCF result — try dcf_calc key first, fallback to first key
-        const dcfCalc: DCFResult | undefined =
-          structured.dcf_calc || Object.values(structured)[0]
-        if (!dcfCalc) return
-
-        const inputs: DCFInputs = dcfCalc.inputs
-        setDcfInputs({ ...inputs })
-        setOriginalDcfInputs({ ...inputs })
-        setDcfResult(dcfCalc)
-
-        // Compute initial sensitivity
-        const { wacc_range, tg_range } = buildSensitivityRanges(
-          dcfCalc.wacc,
-          inputs.terminal_growth_rate
-        )
-        sensitivityMut.mutate(
-          { inputs, wacc_range, tg_range },
-          {
-            onSuccess: (data: SensitivityResult) => {
-              setSensitivityData(data)
-            },
+        if (runPipelineTypeRef.current === 'equity_research') {
+          // Extract thesis result
+          const thesis: ResearchResult | undefined = structured.thesis
+          if (thesis) {
+            setResearchResult(thesis)
           }
-        )
+
+          // Also extract DCF if present (financial_modeling step)
+          const dcfCalc: DCFResult | undefined = structured.financial_modeling
+          if (dcfCalc) {
+            const inputs: DCFInputs = dcfCalc.inputs
+            setDcfInputs({ ...inputs })
+            setOriginalDcfInputs({ ...inputs })
+            setDcfResult(dcfCalc)
+
+            const { wacc_range, tg_range } = buildSensitivityRanges(
+              dcfCalc.wacc,
+              inputs.terminal_growth_rate
+            )
+            sensitivityMut.mutate(
+              { inputs, wacc_range, tg_range },
+              { onSuccess: (data: SensitivityResult) => setSensitivityData(data) }
+            )
+          }
+        } else {
+          // DCF-only pipeline
+          const dcfCalc: DCFResult | undefined =
+            structured.dcf_calc || Object.values(structured)[0]
+          if (!dcfCalc) return
+
+          const inputs: DCFInputs = dcfCalc.inputs
+          setDcfInputs({ ...inputs })
+          setOriginalDcfInputs({ ...inputs })
+          setDcfResult(dcfCalc)
+
+          const { wacc_range, tg_range } = buildSensitivityRanges(
+            dcfCalc.wacc,
+            inputs.terminal_growth_rate
+          )
+          sensitivityMut.mutate(
+            { inputs, wacc_range, tg_range },
+            { onSuccess: (data: SensitivityResult) => setSensitivityData(data) }
+          )
+        }
 
         setPhase('interactive')
       } finally {
@@ -93,26 +121,27 @@ export default function PipelineRunner() {
     }
 
     fetchResult()
-  }, [status, phase, runId, setPhase, setDcfInputs, setOriginalDcfInputs, setDcfResult, setSensitivityData, sensitivityMut])
+  }, [status, phase, runId, setPhase, setDcfInputs, setOriginalDcfInputs, setDcfResult, setSensitivityData, setResearchResult, sensitivityMut])
 
   const canRun = phase === 'data_ready' && !!ticker
   const isRunning = phase === 'running_pipeline' || phase === 'pipeline_done'
+  const label = PIPELINE_LABELS[pipelineType] || pipelineType
 
   return (
     <div className="card animate-in">
       <div className="card-header">
-        <span className="card-title">DCF Pipeline</span>
+        <span className="card-title">{label} Pipeline</span>
       </div>
       <div className="card-body">
         {/* Run button */}
         {canRun && (
           <button className="btn-run" onClick={handleRun}>
-            Run DCF Analysis
+            Run {label}
           </button>
         )}
         {status === 'failed' && (
           <button className="btn-run" onClick={handleRun}>
-            Retry Analysis
+            Retry
           </button>
         )}
 
@@ -146,7 +175,6 @@ export default function PipelineRunner() {
                 </div>
               )
             })}
-            {/* Progress bar for active step */}
             {isRunning && steps.some(s => s.status === 'running') && (
               <div className="step-progress-bar">
                 <div
@@ -167,7 +195,6 @@ export default function PipelineRunner() {
           </div>
         )}
 
-        {/* Error */}
         {error && <div className="error-msg" style={{ marginTop: 'var(--sp-3)' }}>{error}</div>}
       </div>
     </div>

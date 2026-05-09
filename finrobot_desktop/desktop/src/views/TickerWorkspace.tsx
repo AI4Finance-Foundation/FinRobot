@@ -7,6 +7,7 @@ import PipelineRunner from '../components/PipelineRunner'
 import AssumptionsEditor from '../components/AssumptionsEditor'
 import ValuationCard from '../components/ValuationCard'
 import ExportBar from '../components/ExportBar'
+import ResearchSummary from '../components/ResearchSummary'
 import SensitivityHeatmap from '../components/charts/SensitivityHeatmap'
 import WaterfallChart from '../components/charts/WaterfallChart'
 import RevenueEbitdaChart from '../components/charts/RevenueEbitdaChart'
@@ -17,22 +18,33 @@ import {
   dcfResultToRevenueEbitdaData,
   dcfResultToMarginData,
 } from '../utils/chartAdapters'
+import type { PipelineType } from '../stores/appStore'
 
 interface Props {
   onOpenSettings: () => void
 }
 
+const PIPELINE_OPTIONS: { value: PipelineType; label: string }[] = [
+  { value: 'equity_research', label: 'Equity Research' },
+  { value: 'dcf', label: 'DCF Only' },
+]
+
 export default function TickerWorkspace({ onOpenSettings }: Props) {
   const {
     ticker,
     phase,
+    pipelineType,
     warnings,
     dcfResult,
     sensitivityData,
     currentPrice,
+    researchResult,
+    setPipelineType,
   } = useAppStore()
 
-  const showDcfResults = phase === 'pipeline_done' || phase === 'interactive'
+  const showResults = phase === 'pipeline_done' || phase === 'interactive'
+  const showControls = phase === 'data_ready' || phase === 'running_pipeline' || showResults
+  const isResearch = pipelineType === 'equity_research'
 
   return (
     <>
@@ -53,7 +65,6 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
           <TickerInput />
         </ErrorBoundary>
 
-        {/* Ticker info in topbar when loaded */}
         {ticker && phase !== 'idle' && currentPrice != null && (
           <>
             <div className="topbar-divider" />
@@ -73,44 +84,49 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
           onClick={onOpenSettings}
           title="Settings"
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
             <circle cx="8" cy="8" r="2.5" />
             <path d="M8 1v2m0 10v2M1 8h2m10 0h2m-2.5-5L11 4.5m-6 7L3.5 13m9-1.5L11 11.5m-6-7L3.5 3" />
           </svg>
         </button>
       </header>
 
-      {/* ── Main Body (left + right) ── */}
+      {/* ── Main Body ── */}
       <div className="app-body">
-        {/* ── Left Panel: Controls ── */}
+        {/* ── Left Panel ── */}
         <aside className="panel-left">
+          {/* Pipeline type selector */}
+          {showControls && (
+            <div className="segmented">
+              {PIPELINE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  className={`segmented-btn${pipelineType === opt.value ? ' active' : ''}`}
+                  onClick={() => setPipelineType(opt.value)}
+                  disabled={phase === 'running_pipeline'}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Financials */}
-          {(phase === 'data_ready' ||
-            phase === 'running_pipeline' ||
-            showDcfResults) && (
+          {showControls && (
             <ErrorBoundary>
               <FinancialsPanel />
             </ErrorBoundary>
           )}
 
           {/* Pipeline runner */}
-          {(phase === 'data_ready' ||
-            phase === 'running_pipeline' ||
-            showDcfResults) && (
+          {showControls && (
             <ErrorBoundary>
               <PipelineRunner />
             </ErrorBoundary>
           )}
 
-          {/* Assumptions */}
-          {showDcfResults && dcfResult && (
+          {/* DCF Assumptions (only for DCF mode or when equity_research also has DCF data) */}
+          {showResults && dcfResult && !isResearch && (
             <ErrorBoundary>
               <AssumptionsEditor />
             </ErrorBoundary>
@@ -139,15 +155,58 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
           )}
         </aside>
 
-        {/* ── Right Panel: Results ── */}
+        {/* ── Right Panel ── */}
         <main className="panel-right">
-          {/* Warnings */}
           <ErrorBoundary>
             <WarningBanner warnings={warnings} />
           </ErrorBoundary>
 
-          {/* DCF Results */}
-          {showDcfResults && dcfResult && (
+          {/* ── Equity Research Results ── */}
+          {showResults && isResearch && researchResult && (
+            <>
+              <ErrorBoundary>
+                <ResearchSummary
+                  result={researchResult}
+                  currentPrice={currentPrice}
+                />
+              </ErrorBoundary>
+
+              {/* DCF charts from equity research pipeline (if available) */}
+              {dcfResult && (
+                <div className="grid-2">
+                  {sensitivityData && (
+                    <ErrorBoundary>
+                      <SensitivityHeatmap
+                        data={sensitivityGridToHeatmapRows(sensitivityData)}
+                        title="Sensitivity Analysis"
+                      />
+                    </ErrorBoundary>
+                  )}
+                  <ErrorBoundary>
+                    <WaterfallChart
+                      data={dcfResultToWaterfallData(dcfResult)}
+                      title="DCF Bridge"
+                    />
+                  </ErrorBoundary>
+                  <ErrorBoundary>
+                    <RevenueEbitdaChart
+                      data={dcfResultToRevenueEbitdaData(dcfResult)}
+                      title="Revenue & EBITDA"
+                    />
+                  </ErrorBoundary>
+                  <ErrorBoundary>
+                    <MarginTrendChart
+                      data={dcfResultToMarginData(dcfResult)}
+                      title="Margin Trends"
+                    />
+                  </ErrorBoundary>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── DCF-Only Results ── */}
+          {showResults && !isResearch && dcfResult && (
             <>
               <ErrorBoundary>
                 <ValuationCard
@@ -165,21 +224,18 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
                     />
                   </ErrorBoundary>
                 )}
-
                 <ErrorBoundary>
                   <WaterfallChart
                     data={dcfResultToWaterfallData(dcfResult)}
                     title="DCF Bridge"
                   />
                 </ErrorBoundary>
-
                 <ErrorBoundary>
                   <RevenueEbitdaChart
                     data={dcfResultToRevenueEbitdaData(dcfResult)}
                     title="Revenue & EBITDA"
                   />
                 </ErrorBoundary>
-
                 <ErrorBoundary>
                   <MarginTrendChart
                     data={dcfResultToMarginData(dcfResult)}
@@ -195,16 +251,16 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
           )}
 
           {/* Empty chart placeholders before pipeline completes */}
-          {!showDcfResults && phase !== 'idle' && (
+          {!showResults && phase !== 'idle' && (
             <div className="grid-2">
+              <ChartPlaceholder title={isResearch ? 'Research Summary' : 'Valuation'} />
               <ChartPlaceholder title="Sensitivity Analysis" />
               <ChartPlaceholder title="DCF Bridge" />
               <ChartPlaceholder title="Revenue & EBITDA" />
-              <ChartPlaceholder title="Margin Trends" />
             </div>
           )}
 
-          {/* Right panel idle state */}
+          {/* Idle state */}
           {phase === 'idle' && (
             <div style={{
               display: 'flex',

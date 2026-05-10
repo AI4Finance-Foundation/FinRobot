@@ -35,12 +35,35 @@ async def _execute_dcf_calc(
     ticker: str,
 ) -> StepOutput:
     """param_agent selects DCFInputs; code computes full DCFResult + sensitivity."""
+    # Extract actual D&A from financial data so the LLM can set da_pct_revenue correctly
+    da_instruction = ""
+    financial_data = structured_context.get("financial_data")
+    if financial_data and hasattr(financial_data, "income"):
+        income = financial_data.income
+        da_val = getattr(income, "depreciation_amortization", None)
+        rev_val = getattr(income, "revenue", None)
+        if da_val and rev_val and rev_val > 0:
+            da_pct = da_val / rev_val
+            da_instruction = (
+                f"\n\nIMPORTANT: Actual D&A from financial data is ${da_val / 1e9:.1f}B "
+                f"({da_pct:.1%} of revenue). You MUST set da_pct_revenue={da_pct:.4f} "
+                f"to use the standard FCF formula: EBIT(1-T)+D&A-CapEx-ΔNWC. "
+                f"Do NOT leave da_pct_revenue as null — that triggers an inaccurate simplified formula."
+            )
+        else:
+            da_instruction = (
+                "\n\nNote: D&A data is not available from providers. "
+                "Set da_pct_revenue to your best estimate (typically 0.02-0.08 depending on industry). "
+                "Leaving it null will use a simplified FCF formula that may be inaccurate for capital-intensive companies."
+            )
+
     param_agent = Agent(
         deps.settings.create_model(),
         output_type=DCFInputs,
         instructions=(
             "Select DCF valuation parameters based on the historical financial data. "
             "Use conservative assumptions. Revenue growth rates must reflect realistic projections."
+            + da_instruction
         ),
         defer_model_check=True,
     )

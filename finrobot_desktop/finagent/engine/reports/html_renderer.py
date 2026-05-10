@@ -67,64 +67,136 @@ def _auto_bold(text: str) -> str:
 
 
 def _markdown_to_html(text: str) -> str:
-    """Convert markdown text to HTML. Handles headings, bold, lists."""
+    """Convert markdown text to HTML. Handles headings, bold, lists, tables, hr."""
     if not text:
         return ""
     lines = text.split("\n")
     html_lines: list[str] = []
     in_list = False
+    in_table = False
+    table_header_done = False
+
+    def _close_list() -> None:
+        nonlocal in_list
+        if in_list:
+            html_lines.append("</ul>")
+            in_list = False
+
+    def _close_table() -> None:
+        nonlocal in_table, table_header_done
+        if in_table:
+            html_lines.append("</tbody></table></div>")
+            in_table = False
+            table_header_done = False
+
+    def _inline(s: str) -> str:
+        s = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
+        return _auto_bold(s)
+
+    def _is_table_separator(s: str) -> bool:
+        return bool(re.match(r"^\|[\s\-:|]+\|$", s))
+
+    def _parse_table_row(s: str) -> list[str]:
+        cells = s.strip("|").split("|")
+        return [c.strip() for c in cells]
+
     for line in lines:
         s = line.strip()
+
         if not s:
-            if in_list:
-                html_lines.append("</ul>")
-                in_list = False
+            _close_list()
+            _close_table()
             continue
+
+        # Horizontal rule
+        if re.match(r"^-{3,}$", s) or re.match(r"^\*{3,}$", s):
+            _close_list()
+            _close_table()
+            html_lines.append('<hr style="border:none;border-top:1px solid #e2e8f0;margin:0.75rem 0;">')
+            continue
+
+        # Table row
+        if s.startswith("|") and s.endswith("|"):
+            _close_list()
+            if _is_table_separator(s):
+                continue  # skip separator row (---|---|---)
+            cells = _parse_table_row(s)
+            if not in_table:
+                # Start table with header
+                in_table = True
+                table_header_done = False
+                html_lines.append(
+                    '<div style="overflow-x:auto;margin:0.5rem 0;">'
+                    '<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">'
+                    "<thead><tr>"
+                )
+                for cell in cells:
+                    html_lines.append(
+                        f'<th style="text-align:left;padding:0.45rem 0.6rem;font-weight:600;'
+                        f'font-size:0.75rem;color:#64748b;border-bottom:2px solid #e2e8f0;'
+                        f'background:#f8fafc;">{_inline(cell)}</th>'
+                    )
+                html_lines.append("</tr></thead><tbody>")
+                table_header_done = True
+                continue
+            # Data row
+            html_lines.append("<tr>")
+            for cell in cells:
+                html_lines.append(
+                    f'<td style="padding:0.4rem 0.6rem;border-bottom:1px solid #f1f5f9;'
+                    f'color:#334155;">{_inline(cell)}</td>'
+                )
+            html_lines.append("</tr>")
+            continue
+
+        _close_table()
+
+        # Headings
         if s.startswith("### "):
-            if in_list:
-                html_lines.append("</ul>")
-                in_list = False
-            c = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s[4:])
+            _close_list()
+            c = _inline(s[4:])
             html_lines.append(
                 f'<h4 style="font-size:0.9rem;font-weight:600;color:#334155;'
-                f'margin:0.75rem 0 0.4rem;">{_auto_bold(c)}</h4>'
+                f'margin:0.75rem 0 0.4rem;">{c}</h4>'
             )
             continue
         if s.startswith("## "):
-            if in_list:
-                html_lines.append("</ul>")
-                in_list = False
-            c = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s[3:])
+            _close_list()
+            c = _inline(s[3:])
             html_lines.append(
                 f'<h3 style="font-size:1rem;font-weight:600;color:#0f172a;'
                 f"margin:1rem 0 0.5rem;border-left:3px solid #6366f1;"
-                f'padding-left:0.6rem;">{_auto_bold(c)}</h3>'
+                f'padding-left:0.6rem;">{c}</h3>'
             )
             continue
+
+        # List items
         if s.startswith("- "):
+            _close_table()
             if not in_list:
                 html_lines.append(
                     '<ul style="list-style:none;padding-left:0;margin:0.35rem 0;">'
                 )
                 in_list = True
-            item = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s[2:])
+            item = _inline(s[2:])
             html_lines.append(
                 f'<li style="padding:0.3rem 0 0.3rem 1.2rem;position:relative;'
                 f'font-size:0.875rem;color:#334155;line-height:1.6;">'
                 f'<span style="position:absolute;left:0;color:#6366f1;">&#8227;</span>'
-                f" {_auto_bold(item)}</li>"
+                f" {item}</li>"
             )
             continue
-        if in_list:
-            html_lines.append("</ul>")
-            in_list = False
-        c = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
+
+        _close_list()
+        # Paragraph
+        c = _inline(s)
         html_lines.append(
             f'<p style="margin-bottom:0.4rem;font-size:0.875rem;color:#334155;'
-            f'line-height:1.7;">{_auto_bold(c)}</p>'
+            f'line-height:1.7;">{c}</p>'
         )
-    if in_list:
-        html_lines.append("</ul>")
+
+    _close_list()
+    _close_table()
     return "\n".join(html_lines)
 
 

@@ -74,21 +74,23 @@ export default function StockOverview() {
 
   return (
     <div className="stock-overview animate-in">
-      {/* KPI Cards */}
-      <div className="kpi-grid">
-        <KPICard label="Market Cap" value={fmtUsd(market?.market_cap)} loading={!financials} />
-        <KPICard label="P/E Ratio" value={fmtMult(market?.pe_ratio)} loading={!financials} />
-        <KPICard label="EV/EBITDA" value={fmtMult(valuation?.ev_ebitda)} loading={!financials} />
-        <KPICard label="Revenue" value={fmtUsd(income?.revenue)} loading={!financials} />
-        <KPICard label="EBITDA Margin" value={fmtPct(ebitdaMargin)} loading={!financials} />
-        {has52w ? (
-          <KPICard
-            label="52W Range"
-            value={`${fmtPrice(market!.price_52w_low)} \u2013 ${fmtPrice(market!.price_52w_high)}`}
-          />
-        ) : (
-          <KPICard label="EV/Revenue" value={fmtMult(valuation?.ev_revenue)} loading={!financials} />
-        )}
+      {/* KPI Cards — Glass Panel */}
+      <div className="kpi-glass">
+        <div className="kpi-grid">
+          <KPICard label="Market Cap" value={fmtUsd(market?.market_cap)} loading={!financials} />
+          <KPICard label="P/E Ratio" value={fmtMult(market?.pe_ratio)} loading={!financials} />
+          <KPICard label="EV/EBITDA" value={fmtMult(valuation?.ev_ebitda)} loading={!financials} />
+          <KPICard label="Revenue" value={fmtUsd(income?.revenue)} loading={!financials} />
+          <KPICard label="EBITDA Margin" value={fmtPct(ebitdaMargin)} loading={!financials} />
+          {has52w ? (
+            <KPICard
+              label="52W Range"
+              value={`${fmtPrice(market!.price_52w_low)} \u2013 ${fmtPrice(market!.price_52w_high)}`}
+            />
+          ) : (
+            <KPICard label="EV/Revenue" value={fmtMult(valuation?.ev_revenue)} loading={!financials} />
+          )}
+        </div>
       </div>
 
       {/* Price Chart */}

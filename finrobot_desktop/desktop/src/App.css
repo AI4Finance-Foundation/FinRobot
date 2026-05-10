@@ -187,7 +187,19 @@ body {
   overflow-y: auto;
   padding: var(--sp-6);
   display: flex; flex-direction: column; gap: var(--sp-5);
+  position: relative;
 }
+/* Ambient gradient blob — creates Z-depth behind content */
+.panel-right::before {
+  content: '';
+  position: fixed;
+  top: 60px; right: 40px;
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(201, 168, 76, 0.04) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.panel-right > * { position: relative; z-index: 1; }
 
 /* ═══════════════════════════
    CARD SYSTEM
@@ -733,9 +745,15 @@ body {
    2-COL GRID for right panel
    ═══════════════════════════ */
 .grid-2 {
-  display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-5);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--sp-5);
 }
 .grid-full { grid-column: 1 / -1; }
+
+/* Flush card body — edge-to-edge charts for maximum data density */
+.card-body--flush { padding: 0 var(--sp-2) var(--sp-2); }
+.grid-2 .card .card-body { padding: var(--sp-2) var(--sp-2) var(--sp-2); }
 
 /* ═══════════════════════════
    FORM INPUTS (Settings)
@@ -923,6 +941,31 @@ select.input-field {
   display: flex; flex-direction: column; gap: var(--sp-5);
 }
 
+/* Glass KPI Panel — frosted glass with ambient glow */
+.kpi-glass {
+  background: rgba(19, 23, 32, 0.6);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+  border: 1px solid rgba(201, 168, 76, 0.12);
+  border-radius: var(--r-lg);
+  padding: var(--sp-4);
+  position: relative;
+  overflow: hidden;
+}
+.kpi-glass::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(201, 168, 76, 0.3), transparent);
+}
+.kpi-glass::after {
+  content: '';
+  position: absolute; top: -60px; left: -60px;
+  width: 180px; height: 180px;
+  background: radial-gradient(circle, rgba(201, 168, 76, 0.06), transparent 70%);
+  pointer-events: none;
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -930,7 +973,7 @@ select.input-field {
 }
 
 .kpi-card {
-  background: var(--surface);
+  background: rgba(26, 31, 46, 0.5);
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-md);
   padding: var(--sp-3) var(--sp-4);
@@ -938,8 +981,9 @@ select.input-field {
   transition: all 0.2s ease;
 }
 .kpi-card:hover {
-  border-color: var(--border);
-  box-shadow: var(--shadow-sm);
+  border-color: rgba(201, 168, 76, 0.2);
+  background: rgba(26, 31, 46, 0.7);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(201, 168, 76, 0.06);
   transform: translateY(-1px);
 }
 .kpi-label {
@@ -1363,6 +1407,17 @@ select.input-field {
   justify-content: center;
   flex: 1;
   gap: var(--sp-8);
+  position: relative;
+}
+/* Centered ambient glow for idle state */
+.idle-right::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(201, 168, 76, 0.035) 0%, transparent 65%);
+  pointer-events: none;
 }
 
 .idle-watermark {
@@ -1399,20 +1454,30 @@ select.input-field {
 }
 
 .idle-feature {
-  background: var(--surface);
-  border: 1px solid var(--border-subtle);
+  background: rgba(19, 23, 32, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(201, 168, 76, 0.08);
   border-radius: var(--r-lg);
   padding: var(--sp-4);
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  transition: all 0.2s;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+.idle-feature::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(201, 168, 76, 0.15), transparent);
 }
 
 .idle-feature:hover {
-  border-color: var(--border);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
+  border-color: rgba(201, 168, 76, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(201, 168, 76, 0.08);
 }
 
 .idle-feature-icon {

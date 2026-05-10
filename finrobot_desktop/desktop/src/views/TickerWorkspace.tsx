@@ -18,12 +18,14 @@ import RevenueEbitdaChart from '../components/charts/RevenueEbitdaChart'
 import MarginTrendChart from '../components/charts/MarginTrendChart'
 import PeerComparisonChart from '../components/charts/PeerComparisonChart'
 import FootballField from '../components/charts/FootballField'
+import CompanyRadarChart from '../components/charts/CompanyRadarChart'
 import {
   sensitivityGridToHeatmapRows,
   dcfResultToWaterfallData,
   dcfResultToRevenueEbitdaData,
   dcfResultToMarginData,
   compsResultToPeerChartData,
+  compsResultToRadarData,
   dcfSensitivityToFootballData,
 } from '../utils/chartAdapters'
 import type { PipelineType } from '../stores/appStore'
@@ -275,12 +277,20 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
                   currentPrice={currentPrice}
                 />
               </ErrorBoundary>
-              <ErrorBoundary>
-                <PeerComparisonChart
-                  data={compsResultToPeerChartData(compsResult)}
-                  title="Peer Multiples Comparison"
-                />
-              </ErrorBoundary>
+              <div className="grid-2">
+                <ErrorBoundary>
+                  <PeerComparisonChart
+                    data={compsResultToPeerChartData(compsResult)}
+                    title="Peer Multiples Comparison"
+                  />
+                </ErrorBoundary>
+                <ErrorBoundary>
+                  <CompanyRadarChart
+                    data={compsResultToRadarData(compsResult)}
+                    title="Financial Profile vs Peers"
+                  />
+                </ErrorBoundary>
+              </div>
             </>
           )}
 

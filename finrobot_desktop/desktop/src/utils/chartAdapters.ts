@@ -1,4 +1,4 @@
-import type { DCFResult, DCFInputs, SensitivityResult, CompsResult } from '../stores/appStore'
+import type { DCFResult, DCFInputs, SensitivityResult, CompsResult, CompanyFinancials } from '../stores/appStore'
 
 /**
  * Convert backend DcfSensitivityResult grid to the flat array format
@@ -118,6 +118,57 @@ export function dcfResultToWaterfallData(
     { label: 'Less: Net Debt', value: -(result.enterprise_value - result.equity_value), is_total: false },
     { label: 'Equity Value', value: result.equity_value, is_total: true },
   ]
+}
+
+/**
+ * Convert CompsResult into CompanyRadarChart format.
+ * Each dimension is normalised so that the larger of (company, peer median) = 100,
+ * giving both the company and benchmark shapes that are easy to compare visually.
+ */
+export function compsResultToRadarData(
+  result: CompsResult
+): Array<Record<string, number | string | boolean | null>> {
+  const t = result.target
+
+  // Compute peer medians for margin dimensions (not in CompsResult directly)
+  const medianOf = (values: number[]): number | null => {
+    const valid = values.filter((v) => v != null && isFinite(v))
+    if (valid.length === 0) return null
+    const sorted = [...valid].sort((a, b) => a - b)
+    const mid = Math.floor(sorted.length / 2)
+    return sorted.length % 2 === 0
+      ? (sorted[mid - 1] + sorted[mid]) / 2
+      : sorted[mid]
+  }
+
+  const peerGrossMedian = medianOf(result.peers.map((p) => p.gross_margin))
+  const peerOpMedian = medianOf(result.peers.map((p) => p.operating_margin))
+
+  const dims: { label: string; company: number | null; median: number | null }[] = [
+    { label: 'P/E', company: t.pe_ratio, median: result.median_pe },
+    { label: 'EV/EBITDA', company: t.ev_ebitda, median: result.median_ev_ebitda },
+    { label: 'EV/Revenue', company: t.ev_revenue, median: result.median_ev_revenue },
+    { label: 'Gross Margin', company: t.gross_margin, median: peerGrossMedian },
+    { label: 'Op. Margin', company: t.operating_margin, median: peerOpMedian },
+  ]
+
+  return dims
+    .filter(
+      (d) =>
+        d.company != null &&
+        d.median != null &&
+        isFinite(d.company) &&
+        isFinite(d.median) &&
+        Math.max(Math.abs(d.company), Math.abs(d.median)) > 0
+    )
+    .map((d) => {
+      const scale = Math.max(Math.abs(d.company!), Math.abs(d.median!))
+      return {
+        dimension: d.label,
+        value: Math.round((d.company! / scale) * 100),
+        benchmark: Math.round((d.median! / scale) * 100),
+      }
+    })
 }
 
 /**

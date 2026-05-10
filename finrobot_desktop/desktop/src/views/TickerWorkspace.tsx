@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 import { useAppStore } from '../stores/appStore'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import TickerInput from '../components/TickerInput'
@@ -30,6 +30,7 @@ import {
   compsResultToRadarData,
   dcfSensitivityToFootballData,
 } from '../utils/chartAdapters'
+import { relativeTime } from '../utils/time'
 import type { PipelineType } from '../stores/appStore'
 
 interface Props {
@@ -55,12 +56,23 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
     dcfResult,
     sensitivityData,
     currentPrice,
+    priceChange,
+    priceChangePct,
+    dataFetchedAt,
     researchResult,
     compsResult,
     earningsResult,
     lboResult,
     setPipelineType,
   } = useAppStore()
+
+  // Refresh relative time display every 30s
+  const [, setTimeTick] = useState(0)
+  useEffect(() => {
+    if (!dataFetchedAt) return
+    const id = setInterval(() => setTimeTick((t) => t + 1), 30_000)
+    return () => clearInterval(id)
+  }, [dataFetchedAt])
 
   const handleQuickTicker = (t: string) => {
     const store = useAppStore.getState()
@@ -130,6 +142,19 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
               <span className="ticker-price font-mono">
                 ${currentPrice.toFixed(2)}
               </span>
+              {priceChange != null && priceChangePct != null && (
+                <span className={`ticker-change${priceChange >= 0 ? ' positive' : ' negative'}`}>
+                  {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)} ({priceChange >= 0 ? '+' : ''}{priceChangePct.toFixed(2)}%)
+                </span>
+              )}
+              {dataFetchedAt && (
+                <span
+                  className="data-freshness"
+                  title={new Date(dataFetchedAt).toLocaleString()}
+                >
+                  {relativeTime(dataFetchedAt)}
+                </span>
+              )}
             </div>
           </>
         )}

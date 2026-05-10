@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { useAppStore } from '../stores/appStore'
+import { relativeTime } from '../utils/time'
 
 function fmt(val: number | null | undefined, style: 'usd' | 'pct' | 'mult' | 'num'): string {
   if (val == null) return '\u2014' // em dash
@@ -47,6 +49,15 @@ function Row({ label, value, highlight, source, sourceLabel }: {
 
 export default function FinancialsPanel() {
   const ticker = useAppStore((s) => s.ticker)
+  const dataFetchedAt = useAppStore((s) => s.dataFetchedAt)
+
+  // Refresh relative time display every 30s
+  const [, setTimeTick] = useState(0)
+  useEffect(() => {
+    if (!dataFetchedAt) return
+    const id = setInterval(() => setTimeTick((t) => t + 1), 30_000)
+    return () => clearInterval(id)
+  }, [dataFetchedAt])
 
   const { data } = useQuery({
     queryKey: ['financials', ticker],
@@ -91,7 +102,17 @@ export default function FinancialsPanel() {
     <div className="card animate-in">
       <div className="card-header">
         <span className="card-title">Fundamentals</span>
-        {data_source && <span className="card-badge">{data_source}</span>}
+        <span className="card-header-right">
+          {dataFetchedAt && (
+            <span
+              className="data-freshness"
+              title={new Date(dataFetchedAt).toLocaleString()}
+            >
+              {relativeTime(dataFetchedAt)}
+            </span>
+          )}
+          {data_source && <span className="card-badge">{data_source}</span>}
+        </span>
       </div>
       <div className="card-body">
         <table className="fin-table">

@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api, BASE_URL } from '../api/client'
 import { useAppStore } from '../stores/appStore'
@@ -61,7 +62,21 @@ export default function StockOverview() {
     enabled: !!ticker,
   })
 
-  const history = priceData?.history ?? []
+  const history = priceData?.history
+
+  // Compute price change from last 2 trading days
+  const setPriceChange = useAppStore((s) => s.setPriceChange)
+  useEffect(() => {
+    if (!history || history.length < 2) return
+    const latest = history[history.length - 1]
+    const prev = history[history.length - 2]
+    if (prev.close > 0) {
+      const change = latest.close - prev.close
+      const changePct = (change / prev.close) * 100
+      setPriceChange(change, changePct)
+    }
+  }, [history, setPriceChange])
+
   const income = financials?.income
   const market = financials?.market
   const valuation = financials?.valuation
@@ -94,11 +109,11 @@ export default function StockOverview() {
       </div>
 
       {/* Price Chart */}
-      {history.length > 0 && (
+      {history && history.length > 0 && (
         <PriceChart data={history} title="Price History (1Y)" />
       )}
 
-      {history.length === 0 && (
+      {(!history || history.length === 0) && (
         <div className="card">
           <div className="card-header">
             <span className="card-title">Price History</span>

@@ -222,11 +222,21 @@ body {
   text-transform: uppercase; letter-spacing: 0.06em;
   color: var(--text-secondary);
 }
+.card-header-right {
+  display: flex; align-items: center; gap: var(--sp-2);
+}
 .card-badge {
   font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500;
   padding: 2px 8px; border-radius: var(--r-sm);
   background: var(--gold-dim); color: var(--gold);
 }
+.data-freshness {
+  font-family: var(--font-mono); font-size: 0.65rem; font-weight: 400;
+  color: var(--text-muted);
+  cursor: default;
+  transition: color 0.15s;
+}
+.data-freshness:hover { color: var(--text-secondary); }
 .card-body { padding: var(--sp-4); }
 
 /* ═══════════════════════════

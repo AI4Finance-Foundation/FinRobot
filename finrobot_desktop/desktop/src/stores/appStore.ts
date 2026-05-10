@@ -160,6 +160,11 @@ interface WorkspaceState {
   dcfResult: DCFResult | null
   sensitivityData: SensitivityResult | null
   currentPrice: number | null
+  priceChange: number | null
+  priceChangePct: number | null
+
+  // Data freshness
+  dataFetchedAt: number | null
 
   // Equity Research state
   researchResult: ResearchResult | null
@@ -189,6 +194,8 @@ interface WorkspaceState {
   setDcfResult: (result: DCFResult) => void
   setSensitivityData: (data: SensitivityResult) => void
   setCurrentPrice: (price: number) => void
+  setPriceChange: (change: number, changePct: number) => void
+  setDataFetchedAt: (ts: number) => void
   setResearchResult: (result: ResearchResult) => void
   setCompsResult: (result: CompsResult) => void
   setEarningsResult: (result: EarningsResult) => void
@@ -209,6 +216,9 @@ const initialState = {
   dcfResult: null,
   sensitivityData: null,
   currentPrice: null,
+  priceChange: null,
+  priceChangePct: null,
+  dataFetchedAt: null,
   researchResult: null,
   compsResult: null,
   earningsResult: null,
@@ -243,6 +253,8 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   setDcfResult: (dcfResult) => set({ dcfResult }),
   setSensitivityData: (sensitivityData) => set({ sensitivityData }),
   setCurrentPrice: (currentPrice) => set({ currentPrice }),
+  setPriceChange: (priceChange, priceChangePct) => set({ priceChange, priceChangePct }),
+  setDataFetchedAt: (dataFetchedAt) => set({ dataFetchedAt }),
   setResearchResult: (researchResult) => set({ researchResult }),
   setCompsResult: (compsResult) => set({ compsResult }),
   setEarningsResult: (earningsResult) => set({ earningsResult }),

@@ -5,7 +5,7 @@ import { useAppStore } from '../stores/appStore'
 
 export default function TickerInput() {
   const [input, setInput] = useState('')
-  const { setTicker, setPhase, setWarnings, setCurrentPrice, phase } = useAppStore()
+  const { setTicker, setPhase, setWarnings, setCurrentPrice, setDataFetchedAt, phase } = useAppStore()
 
   const handleLoad = () => {
     const t = input.trim().toUpperCase()
@@ -28,6 +28,7 @@ export default function TickerInput() {
         if (data.market?.current_price != null) {
           setCurrentPrice(data.market.current_price)
         }
+        setDataFetchedAt(Date.now())
         setPhase('data_ready')
       }
       return data

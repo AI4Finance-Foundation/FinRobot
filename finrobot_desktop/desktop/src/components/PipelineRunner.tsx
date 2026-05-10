@@ -19,7 +19,7 @@ const STATUS_MAP: Record<string, string> = {
 }
 
 const PIPELINE_LABELS: Record<string, string> = {
-  equity_research: 'Equity Research',
+  research: 'Equity Research',
   dcf: 'DCF Analysis',
   comps: 'Comps Analysis',
   earnings: 'Earnings Analysis',
@@ -75,7 +75,7 @@ export default function PipelineRunner() {
         const structured = detail.result?.structured
         if (!structured) return
 
-        if (runPipelineTypeRef.current === 'equity_research') {
+        if (runPipelineTypeRef.current === 'research') {
           // Extract thesis result
           const thesis: ResearchResult | undefined = structured.thesis
           if (thesis) {

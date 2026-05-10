@@ -64,7 +64,7 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
     const canSwitchPipeline = phase === 'data_ready' || phase === 'pipeline_done' || phase === 'interactive'
     if (canSwitchPipeline) {
       const pipelines: { type: PipelineType; label: string; desc: string }[] = [
-        { type: 'equity_research', label: 'Run Equity Research', desc: 'Full investment thesis + price target' },
+        { type: 'research', label: 'Run Equity Research', desc: 'Full investment thesis + price target' },
         { type: 'dcf', label: 'Run DCF Analysis', desc: 'Discounted cash flow valuation' },
         { type: 'comps', label: 'Run Comps Analysis', desc: 'Peer comparison multiples' },
         { type: 'earnings', label: 'Run Earnings Analysis', desc: 'Beat/miss history + surprise metrics' },

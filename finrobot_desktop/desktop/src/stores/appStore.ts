@@ -8,7 +8,7 @@ type Phase =
   | 'pipeline_done'
   | 'interactive'
 
-export type PipelineType = 'equity_research' | 'dcf' | 'comps' | 'earnings' | 'lbo'
+export type PipelineType = 'research' | 'dcf' | 'comps' | 'earnings' | 'lbo'
 export type ViewMode = 'workspace' | 'history'
 
 export interface ResearchResult {
@@ -199,7 +199,7 @@ interface WorkspaceState {
 const initialState = {
   ticker: '',
   phase: 'idle' as Phase,
-  pipelineType: 'equity_research' as PipelineType,
+  pipelineType: 'research' as PipelineType,
   warnings: [] as string[],
   dcfInputs: null,
   originalDcfInputs: null,

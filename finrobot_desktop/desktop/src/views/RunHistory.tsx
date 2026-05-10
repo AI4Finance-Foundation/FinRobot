@@ -14,10 +14,11 @@ const STATUS_STYLES: Record<string, { color: string; label: string }> = {
 }
 
 const PIPELINE_LABELS: Record<string, string> = {
-  equity_research: 'Equity Research',
+  research: 'Equity Research',
   dcf: 'DCF',
   comps: 'Comps',
   earnings: 'Earnings',
+  lbo: 'LBO',
 }
 
 function formatTime(iso: string): string {
@@ -79,7 +80,7 @@ export default function RunHistory({ onBack }: Props) {
     const detail = await resp.json()
 
     setTicker(runTicker)
-    setPipelineType(runPipelineType as 'equity_research' | 'dcf' | 'comps' | 'earnings')
+    setPipelineType(runPipelineType as 'research' | 'dcf' | 'comps' | 'earnings' | 'lbo')
     setWarnings(detail.warnings || [])
 
     const structured = detail.result?.structured
@@ -97,7 +98,7 @@ export default function RunHistory({ onBack }: Props) {
       return
     }
 
-    if (runPipelineType === 'equity_research') {
+    if (runPipelineType === 'research') {
       const thesis: ResearchResult | undefined = structured.thesis
       if (thesis) setResearchResult(thesis)
 

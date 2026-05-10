@@ -35,7 +35,7 @@ interface Props {
 }
 
 const PIPELINE_OPTIONS: { value: PipelineType; label: string }[] = [
-  { value: 'equity_research', label: 'Research' },
+  { value: 'research', label: 'Research' },
   { value: 'dcf', label: 'DCF' },
   { value: 'comps', label: 'Comps' },
   { value: 'earnings', label: 'Earnings' },
@@ -61,7 +61,7 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
   const showResults = phase === 'pipeline_done' || phase === 'interactive'
   const isLoading = phase === 'loading_data'
   const showControls = isLoading || phase === 'data_ready' || phase === 'running_pipeline' || showResults
-  const isResearch = pipelineType === 'equity_research'
+  const isResearch = pipelineType === 'research'
   const isComps = pipelineType === 'comps'
   const isEarnings = pipelineType === 'earnings'
   const isLbo = pipelineType === 'lbo'

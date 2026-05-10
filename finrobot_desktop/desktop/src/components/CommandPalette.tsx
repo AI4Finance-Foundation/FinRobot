@@ -6,10 +6,17 @@ interface CommandItem {
   id: string
   label: string
   description?: string
-  section: 'ticker' | 'pipeline' | 'navigate'
-  icon: 'search' | 'chart' | 'nav' | 'settings'
+  section: 'recent' | 'ticker' | 'pipeline' | 'navigate'
+  icon: 'search' | 'chart' | 'nav' | 'settings' | 'clock'
   action: () => void
   shortcut?: string
+}
+
+interface FuzzyMatch {
+  item: CommandItem
+  score: number
+  indices: number[]        // matched char positions in label
+  descIndices: number[]    // matched char positions in description
 }
 
 interface Props {
@@ -19,14 +26,127 @@ interface Props {
 }
 
 const SECTION_LABELS: Record<string, string> = {
+  recent: 'Recent',
   ticker: 'Ticker',
   pipeline: 'Pipelines',
   navigate: 'Navigation',
 }
 
+const SECTION_ORDER: Record<string, number> = {
+  recent: 0,
+  ticker: 1,
+  pipeline: 2,
+  navigate: 3,
+}
+
+const RECENT_KEY = 'finagent:cmd-recent'
+const MAX_RECENT = 5
+
+/* ── Fuzzy scoring ──────────────────────────────── */
+
+function fuzzyScore(query: string, target: string): { score: number; indices: number[] } | null {
+  const q = query.toLowerCase()
+  const t = target.toLowerCase()
+  const indices: number[] = []
+  let qi = 0
+  let score = 0
+  let prevMatchIdx = -2
+
+  for (let ti = 0; ti < t.length && qi < q.length; ti++) {
+    if (t[ti] === q[qi]) {
+      indices.push(ti)
+
+      // Consecutive match bonus
+      if (ti === prevMatchIdx + 1) {
+        score += 8
+      }
+
+      // Word boundary bonus (start of word)
+      if (ti === 0 || t[ti - 1] === ' ' || t[ti - 1] === '-' || t[ti - 1] === '_') {
+        score += 10
+      }
+
+      // Exact case match bonus
+      if (target[ti] === query[qi]) {
+        score += 1
+      }
+
+      score += 3 // base match score
+      prevMatchIdx = ti
+      qi++
+    }
+  }
+
+  // All query chars must be matched
+  if (qi < q.length) return null
+
+  // Penalty for longer targets (prefer shorter, more precise matches)
+  score -= Math.floor(t.length / 8)
+
+  return { score, indices }
+}
+
+/* ── Recent commands ───────────────────────────── */
+
+function getRecent(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.slice(0, MAX_RECENT) : []
+  } catch {
+    return []
+  }
+}
+
+function pushRecent(id: string): void {
+  const list = getRecent().filter((x) => x !== id)
+  list.unshift(id)
+  localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, MAX_RECENT)))
+}
+
+/* ── Highlighted label ─────────────────────────── */
+
+function HighlightedText({ text, indices }: { text: string; indices: number[] }) {
+  if (indices.length === 0) return <>{text}</>
+
+  const set = new Set(indices)
+  const parts: JSX.Element[] = []
+  let run = ''
+  let inMatch = false
+
+  for (let i = 0; i < text.length; i++) {
+    const isMatch = set.has(i)
+    if (isMatch !== inMatch) {
+      if (run) {
+        parts.push(
+          inMatch
+            ? <mark key={i} className="cmd-match">{run}</mark>
+            : <span key={i}>{run}</span>
+        )
+      }
+      run = ''
+      inMatch = isMatch
+    }
+    run += text[i]
+  }
+  if (run) {
+    parts.push(
+      inMatch
+        ? <mark key={text.length} className="cmd-match">{run}</mark>
+        : <span key={text.length}>{run}</span>
+    )
+  }
+
+  return <>{parts}</>
+}
+
+/* ── Component ─────────────────────────────────── */
+
 export default function CommandPalette({ open, onClose, onOpenSettings }: Props) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [recentIds, setRecentIds] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -39,11 +159,27 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
     setView,
   } = useAppStore()
 
-  // Build command list
+  // Load recent on open
+  useEffect(() => {
+    if (open) {
+      setRecentIds(getRecent())
+    }
+  }, [open])
+
+  // Execute command and record to recent
+  const execCommand = useCallback((item: CommandItem) => {
+    // Don't record ticker-specific dynamic commands
+    if (!item.id.startsWith('load-')) {
+      pushRecent(item.id)
+    }
+    item.action()
+  }, [])
+
+  // Build base command list (excluding recent section)
   const commands = useMemo<CommandItem[]>(() => {
     const items: CommandItem[] = []
 
-    // If query looks like a ticker (uppercase alpha, 1-5 chars), show "Load ticker" action
+    // If query looks like a ticker, show "Load ticker" action
     const trimmed = query.trim().toUpperCase()
     if (trimmed && /^[A-Z]{1,5}$/.test(trimmed) && trimmed !== ticker) {
       items.push({
@@ -125,34 +261,82 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
     return items
   }, [query, ticker, phase, setTicker, setPhase, setPipelineType, setView, onClose, onOpenSettings])
 
-  // Filter by query
-  const filtered = useMemo(() => {
-    if (!query.trim()) return commands
-    const q = query.toLowerCase()
-    return commands.filter(
-      (c) =>
-        c.label.toLowerCase().includes(q) ||
-        c.description?.toLowerCase().includes(q) ||
-        c.section.includes(q)
-    )
-  }, [commands, query])
+  // Fuzzy filter + score + sort
+  const matches = useMemo<FuzzyMatch[]>(() => {
+    const q = query.trim()
 
-  // Group by section
-  const grouped = useMemo(() => {
-    const sections: { key: string; label: string; items: CommandItem[] }[] = []
-    const seen = new Set<string>()
-    for (const item of filtered) {
-      if (!seen.has(item.section)) {
-        seen.add(item.section)
-        sections.push({
-          key: item.section,
-          label: SECTION_LABELS[item.section] || item.section,
-          items: filtered.filter((i) => i.section === item.section),
+    if (!q) {
+      // No query — show recent section (if any) + all commands
+      const recentItems: FuzzyMatch[] = []
+      if (recentIds.length > 0) {
+        for (const rid of recentIds) {
+          const cmd = commands.find((c) => c.id === rid)
+          if (cmd) {
+            recentItems.push({
+              item: { ...cmd, section: 'recent', icon: 'clock' },
+              score: 100,
+              indices: [],
+              descIndices: [],
+            })
+          }
+        }
+      }
+
+      const regular = commands.map((c) => ({
+        item: c,
+        score: 0,
+        indices: [],
+        descIndices: [],
+      }))
+
+      return [...recentItems, ...regular]
+    }
+
+    // Fuzzy match against label and description
+    const results: FuzzyMatch[] = []
+    for (const cmd of commands) {
+      const labelMatch = fuzzyScore(q, cmd.label)
+      const descMatch = cmd.description ? fuzzyScore(q, cmd.description) : null
+
+      if (labelMatch || descMatch) {
+        const labelScore = labelMatch?.score ?? -100
+        const descScore = descMatch ? descMatch.score - 5 : -100  // prefer label matches
+        results.push({
+          item: cmd,
+          score: Math.max(labelScore, descScore),
+          indices: labelMatch?.indices ?? [],
+          descIndices: descMatch?.indices ?? [],
         })
       }
     }
-    return sections
-  }, [filtered])
+
+    // Sort by score descending
+    results.sort((a, b) => b.score - a.score)
+    return results
+  }, [commands, query, recentIds])
+
+  // Group by section (preserving order)
+  const grouped = useMemo(() => {
+    const sectionMap = new Map<string, { key: string; label: string; items: FuzzyMatch[] }>()
+
+    for (const match of matches) {
+      const sec = match.item.section
+      if (!sectionMap.has(sec)) {
+        sectionMap.set(sec, {
+          key: sec,
+          label: SECTION_LABELS[sec] || sec,
+          items: [],
+        })
+      }
+      sectionMap.get(sec)!.items.push(match)
+    }
+
+    return Array.from(sectionMap.values()).sort(
+      (a, b) => (SECTION_ORDER[a.key] ?? 99) - (SECTION_ORDER[b.key] ?? 99)
+    )
+  }, [matches])
+
+  const flatItems = useMemo(() => matches, [matches])
 
   // Reset on open/close
   useEffect(() => {
@@ -165,10 +349,10 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
 
   // Clamp selected index
   useEffect(() => {
-    if (selectedIndex >= filtered.length) {
-      setSelectedIndex(Math.max(0, filtered.length - 1))
+    if (selectedIndex >= flatItems.length) {
+      setSelectedIndex(Math.max(0, flatItems.length - 1))
     }
-  }, [filtered.length, selectedIndex])
+  }, [flatItems.length, selectedIndex])
 
   // Scroll active item into view
   useEffect(() => {
@@ -184,7 +368,7 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
-          setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1))
+          setSelectedIndex((i) => Math.min(i + 1, flatItems.length - 1))
           break
         case 'ArrowUp':
           e.preventDefault()
@@ -192,8 +376,8 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
           break
         case 'Enter':
           e.preventDefault()
-          if (filtered[selectedIndex]) {
-            filtered[selectedIndex].action()
+          if (flatItems[selectedIndex]) {
+            execCommand(flatItems[selectedIndex].item)
           }
           break
         case 'Escape':
@@ -202,7 +386,7 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
           break
       }
     },
-    [filtered, selectedIndex, onClose]
+    [flatItems, selectedIndex, onClose, execCommand]
   )
 
   if (!open) return null
@@ -231,34 +415,45 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
             spellCheck={false}
             autoComplete="off"
           />
+          {query && (
+            <span className="cmd-result-count">{flatItems.length} result{flatItems.length !== 1 ? 's' : ''}</span>
+          )}
           <kbd className="cmd-kbd">ESC</kbd>
         </div>
 
         {/* Results */}
         <div className="cmd-list" ref={listRef}>
-          {filtered.length === 0 && (
-            <div className="cmd-empty">No results found</div>
+          {flatItems.length === 0 && (
+            <div className="cmd-empty">
+              <span className="cmd-empty-icon">?</span>
+              No matching commands
+            </div>
           )}
           {grouped.map((section) => (
             <div key={section.key} className="cmd-section">
               <div className="cmd-section-label">{section.label}</div>
-              {section.items.map((item) => {
+              {section.items.map((match) => {
                 flatIndex++
                 const isActive = flatIndex === selectedIndex
                 const currentFlatIndex = flatIndex
+                const item = match.item
                 return (
                   <div
-                    key={item.id}
+                    key={`${section.key}-${item.id}`}
                     className={`cmd-item${isActive ? ' active' : ''}`}
                     data-active={isActive}
-                    onClick={() => item.action()}
+                    onClick={() => execCommand(item)}
                     onMouseEnter={() => setSelectedIndex(currentFlatIndex)}
                   >
                     <CommandIcon type={item.icon} />
                     <div className="cmd-item-text">
-                      <span className="cmd-item-label">{item.label}</span>
+                      <span className="cmd-item-label">
+                        <HighlightedText text={item.label} indices={match.indices} />
+                      </span>
                       {item.description && (
-                        <span className="cmd-item-desc">{item.description}</span>
+                        <span className="cmd-item-desc">
+                          <HighlightedText text={item.description} indices={match.descIndices} />
+                        </span>
                       )}
                     </div>
                     {item.shortcut && (
@@ -310,6 +505,13 @@ function CommandIcon({ type }: { type: string }) {
         <svg className="cmd-item-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3">
           <circle cx="7" cy="7" r="2" />
           <path d="M7 1v2m0 8v2M1 7h2m8 0h2" />
+        </svg>
+      )
+    case 'clock':
+      return (
+        <svg className="cmd-item-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3">
+          <circle cx="7" cy="7" r="5.5" />
+          <path d="M7 4v3.5l2.5 1.5" />
         </svg>
       )
     default:

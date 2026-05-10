@@ -42,6 +42,8 @@ const PIPELINE_OPTIONS: { value: PipelineType; label: string }[] = [
   { value: 'lbo', label: 'LBO' },
 ]
 
+const QUICK_TICKERS = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'META']
+
 export default function TickerWorkspace({ onOpenSettings }: Props) {
   const {
     ticker,
@@ -57,6 +59,12 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
     lboResult,
     setPipelineType,
   } = useAppStore()
+
+  const handleQuickTicker = (t: string) => {
+    const store = useAppStore.getState()
+    store.setTicker(t)
+    store.setPhase('loading_data')
+  }
 
   const showResults = phase === 'pipeline_done' || phase === 'interactive'
   const isLoading = phase === 'loading_data'
@@ -184,25 +192,46 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
             </ErrorBoundary>
           )}
 
-          {/* Empty state */}
+          {/* Idle state — left panel */}
           {phase === 'idle' && (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flex: 1,
-              color: 'var(--text-muted)',
-              gap: 'var(--sp-3)',
-              textAlign: 'center',
-              padding: 'var(--sp-8)',
-            }}>
-              <svg width="32" height="32" viewBox="0 0 20 20" fill="none" style={{ opacity: 0.4 }}>
-                <rect x="1" y="4" width="4" height="12" rx="1" fill="currentColor" />
-                <rect x="8" y="2" width="4" height="14" rx="1" fill="currentColor" opacity="0.6" />
-                <rect x="15" y="6" width="4" height="10" rx="1" fill="currentColor" opacity="0.35" />
-              </svg>
-              <span style={{ fontSize: '0.85rem' }}>Enter a ticker to start analysis</span>
+            <div className="idle-left animate-in">
+              <div className="idle-brand">
+                <svg width="36" height="36" viewBox="0 0 20 20" fill="none">
+                  <rect x="1" y="4" width="4" height="12" rx="1" fill="var(--gold)" />
+                  <rect x="8" y="2" width="4" height="14" rx="1" fill="var(--gold)" opacity="0.6" />
+                  <rect x="15" y="6" width="4" height="10" rx="1" fill="var(--gold)" opacity="0.35" />
+                </svg>
+                <div className="idle-tagline">AI Investment Research</div>
+              </div>
+
+              <div className="idle-section">
+                <div className="section-label">Quick Start</div>
+                <div className="idle-ticker-grid">
+                  {QUICK_TICKERS.map((t) => (
+                    <button
+                      key={t}
+                      className="idle-ticker-btn"
+                      onClick={() => handleQuickTicker(t)}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="idle-section">
+                <div className="section-label">Keyboard</div>
+                <div className="idle-shortcuts">
+                  <div className="idle-shortcut">
+                    <kbd className="idle-kbd">⌘K</kbd>
+                    <span>Command Palette</span>
+                  </div>
+                  <div className="idle-shortcut">
+                    <kbd className="idle-kbd">↵</kbd>
+                    <span>Load Ticker</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </aside>
@@ -388,17 +417,50 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
             </>
           )}
 
-          {/* Idle state */}
+          {/* Idle state — right panel */}
           {phase === 'idle' && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flex: 1,
-              color: 'var(--text-muted)',
-              fontSize: '0.85rem',
-            }}>
-              Analysis results will appear here
+            <div className="idle-right animate-in">
+              <div className="idle-watermark">
+                <svg width="72" height="72" viewBox="0 0 20 20" fill="none">
+                  <rect x="1" y="4" width="4" height="12" rx="1" fill="var(--gold)" opacity="0.12" />
+                  <rect x="8" y="2" width="4" height="14" rx="1" fill="var(--gold)" opacity="0.08" />
+                  <rect x="15" y="6" width="4" height="10" rx="1" fill="var(--gold)" opacity="0.05" />
+                </svg>
+              </div>
+              <div className="idle-hero-text">
+                <div className="idle-hero-label">Investment Research Workstation</div>
+                <p className="idle-hero-desc">
+                  Type a ticker to start, or press{' '}
+                  <kbd className="idle-kbd">⌘K</kbd> to search.
+                </p>
+              </div>
+              <div className="idle-features">
+                <div className="idle-feature">
+                  <svg className="idle-feature-icon" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="var(--gold)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="2,14 6,9 10,11 16,4" />
+                    <polyline points="12,4 16,4 16,8" />
+                  </svg>
+                  <div className="idle-feature-label">5 Pipelines</div>
+                  <div className="idle-feature-desc">Research, DCF, Comps, Earnings, LBO</div>
+                </div>
+                <div className="idle-feature">
+                  <svg className="idle-feature-icon" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="var(--gold)" strokeWidth="1.3" strokeLinecap="round">
+                    <path d="M6 2C4 2 3 3 3 5v3c0 1-1 1-1 1s1 0 1 1v3c0 2 1 3 3 3" />
+                    <path d="M12 2c2 0 3 1 3 3v3c0 1 1 1 1 1s-1 0-1 1v3c0 2-1 3-3 3" />
+                  </svg>
+                  <div className="idle-feature-label">Deterministic Math</div>
+                  <div className="idle-feature-desc">WACC, DCF, IRR, MOIC — no LLM guessing</div>
+                </div>
+                <div className="idle-feature">
+                  <svg className="idle-feature-icon" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="var(--gold)" strokeWidth="1.3">
+                    <ellipse cx="9" cy="4.5" rx="6" ry="2.5" />
+                    <path d="M3 4.5v4c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5v-4" />
+                    <path d="M3 8.5v4c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5v-4" />
+                  </svg>
+                  <div className="idle-feature-label">Multi-Source Data</div>
+                  <div className="idle-feature-desc">FMP, Finnhub, SEC EDGAR with cross-validation</div>
+                </div>
+              </div>
             </div>
           )}
         </main>

@@ -11,14 +11,14 @@ import RunHistory from './views/RunHistory'
 
 function AppInner() {
   const [forceSettings, setForceSettings] = useState(false)
-  const [cmdOpen, setCmdOpen] = useState(false)
   const view = useAppStore((s) => s.view)
+  const cmdOpen = useAppStore((s) => s.cmdPaletteOpen)
 
   // Global Cmd+K / Ctrl+K shortcut
   const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault()
-      setCmdOpen((o) => !o)
+      useAppStore.getState().toggleCmdPalette()
     }
   }, [])
 
@@ -54,7 +54,7 @@ function AppInner() {
   const cmdPalette = (
     <CommandPalette
       open={cmdOpen}
-      onClose={() => setCmdOpen(false)}
+      onClose={() => useAppStore.getState().setCmdPaletteOpen(false)}
       onOpenSettings={() => setForceSettings(true)}
     />
   )

@@ -110,7 +110,7 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
 
         <button
           className="cmd-trigger"
-          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
+          onClick={() => useAppStore.getState().toggleCmdPalette()}
           title="Command Palette (⌘K)"
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3">

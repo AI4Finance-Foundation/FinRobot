@@ -65,7 +65,6 @@ export default function FinancialsPanel() {
       <div className="card animate-in">
         <div className="card-header">
           <span className="card-title">Fundamentals</span>
-          <span className="card-badge" style={{ opacity: 0.5 }}>Loading...</span>
         </div>
         <div className="card-body">
           <table className="fin-table">
@@ -73,7 +72,9 @@ export default function FinancialsPanel() {
               {['Revenue', 'EBITDA', 'Net Income', 'Market Cap', 'Enterprise Value'].map((label) => (
                 <tr key={label}>
                   <td className="fin-label">{label}</td>
-                  <td className="fin-value" style={{ opacity: 0.3 }}>{'\u2014'}</td>
+                  <td className="fin-value">
+                    <div className="skeleton" style={{ width: 64, height: 14, display: 'inline-block' }} />
+                  </td>
                 </tr>
               ))}
             </tbody>

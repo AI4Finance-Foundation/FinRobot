@@ -278,21 +278,49 @@ body {
 .fin-table thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
 
 /* ═══════════════════════════
-   PIPELINE PROGRESS
+   PIPELINE PROGRESS (Timeline)
    ═══════════════════════════ */
-.pipeline-steps { display: flex; flex-direction: column; gap: 2px; }
+.pipeline-steps { display: flex; flex-direction: column; gap: 0; }
 
 .step {
   display: flex; align-items: center; gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3);
+  padding: var(--sp-3) var(--sp-3);
   border-radius: var(--r-md);
   transition: background 0.15s;
+  position: relative;
 }
+
+/* ── Timeline vertical connector ── */
+.step::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--sp-3) + 8px);
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--border-subtle);
+  z-index: 0;
+  border-radius: 1px;
+}
+.step:first-child::before { top: 50%; height: 50%; }
+.step:last-child::before { height: 50%; }
+.step:only-child::before { display: none; }
+
+/* Timeline color by status */
+.step.done::before { background: rgba(52, 211, 153, 0.25); }
+.step.active::before {
+  background: linear-gradient(to bottom, var(--gold-dim), var(--border-subtle));
+}
+
+/* Active step glow */
+.step.active { background: var(--gold-glow); }
 
 .step-indicator {
   width: 18px; height: 18px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; font-size: 0.65rem;
+  position: relative;
+  z-index: 1;
 }
 .step.done .step-indicator { background: var(--positive-bg); color: var(--positive); }
 .step.active .step-indicator {
@@ -316,6 +344,19 @@ body {
   color: var(--text-muted);
 }
 .step.done .step-time { color: var(--text-secondary); }
+
+/* Step count badge in pipeline header */
+.pipeline-count {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  background: var(--elevated);
+}
+.pipeline-count.running { color: var(--gold); background: var(--gold-dim); }
+.pipeline-count.done { color: var(--positive); background: var(--positive-bg); }
 
 .step-progress-bar {
   height: 2px; background: var(--border); border-radius: 1px;

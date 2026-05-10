@@ -148,14 +148,24 @@ export default function PipelineRunner() {
     fetchResult()
   }, [status, phase, runId, setPhase, setDcfInputs, setOriginalDcfInputs, setDcfResult, setSensitivityData, setResearchResult, setCompsResult, setEarningsResult, setLboResult, sensitivityMut])
 
-  const canRun = phase === 'data_ready' && !!ticker
+  const canRun = (phase === 'data_ready' || phase === 'pipeline_done' || phase === 'interactive') && !!ticker
   const isRunning = phase === 'running_pipeline' || phase === 'pipeline_done'
   const label = PIPELINE_LABELS[pipelineType] || pipelineType
+
+  const doneCount = steps.filter(s => s.status === 'completed').length
+  const totalCount = steps.length
+  const allDone = totalCount > 0 && doneCount === totalCount
+  const countCls = allDone ? 'done' : isRunning ? 'running' : ''
 
   return (
     <div className="card animate-in">
       <div className="card-header">
         <span className="card-title">{label} Pipeline</span>
+        {totalCount > 0 && (
+          <span className={`pipeline-count ${countCls}`}>
+            {doneCount}/{totalCount}
+          </span>
+        )}
       </div>
       <div className="card-body">
         {/* Run button */}

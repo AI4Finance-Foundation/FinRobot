@@ -51,7 +51,7 @@ export default function StockOverview() {
     enabled: !!ticker,
   })
 
-  const { data: priceData } = useQuery({
+  const { data: priceData, isError: isPriceError } = useQuery({
     queryKey: ['price', ticker],
     queryFn: async () => {
       const resp = await fetch(`${BASE_URL}/api/data/${ticker}/price`)
@@ -76,18 +76,18 @@ export default function StockOverview() {
     <div className="stock-overview animate-in">
       {/* KPI Cards */}
       <div className="kpi-grid">
-        <KPICard label="Market Cap" value={fmtUsd(market?.market_cap)} />
-        <KPICard label="P/E Ratio" value={fmtMult(market?.pe_ratio)} />
-        <KPICard label="EV/EBITDA" value={fmtMult(valuation?.ev_ebitda)} />
-        <KPICard label="Revenue" value={fmtUsd(income?.revenue)} />
-        <KPICard label="EBITDA Margin" value={fmtPct(ebitdaMargin)} />
+        <KPICard label="Market Cap" value={fmtUsd(market?.market_cap)} loading={!financials} />
+        <KPICard label="P/E Ratio" value={fmtMult(market?.pe_ratio)} loading={!financials} />
+        <KPICard label="EV/EBITDA" value={fmtMult(valuation?.ev_ebitda)} loading={!financials} />
+        <KPICard label="Revenue" value={fmtUsd(income?.revenue)} loading={!financials} />
+        <KPICard label="EBITDA Margin" value={fmtPct(ebitdaMargin)} loading={!financials} />
         {has52w ? (
           <KPICard
             label="52W Range"
             value={`${fmtPrice(market!.price_52w_low)} \u2013 ${fmtPrice(market!.price_52w_high)}`}
           />
         ) : (
-          <KPICard label="EV/Revenue" value={fmtMult(valuation?.ev_revenue)} />
+          <KPICard label="EV/Revenue" value={fmtMult(valuation?.ev_revenue)} loading={!financials} />
         )}
       </div>
 
@@ -101,15 +101,28 @@ export default function StockOverview() {
           <div className="card-header">
             <span className="card-title">Price History</span>
           </div>
-          <div className="card-body" style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: 180,
-            color: 'var(--text-muted)',
-            fontSize: '0.78rem',
-          }}>
-            Loading price data...
+          <div className="card-body" style={{ minHeight: 180 }}>
+            {isPriceError ? (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: 160,
+                color: 'var(--text-muted)',
+                fontSize: '0.78rem',
+              }}>
+                Price data unavailable
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' }}>
+                <div className="skeleton" style={{ width: '100%', height: 120, borderRadius: 'var(--r-md)' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="skeleton" style={{ width: 40, height: 10 }} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -117,11 +130,15 @@ export default function StockOverview() {
   )
 }
 
-function KPICard({ label, value }: { label: string; value: string }) {
+function KPICard({ label, value, loading }: { label: string; value: string; loading?: boolean }) {
   return (
     <div className="kpi-card">
       <div className="kpi-label">{label}</div>
-      <div className="kpi-value">{value}</div>
+      {loading ? (
+        <div className="skeleton" style={{ width: 60, height: 16, marginTop: 2 }} />
+      ) : (
+        <div className="kpi-value">{value}</div>
+      )}
     </div>
   )
 }

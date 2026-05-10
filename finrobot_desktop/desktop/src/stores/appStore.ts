@@ -176,6 +176,7 @@ interface WorkspaceState {
   // UI navigation
   view: ViewMode
   showSettings: boolean
+  cmdPaletteOpen: boolean
 
   // Actions
   setTicker: (t: string) => void
@@ -193,6 +194,8 @@ interface WorkspaceState {
   setEarningsResult: (result: EarningsResult) => void
   setLboResult: (result: LBOResult) => void
   setShowSettings: (show: boolean) => void
+  setCmdPaletteOpen: (open: boolean) => void
+  toggleCmdPalette: () => void
   reset: () => void
 }
 
@@ -212,12 +215,25 @@ const initialState = {
   lboResult: null,
   view: 'workspace' as ViewMode,
   showSettings: false,
+  cmdPaletteOpen: false,
 }
 
 export const useAppStore = create<WorkspaceState>((set) => ({
   ...initialState,
 
-  setTicker: (ticker) => set({ ticker }),
+  setTicker: (ticker) => set({
+    ticker,
+    researchResult: null,
+    compsResult: null,
+    earningsResult: null,
+    lboResult: null,
+    dcfResult: null,
+    dcfInputs: null,
+    originalDcfInputs: null,
+    sensitivityData: null,
+    warnings: [],
+    phase: 'idle',
+  }),
   setPhase: (phase) => set({ phase }),
   setPipelineType: (pipelineType) => set({ pipelineType }),
   setView: (view) => set({ view }),
@@ -232,5 +248,7 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   setEarningsResult: (earningsResult) => set({ earningsResult }),
   setLboResult: (lboResult) => set({ lboResult }),
   setShowSettings: (showSettings) => set({ showSettings }),
+  setCmdPaletteOpen: (cmdPaletteOpen) => set({ cmdPaletteOpen }),
+  toggleCmdPalette: () => set((s) => ({ cmdPaletteOpen: !s.cmdPaletteOpen })),
   reset: () => set(initialState),
 }))

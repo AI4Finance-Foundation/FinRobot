@@ -118,10 +118,17 @@ async def put_settings_route(
 async def _build_response(request: Request) -> SettingsResponse:
     settings: FinAgentSettings = request.app.state.deps.settings
     secret_store = request.app.state.secret_store
+
+    async def _has_key(secret_key: str, settings_field: str) -> bool:
+        """Check keychain first, then fall back to settings (.env)."""
+        if await secret_store.has(secret_key):
+            return True
+        return bool(getattr(settings, settings_field, ""))
+
     providers: list[str] = []
-    if await secret_store.has("fmp_api_key"):
+    if await _has_key("fmp_api_key", "fmp_api_key"):
         providers.append("fmp")
-    if await secret_store.has("finnhub_api_key"):
+    if await _has_key("finnhub_api_key", "finnhub_api_key"):
         providers.append("finnhub")
     providers.extend(["yfinance", "sec_edgar"])
     return SettingsResponse(
@@ -131,11 +138,11 @@ async def _build_response(request: Request) -> SettingsResponse:
         model_modeling=settings.model_modeling,
         model_synthesis=settings.model_synthesis,
         model_report=settings.model_report,
-        anthropic_api_key_set=await secret_store.has("anthropic_api_key"),
-        deepseek_api_key_set=await secret_store.has("deepseek_api_key"),
-        openai_api_key_set=await secret_store.has("openai_api_key"),
-        fmp_api_key_set=await secret_store.has("fmp_api_key"),
-        finnhub_api_key_set=await secret_store.has("finnhub_api_key"),
+        anthropic_api_key_set=await _has_key("anthropic_api_key", "anthropic_api_key"),
+        deepseek_api_key_set=await _has_key("deepseek_api_key", "deepseek_api_key"),
+        openai_api_key_set=await _has_key("openai_api_key", "openai_api_key"),
+        fmp_api_key_set=await _has_key("fmp_api_key", "fmp_api_key"),
+        finnhub_api_key_set=await _has_key("finnhub_api_key", "finnhub_api_key"),
         sec_user_agent=settings.sec_user_agent,
         log_level=settings.log_level,
         available_providers=providers,

@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react'
 import {
   ComposedChart,
   Area,
@@ -12,6 +13,19 @@ import {
 interface ChartProps {
   data: Record<string, number | string | boolean | null>[]
   title: string
+}
+
+type TimeRange = '1M' | '3M' | '6M' | '1Y' | 'ALL'
+const TIME_RANGES: TimeRange[] = ['1M', '3M', '6M', '1Y', 'ALL']
+
+function daysForRange(range: TimeRange): number {
+  switch (range) {
+    case '1M': return 30
+    case '3M': return 90
+    case '6M': return 180
+    case '1Y': return 365
+    case 'ALL': return Infinity
+  }
 }
 
 // Design system chart palette
@@ -34,16 +48,39 @@ function formatVolume(value: number): string {
 }
 
 export default function PriceChart({ data, title }: ChartProps) {
+  const [range, setRange] = useState<TimeRange>('1Y')
+
+  const filteredData = useMemo(() => {
+    if (!data || data.length === 0) return []
+    if (range === 'ALL') return data
+    const days = daysForRange(range)
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - days)
+    const cutoffStr = cutoff.toISOString().slice(0, 10)
+    return data.filter((d) => (d.date as string) >= cutoffStr)
+  }, [data, range])
+
   if (!data || data.length === 0) return null
 
   return (
     <div className="card animate-in">
       <div className="card-header">
         <span className="card-title">{title}</span>
+        <div className="time-range-selector">
+          {TIME_RANGES.map((r) => (
+            <button
+              key={r}
+              className={`time-range-btn${range === r ? ' active' : ''}`}
+              onClick={() => setRange(r)}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="card-body">
         <ResponsiveContainer width="100%" height={260}>
-          <ComposedChart data={data}>
+          <ComposedChart data={filteredData}>
             <defs>
               <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={PRICE_COLOR} stopOpacity={0.15} />
@@ -56,7 +93,9 @@ export default function PriceChart({ data, title }: ChartProps) {
               axisLine={{ stroke: '#252A37' }}
               tickFormatter={(d: string) => {
                 const date = new Date(d)
-                return `${date.getMonth() + 1}/${date.getDate()}`
+                return range === '1M'
+                  ? `${date.getMonth() + 1}/${date.getDate()}`
+                  : `${date.getFullYear().toString().slice(2)}/${(date.getMonth() + 1).toString().padStart(2, '0')}`
               }}
               minTickGap={40}
             />
@@ -66,6 +105,7 @@ export default function PriceChart({ data, title }: ChartProps) {
               tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
               axisLine={{ stroke: '#252A37' }}
               tickFormatter={(v: number) => `$${v}`}
+              domain={['auto', 'auto']}
             />
             <YAxis
               yAxisId="volume"

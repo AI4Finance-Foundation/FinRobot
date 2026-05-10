@@ -38,6 +38,12 @@ export default function EpsPeChart({ data, title }: ChartProps) {
       <div className="card-body">
         <ResponsiveContainer width="100%" height={260}>
           <ComposedChart data={data}>
+            <defs>
+              <linearGradient id="epsBarGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={EPS_COLOR} stopOpacity={0.85} />
+                <stop offset="100%" stopColor={EPS_COLOR} stopOpacity={0.45} />
+              </linearGradient>
+            </defs>
             <XAxis
               dataKey="year"
               tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
@@ -83,7 +89,7 @@ export default function EpsPeChart({ data, title }: ChartProps) {
               yAxisId="eps"
               dataKey="eps"
               name="EPS"
-              fill={EPS_COLOR}
+              fill="url(#epsBarGradient)"
               radius={[3, 3, 0, 0]}
             />
             <Line

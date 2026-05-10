@@ -1,5 +1,6 @@
 import {
-  LineChart,
+  ComposedChart,
+  Area,
   Line,
   XAxis,
   YAxis,
@@ -43,7 +44,17 @@ export default function MarginTrendChart({ data, title }: ChartProps) {
       </div>
       <div className="card-body">
         <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={data}>
+          <ComposedChart data={data}>
+            <defs>
+              <linearGradient id="grossGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={COLORS.gross_margin} stopOpacity={0.12} />
+                <stop offset="95%" stopColor={COLORS.gross_margin} stopOpacity={0.01} />
+              </linearGradient>
+              <linearGradient id="ebitdaGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={COLORS.ebitda_margin} stopOpacity={0.10} />
+                <stop offset="95%" stopColor={COLORS.ebitda_margin} stopOpacity={0.01} />
+              </linearGradient>
+            </defs>
             <XAxis
               dataKey="year"
               tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
@@ -59,20 +70,22 @@ export default function MarginTrendChart({ data, title }: ChartProps) {
               contentStyle={CHART_TOOLTIP}
             />
             <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />
-            <Line
+            <Area
               type="monotone"
               dataKey="gross_margin"
               name="Gross"
               stroke={COLORS.gross_margin}
               strokeWidth={2}
+              fill="url(#grossGradient)"
               dot={{ r: 3, fill: COLORS.gross_margin }}
             />
-            <Line
+            <Area
               type="monotone"
               dataKey="ebitda_margin"
               name="EBITDA"
               stroke={COLORS.ebitda_margin}
               strokeWidth={2}
+              fill="url(#ebitdaGradient)"
               dot={{ r: 3, fill: COLORS.ebitda_margin }}
             />
             <Line
@@ -84,7 +97,7 @@ export default function MarginTrendChart({ data, title }: ChartProps) {
               dot={{ r: 3, fill: COLORS.operating_margin }}
               opacity={0.7}
             />
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
     </div>

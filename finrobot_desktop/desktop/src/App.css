@@ -1107,6 +1107,63 @@ select.input-field {
   color: var(--text-primary);
   letter-spacing: -0.01em;
 }
+.kpi-row {
+  display: flex; align-items: center; gap: var(--sp-2);
+}
+.kpi-sparkline {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+/* 52W Range position indicator */
+.kpi-range-bar {
+  flex: 1; min-width: 36px; max-width: 56px;
+}
+.kpi-range-track {
+  position: relative; height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+}
+.kpi-range-dot {
+  position: absolute; top: -2px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 6px rgba(201, 168, 76, 0.4);
+  transform: translateX(-50%);
+}
+
+/* ── Chart time range selector ── */
+.time-range-selector {
+  display: flex; gap: 2px;
+  background: var(--surface);
+  border-radius: var(--r-sm);
+  padding: 2px;
+}
+.time-range-btn {
+  font-family: var(--font-mono);
+  font-size: 0.65rem; font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 2px 8px;
+  border: none; border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.time-range-btn:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+}
+.time-range-btn.active {
+  color: var(--gold);
+  background: var(--gold-dim);
+}
+
+/* ── Table left-side indicator (Bloomberg-style) ── */
+.fin-table tbody tr:hover {
+  box-shadow: inset 3px 0 0 var(--gold);
+}
 
 /* ═══════════════════════════
    TICKER INPUT (topbar style)

@@ -452,6 +452,7 @@ body {
   color: var(--text-primary); letter-spacing: -0.03em;
   line-height: 1;
   margin-bottom: var(--sp-1);
+  font-variant-numeric: tabular-nums;
 }
 .valuation-price .currency { color: var(--text-muted); font-size: 1.8rem; }
 
@@ -479,6 +480,7 @@ body {
 .metric-value {
   font-family: var(--font-mono); font-size: 0.95rem; font-weight: 600;
   color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ═══════════════════════════
@@ -672,14 +674,30 @@ body {
    ═══════════════════════════ */
 .segmented {
   display: flex;
+  position: relative;
   background: var(--base);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   padding: 2px;
   gap: 2px;
 }
+.segmented-indicator {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  background: var(--elevated);
+  border-radius: var(--r-sm);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  z-index: 0;
+  box-shadow: 0 0 0 1px var(--border-subtle);
+}
 .segmented-btn {
   flex: 1;
+  position: relative;
+  z-index: 1;
   padding: 4px var(--sp-3);
   font-family: var(--font-ui);
   font-size: 0.72rem;
@@ -689,14 +707,13 @@ body {
   border: none;
   border-radius: var(--r-sm);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.2s, font-weight 0.2s;
   white-space: nowrap;
 }
 .segmented-btn:hover {
   color: var(--text-secondary);
 }
 .segmented-btn.active {
-  background: var(--elevated);
   color: var(--text-primary);
   font-weight: 600;
 }
@@ -896,6 +913,7 @@ select.input-field {
 }
 .animate-in {
   animation: fadeUp 0.4s ease-out both;
+  animation-delay: calc(var(--stagger, 0) * 60ms);
 }
 
 /* ═══════════════════════════
@@ -1096,6 +1114,7 @@ select.input-field {
   font-weight: 700;
   font-size: 2rem;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Metric stack (number + label, vertically centered) */

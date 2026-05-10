@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { useCountUp } from '../hooks/useCountUp'
 import type { ResearchResult } from '../stores/appStore'
 import { useAppStore } from '../stores/appStore'
 import { BASE_URL } from '../api/client'
@@ -54,11 +55,13 @@ function ExpandableList({ items, icon, iconColor, initialCount = 3 }: {
 
 export default function ResearchSummary({ result, currentPrice }: Props) {
   const ticker = useAppStore((s) => s.ticker)
+  const animatedTarget = useCountUp(result.price_target)
 
   const upside =
     currentPrice && currentPrice > 0
       ? ((result.price_target - currentPrice) / currentPrice) * 100
       : null
+  const animatedUpside = useCountUp(upside ?? 0, 700, 1)
   const isPositive = upside !== null && upside >= 0
 
   const ratingStyle = getRatingStyle(result.recommendation)
@@ -112,7 +115,7 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
           </div>
           <div className="valuation-price" style={{ fontSize: '2.2rem' }}>
             <span className="currency">$</span>
-            {result.price_target.toFixed(2)}
+            {animatedTarget.toFixed(2)}
           </div>
         </div>
       </div>
@@ -124,7 +127,7 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
             <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
               {isPositive ? <path d="M6 2v8M3 5l3-3 3 3" /> : <path d="M6 10V2M3 7l3 3 3-3" />}
             </svg>
-            {isPositive ? '+' : ''}{upside.toFixed(1)}% vs ${currentPrice!.toFixed(2)}
+            {isPositive ? '+' : ''}{animatedUpside.toFixed(1)}% vs ${currentPrice!.toFixed(2)}
           </div>
           <span className="implied-method">{result.price_target_basis}</span>
         </div>

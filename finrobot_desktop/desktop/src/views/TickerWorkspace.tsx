@@ -1,3 +1,4 @@
+import { useRef, useEffect, useCallback } from 'react'
 import { useAppStore } from '../stores/appStore'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import TickerInput from '../components/TickerInput'
@@ -84,6 +85,24 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
     (!isResearch && !isComps && !isEarnings && !isLbo && dcfResult != null)
   )
 
+  // ── Sliding indicator for segmented control ──
+  const segmentedRef = useRef<HTMLDivElement>(null)
+  const indicatorRef = useRef<HTMLDivElement>(null)
+
+  const updateIndicator = useCallback(() => {
+    const container = segmentedRef.current
+    const indicator = indicatorRef.current
+    if (!container || !indicator) return
+    const activeBtn = container.querySelector('.segmented-btn.active') as HTMLElement | null
+    if (!activeBtn) return
+    indicator.style.width = `${activeBtn.offsetWidth}px`
+    indicator.style.transform = `translateX(${activeBtn.offsetLeft - 2}px)`
+  }, [])
+
+  useEffect(() => {
+    updateIndicator()
+  }, [pipelineType, updateIndicator])
+
   return (
     <>
       {/* ── Top Bar ── */}
@@ -158,7 +177,8 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
         <aside className="panel-left">
           {/* Pipeline type selector */}
           {showControls && (
-            <div className="segmented">
+            <div className="segmented" ref={segmentedRef}>
+              <div className="segmented-indicator" ref={indicatorRef} />
               {PIPELINE_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
@@ -246,27 +266,31 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
           {/* ── Equity Research Results ── */}
           {hasCurrentResults && isResearch && researchResult && (
             <>
-              <ErrorBoundary>
-                <ResearchSummary
-                  result={researchResult}
-                  currentPrice={currentPrice}
-                />
-              </ErrorBoundary>
-
-              {/* Valuation football field (full-width) */}
-              {dcfResult && sensitivityData && (
+              <div style={{ '--stagger': 0 } as React.CSSProperties}>
                 <ErrorBoundary>
-                  <FootballField
-                    data={dcfSensitivityToFootballData(dcfResult, sensitivityData)}
-                    title="Valuation Range"
+                  <ResearchSummary
+                    result={researchResult}
                     currentPrice={currentPrice}
                   />
                 </ErrorBoundary>
+              </div>
+
+              {/* Valuation football field (full-width) */}
+              {dcfResult && sensitivityData && (
+                <div style={{ '--stagger': 1 } as React.CSSProperties}>
+                  <ErrorBoundary>
+                    <FootballField
+                      data={dcfSensitivityToFootballData(dcfResult, sensitivityData)}
+                      title="Valuation Range"
+                      currentPrice={currentPrice}
+                    />
+                  </ErrorBoundary>
+                </div>
               )}
 
               {/* DCF charts from equity research pipeline (if available) */}
               {dcfResult && (
-                <div className="grid-2">
+                <div className="grid-2" style={{ '--stagger': 2 } as React.CSSProperties}>
                   {sensitivityData && (
                     <ErrorBoundary>
                       <SensitivityHeatmap
@@ -301,13 +325,15 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
           {/* ── Comps Results ── */}
           {hasCurrentResults && isComps && compsResult && (
             <>
-              <ErrorBoundary>
-                <CompsSummary
-                  result={compsResult}
-                  currentPrice={currentPrice}
-                />
-              </ErrorBoundary>
-              <div className="grid-2">
+              <div style={{ '--stagger': 0 } as React.CSSProperties}>
+                <ErrorBoundary>
+                  <CompsSummary
+                    result={compsResult}
+                    currentPrice={currentPrice}
+                  />
+                </ErrorBoundary>
+              </div>
+              <div className="grid-2" style={{ '--stagger': 2 } as React.CSSProperties}>
                 <ErrorBoundary>
                   <PeerComparisonChart
                     data={compsResultToPeerChartData(compsResult)}
@@ -326,40 +352,48 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
 
           {/* ── Earnings Results ── */}
           {hasCurrentResults && isEarnings && earningsResult && (
-            <ErrorBoundary>
-              <EarningsSummary result={earningsResult} />
-            </ErrorBoundary>
+            <div style={{ '--stagger': 0 } as React.CSSProperties}>
+              <ErrorBoundary>
+                <EarningsSummary result={earningsResult} />
+              </ErrorBoundary>
+            </div>
           )}
 
           {/* ── LBO Results ── */}
           {hasCurrentResults && isLbo && lboResult && (
-            <ErrorBoundary>
-              <LBOSummary result={lboResult} />
-            </ErrorBoundary>
+            <div style={{ '--stagger': 0 } as React.CSSProperties}>
+              <ErrorBoundary>
+                <LBOSummary result={lboResult} />
+              </ErrorBoundary>
+            </div>
           )}
 
           {/* ── DCF-Only Results ── */}
           {hasCurrentResults && !isResearch && !isComps && !isEarnings && !isLbo && dcfResult && (
             <>
-              <ErrorBoundary>
-                <ValuationCard
-                  dcfResult={dcfResult}
-                  currentPrice={currentPrice}
-                />
-              </ErrorBoundary>
-
-              {/* Valuation football field (full-width) */}
-              {sensitivityData && (
+              <div style={{ '--stagger': 0 } as React.CSSProperties}>
                 <ErrorBoundary>
-                  <FootballField
-                    data={dcfSensitivityToFootballData(dcfResult, sensitivityData)}
-                    title="Valuation Range"
+                  <ValuationCard
+                    dcfResult={dcfResult}
                     currentPrice={currentPrice}
                   />
                 </ErrorBoundary>
+              </div>
+
+              {/* Valuation football field (full-width) */}
+              {sensitivityData && (
+                <div style={{ '--stagger': 1 } as React.CSSProperties}>
+                  <ErrorBoundary>
+                    <FootballField
+                      data={dcfSensitivityToFootballData(dcfResult, sensitivityData)}
+                      title="Valuation Range"
+                      currentPrice={currentPrice}
+                    />
+                  </ErrorBoundary>
+                </div>
               )}
 
-              <div className="grid-2">
+              <div className="grid-2" style={{ '--stagger': 2 } as React.CSSProperties}>
                 {sensitivityData && (
                   <ErrorBoundary>
                     <SensitivityHeatmap
@@ -388,9 +422,11 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
                 </ErrorBoundary>
               </div>
 
-              <ErrorBoundary>
-                <ExportBar />
-              </ErrorBoundary>
+              <div style={{ '--stagger': 3 } as React.CSSProperties}>
+                <ErrorBoundary>
+                  <ExportBar />
+                </ErrorBoundary>
+              </div>
             </>
           )}
 

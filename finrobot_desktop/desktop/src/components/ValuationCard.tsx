@@ -1,3 +1,4 @@
+import { useCountUp } from '../hooks/useCountUp'
 import type { DCFResult } from '../stores/appStore'
 
 interface Props {
@@ -14,10 +15,13 @@ function fmtUsd(val: number): string {
 }
 
 export default function ValuationCard({ dcfResult, currentPrice }: Props) {
+  const animatedPrice = useCountUp(dcfResult.implied_price)
+
   const upside =
     currentPrice && currentPrice > 0
       ? ((dcfResult.implied_price - currentPrice) / currentPrice) * 100
       : null
+  const animatedUpside = useCountUp(upside ?? 0, 700, 1)
 
   const isPositive = upside !== null && upside >= 0
 
@@ -35,7 +39,7 @@ export default function ValuationCard({ dcfResult, currentPrice }: Props) {
       </div>
       <div className="valuation-price">
         <span className="currency">$</span>
-        {dcfResult.implied_price.toFixed(2)}
+        {animatedPrice.toFixed(2)}
       </div>
 
       {upside !== null && (
@@ -47,7 +51,7 @@ export default function ValuationCard({ dcfResult, currentPrice }: Props) {
               <path d="M6 10V2M3 7l3 3 3-3" />
             )}
           </svg>
-          {isPositive ? '+' : ''}{upside.toFixed(1)}% vs ${currentPrice!.toFixed(2)}
+          {isPositive ? '+' : ''}{animatedUpside.toFixed(1)}% vs ${currentPrice!.toFixed(2)}
         </div>
       )}
 

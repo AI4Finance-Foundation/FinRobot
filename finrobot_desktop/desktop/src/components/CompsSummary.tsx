@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { useCountUp } from '../hooks/useCountUp'
 import type { CompsResult } from '../stores/appStore'
 import { useAppStore } from '../stores/appStore'
 import { BASE_URL } from '../api/client'
@@ -24,6 +25,9 @@ function fmtMult(val: number | null | undefined): string {
 
 export default function CompsSummary({ result, currentPrice }: Props) {
   const ticker = useAppStore((s) => s.ticker)
+  const animatedEvEbitda = useCountUp(result.median_ev_ebitda ?? 0, 700, 1)
+  const animatedPe = useCountUp(result.median_pe ?? 0, 700, 1)
+  const animatedEvRev = useCountUp(result.median_ev_revenue ?? 0, 700, 1)
 
   // Compute implied price range from peer median multiples
   const impliedPrices: { method: string; price: number }[] = []
@@ -109,15 +113,15 @@ export default function CompsSummary({ result, currentPrice }: Props) {
         <div className="valuation-metrics">
           <div>
             <div className="metric-label">Median EV/EBITDA</div>
-            <div className="metric-value">{fmtMult(result.median_ev_ebitda)}</div>
+            <div className="metric-value">{result.median_ev_ebitda != null ? `${animatedEvEbitda.toFixed(1)}x` : '\u2014'}</div>
           </div>
           <div>
             <div className="metric-label">Median P/E</div>
-            <div className="metric-value">{fmtMult(result.median_pe)}</div>
+            <div className="metric-value">{result.median_pe != null ? `${animatedPe.toFixed(1)}x` : '\u2014'}</div>
           </div>
           <div>
             <div className="metric-label">Median EV/Rev</div>
-            <div className="metric-value">{fmtMult(result.median_ev_revenue)}</div>
+            <div className="metric-value">{result.median_ev_revenue != null ? `${animatedEvRev.toFixed(1)}x` : '\u2014'}</div>
           </div>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { useCountUp } from '../hooks/useCountUp'
 import type { EarningsResult } from '../stores/appStore'
 import { useAppStore } from '../stores/appStore'
 import EpsSurpriseChart from './charts/EpsSurpriseChart'
@@ -41,6 +42,9 @@ function directionLabel(dir: string): string {
 
 export default function EarningsSummary({ result }: Props) {
   const beatPct = Math.round(result.beat_rate * 100)
+  const animatedBeatPct = useCountUp(beatPct, 700, 0)
+  const animatedEpsSurprise = useCountUp(result.avg_eps_surprise_pct, 700, 1)
+  const animatedRevSurprise = useCountUp(result.avg_revenue_surprise_pct, 700, 1)
 
   return (
     <>
@@ -79,7 +83,7 @@ export default function EarningsSummary({ result }: Props) {
                 style={{ transition: 'stroke-dasharray 0.6s ease' }}
               />
             </svg>
-            <div className="circle-overlay">{beatPct}%</div>
+            <div className="circle-overlay">{Math.round(animatedBeatPct)}%</div>
           </div>
           <div>
             <div className="beat-caption">EPS Beat Rate</div>
@@ -98,7 +102,7 @@ export default function EarningsSummary({ result }: Props) {
             <div className="metric-value" style={{
               color: result.avg_eps_surprise_pct >= 0 ? 'var(--positive)' : 'var(--negative)',
             }}>
-              {fmtPct(result.avg_eps_surprise_pct)}
+              {animatedEpsSurprise >= 0 ? '+' : ''}{animatedEpsSurprise.toFixed(1)}%
             </div>
           </div>
           <div>
@@ -106,7 +110,7 @@ export default function EarningsSummary({ result }: Props) {
             <div className="metric-value" style={{
               color: result.avg_revenue_surprise_pct >= 0 ? 'var(--positive)' : 'var(--negative)',
             }}>
-              {fmtPct(result.avg_revenue_surprise_pct)}
+              {animatedRevSurprise >= 0 ? '+' : ''}{animatedRevSurprise.toFixed(1)}%
             </div>
           </div>
           <div>

@@ -1,3 +1,4 @@
+import { useCountUp } from '../hooks/useCountUp'
 import type { LBOResult } from '../stores/appStore'
 import { useAppStore } from '../stores/appStore'
 
@@ -42,6 +43,8 @@ function irrLabel(irr: number): string {
 
 export default function LBOSummary({ result }: Props) {
   const ticker = useAppStore((s) => s.ticker)
+  const animatedIrr = useCountUp(result.irr * 100, 700, 1)
+  const animatedMoic = useCountUp(result.moic, 700, 1)
   const debtToEquity = result.entry_equity > 0 ? result.entry_debt / result.entry_equity : 0
 
   const hasSensitivity = !!(
@@ -70,7 +73,7 @@ export default function LBOSummary({ result }: Props) {
         <div className="metrics-row">
           <div className="metric-stack">
             <div className="big-number" style={{ color: irrColor(result.irr) }}>
-              {fmtPct(result.irr)}
+              {animatedIrr.toFixed(1)}%
             </div>
             <div className="metric-sub">IRR</div>
           </div>
@@ -78,7 +81,7 @@ export default function LBOSummary({ result }: Props) {
           <div className="v-divider" />
 
           <div className="metric-stack">
-            <div className="big-number">{fmtMult(result.moic)}</div>
+            <div className="big-number">{animatedMoic.toFixed(1)}x</div>
             <div className="metric-sub">MOIC</div>
           </div>
 

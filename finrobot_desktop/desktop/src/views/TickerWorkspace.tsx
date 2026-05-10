@@ -7,6 +7,7 @@ import PipelineRunner from '../components/PipelineRunner'
 import AssumptionsEditor from '../components/AssumptionsEditor'
 import ValuationCard from '../components/ValuationCard'
 import ExportBar from '../components/ExportBar'
+import StockOverview from '../components/StockOverview'
 import ResearchSummary from '../components/ResearchSummary'
 import CompsSummary from '../components/CompsSummary'
 import EarningsSummary from '../components/EarningsSummary'
@@ -344,14 +345,11 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
             </>
           )}
 
-          {/* Empty chart placeholders before pipeline completes */}
+          {/* Stock overview before pipeline completes */}
           {!showResults && phase !== 'idle' && (
-            <div className="grid-2">
-              <ChartPlaceholder title={isResearch ? 'Research Summary' : isComps ? 'Comps Table' : 'Valuation'} />
-              <ChartPlaceholder title="Sensitivity Analysis" />
-              <ChartPlaceholder title="DCF Bridge" />
-              <ChartPlaceholder title="Revenue & EBITDA" />
-            </div>
+            <ErrorBoundary>
+              <StockOverview />
+            </ErrorBoundary>
           )}
 
           {/* Idle state */}
@@ -373,22 +371,3 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
   )
 }
 
-function ChartPlaceholder({ title }: { title: string }) {
-  return (
-    <div className="card">
-      <div className="card-header">
-        <span className="card-title">{title}</span>
-      </div>
-      <div className="card-body" style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 180,
-        color: 'var(--text-muted)',
-        fontSize: '0.78rem',
-      }}>
-        Run analysis to see chart
-      </div>
-    </div>
-  )
-}

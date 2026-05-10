@@ -798,6 +798,42 @@ select.input-field {
 }
 
 /* ═══════════════════════════
+   STOCK OVERVIEW (pre-pipeline)
+   ═══════════════════════════ */
+.stock-overview {
+  display: flex; flex-direction: column; gap: var(--sp-5);
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-3);
+}
+
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  padding: var(--sp-3) var(--sp-4);
+  display: flex; flex-direction: column; gap: 2px;
+  transition: border-color 0.15s;
+}
+.kpi-card:hover {
+  border-color: var(--border);
+}
+.kpi-label {
+  font-size: 0.68rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.kpi-value {
+  font-family: var(--font-mono);
+  font-size: 0.95rem; font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+/* ═══════════════════════════
    TICKER INPUT (topbar style)
    ═══════════════════════════ */
 .ticker-input {

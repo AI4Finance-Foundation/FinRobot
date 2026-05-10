@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { useAppStore } from '../stores/appStore'
@@ -7,7 +7,7 @@ export default function TickerInput() {
   const [input, setInput] = useState('')
   const { setTicker, setPhase, setWarnings, setCurrentPrice, phase } = useAppStore()
 
-  const handleLoad = async () => {
+  const handleLoad = () => {
     const t = input.trim().toUpperCase()
     if (!t) return
     setTicker(t)
@@ -33,7 +33,15 @@ export default function TickerInput() {
       return data
     },
     enabled: !!ticker && phase === 'loading_data',
+    retry: 1,
   })
+
+  // If fetch fails, reset phase so user isn't stuck on loading_data
+  useEffect(() => {
+    if (isError && phase === 'loading_data') {
+      setPhase('idle')
+    }
+  }, [isError, phase, setPhase])
 
   return (
     <div className="ticker-display">
@@ -55,7 +63,7 @@ export default function TickerInput() {
       </button>
       {isError && (
         <span style={{ color: 'var(--negative)', fontSize: '0.72rem' }}>
-          {(error as Error)?.message || 'Not found'}
+          {(error as Error)?.message || 'Failed to load. Check backend is running.'}
         </span>
       )}
     </div>

@@ -48,7 +48,8 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
   } = useAppStore()
 
   const showResults = phase === 'pipeline_done' || phase === 'interactive'
-  const showControls = phase === 'data_ready' || phase === 'running_pipeline' || showResults
+  const isLoading = phase === 'loading_data'
+  const showControls = isLoading || phase === 'data_ready' || phase === 'running_pipeline' || showResults
   const isResearch = pipelineType === 'equity_research'
   const isComps = pipelineType === 'comps'
 
@@ -84,6 +85,18 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
         )}
 
         <div className="topbar-spacer" />
+
+        <button
+          className="cmd-trigger"
+          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
+          title="Command Palette (⌘K)"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3">
+            <circle cx="6" cy="6" r="4" />
+            <path d="M9.5 9.5L12.5 12.5" />
+          </svg>
+          <span className="cmd-trigger-label">⌘K</span>
+        </button>
 
         <button
           className="topbar-btn"

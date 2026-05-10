@@ -40,7 +40,28 @@ export default function FinancialsPanel() {
     enabled: !!ticker,
   })
 
-  if (!data) return null
+  if (!data) {
+    return (
+      <div className="card animate-in">
+        <div className="card-header">
+          <span className="card-title">Fundamentals</span>
+          <span className="card-badge" style={{ opacity: 0.5 }}>Loading...</span>
+        </div>
+        <div className="card-body">
+          <table className="fin-table">
+            <tbody>
+              {['Revenue', 'EBITDA', 'Net Income', 'Market Cap', 'Enterprise Value'].map((label) => (
+                <tr key={label}>
+                  <td className="fin-label">{label}</td>
+                  <td className="fin-value" style={{ opacity: 0.3 }}>{'\u2014'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
 
   const { income, balance, market, valuation, data_source } = data
 

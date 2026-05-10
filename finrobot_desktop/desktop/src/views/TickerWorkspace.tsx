@@ -16,12 +16,14 @@ import WaterfallChart from '../components/charts/WaterfallChart'
 import RevenueEbitdaChart from '../components/charts/RevenueEbitdaChart'
 import MarginTrendChart from '../components/charts/MarginTrendChart'
 import PeerComparisonChart from '../components/charts/PeerComparisonChart'
+import FootballField from '../components/charts/FootballField'
 import {
   sensitivityGridToHeatmapRows,
   dcfResultToWaterfallData,
   dcfResultToRevenueEbitdaData,
   dcfResultToMarginData,
   compsResultToPeerChartData,
+  dcfSensitivityToFootballData,
 } from '../utils/chartAdapters'
 import type { PipelineType } from '../stores/appStore'
 
@@ -209,6 +211,17 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
                 />
               </ErrorBoundary>
 
+              {/* Valuation football field (full-width) */}
+              {dcfResult && sensitivityData && (
+                <ErrorBoundary>
+                  <FootballField
+                    data={dcfSensitivityToFootballData(dcfResult, sensitivityData)}
+                    title="Valuation Range"
+                    currentPrice={currentPrice}
+                  />
+                </ErrorBoundary>
+              )}
+
               {/* DCF charts from equity research pipeline (if available) */}
               {dcfResult && (
                 <div className="grid-2">
@@ -284,6 +297,17 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
                   currentPrice={currentPrice}
                 />
               </ErrorBoundary>
+
+              {/* Valuation football field (full-width) */}
+              {sensitivityData && (
+                <ErrorBoundary>
+                  <FootballField
+                    data={dcfSensitivityToFootballData(dcfResult, sensitivityData)}
+                    title="Valuation Range"
+                    currentPrice={currentPrice}
+                  />
+                </ErrorBoundary>
+              )}
 
               <div className="grid-2">
                 {sensitivityData && (

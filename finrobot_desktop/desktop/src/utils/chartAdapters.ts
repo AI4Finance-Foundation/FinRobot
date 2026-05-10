@@ -119,3 +119,66 @@ export function dcfResultToWaterfallData(
     { label: 'Equity Value', value: result.equity_value, is_total: true },
   ]
 }
+
+/**
+ * Build football field (valuation range) data from DCF sensitivity grid.
+ * Extracts ranges by varying one assumption at a time:
+ * - "Discount Rate" row: base terminal growth, vary WACC across grid
+ * - "Terminal Growth" row: base WACC, vary terminal growth across grid
+ * - "Combined" row: full grid range (most conservative to most optimistic)
+ *
+ * Each row has { method, low, mid, high } where mid = base-case implied price.
+ */
+export function dcfSensitivityToFootballData(
+  result: DCFResult,
+  sensitivity: SensitivityResult
+): Array<Record<string, number | string | boolean | null>> {
+  const midPrice = result.implied_price
+  const grid = sensitivity.implied_prices
+
+  // Extract non-null values from a row/column of the grid
+  const extractValid = (values: (number | null)[]): number[] =>
+    values.filter((v): v is number => v != null && v > 0 && isFinite(v))
+
+  // Middle row index (base WACC row) — vary terminal growth
+  const midRow = Math.floor(grid.length / 2)
+  const tgRow = extractValid(grid[midRow] ?? [])
+
+  // Middle column (base TG column) — vary WACC
+  const midCol = Math.floor((grid[0]?.length ?? 0) / 2)
+  const waccCol = extractValid(grid.map((row) => row[midCol]))
+
+  // Full grid — all values
+  const allValues = extractValid(grid.flat())
+
+  const rows: Array<Record<string, number | string | boolean | null>> = []
+
+  if (waccCol.length >= 2) {
+    rows.push({
+      method: 'Discount Rate',
+      low: Math.min(...waccCol),
+      mid: midPrice,
+      high: Math.max(...waccCol),
+    })
+  }
+
+  if (tgRow.length >= 2) {
+    rows.push({
+      method: 'Terminal Growth',
+      low: Math.min(...tgRow),
+      mid: midPrice,
+      high: Math.max(...tgRow),
+    })
+  }
+
+  if (allValues.length >= 2) {
+    rows.push({
+      method: 'Combined Range',
+      low: Math.min(...allValues),
+      mid: midPrice,
+      high: Math.max(...allValues),
+    })
+  }
+
+  return rows
+}

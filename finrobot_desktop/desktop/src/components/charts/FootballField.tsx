@@ -12,6 +12,7 @@ import {
 interface ChartProps {
   data: Record<string, number | string | boolean | null>[]
   title: string
+  currentPrice?: number | null
 }
 
 // Design system chart palette
@@ -26,7 +27,7 @@ const CHART_TOOLTIP = {
   fontSize: '0.78rem',
 }
 
-export default function FootballField({ data, title }: ChartProps) {
+export default function FootballField({ data, title, currentPrice }: ChartProps) {
   if (!data || data.length === 0) return null
 
   const shaped = data.map((d) => ({
@@ -42,6 +43,9 @@ export default function FootballField({ data, title }: ChartProps) {
     <div className="card animate-in">
       <div className="card-header">
         <span className="card-title">{title}</span>
+        {currentPrice != null && (
+          <span className="card-badge">Current: ${currentPrice.toFixed(2)}</span>
+        )}
       </div>
       <div className="card-body">
         <ResponsiveContainer width="100%" height={Math.max(200, shaped.length * 50 + 60)}>
@@ -57,14 +61,19 @@ export default function FootballField({ data, title }: ChartProps) {
               dataKey="method"
               tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
               axisLine={{ stroke: '#252A37' }}
-              width={100}
+              width={120}
             />
             <Tooltip
+              contentStyle={CHART_TOOLTIP}
               formatter={(value: number, name: string) => {
                 if (name === 'base') return [null, null]
-                return [`$${value.toFixed(0)}`, 'Range']
+                return [`$${value.toFixed(2)}`, 'Range Width']
               }}
-              contentStyle={CHART_TOOLTIP}
+              labelFormatter={(label: string) => {
+                const entry = shaped.find((s) => s.method === label)
+                if (!entry) return label
+                return `${label}: $${entry.low.toFixed(2)} – $${entry.high.toFixed(2)}`
+              }}
             />
             <Bar dataKey="base" stackId="stack" fill="transparent" />
             <Bar dataKey="range" stackId="stack" radius={[0, 3, 3, 0]}>
@@ -72,15 +81,22 @@ export default function FootballField({ data, title }: ChartProps) {
                 <Cell key={`range-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Bar>
-            {shaped.map((entry) => (
+            {/* Current stock price reference line */}
+            {currentPrice != null && (
               <ReferenceLine
-                key={`mid-${entry.method}`}
-                x={entry.mid}
-                stroke="#252A37"
-                strokeDasharray="3 3"
-                strokeWidth={1}
+                x={currentPrice}
+                stroke="#E8ECF4"
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
+                label={{
+                  value: `$${currentPrice.toFixed(0)}`,
+                  position: 'top',
+                  fill: '#E8ECF4',
+                  fontSize: 11,
+                  fontFamily: "'JetBrains Mono', monospace",
+                }}
               />
-            ))}
+            )}
           </BarChart>
         </ResponsiveContainer>
       </div>

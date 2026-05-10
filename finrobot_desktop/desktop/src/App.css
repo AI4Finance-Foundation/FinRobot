@@ -177,7 +177,9 @@ body {
   width: 340px; min-width: 340px;
   border-right: 1px solid var(--border-subtle);
   overflow-y: auto;
+  min-height: 0;  /* critical: allows flex child to shrink below content size for scrolling */
   padding: var(--sp-5);
+  padding-bottom: var(--sp-10); /* extra space so last card isn't flush with statusbar */
   display: flex; flex-direction: column; gap: var(--sp-5);
 }
 
@@ -185,7 +187,9 @@ body {
 .panel-right {
   flex: 1;
   overflow-y: auto;
+  min-height: 0;  /* critical: allows flex child to shrink for scrolling */
   padding: var(--sp-6);
+  padding-bottom: var(--sp-10);
   display: flex; flex-direction: column; gap: var(--sp-5);
   position: relative;
 }
@@ -539,9 +543,17 @@ body {
 }
 .research-thesis-text {
   font-size: 0.82rem;
-  line-height: 1.7;
+  line-height: 1.75;
   color: var(--text-secondary);
   max-width: 72ch;
+}
+.research-thesis-text p {
+  margin: 0 0 var(--sp-3) 0;
+}
+.research-thesis-text p:last-child { margin-bottom: 0; }
+.research-thesis-text p:first-child::first-line {
+  color: var(--text-primary);
+  font-weight: 500;
 }
 .research-drivers {
   display: grid;
@@ -563,6 +575,9 @@ body {
   display: flex;
   align-items: flex-start;
   gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  transition: background 0.15s;
   line-height: 1.5;
 }
 .research-list-icon {

@@ -133,7 +133,7 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
         </div>
       )}
 
-      {/* Investment Thesis */}
+      {/* Investment Thesis — broken into digestible paragraphs */}
       {result.narrative && (
         <div className="research-thesis">
           <div className="research-section-label">
@@ -143,7 +143,11 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
             </svg>
             Investment Thesis
           </div>
-          <p className="research-thesis-text">{result.narrative}</p>
+          <div className="research-thesis-text">
+            {result.narrative.split('\n').filter(Boolean).map((para, i) => (
+              <p key={i}>{para}</p>
+            ))}
+          </div>
         </div>
       )}
 

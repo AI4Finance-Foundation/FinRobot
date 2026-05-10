@@ -23,7 +23,16 @@ export default function ValuationCard({ dcfResult, currentPrice }: Props) {
 
   return (
     <div className="valuation-hero animate-in">
-      <div className="valuation-label">DCF Implied Share Price</div>
+      <div className="valuation-label">
+        DCF Implied Share Price
+        <span
+          className="source-badge source-calc"
+          data-tooltip="All figures computed deterministically by FinAgent"
+          style={{ marginLeft: 8 }}
+        >
+          CALC
+        </span>
+      </div>
       <div className="valuation-price">
         <span className="currency">$</span>
         {dcfResult.implied_price.toFixed(2)}

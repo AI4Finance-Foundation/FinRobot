@@ -857,3 +857,86 @@ select.input-field {
   color: var(--text-muted);
   font-weight: 400;
 }
+
+/* ═══════════════════════════
+   DATA SOURCE BADGES
+   ═══════════════════════════ */
+.source-badge {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: help;
+  position: relative;
+  margin-left: var(--sp-2);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.source-api {
+  color: var(--info);
+  background: rgba(96, 165, 250, 0.10);
+}
+.source-calc {
+  color: var(--positive);
+  background: rgba(52, 211, 153, 0.10);
+}
+.source-llm {
+  color: var(--warning);
+  background: rgba(251, 191, 36, 0.10);
+}
+
+/* CSS tooltip for source badges */
+.source-badge::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  padding: 4px 8px;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 0.15s, transform 0.15s;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.source-badge::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  right: 8px;
+  border: 4px solid transparent;
+  border-top-color: var(--border);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 10;
+}
+.source-badge:hover::after,
+.source-badge:hover::before {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Metric-level source badge (ValuationCard) */
+.metric-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.metric-source .source-badge {
+  margin-left: var(--sp-1);
+  vertical-align: baseline;
+}

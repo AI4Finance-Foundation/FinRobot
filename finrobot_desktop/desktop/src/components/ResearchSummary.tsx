@@ -84,7 +84,16 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
       {/* Rating + Price Target */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 'var(--sp-4)' }}>
         <div>
-          <div className="valuation-label">Investment Rating</div>
+          <div className="valuation-label">
+            Investment Rating
+            <span
+              className="source-badge source-llm"
+              data-tooltip="AI judgment informed by data"
+              style={{ marginLeft: 8 }}
+            >
+              AI
+            </span>
+          </div>
           <div style={{
             display: 'inline-block',
             padding: '4px 16px',
@@ -101,7 +110,16 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div className="valuation-label">Price Target</div>
+          <div className="valuation-label">
+            Price Target
+            <span
+              className="source-badge source-llm"
+              data-tooltip="AI judgment informed by DCF + comps"
+              style={{ marginLeft: 8 }}
+            >
+              AI
+            </span>
+          </div>
           <div className="valuation-price" style={{ fontSize: '2.2rem' }}>
             <span className="currency">$</span>
             {result.price_target.toFixed(2)}

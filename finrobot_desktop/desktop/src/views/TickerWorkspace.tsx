@@ -19,6 +19,7 @@ import MarginTrendChart from '../components/charts/MarginTrendChart'
 import PeerComparisonChart from '../components/charts/PeerComparisonChart'
 import FootballField from '../components/charts/FootballField'
 import CompanyRadarChart from '../components/charts/CompanyRadarChart'
+import StatusBar from '../components/StatusBar'
 import {
   sensitivityGridToHeatmapRows,
   dcfResultToWaterfallData,
@@ -465,6 +466,8 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
           )}
         </main>
       </div>
+
+      <StatusBar />
     </>
   )
 }

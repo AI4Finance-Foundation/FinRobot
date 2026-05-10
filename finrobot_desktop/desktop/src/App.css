@@ -169,7 +169,7 @@ body {
 .app-body {
   display: flex;
   margin-top: 48px;
-  height: calc(100vh - 48px);
+  height: calc(100vh - 48px - 24px);
 }
 
 /* ── Left Panel ── */
@@ -234,6 +234,17 @@ body {
   letter-spacing: -0.01em;
 }
 .fin-table .fin-value.highlight { color: var(--gold); font-weight: 600; }
+
+/* Zebra striping + hover */
+.fin-table tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.015); }
+.fin-table tbody tr { transition: background 0.12s; }
+.fin-table tbody tr:hover { background: var(--gold-glow); }
+
+/* Beat/miss row tinting */
+.fin-table tbody tr.row-beat { background: rgba(52, 211, 153, 0.04); }
+.fin-table tbody tr.row-beat:hover { background: rgba(52, 211, 153, 0.08); }
+.fin-table tbody tr.row-miss { background: rgba(248, 113, 113, 0.04); }
+.fin-table tbody tr.row-miss:hover { background: rgba(248, 113, 113, 0.08); }
 
 /* Multi-column data table variant (used in summaries) */
 .fin-table th {
@@ -906,10 +917,12 @@ select.input-field {
   border-radius: var(--r-md);
   padding: var(--sp-3) var(--sp-4);
   display: flex; flex-direction: column; gap: 2px;
-  transition: border-color 0.15s;
+  transition: all 0.2s ease;
 }
 .kpi-card:hover {
   border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
 }
 .kpi-label {
   font-size: 0.68rem; font-weight: 600;
@@ -1397,4 +1410,73 @@ select.input-field {
   font-size: 0.7rem;
   color: var(--text-muted);
   line-height: 1.5;
+}
+
+/* ═══════════════════════════
+   STATUS BAR
+   ═══════════════════════════ */
+.statusbar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  height: 24px;
+  background: var(--surface);
+  border-top: 1px solid var(--border-subtle);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 var(--sp-4);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.statusbar-group {
+  display: flex; align-items: center; gap: var(--sp-2);
+}
+
+.statusbar-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--positive);
+  flex-shrink: 0;
+  box-shadow: 0 0 4px rgba(52, 211, 153, 0.4);
+}
+.statusbar-dot.running {
+  background: var(--gold);
+  box-shadow: 0 0 4px rgba(201, 168, 76, 0.4);
+  animation: statusbar-pulse 1.2s ease-in-out infinite;
+}
+@keyframes statusbar-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.statusbar-text {
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.statusbar-mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0.03em;
+}
+.statusbar-gold {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.statusbar-divider {
+  width: 1px; height: 10px;
+  background: var(--border);
+  margin: 0 var(--sp-1);
+}
+
+.statusbar-hint {
+  display: flex; align-items: center; gap: 3px;
+  font-weight: 400;
+}
+
+.statusbar-kbd {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 500;
+  padding: 0px 3px;
+  border-radius: 2px;
+  background: var(--elevated);
+  border: 1px solid var(--border);
 }

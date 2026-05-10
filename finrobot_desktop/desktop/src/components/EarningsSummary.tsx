@@ -154,7 +154,7 @@ export default function EarningsSummary({ result }: Props) {
               </thead>
               <tbody>
                 {result.surprises.map((s, i) => (
-                  <tr key={i}>
+                  <tr key={i} className={s.eps_direction === 'beat' ? 'row-beat' : s.eps_direction === 'miss' ? 'row-miss' : ''}>
                     <td className="cell-mono">{s.date}</td>
                     <td className="fin-value cell">{fmtEps(s.eps_actual)}</td>
                     <td className="fin-value cell" style={{ color: 'var(--text-muted)' }}>{fmtEps(s.eps_estimated)}</td>

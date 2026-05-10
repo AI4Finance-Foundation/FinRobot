@@ -95,7 +95,7 @@ export default function WaterfallChart({ data, title }: ChartProps) {
               tickFormatter={(v: number) => `$${v}`}
             />
             <Tooltip
-              contentStyle={CHART_TOOLTIP}
+              contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
               formatter={(_val: number, _name: string, props: { payload: WaterfallBar }) => {
                 const entry = props.payload
                 if (entry.is_total) return [`$${entry.delta.toFixed(0)}`, 'Total']

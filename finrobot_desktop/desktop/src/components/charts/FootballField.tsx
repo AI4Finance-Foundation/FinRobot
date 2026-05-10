@@ -64,7 +64,7 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
               width={120}
             />
             <Tooltip
-              contentStyle={CHART_TOOLTIP}
+              contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
               formatter={(value: number, name: string) => {
                 if (name === 'base') return [null, null]
                 return [`$${value.toFixed(2)}`, 'Range Width']

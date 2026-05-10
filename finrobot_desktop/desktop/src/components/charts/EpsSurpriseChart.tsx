@@ -70,7 +70,7 @@ export default function EpsSurpriseChart({ data, title }: ChartProps) {
               tickFormatter={(v: number) => `$${v.toFixed(2)}`}
             />
             <Tooltip
-              contentStyle={CHART_TOOLTIP}
+              contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
               formatter={(value: number, name: string) => {
                 if (name === 'Estimate') return [`$${value.toFixed(2)}`, name]
                 return [`$${value.toFixed(2)}`, name]

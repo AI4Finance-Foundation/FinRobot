@@ -50,7 +50,7 @@ export default function PeerComparisonChart({ data, title }: ChartProps) {
             />
             <Tooltip
               formatter={(value: number) => value.toFixed(1)}
-              contentStyle={CHART_TOOLTIP}
+              contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
             />
             <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />
             <Bar dataKey="ev_ebitda" name="EV/EBITDA" radius={[3, 3, 0, 0]}>

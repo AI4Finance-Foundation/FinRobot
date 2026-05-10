@@ -67,7 +67,7 @@ export default function MarginTrendChart({ data, title }: ChartProps) {
             />
             <Tooltip
               formatter={(value: number) => formatPercent(value)}
-              contentStyle={CHART_TOOLTIP}
+              contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
             />
             <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />
             <Area

@@ -47,7 +47,7 @@ export default function CompanyRadarChart({ data, title }: ChartProps) {
               tick={{ fill: '#4A5168', fontSize: 10 }}
               axisLine={false}
             />
-            <Tooltip contentStyle={CHART_TOOLTIP} />
+            <Tooltip contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }} />
             <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />
             <Radar
               name="Company"

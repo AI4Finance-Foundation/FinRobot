@@ -1,8 +1,9 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useMemo } from 'react'
 import { useCountUp } from '../hooks/useCountUp'
 import type { ResearchResult } from '../stores/appStore'
 import { useAppStore } from '../stores/appStore'
 import { BASE_URL } from '../api/client'
+import { markdownToHtml } from '../utils/markdown'
 
 interface Props {
   result: ResearchResult
@@ -143,11 +144,10 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
             </svg>
             Investment Thesis
           </div>
-          <div className="research-thesis-text">
-            {result.narrative.split('\n').filter(Boolean).map((para, i) => (
-              <p key={i}>{para}</p>
-            ))}
-          </div>
+          <div
+            className="research-thesis-text md-content"
+            dangerouslySetInnerHTML={{ __html: markdownToHtml(result.narrative) }}
+          />
         </div>
       )}
 

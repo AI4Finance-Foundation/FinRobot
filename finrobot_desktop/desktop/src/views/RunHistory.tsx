@@ -121,9 +121,24 @@ export default function RunHistory({ onBack }: Props) {
       if (fin?.market?.current_price != null) {
         setCurrentPrice(fin.market.current_price)
       }
+    } else if (runPipelineType === 'lbo') {
+      const lbo = structured.lbo_calculation
+      if (lbo) {
+        const { setLboResult } = useAppStore.getState()
+        setLboResult(lbo)
+      }
+    } else if (runPipelineType === 'comps') {
+      const comps = structured.statistical_bench || structured.peer_comps
+      if (comps) {
+        const { setCompsResult } = useAppStore.getState()
+        setCompsResult(comps)
+      }
+    } else if (runPipelineType === 'ic-memo') {
+      // IC-memo results are text-based, just navigate back
     } else {
-      const dcfCalc: DCFResult | undefined = structured.dcf_calc || Object.values(structured)[0]
-      if (dcfCalc) {
+      // DCF pipeline
+      const dcfCalc: DCFResult | undefined = structured.dcf_calc
+      if (dcfCalc?.inputs) {
         const inputs: DCFInputs = dcfCalc.inputs
         setDcfInputs({ ...inputs })
         setOriginalDcfInputs({ ...inputs })

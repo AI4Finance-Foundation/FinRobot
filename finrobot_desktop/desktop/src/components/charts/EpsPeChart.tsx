@@ -78,7 +78,7 @@ export default function EpsPeChart({ data, title }: ChartProps) {
               }}
             />
             <Tooltip
-              contentStyle={CHART_TOOLTIP}
+              contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
               formatter={(value: number, name: string) => {
                 if (name === 'P/E Ratio') return [`${value.toFixed(1)}x`, name]
                 return [`$${value.toFixed(2)}`, name]

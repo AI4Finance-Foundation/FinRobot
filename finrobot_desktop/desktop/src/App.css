@@ -550,6 +550,18 @@ body {
 .research-thesis-text p {
   margin: 0 0 var(--sp-3) 0;
 }
+
+/* ── Markdown rendered content ── */
+.md-content h3.md-h1 { font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: var(--sp-5) 0 var(--sp-3); }
+.md-content h4.md-h2 { font-size: 0.9rem; font-weight: 600; color: var(--text-primary); margin: var(--sp-4) 0 var(--sp-2); border-left: 3px solid var(--gold); padding-left: var(--sp-3); }
+.md-content h5.md-h3 { font-size: 0.82rem; font-weight: 600; color: var(--text-primary); margin: var(--sp-3) 0 var(--sp-2); }
+.md-content hr.md-hr { border: none; border-top: 1px solid var(--border); margin: var(--sp-4) 0; }
+.md-content ul.md-list { list-style: none; padding: 0; margin: var(--sp-2) 0; }
+.md-content ul.md-list li { padding: var(--sp-1) 0 var(--sp-1) var(--sp-4); position: relative; color: var(--text-secondary); font-size: 0.82rem; }
+.md-content ul.md-list li::before { content: '\2022'; position: absolute; left: var(--sp-1); color: var(--gold); }
+.md-content table.md-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin: var(--sp-3) 0; }
+.md-content table.md-table th { text-align: left; padding: var(--sp-2) var(--sp-3); font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid var(--border); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.md-content table.md-table td { padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--border-subtle); color: var(--text-primary); font-family: var(--font-mono); }
 .research-thesis-text p:last-child { margin-bottom: 0; }
 .research-thesis-text p:first-child::first-line {
   color: var(--text-primary);

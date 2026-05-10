@@ -80,7 +80,7 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
               tickFormatter={(v: number) => v.toLocaleString()}
             />
             <Tooltip
-              contentStyle={CHART_TOOLTIP}
+              contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
               formatter={(value: number) => [value.toLocaleString(), 'Simulations']}
               labelFormatter={(label: number) => `$${label.toFixed(2)}`}
             />

@@ -58,7 +58,7 @@ export default function RevenueEbitdaChart({ data, title }: ChartProps) {
             />
             <Tooltip
               formatter={(value: number) => formatBillions(value)}
-              contentStyle={CHART_TOOLTIP}
+              contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
             />
             <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />
             <Bar dataKey="revenue" name="Revenue" radius={[2, 2, 0, 0]}>

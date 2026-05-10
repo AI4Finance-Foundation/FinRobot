@@ -381,6 +381,94 @@ body {
 }
 
 /* ═══════════════════════════
+   RESEARCH SUMMARY
+   ═══════════════════════════ */
+.research-thesis {
+  padding: var(--sp-4) 0;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--sp-4);
+}
+.research-section-label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: var(--sp-3);
+}
+.research-section-label svg {
+  flex-shrink: 0;
+}
+.research-count {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  background: var(--elevated);
+  padding: 1px 5px;
+  border-radius: var(--r-sm);
+  margin-left: var(--sp-1);
+}
+.research-thesis-text {
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  max-width: 72ch;
+}
+.research-drivers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-5);
+  padding-top: var(--sp-4);
+}
+.research-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.research-list-item {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  line-height: 1.5;
+}
+.research-list-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.research-expand-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: var(--sp-1) 0;
+  margin-top: var(--sp-1);
+  transition: color 0.15s;
+}
+.research-expand-btn:hover {
+  color: var(--gold);
+}
+.research-actions {
+  display: flex;
+  gap: var(--sp-3);
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* ═══════════════════════════
    SENSITIVITY HEATMAP
    ═══════════════════════════ */
 .heatmap-container { overflow-x: auto; }

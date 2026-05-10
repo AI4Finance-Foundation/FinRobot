@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import type { ResearchResult } from '../stores/appStore'
 import { useAppStore } from '../stores/appStore'
 import { BASE_URL } from '../api/client'
@@ -17,6 +17,39 @@ const RATING_STYLES: Record<string, { color: string; bg: string }> = {
 function getRatingStyle(recommendation: string) {
   const key = recommendation.toLowerCase().trim()
   return RATING_STYLES[key] || RATING_STYLES.hold
+}
+
+/** Show first N items with expand toggle */
+function ExpandableList({ items, icon, iconColor, initialCount = 3 }: {
+  items: string[]
+  icon: string
+  iconColor: string
+  initialCount?: number
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const visible = expanded ? items : items.slice(0, initialCount)
+  const hasMore = items.length > initialCount
+
+  return (
+    <>
+      <ul className="research-list">
+        {visible.map((item, i) => (
+          <li key={i} className="research-list-item">
+            <span className="research-list-icon" style={{ color: iconColor }}>{icon}</span>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+      {hasMore && (
+        <button
+          className="research-expand-btn"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? 'Show less' : `+${items.length - initialCount} more`}
+        </button>
+      )}
+    </>
+  )
 }
 
 export default function ResearchSummary({ result, currentPrice }: Props) {
@@ -91,71 +124,56 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
         </div>
       )}
 
-      {/* Key Metrics */}
-      <div className="valuation-metrics" style={{ gridTemplateColumns: '1fr 1fr' }}>
-        {/* Catalysts */}
-        <div>
-          <div className="metric-label">Key Catalysts</div>
-          <ul style={{
-            listStyle: 'none',
-            padding: 0,
-            margin: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '4px',
-            marginTop: '4px',
-          }}>
-            {result.catalysts.slice(0, 4).map((c, i) => (
-              <li key={i} style={{
-                fontSize: '0.78rem',
-                color: 'var(--text-secondary)',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 'var(--sp-2)',
-              }}>
-                <span style={{ color: 'var(--positive)', flexShrink: 0, marginTop: '2px' }}>+</span>
-                <span>{c}</span>
-              </li>
-            ))}
-          </ul>
+      {/* Investment Thesis */}
+      {result.narrative && (
+        <div className="research-thesis">
+          <div className="research-section-label">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3">
+              <rect x="1.5" y="1.5" width="9" height="9" rx="1" />
+              <path d="M4 4h4M4 6h4M4 8h2" />
+            </svg>
+            Investment Thesis
+          </div>
+          <p className="research-thesis-text">{result.narrative}</p>
         </div>
+      )}
 
-        {/* Risks */}
+      {/* Catalysts & Risks */}
+      <div className="research-drivers">
         <div>
-          <div className="metric-label">Key Risks</div>
-          <ul style={{
-            listStyle: 'none',
-            padding: 0,
-            margin: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '4px',
-            marginTop: '4px',
-          }}>
-            {result.risks.slice(0, 4).map((r, i) => (
-              <li key={i} style={{
-                fontSize: '0.78rem',
-                color: 'var(--text-secondary)',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 'var(--sp-2)',
-              }}>
-                <span style={{ color: 'var(--negative)', flexShrink: 0, marginTop: '2px' }}>{'\u2013'}</span>
-                <span>{r}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="research-section-label">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--positive)" strokeWidth="1.3">
+              <circle cx="6" cy="6" r="4" />
+              <path d="M6 4v4M4 6h4" />
+            </svg>
+            Catalysts
+            <span className="research-count">{result.catalysts.length}</span>
+          </div>
+          <ExpandableList
+            items={result.catalysts}
+            icon="+"
+            iconColor="var(--positive)"
+          />
+        </div>
+        <div>
+          <div className="research-section-label">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--negative)" strokeWidth="1.3">
+              <path d="M6 3v4M6 9v0" />
+              <circle cx="6" cy="6" r="4" />
+            </svg>
+            Risks
+            <span className="research-count">{result.risks.length}</span>
+          </div>
+          <ExpandableList
+            items={result.risks}
+            icon={'\u2013'}
+            iconColor="var(--negative)"
+          />
         </div>
       </div>
 
       {/* Actions */}
-      <div style={{
-        display: 'flex',
-        gap: 'var(--sp-3)',
-        marginTop: 'var(--sp-5)',
-        paddingTop: 'var(--sp-4)',
-        borderTop: '1px solid var(--border-subtle)',
-      }}>
+      <div className="research-actions">
         <button className="btn btn-primary" onClick={handleViewReport}>
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
             <rect x="2" y="1" width="10" height="12" rx="1" />

@@ -64,6 +64,15 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
   const isEarnings = pipelineType === 'earnings'
   const isLbo = pipelineType === 'lbo'
 
+  // Does the currently selected pipeline type have results to show?
+  const hasCurrentResults = showResults && (
+    (isResearch && researchResult != null) ||
+    (isComps && compsResult != null) ||
+    (isEarnings && earningsResult != null) ||
+    (isLbo && lboResult != null) ||
+    (!isResearch && !isComps && !isEarnings && !isLbo && dcfResult != null)
+  )
+
   return (
     <>
       {/* ── Top Bar ── */}
@@ -203,7 +212,7 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
           </ErrorBoundary>
 
           {/* ── Equity Research Results ── */}
-          {showResults && isResearch && researchResult && (
+          {hasCurrentResults && isResearch && researchResult && (
             <>
               <ErrorBoundary>
                 <ResearchSummary
@@ -258,7 +267,7 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
           )}
 
           {/* ── Comps Results ── */}
-          {showResults && isComps && compsResult && (
+          {hasCurrentResults && isComps && compsResult && (
             <>
               <ErrorBoundary>
                 <CompsSummary
@@ -276,21 +285,21 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
           )}
 
           {/* ── Earnings Results ── */}
-          {showResults && isEarnings && earningsResult && (
+          {hasCurrentResults && isEarnings && earningsResult && (
             <ErrorBoundary>
               <EarningsSummary result={earningsResult} />
             </ErrorBoundary>
           )}
 
           {/* ── LBO Results ── */}
-          {showResults && isLbo && lboResult && (
+          {hasCurrentResults && isLbo && lboResult && (
             <ErrorBoundary>
               <LBOSummary result={lboResult} />
             </ErrorBoundary>
           )}
 
           {/* ── DCF-Only Results ── */}
-          {showResults && !isResearch && !isComps && !isEarnings && !isLbo && dcfResult && (
+          {hasCurrentResults && !isResearch && !isComps && !isEarnings && !isLbo && dcfResult && (
             <>
               <ErrorBoundary>
                 <ValuationCard
@@ -345,11 +354,28 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
             </>
           )}
 
-          {/* Stock overview before pipeline completes */}
-          {!showResults && phase !== 'idle' && (
-            <ErrorBoundary>
-              <StockOverview />
-            </ErrorBoundary>
+          {/* Stock overview: before pipeline completes, or when switching to an un-run pipeline */}
+          {phase !== 'idle' && !hasCurrentResults && (
+            <>
+              <ErrorBoundary>
+                <StockOverview />
+              </ErrorBoundary>
+              {showResults && (
+                <div className="card animate-in" style={{
+                  textAlign: 'center',
+                  padding: 'var(--sp-5)',
+                  color: 'var(--text-muted)',
+                  fontSize: '0.82rem',
+                  borderStyle: 'dashed',
+                }}>
+                  Click <strong style={{ color: 'var(--text-secondary)' }}>Run</strong> to generate{' '}
+                  <strong style={{ color: 'var(--text-secondary)' }}>
+                    {PIPELINE_OPTIONS.find(o => o.value === pipelineType)?.label ?? pipelineType}
+                  </strong>{' '}
+                  analysis
+                </div>
+              )}
+            </>
           )}
 
           {/* Idle state */}

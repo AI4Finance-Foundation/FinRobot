@@ -9,6 +9,7 @@ import ValuationCard from '../components/ValuationCard'
 import ExportBar from '../components/ExportBar'
 import ResearchSummary from '../components/ResearchSummary'
 import CompsSummary from '../components/CompsSummary'
+import EarningsSummary from '../components/EarningsSummary'
 import SensitivityHeatmap from '../components/charts/SensitivityHeatmap'
 import WaterfallChart from '../components/charts/WaterfallChart'
 import RevenueEbitdaChart from '../components/charts/RevenueEbitdaChart'
@@ -31,6 +32,7 @@ const PIPELINE_OPTIONS: { value: PipelineType; label: string }[] = [
   { value: 'equity_research', label: 'Research' },
   { value: 'dcf', label: 'DCF' },
   { value: 'comps', label: 'Comps' },
+  { value: 'earnings', label: 'Earnings' },
 ]
 
 export default function TickerWorkspace({ onOpenSettings }: Props) {
@@ -44,6 +46,7 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
     currentPrice,
     researchResult,
     compsResult,
+    earningsResult,
     setPipelineType,
   } = useAppStore()
 
@@ -52,6 +55,7 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
   const showControls = isLoading || phase === 'data_ready' || phase === 'running_pipeline' || showResults
   const isResearch = pipelineType === 'equity_research'
   const isComps = pipelineType === 'comps'
+  const isEarnings = pipelineType === 'earnings'
 
   return (
     <>
@@ -253,8 +257,15 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
             </>
           )}
 
+          {/* ── Earnings Results ── */}
+          {showResults && isEarnings && earningsResult && (
+            <ErrorBoundary>
+              <EarningsSummary result={earningsResult} />
+            </ErrorBoundary>
+          )}
+
           {/* ── DCF-Only Results ── */}
-          {showResults && !isResearch && !isComps && dcfResult && (
+          {showResults && !isResearch && !isComps && !isEarnings && dcfResult && (
             <>
               <ErrorBoundary>
                 <ValuationCard

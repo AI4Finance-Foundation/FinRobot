@@ -8,7 +8,7 @@ type Phase =
   | 'pipeline_done'
   | 'interactive'
 
-export type PipelineType = 'equity_research' | 'dcf' | 'comps'
+export type PipelineType = 'equity_research' | 'dcf' | 'comps' | 'earnings'
 export type ViewMode = 'workspace' | 'history'
 
 export interface ResearchResult {
@@ -47,6 +47,27 @@ export interface CompsResult {
   mean_pe: number | null
   peer_justification: string
   positioning_narrative: string
+}
+
+export interface EarningsSurprise {
+  date: string
+  eps_actual: number
+  eps_estimated: number
+  eps_surprise_pct: number
+  eps_direction: 'beat' | 'miss' | 'inline'
+  revenue_actual: number
+  revenue_estimated: number
+  revenue_surprise_pct: number
+  revenue_direction: 'beat' | 'miss' | 'inline'
+}
+
+export interface EarningsResult {
+  ticker: string
+  surprises: EarningsSurprise[]
+  beat_rate: number
+  avg_eps_surprise_pct: number
+  avg_revenue_surprise_pct: number
+  consecutive_beats: number
 }
 
 export interface DCFInputs {
@@ -114,6 +135,9 @@ interface WorkspaceState {
   // Comps state
   compsResult: CompsResult | null
 
+  // Earnings state
+  earningsResult: EarningsResult | null
+
   // UI navigation
   view: ViewMode
   showSettings: boolean
@@ -131,6 +155,7 @@ interface WorkspaceState {
   setCurrentPrice: (price: number) => void
   setResearchResult: (result: ResearchResult) => void
   setCompsResult: (result: CompsResult) => void
+  setEarningsResult: (result: EarningsResult) => void
   setShowSettings: (show: boolean) => void
   reset: () => void
 }
@@ -147,6 +172,7 @@ const initialState = {
   currentPrice: null,
   researchResult: null,
   compsResult: null,
+  earningsResult: null,
   view: 'workspace' as ViewMode,
   showSettings: false,
 }
@@ -166,6 +192,7 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   setCurrentPrice: (currentPrice) => set({ currentPrice }),
   setResearchResult: (researchResult) => set({ researchResult }),
   setCompsResult: (compsResult) => set({ compsResult }),
+  setEarningsResult: (earningsResult) => set({ earningsResult }),
   setShowSettings: (showSettings) => set({ showSettings }),
   reset: () => set(initialState),
 }))

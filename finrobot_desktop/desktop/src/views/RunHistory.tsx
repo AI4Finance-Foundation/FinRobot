@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { useAppStore } from '../stores/appStore'
 import { BASE_URL } from '../api/client'
-import type { DCFResult, DCFInputs, ResearchResult, SensitivityResult } from '../stores/appStore'
+import type { DCFResult, DCFInputs, ResearchResult, SensitivityResult, EarningsResult } from '../stores/appStore'
 import { useDcfSensitivity } from '../hooks/useCompute'
 
 const STATUS_STYLES: Record<string, { color: string; label: string }> = {
@@ -16,6 +16,8 @@ const STATUS_STYLES: Record<string, { color: string; label: string }> = {
 const PIPELINE_LABELS: Record<string, string> = {
   equity_research: 'Equity Research',
   dcf: 'DCF',
+  comps: 'Comps',
+  earnings: 'Earnings',
 }
 
 function formatTime(iso: string): string {
@@ -54,6 +56,7 @@ export default function RunHistory({ onBack }: Props) {
     setDcfResult,
     setSensitivityData,
     setResearchResult,
+    setEarningsResult,
     setCurrentPrice,
     setWarnings,
   } = useAppStore()
@@ -76,12 +79,20 @@ export default function RunHistory({ onBack }: Props) {
     const detail = await resp.json()
 
     setTicker(runTicker)
-    setPipelineType(runPipelineType as 'equity_research' | 'dcf')
+    setPipelineType(runPipelineType as 'equity_research' | 'dcf' | 'comps' | 'earnings')
     setWarnings(detail.warnings || [])
 
     const structured = detail.result?.structured
     if (!structured) {
       setPhase('data_ready')
+      setView('workspace')
+      return
+    }
+
+    if (runPipelineType === 'earnings') {
+      const earnings: EarningsResult | undefined = structured.earnings_data
+      if (earnings) setEarningsResult(earnings)
+      setPhase('interactive')
       setView('workspace')
       return
     }
@@ -127,7 +138,7 @@ export default function RunHistory({ onBack }: Props) {
 
     setPhase('interactive')
     setView('workspace')
-  }, [setTicker, setPipelineType, setPhase, setView, setDcfInputs, setOriginalDcfInputs, setDcfResult, setSensitivityData, setResearchResult, setCurrentPrice, setWarnings, sensitivityMut])
+  }, [setTicker, setPipelineType, setPhase, setView, setDcfInputs, setOriginalDcfInputs, setDcfResult, setSensitivityData, setResearchResult, setEarningsResult, setCurrentPrice, setWarnings, sensitivityMut])
 
   const runs = data?.runs || []
 

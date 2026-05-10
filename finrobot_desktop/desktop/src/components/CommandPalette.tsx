@@ -67,6 +67,7 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
         { type: 'equity_research', label: 'Run Equity Research', desc: 'Full investment thesis + price target' },
         { type: 'dcf', label: 'Run DCF Analysis', desc: 'Discounted cash flow valuation' },
         { type: 'comps', label: 'Run Comps Analysis', desc: 'Peer comparison multiples' },
+        { type: 'earnings', label: 'Run Earnings Analysis', desc: 'Beat/miss history + surprise metrics' },
       ]
       for (const p of pipelines) {
         items.push({

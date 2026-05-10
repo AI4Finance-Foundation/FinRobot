@@ -8,7 +8,7 @@ type Phase =
   | 'pipeline_done'
   | 'interactive'
 
-export type PipelineType = 'research' | 'dcf' | 'comps' | 'earnings' | 'lbo'
+export type PipelineType = 'research' | 'dcf' | 'comps' | 'earnings' | 'lbo' | 'ic-memo'
 export type ViewMode = 'workspace' | 'history'
 
 export interface ResearchResult {
@@ -102,6 +102,32 @@ export interface LBOResult {
   irr_formula_warning: string | null
 }
 
+export interface ICMemoRecommendation {
+  verdict: string
+  irr: number | null
+  rationale: string
+}
+
+export interface ICMemoResult {
+  situation_overview: string
+  financial_summary: string
+  investment_thesis: string
+  risk_factors: string
+  recommendation: ICMemoRecommendation
+}
+
+export interface MonteCarloResult {
+  implied_prices: number[]
+  percentiles: Record<string, number>
+  mean: number
+  std: number
+  current_price_percentile: number
+  histogram_bins: number[]
+  histogram_counts: number[]
+  assumptions_used: Record<string, number>
+  n_valid: number
+}
+
 export interface DCFInputs {
   revenue_base: number
   revenue_growth_rates: number[]
@@ -145,6 +171,20 @@ export interface SensitivityResult {
   implied_prices: (number | null)[][]
 }
 
+export type ScenarioKey = 'base' | 'bull' | 'bear'
+
+interface Scenarios {
+  base: DCFInputs | null
+  bull: DCFInputs | null
+  bear: DCFInputs | null
+}
+
+interface ScenarioResults {
+  base: DCFResult | null
+  bull: DCFResult | null
+  bear: DCFResult | null
+}
+
 interface WorkspaceState {
   // UI state
   ticker: string
@@ -163,6 +203,11 @@ interface WorkspaceState {
   priceChange: number | null
   priceChangePct: number | null
 
+  // Multi-scenario modeling
+  activeScenario: ScenarioKey
+  scenarios: Scenarios
+  scenarioResults: ScenarioResults
+
   // Data freshness
   dataFetchedAt: number | null
 
@@ -178,10 +223,20 @@ interface WorkspaceState {
   // LBO state
   lboResult: LBOResult | null
 
+  // IC Memo state
+  icMemoResult: ICMemoResult | null
+
+  // Monte Carlo state
+  monteCarloResult: MonteCarloResult | null
+  monteCarloLoading: boolean
+
   // UI navigation
   view: ViewMode
   showSettings: boolean
   cmdPaletteOpen: boolean
+
+  // Ask panel
+  askPanelOpen: boolean
 
   // Actions
   setTicker: (t: string) => void
@@ -200,11 +255,22 @@ interface WorkspaceState {
   setCompsResult: (result: CompsResult) => void
   setEarningsResult: (result: EarningsResult) => void
   setLboResult: (result: LBOResult) => void
+  setIcMemoResult: (result: ICMemoResult) => void
+  setMonteCarloResult: (result: MonteCarloResult | null) => void
+  setMonteCarloLoading: (loading: boolean) => void
   setShowSettings: (show: boolean) => void
   setCmdPaletteOpen: (open: boolean) => void
   toggleCmdPalette: () => void
+  setAskPanelOpen: (open: boolean) => void
+  setActiveScenario: (s: ScenarioKey) => void
+  setScenarioInputs: (s: ScenarioKey, inputs: DCFInputs) => void
+  setScenarioResult: (s: ScenarioKey, result: DCFResult) => void
+  initScenarios: (baseInputs: DCFInputs, baseResult: DCFResult) => void
   reset: () => void
 }
+
+const emptyScenarios: Scenarios = { base: null, bull: null, bear: null }
+const emptyScenarioResults: ScenarioResults = { base: null, bull: null, bear: null }
 
 const initialState = {
   ticker: '',
@@ -218,14 +284,38 @@ const initialState = {
   currentPrice: null,
   priceChange: null,
   priceChangePct: null,
+  activeScenario: 'base' as ScenarioKey,
+  scenarios: { ...emptyScenarios },
+  scenarioResults: { ...emptyScenarioResults },
   dataFetchedAt: null,
   researchResult: null,
   compsResult: null,
   earningsResult: null,
   lboResult: null,
+  icMemoResult: null,
+  monteCarloResult: null,
+  monteCarloLoading: false,
   view: 'workspace' as ViewMode,
   showSettings: false,
   cmdPaletteOpen: false,
+  askPanelOpen: false,
+}
+
+/**
+ * Create bull/bear DCFInputs by adjusting base assumptions.
+ * Bull: +20% growth, +10% margin, -1% WACC (lower discount).
+ * Bear: -20% growth, -10% margin, +1% WACC (higher discount).
+ */
+function deriveScenario(base: DCFInputs, direction: 'bull' | 'bear'): DCFInputs {
+  const mult = direction === 'bull' ? 1 : -1
+  return {
+    ...base,
+    revenue_growth_rates: base.revenue_growth_rates.map(
+      (r) => Math.max(0, r * (1 + mult * 0.2))
+    ),
+    ebitda_margin: Math.max(0, Math.min(1, base.ebitda_margin * (1 + mult * 0.1))),
+    risk_free_rate: Math.max(0, base.risk_free_rate - mult * 0.01),
+  }
 }
 
 export const useAppStore = create<WorkspaceState>((set) => ({
@@ -237,12 +327,19 @@ export const useAppStore = create<WorkspaceState>((set) => ({
     compsResult: null,
     earningsResult: null,
     lboResult: null,
+    icMemoResult: null,
+    monteCarloResult: null,
+    monteCarloLoading: false,
     dcfResult: null,
     dcfInputs: null,
     originalDcfInputs: null,
     sensitivityData: null,
     warnings: [],
     phase: 'idle',
+    activeScenario: 'base' as ScenarioKey,
+    scenarios: { ...emptyScenarios },
+    scenarioResults: { ...emptyScenarioResults },
+    askPanelOpen: false,
   }),
   setPhase: (phase) => set({ phase }),
   setPipelineType: (pipelineType) => set({ pipelineType }),
@@ -259,8 +356,47 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   setCompsResult: (compsResult) => set({ compsResult }),
   setEarningsResult: (earningsResult) => set({ earningsResult }),
   setLboResult: (lboResult) => set({ lboResult }),
+  setIcMemoResult: (icMemoResult) => set({ icMemoResult }),
+  setMonteCarloResult: (monteCarloResult) => set({ monteCarloResult }),
+  setMonteCarloLoading: (monteCarloLoading) => set({ monteCarloLoading }),
   setShowSettings: (showSettings) => set({ showSettings }),
   setCmdPaletteOpen: (cmdPaletteOpen) => set({ cmdPaletteOpen }),
   toggleCmdPalette: () => set((s) => ({ cmdPaletteOpen: !s.cmdPaletteOpen })),
+  setAskPanelOpen: (askPanelOpen) => set({ askPanelOpen }),
+
+  setActiveScenario: (activeScenario) => set((s) => {
+    const inputs = s.scenarios[activeScenario]
+    const result = s.scenarioResults[activeScenario]
+    return {
+      activeScenario,
+      ...(inputs ? { dcfInputs: inputs } : {}),
+      ...(result ? { dcfResult: result } : {}),
+    }
+  }),
+
+  setScenarioInputs: (key, inputs) => set((s) => ({
+    scenarios: { ...s.scenarios, [key]: inputs },
+    ...(s.activeScenario === key ? { dcfInputs: inputs } : {}),
+  })),
+
+  setScenarioResult: (key, result) => set((s) => ({
+    scenarioResults: { ...s.scenarioResults, [key]: result },
+    ...(s.activeScenario === key ? { dcfResult: result } : {}),
+  })),
+
+  initScenarios: (baseInputs, baseResult) => set({
+    activeScenario: 'base' as ScenarioKey,
+    scenarios: {
+      base: baseInputs,
+      bull: deriveScenario(baseInputs, 'bull'),
+      bear: deriveScenario(baseInputs, 'bear'),
+    },
+    scenarioResults: {
+      base: baseResult,
+      bull: null,
+      bear: null,
+    },
+  }),
+
   reset: () => set(initialState),
 }))

@@ -2,7 +2,7 @@ import { useEffect, useCallback } from 'react'
 import { useDebounce } from 'use-debounce'
 import { useAppStore } from '../stores/appStore'
 import { useDcfCompute, useDcfSensitivity, useWaccCompute } from '../hooks/useCompute'
-import type { DCFInputs } from '../stores/appStore'
+import type { DCFInputs, ScenarioKey } from '../stores/appStore'
 
 interface SliderDef {
   key: keyof DCFInputs
@@ -29,6 +29,12 @@ const GROWTH_SLIDERS: SliderDef[] = [
   { key: 'nwc_pct_revenue', label: 'NWC %', min: -0.20, max: 0.50, step: 0.005, format: 'pct' },
 ]
 
+const SCENARIO_TABS: { key: ScenarioKey; label: string; color: string }[] = [
+  { key: 'bull', label: 'Bull', color: 'var(--positive)' },
+  { key: 'base', label: 'Base', color: 'var(--text-primary)' },
+  { key: 'bear', label: 'Bear', color: 'var(--negative)' },
+]
+
 function fmtValue(val: number, format: 'pct' | 'dec'): string {
   if (format === 'pct') return `${(val * 100).toFixed(1)}%`
   return val.toFixed(2)
@@ -46,10 +52,16 @@ export default function AssumptionsEditor() {
     dcfInputs,
     originalDcfInputs,
     dcfResult,
+    activeScenario,
+    scenarios,
     setDcfInputs,
     setDcfResult,
     setSensitivityData,
     setPhase,
+    setActiveScenario,
+    setScenarioInputs,
+    setScenarioResult,
+    initScenarios,
   } = useAppStore()
 
   const dcfMut = useDcfCompute()
@@ -58,19 +70,24 @@ export default function AssumptionsEditor() {
 
   const [debouncedInputs] = useDebounce(dcfInputs, 100)
 
+  // Auto-initialize scenarios when DCF first completes
+  useEffect(() => {
+    if (dcfResult && originalDcfInputs && !scenarios.base) {
+      initScenarios(originalDcfInputs, dcfResult)
+    }
+  }, [dcfResult, originalDcfInputs, scenarios.base, initScenarios])
+
   // Recompute on debounced input change
   useEffect(() => {
     if (!debouncedInputs || !dcfResult) return
-    // Skip if inputs haven't actually changed from last result
     if (debouncedInputs === originalDcfInputs && dcfResult.inputs === originalDcfInputs) return
 
     setPhase('interactive')
 
-    // Compute DCF
     dcfMut.mutate(debouncedInputs, {
       onSuccess: (result) => {
         setDcfResult(result)
-        // Compute sensitivity
+        setScenarioResult(activeScenario, result)
         const { wacc_range, tg_range } = buildSensitivityRanges(
           result.wacc,
           debouncedInputs.terminal_growth_rate
@@ -82,7 +99,6 @@ export default function AssumptionsEditor() {
       },
     })
 
-    // Compute WACC display
     waccMut.mutate({
       risk_free_rate: debouncedInputs.risk_free_rate,
       beta: debouncedInputs.beta,
@@ -96,9 +112,11 @@ export default function AssumptionsEditor() {
   const handleSlider = useCallback(
     (key: keyof DCFInputs, value: number) => {
       if (!dcfInputs) return
-      setDcfInputs({ ...dcfInputs, [key]: value })
+      const updated = { ...dcfInputs, [key]: value }
+      setDcfInputs(updated)
+      setScenarioInputs(activeScenario, updated)
     },
-    [dcfInputs, setDcfInputs]
+    [dcfInputs, setDcfInputs, activeScenario, setScenarioInputs]
   )
 
   const handleGrowthRate = useCallback(
@@ -106,9 +124,11 @@ export default function AssumptionsEditor() {
       if (!dcfInputs) return
       const rates = [...dcfInputs.revenue_growth_rates]
       rates[index] = parseFloat(value) / 100 || 0
-      setDcfInputs({ ...dcfInputs, revenue_growth_rates: rates })
+      const updated = { ...dcfInputs, revenue_growth_rates: rates }
+      setDcfInputs(updated)
+      setScenarioInputs(activeScenario, updated)
     },
-    [dcfInputs, setDcfInputs]
+    [dcfInputs, setDcfInputs, activeScenario, setScenarioInputs]
   )
 
   const handleReset = useCallback(() => {
@@ -117,9 +137,14 @@ export default function AssumptionsEditor() {
     }
   }, [originalDcfInputs, setDcfInputs])
 
+  const handleScenarioSwitch = useCallback((key: ScenarioKey) => {
+    setActiveScenario(key)
+  }, [setActiveScenario])
+
   if (!dcfInputs) return null
 
   const waccDisplay = waccMut.data?.wacc ?? dcfResult?.wacc
+  const hasScenarios = scenarios.base !== null
 
   return (
     <div className="card animate-in">
@@ -129,6 +154,25 @@ export default function AssumptionsEditor() {
           Reset
         </button>
       </div>
+
+      {/* Scenario Tabs */}
+      {hasScenarios && (
+        <div className="scenario-tabs">
+          {SCENARIO_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              className={`scenario-tab${activeScenario === tab.key ? ' active' : ''}`}
+              onClick={() => handleScenarioSwitch(tab.key)}
+              style={{
+                '--tab-color': tab.color,
+              } as React.CSSProperties}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="card-body">
         {/* WACC Components */}
         <div className="section-label">WACC Components</div>

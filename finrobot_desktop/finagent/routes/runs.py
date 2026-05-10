@@ -60,6 +60,7 @@ class RunDetail(BaseModel):
     artifacts: list[dict[str, Any]] = []
     warnings: list[str] = []
     failed_validations: list[dict[str, str]] = []
+    steps: dict[str, str] | None = None
     error: str | None = None
 
 
@@ -118,6 +119,7 @@ async def get_run(run_id: str, request: Request) -> RunDetail:
     result = None
     if record.result_text is not None or flat_structured is not None:
         result = RunResult(text=record.result_text, structured=flat_structured)
+    steps_dict = raw.get("steps") if raw else None
     return RunDetail(
         run_id=record.run_id,
         status=record.status,
@@ -130,6 +132,7 @@ async def get_run(run_id: str, request: Request) -> RunDetail:
         artifacts=artifacts,
         warnings=warnings,
         failed_validations=failed_validations,
+        steps=steps_dict,
         error=record.error,
     )
 
@@ -321,6 +324,7 @@ def _result_to_json(result: PipelineResult) -> dict[str, Any]:
                     warnings.append(warning)
     return {
         "structured_data": structured,
+        "steps": result.steps,
         "failed_validations": result.failed_validations,
         "warnings": warnings,
     }

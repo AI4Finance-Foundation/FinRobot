@@ -1,6 +1,8 @@
+import { useCallback } from 'react'
 import { useCountUp } from '../hooks/useCountUp'
 import type { LBOResult } from '../stores/appStore'
 import { useAppStore } from '../stores/appStore'
+import { BASE_URL } from '../api/client'
 import { fmtUsd, fmtPct, fmtMult } from '../utils/formatters'
 
 interface Props {
@@ -8,13 +10,13 @@ interface Props {
 }
 
 function irrColor(irr: number): string {
-  if (irr >= 0.25) return 'var(--positive)'
+  if (irr >= 0.20) return 'var(--positive)'
   if (irr >= 0.15) return 'var(--gold)'
   return 'var(--negative)'
 }
 
 function irrBg(irr: number): string {
-  if (irr >= 0.25) return 'var(--positive-bg)'
+  if (irr >= 0.20) return 'var(--positive-bg)'
   if (irr >= 0.15) return 'var(--gold-dim)'
   return 'var(--negative-bg)'
 }
@@ -31,6 +33,18 @@ export default function LBOSummary({ result }: Props) {
   const animatedIrr = useCountUp(result.irr * 100, 700, 1)
   const animatedMoic = useCountUp(result.moic, 700, 1)
   const debtToEquity = result.entry_equity > 0 ? result.entry_debt / result.entry_equity : 0
+
+  const handleExcelExport = useCallback(async () => {
+    const resp = await fetch(`${BASE_URL}/api/export/excel/lbo/${ticker}`)
+    if (!resp.ok) return
+    const blob = await resp.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${ticker}_lbo.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [ticker])
 
   const hasSensitivity = !!(
     result.sensitivity &&
@@ -240,8 +254,14 @@ export default function LBOSummary({ result }: Props) {
         </div>
       )}
 
-      {/* New Analysis */}
+      {/* Export + New Analysis */}
       <div className="export-bar animate-in">
+        <button className="btn" onClick={handleExcelExport}>
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M2 10v2h10v-2M7 2v7m-3-3l3 3 3-3" />
+          </svg>
+          Export Excel
+        </button>
         <div className="flex-1" />
         <button className="btn btn-primary" onClick={() => useAppStore.getState().reset()}>
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">

@@ -4,7 +4,7 @@ import { useAppStore } from '../stores/appStore'
 import { useToastStore } from '../stores/toastStore'
 import { useDcfSensitivity } from '../hooks/useCompute'
 import { BASE_URL } from '../api/client'
-import type { DCFResult, DCFInputs, SensitivityResult, ResearchResult, CompsResult, EarningsResult, LBOResult } from '../stores/appStore'
+import type { DCFResult, DCFInputs, SensitivityResult, ResearchResult, CompsResult, EarningsResult, LBOResult, ICMemoResult } from '../stores/appStore'
 
 function buildSensitivityRanges(wacc: number, tg: number) {
   const waccRange = Array.from({ length: 7 }, (_, i) => Math.max(0, wacc - 0.03 + i * 0.01))
@@ -25,6 +25,7 @@ const PIPELINE_LABELS: Record<string, string> = {
   comps: 'Comps Analysis',
   earnings: 'Earnings Analysis',
   lbo: 'LBO Analysis',
+  'ic-memo': 'IC Memo',
 }
 
 export default function PipelineRunner() {
@@ -42,6 +43,7 @@ export default function PipelineRunner() {
     setCompsResult,
     setEarningsResult,
     setLboResult,
+    setIcMemoResult,
   } = useAppStore()
   const sensitivityMut = useDcfSensitivity()
   const [runId, setRunId] = useState<string | null>(null)
@@ -122,6 +124,41 @@ export default function PipelineRunner() {
           if (lbo) {
             setLboResult(lbo)
           }
+        } else if (runPipelineTypeRef.current === 'ic-memo') {
+          // IC Memo pipeline — assemble from step text outputs + structured financial_analysis
+          const steps: Record<string, string> = detail.steps || {}
+          const financialAnalysis = structured.financial_analysis
+          const recommendationText = steps.recommendation || ''
+
+          // Extract IRR from ICFinancials structured data
+          let irr: number | null = null
+          if (typeof financialAnalysis === 'object' && financialAnalysis) {
+            const fa = financialAnalysis as Record<string, unknown>
+            if (fa.lbo_result && typeof fa.lbo_result === 'object') {
+              irr = (fa.lbo_result as Record<string, unknown>).irr as number | null
+            }
+          }
+
+          // Determine verdict from recommendation text (code gate prefixes PASS)
+          let verdict = 'INVEST'
+          if (recommendationText.includes('[CODE GATE') || recommendationText.toUpperCase().includes('PASS')) {
+            verdict = 'PASS'
+          } else if (recommendationText.toUpperCase().includes('HOLD')) {
+            verdict = 'HOLD'
+          }
+
+          const icMemo: ICMemoResult = {
+            situation_overview: steps.situation_overview || '',
+            financial_summary: steps.financial_analysis || '',
+            investment_thesis: steps.investment_thesis || '',
+            risk_factors: steps.risk_factors || '',
+            recommendation: {
+              verdict,
+              irr,
+              rationale: recommendationText,
+            },
+          }
+          setIcMemoResult(icMemo)
         } else {
           // DCF-only pipeline
           const dcfCalc: DCFResult | undefined =
@@ -155,7 +192,7 @@ export default function PipelineRunner() {
     }
 
     fetchResult()
-  }, [status, phase, runId, ticker, setPhase, setDcfInputs, setOriginalDcfInputs, setDcfResult, setSensitivityData, setResearchResult, setCompsResult, setEarningsResult, setLboResult, sensitivityMut, addToast])
+  }, [status, phase, runId, ticker, setPhase, setDcfInputs, setOriginalDcfInputs, setDcfResult, setSensitivityData, setResearchResult, setCompsResult, setEarningsResult, setLboResult, setIcMemoResult, sensitivityMut, addToast])
 
   const canRun = (phase === 'data_ready' || phase === 'pipeline_done' || phase === 'interactive') && !!ticker
   const isRunning = phase === 'running_pipeline' || phase === 'pipeline_done'

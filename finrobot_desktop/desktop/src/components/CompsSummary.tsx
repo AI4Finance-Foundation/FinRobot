@@ -37,11 +37,7 @@ export default function CompsSummary({ result, currentPrice }: Props) {
   }
 
   const handleExcelExport = useCallback(async () => {
-    const resp = await fetch(`${BASE_URL}/api/export/excel/dcf`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker, comps: result }),
-    })
+    const resp = await fetch(`${BASE_URL}/api/export/excel/comps/${ticker}`)
     if (!resp.ok) return
     const blob = await resp.blob()
     const url = URL.createObjectURL(blob)
@@ -50,7 +46,7 @@ export default function CompsSummary({ result, currentPrice }: Props) {
     a.download = `${ticker}_comps.xlsx`
     a.click()
     URL.revokeObjectURL(url)
-  }, [ticker, result])
+  }, [ticker])
 
   return (
     <>

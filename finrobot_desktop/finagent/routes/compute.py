@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 from finagent.engine.compute.lbo import calculate_lbo, calculate_lbo_sensitivity
+from finagent.engine.compute.monte_carlo import (
+    MonteCarloRequest,
+    MonteCarloResult,
+    run_monte_carlo,
+)
 from finagent.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
 from finagent.engine.compute.wacc import calculate_wacc
 from finagent.engine.models.financial import (
@@ -113,3 +120,19 @@ async def compute_multiples(company: CompanyFinancials) -> CompanyFinancials:
 @router.post("/peer-stats", response_model=PeerComps)
 async def compute_peer_stats(comps: PeerComps) -> PeerComps:
     return calculate_peer_statistics(comps)
+
+
+@router.post("/monte-carlo", response_model=MonteCarloResult)
+async def compute_monte_carlo(request: MonteCarloRequest) -> MonteCarloResult:
+    """Run Monte Carlo DCF simulation (CPU-bound, offloaded to thread)."""
+    return await asyncio.to_thread(
+        run_monte_carlo,
+        inputs=request.inputs,
+        current_price=request.current_price,
+        n_simulations=request.n_simulations,
+        n_bins=request.n_bins,
+        revenue_growth_std=request.revenue_growth_std,
+        ebitda_margin_std=request.ebitda_margin_std,
+        wacc_std=request.wacc_std,
+        terminal_growth_std=request.terminal_growth_std,
+    )

@@ -20,6 +20,7 @@ from finagent.engine.data.interface import ProviderError
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.orchestrator import build_report_context, create_lead_agent
 from finagent.engine.skills.registry import SkillRegistry
+from finagent.routes.ask import router as ask_router
 from finagent.routes.compute import router as compute_router
 from finagent.routes.data import router as data_router
 from finagent.routes.export import router as export_router
@@ -110,6 +111,7 @@ app.add_middleware(
 )
 
 app.include_router(web_router)
+app.include_router(ask_router)
 app.include_router(compute_router)
 app.include_router(data_router)
 app.include_router(export_router)

@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
-import { api } from '../api/client'
-import type { DCFInputs, DCFResult, SensitivityResult } from '../stores/appStore'
+import { api, BASE_URL } from '../api/client'
+import type { DCFInputs, DCFResult, SensitivityResult, MonteCarloResult } from '../stores/appStore'
 
 export function useDcfCompute() {
   return useMutation({
@@ -45,6 +45,33 @@ export function useWaccCompute() {
       })
       if (error) throw new Error('WACC compute failed')
       return data as unknown as { cost_of_equity: number; wacc: number }
+    },
+  })
+}
+
+export function useMonteCarloCompute() {
+  return useMutation({
+    mutationFn: async (req: {
+      inputs: DCFInputs
+      current_price: number
+      n_simulations?: number
+      n_bins?: number
+      revenue_growth_std?: number
+      ebitda_margin_std?: number
+      wacc_std?: number
+      terminal_growth_std?: number
+    }): Promise<MonteCarloResult> => {
+      // Use direct fetch since this endpoint is not yet in the generated schema
+      const res = await fetch(`${BASE_URL}/api/compute/monte-carlo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req),
+      })
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '')
+        throw new Error(`Monte Carlo compute failed: ${res.status} ${errBody}`)
+      }
+      return res.json() as Promise<MonteCarloResult>
     },
   })
 }

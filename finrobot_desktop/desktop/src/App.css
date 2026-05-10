@@ -1856,3 +1856,449 @@ select.input-field {
   from { transform: scaleX(0); transform-origin: left; }
   to { transform: scaleX(1); transform-origin: left; }
 }
+
+/* ── Monte Carlo Chart ── */
+.mc-percentile-table {
+  margin-top: var(--sp-3);
+  overflow-x: auto;
+}
+.mc-percentile-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+.mc-percentile-table th {
+  color: var(--text-muted);
+  font-weight: 500;
+  padding: var(--sp-1) var(--sp-2);
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+.mc-percentile-table td {
+  color: var(--text-secondary);
+  padding: var(--sp-1) var(--sp-2);
+  text-align: center;
+}
+.mc-callout {
+  margin-top: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: rgba(201, 168, 76, 0.06);
+  border: 1px solid rgba(201, 168, 76, 0.2);
+  border-radius: var(--r-md);
+  font-size: 0.78rem;
+  color: var(--gold);
+  text-align: center;
+}
+.mc-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.mc-stats-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--border);
+}
+.mc-run-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: rgba(96, 165, 250, 0.08);
+  border: 1px solid rgba(96, 165, 250, 0.25);
+  border-radius: var(--r-md);
+  color: var(--chart-1);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.mc-run-btn:hover:not(:disabled) {
+  background: rgba(96, 165, 250, 0.14);
+  border-color: rgba(96, 165, 250, 0.4);
+}
+.mc-run-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.mc-run-btn .spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(96, 165, 250, 0.3);
+  border-top-color: var(--chart-1);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ═══════════════════════════
+   SCENARIO TABS & COMPARE
+   ═══════════════════════════ */
+.scenario-tabs {
+  display: flex;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-3) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.scenario-tab {
+  flex: 1;
+  padding: 6px 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: center;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.scenario-tab:hover {
+  color: var(--text-secondary);
+}
+
+.scenario-tab.active {
+  color: var(--tab-color, var(--text-primary));
+  border-bottom-color: var(--tab-color, var(--gold));
+}
+
+/* Scenario Compare Card */
+.scenario-compare {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-4);
+}
+
+.scenario-compare-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-4);
+}
+
+.scenario-current-price {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.scenario-compare-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-3);
+}
+
+.scenario-card {
+  background: var(--elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  padding: var(--sp-3);
+  text-align: center;
+  transition: border-color 0.15s;
+}
+
+.scenario-card.scenario-bull {
+  border-top: 2px solid var(--positive);
+}
+
+.scenario-card.scenario-base {
+  border-top: 2px solid var(--gold);
+}
+
+.scenario-card.scenario-bear {
+  border-top: 2px solid var(--negative);
+}
+
+.scenario-card-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: var(--sp-2);
+}
+
+.scenario-card.scenario-bull .scenario-card-label { color: var(--positive); }
+.scenario-card.scenario-bear .scenario-card-label { color: var(--negative); }
+.scenario-card.scenario-base .scenario-card-label { color: var(--gold); }
+
+.scenario-card-price {
+  font-family: var(--font-mono);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--sp-1);
+}
+
+.scenario-card-upside {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: var(--sp-3);
+}
+
+.scenario-card-upside.positive { color: var(--positive); }
+.scenario-card-upside.negative { color: var(--negative); }
+
+.scenario-card-assumptions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scenario-assumption {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.scenario-assumption span:last-child {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.scenario-card--empty {
+  opacity: 0.5;
+}
+
+/* ═══════════════════════════
+   ASK PANEL (RAG Q&A)
+   ═══════════════════════════ */
+.ask-panel {
+  margin-top: var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  transition: all 0.2s;
+}
+
+.ask-panel-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-3) var(--sp-4);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ask-panel-toggle:hover {
+  background: var(--elevated);
+  color: var(--text-primary);
+}
+
+.ask-panel.open .ask-panel-toggle {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ask-panel-content {
+  display: flex;
+  flex-direction: column;
+  max-height: 400px;
+}
+
+.ask-panel-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-3) var(--sp-4);
+  min-height: 100px;
+  max-height: 300px;
+}
+
+.ask-panel-empty {
+  text-align: center;
+  padding: var(--sp-6) var(--sp-4);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.ask-msg {
+  margin-bottom: var(--sp-3);
+}
+
+.ask-msg--user .ask-msg-content {
+  background: var(--gold-dim);
+  color: var(--text-primary);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  font-size: 0.8rem;
+  display: inline-block;
+  max-width: 90%;
+  margin-left: auto;
+  text-align: right;
+}
+
+.ask-msg--user {
+  text-align: right;
+}
+
+.ask-msg--assistant .ask-msg-content {
+  background: var(--elevated);
+  color: var(--text-secondary);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.ask-msg-loading {
+  display: flex;
+  gap: 4px;
+  padding: var(--sp-3);
+}
+
+.ask-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: ask-bounce 1.2s infinite ease-in-out;
+}
+
+.ask-dot:nth-child(2) { animation-delay: 0.2s; }
+.ask-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes ask-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-4px); opacity: 1; }
+}
+
+/* Citations */
+.ask-citations {
+  margin-top: var(--sp-2);
+}
+
+.ask-citations-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  background: transparent;
+  border: none;
+  color: var(--gold);
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.ask-citations-toggle:hover {
+  text-decoration: underline;
+}
+
+.ask-citations-list {
+  margin-top: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.ask-citation-item {
+  background: var(--base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  padding: var(--sp-2);
+}
+
+.ask-citation-source {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.ask-citation-score {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text-muted);
+}
+
+.ask-citation-text {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  max-height: 80px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+/* Ask panel input row */
+.ask-panel-input-row {
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--elevated);
+}
+
+.ask-panel-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-2) var(--sp-3);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.ask-panel-input:focus {
+  border-color: var(--gold);
+}
+
+.ask-panel-input::placeholder {
+  color: var(--text-muted);
+}
+
+.ask-panel-send {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--gold-dim);
+  color: var(--gold);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.ask-panel-send:hover:not(:disabled) {
+  background: var(--gold);
+  color: var(--base);
+}
+
+.ask-panel-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Badge variants for IC Memo */
+.badge-positive {
+  background: var(--positive-bg) !important;
+  color: var(--positive) !important;
+}
+
+.badge-negative {
+  background: var(--negative-bg) !important;
+  color: var(--negative) !important;
+}

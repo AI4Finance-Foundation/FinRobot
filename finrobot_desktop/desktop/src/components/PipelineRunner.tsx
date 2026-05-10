@@ -3,7 +3,7 @@ import { useRunStream } from '../hooks/useRunStream'
 import { useAppStore } from '../stores/appStore'
 import { useDcfSensitivity } from '../hooks/useCompute'
 import { BASE_URL } from '../api/client'
-import type { DCFResult, DCFInputs, SensitivityResult, ResearchResult, CompsResult, EarningsResult } from '../stores/appStore'
+import type { DCFResult, DCFInputs, SensitivityResult, ResearchResult, CompsResult, EarningsResult, LBOResult } from '../stores/appStore'
 
 function buildSensitivityRanges(wacc: number, tg: number) {
   const waccRange = Array.from({ length: 7 }, (_, i) => Math.max(0, wacc - 0.03 + i * 0.01))
@@ -23,6 +23,7 @@ const PIPELINE_LABELS: Record<string, string> = {
   dcf: 'DCF Analysis',
   comps: 'Comps Analysis',
   earnings: 'Earnings Analysis',
+  lbo: 'LBO Analysis',
 }
 
 export default function PipelineRunner() {
@@ -39,6 +40,7 @@ export default function PipelineRunner() {
     setResearchResult,
     setCompsResult,
     setEarningsResult,
+    setLboResult,
   } = useAppStore()
   const sensitivityMut = useDcfSensitivity()
   const [runId, setRunId] = useState<string | null>(null)
@@ -110,6 +112,12 @@ export default function PipelineRunner() {
           if (earnings) {
             setEarningsResult(earnings)
           }
+        } else if (runPipelineTypeRef.current === 'lbo') {
+          // LBO pipeline — look for lbo_calculation (LBOResult)
+          const lbo: LBOResult | undefined = structured.lbo_calculation
+          if (lbo) {
+            setLboResult(lbo)
+          }
         } else {
           // DCF-only pipeline
           const dcfCalc: DCFResult | undefined =
@@ -138,7 +146,7 @@ export default function PipelineRunner() {
     }
 
     fetchResult()
-  }, [status, phase, runId, setPhase, setDcfInputs, setOriginalDcfInputs, setDcfResult, setSensitivityData, setResearchResult, setCompsResult, setEarningsResult, sensitivityMut])
+  }, [status, phase, runId, setPhase, setDcfInputs, setOriginalDcfInputs, setDcfResult, setSensitivityData, setResearchResult, setCompsResult, setEarningsResult, setLboResult, sensitivityMut])
 
   const canRun = phase === 'data_ready' && !!ticker
   const isRunning = phase === 'running_pipeline' || phase === 'pipeline_done'

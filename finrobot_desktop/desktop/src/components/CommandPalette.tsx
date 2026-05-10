@@ -68,6 +68,7 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
         { type: 'dcf', label: 'Run DCF Analysis', desc: 'Discounted cash flow valuation' },
         { type: 'comps', label: 'Run Comps Analysis', desc: 'Peer comparison multiples' },
         { type: 'earnings', label: 'Run Earnings Analysis', desc: 'Beat/miss history + surprise metrics' },
+        { type: 'lbo', label: 'Run LBO Analysis', desc: 'Leveraged buyout returns (IRR/MOIC)' },
       ]
       for (const p of pipelines) {
         items.push({

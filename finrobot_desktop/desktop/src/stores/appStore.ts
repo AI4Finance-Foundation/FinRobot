@@ -8,7 +8,7 @@ type Phase =
   | 'pipeline_done'
   | 'interactive'
 
-export type PipelineType = 'equity_research' | 'dcf' | 'comps' | 'earnings'
+export type PipelineType = 'equity_research' | 'dcf' | 'comps' | 'earnings' | 'lbo'
 export type ViewMode = 'workspace' | 'history'
 
 export interface ResearchResult {
@@ -68,6 +68,38 @@ export interface EarningsResult {
   avg_eps_surprise_pct: number
   avg_revenue_surprise_pct: number
   consecutive_beats: number
+}
+
+export interface LBOYear {
+  year: number
+  revenue: number
+  ebitda: number
+  fcf: number
+  mandatory_amort: number
+  cash_sweep_amount: number
+  total_debt_paydown: number
+  ending_debt: number
+}
+
+export interface LBOSensitivity {
+  entry_multiples: number[]
+  exit_multiples: number[]
+  irr_grid: (number | null)[][]
+  moic_grid: (number | null)[][]
+}
+
+export interface LBOResult {
+  entry_ev: number
+  entry_debt: number
+  entry_equity: number
+  schedule: LBOYear[]
+  exit_ebitda: number
+  exit_ev: number
+  exit_equity: number
+  moic: number
+  irr: number
+  sensitivity: LBOSensitivity
+  irr_formula_warning: string | null
 }
 
 export interface DCFInputs {
@@ -138,6 +170,9 @@ interface WorkspaceState {
   // Earnings state
   earningsResult: EarningsResult | null
 
+  // LBO state
+  lboResult: LBOResult | null
+
   // UI navigation
   view: ViewMode
   showSettings: boolean
@@ -156,6 +191,7 @@ interface WorkspaceState {
   setResearchResult: (result: ResearchResult) => void
   setCompsResult: (result: CompsResult) => void
   setEarningsResult: (result: EarningsResult) => void
+  setLboResult: (result: LBOResult) => void
   setShowSettings: (show: boolean) => void
   reset: () => void
 }
@@ -173,6 +209,7 @@ const initialState = {
   researchResult: null,
   compsResult: null,
   earningsResult: null,
+  lboResult: null,
   view: 'workspace' as ViewMode,
   showSettings: false,
 }
@@ -193,6 +230,7 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   setResearchResult: (researchResult) => set({ researchResult }),
   setCompsResult: (compsResult) => set({ compsResult }),
   setEarningsResult: (earningsResult) => set({ earningsResult }),
+  setLboResult: (lboResult) => set({ lboResult }),
   setShowSettings: (showSettings) => set({ showSettings }),
   reset: () => set(initialState),
 }))

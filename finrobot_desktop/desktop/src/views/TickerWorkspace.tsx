@@ -10,6 +10,7 @@ import ExportBar from '../components/ExportBar'
 import ResearchSummary from '../components/ResearchSummary'
 import CompsSummary from '../components/CompsSummary'
 import EarningsSummary from '../components/EarningsSummary'
+import LBOSummary from '../components/LBOSummary'
 import SensitivityHeatmap from '../components/charts/SensitivityHeatmap'
 import WaterfallChart from '../components/charts/WaterfallChart'
 import RevenueEbitdaChart from '../components/charts/RevenueEbitdaChart'
@@ -33,6 +34,7 @@ const PIPELINE_OPTIONS: { value: PipelineType; label: string }[] = [
   { value: 'dcf', label: 'DCF' },
   { value: 'comps', label: 'Comps' },
   { value: 'earnings', label: 'Earnings' },
+  { value: 'lbo', label: 'LBO' },
 ]
 
 export default function TickerWorkspace({ onOpenSettings }: Props) {
@@ -47,6 +49,7 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
     researchResult,
     compsResult,
     earningsResult,
+    lboResult,
     setPipelineType,
   } = useAppStore()
 
@@ -56,6 +59,7 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
   const isResearch = pipelineType === 'equity_research'
   const isComps = pipelineType === 'comps'
   const isEarnings = pipelineType === 'earnings'
+  const isLbo = pipelineType === 'lbo'
 
   return (
     <>
@@ -159,8 +163,8 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
             </ErrorBoundary>
           )}
 
-          {/* DCF Assumptions (only for DCF mode or when equity_research also has DCF data) */}
-          {showResults && dcfResult && !isResearch && (
+          {/* DCF Assumptions (only for DCF mode) */}
+          {showResults && dcfResult && !isResearch && !isLbo && (
             <ErrorBoundary>
               <AssumptionsEditor />
             </ErrorBoundary>
@@ -264,8 +268,15 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
             </ErrorBoundary>
           )}
 
+          {/* ── LBO Results ── */}
+          {showResults && isLbo && lboResult && (
+            <ErrorBoundary>
+              <LBOSummary result={lboResult} />
+            </ErrorBoundary>
+          )}
+
           {/* ── DCF-Only Results ── */}
-          {showResults && !isResearch && !isComps && !isEarnings && dcfResult && (
+          {showResults && !isResearch && !isComps && !isEarnings && !isLbo && dcfResult && (
             <>
               <ErrorBoundary>
                 <ValuationCard

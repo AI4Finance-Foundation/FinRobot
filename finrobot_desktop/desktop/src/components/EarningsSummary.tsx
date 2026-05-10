@@ -1,5 +1,6 @@
 import type { EarningsResult } from '../stores/appStore'
 import { useAppStore } from '../stores/appStore'
+import EpsSurpriseChart from './charts/EpsSurpriseChart'
 
 interface Props {
   result: EarningsResult
@@ -166,6 +167,20 @@ export default function EarningsSummary({ result }: Props) {
           </div>
         </div>
       </div>
+
+      {/* EPS Surprise Chart */}
+      {result.surprises.length > 1 && (
+        <EpsSurpriseChart
+          data={result.surprises.slice().reverse().map((s) => ({
+            quarter: s.date,
+            eps_actual: s.eps_actual,
+            eps_estimated: s.eps_estimated,
+            surprise_pct: s.eps_surprise_pct,
+            direction: s.eps_direction,
+          }))}
+          title="EPS: Actual vs Consensus"
+        />
+      )}
 
       {/* Quarterly Surprises Table */}
       {result.surprises.length > 0 && (

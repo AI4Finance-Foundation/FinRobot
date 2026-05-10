@@ -48,6 +48,11 @@
   /* ── Radius ── */
   --r-sm: 4px;  --r-md: 6px;  --r-lg: 8px;
 
+  /* ── Elevation (3-level shadow system) ── */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25), 0 2px 4px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.2);
+
   /* ── Fonts ── */
   --font-ui:   'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
@@ -192,6 +197,7 @@ body {
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-lg);
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .card-header {
@@ -228,6 +234,48 @@ body {
   letter-spacing: -0.01em;
 }
 .fin-table .fin-value.highlight { color: var(--gold); font-weight: 600; }
+
+/* Multi-column data table variant (used in summaries) */
+.fin-table th {
+  padding: 8px 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  text-align: right;
+}
+.fin-table th:first-child { text-align: left; padding-left: 16px; }
+.fin-table th:last-child { padding-right: 16px; }
+.fin-table thead tr { border-bottom: 1px solid var(--border); }
+
+/* Row label cell (left-aligned text description) */
+.fin-table .row-label {
+  padding: 8px 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Mono cell (year, ticker identifiers) */
+.fin-table .cell-mono {
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Standard data cell padding */
+.fin-table .cell { padding: 8px 12px; }
+.fin-table .cell-first { padding: 8px 16px; }
+
+/* Target highlight row */
+.fin-table .row-target { background: var(--gold-dim); }
+.fin-table .row-border-top { border-top: 1px solid var(--border); }
+
+/* Sticky table header */
+.fin-table thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
 
 /* ═══════════════════════════
    PIPELINE PROGRESS
@@ -326,6 +374,7 @@ body {
   padding: var(--sp-6);
   position: relative;
   overflow: hidden;
+  box-shadow: var(--shadow-md);
 }
 .valuation-hero::before {
   content: '';
@@ -939,4 +988,203 @@ select.input-field {
 .metric-source .source-badge {
   margin-left: var(--sp-1);
   vertical-align: baseline;
+}
+
+/* ═══════════════════════════
+   SHARED SUMMARY UTILITIES
+   ═══════════════════════════ */
+
+/* Hero header — flex split layout (used in all summary hero cards) */
+.hero-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--sp-4);
+}
+.hero-header--lg { margin-bottom: var(--sp-5); }
+
+/* Gold ticker display in hero */
+.hero-ticker {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 1.4rem;
+  color: var(--gold);
+  letter-spacing: 0.03em;
+}
+
+/* Secondary stat in hero right side */
+.hero-stat {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+}
+
+/* Hero subtitle (company name, sub-text) */
+.hero-sub {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* Metrics row (flex, centered, with gaps) */
+.metrics-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-6);
+  margin-bottom: var(--sp-5);
+}
+.metrics-row--sm { gap: var(--sp-5); }
+
+/* Big number (2rem hero metric — IRR, MOIC, Beat Rate) */
+.big-number {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+/* Metric stack (number + label, vertically centered) */
+.metric-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+/* Small uppercase label under big number */
+.metric-sub {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Vertical divider */
+.v-divider {
+  width: 1px;
+  height: 40px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* Status badge (generic — beat/miss/IRR rating/recommendation) */
+.status-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: var(--r-sm);
+}
+.status-badge--lg {
+  font-size: 1.2rem;
+  padding: 4px 16px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.status-badge--sm {
+  font-size: 0.62rem;
+  padding: 2px 6px;
+}
+
+/* Inline warning/note box */
+.inline-warning {
+  font-size: 0.72rem;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  margin-bottom: var(--sp-4);
+}
+
+/* Body text (descriptions, rationale) */
+.body-text {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Text alignment helpers */
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+
+/* Flex helpers */
+.flex-1 { flex: 1; }
+
+/* Implied price / secondary value */
+.implied-value {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 1.4rem;
+  color: var(--text-primary);
+}
+.implied-method {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-left: var(--sp-2);
+}
+.implied-delta {
+  margin-left: var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* Beat rate circle overlay text */
+.circle-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+}
+
+/* Beat rate caption */
+.beat-caption {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+.beat-detail {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Sensitivity header cell (mono, smaller) */
+.fin-table .cell-sens-header {
+  padding: 8px 8px;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+/* Sensitivity data cell */
+.fin-table .cell-sens {
+  padding: 6px 8px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+/* Skeleton loading shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--border-subtle) 25%, var(--elevated) 50%, var(--border-subtle) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--r-sm);
 }

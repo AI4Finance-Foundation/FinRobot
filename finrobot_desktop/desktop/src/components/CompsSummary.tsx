@@ -65,34 +65,15 @@ export default function CompsSummary({ result, currentPrice }: Props) {
     <>
       {/* Target + Median Stats */}
       <div className="valuation-hero animate-in">
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 'var(--sp-4)' }}>
+        <div className="hero-header">
           <div>
             <div className="valuation-label">Comparable Company Analysis</div>
-            <div style={{
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 700,
-              fontSize: '1.4rem',
-              color: 'var(--gold)',
-              letterSpacing: '0.03em',
-            }}>
-              {t.ticker}
-            </div>
-            {t.name && (
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                {t.name}
-              </div>
-            )}
+            <div className="hero-ticker">{t.ticker}</div>
+            {t.name && <div className="hero-sub">{t.name}</div>}
           </div>
-          <div style={{ textAlign: 'right' }}>
+          <div className="text-right">
             <div className="valuation-label">Peer Set</div>
-            <div style={{
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 600,
-              fontSize: '1.1rem',
-              color: 'var(--text-primary)',
-            }}>
-              {result.peers.length} companies
-            </div>
+            <div className="hero-stat">{result.peers.length} companies</div>
           </div>
         </div>
 
@@ -107,29 +88,13 @@ export default function CompsSummary({ result, currentPrice }: Props) {
                   : null
                 return (
                   <div key={ip.method}>
-                    <span style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontWeight: 700,
-                      fontSize: '1.4rem',
-                      color: 'var(--text-primary)',
-                    }}>
-                      ${ip.price.toFixed(2)}
-                    </span>
-                    <span style={{
-                      fontSize: '0.72rem',
-                      color: 'var(--text-muted)',
-                      marginLeft: 'var(--sp-2)',
-                    }}>
-                      via {ip.method}
-                    </span>
+                    <span className="implied-value">${ip.price.toFixed(2)}</span>
+                    <span className="implied-method">via {ip.method}</span>
                     {upside !== null && (
-                      <span style={{
-                        marginLeft: 'var(--sp-2)',
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '0.78rem',
-                        fontWeight: 600,
-                        color: upside >= 0 ? 'var(--positive)' : 'var(--negative)',
-                      }}>
+                      <span
+                        className="implied-delta"
+                        style={{ color: upside >= 0 ? 'var(--positive)' : 'var(--negative)' }}
+                      >
                         {upside >= 0 ? '+' : ''}{upside.toFixed(1)}%
                       </span>
                     )}
@@ -166,22 +131,21 @@ export default function CompsSummary({ result, currentPrice }: Props) {
         <div className="card-body" style={{ padding: 0, overflowX: 'auto' }}>
           <table className="fin-table" style={{ minWidth: 560 }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                <th style={{ padding: '8px 16px', textAlign: 'left', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Ticker</th>
-                <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Market Cap</th>
-                <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>EV/EBITDA</th>
-                <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>P/E</th>
-                <th style={{ padding: '8px 16px', textAlign: 'right', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>EV/Rev</th>
+              <tr>
+                <th>Ticker</th>
+                <th>Market Cap</th>
+                <th>EV/EBITDA</th>
+                <th>P/E</th>
+                <th>EV/Rev</th>
               </tr>
             </thead>
             <tbody>
               {[t, ...result.peers].map((c) => {
                 const isTarget = c.ticker === t.ticker
                 return (
-                  <tr key={c.ticker} style={isTarget ? { background: 'var(--gold-dim)' } : undefined}>
-                    <td style={{ padding: '8px 16px' }}>
-                      <span style={{
-                        fontFamily: 'var(--font-mono)',
+                  <tr key={c.ticker} className={isTarget ? 'row-target' : undefined}>
+                    <td className="cell-first">
+                      <span className="font-mono" style={{
                         fontWeight: 700,
                         fontSize: '0.82rem',
                         color: isTarget ? 'var(--gold)' : 'var(--text-primary)',
@@ -190,27 +154,23 @@ export default function CompsSummary({ result, currentPrice }: Props) {
                         {c.ticker}
                       </span>
                       {c.name && (
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: 'var(--sp-2)' }}>
-                          {c.name}
-                        </span>
+                        <span className="implied-method">{c.name}</span>
                       )}
                     </td>
-                    <td className="fin-value" style={{ padding: '8px 12px' }}>{fmtUsd(c.market_cap)}</td>
-                    <td className="fin-value" style={{ padding: '8px 12px' }}>{fmtMult(c.ev_ebitda)}</td>
-                    <td className="fin-value" style={{ padding: '8px 12px' }}>{fmtMult(c.pe_ratio)}</td>
-                    <td className="fin-value" style={{ padding: '8px 16px' }}>{fmtMult(c.ev_revenue)}</td>
+                    <td className="fin-value cell">{fmtUsd(c.market_cap)}</td>
+                    <td className="fin-value cell">{fmtMult(c.ev_ebitda)}</td>
+                    <td className="fin-value cell">{fmtMult(c.pe_ratio)}</td>
+                    <td className="fin-value cell-first">{fmtMult(c.ev_revenue)}</td>
                   </tr>
                 )
               })}
               {/* Median row */}
-              <tr style={{ borderTop: '1px solid var(--border)' }}>
-                <td style={{ padding: '8px 16px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  Peer Median
-                </td>
-                <td className="fin-value" style={{ padding: '8px 12px' }}>{'\u2014'}</td>
-                <td className="fin-value" style={{ padding: '8px 12px', color: 'var(--gold)' }}>{fmtMult(result.median_ev_ebitda)}</td>
-                <td className="fin-value" style={{ padding: '8px 12px', color: 'var(--gold)' }}>{fmtMult(result.median_pe)}</td>
-                <td className="fin-value" style={{ padding: '8px 16px', color: 'var(--gold)' }}>{fmtMult(result.median_ev_revenue)}</td>
+              <tr className="row-border-top">
+                <td className="row-label">Peer Median</td>
+                <td className="fin-value cell">{'\u2014'}</td>
+                <td className="fin-value cell" style={{ color: 'var(--gold)' }}>{fmtMult(result.median_ev_ebitda)}</td>
+                <td className="fin-value cell" style={{ color: 'var(--gold)' }}>{fmtMult(result.median_pe)}</td>
+                <td className="fin-value cell-first" style={{ color: 'var(--gold)' }}>{fmtMult(result.median_ev_revenue)}</td>
               </tr>
             </tbody>
           </table>
@@ -224,9 +184,7 @@ export default function CompsSummary({ result, currentPrice }: Props) {
             <span className="card-title">Peer Selection Rationale</span>
           </div>
           <div className="card-body">
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
-              {result.peer_justification}
-            </p>
+            <p className="body-text">{result.peer_justification}</p>
           </div>
         </div>
       )}
@@ -239,7 +197,7 @@ export default function CompsSummary({ result, currentPrice }: Props) {
           </svg>
           Export Excel
         </button>
-        <div style={{ flex: 1 }} />
+        <div className="flex-1" />
         <button className="btn btn-primary" onClick={() => useAppStore.getState().reset()}>
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M7 1v12M1 7h12" />

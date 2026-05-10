@@ -82,40 +82,30 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
   return (
     <div className="valuation-hero animate-in">
       {/* Rating + Price Target */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 'var(--sp-4)' }}>
+      <div className="hero-header">
         <div>
           <div className="valuation-label">
             Investment Rating
             <span
               className="source-badge source-llm"
               data-tooltip="AI judgment informed by data"
-              style={{ marginLeft: 8 }}
             >
               AI
             </span>
           </div>
-          <div style={{
-            display: 'inline-block',
-            padding: '4px 16px',
-            borderRadius: 'var(--r-sm)',
-            background: ratingStyle.bg,
-            color: ratingStyle.color,
-            fontFamily: 'var(--font-mono)',
-            fontWeight: 700,
-            fontSize: '1.2rem',
-            letterSpacing: '0.05em',
-            textTransform: 'uppercase',
-          }}>
+          <span
+            className="status-badge status-badge--lg"
+            style={{ background: ratingStyle.bg, color: ratingStyle.color }}
+          >
             {result.recommendation}
-          </div>
+          </span>
         </div>
-        <div style={{ textAlign: 'right' }}>
+        <div className="text-right">
           <div className="valuation-label">
             Price Target
             <span
               className="source-badge source-llm"
               data-tooltip="AI judgment informed by DCF + comps"
-              style={{ marginLeft: 8 }}
             >
               AI
             </span>
@@ -129,16 +119,14 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
 
       {/* Upside/Downside */}
       {upside !== null && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', marginBottom: 'var(--sp-5)' }}>
+        <div className="metrics-row metrics-row--sm" style={{ marginBottom: 'var(--sp-5)' }}>
           <div className={`valuation-upside ${isPositive ? 'positive' : 'negative'}`}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
               {isPositive ? <path d="M6 2v8M3 5l3-3 3 3" /> : <path d="M6 10V2M3 7l3 3 3-3" />}
             </svg>
             {isPositive ? '+' : ''}{upside.toFixed(1)}% vs ${currentPrice!.toFixed(2)}
           </div>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            {result.price_target_basis}
-          </span>
+          <span className="implied-method">{result.price_target_basis}</span>
         </div>
       )}
 

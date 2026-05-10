@@ -42,144 +42,59 @@ function irrLabel(irr: number): string {
 
 export default function LBOSummary({ result }: Props) {
   const ticker = useAppStore((s) => s.ticker)
-  const leverageRatio = result.entry_debt / (result.entry_ev - result.entry_debt + result.entry_equity)
   const debtToEquity = result.entry_equity > 0 ? result.entry_debt / result.entry_equity : 0
 
-  const hasSensitivity =
-    result.sensitivity?.irr_grid?.length > 0 &&
-    result.sensitivity?.entry_multiples?.length > 0 &&
-    result.sensitivity?.exit_multiples?.length > 0
+  const hasSensitivity = !!(
+    result.sensitivity &&
+    result.sensitivity.irr_grid?.length > 0 &&
+    result.sensitivity.entry_multiples?.length > 0 &&
+    result.sensitivity.exit_multiples?.length > 0
+  )
 
   return (
     <>
       {/* Hero — IRR + MOIC headline */}
       <div className="valuation-hero animate-in">
-        <div style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          marginBottom: 'var(--sp-5)',
-        }}>
+        <div className="hero-header hero-header--lg">
           <div>
             <div className="valuation-label">Leveraged Buyout Analysis</div>
-            <div style={{
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 700,
-              fontSize: '1.4rem',
-              color: 'var(--gold)',
-              letterSpacing: '0.03em',
-            }}>
-              {ticker}
-            </div>
+            <div className="hero-ticker">{ticker}</div>
           </div>
-          <div style={{ textAlign: 'right' }}>
+          <div className="text-right">
             <div className="valuation-label">Holding Period</div>
-            <div style={{
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 600,
-              fontSize: '1.1rem',
-              color: 'var(--text-primary)',
-            }}>
-              {result.schedule.length} years
-            </div>
+            <div className="hero-stat">{result.schedule.length} years</div>
           </div>
         </div>
 
         {/* IRR + MOIC — hero metrics */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--sp-6)',
-          marginBottom: 'var(--sp-5)',
-        }}>
-          {/* IRR pill */}
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 'var(--sp-1)',
-          }}>
-            <div style={{
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 700,
-              fontSize: '2rem',
-              color: irrColor(result.irr),
-              lineHeight: 1,
-            }}>
+        <div className="metrics-row">
+          <div className="metric-stack">
+            <div className="big-number" style={{ color: irrColor(result.irr) }}>
               {fmtPct(result.irr)}
             </div>
-            <div style={{
-              fontSize: '0.72rem',
-              fontWeight: 600,
-              color: 'var(--text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-            }}>
-              IRR
-            </div>
+            <div className="metric-sub">IRR</div>
           </div>
 
-          {/* Divider */}
-          <div style={{
-            width: 1,
-            height: 40,
-            background: 'var(--border)',
-          }} />
+          <div className="v-divider" />
 
-          {/* MOIC */}
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 'var(--sp-1)',
-          }}>
-            <div style={{
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 700,
-              fontSize: '2rem',
-              color: 'var(--text-primary)',
-              lineHeight: 1,
-            }}>
-              {fmtMult(result.moic)}
-            </div>
-            <div style={{
-              fontSize: '0.72rem',
-              fontWeight: 600,
-              color: 'var(--text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-            }}>
-              MOIC
-            </div>
+          <div className="metric-stack">
+            <div className="big-number">{fmtMult(result.moic)}</div>
+            <div className="metric-sub">MOIC</div>
           </div>
 
-          <div style={{ flex: 1 }} />
+          <div className="flex-1" />
 
-          {/* Rating badge */}
-          <span style={{
-            display: 'inline-block',
-            fontSize: '0.68rem',
-            fontWeight: 700,
-            letterSpacing: '0.06em',
-            padding: '4px 10px',
-            borderRadius: 'var(--r-sm)',
-            color: irrColor(result.irr),
-            background: irrBg(result.irr),
-          }}>
+          <span
+            className="status-badge"
+            style={{ color: irrColor(result.irr), background: irrBg(result.irr) }}
+          >
             {irrLabel(result.irr)}
           </span>
         </div>
 
         {/* Warning */}
         {result.irr_formula_warning && (
-          <div style={{
-            fontSize: '0.72rem',
-            color: 'var(--gold)',
-            marginBottom: 'var(--sp-4)',
-            padding: '6px 10px',
-            background: 'var(--gold-dim)',
-            borderRadius: 'var(--r-sm)',
-          }}>
+          <div className="inline-warning" style={{ color: 'var(--gold)', background: 'var(--gold-dim)' }}>
             {result.irr_formula_warning}
           </div>
         )}
@@ -213,31 +128,19 @@ export default function LBOSummary({ result }: Props) {
         <div className="card-body" style={{ padding: 0, overflowX: 'auto' }}>
           <table className="fin-table" style={{ minWidth: 400 }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                {['', 'Entry', 'Exit', 'Change'].map((h, i) => (
-                  <th key={i} style={{
-                    padding: '8px 16px',
-                    textAlign: i === 0 ? 'left' : 'right',
-                    fontSize: '0.7rem',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    color: 'var(--text-muted)',
-                  }}>
-                    {h}
-                  </th>
-                ))}
+              <tr>
+                <th>{ }</th>
+                <th>Entry</th>
+                <th>Exit</th>
+                <th>Change</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td style={{ padding: '8px 16px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  Enterprise Value
-                </td>
-                <td className="fin-value" style={{ padding: '8px 16px' }}>{fmtUsd(result.entry_ev)}</td>
-                <td className="fin-value" style={{ padding: '8px 16px' }}>{fmtUsd(result.exit_ev)}</td>
-                <td className="fin-value" style={{
-                  padding: '8px 16px',
+                <td className="row-label">Enterprise Value</td>
+                <td className="fin-value cell">{fmtUsd(result.entry_ev)}</td>
+                <td className="fin-value cell">{fmtUsd(result.exit_ev)}</td>
+                <td className="fin-value cell" style={{
                   color: result.exit_ev >= result.entry_ev ? 'var(--positive)' : 'var(--negative)',
                   fontWeight: 600,
                 }}>
@@ -245,26 +148,21 @@ export default function LBOSummary({ result }: Props) {
                 </td>
               </tr>
               <tr>
-                <td style={{ padding: '8px 16px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  Equity Value
-                </td>
-                <td className="fin-value" style={{ padding: '8px 16px' }}>{fmtUsd(result.entry_equity)}</td>
-                <td className="fin-value" style={{ padding: '8px 16px' }}>{fmtUsd(result.exit_equity)}</td>
-                <td className="fin-value" style={{
-                  padding: '8px 16px',
+                <td className="row-label">Equity Value</td>
+                <td className="fin-value cell">{fmtUsd(result.entry_equity)}</td>
+                <td className="fin-value cell">{fmtUsd(result.exit_equity)}</td>
+                <td className="fin-value cell" style={{
                   color: result.exit_equity >= result.entry_equity ? 'var(--positive)' : 'var(--negative)',
                   fontWeight: 600,
                 }}>
                   {result.entry_equity > 0 ? `${result.exit_equity >= result.entry_equity ? '+' : ''}${(((result.exit_equity - result.entry_equity) / result.entry_equity) * 100).toFixed(1)}%` : '\u2014'}
                 </td>
               </tr>
-              <tr style={{ borderTop: '1px solid var(--border)' }}>
-                <td style={{ padding: '8px 16px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  EBITDA (Exit)
-                </td>
-                <td className="fin-value" style={{ padding: '8px 16px', color: 'var(--text-muted)' }}>{'\u2014'}</td>
-                <td className="fin-value" style={{ padding: '8px 16px' }}>{fmtUsd(result.exit_ebitda)}</td>
-                <td className="fin-value" style={{ padding: '8px 16px', color: 'var(--text-muted)' }}>{'\u2014'}</td>
+              <tr className="row-border-top">
+                <td className="row-label">EBITDA (Exit)</td>
+                <td className="fin-value cell" style={{ color: 'var(--text-muted)' }}>{'\u2014'}</td>
+                <td className="fin-value cell">{fmtUsd(result.exit_ebitda)}</td>
+                <td className="fin-value cell" style={{ color: 'var(--text-muted)' }}>{'\u2014'}</td>
               </tr>
             </tbody>
           </table>
@@ -281,44 +179,28 @@ export default function LBOSummary({ result }: Props) {
           <div className="card-body" style={{ padding: 0, overflowX: 'auto' }}>
             <table className="fin-table" style={{ minWidth: 580 }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['Year', 'Revenue', 'EBITDA', 'FCF', 'Debt Paydown', 'Ending Debt'].map((h, i) => (
-                    <th key={i} style={{
-                      padding: '8px 12px',
-                      textAlign: i === 0 ? 'left' : 'right',
-                      fontSize: '0.7rem',
-                      fontWeight: 600,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em',
-                      color: 'var(--text-muted)',
-                    }}>
-                      {h}
-                    </th>
-                  ))}
+                <tr>
+                  <th>Year</th>
+                  <th>Revenue</th>
+                  <th>EBITDA</th>
+                  <th>FCF</th>
+                  <th>Debt Paydown</th>
+                  <th>Ending Debt</th>
                 </tr>
               </thead>
               <tbody>
                 {result.schedule.map((yr) => (
                   <tr key={yr.year}>
-                    <td style={{
-                      padding: '8px 12px',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '0.82rem',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                    }}>
-                      Y{yr.year}
-                    </td>
-                    <td className="fin-value" style={{ padding: '8px 12px' }}>{fmtUsd(yr.revenue)}</td>
-                    <td className="fin-value" style={{ padding: '8px 12px' }}>{fmtUsd(yr.ebitda)}</td>
-                    <td className="fin-value" style={{
-                      padding: '8px 12px',
+                    <td className="cell-mono">Y{yr.year}</td>
+                    <td className="fin-value cell">{fmtUsd(yr.revenue)}</td>
+                    <td className="fin-value cell">{fmtUsd(yr.ebitda)}</td>
+                    <td className="fin-value cell" style={{
                       color: yr.fcf >= 0 ? 'var(--positive)' : 'var(--negative)',
                     }}>
                       {fmtUsd(yr.fcf)}
                     </td>
-                    <td className="fin-value" style={{ padding: '8px 12px' }}>{fmtUsd(yr.total_debt_paydown)}</td>
-                    <td className="fin-value" style={{ padding: '8px 12px' }}>{fmtUsd(yr.ending_debt)}</td>
+                    <td className="fin-value cell">{fmtUsd(yr.total_debt_paydown)}</td>
+                    <td className="fin-value cell">{fmtUsd(yr.ending_debt)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -337,54 +219,27 @@ export default function LBOSummary({ result }: Props) {
           <div className="card-body" style={{ padding: 0, overflowX: 'auto' }}>
             <table className="fin-table" style={{ minWidth: 420 }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  <th style={{
-                    padding: '8px 12px',
-                    textAlign: 'left',
-                    fontSize: '0.68rem',
-                    fontWeight: 600,
-                    color: 'var(--text-muted)',
-                  }}>
-                    Entry ↓ / Exit →
-                  </th>
+                <tr>
+                  <th style={{ textAlign: 'left', fontSize: '0.68rem' }}>Entry ↓ / Exit →</th>
                   {result.sensitivity.exit_multiples.map((em) => (
-                    <th key={em} style={{
-                      padding: '8px 8px',
-                      textAlign: 'center',
-                      fontSize: '0.72rem',
-                      fontWeight: 600,
-                      fontFamily: 'var(--font-mono)',
-                      color: 'var(--text-secondary)',
-                    }}>
-                      {em.toFixed(1)}x
-                    </th>
+                    <th key={em} className="cell-sens-header">{em.toFixed(1)}x</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {result.sensitivity.entry_multiples.map((entryMult, rowIdx) => (
                   <tr key={entryMult}>
-                    <td style={{
-                      padding: '8px 12px',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '0.72rem',
-                      fontWeight: 600,
-                      color: 'var(--text-secondary)',
-                    }}>
+                    <td className="cell-sens-header" style={{ textAlign: 'left', paddingLeft: 12 }}>
                       {entryMult.toFixed(1)}x
                     </td>
                     {result.sensitivity.irr_grid[rowIdx]?.map((irr, colIdx) => {
                       const val = irr ?? -1
                       return (
-                        <td key={colIdx} style={{
-                          padding: '6px 8px',
-                          textAlign: 'center',
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: '0.72rem',
-                          fontWeight: 600,
-                          color: irrColor(val),
-                          background: irrBg(val),
-                        }}>
+                        <td
+                          key={colIdx}
+                          className="cell-sens"
+                          style={{ color: irrColor(val), background: irrBg(val) }}
+                        >
                           {irr != null ? fmtPct(irr) : '\u2014'}
                         </td>
                       )
@@ -399,7 +254,7 @@ export default function LBOSummary({ result }: Props) {
 
       {/* New Analysis */}
       <div className="export-bar animate-in">
-        <div style={{ flex: 1 }} />
+        <div className="flex-1" />
         <button className="btn btn-primary" onClick={() => useAppStore.getState().reset()}>
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M7 1v12M1 7h12" />

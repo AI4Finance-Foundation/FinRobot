@@ -1,6 +1,6 @@
 import {
   ComposedChart,
-  Line,
+  Area,
   Bar,
   XAxis,
   YAxis,
@@ -44,6 +44,12 @@ export default function PriceChart({ data, title }: ChartProps) {
       <div className="card-body">
         <ResponsiveContainer width="100%" height={260}>
           <ComposedChart data={data}>
+            <defs>
+              <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={PRICE_COLOR} stopOpacity={0.15} />
+                <stop offset="95%" stopColor={PRICE_COLOR} stopOpacity={0.01} />
+              </linearGradient>
+            </defs>
             <XAxis
               dataKey="date"
               tick={{ fill: '#7A8299', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
@@ -84,13 +90,14 @@ export default function PriceChart({ data, title }: ChartProps) {
               opacity={0.3}
               barSize={4}
             />
-            <Line
+            <Area
               yAxisId="price"
               type="monotone"
               dataKey="close"
               name="Close"
               stroke={PRICE_COLOR}
               strokeWidth={2}
+              fill="url(#priceGradient)"
               dot={false}
             />
           </ComposedChart>

@@ -46,55 +46,28 @@ export default function EarningsSummary({ result }: Props) {
     <>
       {/* Hero — Earnings Quality Scorecard */}
       <div className="valuation-hero animate-in">
-        <div style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          marginBottom: 'var(--sp-5)',
-        }}>
+        <div className="hero-header hero-header--lg">
           <div>
             <div className="valuation-label">Earnings Analysis</div>
-            <div style={{
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 700,
-              fontSize: '1.4rem',
-              color: 'var(--gold)',
-              letterSpacing: '0.03em',
-            }}>
-              {result.ticker}
-            </div>
+            <div className="hero-ticker">{result.ticker}</div>
           </div>
-          <div style={{ textAlign: 'right' }}>
+          <div className="text-right">
             <div className="valuation-label">Quarters Analyzed</div>
-            <div style={{
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 600,
-              fontSize: '1.1rem',
-              color: 'var(--text-primary)',
-            }}>
-              {result.surprises.length}
-            </div>
+            <div className="hero-stat">{result.surprises.length}</div>
           </div>
         </div>
 
         {/* Beat Rate — hero metric */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--sp-5)',
-          marginBottom: 'var(--sp-5)',
-        }}>
+        <div className="metrics-row metrics-row--sm">
           {/* Circular beat rate indicator */}
           <div style={{ position: 'relative', width: 72, height: 72, flexShrink: 0 }}>
             <svg width="72" height="72" viewBox="0 0 72 72">
-              {/* Background ring */}
               <circle
                 cx="36" cy="36" r="30"
                 fill="none"
                 stroke="var(--border)"
                 strokeWidth="5"
               />
-              {/* Beat rate arc */}
               <circle
                 cx="36" cy="36" r="30"
                 fill="none"
@@ -106,34 +79,11 @@ export default function EarningsSummary({ result }: Props) {
                 style={{ transition: 'stroke-dasharray 0.6s ease' }}
               />
             </svg>
-            <div style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 700,
-              fontSize: '1.1rem',
-              color: 'var(--text-primary)',
-            }}>
-              {beatPct}%
-            </div>
+            <div className="circle-overlay">{beatPct}%</div>
           </div>
           <div>
-            <div style={{
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              color: 'var(--text-secondary)',
-              marginBottom: '2px',
-            }}>
-              EPS Beat Rate
-            </div>
-            <div style={{
-              fontSize: '0.75rem',
-              color: 'var(--text-muted)',
-              lineHeight: 1.4,
-            }}>
+            <div className="beat-caption">EPS Beat Rate</div>
+            <div className="beat-detail">
               {result.consecutive_beats > 0
                 ? `${result.consecutive_beats} consecutive beat${result.consecutive_beats > 1 ? 's' : ''} (current streak)`
                 : 'No active beat streak'}
@@ -161,9 +111,7 @@ export default function EarningsSummary({ result }: Props) {
           </div>
           <div>
             <div className="metric-label">Consecutive Beats</div>
-            <div className="metric-value">
-              {result.consecutive_beats}
-            </div>
+            <div className="metric-value">{result.consecutive_beats}</div>
           </div>
         </div>
       </div>
@@ -192,84 +140,51 @@ export default function EarningsSummary({ result }: Props) {
           <div className="card-body" style={{ padding: 0, overflowX: 'auto' }}>
             <table className="fin-table" style={{ minWidth: 640 }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['Quarter', 'EPS Act.', 'EPS Est.', 'Surprise', '', 'Rev Act.', 'Rev Est.', 'Surprise', ''].map(
-                    (h, i) => (
-                      <th
-                        key={i}
-                        style={{
-                          padding: '8px 12px',
-                          textAlign: i === 0 ? 'left' : 'right',
-                          fontSize: '0.7rem',
-                          fontWeight: 600,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em',
-                          color: 'var(--text-muted)',
-                          ...(i === 4 ? { textAlign: 'center', width: 60 } : {}),
-                          ...(i === 8 ? { textAlign: 'center', width: 60 } : {}),
-                        }}
-                      >
-                        {h}
-                      </th>
-                    )
-                  )}
+                <tr>
+                  <th>Quarter</th>
+                  <th>EPS Act.</th>
+                  <th>EPS Est.</th>
+                  <th>Surprise</th>
+                  <th style={{ textAlign: 'center', width: 60 }}></th>
+                  <th>Rev Act.</th>
+                  <th>Rev Est.</th>
+                  <th>Surprise</th>
+                  <th style={{ textAlign: 'center', width: 60 }}></th>
                 </tr>
               </thead>
               <tbody>
                 {result.surprises.map((s, i) => (
                   <tr key={i}>
-                    <td style={{
-                      padding: '8px 12px',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '0.82rem',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                    }}>
-                      {s.date}
-                    </td>
-                    <td className="fin-value" style={{ padding: '8px 12px' }}>{fmtEps(s.eps_actual)}</td>
-                    <td className="fin-value" style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>{fmtEps(s.eps_estimated)}</td>
-                    <td className="fin-value" style={{
-                      padding: '8px 12px',
+                    <td className="cell-mono">{s.date}</td>
+                    <td className="fin-value cell">{fmtEps(s.eps_actual)}</td>
+                    <td className="fin-value cell" style={{ color: 'var(--text-muted)' }}>{fmtEps(s.eps_estimated)}</td>
+                    <td className="fin-value cell" style={{
                       color: directionColor(s.eps_direction),
                       fontWeight: 600,
                     }}>
                       {fmtPct(s.eps_surprise_pct)}
                     </td>
-                    <td style={{ padding: '8px 6px', textAlign: 'center' }}>
-                      <span style={{
-                        display: 'inline-block',
-                        fontSize: '0.62rem',
-                        fontWeight: 700,
-                        letterSpacing: '0.06em',
-                        padding: '2px 6px',
-                        borderRadius: 'var(--r-sm)',
-                        color: directionColor(s.eps_direction),
-                        background: directionBg(s.eps_direction),
-                      }}>
+                    <td className="text-center cell">
+                      <span
+                        className="status-badge status-badge--sm"
+                        style={{ color: directionColor(s.eps_direction), background: directionBg(s.eps_direction) }}
+                      >
                         {directionLabel(s.eps_direction)}
                       </span>
                     </td>
-                    <td className="fin-value" style={{ padding: '8px 12px' }}>{fmtRevenue(s.revenue_actual)}</td>
-                    <td className="fin-value" style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>{fmtRevenue(s.revenue_estimated)}</td>
-                    <td className="fin-value" style={{
-                      padding: '8px 12px',
+                    <td className="fin-value cell">{fmtRevenue(s.revenue_actual)}</td>
+                    <td className="fin-value cell" style={{ color: 'var(--text-muted)' }}>{fmtRevenue(s.revenue_estimated)}</td>
+                    <td className="fin-value cell" style={{
                       color: directionColor(s.revenue_direction),
                       fontWeight: 600,
                     }}>
                       {fmtPct(s.revenue_surprise_pct)}
                     </td>
-                    <td style={{ padding: '8px 6px', textAlign: 'center' }}>
-                      <span style={{
-                        display: 'inline-block',
-                        fontSize: '0.62rem',
-                        fontWeight: 700,
-                        letterSpacing: '0.06em',
-                        padding: '2px 6px',
-                        borderRadius: 'var(--r-sm)',
-                        color: directionColor(s.revenue_direction),
-                        background: directionBg(s.revenue_direction),
-                      }}>
+                    <td className="text-center cell">
+                      <span
+                        className="status-badge status-badge--sm"
+                        style={{ color: directionColor(s.revenue_direction), background: directionBg(s.revenue_direction) }}
+                      >
                         {directionLabel(s.revenue_direction)}
                       </span>
                     </td>
@@ -283,7 +198,7 @@ export default function EarningsSummary({ result }: Props) {
 
       {/* New Analysis button */}
       <div className="export-bar animate-in">
-        <div style={{ flex: 1 }} />
+        <div className="flex-1" />
         <button className="btn btn-primary" onClick={() => useAppStore.getState().reset()}>
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M7 1v12M1 7h12" />

@@ -1,17 +1,10 @@
 import { useCountUp } from '../hooks/useCountUp'
 import type { DCFResult } from '../stores/appStore'
+import { fmtUsd } from '../utils/formatters'
 
 interface Props {
   dcfResult: DCFResult
   currentPrice: number | null
-}
-
-function fmtUsd(val: number): string {
-  const abs = Math.abs(val)
-  if (abs >= 1e12) return `$${(val / 1e12).toFixed(1)}T`
-  if (abs >= 1e9) return `$${(val / 1e9).toFixed(1)}B`
-  if (abs >= 1e6) return `$${(val / 1e6).toFixed(1)}M`
-  return `$${val.toFixed(2)}`
 }
 
 export default function ValuationCard({ dcfResult, currentPrice }: Props) {

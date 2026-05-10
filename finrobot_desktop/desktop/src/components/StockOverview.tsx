@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api, BASE_URL } from '../api/client'
 import { useAppStore } from '../stores/appStore'
+import { fmtUsd, fmtPct, fmtMult, fmtPrice } from '../utils/formatters'
 import PriceChart from './charts/PriceChart'
 
 interface PriceHistoryItem {
@@ -11,30 +12,6 @@ interface PriceHistoryItem {
   low: number
   close: number
   volume: number
-}
-
-function fmtUsd(val: number | null | undefined): string {
-  if (val == null) return '\u2014'
-  const abs = Math.abs(val)
-  if (abs >= 1e12) return `$${(val / 1e12).toFixed(1)}T`
-  if (abs >= 1e9) return `$${(val / 1e9).toFixed(1)}B`
-  if (abs >= 1e6) return `$${(val / 1e6).toFixed(1)}M`
-  return `$${val.toLocaleString()}`
-}
-
-function fmtPct(val: number | null | undefined): string {
-  if (val == null) return '\u2014'
-  return `${(val * 100).toFixed(1)}%`
-}
-
-function fmtMult(val: number | null | undefined): string {
-  if (val == null) return '\u2014'
-  return `${val.toFixed(1)}x`
-}
-
-function fmtPrice(val: number | null | undefined): string {
-  if (val == null) return '\u2014'
-  return `$${val.toFixed(2)}`
 }
 
 export default function StockOverview() {

@@ -2,21 +2,8 @@ import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { useAppStore } from '../stores/appStore'
+import { fmt } from '../utils/formatters'
 import { relativeTime } from '../utils/time'
-
-function fmt(val: number | null | undefined, style: 'usd' | 'pct' | 'mult' | 'num'): string {
-  if (val == null) return '\u2014' // em dash
-  if (style === 'usd') {
-    const abs = Math.abs(val)
-    if (abs >= 1e12) return `$${(val / 1e12).toFixed(1)}T`
-    if (abs >= 1e9) return `$${(val / 1e9).toFixed(1)}B`
-    if (abs >= 1e6) return `$${(val / 1e6).toFixed(1)}M`
-    return `$${val.toLocaleString()}`
-  }
-  if (style === 'pct') return `${(val * 100).toFixed(1)}%`
-  if (style === 'mult') return `${val.toFixed(1)}x`
-  return val.toLocaleString()
-}
 
 type SourceType = 'api' | 'calc' | 'llm'
 

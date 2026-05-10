@@ -1,25 +1,16 @@
 import { useCountUp } from '../hooks/useCountUp'
 import type { EarningsResult } from '../stores/appStore'
 import { useAppStore } from '../stores/appStore'
+import { fmtUsd, fmtEps } from '../utils/formatters'
 import EpsSurpriseChart from './charts/EpsSurpriseChart'
 
 interface Props {
   result: EarningsResult
 }
 
-function fmtPct(val: number): string {
+/** Signed percentage for surprise display (already in 0-100 range). */
+function fmtSurprisePct(val: number): string {
   return `${val >= 0 ? '+' : ''}${val.toFixed(1)}%`
-}
-
-function fmtEps(val: number): string {
-  return `$${val.toFixed(2)}`
-}
-
-function fmtRevenue(val: number): string {
-  const abs = Math.abs(val)
-  if (abs >= 1e9) return `$${(val / 1e9).toFixed(2)}B`
-  if (abs >= 1e6) return `$${(val / 1e6).toFixed(1)}M`
-  return `$${val.toFixed(0)}`
 }
 
 function directionColor(dir: string): string {
@@ -166,7 +157,7 @@ export default function EarningsSummary({ result }: Props) {
                       color: directionColor(s.eps_direction),
                       fontWeight: 600,
                     }}>
-                      {fmtPct(s.eps_surprise_pct)}
+                      {fmtSurprisePct(s.eps_surprise_pct)}
                     </td>
                     <td className="text-center cell">
                       <span
@@ -176,13 +167,13 @@ export default function EarningsSummary({ result }: Props) {
                         {directionLabel(s.eps_direction)}
                       </span>
                     </td>
-                    <td className="fin-value cell">{fmtRevenue(s.revenue_actual)}</td>
-                    <td className="fin-value cell" style={{ color: 'var(--text-muted)' }}>{fmtRevenue(s.revenue_estimated)}</td>
+                    <td className="fin-value cell">{fmtUsd(s.revenue_actual)}</td>
+                    <td className="fin-value cell" style={{ color: 'var(--text-muted)' }}>{fmtUsd(s.revenue_estimated)}</td>
                     <td className="fin-value cell" style={{
                       color: directionColor(s.revenue_direction),
                       fontWeight: 600,
                     }}>
-                      {fmtPct(s.revenue_surprise_pct)}
+                      {fmtSurprisePct(s.revenue_surprise_pct)}
                     </td>
                     <td className="text-center cell">
                       <span

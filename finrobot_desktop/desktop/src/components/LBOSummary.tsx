@@ -1,25 +1,10 @@
 import { useCountUp } from '../hooks/useCountUp'
 import type { LBOResult } from '../stores/appStore'
 import { useAppStore } from '../stores/appStore'
+import { fmtUsd, fmtPct, fmtMult } from '../utils/formatters'
 
 interface Props {
   result: LBOResult
-}
-
-function fmtUsd(val: number): string {
-  const abs = Math.abs(val)
-  if (abs >= 1e12) return `$${(val / 1e12).toFixed(1)}T`
-  if (abs >= 1e9) return `$${(val / 1e9).toFixed(1)}B`
-  if (abs >= 1e6) return `$${(val / 1e6).toFixed(0)}M`
-  return `$${val.toFixed(0)}`
-}
-
-function fmtPct(val: number): string {
-  return `${(val * 100).toFixed(1)}%`
-}
-
-function fmtMult(val: number): string {
-  return `${val.toFixed(1)}x`
 }
 
 function irrColor(irr: number): string {

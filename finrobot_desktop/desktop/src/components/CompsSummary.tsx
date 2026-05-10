@@ -3,24 +3,11 @@ import { useCountUp } from '../hooks/useCountUp'
 import type { CompsResult } from '../stores/appStore'
 import { useAppStore } from '../stores/appStore'
 import { BASE_URL } from '../api/client'
+import { fmtUsd, fmtMult } from '../utils/formatters'
 
 interface Props {
   result: CompsResult
   currentPrice: number | null
-}
-
-function fmtUsd(val: number | null | undefined): string {
-  if (val == null) return '\u2014'
-  const abs = Math.abs(val)
-  if (abs >= 1e12) return `$${(val / 1e12).toFixed(1)}T`
-  if (abs >= 1e9) return `$${(val / 1e9).toFixed(1)}B`
-  if (abs >= 1e6) return `$${(val / 1e6).toFixed(1)}M`
-  return `$${val.toFixed(0)}`
-}
-
-function fmtMult(val: number | null | undefined): string {
-  if (val == null) return '\u2014'
-  return `${val.toFixed(1)}x`
 }
 
 export default function CompsSummary({ result, currentPrice }: Props) {

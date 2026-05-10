@@ -56,6 +56,9 @@ export default function StatusBar() {
       {/* Right: shortcuts */}
       <div className="statusbar-group">
         <span className="statusbar-hint">
+          <kbd className="statusbar-kbd">1-5</kbd> Pipelines
+        </span>
+        <span className="statusbar-hint">
           <kbd className="statusbar-kbd">⌘K</kbd> Commands
         </span>
         <span className="statusbar-hint">

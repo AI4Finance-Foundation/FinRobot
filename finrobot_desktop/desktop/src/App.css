@@ -1731,3 +1731,128 @@ select.input-field {
   background: var(--elevated);
   border: 1px solid var(--border);
 }
+
+/* ═══════════════════════════
+   TOAST NOTIFICATIONS
+   ═══════════════════════════ */
+.toast-container {
+  position: fixed;
+  bottom: calc(24px + var(--sp-3));
+  right: var(--sp-4);
+  z-index: 9998;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--sp-2);
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  min-width: 260px;
+  max-width: 360px;
+  pointer-events: auto;
+  cursor: pointer;
+  animation: toast-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.toast:hover {
+  opacity: 0.85;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.toast--success .toast-icon { color: var(--positive); }
+.toast--error .toast-icon { color: var(--negative); }
+.toast--info .toast-icon { color: var(--info); }
+
+.toast--success { border-left: 3px solid var(--positive); }
+.toast--error { border-left: 3px solid var(--negative); }
+.toast--info { border-left: 3px solid var(--info); }
+
+.toast-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.toast-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.toast-desc {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* ═══════════════════════════
+   PIPELINE COMPLETION ANIMATION
+   ═══════════════════════════ */
+.pipeline-count.done {
+  animation: pipeline-done-pulse 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes pipeline-done-pulse {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.3); }
+  50% { box-shadow: 0 0 12px rgba(52, 211, 153, 0.4); }
+  100% { transform: scale(1); box-shadow: none; }
+}
+
+/* Completed step checkmark entrance */
+.step.done .step-indicator svg {
+  animation: check-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes check-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3) rotate(-20deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+/* Pipeline all-done state — subtle glow on the card */
+.pipeline-all-done {
+  position: relative;
+}
+.pipeline-all-done::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--positive) 0%, rgba(52, 211, 153, 0.1) 100%);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  animation: done-bar-in 0.5s ease-out both;
+}
+
+@keyframes done-bar-in {
+  from { transform: scaleX(0); transform-origin: left; }
+  to { transform: scaleX(1); transform-origin: left; }
+}

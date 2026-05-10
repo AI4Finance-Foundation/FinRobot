@@ -32,9 +32,9 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: 'Pipeline',
     shortcuts: [
+      { keys: ['1-5'], label: 'Switch Pipeline' },
       { keys: ['⌘', 'R'], label: 'Run Pipeline' },
       { keys: ['⌘', 'E'], label: 'Export Report' },
-      { keys: ['Tab'], label: 'Switch Pipeline Tab' },
       { keys: ['⌘', 'D'], label: 'Load Demo Ticker' },
     ],
   },

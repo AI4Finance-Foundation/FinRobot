@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRunStream } from '../hooks/useRunStream'
 import { useAppStore } from '../stores/appStore'
+import { useToastStore } from '../stores/toastStore'
 import { useDcfSensitivity } from '../hooks/useCompute'
 import { BASE_URL } from '../api/client'
 import type { DCFResult, DCFInputs, SensitivityResult, ResearchResult, CompsResult, EarningsResult, LBOResult } from '../stores/appStore'
@@ -48,6 +49,8 @@ export default function PipelineRunner() {
   // Track which pipeline type was used for the current run
   const runPipelineTypeRef = useRef(pipelineType)
 
+  const addToast = useToastStore((s) => s.addToast)
+
   const handleRun = useCallback(async () => {
     if (!ticker) return
     runPipelineTypeRef.current = pipelineType
@@ -57,8 +60,9 @@ export default function PipelineRunner() {
       setRunId(id)
     } catch {
       setPhase('data_ready')
+      addToast({ type: 'error', title: 'Pipeline failed to start', description: `Could not run ${PIPELINE_LABELS[pipelineType]}` })
     }
-  }, [ticker, pipelineType, startRun, setPhase])
+  }, [ticker, pipelineType, startRun, setPhase, addToast])
 
   useEffect(() => {
     if (status !== 'completed' || phase !== 'running_pipeline' || !runId) return
@@ -140,13 +144,18 @@ export default function PipelineRunner() {
         }
 
         setPhase('interactive')
+        addToast({
+          type: 'success',
+          title: `${PIPELINE_LABELS[runPipelineTypeRef.current]} complete`,
+          description: `${ticker} analysis ready`,
+        })
       } finally {
         fetchingRef.current = false
       }
     }
 
     fetchResult()
-  }, [status, phase, runId, setPhase, setDcfInputs, setOriginalDcfInputs, setDcfResult, setSensitivityData, setResearchResult, setCompsResult, setEarningsResult, setLboResult, sensitivityMut])
+  }, [status, phase, runId, ticker, setPhase, setDcfInputs, setOriginalDcfInputs, setDcfResult, setSensitivityData, setResearchResult, setCompsResult, setEarningsResult, setLboResult, sensitivityMut, addToast])
 
   const canRun = (phase === 'data_ready' || phase === 'pipeline_done' || phase === 'interactive') && !!ticker
   const isRunning = phase === 'running_pipeline' || phase === 'pipeline_done'
@@ -157,8 +166,19 @@ export default function PipelineRunner() {
   const allDone = totalCount > 0 && doneCount === totalCount
   const countCls = allDone ? 'done' : isRunning ? 'running' : ''
 
+  // Fire toast on stream error
+  const prevStatusRef = useRef(status)
+  useEffect(() => {
+    if (prevStatusRef.current !== 'failed' && status === 'failed' && error) {
+      addToast({ type: 'error', title: 'Pipeline error', description: error })
+    }
+    prevStatusRef.current = status
+  }, [status, error, addToast])
+
+  const cardCls = `card animate-in${allDone ? ' pipeline-all-done' : ''}`
+
   return (
-    <div className="card animate-in">
+    <div className={cardCls}>
       <div className="card-header">
         <span className="card-title">{label} Pipeline</span>
         {totalCount > 0 && (

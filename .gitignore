@@ -39,3 +39,4 @@ venv/
 .app.pid
 finrobot_equity/logs/
 finrobot_equity/web_app/data/*.db
+finrobot_equity/core/output/

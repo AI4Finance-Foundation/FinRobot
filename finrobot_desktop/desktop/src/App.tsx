@@ -5,20 +5,26 @@ import { api } from './api/client'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { useAppStore } from './stores/appStore'
 import CommandPalette from './components/CommandPalette'
+import ShortcutSheet from './components/ShortcutSheet'
 import SettingsView from './views/SettingsView'
 import TickerWorkspace from './views/TickerWorkspace'
 import RunHistory from './views/RunHistory'
 
 function AppInner() {
   const [forceSettings, setForceSettings] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const view = useAppStore((s) => s.view)
   const cmdOpen = useAppStore((s) => s.cmdPaletteOpen)
 
-  // Global Cmd+K / Ctrl+K shortcut
+  // Global Cmd+K / Ctrl+K shortcut + Cmd+/ for shortcut sheet
   const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault()
       useAppStore.getState().toggleCmdPalette()
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+      e.preventDefault()
+      setShortcutsOpen((o) => !o)
     }
   }, [])
 
@@ -59,10 +65,15 @@ function AppInner() {
     />
   )
 
+  const shortcutSheet = (
+    <ShortcutSheet open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+  )
+
   if (isLoading) {
     return (
       <div className="app" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {cmdPalette}
+        {shortcutSheet}
         <div style={{ color: 'var(--text-secondary)' }}>Connecting to backend...</div>
       </div>
     )
@@ -72,6 +83,7 @@ function AppInner() {
     return (
       <div className="app" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {cmdPalette}
+        {shortcutSheet}
         <div style={{ color: 'var(--negative)' }}>
           Failed to connect to backend. Make sure the server is running.
         </div>
@@ -83,6 +95,7 @@ function AppInner() {
     return (
       <div className="app">
         {cmdPalette}
+        {shortcutSheet}
         <SettingsView
           onComplete={() => setForceSettings(false)}
         />
@@ -94,6 +107,7 @@ function AppInner() {
     return (
       <div className="app">
         {cmdPalette}
+        {shortcutSheet}
         <RunHistory onBack={() => useAppStore.getState().setView('workspace')} />
       </div>
     )
@@ -102,6 +116,7 @@ function AppInner() {
   return (
     <div className="app">
       {cmdPalette}
+      {shortcutSheet}
       <TickerWorkspace onOpenSettings={() => setForceSettings(true)} />
     </div>
   )

@@ -59,7 +59,7 @@ export default function StatusBar() {
           <kbd className="statusbar-kbd">⌘K</kbd> Commands
         </span>
         <span className="statusbar-hint">
-          <kbd className="statusbar-kbd">↵</kbd> Load
+          <kbd className="statusbar-kbd">⌘/</kbd> Shortcuts
         </span>
       </div>
     </footer>

@@ -951,6 +951,88 @@ select.input-field {
 }
 
 /* ═══════════════════════════
+   SHORTCUT SHEET OVERLAY
+   ═══════════════════════════ */
+.shortcut-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+}
+.shortcut-sheet {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5), 0 0 1px rgba(201, 168, 76, 0.1);
+  width: 580px; max-width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.shortcut-sheet-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--sp-5) var(--sp-6);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.shortcut-sheet-title {
+  font-size: 0.95rem; font-weight: 600;
+  color: var(--text-primary); margin: 0;
+}
+.shortcut-dismiss {
+  font-family: var(--font-mono); font-size: 0.6rem; font-weight: 500;
+  padding: 2px 6px; border-radius: 3px;
+  background: var(--elevated); color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+.shortcut-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  padding: var(--sp-4) var(--sp-5);
+}
+.shortcut-group {
+  padding: 0 var(--sp-2);
+}
+.shortcut-group-title {
+  font-size: 0.68rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-muted); margin: 0 0 var(--sp-3);
+}
+.shortcut-list {
+  display: flex; flex-direction: column; gap: var(--sp-2);
+}
+.shortcut-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-2);
+}
+.shortcut-keys {
+  display: flex; gap: 2px;
+}
+.shortcut-key {
+  font-family: var(--font-mono); font-size: 0.62rem; font-weight: 500;
+  padding: 2px 6px; min-width: 20px; text-align: center;
+  border-radius: 3px;
+  background: var(--elevated); color: var(--text-secondary);
+  border: 1px solid var(--border);
+  line-height: 1.4;
+}
+.shortcut-label {
+  font-size: 0.78rem; color: var(--text-secondary);
+  white-space: nowrap;
+}
+.shortcut-sheet-footer {
+  padding: var(--sp-3) var(--sp-6);
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.7rem; color: var(--text-muted);
+  text-align: center;
+}
+.shortcut-key-inline {
+  font-family: var(--font-mono); font-size: 0.6rem;
+  padding: 1px 4px; border-radius: 2px;
+  background: var(--elevated); color: var(--text-muted);
+  border: 1px solid var(--border);
+  margin: 0 1px;
+}
+
+/* ═══════════════════════════
    ANIMATIONS
    ═══════════════════════════ */
 @keyframes fadeUp {

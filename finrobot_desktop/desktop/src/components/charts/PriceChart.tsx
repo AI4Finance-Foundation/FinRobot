@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useRef, useCallback, useState, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   ComposedChart,
   Area,
@@ -9,14 +10,24 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
+import { useAppStore } from '../../stores/appStore'
+import { BASE_URL } from '../../api/client'
 
 interface ChartProps {
-  data: Record<string, number | string | boolean | null>[]
+  data?: Record<string, number | string | boolean | null>[]
   title: string
 }
 
 type TimeRange = '1M' | '3M' | '6M' | '1Y' | 'ALL'
 const TIME_RANGES: TimeRange[] = ['1M', '3M', '6M', '1Y', 'ALL']
+
+const PERIOD_MAP: Record<TimeRange, string> = {
+  '1M': '1mo',
+  '3M': '3mo',
+  '6M': '6mo',
+  '1Y': '1y',
+  'ALL': 'max',
+}
 
 function daysForRange(range: TimeRange): number {
   switch (range) {
@@ -49,18 +60,45 @@ function formatVolume(value: number): string {
 
 export default function PriceChart({ data, title }: ChartProps) {
   const [range, setRange] = useState<TimeRange>('1Y')
+  const [debouncedRange, setDebouncedRange] = useState<TimeRange>('1Y')
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const ticker = useAppStore((s) => s.ticker)
 
-  const filteredData = useMemo(() => {
-    if (!data || data.length === 0) return []
-    if (range === 'ALL') return data
-    const days = daysForRange(range)
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - days)
-    const cutoffStr = cutoff.toISOString().slice(0, 10)
-    return data.filter((d) => (d.date as string) >= cutoffStr)
-  }, [data, range])
+  const handleRangeChange = useCallback((newRange: TimeRange) => {
+    setRange(newRange)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => setDebouncedRange(newRange), 300)
+  }, [])
 
-  if (!data || data.length === 0) return null
+  // Self-fetch when no data prop provided
+  const { data: fetchedData } = useQuery({
+    queryKey: ['price', ticker, debouncedRange],
+    queryFn: async () => {
+      const resp = await fetch(
+        `${BASE_URL}/api/data/${ticker}/price?period=${PERIOD_MAP[debouncedRange]}`
+      )
+      if (!resp.ok) return []
+      const json = await resp.json()
+      return (json.history ?? []) as Record<string, number | string | boolean | null>[]
+    },
+    enabled: !!ticker && !data,  // Only fetch if no data prop
+  })
+
+  // Use provided data (with client-side filtering) or fetched data
+  const chartData = useMemo(() => {
+    if (data) {
+      // Backward compat: filter client-side like before
+      if (range === 'ALL') return data
+      const days = daysForRange(range)
+      const cutoff = new Date()
+      cutoff.setDate(cutoff.getDate() - days)
+      const cutoffStr = cutoff.toISOString().slice(0, 10)
+      return data.filter((d) => (d.date as string) >= cutoffStr)
+    }
+    return fetchedData ?? []
+  }, [data, fetchedData, range])
+
+  if (chartData.length === 0) return null
 
   return (
     <div className="card animate-in">
@@ -71,7 +109,7 @@ export default function PriceChart({ data, title }: ChartProps) {
             <button
               key={r}
               className={`time-range-btn${range === r ? ' active' : ''}`}
-              onClick={() => setRange(r)}
+              onClick={() => handleRangeChange(r)}
             >
               {r}
             </button>
@@ -80,7 +118,7 @@ export default function PriceChart({ data, title }: ChartProps) {
       </div>
       <div className="card-body">
         <ResponsiveContainer width="100%" height={260}>
-          <ComposedChart data={filteredData}>
+          <ComposedChart data={chartData}>
             <defs>
               <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={PRICE_COLOR} stopOpacity={0.15} />

@@ -9,9 +9,10 @@ from finagent.engine.compute.extractor import (
     extract_financial_data,
     extract_price_history,
 )
+from finagent.engine.compute.historical_extractor import extract_historical_from_yfinance
 from finagent.engine.data.interface import ProviderError
 from finagent.engine.data.types import DataType
-from finagent.engine.models.financial import FinancialData
+from finagent.engine.models.financial import FinancialData, HistoricalMetrics
 
 router = APIRouter(prefix="/api/data", tags=["data"])
 
@@ -45,6 +46,16 @@ async def get_price(ticker: str, request: Request) -> dict[str, Any]:
     payload["data_source"] = result.provider
     payload["warnings"] = result.warnings
     return payload
+
+
+@router.get("/{ticker}/historical", response_model=HistoricalMetrics)
+async def get_historical(ticker: str) -> HistoricalMetrics:
+    """Multi-year historical financial metrics including cash flows."""
+    try:
+        metrics = await extract_historical_from_yfinance(ticker.upper())
+    except (ValueError, ProviderError) as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return metrics
 
 
 def _dedupe(items: list[str]) -> list[str]:

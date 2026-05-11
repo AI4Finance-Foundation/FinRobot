@@ -1,0 +1,58 @@
+"""Tests for GET /api/data/{ticker}/historical endpoint.
+
+Verifies:
+- 200 response with correct HistoricalMetrics JSON structure
+- extract_historical_from_yfinance is called exactly once with the uppercased ticker
+- Key fields (ticker, years, operating_cash_flow) are present in response
+"""
+
+import pytest
+from httpx import AsyncClient, ASGITransport
+from unittest.mock import patch
+
+from finagent.engine.models.financial import HistoricalMetrics
+
+
+@pytest.mark.asyncio
+async def test_historical_endpoint_returns_metrics():
+    """GET /api/data/{ticker}/historical returns HistoricalMetrics."""
+    from finagent.server import app
+
+    mock_metrics = HistoricalMetrics(
+        years=[2022, 2023, 2024],
+        revenue=[100e9, 110e9, 120e9],
+        revenue_growth_yoy=[None, 0.10, 0.09],
+        cogs=[60e9, 65e9, 70e9],
+        gross_profit=[40e9, 45e9, 50e9],
+        gross_margin=[0.40, 0.409, 0.417],
+        sga=[15e9, 16e9, 17e9],
+        sga_ratio=[0.15, 0.145, 0.142],
+        ebitda=[30e9, 33e9, 36e9],
+        ebitda_margin=[0.30, 0.30, 0.30],
+        operating_income=[25e9, 28e9, 31e9],
+        operating_margin=[0.25, 0.255, 0.258],
+        net_income=[20e9, 22e9, 24e9],
+        eps=[6.5, 7.2, 7.9],
+        pe_ratio=[25.0, 27.0, 24.0],
+        operating_cash_flow=[28e9, 30e9, 33e9],
+        investing_cash_flow=[-10e9, -12e9, -11e9],
+        financing_cash_flow=[-15e9, -14e9, -16e9],
+        cagr_revenue=0.095,
+        ticker="AAPL",
+        price_data_available=True,
+    )
+
+    with patch(
+        "finagent.routes.data.extract_historical_from_yfinance",
+        return_value=mock_metrics,
+    ) as mock_fn:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/data/AAPL/historical")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ticker"] == "AAPL"
+    assert len(data["years"]) == 3
+    assert "operating_cash_flow" in data
+    mock_fn.assert_called_once_with("AAPL")

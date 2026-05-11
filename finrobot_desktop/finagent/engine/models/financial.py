@@ -264,6 +264,9 @@ class HistoricalMetrics(BaseModel):
     cagr_revenue: float | None
     ticker: str
     price_data_available: bool = False
+    operating_cash_flow: list[float] = Field(default_factory=list)
+    investing_cash_flow: list[float] = Field(default_factory=list)
+    financing_cash_flow: list[float] = Field(default_factory=list)
 
 
 class MarginAssumptions(BaseModel):

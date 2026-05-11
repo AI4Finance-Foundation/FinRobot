@@ -128,6 +128,51 @@ export interface MonteCarloResult {
   n_valid: number
 }
 
+export type ActiveTab = 'overview' | 'financials' | 'valuation' | 'peers'
+
+export interface HistoricalMetrics {
+  years: number[]
+  revenue: number[]
+  revenue_growth_yoy: (number | null)[]
+  cogs: number[]
+  gross_profit: number[]
+  gross_margin: number[]
+  sga: number[]
+  sga_ratio: number[]
+  ebitda: number[]
+  ebitda_margin: number[]
+  operating_income: number[]
+  operating_margin: number[]
+  net_income: number[]
+  eps: number[]
+  pe_ratio: (number | null)[]
+  operating_cash_flow: number[]
+  investing_cash_flow: number[]
+  financing_cash_flow: number[]
+  cagr_revenue: number | null
+  ticker: string
+  price_data_available: boolean
+}
+
+export interface QuarterlyData {
+  ticker: string
+  quarters: {
+    quarter: string
+    revenue: number
+    operating_income: number
+    net_income: number
+    operating_cash_flow: number | null
+  }[]
+}
+
+export interface PerformanceData {
+  series: {
+    ticker: string
+    label: string
+    data: { date: string; value: number }[]
+  }[]
+}
+
 export interface DCFInputs {
   revenue_base: number
   revenue_growth_rates: number[]
@@ -238,6 +283,17 @@ interface WorkspaceState {
   // Ask panel
   askPanelOpen: boolean
 
+  // Tab navigation
+  activeTab: ActiveTab
+
+  // Data caches (per-ticker, invalidated on ticker change)
+  historicalMetrics: HistoricalMetrics | null
+  quarterlyData: QuarterlyData | null
+  performanceData: PerformanceData | null
+  historicalLoading: boolean
+  quarterlyLoading: boolean
+  performanceLoading: boolean
+
   // Actions
   setTicker: (t: string) => void
   setPhase: (p: Phase) => void
@@ -262,6 +318,13 @@ interface WorkspaceState {
   setCmdPaletteOpen: (open: boolean) => void
   toggleCmdPalette: () => void
   setAskPanelOpen: (open: boolean) => void
+  setActiveTab: (tab: ActiveTab) => void
+  setHistoricalMetrics: (data: HistoricalMetrics | null) => void
+  setQuarterlyData: (data: QuarterlyData | null) => void
+  setPerformanceData: (data: PerformanceData | null) => void
+  setHistoricalLoading: (loading: boolean) => void
+  setQuarterlyLoading: (loading: boolean) => void
+  setPerformanceLoading: (loading: boolean) => void
   setActiveScenario: (s: ScenarioKey) => void
   setScenarioInputs: (s: ScenarioKey, inputs: DCFInputs) => void
   setScenarioResult: (s: ScenarioKey, result: DCFResult) => void
@@ -299,6 +362,13 @@ const initialState = {
   showSettings: false,
   cmdPaletteOpen: false,
   askPanelOpen: false,
+  activeTab: 'overview' as ActiveTab,
+  historicalMetrics: null,
+  quarterlyData: null,
+  performanceData: null,
+  historicalLoading: false,
+  quarterlyLoading: false,
+  performanceLoading: false,
 }
 
 /**
@@ -340,6 +410,13 @@ export const useAppStore = create<WorkspaceState>((set) => ({
     scenarios: { ...emptyScenarios },
     scenarioResults: { ...emptyScenarioResults },
     askPanelOpen: false,
+    activeTab: 'overview' as ActiveTab,
+    historicalMetrics: null,
+    quarterlyData: null,
+    performanceData: null,
+    historicalLoading: false,
+    quarterlyLoading: false,
+    performanceLoading: false,
   }),
   setPhase: (phase) => set({ phase }),
   setPipelineType: (pipelineType) => set({ pipelineType }),
@@ -363,6 +440,13 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   setCmdPaletteOpen: (cmdPaletteOpen) => set({ cmdPaletteOpen }),
   toggleCmdPalette: () => set((s) => ({ cmdPaletteOpen: !s.cmdPaletteOpen })),
   setAskPanelOpen: (askPanelOpen) => set({ askPanelOpen }),
+  setActiveTab: (activeTab) => set({ activeTab }),
+  setHistoricalMetrics: (historicalMetrics) => set({ historicalMetrics }),
+  setQuarterlyData: (quarterlyData) => set({ quarterlyData }),
+  setPerformanceData: (performanceData) => set({ performanceData }),
+  setHistoricalLoading: (historicalLoading) => set({ historicalLoading }),
+  setQuarterlyLoading: (quarterlyLoading) => set({ quarterlyLoading }),
+  setPerformanceLoading: (performanceLoading) => set({ performanceLoading }),
 
   setActiveScenario: (activeScenario) => set((s) => {
     const inputs = s.scenarios[activeScenario]

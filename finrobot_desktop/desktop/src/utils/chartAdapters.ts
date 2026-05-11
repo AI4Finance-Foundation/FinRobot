@@ -1,4 +1,4 @@
-import type { DCFResult, DCFInputs, SensitivityResult, CompsResult, CompanyFinancials } from '../stores/appStore'
+import type { DCFResult, DCFInputs, SensitivityResult, CompsResult, CompanyFinancials, HistoricalMetrics, QuarterlyData, EarningsSurprise } from '../stores/appStore'
 
 /**
  * Convert backend DcfSensitivityResult grid to the flat array format
@@ -232,4 +232,84 @@ export function dcfSensitivityToFootballData(
   }
 
   return rows
+}
+
+// ── FinancialsTab adapters (from HistoricalMetrics) ────────────────────
+
+export function historicalToRevenueEbitdaData(h: HistoricalMetrics) {
+  return h.years.map((year, i) => ({
+    year: String(year),
+    revenue: h.revenue[i],
+    ebitda: h.ebitda[i],
+    is_forecast: false,
+  }))
+}
+
+export function historicalToMarginData(h: HistoricalMetrics) {
+  return h.years.map((year, i) => ({
+    year: String(year),
+    gross_margin: h.gross_margin[i] * 100,
+    ebitda_margin: h.ebitda_margin[i] * 100,
+    operating_margin: h.operating_margin[i] * 100,
+    is_forecast: false,
+  }))
+}
+
+export function historicalToRevenueYoYData(h: HistoricalMetrics) {
+  return h.years
+    .map((year, i) => ({
+      year: String(year),
+      yoy_pct: h.revenue_growth_yoy[i] != null ? h.revenue_growth_yoy[i]! * 100 : null,
+    }))
+    .filter((d) => d.yoy_pct != null)
+}
+
+export function historicalToCashFlowData(h: HistoricalMetrics) {
+  return h.years.map((year, i) => ({
+    year: String(year),
+    operating: h.operating_cash_flow[i],
+    investing: h.investing_cash_flow[i],
+    financing: h.financing_cash_flow[i],
+  }))
+}
+
+export function quarterlyToComparisonData(q: QuarterlyData) {
+  return q.quarters.map((qtr) => ({
+    quarter: qtr.quarter,
+    revenue: qtr.revenue,
+    operating_income: qtr.operating_income,
+    net_income: qtr.net_income,
+  }))
+}
+
+// ── ValuationTab adapters ──────────────────────────────────────────────
+
+export function historicalToEpsPeData(h: HistoricalMetrics) {
+  return h.years.map((year, i) => ({
+    year: String(year),
+    eps: h.eps[i],
+    pe_ratio: h.pe_ratio[i],
+  }))
+}
+
+export interface SurpriseDataPoint {
+  quarter: string
+  eps_actual: number
+  eps_estimated: number
+  surprise_pct: number
+  direction: 'beat' | 'miss' | 'inline'
+}
+
+export function earningsToSurpriseChartData(surprises: EarningsSurprise[]): SurpriseDataPoint[] {
+  // CRITICAL: field names differ between store and chart component.
+  // Store uses: date, eps_surprise_pct, eps_direction
+  // Chart expects: quarter, surprise_pct, direction
+  // Must explicitly rename — do NOT spread the EarningsSurprise object.
+  return surprises.map((s) => ({
+    quarter: s.date,
+    eps_actual: s.eps_actual,
+    eps_estimated: s.eps_estimated,
+    surprise_pct: s.eps_surprise_pct,
+    direction: s.eps_direction,
+  }))
 }

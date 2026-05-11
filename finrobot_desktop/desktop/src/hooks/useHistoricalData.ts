@@ -19,7 +19,7 @@ export function useHistoricalData() {
   })
 
   useEffect(() => { setHistoricalLoading(isLoading) }, [isLoading, setHistoricalLoading])
-  useEffect(() => { if (data) setHistoricalMetrics(data) }, [data, setHistoricalMetrics])
+  useEffect(() => { setHistoricalMetrics(data ?? null) }, [data, setHistoricalMetrics])
 
   return { data, isLoading }
 }
@@ -40,7 +40,7 @@ export function useQuarterlyData() {
   })
 
   useEffect(() => { setQuarterlyLoading(isLoading) }, [isLoading, setQuarterlyLoading])
-  useEffect(() => { if (data) setQuarterlyData(data) }, [data, setQuarterlyData])
+  useEffect(() => { setQuarterlyData(data ?? null) }, [data, setQuarterlyData])
 
   return { data, isLoading }
 }

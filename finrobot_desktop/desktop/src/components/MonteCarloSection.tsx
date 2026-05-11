@@ -43,7 +43,7 @@ export default function MonteCarloSection() {
     <div className="card animate-in">
       <div className="card-header">
         <span className="card-title">Monte Carlo Simulation</span>
-        <button className="btn-sm" onClick={handleRun} disabled={monteCarloLoading}>
+        <button className="btn-sm" onClick={handleRun} disabled={monteCarloLoading || !currentPrice}>
           {monteCarloLoading ? 'Running...' : 'Run (10K simulations)'}
         </button>
       </div>

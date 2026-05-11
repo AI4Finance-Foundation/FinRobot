@@ -172,7 +172,7 @@ async def fetch_quarterly_data(ticker: str) -> dict[str, Any]:
             quarter_label = f"{year}-Q{quarter}"
 
             revenue = _safe_get(income, col, ["Total Revenue", "Revenue"])
-            op_income = _safe_get(income, col, ["Operating Income"])
+            op_income = _safe_get(income, col, ["Operating Income", "Total Operating Profit Loss"])
             net_income = _safe_get(income, col, ["Net Income", "Net Income Common Stockholders"])
 
             op_cf = None

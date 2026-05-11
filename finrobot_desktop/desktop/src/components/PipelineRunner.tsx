@@ -4,7 +4,16 @@ import { useAppStore } from '../stores/appStore'
 import { useToastStore } from '../stores/toastStore'
 import { useDcfSensitivity } from '../hooks/useCompute'
 import { BASE_URL } from '../api/client'
-import type { DCFResult, DCFInputs, SensitivityResult, ResearchResult, CompsResult, EarningsResult, LBOResult, ICMemoResult } from '../stores/appStore'
+import type { DCFResult, DCFInputs, SensitivityResult, ResearchResult, CompsResult, EarningsResult, LBOResult, ICMemoResult, ActiveTab } from '../stores/appStore'
+
+const PIPELINE_TAB_MAP: Record<string, { tab: ActiveTab; label: string }> = {
+  research: { tab: 'overview', label: 'Overview' },
+  dcf: { tab: 'valuation', label: 'Valuation' },
+  comps: { tab: 'peers', label: 'Peers' },
+  earnings: { tab: 'valuation', label: 'Valuation' },
+  lbo: { tab: 'valuation', label: 'Valuation' },
+  'ic-memo': { tab: 'valuation', label: 'Valuation' },
+}
 
 function buildSensitivityRanges(wacc: number, tg: number) {
   const waccRange = Array.from({ length: 7 }, (_, i) => Math.max(0, wacc - 0.03 + i * 0.01))
@@ -181,11 +190,23 @@ export default function PipelineRunner() {
         }
 
         setPhase('interactive')
-        addToast({
-          type: 'success',
-          title: `${PIPELINE_LABELS[runPipelineTypeRef.current]} complete`,
-          description: `${ticker} analysis ready`,
-        })
+
+        // Auto-switch to the relevant tab and show contextual toast
+        const mapping = PIPELINE_TAB_MAP[runPipelineTypeRef.current]
+        if (mapping) {
+          useAppStore.getState().setActiveTab(mapping.tab)
+          addToast({
+            type: 'success',
+            title: `${PIPELINE_LABELS[runPipelineTypeRef.current]} complete`,
+            description: `${ticker} analysis ready — viewing ${mapping.label} tab`,
+          })
+        } else {
+          addToast({
+            type: 'success',
+            title: `${PIPELINE_LABELS[runPipelineTypeRef.current]} complete`,
+            description: `${ticker} analysis ready`,
+          })
+        }
       } finally {
         fetchingRef.current = false
       }

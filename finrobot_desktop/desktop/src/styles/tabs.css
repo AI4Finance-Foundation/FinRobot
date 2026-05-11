@@ -1,0 +1,79 @@
+/* Tab navigation */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #252A37;
+  padding: 0 16px;
+}
+
+.tab-btn {
+  padding: 10px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #7A8299;
+  font-size: 0.85rem;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tab-btn:hover { color: #E8ECF4; }
+.tab-btn.active { color: #60A5FA; border-bottom-color: #60A5FA; }
+
+.tab-panel { padding: 16px; }
+.tab-content { display: flex; flex-direction: column; gap: 24px; }
+
+.chart-section { display: flex; flex-direction: column; gap: 12px; }
+.section-title { color: #7A8299; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
+
+.chart-grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 900px) { .chart-grid-2col { grid-template-columns: 1fr; } }
+
+/* Empty state cards */
+.empty-state-card {
+  border: 1px dashed #252A37;
+  border-radius: 8px;
+  padding: 32px;
+  text-align: center;
+  color: #7A8299;
+}
+.empty-state-card p { margin: 0 0 12px; }
+.empty-state-card .btn-primary {
+  background: #60A5FA;
+  color: #1A1F2E;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+}
+
+/* Insight blocks (collapsible narrative sections) */
+.insight-block { margin: 8px 0; }
+.insight-title { color: #E8ECF4; cursor: pointer; font-size: 0.85rem; padding: 8px 0; }
+.insight-content { color: #7A8299; font-size: 0.82rem; line-height: 1.5; padding: 8px 0 8px 12px; border-left: 2px solid #252A37; }
+
+/* Loading skeleton */
+.loading-skeleton {
+  height: 200px;
+  background: linear-gradient(90deg, #1A1F2E 25%, #252A37 50%, #1A1F2E 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* Stock header */
+.stock-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #252A37;
+}
+.stock-header-left { display: flex; align-items: baseline; gap: 12px; }
+.stock-ticker { font-size: 1.2rem; font-weight: 700; color: #E8ECF4; }
+.stock-price { font-size: 1.1rem; color: #E8ECF4; }
+.stock-change { font-size: 0.85rem; }

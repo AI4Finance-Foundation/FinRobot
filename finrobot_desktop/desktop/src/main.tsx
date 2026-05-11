@@ -10,6 +10,7 @@ import '@fontsource/jetbrains-mono/600.css'
 import '@fontsource/jetbrains-mono/700.css'
 import App from './App'
 import './App.css'
+import './styles/tabs.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

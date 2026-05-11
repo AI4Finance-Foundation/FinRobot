@@ -9,7 +9,6 @@ from starlette.requests import Request
 
 from finagent.engine.compute.extractor import (
     extract_financial_data,
-    extract_price_history,
 )
 from finagent.engine.compute.historical_extractor import extract_historical_from_yfinance
 from finagent.engine.data.interface import ProviderError
@@ -17,6 +16,63 @@ from finagent.engine.data.types import DataType
 from finagent.engine.models.financial import FinancialData, HistoricalMetrics
 
 router = APIRouter(prefix="/api/data", tags=["data"])
+
+
+# MUST be before /{ticker}/ routes to avoid FastAPI matching ticker="performance"
+@router.get("/performance")
+async def get_performance(
+    tickers: str = "AAPL",
+    benchmark: str = "SPY",
+    period: str = "1y",
+) -> dict[str, Any]:
+    """Multi-ticker normalized price performance."""
+    try:
+        result = await fetch_performance_data(
+            tickers=tickers.split(","),
+            benchmark=benchmark,
+            period=period,
+        )
+    except (ValueError, ProviderError) as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return result
+
+
+async def fetch_performance_data(
+    tickers: list[str], benchmark: str, period: str
+) -> dict[str, Any]:
+    """Fetch and normalize multi-ticker price performance."""
+    import asyncio
+
+    import yfinance as yf
+
+    all_tickers = [*tickers, benchmark]
+
+    def _fetch() -> dict[str, Any]:
+        df = yf.download(all_tickers, period=period, progress=False)
+        if df.empty:
+            raise ValueError(f"No price data for {all_tickers}")
+
+        close = df["Close"] if len(all_tickers) > 1 else df[["Close"]].rename(columns={"Close": all_tickers[0]})
+
+        series = []
+        for t in all_tickers:
+            if t not in close.columns:
+                continue
+            col = close[t].dropna()
+            if col.empty:
+                continue
+            base = col.iloc[0]
+            normalized = (col / base * 100).round(2)
+            data = [
+                {"date": d.strftime("%Y-%m-%d"), "value": float(v)}
+                for d, v in normalized.items()
+            ]
+            label = "S&P 500" if t == benchmark else t
+            series.append({"ticker": t, "label": label, "data": data})
+
+        return {"series": series}
+
+    return await asyncio.to_thread(_fetch)
 
 
 @router.get("/{ticker}/financials", response_model=FinancialData)
@@ -36,18 +92,43 @@ async def get_financials(ticker: str, request: Request) -> FinancialData:
 
 
 @router.get("/{ticker}/price")
-async def get_price(ticker: str, request: Request) -> dict[str, Any]:
-    data_layer = request.app.state.deps.data_layer
+async def get_price(ticker: str, period: str = "1y") -> dict[str, Any]:
+    """Price data with configurable time period."""
     try:
-        result = await data_layer.fetch(DataType.PRICE, ticker.upper())
-    except (ValueError, ProviderError) as e:
+        result = await fetch_price_with_period(ticker.upper(), period)
+    except (ValueError, Exception) as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    price = extract_price_history(result)
-    payload = price.model_dump()
-    payload["history"] = result.data.get("price_history", [])
-    payload["data_source"] = result.provider
-    payload["warnings"] = result.warnings
-    return payload
+    return result
+
+
+async def fetch_price_with_period(ticker: str, period: str) -> dict[str, Any]:
+    """Fetch price history from yfinance with specified period."""
+    import asyncio
+
+    import yfinance as yf
+
+    def _fetch() -> dict[str, Any]:
+        t = yf.Ticker(ticker)
+        hist = t.history(period=period)
+        info = t.info or {}
+        history = []
+        for date, row in hist.iterrows():
+            history.append({
+                "date": date.strftime("%Y-%m-%d"),
+                "open": float(row["Open"]),
+                "high": float(row["High"]),
+                "low": float(row["Low"]),
+                "close": float(row["Close"]),
+                "volume": int(row["Volume"]),
+            })
+        return {
+            "current_price": info.get("currentPrice") or info.get("regularMarketPrice"),
+            "history": history,
+            "data_source": "yfinance",
+            "warnings": [],
+        }
+
+    return await asyncio.to_thread(_fetch)
 
 
 @router.get("/{ticker}/historical", response_model=HistoricalMetrics)

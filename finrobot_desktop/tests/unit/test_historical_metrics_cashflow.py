@@ -409,13 +409,16 @@ class TestExtractHistoricalFromYfinanceMissingData:
         with patch("yfinance.Ticker", return_value=mock_ticker):
             yield mock_ticker
 
-    def test_empty_cashflow_returns_empty_lists(self):
+    def test_empty_cashflow_returns_zero_filled_lists(self):
         from finagent.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
         result = self._run(extract_historical_from_yfinance("XYZ"))
-        # Should not raise; cash flow fields should be empty or zeros
-        assert isinstance(result.operating_cash_flow, list)
-        assert isinstance(result.investing_cash_flow, list)
-        assert isinstance(result.financing_cash_flow, list)
+        # Should not raise; cash flow fields must be zero-filled lists aligned to years
+        assert len(result.operating_cash_flow) == len(result.years)
+        assert all(v == 0.0 for v in result.operating_cash_flow)
+        assert len(result.investing_cash_flow) == len(result.years)
+        assert all(v == 0.0 for v in result.investing_cash_flow)
+        assert len(result.financing_cash_flow) == len(result.years)
+        assert all(v == 0.0 for v in result.financing_cash_flow)

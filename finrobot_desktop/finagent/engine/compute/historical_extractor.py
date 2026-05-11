@@ -19,6 +19,7 @@ from typing import Sequence
 import pandas as pd
 import yfinance as yf
 
+from finagent.engine.compute.data_processor import calculate_cagr
 from finagent.engine.models.financial import HistoricalMetrics
 
 # ---------------------------------------------------------------------------
@@ -86,16 +87,6 @@ def _safe_float(value: object) -> float:
         return float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return 0.0
-
-
-def _calculate_cagr(start: float, end: float, years: int) -> float | None:
-    """CAGR per CFA Institute formula: (end/start)^(1/years) - 1.
-
-    Returns None when formula is undefined (start <= 0 or years <= 0).
-    """
-    if start <= 0 or years <= 0:
-        return None
-    return float((end / start) ** (1 / years) - 1)
 
 
 # ---------------------------------------------------------------------------
@@ -256,11 +247,15 @@ def _build_historical_metrics(
 
     # ---- CAGR ----
     n = len(years_list)
-    cagr = _calculate_cagr(revenue_list[0], revenue_list[-1], n - 1) if n >= 2 else None
+    cagr = calculate_cagr(revenue_list[0], revenue_list[-1], n - 1) if n >= 2 else None
 
-    # ---- PE ratio (trailing from info; single value broadcast is insufficient for
-    #      multi-year historical PE — use None for historical periods) ----
+    # ---- PE ratio ----
+    # Use trailingPE from info for the most-recent year; historical years get None.
+    # This makes price_data_available=True so the EpsPeChart renders in the frontend.
+    trailing_pe = info.get("trailingPE") if info else None
     pe_list: list[float | None] = [None] * n
+    if trailing_pe is not None and n > 0:
+        pe_list[-1] = float(trailing_pe)
 
     return HistoricalMetrics(
         years=years_list,
@@ -280,7 +275,7 @@ def _build_historical_metrics(
         pe_ratio=pe_list,
         cagr_revenue=cagr,
         ticker=ticker,
-        price_data_available=False,
+        price_data_available=trailing_pe is not None,
         operating_cash_flow=ocf_list,
         investing_cash_flow=icf_list,
         financing_cash_flow=fcf_list,

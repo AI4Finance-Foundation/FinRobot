@@ -1,46 +1,17 @@
 import { useRef, useEffect, useCallback, useState } from 'react'
 import { useAppStore } from '../stores/appStore'
-import { useMonteCarloCompute } from '../hooks/useCompute'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import TickerInput from '../components/TickerInput'
 import WarningBanner from '../components/WarningBanner'
-import FinancialsPanel from '../components/FinancialsPanel'
 import PipelineRunner from '../components/PipelineRunner'
-import AssumptionsEditor from '../components/AssumptionsEditor'
-import ValuationCard from '../components/ValuationCard'
-import ScenarioCompare from '../components/ScenarioCompare'
 import AskPanel from '../components/AskPanel'
-import ExportBar from '../components/ExportBar'
-import StockOverview from '../components/StockOverview'
 import StockHeader from '../components/StockHeader'
 import TabBar from '../components/TabBar'
 import OverviewTab from './OverviewTab'
 import FinancialsTab from './FinancialsTab'
 import ValuationTab from './ValuationTab'
 import PeersTab from './PeersTab'
-import ResearchSummary from '../components/ResearchSummary'
-import CompsSummary from '../components/CompsSummary'
-import EarningsSummary from '../components/EarningsSummary'
-import LBOSummary from '../components/LBOSummary'
-import ICMemoSummary from '../components/ICMemoSummary'
-import SensitivityHeatmap from '../components/charts/SensitivityHeatmap'
-import WaterfallChart from '../components/charts/WaterfallChart'
-import RevenueEbitdaChart from '../components/charts/RevenueEbitdaChart'
-import MarginTrendChart from '../components/charts/MarginTrendChart'
-import PeerComparisonChart from '../components/charts/PeerComparisonChart'
-import FootballField from '../components/charts/FootballField'
-import CompanyRadarChart from '../components/charts/CompanyRadarChart'
-import MonteCarloChart from '../components/charts/MonteCarloChart'
 import StatusBar from '../components/StatusBar'
-import {
-  sensitivityGridToHeatmapRows,
-  dcfResultToWaterfallData,
-  dcfResultToRevenueEbitdaData,
-  dcfResultToMarginData,
-  compsResultToPeerChartData,
-  compsResultToRadarData,
-  dcfSensitivityToFootballData,
-} from '../utils/chartAdapters'
 import { relativeTime } from '../utils/time'
 import type { PipelineType } from '../stores/appStore'
 
@@ -65,28 +36,13 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
     phase,
     pipelineType,
     warnings,
-    dcfInputs,
-    dcfResult,
-    sensitivityData,
     currentPrice,
     priceChange,
     priceChangePct,
     dataFetchedAt,
-    researchResult,
-    compsResult,
-    earningsResult,
-    lboResult,
-    icMemoResult,
-    monteCarloResult,
-    monteCarloLoading,
-    scenarioResults,
     activeTab,
     setPipelineType,
-    setMonteCarloResult,
-    setMonteCarloLoading,
   } = useAppStore()
-
-  const monteCarlo = useMonteCarloCompute()
 
   // Refresh relative time display every 30s
   const [, setTimeTick] = useState(0)
@@ -102,49 +58,9 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
     store.setPhase('loading_data')
   }
 
-  const handleRunMonteCarlo = () => {
-    if (!dcfInputs || !currentPrice) return
-    setMonteCarloLoading(true)
-    setMonteCarloResult(null)
-    monteCarlo.mutate(
-      { inputs: dcfInputs, current_price: currentPrice },
-      {
-        onSuccess: (data) => {
-          setMonteCarloResult(data)
-          setMonteCarloLoading(false)
-        },
-        onError: () => {
-          setMonteCarloLoading(false)
-        },
-      },
-    )
-  }
-
   const showResults = phase === 'pipeline_done' || phase === 'interactive'
   const isLoading = phase === 'loading_data'
   const showControls = isLoading || phase === 'data_ready' || phase === 'running_pipeline' || showResults
-  const isResearch = pipelineType === 'research'
-  const isDcf = pipelineType === 'dcf'
-  const isComps = pipelineType === 'comps'
-  const isEarnings = pipelineType === 'earnings'
-  const isLbo = pipelineType === 'lbo'
-  const isIcMemo = pipelineType === 'ic-memo'
-
-  // Does the currently selected pipeline type have results to show?
-  const hasCurrentResults = showResults && (
-    (isResearch && researchResult != null) ||
-    (isComps && compsResult != null) ||
-    (isEarnings && earningsResult != null) ||
-    (isLbo && lboResult != null) ||
-    (isIcMemo && icMemoResult != null) ||
-    (isDcf && dcfResult != null)
-  )
-
-  // Show scenario compare in DCF mode when at least 2 scenarios computed
-  const showScenarioCompare = isDcf && hasCurrentResults && (() => {
-    const filled = (['bull', 'base', 'bear'] as const).filter(k => scenarioResults[k] !== null)
-    return filled.length >= 2
-  })()
 
   // ── Sliding indicator for segmented control ──
   const segmentedRef = useRef<HTMLDivElement>(null)
@@ -176,234 +92,6 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
       case 'peers':
         return <PeersTab />
     }
-  }
-
-  // ── Pipeline result rendering (temporary — will migrate to tabs in Tasks 8-12) ──
-  const renderPipelineResults = () => {
-    if (!hasCurrentResults) return null
-
-    return (
-      <>
-        {/* ── Equity Research Results ── */}
-        {isResearch && researchResult && (
-          <>
-            <div style={{ '--stagger': 0 } as React.CSSProperties}>
-              <ErrorBoundary>
-                <ResearchSummary
-                  result={researchResult}
-                  currentPrice={currentPrice}
-                />
-              </ErrorBoundary>
-            </div>
-
-            {/* Valuation football field (full-width) */}
-            {dcfResult && sensitivityData && (
-              <div style={{ '--stagger': 1 } as React.CSSProperties}>
-                <ErrorBoundary>
-                  <FootballField
-                    data={dcfSensitivityToFootballData(dcfResult, sensitivityData)}
-                    title="Valuation Range"
-                    currentPrice={currentPrice}
-                  />
-                </ErrorBoundary>
-              </div>
-            )}
-
-            {/* DCF charts from equity research pipeline (if available) */}
-            {dcfResult && (
-              <div className="grid-2" style={{ '--stagger': 2 } as React.CSSProperties}>
-                {sensitivityData && (
-                  <ErrorBoundary>
-                    <SensitivityHeatmap
-                      data={sensitivityGridToHeatmapRows(sensitivityData)}
-                      title="Sensitivity Analysis"
-                    />
-                  </ErrorBoundary>
-                )}
-                <ErrorBoundary>
-                  <WaterfallChart
-                    data={dcfResultToWaterfallData(dcfResult)}
-                    title="DCF Bridge"
-                  />
-                </ErrorBoundary>
-                <ErrorBoundary>
-                  <RevenueEbitdaChart
-                    data={dcfResultToRevenueEbitdaData(dcfResult)}
-                    title="Revenue & EBITDA"
-                  />
-                </ErrorBoundary>
-                <ErrorBoundary>
-                  <MarginTrendChart
-                    data={dcfResultToMarginData(dcfResult)}
-                    title="Margin Trends"
-                  />
-                </ErrorBoundary>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ── Comps Results ── */}
-        {isComps && compsResult && (
-          <>
-            <div style={{ '--stagger': 0 } as React.CSSProperties}>
-              <ErrorBoundary>
-                <CompsSummary
-                  result={compsResult}
-                  currentPrice={currentPrice}
-                />
-              </ErrorBoundary>
-            </div>
-            <div className="grid-2" style={{ '--stagger': 2 } as React.CSSProperties}>
-              <ErrorBoundary>
-                <PeerComparisonChart
-                  data={compsResultToPeerChartData(compsResult)}
-                  title="Peer Multiples Comparison"
-                />
-              </ErrorBoundary>
-              <ErrorBoundary>
-                <CompanyRadarChart
-                  data={compsResultToRadarData(compsResult)}
-                  title="Financial Profile vs Peers"
-                />
-              </ErrorBoundary>
-            </div>
-          </>
-        )}
-
-        {/* ── Earnings Results ── */}
-        {isEarnings && earningsResult && (
-          <div style={{ '--stagger': 0 } as React.CSSProperties}>
-            <ErrorBoundary>
-              <EarningsSummary result={earningsResult} />
-            </ErrorBoundary>
-          </div>
-        )}
-
-        {/* ── LBO Results ── */}
-        {isLbo && lboResult && (
-          <div style={{ '--stagger': 0 } as React.CSSProperties}>
-            <ErrorBoundary>
-              <LBOSummary result={lboResult} />
-            </ErrorBoundary>
-          </div>
-        )}
-
-        {/* ── IC Memo Results ── */}
-        {isIcMemo && icMemoResult && (
-          <div style={{ '--stagger': 0 } as React.CSSProperties}>
-            <ErrorBoundary>
-              <ICMemoSummary result={icMemoResult} />
-            </ErrorBoundary>
-          </div>
-        )}
-
-        {/* ── DCF-Only Results ── */}
-        {isDcf && dcfResult && (
-          <>
-            <div style={{ '--stagger': 0 } as React.CSSProperties}>
-              <ErrorBoundary>
-                <ValuationCard
-                  dcfResult={dcfResult}
-                  currentPrice={currentPrice}
-                />
-              </ErrorBoundary>
-            </div>
-
-            {/* Scenario comparison (between valuation card and charts) */}
-            {showScenarioCompare && (
-              <div style={{ '--stagger': 1 } as React.CSSProperties}>
-                <ErrorBoundary>
-                  <ScenarioCompare />
-                </ErrorBoundary>
-              </div>
-            )}
-
-            {/* Valuation football field (full-width) */}
-            {sensitivityData && (
-              <div style={{ '--stagger': 2 } as React.CSSProperties}>
-                <ErrorBoundary>
-                  <FootballField
-                    data={dcfSensitivityToFootballData(dcfResult, sensitivityData)}
-                    title="Valuation Range"
-                    currentPrice={currentPrice}
-                  />
-                </ErrorBoundary>
-              </div>
-            )}
-
-            <div className="grid-2" style={{ '--stagger': 3 } as React.CSSProperties}>
-              {sensitivityData && (
-                <ErrorBoundary>
-                  <SensitivityHeatmap
-                    data={sensitivityGridToHeatmapRows(sensitivityData)}
-                    title="Sensitivity Analysis"
-                  />
-                </ErrorBoundary>
-              )}
-              <ErrorBoundary>
-                <WaterfallChart
-                  data={dcfResultToWaterfallData(dcfResult)}
-                  title="DCF Bridge"
-                />
-              </ErrorBoundary>
-              <ErrorBoundary>
-                <RevenueEbitdaChart
-                  data={dcfResultToRevenueEbitdaData(dcfResult)}
-                  title="Revenue & EBITDA"
-                />
-              </ErrorBoundary>
-              <ErrorBoundary>
-                <MarginTrendChart
-                  data={dcfResultToMarginData(dcfResult)}
-                  title="Margin Trends"
-                />
-              </ErrorBoundary>
-            </div>
-
-            {/* Monte Carlo Simulation */}
-            <div style={{ '--stagger': 4 } as React.CSSProperties}>
-              {!monteCarloResult && (
-                <div className="card animate-in" style={{ textAlign: 'center', padding: 'var(--sp-4)' }}>
-                  <button
-                    className="mc-run-btn"
-                    style={{ margin: '0 auto' }}
-                    onClick={handleRunMonteCarlo}
-                    disabled={monteCarloLoading || !dcfInputs}
-                  >
-                    {monteCarloLoading ? (
-                      <>
-                        <span className="spinner" />
-                        Running 10,000 simulations...
-                      </>
-                    ) : (
-                      <>
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-                          <path d="M1 10l3-4 3 2 4-5M13 10l-3-4-3 2-4-5" opacity="0.4" />
-                          <path d="M1 12h12" />
-                        </svg>
-                        Run Monte Carlo (10K DCF Simulations)
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-              {monteCarloResult && (
-                <ErrorBoundary>
-                  <MonteCarloChart result={monteCarloResult} currentPrice={currentPrice} />
-                </ErrorBoundary>
-              )}
-            </div>
-
-            <div style={{ '--stagger': 5 } as React.CSSProperties}>
-              <ErrorBoundary>
-                <ExportBar />
-              </ErrorBoundary>
-            </div>
-          </>
-        )}
-      </>
-    )
   }
 
   return (
@@ -508,24 +196,10 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
             </div>
           )}
 
-          {/* Financials */}
-          {showControls && (
-            <ErrorBoundary>
-              <FinancialsPanel />
-            </ErrorBoundary>
-          )}
-
           {/* Pipeline runner */}
           {showControls && (
             <ErrorBoundary>
               <PipelineRunner />
-            </ErrorBoundary>
-          )}
-
-          {/* DCF Assumptions (only for DCF mode) */}
-          {showResults && dcfResult && !isResearch && !isLbo && !isIcMemo && (
-            <ErrorBoundary>
-              <AssumptionsEditor />
             </ErrorBoundary>
           )}
 
@@ -587,33 +261,6 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
               <div className="tab-panel">
                 {renderTabContent()}
               </div>
-            </>
-          )}
-
-          {/* ── Pipeline results (transitional — will move to tabs in Tasks 8-12) ── */}
-          {renderPipelineResults()}
-
-          {/* Stock overview: before pipeline completes, or when switching to an un-run pipeline */}
-          {phase !== 'idle' && !hasCurrentResults && (
-            <>
-              <ErrorBoundary>
-                <StockOverview />
-              </ErrorBoundary>
-              {showResults && (
-                <div className="card animate-in" style={{
-                  textAlign: 'center',
-                  padding: 'var(--sp-5)',
-                  color: 'var(--text-muted)',
-                  fontSize: '0.82rem',
-                  borderStyle: 'dashed',
-                }}>
-                  Click <strong style={{ color: 'var(--text-secondary)' }}>Run</strong> to generate{' '}
-                  <strong style={{ color: 'var(--text-secondary)' }}>
-                    {PIPELINE_OPTIONS.find(o => o.value === pipelineType)?.label ?? pipelineType}
-                  </strong>{' '}
-                  analysis
-                </div>
-              )}
             </>
           )}
 

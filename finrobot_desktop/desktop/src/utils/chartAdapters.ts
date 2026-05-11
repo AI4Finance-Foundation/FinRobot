@@ -246,11 +246,13 @@ export function historicalToRevenueEbitdaData(h: HistoricalMetrics) {
 }
 
 export function historicalToMarginData(h: HistoricalMetrics) {
+  // MarginTrendChart.formatPercent already does value * 100,
+  // so feed raw fractions (0-1 range) to match dcfResultToMarginData behavior.
   return h.years.map((year, i) => ({
     year: String(year),
-    gross_margin: h.gross_margin[i] * 100,
-    ebitda_margin: h.ebitda_margin[i] * 100,
-    operating_margin: h.operating_margin[i] * 100,
+    gross_margin: h.gross_margin[i],
+    ebitda_margin: h.ebitda_margin[i],
+    operating_margin: h.operating_margin[i],
     is_forecast: false,
   }))
 }

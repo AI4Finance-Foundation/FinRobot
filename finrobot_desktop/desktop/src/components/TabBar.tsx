@@ -5,6 +5,7 @@ const TABS: { key: ActiveTab; label: string }[] = [
   { key: 'financials', label: 'Financials' },
   { key: 'valuation', label: 'Valuation' },
   { key: 'peers', label: 'Peers' },
+  { key: 'compare', label: 'Compare' },
 ]
 
 export default function TabBar() {

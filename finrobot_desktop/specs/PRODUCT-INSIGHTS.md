@@ -1353,3 +1353,656 @@ Idle 状态加:
 **本轮最值得做的一件事**: 提取内联样式到共享 CSS 类。ROI 最高——代码质量 + 视觉一致性 + 后续改动效率同时提升。
 
 ---
+
+## 研究日期: 2026-05-10 — 精品化阶段 (Round 14)
+
+> 来源: Bloomberg Terminal UX 设计文章、Koyfin 产品页、The Skins Factory 2026 Fintech UI/UX 报告、
+> Raycast/Linear 命令面板分析、Philip Davis 命令面板模式分析、FinRobot 源码逐文件审计
+
+---
+
+### 一、视觉差距（对比竞品截图与设计分析）
+
+#### 1. Idle/Empty State 是第一印象的灾难
+
+**FinAgent 当前**: 左面板 "Enter a ticker to start analysis"（纯文本 + 低 opacity logo），右面板 "Analysis results will appear here"（纯文本居中）。两个面板都是空旷的深色空间。
+
+**竞品怎么做的**:
+- **Raycast**: 空状态显示 Recent Items + Suggested Actions + 键盘快捷键提示，让用户立即有事可做
+- **Linear**: 空项目页有引导步骤、快捷键卡片、上下文建议
+- **Koyfin**: 默认 dashboard 预填充了 market overview widgets（指数、热门 movers、新闻摘要）
+
+**具体怎么改**:
+- 左面板 idle 态：显示 (1) 5 个热门 ticker 快捷按钮（AAPL/MSFT/NVDA/GOOGL/AMZN），(2) 最近 3 次分析历史，(3) 键盘快捷键提示条 (`⌘K` 搜索 · `1-5` 切换 pipeline · `⌘Enter` 运行)
+- 右面板 idle 态：显示 Market Pulse 卡片（如果有 API 可用），或者产品 Feature Tour 卡片（4 个 pipeline 的图标 + 一句话说明）
+- 视觉冲击力: ★★★★★ — 这是截图能拿出去的第一个画面
+
+#### 2. 缺少底部状态栏（Status Bar）
+
+**FinAgent 当前**: 没有任何底部信息栏。整个 app 底部就是内容的自然终止。
+
+**竞品怎么做的**:
+- **Bloomberg Terminal**: 底部永远显示连接状态、市场时段 (US MARKET OPEN/CLOSED)、登录用户、消息计数
+- **VS Code / Linear**: 底部状态栏显示当前分支、语言、编码、通知
+- **Koyfin**: 底部显示数据刷新时间戳、市场状态
+
+**具体怎么改**:
+- 新增 24px 底部状态栏：`background: var(--base)`, `border-top: 1px solid var(--border-subtle)`
+- 左侧: 连接状态指示灯（绿点 = API 连通）+ 当前使用的 AI 模型名
+- 右侧: 数据最后刷新时间 + 键盘快捷键提示 (`⌘K` Command Palette)
+- 全部使用 `0.65rem` mono 字体，`var(--text-muted)` 颜色
+- 视觉冲击力: ★★★★ — 瞬间把 "side project" 变成 "terminal"
+
+#### 3. 图表缺少 Period Selector（时间周期选择器）
+
+**FinAgent 当前**: PriceChart 固定显示 1Y 数据，没有切换按钮。标题写死 "Price History (1Y)"。
+
+**竞品怎么做的**:
+- **Koyfin / TradingView / Yahoo Finance / 每一个金融工具**: 图表上方都有 1D | 1W | 1M | 3M | 6M | 1Y | 5Y 的 segmented tabs
+- 这不是 "nice to have"，是金融图表的**最低标准**
+
+**具体怎么改**:
+- 在 PriceChart card-header 右侧加一组 period tabs（复用 `.segmented` 样式但更小: 0.65rem）
+- 后端 `/api/data/{ticker}/price` 已经返回 1Y 数据，前端做 filter 即可（1W = 最后 5 个交易日，1M = 21 天，等等）
+- 视觉冲击力: ★★★★ — 金融用户的本能期望
+
+#### 4. 数据表格缺少行级色彩暗示
+
+**FinAgent 当前**: `.fin-table` 统一 `var(--text-primary)` 文字 + `var(--border-subtle)` 分隔线。所有行视觉权重相同。
+
+**竞品怎么做的**:
+- **Bloomberg**: 用淡色背景区分交替行（zebra striping），关键行（如 EBITDA、Net Income）有强调背景
+- **Koyfin**: 表格中正数绿色、负数红色不仅用于文字，也用于单元格的微弱背景色
+- **2026 Fintech 趋势**（The Skins Factory）: "Colors function as information systems, not branding tools" — 颜色应该传递数据含义
+
+**具体怎么改**:
+- Earnings table: beat 行加 `var(--positive-bg)` 微弱行背景，miss 行加 `var(--negative-bg)` 微弱行背景
+- Financials table: 负数值自动 `var(--negative)` 色
+- 可选: zebra striping `tr:nth-child(even) { background: rgba(255,255,255,0.015) }`
+- 视觉冲击力: ★★★ — 微妙但专业
+
+#### 5. Segmented Control（Pipeline 选择器）视觉太弱
+
+**FinAgent 当前**: 5 个按钮，0.72rem 字体，active 态只是 `background: var(--elevated)` + 变白。没有动画过渡。
+
+**竞品怎么做的**:
+- **Linear**: Tab active 态有滑动的背景指示器（animated sliding pill）
+- **Vercel Dashboard**: Active tab 下方有 2px 金色/品牌色 indicator line
+- **Apple 原生 segmented control**: Active 背景有微弱弹跳动画
+
+**具体怎么改**:
+- Active 态加一个 animated sliding background（用 CSS transform + transition: left 0.2s）
+- 或更简单: active 态底部加 2px `var(--gold)` 下划线
+- 字体从 0.72rem 提升到 0.78rem，padding 从 4px 提升到 6px
+- 视觉冲击力: ★★★ — 小改动，交互感显著提升
+
+#### 6. 缺少 Hover 交互丰富度
+
+**FinAgent 当前**: 按钮有基本 hover（背景变色），卡片有 border-color 变化，但 KPI cards、metric 值、表格行都没有 hover 态。
+
+**竞品怎么做的**:
+- **Koyfin**: 每个可交互元素都有 hover 态，包括表格行高亮、tooltip 显示详细数据
+- **Bloomberg**: 鼠标经过数据区域会显示十字准线（crosshair）和数据值
+- **2026 Fintech 趋势**: "Micro-interactions signal the product was built by people who take money seriously"
+
+**具体怎么改**:
+- KPI cards: hover 加 `var(--shadow-md)` + `border-color: var(--border)` + 微缩放 `transform: translateY(-1px)`
+- 表格行: `tr:hover { background: rgba(255,255,255,0.02) }`
+- Pipeline steps: hover 显示步骤详情 tooltip
+- 视觉冲击力: ★★★ — 累积效应显著
+
+#### 7. 结果加载时缺少过渡动画
+
+**FinAgent 当前**: Pipeline 完成后，所有结果组件同时出现（共享 `animate-in` fadeUp 动画，但没有 stagger 延迟）。
+
+**竞品怎么做的**:
+- **Linear**: 数据卡片逐个 stagger 出现（每张延迟 50-80ms），数字从 0 动画到目标值
+- **Stripe Dashboard**: 金额数字有 countUp 动画
+- **Raycast**: 结果列表有逐项 slide-in
+
+**具体怎么改**:
+- 给 `.animate-in` 加 CSS custom property `--stagger: 0` + `animation-delay: calc(var(--stagger) * 60ms)`
+- 在 JSX 中给每个卡片设置递增的 `--stagger` 值: `style={{ '--stagger': 0 } as any}`, `{ '--stagger': 1 }`, 等
+- 大数字（implied price、IRR、beat rate）加 countUp 效果（可用 useEffect + requestAnimationFrame）
+- 视觉冲击力: ★★★★ — "精品感"的核心来源
+
+---
+
+### 二、交互差距
+
+#### 1. 键盘快捷键几乎为空白
+
+**FinAgent 当前**: 只有 `Cmd+K` 打开命令面板。没有其他全局快捷键。
+
+**Bloomberg 怎么做的**: 整个产品围绕键盘构建。功能代码 + GO 键。用户可以不碰鼠标完成所有工作。彩色键盘分区: 红=登录/退出, 黄=市场, 绿=执行。mnemonic 代码系统 (CH1=Financial Summary, GP=Historical Price)。
+
+**具体怎么改**:
+- `1-5`: 切换 pipeline type (Research/DCF/Comps/Earnings/LBO)
+- `Cmd+Enter` 或 `Cmd+R`: 运行当前 pipeline
+- `Cmd+H`: 打开历史
+- `Cmd+,`: 打开设置
+- `Cmd+/`: 显示快捷键速查卡片（overlay）
+- `Escape`: 关闭当前弹窗/模态
+- 在 App.tsx 用 `useEffect` + `keydown` listener 实现
+
+#### 2. 命令面板缺少 Fuzzy Search
+
+**FinAgent 当前**: `commands.filter(c => c.label.toLowerCase().includes(q))` — 纯子串匹配。
+
+**Raycast/Linear 怎么做的**:
+- Fuzzy matching（"rn dcf" 匹配 "Run DCF Analysis"）
+- 匹配字符高亮（用 `<mark>` 或 `<strong>` 标记匹配的字母）
+- 按匹配质量排序
+
+**具体怎么改**:
+- 引入简单 fuzzy score 函数（~20 行 TS，不需要外部依赖）
+- 匹配时生成 char index 数组，渲染时用 `<strong>` 高亮匹配字符
+- 按 score 降序排列结果
+
+#### 3. 命令面板空态缺少 Recents
+
+**FinAgent 当前**: 空查询时显示所有固定命令。没有 "最近使用" 或 "建议" 分区。
+
+**Raycast 怎么做的**: 空状态优先显示 Recent Items（最近执行的 5 个命令），然后 Suggested（基于上下文推荐）。
+
+**具体怎么改**:
+- 在 appStore 加 `recentCommands: string[]`（最多 5 个，存到 localStorage）
+- CommandPalette 空查询时，在 `Pipeline` section 前显示 `Recent` section
+- 每次执行命令时 push 到 recentCommands
+
+#### 4. 无快捷键速查卡（Cheatsheet）
+
+**竞品怎么做的**: Figma 按 `Cmd+/` 显示快捷键 overlay。Obsidian 有 "Hotkeys" 设置页。GitHub 按 `?` 显示快捷键面板。
+
+**具体怎么改**:
+- 新建 KeyboardShortcuts overlay 组件，按 `Cmd+/` 或 `?` 触发
+- 分组显示所有快捷键（General / Pipeline / Navigation）
+- 用 `.cmd-palette` 相似的视觉样式
+
+---
+
+### 三、FinRobot 功能差距（逐文件审计）
+
+> 数据来源: `/Users/zhunihaoyun/Desktop/code/Fin/FinRobot/finrobot/data_source/` + `/finrobot_equity/core/src/modules/`
+> 对比: `/Users/zhunihaoyun/Desktop/code/FinAgent/src/finagent/`
+
+#### FinRobot 有、FinAgent 没有:
+
+| 功能 | FinRobot 文件 | 影响力 | 后端难度 | Desktop 差什么 |
+|------|-------------|--------|---------|--------------|
+| **Reddit 情绪** | `data_source/reddit_utils.py` — `RedditUtils.get_reddit_posts()`, 支持 r/wallstreetbets/stocks/investing | ★★★★★ | M | 整条链路缺失: 数据源 → 情绪聚合 → UI 展示 |
+| **StockTwits 情绪** | `data_source/finnlp_utils.py` — `stocktwits_social_media_download()` | ★★★★ | M | 同上 |
+| **Earnings Call 转录** | `earnings_calls_src/` — `get_earnings_transcript()`, 多季度转录获取 + speaker 分析 | ★★★★ | M | 后端无 transcript API，Desktop 无转录展示 |
+| **Risk Analysis Agent** | `equity_agents/risks_agent.py` — 5 类风险分析（Market/Competitive/Operational/Financial/Regulatory & ESG）| ★★★ | S | 后端可通过 prompt 实现，Desktop 缺风险分析 tab/section |
+| **Competitor Analysis Agent** | `equity_agents/competitor_analysis_agent.py` | ★★★ | S | Research pipeline 的 narrative 可能提到竞品，但没有结构化竞品对比 |
+| **News Categorization Agent** | `equity_agents/news_summary_agent.py` — 按主题分类（Product/Financial/Regulatory/Strategic/Analyst/Competitive）+ 影响评估 | ★★★ | S | FinAgent 有 `compute/news.py` 做分类，但 Desktop 没有新闻 section |
+| **多平台情绪聚合** | `retail_sentiment_client.py` — 聚合 Reddit/X.com/Polymarket，计算 buzz score + bullish% | ★★★★ | L | 整个模块缺失 |
+| **Professional PDF 报告** | `professional_pdf_report.py` — 投行风格双栏 PDF，Navy/Gold 配色 | ★★ | M | FinAgent 有 PDF 但样式不是投行级 |
+| **CNBC/InvestorPlace 新闻流** | `finnlp_utils.py` — 多源新闻下载 | ★★ | S | 目前只有 Finnhub/FMP/yfinance 新闻 |
+| **中文市场数据** (Xueqiu/新浪/一财) | `finnlp_utils.py` | ★★ | M | A 股支持是 BACKLOG 项 |
+
+#### FinAgent 已超越 FinRobot 的:
+
+| 功能 | FinAgent 独有 |
+|------|-------------|
+| LBO 建模 (MOIC/IRR 确定性计算) | `compute/lbo.py` + LBOSummary + 2D sensitivity |
+| DCF 2D Sensitivity Grid | `compute/wacc.py` + SensitivityHeatmap |
+| 10-K RAG (BM25 检索 + 源引用) | `compute/sec_rag.py` |
+| Peer Comps (中位数/四分位 + 雷达图) | `compute/multiples.py` + CompanyRadarChart |
+| 17+ 专业图表类型 | `engine/charts/` 全系列 |
+| Technical Indicators (Bollinger/RSI/MACD) | `engine/charts/technical_indicators.py` |
+| Typed Pipeline 框架 (Pydantic 全链路类型安全) | `engine/pipelines/` |
+| Interactive Assumptions Editor | Desktop `AssumptionsEditor.tsx` |
+| Desktop Electron 应用 | 整个 `desktop/` |
+
+---
+
+### 四、竞品设计细节精华（可直接抄的 3 个视觉手法）
+
+#### 手法 1: Bloomberg 的 Amber 信息层级系统
+
+Bloomberg 的核心设计秘密不是 "黑底" — 而是用 **amber/orange (#FFA028)** 作为基础字体色，搭配高对比色表达信息。Bloomberg 的设计团队说: "Amber is our base font color, whereas many systems use much more neutral tones."
+
+**FinAgent 可以借鉴**: 我们的 `--gold: #C9A84C` 已经是类似思路，但用得太克制了。目前 gold 只用于 brand + badge + active 态。可以考虑:
+- Pipeline active step 的 step-name 用 gold（✅ 已实现）
+- **新增**: Hero 数字旁的 delta（+15.2% upside）也用 gold 强调，不仅仅是 green
+- **新增**: 表格中 "target/implied" 行的数值用 gold 高亮
+
+#### 手法 2: Koyfin 的 "God-like View" 模块密度
+
+Koyfin 被用户称赞的核心是 **信息密度** — 在一个屏幕内同时展示 watchlist + 多图表 + 新闻 + 关键指标，且不感到拥挤。关键手法:
+- 模块之间用 1px 边线分隔（不是 gap 空间），类似 Bloomberg 的面板拼接
+- 每个模块有超小的 header（~20px），最大化数据区域
+- 使用 `min-height` 而非 `height`，让模块随内容自适应
+
+**FinAgent 可以借鉴**: 右面板的 `.grid-2` 有 `gap: var(--sp-5)` (20px) — 对于数据密集型展示来说太松。
+- 将 grid gap 从 20px 缩小到 12px (`var(--sp-3)`)
+- Card header padding 从 12px 16px 缩小到 8px 12px（更紧凑的 header）
+- 考虑在 DCF/Research 结果页添加更多图表到 grid，填满屏幕空间
+
+#### 手法 3: 2026 Fintech UI 的 "Typography Weight as Trust Signal"
+
+The Skins Factory 2026 报告的核心洞察: **"Typography weight functions as a trust signal. Heavy font weights (600-800) communicate seriousness and accountability."**
+
+**FinAgent 当前问题**: 
+- `.card-title` 用 600 weight + uppercase，但只有 0.75rem — 太小，在深色背景上几乎消失
+- `.metric-label` 用 500 weight + 0.7rem — 同样太小
+- 相比之下，大数字（valuation-price 2.8rem 700weight）和小标签之间的**尺寸跳跃太大** — 缺少中间层级
+
+**具体怎么改**:
+- 引入 "Section Title" 层级: 0.85rem / 600 weight / normal case（不 uppercase）/ `var(--text-primary)` — 用于面板 section 标题
+- `.card-title` 从 0.75rem 提升到 0.78rem — 微调但可感知
+- 考虑 hero 数字区域（$214.50）加一个 subtle 的 `text-shadow: 0 0 40px rgba(201, 168, 76, 0.08)` — 让核心数字更有"发光"感
+
+---
+
+### 五、行动建议（按视觉影响力排序）
+
+1. **重设计 Idle/Empty State** — 视觉冲击力 ★★★★★ · 工作量 M
+   - 这是截图发到 Twitter 时用户看到的第一个画面
+   - 具体方案: 左面板加热门 ticker 按钮 + 最近分析 + 快捷键提示条; 右面板加 Feature Tour 卡片组
+   - 预期效果: 从 "空白项目" 变成 "专业工具等待指令"
+
+2. **添加底部状态栏 (Status Bar)** — 视觉冲击力 ★★★★ · 工作量 S
+   - 具体方案: 24px fixed bottom bar, 连接状态 + 模型名 + 刷新时间 + 快捷键提示
+   - 预期效果: 瞬间增加 "terminal" 专业感
+
+3. **图表 Period Selector** — 视觉冲击力 ★★★★ · 工作量 S
+   - 具体方案: PriceChart card-header 加 1W|1M|3M|6M|1Y segmented tabs
+   - 预期效果: 满足金融用户的第一本能期望
+
+4. **全局键盘快捷键** — 交互冲击力 ★★★★ · 工作量 S
+   - 具体方案: App.tsx keydown listener, 1-5 pipeline + Cmd+Enter run + Cmd+H history + Cmd+, settings + Cmd+/ cheatsheet
+   - 预期效果: 高级用户操作速度 3x 提升
+
+5. **结果 Stagger 动画 + CountUp** — 视觉冲击力 ★★★★ · 工作量 S
+   - 具体方案: --stagger CSS 变量 + requestAnimationFrame countUp for hero numbers
+   - 预期效果: 从 "数据出现" 变成 "数据呈现"
+
+6. **命令面板 Fuzzy Search + Match Highlighting** — 交互冲击力 ★★★ · 工作量 S
+   - 具体方案: 20 行 fuzzy score 函数 + `<strong>` 高亮 + score 排序
+   - 预期效果: 从 "功能性搜索" 变成 "专业工具"
+
+7. **数据表行级色彩 + Hover 效果** — 视觉冲击力 ★★★ · 工作量 XS
+   - 具体方案: beat/miss 行背景 + zebra striping + tr:hover 高亮
+   - 预期效果: 表格从 "静态展示" 变成 "交互式数据"
+
+8. **KPI Card Hover 微交互** — 视觉冲击力 ★★★ · 工作量 XS
+   - 具体方案: hover 加 shadow-md + translateY(-1px) + border 变化
+   - 预期效果: 卡片有 "活" 的感觉
+
+9. **Pipeline Selector Animated Indicator** — 视觉冲击力 ★★★ · 工作量 S
+   - 具体方案: active 态滑动背景或底部 2px gold 下划线
+   - 预期效果: 从 "toggle" 变成 "导航"
+
+10. **社交情绪数据源 (Reddit/StockTwits)** — 功能冲击力 ★★★★★ · 工作量 L
+    - 这是 FinRobot 最大的功能优势
+    - 具体方案: 新增 `data_source/reddit_provider.py` + `data_source/stocktwits_provider.py` → 新的 Sentiment pipeline → Desktop SentimentPanel 组件
+    - 预期效果: 覆盖 FinRobot 最高影响力的缺失功能
+
+---
+
+### 六、关键洞察总结（Round 14 — 精品化阶段）
+
+**发现 1: Idle State 是品牌第一印象的唯一窗口。** 当用户第一次打开 FinAgent，看到的不是分析结果，是空状态。如果空状态看起来是个未完成的壳子，用户对整个产品的心理定价就锁定在 "side project"。Raycast/Linear 的空状态设计证明: 一个精心设计的空状态比任何其他 UI 改动都更能传达 "这是一个认真的产品"。这是截图 → Twitter/HN 最先被看到的画面。
+
+**发现 2: Status Bar 是 "terminal" 与 "web app" 的分水岭。** Bloomberg 用户有一个根深蒂固的心智模型: 专业金融工具的底部永远有一条状态信息。这不是功能需求——是品类信号。24px 的底部状态栏是投入产出比最高的 "专业感" 投资。
+
+**发现 3: Bloomberg 的设计秘密不是黑底，而是 Amber 层级系统。** Bloomberg 用 amber/orange 作为基础字体色建立了独特的信息层级。FinAgent 的 gold 色系已经走对了方向，但使用场景太少。应该在更多 "关键数据" 位置使用 gold 强调（delta、target row、implied price），而不仅仅是品牌标识。
+
+**发现 4: 2026 Fintech UI 的核心范式是 "Typography Weight = Trust"。** 不是花哨的动画或渐变——是字重。重字体（600-800）传达严肃和可靠。FinAgent 的大数字（2.8rem 700）和小标签（0.7rem 500）之间跳跃太大，缺少中间层级的 section title。
+
+**发现 5: FinRobot 的核心差异化已不在分析能力，在数据宽度。** FinAgent 在 DCF/LBO/Sensitivity/Comps 等确定性计算上已全面超越 FinRobot。唯一的高影响力功能缺口是社交情绪数据（Reddit/StockTwits/多平台聚合）和 Earnings Call 转录分析。
+
+**本轮最值得做的一件事**: 重设计 Idle/Empty State。它是截图的第一帧，是品牌印象的第一秒，是用户决定 "试试看" 还是 "关掉算了" 的关键时刻。一个精心设计的空状态比任何后续功能都更能决定产品的第一印象分。
+
+---
+
+## 研究日期: 2026-05-10 (Round 6) — 精品化阶�� · 深度视觉研究
+
+### 一、视觉差距（对比竞品截图）
+
+#### 已完成的 Round 5 建议落地情况
+
+| 建议 | 状态 | 质量评估 |
+|------|------|----------|
+| 重设计 Idle State | ✅ 已做 | Quick Start tickers + feature tour cards |
+| Status Bar | ✅ 已做 | 24px fixed bottom, 连接态 + 模型名 + 快捷键提示 |
+| Stagger 动画 + CountUp | ✅ 已做 | --stagger CSS + requestAnimationFrame |
+| KPI Card Hover | ✅ 已做 | shadow-sm + translateY(-1px) |
+| Pipeline Selector 滑动指示器 | ✅ 已做 | cubic-bezier 动画 + translateX |
+| 数据表 zebra + hover | ✅ 已做 | beat/miss 行着色 |
+| 数据源 badges | ✅ 已做 | [FMP/CALC/AI] 三色标签 |
+
+**结论**: Round 5 建议已全面执行。当前 CSS 成熟度高（1500 行, 系统化 token + 3 级 shadow + 完整组件库）。
+
+#### 剩余视觉差距（对比 2026 竞品标准）
+
+**1. 缺少 Glassmorphism 层次感（vs Koyfin/现代 fintech）**
+
+FinAgent 当前 card 样式：
+```css
+background: var(--surface);  /* #131720 — 纯色 */
+border: 1px solid var(--border-subtle);
+```
+
+2026 金融 dashboard 标准（Dark Glassmorphism）：
+```css
+background: rgba(19, 23, 32, 0.75);  /* 半透明 */
+backdrop-filter: blur(12px) saturate(120%);
+border: 1px solid rgba(255, 255, 255, 0.06);
+```
+
+**问题**: 所有 card 同一层级感, 缺少深度。Koyfin 和现代 fintech 用半透明叠加创造空间层次——让 UI "呼吸"。topbar 已经用了 `backdrop-filter: blur(12px)`，但 card 系统没有。
+
+**修改方案**: 仅在 hero card (valuation-hero) 和 cmd-palette 加 glass effect, 普通 card 保持 opaque（性能 + 可读性）。增加一个 `.card-glass` 变体类。
+
+**2. 图表区域缺少"呼吸空间"（vs Koyfin charts）**
+
+Koyfin 图表特点: 图表占据整个 widget 宽度, 上方有极简的 period selector, 左右无多余 padding, 图表本身面积最大化。
+
+FinAgent 图表: `card-body` padding 16px 四面环绕, 实际图表区域被压缩。对于金融图表, 数据密度 = 信息价值。
+
+**修改方案**: 图表 card 使用 `.card-body--flush` (padding: 0, 只保留底部 padding), chart header 内嵌 period selector。
+
+**3. 缺少中间层级的 Section Header（vs Bloomberg 信息架���）**
+
+Bloomberg 用 5 级信息层级:
+- Level 1: Ticker/Price (最大, 最粗)
+- Level 2: Section Title (中号, 半粗, 有背景色条或下划线)
+- Level 3: Card Title (小号 uppercase)
+- Level 4: Data Label
+- Level 5: Caption/Footnote
+
+FinAgent 缺了 Level 2。只有 `.section-label`(0.68rem uppercase muted) 直接跳到 `.valuation-price`(2.8rem bold)。中间没有一个"区域标题"来划分视觉区块。
+
+**修改方案**: 新增 `.area-title` — `font-size: 1rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em;` + 可选的左侧 2px gold 竖线。用于"Valuation Summary"、"Financial Metrics"、"Charts" 等区域分隔。
+
+**4. 右面板缺少 Grid 自适应布局**
+
+当前右面板 `.grid-2` 是固定 2 列。竞品（Koyfin、Bloomberg）使用自适应 grid:
+- 宽屏(>1200px): 3 列 chart cards
+- 中屏(800-1200px): 2 列
+- 窄屏(<800px): 1 列
+
+**修改方案**: `.grid-2` 改为 `grid-template-columns: repeat(auto-fit, minmax(340px, 1fr))`。大屏用户获得更好的数据密度。
+
+**5. 缺少"数据新鲜度"视觉信号**
+
+Bloomberg 每个数据块都有 timestamp。Koyfin 在图表右上角显示"Last updated: 2m ago"。
+
+FinAgent 没有任何数据时间戳（除了 status bar 的全局 refresh time）。金融用户对��据新鲜度极度敏感——陈旧数据 = 不可信。
+
+**修改方案**: card-header 右侧加 `<time>` 组件, mono 字体, muted 色, hover 显示完整 ISO 时间。格式: "2m ago" / "1h ago" / "May 10"。
+
+### 二、交互差距
+
+**1. Command Palette 缺少 Fuzzy Matching + Match Highlighting**
+
+当前实现 (`CommandPalette.tsx:130-137`): 简单 `includes()` 匹配, 无评分, 无高亮。
+
+竞品标准 (Raycast/Linear/VS Code):
+- Fuzzy matching: "rneq" 匹配 "Run Equity Research"
+- Match highlighting: 匹配字符加 `<mark>` 或 `font-weight: 700`
+- Score-based ranking: 前缀匹配 > 连续子串 > 分散匹配
+- Recent items: 最近使用的命令置顶
+
+**修改方案**: 
+```typescript
+function fuzzyScore(query: string, text: string): { score: number; indices: number[] }
+```
+20 行函数，返回 score + 匹配位置。结果按 score 降序。渲染时用 indices 生成 `<strong>` 片段。加 "Recent" section（localStorage 存最近 5 个 action）。
+
+**2. 缺少右键/长按上下文菜单**
+
+竞品: Koyfin 右键 chart → Export PNG / Copy data / Set alert。Linear 右键 item → Copy link / Archive / Delete。
+
+FinAgent: 无任何上下文菜单。所有操作只能通过顶部按钮或 Command Palette。
+
+**修改方案**: 优先级中。先在 chart card 上加右键 → "Export PNG" / "Copy Chart Data"。KPI card 上加右键 → "Copy Value"。使用一个共享的 `<ContextMenu>` 组件。
+
+**3. 缺少键盘快捷键 Cheat Sheet Overlay**
+
+FinAgent 有快捷键（1-5 pipeline, Cmd+K 等），但没有可视化的快捷键参考。
+
+竞品标准: Cmd+/ 或 ? 触发一个 overlay，列出所有快捷键（分类: Navigation / Analysis / Export）。
+
+**��改方案**: `<ShortcutOverlay>` 组件, triggered by `Cmd+/` or `?`。3 列 grid: Navigation | Analysis | Export。每行: `<kbd>` + 描述。modal 风格, 类似 cmd-palette 但更宽。
+
+**4. Chart Period Selector 已有但未连通实际数据**
+
+前面几轮已建议添加 period selector (1W|1M|3M|6M|1Y)。从 CSS 看 segmented control 已实现, 但 PriceChart 组件是否真正支持时间范围切换?
+
+**验证需要**: 检查 PriceChart.tsx 是否接收 period prop 并过滤数据。如果只是视觉摆设, 需要真正连通。
+
+### 三、FinRobot 功能差距（Round 6 深入分析）
+
+| FinRobot 功能 | FinAgent 状态 | 差距 | 优先级 |
+|------|------|------|------|
+| **Retail Sentiment** (Reddit + X + Polymarket via Adanos API) | ❌ 未实现 | 完整的 `RetailSentimentClient` + multi-platform buzz/bullish scoring | ★★★��★ |
+| **Reddit Posts** (PRAW: r/wallstreetbets + r/stocks + r/investing) | ❌ 未实现 | `RedditUtils.get_reddit_posts()` — 搜索+时间范围+评分 | ★★★★ |
+| **Earnings Call Transcripts** (discountingcashflows.com API) | ❌ 未实现 | `get_earnings_transcript(quarter, ticker, year)` — 获取 + 说话人提取 | ★★★★ |
+| **Backtesting** (backtrader: SMA cross, custom strategy, sizer) | ❌ 未实现 | `BackTraderUtils.back_test()` — 全参数化, deployed capital analyzer | ★★★ |
+| **Multi-Factor Agent** (investment group simulation) | ❌ 未实现 | `experiments/multi_factor_agents.py` — 多 agent 投资组合讨论 | ★★ |
+| **SEC Filing PDF→Markdown** (marker library) | 部分实现 | FinAgent 有 BM25 RAG, 但无 PDF→MD 转换 | ★★ |
+| **Competitor Analysis Agent** | ✅ 已有 (research pipeline) | 已包含在 equity research flow | — |
+| **News Summary Agent** | ✅ 已有 | news_integrator + fetch_news | — |
+| **Catalyst Analyzer** | ✅ 已有 | compute/catalysts.py 确定性实现 | — |
+| **Sensitivity Analyzer** | ✅ 已有 | SensitivityHeatmap + compute/dcf.py | — |
+| **Valuation Engine** | ✅ 超越 | DCF + LBO + Comps + Football Field + IC Memo | — |
+
+**关键发现**: FinRobot 的 `RetailSentimentClient` 是一个成熟的多平台聚合客户端（Reddit + X/Twitter + Polymarket），通��� Adanos API 获取 buzz score + bullish % + mentions 趋势。这是 FinAgent 最大的单一功能缺口。Backtesting（backtrader）是第二大缺口。
+
+### 四���行动建议（按视觉影响���排序）
+
+1. **Card Glass Effect (hero cards only)** — 视觉冲击力 ★★★★★ · 工作量 XS
+   - 只在 `.valuation-hero` 和 `.cmd-palette` 加 glass 效果
+   - 具体: `background: rgba(19, 23, 32, 0.75); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.06);`
+   - 加一个极淡的 radial gradient 背景 blob（gold or blue）在 hero 下方, 被 glass blur
+   - 预期效果: Hero card 从"平面卡片"变成"悬浮玻璃面板", 截图级视觉提升
+
+2. **Area Title 层级 + 区域分隔** — 视觉冲击力 ★★★★ · 工作量 S
+   - 新增 `.area-title` (1rem 700 primary color) + 左侧 2px gold accent bar
+   - 在右面板的"Charts"区域、"Financials"区域、"Analysis"区域前加
+   - ���期效果: 从"信息平铺"变成"有组织的专业报告"
+
+3. **Chart Flush Layout + 响应式 Grid** ��� 视觉冲击力 ★★★★ · 工作量 S
+   - `.card-body--flush` 去除图表内 padding
+   - `.grid-2` 改为 `repeat(auto-fit, minmax(340px, 1fr))`
+   - 预期效果: 图表面积最大化, 大屏 3 列铺满, 数据密度接近 Koyfin
+
+4. **Command Palette Fuzzy Search + Recent** — 交互冲击力 ★★★★★ · 工作量 S
+   - 20 行 fuzzy score 函数 + `<strong>` 高亮
+   - "Recent" section (localStorage top 5)
+   - ���期效果: 从"功能性过滤"变成"专业级搜索体验", 和 Raycast 对齐
+
+5. **数据新鲜度 Timestamp** — 信任感冲击力 ★★★★ · 工作量 XS
+   - card-header 右侧加相对时间 "2m ago"
+   - mono font, muted color, hover 显示绝对时间
+   - 预期效果: 用户立即信任数据是"活的", 不是缓存的死数据
+
+6. **Shortcut Cheat Sheet Overlay** — 交互冲击力 ★★★ · 工作量 S
+   - `Cmd+/` 触发, 3 列 grid 列出所有快捷键
+   - 预期效果: 用户可发现性大幅提升, 减少"这个工具能做什么?"的困惑
+
+7. **Right-Click Context Menu (Charts)** — 交互冲击力 ★★★ · 工作量 M
+   - Chart card 右键 → Export PNG / Copy Data
+   - 共享 `<ContextMenu>` 组件
+   - 预期效果: 从"看看就好"变成"可操作的数据"
+
+8. **Retail Sentiment Pipeline** — 功能冲击力 ★��★★★ · 工作量 L
+   - 后端: `data_source/sentiment_provider.py` (Adanos API 或 PRAW fallback)
+   - Pipeline: 新增 "sentiment" pipeline type
+   - Desktop: `SentimentPanel.tsx` — buzz chart + platform cards + bullish/bearish gauge
+   - 预期效果: 覆盖 FinRobot 最大功能缺口, 对散户分析师吸引力极大
+
+9. **Earnings Call Transcript Viewer** — 功能冲击力 ★★★★ · 工作量 M
+   - 后端: `data_source/transcript_provider.py` (discountingcashflows.com API)
+   - Desktop: transcript 展示 + speaker 标记 + AI 摘要 sidebar
+   - 预期效果: 覆盖 Calypso 的核心功能, 对 buy-side 分析师价值极高
+
+10. **Backtesting Module** — 功能��击力 ★★★ · 工作量 L
+    - 后端: 集成 backtrader 或轻量实现
+    - Desktop: 策略参数 + 回测曲线图 + 绩效指标
+    - 预期效果: 从"分析工具"升级为"决策工具"
+
+### 五、关键洞察总结（Round 6 — 深度视觉研究）
+
+**发现 1: FinAgent 的 CSS 系统已到 "90 分", 但缺少那让人过目不忘的 "10 分"。** 1500 行系统化 CSS, 3 级 shadow, 完整 token system, 动画系统, 都已就位。但缺少一个"wow moment"——一个让截图在 Twitter 上被转发的视觉亮点。Glass effect on hero card 就是那个 10 分的支点: 半透明 + blur + 背景光晕 = 瞬间���升到 "design showcase" 级别。
+
+**发现 2: 2026 金融 UI 的关键词是 "Layered Depth", 不是 "Flat Cards"。** Koyfin、Vaulto（高端 fintech dashboard）、甚至 Bloomberg 的新改版都在用多层叠加（background gradient → blurred surface → card → data）创造深度感。FinAgent 当前所有 card 在视觉上是同一个平面, 缺少前后关系。只要在 hero card 加一层 glass + 在它下面放一个淡淡的 gradient blob, 整个界面就有了 Z 轴。
+
+**发现 3: Command Palette 是"专业感"的分水岭。** FinAgent 已有 Command Palette（520px, 动画, sections, keyboard nav）, 结构完整。但 `includes()` 过滤 vs fuzzy matching 是"基础功能"和"专业工具"的分界线。Raycast 之所以让人惊叹, 不是因为它更快, 而是因为"rneq"能匹配到"Run Equity Research"——它理解你的意图。这是 20 行代码的投入, 100% 的体验提升。
+
+**发现 4: 数据新鲜度是金融工具的"信任基础设施"。** 没有 timestamp 的金融数据 = 不可信的金融数据。这对一般 SaaS 不重要, 但对金融工具是致命的。一个"2m ago"的小灰字比任何花哨动画都更能说服目标用户（buy-side 研究员）这是一个严肃工具。
+
+**发现 5: FinRobot 的 Retail Sentiment 系统比预期更成熟。** 不只是简单的 Reddit 爬虫——它有 3 平台聚���（Reddit + X + Polymarket）、标准化 buzz score、bullish/bearish 百分比、多日趋势对比。FinAgent 要追平这个, 需要一个完整的 provider + pipeline + UI 三件套, 工作量约 2-3 天。
+
+**本轮最���得做的一件事**: **Hero Card Glass Effect + Background Gradient Blob**。理由:
+- 工作量最小（XS, 约 15 行 CSS + 一个渐变 pseudo-element）
+- 视觉��击力最大（从"平面"到"悬浮", 截图效果质变）
+- 2026 设计趋势一致（Dark Glassmorphism 是当前最高频的 fintech dashboard 设计语言）
+- 不需要改任何组件逻辑, 纯 CSS 改动, 零风险
+
+---
+
+## 研究日期: 2026-05-10 — 精品化阶段（Round 7 深度视觉/交互/功能对标）
+
+> 前置说明: Round 6 的建议（glass KPI, fuzzy search, gradient blob, timestamps, shortcut sheet, stagger animations）已全部落地。
+> 本轮在此基础上做第二层打磨——从"90 分 CSS 系统"到"截图在 HN 上被转发"。
+
+### 一、视觉差距（对比竞品截图 + 2026 趋势）
+
+#### 1. KPI 卡片缺少 Sparklines（vs Koyfin / Bloomberg）
+- **FinAgent 的问题**: KPI 卡片只显示静态数字（"Revenue: $394.3B"）。在截图中看起来像报表摘要而不是交互式仪表板。
+- **竞品怎么做的**: Koyfin 每个 KPI 指标右侧有 40×16px 的 sparkline 小图，展示 3-5 年趋势。Bloomberg 新 Launchpad 用迷你面积图。Vaulto（2026 Dribbble 热门金融仪表板）每个 metric card 内嵌 sparkline + % 变化箭头。
+- **具体怎么改**: 在 `KPICard` 组件中加一个可选的 `trend` prop（number[]），用 recharts `<Sparkline>` 或手写 SVG path 渲染。颜色跟随语义（正=绿, 负=红, 中性=蓝）。高度 16px，宽度占卡片 40%。数据来源：后端 `/api/data/{ticker}/financials` 已有多年数据，前端 adapter 提取 3 年 revenue/ebitda/margin 序列。
+- **影响**: 截图级别从"数据展示"变为"数据可视化"。这是 Bloomberg/Koyfin 用户一眼就认的视觉语言。
+
+#### 2. 图表 Gradient Fill 不一致（PriceChart 有, 其他没有）
+- **FinAgent 的问题**: `PriceChart.tsx` 用了 `linearGradient + Area fill`，视觉效果很棒。但 `RevenueEbitdaChart`、`MarginTrendChart` 用纯色 Area/Bar，显得平淡。同一界面两种风格。
+- **竞品怎么做的**: Koyfin 所有面积图统一用半透明渐变填充（从颜色 15% opacity 到 1% opacity）。这是 2026 金融图表的标准做法。
+- **具体怎么改**: 为每个使用 Area 的图表组件添加与 PriceChart 相同的 `<linearGradient>` defs。金额系列用 `chart-1` 渐变，利润率系列用 `chart-3` 渐变。估计改动：每个图表文件增加 5 行 SVG defs + 修改 fill 属性。
+
+#### 3. 数据表格缺少左侧重点指示器（vs Bloomberg）
+- **FinAgent 的问题**: `fin-table` 的 hover 效果只是背景色变化（`var(--gold-glow)`），视觉上弱。
+- **竞品怎么做的**: Bloomberg Terminal 的数据行在左侧有 2-3px 的彩色指示条（active 行金色，highlight 行主题色）。Linear 的 list items 在选中时左侧有 2px accent border。这种"左侧光标"是信息密度型界面的标准交互暗示。
+- **具体怎么改**: `.fin-table tbody tr:hover` 添加 `box-shadow: inset 3px 0 0 var(--gold)`。`.fin-table tbody tr.row-target` 添加 `box-shadow: inset 3px 0 0 var(--positive)`。纯 CSS，零组件改动。
+
+#### 4. 图表 Tooltip 过于基础（vs Koyfin Rich Tooltip）
+- **FinAgent 的问题**: 所有图表使用相同的简单 tooltip：深色背景 + 单行 value。无标题、无同比对比、无 mini 可视化。
+- **竞品怎么做的**: Koyfin tooltip 是一个迷你面板：顶部是日期/期间标题，中间是多行数据（本期值、同比变化、YoY %），底部有 peer rank。这让 tooltip 本身成为分析工具而不仅是数字展示。
+- **具体怎么改**: 创建 `ChartTooltip.tsx` 共享组件。props: `title`, `items: {label, value, change?, changeColor?}[]`。用 Recharts 的 `content` prop 替换默认 tooltip。视觉规范：标题用 `text-muted + uppercase 0.65rem`，值用 `font-mono 0.82rem`，变化用语义色。
+
+#### 5. RunHistory 页面设计不一致（大量 inline styles）
+- **FinAgent 的问题**: `RunHistory.tsx` 有 20+ 处 inline style（lines 147-271），与其他组件使用 CSS class 的模式不一致。页面布局（`maxWidth: 720px, margin: 0 auto`）看起来像一个独立页面而不是 workspace 的一部分。
+- **竞品怎么做的**: Linear 的 activity view 和 Koyfin 的 watchlist 都保持与主 workspace 相同的视觉语言。
+- **具体怎么改**: 将所有 inline styles 提取为 CSS class（`.history-container`, `.history-header`, `.history-row` 等）。调整布局使其融入双面板结构。
+
+#### 6. 没有加载 → 结果的过渡动画
+- **FinAgent 的问题**: Pipeline 完成后，结果卡片直接 "弹出"。已有 `animate-in` (fadeUp) 和 stagger，但缺少从 "pipeline running" 到 "results ready" 的过渡效果。
+- **竞品怎么做的**: Linear 完成操作时有一个极短的 "flash" 或 "pulse" 确认动画（< 300ms）。Bloomberg 的窗口加载用 shimmer → content 的渐变过渡。
+- **具体怎么改**: Pipeline 完成时，最后一个 step indicator 从 gold pulse 变为 green + checkmark + 短暂 scale(1.1) 弹性动画。右侧 panel 内容用 stagger fadeUp（已有基础，需确保触发）。
+
+### 二、交互差距
+
+#### 1. 无图表时间范围选择器（最大交互差距）
+- **FinAgent 的问题**: PriceChart 硬编码 "1Y"。用户无法切换时间范围。这是金融工具最基本的交互。
+- **竞品怎么做的**: Koyfin 在每个图表上方有 `1D | 5D | 1M | 3M | 6M | 1Y | 5Y | ALL` 的 segmented control。Bloomberg 有 "GP" 命令切换图表范围。
+- **具体怎么改**: 在 PriceChart 的 card-header 中添加与 pipeline selector 相同风格的 `<Segmented>` 组件（`1M | 3M | 6M | 1Y | ALL`）。后端 `/api/data/{ticker}/price` 需确认是否支持 `period` 参数。前端只需传递选中的 period。
+
+#### 2. Command Palette 缺少 Ticker → Pipeline 联合命令
+- **FinAgent 的问题**: 可以在 Command Palette 中输入 ticker 加载，可以选择 pipeline，但不能一步完成 "AAPL research"。
+- **竞品怎么做的**: Raycast 支持多段输入。Linear 的 ⌘K 可以 "Create issue in Project X" 一步完成。
+- **具体怎么改**: 在 `commands` 列表中增加动态匹配：当 query 是 `{TICKER} {pipeline}` 格式时，生成一条 "Run {pipeline} for {TICKER}" 的组合命令。
+
+#### 3. 无 Toast/Notification 系统
+- **FinAgent 的问题**: Pipeline 完成、导出成功、错误发生时没有视觉通知。
+- **竞品怎么做的**: Linear 有底部 toast（深色、圆角、auto-dismiss 3s）。
+- **具体怎么改**: 创建 `Toast.tsx`（固定在视口底部中央，z-index 9998）。success/error/info 三种类型。自动消失 3s。zustand store 管理 toast 队列。
+
+#### 4. 数字键无法切换 Pipeline Tab
+- **FinAgent 的问题**: 必须用鼠标点击 segmented control 切换 pipeline。
+- **竞品怎么做的**: Bloomberg 用 F1-F12 切换功能。Koyfin 用 1-9 切换 tab。
+- **具体怎么改**: `useEffect` 监听数字键 1-5（非 input focus 时），映射到 `setPipelineType(PIPELINE_OPTIONS[n-1].value)`。约 10 行代码。
+
+#### 5. 无图表交叉光标同步（Crosshair Sync）
+- **FinAgent 的问题**: 右侧 panel 多个图表各自独立，hover 一个图表时其他图表没有响应。
+- **竞品怎么做的**: Koyfin 和 Bloomberg 的多图表视图中，所有图表共享同一个 crosshair cursor。
+- **具体怎么改**: 创建 `CrosshairContext`（React Context），所有图表组件通过 `onMouseMove` 写入 context，通过 `<ReferenceLine>` 读取 context。工作量 M。
+
+### 三、FinRobot 功能差距
+
+| FinRobot 功能 | 后端支持? | Desktop 差什么? | 优先级 |
+|---|---|---|---|
+| **Retail Sentiment**（Reddit + X + Polymarket 聚合、buzz score、bullish/bearish %、趋势对比） | ❌ 无 | 需要: provider + pipeline + SentimentPanel.tsx | 高 |
+| **Earnings Transcript Viewer**（speaker 标记 + AI 摘要 sidebar） | ❌ 无 | 需要: transcript_provider + TranscriptViewer.tsx | 高 |
+| **Technical Indicators**（MA/RSI/MACD 图表） | ❌ 无 | 需要: 计算层 + 图表组件 | 中 |
+| **Catalyst Analyzer**（事件分类、概率评分、时间线） | 部分 | 缺少: 结构化 CatalystEvent 模型 + 时间线可视化 | 中 |
+| **Revenue Breakdown Pie Chart**（业务线/地区分布） | ❌ 无 | 需要: FMP segment data + PieChart 组件 | 中 |
+| **Cash Flow Waterfall**（经营/投资/融资 3 层分解） | 后端有 FCF 数据 | 需要: CashFlowWaterfall.tsx | 中 |
+| **EV/EBITDA Band Chart**（历史估值区间） | 后端有历史数据 | 需要: BandChart.tsx | 中 |
+| **Stock Price Forecasting** | ❌ 无 | 需要: 新 pipeline + ForecastChart | 低 |
+| **Backtesting Module** | ❌ 无 | 需要: backtrader 集成 | 低 |
+
+### 四、关键洞察总结
+
+**洞察 1: CSS 系统已到 95 分，"最后 5 分"在细节一致性上。**
+1677 行系统化 CSS，glass panel、gradient blob、stagger animation 全部到位。但存在不一致：PriceChart 有渐变填充而其他图表没有；RunHistory 用 inline styles 而其他组件用 CSS class；KPI 卡片是静态数字而竞品全用 sparkline。修复这些一致性问题比加新特性更能提升"一致的专业感"。
+
+**洞察 2: 图表时间范围选择器是"专业 vs 演示"的分水岭。**
+分析师评价金融工具的第一个下意识动作：尝试切换图表时间范围。如果价格图只有 1Y 不可选，结论立刻是"这是个 demo"。Koyfin 的每个图表都有时间选择器。这是 50 行代码换来的认知质变。
+
+**洞察 3: KPI Sparklines 是截图传播的关键视觉元素。**
+当前纯数字 KPI 看起来像 Excel 导出。在每个 KPI 旁加一个 16px sparkline，瞬间传达"这个工具理解数据趋势"的信号。这是 Koyfin 截图被大量转发的核心视觉元素。
+
+**洞察 4: Bloomberg 隐藏复杂性的哲学值得学习。**
+Bloomberg UX 团队核心原则："The secret to dealing with increasing complexity is to conceal it from the user." FinAgent 当前左栏同时显示 segmented control + financials + pipeline + assumptions，在 DCF 模式下内容很满。应考虑可折叠 section。
+
+**洞察 5: Toast 通知是"工具感"的基础设施。**
+Pipeline 跑 30 秒，用户切到别的窗口，回来不知道有没有完成。一个 3 秒 auto-dismiss 的底部 toast 彻底解决这个问题。
+
+**洞察 6: FinRobot 的 Sentiment 和 Transcript 是最大功能缺口。**
+Sentiment pipeline 有 3 平台聚合 + buzz score + 趋势对比。Earnings transcript viewer 对 buy-side 分析师是核心需求。这两个功能是 FinAgent 从"估值工具"变为"完整研究平台"的关键跨越。
+
+### 五、行动建议（按视觉影响力排序）
+
+1. **图表时间范围选择器** — 截图级影响 ★★★★★ · 工作量 S
+   - PriceChart card-header 加 `1M | 3M | 6M | 1Y | ALL` segmented control
+   - 后端 API 已有价格数据，前端过滤或传参
+   - 让分析师认为"这是工具不是 demo"的单一最重要改动
+
+2. **KPI Sparklines** — 截图级影响 ★★★★★ · 工作量 M
+   - `KPICard` 增加可选 `trend: number[]` prop
+   - SVG sparkline（手写 polyline path，16px 高），颜色跟随语义
+   - 视觉效果：从"数字报告"变成"数据仪表板"
+
+3. **图表渐变填充统一** — 视觉一致性 ★★★★ · 工作量 XS
+   - 给 RevenueEbitdaChart、MarginTrendChart 添加与 PriceChart 相同的 gradient defs
+   - 每个文件改动 < 10 行
+
+4. **数据表格左侧指示条** — 视觉精致度 ★★★★ · 工作量 XS
+   - `.fin-table tbody tr:hover { box-shadow: inset 3px 0 0 var(--gold); }`
+   - 1 行 CSS，Bloomberg 标志性交互暗示
+
+5. **数字键 1-5 切换 Pipeline Tab** — 交互效率 ★★★★ · 工作量 XS
+   - `useEffect` 监听数字键，映射到 pipeline type
+   - 约 10 行代码
+
+6. **Toast 通知系统** — 交互完整性 ★★★★ · 工作量 S
+   - `Toast.tsx` + zustand toast store + 3 种类型
+   - pipeline complete / export / error 时触发
+
+7. **RunHistory inline styles → CSS classes** — 代码质量 ★★★ · 工作量 S
+   - 提取 20+ inline styles 为 `.history-*` CSS classes
+
+8. **Rich Chart Tooltips** — 视觉专业度 ★★★ · 工作量 M
+   - 共享 `ChartTooltip.tsx` 组件
+   - 标题 + 多行数据 + YoY 变化 + 语义色
+
+9. **Pipeline 完成过渡动画** — 视觉精致度 ★★★ · 工作量 S
+   - 最后一步 green pulse + scale 弹性动画
+
+10. **Command Palette Ticker+Pipeline 联合命令** — 交互效率 ★★★ · 工作量 S
+    - 正则匹配 `{TICKER} {pipeline}` 格式，一步完成
+

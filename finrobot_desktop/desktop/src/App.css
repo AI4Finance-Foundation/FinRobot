@@ -441,6 +441,13 @@ body {
   color: var(--text-primary); width: 52px; text-align: right;
   flex-shrink: 0;
 }
+.provenance-hint {
+  font-size: 0.7rem;
+  color: #7A8299;
+  font-style: italic;
+  display: block;
+  margin-top: 2px;
+}
 
 /* ═══════════════════════════
    VALUATION HERO CARD

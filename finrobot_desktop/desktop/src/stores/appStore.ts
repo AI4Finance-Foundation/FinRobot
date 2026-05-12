@@ -128,7 +128,27 @@ export interface MonteCarloResult {
   n_valid: number
 }
 
-export type ActiveTab = 'overview' | 'financials' | 'valuation' | 'peers'
+export interface CompanyValuation {
+  ticker: string
+  company_name: string
+  current_price: number | null
+  implied_price: number | null
+  upside_pct: number | null
+  wacc: number | null
+  terminal_growth: number | null
+  ev_ebitda: number | null
+  pe_ratio: number | null
+  dcf_result: DCFResult | null
+  warnings: string[]
+  error: string | null
+}
+
+export interface ComparisonResultData {
+  companies: CompanyValuation[]
+  generated_at: string
+}
+
+export type ActiveTab = 'overview' | 'financials' | 'valuation' | 'peers' | 'compare'
 
 export interface HistoricalMetrics {
   years: number[]
@@ -189,6 +209,7 @@ export interface DCFInputs {
   terminal_growth_rate: number
   shares_outstanding: number
   net_debt: number
+  assumption_provenance?: Record<string, string>
 }
 
 export interface DCFResult {
@@ -277,6 +298,10 @@ interface WorkspaceState {
   monteCarloResult: MonteCarloResult | null
   monteCarloLoading: boolean
 
+  // Compare state
+  comparisonResult: ComparisonResultData | null
+  comparisonLoading: boolean
+
   // UI navigation
   view: ViewMode
   showSettings: boolean
@@ -316,6 +341,8 @@ interface WorkspaceState {
   setIcMemoResult: (result: ICMemoResult) => void
   setMonteCarloResult: (result: MonteCarloResult | null) => void
   setMonteCarloLoading: (loading: boolean) => void
+  setComparisonResult: (result: ComparisonResultData | null) => void
+  setComparisonLoading: (loading: boolean) => void
   setShowSettings: (show: boolean) => void
   setCmdPaletteOpen: (open: boolean) => void
   toggleCmdPalette: () => void
@@ -361,6 +388,8 @@ const initialState = {
   icMemoResult: null,
   monteCarloResult: null,
   monteCarloLoading: false,
+  comparisonResult: null,
+  comparisonLoading: false,
   view: 'workspace' as ViewMode,
   showSettings: false,
   cmdPaletteOpen: false,
@@ -403,6 +432,8 @@ export const useAppStore = create<WorkspaceState>((set) => ({
     icMemoResult: null,
     monteCarloResult: null,
     monteCarloLoading: false,
+    comparisonResult: null,
+    comparisonLoading: false,
     dcfResult: null,
     dcfSource: null,
     dcfInputs: null,
@@ -440,6 +471,8 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   setIcMemoResult: (icMemoResult) => set({ icMemoResult }),
   setMonteCarloResult: (monteCarloResult) => set({ monteCarloResult }),
   setMonteCarloLoading: (monteCarloLoading) => set({ monteCarloLoading }),
+  setComparisonResult: (comparisonResult) => set({ comparisonResult }),
+  setComparisonLoading: (comparisonLoading) => set({ comparisonLoading }),
   setShowSettings: (showSettings) => set({ showSettings }),
   setCmdPaletteOpen: (cmdPaletteOpen) => set({ cmdPaletteOpen }),
   toggleCmdPalette: () => set((s) => ({ cmdPaletteOpen: !s.cmdPaletteOpen })),

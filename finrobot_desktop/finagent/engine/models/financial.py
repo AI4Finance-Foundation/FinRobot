@@ -183,6 +183,11 @@ class DCFInputs(BaseModel):
     shares_outstanding: float = Field(gt=0)
     net_debt: float = Field(description="Total debt - cash. Negative if net cash.")
 
+    assumption_provenance: dict[str, str] = Field(
+        default_factory=dict,
+        description="Maps assumption field names to their reasoning/source",
+    )
+
 
 class DCFResult(BaseModel):
     """DCF valuation output. All numbers computed by code, not LLM."""
@@ -469,3 +474,70 @@ class ICFinancials(BaseModel):
     financial_data: "FinancialData"
     dcf_result: DCFResult
     lbo_result: LBOResult
+
+
+# ---------------------------------------------------------------------------
+# DDM Models (bank/dividend valuation)
+# ---------------------------------------------------------------------------
+
+
+class DDMInputs(BaseModel):
+    """Inputs for Dividend Discount Model.
+
+    DDM is the standard valuation method for banks, utilities, and
+    dividend-paying stocks where traditional free cash flow is not meaningful.
+    Banks earn via net interest income and return cash primarily through dividends.
+
+    LLM selects these assumptions; code computes the valuation math.
+    """
+
+    dividend_per_share: float = Field(gt=0, description="Most recent annual DPS")
+    dividend_growth_rates: list[float] = Field(
+        min_length=1,
+        max_length=10,
+        description="Projected annual dividend growth rates as decimals",
+    )
+    payout_ratio: float = Field(ge=0, le=1, description="Dividend payout ratio")
+
+    # Cost of equity inputs (CAPM)
+    risk_free_rate: float = Field(ge=0, le=0.15)
+    beta: float = Field(ge=0, le=3)
+    equity_risk_premium: float = Field(ge=0, le=0.15)
+
+    terminal_growth_rate: float = Field(ge=0, le=0.05)
+    shares_outstanding: float = Field(gt=0)
+    current_price: float = Field(gt=0)
+
+    # Bank-specific context (optional, for enriching narrative)
+    book_value_per_share: float | None = None
+    return_on_equity: float | None = None
+    tier1_ratio: float | None = None
+    net_interest_margin: float | None = None
+
+    assumption_provenance: dict[str, str] = Field(
+        default_factory=dict,
+        description="Maps assumption field names to their reasoning/source",
+    )
+
+
+class DDMResult(BaseModel):
+    """DDM valuation output. All numbers computed by code, not LLM.
+
+    Uses cost of equity (not WACC) as discount rate because dividends
+    are paid to equity holders only.
+    """
+
+    cost_of_equity: float
+    projected_dividends: list[float]
+    pv_dividends: list[float]
+    pv_dividends_total: float
+    terminal_dividend: float
+    terminal_value: float
+    pv_terminal: float
+    equity_value_per_share: float
+    inputs: DDMInputs
+
+    @property
+    def upside(self) -> float:
+        """Upside/downside vs current price as a decimal."""
+        return self.equity_value_per_share / self.inputs.current_price - 1

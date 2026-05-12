@@ -1,0 +1,121 @@
+"""Dividend Discount Model — for banks, utilities, and dividend-paying stocks.
+
+Banks don't have traditional "free cash flow" because their earnings come from
+net interest income and fee income. Dividends are the primary cash return to
+equity holders, making DDM the standard valuation method.
+
+Formula:
+    Equity Value = Sum(PV of projected dividends) + PV of terminal dividend
+    Terminal = Dividend_n * (1 + tg) / (cost_of_equity - tg)
+
+Note: DDM uses cost of equity (not WACC) as discount rate,
+because dividends are paid to equity holders only.
+
+Reference: Damodaran, "Investment Valuation" 3rd Ed., Chapter 13 (Dividend
+Discount Models). Also Rosenbaum & Pearl, "Investment Banking" 3rd Ed.
+"""
+from __future__ import annotations
+
+from finagent.engine.models.financial import DDMInputs, DDMResult
+
+
+def calculate_ddm(inputs: DDMInputs) -> DDMResult:
+    """Run a multi-stage DDM valuation from structured inputs.
+
+    What this code does that raw LLM cannot: deterministic arithmetic —
+    projects dividends year-by-year at specified growth rates, discounts each
+    dividend at the correct time period using CAPM cost of equity, computes a
+    Gordon Growth terminal value on the final projected dividend, and sums to
+    an equity value per share. Every number is reproducible from the typed
+    DDMInputs; the LLM only selects the assumptions.
+
+    Args:
+        inputs: DDMInputs with dividend, growth rates, and CAPM parameters.
+
+    Returns:
+        DDMResult with all intermediate and final valuation numbers.
+
+    Raises:
+        ValueError: If terminal growth rate >= cost of equity (Gordon Growth
+            Model perpetuity is undefined).
+    """
+    # 1. Cost of equity via CAPM
+    cost_of_equity = inputs.risk_free_rate + inputs.beta * inputs.equity_risk_premium
+
+    if inputs.terminal_growth_rate >= cost_of_equity:
+        raise ValueError(
+            f"Terminal growth ({inputs.terminal_growth_rate:.1%}) must be less than "
+            f"cost of equity ({cost_of_equity:.1%}). "
+            "Gordon Growth Model perpetuity is undefined when tg >= CoE."
+        )
+
+    # 2. Project dividends at specified growth rates
+    projected_dividends: list[float] = []
+    current_dividend = inputs.dividend_per_share
+    for rate in inputs.dividend_growth_rates:
+        current_dividend *= 1 + rate
+        projected_dividends.append(current_dividend)
+
+    # 3. PV of projected dividends
+    pv_dividends = [
+        d / (1 + cost_of_equity) ** (i + 1)
+        for i, d in enumerate(projected_dividends)
+    ]
+    pv_dividends_total = sum(pv_dividends)
+
+    # 4. Terminal value (Gordon Growth on last projected dividend)
+    n = len(projected_dividends)
+    terminal_dividend = projected_dividends[-1] * (1 + inputs.terminal_growth_rate)
+    terminal_value = terminal_dividend / (cost_of_equity - inputs.terminal_growth_rate)
+    pv_terminal = terminal_value / (1 + cost_of_equity) ** n
+
+    # 5. Equity value per share
+    equity_value_per_share = pv_dividends_total + pv_terminal
+
+    return DDMResult(
+        cost_of_equity=cost_of_equity,
+        projected_dividends=projected_dividends,
+        pv_dividends=pv_dividends,
+        pv_dividends_total=pv_dividends_total,
+        terminal_dividend=terminal_dividend,
+        terminal_value=terminal_value,
+        pv_terminal=pv_terminal,
+        equity_value_per_share=equity_value_per_share,
+        inputs=inputs,
+    )
+
+
+def calculate_ddm_sensitivity(
+    inputs: DDMInputs,
+    coe_range: list[float],
+    tg_range: list[float],
+) -> dict[str, object]:
+    """Generate sensitivity table: equity value per share for each (CoE, tg) pair.
+
+    Returns None for cells where tg >= cost_of_equity (Gordon Growth undefined).
+    """
+    implied_prices: list[list[float | None]] = []
+    for coe in coe_range:
+        row: list[float | None] = []
+        for tg in tg_range:
+            if tg >= coe:
+                row.append(None)
+            else:
+                # Override cost of equity and terminal growth by reconstructing inputs
+                # with adjusted CAPM parameters
+                modified = inputs.model_copy(
+                    update={"terminal_growth_rate": tg}
+                )
+                # Direct CoE override: back-solve beta from desired CoE
+                # CoE = rf + beta * ERP  =>  beta = (CoE - rf) / ERP
+                if inputs.equity_risk_premium > 0:
+                    synthetic_beta = (coe - inputs.risk_free_rate) / inputs.equity_risk_premium
+                    modified = modified.model_copy(update={"beta": max(0, synthetic_beta)})
+                result = calculate_ddm(modified)
+                row.append(result.equity_value_per_share)
+        implied_prices.append(row)
+    return {
+        "coe_values": coe_range,
+        "tg_values": tg_range,
+        "implied_prices": implied_prices,
+    }

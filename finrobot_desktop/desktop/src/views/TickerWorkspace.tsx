@@ -11,6 +11,7 @@ import OverviewTab from './OverviewTab'
 import FinancialsTab from './FinancialsTab'
 import ValuationTab from './ValuationTab'
 import PeersTab from './PeersTab'
+import CompareView from './CompareView'
 import StatusBar from '../components/StatusBar'
 import { relativeTime } from '../utils/time'
 import type { PipelineType } from '../stores/appStore'
@@ -75,6 +76,8 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
         return <ValuationTab />
       case 'peers':
         return <PeersTab />
+      case 'compare':
+        return <CompareView />
     }
   }
 

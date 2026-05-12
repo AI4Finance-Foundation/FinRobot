@@ -82,6 +82,25 @@ def _build_runtime(model: str | None = None) -> tuple[Any, "FinAgentDeps"]:
     return agent, deps
 
 
+def _should_use_ddm(deps: "FinAgentDeps", ticker: str) -> bool:
+    """Check if ticker is a bank/financial that should use DDM.
+
+    Fetches financials to get industry/sector, then uses the industry
+    detection module. Returns False on any error (fail-open to DCF).
+    """
+    from finagent.engine.compute.industry import is_bank
+    from finagent.engine.data.types import DataType
+
+    try:
+        result = asyncio.run(deps.data_layer.fetch(DataType.FINANCIALS, ticker))
+        data = result.data
+        industry = data.get("industry")
+        sector = data.get("sector")
+        return is_bank(industry=industry, sector=sector)
+    except (ValueError, KeyError, TypeError, RuntimeError, AttributeError):
+        return False
+
+
 class CliProgress:
     """Print pipeline progress to the terminal.
 
@@ -228,15 +247,71 @@ def comps(ticker: str, model: str | None) -> None:
 @cli.command()
 @click.argument("ticker")
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
-def dcf(ticker: str, model: str | None) -> None:
-    """Run DCF valuation pipeline."""
+@click.option("--force-dcf", is_flag=True, default=False, help="Force FCF-DCF even for banks (skip DDM auto-detection)")
+def dcf(ticker: str, model: str | None, force_dcf: bool) -> None:
+    """Run DCF valuation pipeline.
+
+    For banks (detected via industry/sector), automatically uses DDM
+    (Dividend Discount Model) instead of FCF-DCF. Use --force-dcf to override.
+    """
     deps = _build_deps(model)
 
     from finagent.engine.agents.factory import create_sub_agents
-    from finagent.engine.pipelines.dcf import create_dcf_pipeline
 
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
+
+    if not force_dcf:
+        # Check if ticker is a bank — if so, use DDM instead
+        use_ddm = _should_use_ddm(deps, ticker)
+        if use_ddm:
+            click.echo(
+                f"Detected {ticker.upper()} as a bank/financial institution. "
+                "Using DDM (Dividend Discount Model) instead of FCF-DCF.\n"
+                "Use --force-dcf to override.\n",
+                err=True,
+            )
+            from finagent.engine.pipelines.ddm import create_ddm_pipeline
+
+            pipeline = create_ddm_pipeline(sub_agents)
+            result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
+            click.echo(result.format_summary())
+            click.echo(
+                "\nNote: HTML reports require the server. Run 'finagent serve', "
+                "then trigger the analysis via the /chat API or Desktop app. "
+                "CLI results are not shared with the server (separate processes)."
+            )
+            return
+
+    from finagent.engine.pipelines.dcf import create_dcf_pipeline
+
     pipeline = create_dcf_pipeline(sub_agents)
+
+    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
+    click.echo(result.format_summary())
+    click.echo(
+        "\nNote: HTML reports require the server. Run 'finagent serve', "
+        "then trigger the analysis via the /chat API or Desktop app. "
+        "CLI results are not shared with the server (separate processes)."
+    )
+
+
+@cli.command()
+@click.argument("ticker")
+@click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
+def ddm(ticker: str, model: str | None) -> None:
+    """Run DDM (Dividend Discount Model) valuation pipeline.
+
+    DDM values a company based on projected dividends discounted at cost of equity.
+    Appropriate for banks, utilities, and dividend-paying stocks where
+    traditional free cash flow is not meaningful.
+    """
+    deps = _build_deps(model)
+
+    from finagent.engine.agents.factory import create_sub_agents
+    from finagent.engine.pipelines.ddm import create_ddm_pipeline
+
+    sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
+    pipeline = create_ddm_pipeline(sub_agents)
 
     result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
     click.echo(result.format_summary())
@@ -315,6 +390,98 @@ def ic_memo(ticker: str, model: str | None) -> None:
         "then trigger the analysis via the /chat API or Desktop app. "
         "CLI results are not shared with the server (separate processes)."
     )
+
+
+@cli.command()
+@click.argument("tickers", nargs=-1, required=True)
+@click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
+def compare(tickers: tuple[str, ...], model: str | None) -> None:
+    """Compare DCF valuation across multiple companies.
+
+    Runs the DCF pipeline for each ticker concurrently, then prints a
+    side-by-side comparison table.
+
+    Example:
+        finagent compare AAPL MSFT GOOGL
+    """
+    if len(tickers) < 2:
+        raise click.ClickException("At least 2 tickers required for comparison.")
+    if len(tickers) > 10:
+        raise click.ClickException("Maximum 10 tickers supported.")
+
+    deps = _build_deps(model)
+
+    from finagent.engine.compute.compare import (
+        CompanyValuation,
+        ComparisonResult,
+        build_company_valuation,
+        format_comparison_table,
+    )
+    from finagent.engine.models.financial import DCFResult, FinancialData
+    from finagent.engine.agents.factory import create_sub_agents
+    from finagent.engine.pipelines.dcf import create_dcf_pipeline
+
+    sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
+
+    async def _run_one(ticker: str) -> CompanyValuation:
+        try:
+            pipeline = create_dcf_pipeline(sub_agents)
+            result = await pipeline.execute(deps, ticker, progress=CliProgress())
+
+            dcf_result: DCFResult | None = None
+            for value in result.structured_data.values():
+                if isinstance(value, DCFResult):
+                    dcf_result = value
+                    break
+
+            if dcf_result is None:
+                return CompanyValuation(
+                    ticker=ticker, error="DCF pipeline completed but no DCFResult found"
+                )
+
+            company_name = ""
+            current_price: float | None = None
+            ev_ebitda: float | None = None
+            pe_ratio: float | None = None
+            warnings: list[str] = []
+
+            for value in result.structured_data.values():
+                if isinstance(value, FinancialData):
+                    company_name = value.company_name
+                    current_price = value.market.current_price
+                    ev_ebitda = value.valuation.ev_ebitda
+                    pe_ratio = value.market.pe_ratio
+                    warnings = list(value.warnings)
+                    break
+
+            return build_company_valuation(
+                ticker=ticker,
+                company_name=company_name,
+                current_price=current_price,
+                dcf_result=dcf_result,
+                ev_ebitda=ev_ebitda,
+                pe_ratio=pe_ratio,
+                warnings=warnings,
+            )
+        except (ValueError, RuntimeError, KeyError, TypeError) as e:
+            return CompanyValuation(ticker=ticker, error=str(e)[:200])
+
+    async def _run_all() -> ComparisonResult:
+        tasks = [_run_one(t.upper()) for t in tickers]
+        companies = await asyncio.gather(*tasks)
+        return ComparisonResult(companies=list(companies))
+
+    comparison = asyncio.run(_run_all())
+    click.echo("\n" + format_comparison_table(comparison))
+
+    # Print warnings per company
+    for c in comparison.companies:
+        if c.warnings:
+            click.echo(f"\n{c.ticker} warnings:")
+            for w in c.warnings:
+                click.echo(f"  - {w}")
+        if c.error:
+            click.echo(f"\n{c.ticker} ERROR: {c.error}")
 
 
 @cli.command()

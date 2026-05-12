@@ -120,6 +120,16 @@ class YFinanceProvider(DataProvider):
             "total_debt": info.get("totalDebt"),
             "total_cash": info.get("totalCash"),
             "company_name": info.get("shortName") or info.get("longName"),
+            # Industry/sector for valuation model routing (DDM vs DCF)
+            "industry": info.get("industry"),
+            "sector": info.get("sector"),
+            # Dividend data for DDM valuation
+            "dividend_per_share": info.get("dividendRate"),
+            "dividend_yield": info.get("dividendYield"),
+            "payout_ratio": info.get("payoutRatio"),
+            # Bank-specific metrics (available for financials)
+            "book_value_per_share": info.get("bookValue"),
+            "return_on_equity": info.get("returnOnEquity"),
         }
         return DataResult(
             data=data,

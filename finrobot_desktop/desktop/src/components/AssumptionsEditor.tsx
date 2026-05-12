@@ -182,6 +182,7 @@ export default function AssumptionsEditor() {
             def={s}
             value={dcfInputs[s.key] as number}
             onChange={(v) => handleSlider(s.key, v)}
+            provenance={dcfInputs.assumption_provenance?.[s.key]}
           />
         ))}
         {waccDisplay != null && (
@@ -204,6 +205,7 @@ export default function AssumptionsEditor() {
             def={s}
             value={dcfInputs[s.key] as number}
             onChange={(v) => handleSlider(s.key, v)}
+            provenance={dcfInputs.assumption_provenance?.[s.key]}
           />
         ))}
 
@@ -211,6 +213,11 @@ export default function AssumptionsEditor() {
         <div className="section-label" style={{ marginTop: 'var(--sp-4)' }}>
           Revenue Growth (per year)
         </div>
+        {dcfInputs.assumption_provenance?.['revenue_growth_rates'] && (
+          <span className="provenance-hint" title={dcfInputs.assumption_provenance['revenue_growth_rates']}>
+            AI: {dcfInputs.assumption_provenance['revenue_growth_rates']}
+          </span>
+        )}
         <div style={{ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' }}>
           {dcfInputs.revenue_growth_rates.map((rate, i) => (
             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -242,26 +249,35 @@ function SliderRow({
   def,
   value,
   onChange,
+  provenance,
 }: {
   def: SliderDef
   value: number
   onChange: (v: number) => void
+  provenance?: string
 }) {
   return (
-    <div className="assumption-row">
-      <span className="assumption-label">{def.label}</span>
-      <input
-        type="range"
-        className="assumption-slider"
-        min={def.min}
-        max={def.max}
-        step={def.step}
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-      />
-      <span className="assumption-value">
-        {fmtValue(value, def.format)}
-      </span>
+    <div>
+      <div className="assumption-row">
+        <span className="assumption-label">{def.label}</span>
+        <input
+          type="range"
+          className="assumption-slider"
+          min={def.min}
+          max={def.max}
+          step={def.step}
+          value={value}
+          onChange={(e) => onChange(parseFloat(e.target.value))}
+        />
+        <span className="assumption-value">
+          {fmtValue(value, def.format)}
+        </span>
+      </div>
+      {provenance && (
+        <span className="provenance-hint" title={provenance}>
+          AI: {provenance}
+        </span>
+      )}
     </div>
   )
 }

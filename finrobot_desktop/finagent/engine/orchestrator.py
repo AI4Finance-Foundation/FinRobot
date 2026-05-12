@@ -10,6 +10,7 @@ from finagent.engine.agents.factory import create_sub_agents
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import (
     DCFResult,
+    DDMResult,
     FinancialData,
     LBOInputs,
     LBOResult,
@@ -345,6 +346,13 @@ def build_report_context(ticker: str, result: PipelineResult) -> dict[str, Any]:
     if not isinstance(lbo_result, LBOResult):
         lbo_result = None
 
+    ddm_result: DDMResult | None = None
+    for key in ("ddm_calc",):
+        candidate = sd.get(key)
+        if isinstance(candidate, DDMResult):
+            ddm_result = candidate
+            break
+
     logger.info(
         "build_report_context: sd_keys=%s hm=%s forecast=%s dcf=%s peers=%s vs=%s",
         list(sd.keys()),
@@ -380,6 +388,7 @@ def build_report_context(ticker: str, result: PipelineResult) -> dict[str, Any]:
         "valuation_synthesis": valuation_synthesis,
         "lbo_inputs": lbo_inputs,
         "lbo_result": lbo_result,
+        "ddm_result": ddm_result,
         "report_date": datetime.now().strftime("%B %d, %Y"),
         "data_source": fin.data_source if fin else "N/A",
         "data_timestamp": fin.timestamp.strftime("%Y-%m-%d %H:%M UTC") if fin else "N/A",
@@ -488,6 +497,21 @@ def create_lead_agent(
         Use when user asks for: LBO, leveraged buyout, private equity analysis,
         buyout returns, IRR analysis, MOIC."""
         result = await lbo_pipeline.execute(ctx.deps, ticker)
+        ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
+        return result.format_summary()
+
+    from finagent.engine.pipelines.ddm import create_ddm_pipeline
+
+    ddm_pipeline = create_ddm_pipeline(sub_agents)
+
+    @agent.tool
+    async def run_ddm_valuation(ctx: RunContext[FinAgentDeps], ticker: str) -> str:
+        """Run a DDM (Dividend Discount Model) valuation.
+        Uses a multi-step enforced pipeline with deterministic dividend-based math.
+        Use when user asks for: DDM, dividend discount model, bank valuation,
+        or when the company is a bank/financial institution.
+        Also auto-selected when 'finagent dcf' detects a bank."""
+        result = await ddm_pipeline.execute(ctx.deps, ticker)
         ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
         return result.format_summary()
 

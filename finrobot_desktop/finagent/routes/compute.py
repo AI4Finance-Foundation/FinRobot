@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
+from starlette.requests import Request
 
+from finagent.engine.compute.compare import (
+    CompanyValuation,
+    ComparisonResult,
+    build_company_valuation,
+)
 from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
+from finagent.engine.compute.ddm import calculate_ddm
 from finagent.engine.compute.lbo import calculate_lbo, calculate_lbo_sensitivity
 from finagent.engine.compute.monte_carlo import (
     MonteCarloRequest,
@@ -18,10 +26,14 @@ from finagent.engine.models.financial import (
     CompanyFinancials,
     DCFInputs,
     DCFResult,
+    DDMInputs,
+    DDMResult,
     LBOInputs,
     LBOResult,
     PeerComps,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/compute", tags=["compute"])
 
@@ -95,6 +107,12 @@ async def compute_dcf_sensitivity(
     return DcfSensitivityResult(**raw)
 
 
+@router.post("/ddm", response_model=DDMResult)
+async def compute_ddm(inputs: DDMInputs) -> DDMResult:
+    """Run DDM valuation for banks and dividend-paying stocks."""
+    return calculate_ddm(inputs)
+
+
 @router.post("/lbo", response_model=LBOResult)
 async def compute_lbo(inputs: LBOInputs) -> LBOResult:
     return calculate_lbo(inputs)
@@ -136,3 +154,78 @@ async def compute_monte_carlo(request: MonteCarloRequest) -> MonteCarloResult:
         wacc_std=request.wacc_std,
         terminal_growth_std=request.terminal_growth_std,
     )
+
+
+class CompareRequest(BaseModel):
+    """Request body for multi-company comparison."""
+
+    tickers: list[str] = Field(min_length=2, max_length=10)
+
+
+@router.post("/compare", response_model=ComparisonResult)
+async def compare_companies(
+    request_body: CompareRequest, request: Request
+) -> ComparisonResult:
+    """Run DCF pipeline for each ticker and return side-by-side comparison.
+
+    Fetches financials and runs the DCF pipeline concurrently for all tickers.
+    Companies that fail (missing data, LLM error) are included with an error
+    field set rather than failing the entire request.
+    """
+    from finagent.engine.pipelines.dcf import create_dcf_pipeline
+
+    deps = request.app.state.deps
+    sub_agents = request.app.state.sub_agents
+
+    async def _run_one(ticker: str) -> CompanyValuation:
+        """Run DCF pipeline for a single ticker, returning a CompanyValuation."""
+        try:
+            pipeline = create_dcf_pipeline(sub_agents)
+            result = await pipeline.execute(deps, ticker)
+
+            # Extract DCF result from structured data
+            dcf_result: DCFResult | None = None
+            for value in result.structured_data.values():
+                if isinstance(value, DCFResult):
+                    dcf_result = value
+                    break
+
+            if dcf_result is None:
+                return CompanyValuation(
+                    ticker=ticker, error="DCF pipeline completed but no DCFResult found"
+                )
+
+            # Extract financial data for supplementary metrics
+            company_name = ""
+            current_price: float | None = None
+            ev_ebitda: float | None = None
+            pe_ratio: float | None = None
+            warnings: list[str] = []
+
+            from finagent.engine.models.financial import FinancialData
+
+            for value in result.structured_data.values():
+                if isinstance(value, FinancialData):
+                    company_name = value.company_name
+                    current_price = value.market.current_price
+                    ev_ebitda = value.valuation.ev_ebitda
+                    pe_ratio = value.market.pe_ratio
+                    warnings = list(value.warnings)
+                    break
+
+            return build_company_valuation(
+                ticker=ticker,
+                company_name=company_name,
+                current_price=current_price,
+                dcf_result=dcf_result,
+                ev_ebitda=ev_ebitda,
+                pe_ratio=pe_ratio,
+                warnings=warnings,
+            )
+        except (ValueError, RuntimeError, KeyError, TypeError) as e:
+            logger.warning("Compare: %s failed: %s", ticker, e)
+            return CompanyValuation(ticker=ticker, error=str(e)[:200])
+
+    tasks = [_run_one(t.upper()) for t in request_body.tickers]
+    companies = await asyncio.gather(*tasks)
+    return ComparisonResult(companies=list(companies))

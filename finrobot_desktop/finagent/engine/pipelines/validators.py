@@ -5,6 +5,8 @@ from pydantic import BaseModel
 
 from finagent.engine.models.financial import (
     CatalystAnalysis,
+    DDMInputs,
+    DDMResult,
     FinancialData,
     LBOInputs,
     LBOResult,
@@ -377,3 +379,65 @@ def validate_catalyst_analysis(analysis: CatalystAnalysis) -> ValidationResult:
             error=f"Invalid overall_sentiment: {analysis.overall_sentiment}",
         )
     return ValidationResult(passed=True)
+
+
+# ---------------------------------------------------------------------------
+# DDM validators (bank/dividend valuation)
+# ---------------------------------------------------------------------------
+
+
+def validate_ddm_inputs(data: DDMInputs) -> ValidationResult:
+    """Validate LLM-selected DDM assumptions are financially plausible."""
+    if data.dividend_per_share <= 0:
+        return ValidationResult(passed=False, error="dividend_per_share must be positive")
+    coe = data.risk_free_rate + data.beta * data.equity_risk_premium
+    if coe <= 0:
+        return ValidationResult(passed=False, error=f"Implied cost of equity {coe:.4f} must be positive")
+    if data.terminal_growth_rate >= coe:
+        return ValidationResult(
+            passed=False,
+            error=f"Terminal growth {data.terminal_growth_rate:.1%} must be less than "
+                  f"cost of equity {coe:.1%}",
+        )
+    return ValidationResult(passed=True)
+
+
+def validate_ddm_result(result: DDMResult) -> ValidationResult:
+    """Validate DDM output values are within plausible bounds."""
+    if result.cost_of_equity <= 0:
+        return ValidationResult(
+            passed=False, error=f"Cost of equity must be positive, got {result.cost_of_equity}"
+        )
+    if result.cost_of_equity > 0.25:
+        return ValidationResult(
+            passed=False, error=f"Cost of equity {result.cost_of_equity:.4f} exceeds maximum 0.25"
+        )
+    if result.equity_value_per_share <= 0:
+        return ValidationResult(passed=False, error="Equity value per share must be positive")
+    if not _math.isfinite(result.equity_value_per_share):
+        return ValidationResult(
+            passed=False, error=f"Non-finite equity value: {result.equity_value_per_share}"
+        )
+    return ValidationResult(passed=True)
+
+
+def validate_ddm_output(output: str) -> ValidationResult:
+    """Strict validator for DDM pipeline output.
+
+    Checks for DDM model components. Must find at least 3.
+    """
+    lower = output.lower()
+    indicators = [
+        any(kw in lower for kw in ["cost of equity", "discount rate"]),
+        any(kw in lower for kw in ["dividend", "dps"]),
+        any(kw in lower for kw in ["terminal value", "terminal growth", "gordon growth"]),
+        any(kw in lower for kw in ["implied price", "implied value", "equity value", "fair value", "price target"]),
+        any(kw in lower for kw in ["book value", "roe", "return on equity", "p/b", "price-to-book"]),
+    ]
+    found = sum(indicators)
+    if found >= 3:
+        return ValidationResult(passed=True)
+    return ValidationResult(
+        passed=False,
+        error=f"Expected at least 3 DDM components, found {found}",
+    )

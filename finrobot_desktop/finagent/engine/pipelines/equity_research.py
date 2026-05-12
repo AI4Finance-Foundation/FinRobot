@@ -207,6 +207,12 @@ async def _execute_financial_modeling(
             "Select DCF valuation parameters based on the financial data and peer analysis. "
             "Use conservative assumptions. Revenue growth rates must reflect realistic projections. "
             "WACC inputs must be internally consistent."
+            "\n\nFor each assumption you select, provide a brief justification in the "
+            "assumption_provenance dict. "
+            "Keys should be the field name (e.g., 'revenue_growth_rates', 'ebitda_margin', "
+            "'terminal_growth_rate', 'beta'). "
+            "Values should be one sentence explaining why (e.g., 'Based on 5-year CAGR of "
+            "8.2% with deceleration assumption')."
         ),
         defer_model_check=True,
     )

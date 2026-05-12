@@ -35,6 +35,7 @@ from finagent.config import get_settings
 from finagent.engine.data.cache import DataCache
 from finagent.engine.data.layer import DataLayer
 from finagent.engine.deps import FinAgentDeps
+from finagent.engine.compute.compare import ComparisonResult
 from finagent.engine.pipelines.base import PipelineResult
 
 if TYPE_CHECKING:
@@ -201,6 +202,25 @@ class FinAgent:
         result: PipelineResult = self._run_sync(lambda: self.aic_memo(ticker, progress=progress))
         return result
 
+    def compare(
+        self,
+        tickers: list[str],
+        progress: "ProgressCallback | None" = None,
+    ) -> ComparisonResult:
+        """Compare DCF valuation across multiple companies. Blocking.
+
+        Runs the DCF pipeline concurrently for each ticker, then returns a
+        side-by-side ComparisonResult. Use :meth:`acompare` in async contexts.
+
+        Args:
+            tickers: List of ticker symbols (2-10).
+            progress: Optional progress callback (applied to each pipeline).
+        """
+        result: ComparisonResult = self._run_sync(
+            lambda: self.acompare(tickers, progress=progress)
+        )
+        return result
+
     def analyze(self, ticker: str, analysis_type: str) -> str:
         """Run standalone financial analysis. Blocking.
 
@@ -306,6 +326,78 @@ class FinAgent:
         return await pipeline.execute(
             self._ensure_deps(), ticker, progress=progress
         )
+
+    async def acompare(
+        self,
+        tickers: list[str],
+        progress: "ProgressCallback | None" = None,
+    ) -> ComparisonResult:
+        """Compare DCF valuation across multiple companies. Async.
+
+        Runs the DCF pipeline concurrently for each ticker, then returns a
+        side-by-side ComparisonResult.
+
+        Args:
+            tickers: List of ticker symbols (2-10).
+            progress: Optional progress callback (applied to each pipeline).
+        """
+        from finagent.engine.compute.compare import (
+            CompanyValuation,
+            build_company_valuation,
+        )
+        from finagent.engine.models.financial import DCFResult, FinancialData
+        from finagent.engine.pipelines.dcf import create_dcf_pipeline
+
+        deps = self._ensure_deps()
+        sub_agents = self._get_sub_agents()
+
+        async def _run_one(ticker: str) -> CompanyValuation:
+            try:
+                pipeline = create_dcf_pipeline(sub_agents)
+                result = await pipeline.execute(deps, ticker, progress=progress)
+
+                dcf_result: DCFResult | None = None
+                for value in result.structured_data.values():
+                    if isinstance(value, DCFResult):
+                        dcf_result = value
+                        break
+
+                if dcf_result is None:
+                    return CompanyValuation(
+                        ticker=ticker,
+                        error="DCF pipeline completed but no DCFResult found",
+                    )
+
+                company_name = ""
+                current_price: float | None = None
+                ev_ebitda: float | None = None
+                pe_ratio: float | None = None
+                warnings: list[str] = []
+
+                for value in result.structured_data.values():
+                    if isinstance(value, FinancialData):
+                        company_name = value.company_name
+                        current_price = value.market.current_price
+                        ev_ebitda = value.valuation.ev_ebitda
+                        pe_ratio = value.market.pe_ratio
+                        warnings = list(value.warnings)
+                        break
+
+                return build_company_valuation(
+                    ticker=ticker,
+                    company_name=company_name,
+                    current_price=current_price,
+                    dcf_result=dcf_result,
+                    ev_ebitda=ev_ebitda,
+                    pe_ratio=pe_ratio,
+                    warnings=warnings,
+                )
+            except (ValueError, RuntimeError, KeyError, TypeError) as e:
+                return CompanyValuation(ticker=ticker, error=str(e)[:200])
+
+        tasks = [_run_one(t.upper()) for t in tickers]
+        companies = await asyncio.gather(*tasks)
+        return ComparisonResult(companies=list(companies))
 
     async def aanalyze(self, ticker: str, analysis_type: str) -> str:
         """Run standalone financial analysis. Async.

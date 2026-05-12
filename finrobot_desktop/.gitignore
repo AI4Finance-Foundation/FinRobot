@@ -23,14 +23,25 @@ env/
 Thumbs.db
 
 # Project
+*.log
+
+# Database cache
 finagent_cache.db
+finagent_cache.db-shm
+finagent_cache.db-wal
+*.db
 *.db-shm
 *.db-wal
-*.log
-.env
 
-# Local data / resources
+# Local data
+data/
 资料/
+
+# Environment
+.env
+.env.local
+.env.development
+.env.production
 
 # Desktop / Electron
 node_modules/

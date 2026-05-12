@@ -19,7 +19,9 @@ class TestDefaults:
 
     def test_default_cache_db_path(self):
         s = get_settings()
-        assert s.cache_db_path == "finagent_cache.db"
+        # Resolved at runtime: legacy cwd path if it exists, else ~/.cache/finagent/cache.db
+        assert s.cache_db_path  # non-empty after model_post_init
+        assert s.cache_db_path.endswith("cache.db") or s.cache_db_path.endswith("finagent_cache.db")
 
     def test_default_skills_dir(self):
         s = get_settings()

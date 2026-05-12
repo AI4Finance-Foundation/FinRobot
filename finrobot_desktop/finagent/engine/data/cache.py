@@ -25,7 +25,11 @@ class CachedResult(BaseModel):
 
 
 class DataCache:
-    def __init__(self, db_path: str = "finagent_cache.db") -> None:
+    def __init__(self, db_path: str = "") -> None:
+        if not db_path:
+            from finagent.config import _default_cache_db_path
+
+            db_path = _default_cache_db_path()
         self._db_path = db_path
         self._conn: aiosqlite.Connection | None = None
         self._conn_lock = asyncio.Lock()

@@ -1,9 +1,25 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from pydantic_ai.models import Model
 from pydantic_settings import BaseSettings
+
+
+def _default_cache_db_path() -> str:
+    """Return the default cache database path.
+
+    Uses ``~/.cache/finagent/cache.db`` on Unix/Mac.  If the legacy
+    ``finagent_cache.db`` exists in the current working directory, returns
+    that instead so existing installations keep working without config changes.
+    """
+    legacy = Path("finagent_cache.db")
+    if legacy.exists():
+        return str(legacy)
+    cache_dir = Path.home() / ".cache" / "finagent"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return str(cache_dir / "cache.db")
 
 # Valid providers and the settings field holding their API key. A provider
 # listed here but absent from _PROVIDER_KEY_FIELD needs no key (e.g. "test").
@@ -48,11 +64,16 @@ class FinAgentSettings(BaseSettings):
     sec_user_agent: str = "FinAgent admin@example.com"
 
     # Infrastructure
-    cache_db_path: str = "finagent_cache.db"
+    cache_db_path: str = ""  # resolved at runtime by _default_cache_db_path()
     skills_dir: str = "skills"  # path to vendored skills (relative to project root or absolute)
     log_level: str = "INFO"
 
     model_config = {"env_prefix": "FINAGENT_", "env_file": ".env"}
+
+    def model_post_init(self, __context: Any) -> None:
+        """Resolve cache_db_path default after env/settings loading."""
+        if not self.cache_db_path:
+            object.__setattr__(self, "cache_db_path", _default_cache_db_path())
 
     def get_model_for_role(self, role: str) -> str:
         """Return the model name for a specific agent role.

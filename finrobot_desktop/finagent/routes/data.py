@@ -32,7 +32,7 @@ async def get_performance(
             benchmark=benchmark,
             period=period,
         )
-    except (ValueError, ProviderError) as e:
+    except Exception as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     return result
 
@@ -136,7 +136,7 @@ async def get_historical(ticker: str) -> HistoricalMetrics:
     """Multi-year historical financial metrics including cash flows."""
     try:
         metrics = await extract_historical_from_yfinance(ticker.upper())
-    except (ValueError, ProviderError) as e:
+    except Exception as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     return metrics
 
@@ -146,7 +146,7 @@ async def get_quarterly(ticker: str) -> dict[str, Any]:
     """Quarterly income statement + cash flow data."""
     try:
         result = await fetch_quarterly_data(ticker.upper())
-    except (ValueError, ProviderError) as e:
+    except Exception as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     return result
 

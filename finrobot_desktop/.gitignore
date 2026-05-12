@@ -29,6 +29,10 @@ finagent_cache.db
 *.log
 .env
 
-# Node (for desktop/ in P1c)
+# Local data / resources
+资料/
+
+# Desktop / Electron
 node_modules/
 desktop/dist/
+desktop/out/

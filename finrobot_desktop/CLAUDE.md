@@ -41,7 +41,7 @@ pre-commit 已配置. SECURITY.md / CONTRIBUTING.md / CHANGELOG.md / CODE_OF_CON
 | 优先级 | 问题 | 备注 |
 |--------|------|------|
 | 高 | A 股国际化（完整方案） | P5 做了 ticker 松绑 + 税率文档化，货币转换/交易所感知路由/非美数据源未做 |
-| 低 | I7 | 见 BACKLOG.md "P3 审计待办" 节 |
+| 低 | I7 | 见 specs/BACKLOG.md "P3 审计待办" 节 |
 
 ---
 

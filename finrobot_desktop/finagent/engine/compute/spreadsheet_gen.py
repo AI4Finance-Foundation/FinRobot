@@ -110,8 +110,6 @@ def _build_dcf_summary(ws: Any, result: DCFResult, inputs: DCFInputs) -> None:
     ]
     _write_rows(ws, rows)
     _apply_header(ws, 1)
-    ws.column_dimensions["A"].width = 28
-    ws.column_dimensions["B"].width = 18
     ws.freeze_panes = "A2"
 
     # Format column B values
@@ -119,6 +117,8 @@ def _build_dcf_summary(ws: Any, result: DCFResult, inputs: DCFInputs) -> None:
                6: _FMT_USD, 7: _FMT_USD, 9: _FMT_PCT, 10: _FMT_PCT}
     for row_idx, fmt in fmt_map.items():
         ws.cell(row=row_idx, column=2).number_format = fmt
+
+    _auto_width(ws)
 
 
 def _build_dcf_projections(ws: Any, result: DCFResult, inputs: DCFInputs) -> None:
@@ -149,9 +149,7 @@ def _build_dcf_projections(ws: Any, result: DCFResult, inputs: DCFInputs) -> Non
     for cell in ws[5][1:]:
         cell.number_format = _FMT_PCT
 
-    ws.column_dimensions["A"].width = 18
-    for i in range(2, n + 2):
-        ws.column_dimensions[get_column_letter(i)].width = 12
+    _auto_width(ws)
 
 
 def _build_dcf_sensitivity(ws: Any, result: DCFResult) -> None:
@@ -181,13 +179,11 @@ def _build_dcf_sensitivity(ws: Any, result: DCFResult) -> None:
             CellIsRule(operator="greaterThan", formula=["0"], fill=_GREEN_FILL),
         )
 
-    ws.column_dimensions["A"].width = 14
-    for i in range(2, len(tg_vals) + 2):
-        ws.column_dimensions[get_column_letter(i)].width = 12
-
     for row in ws.iter_rows(min_row=2, min_col=2):
         for cell in row:
             cell.number_format = _FMT_USD
+
+    _auto_width(ws)
 
 
 # ---------------------------------------------------------------------------
@@ -213,8 +209,6 @@ def _build_lbo_summary(ws: Any, result: LBOResult, inputs: LBOInputs) -> None:
     ]
     _write_rows(ws, rows)
     _apply_header(ws, 1)
-    ws.column_dimensions["A"].width = 28
-    ws.column_dimensions["B"].width = 18
     ws.freeze_panes = "A2"
 
     fmt_map = {
@@ -225,6 +219,8 @@ def _build_lbo_summary(ws: Any, result: LBOResult, inputs: LBOInputs) -> None:
     }
     for row_idx, fmt in fmt_map.items():
         ws.cell(row=row_idx, column=2).number_format = fmt
+
+    _auto_width(ws)
 
 
 def _build_lbo_debt_schedule(ws: Any, result: LBOResult) -> None:
@@ -255,8 +251,7 @@ def _build_lbo_debt_schedule(ws: Any, result: LBOResult) -> None:
         for cell in row:
             cell.number_format = _FMT_USD
 
-    for col_idx in range(1, len(header) + 1):
-        ws.column_dimensions[get_column_letter(col_idx)].width = 16
+    _auto_width(ws)
 
 
 def _build_lbo_sensitivity(ws: Any, result: LBOResult) -> None:
@@ -286,9 +281,7 @@ def _build_lbo_sensitivity(ws: Any, result: LBOResult) -> None:
             if isinstance(cell.value, (int, float)):
                 cell.number_format = _FMT_PCT
 
-    ws.column_dimensions["A"].width = 16
-    for i in range(2, len(exit_multiples) + 2):
-        ws.column_dimensions[get_column_letter(i)].width = 12
+    _auto_width(ws)
 
 
 # ---------------------------------------------------------------------------
@@ -324,8 +317,7 @@ def _build_comps_table(ws: Any, peers: list[CompanyFinancials]) -> None:
             if isinstance(cell.value, (int, float)):
                 cell.number_format = _FMT_MULT
 
-    for col_idx in range(1, len(header) + 1):
-        ws.column_dimensions[get_column_letter(col_idx)].width = 16
+    _auto_width(ws)
 
 
 # ---------------------------------------------------------------------------
@@ -343,6 +335,26 @@ def _apply_header(ws: Any, row_idx: int) -> None:
         cell.font = _HEADER_FONT
         cell.fill = _HEADER_FILL
         cell.alignment = Alignment(horizontal="center")
+
+
+def _auto_width(ws: Any, *, min_width: int = 10, max_width: int = 40) -> None:
+    """Set column widths based on the longest value in each column.
+
+    openpyxl does not have a native auto-fit. This approximates it by
+    scanning all rows and picking the widest string representation per
+    column, then clamping between min_width and max_width.
+    """
+    for col_cells in ws.columns:
+        best = min_width
+        for cell in col_cells:
+            if cell.value is not None:
+                # Number-formatted cells are typically shorter on screen
+                # than their raw repr, but the header text is a good proxy.
+                length = len(str(cell.value)) + 2  # +2 for padding
+                if length > best:
+                    best = length
+        col_letter = get_column_letter(col_cells[0].column)
+        ws.column_dimensions[col_letter].width = min(best, max_width)
 
 
 def _wb_to_bytes(wb: Workbook) -> bytes:

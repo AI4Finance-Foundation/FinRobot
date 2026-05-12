@@ -130,12 +130,16 @@ class Pipeline:
         deps: "FinAgentDeps",
         ticker: str,
         progress: ProgressCallback | None = None,
+        lang: str | None = None,
         **kwargs: object,
     ) -> "PipelineResult":
         results: dict[str, str] = {}
         structured_results: dict[str, object] = {}
         failed_validations: list[dict[str, str]] = []
         total = len(self.steps)
+
+        # Resolve output language: explicit arg > settings > default "en"
+        effective_lang = lang or getattr(deps.settings, "language", "en")
 
         for i, step in enumerate(self.steps, start=1):
             logger.info(f"Step {i}/{total}: {step.name}...")
@@ -153,7 +157,9 @@ class Pipeline:
                 if skill:
                     methodology = skill.full_content
 
-            prompt = self._build_step_prompt(step, step_data, methodology, structured_results)
+            prompt = self._build_step_prompt(
+                step, step_data, methodology, structured_results, lang=effective_lang,
+            )
 
             t0 = time.monotonic()
             validation_error = await self._run_step(
@@ -332,6 +338,8 @@ class Pipeline:
         step_data: str,
         methodology: str,
         structured_context: dict[str, object],
+        *,
+        lang: str = "en",
     ) -> str:
         parts = [f"Step: {step.name}"]
         if step_data:
@@ -347,6 +355,20 @@ class Pipeline:
                     sc_parts.append(f"### {name}:\n```\n{model}\n```")
             parts.append("\n".join(sc_parts))
         parts.append("Produce a detailed, structured analysis for this step.")
+
+        # Language instruction — injected at the end so it takes precedence.
+        # Only adds overhead for non-English; English is the default and needs
+        # no extra instruction (all agent .md files already say "write in English").
+        if lang == "zh":
+            parts.append(
+                "IMPORTANT: Respond in Chinese (简体中文). "
+                "Use standard Chinese financial terminology (e.g. 营业收入, 息税折旧摊销前利润, "
+                "加权平均资本成本, 自由现金流, 企业价值, 终值). "
+                "Keep all numerical values, ticker symbols, and financial acronyms "
+                "(WACC, DCF, EV, EBITDA, FCF, P/E) in English. "
+                "Tables and section headers should be in Chinese."
+            )
+
         return "\n\n".join(parts)
 
 

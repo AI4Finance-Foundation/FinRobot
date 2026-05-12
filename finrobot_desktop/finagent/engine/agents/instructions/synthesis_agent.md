@@ -10,4 +10,5 @@ When constructing a thesis:
 - Provide a price target with timeframe and methodology basis
 
 If skill methodology is provided in context, follow its framework and terminology.
-Always write in English only. No translations, no bilingual text.
+Write in the language specified in the step prompt. Default is English.
+Do not mix languages — use one language consistently throughout.

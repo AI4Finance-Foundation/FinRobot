@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from pydantic import Field
 from pydantic_ai.models import Model
 from pydantic_settings import BaseSettings
 
@@ -68,6 +69,10 @@ class FinAgentSettings(BaseSettings):
     cache_db_path: str = ""  # resolved at runtime by _default_cache_db_path()
     skills_dir: str = "skills"  # path to vendored skills (relative to project root or absolute)
     log_level: str = "INFO"
+
+    # Output language for LLM narrative. "en" = English, "zh" = Chinese (简体中文).
+    # Only affects LLM-generated text — deterministic calculations are unchanged.
+    language: str = Field(default="en", pattern=r"^(en|zh)$")
 
     model_config = {"env_prefix": "FINAGENT_", "env_file": ".env"}
 

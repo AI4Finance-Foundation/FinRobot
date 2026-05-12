@@ -201,7 +201,8 @@ def run(question: str, model: str | None) -> None:
 @cli.command()
 @click.argument("ticker")
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
-def research(ticker: str, model: str | None) -> None:
+@click.option("--lang", default=None, type=click.Choice(["en", "zh"]), help="Output language (en=English, zh=Chinese)")
+def research(ticker: str, model: str | None, lang: str | None) -> None:
     """Run equity research pipeline on a ticker (Mode B).
 
     Calls pipeline.execute() directly — does NOT rely on LLM tool selection.
@@ -215,7 +216,7 @@ def research(ticker: str, model: str | None) -> None:
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
     pipeline = create_equity_research_pipeline(sub_agents)
 
-    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
+    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
     click.echo(
         "\nNote: HTML reports require the server. Run 'finagent serve', "
@@ -227,7 +228,8 @@ def research(ticker: str, model: str | None) -> None:
 @cli.command()
 @click.argument("ticker")
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
-def comps(ticker: str, model: str | None) -> None:
+@click.option("--lang", default=None, type=click.Choice(["en", "zh"]), help="Output language (en=English, zh=Chinese)")
+def comps(ticker: str, model: str | None, lang: str | None) -> None:
     """Run comparable company analysis pipeline.
 
     # TODO(P2c): add --peers option when Pipeline.execute() supports kwargs forwarding
@@ -240,7 +242,7 @@ def comps(ticker: str, model: str | None) -> None:
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
     pipeline = create_comps_pipeline(sub_agents)
 
-    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
+    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
 
 
@@ -248,7 +250,8 @@ def comps(ticker: str, model: str | None) -> None:
 @click.argument("ticker")
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
 @click.option("--force-dcf", is_flag=True, default=False, help="Force FCF-DCF even for banks (skip DDM auto-detection)")
-def dcf(ticker: str, model: str | None, force_dcf: bool) -> None:
+@click.option("--lang", default=None, type=click.Choice(["en", "zh"]), help="Output language (en=English, zh=Chinese)")
+def dcf(ticker: str, model: str | None, force_dcf: bool, lang: str | None) -> None:
     """Run DCF valuation pipeline.
 
     For banks (detected via industry/sector), automatically uses DDM
@@ -273,7 +276,7 @@ def dcf(ticker: str, model: str | None, force_dcf: bool) -> None:
             from finagent.engine.pipelines.ddm import create_ddm_pipeline
 
             pipeline = create_ddm_pipeline(sub_agents)
-            result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
+            result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
             click.echo(result.format_summary())
             click.echo(
                 "\nNote: HTML reports require the server. Run 'finagent serve', "
@@ -286,7 +289,7 @@ def dcf(ticker: str, model: str | None, force_dcf: bool) -> None:
 
     pipeline = create_dcf_pipeline(sub_agents)
 
-    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
+    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
     click.echo(
         "\nNote: HTML reports require the server. Run 'finagent serve', "
@@ -298,7 +301,8 @@ def dcf(ticker: str, model: str | None, force_dcf: bool) -> None:
 @cli.command()
 @click.argument("ticker")
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
-def ddm(ticker: str, model: str | None) -> None:
+@click.option("--lang", default=None, type=click.Choice(["en", "zh"]), help="Output language (en=English, zh=Chinese)")
+def ddm(ticker: str, model: str | None, lang: str | None) -> None:
     """Run DDM (Dividend Discount Model) valuation pipeline.
 
     DDM values a company based on projected dividends discounted at cost of equity.
@@ -313,7 +317,7 @@ def ddm(ticker: str, model: str | None) -> None:
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
     pipeline = create_ddm_pipeline(sub_agents)
 
-    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
+    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
     click.echo(
         "\nNote: HTML reports require the server. Run 'finagent serve', "
@@ -325,7 +329,8 @@ def ddm(ticker: str, model: str | None) -> None:
 @cli.command()
 @click.argument("ticker")
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
-def lbo(ticker: str, model: str | None) -> None:
+@click.option("--lang", default=None, type=click.Choice(["en", "zh"]), help="Output language (en=English, zh=Chinese)")
+def lbo(ticker: str, model: str | None, lang: str | None) -> None:
     """Run LBO (leveraged buyout) analysis pipeline.
 
     Deterministic IRR/MOIC arithmetic — LLM selects assumptions, code computes returns.
@@ -338,7 +343,7 @@ def lbo(ticker: str, model: str | None) -> None:
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
     pipeline = create_lbo_pipeline(sub_agents)
 
-    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
+    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
     click.echo(
         "\nNote: HTML reports require the server. Run 'finagent serve', "
@@ -350,7 +355,8 @@ def lbo(ticker: str, model: str | None) -> None:
 @cli.command()
 @click.argument("ticker")
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
-def earnings(ticker: str, model: str | None) -> None:
+@click.option("--lang", default=None, type=click.Choice(["en", "zh"]), help="Output language (en=English, zh=Chinese)")
+def earnings(ticker: str, model: str | None, lang: str | None) -> None:
     """Run earnings quality analysis pipeline.
 
     Requires FMP API key for earnings surprise data (set FINAGENT_FMP_API_KEY).
@@ -363,14 +369,15 @@ def earnings(ticker: str, model: str | None) -> None:
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
     pipeline = create_earnings_analysis_pipeline(sub_agents)
 
-    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
+    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
 
 
 @cli.command(name="ic-memo")
 @click.argument("ticker")
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
-def ic_memo(ticker: str, model: str | None) -> None:
+@click.option("--lang", default=None, type=click.Choice(["en", "zh"]), help="Output language (en=English, zh=Chinese)")
+def ic_memo(ticker: str, model: str | None, lang: str | None) -> None:
     """Run Investment Committee (IC) memo pipeline.
 
     Runs DCF + LBO inline and applies IRR hurdle gate (PASS if IRR < 15%).
@@ -383,7 +390,7 @@ def ic_memo(ticker: str, model: str | None) -> None:
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
     pipeline = create_ic_memo_pipeline(sub_agents)
 
-    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress()))
+    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
     click.echo(
         "\nNote: HTML reports require the server. Run 'finagent serve', "

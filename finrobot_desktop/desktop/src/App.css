@@ -2498,3 +2498,74 @@ select.input-field {
   color: var(--text-muted);
   white-space: nowrap;
 }
+
+/* ═══════════════════════════
+   CHART MODE TOGGLE (Simple / Technical)
+   ═══════════════════════════ */
+.chart-mode-toggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: var(--sp-2);
+}
+.chart-mode-btn {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 5px 14px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.chart-mode-btn:first-child {
+  border-radius: var(--r-sm) 0 0 var(--r-sm);
+  border-right: none;
+}
+.chart-mode-btn:last-child {
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+.chart-mode-btn:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+}
+.chart-mode-btn.active {
+  color: var(--gold);
+  background: var(--gold-dim);
+  border-color: var(--gold);
+}
+.chart-mode-btn.active + .chart-mode-btn {
+  border-left-color: var(--gold);
+}
+
+/* ═══════════════════════════
+   INDICATOR TOGGLE BUTTONS
+   ═══════════════════════════ */
+.indicator-toggles {
+  display: flex;
+  gap: 4px;
+}
+.indicator-toggle-btn {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.indicator-toggle-btn:hover {
+  color: var(--text-secondary);
+  border-color: var(--text-muted);
+}
+.indicator-toggle-btn.active {
+  color: var(--info);
+  background: rgba(96, 165, 250, 0.1);
+  border-color: rgba(96, 165, 250, 0.3);
+}

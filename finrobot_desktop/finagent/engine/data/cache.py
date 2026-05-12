@@ -17,6 +17,30 @@ CREATE TABLE IF NOT EXISTS cache (
 )
 """
 
+# TTL (in seconds) per data type. Different financial data types have
+# fundamentally different freshness requirements:
+# - price: changes every trading second, 15 min is a reasonable compromise
+# - news: semi-fresh, 30 min keeps context relevant without hammering APIs
+# - financials: quarterly updates, 24h is plenty fresh
+# - earnings_transcript: transcripts are immutable once published
+# - default: 1 hour for anything not explicitly listed
+_TTL_SECONDS: dict[str, int] = {
+    DataType.PRICE: 900,                # 15 minutes
+    DataType.NEWS: 1800,                # 30 minutes
+    DataType.FINANCIALS: 86400,         # 24 hours
+    DataType.EARNINGS: 86400,           # 24 hours (quarterly data)
+    DataType.EARNINGS_TRANSCRIPT: 604800,  # 7 days
+    DataType.FILINGS: 604800,           # 7 days (SEC filings don't change)
+    DataType.RAG_10K: 604800,           # 7 days
+    DataType.PROFILE: 86400,            # 24 hours
+}
+_DEFAULT_TTL_SECONDS: int = 3600  # 1 hour
+
+
+def _get_ttl_seconds(data_type: str | DataType) -> int:
+    """Return the TTL in seconds for a given data type."""
+    return _TTL_SECONDS.get(str(data_type), _DEFAULT_TTL_SECONDS)
+
 
 class CachedResult(BaseModel):
     data: DataResult
@@ -51,8 +75,17 @@ class DataCache:
         return self._conn
 
     async def get(
-        self, data_type: str | DataType, ticker: str, max_age_hours: int = 24
+        self,
+        data_type: str | DataType,
+        ticker: str,
+        max_age_hours: int | None = None,
     ) -> CachedResult | None:
+        """Retrieve cached data, marking it stale if older than the TTL.
+
+        TTL is determined automatically from the data_type (see ``_TTL_SECONDS``).
+        The ``max_age_hours`` parameter is kept for backwards compatibility and
+        test convenience: when provided it overrides the data-type TTL.
+        """
         conn = await self._ensure_connection()
         async with conn.execute(
             "SELECT data, cached_at FROM cache WHERE data_type = ? AND ticker = ?",
@@ -69,8 +102,15 @@ class DataCache:
             cached_at = cached_at.replace(tzinfo=timezone.utc)
 
         now = datetime.now(tz=timezone.utc)
-        age_hours = (now - cached_at).total_seconds() / 3600
-        is_stale = age_hours > max_age_hours
+        age_seconds = (now - cached_at).total_seconds()
+
+        if max_age_hours is not None:
+            # Explicit override — convert hours to seconds for comparison
+            is_stale = age_seconds > max_age_hours * 3600
+        else:
+            # Use per-data-type TTL
+            ttl = _get_ttl_seconds(data_type)
+            is_stale = age_seconds > ttl
 
         result = DataResult.model_validate_json(raw_data)
         return CachedResult(data=result, is_stale=is_stale, cached_at=cached_at)

@@ -10,4 +10,5 @@ When generating a report:
 - Keep professional tone — concise, data-driven, no filler
 
 Do NOT add new analysis. Organize and present what previous steps produced.
-Always write in English only. No translations, no bilingual text.
+Write in the language specified in the step prompt. Default is English.
+Do not mix languages — use one language consistently throughout.

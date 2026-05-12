@@ -14,6 +14,7 @@ from finagent.engine.data.layer import DataLayer
 
 def build_data_layer(settings: Any) -> DataLayer:
     """Build provider chain from runtime settings."""
+    from finagent.engine.data.providers.news_aggregator import NewsAggregatorProvider
     from finagent.engine.data.providers.sec_provider import SECEdgarProvider
     from finagent.engine.data.providers.yfinance_provider import YFinanceProvider
 
@@ -28,6 +29,12 @@ def build_data_layer(settings: Any) -> DataLayer:
         providers.append(FinnhubProvider(api_key=settings.finnhub_api_key))
     providers.append(YFinanceProvider())
     providers.append(SECEdgarProvider(user_agent=settings.sec_user_agent))
+
+    # News aggregator — always registered; uses Yahoo RSS (free, no key)
+    # and Alpha Vantage (only if key is provided). Adds news sources beyond
+    # what FMP/Finnhub/yfinance already provide.
+    av_key = getattr(settings, "alpha_vantage_api_key", "")
+    providers.append(NewsAggregatorProvider(alpha_vantage_api_key=av_key))
 
     cache = DataCache(settings.cache_db_path)
     return DataLayer(providers=providers, cache=cache)

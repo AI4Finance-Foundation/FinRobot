@@ -21,6 +21,7 @@ _SECRET_FIELDS = (
     "openai_api_key",
     "fmp_api_key",
     "finnhub_api_key",
+    "alpha_vantage_api_key",
 )
 
 _NON_SECRET_FIELDS = (
@@ -47,6 +48,7 @@ class SettingsResponse(BaseModel):
     openai_api_key_set: bool
     fmp_api_key_set: bool
     finnhub_api_key_set: bool
+    alpha_vantage_api_key_set: bool
     sec_user_agent: str
     log_level: str
     available_providers: list[str]
@@ -68,6 +70,7 @@ class SettingsUpdate(BaseModel):
     openai_api_key: str | None = Field(default=None, repr=False)
     fmp_api_key: str | None = Field(default=None, repr=False)
     finnhub_api_key: str | None = Field(default=None, repr=False)
+    alpha_vantage_api_key: str | None = Field(default=None, repr=False)
 
 
 @router.get("", response_model=SettingsResponse)
@@ -131,6 +134,10 @@ async def _build_response(request: Request) -> SettingsResponse:
     if await _has_key("finnhub_api_key", "finnhub_api_key"):
         providers.append("finnhub")
     providers.extend(["yfinance", "sec_edgar"])
+    # News aggregator is always available (Yahoo RSS); Alpha Vantage is optional
+    providers.append("news_aggregator")
+    if await _has_key("alpha_vantage_api_key", "alpha_vantage_api_key"):
+        providers.append("alpha_vantage")
     return SettingsResponse(
         model_name=settings.model_name,
         model_data=settings.model_data,
@@ -143,6 +150,7 @@ async def _build_response(request: Request) -> SettingsResponse:
         openai_api_key_set=await _has_key("openai_api_key", "openai_api_key"),
         fmp_api_key_set=await _has_key("fmp_api_key", "fmp_api_key"),
         finnhub_api_key_set=await _has_key("finnhub_api_key", "finnhub_api_key"),
+        alpha_vantage_api_key_set=await _has_key("alpha_vantage_api_key", "alpha_vantage_api_key"),
         sec_user_agent=settings.sec_user_agent,
         log_level=settings.log_level,
         available_providers=providers,

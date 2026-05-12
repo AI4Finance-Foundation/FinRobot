@@ -10,6 +10,7 @@ import {
   quarterlyToComparisonData,
 } from '../utils/chartAdapters'
 import { extractNarrativeSection } from '../utils/narrativeParser'
+import EarningsCallPanel from '../components/EarningsCallPanel'
 
 export default function FinancialsTab() {
   const { isLoading: histLoading } = useHistoricalData()
@@ -47,6 +48,12 @@ export default function FinancialsTab() {
             <QuarterlyComparisonChart data={quarterlyToComparisonData(quarterlyData)} title="Quarterly Comparison" />
           )}
         </div>
+      </section>
+
+      {/* Earnings Calls Section */}
+      <section className="chart-section">
+        <h3 className="section-title">Earnings Calls</h3>
+        <EarningsCallPanel />
       </section>
 
       {/* Insights Section — parsed from research narrative */}

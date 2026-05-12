@@ -17,3 +17,4 @@ class DataType(StrEnum):
     FILINGS = "filings"
     PROFILE = "profile"
     RAG_10K = "10k_rag"
+    EARNINGS_TRANSCRIPT = "earnings_transcript"

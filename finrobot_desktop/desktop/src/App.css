@@ -2389,3 +2389,112 @@ select.input-field {
   background: var(--negative-bg) !important;
   color: var(--negative) !important;
 }
+
+/* ═══════════════════════════
+   NEWS FEED
+   ═══════════════════════════ */
+.news-feed {
+  margin-top: var(--sp-4);
+}
+.news-feed .card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.news-feed-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.news-feed-count {
+  font-variant-numeric: tabular-nums;
+}
+.news-feed-body {
+  max-height: 360px;
+  overflow-y: auto;
+}
+.news-feed-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-2);
+}
+.news-feed-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.news-feed-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+.news-feed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.news-feed-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2);
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background 0.12s;
+}
+.news-feed-item:last-child {
+  border-bottom: none;
+}
+.news-feed-item:hover {
+  background: var(--elevated);
+}
+.news-sentiment-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-top: 5px;
+}
+.news-feed-content {
+  flex: 1;
+  min-width: 0;
+}
+.news-feed-headline {
+  display: block;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--text-primary);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.news-feed-headline:hover {
+  color: var(--gold);
+}
+.news-feed-details {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: 2px;
+}
+.news-source-badge {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  background: var(--elevated);
+  padding: 1px 5px;
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+}
+.news-time {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}

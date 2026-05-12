@@ -11,7 +11,7 @@ from finagent.engine.data.interface import DataProvider, DataResult, ProviderErr
 from finagent.engine.data.types import DataType
 
 _BASE_URL = "https://financialmodelingprep.com/api/v3"
-_SUPPORTED = [DataType.FINANCIALS, DataType.NEWS, DataType.EARNINGS]
+_SUPPORTED = [DataType.FINANCIALS, DataType.NEWS, DataType.EARNINGS, DataType.EARNINGS_TRANSCRIPT]
 _TIMEOUT = 15.0
 _MIN_INTERVAL = 0.15  # 6 req/sec — stays within per-minute burst limits on all FMP tiers
 
@@ -53,6 +53,11 @@ class FMPProvider(DataProvider):
             return await self._fetch_news(ticker)
         if data_type == DataType.EARNINGS:
             return await self._fetch_earnings(ticker)
+        if data_type == DataType.EARNINGS_TRANSCRIPT:
+            quarter: int | None = kwargs.get("quarter")
+            year: int | None = kwargs.get("year")
+            limit: int = kwargs.get("limit", 4)
+            return await self._fetch_earnings_transcript(ticker, quarter=quarter, year=year, limit=limit)
         years: int | None = kwargs.get("years")
         limit = years if years and years > 1 else 1
         try:
@@ -199,6 +204,68 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.EARNINGS,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+    async def _fetch_earnings_transcript(
+        self,
+        ticker: str,
+        *,
+        quarter: int | None = None,
+        year: int | None = None,
+        limit: int = 4,
+    ) -> DataResult:
+        """Fetch earnings call transcript(s) from FMP.
+
+        If ``quarter`` and ``year`` are specified, fetches a single transcript.
+        Otherwise fetches available transcripts and returns up to ``limit``
+        most recent ones.
+        """
+        try:
+            if quarter is not None and year is not None:
+                resp = await self._get(
+                    f"/earning_call_transcript/{ticker}",
+                    params={"quarter": quarter, "year": year},
+                )
+                raw: list[dict[str, Any]] = resp.json()
+            else:
+                # FMP lists available transcripts at this endpoint without q/y params
+                resp = await self._get(
+                    f"/earning_call_transcript/{ticker}",
+                )
+                raw = resp.json()
+        except httpx.TimeoutException as e:
+            raise ProviderError(
+                f"FMP timeout fetching earnings transcript for '{ticker}': {e}"
+            ) from e
+        except httpx.HTTPStatusError as e:
+            raise ProviderError(
+                f"FMP API error fetching earnings transcript for '{ticker}': {e}"
+            ) from e
+        except ProviderError:
+            raise
+        except (ValueError, KeyError, TypeError, AttributeError) as e:
+            raise ProviderError(
+                f"FMP earnings transcript fetch failed for '{ticker}': {e}"
+            ) from e
+
+        transcripts = []
+        for item in raw[:limit]:
+            transcripts.append(
+                {
+                    "ticker": ticker.upper(),
+                    "quarter": item.get("quarter", 0),
+                    "year": item.get("year", 0),
+                    "date": item.get("date", ""),
+                    "content": item.get("content", ""),
+                }
+            )
+
+        return DataResult(
+            data={"transcripts": transcripts},
+            provider=self.name,
+            ticker=ticker,
+            data_type=DataType.EARNINGS_TRANSCRIPT,
             timestamp=datetime.now(tz=timezone.utc),
         )
 

@@ -193,6 +193,23 @@ export interface PerformanceData {
   }[]
 }
 
+export type CatalystCategory =
+  | 'product_launch'
+  | 'earnings'
+  | 'regulatory'
+  | 'acquisition'
+  | 'management'
+  | 'market'
+
+export interface CatalystEvent {
+  category: CatalystCategory
+  headline: string
+  sentiment: 'positive' | 'negative' | 'neutral'
+  impact_score: number
+  probability: number
+  reasoning: string
+}
+
 export interface DCFInputs {
   revenue_base: number
   revenue_growth_rates: number[]
@@ -313,6 +330,10 @@ interface WorkspaceState {
   // Tab navigation
   activeTab: ActiveTab
 
+  // Catalyst data
+  catalysts: CatalystEvent[] | null
+  catalystsLoading: boolean
+
   // Data caches (per-ticker, invalidated on ticker change)
   historicalMetrics: HistoricalMetrics | null
   quarterlyData: QuarterlyData | null
@@ -348,6 +369,8 @@ interface WorkspaceState {
   toggleCmdPalette: () => void
   setAskPanelOpen: (open: boolean) => void
   setActiveTab: (tab: ActiveTab) => void
+  setCatalysts: (data: CatalystEvent[] | null) => void
+  setCatalystsLoading: (loading: boolean) => void
   setHistoricalMetrics: (data: HistoricalMetrics | null) => void
   setQuarterlyData: (data: QuarterlyData | null) => void
   setPerformanceData: (data: PerformanceData | null) => void
@@ -395,6 +418,8 @@ const initialState = {
   cmdPaletteOpen: false,
   askPanelOpen: false,
   activeTab: 'overview' as ActiveTab,
+  catalysts: null,
+  catalystsLoading: false,
   historicalMetrics: null,
   quarterlyData: null,
   performanceData: null,
@@ -446,6 +471,8 @@ export const useAppStore = create<WorkspaceState>((set) => ({
     scenarioResults: { ...emptyScenarioResults },
     askPanelOpen: false,
     activeTab: 'overview' as ActiveTab,
+    catalysts: null,
+    catalystsLoading: false,
     historicalMetrics: null,
     quarterlyData: null,
     performanceData: null,
@@ -478,6 +505,8 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   toggleCmdPalette: () => set((s) => ({ cmdPaletteOpen: !s.cmdPaletteOpen })),
   setAskPanelOpen: (askPanelOpen) => set({ askPanelOpen }),
   setActiveTab: (activeTab) => set({ activeTab }),
+  setCatalysts: (catalysts) => set({ catalysts }),
+  setCatalystsLoading: (catalystsLoading) => set({ catalystsLoading }),
   setHistoricalMetrics: (historicalMetrics) => set({ historicalMetrics }),
   setQuarterlyData: (quarterlyData) => set({ quarterlyData }),
   setPerformanceData: (performanceData) => set({ performanceData }),

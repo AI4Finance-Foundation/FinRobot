@@ -61,6 +61,7 @@ class FinAgentSettings(BaseSettings):
     # Data provider API keys (P2a)
     fmp_api_key: str = ""
     finnhub_api_key: str = ""
+    alpha_vantage_api_key: str = ""
     sec_user_agent: str = "FinAgent admin@example.com"
 
     # Infrastructure

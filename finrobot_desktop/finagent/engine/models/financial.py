@@ -72,6 +72,41 @@ class FinancialData(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class AggregatedNewsItem(BaseModel):
+    """Single news item from the multi-source aggregator.
+
+    Lighter than compute.news.NewsItem (which requires LLM classification).
+    This model holds raw aggregated data + keyword-based sentiment score.
+    """
+
+    title: str
+    source: str
+    url: str = ""
+    published_at: str = ""
+    sentiment_score: float | None = Field(
+        default=None,
+        ge=-1.0,
+        le=1.0,
+        description="Keyword or Alpha Vantage sentiment. -1 to +1. None if unavailable.",
+    )
+    category: str | None = None
+
+
+class AggregatedNewsFeed(BaseModel):
+    """Response model for /api/data/{ticker}/news endpoint."""
+
+    ticker: str
+    items: list[AggregatedNewsItem]
+    sources_used: list[str]
+    overall_sentiment: float = Field(
+        ge=-1.0,
+        le=1.0,
+        description="Average sentiment across all items.",
+    )
+    fetched_at: datetime
+    warnings: list[str] = Field(default_factory=list)
+
+
 class PriceHistory(BaseModel):
     """Structured price history."""
 

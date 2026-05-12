@@ -51,6 +51,7 @@ async def hydrate_settings_from_secrets(settings: Any, secret_store: SecretStore
         "openai_api_key",
         "fmp_api_key",
         "finnhub_api_key",
+        "alpha_vantage_api_key",
     ):
         value = await secret_store.get(key)
         if value:

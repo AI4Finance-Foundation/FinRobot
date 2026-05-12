@@ -65,6 +65,96 @@
 }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
+/* ── Catalyst Panel ── */
+.catalyst-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.catalyst-card {
+  background: var(--elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.15s;
+}
+.catalyst-card:hover {
+  border-color: var(--border);
+}
+
+.catalyst-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.catalyst-category-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+}
+
+.catalyst-sentiment {
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.catalyst-headline {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.catalyst-reasoning {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.catalyst-card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.catalyst-impact-dots {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.catalyst-prob {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.catalyst-summary-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+}
+.catalyst-summary-badge--pos {
+  color: var(--positive);
+  background: var(--positive-bg);
+}
+.catalyst-summary-badge--neg {
+  color: var(--negative);
+  background: var(--negative-bg);
+}
+
 /* Stock header */
 .stock-header {
   display: flex;

@@ -13,6 +13,35 @@ FinAgent is a financial-domain AI agent platform that bridges the gap between ac
 - **Data Layer** — yfinance (built-in, free), FMP (optional, requires API key — provides D&A data for standard DCF formula), Finnhub (optional, requires API key), SEC EDGAR (free, 10-K summaries). Automatic chain fallback: FMP → Finnhub → yfinance.
 - **Interfaces** — CLI, Python SDK, Web UI, Desktop app (Electron + React).
 
+## Demo
+
+<!-- TODO: Record 30-second GIF showing: ticker input → Research pipeline running → Valuation tab with sensitivity heatmap → assumption editing → real-time recalculation -->
+
+**CLI:**
+
+```bash
+$ finagent dcf AAPL
+# FinAgent Analysis Report
+
+## Financial Data
+Revenue: $394.3B | EBITDA: $130.5B | D&A: $11.5B
+
+## DCF Valuation
+WACC: 9.8% | Terminal Growth: 2.5%
+Implied Share Price: $198.42 (vs current: $189.84)
+
+## Sensitivity Matrix (WACC × Terminal Growth)
+|        | 2.0%   | 2.5%   | 3.0%   |
+|--------|--------|--------|--------|
+| 9.0%   | $221   | $238   | $259   |
+| 9.8%   | $186   | $198   | $213   |
+| 10.5%  | $162   | $171   | $182   |
+
+Disclaimer: For informational purposes only. Not investment advice.
+```
+
+> **Desktop app** provides interactive assumption editing, sensitivity heatmaps, Monte Carlo simulation, and peer comparison charts. Run `finagent serve` to launch.
+
 ## Who is FinAgent for
 
 FinAgent is for **financial professionals who want AI-assisted analysis with computational discipline** — buy-side researchers, independent analysts, small fund managers. If you use ChatGPT for financial analysis but worry about hallucinated numbers and skipped steps, FinAgent gives you code-enforced pipelines where the math is deterministic and every step must complete.
@@ -102,6 +131,8 @@ assumptions = ForecastAssumptions(tax_rate=0.196)  # Japan corporate tax
 ```
 
 CLI flag support for non-US defaults is planned for a future release.
+
+> **Note:** FinAgent output is for informational purposes only and does not constitute investment advice. Financial data is sourced from public APIs and may contain errors. Always verify critical figures independently.
 
 ## Architecture
 

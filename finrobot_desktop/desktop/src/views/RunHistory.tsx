@@ -107,7 +107,7 @@ export default function RunHistory({ onBack }: Props) {
         const inputs: DCFInputs = dcfCalc.inputs
         setDcfInputs({ ...inputs })
         setOriginalDcfInputs({ ...inputs })
-        setDcfResult(dcfCalc)
+        setDcfResult(dcfCalc, 'research')
 
         const { wacc_range, tg_range } = buildSensitivityRanges(dcfCalc.wacc, inputs.terminal_growth_rate)
         sensitivityMut.mutate(
@@ -142,7 +142,7 @@ export default function RunHistory({ onBack }: Props) {
         const inputs: DCFInputs = dcfCalc.inputs
         setDcfInputs({ ...inputs })
         setOriginalDcfInputs({ ...inputs })
-        setDcfResult(dcfCalc)
+        setDcfResult(dcfCalc, 'standalone')
 
         const { wacc_range, tg_range } = buildSensitivityRanges(dcfCalc.wacc, inputs.terminal_growth_rate)
         sensitivityMut.mutate(

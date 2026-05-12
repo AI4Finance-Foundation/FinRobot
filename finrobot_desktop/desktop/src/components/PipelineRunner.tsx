@@ -4,7 +4,7 @@ import { useAppStore } from '../stores/appStore'
 import { useToastStore } from '../stores/toastStore'
 import { useDcfSensitivity } from '../hooks/useCompute'
 import { BASE_URL } from '../api/client'
-import type { DCFResult, DCFInputs, SensitivityResult, ResearchResult, CompsResult, EarningsResult, LBOResult, ICMemoResult, ActiveTab } from '../stores/appStore'
+import type { DCFResult, DCFInputs, DcfSource, SensitivityResult, ResearchResult, CompsResult, EarningsResult, LBOResult, ICMemoResult, ActiveTab } from '../stores/appStore'
 
 const PIPELINE_TAB_MAP: Record<string, { tab: ActiveTab; label: string }> = {
   research: { tab: 'overview', label: 'Overview' },
@@ -103,7 +103,7 @@ export default function PipelineRunner() {
             const inputs: DCFInputs = dcfCalc.inputs
             setDcfInputs({ ...inputs })
             setOriginalDcfInputs({ ...inputs })
-            setDcfResult(dcfCalc)
+            setDcfResult(dcfCalc, 'research')
 
             const { wacc_range, tg_range } = buildSensitivityRanges(
               dcfCalc.wacc,
@@ -177,7 +177,7 @@ export default function PipelineRunner() {
           const inputs: DCFInputs = dcfCalc.inputs
           setDcfInputs({ ...inputs })
           setOriginalDcfInputs({ ...inputs })
-          setDcfResult(dcfCalc)
+          setDcfResult(dcfCalc, 'standalone')
 
           const { wacc_range, tg_range } = buildSensitivityRanges(
             dcfCalc.wacc,

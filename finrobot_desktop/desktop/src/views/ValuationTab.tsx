@@ -4,6 +4,7 @@ import AssumptionsEditor from '../components/AssumptionsEditor'
 import ValuationCard from '../components/ValuationCard'
 import ScenarioCompare from '../components/ScenarioCompare'
 import MonteCarloSection from '../components/MonteCarloSection'
+import LBOSummary from '../components/LBOSummary'
 import {
   SensitivityHeatmap,
   WaterfallChart,
@@ -23,11 +24,13 @@ export default function ValuationTab() {
   useHistoricalData() // ensure historical data is loaded for EpsPe
 
   const dcfResult = useAppStore((s) => s.dcfResult)
+  const dcfSource = useAppStore((s) => s.dcfSource)
   const currentPrice = useAppStore((s) => s.currentPrice)
   const sensitivityData = useAppStore((s) => s.sensitivityData)
   const historicalMetrics = useAppStore((s) => s.historicalMetrics)
   const earningsResult = useAppStore((s) => s.earningsResult)
   const scenarioResults = useAppStore((s) => s.scenarioResults)
+  const lboResult = useAppStore((s) => s.lboResult)
 
   const showScenarioCompare =
     [scenarioResults.base, scenarioResults.bull, scenarioResults.bear].filter(Boolean).length >= 2
@@ -37,6 +40,13 @@ export default function ValuationTab() {
       {/* DCF Workspace */}
       <section className="chart-section">
         <h3 className="section-title">DCF Workspace</h3>
+        {dcfResult && (
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', margin: '0 0 12px 0' }}>
+            {dcfSource === 'research'
+              ? 'Valuation from Research analysis. Run standalone DCF for fresh assumptions.'
+              : 'Standalone DCF analysis.'}
+          </p>
+        )}
         {dcfResult ? (
           <>
             <div className="chart-grid-2col">
@@ -86,6 +96,14 @@ export default function ValuationTab() {
           />
         )}
       </section>
+
+      {/* LBO Analysis */}
+      {lboResult && (
+        <section className="chart-section">
+          <h3 className="section-title">LBO Analysis</h3>
+          <LBOSummary result={lboResult} />
+        </section>
+      )}
     </div>
   )
 }

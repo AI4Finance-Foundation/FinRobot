@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAppStore } from '../stores/appStore'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import TickerInput from '../components/TickerInput'
@@ -19,13 +19,13 @@ interface Props {
   onOpenSettings: () => void
 }
 
-const PIPELINE_OPTIONS: { value: PipelineType; label: string }[] = [
-  { value: 'research', label: 'Research' },
+const PRIMARY_PIPELINE = { value: 'research' as PipelineType, label: 'Research' }
+
+const ADVANCED_PIPELINES: { value: PipelineType; label: string }[] = [
   { value: 'dcf', label: 'DCF' },
   { value: 'comps', label: 'Comps' },
-  { value: 'earnings', label: 'Earnings' },
   { value: 'lbo', label: 'LBO' },
-  { value: 'ic-memo', label: 'IC Memo' },
+  { value: 'earnings', label: 'Earnings' },
 ]
 
 const QUICK_TICKERS = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'META']
@@ -62,23 +62,7 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
   const isLoading = phase === 'loading_data'
   const showControls = isLoading || phase === 'data_ready' || phase === 'running_pipeline' || showResults
 
-  // ── Sliding indicator for segmented control ──
-  const segmentedRef = useRef<HTMLDivElement>(null)
-  const indicatorRef = useRef<HTMLDivElement>(null)
-
-  const updateIndicator = useCallback(() => {
-    const container = segmentedRef.current
-    const indicator = indicatorRef.current
-    if (!container || !indicator) return
-    const activeBtn = container.querySelector('.segmented-btn.active') as HTMLElement | null
-    if (!activeBtn) return
-    indicator.style.width = `${activeBtn.offsetWidth}px`
-    indicator.style.transform = `translateX(${activeBtn.offsetLeft - 2}px)`
-  }, [])
-
-  useEffect(() => {
-    updateIndicator()
-  }, [pipelineType, updateIndicator])
+  // (Sliding indicator removed — replaced with two-tier pipeline controls)
 
   // ── Right panel content based on active tab ──
   const renderTabContent = () => {
@@ -179,20 +163,31 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
       <div className="app-body">
         {/* ── Left Panel ── */}
         <aside className="panel-left">
-          {/* Pipeline type selector */}
+          {/* Pipeline type selector — two-tier: primary + advanced */}
           {showControls && (
-            <div className="segmented" ref={segmentedRef}>
-              <div className="segmented-indicator" ref={indicatorRef} />
-              {PIPELINE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  className={`segmented-btn${pipelineType === opt.value ? ' active' : ''}`}
-                  onClick={() => setPipelineType(opt.value)}
-                  disabled={phase === 'running_pipeline'}
-                >
-                  {opt.label}
-                </button>
-              ))}
+            <div className="pipeline-controls">
+              {/* Primary action */}
+              <button
+                className={`pipeline-primary${pipelineType === PRIMARY_PIPELINE.value ? ' active' : ''}`}
+                onClick={() => setPipelineType(PRIMARY_PIPELINE.value)}
+                disabled={phase === 'running_pipeline'}
+              >
+                {PRIMARY_PIPELINE.label}
+              </button>
+
+              {/* Advanced tools */}
+              <div className="pipeline-advanced">
+                {ADVANCED_PIPELINES.map((opt) => (
+                  <button
+                    key={opt.value}
+                    className={`pipeline-adv-btn${pipelineType === opt.value ? ' active' : ''}`}
+                    onClick={() => setPipelineType(opt.value)}
+                    disabled={phase === 'running_pipeline'}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -294,8 +289,8 @@ export default function TickerWorkspace({ onOpenSettings }: Props) {
                     <polyline points="2,14 6,9 10,11 16,4" />
                     <polyline points="12,4 16,4 16,8" />
                   </svg>
-                  <div className="idle-feature-label">6 Pipelines</div>
-                  <div className="idle-feature-desc">Research, DCF, Comps, Earnings, LBO, IC Memo</div>
+                  <div className="idle-feature-label">5 Pipelines</div>
+                  <div className="idle-feature-desc">Research, DCF, Comps, LBO, Earnings + IC Memo from LBO</div>
                 </div>
                 <div className="idle-feature">
                   <svg className="idle-feature-icon" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="var(--gold)" strokeWidth="1.3" strokeLinecap="round">

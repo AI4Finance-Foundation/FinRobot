@@ -254,13 +254,25 @@ export default function LBOSummary({ result }: Props) {
         </div>
       )}
 
-      {/* Export + New Analysis */}
+      {/* Export + IC Memo + New Analysis */}
       <div className="export-bar animate-in">
         <button className="btn" onClick={handleExcelExport}>
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M2 10v2h10v-2M7 2v7m-3-3l3 3 3-3" />
           </svg>
           Export Excel
+        </button>
+        <button
+          className="btn"
+          onClick={() => {
+            useAppStore.getState().setPipelineType('ic-memo')
+          }}
+        >
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M3 2h8v10H3z" />
+            <path d="M5 5h4M5 7h4M5 9h2" />
+          </svg>
+          Generate IC Memo
         </button>
         <div className="flex-1" />
         <button className="btn btn-primary" onClick={() => useAppStore.getState().reset()}>

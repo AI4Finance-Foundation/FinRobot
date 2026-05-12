@@ -216,6 +216,7 @@ export interface SensitivityResult {
   implied_prices: (number | null)[][]
 }
 
+export type DcfSource = 'research' | 'standalone' | null
 export type ScenarioKey = 'base' | 'bull' | 'bear'
 
 interface Scenarios {
@@ -243,6 +244,7 @@ interface WorkspaceState {
   dcfInputs: DCFInputs | null
   originalDcfInputs: DCFInputs | null
   dcfResult: DCFResult | null
+  dcfSource: DcfSource
   sensitivityData: SensitivityResult | null
   currentPrice: number | null
   priceChange: number | null
@@ -302,7 +304,7 @@ interface WorkspaceState {
   setWarnings: (w: string[]) => void
   setDcfInputs: (inputs: DCFInputs) => void
   setOriginalDcfInputs: (inputs: DCFInputs) => void
-  setDcfResult: (result: DCFResult) => void
+  setDcfResult: (result: DCFResult, source?: DcfSource) => void
   setSensitivityData: (data: SensitivityResult) => void
   setCurrentPrice: (price: number) => void
   setPriceChange: (change: number, changePct: number) => void
@@ -343,6 +345,7 @@ const initialState = {
   dcfInputs: null,
   originalDcfInputs: null,
   dcfResult: null,
+  dcfSource: null,
   sensitivityData: null,
   currentPrice: null,
   priceChange: null,
@@ -401,6 +404,7 @@ export const useAppStore = create<WorkspaceState>((set) => ({
     monteCarloResult: null,
     monteCarloLoading: false,
     dcfResult: null,
+    dcfSource: null,
     dcfInputs: null,
     originalDcfInputs: null,
     sensitivityData: null,
@@ -424,7 +428,7 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   setWarnings: (warnings) => set({ warnings }),
   setDcfInputs: (dcfInputs) => set({ dcfInputs }),
   setOriginalDcfInputs: (originalDcfInputs) => set({ originalDcfInputs }),
-  setDcfResult: (dcfResult) => set({ dcfResult }),
+  setDcfResult: (dcfResult, source) => set({ dcfResult, ...(source !== undefined ? { dcfSource: source } : {}) }),
   setSensitivityData: (sensitivityData) => set({ sensitivityData }),
   setCurrentPrice: (currentPrice) => set({ currentPrice }),
   setPriceChange: (priceChange, priceChangePct) => set({ priceChange, priceChangePct }),

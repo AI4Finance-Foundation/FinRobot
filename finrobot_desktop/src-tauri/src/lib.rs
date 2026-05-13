@@ -3,8 +3,11 @@
 //! Architecture:
 //!   1. Tauri Rust shell (this process) — owns the window and menu bar.
 //!   2. Python sidecar — spawned at startup via `tauri-plugin-shell`;
-//!      runs the FastAPI server on 127.0.0.1:8321.
-//!   3. WebView — loads http://127.0.0.1:8321 after the sidecar reports healthy.
+//!      runs the FastAPI server on 127.0.0.1:8321 (provides /api/* + /chat).
+//!   3. WebView — loads the React UI from Vite dev server (http://localhost:5173
+//!      in dev) or the bundled frontendDist (../ui/dist/index.html in build).
+//!      React calls Python at 127.0.0.1:8321 via fetch — Vite proxy in dev,
+//!      absolute URL in build (TODO Phase 4c: inject base URL via build env).
 //!
 //! Communication is plain HTTP/SSE. No `invoke()` calls into Rust.
 

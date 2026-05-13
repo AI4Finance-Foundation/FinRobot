@@ -159,6 +159,55 @@ app.include_router(artifacts_router)
 app.include_router(search_router, prefix="/api/search", tags=["search"])
 
 
+def _extract_user_text(message: dict[str, Any]) -> str:
+    """Extract user text from any of the three supported message shapes.
+
+    Vercel AI SDK v4+ and the Claude messages format use a ``parts`` array
+    instead of a string ``content`` field.  The previous implementation only
+    handled string content, silently writing empty strings to the audit log
+    for every parts-based client.
+
+    Supported shapes:
+        - ``{"role": "user", "content": "string"}``               (legacy)
+        - ``{"role": "user", "content": [{"type": "text", ...}]}`` (mixed)
+        - ``{"role": "user", "parts":   [{"type": "text", ...}]}`` (modern)
+
+    Non-text parts are rendered as placeholders so the transcript still
+    records that something non-text was sent:
+        - ``image``                → ``"[image]"``
+        - ``file``                 → ``"[attached: <filename>]"``
+        - anything else / unknown  → skipped silently
+    """
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+
+    # parts-based — could live on ``parts`` (modern) or be a list ``content``
+    parts: list[Any] = []
+    if isinstance(message.get("parts"), list):
+        parts = message["parts"]
+    elif isinstance(content, list):
+        parts = content
+
+    text_fragments: list[str] = []
+    for part in parts:
+        if not isinstance(part, dict):
+            continue  # non-dict parts (raw strings, ints, etc.) silently skipped
+        part_type = part.get("type")
+        if part_type == "text":
+            text_value = part.get("text")
+            if isinstance(text_value, str):
+                text_fragments.append(text_value)
+        elif part_type == "image":
+            text_fragments.append("[image]")
+        elif part_type == "file":
+            fname = part.get("filename") or "file"
+            text_fragments.append(f"[attached: {fname}]")
+        # Unknown part types are intentionally skipped.
+
+    return "\n".join(text_fragments)
+
+
 async def _get_or_create_writer(
     app_state: Any, session_id: str, model_hint: str
 ) -> TranscriptWriter:
@@ -284,8 +333,7 @@ async def chat(request: Request) -> Response:
     if messages:
         last_msg = messages[-1]
         if isinstance(last_msg, dict) and last_msg.get("role") == "user":
-            content = last_msg.get("content", "")
-            text_content = content if isinstance(content, str) else json.dumps(content)
+            text_content = _extract_user_text(last_msg)
             try:
                 await writer.log_user_message(text_content)
             except OSError:

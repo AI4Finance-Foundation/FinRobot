@@ -1,18 +1,21 @@
 """Integration test: /chat endpoint writes to JSONL transcript.
 
-We only test the user_msg write because the rest of the stream (assistant_text,
-tool_call, tool_result) requires a live LLM call.  The key assertion is that
-``session_start`` and ``user_msg`` events appear in the JSONL file before any
-model interaction happens.
+Covers:
+  - session_start + user_msg appear on the JSONL file
+  - _extract_user_text supports string-content (legacy), parts-based (modern),
+    and mixed list-content message shapes
+  - Multi-part messages combine text + file/image placeholders
+  - Malformed/empty parts arrays do not raise — they yield empty text
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+
+from finagent.server import _extract_user_text
 
 
 @pytest.fixture()
@@ -26,12 +29,21 @@ def _reset_transcript_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pa
     return sess_dir
 
 
-async def test_chat_writes_session_start_and_user_msg(
-    tmp_path: Path, _reset_transcript_dir: Path
-) -> None:
-    """POST /chat should write session_start + user_msg to JSONL before streaming."""
-    from pydantic_ai.models.test import TestModel
+def _read_user_msg(sess_dir: Path, session_id: str) -> dict[str, object]:
+    """Return the user_msg event dict from a session's JSONL file."""
+    path = sess_dir / f"{session_id}.jsonl"
+    assert path.exists(), f"Transcript file not found at {path}"
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        evt = json.loads(line)
+        if evt.get("event") == "user_msg":
+            return evt
+    raise AssertionError(f"No user_msg event found in {path}")
 
+
+async def _post_chat(payload: dict[str, object]) -> None:
+    """POST /chat without caring about the streaming response (which needs an LLM)."""
     from finagent.config import get_settings
     from finagent.engine.deps import FinAgentDeps
     from finagent.engine.orchestrator import create_lead_agent
@@ -39,37 +51,37 @@ async def test_chat_writes_session_start_and_user_msg(
 
     settings = get_settings(model_name="test")
     agent = create_lead_agent(settings)
-
-    # Pre-populate app state to bypass lifespan
     app.state.agent = agent
-    app.state.deps = FinAgentDeps(
-        data_layer=None,  # type: ignore[arg-type]
-        settings=settings,
-    )
+    app.state.deps = FinAgentDeps(data_layer=None, settings=settings)  # type: ignore[arg-type]
     app.state.transcript_writers = {}
     app.state.artifact_store = None
 
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        try:
+            await c.post("/chat", json=payload)
+        except Exception:
+            pass  # LLM call failure expected in unit test context
+
+
+# ---------------------------------------------------------------------------
+# Existing integration tests (preserved)
+# ---------------------------------------------------------------------------
+
+
+async def test_chat_writes_session_start_and_user_msg(_reset_transcript_dir: Path) -> None:
+    """POST /chat should write session_start + user_msg to JSONL before streaming."""
     session_id = "integration-test-session"
-    payload = {
+    await _post_chat({
         "id": session_id,
         "model": "test-model",
         "messages": [
-            {"role": "user", "parts": [{"type": "text", "text": "What is AAPL?", "state": "done"}]},
+            {"role": "user", "parts": [{"type": "text", "text": "What is AAPL?"}]},
         ],
-    }
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
-        # The response may fail (no real LLM) — we only care about transcript writes.
-        try:
-            resp = await c.post("/chat", json=payload)
-        except Exception:
-            pass  # LLM call failure is expected in unit test context
+    })
 
     sess_dir = _reset_transcript_dir
     path = sess_dir / f"{session_id}.jsonl"
-
-    # File must exist with at least session_start + user_msg
     assert path.exists(), f"Transcript file not found at {path}"
     lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
     events = [json.loads(ln) for ln in lines]
@@ -79,35 +91,133 @@ async def test_chat_writes_session_start_and_user_msg(
     assert "user_msg" in event_types, f"Missing user_msg. Got: {event_types}"
 
     user_evt = next(e for e in events if e["event"] == "user_msg")
-    # The user message content from a Vercel AI SDK body is extracted from messages[-1].content
-    # For parts-based messages the content key may be absent; the test verifies the event exists.
     assert user_evt["session_id"] == session_id
+    # Parts-based message text must round-trip into the JSONL.
+    assert user_evt["data"]["text"] == "What is AAPL?"
 
 
-async def test_chat_missing_session_id_uses_default(
-    tmp_path: Path, _reset_transcript_dir: Path
-) -> None:
+async def test_chat_missing_session_id_uses_default(_reset_transcript_dir: Path) -> None:
     """When no ``id`` field in body, session_id should fall back to 'default'."""
-    from finagent.config import get_settings
-    from finagent.engine.deps import FinAgentDeps
-    from finagent.engine.orchestrator import create_lead_agent
-    from finagent.server import app
-
-    settings = get_settings(model_name="test")
-    agent = create_lead_agent(settings)
-
-    app.state.agent = agent
-    app.state.deps = FinAgentDeps(data_layer=None, settings=settings)  # type: ignore[arg-type]
-    app.state.transcript_writers = {}
-    app.state.artifact_store = None
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
-        try:
-            await c.post("/chat", json={"messages": []})
-        except Exception:
-            pass
-
+    await _post_chat({"messages": []})
     sess_dir = _reset_transcript_dir
-    # 'default' session file should be created
     assert (sess_dir / "default.jsonl").exists()
+
+
+# ---------------------------------------------------------------------------
+# Three message-shape contract tests (the P0 fix being covered)
+# ---------------------------------------------------------------------------
+
+
+async def test_transcript_captures_string_content(_reset_transcript_dir: Path) -> None:
+    """Legacy {"content": "hello"} → user_msg.data.text == "hello"."""
+    session_id = "shape-string-content"
+    await _post_chat({
+        "id": session_id,
+        "messages": [{"role": "user", "content": "hello"}],
+    })
+    evt = _read_user_msg(_reset_transcript_dir, session_id)
+    assert evt["data"]["text"] == "hello"
+
+
+async def test_transcript_captures_parts_text(_reset_transcript_dir: Path) -> None:
+    """Modern {"parts": [{"type":"text","text":"hello"}]} → user_msg.data.text == "hello"."""
+    session_id = "shape-parts-text"
+    await _post_chat({
+        "id": session_id,
+        "messages": [{"role": "user", "parts": [{"type": "text", "text": "hello"}]}],
+    })
+    evt = _read_user_msg(_reset_transcript_dir, session_id)
+    assert evt["data"]["text"] == "hello"
+
+
+async def test_transcript_captures_multi_part(_reset_transcript_dir: Path) -> None:
+    """Multi-part: text + file → joined with newline + [attached: name] placeholder."""
+    session_id = "shape-multi-part"
+    await _post_chat({
+        "id": session_id,
+        "messages": [
+            {
+                "role": "user",
+                "parts": [
+                    {"type": "text", "text": "分析这个"},
+                    {"type": "file", "filename": "10K.pdf"},
+                ],
+            }
+        ],
+    })
+    evt = _read_user_msg(_reset_transcript_dir, session_id)
+    assert evt["data"]["text"] == "分析这个\n[attached: 10K.pdf]"
+
+
+# ---------------------------------------------------------------------------
+# Five exception-path tests — direct unit tests on _extract_user_text
+# (faster and clearer than full HTTP round-trips for negative cases)
+# ---------------------------------------------------------------------------
+
+
+def test_transcript_handles_empty_parts() -> None:
+    """``{"parts": []}`` returns empty string without raising."""
+    result = _extract_user_text({"role": "user", "parts": []})
+    assert result == ""
+
+
+def test_transcript_handles_missing_text_field() -> None:
+    """``{"parts": [{"type":"text"}]}`` (no text key) is skipped, returns ""."""
+    result = _extract_user_text({"role": "user", "parts": [{"type": "text"}]})
+    assert result == ""
+
+
+def test_transcript_handles_unknown_part_type() -> None:
+    """Unknown part types (``audio``, ``video``, etc.) are silently dropped."""
+    result = _extract_user_text({
+        "role": "user",
+        "parts": [{"type": "audio", "url": "http://example.com/foo.mp3"}],
+    })
+    assert result == ""
+
+
+def test_transcript_handles_non_dict_part() -> None:
+    """Non-dict items inside ``parts`` (raw strings, ints) are silently skipped."""
+    result = _extract_user_text({"role": "user", "parts": ["raw string", 42, None]})
+    assert result == ""
+
+
+def test_transcript_handles_neither_content_nor_parts() -> None:
+    """Message with neither ``content`` nor ``parts`` returns ""."""
+    result = _extract_user_text({"role": "user"})
+    assert result == ""
+
+
+# ---------------------------------------------------------------------------
+# Bonus: mixed-shape contract (list content path) — defensive cross-check
+# ---------------------------------------------------------------------------
+
+
+def test_transcript_handles_list_content() -> None:
+    """When ``content`` itself is a list of parts, it is treated like ``parts``."""
+    result = _extract_user_text({
+        "role": "user",
+        "content": [{"type": "text", "text": "from-list-content"}],
+    })
+    assert result == "from-list-content"
+
+
+def test_transcript_handles_image_part() -> None:
+    """Image parts render as ``[image]`` placeholder."""
+    result = _extract_user_text({
+        "role": "user",
+        "parts": [
+            {"type": "text", "text": "see this:"},
+            {"type": "image", "url": "data:image/png;base64,xxx"},
+        ],
+    })
+    assert result == "see this:\n[image]"
+
+
+def test_transcript_file_without_filename_uses_default() -> None:
+    """File parts without a ``filename`` field render as ``[attached: file]``."""
+    result = _extract_user_text({
+        "role": "user",
+        "parts": [{"type": "file", "url": "data:..."}],
+    })
+    assert result == "[attached: file]"

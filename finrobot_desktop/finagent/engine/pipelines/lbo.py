@@ -95,7 +95,10 @@ async def _execute_lbo_calc(
 
 def create_lbo_pipeline(agents: dict[str, Agent]) -> Pipeline:
     """4-step LBO analysis pipeline factory."""
+    from finagent.artifact.builders import build_lbo_artifact
+
     return Pipeline(
+        artifact_builder=build_lbo_artifact,
         steps=[
             PipelineStep(
                 name="data_collection",

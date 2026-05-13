@@ -20,6 +20,8 @@ from finagent.engine.data.interface import ProviderError
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.orchestrator import build_report_context, create_lead_agent
 from finagent.engine.skills.registry import SkillRegistry
+from finagent.artifact.store import ArtifactStore
+from finagent.routes.artifacts import router as artifacts_router
 from finagent.routes.ask import router as ask_router
 from finagent.routes.compute import router as compute_router
 from finagent.routes.data import router as data_router
@@ -72,9 +74,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     data_layer = build_data_layer(settings)
 
+    # Artifact store: persists computational snapshots for audit trail
+    artifact_store = ArtifactStore()
+
     # Create agent
     agent = create_lead_agent(settings, skill_registry=registry)
-    deps = FinAgentDeps(data_layer=data_layer, settings=settings, skill_runtime=registry)
+    deps = FinAgentDeps(
+        data_layer=data_layer,
+        settings=settings,
+        skill_runtime=registry,
+        artifact_store=artifact_store,
+    )
 
     from finagent.engine.agents.factory import create_sub_agents
 
@@ -84,9 +94,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.settings_path = settings_path
     app.state.run_store = RunStore()
     app.state.run_tasks = {}
+    app.state.artifact_store = artifact_store
     app.state.sub_agents = create_sub_agents(
         deps.settings, skill_registry=deps.skill_runtime
     )
+
+    # Background task: archive stale artifacts (unviewed for 24h)
+    async def _archive_stale_background() -> None:
+        try:
+            count = await artifact_store.archive_stale(hours=24)
+            if count:
+                logger.info("Startup artifact archive: %d artifacts archived", count)
+        except (OSError, ValueError, TypeError, RuntimeError):
+            logger.exception("Startup artifact archive failed — non-fatal")
+
+    asyncio.create_task(_archive_stale_background())
+
     yield
     for task in list(app.state.run_tasks.values()):
         if not task.done():
@@ -118,6 +141,7 @@ app.include_router(data_router)
 app.include_router(export_router)
 app.include_router(settings_router)
 app.include_router(runs_router)
+app.include_router(artifacts_router)
 
 
 @app.post("/chat")

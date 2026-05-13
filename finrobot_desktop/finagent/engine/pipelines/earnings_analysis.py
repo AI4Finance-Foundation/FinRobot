@@ -69,7 +69,10 @@ def _validate_earnings_result(result: EarningsResult) -> ValidationResult:
 
 def create_earnings_analysis_pipeline(agents: dict[str, Agent]) -> Pipeline:
     """4-step earnings analysis pipeline factory."""
+    from finagent.artifact.builders import build_earnings_artifact
+
     return Pipeline(
+        artifact_builder=build_earnings_artifact,
         steps=[
             PipelineStep(
                 name="earnings_data",

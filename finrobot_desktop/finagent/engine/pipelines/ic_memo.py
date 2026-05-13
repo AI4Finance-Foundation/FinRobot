@@ -150,7 +150,10 @@ def _validate_ic_financials(data: ICFinancials) -> ValidationResult:
 
 def create_ic_memo_pipeline(agents: dict[str, Agent]) -> Pipeline:
     """5-step IC Memo pipeline factory."""
+    from finagent.artifact.builders import build_ic_memo_artifact
+
     return Pipeline(
+        artifact_builder=build_ic_memo_artifact,
         steps=[
             PipelineStep(
                 name="situation_overview",

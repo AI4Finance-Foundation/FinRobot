@@ -61,7 +61,10 @@ async def _execute_statistical_bench(
 
 def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
     """6-step comps analysis pipeline per ARCHITECTURE.md section 2.3."""
+    from finagent.artifact.builders import build_comps_artifact
+
     return Pipeline(
+        artifact_builder=build_comps_artifact,
         steps=[
             PipelineStep(
                 name="target_data",

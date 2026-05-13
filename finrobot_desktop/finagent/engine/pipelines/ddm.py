@@ -173,7 +173,10 @@ def create_ddm_pipeline(agents: dict[str, Agent]) -> Pipeline:
 
     Used for banks and dividend-paying stocks where FCF-DCF is inappropriate.
     """
+    from finagent.artifact.builders import build_ddm_artifact
+
     return Pipeline(
+        artifact_builder=build_ddm_artifact,
         steps=[
             PipelineStep(
                 name="historical_data",

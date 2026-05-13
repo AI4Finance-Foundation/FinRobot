@@ -335,7 +335,10 @@ def _build_sensitivity_ranges(dcf_result: DCFResult) -> tuple[list[float], list[
 
 def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
     """Factory function. Accepts dict of sub-agents."""
+    from finagent.artifact.builders import build_equity_research_artifact
+
     return Pipeline(
+        artifact_builder=build_equity_research_artifact,
         steps=[
             PipelineStep(
                 name="data_collection",

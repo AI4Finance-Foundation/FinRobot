@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Protocol
 
 if TYPE_CHECKING:
+    from finagent.artifact.models import Artifact
     from finagent.engine.deps import FinAgentDeps
 
 from pydantic import BaseModel, Field
@@ -118,12 +119,45 @@ class PipelineStep:
     skill_section: str | None = None
 
 
+class ArtifactBuilder(Protocol):
+    """Callable that converts a completed PipelineResult into an Artifact.
+
+    Each pipeline factory provides its own builder. The builder is stored
+    on the Pipeline instance and called by execute() after all steps succeed.
+
+    Signature::
+
+        def my_builder(
+            result: PipelineResult,
+            ticker: str,
+            deps: FinAgentDeps,
+        ) -> Artifact: ...
+    """
+
+    def __call__(
+        self,
+        result: "PipelineResult",
+        ticker: str,
+        deps: "FinAgentDeps",
+    ) -> "Artifact": ...
+
+
 @dataclass
 class Pipeline:
     """Code-enforced sequence of analysis steps."""
 
     steps: list[PipelineStep]
     max_retries: int = 3
+    artifact_builder: ArtifactBuilder | None = None
+    """Optional callable that converts a PipelineResult into an Artifact.
+
+    When set and deps.artifact_store is not None, execute() will call
+    artifact_builder(result, ticker, deps) after all steps complete and
+    persist the returned Artifact via artifact_store.save().
+
+    Pipeline factory functions (create_dcf_pipeline etc.) set this to their
+    respective _build_artifact_* functions.
+    """
 
     async def execute(
         self,
@@ -139,7 +173,8 @@ class Pipeline:
         total = len(self.steps)
 
         # Resolve output language: explicit arg > settings > default "en"
-        effective_lang = lang or getattr(deps.settings, "language", "en")
+        _settings = getattr(deps, "settings", None)
+        effective_lang = lang or getattr(_settings, "language", "en")
 
         for i, step in enumerate(self.steps, start=1):
             logger.info(f"Step {i}/{total}: {step.name}...")
@@ -175,9 +210,25 @@ class Pipeline:
 
             logger.info(f"Step {i}/{total}: {step.name} \u2713")
 
-        return PipelineResult(
+        pipeline_result = PipelineResult(
             steps=results, structured_data=structured_results, failed_validations=failed_validations
         )
+
+        # Auto-persist artifact if store is available (non-blocking on failure)
+        _artifact_store = getattr(deps, "artifact_store", None)
+        if _artifact_store is not None and self.artifact_builder is not None:
+            try:
+                artifact = self.artifact_builder(pipeline_result, ticker, deps)
+                artifact_id = await _artifact_store.save(artifact)
+                pipeline_result.artifact_id = artifact_id
+                logger.info("Artifact persisted: %s", artifact_id)
+            except (ValueError, TypeError, KeyError, AttributeError, OSError, RuntimeError):
+                logger.exception(
+                    "Failed to persist artifact for %s \u2014 result still returned",
+                    ticker,
+                )
+
+        return pipeline_result
 
     async def _execute_step_once(
         self,
@@ -377,6 +428,10 @@ class PipelineResult(BaseModel):
     structured_data: dict[str, object] = Field(default_factory=dict)
     failed_validations: list[dict[str, str]] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    artifact_id: str | None = Field(
+        default=None,
+        description="Set by Pipeline.execute() after artifact is persisted.",
+    )
 
     def get_data(self, step_name: str) -> object | None:
         """Get structured data from a previous step. Returns None if not found."""

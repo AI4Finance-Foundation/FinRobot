@@ -100,7 +100,10 @@ async def _execute_dcf_calc(
 
 def create_dcf_pipeline(agents: dict[str, Agent]) -> Pipeline:
     """3-step DCF valuation pipeline (steps 2-5 collapsed into dcf_calc)."""
+    from finagent.artifact.builders import build_dcf_artifact
+
     return Pipeline(
+        artifact_builder=build_dcf_artifact,
         steps=[
             PipelineStep(
                 name="historical_data",

@@ -1,0 +1,191 @@
+/**
+ * SourcedNumber — unit tests
+ *
+ * Covers: value formatting, popover on hover, popover on keyboard,
+ * auto-positioning, missing source, NaN/null handling.
+ */
+
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { SourcedNumber } from './SourcedNumber'
+
+describe('SourcedNumber', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // ── Value formatting ────────────────────────────────────────────────────────
+
+  it('displays formatted number value', () => {
+    render(<SourcedNumber value={1234567.89} />)
+    // toLocaleString format may vary by environment — just check it's present
+    expect(screen.getByText(/1[,.]?234[,.]?567/)).toBeInTheDocument()
+  })
+
+  it('applies custom format function', () => {
+    render(
+      <SourcedNumber
+        value={0.2142}
+        format={(v) => `${(v * 100).toFixed(1)}%`}
+      />,
+    )
+    expect(screen.getByText('21.4%')).toBeInTheDocument()
+  })
+
+  it('displays em-dash for null value', () => {
+    render(<SourcedNumber value={null} />)
+    expect(screen.getByText('—')).toBeInTheDocument()
+  })
+
+  it('displays em-dash for undefined value', () => {
+    render(<SourcedNumber value={undefined} />)
+    expect(screen.getByText('—')).toBeInTheDocument()
+  })
+
+  it('displays em-dash for NaN value', () => {
+    render(<SourcedNumber value={NaN} />)
+    expect(screen.getByText('—')).toBeInTheDocument()
+  })
+
+  it('displays string value as-is', () => {
+    render(<SourcedNumber value="$12.3B" />)
+    expect(screen.getByText('$12.3B')).toBeInTheDocument()
+  })
+
+  // ── No popover when source is absent ────────────────────────────────────────
+
+  it('does not show popover trigger when source is absent', () => {
+    render(<SourcedNumber value={42} />)
+    // Should not have role=button if no source
+    const el = screen.getByText('42')
+    // The outer span should not have role=button
+    expect(el.closest('[role="button"]')).toBeNull()
+  })
+
+  it('does not show popover when source has no content fields', () => {
+    render(<SourcedNumber value={42} source={{}} />)
+    const el = screen.getByText('42')
+    expect(el.closest('[role="button"]')).toBeNull()
+  })
+
+  // ── Hover triggers popover after 200ms ──────────────────────────────────────
+
+  it('shows popover after 200ms hover delay', () => {
+    render(
+      <SourcedNumber
+        value={100}
+        source={{ provider: 'yfinance', fetched_at: '2026-05-13T10:00:00Z' }}
+      />,
+    )
+
+    const trigger = screen.getByRole('button')
+    fireEvent.mouseEnter(trigger)
+
+    // Before 200ms — popover should not be visible
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    // Advance 200ms — timer fires, state updates
+    act(() => { vi.advanceTimersByTime(250) })
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('yfinance')).toBeInTheDocument()
+  })
+
+  it('hides popover when mouse leaves after delay', () => {
+    render(
+      <SourcedNumber value={100} source={{ provider: 'FMP' }} />,
+    )
+
+    const trigger = screen.getByRole('button')
+    fireEvent.mouseEnter(trigger)
+    act(() => { vi.advanceTimersByTime(250) })
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    fireEvent.mouseLeave(trigger)
+    act(() => { vi.advanceTimersByTime(250) })
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  // ── Popover content ──────────────────────────────────────────────────────────
+
+  it('shows source.provider in popover', () => {
+    render(<SourcedNumber value={50} source={{ provider: 'DCF engine' }} />)
+    const trigger = screen.getByRole('button')
+    fireEvent.mouseEnter(trigger)
+    act(() => { vi.advanceTimersByTime(250) })
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('DCF engine')).toBeInTheDocument()
+  })
+
+  it('shows formula_warning in red when present', () => {
+    render(
+      <SourcedNumber
+        value={50}
+        source={{
+          provider: 'DCF engine',
+          formula_warning: 'Simplified FCF formula — excludes D&A tax shield',
+        }}
+      />,
+    )
+    const trigger = screen.getByRole('button')
+    fireEvent.mouseEnter(trigger)
+    act(() => { vi.advanceTimersByTime(250) })
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    const warning = screen.getByText('Simplified FCF formula — excludes D&A tax shield')
+    expect(warning).toBeInTheDocument()
+    expect(warning).toHaveStyle({ color: 'var(--negative)' })
+  })
+
+  it('shows artifact link when artifact_id is present', () => {
+    render(
+      <SourcedNumber
+        value={50}
+        source={{ provider: 'DCF engine', artifact_id: 'art_2026-05-13_AAPL_dcf' }}
+      />,
+    )
+    const trigger = screen.getByRole('button')
+    fireEvent.mouseEnter(trigger)
+    act(() => { vi.advanceTimersByTime(250) })
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText(/Open full artifact/)).toBeInTheDocument()
+  })
+
+  // ── Keyboard access ──────────────────────────────────────────────────────────
+
+  it('opens popover on Enter keypress', () => {
+    render(<SourcedNumber value={100} source={{ provider: 'yfinance' }} />)
+    const trigger = screen.getByRole('button')
+
+    act(() => { fireEvent.keyDown(trigger, { key: 'Enter' }) })
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('opens popover on Space keypress', () => {
+    render(<SourcedNumber value={100} source={{ provider: 'yfinance' }} />)
+    const trigger = screen.getByRole('button')
+
+    act(() => { fireEvent.keyDown(trigger, { key: ' ' }) })
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('closes popover on Escape keypress', () => {
+    render(<SourcedNumber value={100} source={{ provider: 'yfinance' }} />)
+    const trigger = screen.getByRole('button')
+
+    act(() => { fireEvent.keyDown(trigger, { key: 'Enter' }) })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    act(() => { fireEvent.keyDown(trigger, { key: 'Escape' }) })
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})

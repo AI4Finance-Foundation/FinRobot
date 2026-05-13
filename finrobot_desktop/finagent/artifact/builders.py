@@ -32,7 +32,6 @@ from finagent.artifact.models import (
     ArtifactInputs,
     ArtifactMeta,
     ArtifactOutputs,
-    ArtifactType,
 )
 
 logger = logging.getLogger(__name__)

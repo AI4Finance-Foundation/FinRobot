@@ -323,6 +323,7 @@ interface WorkspaceState {
   view: ViewMode
   showSettings: boolean
   cmdPaletteOpen: boolean
+  cmdKQuery: string
 
   // Ask panel
   askPanelOpen: boolean
@@ -367,6 +368,7 @@ interface WorkspaceState {
   setShowSettings: (show: boolean) => void
   setCmdPaletteOpen: (open: boolean) => void
   toggleCmdPalette: () => void
+  setCmdKQuery: (q: string) => void
   setAskPanelOpen: (open: boolean) => void
   setActiveTab: (tab: ActiveTab) => void
   setCatalysts: (data: CatalystEvent[] | null) => void
@@ -416,6 +418,7 @@ const initialState = {
   view: 'workspace' as ViewMode,
   showSettings: false,
   cmdPaletteOpen: false,
+  cmdKQuery: '',
   askPanelOpen: false,
   activeTab: 'overview' as ActiveTab,
   catalysts: null,
@@ -503,6 +506,7 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   setShowSettings: (showSettings) => set({ showSettings }),
   setCmdPaletteOpen: (cmdPaletteOpen) => set({ cmdPaletteOpen }),
   toggleCmdPalette: () => set((s) => ({ cmdPaletteOpen: !s.cmdPaletteOpen })),
+  setCmdKQuery: (cmdKQuery) => set({ cmdKQuery }),
   setAskPanelOpen: (askPanelOpen) => set({ askPanelOpen }),
   setActiveTab: (activeTab) => set({ activeTab }),
   setCatalysts: (catalysts) => set({ catalysts }),

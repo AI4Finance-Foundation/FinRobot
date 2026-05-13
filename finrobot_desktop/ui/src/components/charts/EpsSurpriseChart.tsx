@@ -10,6 +10,7 @@ import {
   Cell,
   ReferenceLine,
 } from 'recharts'
+import type { TooltipValueType } from 'recharts'
 
 interface SurpriseDataPoint {
   quarter: string
@@ -71,11 +72,13 @@ export default function EpsSurpriseChart({ data, title }: ChartProps) {
             />
             <Tooltip
               contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
-              formatter={(value: number, name: string) => {
-                if (name === 'Estimate') return [`$${value.toFixed(2)}`, name]
-                return [`$${value.toFixed(2)}`, name]
+              formatter={(value: TooltipValueType | undefined, name: string | number | undefined) => {
+                const v = typeof value === 'number' ? value : 0
+                const n = String(name ?? '')
+                if (n === 'Estimate') return [`$${v.toFixed(2)}`, n]
+                return [`$${v.toFixed(2)}`, n]
               }}
-              labelFormatter={(label: string) => `Quarter: ${label}`}
+              labelFormatter={(label: unknown) => `Quarter: ${String(label ?? '')}`}
             />
             <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />
             <ReferenceLine y={0} stroke="#252A37" strokeDasharray="3 3" />

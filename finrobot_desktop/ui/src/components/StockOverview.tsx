@@ -12,6 +12,7 @@ interface PriceHistoryItem {
   low: number
   close: number
   volume: number
+  [key: string]: string | number | boolean | null
 }
 
 export default function StockOverview() {

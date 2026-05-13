@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useAppStore } from '../stores/appStore'
 import type { PipelineType } from '../stores/appStore'
 
@@ -111,7 +111,7 @@ function HighlightedText({ text, indices }: { text: string; indices: number[] })
   if (indices.length === 0) return <>{text}</>
 
   const set = new Set(indices)
-  const parts: JSX.Element[] = []
+  const parts: React.ReactElement[] = []
   let run = ''
   let inMatch = false
 

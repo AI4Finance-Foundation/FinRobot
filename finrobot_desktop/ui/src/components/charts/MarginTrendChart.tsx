@@ -8,6 +8,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
+import type { TooltipValueType } from 'recharts'
 
 interface ChartProps {
   data: Record<string, number | string | boolean | null>[]
@@ -66,7 +67,9 @@ export default function MarginTrendChart({ data, title }: ChartProps) {
               axisLine={{ stroke: '#252A37' }}
             />
             <Tooltip
-              formatter={(value: number) => formatPercent(value)}
+              formatter={(value: TooltipValueType | undefined) =>
+                formatPercent(typeof value === 'number' ? value : 0)
+              }
               contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
             />
             <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />

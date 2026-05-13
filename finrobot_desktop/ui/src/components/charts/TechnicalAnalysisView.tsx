@@ -33,7 +33,7 @@ const INDICATOR_LABELS: Record<Indicator, string> = {
 export default function TechnicalAnalysisView() {
   const [range, setRange] = useState<TimeRange>('1Y')
   const [debouncedRange, setDebouncedRange] = useState<TimeRange>('1Y')
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const ticker = useAppStore((s) => s.ticker)
 
   const [activeIndicators, setActiveIndicators] = useState<Set<Indicator>>(

@@ -10,6 +10,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
+import type { TooltipValueType } from 'recharts'
 import { useAppStore } from '../../stores/appStore'
 import { BASE_URL } from '../../api/client'
 
@@ -61,7 +62,7 @@ function formatVolume(value: number): string {
 export default function PriceChart({ data, title }: ChartProps) {
   const [range, setRange] = useState<TimeRange>('1Y')
   const [debouncedRange, setDebouncedRange] = useState<TimeRange>('1Y')
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const ticker = useAppStore((s) => s.ticker)
 
   const handleRangeChange = useCallback((newRange: TimeRange) => {
@@ -154,9 +155,11 @@ export default function PriceChart({ data, title }: ChartProps) {
             />
             <Tooltip
               contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
-              formatter={(value: number, name: string) => {
-                if (name === 'Volume') return [formatVolume(value), name]
-                return [`$${value.toFixed(2)}`, name]
+              formatter={(value: TooltipValueType | undefined, name: string | number | undefined) => {
+                const v = typeof value === 'number' ? value : 0
+                const n = String(name ?? '')
+                if (n === 'Volume') return [formatVolume(v), n]
+                return [`$${v.toFixed(2)}`, n]
               }}
             />
             <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />

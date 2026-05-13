@@ -8,6 +8,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
+import type { TooltipValueType } from 'recharts'
 
 interface ChartProps {
   data: { year: string; operating: number; investing: number; financing: number }[]
@@ -56,7 +57,9 @@ export default function CashFlowChart({ data, title }: ChartProps) {
               axisLine={{ stroke: '#252A37' }}
             />
             <Tooltip
-              formatter={(value: number) => formatBillions(value)}
+              formatter={(value: TooltipValueType | undefined) =>
+                formatBillions(typeof value === 'number' ? value : 0)
+              }
               contentStyle={CHART_TOOLTIP}
               labelStyle={{ color: '#E8ECF4' }}
             />

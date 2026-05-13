@@ -9,6 +9,7 @@ import {
   Cell,
   ReferenceLine,
 } from 'recharts'
+import type { TooltipValueType } from 'recharts'
 
 interface ChartProps {
   data: { year: string; yoy_pct: number | null }[]
@@ -53,7 +54,9 @@ export default function RevenueYoYChart({ data, title }: ChartProps) {
               axisLine={{ stroke: '#252A37' }}
             />
             <Tooltip
-              formatter={(value: number) => formatPct(value)}
+              formatter={(value: TooltipValueType | undefined) =>
+                formatPct(typeof value === 'number' ? value : 0)
+              }
               contentStyle={CHART_TOOLTIP}
               labelStyle={{ color: '#E8ECF4' }}
             />

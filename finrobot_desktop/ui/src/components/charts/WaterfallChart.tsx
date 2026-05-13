@@ -8,6 +8,7 @@ import {
   Cell,
   ReferenceLine,
 } from 'recharts'
+import type { TooltipValueType } from 'recharts'
 import { useMemo } from 'react'
 
 interface ChartProps {
@@ -96,8 +97,14 @@ export default function WaterfallChart({ data, title }: ChartProps) {
             />
             <Tooltip
               contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
-              formatter={(_val: number, _name: string, props: { payload: WaterfallBar }) => {
-                const entry = props.payload
+              formatter={(
+                _val: TooltipValueType | undefined,
+                _name: string | number | undefined,
+                // recharts Payload<> interface has payload?: any which carries the row data
+                item: { payload?: WaterfallBar },
+              ) => {
+                const entry = item.payload
+                if (!entry) return ['', '']
                 if (entry.is_total) return [`$${entry.delta.toFixed(0)}`, 'Total']
                 return [`$${entry.value.toFixed(0)}`, entry.value >= 0 ? 'Add' : 'Subtract']
               }}

@@ -1,4 +1,6 @@
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import type { TooltipValueType } from 'recharts'
+import type { PieLabelRenderProps } from 'recharts'
 
 interface SegmentData {
   segment: string
@@ -28,7 +30,9 @@ function formatBillions(v: number): string {
   return String(v)
 }
 
-function renderLabel({ pct }: SegmentData): string {
+function renderLabel(props: PieLabelRenderProps): string {
+  // `percent` is provided by recharts (0–1); multiply by 100 for display
+  const pct = typeof props.percent === 'number' ? props.percent * 100 : 0
   return `${pct.toFixed(1)}%`
 }
 
@@ -58,7 +62,9 @@ export default function RevenueSegmentsChart({ data, title }: ChartProps) {
               ))}
             </Pie>
             <Tooltip
-              formatter={(value: number) => formatBillions(value)}
+              formatter={(value: TooltipValueType | undefined) =>
+                formatBillions(typeof value === 'number' ? value : 0)
+              }
               contentStyle={CHART_TOOLTIP}
               labelStyle={{ color: '#E8ECF4' }}
             />

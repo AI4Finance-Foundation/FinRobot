@@ -8,6 +8,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts'
+import type { TooltipValueType } from 'recharts'
 import { rsi } from './technicalUtils'
 import type { OHLCRow } from './CandlestickChart'
 
@@ -89,7 +90,10 @@ export default function TechnicalIndicators({ data, showRSI }: TechnicalIndicato
           <Tooltip
             contentStyle={CHART_TOOLTIP}
             labelStyle={{ color: '#E8ECF4' }}
-            formatter={(value: number) => [value?.toFixed(1), 'RSI']}
+            formatter={(value: TooltipValueType | undefined) => {
+              const v = typeof value === 'number' ? value : 0
+              return [v.toFixed(1), 'RSI']
+            }}
           />
 
           {/* Overbought / oversold zones */}

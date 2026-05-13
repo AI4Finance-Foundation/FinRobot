@@ -8,6 +8,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
+import type { TooltipValueType } from 'recharts'
 
 interface ChartProps {
   data: Record<string, number | string | boolean | null>[]
@@ -79,9 +80,11 @@ export default function EpsPeChart({ data, title }: ChartProps) {
             />
             <Tooltip
               contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
-              formatter={(value: number, name: string) => {
-                if (name === 'P/E Ratio') return [`${value.toFixed(1)}x`, name]
-                return [`$${value.toFixed(2)}`, name]
+              formatter={(value: TooltipValueType | undefined, name: string | number | undefined) => {
+                const v = typeof value === 'number' ? value : 0
+                const n = String(name ?? '')
+                if (n === 'P/E Ratio') return [`${v.toFixed(1)}x`, n]
+                return [`$${v.toFixed(2)}`, n]
               }}
             />
             <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />

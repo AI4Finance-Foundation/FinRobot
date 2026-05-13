@@ -8,6 +8,7 @@ import {
   Cell,
   ReferenceLine,
 } from 'recharts'
+import type { TooltipValueType } from 'recharts'
 
 interface ChartProps {
   data: Record<string, number | string | boolean | null>[]
@@ -65,14 +66,17 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
             />
             <Tooltip
               contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
-              formatter={(value: number, name: string) => {
-                if (name === 'base') return [null, null]
-                return [`$${value.toFixed(2)}`, 'Range Width']
+              formatter={(value: TooltipValueType | undefined, name: string | number | undefined) => {
+                const n = String(name ?? '')
+                if (n === 'base') return [null, null]
+                const v = typeof value === 'number' ? value : 0
+                return [`$${v.toFixed(2)}`, 'Range Width']
               }}
-              labelFormatter={(label: string) => {
-                const entry = shaped.find((s) => s.method === label)
-                if (!entry) return label
-                return `${label}: $${entry.low.toFixed(2)} – $${entry.high.toFixed(2)}`
+              labelFormatter={(label: unknown) => {
+                const s = String(label ?? '')
+                const entry = shaped.find((e) => e.method === s)
+                if (!entry) return s
+                return `${s}: $${entry.low.toFixed(2)} – $${entry.high.toFixed(2)}`
               }}
             />
             <Bar dataKey="base" stackId="stack" fill="transparent" />

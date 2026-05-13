@@ -9,6 +9,7 @@ import {
   ReferenceArea,
   Cell,
 } from 'recharts'
+import type { TooltipValueType } from 'recharts'
 import { useMemo } from 'react'
 import type { MonteCarloResult } from '../../stores/appStore'
 
@@ -81,8 +82,14 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
             />
             <Tooltip
               contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
-              formatter={(value: number) => [value.toLocaleString(), 'Simulations']}
-              labelFormatter={(label: number) => `$${label.toFixed(2)}`}
+              formatter={(value: TooltipValueType | undefined) => {
+                const v = typeof value === 'number' ? value : 0
+                return [v.toLocaleString(), 'Simulations']
+              }}
+              labelFormatter={(label: unknown) => {
+                const n = typeof label === 'number' ? label : Number(label)
+                return `$${n.toFixed(2)}`
+              }}
             />
 
             {/* 25-75 percentile shaded region */}

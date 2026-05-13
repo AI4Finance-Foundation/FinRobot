@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts'
+import type { LegendPayload } from 'recharts/types/component/DefaultLegendContent'
 import type { BollingerPoint } from './technicalUtils'
 import { sma, bollingerBands } from './technicalUtils'
 
@@ -363,17 +364,35 @@ export default function CandlestickChart({
         {/* Legend -- only show active overlays */}
         <Legend
           wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }}
-          payload={[
-            ...(showSMA20
-              ? [{ value: 'SMA(20)', type: 'line' as const, color: SMA20_COLOR }]
-              : []),
-            ...(showSMA50
-              ? [{ value: 'SMA(50)', type: 'line' as const, color: SMA50_COLOR }]
-              : []),
-            ...(showBollinger
-              ? [{ value: 'BB(20,2)', type: 'line' as const, color: BB_STROKE }]
-              : []),
-          ]}
+          content={() => {
+            const items: LegendPayload[] = [
+              ...(showSMA20
+                ? [{ value: 'SMA(20)', type: 'line' as const, color: SMA20_COLOR }]
+                : []),
+              ...(showSMA50
+                ? [{ value: 'SMA(50)', type: 'line' as const, color: SMA50_COLOR }]
+                : []),
+              ...(showBollinger
+                ? [{ value: 'BB(20,2)', type: 'line' as const, color: BB_STROKE }]
+                : []),
+            ]
+            if (items.length === 0) return null
+            return (
+              <ul style={{ display: 'flex', gap: 12, listStyle: 'none', margin: 0, padding: 0 }}>
+                {items.map((item) => (
+                  <li
+                    key={item.value}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#7A8299', fontSize: '0.72rem' }}
+                  >
+                    <svg width="14" height="4">
+                      <line x1="0" y1="2" x2="14" y2="2" stroke={item.color} strokeWidth="2" />
+                    </svg>
+                    {item.value}
+                  </li>
+                ))}
+              </ul>
+            )
+          }}
         />
       </ComposedChart>
     </ResponsiveContainer>

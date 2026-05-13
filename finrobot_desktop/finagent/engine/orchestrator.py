@@ -449,63 +449,79 @@ def create_lead_agent(
     equity_pipeline = create_equity_research_pipeline(sub_agents)
 
     @agent.tool
-    async def run_equity_research(ctx: RunContext[FinAgentDeps], ticker: str) -> str:
+    async def run_equity_research(ctx: RunContext[FinAgentDeps], ticker: str) -> dict[str, Any]:
         """Generate a comprehensive equity research report.
         Uses a multi-step enforced pipeline. Takes 30-120 seconds.
         Use this when the user asks for: equity research, initiating coverage,
         stock analysis report, investment thesis, or deep-dive analysis."""
         result = await equity_pipeline.execute(ctx.deps, ticker)
         ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
-        return result.format_summary()
+        return {
+            "summary": result.format_summary(),
+            "artifact_id": result.artifact_id,
+            "ticker": ticker.upper(),
+        }
 
     from finagent.engine.pipelines.comps import create_comps_pipeline
 
     comps_pipeline = create_comps_pipeline(sub_agents)
 
     @agent.tool
-    async def run_comps_analysis(ctx: RunContext[FinAgentDeps], ticker: str) -> str:
+    async def run_comps_analysis(ctx: RunContext[FinAgentDeps], ticker: str) -> dict[str, Any]:
         """Build a comparable company analysis.
         Uses a multi-step enforced pipeline.
         Use when user asks for: comps, comparable companies, peer analysis,
         trading multiples comparison."""
         result = await comps_pipeline.execute(ctx.deps, ticker)
         ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
-        return result.format_summary()
+        return {
+            "summary": result.format_summary(),
+            "artifact_id": result.artifact_id,
+            "ticker": ticker.upper(),
+        }
 
     from finagent.engine.pipelines.dcf import create_dcf_pipeline
 
     dcf_pipeline = create_dcf_pipeline(sub_agents)
 
     @agent.tool
-    async def run_dcf_valuation(ctx: RunContext[FinAgentDeps], ticker: str) -> str:
+    async def run_dcf_valuation(ctx: RunContext[FinAgentDeps], ticker: str) -> dict[str, Any]:
         """Run a DCF valuation model.
         Uses a multi-step enforced pipeline.
         Use when user asks for: DCF, discounted cash flow, intrinsic value,
         valuation model."""
         result = await dcf_pipeline.execute(ctx.deps, ticker)
         ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
-        return result.format_summary()
+        return {
+            "summary": result.format_summary(),
+            "artifact_id": result.artifact_id,
+            "ticker": ticker.upper(),
+        }
 
     from finagent.engine.pipelines.lbo import create_lbo_pipeline
 
     lbo_pipeline = create_lbo_pipeline(sub_agents)
 
     @agent.tool
-    async def run_lbo_analysis(ctx: RunContext[FinAgentDeps], ticker: str) -> str:
+    async def run_lbo_analysis(ctx: RunContext[FinAgentDeps], ticker: str) -> dict[str, Any]:
         """Run an LBO (leveraged buyout) analysis.
         Uses a multi-step enforced pipeline with deterministic IRR/MOIC math.
         Use when user asks for: LBO, leveraged buyout, private equity analysis,
         buyout returns, IRR analysis, MOIC."""
         result = await lbo_pipeline.execute(ctx.deps, ticker)
         ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
-        return result.format_summary()
+        return {
+            "summary": result.format_summary(),
+            "artifact_id": result.artifact_id,
+            "ticker": ticker.upper(),
+        }
 
     from finagent.engine.pipelines.ddm import create_ddm_pipeline
 
     ddm_pipeline = create_ddm_pipeline(sub_agents)
 
     @agent.tool
-    async def run_ddm_valuation(ctx: RunContext[FinAgentDeps], ticker: str) -> str:
+    async def run_ddm_valuation(ctx: RunContext[FinAgentDeps], ticker: str) -> dict[str, Any]:
         """Run a DDM (Dividend Discount Model) valuation.
         Uses a multi-step enforced pipeline with deterministic dividend-based math.
         Use when user asks for: DDM, dividend discount model, bank valuation,
@@ -513,34 +529,46 @@ def create_lead_agent(
         Also auto-selected when 'finagent dcf' detects a bank."""
         result = await ddm_pipeline.execute(ctx.deps, ticker)
         ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
-        return result.format_summary()
+        return {
+            "summary": result.format_summary(),
+            "artifact_id": result.artifact_id,
+            "ticker": ticker.upper(),
+        }
 
     from finagent.engine.pipelines.earnings_analysis import create_earnings_analysis_pipeline
 
     earnings_pipeline = create_earnings_analysis_pipeline(sub_agents)
 
     @agent.tool
-    async def run_earnings_analysis(ctx: RunContext[FinAgentDeps], ticker: str) -> str:
+    async def run_earnings_analysis(ctx: RunContext[FinAgentDeps], ticker: str) -> dict[str, Any]:
         """Run an earnings quality analysis (beat rate, surprise trends, streak).
         Uses a multi-step enforced pipeline with deterministic beat/miss classification.
         Use when user asks for: earnings analysis, earnings quality, beat rate,
         earnings surprise, EPS trend."""
         result = await earnings_pipeline.execute(ctx.deps, ticker)
         ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
-        return result.format_summary()
+        return {
+            "summary": result.format_summary(),
+            "artifact_id": result.artifact_id,
+            "ticker": ticker.upper(),
+        }
 
     from finagent.engine.pipelines.ic_memo import create_ic_memo_pipeline
 
     ic_memo_pipeline = create_ic_memo_pipeline(sub_agents)
 
     @agent.tool
-    async def run_ic_memo(ctx: RunContext[FinAgentDeps], ticker: str) -> str:
+    async def run_ic_memo(ctx: RunContext[FinAgentDeps], ticker: str) -> dict[str, Any]:
         """Generate an Investment Committee (IC) memo with DCF + LBO analysis.
         Uses a multi-step pipeline with IRR hurdle gate (PASS if IRR < 15%).
         Use when user asks for: IC memo, investment committee memo, PE analysis,
         buyout memo, invest/pass recommendation."""
         result = await ic_memo_pipeline.execute(ctx.deps, ticker)
         ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
-        return result.format_summary()
+        return {
+            "summary": result.format_summary(),
+            "artifact_id": result.artifact_id,
+            "ticker": ticker.upper(),
+        }
 
     return agent  # type: ignore[return-value]

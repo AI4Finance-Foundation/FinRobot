@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -21,17 +22,21 @@ from finagent.engine.deps import FinAgentDeps
 from finagent.engine.orchestrator import build_report_context, create_lead_agent
 from finagent.engine.skills.registry import SkillRegistry
 from finagent.artifact.store import ArtifactStore
+from finagent.audit.transcript import TranscriptWriter
 from finagent.routes.artifacts import router as artifacts_router
 from finagent.routes.ask import router as ask_router
 from finagent.routes.compute import router as compute_router
 from finagent.routes.data import router as data_router
 from finagent.routes.export import router as export_router
 from finagent.routes.runs import router as runs_router
+from finagent.routes.search import router as search_router
 from finagent.routes.settings import load_non_secret_settings
 from finagent.routes.settings import router as settings_router
 from finagent.run_store import RunStore
 from finagent.secret_store import SecretStore, create_secret_store
 from finagent.web import web_router
+
+logger = logging.getLogger(__name__)
 
 
 # Fix 4.4: Pipeline factories moved to registry module to break
@@ -95,6 +100,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.run_store = RunStore()
     app.state.run_tasks = {}
     app.state.artifact_store = artifact_store
+    # Transcript writers: session_id → TranscriptWriter (in-memory cache)
+    app.state.transcript_writers: dict[str, TranscriptWriter] = {}
     app.state.sub_agents = create_sub_agents(
         deps.settings, skill_registry=deps.skill_runtime
     )
@@ -119,6 +126,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await asyncio.gather(*app.state.run_tasks.values(), return_exceptions=True)
     await data_layer.close()
     await app.state.run_store.close()
+    # Flush all open transcript writers so session_end events are recorded.
+    for writer in list(app.state.transcript_writers.values()):
+        try:
+            await writer.log_session_end()
+            await writer.close()
+        except (OSError, ValueError, RuntimeError):
+            logger.exception("TranscriptWriter shutdown error (session=%s)", writer.session_id)
 
 
 # WARNING: This server has no authentication. For local development only.
@@ -142,13 +156,162 @@ app.include_router(export_router)
 app.include_router(settings_router)
 app.include_router(runs_router)
 app.include_router(artifacts_router)
+app.include_router(search_router, prefix="/api/search", tags=["search"])
+
+
+async def _get_or_create_writer(
+    app_state: Any, session_id: str, model_hint: str
+) -> TranscriptWriter:
+    """Return an existing TranscriptWriter or create a new one with session_start.
+
+    Defensively creates the ``transcript_writers`` dict on ``app_state`` if it
+    is missing (e.g. tests that bypass lifespan and set state manually).
+    """
+    if not hasattr(app_state, "transcript_writers"):
+        app_state.transcript_writers = {}
+    writers: dict[str, TranscriptWriter] = app_state.transcript_writers
+    if session_id not in writers:
+        writer = TranscriptWriter(session_id)
+        try:
+            await writer.log_session_start(user_id="local", model=model_hint)
+        except OSError:
+            logger.exception("TranscriptWriter: failed to write session_start for %s", session_id)
+        writers[session_id] = writer
+    return writers[session_id]
+
+
+async def _intercept_native_events(
+    native_stream: AsyncIterator[Any],
+    writer: TranscriptWriter,
+) -> AsyncIterator[Any]:
+    """Pass-through wrapper that mirrors pydantic_ai native events to the transcript.
+
+    Handles:
+      - ``PartEndEvent`` with ``TextPart``        → ``assistant_text``
+      - ``FunctionToolCallEvent``                  → ``tool_call``
+      - ``FunctionToolResultEvent``               → ``tool_result``
+
+    Uses ``PartEndEvent`` (not ``PartStartEvent``) for text so we log the
+    complete text of each part in one write instead of streaming deltas.
+    """
+    from pydantic_ai.messages import (
+        FunctionToolCallEvent,
+        FunctionToolResultEvent,
+        PartEndEvent,
+        TextPart,
+        ToolReturnPart,
+    )
+
+    # Accumulate text parts per index so we can log the full text on PartEndEvent.
+    _text_parts: dict[int, str] = {}
+
+    async for event in native_stream:
+        # --- assistant text ---
+        if isinstance(event, PartEndEvent) and isinstance(event.part, TextPart):
+            text = event.part.content
+            try:
+                await writer.log_assistant_text(text)
+            except OSError:
+                logger.exception("TranscriptWriter: failed to log assistant_text")
+
+        # --- tool call ---
+        elif isinstance(event, FunctionToolCallEvent):
+            part = event.part
+            try:
+                args = part.args_as_dict() if hasattr(part, "args_as_dict") else {}
+            except (ValueError, TypeError):
+                args = {}
+            try:
+                await writer.log_tool_call(part.tool_name, part.tool_call_id, args)
+            except OSError:
+                logger.exception("TranscriptWriter: failed to log tool_call")
+
+        # --- tool result ---
+        elif isinstance(event, FunctionToolResultEvent):
+            result_part = event.result
+            is_error = getattr(result_part, "outcome", "success") == "failed"
+            # Extract artifact_id if the tool returned it in a dict payload.
+            artifact_id: str | None = None
+            if isinstance(result_part, ToolReturnPart):
+                try:
+                    obj = result_part.model_response_object()
+                    if isinstance(obj, dict):
+                        artifact_id = obj.get("artifact_id")
+                except (ValueError, TypeError, AttributeError):
+                    pass
+            try:
+                content = result_part.content if hasattr(result_part, "content") else str(result_part)
+                await writer.log_tool_result(
+                    result_part.tool_call_id,
+                    result_part.tool_name,
+                    content,
+                    is_error=is_error,
+                    artifact_id=artifact_id,
+                )
+            except OSError:
+                logger.exception("TranscriptWriter: failed to log tool_result")
+
+        yield event
 
 
 @app.post("/chat")
 async def chat(request: Request) -> Response:
-    return await VercelAIAdapter.dispatch_request(
-        request, agent=request.app.state.agent, deps=request.app.state.deps
+    """Handle a Vercel AI SDK chat request with transcript side-logging.
+
+    The transcript hook intercepts native pydantic_ai stream events to write
+    user messages, assistant text, tool calls, and tool results to a per-session
+    JSONL file at ``~/.finagent-desktop/sessions/<session_id>.jsonl``.
+
+    Transcript write failures are logged and never surface to the client —
+    the Vercel AI stream is unaffected by transcript I/O errors.
+    """
+    body = await request.body()
+    try:
+        body_json: dict[str, Any] = json.loads(body)
+    except (json.JSONDecodeError, ValueError):
+        body_json = {}
+
+    session_id: str = (
+        body_json.get("id")
+        or body_json.get("session_id")
+        or "default"
     )
+    model_hint: str = str(body_json.get("model") or "unknown")
+
+    # Log the user's latest message before streaming begins.
+    writer = await _get_or_create_writer(request.app.state, session_id, model_hint)
+    messages: list[Any] = body_json.get("messages", [])
+    if messages:
+        last_msg = messages[-1]
+        if isinstance(last_msg, dict) and last_msg.get("role") == "user":
+            content = last_msg.get("content", "")
+            text_content = content if isinstance(content, str) else json.dumps(content)
+            try:
+                await writer.log_user_message(text_content)
+            except OSError:
+                logger.exception("TranscriptWriter: failed to log user_msg for session %s", session_id)
+
+    # Build the adapter manually so we can intercept the native event stream.
+    # Starlette caches request._body after the first read, so calling
+    # from_request here (which calls request.body() again) is safe.
+    try:
+        adapter = await VercelAIAdapter.from_request(
+            request,
+            agent=request.app.state.agent,
+        )
+    except ValidationError as exc:
+        # Mirror the behaviour of VercelAIAdapter.dispatch_request which catches
+        # ValidationError from build_run_input and returns 422.
+        return JSONResponse(
+            content=exc.errors(include_url=False),
+            media_type="application/json",
+            status_code=422,
+        )
+
+    native_stream = adapter.run_stream_native(deps=request.app.state.deps)
+    instrumented_stream = _intercept_native_events(native_stream, writer)
+    event_stream = adapter.transform_stream(instrumented_stream)
+    return adapter.streaming_response(event_stream)
 
 
 @app.get("/api/pipeline/stream/{pipeline_type}/{ticker}")

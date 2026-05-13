@@ -1,0 +1,13 @@
+import { useParams } from "react-router-dom";
+
+export function LibraryPage() {
+  const { ticker } = useParams();
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-semibold">
+        Library{ticker ? ` — ${ticker.toUpperCase()}` : ""}
+      </h1>
+      <p className="mt-2 text-sm text-neutral-500">(待 Library page agent 填充)</p>
+    </div>
+  );
+}

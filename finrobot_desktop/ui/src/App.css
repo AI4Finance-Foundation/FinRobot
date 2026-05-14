@@ -2702,6 +2702,13 @@ select.input-field {
 .titlebar-title .name { color: var(--text-1); font-weight: 600; }
 .titlebar-title .sep  { color: var(--text-3); margin: 0 8px; }
 
+/* Workspace segment — clickable, pointer cursor, hover highlight. */
+.titlebar-workspace {
+  cursor: pointer;
+  transition: color 0.12s;
+}
+.titlebar-workspace:hover { color: var(--amber); }
+
 .titlebar-actions {
   display: flex;
   align-items: center;
@@ -3451,3 +3458,200 @@ select.input-field {
 }
 .ai-icon-menu-item:hover { background: var(--bg-3); color: var(--text-0); }
 .rpt-foot .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--text-3); }
+
+/* ═══════════════════════════════════════════
+   ABOUT VIEW — Phase 5 T5.5
+   ═══════════════════════════════════════════ */
+
+.about-root {
+  max-width: 840px;
+  margin: 0 auto;
+  padding: 40px 32px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+/* Hero */
+.about-hero {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.about-logo {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 2.4rem;
+  font-weight: 600;
+  color: var(--amber);
+  letter-spacing: -0.02em;
+}
+
+.about-tagline {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-0);
+  letter-spacing: -0.01em;
+}
+
+.about-desc {
+  font-size: 0.86rem;
+  color: var(--text-2);
+  line-height: 1.7;
+  max-width: 56ch;
+}
+
+/* Three method cards */
+.about-methods {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.about-method-card {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: border-color 0.15s;
+}
+
+.about-method-card:hover {
+  border-color: var(--line-bright);
+}
+
+.about-method-card--active {
+  border-color: var(--amber);
+  background: rgba(245, 166, 35, 0.04);
+}
+
+.about-method-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.about-method-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 3px;
+}
+
+.about-method-badge.mode-b {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.about-method-badge.mode-a {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.about-method-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+/* Code block */
+.about-code-block {
+  position: relative;
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.about-code-pre {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--text-1);
+  padding: 14px 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
+.about-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--line-bright);
+  background: var(--bg-3);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.about-copy-btn:hover {
+  color: var(--text-0);
+  border-color: var(--amber);
+  background: rgba(245, 166, 35, 0.08);
+}
+
+/* Desktop current badge */
+.about-desktop-badge {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--amber);
+  padding: 8px 0;
+}
+
+.about-desktop-note {
+  font-size: 0.78rem;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+
+/* Bottom links */
+.about-links {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.about-link-btn {
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 6px;
+  border: 1px solid var(--line-bright);
+  background: var(--bg-2);
+  color: var(--text-1);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.about-link-btn:hover {
+  color: var(--text-0);
+  border-color: var(--amber);
+  background: rgba(245, 166, 35, 0.06);
+}
+
+.about-link-btn.about-link-primary {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: var(--bg-0);
+}
+
+.about-link-btn.about-link-primary:hover {
+  background: var(--amber-dim);
+  border-color: var(--amber-dim);
+  color: var(--text-0);
+}

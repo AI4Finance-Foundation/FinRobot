@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+// StatusBar — Phase 5: Apache-2.0 click wired + About tab entry.
 
-// TODO Phase 5: wire openExternal for Apache-2.0 badge click
-// import { openExternal } from '../lib/tauri'
+import { useEffect, useState } from 'react'
+import { openExternal } from '../lib/tauri'
+import { useUiStore } from '../stores/uiStore'
 
 const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
 
@@ -15,11 +16,20 @@ function formatClock(d: Date): string {
 
 export default function StatusBar(): React.ReactElement {
   const [clock, setClock] = useState(() => formatClock(new Date()))
+  const openTab = useUiStore((s) => s.openTab)
 
   useEffect(() => {
     const id = setInterval(() => setClock(formatClock(new Date())), 1000)
     return () => clearInterval(id)
   }, [])
+
+  function handleLicense() {
+    void openExternal('https://www.apache.org/licenses/LICENSE-2.0')
+  }
+
+  function handleAbout() {
+    openTab({ id: 'about', kind: 'about', title: '关于' })
+  }
 
   return (
     <div className="statusbar">
@@ -49,14 +59,18 @@ export default function StatusBar(): React.ReactElement {
         {' '}connected
       </div>
 
-      {/* Apache-2.0 badge — TODO Phase 5: onClick={() => openExternal('https://www.apache.org/licenses/LICENSE-2.0')} */}
-      <div className="sb-item clickable" title="Apache-2.0 License">
+      {/* Apache-2.0 badge */}
+      <div
+        className="sb-item clickable"
+        title="Apache-2.0 License — 点击查看"
+        onClick={handleLicense}
+      >
         Apache-2.0
       </div>
 
       <div className="spacer" />
 
-      {/* Market indices — hardcoded Phase 1 */}
+      {/* Market indices — Phase 1 static values */}
       <div className="sb-item">
         <span className="lbl">SH</span>
         {' '}3287.41{' '}
@@ -66,6 +80,15 @@ export default function StatusBar(): React.ReactElement {
         <span className="lbl">HSI</span>
         {' '}19842.6{' '}
         <span style={{ color: 'var(--red)' }}>-0.32%</span>
+      </div>
+
+      {/* About entry */}
+      <div
+        className="sb-item clickable"
+        title="关于 FinAgent"
+        onClick={handleAbout}
+      >
+        关于
       </div>
 
       {/* Clock */}

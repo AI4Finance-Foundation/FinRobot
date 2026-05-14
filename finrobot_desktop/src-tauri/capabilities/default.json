@@ -16,6 +16,10 @@
           "args": true
         }
       ]
-    }
+    },
+    "shell:allow-open",
+    "dialog:default",
+    "fs:default",
+    "global-shortcut:default"
   ]
 }

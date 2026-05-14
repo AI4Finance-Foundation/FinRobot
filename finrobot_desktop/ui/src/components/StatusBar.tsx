@@ -32,7 +32,7 @@ export default function StatusBar(): React.ReactElement {
   }
 
   return (
-    <div className="statusbar">
+    <div className="statusbar" data-testid="statusbar">
       {/* CORE version */}
       <div className="sb-item">
         <span className="dot" />

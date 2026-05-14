@@ -1,10 +1,20 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppShell } from "./AppShell";
+import { useUiStore } from "../stores/uiStore";
 
-function renderWithProviders(initialPath = "/stocks") {
+// Stub Tauri modules so tests run in jsdom without Tauri APIs.
+vi.mock("../lib/tauri", () => ({
+  registerShortcut: vi.fn().mockResolvedValue(() => {}),
+  pickDirectory: vi.fn().mockResolvedValue(null),
+  isTauri: vi.fn().mockReturnValue(false),
+  openExternal: vi.fn().mockResolvedValue(undefined),
+  DEFAULT_WORKSPACE_PATH: "~/finagent",
+}));
+
+function renderWithProviders(initialPath = "/") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -19,21 +29,22 @@ function renderWithProviders(initialPath = "/stocks") {
   );
 }
 
-describe("AppShell — routing skeleton smoke test", () => {
-  it("renders all three nav links", () => {
+describe("AppShell — Phase 1+ shell structure", () => {
+  it("renders all 6 shell regions", () => {
     renderWithProviders();
-    expect(screen.getByText("Stocks")).toBeInTheDocument();
-    expect(screen.getByText("Library")).toBeInTheDocument();
-    expect(screen.getByText("Settings")).toBeInTheDocument();
+    expect(screen.getByTestId("titlebar")).toBeInTheDocument();
+    expect(screen.getByTestId("activitybar")).toBeInTheDocument();
+    expect(screen.getByTestId("explorer")).toBeInTheDocument();
+    expect(screen.getByTestId("editor-tabs")).toBeInTheDocument();
+    expect(screen.getByTestId("breadcrumb")).toBeInTheDocument();
+    expect(screen.getByTestId("statusbar")).toBeInTheDocument();
   });
 
-  it("renders recent-tickers-slot placeholder", () => {
+  it("clicking an activity bar button updates activityBarSelection in uiStore", () => {
     renderWithProviders();
-    expect(screen.getByTestId("recent-tickers-slot")).toBeInTheDocument();
-  });
-
-  it("renders cmd+K trigger button", () => {
-    renderWithProviders();
-    expect(screen.getByTitle("Command Palette (⌘K)")).toBeInTheDocument();
+    // Initial state is "dashboard". Click "Pipeline 库" button.
+    const pipelineBtn = screen.getByTitle("Pipeline 库");
+    fireEvent.click(pipelineBtn);
+    expect(useUiStore.getState().activityBarSelection).toBe("pipelines");
   });
 });

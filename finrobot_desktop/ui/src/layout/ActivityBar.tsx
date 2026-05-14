@@ -53,7 +53,7 @@ export function ActivityBar(): React.ReactElement {
   }
 
   return (
-    <div className="activity-bar">
+    <div className="activity-bar" data-testid="activitybar">
       <ActBtn icon={<IconDashboard size={18} />} label="工作台" actKey="dashboard" />
       <ActBtn icon={<IconPipeline size={18} />} label="Pipeline 库" actKey="pipelines" />
       <ActBtn icon={<IconFileText size={18} />} label="报告库" actKey="reports" />

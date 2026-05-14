@@ -30,7 +30,7 @@ export function TitleBar(): React.ReactElement {
   return (
     // data-tauri-drag-region on outer container lets the user drag the window
     // by clicking anywhere in the titlebar that isn't an interactive element.
-    <div className="titlebar" data-tauri-drag-region>
+    <div className="titlebar" data-tauri-drag-region data-testid="titlebar">
       {/* Traffic-light visual placeholder.
           pointer-events: none lets the real macOS Overlay traffic-light buttons
           (injected by Tauri at trafficLightPosition x:14 y:13) receive clicks. */}

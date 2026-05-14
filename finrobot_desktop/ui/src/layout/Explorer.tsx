@@ -467,6 +467,7 @@ export function Explorer(): React.ReactElement {
   return (
     <aside
       className="sidebar-left"
+      data-testid="explorer"
       style={{ width: explorerWidth, position: 'relative' }}
     >
       <div className="sb-header">

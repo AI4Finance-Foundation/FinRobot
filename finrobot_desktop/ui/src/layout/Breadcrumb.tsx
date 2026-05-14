@@ -93,7 +93,7 @@ export function Breadcrumb(): React.ReactElement {
   }
 
   return (
-    <div className="breadcrumb">
+    <div className="breadcrumb" data-testid="breadcrumb">
       {segments}
     </div>
   )

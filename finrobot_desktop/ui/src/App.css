@@ -129,40 +129,9 @@ body {
 /* ── Utility: Mono Numbers ── */
 .font-mono { font-family: var(--font-mono); }
 
-/* ═══════════════════════════
-   TOP BAR
-   ═══════════════════════════ */
-.topbar {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-  height: 48px;
-  background: rgba(11, 14, 20, 0.85);
-  backdrop-filter: blur(12px) saturate(120%);
-  -webkit-backdrop-filter: blur(12px) saturate(120%);
-  border-bottom: 1px solid var(--border-subtle);
-  display: flex; align-items: center;
-  padding: 0 var(--sp-6);
-  gap: var(--sp-4);
-  -webkit-app-region: drag;
-}
-
-.topbar-logo {
-  display: flex; align-items: center; gap: var(--sp-2);
-  font-weight: 700; font-size: 0.93rem; letter-spacing: -0.02em;
-  color: var(--text-primary);
-  user-select: none;
-  -webkit-app-region: no-drag;
-}
-.topbar-logo svg { width: 20px; height: 20px; }
-.topbar-logo .brand-accent { color: var(--gold); }
-
-.topbar-divider {
-  width: 1px; height: 20px; background: var(--border);
-  margin: 0 var(--sp-2);
-}
-
+/* ── Ticker display (used by TickerInput) ── */
 .ticker-display {
   display: flex; align-items: center; gap: var(--sp-3);
-  -webkit-app-region: no-drag;
 }
 .ticker-symbol {
   font-family: var(--font-mono); font-weight: 700; font-size: 1rem;
@@ -182,32 +151,6 @@ body {
 .ticker-change.positive { color: var(--positive); background: var(--positive-bg); }
 .ticker-change.negative { color: var(--negative); background: var(--negative-bg); }
 
-.topbar-spacer { flex: 1; }
-
-.topbar-btn {
-  width: 32px; height: 32px; border-radius: var(--r-md);
-  border: 1px solid var(--border); background: transparent;
-  color: var(--text-secondary); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: all 0.15s;
-  -webkit-app-region: no-drag;
-}
-.topbar-btn:hover { background: var(--elevated); color: var(--text-primary); }
-
-.cmd-trigger {
-  display: flex; align-items: center; gap: var(--sp-2);
-  padding: 4px var(--sp-3); border-radius: var(--r-md);
-  border: 1px solid var(--border); background: transparent;
-  color: var(--text-muted); cursor: pointer;
-  transition: all 0.15s;
-  -webkit-app-region: no-drag;
-}
-.cmd-trigger:hover { background: var(--elevated); color: var(--text-secondary); border-color: var(--gold-dim); }
-.cmd-trigger-label {
-  font-family: var(--font-mono); font-size: 0.68rem; font-weight: 500;
-  opacity: 0.7;
-}
-
 /* ═══════════════════════════
    MAIN LAYOUT
    ═══════════════════════════ */
@@ -222,39 +165,6 @@ body {
   margin-top: 48px;
   height: calc(100vh - 48px - 24px);
 }
-
-/* ── Left Panel ── */
-.panel-left {
-  width: 340px; min-width: 340px;
-  border-right: 1px solid var(--border-subtle);
-  overflow-y: auto;
-  min-height: 0;  /* critical: allows flex child to shrink below content size for scrolling */
-  padding: var(--sp-5);
-  padding-bottom: var(--sp-10); /* extra space so last card isn't flush with statusbar */
-  display: flex; flex-direction: column; gap: var(--sp-5);
-}
-
-/* ── Right Canvas ── */
-.panel-right {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;  /* critical: allows flex child to shrink for scrolling */
-  padding: var(--sp-6);
-  padding-bottom: var(--sp-10);
-  display: flex; flex-direction: column; gap: var(--sp-5);
-  position: relative;
-}
-/* Ambient gradient blob — creates Z-depth behind content */
-.panel-right::before {
-  content: '';
-  position: fixed;
-  top: 60px; right: 40px;
-  width: 500px; height: 500px;
-  background: radial-gradient(circle, rgba(201, 168, 76, 0.04) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
-}
-.panel-right > * { position: relative; z-index: 1; }
 
 /* ═══════════════════════════
    CARD SYSTEM
@@ -824,59 +734,6 @@ body {
   color: var(--text-primary);
   font-weight: 600;
 }
-
-/* ═══════════════════════════
-   PIPELINE CONTROLS (two-tier)
-   ═══════════════════════════ */
-.pipeline-controls {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  padding: var(--sp-2);
-}
-
-.pipeline-primary {
-  width: 100%;
-  padding: var(--sp-2) var(--sp-4);
-  font-family: var(--font-ui);
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--base);
-  background: var(--info);
-  border: none;
-  border-radius: var(--r-md);
-  cursor: pointer;
-  transition: all 0.15s;
-  letter-spacing: 0.02em;
-}
-.pipeline-primary:hover { background: #4d94f7; }
-.pipeline-primary.active {
-  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
-}
-.pipeline-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.pipeline-advanced {
-  display: flex;
-  gap: var(--sp-1);
-}
-
-.pipeline-adv-btn {
-  flex: 1;
-  padding: var(--sp-1) var(--sp-2);
-  font-family: var(--font-ui);
-  font-size: 0.72rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-.pipeline-adv-btn:hover { color: var(--text-secondary); border-color: var(--text-muted); }
-.pipeline-adv-btn.active { color: var(--info); border-color: var(--info); font-weight: 600; }
-.pipeline-adv-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ═══════════════════════════
    SECTION LABELS

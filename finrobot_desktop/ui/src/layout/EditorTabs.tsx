@@ -39,7 +39,7 @@ export function EditorTabs(): React.ReactElement {
   const closeTab = useUiStore((s) => s.closeTab)
 
   return (
-    <div className="tabs">
+    <div className="tabs" data-testid="editor-tabs">
       {openTabs.map((tab) => {
         const isActive = tab.id === activeTabId
         return (

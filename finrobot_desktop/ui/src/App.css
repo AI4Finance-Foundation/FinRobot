@@ -2970,6 +2970,21 @@ select.input-field {
 .breadcrumb .seg       { color: var(--text-2); }
 .breadcrumb .seg:last-child { color: var(--text-1); }
 .breadcrumb .sep       { color: var(--text-3); }
+.breadcrumb .seg[role="button"]:hover { color: var(--text-0); text-decoration: underline; text-underline-offset: 2px; }
+
+/* ── Explorer resize handle ── */
+.sidebar-left { position: relative; }
+.explorer-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  z-index: 10;
+  transition: background 0.15s;
+}
+.explorer-resize-handle:hover { background: var(--amber); opacity: 0.5; }
 
 /* ── Status bar (IDE shell version) ── */
 .statusbar {

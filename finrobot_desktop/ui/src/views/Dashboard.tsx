@@ -12,19 +12,9 @@ import {
 } from '../lib/icons'
 import { relativeTime } from '../utils/time'
 import type { components } from '../api/schema'
+import { PIPELINES } from '../lib/pipelines'
 
 type RunRecord = components['schemas']['RunRecord']
-
-// ─── Static data (UI chrome, not financial data) ──────────────
-
-const PIPELINES = [
-  { id: 'PL-001', name: '个股深度分析', desc: '财报 · 估值 · 情绪',   source: 'FinRobot', time: '~ 42s', runs: 128 },
-  { id: 'PL-002', name: '财报速读',     desc: '10-K / 季报解析',     source: 'EDGAR',    time: '~ 28s', runs: 94  },
-  { id: 'PL-003', name: '行业轮动监测', desc: '板块情绪热力',         source: 'Realtime', time: '~ 35s', runs: 61  },
-  { id: 'PL-004', name: '事件驱动扫描', desc: '公告 / 政策 / 突发',   source: '24/7',     time: '~ 18s', runs: 203 },
-  { id: 'PL-005', name: '投资组合诊断', desc: '归因 / 风险敞口',      source: '本地',     time: '~ 56s', runs: 12  },
-  { id: 'PL-006', name: '研报批处理',   desc: '批量导出 PDF',         source: '本地',     time: '~ 2m',  runs: 7   },
-] as const
 
 // Fallback cards shown when API returns empty — not real data.
 // placeholder, not for production

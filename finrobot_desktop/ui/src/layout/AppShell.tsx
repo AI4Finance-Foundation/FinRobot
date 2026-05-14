@@ -8,6 +8,8 @@ import { RightChatPanel } from './RightChatPanel'
 import { CmdKOverlay } from './CmdKOverlay'
 import StatusBar from '../components/StatusBar'
 import { useUiPrefs } from '../i18n'
+import { useUiStore, selectActiveTab } from '../stores/uiStore'
+import Dashboard from '../views/Dashboard'
 
 // TopBar and LeftNav are intentionally NOT imported here.
 // They remain on disk for Phase 6 cleanup.
@@ -15,6 +17,7 @@ import { useUiPrefs } from '../i18n'
 export function AppShell(): React.ReactElement {
   const chatExpanded = useUiPrefs((s) => s.chatExpanded)
   const toggleChat = useUiPrefs((s) => s.toggleChat)
+  const activeTab = useUiStore(selectActiveTab)
 
   return (
     <div className="app-shell">
@@ -28,9 +31,12 @@ export function AppShell(): React.ReactElement {
           <EditorTabs />
           <Breadcrumb />
           <div className="editor-content">
-            {/* Phase 2 will replace Outlet with Dashboard when activeTab === 'dashboard'.
-                Phase 3 will route by activeTab. For now Outlet renders the router pages. */}
-            <Outlet />
+            {activeTab?.kind === 'dashboard' ? (
+              <Dashboard />
+            ) : (
+              /* Phase 3 will route non-dashboard tabs properly. */
+              <Outlet />
+            )}
           </div>
         </main>
 

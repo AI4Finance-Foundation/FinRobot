@@ -56,6 +56,57 @@
   /* ── Fonts ── */
   --font-ui:   'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+
+  /* ═══════════════════════════════════════════════
+     REFACTOR v2 — IDE Shell tokens (prototype-aligned)
+     New tokens only; do not alias to legacy v1 names.
+     v1 tokens above remain authoritative for existing components.
+     ═══════════════════════════════════════════════ */
+
+  /* ── Layered backgrounds (5 levels, dark → bright) ── */
+  --bg-0: #0d1115;
+  --bg-1: #131820;
+  --bg-2: #1a2029;
+  --bg-3: #232b36;
+  --bg-4: #2d3743;
+
+  /* ── Lines ── */
+  --line:        #232b36;
+  --line-bright: #3a4554;
+
+  /* ── Text (4 levels, bright → dim) ── */
+  --text-0: #e6ebf2;
+  --text-1: #b0bac8;
+  --text-2: #6b7785;
+  --text-3: #475260;
+
+  /* ── Brand / MODE A (narrative · agent) ── */
+  --amber:      #f5a623;
+  --amber-dim:  #b87a1a;
+  --amber-soft: rgba(245, 166, 35, 0.08);
+
+  /* ── MODE B (computation · pipeline) ── */
+  --blue:       #60a5fa;
+  --blue-dim:   #3b6fa8;
+  --blue-soft:  rgba(96, 165, 250, 0.08);
+
+  /* ── Semantic (prototype hues — slightly different from v1 --positive/--negative) ── */
+  --green:      #4ade80;
+  --green-dim:  #2f6f47;
+  --red:        #ff6b6b;
+  --purple:     #a78bfa;
+
+  /* ── Shell layout dimensions ── */
+  --titlebar-h:    38px;
+  --activitybar-w: 48px;
+  --explorer-w:    260px;
+  --aipanel-w:     420px;
+  --statusbar-h:   24px;
+  --tabs-h:        34px;
+  --breadcrumb-h:  28px;
+
+  /* ── Fonts (additional brand serif for Dashboard hero) ── */
+  --font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

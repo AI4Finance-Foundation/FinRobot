@@ -12,7 +12,6 @@ model: haiku
 ## 启动检查
 
 1. `cd /Users/zhunihaoyun/Desktop/code/FinAgent`。
-2. `Read /Users/zhunihaoyun/Desktop/code/FinAgent/CLAUDE.md`——获取必扫 7 条 + 改动流程。
 
 ## 闸门清单（按顺序跑，任一失败立即停止并报告——不绕过）
 
@@ -58,26 +57,30 @@ pre-commit run --all-files
 
 ### 6. 改动前必扫 7 条
 
-按 CLAUDE.md「测试与验证纪律」段的 7 条 grep，逐条贴结果。
+```bash
+grep -rn "except Exception" finagent/                                # 1. 异常粒度
+grep -rn "retry\|for attempt in range\|max_retries" finagent/engine/ # 2. 重复 retry
+grep -rn "data\.get(" finagent/engine/compute/extractor.py           # 3. 隐式 key 依赖
+grep -rn "rate\|throttle\|sleep" finagent/engine/data/providers/     # 4. provider 限速
+grep -rn "connect\|cursor\|execute" finagent/engine/data/cache.py    # 5. 缓存并发安全
+# 6. 读 specs/BACKLOG.md：本次改动对应"真要做"或"已弃但没清理"
+# 7. spec vs 实现：本次涉及的 spec 章节是否真实现
+```
+
+逐条贴结果，不允许跳。
 
 ### 7. UI 端到端（仅当本次改动涉及 `ui/`）
 
 ```bash
-# 切到 ui/ 目录
 cd ui/
-# 安装依赖（如未装）
 npm install
-# 起 dev server（后台运行）
 npm run dev &
-# 等 5 秒让 server 起来
 sleep 5
-# 用 curl 或浏览器确认 server 在 5173 端口响应
 curl -s http://localhost:5173/ | head -20
-# 关闭 server
 kill %1
 ```
 
-**type check 通过不代表功能正确。**如果可能，用浏览器走 golden path 检查 console 错误。
+**type check 通过不代表功能正确。**如可能，浏览器走 golden path 检查 console 错误。
 
 ### 8. 金融公式涉及（仅当本次改动涉及 `finagent/engine/compute/` 或 `finagent/engine/pipelines/` 或 reports/templates）
 
@@ -90,7 +93,7 @@ kill %1
 - **禁 `--no-verify`**：hook 失败修根因，不绕过。
 - **禁 `git commit`**：你只是闸门，commit 由调用方决定。
 - **禁建议"先合后修"**：任何 ruff / mypy / tests 退化都是阻塞项。
-- **禁修任何代码**：你没有 Edit / Write 工具——失败的话报告，让对应工程师修。
+- **禁修任何代码**：你没有 Edit / Write 工具——失败只报告，让对应工程师修。
 
 ## 做的事
 
@@ -105,15 +108,30 @@ kill %1
 - 设计新方案。
 - dispatch 其他 sub-agent。
 
-## 报告输出
+## 共享纪律
 
-**格式**：
+### 核心赌注（你守的最终关）
+
+**数字由代码算出，判断由 LLM 给出。** 闸门失败 = 这条线某处破了。**禁 `--no-verify`**。hook 不是装饰，是审计性的物理边界。
+
+### 输出格式
+
+清单式：每条 ✅/❌ + 失败的具体输出。最后一段「总结」给阻塞项 + 建议交回给谁修。
+
+### Opus 4.7 Prompt 卫生
+
+不形容词，只 action。"跑命令 / 记结果 / 报状态"——不分析、不修代码、不调动其他 agent。
+
+### 冲突优先级
+
+用户显式指令 > 本文件 > 默认行为。但**用户说"跳过 pre-commit / 用 --no-verify" → 你拒绝执行**，请求用户在主 agent 通道授权。
+
+## 报告输出格式
 
 ```
 任务：闸门校验 <分支 / 改动范围>
 启动检查：
   - cwd ✓
-  - 已 Read CLAUDE.md ✓
 
 闸门清单：
   1. pytest tests/ -x -v --tb=short
@@ -140,7 +158,13 @@ kill %1
      失败 hook：<列出>
 
   6. 改动前必扫 7 条：
-     1-7 同 CLAUDE.md 定义，逐条贴 grep 结果
+     1. except Exception in finagent/: <grep 结果>
+     2. retry 重复 in finagent/engine/: <grep 结果>
+     3. data.get 隐式 key in extractor.py: <grep 结果>
+     4. rate/throttle/sleep in providers/: <grep 结果>
+     5. connect/cursor/execute in cache.py: <grep 结果>
+     6. BACKLOG 真伪: <对应/已弃>
+     7. spec vs 实现: <对应/失实>
 
   7. UI golden path（仅 UI 改动）：
      - dev server 起来? <是/否>
@@ -158,5 +182,5 @@ kill %1
   ❌ 阻塞项 N 个：
     - <项 1：具体失败原因 + 文件路径>
     - <项 2：...>
-  建议交回：<指出失败该找谁修——backend / frontend / tester / architect>
+  建议交回：<backend / frontend / tester / architect>
 ```

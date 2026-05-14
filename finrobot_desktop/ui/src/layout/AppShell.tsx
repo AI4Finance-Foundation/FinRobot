@@ -1,6 +1,4 @@
-// AppShell — Phase 3: full Tab-kind → Page routing.
-// Phase 4 will wire: RightChatPanel context, PipelinePage runner modal.
-// Do NOT import RightChatPanel changes here — handled in Phase 4.
+// AppShell — Phase 4: RightChatPanel → uiStore + ⌘L shortcut.
 
 import { useEffect } from 'react'
 import { Outlet, useParams, useLocation, useNavigate } from 'react-router-dom'
@@ -12,8 +10,8 @@ import { Breadcrumb } from './Breadcrumb'
 import { RightChatPanel } from './RightChatPanel'
 import { CmdKOverlay } from './CmdKOverlay'
 import StatusBar from '../components/StatusBar'
-import { useUiPrefs } from '../i18n'
 import { useUiStore, selectActiveTab } from '../stores/uiStore'
+import { registerShortcut } from '../lib/tauri'
 
 // Views / pages
 import Dashboard from '../views/Dashboard'
@@ -28,11 +26,17 @@ import { SettingsPage } from '../pages/SettingsPage'
 // They remain on disk for Phase 6 cleanup.
 
 export function AppShell(): React.ReactElement {
-  const chatExpanded = useUiPrefs((s) => s.chatExpanded)
-  const toggleChat = useUiPrefs((s) => s.toggleChat)
   const activeTab = useUiStore(selectActiveTab)
   const openTab = useUiStore((s) => s.openTab)
   const setActivityBarSelection = useUiStore((s) => s.setActivityBarSelection)
+
+  // ⌘L / Ctrl+L → toggle AI panel (T4.5)
+  useEffect(() => {
+    const unreg = registerShortcut({ key: 'l', mod: true }, () => {
+      useUiStore.getState().toggleAiPanel()
+    })
+    return unreg
+  }, [])
 
   // ── URL → Tab sync ──────────────────────────────────────────
   // Deep-link: /stocks/:ticker → watchlist Tab
@@ -125,7 +129,7 @@ export function AppShell(): React.ReactElement {
           </div>
         </main>
 
-        <RightChatPanel expanded={chatExpanded} onToggle={toggleChat} />
+        <RightChatPanel />
       </div>
 
       <StatusBar />

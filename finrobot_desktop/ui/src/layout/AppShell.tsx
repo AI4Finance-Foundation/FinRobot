@@ -1,40 +1,44 @@
-import { useState } from "react";
-import { Outlet } from "react-router-dom";
-import { TopBar } from "./TopBar";
-import { LeftNav } from "./LeftNav";
-import { RightChatPanel } from "./RightChatPanel";
-import { CmdKOverlay } from "./CmdKOverlay";
+import { Outlet } from 'react-router-dom'
+import { TitleBar } from './TitleBar'
+import { ActivityBar } from './ActivityBar'
+import { Explorer } from './Explorer'
+import { EditorTabs } from './EditorTabs'
+import { Breadcrumb } from './Breadcrumb'
+import { RightChatPanel } from './RightChatPanel'
+import { CmdKOverlay } from './CmdKOverlay'
+import StatusBar from '../components/StatusBar'
+import { useUiPrefs } from '../i18n'
 
-export function AppShell() {
-  const [chatExpanded, setChatExpanded] = useState(false);
+// TopBar and LeftNav are intentionally NOT imported here.
+// They remain on disk for Phase 6 cleanup.
+
+export function AppShell(): React.ReactElement {
+  const chatExpanded = useUiPrefs((s) => s.chatExpanded)
+  const toggleChat = useUiPrefs((s) => s.toggleChat)
 
   return (
-    <div
-      className="flex h-screen flex-col"
-      style={{ backgroundColor: "var(--base)", color: "var(--text-primary)" }}
-    >
-      {/* Top bar — fixed 60px row */}
-      <TopBar />
+    <div className="app-shell">
+      <TitleBar />
 
-      {/* Body — remaining height */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left nav — fixed 240px */}
-        <LeftNav />
+      <div className="app-body">
+        <ActivityBar />
+        <Explorer />
 
-        {/* Main content — flex-1 */}
-        <main className="flex-1 overflow-auto">
-          <Outlet />
+        <main className="editor">
+          <EditorTabs />
+          <Breadcrumb />
+          <div className="editor-content">
+            {/* Phase 2 will replace Outlet with Dashboard when activeTab === 'dashboard'.
+                Phase 3 will route by activeTab. For now Outlet renders the router pages. */}
+            <Outlet />
+          </div>
         </main>
 
-        {/* Right chat panel — collapsible */}
-        <RightChatPanel
-          expanded={chatExpanded}
-          onToggle={() => setChatExpanded((v) => !v)}
-        />
+        <RightChatPanel expanded={chatExpanded} onToggle={toggleChat} />
       </div>
 
-      {/* Global cmd+K overlay */}
+      <StatusBar />
       <CmdKOverlay />
     </div>
-  );
+  )
 }

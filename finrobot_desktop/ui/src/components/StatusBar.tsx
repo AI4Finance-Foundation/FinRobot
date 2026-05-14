@@ -1,70 +1,75 @@
-import { useQuery } from '@tanstack/react-query'
-import { api } from '../api/client'
-import { useAppStore } from '../stores/appStore'
+import { useEffect, useState } from 'react'
 
-export default function StatusBar() {
-  const ticker = useAppStore((s) => s.ticker)
-  const phase = useAppStore((s) => s.phase)
-  const pipelineType = useAppStore((s) => s.pipelineType)
+// TODO Phase 5: wire openExternal for Apache-2.0 badge click
+// import { openExternal } from '../lib/tauri'
 
-  const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/api/settings')
-      if (error) throw new Error('Failed to load settings')
-      return data
-    },
-  })
+const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
 
-  const modelLabel = settings?.model_name ?? '—'
+function pad(n: number): string {
+  return String(n).padStart(2, '0')
+}
 
-  const phaseLabel = (() => {
-    switch (phase) {
-      case 'idle': return 'Ready'
-      case 'loading_data': return 'Loading data…'
-      case 'data_ready': return 'Data loaded'
-      case 'running_pipeline': return 'Running pipeline…'
-      case 'pipeline_done': return 'Complete'
-      case 'interactive': return 'Interactive'
-      default: return 'Ready'
-    }
-  })()
+function formatClock(d: Date): string {
+  return `${pad(d.getDate())} ${MONTHS[d.getMonth()]} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
 
-  const isRunning = phase === 'running_pipeline' || phase === 'loading_data'
+export default function StatusBar(): React.ReactElement {
+  const [clock, setClock] = useState(() => formatClock(new Date()))
+
+  useEffect(() => {
+    const id = setInterval(() => setClock(formatClock(new Date())), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   return (
-    <footer className="statusbar">
-      {/* Left: connection + model */}
-      <div className="statusbar-group">
-        <span className={`statusbar-dot${isRunning ? ' running' : ''}`} />
-        <span className="statusbar-text">{phaseLabel}</span>
-        <span className="statusbar-divider" />
-        <span className="statusbar-text statusbar-mono">{modelLabel}</span>
+    <div className="statusbar">
+      {/* CORE version */}
+      <div className="sb-item">
+        <span className="dot" />
+        <span className="lbl">CORE</span>
+        {' '}v0.4.1
       </div>
 
-      {/* Center: ticker + pipeline */}
-      <div className="statusbar-group">
-        {ticker && phase !== 'idle' && (
-          <>
-            <span className="statusbar-text statusbar-mono statusbar-gold">{ticker}</span>
-            <span className="statusbar-divider" />
-            <span className="statusbar-text">{pipelineType.toUpperCase()}</span>
-          </>
-        )}
+      {/* Model (clickable placeholder) */}
+      <div className="sb-item clickable">
+        <span className="lbl">MODEL</span>
+        {' '}deepseek-chat
       </div>
 
-      {/* Right: shortcuts */}
-      <div className="statusbar-group">
-        <span className="statusbar-hint">
-          <kbd className="statusbar-kbd">1-5</kbd> Pipelines
-        </span>
-        <span className="statusbar-hint">
-          <kbd className="statusbar-kbd">⌘K</kbd> Commands
-        </span>
-        <span className="statusbar-hint">
-          <kbd className="statusbar-kbd">⌘/</kbd> Shortcuts
-        </span>
+      {/* Running tasks */}
+      <div className="sb-item warn">
+        <span className="dot" />
+        <span className="lbl">RUNNING</span>
+        {' '}1 task
       </div>
-    </footer>
+
+      {/* FinRobot */}
+      <div className="sb-item clickable">
+        <span className="lbl">FINROBOT</span>
+        {' '}connected
+      </div>
+
+      {/* Apache-2.0 badge — TODO Phase 5: onClick={() => openExternal('https://www.apache.org/licenses/LICENSE-2.0')} */}
+      <div className="sb-item clickable" title="Apache-2.0 License">
+        Apache-2.0
+      </div>
+
+      <div className="spacer" />
+
+      {/* Market indices — hardcoded Phase 1 */}
+      <div className="sb-item">
+        <span className="lbl">SH</span>
+        {' '}3287.41{' '}
+        <span style={{ color: 'var(--green)' }}>+0.84%</span>
+      </div>
+      <div className="sb-item">
+        <span className="lbl">HSI</span>
+        {' '}19842.6{' '}
+        <span style={{ color: 'var(--red)' }}>-0.32%</span>
+      </div>
+
+      {/* Clock */}
+      <div className="sb-item clickable">{clock}</div>
+    </div>
   )
 }

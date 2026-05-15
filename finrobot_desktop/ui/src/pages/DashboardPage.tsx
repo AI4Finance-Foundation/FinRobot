@@ -215,7 +215,7 @@ function MarketTickerBar() {
           fontFamily: 'var(--font-mono)',
         }}
       >
-        Market data unavailable
+        市场数据暂不可用
       </div>
     )
   }
@@ -463,7 +463,7 @@ function EarningsCalendar() {
   return (
     <div>
       <SectionHeader
-        title="EARNINGS THIS WEEK"
+        title="本周财报"
         action={
           <span
             style={{
@@ -498,7 +498,7 @@ function EarningsCalendar() {
             color: 'var(--text-muted)',
           }}
         >
-          Earnings data unavailable
+          财报数据暂不可用
         </div>
       )}
 
@@ -514,7 +514,7 @@ function EarningsCalendar() {
             lineHeight: 1.5,
           }}
         >
-          Configure FMP key in{' '}
+          请在{' '}
           <button
             onClick={() => navigate('/settings')}
             style={{
@@ -527,9 +527,9 @@ function EarningsCalendar() {
               fontFamily: 'inherit',
             }}
           >
-            Settings
+            设置
           </button>{' '}
-          for earnings data
+          中配置 FMP 密钥
         </div>
       )}
 
@@ -701,7 +701,7 @@ function SignalsSection() {
   return (
     <div>
       <SectionHeader
-        title="SIGNALS & ALERTS"
+        title="信号与预警"
         action={
           tickers.length > 0 ? (
             <Link
@@ -713,7 +713,7 @@ function SignalsSection() {
                 fontFamily: 'var(--font-mono)',
               }}
             >
-              Manage watchlist
+              管理自选股
             </Link>
           ) : null
         }
@@ -730,7 +730,7 @@ function SignalsSection() {
             color: 'var(--text-muted)',
           }}
         >
-          Add tickers to your watchlist to see signals
+          添加自选股以查看信号
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -773,7 +773,7 @@ function RecentAnalysesSection() {
   return (
     <div>
       <SectionHeader
-        title="RECENT ANALYSES"
+        title="最近分析"
         action={
           <Link
             to="/library"
@@ -784,7 +784,7 @@ function RecentAnalysesSection() {
               fontFamily: 'var(--font-mono)',
             }}
           >
-            View all
+            查看全部
           </Link>
         }
       />
@@ -808,7 +808,7 @@ function RecentAnalysesSection() {
             color: 'var(--text-muted)',
           }}
         >
-          Could not load analyses — is the backend running?
+          无法加载分析记录 — 后端服务是否已启动？
         </div>
       )}
 
@@ -823,7 +823,7 @@ function RecentAnalysesSection() {
             color: 'var(--text-muted)',
           }}
         >
-          No analyses yet — run a DCF from the Stocks page
+          暂无分析记录 — 去个股分析页面跑一次
         </div>
       )}
 
@@ -969,7 +969,7 @@ export function DashboardPage() {
         >
           {/* Quick Actions */}
           <div>
-            <SectionHeader title="QUICK ACTIONS" />
+            <SectionHeader title="快捷操作" />
             <div
               style={{
                 display: 'grid',
@@ -979,26 +979,26 @@ export function DashboardPage() {
             >
               <QuickActionCard
                 icon={<IconTrendingUp size={14} />}
-                title="Full Report"
-                description="DCF, LBO & Comps on any ticker"
+                title="完整报告"
+                description="对任意股票运行 DCF、LBO 与同业对比"
                 onClick={() => navigate('/stocks')}
               />
               <QuickActionCard
                 icon={<IconActivity size={14} />}
-                title="Compare"
-                description="Side-by-side peer comparison"
+                title="对比分析"
+                description="多维度同业横向对比"
                 onClick={() => navigate('/stocks')}
               />
               <QuickActionCard
                 icon={<IconZap size={14} />}
-                title="What-If"
-                description="Scenario analysis & sensitivity"
+                title="估值推演"
+                description="情景分析与敏感性测试"
                 onClick={() => navigate('/playground')}
               />
               <QuickActionCard
                 icon={<IconFileText size={14} />}
-                title="Backtest"
-                description="Historical signal backtesting"
+                title="回测验证"
+                description="历史信号回测"
                 onClick={() => navigate('/journal')}
               />
             </div>

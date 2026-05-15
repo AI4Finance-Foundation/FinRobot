@@ -41,12 +41,12 @@ const MAX_INPUT_LENGTH = 20_000
 // ──────────────────────────────────────────────────────────────
 
 const ROUTE_CHIPS: Record<string, string[]> = {
-  '/dashboard':  ['Today\'s market overview', 'This week\'s earnings', 'Portfolio summary'],
-  '/stocks':     ['DCF assumptions explained', 'vs competitors', 'Monte Carlo simulation', '10-K RAG Q&A'],
-  '/playground': ['Explain WACC', 'Bull case scenario', 'Bear case scenario'],
-  '/journal':    ['Backtest win rate', 'Alpha statistics', 'Best/worst decisions'],
-  '/library':    ['Search reports', 'Compare analyses'],
-  '/settings':   ['Check API status', 'Data coverage'],
+  '/dashboard':  ['今日市场概况', '本周财报速览', '投资组合总结'],
+  '/stocks':     ['解释 DCF 假设', '对比同业竞争', '蒙特卡洛模拟', '10-K 问答'],
+  '/playground': ['解释 WACC', '乐观情景推演', '悲观情景推演'],
+  '/journal':    ['回测胜率分析', 'Alpha 统计', '最佳/最差决策'],
+  '/library':    ['搜索报告', '对比分析'],
+  '/settings':   ['检查 API 状态', '数据覆盖范围'],
 }
 
 // ──────────────────────────────────────────────────────────────

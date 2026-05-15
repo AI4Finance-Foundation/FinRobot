@@ -100,9 +100,9 @@ function fmtPct(v: number): string {
 
 function actionDescription(action: ActionType, ticker: string): string {
   const map: Record<ActionType, string> = {
-    BUY: `Initiated long position in ${ticker}`,
-    SELL: `Exited position in ${ticker}`,
-    HOLD: `Maintained position in ${ticker}`,
+    BUY: `买入 ${ticker}`,
+    SELL: `卖出 ${ticker}`,
+    HOLD: `持有 ${ticker}`,
   }
   return map[action]
 }
@@ -194,7 +194,7 @@ function ActionBadge({ action }: { action: ActionType }) {
         display: 'inline-block',
       }}
     >
-      {action}
+      {action === 'BUY' ? '买入' : action === 'SELL' ? '卖出' : '持有'}
     </span>
   )
 }
@@ -340,7 +340,7 @@ function NewEntryForm({ onClose, onSuccess }: NewEntryFormProps) {
                 style={toggleBtnStyle(action === a, a)}
                 onClick={() => setAction(a)}
               >
-                {a}
+                {a === 'BUY' ? '买入' : a === 'SELL' ? '卖出' : '持有'}
               </button>
             ))}
           </div>
@@ -442,7 +442,7 @@ function NewEntryForm({ onClose, onSuccess }: NewEntryFormProps) {
           onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--border-hover)')}
           onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
         >
-          Cancel
+          取消
         </button>
         <button
           type="submit"
@@ -467,7 +467,7 @@ function NewEntryForm({ onClose, onSuccess }: NewEntryFormProps) {
             if (!mutation.isPending) e.currentTarget.style.background = 'var(--gold)'
           }}
         >
-          {mutation.isPending ? 'Saving...' : 'Save Entry'}
+          {mutation.isPending ? '保存中...' : '保存'}
         </button>
       </div>
     </form>
@@ -575,7 +575,7 @@ function EditNotesForm({ entry, onClose }: EditNotesFormProps) {
             cursor: 'pointer',
           }}
         >
-          Cancel
+          取消
         </button>
         <button
           type="button"
@@ -593,7 +593,7 @@ function EditNotesForm({ entry, onClose }: EditNotesFormProps) {
             cursor: mutation.isPending ? 'not-allowed' : 'pointer',
           }}
         >
-          {mutation.isPending ? 'Saving...' : 'Save'}
+          {mutation.isPending ? '保存中...' : '保存'}
         </button>
       </div>
     </div>
@@ -829,7 +829,7 @@ function EntryCard({ entry }: { entry: JournalEntry }) {
               onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--gold-hover)')}
               onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--gold)')}
             >
-              View Report
+              查看报告
             </Link>
 
             <button
@@ -838,7 +838,7 @@ function EntryCard({ entry }: { entry: JournalEntry }) {
               onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
               onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
             >
-              Edit Notes
+              编辑备注
             </button>
 
             {!confirmDelete ? (
@@ -848,19 +848,19 @@ function EntryCard({ entry }: { entry: JournalEntry }) {
                 onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--negative)')}
                 onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
               >
-                Delete
+                删除
               </button>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
                 <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                  Confirm?
+                  确认？
                 </span>
                 <button
                   style={{ ...linkStyle, color: 'var(--negative)', fontWeight: 700 }}
                   onClick={() => deleteMutation.mutate()}
                   disabled={deleteMutation.isPending}
                 >
-                  {deleteMutation.isPending ? 'Deleting...' : 'Yes, delete'}
+                  {deleteMutation.isPending ? '删除中...' : '确认删除'}
                 </button>
                 <button
                   style={linkStyle}
@@ -868,7 +868,7 @@ function EntryCard({ entry }: { entry: JournalEntry }) {
                   onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
                   onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
                 >
-                  Cancel
+                  取消
                 </button>
               </div>
             )}
@@ -927,7 +927,7 @@ export function JournalPage() {
               letterSpacing: '-0.01em',
             }}
           >
-            Decision Journal
+            决策日记
           </span>
           <button
             onClick={() => setShowForm((v) => !v)}
@@ -947,7 +947,7 @@ export function JournalPage() {
             onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--gold-hover)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = showForm ? 'var(--gold-hover)' : 'var(--gold)')}
           >
-            {showForm ? '✕ Cancel' : '+ New Entry'}
+            {showForm ? '✕ 取消' : '+ 新建记录'}
           </button>
         </div>
 
@@ -979,7 +979,7 @@ export function JournalPage() {
               fontFamily: 'var(--font-mono)',
             }}
           >
-            Could not load journal — is the backend running?
+            无法加载决策记录 — 后端服务是否已启动？
           </div>
         )}
 
@@ -1002,8 +1002,8 @@ export function JournalPage() {
                 lineHeight: 1.6,
               }}
             >
-              No journal entries yet.<br />
-              Record your first investment decision.
+              暂无决策记录。<br />
+              记录你的第一笔投资决策。
             </div>
           </div>
         )}

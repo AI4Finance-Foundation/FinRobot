@@ -22,21 +22,21 @@ interface AnalysisResult {
 }
 
 const ANALYSIS_BUTTONS: { type: AnalysisType; label: string }[] = [
-  { type: 'income', label: 'Income' },
-  { type: 'balance', label: 'Balance Sheet' },
-  { type: 'cashflow', label: 'Cash Flow' },
-  { type: 'risk', label: 'Risk Assessment' },
-  { type: 'competitors', label: 'Competitors' },
-  { type: 'overview', label: 'Overview' },
+  { type: 'income', label: '收入分析' },
+  { type: 'balance', label: '资产负债' },
+  { type: 'cashflow', label: '现金流' },
+  { type: 'risk', label: '风险评估' },
+  { type: 'competitors', label: '竞争格局' },
+  { type: 'overview', label: '综合概览' },
 ]
 
 const ANALYSIS_LABELS: Record<AnalysisType, string> = {
-  income: 'Income Analysis',
-  balance: 'Balance Sheet',
-  cashflow: 'Cash Flow',
-  risk: 'Risk Assessment',
-  competitors: 'Competitive Landscape',
-  overview: 'Overview',
+  income: '收入分析',
+  balance: '资产负债',
+  cashflow: '现金流',
+  risk: '风险评估',
+  competitors: '竞争格局',
+  overview: '综合概览',
 }
 
 // ── Types for new endpoints ────────────────────────────────────────────────────
@@ -206,7 +206,11 @@ function CompositeScoreCard({ score }: { score: ScoreResult }) {
               border: `1px solid ${color}`,
             }}
           >
-            {score.signal.replace('_', ' ')}
+            {score.signal === 'STRONG_BUY' ? '强烈买入' :
+             score.signal === 'BUY' ? '买入' :
+             score.signal === 'HOLD' ? '持有' :
+             score.signal === 'SELL' ? '卖出' :
+             '强烈卖出'}
           </span>
         </div>
       </div>
@@ -285,7 +289,7 @@ function SniperCard({ sniper }: { sniper: SniperResult }) {
             fontFamily: 'var(--font-mono)',
           }}
         >
-          Battle Plan
+          作战计划
         </div>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
@@ -446,9 +450,9 @@ function RunDcfPrompt() {
       }}
     >
       <div style={{ fontSize: '18px', marginBottom: '6px' }}>◎</div>
-      <div>Run <strong style={{ color: 'var(--gold, #f59e0b)', fontFamily: 'var(--font-mono)' }}>DCF</strong> first to unlock Composite Score &amp; Sniper Points</div>
+      <div>请先运行 <strong style={{ color: 'var(--gold, #f59e0b)', fontFamily: 'var(--font-mono)' }}>DCF 估值</strong> 以解锁综合评分与作战计划</div>
       <div style={{ fontSize: '11px', marginTop: '4px', fontStyle: 'italic' }}>
-        Click the DCF button in the toolbar above
+        点击上方工具栏的 DCF 按钮
       </div>
     </div>
   )
@@ -676,35 +680,35 @@ export default function OverviewTab() {
           label="Revenue (TTM)"
           value={revenue != null ? fmtUsd(revenue) : '—'}
           source="yfinance"
-          explanation="Total sales in trailing 12 months"
+          explanation="过去12个月总营收"
           loading={finLoading}
         />
         <KpiRow
           label="EBITDA Margin"
           value={ebitdaMargin != null ? fmtPct(ebitdaMargin) : '—'}
           source="yfinance"
-          explanation="Profitability before accounting adjustments"
+          explanation="扣除财务调整前的盈利能力"
           loading={finLoading}
         />
         <KpiRow
           label="P/E Ratio"
           value={peRatio != null ? fmtMult(peRatio) : '—'}
           source="yfinance"
-          explanation="Price you pay per dollar of earnings"
+          explanation="每一元盈利对应的股价"
           loading={finLoading}
         />
         <KpiRow
           label="DCF Target"
           value={dcfTarget != null ? fmtPrice(dcfTarget) : '—'}
           source="dcf-model"
-          explanation="Intrinsic value based on discounted cash flow model"
+          explanation="基于现金流折现模型的内在价值"
           loading={false}
         />
         <KpiRow
           label="Verdict"
           value={verdict}
           source="finagent"
-          explanation="Overall assessment based on valuation + fundamentals"
+          explanation="基于估值与基本面的综合判断"
           loading={false}
         />
         {valuation.ev_ebitda != null && (
@@ -712,7 +716,7 @@ export default function OverviewTab() {
             label="EV/EBITDA"
             value={fmtMult(valuation.ev_ebitda as number)}
             source="yfinance"
-            explanation="Enterprise value relative to operating earnings"
+            explanation="企业价值相对于经营利润的倍数"
             loading={finLoading}
           />
         )}
@@ -764,7 +768,7 @@ export default function OverviewTab() {
       {/* ── Quick Analysis section ── */}
       {ticker && (
         <div className="quick-analysis-section">
-          <p className="section-title">Quick Analysis</p>
+          <p className="section-title">快速分析</p>
           <div className="quick-analysis-btn-group">
             {ANALYSIS_BUTTONS.map(({ type, label }) => {
               const isActive = activeAnalysisType === type
@@ -785,9 +789,9 @@ export default function OverviewTab() {
           {analyzeMutation.isPending && (
             <div className="quick-analysis-result">
               <p className="quick-analysis-result-title">
-                {activeAnalysisType ? ANALYSIS_LABELS[activeAnalysisType] : 'Analyzing'}
+                {activeAnalysisType ? ANALYSIS_LABELS[activeAnalysisType] : '分析中'}
               </p>
-              <p className="quick-analysis-loading-text">Analyzing...</p>
+              <p className="quick-analysis-loading-text">分析中...</p>
             </div>
           )}
 

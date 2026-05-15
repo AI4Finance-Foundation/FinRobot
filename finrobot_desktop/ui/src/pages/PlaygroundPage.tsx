@@ -306,10 +306,10 @@ function TickerPrompt() {
     }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
-          What-If Playground
+          估值推演
         </div>
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
-          Enter a ticker to start real-time DCF scenario modeling
+          输入股票代码，实时 DCF 情景建模
         </div>
       </div>
       <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -349,7 +349,7 @@ function TickerPrompt() {
             letterSpacing: '0.06em',
           }}
         >
-          ANALYZE →
+          开始分析
         </button>
       </form>
     </div>
@@ -749,7 +749,7 @@ export function PlaygroundPage() {
             color: 'var(--text-primary)',
             letterSpacing: '-0.01em',
           }}>
-            What-If Playground
+            估值推演
           </div>
           <div style={{
             fontFamily: 'var(--font-mono)',
@@ -757,7 +757,7 @@ export function PlaygroundPage() {
             color: 'var(--text-muted)',
             marginTop: 2,
           }}>
-            {ticker} · Real-time DCF scenario modeling
+            {ticker} · 实时 DCF 情景建模
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -823,7 +823,7 @@ export function PlaygroundPage() {
               letterSpacing: '0.04em',
             }}
           >
-            RESET
+            重置
           </button>
         </div>
       </div>
@@ -867,7 +867,7 @@ export function PlaygroundPage() {
           </div>
           <div style={cardBodyStyle}>
             <SliderRow
-              label="WACC"
+              label="WACC 加权资本成本"
               value={sliders.wacc}
               min={0.07}
               max={0.15}
@@ -878,7 +878,7 @@ export function PlaygroundPage() {
               onChange={(v) => setSliders((s) => ({ ...s, wacc: v }))}
             />
             <SliderRow
-              label="Terminal Growth Rate"
+              label="永续增长率"
               value={sliders.terminalGrowth}
               min={0.01}
               max={0.05}
@@ -889,7 +889,7 @@ export function PlaygroundPage() {
               onChange={(v) => setSliders((s) => ({ ...s, terminalGrowth: v }))}
             />
             <SliderRow
-              label="Gross Margin"
+              label="毛利率"
               value={sliders.grossMargin}
               min={0.30}
               max={0.90}
@@ -900,7 +900,7 @@ export function PlaygroundPage() {
               onChange={(v) => setSliders((s) => ({ ...s, grossMargin: v }))}
             />
             <SliderRow
-              label="Revenue Growth (5Y CAGR)"
+              label="营收增速 (5Y CAGR)"
               value={sliders.revenueGrowth}
               min={0.05}
               max={0.50}
@@ -954,7 +954,7 @@ export function PlaygroundPage() {
           <div style={cardBodyStyle}>
             {/* Implied price hero */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ ...labelStyle, marginBottom: 6 }}>DCF Target Price</div>
+              <div style={{ ...labelStyle, marginBottom: 6 }}>DCF 目标价</div>
               <div style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 36,
@@ -973,7 +973,7 @@ export function PlaygroundPage() {
                   fontWeight: 600,
                   color: upsideColor,
                 }}>
-                  {upside >= 0 ? '+' : ''}{fmtPct(upside)} vs market
+                  {upside >= 0 ? '+' : ''}{fmtPct(upside)} {upside >= 0 ? '上行空间' : '下行空间'}
                 </div>
               )}
               {dcfError && (
@@ -1011,21 +1011,21 @@ export function PlaygroundPage() {
             <div style={{ ...labelStyle, marginBottom: 8 }}>Scenarios</div>
             <div style={{ display: 'flex', gap: 8 }}>
               <ScenarioBox
-                label="Bull"
+                label="乐观"
                 price={bullResult?.implied_price ?? null}
                 loading={scenarioLoading}
                 color="var(--positive)"
                 bgColor="var(--positive-bg)"
               />
               <ScenarioBox
-                label="Base"
+                label="基准"
                 price={dcfResult?.implied_price ?? null}
                 loading={dcfLoading}
                 color="var(--gold)"
                 bgColor="var(--gold-dim)"
               />
               <ScenarioBox
-                label="Bear"
+                label="悲观"
                 price={bearResult?.implied_price ?? null}
                 loading={scenarioLoading}
                 color="var(--negative)"

@@ -36,23 +36,23 @@ function renderWithQuery(ui: React.ReactElement) {
 }
 
 describe('SettingsView', () => {
-  it('renders LLM Provider section', async () => {
+  it('renders AI 模型 section', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
-    expect(await screen.findByText('LLM Provider')).toBeInTheDocument()
+    expect(await screen.findByText('AI 模型')).toBeInTheDocument()
   })
 
-  it('renders Data Sources section', async () => {
+  it('renders 数据源 section', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
-    expect(await screen.findByText('Data Sources')).toBeInTheDocument()
+    expect(await screen.findByText('数据源')).toBeInTheDocument()
   })
 
-  it('renders Notification Channels section', async () => {
+  it('renders 通知通道 section', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
-    expect(await screen.findByText('Notification Channels')).toBeInTheDocument()
+    expect(await screen.findByText('通知通道')).toBeInTheDocument()
   })
 
-  it('renders Appearance section', async () => {
+  it('renders 外观 section', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
-    expect(await screen.findByText('Appearance')).toBeInTheDocument()
+    expect(await screen.findByText('外观')).toBeInTheDocument()
   })
 })

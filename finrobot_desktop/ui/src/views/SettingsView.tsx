@@ -156,7 +156,7 @@ function TestButton({
         ? '✓'
         : state === 'fail'
           ? '✗'
-          : 'Test'
+          : '测试'
 
   const style: React.CSSProperties = {
     ...ghostBtnStyle,
@@ -501,7 +501,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           fontSize: '11px',
         }}
       >
-        Loading settings...
+        加载设置中...
       </div>
     )
   }
@@ -526,7 +526,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               color: 'var(--text-muted)',
             }}
           >
-            Saving…
+            保存中…
           </span>
         )}
         {saveState === 'saved' && (
@@ -537,7 +537,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               color: 'var(--positive)',
             }}
           >
-            ✓ Saved
+            ✓ 已保存
           </span>
         )}
         {saveState === 'error' && (
@@ -548,7 +548,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               color: 'var(--negative)',
             }}
           >
-            ✗ Save failed
+            ✗ 保存失败
           </span>
         )}
       </div>
@@ -557,16 +557,16 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           Section 1: Data Sources
           ═════════════════════════════════════════════ */}
       <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>Data Sources</h2>
+        <h2 style={sectionTitleStyle}>数据源</h2>
         <div style={fieldGroupStyle}>
           {/* FMP */}
           <div style={fieldStyle}>
             <div style={labelStyle}>
               <span>FMP API Key</span>
               {fmpConfigured ? (
-                <span style={configuredBadgeStyle}>Configured</span>
+                <span style={configuredBadgeStyle}>已配置</span>
               ) : (
-                <span style={requiredBadgeStyle}>Required</span>
+                <span style={requiredBadgeStyle}>必填</span>
               )}
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -576,7 +576,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                 onChange={(e) => handleFmpKeyChange(e.target.value)}
                 placeholder={fmpConfigured ? '••••••••' : 'Enter FMP API key'}
               />
-              <button style={ghostBtnStyle}>Verify</button>
+              <button style={ghostBtnStyle}>验证</button>
             </div>
             <p style={hintStyle}>Required for full accuracy — free at financialmodelingprep.com</p>
           </div>
@@ -586,9 +586,9 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
             <div style={labelStyle}>
               <span>Finnhub API Key</span>
               {finnhubConfigured ? (
-                <span style={configuredBadgeStyle}>Configured</span>
+                <span style={configuredBadgeStyle}>已配置</span>
               ) : (
-                <span style={optionalBadgeStyle}>Optional</span>
+                <span style={optionalBadgeStyle}>可选</span>
               )}
             </div>
             <InputWithFocus
@@ -604,7 +604,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           <div style={fieldStyle}>
             <div style={labelStyle}>
               <span>SEC EDGAR User-Agent</span>
-              <span style={optionalBadgeStyle}>Optional</span>
+              <span style={optionalBadgeStyle}>可选</span>
             </div>
             <InputWithFocus
               type="email"
@@ -621,7 +621,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           Section 2: LLM Provider
           ═════════════════════════════════════════════ */}
       <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>LLM Provider</h2>
+        <h2 style={sectionTitleStyle}>AI 模型</h2>
         <div style={fieldGroupStyle}>
           <div style={fieldStyle}>
             <div style={labelStyle}>
@@ -646,9 +646,9 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                 const keyField = `${currentProvider}_api_key_set` as keyof typeof settingsResp
                 const isSet = settingsResp?.[keyField]
                 return isSet ? (
-                  <span style={configuredBadgeStyle}>Configured</span>
+                  <span style={configuredBadgeStyle}>已配置</span>
                 ) : (
-                  <span style={requiredBadgeStyle}>Required</span>
+                  <span style={requiredBadgeStyle}>必填</span>
                 )
               })()}
             </div>
@@ -671,7 +671,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           Section 3: Notification Channels
           ═════════════════════════════════════════════ */}
       <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>Notification Channels</h2>
+        <h2 style={sectionTitleStyle}>通知通道</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
           {/* Desktop — always on */}
@@ -889,7 +889,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           Section 4: Appearance
           ═════════════════════════════════════════════ */}
       <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>Appearance</h2>
+        <h2 style={sectionTitleStyle}>外观</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={labelStyle}>
             <span>Theme</span>
@@ -919,7 +919,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                     cursor: 'pointer',
                   }}
                 />
-                {t.charAt(0).toUpperCase() + t.slice(1)}
+                {t === 'dark' ? '深色' : '浅色'}
               </label>
             ))}
           </div>

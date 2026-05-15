@@ -23,12 +23,15 @@ from finagent.engine.orchestrator import build_report_context, create_lead_agent
 from finagent.engine.skills.registry import SkillRegistry
 from finagent.artifact.store import ArtifactStore
 from finagent.audit.transcript import TranscriptWriter
+from finagent.routes.analyze import router as analyze_router
 from finagent.routes.artifacts import router as artifacts_router
 from finagent.routes.ask import router as ask_router
+from finagent.routes.backtest import router as backtest_router
 from finagent.routes.compute import router as compute_router
 from finagent.routes.data import router as data_router
 from finagent.routes.export import router as export_router
 from finagent.routes.runs import router as runs_router
+from finagent.routes.market import router as market_router
 from finagent.routes.search import router as search_router
 from finagent.routes.settings import load_non_secret_settings
 from finagent.routes.settings import router as settings_router
@@ -149,13 +152,16 @@ app.add_middleware(
 )
 
 app.include_router(web_router)
+app.include_router(analyze_router)
 app.include_router(ask_router)
+app.include_router(backtest_router)
 app.include_router(compute_router)
 app.include_router(data_router)
 app.include_router(export_router)
 app.include_router(settings_router)
 app.include_router(runs_router)
 app.include_router(artifacts_router)
+app.include_router(market_router)
 app.include_router(search_router, prefix="/api/search", tags=["search"])
 
 

@@ -20,3 +20,97 @@ def calculate_wacc(
     after_tax_debt = cost_of_debt * (1 - tax_rate)
     wacc = equity_ratio * cost_of_equity + debt_ratio * after_tax_debt
     return cost_of_equity, wacc
+
+
+def unlever_beta(levered_beta: float, tax_rate: float, debt_equity: float) -> float:
+    """Remove the effect of financial leverage from beta (Hamada equation).
+
+    Strips out the capital structure risk to isolate pure business (asset) risk.
+    Use this when deriving beta from comparable companies with different leverage.
+
+    Formula (Hamada, 1972):
+        β_U = β_L / [1 + (1 - T) × (D/E)]
+
+    Args:
+        levered_beta: Observed equity beta from market data.
+        tax_rate: Corporate tax rate as decimal (e.g. 0.21).
+        debt_equity: Debt-to-equity ratio (D/E), not D/(D+E).
+
+    Returns:
+        Unlevered (asset) beta. Always positive if levered_beta > 0.
+
+    Reference: Hamada, R.S. (1972). "The Effect of the Firm's Capital Structure
+    on the Systematic Risk of Common Stocks." Journal of Finance, 27(2), 435-452.
+    Also Damodaran, "Investment Valuation" 3rd Ed., Chapter 8.
+    """
+    return levered_beta / (1 + (1 - tax_rate) * debt_equity)
+
+
+def relever_beta(unlevered_beta: float, tax_rate: float, debt_equity: float) -> float:
+    """Apply financial leverage to an unlevered (asset) beta (Hamada equation).
+
+    Use this to compute the equity beta for a target capital structure after
+    deriving the asset beta from peer comparables via unlever_beta().
+
+    Formula (Hamada, 1972):
+        β_L = β_U × [1 + (1 - T) × (D/E)]
+
+    Args:
+        unlevered_beta: Asset beta (from peer median or industry average).
+        tax_rate: Target company's tax rate as decimal.
+        debt_equity: Target debt-to-equity ratio (D/E).
+
+    Returns:
+        Relevered equity beta for the target capital structure.
+    """
+    return unlevered_beta * (1 + (1 - tax_rate) * debt_equity)
+
+
+def peer_beta(
+    peer_betas: list[float],
+    peer_tax_rates: list[float],
+    peer_debt_equity: list[float],
+    target_tax_rate: float,
+    target_debt_equity: float,
+) -> float:
+    """Derive a target company's beta from peer comparables via Hamada.
+
+    Standard workflow for private company valuation or when the target's
+    observed beta is unreliable:
+    1. Unlever each peer's observed beta to get asset beta.
+    2. Take the median asset beta (robust to outliers).
+    3. Relever at the target's capital structure.
+
+    Args:
+        peer_betas: Observed equity betas for each peer.
+        peer_tax_rates: Tax rates for each peer (same order).
+        peer_debt_equity: D/E ratios for each peer (same order).
+        target_tax_rate: Target company's tax rate.
+        target_debt_equity: Target company's D/E ratio.
+
+    Returns:
+        Relevered equity beta for the target company.
+
+    Raises:
+        ValueError: If input lists are empty or different lengths.
+    """
+    if not peer_betas:
+        raise ValueError("At least one peer required")
+    if len(peer_betas) != len(peer_tax_rates) or len(peer_betas) != len(peer_debt_equity):
+        raise ValueError("peer_betas, peer_tax_rates, and peer_debt_equity must have same length")
+
+    # Step 1: Unlever each peer
+    asset_betas = [
+        unlever_beta(b, t, de) for b, t, de in zip(peer_betas, peer_tax_rates, peer_debt_equity)
+    ]
+
+    # Step 2: Median (more robust than mean for small peer sets)
+    sorted_betas = sorted(asset_betas)
+    n = len(sorted_betas)
+    if n % 2 == 1:
+        median_beta = sorted_betas[n // 2]
+    else:
+        median_beta = (sorted_betas[n // 2 - 1] + sorted_betas[n // 2]) / 2
+
+    # Step 3: Relever at target structure
+    return relever_beta(median_beta, target_tax_rate, target_debt_equity)

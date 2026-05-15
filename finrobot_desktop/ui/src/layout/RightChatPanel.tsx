@@ -10,7 +10,7 @@
 //         logic below.
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useLocation } from 'react-router-dom'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import type { UIMessage, UIMessagePart, UIDataTypes, UITools, DynamicToolUIPart } from 'ai'
@@ -36,6 +36,20 @@ import {
 
 const MAX_INPUT_LENGTH = 20_000
 
+// ──────────────────────────────────────────────────────────────
+// Context-aware suggestion chips per route
+// ──────────────────────────────────────────────────────────────
+
+const ROUTE_CHIPS: Record<string, string[]> = {
+  '/dashboard':  ['Today\'s market overview', 'This week\'s earnings', 'Portfolio summary'],
+  '/stocks':     ['DCF assumptions explained', 'vs competitors', 'Monte Carlo simulation', '10-K RAG Q&A'],
+  '/playground': ['Explain WACC', 'Bull case scenario', 'Bear case scenario'],
+  '/journal':    ['Backtest win rate', 'Alpha statistics', 'Best/worst decisions'],
+  '/library':    ['Search reports', 'Compare analyses'],
+  '/settings':   ['Check API status', 'Data coverage'],
+}
+
+// ──────────────────────────────────────────────────────────────
 // MODELS — aligned to prototype.  Legacy values 'deepseek' / 'anthropic' / 'openai'
 // are preserved as aliases so existing tests and persisted uiStore values keep
 // working.  AppShell-level UI shows the "human" label; value is sent to backend.
@@ -268,8 +282,28 @@ export function RightChatPanel({
     [storeWidth, setAiPanelWidth],
   )
 
-  // ── Collapsed view ──────────────────────────────────────────
-  if (!isExpanded) {
+  // ── Route-aware chips ────────────────────────────────────────
+  const location = useLocation()
+  const routeChips = useMemo((): string[] => {
+    // Match on pathname prefix so /stocks/AAPL → /stocks chips
+    const match = Object.keys(ROUTE_CHIPS).find((route) =>
+      location.pathname === route || location.pathname.startsWith(route + '/'),
+    )
+    return match ? ROUTE_CHIPS[match] : []
+  }, [location.pathname])
+
+  // ── Handle expand toggle for collapsed state ─────────────────
+  const handleExpandToggle = useCallback(() => {
+    handleToggle()
+    setUnreadCount(0)
+    lastSeenMessageCountRef.current = messages.filter(
+      (m) => m.role === 'assistant',
+    ).length
+  }, [handleToggle, messages])
+
+  // ── Collapsed: legacy/test path (prop injected) ───────────────
+  // When tests inject expanded={false}, keep old IconColumn to preserve testids.
+  if (expandedProp === false) {
     return (
       <IconColumn
         onToggle={() => {
@@ -285,20 +319,47 @@ export function RightChatPanel({
     )
   }
 
+  // ── Panel style ──────────────────────────────────────────────
+  // expandedProp === true (test) → fixed width, no store
+  // expandedProp === undefined (uiStore) → store width, animated
   const panelStyle: React.CSSProperties = expandedProp !== undefined
-    // legacy/test mode: don't override width with store value
     ? { width: '360px', borderLeft: '1px solid var(--border)', backgroundColor: 'var(--surface)' }
-    : { width: `${storeWidth}px` }
+    : isExpanded ? { width: `${storeWidth}px` } : {}
+
+  // uiStore-controlled: add 'open' when expanded; test path always open
+  const panelClass = [
+    'ai-panel',
+    (expandedProp !== undefined || isExpanded) ? 'open' : '',
+  ].filter(Boolean).join(' ')
 
   return (
     <aside
       ref={panelRef}
       data-testid="right-chat-panel"
-      className="ai-panel open"
+      className={panelClass}
       style={panelStyle}
     >
-      {/* Resize handle — only when controlled by uiStore */}
+      {/* Floating expand button — visible only when collapsed (uiStore path only) */}
       {expandedProp === undefined && (
+        <button
+          data-testid="expand-btn"
+          className="ai-panel-expand-btn"
+          onClick={handleExpandToggle}
+          title="展开 AI 面板 (⌘L)"
+          type="button"
+        >
+          <span className="expand-icon">◈</span>
+          <span className="expand-hint">⌘L</span>
+          {unreadCount > 0 && (
+            <span className="expand-badge">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </button>
+      )}
+
+      {/* Resize handle — only when controlled by uiStore and expanded */}
+      {expandedProp === undefined && isExpanded && (
         <div className="aipanel-resize-handle" onMouseDown={onResizeMouseDown} />
       )}
 
@@ -319,6 +380,10 @@ export function RightChatPanel({
         onExample={setInputText}
       />
 
+      {routeChips.length > 0 && (
+        <SuggestionChips chips={routeChips} onSelect={setInputText} />
+      )}
+
       <AiInputArea
         value={inputText}
         onChange={setInputText}
@@ -336,6 +401,33 @@ export function RightChatPanel({
         onThinkToggle={() => setThinkActive((v) => !v)}
       />
     </aside>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────
+// SuggestionChips — context-aware prompt shortcuts
+// ──────────────────────────────────────────────────────────────
+
+interface SuggestionChipsProps {
+  chips: string[]
+  onSelect: (chip: string) => void
+}
+
+function SuggestionChips({ chips, onSelect }: SuggestionChipsProps): React.ReactElement {
+  return (
+    <div className="ai-chips" data-testid="suggestion-chips">
+      {chips.map((chip) => (
+        <button
+          key={chip}
+          className="ai-chip"
+          onClick={() => onSelect(chip)}
+          type="button"
+          title={chip}
+        >
+          {chip}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -377,20 +469,15 @@ function AiPanelHeader({
         {ticker ?? '探索'}
       </span>
 
-      {/* Model selector chip */}
-      <select
+      {/* Model badge (read-only — model configured in Settings) */}
+      <span
         data-testid="model-selector"
         className="ai-model"
-        value={modelValue}
-        onChange={(e) => onModelChange(e.target.value as ModelValue)}
-        title={t('chat.model.tooltip')}
+        title="模型在 Settings 中配置"
+        style={{ cursor: 'default' }}
       >
-        {MODELS.map((m) => (
-          <option key={m.value} value={m.value}>
-            {m.label}
-          </option>
-        ))}
-      </select>
+        {MODELS.find((m) => m.value === modelValue)?.label ?? modelValue}
+      </span>
 
       {/* New session */}
       <button

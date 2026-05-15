@@ -3128,10 +3128,82 @@ select.input-field {
   width: 0; background: var(--base);
   border-left: 1px solid var(--border);
   display: flex; flex-direction: column; overflow: hidden;
-  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.18s ease,
+              border-color 0.22s ease;
+  will-change: width;
   flex-shrink: 0; position: relative;
+  opacity: 0;
 }
-.ai-panel.open { width: var(--aipanel-w, 420px); }
+.ai-panel.open {
+  width: var(--aipanel-w, 420px);
+  opacity: 1;
+}
+
+/* Floating expand button — visible when panel is collapsed */
+.ai-panel-expand-btn {
+  position: absolute;
+  left: -32px; top: 50%;
+  transform: translateY(-50%);
+  width: 28px; height: 52px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+  cursor: pointer; z-index: 100;
+  transition: background 0.15s, border-color 0.15s;
+  opacity: 0;
+  pointer-events: none;
+}
+.ai-panel:not(.open) .ai-panel-expand-btn {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.18s ease 0.08s, background 0.15s, border-color 0.15s;
+}
+.ai-panel-expand-btn:hover { background: var(--bg-3); border-color: var(--gold); }
+.ai-panel-expand-btn .expand-icon { font-size: 12px; color: var(--text-2); }
+.ai-panel-expand-btn:hover .expand-icon { color: var(--gold); }
+.ai-panel-expand-btn .expand-hint {
+  font-family: var(--font-mono); font-size: 8px; color: var(--text-3);
+  writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 0.05em;
+  transform: rotate(180deg);
+}
+.ai-panel-expand-btn .expand-badge {
+  position: absolute; top: 4px; right: 4px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--red); color: #fff;
+  font-size: 9px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Suggestion chips row */
+.ai-chips {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  padding: 6px 12px 4px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ai-chips::-webkit-scrollbar { display: none; }
+.ai-chip {
+  font-family: var(--font-mono); font-size: 10px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 3px 8px;
+  color: var(--text-muted, var(--text-3));
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+  flex-shrink: 0;
+}
+.ai-chip:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: var(--gold-dim, rgba(212,175,55,0.08));
+}
 
 .ai-header {
   padding: 12px 14px;
@@ -3335,12 +3407,10 @@ select.input-field {
 }
 .aipanel-resize-handle:hover { background: var(--amber-dim); }
 
-/* 图标列（折叠态）— 隐藏，通过 titlebar 按钮打开 */
+/* 图标列（折叠态）— 仅保留用于向后兼容（测试），实际折叠动效由 .ai-panel-expand-btn 处理 */
 .ai-icon-column {
-  width: 0; flex-shrink: 0;
-  border-left: none;
-  background: var(--surface);
   display: none;
+  width: 0; flex-shrink: 0;
   overflow: hidden;
 }
 .ai-icon-column-btn {

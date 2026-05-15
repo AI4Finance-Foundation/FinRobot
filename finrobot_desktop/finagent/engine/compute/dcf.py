@@ -8,6 +8,7 @@ def calculate_dcf(
     inputs: DCFInputs,
     wacc_override: float | None = None,
     tg_override: float | None = None,
+    mid_year: bool = False,
 ) -> DCFResult:
     """Run a full DCF valuation from structured inputs.
 
@@ -16,6 +17,13 @@ def calculate_dcf(
     time period, computes a Gordon-Growth terminal value, and derives equity
     value from enterprise value minus net debt. Every number is reproducible
     from the typed DCFInputs; the LLM only selects the assumptions.
+
+    Args:
+        mid_year: If True, use mid-year convention where cash flows are discounted
+            at (t - 0.5) instead of t, reflecting that cash flows arrive throughout
+            the year rather than at year-end. Standard in investment banking DCFs.
+            Typically increases valuation by 3-6%.
+            Reference: Rosenbaum & Pearl, "Investment Banking" 3rd Ed., Chapter 8.
     """
     # 1. WACC
     if wacc_override is not None:
@@ -74,12 +82,15 @@ def calculate_dcf(
     n = len(projected_fcf)
 
     # 5. Discount FCFs
-    pv_fcfs = [fcf / (1 + wacc) ** (i + 1) for i, fcf in enumerate(projected_fcf)]
+    # Mid-year convention: discount at (t - 0.5) instead of t, reflecting
+    # cash flows arriving throughout the year, not just at year-end.
+    offset = 0.5 if mid_year else 0.0
+    pv_fcfs = [fcf / (1 + wacc) ** (i + 1 - offset) for i, fcf in enumerate(projected_fcf)]
     pv_fcf_total = sum(pv_fcfs)
 
     # 6-7. Terminal value (Gordon Growth Model)
     terminal_value = projected_fcf[-1] * (1 + tg) / (wacc - tg)
-    pv_terminal = terminal_value / (1 + wacc) ** n
+    pv_terminal = terminal_value / (1 + wacc) ** (n - offset)
 
     # 8-10. Valuation bridge: EV → Equity → Price
     enterprise_value = pv_fcf_total + pv_terminal
@@ -116,6 +127,7 @@ def calculate_sensitivity(
     inputs: DCFInputs,
     wacc_range: list[float],
     tg_range: list[float],
+    mid_year: bool = False,
 ) -> dict[str, Any]:
     """Generate sensitivity table: implied price for each (WACC, terminal_growth) pair.
 
@@ -128,7 +140,7 @@ def calculate_sensitivity(
             if g >= w:
                 row.append(None)
             else:
-                result = calculate_dcf(inputs, wacc_override=w, tg_override=g)
+                result = calculate_dcf(inputs, wacc_override=w, tg_override=g, mid_year=mid_year)
                 row.append(result.implied_price)
         implied_prices.append(row)
     return {

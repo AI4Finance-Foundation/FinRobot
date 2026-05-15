@@ -283,7 +283,9 @@ class TestArchiveStale:
     @pytest.mark.asyncio
     async def test_fresh_artifact_not_archived(self, store: ArtifactStore) -> None:
         """An artifact created 1h ago should NOT be archived with hours=24."""
-        art = _make_artifact(id="art_fresh")  # created_at = _TS = 2026-05-13T10:00 UTC
+        from datetime import timedelta
+        one_hour_ago = datetime.now(UTC) - timedelta(hours=1)
+        art = _make_artifact(id="art_fresh", created_at=one_hour_ago)
         await store.save(art)
 
         count = await store.archive_stale(hours=24)
@@ -304,12 +306,14 @@ class TestArchiveStale:
     @pytest.mark.asyncio
     async def test_viewed_artifact_not_archived(self, store: ArtifactStore) -> None:
         """An artifact created 25h ago but viewed recently should NOT be archived."""
+        from datetime import timedelta
+        now = datetime.now(UTC)
         art = _make_artifact(
             id="art_recently_viewed",
-            created_at=datetime(2026, 5, 12, 9, 0, 0, tzinfo=UTC),
+            created_at=now - timedelta(hours=25),
         )
         # Set last_viewed_at to just now (within 1h)
-        art.meta.last_viewed_at = datetime(2026, 5, 13, 9, 55, 0, tzinfo=UTC)
+        art.meta.last_viewed_at = now - timedelta(minutes=5)
         await store.save(art)
 
         count = await store.archive_stale(hours=24)

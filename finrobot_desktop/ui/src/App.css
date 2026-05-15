@@ -124,7 +124,7 @@
   --positive-bg: rgba(38, 166, 154, 0.10);
   --negative: #EF5350;
   --negative-bg: rgba(239, 83, 80, 0.10);
-  --sidebar-bg: #141418;
+  --sidebar-bg: #EAEAE5;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

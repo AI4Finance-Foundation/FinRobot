@@ -22,21 +22,21 @@ interface AnalysisResult {
 }
 
 const ANALYSIS_BUTTONS: { type: AnalysisType; label: string }[] = [
-  { type: 'income', label: '收入分析' },
-  { type: 'balance', label: '资产负债' },
-  { type: 'cashflow', label: '现金流' },
-  { type: 'risk', label: '风险评估' },
-  { type: 'competitors', label: '竞争格局' },
-  { type: 'overview', label: '综合概览' },
+  { type: 'income', label: 'Income' },
+  { type: 'balance', label: 'Balance Sheet' },
+  { type: 'cashflow', label: 'Cash Flow' },
+  { type: 'risk', label: 'Risk Assessment' },
+  { type: 'competitors', label: 'Competitors' },
+  { type: 'overview', label: 'Overview' },
 ]
 
 const ANALYSIS_LABELS: Record<AnalysisType, string> = {
-  income: '收入分析',
-  balance: '资产负债',
-  cashflow: '现金流',
-  risk: '风险评估',
-  competitors: '竞争格局',
-  overview: '综合概览',
+  income: 'Income Analysis',
+  balance: 'Balance Sheet',
+  cashflow: 'Cash Flow',
+  risk: 'Risk Assessment',
+  competitors: 'Competitive Landscape',
+  overview: 'Overview',
 }
 
 // ── Types for new endpoints ────────────────────────────────────────────────────
@@ -764,7 +764,7 @@ export default function OverviewTab() {
       {/* ── Quick Analysis section ── */}
       {ticker && (
         <div className="quick-analysis-section">
-          <p className="section-title">快速分析</p>
+          <p className="section-title">Quick Analysis</p>
           <div className="quick-analysis-btn-group">
             {ANALYSIS_BUTTONS.map(({ type, label }) => {
               const isActive = activeAnalysisType === type
@@ -785,9 +785,9 @@ export default function OverviewTab() {
           {analyzeMutation.isPending && (
             <div className="quick-analysis-result">
               <p className="quick-analysis-result-title">
-                {activeAnalysisType ? ANALYSIS_LABELS[activeAnalysisType] : '分析中'}
+                {activeAnalysisType ? ANALYSIS_LABELS[activeAnalysisType] : 'Analyzing'}
               </p>
-              <p className="quick-analysis-loading-text">分析中...</p>
+              <p className="quick-analysis-loading-text">Analyzing...</p>
             </div>
           )}
 

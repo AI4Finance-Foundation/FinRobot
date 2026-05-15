@@ -54,12 +54,8 @@ export function TitleBar(): React.ReactElement {
 
   return (
     <div className="titlebar" data-tauri-drag-region data-testid="titlebar">
-      {/* macOS-style traffic light dots — purely decorative */}
-      <div className="traffic-lights">
-        <span className="light close" />
-        <span className="light min" />
-        <span className="light max" />
-      </div>
+      {/* Reserve space for Tauri's native macOS traffic lights (Overlay titleBarStyle) */}
+      <div style={{ width: 72, flexShrink: 0 }} />
 
       {/* Center label */}
       <div className="titlebar-title" data-tauri-drag-region>

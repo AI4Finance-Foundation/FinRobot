@@ -346,10 +346,6 @@ export function Sidebar(): React.ReactElement {
         <AddTickerInput />
       </div>
 
-      {/* ── Footer ── */}
-      <div style={footerStyle}>
-        DELAYED 15M · YFINANCE+FMP
-      </div>
     </aside>
   )
 }

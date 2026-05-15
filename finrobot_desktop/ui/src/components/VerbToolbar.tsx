@@ -1,8 +1,8 @@
 /**
  * VerbToolbar — action buttons for the Stocks page.
  *
- * Primary row: Research, DCF, Comps, Earnings (4 buttons)
- * More dropdown: LBO, DDM, IC Memo
+ * Primary row: Full Analysis (hero), DCF, Comps, Earnings
+ * More dropdown: LBO, DDM, IC Memo, Catalysts
  * Ask AI button on the right side
  */
 
@@ -56,6 +56,8 @@ interface VerbToolbarProps {
   ticker: string
   onAskAi?: () => void
   onToolComplete?: (tool: ToolName) => void
+  onFullAnalysis?: () => void
+  fullAnalysisRunning?: boolean
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -64,6 +66,8 @@ export default function VerbToolbar({
   ticker,
   onAskAi,
   onToolComplete,
+  onFullAnalysis,
+  fullAnalysisRunning,
 }: VerbToolbarProps) {
   const runningTools = useStocksStore((s) => s.runningTools)
   const { t } = useI18n()
@@ -182,6 +186,33 @@ export default function VerbToolbar({
         flexWrap: 'wrap',
       }}
     >
+      {/* Hero: Full Analysis */}
+      <button
+        onClick={() => onFullAnalysis?.()}
+        disabled={!ticker || fullAnalysisRunning}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '7px 18px',
+          fontSize: '0.87rem',
+          fontWeight: 700,
+          borderRadius: 'var(--r-sm)',
+          border: '1px solid var(--gold)',
+          background: fullAnalysisRunning ? 'var(--gold-dim)' : 'var(--gold)',
+          color: fullAnalysisRunning ? 'var(--gold)' : '#000',
+          cursor: !ticker || fullAnalysisRunning ? 'not-allowed' : 'pointer',
+          opacity: !ticker ? 0.45 : 1,
+          transition: 'background 0.15s, color 0.15s',
+          whiteSpace: 'nowrap',
+          letterSpacing: '0.02em',
+        }}
+        title="一键运行完整研究流程：数据拉取、DCF、LBO、同业对比、催化剂、投资论点"
+      >
+        {fullAnalysisRunning && <Spinner />}
+        {fullAnalysisRunning ? '分析中...' : '一键全面分析'}
+      </button>
+
       {/* Primary tools */}
       {PRIMARY_TOOLS.map((tool) => renderBtn(tool))}
 

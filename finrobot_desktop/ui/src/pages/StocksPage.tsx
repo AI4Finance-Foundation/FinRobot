@@ -38,12 +38,14 @@ import { useUiStore } from '../stores/uiStore'
 
 // Hooks
 import { useTickerPrice } from '../hooks/useTickerData'
+import { useRunStream } from '../hooks/useRunStream'
 
 // Components
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import VerbToolbar from '../components/VerbToolbar'
 import WarningBanner from '../components/WarningBanner'
 import ToastContainer from '../components/Toast'
+import AnalysisProgress from '../components/AnalysisProgress'
 
 // Tab views
 import OverviewTab from '../views/OverviewTab'
@@ -602,7 +604,7 @@ function EmptyState({ onTickerSelect }: EmptyStateProps) {
           letterSpacing: '-0.02em',
           marginBottom: 8,
         }}>
-          Stock Analysis
+          个股分析
         </div>
         <div style={{
           fontFamily: 'var(--font-mono)',
@@ -610,7 +612,7 @@ function EmptyState({ onTickerSelect }: EmptyStateProps) {
           color: 'var(--text-muted)',
           letterSpacing: '0.03em',
         }}>
-          Enter a ticker to start
+          输入股票代码开始分析
         </div>
       </div>
 
@@ -670,7 +672,7 @@ function EmptyState({ onTickerSelect }: EmptyStateProps) {
             cursor: inputValue.trim() ? 'pointer' : 'not-allowed',
           }}
         >
-          ANALYZE
+          分析
         </button>
       </form>
 
@@ -683,7 +685,7 @@ function EmptyState({ onTickerSelect }: EmptyStateProps) {
           letterSpacing: '0.1em',
           marginBottom: 10,
         }}>
-          {recentTickers.length > 0 ? 'RECENT' : 'POPULAR'}
+          {recentTickers.length > 0 ? '最近' : '热门'}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', maxWidth: 360 }}>
           {tickers.slice(0, 8).map((tk) => (
@@ -728,6 +730,64 @@ export function StocksPage() {
   const appStore = useAppStore()
   const warnings = appStore.warnings
   const setAiPanelOpen = useUiStore((s) => s.setAiPanelOpen)
+
+  // ── Full analysis pipeline state ──
+  const runStream = useRunStream()
+  const [fullAnalysisActive, setFullAnalysisActive] = useState(false)
+  const [fullAnalysisRunId, setFullAnalysisRunId] = useState<string | null>(null)
+
+  const isFullAnalysisRunning = fullAnalysisActive && (runStream.status === 'running' || runStream.status === 'idle')
+
+  const handleFullAnalysis = useCallback(async () => {
+    if (!ticker) return
+    setFullAnalysisActive(true)
+    try {
+      const id = await runStream.startRun('research', ticker)
+      setFullAnalysisRunId(id)
+    } catch {
+      setFullAnalysisActive(false)
+    }
+  }, [ticker, runStream])
+
+  // When full analysis completes, fetch result and store it
+  useEffect(() => {
+    if (!fullAnalysisActive) return
+    if (runStream.status === 'completed' && fullAnalysisRunId) {
+      // Result will be fetched when user clicks "view report" or auto-fetch
+      // For now, just keep the overlay showing the completion state
+    }
+    if (runStream.status === 'failed') {
+      // Keep overlay to show error; user can dismiss
+    }
+  }, [runStream.status, fullAnalysisActive, fullAnalysisRunId])
+
+  const handleViewReport = useCallback(async () => {
+    // Fetch the run result and store it in appStore
+    if (fullAnalysisRunId) {
+      try {
+        const resp = await fetch(`${BASE_URL}/api/runs/${fullAnalysisRunId}`)
+        if (resp.ok) {
+          const detail = await resp.json()
+          const structured = detail.result?.structured
+          if (structured) {
+            // Extract research thesis
+            if (structured.thesis) {
+              appStore.setResearchResult(structured.thesis)
+            }
+            // Extract DCF
+            const dcfCalc = structured.financial_modeling
+            if (dcfCalc) {
+              appStore.setDcfResult(dcfCalc, 'research')
+            }
+          }
+        }
+      } catch {
+        // silently ignore fetch errors
+      }
+    }
+    setFullAnalysisActive(false)
+    setActiveTab('overview')
+  }, [fullAnalysisRunId, appStore, setActiveTab])
 
   // AbortController ref — cancelled on ticker change
   const abortRef = useRef<AbortController | null>(null)
@@ -899,6 +959,8 @@ export function StocksPage() {
           <VerbToolbar
             ticker={ticker}
             onAskAi={() => setAiPanelOpen(true)}
+            onFullAnalysis={handleFullAnalysis}
+            fullAnalysisRunning={isFullAnalysisRunning}
             onToolComplete={(tool: ToolName) => {
               // Switch to relevant tab after tool completes
               const tabMap: Record<ToolName, StocksTab> = {
@@ -924,21 +986,40 @@ export function StocksPage() {
         <StocksTabBar activeTab={activeTab} onTabChange={setActiveTab} />
       </div>
 
-      {/* ── Tab content ── */}
-      <div
-        id={`tabpanel-${activeTab}`}
-        role="tabpanel"
-        aria-labelledby={`tab-${activeTab}`}
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: 'var(--sp-4) var(--sp-5)',
-        }}
-      >
-        <ErrorBoundary>
-          {tabContent}
-        </ErrorBoundary>
-      </div>
+      {/* ── Tab content / Analysis progress overlay ── */}
+      {fullAnalysisActive ? (
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: 'var(--sp-4) var(--sp-5)',
+          }}
+        >
+          <AnalysisProgress
+            ticker={ticker}
+            steps={runStream.steps}
+            progress={runStream.progress}
+            status={runStream.status}
+            error={runStream.error}
+            onViewReport={handleViewReport}
+          />
+        </div>
+      ) : (
+        <div
+          id={`tabpanel-${activeTab}`}
+          role="tabpanel"
+          aria-labelledby={`tab-${activeTab}`}
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: 'var(--sp-4) var(--sp-5)',
+          }}
+        >
+          <ErrorBoundary>
+            {tabContent}
+          </ErrorBoundary>
+        </div>
+      )}
 
       <ToastContainer />
     </div>

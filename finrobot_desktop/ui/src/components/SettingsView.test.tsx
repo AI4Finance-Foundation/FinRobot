@@ -36,18 +36,23 @@ function renderWithQuery(ui: React.ReactElement) {
 }
 
 describe('SettingsView', () => {
-  it('renders settings title', async () => {
-    renderWithQuery(<SettingsView onComplete={() => {}} />)
-    expect(await screen.findByText('Settings')).toBeInTheDocument()
-  })
-
-  it('renders model selector', async () => {
+  it('renders LLM Provider section', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
     expect(await screen.findByText('LLM Provider')).toBeInTheDocument()
   })
 
-  it('renders save button', async () => {
+  it('renders Data Sources section', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
-    expect(await screen.findByText('Save Settings')).toBeInTheDocument()
+    expect(await screen.findByText('Data Sources')).toBeInTheDocument()
+  })
+
+  it('renders Notification Channels section', async () => {
+    renderWithQuery(<SettingsView onComplete={() => {}} />)
+    expect(await screen.findByText('Notification Channels')).toBeInTheDocument()
+  })
+
+  it('renders Appearance section', async () => {
+    renderWithQuery(<SettingsView onComplete={() => {}} />)
+    expect(await screen.findByText('Appearance')).toBeInTheDocument()
   })
 })

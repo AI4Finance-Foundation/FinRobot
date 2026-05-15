@@ -140,13 +140,13 @@ function relativeTime(iso: string): string {
   try {
     const diff = Date.now() - new Date(iso).getTime()
     const mins = Math.floor(diff / 60_000)
-    if (mins < 1) return 'just now'
-    if (mins < 60) return `${mins}m ago`
+    if (mins < 1) return '刚刚'
+    if (mins < 60) return `${mins}分钟前`
     const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `${hrs}h ago`
+    if (hrs < 24) return `${hrs}小时前`
     const days = Math.floor(hrs / 24)
-    if (days < 7) return `${days}d ago`
-    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    if (days < 7) return `${days}天前`
+    return new Date(iso).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
   } catch {
     return iso
   }
@@ -154,7 +154,7 @@ function relativeTime(iso: string): string {
 
 function fmtDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    return new Date(iso).toLocaleString('zh-CN', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   } catch {
     return iso
   }
@@ -214,16 +214,16 @@ function EmptyState({ onNavigate }: { onNavigate: () => void }) {
         <path d="M33 36h6M36 33v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
       <div>
-        <div style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 6 }}>No analysis records yet</div>
+        <div style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 6 }}>暂无分析记录</div>
         <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: 320 }}>
-          Go to Stocks and run a DCF, LBO, or Comps to create your first artifact.
+          前往股票页面，运行 DCF、LBO 或 Comps 分析，生成第一条记录。
         </div>
       </div>
       <button
         onClick={onNavigate}
-        style={{ padding: '8px 20px', background: 'var(--gold)', color: '#fff', border: 'none', borderRadius: 'var(--r-md)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600 }}
+        style={{ padding: '8px 20px', background: 'var(--gold)', color: 'var(--text-primary)', border: 'none', borderRadius: 'var(--r-md)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600 }}
       >
-        Go to Stocks
+        前往股票
       </button>
     </div>
   )
@@ -235,12 +235,12 @@ function DeleteConfirm({ headline, onConfirm, onCancel }: { headline: string; on
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ background: 'var(--elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 24, width: 360, boxShadow: 'var(--shadow-lg)' }}>
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>Delete artifact?</div>
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>删除记录？</div>
         <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 4 }}>{headline}</div>
-        <div style={{ fontSize: '0.8rem', color: 'var(--negative)', marginBottom: 20 }}>This action cannot be undone.</div>
+        <div style={{ fontSize: '0.8rem', color: 'var(--negative)', marginBottom: 20 }}>此操作不可撤销。</div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button onClick={onCancel} style={{ padding: '6px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem' }}>Cancel</button>
-          <button onClick={onConfirm} style={{ padding: '6px 16px', background: 'var(--negative)', border: 'none', borderRadius: 'var(--r-md)', color: '#fff', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>Delete</button>
+          <button onClick={onCancel} style={{ padding: '6px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem' }}>取消</button>
+          <button onClick={onConfirm} style={{ padding: '6px 16px', background: 'var(--negative)', border: 'none', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>删除</button>
         </div>
       </div>
     </div>
@@ -253,14 +253,14 @@ function DeleteWorkspaceConfirm({ name, onConfirm, onCancel }: { name: string; o
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ background: 'var(--elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 24, width: 380, boxShadow: 'var(--shadow-lg)' }}>
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>Delete workspace?</div>
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>删除分组？</div>
         <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 4 }}>"{name}"</div>
         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 20 }}>
-          Tickers inside won't be deleted — only the group membership is removed.
+          组内标的不会被删除，仅解除分组关联。
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button onClick={onCancel} style={{ padding: '6px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem' }}>Cancel</button>
-          <button onClick={onConfirm} style={{ padding: '6px 16px', background: 'var(--negative)', border: 'none', borderRadius: 'var(--r-md)', color: '#fff', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>Delete</button>
+          <button onClick={onCancel} style={{ padding: '6px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem' }}>取消</button>
+          <button onClick={onConfirm} style={{ padding: '6px 16px', background: 'var(--negative)', border: 'none', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>删除</button>
         </div>
       </div>
     </div>
@@ -281,7 +281,7 @@ function WorkspaceFormModal({
   const [name, setName] = useState(initial?.name ?? '')
   const [desc, setDesc] = useState(initial?.description ?? '')
   const [touched, setTouched] = useState(false)
-  const nameError = touched && name.trim() === '' ? 'Please enter a group name' : ''
+  const nameError = touched && name.trim() === '' ? '请输入分组名称' : ''
 
   const handleSave = () => {
     setTouched(true)
@@ -292,33 +292,33 @@ function WorkspaceFormModal({
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ background: 'var(--elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 24, width: 380, boxShadow: 'var(--shadow-lg)' }}>
-        <div style={{ fontWeight: 600, marginBottom: 16 }}>{initial ? 'Rename group' : 'New group'}</div>
+        <div style={{ fontWeight: 600, marginBottom: 16 }}>{initial ? '重命名分组' : '新建分组'}</div>
         <div style={{ marginBottom: 12 }}>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Name *</label>
+          <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>名称 *</label>
           <input
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
             onBlur={() => setTouched(true)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
-            placeholder="e.g. Semiconductors"
+            placeholder="例如：半导体"
             style={{ width: '100%', padding: '8px 10px', background: 'var(--surface)', border: `1px solid ${nameError ? 'var(--negative)' : 'var(--border)'}`, borderRadius: 'var(--r-md)', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }}
           />
           {nameError && <div style={{ fontSize: '0.75rem', color: 'var(--negative)', marginTop: 4 }}>{nameError}</div>}
         </div>
         <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Description (optional)</label>
+          <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>备注（可选）</label>
           <input
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
-            placeholder="e.g. High-conviction longs"
+            placeholder="例如：高确信度多头"
             style={{ width: '100%', padding: '8px 10px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }}
           />
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button onClick={onCancel} style={{ padding: '6px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem' }}>Cancel</button>
-          <button onClick={handleSave} style={{ padding: '6px 16px', background: 'var(--gold)', border: 'none', borderRadius: 'var(--r-md)', color: '#fff', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
-            {initial ? 'Rename' : 'Create'}
+          <button onClick={onCancel} style={{ padding: '6px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem' }}>取消</button>
+          <button onClick={handleSave} style={{ padding: '6px 16px', background: 'var(--gold)', border: 'none', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
+            {initial ? '重命名' : '创建'}
           </button>
         </div>
       </div>
@@ -351,14 +351,14 @@ function WorkspacePickerDropdown({
   if (workspaces.length === 0) {
     return (
       <div ref={ref} style={{ position: 'absolute', right: 0, top: '100%', zIndex: 200, background: 'var(--elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: 12, width: 200, boxShadow: 'var(--shadow-md)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-        No groups yet. Create one in Workspaces view.
+        暂无分组，请先在「分组」视图中创建。
       </div>
     )
   }
 
   return (
     <div ref={ref} style={{ position: 'absolute', right: 0, top: '100%', zIndex: 200, background: 'var(--elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', overflow: 'hidden', width: 200, boxShadow: 'var(--shadow-md)' }}>
-      <div style={{ padding: '6px 10px', fontSize: '0.72rem', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Add to group</div>
+      <div style={{ padding: '6px 10px', fontSize: '0.72rem', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>添加到分组</div>
       {workspaces.map((ws) => {
         const already = ws.tickers.includes(ticker.toUpperCase())
         return (
@@ -367,12 +367,12 @@ function WorkspacePickerDropdown({
             disabled={already}
             onClick={() => {
               addTicker(ws.id, ticker)
-              addToast({ type: 'success', title: `${ticker} added to "${ws.name}"` })
+              addToast({ type: 'success', title: `${ticker} 已添加到「${ws.name}」` })
               onClose()
             }}
             style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', background: 'none', border: 'none', color: already ? 'var(--text-muted)' : 'var(--text-primary)', cursor: already ? 'default' : 'pointer', fontSize: '0.85rem' }}
           >
-            {ws.name} {already && <span style={{ fontSize: '0.7rem' }}>(already)</span>}
+            {ws.name} {already && <span style={{ fontSize: '0.7rem' }}>（已添加）</span>}
           </button>
         )
       })}
@@ -413,33 +413,33 @@ function ArtifactRow({
         {canDiff ? (
           <button
             onClick={onDiff}
-            title="Compare with previous version"
+            title="与上一版本对比"
             style={{ padding: '3px 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', color: 'var(--info)', cursor: 'pointer', fontSize: '0.72rem' }}
           >
-            Diff
+            对比
           </button>
         ) : (
           <button
             disabled
-            title="At least 2 versions needed to compare"
+            title="至少需要 2 个版本才能对比"
             style={{ padding: '3px 8px', background: 'var(--surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--r-sm)', color: 'var(--text-muted)', cursor: 'default', fontSize: '0.72rem', opacity: 0.5 }}
           >
-            Diff
+            对比
           </button>
         )}
         <button
           onClick={onOpen}
           style={{ padding: '3px 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.72rem' }}
         >
-          Open
+          查看
         </button>
         <div style={{ position: 'relative' }}>
           <button
             onClick={() => setShowWsPicker((v) => !v)}
-            title="Add to group"
+            title="添加到分组"
             style={{ padding: '3px 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.72rem' }}
           >
-            + Group
+            + 分组
           </button>
           {showWsPicker && (
             <WorkspacePickerDropdown ticker={ticker} onClose={() => setShowWsPicker(false)} />
@@ -447,9 +447,9 @@ function ArtifactRow({
         </div>
         <button
           onClick={onDelete}
-          title="Delete artifact"
+          title="删除记录"
           style={{ padding: '3px 6px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem' }}
-          aria-label="Delete artifact"
+          aria-label="删除记录"
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M3 4h8M5 4V3h4v1M5.5 6.5v4M8.5 6.5v4M3.5 4l.5 8h6l.5-8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -468,7 +468,7 @@ function SessionRow({ session, onOpen }: { session: Session; onOpen: () => void 
       <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 6px', borderRadius: 3, background: 'rgba(122,130,153,0.15)', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>Chat</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {session.pipeline ? `${session.pipeline} analysis` : `Session ${session.session_id.slice(0, 8)}`}
+          {session.pipeline ? `${session.pipeline} 分析` : `会话 ${session.session_id.slice(0, 8)}`}
         </div>
         {session.started_at && (
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>{relativeTime(session.started_at)}</div>
@@ -478,7 +478,7 @@ function SessionRow({ session, onOpen }: { session: Session; onOpen: () => void 
         onClick={onOpen}
         style={{ padding: '3px 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.72rem', flexShrink: 0 }}
       >
-        Replay
+        回放
       </button>
     </div>
   )
@@ -592,10 +592,10 @@ function ArtifactDetail({
   }
 
   if (isLoading) {
-    return <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>
+    return <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>加载中…</div>
   }
   if (error || !data) {
-    return <div style={{ padding: 32, textAlign: 'center', color: 'var(--negative)' }}>Failed to load artifact.</div>
+    return <div style={{ padding: 32, textAlign: 'center', color: 'var(--negative)' }}>加载失败。</div>
   }
 
   return (
@@ -623,7 +623,7 @@ function ArtifactDetail({
             onClick={() => onNavigateToStocks(data.ticker!)}
             style={{ padding: '5px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.8rem' }}
           >
-            Open in Stocks
+            在股票页查看
           </button>
         )}
         {(['dcf', 'lbo', 'comps'] as const).includes(data.type as 'dcf' | 'lbo' | 'comps') && data.ticker && (
@@ -631,14 +631,14 @@ function ArtifactDetail({
             onClick={() => void handleExcelExport()}
             style={{ padding: '5px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--gold)', cursor: 'pointer', fontSize: '0.8rem' }}
           >
-            Export Excel
+            导出 Excel
           </button>
         )}
       </div>
 
       {/* 4-element sections */}
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
-        <Section title="Outputs" defaultOpen>
+        <Section title="输出结果" defaultOpen>
           {data.outputs.summary_text && (
             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 8 }}>{data.outputs.summary_text}</div>
           )}
@@ -652,32 +652,32 @@ function ArtifactDetail({
           <JsonTree value={data.outputs.structured} />
         </Section>
 
-        <Section title="Assumptions">
+        <Section title="假设参数">
           <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Parameters</div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>参数</div>
             <JsonTree value={data.assumptions.parameters} />
           </div>
           {Object.keys(data.assumptions.user_overrides).length > 0 && (
             <div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>User overrides</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>用户覆盖</div>
               <JsonTree value={data.assumptions.user_overrides} />
             </div>
           )}
         </Section>
 
-        <Section title="Inputs">
+        <Section title="数据来源">
           <div style={{ marginBottom: 6 }}>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Source: </span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>来源：</span>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{data.inputs.data_source}</span>
           </div>
           <div style={{ marginBottom: 8 }}>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Fetched at: </span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>获取时间：</span>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{fmtDate(data.inputs.data_fetched_at)}</span>
           </div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>raw_data: (large blob omitted)</div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>raw_data：（大型数据已折叠）</div>
         </Section>
 
-        <Section title="Compute version">
+        <Section title="计算版本">
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
             <div><span style={{ color: 'var(--text-muted)' }}>package:</span> <span style={{ color: 'var(--text-primary)' }}>{data.compute_version.package} v{data.compute_version.version}</span></div>
             {data.compute_version.git_commit && (
@@ -707,7 +707,7 @@ function SessionTranscript({ sessionId, onClose }: { sessionId: string; onClose:
     <div style={{ height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>Session replay</div>
+          <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>会话回放</div>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{sessionId.slice(0, 16)}…</div>
         </div>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: 4 }} aria-label="Close">
@@ -717,8 +717,8 @@ function SessionTranscript({ sessionId, onClose }: { sessionId: string; onClose:
         </button>
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
-        {isLoading && <div style={{ color: 'var(--text-muted)' }}>Loading transcript…</div>}
-        {error && <div style={{ color: 'var(--negative)' }}>Failed to load transcript.</div>}
+        {isLoading && <div style={{ color: 'var(--text-muted)' }}>加载记录中…</div>}
+        {error && <div style={{ color: 'var(--negative)' }}>加载失败。</div>}
         {data && data.map((event, i) => (
           <div key={i} style={{ marginBottom: 8, padding: '8px 10px', background: 'var(--surface)', borderRadius: 'var(--r-sm)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
             {JSON.stringify(event, null, 2)}
@@ -809,7 +809,7 @@ function WorkspaceDetail({
         {workspace.description && (
           <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 8 }}>{workspace.description}</div>
         )}
-        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{workspace.tickers.length} ticker{workspace.tickers.length !== 1 ? 's' : ''}</div>
+        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{workspace.tickers.length} 个标的</div>
       </div>
 
       {workspace.tickers.length > 0 && (
@@ -819,26 +819,26 @@ function WorkspaceDetail({
             onClick={() => onBatchRun('dcf')}
             style={{ padding: '5px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: isRunning ? 'var(--text-muted)' : 'var(--text-primary)', cursor: isRunning ? 'default' : 'pointer', fontSize: '0.8rem' }}
           >
-            Run all DCF
+            批量运行 DCF
           </button>
           <button
             disabled={!!isRunning}
             onClick={() => onBatchRun('comps')}
             style={{ padding: '5px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: isRunning ? 'var(--text-muted)' : 'var(--text-primary)', cursor: isRunning ? 'default' : 'pointer', fontSize: '0.8rem' }}
           >
-            Run all Comps
+            批量运行 Comps
           </button>
           {batchJob && !isRunning && (
             <button
               onClick={() => clearJob(workspace.id)}
               style={{ padding: '5px 12px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem' }}
             >
-              Clear
+              清除
             </button>
           )}
           {batchJob && (
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
-              {isRunning ? `Running… ${completedCount}/${totalCount}` : `Done: ${completedCount}/${totalCount}${errorCount > 0 ? `, ${errorCount} error${errorCount > 1 ? 's' : ''}` : ''}`}
+              {isRunning ? `运行中… ${completedCount}/${totalCount}` : `完成：${completedCount}/${totalCount}${errorCount > 0 ? `，${errorCount} 个错误` : ''}`}
             </span>
           )}
         </div>
@@ -846,7 +846,7 @@ function WorkspaceDetail({
 
       {workspace.tickers.length === 0 && (
         <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-          No tickers in this group yet. Use "+ Group" on a ticker to add it.
+          该分组暂无标的，可在标的列表中点击「+ 分组」添加。
         </div>
       )}
 
@@ -867,7 +867,7 @@ function WorkspaceDetail({
                   fontSize: '0.72rem',
                   color: batchItem.status === 'done' ? 'var(--positive)' : batchItem.status === 'error' ? 'var(--negative)' : batchItem.status === 'running' ? 'var(--info)' : 'var(--text-muted)',
                 }}>
-                  {batchItem.status === 'error' ? `Error: ${batchItem.error ?? 'failed'}` : batchItem.status}
+                  {batchItem.status === 'error' ? `错误：${batchItem.error ?? '失败'}` : batchItem.status === 'done' ? '完成' : batchItem.status === 'running' ? '运行中' : '等待中'}
                 </span>
               )}
             </div>
@@ -876,14 +876,14 @@ function WorkspaceDetail({
                 onClick={() => handleRetry(batchItem)}
                 style={{ padding: '3px 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', color: 'var(--warning)', cursor: 'pointer', fontSize: '0.72rem' }}
               >
-                Retry
+                重试
               </button>
             )}
             <button
               onClick={() => removeTicker(workspace.id, ticker)}
-              title={`Remove ${ticker} from group`}
+              title={`从分组移除 ${ticker}`}
               style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4, fontSize: '1rem' }}
-              aria-label={`Remove ${ticker} from group`}
+              aria-label={`从分组移除 ${ticker}`}
             >
               ×
             </button>
@@ -970,10 +970,10 @@ export function LibraryPage() {
       if (rightPanel.kind === 'artifact' && rightPanel.id === id) {
         setRightPanel({ kind: 'none' })
       }
-      addToast({ type: 'success', title: 'Artifact deleted' })
+      addToast({ type: 'success', title: '记录已删除' })
     },
     onError: () => {
-      addToast({ type: 'error', title: 'Delete failed' })
+      addToast({ type: 'error', title: '删除失败' })
     },
   })
 
@@ -1081,8 +1081,8 @@ export function LibraryPage() {
               <input
                 value={searchQuery}
                 onChange={handleSearch}
-                placeholder="Search ticker, type, keyword…"
-                aria-label="Search library"
+                placeholder="搜索标的、类型、关键词…"
+                aria-label="搜索记录库"
                 data-testid="library-search"
                 style={{ width: '100%', padding: '7px 10px 7px 30px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', fontSize: '0.82rem', outline: 'none' }}
               />
@@ -1110,7 +1110,7 @@ export function LibraryPage() {
                   letterSpacing: '0.03em',
                 }}
               >
-                {v === 'by-ticker' ? 'By Ticker' : v === 'by-time' ? 'By Time' : 'Groups'}
+                {v === 'by-ticker' ? '按标的' : v === 'by-time' ? '按时间' : '分组'}
               </button>
             ))}
           </div>
@@ -1125,7 +1125,7 @@ export function LibraryPage() {
                 data-testid="archive-toggle"
                 style={{ cursor: 'pointer' }}
               />
-              Show archived
+              显示已归档
             </label>
           </div>
 
@@ -1135,7 +1135,7 @@ export function LibraryPage() {
               <>
                 {filteredTickerList.length === 0 && !artifactsLoading && (
                   <div style={{ padding: 20, fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-                    {debouncedSearch ? `No results for "${debouncedSearch}". Try cmd+K for global search.` : 'No tickers yet.'}
+                    {debouncedSearch ? `"${debouncedSearch}" 无匹配结果，可按 cmd+K 全局搜索。` : '暂无标的。'}
                   </div>
                 )}
                 {filteredTickerList.map(({ ticker, count, latestAt }) => (
@@ -1155,7 +1155,7 @@ export function LibraryPage() {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)' }}>{ticker}</div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 1 }}>{count} artifact{count !== 1 ? 's' : ''} · {relativeTime(latestAt)}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 1 }}>{count} 条记录 · {relativeTime(latestAt)}</div>
                     </div>
                     {selectedTicker === ticker && (
                       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: 'var(--gold)', flexShrink: 0 }}>
@@ -1171,7 +1171,7 @@ export function LibraryPage() {
               <>
                 {filteredAllArtifacts.length === 0 && !artifactsLoading && (
                   <div style={{ padding: 20, fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-                    {debouncedSearch ? `No results for "${debouncedSearch}"` : 'No artifacts yet.'}
+                    {debouncedSearch ? `"${debouncedSearch}" 无匹配结果` : '暂无记录。'}
                   </div>
                 )}
                 {filteredAllArtifacts.slice(0, VIRTUAL_THRESHOLD).map((a) => (
@@ -1194,7 +1194,7 @@ export function LibraryPage() {
                 ))}
                 {filteredAllArtifacts.length > VIRTUAL_THRESHOLD && (
                   <div style={{ padding: '8px 14px', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-                    Showing {VIRTUAL_THRESHOLD} of {filteredAllArtifacts.length}. Use search to narrow down.
+                    显示 {VIRTUAL_THRESHOLD} / {filteredAllArtifacts.length} 条，请搜索以缩小范围。
                   </div>
                 )}
               </>
@@ -1208,11 +1208,11 @@ export function LibraryPage() {
                     data-testid="create-workspace-btn"
                     style={{ width: '100%', padding: '7px 10px', background: 'var(--surface)', border: '1px dashed var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}
                   >
-                    <span style={{ fontSize: '1rem', lineHeight: 1 }}>+</span> New group
+                    <span style={{ fontSize: '1rem', lineHeight: 1 }}>+</span> 新建分组
                   </button>
                 </div>
                 {workspaces.length === 0 && (
-                  <div style={{ padding: 20, fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>No groups yet.</div>
+                  <div style={{ padding: 20, fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>暂无分组。</div>
                 )}
                 {workspaces.map((ws) => (
                   <div key={ws.id} style={{ position: 'relative' }}>
@@ -1228,19 +1228,19 @@ export function LibraryPage() {
                       <span>📂</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{ws.tickers.length} ticker{ws.tickers.length !== 1 ? 's' : ''}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{ws.tickers.length} 个标的</div>
                       </div>
                     </button>
                     <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 4, zIndex: 1 }}>
                       <button
                         onClick={(e) => { e.stopPropagation(); setWsFormModal({ mode: 'rename', id: ws.id, initial: { name: ws.name, description: ws.description } }) }}
-                        title="Rename"
+                        title="重命名"
                         data-testid="workspace-rename-btn"
                         style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem', padding: 4 }}
                       >✎</button>
                       <button
                         onClick={(e) => { e.stopPropagation(); setWsDeleteTarget(ws) }}
-                        title="Delete group"
+                        title="删除分组"
                         data-testid="workspace-delete-btn"
                         style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem', padding: 4 }}
                       >×</button>
@@ -1268,15 +1268,15 @@ export function LibraryPage() {
 
           {!globalEmpty && viewMode === 'workspaces' && !selectedWorkspace && (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              Select a group on the left.
+              请在左侧选择一个分组。
             </div>
           )}
 
           {!globalEmpty && viewMode === 'by-time' && (
             <div style={{ flex: 1, overflow: 'auto' }} data-testid="by-time-main">
               <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontWeight: 700 }}>All artifacts</span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{filteredAllArtifacts.length} total</span>
+                <span style={{ fontWeight: 700 }}>全部记录</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>共 {filteredAllArtifacts.length} 条</span>
               </div>
               {filteredAllArtifacts.slice(0, VIRTUAL_THRESHOLD).map((a) => (
                 <ArtifactRow
@@ -1291,7 +1291,7 @@ export function LibraryPage() {
               ))}
               {filteredAllArtifacts.length > VIRTUAL_THRESHOLD && (
                 <div style={{ padding: '8px 16px', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-                  Showing {VIRTUAL_THRESHOLD} of {filteredAllArtifacts.length}. Use search to filter.
+                  显示 {VIRTUAL_THRESHOLD} / {filteredAllArtifacts.length} 条，请搜索以筛选。
                 </div>
               )}
             </div>
@@ -1299,7 +1299,7 @@ export function LibraryPage() {
 
           {!globalEmpty && viewMode === 'by-ticker' && !selectedTicker && (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              Select a ticker on the left to see its timeline.
+              请在左侧选择一个标的，查看其时间线。
             </div>
           )}
 
@@ -1310,26 +1310,26 @@ export function LibraryPage() {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: '1rem' }}>{selectedTicker}</div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                    {tickerTimeline.artifacts.length} artifact{tickerTimeline.artifacts.length !== 1 ? 's' : ''} · {tickerTimeline.sessions.length} session{tickerTimeline.sessions.length !== 1 ? 's' : ''}
+                    {tickerTimeline.artifacts.length} 条记录 · {tickerTimeline.sessions.length} 个会话
                   </div>
                 </div>
                 <button
                   onClick={() => navigate(`/stocks/${selectedTicker}`)}
-                  style={{ padding: '6px 14px', background: 'var(--gold)', border: 'none', borderRadius: 'var(--r-md)', color: '#fff', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}
+                  style={{ padding: '6px 14px', background: 'var(--gold)', border: 'none', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}
                 >
-                  New analysis
+                  新建分析
                 </button>
               </div>
 
               {/* Timeline */}
               <div style={{ flex: 1, overflow: 'auto' }} data-testid="ticker-timeline">
                 {tickerArtifactsQuery.isLoading && (
-                  <div style={{ padding: 20, color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center' }}>Loading…</div>
+                  <div style={{ padding: 20, color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center' }}>加载中…</div>
                 )}
 
                 {!tickerArtifactsQuery.isLoading && tickerTimeline.artifacts.length === 0 && tickerTimeline.sessions.length === 0 && (
                   <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                    All artifacts for {selectedTicker} were deleted.
+                    {selectedTicker} 的所有记录已被删除。
                   </div>
                 )}
 

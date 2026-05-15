@@ -22,10 +22,10 @@ const NEGATIVE_COLOR = '#F87171'
 const TOTAL_COLOR = '#C9A84C'
 
 const CHART_TOOLTIP = {
-  backgroundColor: '#1A1F2E',
-  border: '1px solid #252A37',
+  backgroundColor: 'var(--bg-3)',
+  border: '1px solid var(--border-hover)',
   borderRadius: 6,
-  color: '#E8ECF4',
+  color: 'var(--text-primary)',
   fontFamily: "'JetBrains Mono', monospace",
   fontSize: '0.78rem',
 }
@@ -83,20 +83,20 @@ export default function WaterfallChart({ data, title }: ChartProps) {
           <BarChart data={bars}>
             <XAxis
               dataKey="label"
-              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#252A37' }}
+              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#E2E5EB' }}
               interval={0}
               angle={-30}
               textAnchor="end"
               height={60}
             />
             <YAxis
-              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#252A37' }}
+              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#E2E5EB' }}
               tickFormatter={(v: number) => `$${v}`}
             />
             <Tooltip
-              contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
+              contentStyle={CHART_TOOLTIP} labelStyle={{ color: 'var(--text-primary)' }}
               formatter={(
                 _val: TooltipValueType | undefined,
                 _name: string | number | undefined,
@@ -109,7 +109,7 @@ export default function WaterfallChart({ data, title }: ChartProps) {
                 return [`$${entry.value.toFixed(0)}`, entry.value >= 0 ? 'Add' : 'Subtract']
               }}
             />
-            <ReferenceLine y={0} stroke="#252A37" />
+            <ReferenceLine y={0} stroke="#E2E5EB" />
             <Bar dataKey="base" stackId="waterfall" fill="transparent" />
             <Bar dataKey="delta" stackId="waterfall" radius={[3, 3, 0, 0]}>
               {bars.map((entry, index) => (

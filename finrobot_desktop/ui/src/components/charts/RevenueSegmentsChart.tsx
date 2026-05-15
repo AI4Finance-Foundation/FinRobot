@@ -16,10 +16,10 @@ interface ChartProps {
 const COLORS = ['#60A5FA', '#C9A84C', '#34D399', '#F87171', '#A78BFA', '#FB923C']
 
 const CHART_TOOLTIP = {
-  backgroundColor: '#1A1F2E',
-  border: '1px solid #252A37',
+  backgroundColor: 'var(--bg-3)',
+  border: '1px solid var(--border-hover)',
   borderRadius: 6,
-  color: '#E8ECF4',
+  color: 'var(--text-primary)',
   fontFamily: "'JetBrains Mono', monospace",
   fontSize: '0.78rem',
 }
@@ -66,9 +66,9 @@ export default function RevenueSegmentsChart({ data, title }: ChartProps) {
                 formatBillions(typeof value === 'number' ? value : 0)
               }
               contentStyle={CHART_TOOLTIP}
-              labelStyle={{ color: '#E8ECF4' }}
+              labelStyle={{ color: 'var(--text-primary)' }}
             />
-            <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />
+            <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
           </PieChart>
         </ResponsiveContainer>
       </div>

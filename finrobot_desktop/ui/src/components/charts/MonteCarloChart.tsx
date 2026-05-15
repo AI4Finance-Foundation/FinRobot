@@ -19,10 +19,10 @@ interface Props {
 }
 
 const CHART_TOOLTIP = {
-  backgroundColor: '#1A1F2E',
-  border: '1px solid #252A37',
+  backgroundColor: 'var(--bg-3)',
+  border: '1px solid var(--border-hover)',
   borderRadius: 6,
-  color: '#E8ECF4',
+  color: 'var(--text-primary)',
   fontFamily: "'JetBrains Mono', monospace",
   fontSize: '0.78rem',
 }
@@ -69,19 +69,19 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
           <BarChart data={chartData} barCategoryGap={0} barGap={0}>
             <XAxis
               dataKey="binMid"
-              tick={{ fill: '#7A8299', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#252A37' }}
+              tick={{ fill: '#4B5563', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#E2E5EB' }}
               tickFormatter={(v: number) => `$${v.toFixed(0)}`}
               interval="preserveStartEnd"
               minTickGap={40}
             />
             <YAxis
-              tick={{ fill: '#7A8299', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#252A37' }}
+              tick={{ fill: '#4B5563', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#E2E5EB' }}
               tickFormatter={(v: number) => v.toLocaleString()}
             />
             <Tooltip
-              contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
+              contentStyle={CHART_TOOLTIP} labelStyle={{ color: 'var(--text-primary)' }}
               formatter={(value: TooltipValueType | undefined) => {
                 const v = typeof value === 'number' ? value : 0
                 return [v.toLocaleString(), 'Simulations']
@@ -117,15 +117,15 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
               />
             )}
 
-            {/* Median line (white solid) */}
+            {/* Median line (dark solid on light bg) */}
             <ReferenceLine
               x={median}
-              stroke="#E8ECF4"
+              stroke="#111827"
               strokeWidth={1.5}
               label={{
                 value: `Median $${median.toFixed(0)}`,
                 position: 'insideTopRight',
-                fill: '#E8ECF4',
+                fill: '#111827',
                 fontSize: 10,
                 fontFamily: "'JetBrains Mono', monospace",
               }}
@@ -169,7 +169,7 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
               <tr>
                 <td className="font-mono">${(result.percentiles['5'] ?? 0).toFixed(2)}</td>
                 <td className="font-mono">${(result.percentiles['25'] ?? 0).toFixed(2)}</td>
-                <td className="font-mono" style={{ color: '#E8ECF4', fontWeight: 600 }}>
+                <td className="font-mono" style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
                   ${(result.percentiles['50'] ?? 0).toFixed(2)}
                 </td>
                 <td className="font-mono">${(result.percentiles['75'] ?? 0).toFixed(2)}</td>

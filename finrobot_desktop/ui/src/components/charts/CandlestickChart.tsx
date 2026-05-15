@@ -41,12 +41,13 @@ const SMA50_COLOR = '#FB923C' // --chart-5
 const BB_STROKE = '#60A5FA'
 
 const CHART_TOOLTIP = {
-  backgroundColor: '#1A1F2E',
-  border: '1px solid #252A37',
+  backgroundColor: 'var(--bg-3)',
+  border: '1px solid var(--border-hover)',
   borderRadius: 6,
-  color: '#E8ECF4',
+  color: 'var(--text-primary)',
   fontFamily: "'JetBrains Mono', monospace",
   fontSize: '0.78rem',
+  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
 }
 
 // ---------- Helpers ----------
@@ -172,14 +173,14 @@ function OHLCTooltip({ active, payload }: CustomTooltipProps) {
   return (
     <div style={CHART_TOOLTIP}>
       <div style={{ marginBottom: 4, fontWeight: 600 }}>{row.date}</div>
-      <div>O: <span style={{ color: '#E8ECF4' }}>${row.open.toFixed(2)}</span></div>
-      <div>H: <span style={{ color: '#E8ECF4' }}>${row.high.toFixed(2)}</span></div>
-      <div>L: <span style={{ color: '#E8ECF4' }}>${row.low.toFixed(2)}</span></div>
-      <div>C: <span style={{ color: '#E8ECF4' }}>${row.close.toFixed(2)}</span></div>
+      <div>O: <span style={{ color: 'var(--text-primary)' }}>${row.open.toFixed(2)}</span></div>
+      <div>H: <span style={{ color: 'var(--text-primary)' }}>${row.high.toFixed(2)}</span></div>
+      <div>L: <span style={{ color: 'var(--text-primary)' }}>${row.low.toFixed(2)}</span></div>
+      <div>C: <span style={{ color: 'var(--text-primary)' }}>${row.close.toFixed(2)}</span></div>
       <div style={{ color: isUp ? UP_COLOR : DOWN_COLOR }}>
         {isUp ? '+' : ''}{changeAbs.toFixed(2)} ({isUp ? '+' : ''}{changePct.toFixed(2)}%)
       </div>
-      <div style={{ marginTop: 4, color: '#7A8299' }}>
+      <div style={{ marginTop: 4, color: 'var(--text-muted)' }}>
         Vol: {formatVolume(row.volume)}
       </div>
     </div>
@@ -236,8 +237,8 @@ export default function CandlestickChart({
       >
         <XAxis
           dataKey="date"
-          tick={{ fill: '#7A8299', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
-          axisLine={{ stroke: '#252A37' }}
+          tick={{ fill: '#4B5563', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+          axisLine={{ stroke: '#E2E5EB' }}
           tickFormatter={(d: string) => {
             const date = new Date(d)
             return `${date.getFullYear().toString().slice(2)}/${(date.getMonth() + 1)
@@ -252,8 +253,8 @@ export default function CandlestickChart({
           yAxisId="price"
           orientation="left"
           domain={priceDomain}
-          tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-          axisLine={{ stroke: '#252A37' }}
+          tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+          axisLine={{ stroke: '#E2E5EB' }}
           tickFormatter={(v: number) => `$${v}`}
         />
 
@@ -363,7 +364,7 @@ export default function CandlestickChart({
 
         {/* Legend -- only show active overlays */}
         <Legend
-          wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }}
+          wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }}
           content={() => {
             const items: LegendPayload[] = [
               ...(showSMA20
@@ -382,7 +383,7 @@ export default function CandlestickChart({
                 {items.map((item) => (
                   <li
                     key={item.value}
-                    style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#7A8299', fontSize: '0.72rem' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-secondary)', fontSize: '0.72rem' }}
                   >
                     <svg width="14" height="4">
                       <line x1="0" y1="2" x2="14" y2="2" stroke={item.color} strokeWidth="2" />

@@ -10,10 +10,10 @@ interface Props {
 const LINE_COLORS = ['#60A5FA', '#C9A84C', '#34D399', '#F87171', '#A78BFA', '#FB923C']
 
 const CHART_TOOLTIP = {
-  backgroundColor: '#1A1F2E',
-  border: '1px solid #252A37',
+  backgroundColor: 'var(--bg-3)',
+  border: '1px solid var(--border-hover)',
   borderRadius: 6,
-  color: '#E8ECF4',
+  color: 'var(--text-primary)',
   fontFamily: "'JetBrains Mono', monospace",
   fontSize: '0.78rem',
 }
@@ -52,11 +52,11 @@ export default function RelativePerformanceChart({ data, title }: Props) {
       <div className="card-body">
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={pivoted}>
-            <XAxis dataKey="date" tick={{ fill: '#7A8299', fontSize: 10 }} axisLine={{ stroke: '#252A37' }} />
-            <YAxis tick={{ fill: '#7A8299', fontSize: 11 }} axisLine={{ stroke: '#252A37' }} domain={['auto', 'auto']} />
+            <XAxis dataKey="date" tick={{ fill: '#4B5563', fontSize: 10 }} axisLine={{ stroke: '#E2E5EB' }} />
+            <YAxis tick={{ fill: '#4B5563', fontSize: 11 }} axisLine={{ stroke: '#E2E5EB' }} domain={['auto', 'auto']} />
             <Tooltip contentStyle={CHART_TOOLTIP} />
-            <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />
-            <ReferenceLine y={100} stroke="#252A37" strokeDasharray="3 3" />
+            <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
+            <ReferenceLine y={100} stroke="#E2E5EB" strokeDasharray="3 3" />
             {lines.map((l) => (
               <Line
                 key={l.dataKey}

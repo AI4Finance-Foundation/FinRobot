@@ -31,10 +31,10 @@ const INLINE_COLOR = '#C9A84C'
 const ESTIMATE_COLOR = 'rgba(122, 130, 153, 0.6)'
 
 const CHART_TOOLTIP = {
-  backgroundColor: '#1A1F2E',
-  border: '1px solid #252A37',
+  backgroundColor: 'var(--bg-3)',
+  border: '1px solid var(--border-hover)',
   borderRadius: 6,
-  color: '#E8ECF4',
+  color: 'var(--text-primary)',
   fontFamily: "'JetBrains Mono', monospace",
   fontSize: '0.78rem',
 }
@@ -58,20 +58,20 @@ export default function EpsSurpriseChart({ data, title }: ChartProps) {
           <ComposedChart data={data} barGap={1} barCategoryGap="20%">
             <XAxis
               dataKey="quarter"
-              tick={{ fill: '#7A8299', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#252A37' }}
+              tick={{ fill: '#4B5563', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#E2E5EB' }}
               interval={0}
               angle={-30}
               textAnchor="end"
               height={45}
             />
             <YAxis
-              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#252A37' }}
+              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#E2E5EB' }}
               tickFormatter={(v: number) => `$${v.toFixed(2)}`}
             />
             <Tooltip
-              contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
+              contentStyle={CHART_TOOLTIP} labelStyle={{ color: 'var(--text-primary)' }}
               formatter={(value: TooltipValueType | undefined, name: string | number | undefined) => {
                 const v = typeof value === 'number' ? value : 0
                 const n = String(name ?? '')
@@ -80,8 +80,8 @@ export default function EpsSurpriseChart({ data, title }: ChartProps) {
               }}
               labelFormatter={(label: unknown) => `Quarter: ${String(label ?? '')}`}
             />
-            <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />
-            <ReferenceLine y={0} stroke="#252A37" strokeDasharray="3 3" />
+            <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
+            <ReferenceLine y={0} stroke="#E2E5EB" strokeDasharray="3 3" />
             <Bar
               dataKey="eps_estimated"
               name="Estimate"
@@ -102,7 +102,7 @@ export default function EpsSurpriseChart({ data, title }: ChartProps) {
             <Line
               type="monotone"
               dataKey="eps_estimated"
-              stroke="#7A8299"
+              stroke="#9CA3AF"
               strokeWidth={1}
               strokeDasharray="4 3"
               dot={false}

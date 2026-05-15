@@ -20,10 +20,10 @@ interface ChartProps {
 const COLORS = ['#60A5FA', '#C9A84C', '#34D399', '#A78BFA', '#FB923C', '#F87171']
 
 const CHART_TOOLTIP = {
-  backgroundColor: '#1A1F2E',
-  border: '1px solid #252A37',
+  backgroundColor: 'var(--bg-3)',
+  border: '1px solid var(--border-hover)',
   borderRadius: 6,
-  color: '#E8ECF4',
+  color: 'var(--text-primary)',
   fontFamily: "'JetBrains Mono', monospace",
   fontSize: '0.78rem',
 }
@@ -53,19 +53,19 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
           <BarChart data={shaped} layout="vertical" barSize={20}>
             <XAxis
               type="number"
-              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#252A37' }}
+              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#E2E5EB' }}
               tickFormatter={(v: number) => `$${v}`}
             />
             <YAxis
               type="category"
               dataKey="method"
-              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#252A37' }}
+              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#E2E5EB' }}
               width={120}
             />
             <Tooltip
-              contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
+              contentStyle={CHART_TOOLTIP} labelStyle={{ color: 'var(--text-primary)' }}
               formatter={(value: TooltipValueType | undefined, name: string | number | undefined) => {
                 const n = String(name ?? '')
                 if (n === 'base') return [null, null]
@@ -76,7 +76,7 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
                 const s = String(label ?? '')
                 const entry = shaped.find((e) => e.method === s)
                 if (!entry) return s
-                return `${s}: $${entry.low.toFixed(2)} – $${entry.high.toFixed(2)}`
+                return `${s}: $${entry.low.toFixed(2)} \u2013 $${entry.high.toFixed(2)}`
               }}
             />
             <Bar dataKey="base" stackId="stack" fill="transparent" />
@@ -89,13 +89,13 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
             {currentPrice != null && (
               <ReferenceLine
                 x={currentPrice}
-                stroke="#E8ECF4"
+                stroke="#111827"
                 strokeWidth={1.5}
                 strokeDasharray="4 3"
                 label={{
                   value: `$${currentPrice.toFixed(0)}`,
                   position: 'top',
-                  fill: '#E8ECF4',
+                  fill: '#111827',
                   fontSize: 11,
                   fontFamily: "'JetBrains Mono', monospace",
                 }}

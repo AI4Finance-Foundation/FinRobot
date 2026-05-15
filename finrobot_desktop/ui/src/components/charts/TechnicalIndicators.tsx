@@ -19,10 +19,10 @@ const OVERBOUGHT_COLOR = '#F87171' // --negative
 const OVERSOLD_COLOR = '#34D399'   // --positive
 
 const CHART_TOOLTIP = {
-  backgroundColor: '#1A1F2E',
-  border: '1px solid #252A37',
+  backgroundColor: 'var(--bg-3)',
+  border: '1px solid var(--border-hover)',
   borderRadius: 6,
-  color: '#E8ECF4',
+  color: 'var(--text-primary)',
   fontFamily: "'JetBrains Mono', monospace",
   fontSize: '0.78rem',
 }
@@ -62,7 +62,7 @@ export default function TechnicalIndicators({ data, showRSI }: TechnicalIndicato
           fontWeight: 600,
           textTransform: 'uppercase',
           letterSpacing: '0.06em',
-          color: '#7A8299',
+          color: 'var(--text-secondary)',
           padding: '0 16px 4px',
           fontFamily: "'JetBrains Mono', monospace",
         }}
@@ -77,19 +77,19 @@ export default function TechnicalIndicators({ data, showRSI }: TechnicalIndicato
           <XAxis
             dataKey="date"
             tick={false}
-            axisLine={{ stroke: '#252A37' }}
+            axisLine={{ stroke: '#E2E5EB' }}
             height={0}
           />
           <YAxis
             domain={[0, 100]}
             ticks={[30, 50, 70]}
-            tick={{ fill: '#7A8299', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
-            axisLine={{ stroke: '#252A37' }}
+            tick={{ fill: '#4B5563', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+            axisLine={{ stroke: '#E2E5EB' }}
             width={40}
           />
           <Tooltip
             contentStyle={CHART_TOOLTIP}
-            labelStyle={{ color: '#E8ECF4' }}
+            labelStyle={{ color: 'var(--text-primary)' }}
             formatter={(value: TooltipValueType | undefined) => {
               const v = typeof value === 'number' ? value : 0
               return [v.toFixed(1), 'RSI']
@@ -99,7 +99,7 @@ export default function TechnicalIndicators({ data, showRSI }: TechnicalIndicato
           {/* Overbought / oversold zones */}
           <ReferenceLine y={70} stroke={OVERBOUGHT_COLOR} strokeDasharray="3 3" strokeOpacity={0.6} />
           <ReferenceLine y={30} stroke={OVERSOLD_COLOR} strokeDasharray="3 3" strokeOpacity={0.6} />
-          <ReferenceLine y={50} stroke="#252A37" strokeDasharray="2 2" />
+          <ReferenceLine y={50} stroke="#E2E5EB" strokeDasharray="2 2" />
 
           <Line
             dataKey="rsi"

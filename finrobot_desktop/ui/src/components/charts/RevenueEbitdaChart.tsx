@@ -22,10 +22,10 @@ const FORECAST_REVENUE = 'rgba(96, 165, 250, 0.45)'
 const FORECAST_EBITDA = 'rgba(201, 168, 76, 0.45)'
 
 const CHART_TOOLTIP = {
-  backgroundColor: '#1A1F2E',
-  border: '1px solid #252A37',
+  backgroundColor: 'var(--bg-3)',
+  border: '1px solid var(--border-hover)',
   borderRadius: 6,
-  color: '#E8ECF4',
+  color: 'var(--text-primary)',
   fontFamily: "'JetBrains Mono', monospace",
   fontSize: '0.78rem',
 }
@@ -49,21 +49,21 @@ export default function RevenueEbitdaChart({ data, title }: ChartProps) {
           <BarChart data={data} barGap={2}>
             <XAxis
               dataKey="year"
-              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#252A37' }}
+              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#E2E5EB' }}
             />
             <YAxis
               tickFormatter={formatBillions}
-              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#252A37' }}
+              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#E2E5EB' }}
             />
             <Tooltip
               formatter={(value: TooltipValueType | undefined) =>
                 formatBillions(typeof value === 'number' ? value : 0)
               }
-              contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
+              contentStyle={CHART_TOOLTIP} labelStyle={{ color: 'var(--text-primary)' }}
             />
-            <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />
+            <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
             <Bar dataKey="revenue" name="Revenue" radius={[2, 2, 0, 0]}>
               {data.map((entry, index) => (
                 <Cell

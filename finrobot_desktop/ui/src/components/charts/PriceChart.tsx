@@ -45,10 +45,10 @@ const PRICE_COLOR = '#60A5FA'   // chart-1
 const VOLUME_COLOR = '#C9A84C'  // chart-2
 
 const CHART_TOOLTIP = {
-  backgroundColor: '#1A1F2E',
-  border: '1px solid #252A37',
+  backgroundColor: 'var(--bg-3)',
+  border: '1px solid var(--border-hover)',
   borderRadius: 6,
-  color: '#E8ECF4',
+  color: 'var(--text-primary)',
   fontFamily: "'JetBrains Mono', monospace",
   fontSize: '0.78rem',
 }
@@ -128,8 +128,8 @@ export default function PriceChart({ data, title }: ChartProps) {
             </defs>
             <XAxis
               dataKey="date"
-              tick={{ fill: '#7A8299', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#252A37' }}
+              tick={{ fill: '#4B5563', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#E2E5EB' }}
               tickFormatter={(d: string) => {
                 const date = new Date(d)
                 return range === '1M'
@@ -141,20 +141,20 @@ export default function PriceChart({ data, title }: ChartProps) {
             <YAxis
               yAxisId="price"
               orientation="left"
-              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#252A37' }}
+              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#E2E5EB' }}
               tickFormatter={(v: number) => `$${v}`}
               domain={['auto', 'auto']}
             />
             <YAxis
               yAxisId="volume"
               orientation="right"
-              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#252A37' }}
+              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#E2E5EB' }}
               tickFormatter={formatVolume}
             />
             <Tooltip
-              contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }}
+              contentStyle={CHART_TOOLTIP} labelStyle={{ color: 'var(--text-primary)' }}
               formatter={(value: TooltipValueType | undefined, name: string | number | undefined) => {
                 const v = typeof value === 'number' ? value : 0
                 const n = String(name ?? '')
@@ -162,7 +162,7 @@ export default function PriceChart({ data, title }: ChartProps) {
                 return [`$${v.toFixed(2)}`, n]
               }}
             />
-            <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />
+            <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
             <Bar
               yAxisId="volume"
               dataKey="volume"

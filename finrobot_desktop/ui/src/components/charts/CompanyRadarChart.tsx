@@ -19,10 +19,10 @@ const COMPANY_COLOR = '#60A5FA'  // chart-1
 const BENCHMARK_COLOR = '#C9A84C' // chart-2
 
 const CHART_TOOLTIP = {
-  backgroundColor: '#1A1F2E',
-  border: '1px solid #252A37',
+  backgroundColor: 'var(--bg-3)',
+  border: '1px solid var(--border-hover)',
   borderRadius: 6,
-  color: '#E8ECF4',
+  color: 'var(--text-primary)',
   fontFamily: "'JetBrains Mono', monospace",
   fontSize: '0.78rem',
 }
@@ -38,17 +38,17 @@ export default function CompanyRadarChart({ data, title }: ChartProps) {
       <div className="card-body">
         <ResponsiveContainer width="100%" height={300}>
           <RechartsRadarChart data={data} cx="50%" cy="50%" outerRadius="70%">
-            <PolarGrid stroke="#252A37" />
+            <PolarGrid stroke="#E2E5EB" />
             <PolarAngleAxis
               dataKey="dimension"
-              tick={{ fill: '#7A8299', fontSize: 11 }}
+              tick={{ fill: '#4B5563', fontSize: 11 }}
             />
             <PolarRadiusAxis
-              tick={{ fill: '#4A5168', fontSize: 10 }}
+              tick={{ fill: '#9CA3AF', fontSize: 10 }}
               axisLine={false}
             />
-            <Tooltip contentStyle={CHART_TOOLTIP} labelStyle={{ color: "#E8ECF4" }} />
-            <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />
+            <Tooltip contentStyle={CHART_TOOLTIP} labelStyle={{ color: 'var(--text-primary)' }} />
+            <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
             <Radar
               name="Company"
               dataKey="value"

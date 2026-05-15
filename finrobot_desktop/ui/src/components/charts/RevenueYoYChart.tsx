@@ -17,10 +17,10 @@ interface ChartProps {
 }
 
 const CHART_TOOLTIP = {
-  backgroundColor: '#1A1F2E',
-  border: '1px solid #252A37',
+  backgroundColor: 'var(--bg-3)',
+  border: '1px solid var(--border-hover)',
   borderRadius: 6,
-  color: '#E8ECF4',
+  color: 'var(--text-primary)',
   fontFamily: "'JetBrains Mono', monospace",
   fontSize: '0.78rem',
 }
@@ -45,23 +45,23 @@ export default function RevenueYoYChart({ data, title }: ChartProps) {
           <BarChart data={chartData} barGap={2}>
             <XAxis
               dataKey="year"
-              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#252A37' }}
+              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#E2E5EB' }}
             />
             <YAxis
               tickFormatter={formatPct}
-              tick={{ fill: '#7A8299', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#252A37' }}
+              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: '#E2E5EB' }}
             />
             <Tooltip
               formatter={(value: TooltipValueType | undefined) =>
                 formatPct(typeof value === 'number' ? value : 0)
               }
               contentStyle={CHART_TOOLTIP}
-              labelStyle={{ color: '#E8ECF4' }}
+              labelStyle={{ color: 'var(--text-primary)' }}
             />
-            <Legend wrapperStyle={{ color: '#7A8299', fontSize: '0.72rem' }} />
-            <ReferenceLine y={0} stroke="#252A37" strokeWidth={1} />
+            <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
+            <ReferenceLine y={0} stroke="#E2E5EB" strokeWidth={1} />
             <Bar dataKey="yoy_pct" name="YoY Growth %" radius={[2, 2, 0, 0]}>
               {chartData.map((entry, index) => (
                 <Cell
@@ -76,4 +76,3 @@ export default function RevenueYoYChart({ data, title }: ChartProps) {
     </div>
   )
 }
-

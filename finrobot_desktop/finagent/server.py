@@ -32,6 +32,7 @@ from finagent.routes.data import router as data_router
 from finagent.routes.export import router as export_router
 from finagent.routes.runs import router as runs_router
 from finagent.routes.market import router as market_router
+from finagent.routes.journal import router as journal_router
 from finagent.routes.search import router as search_router
 from finagent.routes.settings import load_non_secret_settings
 from finagent.routes.settings import router as settings_router
@@ -162,6 +163,7 @@ app.include_router(settings_router)
 app.include_router(runs_router)
 app.include_router(artifacts_router)
 app.include_router(market_router)
+app.include_router(journal_router)
 app.include_router(search_router, prefix="/api/search", tags=["search"])
 
 

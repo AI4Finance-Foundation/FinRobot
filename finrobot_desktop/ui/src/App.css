@@ -2500,14 +2500,13 @@ select.input-field {
   overflow: hidden;
 }
 
-/* Override legacy .app-body that had margin-top: 48px */
+/* App body: fills the vertical space between TitleBar and StatusBar */
 .app-shell > .app-body {
-  flex: 1;
   display: flex;
   flex-direction: row;
   overflow: hidden;
   margin-top: 0;
-  height: auto;
+  height: calc(100vh - var(--titlebar-h) - var(--statusbar-h));
 }
 
 .main-content {
@@ -2641,6 +2640,18 @@ select.input-field {
   font-weight: 700;
 }
 .activity-bar .spacer { flex: 1; }
+
+/* ── Primary Sidebar (replaces ActivityBar) ── */
+.sidebar {
+  width: 200px;
+  min-width: 200px;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
 
 /* ── Explorer / sidebar-left ── */
 .sidebar-left {

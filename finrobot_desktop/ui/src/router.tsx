@@ -5,6 +5,7 @@ import { StocksPage } from "./pages/StocksPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { PlaygroundPage } from "./pages/PlaygroundPage";
+import { JournalPage } from "./pages/JournalPage";
 
 export const router = createBrowserRouter([
   {
@@ -17,6 +18,7 @@ export const router = createBrowserRouter([
       { path: "stocks/:ticker", element: <StocksPage /> },
       { path: "playground", element: <PlaygroundPage /> },
       { path: "playground/:ticker", element: <PlaygroundPage /> },
+      { path: "journal", element: <JournalPage /> },
       { path: "library", element: <LibraryPage /> },
       { path: "library/:ticker", element: <LibraryPage /> },
       { path: "settings", element: <SettingsPage /> },

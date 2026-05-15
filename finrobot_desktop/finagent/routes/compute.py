@@ -12,6 +12,11 @@ from finagent.engine.compute.compare import (
     ComparisonResult,
     build_company_valuation,
 )
+from finagent.engine.compute.composite_score import (
+    CompositeScore,
+    ScoreRequest,
+    calculate_composite_score,
+)
 from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 from finagent.engine.compute.ddm import calculate_ddm
 from finagent.engine.compute.lbo import calculate_lbo, calculate_lbo_sensitivity
@@ -21,6 +26,11 @@ from finagent.engine.compute.monte_carlo import (
     run_monte_carlo,
 )
 from finagent.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
+from finagent.engine.compute.sniper import (
+    SniperPoints,
+    SniperRequest,
+    calculate_sniper_points,
+)
 from finagent.engine.compute.wacc import calculate_wacc
 from finagent.engine.models.financial import (
     CompanyFinancials,
@@ -229,3 +239,25 @@ async def compare_companies(
     tasks = [_run_one(t.upper()) for t in request_body.tickers]
     companies = await asyncio.gather(*tasks)
     return ComparisonResult(companies=list(companies))
+
+
+@router.post("/sniper", response_model=SniperPoints)
+async def compute_sniper(body: SniperRequest) -> SniperPoints:
+    """Compute deterministic entry/exit price levels from DCF target + price history.
+
+    Returns ideal_buy, secondary_buy, stop_loss, take_profit, position_size_pct,
+    support/resistance levels, and risk/reward ratio. All numbers trace to typed
+    inputs — no LLM inference.
+    """
+    return calculate_sniper_points(body)
+
+
+@router.post("/score", response_model=CompositeScore)
+async def compute_score(body: ScoreRequest) -> CompositeScore:
+    """Compute a 0-100 composite score from fundamentals, valuation, catalysts, sentiment.
+
+    Weights: fundamental 30%, valuation 30%, catalyst 20%, sentiment 20%.
+    Signal: STRONG_BUY (>=80) / BUY (>=60) / HOLD (>=40) / SELL (>=20) / STRONG_SELL.
+    All thresholds are hardcoded — no LLM reasoning.
+    """
+    return calculate_composite_score(body)

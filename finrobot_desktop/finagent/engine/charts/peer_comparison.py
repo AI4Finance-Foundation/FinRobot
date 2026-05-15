@@ -35,9 +35,7 @@ def _create_figure(
     ev_ebitdas: list[float] = [_num(r.get("ev_ebitda")) for r in rows]
     is_targets: list[bool] = [bool(r.get("is_target", False)) for r in rows]
 
-    colors = [
-        cfg.accent_color if is_t else cfg.primary_color for is_t in is_targets
-    ]
+    colors = [cfg.accent_color if is_t else cfg.primary_color for is_t in is_targets]
 
     fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
     fig.patch.set_facecolor(cfg.background_color)

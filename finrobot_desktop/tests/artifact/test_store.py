@@ -9,6 +9,7 @@ Coverage:
 - delete: removes file and updates index
 - mark_viewed: updates last_viewed_at and un-archives
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -17,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from finagent.artifact.models import Artifact, ArtifactMeta
+from finagent.artifact.models import Artifact
 from finagent.artifact.store import ArtifactStore
 from tests.artifact.conftest import _make_artifact
 
@@ -81,9 +82,7 @@ class TestSaveGet:
 
 class TestListByTicker:
     @pytest.mark.asyncio
-    async def test_filter_by_ticker(
-        self, store: ArtifactStore, sample_artifact: Artifact
-    ) -> None:
+    async def test_filter_by_ticker(self, store: ArtifactStore, sample_artifact: Artifact) -> None:
         msft_art = _make_artifact(id="art_MSFT_dcf", ticker="MSFT")
         await store.save(sample_artifact)
         await store.save(msft_art)
@@ -259,9 +258,7 @@ class TestMarkViewed:
         assert loaded.meta.archived is False
 
     @pytest.mark.asyncio
-    async def test_mark_viewed_nonexistent_does_not_raise(
-        self, store: ArtifactStore
-    ) -> None:
+    async def test_mark_viewed_nonexistent_does_not_raise(self, store: ArtifactStore) -> None:
         # Should silently do nothing, not raise
         await store.mark_viewed("nonexistent_id")
 
@@ -323,10 +320,7 @@ class TestConcurrentSave:
     @pytest.mark.asyncio
     async def test_concurrent_saves_do_not_corrupt_index(self, store: ArtifactStore) -> None:
         """10 concurrent saves to the same ticker should all appear in the index."""
-        artifacts = [
-            _make_artifact(id=f"art_concurrent_{i}", ticker="AAPL")
-            for i in range(10)
-        ]
+        artifacts = [_make_artifact(id=f"art_concurrent_{i}", ticker="AAPL") for i in range(10)]
 
         await asyncio.gather(*[store.save(a) for a in artifacts])
 

@@ -25,9 +25,24 @@ def _three_series_data() -> ChartDataPoint:
         chart_type="relative_performance",
         title="AAPL vs SPY vs XLK",
         data=[
-            {"date": "2024-01-02", "ticker_return": 100.0, "spy_return": 100.0, "xlk_return": 100.0},
-            {"date": "2024-02-01", "ticker_return": 107.0, "spy_return": 102.5, "xlk_return": 104.0},
-            {"date": "2024-03-01", "ticker_return": 110.3, "spy_return": 105.1, "xlk_return": 108.2},
+            {
+                "date": "2024-01-02",
+                "ticker_return": 100.0,
+                "spy_return": 100.0,
+                "xlk_return": 100.0,
+            },
+            {
+                "date": "2024-02-01",
+                "ticker_return": 107.0,
+                "spy_return": 102.5,
+                "xlk_return": 104.0,
+            },
+            {
+                "date": "2024-03-01",
+                "ticker_return": 110.3,
+                "spy_return": 105.1,
+                "xlk_return": 108.2,
+            },
         ],
     )
 

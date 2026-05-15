@@ -3,6 +3,7 @@
 What this code does that raw LLM cannot: deterministic confidence-weighted
 average across valuation methods. Same inputs always produce same result.
 """
+
 from __future__ import annotations
 
 from finagent.engine.models.financial import ValuationMethod, ValuationSynthesis

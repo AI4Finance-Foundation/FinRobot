@@ -134,4 +134,3 @@ Automatically add relevant items based on sector:
 - Flag items where the seller is slow to respond — may indicate issues
 - Cross-reference data room contents against the checklist to identify gaps
 - Update the checklist as diligence progresses — it's a living document
-

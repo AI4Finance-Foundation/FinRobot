@@ -7,6 +7,7 @@ Upstream has TWO formats:
   Format A (no frontmatter): H1 heading + description: line + body
   Format B (YAML frontmatter): --- delimited YAML with name + description + body
 """
+
 import argparse
 import re
 from datetime import datetime, timezone
@@ -27,7 +28,7 @@ def parse_upstream_skill(content: str) -> tuple[str, str, str]:
         if end_idx == -1:
             raise ValueError("No closing --- for YAML frontmatter")
         yaml_str = content[3:end_idx].strip()
-        body = content[end_idx + 3:].strip()
+        body = content[end_idx + 3 :].strip()
         fm = yaml.safe_load(yaml_str) or {}
         name = fm.get("name", "Unknown")
         description = fm.get("description", "")
@@ -50,7 +51,7 @@ def extract_triggers(name: str, description: str) -> list[str]:
     2. Fall back to splitting name into lowercase words
     """
     # Try to extract explicit triggers from description
-    match = re.search(r'[Tt]riggers?\s+on\s+(.+?)\.?\s*$', description, re.MULTILINE)
+    match = re.search(r"[Tt]riggers?\s+on\s+(.+?)\.?\s*$", description, re.MULTILINE)
     if match:
         trigger_str = match.group(1)
         # Extract quoted strings
@@ -59,7 +60,7 @@ def extract_triggers(name: str, description: str) -> list[str]:
             return quoted
 
     # Fall back to name words
-    words = re.findall(r'[a-z]+', name.lower())
+    words = re.findall(r"[a-z]+", name.lower())
     # Filter out very short/common words
     stop_words = {"a", "an", "the", "and", "or", "of", "for", "in", "to", "with"}
     return [w for w in words if w not in stop_words and len(w) > 1]
@@ -192,7 +193,9 @@ def main():
         f"Errors: {errors}\n"
     )
 
-    print(f"Converted {total} skills to {output} ({count_a} Format A, {count_b} Format B, {errors} errors)")
+    print(
+        f"Converted {total} skills to {output} ({count_a} Format A, {count_b} Format B, {errors} errors)"
+    )
 
 
 if __name__ == "__main__":

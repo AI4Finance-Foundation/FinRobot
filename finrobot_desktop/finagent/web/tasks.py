@@ -122,36 +122,23 @@ async def run_task(task: TaskInfo, app_state: Any) -> None:
     class TaskProgress:
         """ProgressCallback that writes to the task's log list."""
 
-        async def on_step_start(
-            self, step_index: int, total: int, name: str
-        ) -> None:
+        async def on_step_start(self, step_index: int, total: int, name: str) -> None:
             task.logs.append(f"[STEP] ({step_index}/{total}) Starting: {name}")
 
         async def on_step_end(
             self, step_index: int, total: int, name: str, duration: float
         ) -> None:
-            task.logs.append(
-                f"[STEP] ({step_index}/{total}) Completed: {name} "
-                f"({duration:.1f}s)"
-            )
+            task.logs.append(f"[STEP] ({step_index}/{total}) Completed: {name} ({duration:.1f}s)")
 
-        async def on_step_retry(
-            self, step_index: int, name: str, attempt: int, error: str
-        ) -> None:
-            task.logs.append(
-                f"[RETRY] Step {name} attempt {attempt}: {error[:200]}"
-            )
+        async def on_step_retry(self, step_index: int, name: str, attempt: int, error: str) -> None:
+            task.logs.append(f"[RETRY] Step {name} attempt {attempt}: {error[:200]}")
 
     try:
         deps = app_state.deps
         sub_agents = app_state.sub_agents
         pipeline = factories[task.pipeline_type](sub_agents)
-        result = await pipeline.execute(
-            deps, task.ticker, progress=TaskProgress()
-        )
-        deps.report_cache[task.ticker] = build_report_context(
-            task.ticker, result
-        )
+        result = await pipeline.execute(deps, task.ticker, progress=TaskProgress())
+        deps.report_cache[task.ticker] = build_report_context(task.ticker, result)
         report_url = f"/api/report/html?ticker={task.ticker}"
         task.report_url = report_url
         task.status = TaskStatus.COMPLETE

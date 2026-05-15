@@ -25,14 +25,14 @@ CREATE TABLE IF NOT EXISTS cache (
 # - earnings_transcript: transcripts are immutable once published
 # - default: 1 hour for anything not explicitly listed
 _TTL_SECONDS: dict[str, int] = {
-    DataType.PRICE: 900,                # 15 minutes
-    DataType.NEWS: 1800,                # 30 minutes
-    DataType.FINANCIALS: 86400,         # 24 hours
-    DataType.EARNINGS: 86400,           # 24 hours (quarterly data)
+    DataType.PRICE: 900,  # 15 minutes
+    DataType.NEWS: 1800,  # 30 minutes
+    DataType.FINANCIALS: 86400,  # 24 hours
+    DataType.EARNINGS: 86400,  # 24 hours (quarterly data)
     DataType.EARNINGS_TRANSCRIPT: 604800,  # 7 days
-    DataType.FILINGS: 604800,           # 7 days (SEC filings don't change)
-    DataType.RAG_10K: 604800,           # 7 days
-    DataType.PROFILE: 86400,            # 24 hours
+    DataType.FILINGS: 604800,  # 7 days (SEC filings don't change)
+    DataType.RAG_10K: 604800,  # 7 days
+    DataType.PROFILE: 86400,  # 24 hours
 }
 _DEFAULT_TTL_SECONDS: int = 3600  # 1 hour
 

@@ -164,15 +164,29 @@ class TestFinnhubInterface:
 
 def _finnhub_news_response():
     return [
-        {"headline": "Apple Q4 Beat", "source": "Reuters", "datetime": 1730390400, "url": "https://example.com/1", "category": "company news"},
-        {"headline": "iPhone strong", "source": "Bloomberg", "datetime": 1730304000, "url": "https://example.com/2", "category": "company news"},
+        {
+            "headline": "Apple Q4 Beat",
+            "source": "Reuters",
+            "datetime": 1730390400,
+            "url": "https://example.com/1",
+            "category": "company news",
+        },
+        {
+            "headline": "iPhone strong",
+            "source": "Bloomberg",
+            "datetime": 1730304000,
+            "url": "https://example.com/2",
+            "category": "company news",
+        },
     ]
 
 
 class TestFinnhubNews:
     @pytest.mark.asyncio
     async def test_fetch_news(self, provider):
-        with patch.object(provider, "_get", AsyncMock(return_value=_mock_response(_finnhub_news_response()))):
+        with patch.object(
+            provider, "_get", AsyncMock(return_value=_mock_response(_finnhub_news_response()))
+        ):
             result = await provider.fetch("AAPL", "news")
         assert result.data_type == "news"
         items = result.data["news_items"]
@@ -188,6 +202,7 @@ class TestFinnhubRateLimiter:
     def test_provider_has_rate_limit_attributes(self, provider):
         """Rate limiter requires _lock and _last_call on every instance."""
         import asyncio
+
         assert hasattr(provider, "_lock")
         assert isinstance(provider._lock, asyncio.Lock)
         assert hasattr(provider, "_last_call")

@@ -4,13 +4,18 @@ from finagent.config import FinAgentSettings, get_settings
 
 
 class TestDefaults:
-    def test_default_model_name(self):
-        s = get_settings()
+    def test_default_model_name(self, monkeypatch):
+        monkeypatch.delenv("FINAGENT_MODEL_NAME", raising=False)
+        s = FinAgentSettings(_env_file=None)
         assert s.model_name == "deepseek:deepseek-chat"
 
     def test_default_api_keys_empty(self, monkeypatch):
         # Clear env vars + skip .env file so we test true defaults
-        for key in ["FINAGENT_ANTHROPIC_API_KEY", "FINAGENT_DEEPSEEK_API_KEY", "FINAGENT_OPENAI_API_KEY"]:
+        for key in [
+            "FINAGENT_ANTHROPIC_API_KEY",
+            "FINAGENT_DEEPSEEK_API_KEY",
+            "FINAGENT_OPENAI_API_KEY",
+        ]:
             monkeypatch.delenv(key, raising=False)
         s = FinAgentSettings(_env_file=None)
         assert s.anthropic_api_key == ""
@@ -76,27 +81,41 @@ class TestCreateModel:
 
 
 class TestValidateRuntimeConfig:
-    """P3 audit D2: single source of truth for model config validation,
+    """P3 audit D2: single source of truth for model + data config validation,
     shared between CLI and SDK. Raises ValueError (not ClickException)."""
 
     def test_valid_config_passes(self):
-        s = get_settings(model_name="deepseek:deepseek-chat", deepseek_api_key="sk-x")
+        s = get_settings(
+            model_name="deepseek:deepseek-chat",
+            deepseek_api_key="sk-x",
+            fmp_api_key="fmp-test-key",
+        )
         s.validate_runtime_config()  # must not raise
 
     def test_test_provider_needs_no_key(self):
-        s = get_settings(model_name="test")
+        s = get_settings(model_name="test", fmp_api_key="fmp-test-key")
         s.validate_runtime_config()
 
     def test_unknown_provider_raises_value_error(self):
-        s = get_settings(model_name="bogus:model-x")
+        s = get_settings(model_name="bogus:model-x", fmp_api_key="fmp-test-key")
         with pytest.raises(ValueError, match="Unknown provider 'bogus'"):
             s.validate_runtime_config()
 
-    def test_missing_api_key_raises_value_error(self, monkeypatch):
-        # Make sure .env doesn't inject a real key during this test.
+    def test_missing_llm_api_key_raises_value_error(self, monkeypatch):
         monkeypatch.delenv("FINAGENT_DEEPSEEK_API_KEY", raising=False)
-        s = FinAgentSettings(_env_file=None, model_name="deepseek:deepseek-chat")
+        s = FinAgentSettings(
+            _env_file=None,
+            model_name="deepseek:deepseek-chat",
+            fmp_api_key="fmp-test-key",
+        )
         with pytest.raises(ValueError, match="FINAGENT_DEEPSEEK_API_KEY is not set"):
+            s.validate_runtime_config()
+
+    def test_missing_fmp_api_key_raises_value_error(self, monkeypatch):
+        """FMP key is required — not optional."""
+        monkeypatch.delenv("FINAGENT_FMP_API_KEY", raising=False)
+        s = FinAgentSettings(_env_file=None, model_name="test")
+        with pytest.raises(ValueError, match="FINAGENT_FMP_API_KEY is not set"):
             s.validate_runtime_config()
 
     def test_bad_per_role_override_also_caught(self):
@@ -104,6 +123,7 @@ class TestValidateRuntimeConfig:
         s = get_settings(
             model_name="test",
             model_modeling="bogus:x",
+            fmp_api_key="fmp-test-key",
         )
         with pytest.raises(ValueError, match="Unknown provider 'bogus'"):
             s.validate_runtime_config()

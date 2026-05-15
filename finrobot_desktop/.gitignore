@@ -47,3 +47,19 @@ data/
 node_modules/
 desktop/dist/
 desktop/out/
+# Internal project docs (not open-sourced)
+CLAUDE.md
+ARCHITECTURE.md
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+docs/
+specs/
+
+# Claude Code config (local, not version-controlled)
+.claude/
+
+# AI development memory (local, not version-controlled)
+project-memory/
+
+# Research (unconfirmed directions, not open-sourced)
+调研/

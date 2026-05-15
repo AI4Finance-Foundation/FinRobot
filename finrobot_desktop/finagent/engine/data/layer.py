@@ -37,6 +37,10 @@ class DataLayer:
         4. All providers failed → return stale cache with warning
         5. No cache at all → return error DataResult
         """
+        # I7: normalise to DataType enum so all downstream comparisons and
+        # cache keys use the canonical enum value, not a raw string literal.
+        data_type = DataType(data_type)
+
         # 1. Fresh cache hit
         cached = await self._cache.get(data_type, ticker)
         if cached is not None and not cached.is_stale:
@@ -51,9 +55,7 @@ class DataLayer:
             try:
                 result = await provider.fetch(ticker, data_type, **kwargs)
             except ProviderError as e:
-                logger.warning(
-                    f"Provider '{provider.name}' failed for {ticker}/{data_type}: {e}"
-                )
+                logger.warning(f"Provider '{provider.name}' failed for {ticker}/{data_type}: {e}")
                 continue
 
             if primary_result is None:
@@ -92,19 +94,13 @@ class DataLayer:
                         logger.warning(w)
                 merged: list[str] = []
                 seen: set[str] = set()
-                for w in (
-                    list(primary_result.warnings)
-                    + list(result.warnings)
-                    + discrepancies
-                ):
+                for w in list(primary_result.warnings) + list(result.warnings) + discrepancies:
                     if w in seen:
                         continue
                     seen.add(w)
                     merged.append(w)
                 if merged != list(primary_result.warnings):
-                    primary_result = primary_result.model_copy(
-                        update={"warnings": merged}
-                    )
+                    primary_result = primary_result.model_copy(update={"warnings": merged})
                 secondary_count += 1
                 if data_type != DataType.FINANCIALS or secondary_count >= 2:
                     break
@@ -116,18 +112,14 @@ class DataLayer:
         # 3. All providers failed — return stale cache with PROMINENT warning
         if cached is not None:
             stale = cached.data
-            age_hours = (
-                datetime.now(tz=timezone.utc) - cached.cached_at
-            ).total_seconds() / 3600
+            age_hours = (datetime.now(tz=timezone.utc) - cached.cached_at).total_seconds() / 3600
             stale_warning = (
                 f"WARNING: Using stale cached data ({age_hours:.0f}h old). "
                 f"All live providers failed for {ticker}/{data_type}. "
                 f"Financial figures may be outdated — verify before acting on this data."
             )
             logger.warning(stale_warning)
-            return stale.model_copy(
-                update={"warnings": [stale_warning] + stale.warnings}
-            )
+            return stale.model_copy(update={"warnings": [stale_warning] + stale.warnings})
 
         # 4. No data anywhere
         msg = (
@@ -156,6 +148,10 @@ class DataLayer:
         When years kwarg is passed, providers pack multi-year data inside
         DataResult.data["yearly_data"]. This method splits it into a list.
         """
+        # I7: same normalisation as fetch() — canonical enum for all
+        # downstream comparisons and provider capability lookups.
+        data_type = DataType(data_type)
+
         for provider in self._providers:
             if data_type not in provider.capabilities():
                 continue

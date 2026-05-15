@@ -107,4 +107,3 @@ If a coverage company reported, provide a quick reaction:
 - Distinguish between actionable events (earnings, M&A) and noise (minor analyst notes, non-events)
 - Time-stamp your takes — if you're writing at 6am, note that pre-market may change by open
 - If you're wrong, own it in the next morning note — credibility matters more than being right every time
-

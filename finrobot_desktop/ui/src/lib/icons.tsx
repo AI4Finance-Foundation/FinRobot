@@ -36,6 +36,13 @@ function Svg({
 
 // ── Activity Bar ──────────────────────────────────────────────
 
+export const IconHome = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9.5z" />
+    <path d="M9 21V12h6v9" />
+  </Svg>
+)
+
 export const IconDashboard = (p: IconProps) => (
   <Svg {...p}>
     <rect x="3" y="3" width="7" height="9" />

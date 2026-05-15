@@ -8,6 +8,7 @@ Endpoints:
   POST   /api/artifacts/{id}/view              — update last_viewed_at
   GET    /api/artifacts/by-ticker/{ticker}/timeline — timeline for a ticker
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException

@@ -8,11 +8,13 @@ All calculations are deterministic; no LLM involvement.
 
 from finagent.engine.models.financial import EarningsResult, EarningsSurprise
 
-_BEAT_THRESHOLD = 2.0   # pct
+_BEAT_THRESHOLD = 2.0  # pct
 _MISS_THRESHOLD = -2.0  # pct
 
 
-def calculate_earnings_surprises(ticker: str, earnings_history: list[dict[str, float | str]]) -> EarningsResult:
+def calculate_earnings_surprises(
+    ticker: str, earnings_history: list[dict[str, float | str]]
+) -> EarningsResult:
     """Compute beat/miss/inline classification for each quarter.
 
     Args:

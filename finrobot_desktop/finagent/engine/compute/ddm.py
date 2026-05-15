@@ -14,6 +14,7 @@ because dividends are paid to equity holders only.
 Reference: Damodaran, "Investment Valuation" 3rd Ed., Chapter 13 (Dividend
 Discount Models). Also Rosenbaum & Pearl, "Investment Banking" 3rd Ed.
 """
+
 from __future__ import annotations
 
 from finagent.engine.models.financial import DDMInputs, DDMResult
@@ -57,10 +58,7 @@ def calculate_ddm(inputs: DDMInputs) -> DDMResult:
         projected_dividends.append(current_dividend)
 
     # 3. PV of projected dividends
-    pv_dividends = [
-        d / (1 + cost_of_equity) ** (i + 1)
-        for i, d in enumerate(projected_dividends)
-    ]
+    pv_dividends = [d / (1 + cost_of_equity) ** (i + 1) for i, d in enumerate(projected_dividends)]
     pv_dividends_total = sum(pv_dividends)
 
     # 4. Terminal value (Gordon Growth on last projected dividend)
@@ -103,9 +101,7 @@ def calculate_ddm_sensitivity(
             else:
                 # Override cost of equity and terminal growth by reconstructing inputs
                 # with adjusted CAPM parameters
-                modified = inputs.model_copy(
-                    update={"terminal_growth_rate": tg}
-                )
+                modified = inputs.model_copy(update={"terminal_growth_rate": tg})
                 # Direct CoE override: back-solve beta from desired CoE
                 # CoE = rf + beta * ERP  =>  beta = (CoE - rf) / ERP
                 if inputs.equity_risk_premium > 0:

@@ -16,7 +16,8 @@ from finagent.engine.compute.catalyst import (
 )
 from finagent.engine.compute.extractor import extract_financial_data
 from finagent.engine.compute.historical_extractor import extract_historical_from_yfinance
-from finagent.engine.compute.news import classify_news, fetch_news
+from finagent.engine.analysis.news_classifier import classify_news
+from finagent.engine.compute.news import fetch_news
 from finagent.engine.compute.sentiment import score_headline
 from finagent.engine.data.interface import ProviderError
 from finagent.engine.data.types import DataType
@@ -37,6 +38,38 @@ from finagent.engine.services.market_data import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/data", tags=["data"])
+
+
+@router.get("/sources/status")
+async def get_sources_status(request: Request) -> dict[str, list[dict[str, object]]]:
+    """Return all configured data providers with their enabled status and capabilities.
+
+    A provider is considered *enabled* when it has been instantiated in the current
+    data_layer (i.e. its required API key was present at startup).
+
+    Response shape::
+
+        {
+          "providers": [
+            {"name": "fmp", "enabled": true, "capabilities": ["financials", "price", ...]},
+            ...
+          ]
+        }
+    """
+    data_layer = request.app.state.deps.data_layer
+    providers = []
+    for provider in data_layer._providers:
+        capabilities = [
+            cap.value if hasattr(cap, "value") else str(cap) for cap in provider.capabilities()
+        ]
+        providers.append(
+            {
+                "name": provider.name,
+                "enabled": True,  # provider is in the list → it was successfully instantiated
+                "capabilities": capabilities,
+            }
+        )
+    return {"providers": providers}
 
 
 # MUST be before /{ticker}/ routes to avoid FastAPI matching ticker="performance"
@@ -112,14 +145,16 @@ async def get_news(ticker: str, request: Request) -> AggregatedNewsFeed:
         sentiment = raw.get("sentiment_score")
         if sentiment is None:
             sentiment = score_headline(title)
-        items.append(AggregatedNewsItem(
-            title=title,
-            source=raw.get("source", ""),
-            url=raw.get("url", ""),
-            published_at=raw.get("published", raw.get("published_at", "")),
-            sentiment_score=sentiment,
-            category=raw.get("category"),
-        ))
+        items.append(
+            AggregatedNewsItem(
+                title=title,
+                source=raw.get("source", ""),
+                url=raw.get("url", ""),
+                published_at=raw.get("published", raw.get("published_at", "")),
+                sentiment_score=sentiment,
+                category=raw.get("category"),
+            )
+        )
 
     # Sort by published_at descending (most recent first)
     items.sort(key=lambda x: x.published_at, reverse=True)
@@ -201,8 +236,7 @@ async def get_earnings_calls(
 
     # Check if any provider supports earnings transcripts
     has_transcript_provider = any(
-        DataType.EARNINGS_TRANSCRIPT in p.capabilities()
-        for p in data_layer._providers
+        DataType.EARNINGS_TRANSCRIPT in p.capabilities() for p in data_layer._providers
     )
     if not has_transcript_provider:
         raise HTTPException(

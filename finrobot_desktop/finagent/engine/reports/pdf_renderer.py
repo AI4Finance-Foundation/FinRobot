@@ -3,6 +3,7 @@
 What this code does that raw LLM cannot: converts structured HTML
 with embedded charts into a printable PDF document.
 """
+
 from __future__ import annotations
 
 

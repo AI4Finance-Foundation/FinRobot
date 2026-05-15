@@ -5,6 +5,7 @@ snapshot, assumption set, compute version, outputs, and meta. This is the
 audit-trail layer Bloomberg/FactSet level tools have built in; for FinAgent
 it's the core differentiation vs "ask ChatGPT to do DCF".
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -47,8 +48,7 @@ class ArtifactAssumptions(BaseModel):
     user_overrides: dict[str, Any] = Field(
         default_factory=dict,
         description=(
-            "Subset of parameters the user explicitly overrode "
-            "(vs LLM-selected via param_agent)."
+            "Subset of parameters the user explicitly overrode (vs LLM-selected via param_agent)."
         ),
     )
 

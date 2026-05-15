@@ -1,5 +1,3 @@
-import pytest
-
 from finagent.engine.pipelines.validators import (
     validate_has_fields,
     validate_is_non_empty,
@@ -62,7 +60,9 @@ class TestValidateHasFields:
         assert r.passed is True
 
     def test_underscore_matches_uppercase_spaced(self):
-        r = validate_has_fields("PRICE HISTORY and NET INCOME shown", ["price_history", "net_income"])
+        r = validate_has_fields(
+            "PRICE HISTORY and NET INCOME shown", ["price_history", "net_income"]
+        )
         assert r.passed is True
 
     def test_empty_fields_list_passes(self):
@@ -149,9 +149,7 @@ class TestValidateHasCompsTable:
         assert r.passed is True
 
     def test_missing_stats_fails(self):
-        r = validate_has_comps_table(
-            "MSFT EV/EBITDA 20x, P/E 30x, GOOGL, META multiple comparison"
-        )
+        r = validate_has_comps_table("MSFT EV/EBITDA 20x, P/E 30x, GOOGL, META multiple comparison")
         assert r.passed is False
         assert "statistical" in r.error.lower() or "median" in r.error.lower()
 

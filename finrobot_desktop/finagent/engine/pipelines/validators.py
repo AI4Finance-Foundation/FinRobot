@@ -264,8 +264,7 @@ def validate_financial_data(
     if not (margin_min <= margin <= margin_max):
         return ValidationResult(
             passed=False,
-            error=f"EBITDA margin {margin:.1%} out of range "
-                  f"({margin_min:.0%} to {margin_max:.0%})",
+            error=f"EBITDA margin {margin:.1%} out of range ({margin_min:.0%} to {margin_max:.0%})",
         )
     if data.market.pe_ratio is not None and data.market.pe_ratio <= 0:
         return ValidationResult(passed=False, error="PE ratio must be positive if set")
@@ -392,12 +391,14 @@ def validate_ddm_inputs(data: DDMInputs) -> ValidationResult:
         return ValidationResult(passed=False, error="dividend_per_share must be positive")
     coe = data.risk_free_rate + data.beta * data.equity_risk_premium
     if coe <= 0:
-        return ValidationResult(passed=False, error=f"Implied cost of equity {coe:.4f} must be positive")
+        return ValidationResult(
+            passed=False, error=f"Implied cost of equity {coe:.4f} must be positive"
+        )
     if data.terminal_growth_rate >= coe:
         return ValidationResult(
             passed=False,
             error=f"Terminal growth {data.terminal_growth_rate:.1%} must be less than "
-                  f"cost of equity {coe:.1%}",
+            f"cost of equity {coe:.1%}",
         )
     return ValidationResult(passed=True)
 
@@ -431,8 +432,19 @@ def validate_ddm_output(output: str) -> ValidationResult:
         any(kw in lower for kw in ["cost of equity", "discount rate"]),
         any(kw in lower for kw in ["dividend", "dps"]),
         any(kw in lower for kw in ["terminal value", "terminal growth", "gordon growth"]),
-        any(kw in lower for kw in ["implied price", "implied value", "equity value", "fair value", "price target"]),
-        any(kw in lower for kw in ["book value", "roe", "return on equity", "p/b", "price-to-book"]),
+        any(
+            kw in lower
+            for kw in [
+                "implied price",
+                "implied value",
+                "equity value",
+                "fair value",
+                "price target",
+            ]
+        ),
+        any(
+            kw in lower for kw in ["book value", "roe", "return on equity", "p/b", "price-to-book"]
+        ),
     ]
     found = sum(indicators)
     if found >= 3:

@@ -68,10 +68,12 @@ class TestBuildFinancialsTable:
         assert "Revenue" in table
 
     def test_includes_margins(self) -> None:
-        table = _build_financials_table({
-            "gross_margin": 0.45,
-            "operating_margin": 0.30,
-        })
+        table = _build_financials_table(
+            {
+                "gross_margin": 0.45,
+                "operating_margin": 0.30,
+            }
+        )
         assert "45.0%" in table
         assert "30.0%" in table
 
@@ -138,6 +140,7 @@ class TestBuildAnalysisPrompt:
 # Fix 3.1: Data validation                                          #
 # ------------------------------------------------------------------ #
 
+
 def _make_result(data: dict, ticker: str = "AAPL", provider: str = "yfinance") -> DataResult:
     """Helper to build a DataResult for validation tests."""
     return DataResult(
@@ -181,7 +184,9 @@ class TestValidateAnalysisData:
 
     def test_error_message_includes_ticker_and_provider(self) -> None:
         result = _make_result(
-            {"error": "timeout"}, ticker="MSFT", provider="fmp",
+            {"error": "timeout"},
+            ticker="MSFT",
+            provider="fmp",
         )
         with pytest.raises(ValueError, match="MSFT.*fmp.*timeout"):
             _validate_analysis_data(result)

@@ -10,19 +10,18 @@ Tests that:
 7. Pipeline without artifact_builder does NOT crash when store is set
 8. Pipeline with artifact_builder but no store skips save (no crash)
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
-from finagent.artifact.models import Artifact
 from finagent.artifact.store import ArtifactStore
 from finagent.engine.data.interface import DataResult
 from finagent.engine.models.financial import (
@@ -37,7 +36,6 @@ from finagent.engine.models.financial import (
 )
 from finagent.engine.pipelines.base import (
     Pipeline,
-    PipelineResult,
     PipelineStep,
     StructuredValidator,
     TextValidator,
@@ -218,9 +216,7 @@ class TestDCFPipelineArtifact:
         return pipeline, deps
 
     @pytest.mark.asyncio
-    async def test_artifact_is_persisted_after_execute(
-        self, tmp_store_dir: Path
-    ) -> None:
+    async def test_artifact_is_persisted_after_execute(self, tmp_store_dir: Path) -> None:
         store = ArtifactStore(base_dir=tmp_store_dir)
         pipeline, deps = self._build_minimal_dcf_pipeline(store)
 
@@ -268,9 +264,9 @@ class TestDCFPipelineArtifact:
         assert artifact is not None
 
         params = artifact.assumptions.parameters
-        assert "wacc" in params or "risk_free_rate" in params, (
-            f"Expected WACC-related field in assumptions, got: {list(params.keys())}"
-        )
+        assert (
+            "wacc" in params or "risk_free_rate" in params
+        ), f"Expected WACC-related field in assumptions, got: {list(params.keys())}"
 
     @pytest.mark.asyncio
     async def test_artifact_outputs_contain_implied_price(self, tmp_store_dir: Path) -> None:

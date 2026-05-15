@@ -17,6 +17,7 @@ Excel verification:
 This expected value was computed in a spreadsheet independent of calculate_wacc().
 If the test fails, either the source data changed or calculate_wacc() has a bug.
 """
+
 from finagent.engine.compute.wacc import calculate_wacc
 
 

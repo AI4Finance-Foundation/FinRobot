@@ -85,4 +85,3 @@ Draft personalized cold emails to founders/CEOs:
 - Never send emails without explicit user approval
 - If the user's firm intro or investment criteria aren't clear, ask before drafting
 - Prioritize quality over quantity — 5 well-researched targets beat 20 generic ones
-

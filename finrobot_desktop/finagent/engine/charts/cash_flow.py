@@ -19,7 +19,13 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, figure_to_png, scale_label  # noqa: E402
+from finagent.engine.charts.base import (
+    ChartConfig,
+    ChartDataPoint,
+    _num,
+    figure_to_png,
+    scale_label,
+)  # noqa: E402
 
 
 def _create_figure(

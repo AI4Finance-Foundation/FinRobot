@@ -15,7 +15,6 @@ from finagent.engine.compute.data_processor import (
     forecast_financials,
 )
 from finagent.engine.models.financial import (
-    BalanceSheet,
     FinancialData,
     ForecastResult,
     HistoricalMetrics,
@@ -122,18 +121,42 @@ class TestExtractHistoricalMetrics:
     def three_year_data(self) -> list[FinancialData]:
         return [
             _make_financial_data(
-                "AAPL", 2022, 300e9, 100e9, 70e9, 0.43, 0.30,
-                market_cap=2400e9, shares_outstanding=15e9, current_price=160.0,
+                "AAPL",
+                2022,
+                300e9,
+                100e9,
+                70e9,
+                0.43,
+                0.30,
+                market_cap=2400e9,
+                shares_outstanding=15e9,
+                current_price=160.0,
                 sga_expense=24e9,
             ),
             _make_financial_data(
-                "AAPL", 2023, 350e9, 120e9, 85e9, 0.44, 0.31,
-                market_cap=2800e9, shares_outstanding=15e9, current_price=186.67,
+                "AAPL",
+                2023,
+                350e9,
+                120e9,
+                85e9,
+                0.44,
+                0.31,
+                market_cap=2800e9,
+                shares_outstanding=15e9,
+                current_price=186.67,
                 sga_expense=28e9,
             ),
             _make_financial_data(
-                "AAPL", 2024, 394e9, 130e9, 95e9, 0.45, 0.32,
-                market_cap=2970e9, shares_outstanding=15e9, current_price=198.0,
+                "AAPL",
+                2024,
+                394e9,
+                130e9,
+                95e9,
+                0.45,
+                0.32,
+                market_cap=2970e9,
+                shares_outstanding=15e9,
+                current_price=198.0,
                 sga_expense=32e9,
             ),
         ]
@@ -225,8 +248,13 @@ class TestExtractHistoricalMetrics:
         """With PriceHistory, PE = current_price / EPS.
         EPS year3 = 6.333, price = 198.0, PE = 198.0/6.333 ~ 31.26"""
         price = PriceHistory(
-            ticker="AAPL", period="1y", data_points=252,
-            current_price=198.0, high_52w=210.0, low_52w=150.0, avg_price=180.0,
+            ticker="AAPL",
+            period="1y",
+            data_points=252,
+            current_price=198.0,
+            high_52w=210.0,
+            low_52w=150.0,
+            avg_price=180.0,
         )
         result = extract_historical_metrics(three_year_data, price_data=price)
         assert result.price_data_available is True
@@ -251,12 +279,28 @@ class TestExtractHistoricalMetrics:
         """Data passed in reverse order should still sort oldest-first."""
         data = [
             _make_financial_data(
-                "MSFT", 2024, 200e9, 80e9, 60e9, 0.70, 0.40,
-                market_cap=3000e9, shares_outstanding=7.5e9, current_price=400.0,
+                "MSFT",
+                2024,
+                200e9,
+                80e9,
+                60e9,
+                0.70,
+                0.40,
+                market_cap=3000e9,
+                shares_outstanding=7.5e9,
+                current_price=400.0,
             ),
             _make_financial_data(
-                "MSFT", 2022, 150e9, 60e9, 45e9, 0.68, 0.38,
-                market_cap=2100e9, shares_outstanding=7.5e9, current_price=280.0,
+                "MSFT",
+                2022,
+                150e9,
+                60e9,
+                45e9,
+                0.68,
+                0.38,
+                market_cap=2100e9,
+                shares_outstanding=7.5e9,
+                current_price=280.0,
             ),
         ]
         result = extract_historical_metrics(data)
@@ -267,8 +311,16 @@ class TestExtractHistoricalMetrics:
         """When sga_expense is None, use 0.0."""
         data = [
             _make_financial_data(
-                "GOOG", 2023, 300e9, 100e9, 70e9, 0.56, 0.27,
-                market_cap=1500e9, shares_outstanding=6e9, current_price=250.0,
+                "GOOG",
+                2023,
+                300e9,
+                100e9,
+                70e9,
+                0.56,
+                0.27,
+                market_cap=1500e9,
+                shares_outstanding=6e9,
+                current_price=250.0,
                 sga_expense=None,
             ),
         ]
@@ -280,8 +332,16 @@ class TestExtractHistoricalMetrics:
         """Single year of data: growth is None, CAGR is None."""
         data = [
             _make_financial_data(
-                "GOOG", 2024, 300e9, 100e9, 70e9, 0.56, 0.27,
-                market_cap=1500e9, shares_outstanding=6e9, current_price=250.0,
+                "GOOG",
+                2024,
+                300e9,
+                100e9,
+                70e9,
+                0.56,
+                0.27,
+                market_cap=1500e9,
+                shares_outstanding=6e9,
+                current_price=250.0,
             ),
         ]
         result = extract_historical_metrics(data)
@@ -452,7 +512,6 @@ class TestForecastFinancials:
             assert len(result.ebitda) == n
             assert len(result.net_income) == n
             assert len(result.eps) == n
-
 
     def test_forecast_custom_tax_rate(self, historical: HistoricalMetrics):
         """C2 regression: tax_rate must be parameterized, not hardcoded 0.21.

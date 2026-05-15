@@ -9,7 +9,7 @@ import type { DCFResult, DCFInputs, DcfSource, SensitivityResult, ResearchResult
 const PIPELINE_TAB_MAP: Record<string, { tab: ActiveTab; label: string }> = {
   research: { tab: 'overview', label: 'Overview' },
   dcf: { tab: 'valuation', label: 'Valuation' },
-  comps: { tab: 'peers', label: 'Peers' },
+  comps: { tab: 'comps', label: 'Comps' },
   earnings: { tab: 'valuation', label: 'Valuation' },
   lbo: { tab: 'valuation', label: 'Valuation' },
   'ic-memo': { tab: 'valuation', label: 'Valuation' },

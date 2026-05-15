@@ -7,8 +7,9 @@ Test cases:
   eps_actual=1.55, eps_estimated=1.60 → surprise=-3.125% → MISS
   eps_actual=1.61, eps_estimated=1.60 → surprise=0.625% → INLINE
 """
+
 import pytest
-from finagent.engine.models.financial import EarningsResult, EarningsSurprise
+from finagent.engine.models.financial import EarningsSurprise
 from finagent.engine.compute.earnings import (
     calculate_earnings_surprises,
     _classify_surprise,
@@ -21,8 +22,15 @@ class TestSurpriseFormula:
         """2.5% → BEAT (above +2% threshold)."""
         result = calculate_earnings_surprises(
             "TEST",
-            [{"date": "2024-10-31", "eps_actual": 1.64, "eps_estimated": 1.60,
-              "revenue_actual": 94_930e6, "revenue_estimated": 94_210e6}],
+            [
+                {
+                    "date": "2024-10-31",
+                    "eps_actual": 1.64,
+                    "eps_estimated": 1.60,
+                    "revenue_actual": 94_930e6,
+                    "revenue_estimated": 94_210e6,
+                }
+            ],
         )
         assert len(result.surprises) == 1
         s = result.surprises[0]
@@ -33,8 +41,15 @@ class TestSurpriseFormula:
         """-3.125% → MISS (below -2% threshold)."""
         result = calculate_earnings_surprises(
             "TEST",
-            [{"date": "2024-07-31", "eps_actual": 1.55, "eps_estimated": 1.60,
-              "revenue_actual": 85e9, "revenue_estimated": 90e9}],
+            [
+                {
+                    "date": "2024-07-31",
+                    "eps_actual": 1.55,
+                    "eps_estimated": 1.60,
+                    "revenue_actual": 85e9,
+                    "revenue_estimated": 90e9,
+                }
+            ],
         )
         s = result.surprises[0]
         assert s.eps_surprise_pct == pytest.approx(-3.125, rel=1e-4)
@@ -44,8 +59,15 @@ class TestSurpriseFormula:
         """0.625% → INLINE (within ±2% band)."""
         result = calculate_earnings_surprises(
             "TEST",
-            [{"date": "2024-04-30", "eps_actual": 1.61, "eps_estimated": 1.60,
-              "revenue_actual": 90e9, "revenue_estimated": 90e9}],
+            [
+                {
+                    "date": "2024-04-30",
+                    "eps_actual": 1.61,
+                    "eps_estimated": 1.60,
+                    "revenue_actual": 90e9,
+                    "revenue_estimated": 90e9,
+                }
+            ],
         )
         s = result.surprises[0]
         assert s.eps_surprise_pct == pytest.approx(0.625, rel=1e-4)
@@ -55,8 +77,15 @@ class TestSurpriseFormula:
         """Divide-by-zero guard: eps_estimated=0 → surprise_pct=0."""
         result = calculate_earnings_surprises(
             "TEST",
-            [{"date": "2024-01-31", "eps_actual": 1.00, "eps_estimated": 0.0,
-              "revenue_actual": 1e9, "revenue_estimated": 1e9}],
+            [
+                {
+                    "date": "2024-01-31",
+                    "eps_actual": 1.00,
+                    "eps_estimated": 0.0,
+                    "revenue_actual": 1e9,
+                    "revenue_estimated": 1e9,
+                }
+            ],
         )
         assert result.surprises[0].eps_surprise_pct == 0.0
 
@@ -89,8 +118,13 @@ class TestBeatRate:
         """[BEAT, BEAT, MISS, BEAT, INLINE] = 3/5 = 0.6"""
         history = [
             # Most recent first
-            {"date": f"2024-Q{5-i}", "eps_actual": a, "eps_estimated": 1.0,
-             "revenue_actual": 1e9, "revenue_estimated": 1e9}
+            {
+                "date": f"2024-Q{5-i}",
+                "eps_actual": a,
+                "eps_estimated": 1.0,
+                "revenue_actual": 1e9,
+                "revenue_estimated": 1e9,
+            }
             for i, a in enumerate([1.03, 1.03, 0.96, 1.03, 1.01])
             # 3%, 3%, -4%, 3%, 1% → BEAT, BEAT, MISS, BEAT, INLINE
         ]
@@ -131,10 +165,20 @@ class TestConsecutiveBeats:
 class TestEarningsResult:
     def test_avg_eps_surprise(self):
         history = [
-            {"date": "2024-Q4", "eps_actual": 1.10, "eps_estimated": 1.00,
-             "revenue_actual": 1e9, "revenue_estimated": 1e9},  # +10%
-            {"date": "2024-Q3", "eps_actual": 0.94, "eps_estimated": 1.00,
-             "revenue_actual": 1e9, "revenue_estimated": 1e9},  # -6%
+            {
+                "date": "2024-Q4",
+                "eps_actual": 1.10,
+                "eps_estimated": 1.00,
+                "revenue_actual": 1e9,
+                "revenue_estimated": 1e9,
+            },  # +10%
+            {
+                "date": "2024-Q3",
+                "eps_actual": 0.94,
+                "eps_estimated": 1.00,
+                "revenue_actual": 1e9,
+                "revenue_estimated": 1e9,
+            },  # -6%
         ]
         result = calculate_earnings_surprises("TEST", history)
         assert result.avg_eps_surprise_pct == pytest.approx(2.0)  # (10 + -6) / 2
@@ -147,6 +191,7 @@ class TestEarningsResult:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_surprise(direction: str) -> EarningsSurprise:
     pct = 3.0 if direction == "beat" else (-3.0 if direction == "miss" else 0.5)

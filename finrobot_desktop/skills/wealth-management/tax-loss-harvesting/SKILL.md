@@ -125,4 +125,3 @@ After 30+ days, optionally:
 - Mutual fund capital gains distributions in December can create additional harvesting urgency
 - Document everything for tax reporting and compliance
 - Not all losses are worth harvesting — transaction costs and tracking error have real costs
-

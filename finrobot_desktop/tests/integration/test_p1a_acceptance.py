@@ -10,7 +10,6 @@ SKILLS_DIR = Path(get_settings().skills_dir)
 
 @pytest.mark.skipif(not SKILLS_DIR.exists(), reason="Vendored skills not present")
 class TestP1aAcceptance:
-
     def test_all_skills_loaded(self):
         """P1a acceptance: all 56 vendored skills load without error."""
         registry = SkillRegistry(SKILLS_DIR)
@@ -33,8 +32,9 @@ class TestP1aAcceptance:
         """P1a acceptance: every skill has non-empty full_content."""
         registry = SkillRegistry(SKILLS_DIR)
         for skill in registry.list_all():
-            assert len(skill.full_content.strip()) > 100, \
-                f"Skill {skill.id} has suspiciously short content ({len(skill.full_content)} chars)"
+            assert (
+                len(skill.full_content.strip()) > 100
+            ), f"Skill {skill.id} has suspiciously short content ({len(skill.full_content)} chars)"
 
     def test_list_summary_fits_context(self):
         """P1a acceptance: list_summary for 56 skills is under 6000 chars (~1500 tokens)."""
@@ -76,13 +76,19 @@ class TestP1aAcceptance:
         # Direct pipeline invocation (deterministic)
         pipeline = create_equity_research_pipeline(sub_agents)
         import asyncio
+
         result = asyncio.run(pipeline.execute(deps, "AAPL"))
 
         output = result.format_summary().lower()
         methodology_keywords = [
-            "ev/ebitda", "trading multiples", "dcf", "discount rate",
-            "wacc", "terminal value", "investment thesis", "catalyst",
+            "ev/ebitda",
+            "trading multiples",
+            "dcf",
+            "discount rate",
+            "wacc",
+            "terminal value",
+            "investment thesis",
+            "catalyst",
         ]
         found = [kw for kw in methodology_keywords if kw in output]
-        assert len(found) >= 2, \
-            f"Expected methodology keywords in output, found only: {found}"
+        assert len(found) >= 2, f"Expected methodology keywords in output, found only: {found}"

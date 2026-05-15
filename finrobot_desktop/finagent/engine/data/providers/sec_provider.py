@@ -116,8 +116,12 @@ class SECEdgarProvider(DataProvider):
                 full_text = await self._fetch_10k_content(cik, accession, primary_doc)
                 items = _extract_items(full_text)
             except (
-                ValueError, KeyError, IndexError, AttributeError,
-                httpx.HTTPStatusError, httpx.TimeoutException,
+                ValueError,
+                KeyError,
+                IndexError,
+                AttributeError,
+                httpx.HTTPStatusError,
+                httpx.TimeoutException,
             ) as e:
                 logger.warning("Failed to extract 10-K sections for %s: %s", ticker, e)
                 warnings.append(f"MD&A extraction failed: {e}")
@@ -308,5 +312,3 @@ def _extract_items(full_text: str) -> dict[str, str]:
         result[key] = section
 
     return result
-
-

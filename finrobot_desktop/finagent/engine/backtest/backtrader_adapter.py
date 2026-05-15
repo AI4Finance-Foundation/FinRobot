@@ -136,9 +136,7 @@ class BackTraderAdapter(BacktestEngine):
         total_return = (final_value - initial_value) / initial_value
 
         # Financial assumption warnings
-        warnings.append(
-            f"Sharpe ratio assumes risk-free rate of {config.risk_free_rate:.1%}."
-        )
+        warnings.append(f"Sharpe ratio assumes risk-free rate of {config.risk_free_rate:.1%}.")
         warnings.append(
             "Backtest assumes zero commission and zero slippage. "
             "Real trading returns will be lower."
@@ -197,44 +195,33 @@ class BackTraderAdapter(BacktestEngine):
             module = importlib.import_module(module_path)
             cls: type = getattr(module, class_name)
             if not issubclass(cls, bt.Strategy):
-                raise ValueError(
-                    f"{class_name} from {module_path} is not a bt.Strategy subclass"
-                )
+                raise ValueError(f"{class_name} from {module_path} is not a bt.Strategy subclass")
             return cls
 
         raise ValueError(
-            f"Unknown strategy '{strategy_name}'. "
-            "Use 'sma_crossover' or 'module:ClassName' format."
+            f"Unknown strategy '{strategy_name}'. Use 'sma_crossover' or 'module:ClassName' format."
         )
 
-    def _extract_sharpe(
-        self, strat: Any, warnings: list[str]
-    ) -> float | None:
+    def _extract_sharpe(self, strat: Any, warnings: list[str]) -> float | None:
         analysis = strat.analyzers.sharpe.get_analysis()
         ratio: float | None = analysis.get("sharperatio")
         if ratio is None:
             warnings.append("Insufficient data for Sharpe ratio calculation")
         return ratio
 
-    def _extract_drawdown(
-        self, strat: Any, warnings: list[str]
-    ) -> float | None:
+    def _extract_drawdown(self, strat: Any, warnings: list[str]) -> float | None:
         analysis = strat.analyzers.drawdown.get_analysis()
         max_dd: float | None = analysis.get("max", {}).get("drawdown")
         if max_dd is not None:
             return -abs(max_dd) / 100  # convert to negative fraction
         return None
 
-    def _extract_trades(
-        self, strat: Any, warnings: list[str]
-    ) -> tuple[int, int, int]:
+    def _extract_trades(self, strat: Any, warnings: list[str]) -> tuple[int, int, int]:
         analysis = strat.analyzers.trades.get_analysis()
         total_info = analysis.get("total", {})
         total = total_info.get("closed", total_info.get("total", 0))
         if "closed" not in total_info and total > 0:
-            warnings.append(
-                "Trade count may include open positions at backtest end."
-            )
+            warnings.append("Trade count may include open positions at backtest end.")
         won = analysis.get("won", {}).get("total", 0)
         lost = analysis.get("lost", {}).get("total", 0)
         return total, won, lost
@@ -246,9 +233,7 @@ class BackTraderAdapter(BacktestEngine):
         try:
             import matplotlib.pyplot as plt
 
-            fig = cerebro.plot(
-                style="candlestick", iplot=False, start=None, end=None
-            )[0][0]
+            fig = cerebro.plot(style="candlestick", iplot=False, start=None, end=None)[0][0]
             buf = io.BytesIO()
             fig.savefig(buf, format="png", dpi=100, bbox_inches="tight")
             plt.close(fig)

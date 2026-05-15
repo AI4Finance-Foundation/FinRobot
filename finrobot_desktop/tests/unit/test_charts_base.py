@@ -1,9 +1,16 @@
-import pytest
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from finagent.engine.charts.base import ChartConfig, render_to_base64, validate_png, ChartDataPoint, StepChartData, _num
+from finagent.engine.charts.base import (
+    ChartConfig,
+    render_to_base64,
+    validate_png,
+    ChartDataPoint,
+    StepChartData,
+    _num,
+)
 
 
 class TestChartConfig:
@@ -33,6 +40,7 @@ class TestValidatePng:
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.plot([1, 2, 3])
         import io
+
         buf = io.BytesIO()
         fig.savefig(buf, format="png", dpi=100)
         data = buf.getvalue()

@@ -8,6 +8,7 @@ These tests call real yfinance + real Claude API.
 They are slow, cost money, and are NOT run in CI.
 Both must pass before P0 is considered done.
 """
+
 import time
 
 import pytest
@@ -25,7 +26,9 @@ from finagent.engine.pipelines.equity_research import create_equity_research_pip
 def _build_runtime():
     settings = get_settings()
     deps = FinAgentDeps(
-        data_layer=DataLayer(providers=[YFinanceProvider()], cache=DataCache(settings.cache_db_path)),
+        data_layer=DataLayer(
+            providers=[YFinanceProvider()], cache=DataCache(settings.cache_db_path)
+        ),
         settings=settings,
     )
     agent = create_lead_agent(settings)
@@ -66,18 +69,23 @@ async def test_mode_b_equity_research():
 
     assert elapsed < 60, f"Too slow: {elapsed:.1f}s (limit: 60s)"
     assert set(result.steps.keys()) == {
-        "data_collection", "catalyst_analysis", "peer_analysis",
-        "financial_modeling", "thesis", "report",
+        "data_collection",
+        "catalyst_analysis",
+        "peer_analysis",
+        "financial_modeling",
+        "thesis",
+        "report",
     }, "Not all 6 steps ran"
     assert len(summary) > 200, "Report too short"
 
     # Check for real financial data markers (not hallucinated)
     lower = summary.lower()
-    assert any(kw in lower for kw in ["revenue", "ebitda", "margin"]), \
-        "No financial data in report"
-    assert any(kw in lower for kw in ["peer", "comparable", "msft", "googl", "meta"]), \
-        "No peer analysis in report"
-    assert any(kw in lower for kw in ["valuation", "dcf", "multiple", "price target"]), \
-        "No valuation in report"
+    assert any(kw in lower for kw in ["revenue", "ebitda", "margin"]), "No financial data in report"
+    assert any(
+        kw in lower for kw in ["peer", "comparable", "msft", "googl", "meta"]
+    ), "No peer analysis in report"
+    assert any(
+        kw in lower for kw in ["valuation", "dcf", "multiple", "price target"]
+    ), "No valuation in report"
 
     print(f"\nMode B report ({elapsed:.1f}s):\n{summary[:2000]}...")

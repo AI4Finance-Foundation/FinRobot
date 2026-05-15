@@ -93,4 +93,3 @@ Additional requirements beyond IOI:
 - Coordinate with legal on any representations or commitments in the letter
 - Client should review and approve before sending — they may want to adjust tone or terms
 - Keep a log of who received each letter and when — this becomes the process tracker
-

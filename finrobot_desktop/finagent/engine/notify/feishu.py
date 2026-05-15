@@ -1,4 +1,5 @@
 """Feishu (飞书) webhook notification channel."""
+
 from __future__ import annotations
 
 import logging

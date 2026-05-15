@@ -14,10 +14,13 @@ from finagent.engine.compute.rag import BM25Index, Chunk
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_chunks() -> list[Chunk]:
     return [
         Chunk(text="Apple reported record revenue", source="10-K", chunk_index=0, char_start=0),
-        Chunk(text="Operating expenses increased by 5%", source="10-K", chunk_index=1, char_start=30),
+        Chunk(
+            text="Operating expenses increased by 5%", source="10-K", chunk_index=1, char_start=30
+        ),
         Chunk(text="Net income rose to 25 billion", source="10-K", chunk_index=2, char_start=65),
     ]
 
@@ -25,6 +28,7 @@ def _make_chunks() -> list[Chunk]:
 # ---------------------------------------------------------------------------
 # Fallback behaviour (sentence-transformers NOT installed)
 # ---------------------------------------------------------------------------
+
 
 class TestCreateIndexFallback:
     """Verify factory falls back to BM25Index when sentence-transformers is absent."""
@@ -57,6 +61,7 @@ class TestCreateIndexFallback:
 # ---------------------------------------------------------------------------
 # Mocked sentence-transformers — test EmbeddingIndex logic
 # ---------------------------------------------------------------------------
+
 
 class TestEmbeddingIndexMocked:
     """Test EmbeddingIndex with a mocked SentenceTransformer model."""
@@ -162,6 +167,7 @@ class TestEmbeddingIndexMocked:
 # Factory with mocked availability
 # ---------------------------------------------------------------------------
 
+
 class TestCreateIndexWithEmbedding:
     """Verify factory selects EmbeddingIndex when sentence-transformers is available."""
 
@@ -172,11 +178,11 @@ class TestCreateIndexWithEmbedding:
         mod._HAS_SENTENCE_TRANSFORMERS = True
 
         mock_model = MagicMock()
-        mock_model.encode = MagicMock(
-            return_value=np.array([[1.0, 0.0]], dtype=np.float32)
-        )
+        mock_model.encode = MagicMock(return_value=np.array([[1.0, 0.0]], dtype=np.float32))
 
-        with patch.object(mod, "SentenceTransformer", MagicMock(return_value=mock_model), create=True):
+        with patch.object(
+            mod, "SentenceTransformer", MagicMock(return_value=mock_model), create=True
+        ):
             index = mod.create_index(_make_chunks())
             assert isinstance(index, mod.EmbeddingIndex)
 

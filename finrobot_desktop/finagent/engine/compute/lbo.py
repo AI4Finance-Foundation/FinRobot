@@ -64,9 +64,7 @@ def _calculate_lbo_core(inputs: LBOInputs) -> LBOResult:
     )
 
 
-def _run_schedule(
-    inputs: LBOInputs, entry_debt: float
-) -> tuple[list[LBOYear], float, float]:
+def _run_schedule(inputs: LBOInputs, entry_debt: float) -> tuple[list[LBOYear], float, float]:
     """Build year-by-year operating and debt schedule.
 
     Returns:
@@ -169,16 +167,12 @@ def calculate_lbo_sensitivity(
     """
     if entry_range is None:
         base_entry = inputs.entry_ev_ebitda
-        entry_range = [
-            round(base_entry - 1.5 + i * 0.5, 2) for i in range(7)
-        ]
+        entry_range = [round(base_entry - 1.5 + i * 0.5, 2) for i in range(7)]
         entry_range = [e for e in entry_range if e > 0]
 
     if exit_range is None:
         base_exit = inputs.exit_ev_ebitda
-        exit_range = [
-            round(base_exit - 2.0 + i * 0.5, 2) for i in range(9)
-        ]
+        exit_range = [round(base_exit - 2.0 + i * 0.5, 2) for i in range(9)]
         exit_range = [e for e in exit_range if e > 0]
 
     irr_grid: list[list[float | None]] = []

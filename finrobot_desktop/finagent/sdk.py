@@ -26,6 +26,7 @@ Usage::
     finally:
         asyncio.run(agent.close())
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -77,7 +78,9 @@ class FinAgent:
     async def __aenter__(self) -> "FinAgent":
         return self
 
-    async def __aexit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any) -> None:
+    async def __aexit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any
+    ) -> None:
         await self.close()
 
     # ------------------------------------------------------------------ #
@@ -108,6 +111,11 @@ class FinAgent:
         providers.append(YFinanceProvider())
         providers.append(SECEdgarProvider(user_agent=self._settings.sec_user_agent))
 
+        if self._settings.adanos_api_key:
+            from finagent.engine.data.providers.adanos_provider import AdanosProvider
+
+            providers.append(AdanosProvider(api_key=self._settings.adanos_api_key))
+
         skills_path = Path(self._settings.skills_dir)
         registry = SkillRegistry(skills_path) if skills_path.exists() else None
 
@@ -118,9 +126,7 @@ class FinAgent:
             settings=self._settings,
             skill_runtime=registry,
         )
-        self._sub_agents = create_sub_agents(
-            self._settings, skill_registry=registry
-        )
+        self._sub_agents = create_sub_agents(self._settings, skill_registry=registry)
         return self._deps
 
     def _get_sub_agents(self) -> dict[str, Agent]:
@@ -162,9 +168,7 @@ class FinAgent:
             self._loop = asyncio.new_event_loop()
         return self._loop.run_until_complete(coro_fn())
 
-    def research(
-        self, ticker: str, progress: "ProgressCallback | None" = None
-    ) -> PipelineResult:
+    def research(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
         """Run equity research pipeline. Blocking.
 
         Use :meth:`aresearch` in async contexts (Jupyter, FastAPI, etc.).
@@ -172,33 +176,23 @@ class FinAgent:
         result: PipelineResult = self._run_sync(lambda: self.aresearch(ticker, progress=progress))
         return result
 
-    def dcf(
-        self, ticker: str, progress: "ProgressCallback | None" = None
-    ) -> PipelineResult:
+    def dcf(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
         result: PipelineResult = self._run_sync(lambda: self.adcf(ticker, progress=progress))
         return result
 
-    def comps(
-        self, ticker: str, progress: "ProgressCallback | None" = None
-    ) -> PipelineResult:
+    def comps(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
         result: PipelineResult = self._run_sync(lambda: self.acomps(ticker, progress=progress))
         return result
 
-    def lbo(
-        self, ticker: str, progress: "ProgressCallback | None" = None
-    ) -> PipelineResult:
+    def lbo(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
         result: PipelineResult = self._run_sync(lambda: self.albo(ticker, progress=progress))
         return result
 
-    def earnings(
-        self, ticker: str, progress: "ProgressCallback | None" = None
-    ) -> PipelineResult:
+    def earnings(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
         result: PipelineResult = self._run_sync(lambda: self.aearnings(ticker, progress=progress))
         return result
 
-    def ic_memo(
-        self, ticker: str, progress: "ProgressCallback | None" = None
-    ) -> PipelineResult:
+    def ic_memo(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
         result: PipelineResult = self._run_sync(lambda: self.aic_memo(ticker, progress=progress))
         return result
 
@@ -216,9 +210,7 @@ class FinAgent:
             tickers: List of ticker symbols (2-10).
             progress: Optional progress callback (applied to each pipeline).
         """
-        result: ComparisonResult = self._run_sync(
-            lambda: self.acompare(tickers, progress=progress)
-        )
+        result: ComparisonResult = self._run_sync(lambda: self.acompare(tickers, progress=progress))
         return result
 
     def analyze(self, ticker: str, analysis_type: str) -> str:
@@ -271,19 +263,13 @@ class FinAgent:
         )
 
         pipeline = create_equity_research_pipeline(self._get_sub_agents())
-        return await pipeline.execute(
-            self._ensure_deps(), ticker, progress=progress
-        )
+        return await pipeline.execute(self._ensure_deps(), ticker, progress=progress)
 
-    async def adcf(
-        self, ticker: str, progress: "ProgressCallback | None" = None
-    ) -> PipelineResult:
+    async def adcf(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
         from finagent.engine.pipelines.dcf import create_dcf_pipeline
 
         pipeline = create_dcf_pipeline(self._get_sub_agents())
-        return await pipeline.execute(
-            self._ensure_deps(), ticker, progress=progress
-        )
+        return await pipeline.execute(self._ensure_deps(), ticker, progress=progress)
 
     async def acomps(
         self, ticker: str, progress: "ProgressCallback | None" = None
@@ -291,19 +277,13 @@ class FinAgent:
         from finagent.engine.pipelines.comps import create_comps_pipeline
 
         pipeline = create_comps_pipeline(self._get_sub_agents())
-        return await pipeline.execute(
-            self._ensure_deps(), ticker, progress=progress
-        )
+        return await pipeline.execute(self._ensure_deps(), ticker, progress=progress)
 
-    async def albo(
-        self, ticker: str, progress: "ProgressCallback | None" = None
-    ) -> PipelineResult:
+    async def albo(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
         from finagent.engine.pipelines.lbo import create_lbo_pipeline
 
         pipeline = create_lbo_pipeline(self._get_sub_agents())
-        return await pipeline.execute(
-            self._ensure_deps(), ticker, progress=progress
-        )
+        return await pipeline.execute(self._ensure_deps(), ticker, progress=progress)
 
     async def aearnings(
         self, ticker: str, progress: "ProgressCallback | None" = None
@@ -313,9 +293,7 @@ class FinAgent:
         )
 
         pipeline = create_earnings_analysis_pipeline(self._get_sub_agents())
-        return await pipeline.execute(
-            self._ensure_deps(), ticker, progress=progress
-        )
+        return await pipeline.execute(self._ensure_deps(), ticker, progress=progress)
 
     async def aic_memo(
         self, ticker: str, progress: "ProgressCallback | None" = None
@@ -323,9 +301,7 @@ class FinAgent:
         from finagent.engine.pipelines.ic_memo import create_ic_memo_pipeline
 
         pipeline = create_ic_memo_pipeline(self._get_sub_agents())
-        return await pipeline.execute(
-            self._ensure_deps(), ticker, progress=progress
-        )
+        return await pipeline.execute(self._ensure_deps(), ticker, progress=progress)
 
     async def acompare(
         self,
@@ -408,7 +384,10 @@ class FinAgent:
 
         deps = self._ensure_deps()
         return await run_analysis(
-            deps.data_layer, deps.settings, ticker, analysis_type,
+            deps.data_layer,
+            deps.settings,
+            ticker,
+            analysis_type,
         )
 
     async def aask(self, ticker: str, question: str) -> str:
@@ -442,7 +421,11 @@ class FinAgent:
         from finagent.engine.backtest.strategy_agent import run_strategy_selection
 
         return await run_strategy_selection(
-            self._settings, ticker, start_date, end_date, initial_cash=initial_cash,
+            self._settings,
+            ticker,
+            start_date,
+            end_date,
+            initial_cash=initial_cash,
         )
 
     async def close(self) -> None:

@@ -24,6 +24,7 @@ def test_step_output_accepts_base_model():
 
 def test_step_output_structured_not_any():
     from typing import get_type_hints, Any
+
     hints = get_type_hints(StepOutput)
     # Should not be bare Any
     assert hints["structured"] is not Any

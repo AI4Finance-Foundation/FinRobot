@@ -15,8 +15,9 @@ Year 1: Rev=525, EBITDA=105, DA=21, EBIT=84
         Amort=500×0.01=5, Sweep=max(36.5-5,0)=31.5
         Paydown=36.5, Debt_end=500-36.5=463.5
 """
+
 import pytest
-from finagent.engine.models.financial import LBOInputs, LBOResult
+from finagent.engine.models.financial import LBOInputs
 from finagent.engine.compute.lbo import (
     calculate_lbo,
     calculate_lbo_sensitivity,

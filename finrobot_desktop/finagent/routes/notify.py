@@ -1,4 +1,5 @@
 """Notification routes — test channels, list channel status."""
+
 from __future__ import annotations
 
 import logging
@@ -29,9 +30,7 @@ def _build_manager(request: Request) -> NotifyManager:
     request while staying in sync with live config changes.
     """
     settings = request.app.state.deps.settings
-    cached_manager: NotifyManager | None = getattr(
-        request.app.state, "notify_manager", None
-    )
+    cached_manager: NotifyManager | None = getattr(request.app.state, "notify_manager", None)
     cached_settings = getattr(request.app.state, "_notify_manager_settings", None)
 
     if cached_manager is not None and cached_settings is settings:
@@ -86,10 +85,7 @@ async def test_channel(channel: str, request: Request) -> TestChannelResponse:
     if channel not in _VALID_CHANNELS:
         raise HTTPException(
             status_code=404,
-            detail=(
-                f"Unknown channel '{channel}'. "
-                f"Valid channels: {sorted(_VALID_CHANNELS)}"
-            ),
+            detail=(f"Unknown channel '{channel}'. Valid channels: {sorted(_VALID_CHANNELS)}"),
         )
     manager = _build_manager(request)
     success = await manager.test_channel(channel)

@@ -335,12 +335,17 @@ class TestCrossValidationIntegration:
         """D4: third provider's discrepancy must appear in warnings."""
         base = {"revenue": 100_000, "ebitda": 50_000}
         r_base = DataResult(
-            data=base, provider="placeholder", ticker="TEST",
-            data_type="financials", timestamp=datetime.now(tz=timezone.utc),
+            data=base,
+            provider="placeholder",
+            ticker="TEST",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
         )
         r_discrepant = DataResult(
             data={"revenue": 200_000, "ebitda": 50_000},
-            provider="p3", ticker="TEST", data_type="financials",
+            provider="p3",
+            ticker="TEST",
+            data_type="financials",
             timestamp=datetime.now(tz=timezone.utc),
         )
         p1 = MockProvider("p1", ["financials"], result=r_base.model_copy(update={"provider": "p1"}))
@@ -349,24 +354,32 @@ class TestCrossValidationIntegration:
         layer = DataLayer([p1, p2, p3], cache)
         result = await layer.fetch("financials", "TEST")
         assert p3.fetch_called == 1, "Third provider was not called"
-        assert any("p3" in w for w in result.warnings), (
-            f"Third provider discrepancy not in warnings: {result.warnings}"
-        )
+        assert any(
+            "p3" in w for w in result.warnings
+        ), f"Third provider discrepancy not in warnings: {result.warnings}"
 
     async def test_empty_secondary_skipped_tries_next_provider(self, cache):
         """D5: empty secondary data → warning added, next provider tried."""
         base = {"revenue": 100_000, "ebitda": 50_000}
         r1 = DataResult(
-            data=base, provider="p1", ticker="TEST",
-            data_type="financials", timestamp=datetime.now(tz=timezone.utc),
+            data=base,
+            provider="p1",
+            ticker="TEST",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
         )
         r2_empty = DataResult(
-            data={}, provider="p2", ticker="TEST",
-            data_type="financials", timestamp=datetime.now(tz=timezone.utc),
+            data={},
+            provider="p2",
+            ticker="TEST",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
         )
         r3 = DataResult(
-            data={"revenue": 200_000, "ebitda": 50_000}, provider="p3",
-            ticker="TEST", data_type="financials",
+            data={"revenue": 200_000, "ebitda": 50_000},
+            provider="p3",
+            ticker="TEST",
+            data_type="financials",
             timestamp=datetime.now(tz=timezone.utc),
         )
         p1 = MockProvider("p1", ["financials"], result=r1)
@@ -383,8 +396,11 @@ class TestCrossValidationIntegration:
         providers = []
         for i in range(5):
             r = DataResult(
-                data=base_data, provider=f"p{i}", ticker="TEST",
-                data_type="financials", timestamp=datetime.now(tz=timezone.utc),
+                data=base_data,
+                provider=f"p{i}",
+                ticker="TEST",
+                data_type="financials",
+                timestamp=datetime.now(tz=timezone.utc),
             )
             providers.append(MockProvider(f"p{i}", ["financials"], result=r))
         layer = DataLayer(providers, cache)

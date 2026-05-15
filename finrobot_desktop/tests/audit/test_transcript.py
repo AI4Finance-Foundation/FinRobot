@@ -1,4 +1,5 @@
 """Tests for finagent.audit.transcript and finagent.audit.persistence."""
+
 from __future__ import annotations
 
 import asyncio
@@ -10,7 +11,6 @@ from pathlib import Path
 import pytest
 
 from finagent.audit.persistence import (
-    SessionSummary,
     _summarize_session_file,
     list_sessions,
     load_session_transcript,
@@ -112,9 +112,7 @@ async def test_writer_error_event(tmp_session_dir: Path) -> None:
 @pytest.mark.asyncio
 async def test_concurrent_writes_produce_100_lines(tmp_session_dir: Path) -> None:
     writer = TranscriptWriter("sess-concurrent", base_dir=tmp_session_dir)
-    await asyncio.gather(
-        *[writer.log_user_message(f"msg-{i}") for i in range(100)]
-    )
+    await asyncio.gather(*[writer.log_user_message(f"msg-{i}") for i in range(100)])
     path = tmp_session_dir / "sess-concurrent.jsonl"
     lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
     # All 100 lines must be valid JSON

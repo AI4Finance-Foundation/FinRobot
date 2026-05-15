@@ -48,7 +48,10 @@ class TestSummary:
             full_content="# Body",
             source_path="/test/SKILL.md",
         )
-        assert skill.summary() == "comps-analysis: Comparable Company Analysis — Builds a trading comps table."
+        assert (
+            skill.summary()
+            == "comps-analysis: Comparable Company Analysis — Builds a trading comps table."
+        )
 
     def test_truncates_long_descriptions_at_50_chars(self):
         long_desc = "A" * 120

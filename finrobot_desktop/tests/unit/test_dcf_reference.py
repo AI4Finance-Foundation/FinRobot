@@ -30,6 +30,7 @@ Excel verification (wacc_override=10%, tg=2.5%):
 This is NOT a real Apple valuation (simplified FCF formula understates value
 because it over-taxes D&A). It's a test of the DCF arithmetic engine.
 """
+
 from finagent.engine.models.financial import DCFInputs
 from finagent.engine.compute.dcf import calculate_dcf
 

@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
 
 from finagent.engine.compute.clean import (
-    FIELD_ALIASES,
     clean_financial_number,
     normalize_field_names,
 )

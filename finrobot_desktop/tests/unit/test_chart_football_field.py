@@ -1,6 +1,6 @@
 """Tests for football field valuation chart."""
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, validate_png
+from finagent.engine.charts.base import ChartDataPoint, validate_png
 from finagent.engine.charts.football_field import render, _create_figure
 
 

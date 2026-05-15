@@ -4,7 +4,7 @@ const TABS: { key: ActiveTab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'financials', label: 'Financials' },
   { key: 'valuation', label: 'Valuation' },
-  { key: 'peers', label: 'Peers' },
+  { key: 'comps', label: 'Comps' },
   { key: 'compare', label: 'Compare' },
 ]
 

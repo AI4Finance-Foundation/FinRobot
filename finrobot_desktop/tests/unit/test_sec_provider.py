@@ -176,7 +176,9 @@ class TestSECEdgarFetch:
 
     async def test_mdna_no_item7_returns_empty(self, provider):
         """If 10-K has no Item 7, MD&A is empty with a warning."""
-        html_no_item7 = "<html><body><p>Some filing content with no MD&amp;A section.</p></body></html>"
+        html_no_item7 = (
+            "<html><body><p>Some filing content with no MD&amp;A section.</p></body></html>"
+        )
         responses = [
             _mock_response(_sec_company_tickers_response()),
             _mock_response(_sec_submissions_response()),
@@ -244,7 +246,9 @@ class TestExtractMdna:
 
     def test_handles_various_item7_formats(self):
         # "Item 7." with period
-        text = "Item 7. Management's Discussion and Analysis\nContent.\nItem 8. Financial Statements\n"
+        text = (
+            "Item 7. Management's Discussion and Analysis\nContent.\nItem 8. Financial Statements\n"
+        )
         items = _extract_items(text)
         assert "Content" in items["item_7_mdna"]
 

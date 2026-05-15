@@ -82,12 +82,8 @@ async def fetch_quarterly_data(ticker: str) -> dict[str, Any]:
             quarter_label = f"{year}-Q{quarter}"
 
             revenue = _safe_get(income, col, ["Total Revenue", "Revenue"])
-            op_income = _safe_get(
-                income, col, ["Operating Income", "Total Operating Profit Loss"]
-            )
-            net_income = _safe_get(
-                income, col, ["Net Income", "Net Income Common Stockholders"]
-            )
+            op_income = _safe_get(income, col, ["Operating Income", "Total Operating Profit Loss"])
+            net_income = _safe_get(income, col, ["Net Income", "Net Income Common Stockholders"])
 
             op_cf = None
             if cashflow is not None and not cashflow.empty and col in cashflow.columns:
@@ -116,9 +112,7 @@ async def fetch_quarterly_data(ticker: str) -> dict[str, Any]:
     return await asyncio.to_thread(_fetch)
 
 
-async def fetch_performance_data(
-    tickers: list[str], benchmark: str, period: str
-) -> dict[str, Any]:
+async def fetch_performance_data(tickers: list[str], benchmark: str, period: str) -> dict[str, Any]:
     """Fetch and normalize multi-ticker price performance.
 
     Downloads price data for all tickers + benchmark, normalizes to base 100,
@@ -158,8 +152,7 @@ async def fetch_performance_data(
             base = col.iloc[0]
             normalized = (col / base * 100).round(2)
             data = [
-                {"date": d.strftime("%Y-%m-%d"), "value": float(v)}
-                for d, v in normalized.items()
+                {"date": d.strftime("%Y-%m-%d"), "value": float(v)} for d, v in normalized.items()
             ]
             label = "S&P 500" if t == benchmark else t
             series.append({"ticker": t, "label": label, "data": data})

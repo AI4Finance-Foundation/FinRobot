@@ -8,6 +8,7 @@ What this code does that raw LLM cannot:
 
 Score range: prices in same currency as inputs.
 """
+
 from __future__ import annotations
 
 import statistics
@@ -36,10 +37,10 @@ class SniperPoints(BaseModel):
     stop_loss: float
     take_profit: float
     position_size_pct: float  # suggested position as % of portfolio (1-5%)
-    safety_margin: float       # the discount applied to DCF target
-    support_level: float       # detected support (20-day rolling min)
-    resistance_level: float    # detected resistance (20-day rolling max)
-    risk_reward_ratio: float   # (take_profit - current) / (current - stop_loss)
+    safety_margin: float  # the discount applied to DCF target
+    support_level: float  # detected support (20-day rolling min)
+    resistance_level: float  # detected resistance (20-day rolling max)
+    risk_reward_ratio: float  # (take_profit - current) / (current - stop_loss)
 
 
 def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
@@ -65,16 +66,13 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
     if req.volatility_annual is not None and req.volatility_annual > 0:
         annual_vol: float = req.volatility_annual
     elif len(prices) >= 2:
-        returns = [
-            (prices[i] - prices[i - 1]) / prices[i - 1]
-            for i in range(1, len(prices))
-        ]
+        returns = [(prices[i] - prices[i - 1]) / prices[i - 1] for i in range(1, len(prices))]
         daily_vol = statistics.stdev(returns) if len(returns) > 1 else 0.02
-        annual_vol = daily_vol * (252 ** 0.5)
+        annual_vol = daily_vol * (252**0.5)
     else:
         annual_vol = 0.30  # conservative default when history is thin
 
-    daily_vol = annual_vol / (252 ** 0.5)
+    daily_vol = annual_vol / (252**0.5)
 
     # --- Upside & safety margin ----------------------------------------------
     upside_pct = (target - current) / current  # can be negative (downside)
@@ -98,7 +96,7 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
 
     # --- Stop loss -----------------------------------------------------------
     # 10-day expected downside move: daily_vol * sqrt(10) * current_price
-    vol_buffer = daily_vol * (10 ** 0.5) * current
+    vol_buffer = daily_vol * (10**0.5) * current
     # Floor at 15% below current to prevent absurdly tight stops
     stop_loss = max(support - vol_buffer, current * 0.85)
 

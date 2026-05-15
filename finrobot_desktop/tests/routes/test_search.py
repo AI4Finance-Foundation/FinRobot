@@ -1,4 +1,5 @@
 """Tests for /api/search endpoints."""
+
 from __future__ import annotations
 
 from pathlib import Path

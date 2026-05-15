@@ -137,4 +137,3 @@ Prioritized action items:
 - Social Security timing is a major lever — model start ages of 62, 67, and 70
 - Always stress-test the plan — a plan that only works in the base case isn't a good plan
 - Compliance: ensure recommendations align with suitability/fiduciary standards
-

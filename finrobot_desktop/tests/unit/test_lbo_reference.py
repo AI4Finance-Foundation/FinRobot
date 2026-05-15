@@ -39,6 +39,7 @@ Exit (after Year 5):
   MOIC = 1739 / 600 ≈ 2.9×
   IRR = (1739/600)^(1/5) - 1 ≈ 23.7%
 """
+
 import pytest
 from finagent.engine.models.financial import LBOInputs
 from finagent.engine.compute.lbo import calculate_lbo

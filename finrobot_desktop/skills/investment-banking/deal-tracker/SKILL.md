@@ -108,4 +108,3 @@ Generate a summary for weekly team meetings:
 - The pipeline view should show deal stage, size, and likelihood — useful for revenue forecasting
 - Keep notes on buyer/investor feedback — patterns in feedback inform strategy adjustments
 - Archive closed/dead deals separately — keep the active view clean
-

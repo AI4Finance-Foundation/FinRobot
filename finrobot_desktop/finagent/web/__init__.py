@@ -29,9 +29,7 @@ from finagent.web.tasks import (
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 
-VALID_PIPELINES = frozenset(
-    {"research", "comps", "dcf", "lbo", "earnings", "ic-memo"}
-)
+VALID_PIPELINES = frozenset({"research", "comps", "dcf", "lbo", "earnings", "ic-memo"})
 
 web_router = APIRouter()
 
@@ -94,16 +92,13 @@ class RunRequest(BaseModel):
 async def run_pipeline(body: RunRequest, request: Request) -> JSONResponse:
     ticker = body.ticker.strip().upper()
     if not ticker:
-        return JSONResponse(
-            status_code=422, content={"detail": "ticker is required"}
-        )
+        return JSONResponse(status_code=422, content={"detail": "ticker is required"})
     if body.pipeline_type not in VALID_PIPELINES:
         return JSONResponse(
             status_code=400,
             content={
                 "detail": (
-                    f"Invalid pipeline_type: {body.pipeline_type}. "
-                    f"Valid: {sorted(VALID_PIPELINES)}"
+                    f"Invalid pipeline_type: {body.pipeline_type}. Valid: {sorted(VALID_PIPELINES)}"
                 )
             },
         )
@@ -129,9 +124,7 @@ async def run_pipeline(body: RunRequest, request: Request) -> JSONResponse:
 async def task_status(task_id: str) -> JSONResponse:
     task = get_task(task_id)
     if task is None:
-        return JSONResponse(
-            status_code=404, content={"detail": "Task not found"}
-        )
+        return JSONResponse(status_code=404, content={"detail": "Task not found"})
     return JSONResponse(content=task.model_dump())
 
 

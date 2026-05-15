@@ -9,6 +9,7 @@ What this code does that LLM cannot:
 - LLM would hallucinate passage content; BM25 retrieves actual text at a specific rank.
 - Controlled chunking ensures no sentence is stranded at a boundary.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -21,9 +22,9 @@ class Chunk:
     """A single text chunk from a document."""
 
     text: str
-    source: str         # e.g. "10-K/2024/MD&A"
+    source: str  # e.g. "10-K/2024/MD&A"
     chunk_index: int
-    char_start: int     # byte offset of chunk start in original text
+    char_start: int  # byte offset of chunk start in original text
 
 
 class BM25Index:
@@ -88,7 +89,7 @@ def chunk_text(
     step = max(1, chunk_size - overlap)
     i = 0
     while i < len(words):
-        chunk_words = words[i: i + chunk_size]
+        chunk_words = words[i : i + chunk_size]
         text_slice = " ".join(chunk_words)
         char_start = offsets[i]
         chunks.append(

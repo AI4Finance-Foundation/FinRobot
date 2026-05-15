@@ -5,6 +5,7 @@ Design contract:
 - Dedup window: identical title+body within 5 minutes is discarded once.
 - All HTTP errors surfaced via logger.exception for full stack trace.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -47,9 +48,7 @@ class NotifyManager:
         records the error — all remaining channels still execute.
         """
         # ── Dedup check ──────────────────────────────────────────────────────
-        msg_hash = hashlib.md5(
-            f"{message.title}{message.body}".encode()
-        ).hexdigest()
+        msg_hash = hashlib.md5(f"{message.title}{message.body}".encode()).hexdigest()
         now = time.time()
         if msg_hash in self._dedup and (now - self._dedup[msg_hash]) < self._dedup_ttl:
             logger.info("Notification deduped (same content within TTL window)")
@@ -110,9 +109,7 @@ class NotifyManager:
             try:
                 return await ch.send(msg)
             except (httpx.HTTPError, OSError, TimeoutError, ValueError, RuntimeError):
-                logger.exception(
-                    "Test notification to channel %s failed", channel_name
-                )
+                logger.exception("Test notification to channel %s failed", channel_name)
                 self._errors[channel_name] = "test send failed"
                 return False
         return False

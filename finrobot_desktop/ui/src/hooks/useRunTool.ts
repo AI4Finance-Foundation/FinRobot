@@ -6,31 +6,47 @@
  *   - dcf, lbo, comps → POST /api/compute/{tool}  (deterministic, no LLM)
  *   - catalysts        → POST /api/runs (pipeline_type=research)
  *   - ic-memo          → POST /api/runs (pipeline_type=ic-memo)
+ *   - ddm              → POST /api/runs (pipeline_type=ddm)
+ *   - earnings         → POST /api/runs (pipeline_type=earnings)
  *   - ask-ai           → no-op here; handled by RightChatPanel
  *
  * On success the tool jumps to the appropriate tab and shows a toast.
+ * For DCF/LBO the parsed result is written back to the appStore so the
+ * Valuation tab renders immediately. For runs-based tools we poll the run
+ * status briefly before invalidating the artifact list.
  */
 
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
 import { useStocksStore, type ToolName } from '../stores/stocksStore'
 import { useToastStore } from '../stores/toastStore'
+import {
+  useAppStore,
+  type DCFResult,
+  type LBOResult,
+  type CompsResult,
+  type EarningsResult,
+  type ICMemoResult,
+} from '../stores/appStore'
+import { useI18n } from '../i18n'
 
 // ── Tool → tab mapping ────────────────────────────────────────────────────────
 
 const TOOL_TAB_MAP: Record<ToolName, import('../stores/stocksStore').StocksTab> = {
+  research:   'overview',
   dcf:        'valuation',
   lbo:        'valuation',
-  comps:      'peers',
+  comps:      'comps',
   catalysts:  'news',
   'ic-memo':  'history',
-  'ask-ai':   'valuation', // unused — ask-ai short-circuits before fetch
+  ddm:        'valuation',
+  earnings:   'financials',
+  'ask-ai':   'overview',
 }
 
 // ── Default assumptions for direct compute endpoints ─────────────────────────
 
 const DEFAULT_COMPUTE_BODY: Record<string, unknown> = {
-  // DCF — will be merged with ticker-derived data server-side
   risk_free_rate: 0.043,
   beta: 1.1,
   equity_risk_premium: 0.055,
@@ -60,26 +76,25 @@ export class ToolRunError extends Error {
   }
 }
 
-function humanReadable(err: unknown): string {
-  if (err instanceof ToolRunError) {
-    if (err.status === 503) return 'Backend unavailable — is the server running?'
-    if (err.status === 422) return `Invalid inputs for ${err.tool}`
-    if (err.status === 501) return `${err.tool} is not yet supported`
-    return `${err.tool} failed (${err.status})`
-  }
-  if (err instanceof Error) {
-    if (err.name === 'AbortError') return 'Request cancelled'
-    return err.message
-  }
-  return 'Unknown error'
+// ── Result discriminator ─────────────────────────────────────────────────────
+
+interface RunDetailPayload {
+  status: string
+  pipeline_type: string
+  result?: { text?: string; structured?: Record<string, unknown> } | null
+  steps?: Record<string, string> | null
 }
+
+type RunResult =
+  | { kind: 'dcf'; result: DCFResult; ticker: string }
+  | { kind: 'lbo'; result: LBOResult; ticker: string }
+  | { kind: 'run'; runId: string; ticker: string; timedOut: boolean; pipelineType: string; detail: RunDetailPayload | null }
+  | { kind: 'noop' }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 interface UseRunToolOptions {
-  /** Ticker to run the tool on */
   ticker: string
-  /** Called when the tool run succeeds */
   onSuccess?: (tool: ToolName) => void
 }
 
@@ -87,23 +102,29 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
   const { startTool, finishTool, setActiveTab } = useStocksStore()
   const addToast = useToastStore((s) => s.addToast)
   const queryClient = useQueryClient()
+  const setDcfResult = useAppStore((s) => s.setDcfResult)
+  const setLboResult = useAppStore((s) => s.setLboResult)
+  const setCompsResult = useAppStore((s) => s.setCompsResult)
+  const setEarningsResult = useAppStore((s) => s.setEarningsResult)
+  const setIcMemoResult = useAppStore((s) => s.setIcMemoResult)
+  const { t } = useI18n()
 
-  return useMutation<void, ToolRunError | Error, ToolName>({
-    mutationFn: async (toolName: ToolName) => {
-      if (toolName === 'ask-ai') {
-        // ask-ai is handled entirely by RightChatPanel — just a no-op here
-        return
+  return useMutation<RunResult, ToolRunError | Error, ToolName>({
+    mutationFn: async (toolName: ToolName): Promise<RunResult> => {
+      if (toolName === 'ask-ai') return { kind: 'noop' }
+
+      // Capture the ticker at dispatch time. If the user switches tickers
+      // mid-flight, the captured value lets us drop stale writes in onSuccess.
+      const tickerAtDispatch = ticker
+      if (!tickerAtDispatch) {
+        throw new Error('Ticker is required to run this tool')
       }
 
       startTool(toolName)
 
       try {
-        let resp: Response
-
         if (toolName === 'dcf') {
-          // Need financial data first to get revenue_base etc.
-          // Call /api/data/{ticker}/financials then /api/compute/dcf
-          const finResp = await fetch(`${BASE_URL}/api/data/${ticker}/financials`)
+          const finResp = await fetch(`${BASE_URL}/api/data/${tickerAtDispatch}/financials`)
           let body = { ...DEFAULT_COMPUTE_BODY }
 
           if (finResp.ok) {
@@ -113,7 +134,6 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
             const revenue = (income.revenue as number | undefined) ?? 1
             const netDebt = ((fin.total_debt as number | undefined) ?? 0) - ((fin.total_cash as number | undefined) ?? 0)
             const shares = (market.shares_outstanding as number | undefined) ?? 1
-
             body = {
               ...body,
               revenue_base: revenue,
@@ -122,84 +142,204 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
             }
           }
 
-          resp = await fetch(`${BASE_URL}/api/compute/dcf`, {
+          const resp = await fetch(`${BASE_URL}/api/compute/dcf`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
           })
-        } else if (toolName === 'lbo') {
-          // Need financials for ebitda_base
-          const finResp = await fetch(`${BASE_URL}/api/data/${ticker}/financials`)
-          let ebitdaBase = 1_000_000_000
+          if (!resp.ok) {
+            throw new ToolRunError('dcf', resp.status, await resp.text().catch(() => ''))
+          }
+          const dcfResult = (await resp.json()) as DCFResult
+          return { kind: 'dcf', result: dcfResult, ticker: tickerAtDispatch }
+        }
 
+        if (toolName === 'lbo') {
+          const finResp = await fetch(`${BASE_URL}/api/data/${tickerAtDispatch}/financials`)
+          let ltmEbitda = 1_000_000_000
+          let revenueBase = 5_000_000_000
           if (finResp.ok) {
             const fin = (await finResp.json()) as Record<string, unknown>
             const income = (fin.income ?? {}) as Record<string, unknown>
-            ebitdaBase = (income.ebitda as number | undefined) ?? 1_000_000_000
+            ltmEbitda = (income.ebitda as number | undefined) ?? 1_000_000_000
+            revenueBase = (income.revenue as number | undefined) ?? ltmEbitda * 5
           }
 
-          resp = await fetch(`${BASE_URL}/api/compute/lbo`, {
+          const resp = await fetch(`${BASE_URL}/api/compute/lbo`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              ebitda_base: ebitdaBase,
-              revenue_base: ebitdaBase * 5,
-              revenue_growth_rates: [0.05, 0.05, 0.04, 0.04, 0.03],
+              ticker: tickerAtDispatch,
+              ltm_ebitda: ltmEbitda,
+              revenue_base: revenueBase,
+              revenue_growth_rate: 0.05,
               ebitda_margin: 0.20,
-              entry_multiple: 8.0,
-              exit_multiple: 8.0,
-              debt_pct_ev: 0.60,
+              entry_ev_ebitda: 8.0,
+              exit_ev_ebitda: 8.0,
+              leverage_multiple: 5.0,
+              holding_period_years: 5,
               interest_rate: 0.07,
               mandatory_amort_pct: 0.05,
-              projection_years: 5,
               tax_rate: 0.21,
               capex_pct_revenue: 0.04,
-              nwc_pct_revenue: 0.02,
+              nwc_change_pct_revenue: 0.02,
               da_pct_revenue: 0.03,
             }),
           })
-        } else if (toolName === 'comps') {
-          // POST /api/runs with pipeline_type=comps
-          resp = await fetch(`${BASE_URL}/api/runs`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pipeline_type: 'comps', ticker }),
-          })
-        } else if (toolName === 'catalysts') {
-          // GET /api/data/{ticker}/catalysts — just refetch via query
-          await queryClient.refetchQueries({ queryKey: ['ticker-catalysts', ticker] })
-          return
-        } else if (toolName === 'ic-memo') {
-          resp = await fetch(`${BASE_URL}/api/runs`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pipeline_type: 'ic-memo', ticker }),
-          })
-        } else {
-          throw new Error(`Unknown tool: ${String(toolName)}`)
+          if (!resp.ok) {
+            throw new ToolRunError('lbo', resp.status, await resp.text().catch(() => ''))
+          }
+          const lboResult = (await resp.json()) as LBOResult
+          return { kind: 'lbo', result: lboResult, ticker: tickerAtDispatch }
         }
 
-        if (!resp.ok) {
-          const body = await resp.text().catch(() => '')
-          throw new ToolRunError(toolName, resp.status, body)
+        if (toolName === 'comps' || toolName === 'ic-memo' || toolName === 'ddm' || toolName === 'earnings') {
+          // DDM pre-check: only suitable for bank/financial stocks
+          if (toolName === 'ddm') {
+            const finCheck = await fetch(`${BASE_URL}/api/data/${tickerAtDispatch}/financials`)
+            if (finCheck.ok) {
+              const finData = (await finCheck.json()) as Record<string, unknown>
+              const market = (finData.market ?? {}) as Record<string, unknown>
+              const sector = (market.sector as string) ?? ''
+              const industry = (market.industry as string) ?? ''
+              const isBank = ['Financial Services', 'Financials'].includes(sector)
+                && industry.toLowerCase().includes('bank')
+              const isBankIndustry = [
+                'Banks—Diversified', 'Banks—Regional', 'Banks - Diversified',
+                'Banks - Regional', 'Savings & Cooperative Banks',
+              ].includes(industry)
+              if (!isBank && !isBankIndustry) {
+                throw new Error(
+                  `DDM 不适用于 ${tickerAtDispatch}（${sector} / ${industry}）。` +
+                  `DDM 是股息折现模型，专为银行和高分红金融股设计。` +
+                  `请使用 DCF 或 LBO 进行估值。`
+                )
+              }
+            }
+          }
+
+          const pipeline = toolName
+          const resp = await fetch(`${BASE_URL}/api/runs`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pipeline_type: pipeline, ticker: tickerAtDispatch }),
+          })
+          if (!resp.ok) {
+            throw new ToolRunError(toolName, resp.status, await resp.text().catch(() => ''))
+          }
+          const { run_id } = (await resp.json()) as { run_id: string }
+          // Poll up to ~60s (12 × 5s).
+          let completed = false
+          for (let i = 0; i < 12; i += 1) {
+            await new Promise((r) => setTimeout(r, 5000))
+            const statusResp = await fetch(`${BASE_URL}/api/runs/${run_id}`)
+            if (!statusResp.ok) continue
+            const detail = (await statusResp.json()) as { status?: string }
+            if (detail.status === 'completed' || detail.status === 'complete') {
+              completed = true
+              break
+            }
+            if (detail.status === 'failed' || detail.status === 'error') {
+              throw new ToolRunError(toolName, 500, 'Pipeline failed')
+            }
+          }
+          // Fetch the full result with structured data
+          let detail: RunDetailPayload | null = null
+          if (completed) {
+            const fullResp = await fetch(`${BASE_URL}/api/runs/${run_id}`)
+            if (fullResp.ok) {
+              detail = (await fullResp.json()) as RunDetailPayload
+            }
+          }
+          return { kind: 'run', runId: run_id, ticker: tickerAtDispatch, timedOut: !completed, pipelineType: pipeline, detail }
         }
+
+        if (toolName === 'catalysts') {
+          await queryClient.refetchQueries({ queryKey: ['ticker-catalysts', tickerAtDispatch] })
+          return { kind: 'noop' }
+        }
+
+        throw new Error(`Unknown tool: ${String(toolName)}`)
       } finally {
         finishTool(toolName)
       }
     },
 
-    onSuccess: (_data, toolName) => {
-      const tab = TOOL_TAB_MAP[toolName]
-      if (tab) setActiveTab(tab)
+    onSuccess: (data, toolName) => {
+      // Drop stale writes: if the user navigated to a different ticker while
+      // the request was in flight, the result no longer matches the page
+      // they're looking at — keep the toast as a heads-up but don't mutate
+      // the global appStore slots.
+      const tickerInResult = data.kind === 'noop' ? null : data.ticker
+      const isFresh = tickerInResult === null || tickerInResult === ticker
 
-      // Invalidate artifact cache so history tab refreshes
-      void queryClient.invalidateQueries({ queryKey: ['ticker-artifacts', ticker] })
+      if (isFresh) {
+        if (data.kind === 'dcf') {
+          setDcfResult(data.result, 'standalone')
+        } else if (data.kind === 'lbo') {
+          setLboResult(data.result)
+        } else if (data.kind === 'run' && data.detail?.result?.structured) {
+          const structured = data.detail.result.structured
+          const steps = data.detail.steps ?? {}
+          const pt = data.pipelineType
 
-      addToast({
-        type: 'success',
-        title: `${toolName.toUpperCase()} complete`,
-        description: `${ticker} analysis saved to Library`,
+          if (pt === 'comps') {
+            const comps = (structured.statistical_bench ?? structured.peer_comps) as CompsResult | undefined
+            if (comps) setCompsResult(comps)
+          } else if (pt === 'earnings') {
+            const earnings = structured.earnings_data as EarningsResult | undefined
+            if (earnings) setEarningsResult(earnings)
+          } else if (pt === 'ic-memo') {
+            const financialAnalysis = structured.financial_analysis as Record<string, unknown> | undefined
+            let irr: number | null = null
+            if (financialAnalysis?.lbo_result && typeof financialAnalysis.lbo_result === 'object') {
+              irr = (financialAnalysis.lbo_result as Record<string, unknown>).irr as number | null
+            }
+            let verdict = 'INVEST'
+            const recText = steps.recommendation ?? ''
+            if (recText.includes('[CODE GATE') || recText.toUpperCase().includes('PASS')) {
+              verdict = 'PASS'
+            } else if (recText.toUpperCase().includes('HOLD')) {
+              verdict = 'HOLD'
+            }
+            const icMemo: ICMemoResult = {
+              situation_overview: steps.situation_overview ?? '',
+              financial_summary: steps.financial_analysis ?? '',
+              investment_thesis: steps.investment_thesis ?? '',
+              risk_factors: steps.risk_factors ?? '',
+              recommendation: { verdict, irr, rationale: recText },
+            }
+            setIcMemoResult(icMemo)
+          } else if (pt === 'ddm') {
+            // DDM results go to valuation — structured may contain dcf-like output
+            const dcfCalc = (structured.dcf_calc ?? Object.values(structured)[0]) as DCFResult | undefined
+            if (dcfCalc) setDcfResult(dcfCalc, 'standalone')
+          }
+        }
+        const tab = TOOL_TAB_MAP[toolName]
+        if (tab) setActiveTab(tab)
+      }
+
+      void queryClient.invalidateQueries({
+        queryKey: ['ticker-artifacts', tickerInResult ?? ticker],
       })
+
+      if (toolName !== 'ask-ai') {
+        // For runs-based pipelines (comps/ic-memo) the polling may have
+        // timed out before completion; the run is still going server-side.
+        if (data.kind === 'run' && data.timedOut) {
+          addToast({
+            type: 'info',
+            title: t('tool.toast.success', { tool: toolName.toUpperCase() }),
+            description: t('tool.error.unknown'),
+          })
+        } else {
+          addToast({
+            type: 'success',
+            title: t('tool.toast.success', { tool: toolName.toUpperCase() }),
+          })
+        }
+      }
 
       onSuccess?.(toolName)
     },
@@ -208,9 +348,26 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
       finishTool(toolName)
       addToast({
         type: 'error',
-        title: `${toolName} failed`,
-        description: humanReadable(err),
+        title: t('tool.toast.failure', { tool: toolName.toUpperCase() }),
+        description: humanReadableError(err, t),
       })
     },
   })
+}
+
+function humanReadableError(
+  err: unknown,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  if (err instanceof ToolRunError) {
+    if (err.status === 503) return t('tool.error.unavailable')
+    if (err.status === 422) return t('tool.error.invalid', { tool: err.tool })
+    if (err.status === 501) return t('tool.error.unsupported', { tool: err.tool })
+    return t('tool.error.generic', { tool: err.tool, status: err.status })
+  }
+  if (err instanceof Error) {
+    if (err.name === 'AbortError') return t('tool.error.cancelled')
+    return err.message
+  }
+  return t('tool.error.unknown')
 }

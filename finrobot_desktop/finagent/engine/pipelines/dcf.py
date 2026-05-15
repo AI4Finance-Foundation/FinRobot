@@ -12,7 +12,10 @@ from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import DCFInputs, StepOutput
 from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 from finagent.engine.pipelines.base import (
-    Pipeline, PipelineStep, StructuredValidator, TextValidator,
+    Pipeline,
+    PipelineStep,
+    StructuredValidator,
+    TextValidator,
 )
 from finagent.engine.pipelines._helpers import execute_financial_data_step
 from finagent.engine.pipelines.validators import (
@@ -131,5 +134,5 @@ def create_dcf_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[],
                 validator=TextValidator(validate_dcf_output),
             ),
-        ]
+        ],
     )

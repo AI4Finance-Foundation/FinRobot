@@ -25,9 +25,7 @@ class TestRadarChart:
     def test_uses_polar_projection(self):
         """Radar chart must use polar projection."""
         fig = _create_figure(_sample_data())
-        assert fig.axes[0].name == "polar", (
-            f"Expected polar projection, got '{fig.axes[0].name}'"
-        )
+        assert fig.axes[0].name == "polar", f"Expected polar projection, got '{fig.axes[0].name}'"
         import matplotlib.pyplot as plt
 
         plt.close(fig)
@@ -35,9 +33,9 @@ class TestRadarChart:
     def test_has_correct_title(self):
         fig = _create_figure(_sample_data())
         # Title may be on the figure or the axes
-        title_found = any(
-            "AAPL" in t.get_text() for t in fig.texts
-        ) or "AAPL" in fig.axes[0].get_title()
+        title_found = (
+            any("AAPL" in t.get_text() for t in fig.texts) or "AAPL" in fig.axes[0].get_title()
+        )
         assert title_found
         import matplotlib.pyplot as plt
 

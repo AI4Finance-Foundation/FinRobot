@@ -10,6 +10,7 @@ Coding discipline:
 - Config via injected db_path or Path.home() default; never reads env vars directly.
 - No print(); logging only.
 """
+
 from __future__ import annotations
 
 import logging
@@ -19,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -125,17 +126,13 @@ class JournalStore:
     def list_all(self) -> list[JournalEntry]:
         """Return all entries ordered by creation time (newest first)."""
         with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM journal ORDER BY created_at DESC"
-            ).fetchall()
+            rows = conn.execute("SELECT * FROM journal ORDER BY created_at DESC").fetchall()
         return [JournalEntry(**dict(r)) for r in rows]
 
     def get(self, entry_id: str) -> JournalEntry | None:
         """Return a single entry by id, or None if not found."""
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM journal WHERE id = ?", (entry_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM journal WHERE id = ?", (entry_id,)).fetchone()
         return JournalEntry(**dict(row)) if row else None
 
     def update(self, entry_id: str, data: dict[str, object]) -> JournalEntry | None:

@@ -232,9 +232,7 @@ class RunStore:
             ) as cursor:
                 seq = cursor.lastrowid
             # Fetch the actual seq value (lastrowid is the AUTOINCREMENT id, not seq)
-            async with conn.execute(
-                "SELECT seq FROM run_events WHERE id = ?", (seq,)
-            ) as cursor:
+            async with conn.execute("SELECT seq FROM run_events WHERE id = ?", (seq,)) as cursor:
                 row = await cursor.fetchone()
             await conn.commit()
             if row is None:
@@ -244,9 +242,7 @@ class RunStore:
             logger.exception("Failed to append event to run %s", run_id)
             raise
 
-    async def get_events_after(
-        self, run_id: str, last_seq: int = 0
-    ) -> list[StoredRunEvent]:
+    async def get_events_after(self, run_id: str, last_seq: int = 0) -> list[StoredRunEvent]:
         conn = await self._ensure_connection()
         async with conn.execute(
             """

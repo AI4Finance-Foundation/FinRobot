@@ -5,6 +5,7 @@ text + 1-line summaries of earlier steps. This reduces prompt size by 40-60%
 for 5+ step pipelines while preserving enough context for common downstream
 patterns (step N often reads from step N-1 and N-2).
 """
+
 from finagent.engine.pipelines.base import Pipeline
 
 

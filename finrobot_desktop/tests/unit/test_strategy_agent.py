@@ -71,12 +71,8 @@ class TestRunStrategySelection:
         mock_engine_run = AsyncMock(return_value=bt_result)
 
         with (
-            patch(
-                "finagent.engine.backtest.strategy_agent.Agent"
-            ) as mock_agent_cls,
-            patch(
-                "finagent.engine.backtest.strategy_agent.BackTraderAdapter"
-            ) as mock_adapter_cls,
+            patch("finagent.engine.backtest.strategy_agent.Agent") as mock_agent_cls,
+            patch("finagent.engine.backtest.strategy_agent.BackTraderAdapter") as mock_adapter_cls,
         ):
             # First Agent() call -> config agent, second -> adjustment agent
             agent_instances = [MagicMock(), MagicMock()]
@@ -86,9 +82,7 @@ class TestRunStrategySelection:
 
             mock_adapter_cls.return_value.run = mock_engine_run
 
-            result = await run_strategy_selection(
-                settings, "AAPL", "2023-01-01", "2024-01-01"
-            )
+            result = await run_strategy_selection(settings, "AAPL", "2023-01-01", "2024-01-01")
 
         assert result.total_return == pytest.approx(0.15)
         # Engine should run exactly once (early stop after iter 1)
@@ -128,12 +122,8 @@ class TestRunStrategySelection:
         adjust_agent_mock.run = AsyncMock(side_effect=decision_results)
 
         with (
-            patch(
-                "finagent.engine.backtest.strategy_agent.Agent"
-            ) as mock_agent_cls,
-            patch(
-                "finagent.engine.backtest.strategy_agent.BackTraderAdapter"
-            ) as mock_adapter_cls,
+            patch("finagent.engine.backtest.strategy_agent.Agent") as mock_agent_cls,
+            patch("finagent.engine.backtest.strategy_agent.BackTraderAdapter") as mock_adapter_cls,
         ):
             mock_agent_cls.side_effect = [
                 config_agent_mock,
@@ -141,9 +131,7 @@ class TestRunStrategySelection:
             ]
             mock_adapter_cls.return_value.run = mock_engine_run
 
-            result = await run_strategy_selection(
-                settings, "AAPL", "2023-01-01", "2024-01-01"
-            )
+            result = await run_strategy_selection(settings, "AAPL", "2023-01-01", "2024-01-01")
 
         # Best is iteration 2 with 0.20 return
         assert result.total_return == pytest.approx(0.20)
@@ -171,20 +159,18 @@ class TestRunStrategySelection:
 
         # Single adjust_agent returns different decisions on successive calls
         adjust_agent_mock = MagicMock()
-        adjust_agent_mock.run = AsyncMock(side_effect=[
-            MagicMock(output=decision1),
-            MagicMock(output=decision2),
-        ])
+        adjust_agent_mock.run = AsyncMock(
+            side_effect=[
+                MagicMock(output=decision1),
+                MagicMock(output=decision2),
+            ]
+        )
 
         mock_engine_run = AsyncMock(side_effect=results)
 
         with (
-            patch(
-                "finagent.engine.backtest.strategy_agent.Agent"
-            ) as mock_agent_cls,
-            patch(
-                "finagent.engine.backtest.strategy_agent.BackTraderAdapter"
-            ) as mock_adapter_cls,
+            patch("finagent.engine.backtest.strategy_agent.Agent") as mock_agent_cls,
+            patch("finagent.engine.backtest.strategy_agent.BackTraderAdapter") as mock_adapter_cls,
         ):
             mock_agent_cls.side_effect = [
                 config_agent_mock,
@@ -192,9 +178,7 @@ class TestRunStrategySelection:
             ]
             mock_adapter_cls.return_value.run = mock_engine_run
 
-            result = await run_strategy_selection(
-                settings, "AAPL", "2023-01-01", "2024-01-01"
-            )
+            result = await run_strategy_selection(settings, "AAPL", "2023-01-01", "2024-01-01")
 
         # Best result is 0.25 from iteration 1
         assert result.total_return == pytest.approx(0.25)
@@ -226,12 +210,8 @@ class TestRunStrategySelection:
         mock_engine_run = AsyncMock(return_value=bt_result)
 
         with (
-            patch(
-                "finagent.engine.backtest.strategy_agent.Agent"
-            ) as mock_agent_cls,
-            patch(
-                "finagent.engine.backtest.strategy_agent.BackTraderAdapter"
-            ) as mock_adapter_cls,
+            patch("finagent.engine.backtest.strategy_agent.Agent") as mock_agent_cls,
+            patch("finagent.engine.backtest.strategy_agent.BackTraderAdapter") as mock_adapter_cls,
         ):
             mock_agent_cls.side_effect = [config_agent_mock, adjust_agent_mock]
             mock_adapter_cls.return_value.run = mock_engine_run

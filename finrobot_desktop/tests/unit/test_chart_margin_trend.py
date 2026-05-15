@@ -19,11 +19,36 @@ def _sample_data():
         chart_type="margin_trend",
         title="AAPL Margin Trends",
         data=[
-            {"year": 2020, "gross_margin": 0.382, "ebitda_margin": 0.308, "operating_margin": 0.241},
-            {"year": 2021, "gross_margin": 0.418, "ebitda_margin": 0.339, "operating_margin": 0.298},
-            {"year": 2022, "gross_margin": 0.433, "ebitda_margin": 0.347, "operating_margin": 0.303},
-            {"year": 2023, "gross_margin": 0.441, "ebitda_margin": 0.356, "operating_margin": 0.297},
-            {"year": 2024, "gross_margin": 0.462, "ebitda_margin": 0.370, "operating_margin": 0.317},
+            {
+                "year": 2020,
+                "gross_margin": 0.382,
+                "ebitda_margin": 0.308,
+                "operating_margin": 0.241,
+            },
+            {
+                "year": 2021,
+                "gross_margin": 0.418,
+                "ebitda_margin": 0.339,
+                "operating_margin": 0.298,
+            },
+            {
+                "year": 2022,
+                "gross_margin": 0.433,
+                "ebitda_margin": 0.347,
+                "operating_margin": 0.303,
+            },
+            {
+                "year": 2023,
+                "gross_margin": 0.441,
+                "ebitda_margin": 0.356,
+                "operating_margin": 0.297,
+            },
+            {
+                "year": 2024,
+                "gross_margin": 0.462,
+                "ebitda_margin": 0.370,
+                "operating_margin": 0.317,
+            },
         ],
     )
 

@@ -7,6 +7,7 @@ What this code does that raw LLM cannot:
 - Quantitative expected-impact scoring with sentiment multiplier.
 - Structured summary computation (net sentiment, category breakdown, top events).
 """
+
 from __future__ import annotations
 
 from typing import Any, cast

@@ -141,4 +141,3 @@ Define the metrics that will track value creation:
 - Track initiative-level P&L impact, not just top-line EBITDA — you need to know what's working
 - Add-on M&A is often the largest value creation lever — start the pipeline on Day 1
 - Always pressure-test assumptions with operating partners or industry experts
-

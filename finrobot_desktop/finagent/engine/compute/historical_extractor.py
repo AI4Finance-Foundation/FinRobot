@@ -169,9 +169,21 @@ def _build_historical_metrics(
     sga_row = _get_row(income_stmt, _SGA_NAMES)
 
     # ---- Extract cash flow rows ----
-    ocf_row = _get_row(cashflow, _OPERATING_CF_NAMES) if (cashflow is not None and not cashflow.empty) else None
-    icf_row = _get_row(cashflow, _INVESTING_CF_NAMES) if (cashflow is not None and not cashflow.empty) else None
-    fcf_row = _get_row(cashflow, _FINANCING_CF_NAMES) if (cashflow is not None and not cashflow.empty) else None
+    ocf_row = (
+        _get_row(cashflow, _OPERATING_CF_NAMES)
+        if (cashflow is not None and not cashflow.empty)
+        else None
+    )
+    icf_row = (
+        _get_row(cashflow, _INVESTING_CF_NAMES)
+        if (cashflow is not None and not cashflow.empty)
+        else None
+    )
+    fcf_row = (
+        _get_row(cashflow, _FINANCING_CF_NAMES)
+        if (cashflow is not None and not cashflow.empty)
+        else None
+    )
 
     # ---- Align cashflow columns to income_stmt sorted_cols ----
     # cashflow may have different column ordering; we look up each col individually

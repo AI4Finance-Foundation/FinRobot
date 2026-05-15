@@ -114,4 +114,3 @@ Synthesize into a revenue quality assessment:
 - Differentiate between contracted ARR and actual recognized revenue
 - For usage-based models, focus on consumption trends and expansion patterns rather than traditional ARR metrics
 - Professional services revenue should be evaluated separately — it's not recurring and margins are typically lower
-

@@ -90,4 +90,3 @@ One-page earnings preview with:
 - "Whisper numbers" from buy-side surveys are often more relevant than published consensus
 - Historical earnings reactions help calibrate expectations (search for "[company] earnings reaction history")
 - Options-implied move tells you what the market expects — compare to your scenarios
-

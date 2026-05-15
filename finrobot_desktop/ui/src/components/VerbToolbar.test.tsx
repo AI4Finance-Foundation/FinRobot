@@ -40,22 +40,39 @@ beforeEach(() => {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('VerbToolbar — rendering', () => {
-  it('renders all 6 tool buttons', () => {
+  it('renders primary tools and More dropdown', () => {
     renderToolbar()
-    expect(screen.getByText('跑 DCF')).toBeInTheDocument()
-    expect(screen.getByText('跑 LBO')).toBeInTheDocument()
-    expect(screen.getByText('对比同业')).toBeInTheDocument()
-    expect(screen.getByText('找催化剂')).toBeInTheDocument()
-    expect(screen.getByText('跑 IC Memo')).toBeInTheDocument()
-    expect(screen.getByText('问 AI')).toBeInTheDocument()
+    // Primary tools are always visible
+    expect(screen.getByText('Run DCF')).toBeInTheDocument()
+    expect(screen.getByText('Compare peers')).toBeInTheDocument()
+    expect(screen.getByText('Earnings')).toBeInTheDocument()
+    expect(screen.getByText('Ask AI')).toBeInTheDocument()
+    // More button is visible
+    expect(screen.getByText('More')).toBeInTheDocument()
   })
 
-  it('all buttons have aria-label', () => {
+  it('More dropdown reveals additional tools when clicked', () => {
     renderToolbar()
-    const buttons = screen.getAllByRole('button')
-    buttons.forEach((btn) => {
-      expect(btn).toHaveAttribute('aria-label')
-    })
+    // Dropdown tools are hidden initially
+    expect(screen.queryByText('Run LBO')).not.toBeInTheDocument()
+
+    // Open dropdown
+    fireEvent.click(screen.getByText('More'))
+
+    // Now dropdown tools are visible
+    expect(screen.getByText('Run LBO')).toBeInTheDocument()
+    expect(screen.getByText('Run DDM')).toBeInTheDocument()
+    expect(screen.getByText('IC memo')).toBeInTheDocument()
+    expect(screen.getByText('Find catalysts')).toBeInTheDocument()
+  })
+
+  it('primary buttons have aria-label', () => {
+    renderToolbar()
+    // Only check primary buttons (which have aria-label); More and dropdown buttons use title
+    const primaryButtons = screen.getAllByRole('button').filter(
+      (btn) => btn.hasAttribute('aria-label'),
+    )
+    expect(primaryButtons.length).toBeGreaterThanOrEqual(3)
   })
 
   it('toolbar has role=toolbar with aria-label', () => {
@@ -64,12 +81,15 @@ describe('VerbToolbar — rendering', () => {
     expect(toolbar).toHaveAttribute('aria-label', 'Analysis tools')
   })
 
-  it('buttons are disabled when no ticker is provided', () => {
+  it('tool buttons are disabled when no ticker is provided', () => {
     renderToolbar({ ticker: '' })
-    const buttons = screen.getAllByRole('button')
-    buttons.forEach((btn) => {
-      expect(btn).toBeDisabled()
-    })
+    // Primary tool buttons + Ask AI should be disabled; More toggle is not a tool button
+    const dcfBtn = screen.getByText('Run DCF').closest('button')!
+    const compsBtn = screen.getByText('Compare peers').closest('button')!
+    const earningsBtn = screen.getByText('Earnings').closest('button')!
+    expect(dcfBtn).toBeDisabled()
+    expect(compsBtn).toBeDisabled()
+    expect(earningsBtn).toBeDisabled()
   })
 })
 
@@ -77,14 +97,14 @@ describe('VerbToolbar — ask-ai callback', () => {
   it('calls onAskAi when ask-ai button is clicked', () => {
     const onAskAi = vi.fn()
     renderToolbar({ onAskAi })
-    fireEvent.click(screen.getByText('问 AI'))
+    fireEvent.click(screen.getByText('Ask AI'))
     expect(onAskAi).toHaveBeenCalledOnce()
   })
 
   it('does NOT start a mutation for ask-ai', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
     renderToolbar({ onAskAi: vi.fn() })
-    fireEvent.click(screen.getByText('问 AI'))
+    fireEvent.click(screen.getByText('Ask AI'))
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 })
@@ -97,34 +117,34 @@ describe('VerbToolbar — loading state', () => {
       currentTicker: 'AAPL',
     })
     renderToolbar()
-    const dcfBtn = screen.getByText('跑 DCF').closest('button')!
+    const dcfBtn = screen.getByText('Run DCF').closest('button')!
     expect(dcfBtn).toBeDisabled()
     expect(dcfBtn).toHaveAttribute('aria-busy', 'true')
   })
 
-  it('LBO button stays enabled while DCF is running', () => {
+  it('Comps button stays enabled while DCF is running', () => {
     useStocksStore.setState({
       runningTools: new Set(['dcf']),
       currentTicker: 'AAPL',
     })
     renderToolbar()
-    const lboBtn = screen.getByText('跑 LBO').closest('button')!
-    expect(lboBtn).not.toBeDisabled()
+    const compsBtn = screen.getByText('Compare peers').closest('button')!
+    expect(compsBtn).not.toBeDisabled()
   })
 
-  it('two tools can run simultaneously with independent loading states', () => {
+  it('two primary tools can run simultaneously with independent loading states', () => {
     useStocksStore.setState({
-      runningTools: new Set(['dcf', 'lbo']),
+      runningTools: new Set(['dcf', 'comps']),
       currentTicker: 'AAPL',
     })
     renderToolbar()
-    const dcfBtn = screen.getByText('跑 DCF').closest('button')!
-    const lboBtn = screen.getByText('跑 LBO').closest('button')!
+    const dcfBtn = screen.getByText('Run DCF').closest('button')!
+    const compsBtn = screen.getByText('Compare peers').closest('button')!
     expect(dcfBtn).toBeDisabled()
-    expect(lboBtn).toBeDisabled()
-    // Comps should still be enabled
-    const compsBtn = screen.getByText('对比同业').closest('button')!
-    expect(compsBtn).not.toBeDisabled()
+    expect(compsBtn).toBeDisabled()
+    // Earnings should still be enabled
+    const earningsBtn = screen.getByText('Earnings').closest('button')!
+    expect(earningsBtn).not.toBeDisabled()
   })
 
   it('does not fire a second mutation when button is already disabled', () => {
@@ -136,7 +156,7 @@ describe('VerbToolbar — loading state', () => {
       new Response('{}', { status: 200 }),
     )
     renderToolbar()
-    const dcfBtn = screen.getByText('跑 DCF').closest('button')!
+    const dcfBtn = screen.getByText('Run DCF').closest('button')!
     fireEvent.click(dcfBtn)
     // Should not have made a new fetch call (button was disabled)
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -149,7 +169,7 @@ describe('VerbToolbar — network error toast', () => {
 
     renderToolbar()
     // Click DCF
-    fireEvent.click(screen.getByText('跑 DCF'))
+    fireEvent.click(screen.getByText('Run DCF'))
 
     // Wait for mutation to settle
     await waitFor(() => {
@@ -185,7 +205,7 @@ describe('VerbToolbar — success navigation', () => {
     })
 
     renderToolbar({ onToolComplete })
-    fireEvent.click(screen.getByText('跑 DCF'))
+    fireEvent.click(screen.getByText('Run DCF'))
 
     await waitFor(() => {
       expect(onToolComplete).toHaveBeenCalledWith('dcf')

@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-import pytest
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
@@ -13,6 +12,7 @@ from finagent.engine.pipelines.dcf import create_dcf_pipeline
 # ---------------------------------------------------------------------------
 # Fakes
 # ---------------------------------------------------------------------------
+
 
 class FakeDataLayer:
     async def fetch(self, data_type: str, ticker: str, **kwargs) -> DataResult:
@@ -68,13 +68,16 @@ class FakeDeps:
 def _make_test_agents(output: str = "analysis output") -> dict[str, Agent]:
     agents = {}
     for role in ["data", "analysis", "modeling", "synthesis", "report"]:
-        agents[role] = Agent(TestModel(custom_output_text=output), deps_type=FinAgentDeps, defer_model_check=True)
+        agents[role] = Agent(
+            TestModel(custom_output_text=output), deps_type=FinAgentDeps, defer_model_check=True
+        )
     return agents
 
 
 # ---------------------------------------------------------------------------
 # Structure tests
 # ---------------------------------------------------------------------------
+
 
 class TestDcfPipelineStructure:
     def test_has_exactly_3_steps(self):
@@ -85,7 +88,9 @@ class TestDcfPipelineStructure:
         pipeline = create_dcf_pipeline(_make_test_agents())
         names = [s.name for s in pipeline.steps]
         assert names == [
-            "historical_data", "dcf_calc", "output_gen",
+            "historical_data",
+            "dcf_calc",
+            "output_gen",
         ]
 
     def test_historical_data_uses_data_agent(self):
@@ -109,6 +114,7 @@ class TestDcfPipelineStructure:
 # Execution tests
 # ---------------------------------------------------------------------------
 
+
 def _make_stub_execute_fn(step_name: str):
     """Return an async stub execute_fn that returns a minimal valid StepOutput."""
     from finagent.engine.models.financial import StepOutput
@@ -126,18 +132,19 @@ def _make_stub_execute_fn(step_name: str):
 
 class TestDcfPipelineExecution:
     async def test_execute_produces_result_with_all_3_step_keys(self, capsys):
-        pipeline = create_dcf_pipeline(_make_test_agents(
-            "revenue 385B ebitda 130B"
-        ))
+        pipeline = create_dcf_pipeline(_make_test_agents("revenue 385B ebitda 130B"))
         # Stub executor to avoid real LLM/compute calls in orchestration test
         from finagent.engine.pipelines.base import TextValidator
         from finagent.engine.pipelines.validators import validate_is_non_empty
+
         for step in pipeline.steps:
             step.executor = _make_stub_execute_fn(step.name)
             step.validator = TextValidator(validate_is_non_empty)
         result = await pipeline.execute(FakeDeps(), "AAPL")
         assert set(result.steps.keys()) == {
-            "historical_data", "dcf_calc", "output_gen",
+            "historical_data",
+            "dcf_calc",
+            "output_gen",
         }
 
 
@@ -145,20 +152,24 @@ class TestDcfPipelineExecution:
 # P1.5: execute_fn / validate_structured hook tests
 # ---------------------------------------------------------------------------
 
+
 def test_dcf_pipeline_historical_data_has_custom_executor():
     from finagent.engine.pipelines.dcf import create_dcf_pipeline
     from finagent.engine.pipelines.base import DefaultAgentExecutor, StructuredValidator
     from unittest.mock import MagicMock
+
     agents = {k: MagicMock() for k in ["data", "modeling", "report"]}
     pipeline = create_dcf_pipeline(agents)
     step = next(s for s in pipeline.steps if s.name == "historical_data")
     assert not isinstance(step.executor, DefaultAgentExecutor)
     assert isinstance(step.validator, StructuredValidator)
 
+
 def test_dcf_pipeline_dcf_calc_step_has_custom_executor():
     from finagent.engine.pipelines.dcf import create_dcf_pipeline
     from finagent.engine.pipelines.base import DefaultAgentExecutor, StructuredValidator
     from unittest.mock import MagicMock
+
     agents = {k: MagicMock() for k in ["data", "modeling", "report"]}
     pipeline = create_dcf_pipeline(agents)
     step = next(s for s in pipeline.steps if s.name == "dcf_calc")

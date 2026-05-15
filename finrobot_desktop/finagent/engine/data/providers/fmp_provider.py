@@ -38,10 +38,21 @@ class FMPProvider(DataProvider):
     @property
     def financials_fields(self) -> set[str]:
         return {
-            "revenue", "ebitda", "net_income", "market_cap", "shares_outstanding",
-            "gross_margin", "operating_margin", "depreciation_amortization",
-            "rd_expense", "sga_expense", "interest_expense",
-            "total_debt", "total_cash", "pe_ratio", "current_price",
+            "revenue",
+            "ebitda",
+            "net_income",
+            "market_cap",
+            "shares_outstanding",
+            "gross_margin",
+            "operating_margin",
+            "depreciation_amortization",
+            "rd_expense",
+            "sga_expense",
+            "interest_expense",
+            "total_debt",
+            "total_cash",
+            "pe_ratio",
+            "current_price",
         }
 
     async def fetch(self, ticker: str, data_type: str | DataType, **kwargs: Any) -> DataResult:
@@ -57,7 +68,9 @@ class FMPProvider(DataProvider):
             quarter: int | None = kwargs.get("quarter")
             year: int | None = kwargs.get("year")
             limit: int = kwargs.get("limit", 4)
-            return await self._fetch_earnings_transcript(ticker, quarter=quarter, year=year, limit=limit)
+            return await self._fetch_earnings_transcript(
+                ticker, quarter=quarter, year=year, limit=limit
+            )
         years: int | None = kwargs.get("years")
         limit = years if years and years > 1 else 1
         try:
@@ -82,10 +95,7 @@ class FMPProvider(DataProvider):
 
         if years and years > 1 and len(income) > 1:
             data: dict[str, Any] = {
-                "yearly_data": [
-                    self._build_single_year_data(inc_i, bal, prof)
-                    for inc_i in income
-                ],
+                "yearly_data": [self._build_single_year_data(inc_i, bal, prof) for inc_i in income],
             }
         else:
             inc = income[0] if income else {}
@@ -100,7 +110,9 @@ class FMPProvider(DataProvider):
         )
 
     @staticmethod
-    def _build_single_year_data(inc: dict[str, Any], bal: dict[str, Any], prof: dict[str, Any]) -> dict[str, Any]:
+    def _build_single_year_data(
+        inc: dict[str, Any], bal: dict[str, Any], prof: dict[str, Any]
+    ) -> dict[str, Any]:
         """Extract a flat dict of normalized financial fields for one year."""
         return {
             "revenue": inc.get("revenue"),
@@ -245,9 +257,7 @@ class FMPProvider(DataProvider):
         except ProviderError:
             raise
         except (ValueError, KeyError, TypeError, AttributeError) as e:
-            raise ProviderError(
-                f"FMP earnings transcript fetch failed for '{ticker}': {e}"
-            ) from e
+            raise ProviderError(f"FMP earnings transcript fetch failed for '{ticker}': {e}") from e
 
         transcripts = []
         for item in raw[:limit]:

@@ -2,7 +2,6 @@
 """P1.5 acceptance gate — verifies code does real deterministic computation.
 No LLM involved. Same inputs always produce same outputs."""
 
-import pytest
 from finagent.engine.models.financial import DCFInputs
 from finagent.engine.compute.dcf import calculate_dcf
 from finagent.engine.compute.wacc import calculate_wacc
@@ -134,20 +133,26 @@ class TestNumericalCorrectness:
         assert abs(result.projected_revenue[0] - expected_revenue) < 1
         expected_ebitda = expected_revenue * 0.35
         assert abs(result.projected_ebitda[0] - expected_ebitda) < 1
-        expected_fcf = (expected_ebitda * (1 - 0.21)
-                        - expected_revenue * 0.05
-                        - expected_revenue * 0.02)
+        expected_fcf = (
+            expected_ebitda * (1 - 0.21) - expected_revenue * 0.05 - expected_revenue * 0.02
+        )
         assert abs(result.projected_fcf[0] - expected_fcf) < 1
 
     def test_multiples_hand_calculated(self):
         c = CompanyFinancials(
-            ticker="X", revenue=100, ebitda=35, net_income=10,
-            market_cap=500, total_debt=30, total_cash=10,
-            gross_margin=0.4, operating_margin=0.2,
+            ticker="X",
+            revenue=100,
+            ebitda=35,
+            net_income=10,
+            market_cap=500,
+            total_debt=30,
+            total_cash=10,
+            gross_margin=0.4,
+            operating_margin=0.2,
         )
         c = calculate_multiples(c)
         # EV = 500 + 30 - 10 = 520
         assert abs(c.enterprise_value - 520) < 1e-9
-        assert abs(c.ev_ebitda - 520/35) < 1e-9
-        assert abs(c.ev_revenue - 520/100) < 1e-9
-        assert abs(c.pe_ratio - 500/10) < 1e-9
+        assert abs(c.ev_ebitda - 520 / 35) < 1e-9
+        assert abs(c.ev_revenue - 520 / 100) < 1e-9
+        assert abs(c.pe_ratio - 500 / 10) < 1e-9

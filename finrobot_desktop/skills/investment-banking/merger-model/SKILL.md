@@ -129,4 +129,3 @@ Calculate the minimum synergies needed for the deal to be EPS-neutral in Year 1.
 - Synergy phase-in is critical — Year 1 is often only 25-50% of run-rate synergies
 - Don't forget foregone interest income on cash used and new interest expense on debt raised
 - Tax rate on synergies and interest adjustments should match the acquirer's marginal rate
-

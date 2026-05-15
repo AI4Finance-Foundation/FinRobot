@@ -1,8 +1,8 @@
 """Tests for the lead_agent orchestrator (P1b: sub-agents + comps/dcf tools)."""
+
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pytest
 from pydantic_ai.models.test import TestModel
 
 from finagent.config import get_settings
@@ -17,6 +17,7 @@ FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "skills"
 # ---------------------------------------------------------------------------
 # Fake deps
 # ---------------------------------------------------------------------------
+
 
 class FakeDataLayer:
     async def fetch(self, data_type: str, ticker: str, **kwargs) -> DataResult:
@@ -38,12 +39,15 @@ def _agent(skill_registry=None):
 
 
 def _deps(skill_runtime=None) -> FinAgentDeps:
-    return FinAgentDeps(data_layer=FakeDataLayer(), settings=_settings(), skill_runtime=skill_runtime)
+    return FinAgentDeps(
+        data_layer=FakeDataLayer(), settings=_settings(), skill_runtime=skill_runtime
+    )
 
 
 # ---------------------------------------------------------------------------
 # Factory + tool registration
 # ---------------------------------------------------------------------------
+
 
 class TestCreateLeadAgent:
     def test_returns_agent(self):
@@ -76,6 +80,7 @@ class TestCreateLeadAgent:
 # activate_skill
 # ---------------------------------------------------------------------------
 
+
 class TestActivateSkill:
     async def test_returns_not_available_when_skill_runtime_is_none(self):
         agent = _agent()
@@ -88,10 +93,12 @@ class TestActivateSkill:
         registry = SkillRegistry(FIXTURES_DIR)
         agent = _agent(skill_registry=registry)
         deps = _deps(skill_runtime=registry)
-        with agent.override(model=TestModel(
-            custom_output_text="Here is the skill content.",
-            call_tools=["activate_skill"],
-        )):
+        with agent.override(
+            model=TestModel(
+                custom_output_text="Here is the skill content.",
+                call_tools=["activate_skill"],
+            )
+        ):
             result = await agent.run("activate skill comps-analysis", deps=deps)
         assert isinstance(result.output, str)
 
@@ -99,10 +106,12 @@ class TestActivateSkill:
         registry = SkillRegistry(FIXTURES_DIR)
         agent = _agent(skill_registry=registry)
         deps = _deps(skill_runtime=registry)
-        with agent.override(model=TestModel(
-            custom_output_text="Error noted.",
-            call_tools=["activate_skill"],
-        )):
+        with agent.override(
+            model=TestModel(
+                custom_output_text="Error noted.",
+                call_tools=["activate_skill"],
+            )
+        ):
             result = await agent.run("activate skill nonexistent-skill", deps=deps)
         assert isinstance(result.output, str)
 
@@ -110,6 +119,7 @@ class TestActivateSkill:
 # ---------------------------------------------------------------------------
 # Agent routing — TestModel
 # ---------------------------------------------------------------------------
+
 
 class TestAgentRouting:
     async def test_agent_runs_without_error_for_simple_question(self):
@@ -123,9 +133,11 @@ class TestAgentRouting:
     async def test_agent_can_call_query_financial_data(self):
         agent = _agent()
         deps = _deps()
-        with agent.override(model=TestModel(
-            custom_output_text="AAPL financials retrieved.",
-            call_tools=["query_financial_data"],
-        )):
+        with agent.override(
+            model=TestModel(
+                custom_output_text="AAPL financials retrieved.",
+                call_tools=["query_financial_data"],
+            )
+        ):
             result = await agent.run("What is AAPL's PE ratio?", deps=deps)
         assert isinstance(result.output, str)

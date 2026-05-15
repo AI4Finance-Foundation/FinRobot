@@ -23,9 +23,7 @@ class TestRevenueEbitdaChart:
 
     def test_has_correct_title(self):
         fig = _create_figure(_sample_data())
-        assert "AAPL" in fig.axes[0].get_title() or any(
-            "AAPL" in t.get_text() for t in fig.texts
-        )
+        assert "AAPL" in fig.axes[0].get_title() or any("AAPL" in t.get_text() for t in fig.texts)
         import matplotlib.pyplot as plt
 
         plt.close(fig)

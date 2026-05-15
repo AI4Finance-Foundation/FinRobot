@@ -30,8 +30,7 @@ def extract_financial_data(
     missing = _REQUIRED - set(data.keys())
     if missing:
         raise ValueError(
-            f"Provider {financials_result.provider} missing required fields for "
-            f"{ticker}: {missing}"
+            f"Provider {financials_result.provider} missing required fields for {ticker}: {missing}"
         )
 
     revenue = data.get("revenue")

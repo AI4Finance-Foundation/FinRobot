@@ -143,9 +143,7 @@ def render(
 # ---------------------------------------------------------------------------
 
 
-def render_gross_margin(
-    data: ChartDataPoint, config: ChartConfig | None = None
-) -> bytes:
+def render_gross_margin(data: ChartDataPoint, config: ChartConfig | None = None) -> bytes:
     """Render single gross-margin line chart."""
     return render(
         data,
@@ -154,9 +152,7 @@ def render_gross_margin(
     )
 
 
-def render_ebitda_margin_detail(
-    data: ChartDataPoint, config: ChartConfig | None = None
-) -> bytes:
+def render_ebitda_margin_detail(data: ChartDataPoint, config: ChartConfig | None = None) -> bytes:
     """Render EBITDA margin with horizontal mean line and value annotation."""
     return render(
         data,
@@ -166,9 +162,7 @@ def render_ebitda_margin_detail(
     )
 
 
-def render_sga_ratio(
-    data: ChartDataPoint, config: ChartConfig | None = None
-) -> bytes:
+def render_sga_ratio(data: ChartDataPoint, config: ChartConfig | None = None) -> bytes:
     """Render single SG&A / Revenue ratio line chart."""
     return render(
         data,
@@ -177,14 +171,10 @@ def render_sga_ratio(
     )
 
 
-def render_ltm_ebitda_margin(
-    data: ChartDataPoint, config: ChartConfig | None = None
-) -> bytes:
+def render_ltm_ebitda_margin(data: ChartDataPoint, config: ChartConfig | None = None) -> bytes:
     """Render single LTM EBITDA Margin line chart."""
     return render(
         data,
         config,
-        metrics=[
-            MetricLine("ltm_ebitda_margin", "LTM EBITDA Margin", "primary_color", "o")
-        ],
+        metrics=[MetricLine("ltm_ebitda_margin", "LTM EBITDA Margin", "primary_color", "o")],
     )

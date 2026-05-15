@@ -37,9 +37,7 @@ class ComparisonResult(BaseModel):
     """Side-by-side comparison of multiple companies."""
 
     companies: list[CompanyValuation]
-    generated_at: str = Field(
-        default_factory=lambda: datetime.now(tz=timezone.utc).isoformat()
-    )
+    generated_at: str = Field(default_factory=lambda: datetime.now(tz=timezone.utc).isoformat())
 
 
 def build_company_valuation(
@@ -80,19 +78,13 @@ def format_comparison_table(result: ComparisonResult) -> str:
 
     Columns: Ticker | Price | Implied | Upside% | WACC | TGR | EV/EBITDA | P/E
     """
-    header = (
-        "| Ticker | Price | Implied | Upside | WACC | TGR | EV/EBITDA | P/E |"
-    )
-    divider = (
-        "|--------|-------|---------|--------|------|-----|-----------|-----|"
-    )
+    header = "| Ticker | Price | Implied | Upside | WACC | TGR | EV/EBITDA | P/E |"
+    divider = "|--------|-------|---------|--------|------|-----|-----------|-----|"
     rows: list[str] = [header, divider]
 
     for c in result.companies:
         if c.error:
-            rows.append(
-                f"| {c.ticker:<6} | -- | -- | -- | -- | -- | -- | ERROR: {c.error[:30]} |"
-            )
+            rows.append(f"| {c.ticker:<6} | -- | -- | -- | -- | -- | -- | ERROR: {c.error[:30]} |")
             continue
 
         price = f"${c.current_price:.2f}" if c.current_price else "--"

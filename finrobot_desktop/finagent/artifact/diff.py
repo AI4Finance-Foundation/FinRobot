@@ -6,6 +6,7 @@ skipping meta (timestamps/ids differ by design) and inputs.raw_data
 
 Numeric diffs carry both absolute change and percentage change.
 """
+
 from __future__ import annotations
 
 from typing import Any, Literal
@@ -44,13 +45,9 @@ def _collect_diffs(
             if key in old_val and key in new_val:
                 _collect_diffs(old_val[key], new_val[key], child_path, diffs)
             elif key in old_val:
-                diffs.append(
-                    FieldDiff(path=child_path, old=old_val[key], new=None, kind="removed")
-                )
+                diffs.append(FieldDiff(path=child_path, old=old_val[key], new=None, kind="removed"))
             else:
-                diffs.append(
-                    FieldDiff(path=child_path, old=None, new=new_val[key], kind="added")
-                )
+                diffs.append(FieldDiff(path=child_path, old=None, new=new_val[key], kind="added"))
     elif isinstance(old_val, list) and isinstance(new_val, list):
         # Diff list elements by index
         for i, (ov, nv) in enumerate(zip(old_val, new_val)):
@@ -63,9 +60,7 @@ def _collect_diffs(
                 )
         elif len(new_val) > len(old_val):
             for i in range(len(old_val), len(new_val)):
-                diffs.append(
-                    FieldDiff(path=f"{path}[{i}]", old=None, new=new_val[i], kind="added")
-                )
+                diffs.append(FieldDiff(path=f"{path}[{i}]", old=None, new=new_val[i], kind="added"))
     else:
         if old_val != new_val:
             diff = FieldDiff(path=path, old=old_val, new=new_val, kind="changed")

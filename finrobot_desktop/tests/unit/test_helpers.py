@@ -56,14 +56,14 @@ async def test_cross_validation_warnings_merged_into_financial_data():
     mock_agent.run = AsyncMock(return_value=mock_agent_result)
 
     mock_data_layer = MagicMock()
-    mock_data_layer.fetch = AsyncMock(side_effect=lambda dt, ticker, **kw: financials if dt == DataType.FINANCIALS else price)
+    mock_data_layer.fetch = AsyncMock(
+        side_effect=lambda dt, ticker, **kw: financials if dt == DataType.FINANCIALS else price
+    )
 
     mock_deps = MagicMock()
     mock_deps.data_layer = mock_data_layer
 
-    step_output = await execute_financial_data_step(
-        mock_agent, mock_deps, "prompt", {}, "TEST"
-    )
+    step_output = await execute_financial_data_step(mock_agent, mock_deps, "prompt", {}, "TEST")
 
     fd = step_output.structured
     assert hasattr(fd, "warnings")
@@ -96,9 +96,16 @@ async def test_historical_metrics_injected_into_structured_context():
     """execute_financial_data_step must populate historical_metrics and forecast."""
     financials = _financials_result()
     price = _price_result()
-    yearly = [_yearly_result(y, r) for y, r in [
-        (2020, 800e6), (2021, 900e6), (2022, 1e9), (2023, 1.1e9), (2024, 1.2e9),
-    ]]
+    yearly = [
+        _yearly_result(y, r)
+        for y, r in [
+            (2020, 800e6),
+            (2021, 900e6),
+            (2022, 1e9),
+            (2023, 1.1e9),
+            (2024, 1.2e9),
+        ]
+    ]
 
     mock_agent = MagicMock()
     mock_agent_result = MagicMock()
@@ -115,22 +122,21 @@ async def test_historical_metrics_injected_into_structured_context():
     mock_deps.data_layer = mock_data_layer
 
     structured_context: dict[str, object] = {}
-    await execute_financial_data_step(
-        mock_agent, mock_deps, "prompt", structured_context, "TEST"
-    )
+    await execute_financial_data_step(mock_agent, mock_deps, "prompt", structured_context, "TEST")
 
     # structured_context must now contain historical_metrics and forecast
-    assert "historical_metrics" in structured_context, (
-        f"Missing historical_metrics. Keys: {list(structured_context.keys())}"
-    )
+    assert (
+        "historical_metrics" in structured_context
+    ), f"Missing historical_metrics. Keys: {list(structured_context.keys())}"
     from finagent.engine.models.financial import HistoricalMetrics, ForecastResult
+
     hm = structured_context["historical_metrics"]
     assert isinstance(hm, HistoricalMetrics)
     assert len(hm.years) == 5
 
-    assert "forecast" in structured_context, (
-        f"Missing forecast. Keys: {list(structured_context.keys())}"
-    )
+    assert (
+        "forecast" in structured_context
+    ), f"Missing forecast. Keys: {list(structured_context.keys())}"
     fc = structured_context["forecast"]
     assert isinstance(fc, ForecastResult)
     assert len(fc.years) == 3  # 3-year default forecast
@@ -151,14 +157,14 @@ async def test_no_duplicate_warnings_when_extractor_and_provider_share():
     mock_agent.run = AsyncMock(return_value=mock_agent_result)
 
     mock_data_layer = MagicMock()
-    mock_data_layer.fetch = AsyncMock(side_effect=lambda dt, ticker, **kw: financials if dt == DataType.FINANCIALS else price)
+    mock_data_layer.fetch = AsyncMock(
+        side_effect=lambda dt, ticker, **kw: financials if dt == DataType.FINANCIALS else price
+    )
 
     mock_deps = MagicMock()
     mock_deps.data_layer = mock_data_layer
 
-    step_output = await execute_financial_data_step(
-        mock_agent, mock_deps, "prompt", {}, "TEST"
-    )
+    step_output = await execute_financial_data_step(mock_agent, mock_deps, "prompt", {}, "TEST")
 
     fd = step_output.structured
     # The extractor will generate its own version of this warning.

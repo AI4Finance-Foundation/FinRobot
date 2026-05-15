@@ -27,7 +27,6 @@ def _build_test_env():
 
 
 class TestP1bAcceptance:
-
     @pytest.mark.integration
     @pytest.mark.slow
     @pytest.mark.asyncio
@@ -38,8 +37,12 @@ class TestP1bAcceptance:
         result = await pipeline.execute(deps, "AAPL")
 
         assert set(result.steps.keys()) == {
-            "data_collection", "catalyst_analysis", "peer_analysis",
-            "financial_modeling", "thesis", "report",
+            "data_collection",
+            "catalyst_analysis",
+            "peer_analysis",
+            "financial_modeling",
+            "thesis",
+            "report",
         }
 
         # Strict validator checks
@@ -58,8 +61,12 @@ class TestP1bAcceptance:
         result = await pipeline.execute(deps, "AAPL")
 
         assert set(result.steps.keys()) == {
-            "target_data", "peer_selection", "peer_data",
-            "multiples_calc", "statistical_bench", "output_gen"
+            "target_data",
+            "peer_selection",
+            "peer_data",
+            "multiples_calc",
+            "statistical_bench",
+            "output_gen",
         }
 
         output = result.format_summary().lower()
@@ -76,8 +83,12 @@ class TestP1bAcceptance:
         result = await pipeline.execute(deps, "AAPL")
 
         assert set(result.steps.keys()) == {
-            "historical_data", "projection", "wacc",
-            "terminal_value", "sensitivity", "output_gen"
+            "historical_data",
+            "projection",
+            "wacc",
+            "terminal_value",
+            "sensitivity",
+            "output_gen",
         }
 
         output = result.format_summary().lower()
@@ -86,7 +97,7 @@ class TestP1bAcceptance:
 
     @pytest.mark.skipif(
         not os.getenv("QUALITY_GATE"),
-        reason="Manual quality gate — run with: QUALITY_GATE=1 pytest tests/integration/test_p1b_acceptance.py::TestP1bAcceptance::test_quality_comparison"
+        reason="Manual quality gate — run with: QUALITY_GATE=1 pytest tests/integration/test_p1b_acceptance.py::TestP1bAcceptance::test_quality_comparison",
     )
     @pytest.mark.asyncio
     async def test_quality_comparison(self):
@@ -104,6 +115,7 @@ class TestP1bAcceptance:
 
         # 2. Single-call output — a bare agent with ONLY query_financial_data
         from pydantic_ai import Agent, RunContext
+
         settings = get_settings()
         single_agent = Agent(
             settings.model_name,

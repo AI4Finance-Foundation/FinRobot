@@ -23,15 +23,22 @@ Excel verification:
   Median EV/EBITDA (peers only, sorted): 18.30, 19.67, 25.03 → median = 19.67
   Median P/E (peers only, sorted): 25.00, 29.17, 35.23 → median = 29.17
 """
+
 from finagent.engine.models.financial import CompanyFinancials, PeerComps
-from finagent.engine.compute.multiples import calculate_ev, calculate_multiples, calculate_peer_statistics
+from finagent.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
 
 
 def _make(ticker, rev, ebitda, ni, mcap, debt, cash):
     c = CompanyFinancials(
-        ticker=ticker, revenue=rev, ebitda=ebitda, net_income=ni,
-        market_cap=mcap, total_debt=debt, total_cash=cash,
-        gross_margin=0.5, operating_margin=0.3,
+        ticker=ticker,
+        revenue=rev,
+        ebitda=ebitda,
+        net_income=ni,
+        market_cap=mcap,
+        total_debt=debt,
+        total_cash=cash,
+        gross_margin=0.5,
+        operating_margin=0.3,
     )
     return calculate_multiples(c)
 

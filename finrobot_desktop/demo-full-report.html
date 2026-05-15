@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinAgent — Full Report Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   DESIGN TOKENS — Apple-inspired with FinAgent character
+   ============================================================ */
+:root {
+  /* Typography */
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+
+  /* Apple-derived palette */
+  --bg: #F5F5F7;
+  --surface: #FFFFFF;
+  --surface-elevated: #FFFFFF;
+  --surface-glass: rgba(255, 255, 255, 0.72);
+  --surface-dark: #1D1D1F;
+  --text-primary: #1D1D1F;
+  --text-secondary: #86868B;
+  --text-tertiary: #AEAEB2;
+  --border: rgba(0, 0, 0, 0.06);
+  --border-strong: rgba(0, 0, 0, 0.12);
+
+  /* Accent */
+  --blue: #0071E3;
+  --blue-light: #E8F4FD;
+  --blue-dim: rgba(0, 113, 227, 0.08);
+  --green: #34C759;
+  --green-light: #E8FAF0;
+  --orange: #FF9F0A;
+  --orange-light: #FFF5E6;
+  --red: #FF3B30;
+  --red-light: #FFF0EF;
+  --purple: #AF52DE;
+  --purple-light: #F5ECFD;
+  --teal: #5AC8FA;
+
+  /* Depth */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 20px 60px rgba(0, 0, 0, 0.12);
+
+  /* Spacing */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--text-primary);
+  background: var(--bg);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+.screen-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--surface-glass);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 0.5px solid var(--border);
+  padding: 0 32px;
+}
+
+.screen-nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  height: 52px;
+  gap: 32px;
+}
+
+.nav-brand {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.nav-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.nav-tab {
+  padding: 6px 16px;
+  border-radius: 980px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  transition: all 0.2s;
+}
+.nav-tab:hover { background: rgba(0,0,0,0.04); color: var(--text-primary); }
+.nav-tab.active { background: var(--text-primary); color: #fff; }
+
+/* ============================================================
+   SCREEN — HOME
+   ============================================================ */
+.screen { display: none; }
+.screen.active { display: block; animation: fadeIn 0.4s ease; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.home-hero {
+  padding: 80px 32px 60px;
+  text-align: center;
+}
+
+.home-hero h1 {
+  font-family: var(--font-display);
+  font-size: 3.2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, var(--text-primary) 0%, #48484A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.home-hero .subtitle {
+  font-size: 1.15rem;
+  color: var(--text-secondary);
+  max-width: 560px;
+  margin: 0 auto 40px;
+  line-height: 1.6;
+}
+
+/* Ticker input group */
+.ticker-input-group {
+  display: flex;
+  align-items: center;
+  max-width: 520px;
+  margin: 0 auto;
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
+  padding: 6px;
+  transition: box-shadow 0.3s, border-color 0.3s;
+}
+.ticker-input-group:focus-within {
+  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15), var(--shadow-lg);
+  border-color: var(--blue);
+}
+
+.ticker-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 14px 20px;
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  font-weight: 500;
+  background: transparent;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+.ticker-input::placeholder { color: var(--text-tertiary); font-weight: 400; }
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 28px;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: var(--r-md);
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.btn-primary:hover { background: #0077ED; transform: scale(1.02); }
+.btn-primary:active { transform: scale(0.98); }
+
+.home-hint {
+  margin-top: 16px;
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+}
+.home-hint kbd {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  box-shadow: 0 1px 1px rgba(0,0,0,0.06);
+}
+
+/* Content sections */
+.home-content {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 32px 80px;
+}
+
+.section-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-tertiary);
+  margin-bottom: 16px;
+}
+
+.home-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 48px;
+}
+
+/* Watchlist card */
+.watch-card {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.25s;
+}
+.watch-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
+}
+.watch-card .ticker { font-weight: 700; font-size: 0.95rem; }
+.watch-card .name { font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px; }
+.watch-card .price-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 14px; }
+.watch-card .price { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.watch-card .change { font-size: 0.82rem; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
+.change-up { color: var(--green); background: var(--green-light); }
+.change-down { color: var(--red); background: var(--red-light); }
+
+/* Sparkline placeholder */
+.sparkline {
+  height: 36px;
+  margin: 10px 0 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(0,113,227,0.06) 50%, transparent 100%);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.sparkline::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    transparent 0%, transparent 5%,
+    rgba(0,113,227,0.15) 15%,
+    rgba(0,113,227,0.08) 30%,
+    rgba(0,113,227,0.2) 45%,
+    rgba(0,113,227,0.12) 55%,
+    rgba(0,113,227,0.25) 70%,
+    rgba(0,113,227,0.18) 85%,
+    rgba(0,113,227,0.3) 100%
+  );
+  mask: polygon(0% 80%, 5% 70%, 15% 75%, 25% 50%, 35% 55%, 45% 30%, 55% 40%, 65% 25%, 75% 35%, 85% 15%, 95% 20%, 100% 10%, 100% 100%, 0% 100%);
+  -webkit-mask: polygon(0% 80%, 5% 70%, 15% 75%, 25% 50%, 35% 55%, 45% 30%, 55% 40%, 65% 25%, 75% 35%, 85% 15%, 95% 20%, 100% 10%, 100% 100%, 0% 100%);
+}
+
+/* Feature cards */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 48px;
+}
+
+.feature-card {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: 24px 20px;
+  border: 1px solid var(--border);
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s;
+}
+.feature-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.feature-card .icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+  font-size: 1.3rem;
+}
+.feature-card h3 { font-size: 0.88rem; font-weight: 600; margin-bottom: 4px; }
+.feature-card p { font-size: 0.75rem; color: var(--text-secondary); line-height: 1.5; }
+
+/* Recent analyses */
+.recent-card {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  transition: all 0.25s;
+}
+.recent-card:hover { box-shadow: var(--shadow-md); }
+.recent-badge {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+.recent-info { flex: 1; min-width: 0; }
+.recent-info h4 { font-size: 0.88rem; font-weight: 600; }
+.recent-info p { font-size: 0.75rem; color: var(--text-secondary); }
+.recent-meta {
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* ============================================================
+   SCREEN — RUNNING ANALYSIS
+   ============================================================ */
+.running-container {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 80px 32px;
+  text-align: center;
+}
+
+.running-ring-wrap {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  margin: 0 auto 40px;
+}
+
+.running-ring {
+  width: 200px;
+  height: 200px;
+  animation: ringPulse 2s ease-in-out infinite;
+}
+@keyframes ringPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+.running-ring circle {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  transform-origin: center;
+}
+.running-ring .track { stroke: var(--border); }
+.running-ring .progress {
+  stroke: var(--blue);
+  stroke-dasharray: 565;
+  stroke-dashoffset: 565;
+  transform: rotate(-90deg);
+  transition: stroke-dashoffset 1s ease;
+}
+
+.running-center {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+.running-center .pct {
+  font-family: var(--font-display);
+  font-size: 2.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.running-center .label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.running-ticker {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.running-status {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin-bottom: 48px;
+}
+
+.steps-list {
+  text-align: left;
+  list-style: none;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: var(--r-md);
+  margin-bottom: 4px;
+  transition: all 0.3s;
+}
+.step-item.completed { opacity: 0.5; }
+.step-item.active {
+  background: var(--blue-dim);
+}
+.step-item.pending { opacity: 0.35; }
+
+.step-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  border: 2px solid var(--border-strong);
+  color: var(--text-tertiary);
+  transition: all 0.3s;
+}
+.step-item.completed .step-icon {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+.step-item.active .step-icon {
+  border-color: var(--blue);
+  color: var(--blue);
+  animation: stepPulse 1.5s ease infinite;
+}
+@keyframes stepPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 113, 227, 0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(0, 113, 227, 0); }
+}
+
+.step-text h4 { font-size: 0.88rem; font-weight: 600; }
+.step-text p { font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px; }
+.step-time {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+}
+
+/* ============================================================
+   SCREEN — FULL REPORT
+   ============================================================ */
+.report-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 32px 80px;
+}
+
+/* Report hero */
+.report-hero {
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  padding: 48px 40px 40px;
+  margin: 32px 0 28px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  position: relative;
+  overflow: hidden;
+}
+.report-hero::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--blue), var(--teal), var(--purple));
+}
+
+.report-hero .meta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.report-hero .tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--blue-dim);
+  color: var(--blue);
+}
+.report-hero .date {
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+}
+
+.report-hero h1 {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 6px;
+}
+.report-hero .ticker-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  background: var(--bg);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.report-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  margin-top: 8px;
+}
+.report-metric {
+  background: var(--surface);
+  padding: 18px 20px;
+}
+.report-metric .label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+.report-metric .value {
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 700;
+}
+.report-metric .sub {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.verdict-buy { color: var(--green); }
+.verdict-hold { color: var(--orange); }
+.verdict-sell { color: var(--red); }
+
+/* Report sections */
+.report-section {
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  padding: 36px 40px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border);
+}
+
+.report-section .section-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.report-section .section-number {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.report-section .section-title {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+.report-section .section-intro {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+/* Data table */
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.82rem;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.data-table th {
+  background: var(--bg);
+  padding: 11px 16px;
+  text-align: right;
+  font-weight: 600;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.data-table th:first-child { text-align: left; }
+.data-table td {
+  padding: 10px 16px;
+  text-align: right;
+  border-top: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.data-table td:first-child { text-align: left; font-weight: 600; color: var(--text-primary); }
+.data-table tr:hover td { background: rgba(0,113,227,0.02); }
+.data-table .target-row td { background: var(--blue-dim); font-weight: 700; }
+
+/* Metric mini cards */
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.metric-mini {
+  padding: 16px;
+  border-radius: var(--r-md);
+  background: var(--bg);
+}
+.metric-mini .label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.metric-mini .val {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.metric-mini .source {
+  font-size: 0.62rem;
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+  margin-top: 4px;
+  padding: 1px 6px;
+  background: var(--surface);
+  border-radius: 4px;
+  display: inline-block;
+}
+
+/* Chart placeholder */
+.chart-area {
+  background: var(--bg);
+  border-radius: var(--r-md);
+  padding: 24px;
+  text-align: center;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+.chart-area .chart-label {
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+/* Fake chart decoration */
+.chart-area::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 60%;
+  background: linear-gradient(to top, rgba(0,113,227,0.06), transparent);
+  pointer-events: none;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 20px 0;
+}
+
+/* Sensitivity heatmap mock */
+.sensitivity-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+.sensitivity-table th {
+  padding: 8px 12px;
+  font-weight: 600;
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.sensitivity-table td {
+  padding: 8px 12px;
+  text-align: center;
+  border: 1px solid var(--border);
+  font-weight: 500;
+  transition: background 0.15s;
+}
+.sensitivity-table td:hover { background: var(--blue-dim); }
+.sensitivity-table .cell-high { background: var(--green-light); color: #065F46; }
+.sensitivity-table .cell-mid { background: var(--bg); }
+.sensitivity-table .cell-low { background: var(--red-light); color: #991B1B; }
+.sensitivity-table .cell-current {
+  background: var(--blue);
+  color: #fff;
+  font-weight: 700;
+  border-radius: 4px;
+}
+
+/* Catalyst event cards */
+.catalyst-list { display: flex; flex-direction: column; gap: 8px; }
+.catalyst-event {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  transition: all 0.2s;
+}
+.catalyst-event:hover { background: rgba(0,0,0,0.04); }
+.catalyst-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+.catalyst-event h4 { font-size: 0.85rem; font-weight: 600; margin-bottom: 2px; }
+.catalyst-event p { font-size: 0.75rem; color: var(--text-secondary); line-height: 1.5; }
+
+/* Export bar */
+.export-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 0;
+  margin-top: 12px;
+}
+.btn-export {
+  padding: 10px 20px;
+  border-radius: var(--r-sm);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+.btn-export:hover { background: var(--bg); }
+.btn-export.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+.btn-export.primary:hover { background: #0077ED; }
+
+/* Disclaimer */
+.disclaimer {
+  padding: 24px 0;
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  line-height: 1.7;
+}
+
+/* Source tag inline */
+.src-tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  padding: 1px 5px;
+  background: var(--bg);
+  border-radius: 3px;
+  color: var(--text-tertiary);
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .home-hero h1 { font-size: 2.2rem; }
+  .home-grid { grid-template-columns: 1fr; }
+  .feature-grid { grid-template-columns: repeat(2, 1fr); }
+  .report-metrics { grid-template-columns: repeat(2, 1fr); }
+  .metric-row { grid-template-columns: repeat(2, 1fr); }
+  .chart-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     NAVIGATION
+     ============================================================ -->
+<nav class="screen-nav">
+  <div class="screen-nav-inner">
+    <div class="nav-brand">FinAgent</div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="showScreen('home')">Home</button>
+      <button class="nav-tab" onclick="showScreen('running')">Analysis Running</button>
+      <button class="nav-tab" onclick="showScreen('report')">Full Report</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ============================================================
+     SCREEN 1: HOME
+     ============================================================ -->
+<div id="screen-home" class="screen active">
+
+  <div class="home-hero">
+    <h1>All-in-One<br>Financial Analysis</h1>
+    <p class="subtitle">
+      输入 ticker，一键生成包含 DCF 估值、同行对比、盈利分析的完整研究报告。
+      数字由确定性代码计算，判断由 AI 给出。
+    </p>
+
+    <div class="ticker-input-group">
+      <input type="text" class="ticker-input" placeholder="输入股票代码，如 NVDA、AAPL、TSLA..." value="NVDA" spellcheck="false">
+      <button class="btn-primary" onclick="showScreen('running')">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 2L13 8L3 14V2Z" fill="currentColor"/></svg>
+        一键全面分析
+      </button>
+    </div>
+
+    <p class="home-hint">
+      等同于 <kbd>finagent full-report NVDA</kbd> — 自动运行 Research + DCF + Comps + Earnings
+    </p>
+  </div>
+
+  <div class="home-content">
+
+    <!-- Watchlist -->
+    <div class="section-label">Watchlist</div>
+    <div class="home-grid">
+      <div class="watch-card" onclick="showScreen('running')">
+        <div class="ticker">NVDA</div>
+        <div class="name">NVIDIA Corporation</div>
+        <div class="sparkline"></div>
+        <div class="price-row">
+          <div class="price">$135.40</div>
+          <div class="change change-up">+3.24%</div>
+        </div>
+      </div>
+      <div class="watch-card">
+        <div class="ticker">AAPL</div>
+        <div class="name">Apple Inc.</div>
+        <div class="sparkline"></div>
+        <div class="price-row">
+          <div class="price">$198.11</div>
+          <div class="change change-up">+0.87%</div>
+        </div>
+      </div>
+      <div class="watch-card">
+        <div class="ticker">TSLA</div>
+        <div class="name">Tesla, Inc.</div>
+        <div class="sparkline" style="--mask: polygon(0% 30%, 10% 50%, 20% 40%, 30% 60%, 40% 45%, 50% 70%, 60% 55%, 70% 65%, 80% 50%, 90% 70%, 100% 60%, 100% 100%, 0% 100%);"></div>
+        <div class="price-row">
+          <div class="price">$341.75</div>
+          <div class="change change-down">-1.42%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Features -->
+    <div class="section-label">Full Report Includes</div>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="icon" style="background: var(--blue-light); color: var(--blue);">&#x1D453;</div>
+        <h3>DCF Valuation</h3>
+        <p>现金流折现模型，含敏感性分析和 Monte Carlo 模拟</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon" style="background: var(--purple-light); color: var(--purple);">&#x2194;</div>
+        <h3>Peer Comparison</h3>
+        <p>自动选取同行公司，EV/EBITDA、P/E 对比分析</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon" style="background: var(--green-light); color: var(--green);">&#x2713;</div>
+        <h3>Earnings Quality</h3>
+        <p>连续 beat/miss 分析、EPS surprise 趋势追踪</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon" style="background: var(--orange-light); color: var(--orange);">&#x26A0;</div>
+        <h3>Catalysts & Risks</h3>
+        <p>近期事件分类、情绪评分、价格影响预估</p>
+      </div>
+    </div>
+
+    <!-- Recent -->
+    <div class="section-label">Recent Analyses</div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <div class="recent-card" onclick="showScreen('report')">
+        <div class="recent-badge" style="background: var(--green-light); color: var(--green);">NVDA</div>
+        <div class="recent-info">
+          <h4>NVIDIA Full Report — BUY</h4>
+          <p>DCF implied $162 (+20% upside) · 7/8 earnings beats</p>
+        </div>
+        <div class="recent-meta">2 min ago</div>
+      </div>
+      <div class="recent-card">
+        <div class="recent-badge" style="background: var(--blue-light); color: var(--blue);">AAPL</div>
+        <div class="recent-info">
+          <h4>Apple Full Report — HOLD</h4>
+          <p>DCF fair value $194 · margins compressing</p>
+        </div>
+        <div class="recent-meta">Yesterday</div>
+      </div>
+      <div class="recent-card">
+        <div class="recent-badge" style="background: var(--orange-light); color: var(--orange);">TSLA</div>
+        <div class="recent-info">
+          <h4>Tesla DCF Valuation</h4>
+          <p>High volatility — wide sensitivity range $180-$480</p>
+        </div>
+        <div class="recent-meta">3 days ago</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================================================
+     SCREEN 2: ANALYSIS RUNNING
+     ============================================================ -->
+<div id="screen-running" class="screen">
+  <div class="running-container">
+
+    <div class="running-ring-wrap">
+      <svg class="running-ring" viewBox="0 0 200 200">
+        <circle class="track" cx="100" cy="100" r="90"/>
+        <circle class="progress" id="progress-ring" cx="100" cy="100" r="90"/>
+      </svg>
+      <div class="running-center">
+        <div class="pct" id="progress-pct">0%</div>
+        <div class="label">完成度</div>
+      </div>
+    </div>
+
+    <div class="running-ticker">NVDA</div>
+    <div class="running-status" id="running-status">正在启动全面分析...</div>
+
+    <ul class="steps-list" id="steps-list">
+      <li class="step-item active" data-step="1">
+        <div class="step-icon">1</div>
+        <div class="step-text">
+          <h4>收集财务数据</h4>
+          <p>从 yfinance / FMP / Finnhub 获取财报和市场数据，交叉校验</p>
+        </div>
+        <div class="step-time"></div>
+      </li>
+      <li class="step-item pending" data-step="2">
+        <div class="step-icon">2</div>
+        <div class="step-text">
+          <h4>DCF 估值建模</h4>
+          <p>计算 WACC → 预测 FCF → 终值 → 隐含股价，生成敏感性矩阵</p>
+        </div>
+        <div class="step-time"></div>
+      </li>
+      <li class="step-item pending" data-step="3">
+        <div class="step-icon">3</div>
+        <div class="step-text">
+          <h4>同行公司对比</h4>
+          <p>筛选可比公司 → 计算 EV/EBITDA、P/E 等倍数 → Z-score 标准化</p>
+        </div>
+        <div class="step-time"></div>
+      </li>
+      <li class="step-item pending" data-step="4">
+        <div class="step-icon">4</div>
+        <div class="step-text">
+          <h4>盈利质量分析</h4>
+          <p>追踪历史 EPS beat/miss → 计算 surprise % → 趋势判断</p>
+        </div>
+        <div class="step-time"></div>
+      </li>
+      <li class="step-item pending" data-step="5">
+        <div class="step-icon">5</div>
+        <div class="step-text">
+          <h4>催化剂与风险扫描</h4>
+          <p>抓取近期新闻 → LLM 分类/评分 → 影响力排序</p>
+        </div>
+        <div class="step-time"></div>
+      </li>
+      <li class="step-item pending" data-step="6">
+        <div class="step-icon">6</div>
+        <div class="step-text">
+          <h4>生成投资论点</h4>
+          <p>综合所有数据 → AI 撰写投资建议 → 合并为完整报告</p>
+        </div>
+        <div class="step-time"></div>
+      </li>
+    </ul>
+
+    <div style="margin-top: 32px;">
+      <button class="btn-primary" onclick="showScreen('report')" style="background: var(--text-secondary); font-size: 0.82rem; padding: 10px 20px;">
+        跳过动画 → 查看报告
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCREEN 3: FULL REPORT
+     ============================================================ -->
+<div id="screen-report" class="screen">
+  <div class="report-container">
+
+    <!-- Hero card -->
+    <div class="report-hero">
+      <div class="meta-row">
+        <span class="tag">Full Analysis Report</span>
+        <span class="date">May 15, 2026 · Generated in 47s</span>
+      </div>
+      <h1>NVIDIA Corporation</h1>
+      <div class="ticker-badge">NASDAQ: NVDA · Semiconductors</div>
+
+      <div class="report-metrics">
+        <div class="report-metric">
+          <div class="label">Rating</div>
+          <div class="value verdict-buy" style="font-size: 1.3rem;">BUY</div>
+          <div class="sub">Strong conviction</div>
+        </div>
+        <div class="report-metric">
+          <div class="label">Current Price</div>
+          <div class="value">$135.40</div>
+          <div class="sub">As of May 15, 2026</div>
+        </div>
+        <div class="report-metric">
+          <div class="label">DCF Target</div>
+          <div class="value" style="color: var(--blue);">$162.30</div>
+          <div class="sub">+19.9% upside</div>
+        </div>
+        <div class="report-metric">
+          <div class="label">Market Cap</div>
+          <div class="value">$3.31T</div>
+          <div class="sub">Mega-cap</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 1: Executive Summary -->
+    <div class="report-section">
+      <div class="section-header">
+        <div class="section-number">1</div>
+        <div>
+          <div class="section-title">Executive Summary</div>
+          <div class="section-intro">
+            这是基于 4 条分析管线（DCF + Comps + Earnings + Research）合并生成的综合摘要。
+            所有数字由确定性代码计算，AI 仅负责文字解读。
+          </div>
+        </div>
+      </div>
+      <div style="background: var(--green-light); border-left: 4px solid var(--green); border-radius: var(--r-sm); padding: 18px 20px; margin-bottom: 20px;">
+        <div style="font-weight: 700; font-size: 0.92rem; color: #065F46; margin-bottom: 8px;">Investment Thesis</div>
+        <p style="font-size: 0.85rem; color: #334155; line-height: 1.7;">
+          NVIDIA remains the dominant AI infrastructure provider with <strong>$130.5B</strong> trailing revenue growing at <strong>114% YoY</strong>. Our DCF model implies <strong>$162.30</strong> per share (19.9% upside) at a WACC of <strong>10.2%</strong>. Peer comparison shows NVDA trades at <strong>38.5x EV/EBITDA</strong> vs. semiconductor median of <strong>22.1x</strong>, justified by superior <strong>62.4%</strong> EBITDA margin. Earnings quality is excellent with <strong>7/8 consecutive beats</strong> and rising surprise magnitude.
+        </p>
+      </div>
+    </div>
+
+    <!-- Section 2: Financial Overview -->
+    <div class="report-section">
+      <div class="section-header">
+        <div class="section-number">2</div>
+        <div>
+          <div class="section-title">Financial Overview</div>
+          <div class="section-intro">
+            过去 5 年的核心财务指标。数据来自 yfinance 并经 FMP 交叉校验。
+            所有数字均为确定性提取，非 AI 生成。
+          </div>
+        </div>
+      </div>
+
+      <div class="metric-row">
+        <div class="metric-mini">
+          <div class="label">Revenue (TTM)</div>
+          <div class="val">$130.5B</div>
+          <div class="source">yfinance</div>
+        </div>
+        <div class="metric-mini">
+          <div class="label">EBITDA</div>
+          <div class="val">$81.4B</div>
+          <div class="source">yfinance</div>
+        </div>
+        <div class="metric-mini">
+          <div class="label">Gross Margin</div>
+          <div class="val">73.0%</div>
+          <div class="source">Calculated</div>
+        </div>
+        <div class="metric-mini">
+          <div class="label">Op. Margin</div>
+          <div class="val">62.4%</div>
+          <div class="source">Calculated</div>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-area"><span class="chart-label">Revenue & EBITDA (5Y)</span></div>
+        <div class="chart-area"><span class="chart-label">Margin Trends</span></div>
+      </div>
+
+      <table class="data-table" style="margin-top: 16px;">
+        <thead>
+          <tr><th>Year</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th><th>2026E</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Revenue</td><td>$27.0B</td><td>$26.9B</td><td>$61.0B</td><td>$130.5B</td><td>$176.2B</td></tr>
+          <tr><td>EBITDA</td><td>$10.3B</td><td>$5.5B</td><td>$36.6B</td><td>$81.4B</td><td>$112.8B</td></tr>
+          <tr><td>Net Income</td><td>$9.8B</td><td>$4.4B</td><td>$29.8B</td><td>$72.9B</td><td>$101.3B</td></tr>
+          <tr><td>Gross Margin</td><td>56.9%</td><td>55.5%</td><td>72.7%</td><td>73.0%</td><td>73.5%</td></tr>
+          <tr><td>EPS</td><td>$0.39</td><td>$0.18</td><td>$1.21</td><td>$2.96</td><td>$4.12</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 3: DCF Valuation -->
+    <div class="report-section">
+      <div class="section-header">
+        <div class="section-number">3</div>
+        <div>
+          <div class="section-title">DCF Valuation</div>
+          <div class="section-intro">
+            现金流折现模型（Discounted Cash Flow）是最基础的内在价值估算方法。
+            它预测公司未来 5 年的自由现金流，按资金成本折算回今天的价值，再加上一个"永续价值"。
+            下面的敏感性矩阵展示了在不同假设下的隐含股价范围。
+          </div>
+        </div>
+      </div>
+
+      <div class="metric-row">
+        <div class="metric-mini">
+          <div class="label">Implied Price</div>
+          <div class="val" style="color: var(--blue);">$162.30</div>
+          <div class="source">Calculated</div>
+        </div>
+        <div class="metric-mini">
+          <div class="label">WACC</div>
+          <div class="val">10.2%</div>
+          <div class="source">CAPM</div>
+        </div>
+        <div class="metric-mini">
+          <div class="label">Terminal Growth</div>
+          <div class="val">2.5%</div>
+          <div class="source">Assumption</div>
+        </div>
+        <div class="metric-mini">
+          <div class="label">Enterprise Value</div>
+          <div class="val">$4.02T</div>
+          <div class="source">Calculated</div>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-area" style="min-height: 160px;"><span class="chart-label">EV Waterfall Bridge</span></div>
+        <div class="chart-area" style="min-height: 160px;"><span class="chart-label">Football Field (Valuation Range)</span></div>
+      </div>
+
+      <h4 style="font-size: 0.88rem; font-weight: 600; margin: 20px 0 12px;">Sensitivity Matrix <span class="src-tag">Calculated</span></h4>
+      <p style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.6;">
+        横轴为终端增长率假设，纵轴为 WACC。蓝色高亮为当前基准情景，绿色为 upside 区间，红色为 downside。
+      </p>
+      <div style="overflow-x: auto;">
+        <table class="sensitivity-table">
+          <thead>
+            <tr><th>WACC \ TG</th><th>1.5%</th><th>2.0%</th><th>2.5%</th><th>3.0%</th><th>3.5%</th></tr>
+          </thead>
+          <tbody>
+            <tr><td style="font-weight:600;">8.5%</td><td class="cell-high">$218</td><td class="cell-high">$241</td><td class="cell-high">$270</td><td class="cell-high">$308</td><td class="cell-high">$361</td></tr>
+            <tr><td style="font-weight:600;">9.5%</td><td class="cell-high">$180</td><td class="cell-high">$196</td><td class="cell-high">$215</td><td class="cell-high">$240</td><td class="cell-high">$273</td></tr>
+            <tr><td style="font-weight:600;">10.2%</td><td class="cell-mid">$155</td><td class="cell-mid">$167</td><td class="cell-current">$162</td><td class="cell-high">$196</td><td class="cell-high">$219</td></tr>
+            <tr><td style="font-weight:600;">11.0%</td><td class="cell-low">$130</td><td class="cell-low">$139</td><td class="cell-mid">$149</td><td class="cell-mid">$163</td><td class="cell-high">$180</td></tr>
+            <tr><td style="font-weight:600;">12.0%</td><td class="cell-low">$107</td><td class="cell-low">$113</td><td class="cell-low">$121</td><td class="cell-mid">$131</td><td class="cell-mid">$143</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Section 4: Peer Comparison -->
+    <div class="report-section">
+      <div class="section-header">
+        <div class="section-number">4</div>
+        <div>
+          <div class="section-title">Peer Comparison</div>
+          <div class="section-intro">
+            可比公司分析通过对比同行业公司的估值倍数（如 EV/EBITDA、P/E）来判断目标公司是"贵"还是"便宜"。
+            表格中高亮行为 NVDA 本身，底部为同行中位数。倍数高于中位数说明市场给了溢价。
+          </div>
+        </div>
+      </div>
+
+      <table class="data-table">
+        <thead>
+          <tr><th>Company</th><th>Revenue</th><th>EBITDA</th><th>Gross Margin</th><th>EV/EBITDA</th><th>P/E</th></tr>
+        </thead>
+        <tbody>
+          <tr class="target-row"><td>NVDA</td><td>$130.5B</td><td>$81.4B</td><td>73.0%</td><td>38.5x</td><td>43.2x</td></tr>
+          <tr><td>AMD</td><td>$25.8B</td><td>$7.2B</td><td>49.3%</td><td>28.1x</td><td>38.7x</td></tr>
+          <tr><td>AVGO</td><td>$51.6B</td><td>$31.2B</td><td>63.1%</td><td>22.4x</td><td>29.3x</td></tr>
+          <tr><td>INTC</td><td>$54.2B</td><td>$8.1B</td><td>41.5%</td><td>12.3x</td><td>N/A</td></tr>
+          <tr><td>QCOM</td><td>$42.0B</td><td>$15.8B</td><td>56.8%</td><td>14.7x</td><td>17.2x</td></tr>
+          <tr style="border-top: 2px solid var(--text-primary); font-weight: 600;">
+            <td>Peer Median</td><td></td><td></td><td></td><td>22.1x</td><td>29.3x</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="chart-grid" style="margin-top: 16px;">
+        <div class="chart-area"><span class="chart-label">EV/EBITDA Peer Comparison</span></div>
+        <div class="chart-area"><span class="chart-label">Radar: NVDA vs Peer Median</span></div>
+      </div>
+    </div>
+
+    <!-- Section 5: Earnings Quality -->
+    <div class="report-section">
+      <div class="section-header">
+        <div class="section-number">5</div>
+        <div>
+          <div class="section-title">Earnings Quality</div>
+          <div class="section-intro">
+            盈利质量分析追踪公司过去 8 个季度的实际 EPS 与分析师预期的差异。
+            "Beat" 表示实际值超出预期 2% 以上，连续 beat 说明公司有系统性低估倾向或执行力强。
+          </div>
+        </div>
+      </div>
+
+      <div class="metric-row">
+        <div class="metric-mini">
+          <div class="label">Beat Rate</div>
+          <div class="val" style="color: var(--green);">87.5%</div>
+          <div class="source">7/8 beats</div>
+        </div>
+        <div class="metric-mini">
+          <div class="label">Avg. Surprise</div>
+          <div class="val">+8.2%</div>
+          <div class="source">Calculated</div>
+        </div>
+        <div class="metric-mini">
+          <div class="label">Current Streak</div>
+          <div class="val" style="color: var(--green);">5 Beats</div>
+          <div class="source">Calculated</div>
+        </div>
+        <div class="metric-mini">
+          <div class="label">Trend</div>
+          <div class="val">Rising</div>
+          <div class="source">Calculated</div>
+        </div>
+      </div>
+
+      <div class="chart-area" style="margin-top: 12px;"><span class="chart-label">EPS Surprise History (8 Quarters)</span></div>
+    </div>
+
+    <!-- Section 6: Catalysts & Risks -->
+    <div class="report-section">
+      <div class="section-header">
+        <div class="section-number">6</div>
+        <div>
+          <div class="section-title">Catalysts &amp; Risks</div>
+          <div class="section-intro">
+            近期影响股价的正面和负面事件。每个事件由 AI 从新闻中分类、评估情绪和影响力（1-5 分）。
+            绿色为正面催化剂，红色为风险因素。
+          </div>
+        </div>
+      </div>
+
+      <div class="catalyst-list">
+        <div class="catalyst-event">
+          <div class="catalyst-dot" style="background: var(--green);"></div>
+          <div>
+            <h4>Blackwell GPU 产能爬坡超预期</h4>
+            <p>台积电 CoWoS 封装产能 Q2 新增 40%，直接利好 NVDA 数据中心收入。预计下季度 guidance 上修概率高。</p>
+            <div style="margin-top: 4px; font-size: 0.7rem; color: var(--text-tertiary);">Impact: 5/5 · Product · Positive</div>
+          </div>
+        </div>
+        <div class="catalyst-event">
+          <div class="catalyst-dot" style="background: var(--green);"></div>
+          <div>
+            <h4>Sovereign AI 需求持续扩大</h4>
+            <p>沙特、阿联酋、日本政府级 AI 基础设施订单累计超 $15B，NVDA 为独家供应商。</p>
+            <div style="margin-top: 4px; font-size: 0.7rem; color: var(--text-tertiary);">Impact: 4/5 · Macro · Positive</div>
+          </div>
+        </div>
+        <div class="catalyst-event">
+          <div class="catalyst-dot" style="background: var(--red);"></div>
+          <div>
+            <h4>中国出口管制风险</h4>
+            <p>美国商务部考虑进一步收紧对华 AI 芯片出口限制。NVDA 中国收入占比已从 25% 降至约 12%，但边际影响仍需关注。</p>
+            <div style="margin-top: 4px; font-size: 0.7rem; color: var(--text-tertiary);">Impact: 3/5 · Regulatory · Negative</div>
+          </div>
+        </div>
+        <div class="catalyst-event">
+          <div class="catalyst-dot" style="background: var(--orange);"></div>
+          <div>
+            <h4>AMD MI350 竞争</h4>
+            <p>AMD 新一代 AI 加速器 MI350 发布，但早期评测显示在训练场景仍有差距。推理市场份额争夺加剧。</p>
+            <div style="margin-top: 4px; font-size: 0.7rem; color: var(--text-tertiary);">Impact: 2/5 · Product · Neutral</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export -->
+    <div class="export-bar">
+      <button class="btn-export primary">Download PDF</button>
+      <button class="btn-export">Export Excel Model</button>
+      <button class="btn-export">Share Link</button>
+      <div style="flex: 1;"></div>
+      <span style="font-size: 0.72rem; color: var(--text-tertiary);">
+        Generated by FinAgent · Data: yfinance + FMP · Calculations: deterministic code
+      </span>
+    </div>
+
+    <!-- Disclaimer -->
+    <div class="disclaimer">
+      <strong>Disclaimer:</strong> This report is generated by FinAgent for informational purposes only.
+      It does not constitute investment advice, a recommendation, or an offer to buy or sell any security.
+      Financial data is sourced from public APIs (yfinance, FMP, Finnhub) and may contain errors, delays, or omissions.
+      All projections are based on assumptions that may not materialize.
+      Past performance does not guarantee future results.
+      Consult a qualified financial advisor before making investment decisions.
+    </div>
+
+  </div>
+</div>
+
+<!-- ============================================================
+     SCRIPTS
+     ============================================================ -->
+<script>
+// Screen switching
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => {
+    if (t.textContent.toLowerCase().includes(
+      id === 'home' ? 'home' : id === 'running' ? 'running' : 'report'
+    )) t.classList.add('active');
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // Start progress animation when switching to running
+  if (id === 'running') startProgress();
+}
+
+// Progress animation
+let progressInterval = null;
+function startProgress() {
+  if (progressInterval) clearInterval(progressInterval);
+
+  const ring = document.getElementById('progress-ring');
+  const pctEl = document.getElementById('progress-pct');
+  const statusEl = document.getElementById('running-status');
+  const steps = document.querySelectorAll('.step-item');
+  const circumference = 2 * Math.PI * 90; // r=90
+
+  const stepInfo = [
+    { pct: 15, time: '3.2s', status: '正在收集 NVDA 财务数据...' },
+    { pct: 35, time: '8.1s', status: '正在构建 DCF 估值模型...' },
+    { pct: 55, time: '6.4s', status: '正在分析可比公司...' },
+    { pct: 70, time: '4.7s', status: '正在评估盈利质量...' },
+    { pct: 85, time: '5.3s', status: '正在扫描催化剂与风险...' },
+    { pct: 100, time: '4.8s', status: '正在生成投资论点...' },
+  ];
+
+  // Reset
+  let current = 0;
+  ring.style.strokeDashoffset = circumference;
+  pctEl.textContent = '0%';
+  steps.forEach((s, i) => {
+    s.className = 'step-item ' + (i === 0 ? 'active' : 'pending');
+    s.querySelector('.step-time').textContent = '';
+  });
+
+  progressInterval = setInterval(() => {
+    if (current >= stepInfo.length) {
+      clearInterval(progressInterval);
+      setTimeout(() => showScreen('report'), 800);
+      return;
+    }
+
+    const info = stepInfo[current];
+
+    // Update ring
+    const offset = circumference - (info.pct / 100) * circumference;
+    ring.style.strokeDashoffset = offset;
+    pctEl.textContent = info.pct + '%';
+    statusEl.textContent = info.status;
+
+    // Update steps
+    steps.forEach((s, i) => {
+      if (i < current) {
+        s.className = 'step-item completed';
+        s.querySelector('.step-icon').innerHTML = '&#x2713;';
+      } else if (i === current) {
+        s.className = 'step-item active';
+      } else {
+        s.className = 'step-item pending';
+      }
+    });
+
+    // Show time for completed step
+    if (current > 0) {
+      steps[current - 1].querySelector('.step-time').textContent = stepInfo[current - 1].time;
+    }
+
+    current++;
+  }, 1500);
+}
+</script>
+</body>
+</html>

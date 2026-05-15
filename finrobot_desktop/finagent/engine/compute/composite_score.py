@@ -14,6 +14,7 @@ Signal thresholds:
   20-39:  SELL
   0-19:   STRONG_SELL
 """
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
@@ -96,48 +97,42 @@ def calculate_composite_score(req: ScoreRequest) -> CompositeScore:
         if margin_diff > 0.15:
             fund_score += 15
             fund_reasons.append(
-                f"Gross margin {req.gross_margin*100:.0f}% vs "
-                f"industry {req.gross_margin_industry_median*100:.0f}% (+{margin_diff*100:.0f}pp)"
+                f"Gross margin {req.gross_margin * 100:.0f}% vs "
+                f"industry {req.gross_margin_industry_median * 100:.0f}% (+{margin_diff * 100:.0f}pp)"
             )
         elif margin_diff > 0.05:
             fund_score += 8
         elif margin_diff < -0.10:
             fund_score -= 10
             fund_reasons.append(
-                f"Gross margin {req.gross_margin*100:.0f}% below industry "
-                f"{req.gross_margin_industry_median*100:.0f}%"
+                f"Gross margin {req.gross_margin * 100:.0f}% below industry "
+                f"{req.gross_margin_industry_median * 100:.0f}%"
             )
 
     if req.revenue_growth_yoy is not None:
         if req.revenue_growth_yoy > 0.30:
             fund_score += 15
-            fund_reasons.append(
-                f"Revenue growth {req.revenue_growth_yoy*100:.0f}% YoY (strong)"
-            )
+            fund_reasons.append(f"Revenue growth {req.revenue_growth_yoy * 100:.0f}% YoY (strong)")
         elif req.revenue_growth_yoy > 0.10:
             fund_score += 8
         elif req.revenue_growth_yoy < 0:
             fund_score -= 15
-            fund_reasons.append(
-                f"Revenue declining {req.revenue_growth_yoy*100:.0f}% YoY"
-            )
+            fund_reasons.append(f"Revenue declining {req.revenue_growth_yoy * 100:.0f}% YoY")
 
     if req.earnings_beat_rate is not None:
         if req.earnings_beat_rate >= 0.80:
             fund_score += 10
             fund_reasons.append(
-                f"Earnings beat rate {req.earnings_beat_rate*100:.0f}% (consistent)"
+                f"Earnings beat rate {req.earnings_beat_rate * 100:.0f}% (consistent)"
             )
         elif req.earnings_beat_rate < 0.50:
             fund_score -= 10
             fund_reasons.append(
-                f"Earnings beat rate {req.earnings_beat_rate*100:.0f}% (inconsistent)"
+                f"Earnings beat rate {req.earnings_beat_rate * 100:.0f}% (inconsistent)"
             )
 
     fund_score = max(0, min(100, fund_score))
-    breakdown["fundamental"] = (
-        "; ".join(fund_reasons) if fund_reasons else "Insufficient data"
-    )
+    breakdown["fundamental"] = "; ".join(fund_reasons) if fund_reasons else "Insufficient data"
 
     # -------------------------------------------------------------------------
     # Valuation score — 30% weight
@@ -149,20 +144,18 @@ def calculate_composite_score(req: ScoreRequest) -> CompositeScore:
         if req.dcf_upside_pct > 0.30:
             val_score += 30
             val_reasons.append(
-                f"DCF upside {req.dcf_upside_pct*100:.0f}% (significant margin of safety)"
+                f"DCF upside {req.dcf_upside_pct * 100:.0f}% (significant margin of safety)"
             )
         elif req.dcf_upside_pct > 0.15:
             val_score += 20
-            val_reasons.append(f"DCF upside {req.dcf_upside_pct*100:.0f}%")
+            val_reasons.append(f"DCF upside {req.dcf_upside_pct * 100:.0f}%")
         elif req.dcf_upside_pct > 0:
             val_score += 10
         elif req.dcf_upside_pct > -0.10:
             val_score -= 10
         else:
             val_score -= 25
-            val_reasons.append(
-                f"DCF downside {req.dcf_upside_pct*100:.0f}% (overvalued)"
-            )
+            val_reasons.append(f"DCF downside {req.dcf_upside_pct * 100:.0f}% (overvalued)")
 
     if req.pe_ratio is not None:
         if 0 < req.pe_ratio < 15:
@@ -173,9 +166,7 @@ def calculate_composite_score(req: ScoreRequest) -> CompositeScore:
             val_reasons.append(f"P/E {req.pe_ratio:.0f}x (premium valuation)")
 
     val_score = max(0, min(100, val_score))
-    breakdown["valuation"] = (
-        "; ".join(val_reasons) if val_reasons else "Insufficient data"
-    )
+    breakdown["valuation"] = "; ".join(val_reasons) if val_reasons else "Insufficient data"
 
     # -------------------------------------------------------------------------
     # Catalyst score — 20% weight
@@ -200,9 +191,7 @@ def calculate_composite_score(req: ScoreRequest) -> CompositeScore:
         cat_score -= 12
 
     cat_score = max(0, min(100, cat_score))
-    breakdown["catalyst"] = (
-        "; ".join(cat_reasons) if cat_reasons else "Balanced catalysts"
-    )
+    breakdown["catalyst"] = "; ".join(cat_reasons) if cat_reasons else "Balanced catalysts"
 
     # -------------------------------------------------------------------------
     # Sentiment score — 20% weight
@@ -213,33 +202,22 @@ def calculate_composite_score(req: ScoreRequest) -> CompositeScore:
     if req.news_sentiment is not None:
         if req.news_sentiment > 0.3:
             sent_score += 25
-            sent_reasons.append(
-                f"Positive news sentiment ({req.news_sentiment:.2f})"
-            )
+            sent_reasons.append(f"Positive news sentiment ({req.news_sentiment:.2f})")
         elif req.news_sentiment > 0.1:
             sent_score += 12
         elif req.news_sentiment < -0.3:
             sent_score -= 25
-            sent_reasons.append(
-                f"Negative news sentiment ({req.news_sentiment:.2f})"
-            )
+            sent_reasons.append(f"Negative news sentiment ({req.news_sentiment:.2f})")
         elif req.news_sentiment < -0.1:
             sent_score -= 12
 
     sent_score = max(0, min(100, sent_score))
-    breakdown["sentiment"] = (
-        "; ".join(sent_reasons) if sent_reasons else "Neutral sentiment"
-    )
+    breakdown["sentiment"] = "; ".join(sent_reasons) if sent_reasons else "Neutral sentiment"
 
     # -------------------------------------------------------------------------
     # Weighted total
     # -------------------------------------------------------------------------
-    total = round(
-        fund_score * 0.30
-        + val_score * 0.30
-        + cat_score * 0.20
-        + sent_score * 0.20
-    )
+    total = round(fund_score * 0.30 + val_score * 0.30 + cat_score * 0.20 + sent_score * 0.20)
     total = max(0, min(100, total))
 
     return CompositeScore(

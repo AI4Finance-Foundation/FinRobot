@@ -30,9 +30,13 @@ from finagent.engine.compute.catalyst import (
 from finagent.engine.compute.extractor import extract_company_financials
 from finagent.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
 from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
-from finagent.engine.compute.news import fetch_news, classify_news
+from finagent.engine.analysis.news_classifier import classify_news
+from finagent.engine.compute.news import fetch_news
 from finagent.engine.pipelines.base import (
-    Pipeline, PipelineStep, StructuredValidator, TextValidator,
+    Pipeline,
+    PipelineStep,
+    StructuredValidator,
+    TextValidator,
 )
 from finagent.engine.pipelines._helpers import execute_financial_data_step
 from finagent.engine.pipelines.validators import (
@@ -75,6 +79,15 @@ async def _execute_catalyst_analysis(
     catalysts = compute_expected_impact(catalysts)
     summary = summarize_catalyst_outlook(catalysts)
 
+    # Fetch retail sentiment (optional — Adanos provider may not be registered)
+    sentiment_snapshot: dict[str, Any] | None = None
+    try:
+        sentiment_result = await deps.data_layer.fetch(DataType.SENTIMENT, ticker)
+        if sentiment_result.data and not sentiment_result.data.get("error"):
+            sentiment_snapshot = sentiment_result.data
+    except (ProviderError, ValueError, KeyError):
+        logger.debug("Retail sentiment not available for %s", ticker)
+
     # Build CatalystAnalysis
     net = summary["net_sentiment"]
     overall: Literal["bullish", "bearish", "neutral"]
@@ -97,9 +110,7 @@ async def _execute_catalyst_analysis(
     )
 
     # Build narrative
-    cat_labels = ", ".join(
-        f"{cat}({cnt})" for cat, cnt in summary["category_breakdown"].items()
-    )
+    cat_labels = ", ".join(f"{cat}({cnt})" for cat, cnt in summary["category_breakdown"].items())
     narrative = (
         f"Catalyst analysis: {summary['total_catalysts']} events identified. "
         f"Net sentiment: {net:+.2f} ({overall}). "
@@ -107,6 +118,17 @@ async def _execute_catalyst_analysis(
     )
     if top_pos:
         narrative += f" Top catalyst: {top_pos[0].headline}."
+
+    if sentiment_snapshot and sentiment_snapshot.get("average_buzz") is not None:
+        narrative += (
+            f" Retail sentiment: buzz {sentiment_snapshot['average_buzz']}/100, "
+            f"bullish {sentiment_snapshot.get('bullish_avg', 'N/A')}%, "
+            f"{sentiment_snapshot['source_alignment'].lower()} "
+            f"({sentiment_snapshot['coverage']})."
+        )
+
+    if sentiment_snapshot:
+        structured_context["retail_sentiment"] = sentiment_snapshot
 
     return StepOutput(text=narrative, structured=analysis)
 
@@ -399,5 +421,5 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[],
                 validator=TextValidator(validate_report_format),
             ),
-        ]
+        ],
     )

@@ -137,4 +137,3 @@ Build 3 scenarios:
 - Dividend recaps or interim distributions affect IRR significantly — include if planned
 - Don't forget transaction costs (typically 2-4% of EV) — they reduce Day 1 equity value
 - Tax considerations (asset vs. stock deal, 338(h)(10) election) can materially affect after-tax returns
-

@@ -114,11 +114,7 @@ class EmbeddingIndex:
         # Rank descending
         ranked_indices = np.argsort(scores)[::-1][:top_k]
 
-        return [
-            (self._chunks[int(i)], float(scores[i]))
-            for i in ranked_indices
-            if scores[i] > 0
-        ]
+        return [(self._chunks[int(i)], float(scores[i])) for i in ranked_indices if scores[i] > 0]
 
 
 def create_index(chunks: list[Chunk]) -> BM25Index | EmbeddingIndex:

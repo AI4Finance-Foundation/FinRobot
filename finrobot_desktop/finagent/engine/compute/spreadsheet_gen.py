@@ -11,6 +11,7 @@ Formatting conventions:
 - Header row: bold, fill #1a365d (navy), white font
 - Freeze panes at row 2 on all sheets
 """
+
 from __future__ import annotations
 
 import io
@@ -113,8 +114,16 @@ def _build_dcf_summary(ws: Any, result: DCFResult, inputs: DCFInputs) -> None:
     ws.freeze_panes = "A2"
 
     # Format column B values
-    fmt_map = {2: _FMT_USD, 3: _FMT_PCT, 4: _FMT_USD, 5: _FMT_USD,
-               6: _FMT_USD, 7: _FMT_USD, 9: _FMT_PCT, 10: _FMT_PCT}
+    fmt_map = {
+        2: _FMT_USD,
+        3: _FMT_PCT,
+        4: _FMT_USD,
+        5: _FMT_USD,
+        6: _FMT_USD,
+        7: _FMT_USD,
+        9: _FMT_PCT,
+        10: _FMT_PCT,
+    }
     for row_idx, fmt in fmt_map.items():
         ws.cell(row=row_idx, column=2).number_format = fmt
 
@@ -212,10 +221,17 @@ def _build_lbo_summary(ws: Any, result: LBOResult, inputs: LBOInputs) -> None:
     ws.freeze_panes = "A2"
 
     fmt_map = {
-        2: _FMT_USD, 3: _FMT_USD, 4: _FMT_USD,
-        5: _FMT_USD, 6: _FMT_USD,
-        7: _FMT_MULT, 8: _FMT_PCT,
-        10: _FMT_MULT, 11: _FMT_MULT, 12: _FMT_MULT, 13: _FMT_PCT,
+        2: _FMT_USD,
+        3: _FMT_USD,
+        4: _FMT_USD,
+        5: _FMT_USD,
+        6: _FMT_USD,
+        7: _FMT_MULT,
+        8: _FMT_PCT,
+        10: _FMT_MULT,
+        11: _FMT_MULT,
+        12: _FMT_MULT,
+        13: _FMT_PCT,
     }
     for row_idx, fmt in fmt_map.items():
         ws.cell(row=row_idx, column=2).number_format = fmt
@@ -225,27 +241,36 @@ def _build_lbo_summary(ws: Any, result: LBOResult, inputs: LBOInputs) -> None:
 
 def _build_lbo_debt_schedule(ws: Any, result: LBOResult) -> None:
     header = [
-        "Year", "Revenue ($M)", "EBITDA ($M)", "DA ($M)", "EBIT ($M)",
-        "Interest ($M)", "Net Income ($M)", "FCF ($M)",
-        "Debt Paydown ($M)", "Ending Debt ($M)",
+        "Year",
+        "Revenue ($M)",
+        "EBITDA ($M)",
+        "DA ($M)",
+        "EBIT ($M)",
+        "Interest ($M)",
+        "Net Income ($M)",
+        "FCF ($M)",
+        "Debt Paydown ($M)",
+        "Ending Debt ($M)",
     ]
     ws.append(header)
     _apply_header(ws, 1)
     ws.freeze_panes = "A2"
 
     for yr in result.schedule:
-        ws.append([
-            yr.year,
-            yr.revenue / 1e6,
-            yr.ebitda / 1e6,
-            yr.da / 1e6,
-            yr.ebit / 1e6,
-            yr.interest_expense / 1e6,
-            yr.net_income / 1e6,
-            yr.fcf / 1e6,
-            yr.total_debt_paydown / 1e6,
-            yr.ending_debt / 1e6,
-        ])
+        ws.append(
+            [
+                yr.year,
+                yr.revenue / 1e6,
+                yr.ebitda / 1e6,
+                yr.da / 1e6,
+                yr.ebit / 1e6,
+                yr.interest_expense / 1e6,
+                yr.net_income / 1e6,
+                yr.fcf / 1e6,
+                yr.total_debt_paydown / 1e6,
+                yr.ending_debt / 1e6,
+            ]
+        )
 
     for row in ws.iter_rows(min_row=2, min_col=2):
         for cell in row:
@@ -270,9 +295,7 @@ def _build_lbo_sensitivity(ws: Any, result: LBOResult) -> None:
     ws.freeze_panes = "B2"
 
     for i, (entry, irr_row) in enumerate(zip(entry_multiples, irr_grid)):
-        row_data = [f"{entry:.1f}x"] + [
-            (v if v is not None else "") for v in irr_row
-        ]
+        row_data = [f"{entry:.1f}x"] + [(v if v is not None else "") for v in irr_row]
         ws.append(row_data)
 
     # Format IRR cells as percentage
@@ -290,22 +313,31 @@ def _build_lbo_sensitivity(ws: Any, result: LBOResult) -> None:
 
 
 def _build_comps_table(ws: Any, peers: list[CompanyFinancials]) -> None:
-    header = ["Ticker", "Revenue ($M)", "EBITDA ($M)", "Market Cap ($M)",
-              "EV/EBITDA", "EV/Revenue", "P/E"]
+    header = [
+        "Ticker",
+        "Revenue ($M)",
+        "EBITDA ($M)",
+        "Market Cap ($M)",
+        "EV/EBITDA",
+        "EV/Revenue",
+        "P/E",
+    ]
     ws.append(header)
     _apply_header(ws, 1)
     ws.freeze_panes = "A2"
 
     for p in peers:
-        ws.append([
-            p.ticker,
-            p.revenue / 1e6 if p.revenue else "",
-            p.ebitda / 1e6 if p.ebitda else "",
-            p.market_cap / 1e6 if p.market_cap else "",
-            p.ev_ebitda,
-            p.ev_revenue,
-            p.pe_ratio,
-        ])
+        ws.append(
+            [
+                p.ticker,
+                p.revenue / 1e6 if p.revenue else "",
+                p.ebitda / 1e6 if p.ebitda else "",
+                p.market_cap / 1e6 if p.market_cap else "",
+                p.ev_ebitda,
+                p.ev_revenue,
+                p.pe_ratio,
+            ]
+        )
 
     for col_idx in range(2, 5):
         for cell in ws[get_column_letter(col_idx)]:

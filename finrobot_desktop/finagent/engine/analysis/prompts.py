@@ -264,8 +264,7 @@ def build_analysis_prompt(
     """
     if analysis_type not in _PROMPTS:
         raise ValueError(
-            f"Unknown analysis type '{analysis_type}'. "
-            f"Valid types: {sorted(ANALYSIS_TYPES)}"
+            f"Unknown analysis type '{analysis_type}'. Valid types: {sorted(ANALYSIS_TYPES)}"
         )
     table = _build_financials_table(financials_data)
     return _PROMPTS[analysis_type].format(
@@ -355,7 +354,10 @@ async def run_analysis(
         peer_table = await _fetch_peer_table(data_layer, settings, ticker, fin_result)
 
     prompt = build_analysis_prompt(
-        analysis_type, ticker.upper(), fin_result.data, peer_table=peer_table,
+        analysis_type,
+        ticker.upper(),
+        fin_result.data,
+        peer_table=peer_table,
     )
 
     agent: Agent[None, str] = Agent(

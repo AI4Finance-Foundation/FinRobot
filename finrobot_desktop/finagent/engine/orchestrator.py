@@ -67,26 +67,31 @@ def _generate_charts(
         # revenue_ebitda: grouped bars
         rev_ebitda_rows: list[dict[str, Any]] = []
         for i, y in enumerate(years):
-            rev_ebitda_rows.append({
-                "year": y,
-                "revenue": hm.revenue[i],
-                "ebitda": hm.ebitda[i],
-                "is_forecast": False,
-            })
+            rev_ebitda_rows.append(
+                {
+                    "year": y,
+                    "revenue": hm.revenue[i],
+                    "ebitda": hm.ebitda[i],
+                    "is_forecast": False,
+                }
+            )
         if forecast:
             for i, y in enumerate(forecast.years):
-                rev_ebitda_rows.append({
-                    "year": y,
-                    "revenue": forecast.revenue[i],
-                    "ebitda": forecast.ebitda[i],
-                    "is_forecast": True,
-                })
+                rev_ebitda_rows.append(
+                    {
+                        "year": y,
+                        "revenue": forecast.revenue[i],
+                        "ebitda": forecast.ebitda[i],
+                        "is_forecast": True,
+                    }
+                )
         data = ChartDataPoint(
             chart_type="revenue_ebitda",
             title=f"{hm.ticker} Revenue & EBITDA",
             data=rev_ebitda_rows,
         )
         from finagent.engine.charts.revenue_ebitda import render as render_rev
+
         uri = _safe_render("revenue_ebitda", render_rev, data)
         if uri:
             charts["revenue_ebitda"] = uri
@@ -107,6 +112,7 @@ def _generate_charts(
             data=margin_rows,
         )
         from finagent.engine.charts.margin_trend import render as render_margin
+
         uri = _safe_render("margin_trend", render_margin, data)
         if uri:
             charts["margin_trend"] = uri
@@ -125,14 +131,14 @@ def _generate_charts(
             data=eps_rows,
         )
         from finagent.engine.charts.eps_pe import render as render_eps
+
         uri = _safe_render("eps_pe", render_eps, data)
         if uri:
             charts["eps_pe"] = uri
 
         # revenue_yoy
         rev_yoy_rows: list[dict[str, Any]] = [
-            {"year": str(years[i]), "revenue": hm.revenue[i]}
-            for i in range(len(years))
+            {"year": str(years[i]), "revenue": hm.revenue[i]} for i in range(len(years))
         ]
         data = ChartDataPoint(
             chart_type="revenue_yoy",
@@ -140,6 +146,7 @@ def _generate_charts(
             data=rev_yoy_rows,
         )
         from finagent.engine.charts.revenue_yoy import render as render_yoy
+
         uri = _safe_render("revenue_yoy", render_yoy, data)
         if uri:
             charts["revenue_yoy"] = uri
@@ -160,6 +167,7 @@ def _generate_charts(
             data=ts_rows,
         )
         from finagent.engine.charts.time_series_multi import render as render_ts
+
         uri = _safe_render("time_series_multi", render_ts, data)
         if uri:
             charts["time_series_multi"] = uri
@@ -176,7 +184,11 @@ def _generate_charts(
                 sens_rows: list[dict[str, Any]] = []
                 for i, w in enumerate(wacc_values):
                     for j, tg in enumerate(tg_values):
-                        price = implied_prices[i][j] if i < len(implied_prices) and j < len(implied_prices[i]) else None
+                        price = (
+                            implied_prices[i][j]
+                            if i < len(implied_prices) and j < len(implied_prices[i])
+                            else None
+                        )
                         sens_rows.append({"wacc": w, "tg": tg, "implied_price": price})
                 data = ChartDataPoint(
                     chart_type="sensitivity",
@@ -184,6 +196,7 @@ def _generate_charts(
                     data=sens_rows,
                 )
                 from finagent.engine.charts.sensitivity import render as render_sens
+
                 uri = _safe_render("sensitivity", render_sens, data)
                 if uri:
                     charts["sensitivity"] = uri
@@ -192,10 +205,15 @@ def _generate_charts(
         wf_rows: list[dict[str, Any]] = [
             {"label": "PV of FCFs", "value": dcf_result.pv_fcf_total, "is_total": False},
             {"label": "PV Terminal", "value": dcf_result.pv_terminal, "is_total": False},
-            {"label": "Enterprise Value", "value": dcf_result.pv_fcf_total + dcf_result.pv_terminal, "is_total": True},
+            {
+                "label": "Enterprise Value",
+                "value": dcf_result.pv_fcf_total + dcf_result.pv_terminal,
+                "is_total": True,
+            },
         ]
         data = ChartDataPoint(chart_type="waterfall", title="DCF Waterfall", data=wf_rows)
         from finagent.engine.charts.waterfall import render as render_wf
+
         uri = _safe_render("waterfall", render_wf, data)
         if uri:
             charts["waterfall"] = uri
@@ -204,23 +222,28 @@ def _generate_charts(
     if peer_comps:
         # peer_comparison: horizontal bars
         pc_rows: list[dict[str, Any]] = []
-        pc_rows.append({
-            "ticker": peer_comps.target.ticker,
-            "ev_ebitda": peer_comps.target.ev_ebitda or 0,
-            "is_target": True,
-        })
+        pc_rows.append(
+            {
+                "ticker": peer_comps.target.ticker,
+                "ev_ebitda": peer_comps.target.ev_ebitda or 0,
+                "is_target": True,
+            }
+        )
         for p in peer_comps.peers:
-            pc_rows.append({
-                "ticker": p.ticker,
-                "ev_ebitda": p.ev_ebitda or 0,
-                "is_target": False,
-            })
+            pc_rows.append(
+                {
+                    "ticker": p.ticker,
+                    "ev_ebitda": p.ev_ebitda or 0,
+                    "is_target": False,
+                }
+            )
         data = ChartDataPoint(
             chart_type="peer_comparison",
             title="EV/EBITDA Peer Comparison",
             data=pc_rows,
         )
         from finagent.engine.charts.peer_comparison import render as render_peer
+
         uri = _safe_render("peer_comparison", render_peer, data)
         if uri:
             charts["peer_comparison"] = uri
@@ -238,12 +261,27 @@ def _generate_charts(
             peer_ev = [p.ev_ebitda for p in peer_comps.peers if p.ev_ebitda]
 
             radar_rows: list[dict[str, Any]] = [
-                {"dimension": "Gross Margin", "value": target.gross_margin, "benchmark": _median(peer_gm)},
-                {"dimension": "Op. Margin", "value": target.operating_margin, "benchmark": _median(peer_om)},
-                {"dimension": "EV/EBITDA", "value": target.ev_ebitda or 0, "benchmark": _median(peer_ev)},
+                {
+                    "dimension": "Gross Margin",
+                    "value": target.gross_margin,
+                    "benchmark": _median(peer_gm),
+                },
+                {
+                    "dimension": "Op. Margin",
+                    "value": target.operating_margin,
+                    "benchmark": _median(peer_om),
+                },
+                {
+                    "dimension": "EV/EBITDA",
+                    "value": target.ev_ebitda or 0,
+                    "benchmark": _median(peer_ev),
+                },
             ]
-            data = ChartDataPoint(chart_type="radar", title=f"{target.ticker} vs Peers", data=radar_rows)
+            data = ChartDataPoint(
+                chart_type="radar", title=f"{target.ticker} vs Peers", data=radar_rows
+            )
             from finagent.engine.charts.radar import render as render_radar
+
             uri = _safe_render("radar", render_radar, data)
             if uri:
                 charts["radar"] = uri
@@ -260,6 +298,7 @@ def _generate_charts(
             data=ff_rows,
         )
         from finagent.engine.charts.football_field import render as render_ff
+
         uri = _safe_render("football_field", render_ff, data)
         if uri:
             charts["football_field"] = uri

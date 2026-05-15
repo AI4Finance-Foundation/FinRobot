@@ -123,4 +123,3 @@ Standard CIM table of contents:
 - Work with legal on the confidentiality disclaimer and any regulatory disclosures
 - Get management to review for factual accuracy before distribution
 - The CIM sets expectations on valuation — make sure the narrative supports the asking price
-

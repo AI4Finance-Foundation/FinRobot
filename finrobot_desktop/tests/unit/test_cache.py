@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from finagent.engine.data.cache import CachedResult, DataCache
+from finagent.engine.data.cache import DataCache
 from finagent.engine.data.interface import DataResult
 
 
@@ -62,6 +62,7 @@ class TestStaleness:
 
         # Manually backdate the cached_at
         import aiosqlite
+
         old_time = (datetime.now(tz=timezone.utc) - timedelta(hours=25)).isoformat()
         async with aiosqlite.connect(cache._db_path) as conn:
             await conn.execute(
@@ -71,7 +72,7 @@ class TestStaleness:
             await conn.commit()
 
         cached = await cache.get("financials", "AAPL", max_age_hours=24)
-        assert cached is not None          # still returns data
+        assert cached is not None  # still returns data
         assert cached.is_stale is True
 
     async def test_stale_data_still_returns_data(self, cache):
@@ -80,6 +81,7 @@ class TestStaleness:
         await cache.set("financials", "AAPL", r)
 
         import aiosqlite
+
         old_time = (datetime.now(tz=timezone.utc) - timedelta(hours=48)).isoformat()
         async with aiosqlite.connect(cache._db_path) as conn:
             await conn.execute(
@@ -98,6 +100,7 @@ class TestWalMode:
         cache = DataCache(db_path=str(tmp_path / "wal_test.db"))
         await cache._ensure_connection()
         import aiosqlite
+
         async with aiosqlite.connect(cache._db_path) as conn:
             async with conn.execute("PRAGMA journal_mode") as cursor:
                 row = await cursor.fetchone()

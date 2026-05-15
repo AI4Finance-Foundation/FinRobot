@@ -129,10 +129,7 @@ def run_monte_carlo(
 
     for _ in range(n_simulations):
         # Perturb revenue growth rates
-        sim_growth = [
-            g + rng.gauss(0, revenue_growth_std)
-            for g in inputs.revenue_growth_rates
-        ]
+        sim_growth = [g + rng.gauss(0, revenue_growth_std) for g in inputs.revenue_growth_rates]
 
         # Perturb EBITDA margin (floor at 1%)
         sim_margin = max(0.01, inputs.ebitda_margin + rng.gauss(0, ebitda_margin_std))

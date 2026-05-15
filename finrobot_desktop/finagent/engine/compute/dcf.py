@@ -106,7 +106,9 @@ def calculate_dcf(
             "WARNING: Simplified FCF formula used (D&A unavailable). "
             "Implied price may be overstated by 10-20% for capital-intensive companies. "
             "Configure FMP or Finnhub API key for D&A data."
-        ) if using_simplified else None,
+        )
+        if using_simplified
+        else None,
     )
 
 

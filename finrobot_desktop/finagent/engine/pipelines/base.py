@@ -28,9 +28,7 @@ class ProgressCallback(Protocol):
     and SDK consumers each provide their own implementation.
     """
 
-    async def on_step_start(
-        self, step_index: int, total: int, step_name: str
-    ) -> None: ...
+    async def on_step_start(self, step_index: int, total: int, step_name: str) -> None: ...
 
     async def on_step_end(
         self, step_index: int, total: int, step_name: str, duration_s: float
@@ -182,7 +180,10 @@ class Pipeline:
                 await progress.on_step_start(i, total, step.name)
 
             step_data = await self._gather_data(
-                deps, step.required_data, ticker, results,
+                deps,
+                step.required_data,
+                ticker,
+                results,
                 structured_results=structured_results,
             )
 
@@ -193,13 +194,23 @@ class Pipeline:
                     methodology = skill.full_content
 
             prompt = self._build_step_prompt(
-                step, step_data, methodology, structured_results, lang=effective_lang,
+                step,
+                step_data,
+                methodology,
+                structured_results,
+                lang=effective_lang,
             )
 
             t0 = time.monotonic()
             validation_error = await self._run_step(
-                step, deps, prompt, ticker, results, structured_results,
-                step_index=i, progress=progress,
+                step,
+                deps,
+                prompt,
+                ticker,
+                results,
+                structured_results,
+                step_index=i,
+                progress=progress,
             )
             elapsed = time.monotonic() - t0
             if validation_error:
@@ -304,8 +315,7 @@ class Pipeline:
         # Retry loop
         for attempt in range(self.max_retries):
             logger.warning(
-                f"Step '{step.name}' retry {attempt + 1}/{self.max_retries}: "
-                f"{validation.error}"
+                f"Step '{step.name}' retry {attempt + 1}/{self.max_retries}: {validation.error}"
             )
             if progress is not None:
                 await progress.on_step_retry(
@@ -316,7 +326,11 @@ class Pipeline:
                 f"Fix the issues and try again.\n\n{results[step.name]}"
             )
             output = await self._execute_step_once(
-                step, deps, retry_prompt, structured_results, ticker,
+                step,
+                deps,
+                retry_prompt,
+                structured_results,
+                ticker,
             )
             self._store_output(step.name, output, results, structured_results)
             validation = self._validate_step(step, step.name, results, structured_results)
@@ -366,8 +380,7 @@ class Pipeline:
                     snippet = text[:300]
                     ellipsis = "..." if len(text) > 300 else ""
                     parts.append(
-                        f"[Previous: {name} \u2014 {word_count} words] "
-                        f"{snippet}{ellipsis}"
+                        f"[Previous: {name} \u2014 {word_count} words] {snippet}{ellipsis}"
                     )
             for name in keys[-2:]:
                 parts.append(f"=== {name} ===\n{previous_results[name]}")
@@ -501,11 +514,17 @@ class PipelineResult(BaseModel):
 
         # Append data source info from warnings if available
         if self.warnings:
-            source_warnings = [w for w in self.warnings if "source" in w.lower() or "stale" in w.lower() or "cache" in w.lower()]
+            source_warnings = [
+                w
+                for w in self.warnings
+                if "source" in w.lower() or "stale" in w.lower() or "cache" in w.lower()
+            ]
             if source_warnings:
                 disclaimer += " ".join(source_warnings)
             else:
-                disclaimer += "Data sourced from public APIs. Verify critical figures independently."
+                disclaimer += (
+                    "Data sourced from public APIs. Verify critical figures independently."
+                )
         else:
             disclaimer += "Data sourced from public APIs. Verify critical figures independently."
 

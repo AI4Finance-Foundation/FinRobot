@@ -57,7 +57,9 @@ async def execute_financial_data_step(
         structured_context["historical_metrics"] = hm
         logger.info(
             "HistoricalMetrics built for %s: %d years (%s)",
-            ticker, len(hm.years), hm.years,
+            ticker,
+            len(hm.years),
+            hm.years,
         )
         forecast = _build_forecast(hm)
         if forecast is not None:
@@ -86,7 +88,11 @@ async def _build_historical_metrics(
             DataType.FINANCIALS, ticker, years=5
         )
         if len(yearly_results) < 2:
-            logger.info("Only %d year(s) of data for %s — skipping HistoricalMetrics", len(yearly_results), ticker)
+            logger.info(
+                "Only %d year(s) of data for %s — skipping HistoricalMetrics",
+                len(yearly_results),
+                ticker,
+            )
             return None
 
         # Convert each yearly DataResult to FinancialData
@@ -158,14 +164,16 @@ def build_valuation_synthesis(
     dcf = structured_context.get("financial_modeling")
     if isinstance(dcf, DCFResult):
         # DCF method: ±20% range around implied price
-        methods.append(ValuationMethod(
-            name="DCF",
-            low=dcf.implied_price * 0.8,
-            mid=dcf.implied_price,
-            high=dcf.implied_price * 1.2,
-            confidence=0.7,
-            source="Discounted Cash Flow model",
-        ))
+        methods.append(
+            ValuationMethod(
+                name="DCF",
+                low=dcf.implied_price * 0.8,
+                mid=dcf.implied_price,
+                high=dcf.implied_price * 1.2,
+                confidence=0.7,
+                source="Discounted Cash Flow model",
+            )
+        )
 
     peers = structured_context.get("peer_analysis")
     if isinstance(peers, PeerComps) and peers.median_ev_ebitda:
@@ -177,14 +185,16 @@ def build_valuation_synthesis(
             equity_from_peers = ev_from_peers - (target.total_debt - target.total_cash)
             implied = equity_from_peers / shares if shares > 0 else 0
             if implied > 0:
-                methods.append(ValuationMethod(
-                    name="EV/EBITDA Comps",
-                    low=implied * 0.85,
-                    mid=implied,
-                    high=implied * 1.15,
-                    confidence=0.5,
-                    source=f"Peer median EV/EBITDA {peers.median_ev_ebitda:.1f}x",
-                ))
+                methods.append(
+                    ValuationMethod(
+                        name="EV/EBITDA Comps",
+                        low=implied * 0.85,
+                        mid=implied,
+                        high=implied * 1.15,
+                        confidence=0.5,
+                        source=f"Peer median EV/EBITDA {peers.median_ev_ebitda:.1f}x",
+                    )
+                )
 
     if not methods:
         return None

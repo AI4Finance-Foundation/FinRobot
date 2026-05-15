@@ -77,4 +77,3 @@ If multiple periods are provided:
 - Don't assume sector-specific KPIs — ask what matters for this company
 - If covenant levels aren't known, ask the user for the credit agreement terms
 - Output should be board-ready — concise, factual, no fluff
-

@@ -1,4 +1,3 @@
-import pytest
 from pathlib import Path
 
 from finagent.engine.skills.registry import SkillRegistry

@@ -1,4 +1,5 @@
 """Notification channel abstract base."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

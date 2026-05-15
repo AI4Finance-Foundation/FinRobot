@@ -10,6 +10,7 @@ Atomic writes: write to <id>.json.tmp, then rename to <id>.json.
 Per-ticker asyncio.Lock protects concurrent writes to the same ticker's index.
 A global _index_lock is used for the full-store index rebuild needed by list_all.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -355,6 +356,7 @@ class ArtifactStore:
         lock = await self._get_ticker_lock(ticker_key)
 
         async with lock:
+
             def _update() -> None:
                 artifact.meta.last_viewed_at = _now()
                 artifact.meta.archived = False  # viewing un-archives
@@ -411,6 +413,7 @@ class ArtifactStore:
                 lock = await self._get_ticker_lock(ticker_key)
 
                 async with lock:
+
                     def _archive(art: Artifact = artifact, path: Path = art_file) -> None:
                         art.meta.archived = True
                         self._write_atomic(path, art.model_dump_json())

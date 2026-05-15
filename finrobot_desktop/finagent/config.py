@@ -22,6 +22,7 @@ def _default_cache_db_path() -> str:
     cache_dir.mkdir(parents=True, exist_ok=True)
     return str(cache_dir / "cache.db")
 
+
 # Valid providers and the settings field holding their API key. A provider
 # listed here but absent from _PROVIDER_KEY_FIELD needs no key (e.g. "test").
 _VALID_PROVIDERS: frozenset[str] = frozenset({"deepseek", "anthropic", "openai", "test"})

@@ -34,6 +34,17 @@ class CreateRunRequest(BaseModel):
     pipeline_type: str
     ticker: str
 
+    @classmethod
+    def model_validate_strict(cls, data: Any) -> "CreateRunRequest":
+        # Pydantic would happily accept ticker="" — reject early so the
+        # frontend (or curl users) get a clean 422 instead of a stack trace
+        # buried inside the pipeline orchestrator.
+        return cls.model_validate(data)
+
+
+def _normalise_ticker(t: str) -> str:
+    return t.strip().upper()
+
 
 class CreateRunResponse(BaseModel):
     run_id: str
@@ -77,13 +88,16 @@ async def create_run(request_body: CreateRunRequest, request: Request) -> Create
         raise HTTPException(
             status_code=400,
             detail=(
-                f"Invalid pipeline: {request_body.pipeline_type}. "
-                f"Valid: {sorted(factories.keys())}"
+                f"Invalid pipeline: {request_body.pipeline_type}. Valid: {sorted(factories.keys())}"
             ),
         )
 
+    ticker = _normalise_ticker(request_body.ticker)
+    if not ticker:
+        raise HTTPException(status_code=400, detail="ticker is required")
+
     store: RunStore = request.app.state.run_store
-    record = await store.create_run(request_body.pipeline_type, request_body.ticker)
+    record = await store.create_run(request_body.pipeline_type, ticker)
     task = asyncio.create_task(_run_pipeline(record.run_id, request))
     request.app.state.run_tasks[record.run_id] = task
     return CreateRunResponse(
@@ -219,9 +233,7 @@ async def _run_pipeline(run_id: str, request: Request) -> None:
                 ),
             )
 
-        async def on_step_retry(
-            self, step_index: int, name: str, attempt: int, error: str
-        ) -> None:
+        async def on_step_retry(self, step_index: int, name: str, attempt: int, error: str) -> None:
             await _append(
                 store,
                 StepRetry(
@@ -247,7 +259,9 @@ async def _run_pipeline(run_id: str, request: Request) -> None:
         duration_s = round(time.monotonic() - started, 1)
         result_json = _result_to_json(result)
         await store.add_artifact(
-            run_id, artifact_type="report", format="html",
+            run_id,
+            artifact_type="report",
+            format="html",
             file_path=f"/api/report/html?ticker={record.ticker}",
         )
         await _append(
@@ -302,11 +316,7 @@ async def _append(store: RunStore, event: RunEvent) -> int:
 
 
 def _format_sse(seq: int, event: RunEvent) -> str:
-    return (
-        f"id: {seq}\n"
-        f"event: {event['event']}\n"
-        f"data: {json.dumps(event)}\n\n"
-    )
+    return f"id: {seq}\nevent: {event['event']}\ndata: {json.dumps(event)}\n\n"
 
 
 def _result_to_json(result: PipelineResult) -> dict[str, Any]:

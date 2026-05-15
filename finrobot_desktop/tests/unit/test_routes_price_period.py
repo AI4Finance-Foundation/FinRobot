@@ -1,6 +1,6 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch
 
 
 @pytest.mark.asyncio
@@ -9,7 +9,12 @@ async def test_price_endpoint_accepts_period_param():
     from finagent.server import app
 
     with patch("finagent.routes.data.fetch_price_with_period") as mock_fetch:
-        mock_fetch.return_value = {"current_price": 190.0, "history": [], "data_source": "yfinance", "warnings": []}
+        mock_fetch.return_value = {
+            "current_price": 190.0,
+            "history": [],
+            "data_source": "yfinance",
+            "warnings": [],
+        }
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/api/data/AAPL/price?period=3mo")

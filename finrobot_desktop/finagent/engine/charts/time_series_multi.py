@@ -86,9 +86,7 @@ def _create_figure(
         color = left_colors[i % len(left_colors)]
         marker = _LEFT_MARKERS[i % len(_LEFT_MARKERS)]
         label = key.replace("_", " ").title()
-        (line,) = ax_left.plot(
-            x, values, color=color, marker=marker, linewidth=2, label=label
-        )
+        (line,) = ax_left.plot(x, values, color=color, marker=marker, linewidth=2, label=label)
         lines_all.append(line)
         labels_all.append(label)
 

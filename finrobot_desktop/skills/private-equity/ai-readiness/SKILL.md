@@ -117,4 +117,3 @@ One page for the operating partner, structured for a portfolio review:
 - **Ownership is the real gate.** A quick win with no internal owner dies in 90 days. If no one on the management team wants it, mark it Wait regardless of the dollar size.
 - **Hold period drives urgency.** A company 3 years from exit can afford a foundational data project. A company 12 months out needs something that shows up in the LTM EBITDA for the CIM — or skip it.
 - **Failed pilots are signal.** If management already tried something and it didn't stick, find out why before proposing the same thing again.
-

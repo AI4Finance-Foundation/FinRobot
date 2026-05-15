@@ -9,6 +9,7 @@
 Banks don't have meaningful free cash flow, so FCF-DCF produces misleading results.
 DDM values the company based on projected dividends discounted at cost of equity.
 """
+
 from __future__ import annotations
 
 import logging
@@ -95,8 +96,7 @@ async def _execute_ddm_params(
             "- If book_value_per_share and return_on_equity are available, include them "
             "for P/B-based cross-check\n\n"
             "For each assumption you select, provide a brief justification in the "
-            "assumption_provenance dict."
-            + dividend_instruction
+            "assumption_provenance dict." + dividend_instruction
         ),
         defer_model_check=True,
     )
@@ -131,11 +131,7 @@ async def _execute_ddm_calc(
     min_coe = min(coe_range)
     tg_range = [g for g in tg_candidates if g < min_coe]
     if len(tg_range) < 2:
-        tg_range = [
-            round(0.005 + i * 0.005, 4)
-            for i in range(5)
-            if 0.005 + i * 0.005 < min_coe
-        ]
+        tg_range = [round(0.005 + i * 0.005, 4) for i in range(5) if 0.005 + i * 0.005 < min_coe]
 
     sensitivity = calculate_ddm_sensitivity(inputs, coe_range=coe_range, tg_range=tg_range)
 
@@ -146,9 +142,7 @@ async def _execute_ddm_calc(
         for p in row  # type: ignore[union-attr]
         if p is not None and p > 0  # type: ignore[operator]
     ]
-    price_range = (
-        f"${min(all_prices):.0f}–${max(all_prices):.0f}" if all_prices else "N/A"
-    )
+    price_range = f"${min(all_prices):.0f}–${max(all_prices):.0f}" if all_prices else "N/A"
 
     # Build narrative
     upside = ddm_result.upside
@@ -212,5 +206,5 @@ def create_ddm_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[],
                 validator=TextValidator(validate_ddm_output),
             ),
-        ]
+        ],
     )

@@ -15,6 +15,7 @@ Routing logic for ``q``:
   - Starts with ``/``                               → parse as slash command (e.g. /dcf AAPL)
   - Otherwise                                        → substring search across artifacts + sessions
 """
+
 from __future__ import annotations
 
 import re

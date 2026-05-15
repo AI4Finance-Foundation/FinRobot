@@ -98,4 +98,3 @@ Optimize which assets are held in which account types:
 - Check for any client-specific restrictions (ESG, concentrated stock, lockups)
 - Document rationale for every trade for compliance records
 - Wash sale rules apply across accounts — coordinate trades across the household
-

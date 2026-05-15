@@ -22,6 +22,7 @@ def get_pipeline_factories() -> dict[str, Callable[..., Any]]:
         return _PIPELINE_FACTORIES
     from finagent.engine.pipelines.comps import create_comps_pipeline
     from finagent.engine.pipelines.dcf import create_dcf_pipeline
+    from finagent.engine.pipelines.ddm import create_ddm_pipeline
     from finagent.engine.pipelines.earnings_analysis import (
         create_earnings_analysis_pipeline,
     )
@@ -35,6 +36,7 @@ def get_pipeline_factories() -> dict[str, Callable[..., Any]]:
         "research": create_equity_research_pipeline,
         "comps": create_comps_pipeline,
         "dcf": create_dcf_pipeline,
+        "ddm": create_ddm_pipeline,
         "lbo": create_lbo_pipeline,
         "earnings": create_earnings_analysis_pipeline,
         "ic-memo": create_ic_memo_pipeline,

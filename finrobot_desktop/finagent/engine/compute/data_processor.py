@@ -98,7 +98,9 @@ def extract_historical_metrics(
 
         # EBITDA
         ebitda_list.append(fd.income.ebitda)
-        ebitda_margin_list.append(fd.income.ebitda / fd.income.revenue if fd.income.revenue != 0 else 0.0)
+        ebitda_margin_list.append(
+            fd.income.ebitda / fd.income.revenue if fd.income.revenue != 0 else 0.0
+        )
 
         # Operating income = revenue * operating_margin
         operating_income_list.append(fd.income.revenue * fd.income.operating_margin)
@@ -120,7 +122,9 @@ def extract_historical_metrics(
 
     # Revenue CAGR across all years
     n_periods = len(sorted_data) - 1
-    cagr_revenue = calculate_cagr(revenue_list[0], revenue_list[-1], n_periods) if n_periods > 0 else None
+    cagr_revenue = (
+        calculate_cagr(revenue_list[0], revenue_list[-1], n_periods) if n_periods > 0 else None
+    )
 
     return HistoricalMetrics(
         years=year_list,

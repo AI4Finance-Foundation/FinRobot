@@ -65,9 +65,7 @@ class TestIndexPage:
     @pytest.mark.asyncio
     async def test_index_returns_200_with_html(self) -> None:
         _setup_test_deps()
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/web/")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
@@ -77,9 +75,7 @@ class TestIndexPage:
     @pytest.mark.asyncio
     async def test_index_contains_pipeline_options(self) -> None:
         _setup_test_deps()
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/web/")
         for pipeline in ("research", "comps", "dcf", "lbo", "earnings", "ic-memo"):
             assert pipeline in response.text
@@ -89,9 +85,7 @@ class TestRunEndpoint:
     @pytest.mark.asyncio
     async def test_run_returns_task_id(self) -> None:
         _setup_test_deps()
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 "/api/web/run",
                 json={"ticker": "AAPL", "pipeline_type": "research"},
@@ -104,9 +98,7 @@ class TestRunEndpoint:
     @pytest.mark.asyncio
     async def test_run_rejects_invalid_pipeline(self) -> None:
         _setup_test_deps()
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 "/api/web/run",
                 json={"ticker": "AAPL", "pipeline_type": "invalid"},
@@ -117,9 +109,7 @@ class TestRunEndpoint:
     @pytest.mark.asyncio
     async def test_run_rejects_empty_ticker(self) -> None:
         _setup_test_deps()
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 "/api/web/run",
                 json={"ticker": "  ", "pipeline_type": "research"},
@@ -136,9 +126,7 @@ class TestRunEndpoint:
             t = create_task(f"T{i}", "research")
             t.status = TaskStatus.RUNNING
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 "/api/web/run",
                 json={"ticker": "AAPL", "pipeline_type": "research"},
@@ -151,9 +139,7 @@ class TestStatusEndpoint:
     @pytest.mark.asyncio
     async def test_status_returns_task_info(self) -> None:
         _setup_test_deps()
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Create a task first
             run_resp = await client.post(
                 "/api/web/run",
@@ -174,9 +160,7 @@ class TestStatusEndpoint:
     @pytest.mark.asyncio
     async def test_status_404_for_unknown_task(self) -> None:
         _setup_test_deps()
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/web/status/nonexistent")
         assert response.status_code == 404
 
@@ -185,9 +169,7 @@ class TestHistoryEndpoint:
     @pytest.mark.asyncio
     async def test_history_returns_list(self) -> None:
         _setup_test_deps()
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/web/history")
         assert response.status_code == 200
         data = response.json()
@@ -196,9 +178,7 @@ class TestHistoryEndpoint:
     @pytest.mark.asyncio
     async def test_history_includes_created_task(self) -> None:
         _setup_test_deps()
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             await client.post(
                 "/api/web/run",
                 json={"ticker": "GOOG", "pipeline_type": "comps"},
@@ -214,9 +194,7 @@ class TestReportsPage:
     @pytest.mark.asyncio
     async def test_reports_page_returns_200(self) -> None:
         _setup_test_deps()
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/web/reports")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
@@ -226,18 +204,14 @@ class TestReportViewPage:
     @pytest.mark.asyncio
     async def test_report_view_404_for_unknown_task(self) -> None:
         _setup_test_deps()
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/web/report/nonexistent")
         assert response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_report_view_200_for_existing_task(self) -> None:
         _setup_test_deps()
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             run_resp = await client.post(
                 "/api/web/run",
                 json={"ticker": "TSLA", "pipeline_type": "research"},

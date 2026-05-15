@@ -7,6 +7,7 @@ Covers:
   - Multi-part messages combine text + file/image placeholders
   - Malformed/empty parts arrays do not raise — they yield empty text
 """
+
 from __future__ import annotations
 
 import json
@@ -72,13 +73,15 @@ async def _post_chat(payload: dict[str, object]) -> None:
 async def test_chat_writes_session_start_and_user_msg(_reset_transcript_dir: Path) -> None:
     """POST /chat should write session_start + user_msg to JSONL before streaming."""
     session_id = "integration-test-session"
-    await _post_chat({
-        "id": session_id,
-        "model": "test-model",
-        "messages": [
-            {"role": "user", "parts": [{"type": "text", "text": "What is AAPL?"}]},
-        ],
-    })
+    await _post_chat(
+        {
+            "id": session_id,
+            "model": "test-model",
+            "messages": [
+                {"role": "user", "parts": [{"type": "text", "text": "What is AAPL?"}]},
+            ],
+        }
+    )
 
     sess_dir = _reset_transcript_dir
     path = sess_dir / f"{session_id}.jsonl"
@@ -111,10 +114,12 @@ async def test_chat_missing_session_id_uses_default(_reset_transcript_dir: Path)
 async def test_transcript_captures_string_content(_reset_transcript_dir: Path) -> None:
     """Legacy {"content": "hello"} → user_msg.data.text == "hello"."""
     session_id = "shape-string-content"
-    await _post_chat({
-        "id": session_id,
-        "messages": [{"role": "user", "content": "hello"}],
-    })
+    await _post_chat(
+        {
+            "id": session_id,
+            "messages": [{"role": "user", "content": "hello"}],
+        }
+    )
     evt = _read_user_msg(_reset_transcript_dir, session_id)
     assert evt["data"]["text"] == "hello"
 
@@ -122,10 +127,12 @@ async def test_transcript_captures_string_content(_reset_transcript_dir: Path) -
 async def test_transcript_captures_parts_text(_reset_transcript_dir: Path) -> None:
     """Modern {"parts": [{"type":"text","text":"hello"}]} → user_msg.data.text == "hello"."""
     session_id = "shape-parts-text"
-    await _post_chat({
-        "id": session_id,
-        "messages": [{"role": "user", "parts": [{"type": "text", "text": "hello"}]}],
-    })
+    await _post_chat(
+        {
+            "id": session_id,
+            "messages": [{"role": "user", "parts": [{"type": "text", "text": "hello"}]}],
+        }
+    )
     evt = _read_user_msg(_reset_transcript_dir, session_id)
     assert evt["data"]["text"] == "hello"
 
@@ -133,18 +140,20 @@ async def test_transcript_captures_parts_text(_reset_transcript_dir: Path) -> No
 async def test_transcript_captures_multi_part(_reset_transcript_dir: Path) -> None:
     """Multi-part: text + file → joined with newline + [attached: name] placeholder."""
     session_id = "shape-multi-part"
-    await _post_chat({
-        "id": session_id,
-        "messages": [
-            {
-                "role": "user",
-                "parts": [
-                    {"type": "text", "text": "分析这个"},
-                    {"type": "file", "filename": "10K.pdf"},
-                ],
-            }
-        ],
-    })
+    await _post_chat(
+        {
+            "id": session_id,
+            "messages": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {"type": "text", "text": "分析这个"},
+                        {"type": "file", "filename": "10K.pdf"},
+                    ],
+                }
+            ],
+        }
+    )
     evt = _read_user_msg(_reset_transcript_dir, session_id)
     assert evt["data"]["text"] == "分析这个\n[attached: 10K.pdf]"
 
@@ -169,10 +178,12 @@ def test_transcript_handles_missing_text_field() -> None:
 
 def test_transcript_handles_unknown_part_type() -> None:
     """Unknown part types (``audio``, ``video``, etc.) are silently dropped."""
-    result = _extract_user_text({
-        "role": "user",
-        "parts": [{"type": "audio", "url": "http://example.com/foo.mp3"}],
-    })
+    result = _extract_user_text(
+        {
+            "role": "user",
+            "parts": [{"type": "audio", "url": "http://example.com/foo.mp3"}],
+        }
+    )
     assert result == ""
 
 
@@ -195,29 +206,35 @@ def test_transcript_handles_neither_content_nor_parts() -> None:
 
 def test_transcript_handles_list_content() -> None:
     """When ``content`` itself is a list of parts, it is treated like ``parts``."""
-    result = _extract_user_text({
-        "role": "user",
-        "content": [{"type": "text", "text": "from-list-content"}],
-    })
+    result = _extract_user_text(
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "from-list-content"}],
+        }
+    )
     assert result == "from-list-content"
 
 
 def test_transcript_handles_image_part() -> None:
     """Image parts render as ``[image]`` placeholder."""
-    result = _extract_user_text({
-        "role": "user",
-        "parts": [
-            {"type": "text", "text": "see this:"},
-            {"type": "image", "url": "data:image/png;base64,xxx"},
-        ],
-    })
+    result = _extract_user_text(
+        {
+            "role": "user",
+            "parts": [
+                {"type": "text", "text": "see this:"},
+                {"type": "image", "url": "data:image/png;base64,xxx"},
+            ],
+        }
+    )
     assert result == "see this:\n[image]"
 
 
 def test_transcript_file_without_filename_uses_default() -> None:
     """File parts without a ``filename`` field render as ``[attached: file]``."""
-    result = _extract_user_text({
-        "role": "user",
-        "parts": [{"type": "file", "url": "data:..."}],
-    })
+    result = _extract_user_text(
+        {
+            "role": "user",
+            "parts": [{"type": "file", "url": "data:..."}],
+        }
+    )
     assert result == "[attached: file]"

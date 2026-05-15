@@ -97,4 +97,3 @@ Ensure the teaser doesn't inadvertently identify the company:
 - Include enough financial detail to qualify serious buyers but not so much that tire-kickers waste your time
 - Always have the client and legal review before distribution
 - Track who receives the teaser — it becomes the outreach log for the process
-

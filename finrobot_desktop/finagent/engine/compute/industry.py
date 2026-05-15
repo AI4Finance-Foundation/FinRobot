@@ -7,29 +7,34 @@ sector and industry strings returned by data providers (FMP, yfinance).
 Reference: GICS (Global Industry Classification Standard) — sector 40
 (Financials) contains banks, insurance, diversified financials.
 """
+
 from __future__ import annotations
 
 # Industries that should use DDM instead of FCF-DCF.
 # Based on GICS sub-industry names and common yfinance/FMP labels.
-_BANK_INDUSTRIES: frozenset[str] = frozenset({
-    "Banks",
-    "Banks—Diversified",
-    "Banks—Regional",
-    "Banks - Diversified",
-    "Banks - Regional",
-    "Diversified Banks",
-    "Regional Banks",
-    "Money Center Banks",
-    "Major Banks",
-    "Savings & Loans",
-    "Thrifts & Mortgage Finance",
-})
+_BANK_INDUSTRIES: frozenset[str] = frozenset(
+    {
+        "Banks",
+        "Banks—Diversified",
+        "Banks—Regional",
+        "Banks - Diversified",
+        "Banks - Regional",
+        "Diversified Banks",
+        "Regional Banks",
+        "Money Center Banks",
+        "Major Banks",
+        "Savings & Loans",
+        "Thrifts & Mortgage Finance",
+    }
+)
 
 # Broader set: if sector is Financial Services AND industry contains "bank"
-_FINANCIAL_SECTOR_NAMES: frozenset[str] = frozenset({
-    "Financial Services",
-    "Financials",
-})
+_FINANCIAL_SECTOR_NAMES: frozenset[str] = frozenset(
+    {
+        "Financial Services",
+        "Financials",
+    }
+)
 
 
 def is_bank(
@@ -52,11 +57,6 @@ def is_bank(
     """
     if industry and industry in _BANK_INDUSTRIES:
         return True
-    if (
-        sector
-        and sector in _FINANCIAL_SECTOR_NAMES
-        and industry
-        and "bank" in industry.lower()
-    ):
+    if sector and sector in _FINANCIAL_SECTOR_NAMES and industry and "bank" in industry.lower():
         return True
     return False

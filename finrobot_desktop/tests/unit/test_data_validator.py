@@ -3,6 +3,7 @@
 The validator is a deterministic numeric comparator. Tests assert concrete
 warning strings and thresholds rather than just "non-empty list".
 """
+
 from datetime import datetime, timezone
 
 from finagent.engine.data.interface import DataResult
@@ -98,13 +99,17 @@ def test_cross_validate_market_cap_tighter_threshold():
 def test_cross_validate_empty_secondary_warns():
     """D5: empty secondary data must produce a warning, not silent pass."""
     primary = DataResult(
-        provider="p1", data={"revenue": 100_000, "ebitda": 50_000},
-        ticker="TEST", data_type="financials",
+        provider="p1",
+        data={"revenue": 100_000, "ebitda": 50_000},
+        ticker="TEST",
+        data_type="financials",
         timestamp=datetime.now(tz=timezone.utc),
     )
     secondary = DataResult(
-        provider="p2", data={},
-        ticker="TEST", data_type="financials",
+        provider="p2",
+        data={},
+        ticker="TEST",
+        data_type="financials",
         timestamp=datetime.now(tz=timezone.utc),
     )
     warnings = cross_validate(primary, secondary)

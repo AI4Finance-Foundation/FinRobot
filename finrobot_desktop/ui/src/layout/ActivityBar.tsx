@@ -1,79 +1,73 @@
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  IconDashboard,
-  IconPipeline,
+  IconHome,
+  IconTrendingUp,
   IconFileText,
-  IconActivity,
-  IconDatabase,
-  IconStar,
-  IconGitHub,
   IconSettings,
 } from '../lib/icons'
-import { useUiStore } from '../stores/uiStore'
-import type { ActivityKey } from '../stores/uiStore'
-import { openExternal } from '../lib/tauri'
 
 interface ActBtnProps {
   icon: React.ReactElement
   label: string
-  actKey?: ActivityKey
-  badge?: string
-  onClick?: () => void
+  path?: string
   active?: boolean
+  onClick?: () => void
 }
 
-function ActBtn({ icon, label, actKey, badge, onClick, active }: ActBtnProps): React.ReactElement {
-  const selection = useUiStore((s) => s.activityBarSelection)
-  const setActivityBarSelection = useUiStore((s) => s.setActivityBarSelection)
-
-  const isActive = active ?? (actKey !== undefined && selection === actKey)
+function ActBtn({ icon, label, path, active, onClick }: ActBtnProps): React.ReactElement {
+  const navigate = useNavigate()
 
   function handleClick() {
     if (onClick) {
       onClick()
-    } else if (actKey) {
-      setActivityBarSelection(actKey)
+    } else if (path) {
+      navigate(path)
     }
   }
 
   return (
     <button
-      className={`act-btn${isActive ? ' active' : ''}`}
+      className={`act-btn${active ? ' active' : ''}`}
       title={label}
       onClick={handleClick}
     >
       {icon}
-      {badge && <span className="badge">{badge}</span>}
     </button>
   )
 }
 
 export function ActivityBar(): React.ReactElement {
-  async function handleGitHub() {
-    await openExternal('https://github.com/finagent/finagent')
-  }
+  const location = useLocation()
+  const isActive = (prefix: string) => location.pathname.startsWith(prefix)
 
   return (
     <div className="activity-bar" data-testid="activitybar">
-      <ActBtn icon={<IconDashboard size={18} />} label="工作台" actKey="dashboard" />
-      <ActBtn icon={<IconPipeline size={18} />} label="Pipeline 库" actKey="pipelines" />
-      <ActBtn icon={<IconFileText size={18} />} label="报告库" actKey="reports" />
       <ActBtn
-        icon={<IconActivity size={18} />}
-        label="任务监控"
-        actKey="monitor"
-        badge="3"
+        icon={<IconHome size={18} />}
+        label="Dashboard"
+        path="/dashboard"
+        active={isActive('/dashboard')}
       />
-      <ActBtn icon={<IconDatabase size={18} />} label="数据源" actKey="datasources" />
-      <ActBtn icon={<IconStar size={18} />} label="自选股" actKey="watchlist" />
+      <ActBtn
+        icon={<IconTrendingUp size={18} />}
+        label="Stocks"
+        path="/stocks"
+        active={isActive('/stocks')}
+      />
+      <ActBtn
+        icon={<IconFileText size={18} />}
+        label="Library"
+        path="/library"
+        active={isActive('/library')}
+      />
+      <ActBtn
+        icon={<IconSettings size={18} />}
+        label="Settings"
+        path="/settings"
+        active={isActive('/settings')}
+      />
 
       <div className="spacer" />
-
-      <ActBtn
-        icon={<IconGitHub size={18} />}
-        label="GitHub"
-        onClick={handleGitHub}
-      />
-      <ActBtn icon={<IconSettings size={18} />} label="设置" actKey="settings" />
     </div>
   )
 }

@@ -12,6 +12,7 @@ Error handling:
 Price-enrichment failures are logged and silently degraded (entry still
 returned without P&L data) — acceptable because live price is advisory.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -64,14 +65,10 @@ async def _enrich_with_price(entry: JournalEntry) -> JournalEntry:
             entry.current_price = round(current, 2)
             if entry.action == "SELL":
                 # Profit for SELL when price fell after entry
-                entry.pnl_pct = round(
-                    (entry.entry_price - current) / entry.entry_price * 100, 2
-                )
+                entry.pnl_pct = round((entry.entry_price - current) / entry.entry_price * 100, 2)
                 entry.pnl_abs = round(entry.entry_price - current, 2)
             else:
-                entry.pnl_pct = round(
-                    (current - entry.entry_price) / entry.entry_price * 100, 2
-                )
+                entry.pnl_pct = round((current - entry.entry_price) / entry.entry_price * 100, 2)
                 entry.pnl_abs = round(current - entry.entry_price, 2)
     except (ImportError, AttributeError, ValueError, TypeError, OSError):
         logger.exception("Price enrichment failed for %s — returning without P&L", entry.ticker)

@@ -62,11 +62,5 @@ class RunFailed(TypedDict):
 
 
 RunEvent: TypeAlias = (
-    RunStarted
-    | StepStarted
-    | StepCompleted
-    | StepRetry
-    | ArtifactReady
-    | RunCompleted
-    | RunFailed
+    RunStarted | StepStarted | StepCompleted | StepRetry | ArtifactReady | RunCompleted | RunFailed
 )

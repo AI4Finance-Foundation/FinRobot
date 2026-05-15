@@ -14,10 +14,38 @@ from finagent.engine.compute.news import NewsItem
 
 def _make_events() -> list[CatalystEvent]:
     return [
-        CatalystEvent(category="earnings", headline="Q4 beat", sentiment="positive", impact_score=4, probability=0.9, reasoning="Strong"),
-        CatalystEvent(category="regulatory", headline="EU fine", sentiment="negative", impact_score=3, probability=0.6, reasoning="Pending"),
-        CatalystEvent(category="product_launch", headline="New chip", sentiment="positive", impact_score=5, probability=0.7, reasoning="M4 launch"),
-        CatalystEvent(category="market", headline="Rate cut", sentiment="positive", impact_score=2, probability=0.4, reasoning="Fed"),
+        CatalystEvent(
+            category="earnings",
+            headline="Q4 beat",
+            sentiment="positive",
+            impact_score=4,
+            probability=0.9,
+            reasoning="Strong",
+        ),
+        CatalystEvent(
+            category="regulatory",
+            headline="EU fine",
+            sentiment="negative",
+            impact_score=3,
+            probability=0.6,
+            reasoning="Pending",
+        ),
+        CatalystEvent(
+            category="product_launch",
+            headline="New chip",
+            sentiment="positive",
+            impact_score=5,
+            probability=0.7,
+            reasoning="M4 launch",
+        ),
+        CatalystEvent(
+            category="market",
+            headline="Rate cut",
+            sentiment="positive",
+            impact_score=2,
+            probability=0.4,
+            reasoning="Fed",
+        ),
     ]
 
 
@@ -57,9 +85,7 @@ class TestCatalystAnalysisNewFields:
     def test_catalyst_analysis_new_fields_defaulted(self):
         from finagent.engine.models.financial import CatalystAnalysis
 
-        ca = CatalystAnalysis(
-            events=[], overall_sentiment="neutral", key_catalysts=[]
-        )
+        ca = CatalystAnalysis(events=[], overall_sentiment="neutral", key_catalysts=[])
         assert ca.net_sentiment == 0.0
         assert ca.category_breakdown == {}
         assert ca.top_positive == []

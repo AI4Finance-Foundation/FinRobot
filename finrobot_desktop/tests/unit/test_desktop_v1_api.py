@@ -163,12 +163,15 @@ class TestRunsRoutes:
         app.state.run_store = RunStore(tmp_path / "runs.db")
         app.state.run_tasks = {}
 
-        with patch(
-            "finagent.engine.pipelines.registry.get_pipeline_factories",
-            return_value={"dcf": lambda sub_agents: FakePipeline()},
-        ), patch(
-            "finagent.routes.runs.build_report_context",
-            return_value={"mocked": True},
+        with (
+            patch(
+                "finagent.engine.pipelines.registry.get_pipeline_factories",
+                return_value={"dcf": lambda sub_agents: FakePipeline()},
+            ),
+            patch(
+                "finagent.routes.runs.build_report_context",
+                return_value={"mocked": True},
+            ),
         ):
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app=app), base_url="http://test"

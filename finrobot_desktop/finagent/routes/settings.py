@@ -79,16 +79,12 @@ async def get_settings_route(request: Request) -> SettingsResponse:
 
 
 @router.put("", response_model=SettingsResponse)
-async def put_settings_route(
-    update: SettingsUpdate, request: Request
-) -> SettingsResponse:
+async def put_settings_route(update: SettingsUpdate, request: Request) -> SettingsResponse:
     secret_store = request.app.state.secret_store
     current = request.app.state.deps.settings
     payload = update.model_dump(exclude_unset=True)
 
-    non_secret_updates = {
-        k: v for k, v in payload.items() if k in _NON_SECRET_FIELDS
-    }
+    non_secret_updates = {k: v for k, v in payload.items() if k in _NON_SECRET_FIELDS}
     secret_updates = {k: v for k, v in payload.items() if k in _SECRET_FIELDS}
 
     secret_merge: dict[str, str] = {}
@@ -158,9 +154,7 @@ async def _build_response(request: Request) -> SettingsResponse:
     )
 
 
-async def _replace_runtime_settings(
-    request: Request, settings: FinAgentSettings
-) -> None:
+async def _replace_runtime_settings(request: Request, settings: FinAgentSettings) -> None:
     old_data_layer = request.app.state.deps.data_layer
     data_layer = build_data_layer(settings)
     request.app.state.deps.settings = settings

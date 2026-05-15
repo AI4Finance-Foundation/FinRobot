@@ -3,7 +3,6 @@ Unit tests use mocked yfinance.
 Integration tests (marked @pytest.mark.integration) hit real yfinance.
 """
 
-from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -16,6 +15,7 @@ from finagent.engine.data.providers.yfinance_provider import YFinanceProvider
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_mock_ticker(
     info: dict,
@@ -62,6 +62,7 @@ VALID_INFO = {
 # Unit tests (mocked)
 # ---------------------------------------------------------------------------
 
+
 class TestYFinanceProviderMeta:
     def test_name(self):
         assert YFinanceProvider().name == "yfinance"
@@ -76,7 +77,9 @@ class TestFetchFinancials:
     async def test_returns_dataresult_with_revenue(self):
         provider = YFinanceProvider()
         mock_ticker = _make_mock_ticker(VALID_INFO)
-        with patch("finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker):
+        with patch(
+            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             result = await provider.fetch("AAPL", "financials")
         assert isinstance(result, DataResult)
         assert result.data["revenue"] == 385_000_000_000
@@ -87,10 +90,14 @@ class TestFetchFinancials:
     @pytest.mark.asyncio
     async def test_invalid_ticker_raises_provider_error(self):
         provider = YFinanceProvider()
-        mock_ticker = _make_mock_ticker({"regularMarketPrice": None, "currentPrice": None, "marketCap": None})
+        mock_ticker = _make_mock_ticker(
+            {"regularMarketPrice": None, "currentPrice": None, "marketCap": None}
+        )
         # Empty-ish info → invalid ticker
         mock_ticker.info = {}
-        with patch("finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker):
+        with patch(
+            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             with pytest.raises(ProviderError):
                 await provider.fetch("INVALID_TICKER_XYZ", "financials")
 
@@ -100,7 +107,9 @@ class TestFetchPrice:
     async def test_returns_price_history(self):
         provider = YFinanceProvider()
         mock_ticker = _make_mock_ticker(VALID_INFO)
-        with patch("finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker):
+        with patch(
+            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             result = await provider.fetch("AAPL", "price")
         assert isinstance(result, DataResult)
         assert "price_history" in result.data
@@ -113,21 +122,27 @@ class TestFetchNews:
     async def test_returns_news_items_list(self):
         provider = YFinanceProvider()
         raw_news = [
-            {"content": {
-                "title": "Apple hits new high",
-                "provider": {"displayName": "Reuters"},
-                "pubDate": "2024-10-31T16:00:00Z",
-                "canonicalUrl": {"url": "https://example.com/1"},
-            }},
-            {"content": {
-                "title": "AAPL earnings beat",
-                "provider": {"displayName": "Bloomberg"},
-                "pubDate": "2024-10-30T14:00:00Z",
-                "canonicalUrl": {"url": "https://example.com/2"},
-            }},
+            {
+                "content": {
+                    "title": "Apple hits new high",
+                    "provider": {"displayName": "Reuters"},
+                    "pubDate": "2024-10-31T16:00:00Z",
+                    "canonicalUrl": {"url": "https://example.com/1"},
+                }
+            },
+            {
+                "content": {
+                    "title": "AAPL earnings beat",
+                    "provider": {"displayName": "Bloomberg"},
+                    "pubDate": "2024-10-30T14:00:00Z",
+                    "canonicalUrl": {"url": "https://example.com/2"},
+                }
+            },
         ]
         mock_ticker = _make_mock_ticker(VALID_INFO, news=raw_news)
-        with patch("finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker):
+        with patch(
+            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             result = await provider.fetch("AAPL", "news")
         assert isinstance(result, DataResult)
         assert "news_items" in result.data
@@ -141,7 +156,9 @@ class TestFetchNews:
     async def test_empty_news_returns_empty_list(self):
         provider = YFinanceProvider()
         mock_ticker = _make_mock_ticker(VALID_INFO, news=[])
-        with patch("finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker):
+        with patch(
+            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             result = await provider.fetch("AAPL", "news")
         assert result.data["news_items"] == []
 
@@ -152,21 +169,27 @@ class TestFetchNews:
 
         provider = YFinanceProvider()
         raw_news = [
-            {"content": {
-                "title": "Apple Q4 beat",
-                "provider": {"displayName": "Reuters"},
-                "pubDate": "2024-10-31T16:00:00Z",
-                "canonicalUrl": {"url": "https://example.com/1"},
-            }},
-            {"content": {
-                "title": "iPhone sales surge",
-                "provider": {"displayName": "CNBC"},
-                "pubDate": "2024-10-30T10:00:00Z",
-                "canonicalUrl": {"url": "https://example.com/2"},
-            }},
+            {
+                "content": {
+                    "title": "Apple Q4 beat",
+                    "provider": {"displayName": "Reuters"},
+                    "pubDate": "2024-10-31T16:00:00Z",
+                    "canonicalUrl": {"url": "https://example.com/1"},
+                }
+            },
+            {
+                "content": {
+                    "title": "iPhone sales surge",
+                    "provider": {"displayName": "CNBC"},
+                    "pubDate": "2024-10-30T10:00:00Z",
+                    "canonicalUrl": {"url": "https://example.com/2"},
+                }
+            },
         ]
         mock_ticker = _make_mock_ticker(VALID_INFO, news=raw_news)
-        with patch("finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker):
+        with patch(
+            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             result = await provider.fetch("AAPL", "news")
         items = parse_raw_news(result)
         assert len(items) == 2
@@ -180,10 +203,16 @@ class TestFetchNews:
         provider = YFinanceProvider()
         # Old-style yfinance news format (no nested content.provider etc.)
         raw_news = [
-            {"content": {"title": "Old format news"}, "publisher": "Yahoo", "link": "https://y.com"},
+            {
+                "content": {"title": "Old format news"},
+                "publisher": "Yahoo",
+                "link": "https://y.com",
+            },
         ]
         mock_ticker = _make_mock_ticker(VALID_INFO, news=raw_news)
-        with patch("finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker):
+        with patch(
+            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             result = await provider.fetch("AAPL", "news")
         items = result.data["news_items"]
         assert len(items) == 1
@@ -213,9 +242,9 @@ class TestNonUSTickerFormat:
                 side_effect=tracking_ticker,
             ):
                 result = await provider.fetch(ticker, "financials")
-            assert received_symbols == [ticker], (
-                f"Ticker '{ticker}' was not passed through to yfinance"
-            )
+            assert received_symbols == [
+                ticker
+            ], f"Ticker '{ticker}' was not passed through to yfinance"
             assert isinstance(result, DataResult)
             assert result.ticker == ticker
 
@@ -225,7 +254,9 @@ class TestUnsupportedDataType:
     async def test_filings_raises_provider_error(self):
         provider = YFinanceProvider()
         mock_ticker = _make_mock_ticker(VALID_INFO)
-        with patch("finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker):
+        with patch(
+            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             with pytest.raises(ProviderError, match="not supported"):
                 await provider.fetch("AAPL", "filings")
 
@@ -233,7 +264,9 @@ class TestUnsupportedDataType:
     async def test_unknown_type_raises_provider_error(self):
         provider = YFinanceProvider()
         mock_ticker = _make_mock_ticker(VALID_INFO)
-        with patch("finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker):
+        with patch(
+            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             with pytest.raises(ProviderError):
                 await provider.fetch("AAPL", "unknown_type")
 
@@ -248,9 +281,7 @@ class TestFetchHistoricalFinancials:
         Columns are fiscal-year-end dates (most recent first).
         Rows are standard yfinance income statement labels.
         """
-        columns = pd.to_datetime(
-            [f"{2024 - i}-09-30" for i in range(years)]
-        )
+        columns = pd.to_datetime([f"{2024 - i}-09-30" for i in range(years)])
         data = {
             col: {
                 "Total Revenue": (400 - i * 10) * 1e9,
@@ -374,6 +405,7 @@ class TestFetchHistoricalFinancials:
 # ---------------------------------------------------------------------------
 # Integration tests (real yfinance — run manually with -m integration)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.integration
 class TestYFinanceIntegration:

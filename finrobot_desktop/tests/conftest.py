@@ -35,8 +35,11 @@ def sample_price_data_dict():
     return {
         "current_price": 180.0,
         "price_history": [
-            {"close": 170.0}, {"close": 175.0}, {"close": 180.0},
-            {"close": 195.0}, {"close": 150.0},
+            {"close": 170.0},
+            {"close": 175.0},
+            {"close": 180.0},
+            {"close": 195.0},
+            {"close": 150.0},
         ],
     }
 

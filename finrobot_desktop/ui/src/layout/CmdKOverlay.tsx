@@ -17,6 +17,7 @@ import { useDebounce } from "use-debounce";
 import { useNavigate } from "react-router-dom";
 import { useAppStore } from "../stores/appStore";
 import { useToastStore } from "../stores/toastStore";
+import { useI18n, tSync } from "../i18n";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -94,7 +95,7 @@ export function buildActionExecutor(navigate: NavigateFn, close: () => void) {
       if (colonIdx === -1) {
         useToastStore.getState().addToast({
           type: "error",
-          title: "操作格式无效",
+          title: tSync("cmdk.error.invalidAction"),
           description: action,
         });
         return;
@@ -116,7 +117,7 @@ export function buildActionExecutor(navigate: NavigateFn, close: () => void) {
         if (firstColon === -1) {
           useToastStore.getState().addToast({
             type: "error",
-            title: "运行工具需要指定 ticker",
+            title: tSync("cmdk.error.tickerRequired"),
             description: `run:${rest}:??`,
           });
           return;
@@ -126,7 +127,7 @@ export function buildActionExecutor(navigate: NavigateFn, close: () => void) {
         if (!ticker || ticker === "??") {
           useToastStore.getState().addToast({
             type: "error",
-            title: "运行工具需要指定 ticker",
+            title: tSync("cmdk.error.tickerRequired"),
             description: `/${tool} ??`,
           });
           return;
@@ -141,13 +142,13 @@ export function buildActionExecutor(navigate: NavigateFn, close: () => void) {
 
       useToastStore.getState().addToast({
         type: "error",
-        title: "未知操作类型",
+        title: tSync("cmdk.error.unknownAction"),
         description: `kind=${kind}`,
       });
     } catch {
       useToastStore.getState().addToast({
         type: "error",
-        title: "操作执行失败",
+        title: tSync("cmdk.error.actionFailed"),
         description: action,
       });
     }
@@ -244,6 +245,7 @@ export function CmdKOverlay() {
   const setCmdPaletteOpen = useAppStore((s) => s.setCmdPaletteOpen);
   const setCmdKQuery = useAppStore((s) => s.setCmdKQuery);
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -347,7 +349,7 @@ export function CmdKOverlay() {
             (err.name === "AbortError" && controller.signal.reason instanceof Error &&
               (controller.signal.reason as Error).message === "timeout")
           ) {
-            throw new Error("搜索超时，请重试");
+            throw new Error(tSync("cmdk.results.timeout"));
           }
         }
         throw err;
@@ -436,9 +438,9 @@ export function CmdKOverlay() {
       onOpenChange={(next) => {
         if (!next) handleClose();
       }}
-      label="搜索"
+      label={t("cmdk.search.aria")}
       shouldFilter={false}
-      aria-label="Search"
+      aria-label={t("cmdk.search.aria")}
       loop
       style={
         {
@@ -469,7 +471,7 @@ export function CmdKOverlay() {
         <Command.Input
           value={effectiveQuery}
           onValueChange={setCmdKQuery}
-          placeholder="ticker、问题、或 /命令..."
+          placeholder={t("cmdk.placeholder")}
           style={{
             flex: 1,
             background: "transparent",
@@ -490,7 +492,7 @@ export function CmdKOverlay() {
               flexShrink: 0,
             }}
             aria-live="polite"
-            aria-label="搜索中"
+            aria-label={t("cmdk.results.searching")}
           >
             …
           </span>
@@ -505,12 +507,12 @@ export function CmdKOverlay() {
           style={{
             padding: "6px 12px",
             fontSize: "12px",
-            color: "#f59e0b",
+            color: "var(--warning)",
             backgroundColor: "var(--surface)",
             borderBottom: "1px solid var(--border)",
           }}
         >
-          查询过长已截断（最多 {MAX_QUERY_LENGTH} 字符）
+          {t("cmdk.overlength", { max: MAX_QUERY_LENGTH })}
         </div>
       )}
 
@@ -531,9 +533,12 @@ export function CmdKOverlay() {
           }}
         >
           <span>
-            {error instanceof Error && error.message.includes("超时")
-              ? "搜索超时，请重试"
-              : "搜索出错，请检查网络连接"}
+            {error instanceof Error &&
+            (error.message === t("cmdk.results.timeout") ||
+              error.message.toLowerCase().includes("timeout") ||
+              error.message.includes("超时"))
+              ? t("cmdk.results.timeout")
+              : t("cmdk.results.networkError")}
           </span>
           <button
             onClick={() => refetch()}
@@ -549,7 +554,7 @@ export function CmdKOverlay() {
               cursor: "pointer",
             }}
           >
-            重试
+            {t("common.retry")}
           </button>
         </div>
       )}
@@ -560,12 +565,12 @@ export function CmdKOverlay() {
       <Command.List
         data-testid="cmdk-list"
         style={{ maxHeight: "400px", overflowY: "auto" }}
-        aria-label="搜索结果"
+        aria-label={t("cmdk.results.aria")}
       >
         {/* Recent searches — shown when query is empty */}
         {showRecentSearches && (
           <Command.Group
-            heading="最近搜索"
+            heading={t("cmdk.section.recent")}
             data-testid="recent-searches-group"
           >
             {recentSearches.map((q) => (
@@ -622,7 +627,7 @@ export function CmdKOverlay() {
 
         {/* Slash command results */}
         {grouped.slash_command.length > 0 && (
-          <Command.Group heading="命令" data-testid="slash-group">
+          <Command.Group heading={t("cmdk.section.commands")} data-testid="slash-group">
             {grouped.slash_command.map((r) => (
               <ResultItem
                 key={`slash:${r.action}`}
@@ -635,7 +640,7 @@ export function CmdKOverlay() {
 
         {/* Artifact results */}
         {grouped.artifact.length > 0 && (
-          <Command.Group heading="历史分析" data-testid="artifact-group">
+          <Command.Group heading={t("cmdk.section.artifacts")} data-testid="artifact-group">
             {grouped.artifact.map((r) => (
               <ResultItem
                 key={`artifact:${r.action}`}
@@ -648,7 +653,7 @@ export function CmdKOverlay() {
 
         {/* Session results */}
         {grouped.session.length > 0 && (
-          <Command.Group heading="对话历史" data-testid="session-group">
+          <Command.Group heading={t("cmdk.section.sessions")} data-testid="session-group">
             {grouped.session.map((r) => (
               <ResultItem
                 key={`session:${r.action}`}
@@ -670,7 +675,7 @@ export function CmdKOverlay() {
               color: "var(--text-muted)",
             }}
           >
-            输入 ticker（如 AAPL）、问题或 /命令
+            {t("cmdk.empty")}
           </div>
         )}
 
@@ -690,7 +695,7 @@ export function CmdKOverlay() {
               <span
                 style={{ fontSize: "14px", color: "var(--text-muted)" }}
               >
-                没找到 &ldquo;{debouncedQuery}&rdquo;
+                {t("cmdk.results.nothing", { query: debouncedQuery })}
               </span>
               <button
                 onClick={handleAIFallback}
@@ -699,14 +704,14 @@ export function CmdKOverlay() {
                   padding: "6px 16px",
                   fontSize: "14px",
                   fontWeight: 500,
-                  backgroundColor: "var(--accent, #3b82f6)",
+                  backgroundColor: "var(--info)",
                   color: "#fff",
                   border: "none",
                   borderRadius: "6px",
                   cursor: "pointer",
                 }}
               >
-                按 Enter 问 AI / 新建对话
+                {t("cmdk.results.askHint")}
               </button>
             </div>
           </Command.Empty>
@@ -740,7 +745,7 @@ export function CmdKOverlay() {
           >
             ↑↓
           </kbd>{" "}
-          选择{" "}
+          {t("cmdk.foot.select")}{" "}
           <kbd
             style={{
               padding: "1px 5px",
@@ -752,7 +757,7 @@ export function CmdKOverlay() {
           >
             Enter
           </kbd>{" "}
-          确认{" "}
+          {t("cmdk.foot.confirm")}{" "}
           <kbd
             style={{
               padding: "1px 5px",
@@ -764,9 +769,9 @@ export function CmdKOverlay() {
           >
             Esc
           </kbd>{" "}
-          关闭
+          {t("cmdk.foot.close")}
         </span>
-        <span style={{ opacity: 0.6 }}>输 /dcf AAPL 直接跑工具</span>
+        <span style={{ opacity: 0.6 }}>{t("cmdk.foot.tipDcf")}</span>
       </div>
     </Command.Dialog>
   );

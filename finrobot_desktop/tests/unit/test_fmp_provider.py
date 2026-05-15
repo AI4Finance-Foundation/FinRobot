@@ -133,7 +133,8 @@ def _fmp_multi_year_income(ticker="AAPL", years=3):
     base_revenue = 394_328_000_000
     return [
         {
-            "date": f"{2024 - i}-09-30", "symbol": ticker,
+            "date": f"{2024 - i}-09-30",
+            "symbol": ticker,
             "revenue": base_revenue - i * 10_000_000_000,
             "ebitda": 130_000_000_000 - i * 5_000_000_000,
             "netIncome": 97_000_000_000 - i * 3_000_000_000,
@@ -188,15 +189,27 @@ class TestFMPProviderInterface:
 
 def _fmp_news_response(ticker="AAPL"):
     return [
-        {"title": "Apple Q4 earnings beat", "site": "Reuters", "publishedDate": "2024-10-31T16:00:00.000Z", "url": "https://example.com/1"},
-        {"title": "iPhone 16 sales strong", "site": "Bloomberg", "publishedDate": "2024-10-30T14:00:00.000Z", "url": "https://example.com/2"},
+        {
+            "title": "Apple Q4 earnings beat",
+            "site": "Reuters",
+            "publishedDate": "2024-10-31T16:00:00.000Z",
+            "url": "https://example.com/1",
+        },
+        {
+            "title": "iPhone 16 sales strong",
+            "site": "Bloomberg",
+            "publishedDate": "2024-10-30T14:00:00.000Z",
+            "url": "https://example.com/2",
+        },
     ]
 
 
 class TestFMPNews:
     @pytest.mark.asyncio
     async def test_fetch_news_returns_news_items(self, provider):
-        with patch.object(provider, "_get", AsyncMock(return_value=_mock_response(_fmp_news_response()))):
+        with patch.object(
+            provider, "_get", AsyncMock(return_value=_mock_response(_fmp_news_response()))
+        ):
             result = await provider.fetch("AAPL", "news")
         assert isinstance(result, DataResult)
         assert result.data_type == "news"
@@ -258,10 +271,20 @@ class TestFMPEarnings:
     async def test_earnings_skips_entries_with_null_eps(self, provider):
         """Entries without epsActual or epsEstimated should be filtered out."""
         raw = [
-            {"date": "2024-10-31", "epsActual": 1.64, "epsEstimated": 1.60,
-             "revenueActual": 90e9, "revenueEstimated": 89e9},
-            {"date": "2024-07-31", "epsActual": None, "epsEstimated": 1.35,
-             "revenueActual": 85e9, "revenueEstimated": 84e9},
+            {
+                "date": "2024-10-31",
+                "epsActual": 1.64,
+                "epsEstimated": 1.60,
+                "revenueActual": 90e9,
+                "revenueEstimated": 89e9,
+            },
+            {
+                "date": "2024-07-31",
+                "epsActual": None,
+                "epsEstimated": 1.35,
+                "revenueActual": 85e9,
+                "revenueEstimated": 84e9,
+            },
         ]
         with patch.object(provider, "_get", AsyncMock(return_value=_mock_response(raw))):
             result = await provider.fetch("AAPL", "earnings")
@@ -272,6 +295,7 @@ class TestFMPRateLimiter:
     def test_provider_has_rate_limit_attributes(self, provider):
         """Rate limiter requires _lock and _last_call on every instance."""
         import asyncio
+
         assert hasattr(provider, "_lock")
         assert isinstance(provider._lock, asyncio.Lock)
         assert hasattr(provider, "_last_call")

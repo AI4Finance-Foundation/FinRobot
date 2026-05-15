@@ -6,8 +6,8 @@ All tests verify:
 3. Row/column counts match model dimensions.
 4. No bytes that would cause Excel to show a repair dialog.
 """
+
 import io
-import pytest
 import openpyxl
 from finagent.engine.compute.dcf import calculate_dcf
 from finagent.engine.compute.lbo import calculate_lbo
@@ -94,6 +94,7 @@ class TestGenerateDCFExcel:
         result = calculate_dcf(inputs, wacc_override=0.10)
         from finagent.engine.compute.dcf import calculate_sensitivity
         from finagent.engine.pipelines.equity_research import _build_sensitivity_ranges
+
         wacc_range, tg_range = _build_sensitivity_ranges(result)
         sensitivity = calculate_sensitivity(inputs, wacc_range=wacc_range, tg_range=tg_range)
         result = result.model_copy(update={"sensitivity_table": sensitivity})
@@ -147,14 +148,28 @@ class TestGenerateCompsExcel:
     def _make_peers(self) -> list[CompanyFinancials]:
         return [
             CompanyFinancials(
-                ticker="AAPL", revenue=400e9, ebitda=120e9, net_income=95e9,
-                market_cap=3_000e9, gross_margin=0.44, operating_margin=0.30,
-                ev_ebitda=25.0, ev_revenue=7.5, pe_ratio=28.0,
+                ticker="AAPL",
+                revenue=400e9,
+                ebitda=120e9,
+                net_income=95e9,
+                market_cap=3_000e9,
+                gross_margin=0.44,
+                operating_margin=0.30,
+                ev_ebitda=25.0,
+                ev_revenue=7.5,
+                pe_ratio=28.0,
             ),
             CompanyFinancials(
-                ticker="MSFT", revenue=220e9, ebitda=90e9, net_income=72e9,
-                market_cap=2_500e9, gross_margin=0.68, operating_margin=0.42,
-                ev_ebitda=22.0, ev_revenue=11.0, pe_ratio=35.0,
+                ticker="MSFT",
+                revenue=220e9,
+                ebitda=90e9,
+                net_income=72e9,
+                market_cap=2_500e9,
+                gross_margin=0.68,
+                operating_margin=0.42,
+                ev_ebitda=22.0,
+                ev_revenue=11.0,
+                pe_ratio=35.0,
             ),
         ]
 

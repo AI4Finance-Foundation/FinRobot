@@ -70,8 +70,7 @@ async def run_qa(
     for i, (chunk, score) in enumerate(chunks_with_scores, 1):
         source_label = chunk.source or f"Chunk {chunk.chunk_index}"
         context_parts.append(
-            f"[Excerpt {i}] (Source: {source_label}, Relevance: {score:.2f})\n"
-            f"{chunk.text}"
+            f"[Excerpt {i}] (Source: {source_label}, Relevance: {score:.2f})\n{chunk.text}"
         )
     context = "\n\n---\n\n".join(context_parts)
 

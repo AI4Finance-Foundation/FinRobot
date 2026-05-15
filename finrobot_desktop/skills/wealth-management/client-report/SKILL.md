@@ -116,4 +116,3 @@ Brief market summary tailored to the client's level of sophistication:
 - Match the level of detail to the client — some want every holding, others want a one-page summary
 - Benchmark selection matters — use the benchmark from the IPS, not whatever looks best
 - Review for compliance approval before first distribution of a new template
-

@@ -111,7 +111,7 @@ export default function TechnicalAnalysisView() {
         {isLoading && chartData.length === 0 ? (
           <div className="loading-skeleton" style={{ height: 340 }} />
         ) : chartData.length === 0 ? (
-          <div style={{ color: '#7A8299', textAlign: 'center', padding: 40 }}>
+          <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: 40 }}>
             No price data available
           </div>
         ) : (

@@ -116,4 +116,3 @@ For each Tier 1 buyer:
 - Financial sponsors: check fund vintage and deployment pace — a fund nearing end of investment period may be more motivated
 - Always ask the seller if there are buyers they want included or excluded
 - Update the list as the process progresses — move buyers between tiers based on feedback
-

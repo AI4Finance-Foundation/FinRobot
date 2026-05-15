@@ -148,7 +148,7 @@ export interface ComparisonResultData {
   generated_at: string
 }
 
-export type ActiveTab = 'overview' | 'financials' | 'valuation' | 'peers' | 'compare'
+export type ActiveTab = 'overview' | 'financials' | 'valuation' | 'comps' | 'compare'
 
 export interface HistoricalMetrics {
   years: number[]

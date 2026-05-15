@@ -3,6 +3,7 @@
 Scans ``~/.finagent-desktop/sessions/*.jsonl`` files and returns typed
 summaries or full event lists for replay / cmd+K search.
 """
+
 from __future__ import annotations
 
 import json

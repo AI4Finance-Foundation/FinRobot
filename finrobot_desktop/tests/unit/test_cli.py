@@ -1,4 +1,5 @@
 """CLI tests using click.testing.CliRunner with TestModel mock."""
+
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,6 +17,7 @@ FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "skills"
 # ---------------------------------------------------------------------------
 # Fake DataLayer for CLI tests
 # ---------------------------------------------------------------------------
+
 
 class FakeDataLayer:
     async def fetch(self, data_type: str, ticker: str, **kwargs) -> DataResult:
@@ -50,6 +52,7 @@ class FakeDataLayer:
 def _fake_deps():
     """Create fake deps for testing."""
     from finagent.config import get_settings
+
     settings = get_settings(model_name="test")
     return FinAgentDeps(data_layer=FakeDataLayer(), settings=settings)
 
@@ -99,7 +102,9 @@ class TestRunCommand:
         agent, test_model = _patch_build_runtime(monkeypatch)
         runner = CliRunner()
         with agent.override(model=test_model):
-            result = runner.invoke(cli, ["run", "test question", "--model", "anthropic:claude-sonnet-4-6"])
+            result = runner.invoke(
+                cli, ["run", "test question", "--model", "anthropic:claude-sonnet-4-6"]
+            )
         assert result.exit_code == 0, result.output
 
 
@@ -115,7 +120,8 @@ class TestResearchCommand:
                     "peer_analysis": "MSFT GOOG AMZN peers identified",
                     "financial_modeling": "DCF implies $200/share",
                     "thesis": "Buy recommendation price target $220",
-                    "report": "# Report\n\n## Summary\n\nAAPL analysis.\n\n## Valuation\n\nFair value $200.\n\n## Risk\n\nDownside risks.\n\nThis is a test report with enough words to pass the 200-word minimum. " * 5,
+                    "report": "# Report\n\n## Summary\n\nAAPL analysis.\n\n## Valuation\n\nFair value $200.\n\n## Risk\n\nDownside risks.\n\nThis is a test report with enough words to pass the 200-word minimum. "
+                    * 5,
                 },
             )
 
@@ -189,6 +195,7 @@ class TestDcfCommand:
 class TestBuildDeps:
     def test_build_deps_returns_deps_with_settings(self):
         from finagent.cli import _build_deps
+
         # This will try to build with real settings — just verify it returns FinAgentDeps
         deps = _build_deps()
         assert hasattr(deps, "settings")
@@ -197,6 +204,7 @@ class TestBuildDeps:
 
     def test_build_runtime_returns_agent_and_deps(self):
         from finagent.cli import _build_runtime
+
         agent, deps = _build_runtime()
         assert agent is not None
         assert hasattr(deps, "settings")
@@ -244,9 +252,9 @@ class TestCliProgress:
         output = capsys.readouterr().out
         lines = output.strip().split("\n")
         # Last line should contain both the step label and "done"
-        assert "Data Collection" in lines[-1] and "done" in lines[-1], (
-            f"Expected step label before 'done' on last line, got: {lines[-1]}"
-        )
+        assert (
+            "Data Collection" in lines[-1] and "done" in lines[-1]
+        ), f"Expected step label before 'done' on last line, got: {lines[-1]}"
 
 
 class TestBacktestCommand:
@@ -270,11 +278,17 @@ class TestBacktestCommand:
             mock_run,
         )
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "backtest", "AAPL",
-            "--start", "2023-01-01",
-            "--end", "2024-01-01",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "backtest",
+                "AAPL",
+                "--start",
+                "2023-01-01",
+                "--end",
+                "2024-01-01",
+            ],
+        )
         assert result.exit_code == 0, result.output
         assert "$110,000" in result.output
         assert "10.00%" in result.output
@@ -297,26 +311,42 @@ class TestBacktestCommand:
             mock_run,
         )
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "backtest", "MSFT",
-            "--start", "2023-01-01",
-            "--end", "2024-01-01",
-            "--strategy", "sma_crossover",
-            "--params", '{"fast": 5, "slow": 20}',
-            "--cash", "200000",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "backtest",
+                "MSFT",
+                "--start",
+                "2023-01-01",
+                "--end",
+                "2024-01-01",
+                "--strategy",
+                "sma_crossover",
+                "--params",
+                '{"fast": 5, "slow": 20}',
+                "--cash",
+                "200000",
+            ],
+        )
         assert result.exit_code == 0, result.output
         assert captured_configs[0].strategy_params == {"fast": 5, "slow": 20}
         assert captured_configs[0].initial_cash == 200_000.0
 
     def test_backtest_invalid_params_json(self):
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "backtest", "AAPL",
-            "--start", "2023-01-01",
-            "--end", "2024-01-01",
-            "--params", "not-json",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "backtest",
+                "AAPL",
+                "--start",
+                "2023-01-01",
+                "--end",
+                "2024-01-01",
+                "--params",
+                "not-json",
+            ],
+        )
         assert result.exit_code != 0
         assert "Invalid --params JSON" in result.output
 

@@ -1,0 +1,80 @@
+# finagent/engine/analysis/news_classifier.py
+"""LLM-based news classification.
+
+Extracted from compute/news.py to respect the leaf-layer red line:
+compute/ must be pure deterministic code with no LLM library imports.
+
+The data models (RawNewsItem, NewsItem) and deterministic functions
+(parse_raw_news, fetch_news) remain in compute/news.py.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING
+
+from pydantic import BaseModel
+from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.exceptions import AgentRunError
+
+from finagent.engine.compute.news import NewsItem, RawNewsItem
+
+if TYPE_CHECKING:
+    from finagent.engine.deps import FinAgentDeps
+
+logger = logging.getLogger(__name__)
+
+
+class ClassifiedNewsBatch(BaseModel):
+    """LLM structured output for batch news classification."""
+
+    items: list[NewsItem]
+
+
+async def classify_news(
+    raw_items: list[RawNewsItem],
+    deps: FinAgentDeps,
+) -> list[NewsItem]:
+    """Classify raw news items using LLM with structured output.
+
+    What this does that raw LLM text cannot: forces each news item into
+    a typed NewsItem with constrained category (7 options), sentiment
+    (3 options), and importance (1-5) via PydanticAI output_type validation.
+    Invalid LLM output is rejected by Pydantic, not silently accepted.
+
+    Args:
+        raw_items: News items to classify (from fetch_news or parse_raw_news).
+        deps: FinAgentDeps with settings for model configuration.
+
+    Returns:
+        List of classified NewsItem. Empty list if input is empty or LLM fails.
+    """
+    if not raw_items:
+        return []
+
+    classification_agent = PydanticAgent(
+        deps.settings.create_model(),
+        output_type=ClassifiedNewsBatch,
+        instructions=(
+            "Classify each news item. For each, provide:\n"
+            "- category: earnings/product/regulatory/macro/analyst/management/other\n"
+            "- sentiment: positive/negative/neutral\n"
+            "- importance: 1-5 (5=most important for stock price)\n"
+            "- summary: one sentence summary\n"
+            "Preserve the original title, source, published, and url fields exactly."
+        ),
+        defer_model_check=True,
+    )
+
+    news_text = "\n".join(
+        f"- [{item.source}] {item.title} (published: {item.published.isoformat()}, url: {item.url})"
+        for item in raw_items
+    )
+    prompt = f"Classify these {len(raw_items)} news items:\n{news_text}"
+
+    try:
+        result = await classification_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
+        return list(result.output.items)
+    except (AgentRunError, ValueError, TypeError) as e:
+        logger.warning(f"News classification failed: {e}")
+        return []

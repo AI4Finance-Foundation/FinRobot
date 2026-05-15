@@ -105,4 +105,3 @@ Proposed allocation:
 - The transition plan matters — clients fear the disruption of switching advisors
 - Follow up within 48 hours with the proposal and a clear next step
 - Compliance must review before presenting to prospects
-

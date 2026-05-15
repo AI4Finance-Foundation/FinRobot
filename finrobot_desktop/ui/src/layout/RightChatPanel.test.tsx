@@ -296,12 +296,20 @@ describe('RightChatPanel — sending messages', () => {
     expect(mockChatControls.sendMessage).toHaveBeenCalledWith({ text: 'AAPL DCF 估值' })
   })
 
-  it('sends on Cmd+Enter', () => {
+  it('sends on Enter', () => {
     renderPanel()
     const input = screen.getByTestId('chat-input')
     fireEvent.change(input, { target: { value: '问题' } })
-    fireEvent.keyDown(input, { key: 'Enter', metaKey: true })
+    fireEvent.keyDown(input, { key: 'Enter' })
     expect(mockChatControls.sendMessage).toHaveBeenCalled()
+  })
+
+  it('does NOT send on Shift+Enter (newline)', () => {
+    renderPanel()
+    const input = screen.getByTestId('chat-input')
+    fireEvent.change(input, { target: { value: '问题' } })
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
+    expect(mockChatControls.sendMessage).not.toHaveBeenCalled()
   })
 
   it('does not send empty message', () => {
@@ -593,17 +601,20 @@ describe('RightChatPanel — model selector', () => {
     expect(screen.getByTestId('model-selector')).toBeInTheDocument()
   })
 
-  it('model selector defaults to anthropic', () => {
+  it('model selector defaults to Claude Sonnet label', () => {
     renderPanel()
-    const select = screen.getByTestId('model-selector') as HTMLSelectElement
-    expect(select.value).toBe('anthropic')
+    const badge = screen.getByTestId('model-selector')
+    // Model selector is now a read-only span showing the human label.
+    // Default local model is 'anthropic' → label 'Claude Sonnet'.
+    expect(badge.textContent).toBe('Claude Sonnet')
   })
 
-  it('can change model via selector', () => {
+  it('model badge is read-only (configured via Settings)', () => {
     renderPanel()
-    const select = screen.getByTestId('model-selector') as HTMLSelectElement
-    fireEvent.change(select, { target: { value: 'deepseek' } })
-    expect(select.value).toBe('deepseek')
+    const badge = screen.getByTestId('model-selector')
+    // Verify it's a span (read-only), not a select
+    expect(badge.tagName).toBe('SPAN')
+    expect(badge).toHaveAttribute('title', '模型在 Settings 中配置')
   })
 })
 

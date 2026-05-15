@@ -8,6 +8,7 @@ Coverage:
 - POST /api/artifacts/{id}/view — 200; 404 on missing
 - GET  /api/artifacts/by-ticker/{ticker}/timeline — correct ordering
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -45,6 +46,7 @@ def store(app: FastAPI) -> ArtifactStore:
 
 def _save_sync(store: ArtifactStore, artifact: Artifact) -> None:
     import asyncio
+
     asyncio.get_event_loop().run_until_complete(store.save(artifact))
 
 
@@ -73,9 +75,7 @@ class TestListArtifacts:
         assert "inputs" not in item
         assert "assumptions" not in item
 
-    def test_filter_by_ticker(
-        self, client: TestClient, store: ArtifactStore
-    ) -> None:
+    def test_filter_by_ticker(self, client: TestClient, store: ArtifactStore) -> None:
         aapl = _make_artifact(id="art_AAPL_1", ticker="AAPL")
         msft = _make_artifact(id="art_MSFT_1", ticker="MSFT")
         _save_sync(store, aapl)
@@ -87,9 +87,7 @@ class TestListArtifacts:
         assert len(items) == 1
         assert items[0]["id"] == "art_AAPL_1"
 
-    def test_filter_by_type(
-        self, client: TestClient, store: ArtifactStore
-    ) -> None:
+    def test_filter_by_type(self, client: TestClient, store: ArtifactStore) -> None:
         dcf = _make_artifact(id="art_dcf", ticker="AAPL", type="dcf")
         lbo = _make_artifact(id="art_lbo", ticker="AAPL", type="lbo")
         _save_sync(store, dcf)
@@ -101,9 +99,7 @@ class TestListArtifacts:
         assert len(items) == 1
         assert items[0]["type"] == "lbo"
 
-    def test_archived_excluded_by_default(
-        self, client: TestClient, store: ArtifactStore
-    ) -> None:
+    def test_archived_excluded_by_default(self, client: TestClient, store: ArtifactStore) -> None:
         art = _make_artifact(id="art_archived")
         art.meta.archived = True
         _save_sync(store, art)
@@ -111,9 +107,7 @@ class TestListArtifacts:
         resp = client.get("/api/artifacts")
         assert resp.json() == []
 
-    def test_archived_included_with_flag(
-        self, client: TestClient, store: ArtifactStore
-    ) -> None:
+    def test_archived_included_with_flag(self, client: TestClient, store: ArtifactStore) -> None:
         art = _make_artifact(id="art_archived")
         art.meta.archived = True
         _save_sync(store, art)
@@ -193,8 +187,10 @@ class TestDiff:
         diffs = resp.json()
         # summary_text will differ (contains id), but numeric fields are same
         numeric_diffs = [
-            d for d in diffs
-            if d["path"] in (
+            d
+            for d in diffs
+            if d["path"]
+            in (
                 "assumptions.parameters.wacc",
                 "outputs.structured.implied_price",
             )
@@ -202,15 +198,16 @@ class TestDiff:
         assert numeric_diffs == []
 
     def test_diff_changed_wacc(
-        self, client: TestClient, store: ArtifactStore,
-        sample_artifact: Artifact, sample_artifact_v2: Artifact
+        self,
+        client: TestClient,
+        store: ArtifactStore,
+        sample_artifact: Artifact,
+        sample_artifact_v2: Artifact,
     ) -> None:
         _save_sync(store, sample_artifact)
         _save_sync(store, sample_artifact_v2)
 
-        resp = client.get(
-            f"/api/artifacts/{sample_artifact.id}/diff/{sample_artifact_v2.id}"
-        )
+        resp = client.get(f"/api/artifacts/{sample_artifact.id}/diff/{sample_artifact_v2.id}")
         assert resp.status_code == 200
         diffs = resp.json()
         by_path = {d["path"]: d for d in diffs}
@@ -280,9 +277,7 @@ class TestTimeline:
         assert "art_timeline_dcf" in ids
         assert "art_timeline_lbo" in ids
 
-    def test_timeline_includes_archived(
-        self, client: TestClient, store: ArtifactStore
-    ) -> None:
+    def test_timeline_includes_archived(self, client: TestClient, store: ArtifactStore) -> None:
         art = _make_artifact(id="art_timeline_archived", ticker="TSLA")
         art.meta.archived = True
         _save_sync(store, art)
@@ -292,10 +287,9 @@ class TestTimeline:
         ids = [item["id"] for item in resp.json()]
         assert "art_timeline_archived" in ids
 
-    def test_timeline_sorted_newest_first(
-        self, client: TestClient, store: ArtifactStore
-    ) -> None:
+    def test_timeline_sorted_newest_first(self, client: TestClient, store: ArtifactStore) -> None:
         from datetime import datetime, timezone
+
         early = _make_artifact(
             id="art_early_TSLA",
             ticker="TSLA",

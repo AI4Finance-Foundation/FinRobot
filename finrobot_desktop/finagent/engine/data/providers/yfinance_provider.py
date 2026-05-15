@@ -45,9 +45,16 @@ class YFinanceProvider(DataProvider):
     @property
     def financials_fields(self) -> set[str]:
         return {
-            "revenue", "ebitda", "net_income", "market_cap", "shares_outstanding",
-            "gross_margin", "operating_margin", "pe_ratio",
-            "total_debt", "total_cash",
+            "revenue",
+            "ebitda",
+            "net_income",
+            "market_cap",
+            "shares_outstanding",
+            "gross_margin",
+            "operating_margin",
+            "pe_ratio",
+            "total_debt",
+            "total_cash",
         }
 
     async def fetch(self, ticker: str, data_type: str | DataType, **kwargs: Any) -> DataResult:
@@ -173,9 +180,7 @@ class YFinanceProvider(DataProvider):
                 "net_income": series.get("Net Income"),
                 "gross_profit": gross_profit,
                 "operating_income": operating_income,
-                "gross_margin": (
-                    gross_profit / revenue if revenue and gross_profit else None
-                ),
+                "gross_margin": (gross_profit / revenue if revenue and gross_profit else None),
                 "operating_margin": (
                     operating_income / revenue if revenue and operating_income else None
                 ),
@@ -226,21 +231,19 @@ class YFinanceProvider(DataProvider):
                 title = content.get("title") or item.get("title", "")
                 if not title:
                     continue
-                news_items.append({
-                    "title": title,
-                    "source": (
-                        content.get("provider", {}).get("displayName")
-                        or item.get("publisher", "yfinance")
-                    ),
-                    "published": (
-                        content.get("pubDate")
-                        or item.get("providerPublishTime", "")
-                    ),
-                    "url": (
-                        content.get("canonicalUrl", {}).get("url")
-                        or item.get("link", "")
-                    ),
-                })
+                news_items.append(
+                    {
+                        "title": title,
+                        "source": (
+                            content.get("provider", {}).get("displayName")
+                            or item.get("publisher", "yfinance")
+                        ),
+                        "published": (
+                            content.get("pubDate") or item.get("providerPublishTime", "")
+                        ),
+                        "url": (content.get("canonicalUrl", {}).get("url") or item.get("link", "")),
+                    }
+                )
         except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
             raise ProviderError(f"Failed to fetch news for '{ticker}': {e}") from e
 

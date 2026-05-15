@@ -10,6 +10,7 @@ Covers:
 
 Every test injects a mock DataLayer so we never touch the network or disk.
 """
+
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
@@ -65,10 +66,12 @@ def _trivial_pipeline(*args, **kwargs) -> Pipeline:
     Used to monkey-patch create_equity_research_pipeline in SDK tests so we
     exercise SDK plumbing without running DCF math against TestModel output.
     """
+
     async def fn(agent, deps, prompt, structured_context, ticker):
         return f"trivial result for {ticker}"
 
     from finagent.engine.pipelines.base import TextValidator
+
     step = PipelineStep(
         name="trivial",
         agent=MagicMock(),

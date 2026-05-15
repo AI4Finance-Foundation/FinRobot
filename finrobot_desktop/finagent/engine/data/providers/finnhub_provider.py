@@ -38,9 +38,16 @@ class FinnhubProvider(DataProvider):
     @property
     def financials_fields(self) -> set[str]:
         return {
-            "revenue", "ebitda", "net_income", "market_cap", "shares_outstanding",
-            "gross_margin", "operating_margin", "depreciation_amortization",
-            "total_debt", "total_cash",
+            "revenue",
+            "ebitda",
+            "net_income",
+            "market_cap",
+            "shares_outstanding",
+            "gross_margin",
+            "operating_margin",
+            "depreciation_amortization",
+            "total_debt",
+            "total_cash",
         }
 
     async def fetch(self, ticker: str, data_type: str | DataType, **kwargs: Any) -> DataResult:
@@ -88,9 +95,7 @@ class FinnhubProvider(DataProvider):
         filings = reported.get("data", [])
 
         if years is not None and years > 1:
-            parsed = [
-                self._parse_filing(filing, profile) for filing in filings[:years]
-            ]
+            parsed = [self._parse_filing(filing, profile) for filing in filings[:years]]
             return {"yearly_data": parsed}
 
         # Single-year (default): return flat dict
@@ -166,9 +171,7 @@ class FinnhubProvider(DataProvider):
             {
                 "title": item.get("headline", ""),
                 "source": item.get("source", ""),
-                "published": datetime.fromtimestamp(
-                    item["datetime"], tz=timezone.utc
-                ).isoformat()
+                "published": datetime.fromtimestamp(item["datetime"], tz=timezone.utc).isoformat()
                 if item.get("datetime")
                 else "",
                 "url": item.get("url", ""),
@@ -196,8 +199,6 @@ class FinnhubProvider(DataProvider):
             self._last_call = time.monotonic()
             headers = {"X-Finnhub-Token": self._api_key}
             async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-                resp = await client.get(
-                    f"{_BASE_URL}{path}", params=params or {}, headers=headers
-                )
+                resp = await client.get(f"{_BASE_URL}{path}", params=params or {}, headers=headers)
                 resp.raise_for_status()
                 return resp

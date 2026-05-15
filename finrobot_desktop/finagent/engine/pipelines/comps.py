@@ -8,7 +8,10 @@ from pydantic_ai import Agent
 from finagent.engine.data.types import DataType
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.pipelines.base import (
-    Pipeline, PipelineStep, StructuredValidator, TextValidator,
+    Pipeline,
+    PipelineStep,
+    StructuredValidator,
+    TextValidator,
 )
 from finagent.engine.pipelines._helpers import execute_financial_data_step
 from finagent.engine.pipelines.validators import (
@@ -89,7 +92,9 @@ def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 skill_section=None,
                 agent=agents["data"],
                 required_data=[],
-                validator=TextValidator(lambda out: validate_has_fields(out, ["revenue", "ebitda"])),
+                validator=TextValidator(
+                    lambda out: validate_has_fields(out, ["revenue", "ebitda"])
+                ),
                 executor=_execute_peer_data,
             ),
             PipelineStep(
@@ -118,5 +123,5 @@ def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[],
                 validator=TextValidator(validate_has_comps_table),
             ),
-        ]
+        ],
     )

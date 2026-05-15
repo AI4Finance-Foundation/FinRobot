@@ -10,11 +10,11 @@ Coverage:
 - List element diffs carry index notation [0], [1], ...
 - Numeric diffs carry abs_change and pct_change
 """
+
 from __future__ import annotations
 
 from finagent.artifact.diff import FieldDiff, diff_artifacts
 from finagent.artifact.models import Artifact
-from tests.artifact.conftest import _make_artifact
 
 
 def _diff_dict(diffs: list[FieldDiff]) -> dict[str, FieldDiff]:
@@ -33,9 +33,7 @@ class TestIdentical:
 
 
 class TestChangedFields:
-    def test_wacc_changed(
-        self, sample_artifact: Artifact, sample_artifact_v2: Artifact
-    ) -> None:
+    def test_wacc_changed(self, sample_artifact: Artifact, sample_artifact_v2: Artifact) -> None:
         diffs = diff_artifacts(sample_artifact, sample_artifact_v2)
         by_path = _diff_dict(diffs)
 
@@ -128,9 +126,7 @@ class TestAddedRemoved:
 
 
 class TestSkippedSections:
-    def test_meta_is_skipped(
-        self, sample_artifact: Artifact, sample_artifact_v2: Artifact
-    ) -> None:
+    def test_meta_is_skipped(self, sample_artifact: Artifact, sample_artifact_v2: Artifact) -> None:
         diffs = diff_artifacts(sample_artifact, sample_artifact_v2)
         paths = [d.path for d in diffs]
         assert not any(p.startswith("meta.") for p in paths)
@@ -168,9 +164,7 @@ class TestNestedPath:
         by_path = _diff_dict(diffs)
         assert "assumptions.parameters.wacc" in by_path
 
-    def test_sorted_by_path(
-        self, sample_artifact: Artifact, sample_artifact_v2: Artifact
-    ) -> None:
+    def test_sorted_by_path(self, sample_artifact: Artifact, sample_artifact_v2: Artifact) -> None:
         diffs = diff_artifacts(sample_artifact, sample_artifact_v2)
         paths = [d.path for d in diffs]
         assert paths == sorted(paths)

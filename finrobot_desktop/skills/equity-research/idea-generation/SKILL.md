@@ -133,4 +133,3 @@ For each idea that passes the screen, present:
 - Contrarian ideas need a catalyst — being early without a catalyst is the same as being wrong
 - Track idea hit rates over time — which screens and approaches produce the best ideas?
 - Short ideas need higher conviction — timing is harder and risk is asymmetric
-

@@ -5,6 +5,7 @@ DDM formula: Equity Value = Sum(PV of projected dividends) + PV(terminal value)
 Terminal Value = D_n * (1 + tg) / (CoE - tg)  (Gordon Growth Model)
 Cost of Equity = Risk-Free Rate + Beta * Equity Risk Premium  (CAPM)
 """
+
 import pytest
 
 from finagent.engine.compute.ddm import calculate_ddm, calculate_ddm_sensitivity
@@ -75,7 +76,7 @@ class TestDDMBasic:
         """PV(TV) = TV / (1 + CoE)^5."""
         inputs = _make_inputs()
         result = calculate_ddm(inputs)
-        expected_pv = result.terminal_value / (1.10 ** 5)
+        expected_pv = result.terminal_value / (1.10**5)
         assert result.pv_terminal == pytest.approx(expected_pv, abs=0.1)
 
     def test_equity_value_positive(self) -> None:
@@ -189,7 +190,7 @@ class TestDDMEdgeCases:
 
     def test_higher_coe_lower_value(self) -> None:
         """Higher cost of equity should produce lower equity value."""
-        inputs_low = _make_inputs(beta=0.8)   # CoE = 0.045 + 0.8*0.055 = 0.089
+        inputs_low = _make_inputs(beta=0.8)  # CoE = 0.045 + 0.8*0.055 = 0.089
         inputs_high = _make_inputs(beta=1.5)  # CoE = 0.045 + 1.5*0.055 = 0.1275
         r_low = calculate_ddm(inputs_low)
         r_high = calculate_ddm(inputs_high)

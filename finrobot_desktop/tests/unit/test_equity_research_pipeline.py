@@ -15,6 +15,7 @@ from finagent.engine.pipelines.equity_research import create_equity_research_pip
 # Fakes
 # ---------------------------------------------------------------------------
 
+
 class FakeDataLayer:
     async def fetch(self, data_type: str, ticker: str, **kwargs) -> DataResult:
         if data_type == "price":
@@ -71,13 +72,16 @@ def _make_test_agents(output: str = "analysis output") -> dict[str, Agent]:
     """Create agents dict with TestModel for unit testing."""
     agents = {}
     for role in ["data", "analysis", "modeling", "synthesis", "report"]:
-        agents[role] = Agent(TestModel(custom_output_text=output), deps_type=FinAgentDeps, defer_model_check=True)
+        agents[role] = Agent(
+            TestModel(custom_output_text=output), deps_type=FinAgentDeps, defer_model_check=True
+        )
     return agents
 
 
 # ---------------------------------------------------------------------------
 # Structure tests
 # ---------------------------------------------------------------------------
+
 
 class TestPipelineStructure:
     def test_has_exactly_6_steps(self):
@@ -147,12 +151,15 @@ class TestPipelineStructure:
 # Execution tests
 # ---------------------------------------------------------------------------
 
+
 def _make_stub_execute_fn(step_name: str):
     """Return an async stub execute_fn that returns a minimal valid StepOutput."""
     from finagent.engine.models.financial import StepOutput
 
     async def _stub(agent, deps, prompt, structured_context, ticker):
-        return StepOutput(text=f"{step_name} stub output revenue ebitda AAPL MSFT GOOG peers buy hold sell risk catalyst price target")
+        return StepOutput(
+            text=f"{step_name} stub output revenue ebitda AAPL MSFT GOOG peers buy hold sell risk catalyst price target"
+        )
 
     return _stub
 
@@ -160,31 +167,37 @@ def _make_stub_execute_fn(step_name: str):
 class TestPipelineExecution:
     async def test_execute_produces_result_with_all_6_step_keys(self, capsys):
         """Pipeline orchestration routes through all 6 steps and collects their outputs."""
-        pipeline = create_equity_research_pipeline(_make_test_agents(
-            "revenue 385B ebitda 130B price_history available"
-        ))
+        pipeline = create_equity_research_pipeline(
+            _make_test_agents("revenue 385B ebitda 130B price_history available")
+        )
         # Stub executor to avoid real compute in unit test of orchestration
         from finagent.engine.pipelines.base import TextValidator
         from finagent.engine.pipelines.validators import validate_is_non_empty
+
         for step in pipeline.steps:
             step.executor = _make_stub_execute_fn(step.name)
             step.validator = TextValidator(validate_is_non_empty)
         result = await pipeline.execute(FakeDeps(), "AAPL")
         assert set(result.steps.keys()) == {
-            "data_collection", "catalyst_analysis", "peer_analysis",
-            "financial_modeling", "thesis", "report",
+            "data_collection",
+            "catalyst_analysis",
+            "peer_analysis",
+            "financial_modeling",
+            "thesis",
+            "report",
         }
 
     async def test_execute_logs_6_progress_messages(self, caplog):
         import logging
 
         with caplog.at_level(logging.INFO):
-            pipeline = create_equity_research_pipeline(_make_test_agents(
-                "revenue 385B ebitda 130B price_history available"
-            ))
+            pipeline = create_equity_research_pipeline(
+                _make_test_agents("revenue 385B ebitda 130B price_history available")
+            )
             # Stub executor to avoid real compute in unit test of orchestration
             from finagent.engine.pipelines.base import TextValidator
             from finagent.engine.pipelines.validators import validate_is_non_empty
+
             for step in pipeline.steps:
                 step.executor = _make_stub_execute_fn(step.name)
                 step.validator = TextValidator(validate_is_non_empty)
@@ -197,6 +210,7 @@ class TestPipelineExecution:
 # ---------------------------------------------------------------------------
 # Fixtures for execute_fn tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_deps():
@@ -212,6 +226,7 @@ def mock_deps():
 # execute_fn hook tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_step1_produces_financial_data(mock_deps):
     """Step 1 data_collection execute_fn returns StepOutput with FinancialData."""
@@ -219,19 +234,35 @@ async def test_step1_produces_financial_data(mock_deps):
     from finagent.engine.models.financial import FinancialData, StepOutput
 
     fin_result = DataResult(
-        data=dict(revenue=100e9, ebitda=35e9, net_income=20e9,
-                  gross_margin=0.47, operating_margin=0.28,
-                  pe_ratio=28.5, market_cap=3e12, shares_outstanding=15e9,
-                  current_price=200.0, total_debt=50e9, total_cash=20e9),
-        provider="yfinance", ticker="AAPL", data_type="financials",
+        data=dict(
+            revenue=100e9,
+            ebitda=35e9,
+            net_income=20e9,
+            gross_margin=0.47,
+            operating_margin=0.28,
+            pe_ratio=28.5,
+            market_cap=3e12,
+            shares_outstanding=15e9,
+            current_price=200.0,
+            total_debt=50e9,
+            total_cash=20e9,
+        ),
+        provider="yfinance",
+        ticker="AAPL",
+        data_type="financials",
         timestamp=datetime.now(tz=timezone.utc),
     )
     price_result = DataResult(
-        data={"current_price": 200.0, "price_history": [
-            {"date": "2024-01-01", "close": 180.0},
-            {"date": "2024-12-01", "close": 200.0},
-        ]},
-        provider="yfinance", ticker="AAPL", data_type="price",
+        data={
+            "current_price": 200.0,
+            "price_history": [
+                {"date": "2024-01-01", "close": 180.0},
+                {"date": "2024-12-01", "close": 200.0},
+            ],
+        },
+        provider="yfinance",
+        ticker="AAPL",
+        data_type="price",
         timestamp=datetime.now(tz=timezone.utc),
     )
     mock_agent = MagicMock()
@@ -257,11 +288,20 @@ async def test_step3_dcf_deterministic(mock_deps):
     from finagent.engine.pipelines.equity_research import _execute_financial_modeling
 
     dcf_inputs = DCFInputs(
-        revenue_base=100e9, revenue_growth_rates=[0.05, 0.05],
-        ebitda_margin=0.35, capex_pct_revenue=0.05, nwc_pct_revenue=0.02,
-        tax_rate=0.21, risk_free_rate=0.04, beta=1.2, equity_risk_premium=0.05,
-        cost_of_debt=0.04, debt_ratio=0.1, terminal_growth_rate=0.025,
-        shares_outstanding=1e9, net_debt=10e9,
+        revenue_base=100e9,
+        revenue_growth_rates=[0.05, 0.05],
+        ebitda_margin=0.35,
+        capex_pct_revenue=0.05,
+        nwc_pct_revenue=0.02,
+        tax_rate=0.21,
+        risk_free_rate=0.04,
+        beta=1.2,
+        equity_risk_premium=0.05,
+        cost_of_debt=0.04,
+        debt_ratio=0.1,
+        terminal_growth_rate=0.025,
+        shares_outstanding=1e9,
+        net_debt=10e9,
     )
     mock_agent = MagicMock()
     mock_param_result = MagicMock()
@@ -269,8 +309,7 @@ async def test_step3_dcf_deterministic(mock_deps):
     mock_agent_instance = MagicMock()
     mock_agent_instance.run = AsyncMock(return_value=mock_param_result)
 
-    with patch("finagent.engine.pipelines.equity_research.Agent",
-               return_value=mock_agent_instance):
+    with patch("finagent.engine.pipelines.equity_research.Agent", return_value=mock_agent_instance):
         out1 = await _execute_financial_modeling(mock_agent, mock_deps, "prompt", {}, "AAPL")
         out2 = await _execute_financial_modeling(mock_agent, mock_deps, "prompt", {}, "AAPL")
 
@@ -293,19 +332,29 @@ async def test_peer_analysis_raises_when_data_collection_missing(mock_deps):
     mock_agent_instance.run = AsyncMock(return_value=mock_peer_result)
 
     fin_result = DataResult(
-        data=dict(revenue=50e9, ebitda=15e9, net_income=10e9,
-                  gross_margin=0.40, operating_margin=0.25,
-                  pe_ratio=25.0, market_cap=1e12, shares_outstanding=5e9,
-                  current_price=100.0, total_debt=10e9, total_cash=5e9),
-        provider="yfinance", ticker="MSFT", data_type="financials",
+        data=dict(
+            revenue=50e9,
+            ebitda=15e9,
+            net_income=10e9,
+            gross_margin=0.40,
+            operating_margin=0.25,
+            pe_ratio=25.0,
+            market_cap=1e12,
+            shares_outstanding=5e9,
+            current_price=100.0,
+            total_debt=10e9,
+            total_cash=5e9,
+        ),
+        provider="yfinance",
+        ticker="MSFT",
+        data_type="financials",
         timestamp=datetime.now(tz=timezone.utc),
     )
     mock_deps.data_layer.fetch = AsyncMock(return_value=fin_result)
 
     mock_agent = MagicMock()
 
-    with patch("finagent.engine.pipelines.equity_research.Agent",
-               return_value=mock_agent_instance):
+    with patch("finagent.engine.pipelines.equity_research.Agent", return_value=mock_agent_instance):
         with pytest.raises(ValueError, match="data_collection"):
             await _execute_peer_analysis(mock_agent, mock_deps, "prompt", {}, "AAPL")
 
@@ -324,9 +373,9 @@ def test_build_sensitivity_ranges_returns_valid_ranges():
     assert len(wacc_range) == 5
     assert len(tg_range) >= 1
     min_wacc = min(wacc_range)
-    assert all(g < min_wacc for g in tg_range), (
-        f"All tg values must be < min_wacc {min_wacc}, got {tg_range}"
-    )
+    assert all(
+        g < min_wacc for g in tg_range
+    ), f"All tg values must be < min_wacc {min_wacc}, got {tg_range}"
 
 
 # ---------------------------------------------------------------------------
@@ -342,26 +391,28 @@ async def test_catalyst_analysis_produces_catalyst_analysis_output(mock_deps):
     from finagent.engine.compute.news import NewsItem
 
     news_result = DataResult(
-        data={"news_items": [
-            {
-                "title": "AAPL beats earnings estimates",
-                "source": "Reuters",
-                "published": "2024-06-01T10:00:00Z",
-                "url": "https://example.com/1",
-            },
-            {
-                "title": "New iPhone launch drives revenue growth",
-                "source": "Bloomberg",
-                "published": "2024-06-02T12:00:00Z",
-                "url": "https://example.com/2",
-            },
-            {
-                "title": "AAPL faces regulatory probe in EU",
-                "source": "FT",
-                "published": "2024-06-03T08:00:00Z",
-                "url": "https://example.com/3",
-            },
-        ]},
+        data={
+            "news_items": [
+                {
+                    "title": "AAPL beats earnings estimates",
+                    "source": "Reuters",
+                    "published": "2024-06-01T10:00:00Z",
+                    "url": "https://example.com/1",
+                },
+                {
+                    "title": "New iPhone launch drives revenue growth",
+                    "source": "Bloomberg",
+                    "published": "2024-06-02T12:00:00Z",
+                    "url": "https://example.com/2",
+                },
+                {
+                    "title": "AAPL faces regulatory probe in EU",
+                    "source": "FT",
+                    "published": "2024-06-03T08:00:00Z",
+                    "url": "https://example.com/3",
+                },
+            ]
+        },
         provider="fake",
         ticker="AAPL",
         data_type="news",
@@ -632,9 +683,7 @@ async def test_thesis_works_without_catalyst_context(mock_deps):
         "finagent.engine.pipelines.equity_research.Agent",
         return_value=mock_agent_instance,
     ):
-        output = await _execute_thesis(
-            mock_agent, mock_deps, "base prompt", {}, "AAPL"
-        )
+        output = await _execute_thesis(mock_agent, mock_deps, "base prompt", {}, "AAPL")
 
     assert isinstance(output, StepOutput)
     assert isinstance(output.structured, ThesisResult)

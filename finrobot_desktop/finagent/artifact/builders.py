@@ -13,6 +13,7 @@ Design decisions:
   carries a formula_id field), otherwise falls back to the pipeline name.
 - Version is read from finagent.__version__ at build time.
 """
+
 from __future__ import annotations
 
 import logging
@@ -44,6 +45,7 @@ def _now() -> datetime:
 def _get_version() -> str:
     try:
         import finagent
+
         return getattr(finagent, "__version__", "0.1.0")
     except ImportError:
         return "0.1.0"
@@ -53,7 +55,9 @@ def _get_git_commit() -> str | None:
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
-            capture_output=True, text=True, timeout=2,
+            capture_output=True,
+            text=True,
+            timeout=2,
         )
         if result.returncode == 0:
             return result.stdout.strip() or None
@@ -69,7 +73,9 @@ def _make_artifact_id(ticker: str | None, type_: str) -> str:
     return f"art_{ts}__cross_{type_}"
 
 
-def _extract_financial_data_dump(result: "PipelineResult", *step_names: str) -> tuple[str, datetime, dict[str, Any]]:
+def _extract_financial_data_dump(
+    result: "PipelineResult", *step_names: str
+) -> tuple[str, datetime, dict[str, Any]]:
     """Extract data_source, fetched_at, and raw_data from the first matching structured step.
 
     Looks through step_names in order; returns the first FinancialData found.
@@ -138,9 +144,7 @@ def build_dcf_artifact(
     """Build an Artifact from a completed DCF pipeline result."""
     from finagent.engine.models.financial import DCFResult
 
-    data_source, fetched_at, raw_data = _extract_financial_data_dump(
-        result, "historical_data"
-    )
+    data_source, fetched_at, raw_data = _extract_financial_data_dump(result, "historical_data")
     dcf = result.structured_data.get("dcf_calc")
 
     formula_id = "dcf_simplified_v1"
@@ -189,9 +193,7 @@ def build_lbo_artifact(
     """Build an Artifact from a completed LBO pipeline result."""
     from finagent.engine.models.financial import LBOInputs, LBOResult
 
-    data_source, fetched_at, raw_data = _extract_financial_data_dump(
-        result, "data_collection"
-    )
+    data_source, fetched_at, raw_data = _extract_financial_data_dump(result, "data_collection")
     lbo_inputs = result.structured_data.get("lbo_parameters")
     lbo_result = result.structured_data.get("lbo_calculation")
 
@@ -237,9 +239,7 @@ def build_comps_artifact(
     """Build an Artifact from a completed comps pipeline result."""
     from finagent.engine.models.financial import PeerComps
 
-    data_source, fetched_at, raw_data = _extract_financial_data_dump(
-        result, "target_data"
-    )
+    data_source, fetched_at, raw_data = _extract_financial_data_dump(result, "target_data")
     peer_comps = result.structured_data.get("statistical_bench")
 
     # Collect peer tickers for cross_tickers field
@@ -284,9 +284,7 @@ def build_ddm_artifact(
     """Build an Artifact from a completed DDM pipeline result."""
     from finagent.engine.models.financial import DDMInputs, DDMResult
 
-    data_source, fetched_at, raw_data = _extract_financial_data_dump(
-        result, "historical_data"
-    )
+    data_source, fetched_at, raw_data = _extract_financial_data_dump(result, "historical_data")
     ddm_inputs = result.structured_data.get("ddm_params")
     ddm_result = result.structured_data.get("ddm_calc")
 
@@ -329,9 +327,7 @@ def build_earnings_artifact(
     from finagent.engine.models.financial import EarningsResult
 
     # Earnings pipeline doesn't use the standard financial data collection step
-    data_source, fetched_at, raw_data = _extract_financial_data_dump(
-        result, "financial_context"
-    )
+    data_source, fetched_at, raw_data = _extract_financial_data_dump(result, "financial_context")
     earnings = result.structured_data.get("earnings_data")
 
     params: dict[str, Any] = {}
@@ -378,9 +374,7 @@ def build_equity_research_artifact(
     """Build an Artifact from a completed equity research pipeline result."""
     from finagent.engine.models.financial import DCFResult
 
-    data_source, fetched_at, raw_data = _extract_financial_data_dump(
-        result, "data_collection"
-    )
+    data_source, fetched_at, raw_data = _extract_financial_data_dump(result, "data_collection")
     dcf = result.structured_data.get("financial_modeling")
 
     formula_warnings: list[str] = []
@@ -410,7 +404,8 @@ def build_equity_research_artifact(
         assumptions=ArtifactAssumptions(parameters=assumptions_params),
         compute_version=_make_base_compute_version(
             f"equity_research_dcf_{getattr(dcf, 'fcf_formula', 'simplified')}_v1"
-            if isinstance(dcf, DCFResult) else "equity_research_v1",
+            if isinstance(dcf, DCFResult)
+            else "equity_research_v1",
             formula_warnings,
         ),
         outputs=ArtifactOutputs(

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useI18n } from '../i18n'
 
 // ──────────────────────────────────────────────────────────────
 // Types
@@ -99,6 +100,7 @@ export function ToolCard({
   onRetry,
 }: ToolCardProps): React.ReactElement {
   const [expanded, setExpanded] = useState(false)
+  const { t } = useI18n()
 
   const artifactHref =
     result?.artifact_id && result?.ticker
@@ -112,7 +114,7 @@ export function ToolCard({
       data-testid="tool-card"
       data-tool-call-id={toolCallId}
       data-state={state}
-      className="my-2 rounded-md border border-neutral-800 bg-neutral-900 p-3 text-sm"
+      className="my-2 rounded-md border p-3 text-sm"
       style={{ borderColor: 'var(--border)', backgroundColor: 'var(--elevated)' }}
     >
       {/* Header row */}
@@ -152,7 +154,7 @@ export function ToolCard({
             className="ml-2 shrink-0 text-xs"
             style={{ color: 'var(--info)' }}
           >
-            📁 打开 artifact
+            {t('toolcard.openArtifact')}
           </a>
         )}
       </div>
@@ -183,14 +185,14 @@ export function ToolCard({
       {/* Error */}
       {state === 'error' && (
         <div className="mt-2 flex items-center gap-2 text-xs" style={{ color: 'var(--negative)' }}>
-          <span>{errorText ?? '工具调用失败'}</span>
+          <span>{errorText ?? t('toolcard.failed')}</span>
           {onRetry && (
             <button
               onClick={onRetry}
               className="underline"
               style={{ color: 'var(--info)' }}
             >
-              重试
+              {t('toolcard.retry')}
             </button>
           )}
         </div>

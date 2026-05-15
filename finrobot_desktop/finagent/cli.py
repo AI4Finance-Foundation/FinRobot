@@ -25,12 +25,11 @@ logging.basicConfig(
 for _quiet in ("httpx", "httpcore", "urllib3", "yfinance", "filelock"):
     logging.getLogger(_quiet).setLevel(logging.WARNING)
 
+
 def _build_deps(model: str | None = None) -> "FinAgentDeps":
     """Build deps only. No agent creation.
     Used by pipeline commands that create their own sub-agents."""
-    from finagent.engine.data.cache import DataCache
-    from finagent.engine.data.layer import DataLayer
-    from finagent.engine.data.providers.yfinance_provider import YFinanceProvider
+    from finagent.data_layer_factory import build_data_layer
     from finagent.engine.deps import FinAgentDeps
     from finagent.engine.skills.registry import SkillRegistry
 
@@ -38,10 +37,8 @@ def _build_deps(model: str | None = None) -> "FinAgentDeps":
     if model:
         settings = get_settings(model_name=model)
 
-    # Runtime config validation is defined on FinAgentSettings (P3 audit D2)
-    # so CLI and SDK share one definition of "coherent settings". The
-    # settings method raises ValueError; we convert that into the
-    # CLI-specific ClickException so click formats it correctly.
+    # Runtime config validation: checks LLM key + FMP key (required).
+    # Raises ValueError; we convert to ClickException for clean CLI output.
     try:
         settings.validate_runtime_config()
     except ValueError as e:
@@ -51,23 +48,8 @@ def _build_deps(model: str | None = None) -> "FinAgentDeps":
     skills_path = Path(settings.skills_dir)
     registry = SkillRegistry(skills_path) if skills_path.exists() else None
 
-    # Build provider chain: FMP (if key) → Finnhub (if key) → yfinance (always) + SEC EDGAR
-    from finagent.engine.data.providers.sec_provider import SECEdgarProvider
-
-    providers: list[Any] = []
-    if settings.fmp_api_key:
-        from finagent.engine.data.providers.fmp_provider import FMPProvider
-
-        providers.append(FMPProvider(api_key=settings.fmp_api_key))
-    if settings.finnhub_api_key:
-        from finagent.engine.data.providers.finnhub_provider import FinnhubProvider
-
-        providers.append(FinnhubProvider(api_key=settings.finnhub_api_key))
-    providers.append(YFinanceProvider())  # always last (free fallback)
-    providers.append(SECEdgarProvider(user_agent=settings.sec_user_agent))  # filings only
-
-    cache = DataCache(settings.cache_db_path)
-    data_layer = DataLayer(providers=providers, cache=cache)
+    # Build provider chain via shared factory (FMP primary → yfinance fallback)
+    data_layer = build_data_layer(settings)
     deps = FinAgentDeps(data_layer=data_layer, settings=settings, skill_runtime=registry)
 
     return deps
@@ -112,9 +94,7 @@ class CliProgress:
     def __init__(self) -> None:
         self._total: int = 0
 
-    async def on_step_start(
-        self, step_index: int, total: int, step_name: str
-    ) -> None:
+    async def on_step_start(self, step_index: int, total: int, step_name: str) -> None:
         self._total = total
         label = step_name.replace("_", " ").title()
         click.echo(f"  [{step_index}/{total}] {label}...", nl=False)
@@ -201,7 +181,12 @@ def run(question: str, model: str | None) -> None:
 @cli.command()
 @click.argument("ticker")
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
-@click.option("--lang", default=None, type=click.Choice(["en", "zh"]), help="Output language (en=English, zh=Chinese)")
+@click.option(
+    "--lang",
+    default=None,
+    type=click.Choice(["en", "zh"]),
+    help="Output language (en=English, zh=Chinese)",
+)
 def research(ticker: str, model: str | None, lang: str | None) -> None:
     """Run equity research pipeline on a ticker (Mode B).
 
@@ -228,7 +213,12 @@ def research(ticker: str, model: str | None, lang: str | None) -> None:
 @cli.command()
 @click.argument("ticker")
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
-@click.option("--lang", default=None, type=click.Choice(["en", "zh"]), help="Output language (en=English, zh=Chinese)")
+@click.option(
+    "--lang",
+    default=None,
+    type=click.Choice(["en", "zh"]),
+    help="Output language (en=English, zh=Chinese)",
+)
 def comps(ticker: str, model: str | None, lang: str | None) -> None:
     """Run comparable company analysis pipeline.
 
@@ -249,8 +239,18 @@ def comps(ticker: str, model: str | None, lang: str | None) -> None:
 @cli.command()
 @click.argument("ticker")
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
-@click.option("--force-dcf", is_flag=True, default=False, help="Force FCF-DCF even for banks (skip DDM auto-detection)")
-@click.option("--lang", default=None, type=click.Choice(["en", "zh"]), help="Output language (en=English, zh=Chinese)")
+@click.option(
+    "--force-dcf",
+    is_flag=True,
+    default=False,
+    help="Force FCF-DCF even for banks (skip DDM auto-detection)",
+)
+@click.option(
+    "--lang",
+    default=None,
+    type=click.Choice(["en", "zh"]),
+    help="Output language (en=English, zh=Chinese)",
+)
 def dcf(ticker: str, model: str | None, force_dcf: bool, lang: str | None) -> None:
     """Run DCF valuation pipeline.
 
@@ -301,7 +301,12 @@ def dcf(ticker: str, model: str | None, force_dcf: bool, lang: str | None) -> No
 @cli.command()
 @click.argument("ticker")
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
-@click.option("--lang", default=None, type=click.Choice(["en", "zh"]), help="Output language (en=English, zh=Chinese)")
+@click.option(
+    "--lang",
+    default=None,
+    type=click.Choice(["en", "zh"]),
+    help="Output language (en=English, zh=Chinese)",
+)
 def ddm(ticker: str, model: str | None, lang: str | None) -> None:
     """Run DDM (Dividend Discount Model) valuation pipeline.
 
@@ -329,7 +334,12 @@ def ddm(ticker: str, model: str | None, lang: str | None) -> None:
 @cli.command()
 @click.argument("ticker")
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
-@click.option("--lang", default=None, type=click.Choice(["en", "zh"]), help="Output language (en=English, zh=Chinese)")
+@click.option(
+    "--lang",
+    default=None,
+    type=click.Choice(["en", "zh"]),
+    help="Output language (en=English, zh=Chinese)",
+)
 def lbo(ticker: str, model: str | None, lang: str | None) -> None:
     """Run LBO (leveraged buyout) analysis pipeline.
 
@@ -355,7 +365,12 @@ def lbo(ticker: str, model: str | None, lang: str | None) -> None:
 @cli.command()
 @click.argument("ticker")
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
-@click.option("--lang", default=None, type=click.Choice(["en", "zh"]), help="Output language (en=English, zh=Chinese)")
+@click.option(
+    "--lang",
+    default=None,
+    type=click.Choice(["en", "zh"]),
+    help="Output language (en=English, zh=Chinese)",
+)
 def earnings(ticker: str, model: str | None, lang: str | None) -> None:
     """Run earnings quality analysis pipeline.
 
@@ -376,7 +391,12 @@ def earnings(ticker: str, model: str | None, lang: str | None) -> None:
 @cli.command(name="ic-memo")
 @click.argument("ticker")
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
-@click.option("--lang", default=None, type=click.Choice(["en", "zh"]), help="Output language (en=English, zh=Chinese)")
+@click.option(
+    "--lang",
+    default=None,
+    type=click.Choice(["en", "zh"]),
+    help="Output language (en=English, zh=Chinese)",
+)
 def ic_memo(ticker: str, model: str | None, lang: str | None) -> None:
     """Run Investment Committee (IC) memo pipeline.
 
@@ -493,13 +513,24 @@ def compare(tickers: tuple[str, ...], model: str | None) -> None:
 
 @cli.command()
 @click.argument("ticker")
-@click.option("--strategy", default="sma_crossover", show_default=True, help="Strategy name or module:ClassName")
+@click.option(
+    "--strategy",
+    default="sma_crossover",
+    show_default=True,
+    help="Strategy name or module:ClassName",
+)
 @click.option("--start", required=True, help="Start date (YYYY-MM-DD)")
 @click.option("--end", required=True, help="End date (YYYY-MM-DD)")
 @click.option("--cash", default=100_000.0, show_default=True, help="Initial cash")
-@click.option("--params", default=None, help='Strategy params as JSON, e.g. \'{"fast":10,"slow":30}\'')
-@click.option("--save-chart", default=None, type=click.Path(), help="Save equity curve PNG to this path")
-@click.option("--auto", is_flag=True, default=False, help="LLM-guided strategy selection (iterative)")
+@click.option(
+    "--params", default=None, help='Strategy params as JSON, e.g. \'{"fast":10,"slow":30}\''
+)
+@click.option(
+    "--save-chart", default=None, type=click.Path(), help="Save equity curve PNG to this path"
+)
+@click.option(
+    "--auto", is_flag=True, default=False, help="LLM-guided strategy selection (iterative)"
+)
 @click.option("--model", default=None, help="Override model for --auto mode")
 def backtest(
     ticker: str,
@@ -576,18 +607,19 @@ def ask(ticker: str, question: str, model: str | None, top_k: int) -> None:
     from finagent.engine.analysis.qa import run_qa
 
     deps = _build_deps(model)
-    result = asyncio.run(
-        run_qa(deps.data_layer, deps.settings, ticker, question, top_k=top_k)
-    )
+    result = asyncio.run(run_qa(deps.data_layer, deps.settings, ticker, question, top_k=top_k))
     click.echo(result)
 
 
 @cli.command()
 @click.argument("ticker")
-@click.argument("analysis_type", type=click.Choice(
-    sorted(ANALYSIS_TYPES),
-    case_sensitive=False,
-))
+@click.argument(
+    "analysis_type",
+    type=click.Choice(
+        sorted(ANALYSIS_TYPES),
+        case_sensitive=False,
+    ),
+)
 @click.option("--model", default=None, help="Override model, e.g. anthropic:claude-sonnet-4-6")
 def analyze(ticker: str, analysis_type: str, model: str | None) -> None:
     """Run standalone financial analysis on a ticker.

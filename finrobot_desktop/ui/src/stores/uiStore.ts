@@ -1,31 +1,19 @@
-// UI shell state for the IDE-style desktop layout (REFACTOR.md §8).
+// UI shell state — simplified for Desktop V1.
 //
-// Scope: shell chrome only — Activity Bar selection, Explorer width,
-// AI Panel visibility, Tab system, conversation mode/model, ContextBundle,
-// workspace path.
+// Scope: shell chrome only — AI Panel visibility/width, Tab system (kept for
+// StatusBar "About" tab + RightChatPanel "pipeline" tab), conversation
+// mode/model, ContextBundle, workspace path.
 //
 // Deliberately separate from:
 //   - useAppStore (stores/appStore.ts) → workspace data (ticker, DCF result, …)
 //   - useUiPrefs  (i18n/index.ts)      → persisted prefs (locale, legacy chatExpanded)
 //
 // Persistence: only width/mode/model/workspacePath are persisted; tabs and
-// context are intentionally session-scoped (REFACTOR §8: "messages not
-// persisted unless saved as report").
+// context are intentionally session-scoped.
 
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { DEFAULT_WORKSPACE_PATH } from '../lib/tauri'
-
-// ─── Activity Bar ─────────────────────────────────────────────────
-
-export type ActivityKey =
-  | 'dashboard'
-  | 'pipelines'
-  | 'reports'
-  | 'monitor'
-  | 'datasources'
-  | 'watchlist'
-  | 'settings'
 
 // ─── Tabs ─────────────────────────────────────────────────────────
 
@@ -38,6 +26,8 @@ export type TabKind =
   | 'watchlist'
   | 'settings'
   | 'about'
+  | 'backtest'
+  | 'compare'
 
 export interface Tab {
   /** Stable id; for kind=dashboard always "dashboard". For pipeline/report
@@ -51,7 +41,7 @@ export interface Tab {
   dirty?: boolean
 }
 
-// ─── Context Bundle (REFACTOR §3.2) ───────────────────────────────
+// ─── Context Bundle ────────────────────────────────────────────────
 
 export type ContextItemKind =
   | 'file'
@@ -92,17 +82,20 @@ export type AgentMode = 'A' | 'B'
 
 // ─── Store shape ──────────────────────────────────────────────────
 
+export type Theme = 'dark' | 'light'
+
 interface UiStoreState {
-  // Shell chrome
-  activityBarSelection: ActivityKey
-  explorerWidth: number
+  // AI Panel
   aiPanelOpen: boolean
   aiPanelWidth: number
 
-  // Workspace (P1: hardcoded; Phase 5 wires dialog.open)
+  // Theme
+  theme: Theme
+
+  // Workspace
   workspacePath: string
 
-  // Tabs
+  // Tabs (kept: StatusBar opens 'about', RightChatPanel opens 'pipeline')
   openTabs: Tab[]
   activeTabId: string | null
 
@@ -112,18 +105,16 @@ interface UiStoreState {
   contextBundle: ContextBundle
 
   // ── Actions ───────────────────────────────────────────────────
-  setActivityBarSelection: (a: ActivityKey) => void
-  setExplorerWidth: (w: number) => void
   setAiPanelOpen: (open: boolean) => void
   toggleAiPanel: () => void
   setAiPanelWidth: (w: number) => void
 
+  setTheme: (t: Theme) => void
+  toggleTheme: () => void
+
   setWorkspacePath: (p: string) => void
 
   openTab: (tab: Tab) => void
-  closeTab: (id: string) => void
-  setActiveTab: (id: string | null) => void
-  markTabDirty: (id: string, dirty: boolean) => void
 
   setMode: (m: AgentMode) => void
   setCurrentModel: (model: string) => void
@@ -137,10 +128,6 @@ interface UiStoreState {
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────
-
-const DEFAULT_EXPLORER_W = 260
-const MIN_EXPLORER_W = 200
-const MAX_EXPLORER_W = 400
 
 const DEFAULT_AIPANEL_W = 420
 const MIN_AIPANEL_W = 320
@@ -167,10 +154,10 @@ function clamp(n: number, lo: number, hi: number): number {
 export const useUiStore = create<UiStoreState>()(
   persist(
     (set, get) => ({
-      activityBarSelection: 'dashboard',
-      explorerWidth: DEFAULT_EXPLORER_W,
       aiPanelOpen: true,
       aiPanelWidth: DEFAULT_AIPANEL_W,
+
+      theme: 'dark' as Theme,
 
       workspacePath: DEFAULT_WORKSPACE_PATH,
 
@@ -181,14 +168,22 @@ export const useUiStore = create<UiStoreState>()(
       currentModel: 'deepseek',
       contextBundle: initialContext,
 
-      // shell chrome
-      setActivityBarSelection: (a) => set({ activityBarSelection: a }),
-      setExplorerWidth: (w) =>
-        set({ explorerWidth: clamp(w, MIN_EXPLORER_W, MAX_EXPLORER_W) }),
+      // AI panel
       setAiPanelOpen: (aiPanelOpen) => set({ aiPanelOpen }),
       toggleAiPanel: () => set((s) => ({ aiPanelOpen: !s.aiPanelOpen })),
       setAiPanelWidth: (w) =>
         set({ aiPanelWidth: clamp(w, MIN_AIPANEL_W, MAX_AIPANEL_W) }),
+
+      // theme
+      setTheme: (theme) => {
+        document.documentElement.setAttribute('data-theme', theme)
+        set({ theme })
+      },
+      toggleTheme: () => {
+        const next = get().theme === 'dark' ? 'light' : 'dark'
+        document.documentElement.setAttribute('data-theme', next)
+        set({ theme: next })
+      },
 
       // workspace
       setWorkspacePath: (workspacePath) =>
@@ -197,7 +192,7 @@ export const useUiStore = create<UiStoreState>()(
           contextBundle: { ...s.contextBundle, workspace_path: workspacePath },
         })),
 
-      // tabs
+      // tabs — openTab only; close/setActive removed (no EditorTabs consumer)
       openTab: (tab) =>
         set((s) => {
           const exists = s.openTabs.some((t) => t.id === tab.id)
@@ -206,30 +201,6 @@ export const useUiStore = create<UiStoreState>()(
             activeTabId: tab.id,
           }
         }),
-      closeTab: (id) =>
-        set((s) => {
-          const next = s.openTabs.filter((t) => t.id !== id)
-          // If we just closed the active tab, fall back to last remaining.
-          let activeTabId = s.activeTabId
-          if (activeTabId === id) {
-            activeTabId = next.length > 0 ? next[next.length - 1].id : null
-          }
-          // Never let the user end up with zero tabs — always keep dashboard.
-          if (next.length === 0) {
-            return {
-              openTabs: [DASHBOARD_TAB],
-              activeTabId: DASHBOARD_TAB.id,
-            }
-          }
-          return { openTabs: next, activeTabId }
-        }),
-      setActiveTab: (id) => set({ activeTabId: id }),
-      markTabDirty: (id, dirty) =>
-        set((s) => ({
-          openTabs: s.openTabs.map((t) =>
-            t.id === id ? { ...t, dirty } : t,
-          ),
-        })),
 
       // mode & model
       setMode: (mode) => set({ mode }),
@@ -290,19 +261,24 @@ export const useUiStore = create<UiStoreState>()(
       storage: createJSONStorage(() => localStorage),
       // Persist only stable chrome prefs; tabs / context reset each session.
       partialize: (s) => ({
-        explorerWidth: s.explorerWidth,
         aiPanelWidth: s.aiPanelWidth,
         aiPanelOpen: s.aiPanelOpen,
+        theme: s.theme,
         mode: s.mode,
         currentModel: s.currentModel,
         workspacePath: s.workspacePath,
-        activityBarSelection: s.activityBarSelection,
       }),
+      onRehydrateStorage: () => (state) => {
+        // Apply persisted theme to DOM on startup
+        if (state?.theme) {
+          document.documentElement.setAttribute('data-theme', state.theme)
+        }
+      },
     },
   ),
 )
 
-// ─── Selectors / helpers (do not over-engineer; just the common ones) ──
+// ─── Selectors ────────────────────────────────────────────────────
 
 export const selectActiveTab = (s: UiStoreState): Tab | null => {
   if (!s.activeTabId) return null

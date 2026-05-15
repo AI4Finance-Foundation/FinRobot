@@ -3,6 +3,7 @@
 Verifies the ProgressCallback protocol is invoked at start/end of every step
 and that progress=None keeps the original behavior (backwards compatibility).
 """
+
 from unittest.mock import MagicMock
 
 from finagent.engine.pipelines.base import Pipeline, PipelineStep, TextValidator

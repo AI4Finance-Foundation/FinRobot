@@ -112,7 +112,9 @@ def _markdown_to_html(text: str) -> str:
         if re.match(r"^-{3,}$", s) or re.match(r"^\*{3,}$", s):
             _close_list()
             _close_table()
-            html_lines.append('<hr style="border:none;border-top:1px solid #e2e8f0;margin:0.75rem 0;">')
+            html_lines.append(
+                '<hr style="border:none;border-top:1px solid #e2e8f0;margin:0.75rem 0;">'
+            )
             continue
 
         # Table row
@@ -133,7 +135,7 @@ def _markdown_to_html(text: str) -> str:
                 for cell in cells:
                     html_lines.append(
                         f'<th style="text-align:left;padding:0.45rem 0.6rem;font-weight:600;'
-                        f'font-size:0.75rem;color:#64748b;border-bottom:2px solid #e2e8f0;'
+                        f"font-size:0.75rem;color:#64748b;border-bottom:2px solid #e2e8f0;"
                         f'background:#f8fafc;">{_inline(cell)}</th>'
                     )
                 html_lines.append("</tr></thead><tbody>")
@@ -174,9 +176,7 @@ def _markdown_to_html(text: str) -> str:
         if s.startswith("- "):
             _close_table()
             if not in_list:
-                html_lines.append(
-                    '<ul style="list-style:none;padding-left:0;margin:0.35rem 0;">'
-                )
+                html_lines.append('<ul style="list-style:none;padding-left:0;margin:0.35rem 0;">')
                 in_list = True
             item = _inline(s[2:])
             html_lines.append(

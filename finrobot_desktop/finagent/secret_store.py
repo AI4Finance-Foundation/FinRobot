@@ -55,24 +55,18 @@ class KeychainSecretStore(SecretStore):
         self._service_name = service_name
 
     async def get(self, key: str) -> str | None:
-        return await asyncio.to_thread(
-            self._keyring.get_password, self._service_name, key
-        )
+        return await asyncio.to_thread(self._keyring.get_password, self._service_name, key)
 
     async def set(self, key: str, value: str) -> None:
         try:
-            await asyncio.to_thread(
-                self._keyring.set_password, self._service_name, key, value
-            )
+            await asyncio.to_thread(self._keyring.set_password, self._service_name, key, value)
         except self._keyring.errors.PasswordSetError:
             # Re-raise without the value to avoid leaking secrets in tracebacks.
             raise RuntimeError(f"Failed to store secret '{key}' in keychain")
 
     async def delete(self, key: str) -> None:
         try:
-            await asyncio.to_thread(
-                self._keyring.delete_password, self._service_name, key
-            )
+            await asyncio.to_thread(self._keyring.delete_password, self._service_name, key)
         except self._keyring.errors.PasswordDeleteError:
             return
 
@@ -131,9 +125,7 @@ class FileSecretStore(SecretStore):
 
     def _atomic_write(self, payload: str) -> None:
         """Write to a temp file then atomically replace to prevent data loss."""
-        fd, tmp = tempfile.mkstemp(
-            dir=str(self._path.parent), suffix=".tmp"
-        )
+        fd, tmp = tempfile.mkstemp(dir=str(self._path.parent), suffix=".tmp")
         try:
             os.write(fd, payload.encode())
             os.close(fd)
@@ -156,9 +148,7 @@ class FileSecretStore(SecretStore):
         mode = stat.S_IMODE(self._path.stat().st_mode)
         expected = stat.S_IRUSR | stat.S_IWUSR
         if mode != expected:
-            raise PermissionError(
-                f"Secret file {self._path} must have 0600 permissions"
-            )
+            raise PermissionError(f"Secret file {self._path} must have 0600 permissions")
 
 
 def create_secret_store(dev_mode: bool | None = None) -> SecretStore:

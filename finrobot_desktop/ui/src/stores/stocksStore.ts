@@ -13,14 +13,16 @@ import { create } from 'zustand'
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type StocksTab =
-  | 'valuation'
+  | 'overview'
   | 'financials'
-  | 'peers'
   | 'performance'
   | 'news'
+  | 'valuation'
+  | 'comps'
   | 'history'
+  | 'research'
 
-export type ToolName = 'dcf' | 'lbo' | 'comps' | 'catalysts' | 'ic-memo' | 'ask-ai'
+export type ToolName = 'research' | 'dcf' | 'lbo' | 'comps' | 'catalysts' | 'ic-memo' | 'ddm' | 'earnings' | 'ask-ai'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -94,7 +96,11 @@ interface StocksState {
 
 export const useStocksStore = create<StocksState>((set, get) => ({
   currentTicker: '',
-  activeTab: 'valuation',
+  // Default to financials — it has live data the moment a ticker is picked,
+  // so the user always lands on something useful instead of an empty
+  // "Run DCF first" placeholder. Tools (DCF/Comps) still switch the tab on
+  // completion.
+  activeTab: 'overview',
   runningTools: new Set(),
   watchlist: new Set(),
   recentTickers: loadRecent(),

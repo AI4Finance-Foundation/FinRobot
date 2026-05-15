@@ -28,7 +28,6 @@ class TestChatEndpoint:
     async def test_chat_endpoint_exists_and_accepts_post(self):
         """Verify route exists by manually setting app.state before request.
         ASGITransport doesn't trigger lifespan events."""
-        from pydantic_ai.models.test import TestModel
 
         from finagent.config import get_settings
         from finagent.engine.deps import FinAgentDeps
@@ -38,7 +37,8 @@ class TestChatEndpoint:
         agent = create_lead_agent(settings)
         app.state.agent = agent
         app.state.deps = FinAgentDeps(
-            data_layer=None, settings=settings  # type: ignore[arg-type]
+            data_layer=None,
+            settings=settings,  # type: ignore[arg-type]
         )
 
         transport = ASGITransport(app=app)
@@ -181,12 +181,15 @@ class TestPipelineStream:
 
         fake_factory = lambda sub_agents: fake_pipeline  # noqa: E731
 
-        with patch(
-            "finagent.server._get_pipeline_factories",
-            return_value={"research": fake_factory},
-        ), patch(
-            "finagent.server.build_report_context",
-            return_value={"mocked": True},
+        with (
+            patch(
+                "finagent.server._get_pipeline_factories",
+                return_value={"research": fake_factory},
+            ),
+            patch(
+                "finagent.server.build_report_context",
+                return_value={"mocked": True},
+            ),
         ):
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app=app), base_url="http://test"
@@ -302,27 +305,46 @@ class TestExcelExportEndpoint:
         from finagent.engine.models.financial import LBOInputs, LBOResult, LBOYear
 
         fake_year = LBOYear(
-            year=1, revenue=500_000_000, ebitda=100_000_000, da=10_000_000,
-            ebit=90_000_000, interest_expense=49_000_000, ebt=41_000_000,
-            taxes=10_250_000, net_income=30_750_000, capex=20_000_000,
-            delta_nwc=5_000_000, fcf=15_750_000, mandatory_amort=7_000_000,
-            cash_sweep_amount=8_750_000, total_debt_paydown=15_750_000,
+            year=1,
+            revenue=500_000_000,
+            ebitda=100_000_000,
+            da=10_000_000,
+            ebit=90_000_000,
+            interest_expense=49_000_000,
+            ebt=41_000_000,
+            taxes=10_250_000,
+            net_income=30_750_000,
+            capex=20_000_000,
+            delta_nwc=5_000_000,
+            fcf=15_750_000,
+            mandatory_amort=7_000_000,
+            cash_sweep_amount=8_750_000,
+            total_debt_paydown=15_750_000,
             ending_debt=684_250_000,
         )
         fake_result = LBOResult(
-            entry_ev=1_000_000_000, entry_equity=300_000_000,
-            entry_debt=700_000_000, schedule=[fake_year],
-            exit_ev=1_800_000_000, exit_ebitda=250_000_000,
-            exit_equity=1_400_000_000, irr=0.22, moic=4.5,
+            entry_ev=1_000_000_000,
+            entry_equity=300_000_000,
+            entry_debt=700_000_000,
+            schedule=[fake_year],
+            exit_ev=1_800_000_000,
+            exit_ebitda=250_000_000,
+            exit_equity=1_400_000_000,
+            irr=0.22,
+            moic=4.5,
         )
         fake_inputs = LBOInputs(
-            ticker="TEST", ltm_ebitda=100_000_000, entry_ev_ebitda=10.0,
-            exit_ev_ebitda=10.0, revenue_base=500_000_000,
-            revenue_growth_rate=0.05, ebitda_margin=0.2,
+            ticker="TEST",
+            ltm_ebitda=100_000_000,
+            entry_ev_ebitda=10.0,
+            exit_ev_ebitda=10.0,
+            revenue_base=500_000_000,
+            revenue_growth_rate=0.05,
+            ebitda_margin=0.2,
         )
-        self._setup_deps_with_cache({
-            "TEST": {"lbo_result": fake_result, "lbo_inputs": fake_inputs}
-        })
+        self._setup_deps_with_cache(
+            {"TEST": {"lbo_result": fake_result, "lbo_inputs": fake_inputs}}
+        )
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -346,7 +368,7 @@ class TestInteractiveExport:
 
     @pytest.mark.asyncio
     async def test_post_dcf_excel_returns_xlsx(self):
-        from finagent.engine.models.financial import DCFInputs, DCFResult
+        from finagent.engine.models.financial import DCFInputs
 
         inputs = DCFInputs(
             revenue_base=1_000_000_000,

@@ -29,8 +29,11 @@ _NOW = datetime.now(tz=timezone.utc)
 
 def _base_income(**overrides) -> dict:
     defaults = dict(
-        revenue=1e9, ebitda=2e8, net_income=1e8,
-        gross_margin=0.4, operating_margin=0.15,
+        revenue=1e9,
+        ebitda=2e8,
+        net_income=1e8,
+        gross_margin=0.4,
+        operating_margin=0.15,
     )
     defaults.update(overrides)
     return defaults
@@ -281,7 +284,9 @@ class TestSubModelConstruction:
         assert fd.income.operating_margin == -2.5
 
     def test_all_valuation_fields(self):
-        fd = _make_fd(valuation=ValuationMetrics(enterprise_value=5.3e9, ev_ebitda=26.5, ev_revenue=5.3))
+        fd = _make_fd(
+            valuation=ValuationMetrics(enterprise_value=5.3e9, ev_ebitda=26.5, ev_revenue=5.3)
+        )
         assert fd.valuation.enterprise_value == 5.3e9
         assert fd.valuation.ev_ebitda == 26.5
         assert fd.valuation.ev_revenue == 5.3

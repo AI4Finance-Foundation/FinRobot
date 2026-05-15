@@ -55,7 +55,7 @@ S&P Global's identifier system resolves company names to legal entities. This wo
 **Before** calling any funding tools, run every identifier through `get_info_from_identifiers`. This is the cheapest and most reliable way to catch problems early. Check two things in the response:
 
 1. **Did it resolve at all?** If the identifier returns empty/error, the name doesn't exist in S&P Global. Try the alias from `references/sector-seeds.md`, the legal entity name, or the `company_id` directly.
-2. **What is the `status` field?** 
+2. **What is the `status` field?**
    - `"Operating"` → Safe to query for funding rounds.
    - `"Operating Subsidiary"` → The company exists but is owned by a parent. It will return **zero funding rounds**. Note this in the digest as context (e.g., "acquired by [Parent]") but do not query for funding.
    - Any other status (e.g., closed, inactive) → The company is no longer operating. Historical data may exist but no new activity.

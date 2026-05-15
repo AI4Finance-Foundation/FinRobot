@@ -5,23 +5,40 @@ import pytest
 
 from finagent.engine.data.interface import DataResult
 from finagent.engine.compute.news import (
-    ClassifiedNewsBatch,
     NewsItem,
     RawNewsItem,
-    classify_news,
     fetch_news,
     parse_raw_news,
+)
+from finagent.engine.analysis.news_classifier import (
+    ClassifiedNewsBatch,
+    classify_news,
 )
 
 
 class TestParseRawNews:
     def test_converts_data_result_to_raw_news_items(self):
         dr = DataResult(
-            data={"news_items": [
-                {"title": "Apple beats Q4", "source": "Reuters", "published": "2024-10-31T16:00:00.000Z", "url": "https://example.com/1"},
-                {"title": "iPhone strong", "source": "Bloomberg", "published": "2024-10-30T14:00:00.000Z", "url": "https://example.com/2"},
-            ]},
-            provider="fmp", ticker="AAPL", data_type="news", timestamp=datetime.now(tz=timezone.utc),
+            data={
+                "news_items": [
+                    {
+                        "title": "Apple beats Q4",
+                        "source": "Reuters",
+                        "published": "2024-10-31T16:00:00.000Z",
+                        "url": "https://example.com/1",
+                    },
+                    {
+                        "title": "iPhone strong",
+                        "source": "Bloomberg",
+                        "published": "2024-10-30T14:00:00.000Z",
+                        "url": "https://example.com/2",
+                    },
+                ]
+            },
+            provider="fmp",
+            ticker="AAPL",
+            data_type="news",
+            timestamp=datetime.now(tz=timezone.utc),
         )
         items = parse_raw_news(dr)
         assert len(items) == 2
@@ -30,20 +47,42 @@ class TestParseRawNews:
         assert isinstance(items[0].published, datetime)
 
     def test_empty_news_items(self):
-        dr = DataResult(data={"news_items": []}, provider="fmp", ticker="AAPL", data_type="news", timestamp=datetime.now(tz=timezone.utc))
+        dr = DataResult(
+            data={"news_items": []},
+            provider="fmp",
+            ticker="AAPL",
+            data_type="news",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
         assert parse_raw_news(dr) == []
 
     def test_missing_news_items_key(self):
-        dr = DataResult(data={}, provider="fmp", ticker="AAPL", data_type="news", timestamp=datetime.now(tz=timezone.utc))
+        dr = DataResult(
+            data={},
+            provider="fmp",
+            ticker="AAPL",
+            data_type="news",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
         assert parse_raw_news(dr) == []
 
     def test_skips_items_without_title(self):
         dr = DataResult(
-            data={"news_items": [
-                {"title": "", "source": "X", "published": "2024-01-01T00:00:00Z", "url": "x"},
-                {"title": "Real headline", "source": "Y", "published": "2024-01-01T00:00:00Z", "url": "y"},
-            ]},
-            provider="fmp", ticker="AAPL", data_type="news", timestamp=datetime.now(tz=timezone.utc),
+            data={
+                "news_items": [
+                    {"title": "", "source": "X", "published": "2024-01-01T00:00:00Z", "url": "x"},
+                    {
+                        "title": "Real headline",
+                        "source": "Y",
+                        "published": "2024-01-01T00:00:00Z",
+                        "url": "y",
+                    },
+                ]
+            },
+            provider="fmp",
+            ticker="AAPL",
+            data_type="news",
+            timestamp=datetime.now(tz=timezone.utc),
         )
         items = parse_raw_news(dr)
         assert len(items) == 1
@@ -58,11 +97,25 @@ class TestFetchNews:
         """Mock DataLayer.fetch → DataResult → verify list[RawNewsItem] output."""
         mock_data_layer = AsyncMock()
         mock_data_layer.fetch.return_value = DataResult(
-            data={"news_items": [
-                {"title": "AAPL Q4 beat", "source": "Reuters", "published": "2024-10-31T16:00:00Z", "url": "https://example.com/1"},
-                {"title": "iPhone 16 launch", "source": "Bloomberg", "published": "2024-10-30T14:00:00Z", "url": "https://example.com/2"},
-            ]},
-            provider="yfinance", ticker="AAPL", data_type="news",
+            data={
+                "news_items": [
+                    {
+                        "title": "AAPL Q4 beat",
+                        "source": "Reuters",
+                        "published": "2024-10-31T16:00:00Z",
+                        "url": "https://example.com/1",
+                    },
+                    {
+                        "title": "iPhone 16 launch",
+                        "source": "Bloomberg",
+                        "published": "2024-10-30T14:00:00Z",
+                        "url": "https://example.com/2",
+                    },
+                ]
+            },
+            provider="yfinance",
+            ticker="AAPL",
+            data_type="news",
             timestamp=datetime.now(tz=timezone.utc),
         )
         items = await fetch_news(mock_data_layer, "AAPL")
@@ -78,7 +131,9 @@ class TestFetchNews:
         mock_data_layer = AsyncMock()
         mock_data_layer.fetch.return_value = DataResult(
             data={"news_items": []},
-            provider="yfinance", ticker="AAPL", data_type="news",
+            provider="yfinance",
+            ticker="AAPL",
+            data_type="news",
             timestamp=datetime.now(tz=timezone.utc),
         )
         items = await fetch_news(mock_data_layer, "AAPL")
@@ -90,7 +145,9 @@ class TestFetchNews:
         mock_data_layer = AsyncMock()
         mock_data_layer.fetch.return_value = DataResult(
             data={"error": "no news available"},
-            provider="none", ticker="AAPL", data_type="news",
+            provider="none",
+            ticker="AAPL",
+            data_type="news",
             timestamp=datetime.now(tz=timezone.utc),
         )
         items = await fetch_news(mock_data_layer, "AAPL")
@@ -136,7 +193,7 @@ class TestClassifyNews:
         mock_deps = MagicMock()
         mock_deps.settings.model_name = "test-model"
 
-        with patch("finagent.engine.compute.news.PydanticAgent") as MockAgent:
+        with patch("finagent.engine.analysis.news_classifier.PydanticAgent") as MockAgent:
             mock_agent_instance = AsyncMock()
             mock_agent_instance.run.return_value = mock_output
             MockAgent.return_value = mock_agent_instance
@@ -166,7 +223,7 @@ class TestClassifyNews:
         mock_deps = MagicMock()
         mock_deps.settings.model_name = "test-model"
 
-        with patch("finagent.engine.compute.news.PydanticAgent") as MockAgent:
+        with patch("finagent.engine.analysis.news_classifier.PydanticAgent") as MockAgent:
             mock_agent_instance = AsyncMock()
             mock_agent_instance.run.side_effect = AgentRunError("LLM failed")
             MockAgent.return_value = mock_agent_instance

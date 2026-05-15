@@ -89,9 +89,7 @@ class TestExtractAnalyzers:
     def test_extract_drawdown(self) -> None:
         adapter = BackTraderAdapter()
         strat = MagicMock()
-        strat.analyzers.drawdown.get_analysis.return_value = {
-            "max": {"drawdown": 15.5}
-        }
+        strat.analyzers.drawdown.get_analysis.return_value = {"max": {"drawdown": 15.5}}
         warnings: list[str] = []
         result = adapter._extract_drawdown(strat, warnings)
         assert result == pytest.approx(-0.155)
@@ -171,8 +169,6 @@ class TestLoadData:
             lambda *a, **kw: pd.DataFrame(),
         )
         adapter = BackTraderAdapter()
-        config = BacktestConfig(
-            ticker="FAKE", start_date="2023-01-01", end_date="2024-01-01"
-        )
+        config = BacktestConfig(ticker="FAKE", start_date="2023-01-01", end_date="2024-01-01")
         with pytest.raises(ValueError, match="No price data"):
             adapter._load_data(config)

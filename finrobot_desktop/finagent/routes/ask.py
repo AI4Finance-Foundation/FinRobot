@@ -40,7 +40,6 @@ async def ask_question(request: Request, body: AskRequest) -> AskResponse:
     Fetches the latest 10-K from SEC EDGAR, retrieves relevant passages
     via BM25 keyword search, and generates an LLM answer with source citations.
     """
-    from finagent.engine.analysis.qa import run_qa
     from finagent.engine.data.types import DataType
 
     deps = request.app.state.deps
@@ -86,14 +85,15 @@ async def ask_question(request: Request, body: AskRequest) -> AskResponse:
     context_parts: list[str] = []
     for i, (chunk, score) in enumerate(chunks_with_scores, 1):
         source_label = chunk.source or f"Chunk {chunk.chunk_index}"
-        citations.append(Citation(
-            source=source_label,
-            text=chunk.text[:500],  # Truncate for response size
-            relevance=round(score, 3),
-        ))
+        citations.append(
+            Citation(
+                source=source_label,
+                text=chunk.text[:500],  # Truncate for response size
+                relevance=round(score, 3),
+            )
+        )
         context_parts.append(
-            f"[Excerpt {i}] (Source: {source_label}, Relevance: {score:.2f})\n"
-            f"{chunk.text}"
+            f"[Excerpt {i}] (Source: {source_label}, Relevance: {score:.2f})\n{chunk.text}"
         )
 
     context = "\n\n---\n\n".join(context_parts)

@@ -120,4 +120,3 @@ One-page meeting prep doc:
 - Take notes on body language and confidence levels, not just answers
 - Always end with: "What haven't we asked about that we should?"
 - Keep the question list to 15-20 max — you won't get through more in a 60-90 min session
-

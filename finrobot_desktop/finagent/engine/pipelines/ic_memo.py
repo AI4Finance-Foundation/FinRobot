@@ -12,6 +12,7 @@ What code does that LLM cannot:
   - IRR hurdle gate: overrides LLM recommendation to PASS if IRR < 15%
   - Risk ranking by impact (code ranks by order, not LLM discretion)
 """
+
 from __future__ import annotations
 
 import logging
@@ -33,7 +34,10 @@ from finagent.engine.models.financial import (
     StepOutput,
 )
 from finagent.engine.pipelines.base import (
-    Pipeline, PipelineStep, StructuredValidator, TextValidator,
+    Pipeline,
+    PipelineStep,
+    StructuredValidator,
+    TextValidator,
 )
 from finagent.engine.pipelines.equity_research import _build_sensitivity_ranges
 from finagent.engine.pipelines.validators import (
@@ -160,7 +164,9 @@ def create_ic_memo_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 skill_section=None,
                 agent=agents["analysis"],
                 required_data=[DataType.FINANCIALS, DataType.NEWS],
-                validator=TextValidator(lambda out: validate_has_fields(out, ["revenue", "ebitda"])),
+                validator=TextValidator(
+                    lambda out: validate_has_fields(out, ["revenue", "ebitda"])
+                ),
             ),
             PipelineStep(
                 name="financial_analysis",
@@ -192,5 +198,5 @@ def create_ic_memo_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 validator=TextValidator(validate_is_non_empty),
                 executor=_execute_recommendation,
             ),
-        ]
+        ],
     )

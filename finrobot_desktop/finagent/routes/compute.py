@@ -173,9 +173,7 @@ class CompareRequest(BaseModel):
 
 
 @router.post("/compare", response_model=ComparisonResult)
-async def compare_companies(
-    request_body: CompareRequest, request: Request
-) -> ComparisonResult:
+async def compare_companies(request_body: CompareRequest, request: Request) -> ComparisonResult:
     """Run DCF pipeline for each ticker and return side-by-side comparison.
 
     Fetches financials and runs the DCF pipeline concurrently for all tickers.

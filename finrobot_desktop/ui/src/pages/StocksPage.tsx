@@ -25,13 +25,16 @@ import {
   useRef,
   useMemo,
   useState,
+  useId,
 } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, useMutation } from '@tanstack/react-query'
 
 // Stores
 import { useAppStore } from '../stores/appStore'
 import { useStocksStore, isValidTicker, type StocksTab, type ToolName } from '../stores/stocksStore'
+import { useI18n } from '../i18n'
+import { useUiStore } from '../stores/uiStore'
 
 // Hooks
 import { useTickerPrice } from '../hooks/useTickerData'
@@ -42,7 +45,8 @@ import VerbToolbar from '../components/VerbToolbar'
 import WarningBanner from '../components/WarningBanner'
 import ToastContainer from '../components/Toast'
 
-// Tab views (existing — not rewritten)
+// Tab views
+import OverviewTab from '../views/OverviewTab'
 import ValuationTab from '../views/ValuationTab'
 import FinancialsTab from '../views/FinancialsTab'
 import PeersTab from '../views/PeersTab'
@@ -52,6 +56,7 @@ import HistoryTab from '../views/HistoryTab'
 
 // Utils
 import { fmtPrice, fmtUsd } from '../utils/formatters'
+import { BASE_URL } from '../api/client'
 
 // ── Tab configuration ─────────────────────────────────────────────────────────
 
@@ -61,13 +66,16 @@ interface TabConfig {
   shortcut: string  // 1-6
 }
 
+// Overview first (landing tab), then data tabs, then analysis tabs.
 const TABS: TabConfig[] = [
-  { key: 'valuation',   label: '估值',  shortcut: '1' },
-  { key: 'financials',  label: '财务',  shortcut: '2' },
-  { key: 'peers',       label: '同业',  shortcut: '3' },
-  { key: 'performance', label: '走势',  shortcut: '4' },
-  { key: 'news',        label: '新闻',  shortcut: '5' },
-  { key: 'history',     label: '历史',  shortcut: '6' },
+  { key: 'overview',    label: 'tab.overview',    shortcut: '1' },
+  { key: 'financials',  label: 'tab.financials',  shortcut: '2' },
+  { key: 'performance', label: 'tab.performance', shortcut: '3' },
+  { key: 'news',        label: 'tab.news',        shortcut: '4' },
+  { key: 'valuation',   label: 'tab.valuation',   shortcut: '5' },
+  { key: 'comps',       label: 'tab.comps',       shortcut: '6' },
+  { key: 'history',     label: 'tab.history',     shortcut: '7' },
+  { key: 'research',    label: 'tab.research',    shortcut: '8' },
 ]
 
 // Quick-access tickers for empty state
@@ -80,13 +88,53 @@ interface StockHeaderNewProps {
 }
 
 function StockHeaderNew({ ticker }: StockHeaderNewProps) {
-  const { data, isLoading } = useTickerPrice(ticker)
+  const { data, isLoading, isError, refetch } = useTickerPrice(ticker)
   const { watchlist, toggleWatchlist } = useStocksStore()
   const isWatched = watchlist.has(ticker)
+  const { t } = useI18n()
 
   const change = data?.change ?? 0
   const changeColor = change >= 0 ? 'var(--positive)' : 'var(--negative)'
   const changePct = data?.change_pct ?? 0
+
+  if (isError && !data) {
+    return (
+      <div
+        className="stock-header"
+        role="alert"
+        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0' }}
+      >
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 700,
+            fontSize: '1.4rem',
+            color: 'var(--gold)',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {ticker}
+        </span>
+        <span style={{ color: 'var(--negative)', fontSize: '0.88rem' }}>
+          {t('stock.error.title')}
+        </span>
+        <button
+          onClick={() => refetch()}
+          style={{
+            padding: '4px 12px',
+            fontSize: '0.87rem',
+            border: '1px solid var(--border)',
+            borderRadius: 4,
+            background: 'var(--surface)',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+          }}
+        >
+          {t('stock.error.retry')}
+        </button>
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (
@@ -124,9 +172,10 @@ function StockHeaderNew({ ticker }: StockHeaderNewProps) {
         style={{
           fontFamily: 'var(--font-mono)',
           fontWeight: 700,
-          fontSize: '1.4rem',
+          fontSize: '1.7rem',
           color: 'var(--gold)',
           letterSpacing: '0.04em',
+          lineHeight: 1,
         }}
       >
         {ticker}
@@ -149,37 +198,38 @@ function StockHeaderNew({ ticker }: StockHeaderNewProps) {
         </span>
       )}
 
-      {/* Price */}
-      {data?.current_price != null && (
-        <span
-          className="stock-price"
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontWeight: 600,
-            fontSize: '1.1rem',
-            color: 'var(--text-primary)',
-          }}
-        >
-          {fmtPrice(data.current_price)}
-        </span>
-      )}
+      {/* Price — show — placeholder when missing to keep layout stable */}
+      <span
+        className="stock-price"
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontWeight: 600,
+          fontSize: '1.1rem',
+          color: data?.current_price != null ? 'var(--text-primary)' : 'var(--text-muted)',
+        }}
+      >
+        {data?.current_price != null ? fmtPrice(data.current_price) : t('common.notAvailable')}
+      </span>
 
       {/* Change */}
-      {data?.change != null && (
+      {data?.change != null ? (
         <span
           className="stock-change"
           style={{ color: changeColor, fontSize: '0.88rem', fontFamily: 'var(--font-mono)' }}
         >
           {change >= 0 ? '+' : ''}{change.toFixed(2)} ({changePct >= 0 ? '+' : ''}{changePct.toFixed(2)}%)
         </span>
+      ) : (
+        <span style={{ fontSize: '0.88rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+          {t('common.notAvailable')}
+        </span>
       )}
 
       {/* Market cap */}
-      {data?.market_cap != null && (
-        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-          Mkt cap {fmtUsd(data.market_cap)}
-        </span>
-      )}
+      <span style={{ fontSize: '0.87rem', color: 'var(--text-muted)' }}>
+        {t('stock.marketcap')}{' '}
+        {data?.market_cap != null ? fmtUsd(data.market_cap) : t('common.notAvailable')}
+      </span>
 
       {/* Spacer */}
       <div style={{ flex: 1 }} />
@@ -187,11 +237,11 @@ function StockHeaderNew({ ticker }: StockHeaderNewProps) {
       {/* Watchlist button */}
       <button
         onClick={() => toggleWatchlist(ticker)}
-        aria-label={isWatched ? 'Remove from watchlist' : 'Add to watchlist'}
+        aria-label={isWatched ? t('stock.watchlist.remove') : t('stock.watchlist.add')}
         aria-pressed={isWatched}
         style={{
           padding: '4px 12px',
-          fontSize: '0.75rem',
+          fontSize: '0.87rem',
           fontWeight: 500,
           border: `1px solid ${isWatched ? 'var(--gold)' : 'var(--border)'}`,
           borderRadius: 4,
@@ -202,7 +252,7 @@ function StockHeaderNew({ ticker }: StockHeaderNewProps) {
           whiteSpace: 'nowrap',
         }}
       >
-        {isWatched ? '★ 已关注' : '☆ 加入关注'}
+        {isWatched ? t('stock.watchlist.remove') : t('stock.watchlist.add')}
       </button>
     </div>
   )
@@ -216,6 +266,7 @@ interface StocksTabBarProps {
 }
 
 function StocksTabBar({ activeTab, onTabChange }: StocksTabBarProps) {
+  const { t } = useI18n()
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLButtonElement>, tab: StocksTab) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -233,21 +284,261 @@ function StocksTabBar({ activeTab, onTabChange }: StocksTabBarProps) {
       className="tab-bar"
       style={{ display: 'flex', gap: 2 }}
     >
-      {TABS.map((tab) => (
-        <button
-          key={tab.key}
-          role="tab"
-          aria-selected={activeTab === tab.key}
-          aria-controls={`tabpanel-${tab.key}`}
-          id={`tab-${tab.key}`}
-          className={`tab-btn${activeTab === tab.key ? ' active' : ''}`}
-          onClick={() => onTabChange(tab.key)}
-          onKeyDown={(e) => handleKeyDown(e, tab.key)}
-          title={`${tab.label} (${tab.shortcut})`}
+      {TABS.map((tab) => {
+        const label = t(tab.label)
+        return (
+          <button
+            key={tab.key}
+            role="tab"
+            aria-selected={activeTab === tab.key}
+            aria-controls={`tabpanel-${tab.key}`}
+            id={`tab-${tab.key}`}
+            className={`tab-btn${activeTab === tab.key ? ' active' : ''}`}
+            onClick={() => onTabChange(tab.key)}
+            onKeyDown={(e) => handleKeyDown(e, tab.key)}
+            title={`${label} (${tab.shortcut})`}
+          >
+            {label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── RAG Q&A types ─────────────────────────────────────────────────────────────
+
+interface AskCitation {
+  text: string
+  score: number
+  source?: string
+}
+
+interface AskResponse {
+  answer: string
+  citations: AskCitation[]
+  chunk_count: number
+}
+
+// ── ResearchTab (RAG Q&A) ─────────────────────────────────────────────────────
+
+interface ResearchTabProps {
+  ticker: string
+}
+
+function ResearchTab({ ticker }: ResearchTabProps) {
+  const [question, setQuestion] = useState('')
+  const inputId = useId()
+  const { t } = useI18n()
+
+  const askMutation = useMutation<AskResponse, Error, { question: string }>({
+    mutationFn: async ({ question: q }) => {
+      const resp = await fetch(`${BASE_URL}/api/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticker, question: q, top_k: 5 }),
+      })
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}`)
+      }
+      return resp.json() as Promise<AskResponse>
+    },
+  })
+
+  const handleSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault()
+      const q = question.trim()
+      if (!q) return
+      askMutation.mutate({ question: q })
+    },
+    [question, askMutation],
+  )
+
+  return (
+    <div className="tab-content research-tab">
+      <section className="chart-section">
+        <h3 className="section-title">{t('research.heading')}</h3>
+
+        {/* Input form */}
+        <form
+          onSubmit={handleSubmit}
+          style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}
         >
-          {tab.label}
-        </button>
-      ))}
+          <label htmlFor={inputId} style={{ display: 'none' }}>
+            {t('research.placeholder')}
+          </label>
+          <input
+            id={inputId}
+            type="text"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder={t('research.placeholder')}
+            disabled={askMutation.isPending}
+            style={{
+              flex: 1,
+              padding: '7px 12px',
+              fontSize: '0.85rem',
+              fontFamily: 'var(--font-sans)',
+              border: '1px solid var(--border)',
+              borderRadius: 4,
+              background: 'var(--surface)',
+              color: 'var(--text-primary)',
+              outline: 'none',
+              opacity: askMutation.isPending ? 0.6 : 1,
+            }}
+          />
+          <button
+            type="submit"
+            disabled={!question.trim() || askMutation.isPending}
+            style={{
+              padding: '7px 16px',
+              fontSize: '0.87rem',
+              fontWeight: 500,
+              border: '1px solid var(--gold)',
+              borderRadius: 4,
+              background: askMutation.isPending ? 'var(--border)' : 'var(--gold-dim)',
+              color: 'var(--gold)',
+              cursor: !question.trim() || askMutation.isPending ? 'not-allowed' : 'pointer',
+              opacity: !question.trim() ? 0.5 : 1,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {askMutation.isPending ? t('common.loading') : t('research.ask')}
+          </button>
+        </form>
+
+        {/* Error */}
+        {askMutation.isError && (
+          <div
+            role="alert"
+            style={{
+              padding: '10px 14px',
+              borderRadius: 4,
+              background: 'var(--negative-bg)',
+              color: 'var(--negative)',
+              fontSize: '0.87rem',
+              border: '1px solid var(--negative)',
+            }}
+          >
+            {t('research.error')}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!askMutation.data && !askMutation.isPending && !askMutation.isError && (
+          <div className="empty-state-card">
+            <p style={{ margin: 0 }}>{t('research.empty')}</p>
+          </div>
+        )}
+
+        {/* Answer */}
+        {askMutation.data && (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}
+          >
+            {/* Answer text */}
+            <div
+              style={{
+                padding: '14px 16px',
+                borderRadius: 6,
+                background: 'var(--elevated)',
+                border: '1px solid var(--border-subtle)',
+                fontSize: '0.88rem',
+                color: 'var(--text-primary)',
+                lineHeight: 1.65,
+                whiteSpace: 'pre-wrap',
+              }}
+            >
+              {askMutation.data.answer}
+            </div>
+
+            {/* Citations */}
+            {askMutation.data.citations.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div
+                  style={{
+                    fontSize: '0.87rem',
+                    color: 'var(--text-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  {t('research.citations')}
+                </div>
+                {askMutation.data.citations.map((cit, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 4,
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: '0.87rem',
+                          color: 'var(--text-muted)',
+                          fontFamily: 'var(--font-mono)',
+                        }}
+                      >
+                        #{idx + 1}
+                        {cit.source ? ` · ${cit.source}` : ''}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '0.87rem',
+                          color: 'var(--text-muted)',
+                          fontFamily: 'var(--font-mono)',
+                        }}
+                      >
+                        {t('research.relevance')} {(cit.score * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: '0.87rem',
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      {cit.text}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Source attribution */}
+            <div
+              style={{
+                fontSize: '0.87rem',
+                color: 'var(--text-muted)',
+                fontStyle: 'italic',
+              }}
+            >
+              {t('research.source')}
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   )
 }
@@ -263,6 +554,7 @@ function EmptyState({ onTickerSelect }: EmptyStateProps) {
   const [inputValue, setInputValue] = useState('')
   const [inputError, setInputError] = useState('')
   const navigate = useNavigate()
+  const { t } = useI18n()
 
   const handleInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -276,44 +568,53 @@ function EmptyState({ onTickerSelect }: EmptyStateProps) {
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault()
-      const t = inputValue.trim().toUpperCase()
-      if (!t) return
-      if (!isValidTicker(t)) {
-        setInputError('Invalid ticker format (letters, digits, . and - only, max 12 chars)')
+      const sym = inputValue.trim().toUpperCase()
+      if (!sym) return
+      if (!isValidTicker(sym)) {
+        setInputError(t('stocks.empty.invalid'))
         return
       }
-      navigate(`/stocks/${t}`)
+      navigate(`/stocks/${sym}`)
     },
-    [inputValue, navigate],
+    [inputValue, navigate, t],
   )
 
   const tickers = recentTickers.length > 0 ? recentTickers : QUICK_TICKERS
 
   return (
     <div
-      className="idle-right animate-in"
       style={{
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 'var(--sp-10)',
-        gap: 'var(--sp-6)',
-        minHeight: 400,
+        height: '100%',
+        gap: 24,
+        background: 'var(--bg-0)',
       }}
     >
-      <div
-        style={{
-          fontSize: '1rem',
-          color: 'var(--text-secondary)',
-          textAlign: 'center',
-        }}
-      >
-        输入 ticker 或从下方选择
+      <div style={{ textAlign: 'center' }}>
+        <div style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 20,
+          fontWeight: 700,
+          color: 'var(--text-primary)',
+          letterSpacing: '-0.02em',
+          marginBottom: 8,
+        }}>
+          Stock Analysis
+        </div>
+        <div style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11,
+          color: 'var(--text-muted)',
+          letterSpacing: '0.03em',
+        }}>
+          Enter a ticker to start
+        </div>
       </div>
 
-      {/* Ticker input */}
-      <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8 }}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <div style={{ position: 'relative' }}>
           <input
             type="text"
@@ -324,15 +625,18 @@ function EmptyState({ onTickerSelect }: EmptyStateProps) {
             aria-label="Ticker symbol"
             aria-describedby={inputError ? 'ticker-error' : undefined}
             style={{
-              padding: '7px 12px',
-              fontSize: '0.9rem',
+              padding: '10px 14px',
+              fontSize: 14,
               fontFamily: 'var(--font-mono)',
-              border: `1px solid ${inputError ? 'var(--negative)' : 'var(--border)'}`,
-              borderRadius: 4,
-              background: 'var(--surface)',
+              fontWeight: 600,
+              border: `1px solid ${inputError ? 'var(--negative)' : 'var(--border-hover)'}`,
+              borderRadius: 6,
+              background: 'var(--bg-2)',
               color: 'var(--text-primary)',
-              width: 140,
+              width: 160,
               outline: 'none',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
             }}
           />
           {inputError && (
@@ -340,14 +644,8 @@ function EmptyState({ onTickerSelect }: EmptyStateProps) {
               id="ticker-error"
               role="alert"
               style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                marginTop: 4,
-                fontSize: '0.72rem',
-                color: 'var(--negative)',
-                width: 240,
-                zIndex: 10,
+                position: 'absolute', top: '100%', left: 0, marginTop: 4,
+                fontSize: 11, color: 'var(--negative)', whiteSpace: 'nowrap',
               }}
             >
               {inputError}
@@ -357,44 +655,56 @@ function EmptyState({ onTickerSelect }: EmptyStateProps) {
         <button
           type="submit"
           disabled={!inputValue.trim()}
-          className="btn"
           aria-label="Load ticker"
+          style={{
+            padding: '10px 20px',
+            fontSize: 11,
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 700,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+            border: `1px solid ${inputValue.trim() ? 'var(--gold)' : 'var(--border)'}`,
+            borderRadius: 6,
+            background: inputValue.trim() ? 'var(--gold)' : 'var(--bg-2)',
+            color: inputValue.trim() ? 'var(--bg-0)' : 'var(--text-muted)',
+            cursor: inputValue.trim() ? 'pointer' : 'not-allowed',
+          }}
         >
-          分析
+          ANALYZE
         </button>
       </form>
 
-      {/* Recent / Quick tickers */}
       <div style={{ textAlign: 'center' }}>
-        <div
-          style={{
-            fontSize: '0.72rem',
-            color: 'var(--text-muted)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            marginBottom: 'var(--sp-3)',
-          }}
-        >
-          {recentTickers.length > 0 ? '最近' : '快捷'}
+        <div style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 9,
+          color: 'var(--text-muted)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.1em',
+          marginBottom: 10,
+        }}>
+          {recentTickers.length > 0 ? 'RECENT' : 'POPULAR'}
         </div>
-        <div
-          className="idle-ticker-grid"
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 8,
-            justifyContent: 'center',
-            maxWidth: 400,
-          }}
-        >
-          {tickers.slice(0, 10).map((t) => (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', maxWidth: 360 }}>
+          {tickers.slice(0, 8).map((tk) => (
             <button
-              key={t}
-              className="idle-ticker-btn"
-              onClick={() => onTickerSelect(t)}
-              aria-label={`Load ${t}`}
+              key={tk}
+              onClick={() => onTickerSelect(tk)}
+              aria-label={`Load ${tk}`}
+              style={{
+                padding: '5px 12px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
+                background: 'var(--bg-2)',
+                border: '1px solid var(--border)',
+                borderRadius: 4,
+                cursor: 'pointer',
+                letterSpacing: '0.03em',
+              }}
             >
-              {t}
+              {tk}
             </button>
           ))}
         </div>
@@ -417,6 +727,7 @@ export function StocksPage() {
   const { activeTab, setActiveTab, setCurrentTicker } = useStocksStore()
   const appStore = useAppStore()
   const warnings = appStore.warnings
+  const setAiPanelOpen = useUiStore((s) => s.setAiPanelOpen)
 
   // AbortController ref — cancelled on ticker change
   const abortRef = useRef<AbortController | null>(null)
@@ -489,18 +800,22 @@ export function StocksPage() {
     if (!ticker) return null
 
     switch (activeTab) {
-      case 'valuation':
-        return <ValuationTab />
+      case 'overview':
+        return <OverviewTab />
       case 'financials':
         return <FinancialsTab />
-      case 'peers':
-        return <PeersTab />
       case 'performance':
         return <PerformanceTab />
       case 'news':
         return <NewsTab />
+      case 'valuation':
+        return <ValuationTab />
+      case 'comps':
+        return <PeersTab />
       case 'history':
         return <HistoryTab ticker={ticker} />
+      case 'research':
+        return <ResearchTab ticker={ticker} />
       default:
         return null
     }
@@ -583,20 +898,27 @@ export function StocksPage() {
         <ErrorBoundary>
           <VerbToolbar
             ticker={ticker}
+            onAskAi={() => setAiPanelOpen(true)}
             onToolComplete={(tool: ToolName) => {
               // Switch to relevant tab after tool completes
               const tabMap: Record<ToolName, StocksTab> = {
+                research:   'overview',
                 dcf:        'valuation',
                 lbo:        'valuation',
-                comps:      'peers',
+                comps:      'comps',
                 catalysts:  'news',
                 'ic-memo':  'history',
+                ddm:        'valuation',
+                earnings:   'financials',
                 'ask-ai':   activeTab,
               }
               setActiveTab(tabMap[tool])
             }}
           />
         </ErrorBoundary>
+
+        {/* Thin divider between actions and navigation */}
+        <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 0 0' }} />
 
         {/* Tab bar */}
         <StocksTabBar activeTab={activeTab} onTabChange={setActiveTab} />

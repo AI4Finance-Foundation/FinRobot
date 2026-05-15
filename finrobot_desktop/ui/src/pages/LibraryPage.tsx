@@ -221,7 +221,7 @@ function EmptyState({ onNavigate }: { onNavigate: () => void }) {
       </div>
       <button
         onClick={onNavigate}
-        style={{ padding: '8px 20px', background: 'var(--gold)', color: '#000', border: 'none', borderRadius: 'var(--r-md)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}
+        style={{ padding: '8px 20px', background: 'var(--gold)', color: '#fff', border: 'none', borderRadius: 'var(--r-md)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600 }}
       >
         Go to Stocks
       </button>
@@ -317,7 +317,7 @@ function WorkspaceFormModal({
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
           <button onClick={onCancel} style={{ padding: '6px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem' }}>Cancel</button>
-          <button onClick={handleSave} style={{ padding: '6px 16px', background: 'var(--gold)', border: 'none', borderRadius: 'var(--r-md)', color: '#000', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
+          <button onClick={handleSave} style={{ padding: '6px 16px', background: 'var(--gold)', border: 'none', borderRadius: 'var(--r-md)', color: '#fff', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
             {initial ? 'Rename' : 'Create'}
           </button>
         </div>
@@ -1315,7 +1315,7 @@ export function LibraryPage() {
                 </div>
                 <button
                   onClick={() => navigate(`/stocks/${selectedTicker}`)}
-                  style={{ padding: '6px 14px', background: 'var(--gold)', border: 'none', borderRadius: 'var(--r-md)', color: '#000', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}
+                  style={{ padding: '6px 14px', background: 'var(--gold)', border: 'none', borderRadius: 'var(--r-md)', color: '#fff', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}
                 >
                   New analysis
                 </button>

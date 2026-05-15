@@ -1,5 +1,5 @@
 """Tests for BM25 RAG compute module."""
-import pytest
+
 from finagent.engine.compute.rag import Chunk, BM25Index, chunk_text
 
 
@@ -56,12 +56,24 @@ class TestBM25Index:
     def test_retrieves_relevant_chunk(self):
         """Chunk containing 'liquidity risk' must rank #1 for that query."""
         chunks = [
-            Chunk(text="The company faces market risk from interest rates.",
-                  source="risk", chunk_index=0, char_start=0),
-            Chunk(text="Liquidity risk arises from inability to meet obligations.",
-                  source="risk", chunk_index=1, char_start=0),
-            Chunk(text="Revenue increased 12% year over year.",
-                  source="ops", chunk_index=2, char_start=0),
+            Chunk(
+                text="The company faces market risk from interest rates.",
+                source="risk",
+                chunk_index=0,
+                char_start=0,
+            ),
+            Chunk(
+                text="Liquidity risk arises from inability to meet obligations.",
+                source="risk",
+                chunk_index=1,
+                char_start=0,
+            ),
+            Chunk(
+                text="Revenue increased 12% year over year.",
+                source="ops",
+                chunk_index=2,
+                char_start=0,
+            ),
         ]
         index = BM25Index(chunks)
         results = index.search("liquidity risk")
@@ -76,8 +88,12 @@ class TestBM25Index:
 
     def test_top_k_limits_results(self):
         chunks = [
-            Chunk(text=f"revenue cash profit loss ebitda concept{i}",
-                  source="", chunk_index=i, char_start=0)
+            Chunk(
+                text=f"revenue cash profit loss ebitda concept{i}",
+                source="",
+                chunk_index=i,
+                char_start=0,
+            )
             for i in range(10)
         ]
         index = BM25Index(chunks)
@@ -87,7 +103,12 @@ class TestBM25Index:
     def test_scores_descending(self):
         """Results are returned in descending score order."""
         chunks = [
-            Chunk(text="revenue revenue revenue highly relevant", source="", chunk_index=0, char_start=0),
+            Chunk(
+                text="revenue revenue revenue highly relevant",
+                source="",
+                chunk_index=0,
+                char_start=0,
+            ),
             Chunk(text="revenue mentioned once here", source="", chunk_index=1, char_start=0),
             Chunk(text="something else entirely different", source="", chunk_index=2, char_start=0),
         ]
@@ -103,12 +124,24 @@ class TestBM25Index:
         With N=2, df=1: IDF = log(1)=0 → all scores 0. With N=3, df=1: IDF>0.
         """
         chunks = [
-            Chunk(text="ebitda margin expansion organic growth profitability",
-                  source="", chunk_index=0, char_start=0),
-            Chunk(text="legal proceedings litigation settlement court",
-                  source="", chunk_index=1, char_start=0),
-            Chunk(text="tax expense deferred liabilities income statement",
-                  source="", chunk_index=2, char_start=0),
+            Chunk(
+                text="ebitda margin expansion organic growth profitability",
+                source="",
+                chunk_index=0,
+                char_start=0,
+            ),
+            Chunk(
+                text="legal proceedings litigation settlement court",
+                source="",
+                chunk_index=1,
+                char_start=0,
+            ),
+            Chunk(
+                text="tax expense deferred liabilities income statement",
+                source="",
+                chunk_index=2,
+                char_start=0,
+            ),
         ]
         index = BM25Index(chunks)
         results = index.search("ebitda growth margin")

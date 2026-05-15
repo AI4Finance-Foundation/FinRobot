@@ -20,6 +20,7 @@ What this code does that raw LLM cannot: deterministic numeric agreement
 checks between two APIs. An LLM would not autonomously call two APIs and
 compare the numbers.
 """
+
 from __future__ import annotations
 
 from numbers import Real

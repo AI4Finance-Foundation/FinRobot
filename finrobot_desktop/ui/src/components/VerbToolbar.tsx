@@ -1,66 +1,38 @@
 /**
- * VerbToolbar — 6 verb-action buttons for the Stocks page.
+ * VerbToolbar — action buttons for the Stocks page.
  *
- * Each button:
- *  - Shows a tooltip on hover describing what the tool does
- *  - Has independent loading state (disabled while running, spinner icon)
- *  - Calls useRunTool to dispatch to the right backend endpoint
- *  - ask-ai is a UI-only action that opens the right-chat panel
+ * Primary row: Research, DCF, Comps, Earnings (4 buttons)
+ * More dropdown: LBO, DDM, IC Memo
+ * Ask AI button on the right side
  */
 
-import { useCallback } from 'react'
+import { useCallback, useState, useRef, useEffect } from 'react'
 import { useRunTool } from '../hooks/useRunTool'
 import { useStocksStore, type ToolName } from '../stores/stocksStore'
+import { useI18n } from '../i18n'
 
-// ── Tool config ───────────────────────────────────────────────────────────────
+// ── Tool groups ──────────────────────────────────────────────────────────────
 
 interface ToolConfig {
   name: ToolName
-  label: string
-  tooltip: string
-  shortcut?: string
+  labelKey: string
+  tooltipKey: string
 }
 
-const TOOLS: ToolConfig[] = [
-  {
-    name: 'dcf',
-    label: '跑 DCF',
-    tooltip: 'Run discounted cash flow valuation using default assumptions + live financial data',
-    shortcut: 'D',
-  },
-  {
-    name: 'lbo',
-    label: '跑 LBO',
-    tooltip: 'Run leveraged buyout model: IRR, MOIC, debt schedule, sensitivity grid',
-    shortcut: 'L',
-  },
-  {
-    name: 'comps',
-    label: '对比同业',
-    tooltip: 'Run comparable company analysis — fetch peer multiples via AI pipeline',
-    shortcut: 'C',
-  },
-  {
-    name: 'catalysts',
-    label: '找催化剂',
-    tooltip: 'Extract upcoming catalysts from recent news and filings',
-    shortcut: 'T',
-  },
-  {
-    name: 'ic-memo',
-    label: '跑 IC Memo',
-    tooltip: 'Generate an Investment Committee memo with situation overview, thesis, risks and recommendation',
-    shortcut: 'I',
-  },
-  {
-    name: 'ask-ai',
-    label: '问 AI',
-    tooltip: 'Open the chat panel and ask a question about this stock',
-    shortcut: 'A',
-  },
+const PRIMARY_TOOLS: ToolConfig[] = [
+  { name: 'dcf',       labelKey: 'verb.dcf',       tooltipKey: 'verb.dcf.tooltip' },
+  { name: 'comps',     labelKey: 'verb.comps',     tooltipKey: 'verb.comps.tooltip' },
+  { name: 'earnings',  labelKey: 'verb.earnings',  tooltipKey: 'verb.earnings.tooltip' },
 ]
 
-// ── Spinner ───────────────────────────────────────────────────────────────────
+const MORE_TOOLS: ToolConfig[] = [
+  { name: 'lbo',       labelKey: 'verb.lbo',       tooltipKey: 'verb.lbo.tooltip' },
+  { name: 'ddm',       labelKey: 'verb.ddm',       tooltipKey: 'verb.ddm.tooltip' },
+  { name: 'ic-memo',   labelKey: 'verb.ic-memo',   tooltipKey: 'verb.ic-memo.tooltip' },
+  { name: 'catalysts', labelKey: 'verb.catalysts', tooltipKey: 'verb.catalysts.tooltip' },
+]
+
+// ── Spinner ──────────────────────────────────────────────────────────────────
 
 function Spinner() {
   return (
@@ -78,17 +50,15 @@ function Spinner() {
   )
 }
 
-// ── Props ─────────────────────────────────────────────────────────────────────
+// ── Props ────────────────────────────────────────────────────────────────────
 
 interface VerbToolbarProps {
   ticker: string
-  /** Called when ask-ai is clicked — lets parent open the chat panel */
   onAskAi?: () => void
-  /** Called when a tool completes — lets parent respond (e.g. switch tab) */
   onToolComplete?: (tool: ToolName) => void
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ── Component ────────────────────────────────────────────────────────────────
 
 export default function VerbToolbar({
   ticker,
@@ -96,11 +66,26 @@ export default function VerbToolbar({
   onToolComplete,
 }: VerbToolbarProps) {
   const runningTools = useStocksStore((s) => s.runningTools)
+  const { t } = useI18n()
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreRef = useRef<HTMLDivElement>(null)
 
   const { mutate, isPending } = useRunTool({
     ticker,
     onSuccess: onToolComplete,
   })
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!moreOpen) return
+    const handler = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [moreOpen])
 
   const handleClick = useCallback(
     (tool: ToolName) => {
@@ -110,9 +95,79 @@ export default function VerbToolbar({
       }
       if (runningTools.has(tool)) return
       mutate(tool)
+      setMoreOpen(false)
     },
     [runningTools, mutate, onAskAi],
   )
+
+  function renderBtn(tool: ToolConfig, variant: 'primary' | 'dropdown' = 'primary') {
+    const isRunning = runningTools.has(tool.name)
+    const isDisabled = isRunning || !ticker
+    const label = t(tool.labelKey)
+    const tooltip = t(tool.tooltipKey)
+
+    if (variant === 'dropdown') {
+      return (
+        <button
+          key={tool.name}
+          onClick={() => handleClick(tool.name)}
+          disabled={isDisabled}
+          title={tooltip}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            width: '100%',
+            padding: '8px 14px',
+            background: 'transparent',
+            border: 'none',
+            color: isRunning ? 'var(--gold)' : 'var(--text-primary)',
+            cursor: isDisabled ? 'not-allowed' : 'pointer',
+            opacity: isDisabled && !isRunning ? 0.45 : 1,
+            fontSize: '0.87rem',
+            textAlign: 'left',
+            transition: 'background 0.1s',
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--elevated)' }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+        >
+          {isRunning && <Spinner />}
+          {label}
+        </button>
+      )
+    }
+
+    return (
+      <button
+        key={tool.name}
+        className={`verb-btn${isRunning ? ' verb-btn--loading' : ''}`}
+        aria-label={`${label}: ${tooltip}`}
+        aria-busy={isRunning}
+        disabled={isDisabled}
+        onClick={() => handleClick(tool.name)}
+        title={tooltip}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 5,
+          padding: '6px 14px',
+          fontSize: '0.87rem',
+          fontWeight: 500,
+          borderRadius: 'var(--r-sm)',
+          border: '1px solid var(--border)',
+          background: isRunning ? 'var(--gold-dim)' : 'var(--base)',
+          color: isRunning ? 'var(--gold)' : 'var(--text-secondary)',
+          cursor: isDisabled ? 'not-allowed' : 'pointer',
+          opacity: isDisabled && !isRunning ? 0.45 : 1,
+          transition: 'background 0.15s, color 0.15s, border-color 0.15s',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {isRunning && <Spinner />}
+        {label}
+      </button>
+    )
+  }
 
   return (
     <div
@@ -121,57 +176,89 @@ export default function VerbToolbar({
       aria-label="Analysis tools"
       style={{
         display: 'flex',
-        flexWrap: 'wrap',
+        alignItems: 'center',
         gap: 6,
         padding: '8px 0',
+        flexWrap: 'wrap',
       }}
     >
-      {TOOLS.map((tool) => {
-        const isRunning = runningTools.has(tool.name) || (isPending && runningTools.has(tool.name))
-        const isDisabled = isRunning || !ticker
+      {/* Primary tools */}
+      {PRIMARY_TOOLS.map((tool) => renderBtn(tool))}
 
-        return (
+      {/* More dropdown */}
+      <div ref={moreRef} style={{ position: 'relative' }}>
+        <button
+          onClick={() => setMoreOpen((v) => !v)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '6px 12px',
+            fontSize: '0.87rem',
+            fontWeight: 500,
+            borderRadius: 'var(--r-sm)',
+            border: '1px solid var(--border)',
+            background: moreOpen ? 'var(--elevated)' : 'var(--base)',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {t('verb.more') || 'More'}
+          <span style={{ fontSize: '0.7rem' }}>{moreOpen ? '▲' : '▼'}</span>
+        </button>
+
+        {moreOpen && (
           <div
-            key={tool.name}
-            className="verb-btn-wrapper"
-            style={{ position: 'relative' }}
+            style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              marginTop: 4,
+              background: 'var(--base)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--r-md)',
+              boxShadow: 'var(--shadow-md)',
+              minWidth: 160,
+              overflow: 'hidden',
+              zIndex: 100,
+            }}
           >
-            <button
-              className={`verb-btn${isRunning ? ' verb-btn--loading' : ''}`}
-              aria-label={`${tool.label}: ${tool.tooltip}`}
-              aria-busy={isRunning}
-              aria-disabled={isDisabled}
-              disabled={isDisabled}
-              onClick={() => handleClick(tool.name)}
-              title={tool.tooltip}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '5px 12px',
-                fontSize: '0.78rem',
-                fontWeight: 500,
-                borderRadius: 4,
-                border: '1px solid var(--border)',
-                background: isRunning ? 'var(--gold-dim)' : 'var(--surface)',
-                color: isRunning ? 'var(--gold)' : 'var(--text-secondary)',
-                cursor: isDisabled ? 'not-allowed' : 'pointer',
-                opacity: isDisabled && !isRunning ? 0.45 : 1,
-                transition: 'background 0.15s, color 0.15s, border-color 0.15s',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {isRunning && <Spinner />}
-              {tool.label}
-            </button>
+            {MORE_TOOLS.map((tool) => renderBtn(tool, 'dropdown'))}
           </div>
-        )
-      })}
+        )}
+      </div>
 
-      {/* Global spin animation */}
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
+      {/* Spacer */}
+      <div style={{ flex: 1 }} />
+
+      {/* Ask AI — separated to the right */}
+      <button
+        onClick={() => onAskAi?.()}
+        disabled={!ticker}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 5,
+          padding: '6px 16px',
+          fontSize: '0.87rem',
+          fontWeight: 600,
+          borderRadius: 'var(--r-sm)',
+          border: 'none',
+          background: 'var(--gold)',
+          color: '#fff',
+          cursor: !ticker ? 'not-allowed' : 'pointer',
+          opacity: !ticker ? 0.45 : 1,
+          transition: 'background 0.15s',
+          whiteSpace: 'nowrap',
+        }}
+        title={t('verb.ask-ai.tooltip')}
+      >
+        {t('verb.ask-ai')}
+      </button>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }

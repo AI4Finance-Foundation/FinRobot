@@ -1,6 +1,6 @@
 import pytest
 from datetime import datetime, timezone
-from pydantic import ValidationError, BaseModel
+from pydantic import ValidationError
 from finagent.engine.models.financial import (
     BalanceSheet,
     FinancialData,
@@ -15,11 +15,9 @@ from finagent.engine.models.financial import (
     ThesisResult,
     StepOutput,
     HistoricalMetrics,
-    MarginAssumptions,
     ForecastAssumptions,
     ForecastResult,
     CatalystEvent,
-    CatalystAnalysis,
     ValuationMethod,
     ValuationSynthesis,
 )
@@ -355,11 +353,16 @@ def test_financial_data_da_fields_default_none():
         ticker="AAPL",
         timestamp=datetime.now(tz=timezone.utc),
         income=IncomeStatement(
-            revenue=100e9, ebitda=35e9, net_income=20e9,
-            gross_margin=0.43, operating_margin=0.30,
+            revenue=100e9,
+            ebitda=35e9,
+            net_income=20e9,
+            gross_margin=0.43,
+            operating_margin=0.30,
         ),
         market=MarketData(
-            market_cap=2.5e12, shares_outstanding=15e9, current_price=170.0,
+            market_cap=2.5e12,
+            shares_outstanding=15e9,
+            current_price=170.0,
         ),
     )
     assert fd.income.depreciation_amortization is None
@@ -373,15 +376,20 @@ def test_financial_data_da_fields_set():
         ticker="AAPL",
         timestamp=datetime.now(tz=timezone.utc),
         income=IncomeStatement(
-            revenue=100e9, ebitda=35e9, net_income=20e9,
-            gross_margin=0.43, operating_margin=0.30,
+            revenue=100e9,
+            ebitda=35e9,
+            net_income=20e9,
+            gross_margin=0.43,
+            operating_margin=0.30,
             depreciation_amortization=11e9,
             rd_expense=22e9,
             sga_expense=18e9,
             interest_expense=3e9,
         ),
         market=MarketData(
-            market_cap=2.5e12, shares_outstanding=15e9, current_price=170.0,
+            market_cap=2.5e12,
+            shares_outstanding=15e9,
+            current_price=170.0,
         ),
     )
     assert fd.income.depreciation_amortization == 11e9
@@ -545,15 +553,23 @@ class TestCatalystEvent:
     def test_impact_score_bounds(self):
         with pytest.raises(ValidationError):
             CatalystEvent(
-                category="earnings", headline="x", sentiment="positive",
-                impact_score=6, probability=0.5, reasoning="x",
+                category="earnings",
+                headline="x",
+                sentiment="positive",
+                impact_score=6,
+                probability=0.5,
+                reasoning="x",
             )
 
     def test_probability_bounds(self):
         with pytest.raises(ValidationError):
             CatalystEvent(
-                category="earnings", headline="x", sentiment="positive",
-                impact_score=3, probability=1.5, reasoning="x",
+                category="earnings",
+                headline="x",
+                sentiment="positive",
+                impact_score=3,
+                probability=1.5,
+                reasoning="x",
             )
 
 
@@ -561,8 +577,12 @@ class TestValuationSynthesis:
     def test_valid_synthesis(self):
         vs = ValuationSynthesis(
             methods=[
-                ValuationMethod(name="DCF", low=200, mid=245, high=290, confidence=0.5, source="DCF"),
-                ValuationMethod(name="Comps", low=220, mid=250, high=280, confidence=0.3, source="EV/EBITDA"),
+                ValuationMethod(
+                    name="DCF", low=200, mid=245, high=290, confidence=0.5, source="DCF"
+                ),
+                ValuationMethod(
+                    name="Comps", low=220, mid=250, high=280, confidence=0.3, source="EV/EBITDA"
+                ),
             ],
             weighted_price=247.0,
             current_price=230.0,

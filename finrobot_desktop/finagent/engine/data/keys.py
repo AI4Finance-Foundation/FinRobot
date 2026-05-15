@@ -8,6 +8,7 @@ All providers are responsible for normalizing their raw outputs to these keys.
 The extractor consumes from this contract and raises ValueError if critical
 keys are missing.
 """
+
 from typing import TypedDict
 
 
@@ -54,25 +55,29 @@ class NormalizedFinancialKeys(TypedDict, total=False):
     interest_expense: float | None
 
 
-REQUIRED_KEYS: frozenset[str] = frozenset({
-    "revenue",
-    "ebitda",
-    "net_income",
-    "market_cap",
-    "shares_outstanding",
-    "current_price",
-    "gross_margin",
-    "operating_margin",
-})
+REQUIRED_KEYS: frozenset[str] = frozenset(
+    {
+        "revenue",
+        "ebitda",
+        "net_income",
+        "market_cap",
+        "shares_outstanding",
+        "current_price",
+        "gross_margin",
+        "operating_margin",
+    }
+)
 
-OPTIONAL_KEYS: frozenset[str] = frozenset({
-    "total_debt",
-    "total_cash",
-    "pe_ratio",
-    "depreciation_amortization",
-    "rd_expense",
-    "sga_expense",
-    "interest_expense",
-})
+OPTIONAL_KEYS: frozenset[str] = frozenset(
+    {
+        "total_debt",
+        "total_cash",
+        "pe_ratio",
+        "depreciation_amortization",
+        "rd_expense",
+        "sga_expense",
+        "interest_expense",
+    }
+)
 
 ALL_KEYS: frozenset[str] = REQUIRED_KEYS | OPTIONAL_KEYS

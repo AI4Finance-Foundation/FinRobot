@@ -1,4 +1,3 @@
-import pytest
 from pydantic_ai import Agent
 
 from finagent.config import get_settings
@@ -28,8 +27,9 @@ class TestCreateSubAgents:
         agents = create_sub_agents(_settings())
         for role in ["analysis", "modeling", "synthesis", "report"]:
             tool_names = set(agents[role]._function_toolset.tools.keys())
-            assert "query_financial_data" not in tool_names, \
-                f"{role} agent should NOT have query_financial_data"
+            assert (
+                "query_financial_data" not in tool_names
+            ), f"{role} agent should NOT have query_financial_data"
 
     def test_all_agents_use_settings_model(self):
         from pydantic_ai.models.test import TestModel
@@ -37,5 +37,6 @@ class TestCreateSubAgents:
         settings = _settings()
         agents = create_sub_agents(settings)
         for role, agent in agents.items():
-            assert isinstance(agent.model, TestModel), \
-                f"{role} agent should use TestModel from settings.create_model()"
+            assert isinstance(
+                agent.model, TestModel
+            ), f"{role} agent should use TestModel from settings.create_model()"

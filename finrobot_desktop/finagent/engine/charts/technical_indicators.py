@@ -161,9 +161,7 @@ def _is_nan(v: float) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _create_figure(
-    data: ChartDataPoint, config: ChartConfig | None = None
-) -> Figure:
+def _create_figure(data: ChartDataPoint, config: ChartConfig | None = None) -> Figure:
     """Build the matplotlib Figure with 3 technical analysis subplots.
 
     Exposed for testing so callers can inspect axes, lines, and patches
@@ -197,9 +195,7 @@ def _create_figure(
 
     # --- Top subplot: Price + Bollinger Bands ---
     ax1.plot(x, closes, color=cfg.primary_color, linewidth=1.5, label="Close")
-    ax1.plot(
-        x, bb_middle, color=cfg.accent_color, linewidth=1, linestyle="--", label="BB Mid"
-    )
+    ax1.plot(x, bb_middle, color=cfg.accent_color, linewidth=1, linestyle="--", label="BB Mid")
     ax1.plot(x, bb_upper, color=cfg.neutral_color, linewidth=0.8, label="BB Upper")
     ax1.plot(x, bb_lower, color=cfg.neutral_color, linewidth=0.8, label="BB Lower")
     ax1.fill_between(
@@ -229,10 +225,7 @@ def _create_figure(
     ax3.plot(x, macd_line, color=cfg.primary_color, linewidth=1.2, label="MACD")
     ax3.plot(x, signal_line, color=cfg.accent_color, linewidth=1, label="Signal")
     # Histogram as bars — only draw where not NaN
-    hist_colors = [
-        "#4caf50" if not _is_nan(h) and h >= 0 else "#f44336"
-        for h in histogram
-    ]
+    hist_colors = ["#4caf50" if not _is_nan(h) and h >= 0 else "#f44336" for h in histogram]
     hist_vals = [h if not _is_nan(h) else 0.0 for h in histogram]
     ax3.bar(x, hist_vals, color=hist_colors, alpha=0.6, width=0.8, label="Histogram")
     ax3.set_ylabel("MACD")

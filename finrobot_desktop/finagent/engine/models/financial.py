@@ -409,14 +409,20 @@ class LBOInputs(BaseModel):
     exit_ev_ebitda: float = Field(gt=0, description="Exit EV/EBITDA multiple")
     holding_period_years: int = Field(default=5, ge=1, le=10)
     revenue_base: float = Field(gt=0, description="LTM revenue at entry (USD)")
-    revenue_growth_rate: float = Field(ge=-0.5, le=1.0, description="Annual revenue growth (constant)")
+    revenue_growth_rate: float = Field(
+        ge=-0.5, le=1.0, description="Annual revenue growth (constant)"
+    )
     ebitda_margin: float = Field(ge=0, le=1, description="EBITDA/revenue (constant)")
     da_pct_revenue: float = Field(default=0.04, ge=0, le=0.3)
     capex_pct_revenue: float = Field(default=0.04, ge=0, le=0.5)
     nwc_change_pct_revenue: float = Field(default=0.01, ge=-0.2, le=0.3)
-    leverage_multiple: float = Field(default=5.0, ge=0, le=20, description="Total debt / EBITDA at entry")
+    leverage_multiple: float = Field(
+        default=5.0, ge=0, le=20, description="Total debt / EBITDA at entry"
+    )
     interest_rate: float = Field(default=0.07, ge=0, le=0.5, description="Blended debt rate")
-    mandatory_amort_pct: float = Field(default=0.01, ge=0, le=0.5, description="Mandatory amortization as % of entry debt per year")
+    mandatory_amort_pct: float = Field(
+        default=0.01, ge=0, le=0.5, description="Mandatory amortization as % of entry debt per year"
+    )
     cash_sweep: bool = Field(default=True, description="Sweep all excess FCF to debt")
     tax_rate: float = Field(default=0.25, ge=0, le=1)
 
@@ -435,7 +441,7 @@ class LBOYear(BaseModel):
     net_income: float
     capex: float
     delta_nwc: float
-    fcf: float                      # Cash available for debt service
+    fcf: float  # Cash available for debt service
     mandatory_amort: float
     cash_sweep_amount: float
     total_debt_paydown: float
@@ -468,6 +474,7 @@ class LBOResult(BaseModel):
 
 class SurpriseDirection(str):
     """Beat/miss/inline classification. Not an Enum to avoid Pydantic v2 coercion issues."""
+
     BEAT = "beat"
     MISS = "miss"
     INLINE = "inline"
@@ -479,12 +486,12 @@ class EarningsSurprise(BaseModel):
     date: str
     eps_actual: float
     eps_estimated: float
-    eps_surprise_pct: float         # (actual - est) / |est| × 100
-    eps_direction: str              # "beat" | "miss" | "inline"
+    eps_surprise_pct: float  # (actual - est) / |est| × 100
+    eps_direction: str  # "beat" | "miss" | "inline"
     revenue_actual: float
     revenue_estimated: float
     revenue_surprise_pct: float
-    revenue_direction: str          # "beat" | "miss" | "inline"
+    revenue_direction: str  # "beat" | "miss" | "inline"
 
 
 class EarningsResult(BaseModel):
@@ -495,7 +502,9 @@ class EarningsResult(BaseModel):
     beat_rate: float = Field(ge=0, le=1, description="% of quarters with EPS beat")
     avg_eps_surprise_pct: float
     avg_revenue_surprise_pct: float
-    consecutive_beats: int = Field(ge=0, description="Current consecutive beat streak (most recent first)")
+    consecutive_beats: int = Field(
+        ge=0, description="Current consecutive beat streak (most recent first)"
+    )
 
 
 # ---------------------------------------------------------------------------

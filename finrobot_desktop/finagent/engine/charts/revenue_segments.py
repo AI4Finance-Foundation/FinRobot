@@ -43,10 +43,7 @@ def _create_figure(
     rows = data.data
 
     # Extract and sort segments descending by revenue
-    parsed = [
-        (str(r.get("segment", "")), _num(r.get("revenue")))
-        for r in rows
-    ]
+    parsed = [(str(r.get("segment", "")), _num(r.get("revenue"))) for r in rows]
     parsed.sort(key=lambda x: x[1], reverse=True)
 
     labels = [p[0] for p in parsed]

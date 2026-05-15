@@ -235,9 +235,7 @@ class TestRenderCompsReport:
             "median_ev_ebitda": 20.0,
             "median_pe": 30.0,
         }
-        html = render_comps_report(
-            {"ticker": "AAPL", "charts": {}, "peer_comps": peer_comps}
-        )
+        html = render_comps_report({"ticker": "AAPL", "charts": {}, "peer_comps": peer_comps})
         assert "MSFT" in html
         assert "GOOGL" in html
 
@@ -267,9 +265,7 @@ class TestRenderDcfReport:
             "projected_fcf": [80e9, 85e9, 90e9],
             "terminal_value": 2.5e12,
         }
-        html = render_dcf_report(
-            {"ticker": "AAPL", "charts": {}, "dcf_result": dcf_result}
-        )
+        html = render_dcf_report({"ticker": "AAPL", "charts": {}, "dcf_result": dcf_result})
         assert "255" in html
         assert "9.5" in html or "0.095" in html
 

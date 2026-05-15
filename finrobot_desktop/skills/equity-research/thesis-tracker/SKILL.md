@@ -84,4 +84,3 @@ Format: Concise markdown or Word doc with the scorecard, recent updates, and cur
 - Review theses at least quarterly, even when nothing dramatic has happened
 - If the user manages multiple positions, offer to do a full portfolio thesis review
 - Store thesis data in a structured format so it can be referenced across sessions
-

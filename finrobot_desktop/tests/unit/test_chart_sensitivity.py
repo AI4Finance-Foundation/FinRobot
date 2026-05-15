@@ -1,6 +1,6 @@
 """Tests for DCF sensitivity heatmap chart."""
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, validate_png
+from finagent.engine.charts.base import ChartDataPoint, validate_png
 from finagent.engine.charts.sensitivity import render, _create_figure
 
 

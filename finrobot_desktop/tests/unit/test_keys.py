@@ -1,4 +1,5 @@
 """Tests for NormalizedFinancialKeys and canonical key definitions."""
+
 from finagent.engine.data.keys import (
     NormalizedFinancialKeys,
     REQUIRED_KEYS,

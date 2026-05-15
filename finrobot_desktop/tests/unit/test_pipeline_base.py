@@ -3,7 +3,7 @@
 Uses pydantic_ai TestModel for mock agents.
 Uses a FakeDeps / FakeDataLayer to avoid real network calls.
 """
-import asyncio
+
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -13,10 +13,14 @@ import pytest
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
-from finagent.engine.data.interface import DataProvider, DataResult, ProviderError
+from finagent.engine.data.interface import DataResult
 from finagent.engine.models.financial import StepOutput
 from finagent.engine.pipelines.base import (
-    Pipeline, PipelineResult, PipelineStep, StructuredValidator, TextValidator,
+    Pipeline,
+    PipelineResult,
+    PipelineStep,
+    StructuredValidator,
+    TextValidator,
 )
 from finagent.engine.pipelines.validators import ValidationResult, validate_is_non_empty
 
@@ -24,6 +28,7 @@ from finagent.engine.pipelines.validators import ValidationResult, validate_is_n
 # ---------------------------------------------------------------------------
 # Fakes
 # ---------------------------------------------------------------------------
+
 
 class FakeDataLayer:
     async def fetch(self, data_type: str, ticker: str, **kwargs) -> DataResult:
@@ -52,7 +57,9 @@ def _make_agent(output_text: str = "step output") -> Agent:
     return Agent(test_model)
 
 
-def _make_step(name: str, required_data: list[str] | None = None, output: str = "step output") -> PipelineStep:
+def _make_step(
+    name: str, required_data: list[str] | None = None, output: str = "step output"
+) -> PipelineStep:
     return PipelineStep(
         name=name,
         agent=_make_agent(output),
@@ -70,6 +77,7 @@ async def _run_pipeline(pipeline: Pipeline, ticker: str = "AAPL") -> PipelineRes
 # Tests
 # ---------------------------------------------------------------------------
 
+
 class TestPipelineExecution:
     async def test_three_step_pipeline_executes_all_in_order(self):
         order = []
@@ -78,10 +86,16 @@ class TestPipelineExecution:
             async def fn(agent, deps, prompt, structured_context, ticker):
                 order.append(step_name)
                 return f"output from {step_name}"
+
             return fn
 
         steps = [
-            PipelineStep(name=n, agent=MagicMock(), validator=TextValidator(validate_is_non_empty), executor=make_fn(n))
+            PipelineStep(
+                name=n,
+                agent=MagicMock(),
+                validator=TextValidator(validate_is_non_empty),
+                executor=make_fn(n),
+            )
             for n in ["step_a", "step_b", "step_c"]
         ]
         mock_deps = MagicMock()
@@ -93,10 +107,12 @@ class TestPipelineExecution:
         assert set(result.steps.keys()) == {"step_a", "step_b", "step_c"}
 
     async def test_all_step_outputs_stored(self):
-        pipeline = Pipeline(steps=[
-            _make_step("s1", output="output_s1"),
-            _make_step("s2", output="output_s2"),
-        ])
+        pipeline = Pipeline(
+            steps=[
+                _make_step("s1", output="output_s1"),
+                _make_step("s2", output="output_s2"),
+            ]
+        )
         result = await _run_pipeline(pipeline)
         assert result.steps["s1"] == "output_s1"
         assert result.steps["s2"] == "output_s2"
@@ -125,6 +141,7 @@ class TestValidationRetry:
 
     async def test_step_continues_after_all_retries_exhausted(self, caplog):
         """Pipeline must not crash even if validation never passes."""
+
         def always_fail(output: str) -> ValidationResult:
             return ValidationResult(passed=False, error="always fails")
 
@@ -152,7 +169,7 @@ class TestGatherData:
     async def test_gather_data_uses_previous_results_when_required_data_empty(self):
         steps = [
             _make_step("s1", output="first step output"),
-            _make_step("s2", required_data=[]),    # should see s1 output as context
+            _make_step("s2", required_data=[]),  # should see s1 output as context
         ]
         pipeline = Pipeline(steps=steps)
         result = await _run_pipeline(pipeline)
@@ -169,14 +186,30 @@ class TestGatherData:
         # All steps have empty required_data so compact mode kicks in for
         # step_d (which has 3 prior results, compacting step_a and step_b).
         steps = [
-            PipelineStep(name="step_a", agent=MagicMock(),
-                         validator=TextValidator(validate_is_non_empty), executor=capture_fn),
-            PipelineStep(name="step_b", agent=MagicMock(),
-                         validator=TextValidator(validate_is_non_empty), executor=capture_fn),
-            PipelineStep(name="step_c", agent=MagicMock(),
-                         validator=TextValidator(validate_is_non_empty), executor=capture_fn),
-            PipelineStep(name="step_d", agent=MagicMock(),
-                         validator=TextValidator(validate_is_non_empty), executor=capture_fn),
+            PipelineStep(
+                name="step_a",
+                agent=MagicMock(),
+                validator=TextValidator(validate_is_non_empty),
+                executor=capture_fn,
+            ),
+            PipelineStep(
+                name="step_b",
+                agent=MagicMock(),
+                validator=TextValidator(validate_is_non_empty),
+                executor=capture_fn,
+            ),
+            PipelineStep(
+                name="step_c",
+                agent=MagicMock(),
+                validator=TextValidator(validate_is_non_empty),
+                executor=capture_fn,
+            ),
+            PipelineStep(
+                name="step_d",
+                agent=MagicMock(),
+                validator=TextValidator(validate_is_non_empty),
+                executor=capture_fn,
+            ),
         ]
         mock_deps = MagicMock()
         mock_deps.skill_runtime = None
@@ -192,14 +225,13 @@ class TestGatherData:
         # must include the text snippet, not just a pointer to structured_context.
         # Find the line for step_a's compact summary.
         step_a_line = [
-            line for line in last_prompt.splitlines()
-            if "step_a" in line and "Previous" in line
+            line for line in last_prompt.splitlines() if "step_a" in line and "Previous" in line
         ]
         assert len(step_a_line) == 1, f"Expected one compact line for step_a, got: {step_a_line}"
         # D6 fix: the compact line should contain actual text content
-        assert "step output text" in step_a_line[0], (
-            f"Step_a compact line missing text snippet: {step_a_line[0]}"
-        )
+        assert (
+            "step output text" in step_a_line[0]
+        ), f"Step_a compact line missing text snippet: {step_a_line[0]}"
 
 
 class TestPipelineLogging:
@@ -338,12 +370,14 @@ async def test_structured_validator_called_when_structured_data_present():
     assert len(validated_with) == 1
     # Pydantic converts dict to BaseModel, which is acceptable
     from pydantic import BaseModel
+
     assert isinstance(validated_with[0], (dict, BaseModel))
 
 
 @pytest.mark.asyncio
 async def test_step_output_stored_in_structured_data():
     """StepOutput structured field stored in result.structured_data"""
+
     async def my_fn(agent, deps, prompt, structured_context, ticker):
         return StepOutput(text="hello", structured={"value": 42})
 
@@ -370,7 +404,9 @@ async def test_str_output_no_structured_data():
     mock_agent = MagicMock()
     mock_agent.run = AsyncMock(return_value=mock_result)
 
-    step = PipelineStep(name="test_step", agent=mock_agent, validator=TextValidator(validate_is_non_empty))
+    step = PipelineStep(
+        name="test_step", agent=mock_agent, validator=TextValidator(validate_is_non_empty)
+    )
     pipeline = Pipeline(steps=[step])
     mock_deps = MagicMock()
     mock_deps.skill_runtime = None
@@ -401,6 +437,7 @@ def test_build_step_prompt_includes_structured_context():
 @pytest.mark.asyncio
 async def test_pipeline_logs_structured_data_type(caplog):
     """Acceptance criterion 1: logger.info emits structured data type name."""
+
     async def my_fn(agent, deps, prompt, structured_context, ticker):
         return StepOutput(text="result", structured={"key": "val"})
 

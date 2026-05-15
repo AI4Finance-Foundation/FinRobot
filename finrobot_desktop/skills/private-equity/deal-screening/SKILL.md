@@ -77,4 +77,3 @@ One-page screening memo suitable for sharing with partners or an IC quick screen
 - If financials seem inconsistent or incomplete, flag it explicitly
 - Ask for the fund's criteria upfront if this is the first screening
 - Save screening criteria in memory for future deals once confirmed
-

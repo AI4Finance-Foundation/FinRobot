@@ -14,6 +14,7 @@ Event schema:
         "data": dict   # event-specific payload
     }
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -79,7 +80,9 @@ class TranscriptWriter:
                         self._path.chmod(0o600)
                     self._first_write_done = True
         except OSError as exc:
-            logger.exception("TranscriptWriter._write_event OSError (session=%s): %s", self.session_id, exc)
+            logger.exception(
+                "TranscriptWriter._write_event OSError (session=%s): %s", self.session_id, exc
+            )
 
     # ------------------------------------------------------------------
     # Public logging API

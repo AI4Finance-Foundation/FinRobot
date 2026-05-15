@@ -6,6 +6,7 @@
   3. lbo_calculation  — deterministic calculate_lbo() + sensitivity
   4. lbo_narrative    — LLM writes narrative / investment memo section
 """
+
 from __future__ import annotations
 
 import logging
@@ -20,7 +21,10 @@ from finagent.engine.data.types import DataType
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import LBOInputs, LBOResult, StepOutput
 from finagent.engine.pipelines.base import (
-    Pipeline, PipelineStep, StructuredValidator, TextValidator,
+    Pipeline,
+    PipelineStep,
+    StructuredValidator,
+    TextValidator,
 )
 from finagent.engine.pipelines._helpers import execute_financial_data_step
 from finagent.engine.pipelines.validators import (
@@ -76,9 +80,7 @@ async def _execute_lbo_calc(
     result: LBOResult = calculate_lbo(inputs)
 
     warning_prefix = (
-        f"[WARNING: {result.irr_formula_warning}]\n\n"
-        if result.irr_formula_warning
-        else ""
+        f"[WARNING: {result.irr_formula_warning}]\n\n" if result.irr_formula_warning else ""
     )
     narrative = (
         f"{warning_prefix}"
@@ -134,5 +136,5 @@ def create_lbo_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[],
                 validator=TextValidator(validate_is_non_empty),
             ),
-        ]
+        ],
     )

@@ -1,7 +1,12 @@
 import pytest
 from pathlib import Path
 
-from finagent.engine.skills.loader import load_skill, _parse_frontmatter, _extract_description, SkillLoadError
+from finagent.engine.skills.loader import (
+    load_skill,
+    _parse_frontmatter,
+    _extract_description,
+    SkillLoadError,
+)
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "skills"
 TEST_SKILL_PATH = FIXTURES_DIR / "test-domain" / "test-skill" / "SKILL.md"
@@ -40,7 +45,9 @@ class TestLoadSkill:
 
     def test_missing_optional_fields_uses_defaults(self, tmp_path):
         minimal = tmp_path / "SKILL.md"
-        minimal.write_text("---\nid: minimal\nname: Minimal Skill\n---\n# Body\nSome content here.\n")
+        minimal.write_text(
+            "---\nid: minimal\nname: Minimal Skill\n---\n# Body\nSome content here.\n"
+        )
         skill = load_skill(minimal)
         assert skill.version == "1.0.0"
         assert skill.author == "unknown"
@@ -71,7 +78,9 @@ class TestExtractDescription:
         assert desc == "From frontmatter"
 
     def test_falls_back_to_first_paragraph_of_body(self):
-        desc = _extract_description({}, "# Heading\n\nFirst paragraph of body.\n\nSecond paragraph.")
+        desc = _extract_description(
+            {}, "# Heading\n\nFirst paragraph of body.\n\nSecond paragraph."
+        )
         assert desc == "First paragraph of body."
 
     def test_skips_headings_in_body(self):

@@ -11,6 +11,7 @@ What code does that LLM cannot:
   - Exact beat_rate computation over N quarters
   - Consecutive streak arithmetic
 """
+
 from __future__ import annotations
 
 import logging
@@ -23,7 +24,10 @@ from finagent.engine.data.types import DataType
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import EarningsResult, StepOutput
 from finagent.engine.pipelines.base import (
-    Pipeline, PipelineStep, StructuredValidator, TextValidator,
+    Pipeline,
+    PipelineStep,
+    StructuredValidator,
+    TextValidator,
 )
 from finagent.engine.pipelines.validators import (
     ValidationResult,
@@ -87,7 +91,9 @@ def create_earnings_analysis_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 skill_section=None,
                 agent=agents["data"],
                 required_data=[DataType.FINANCIALS],
-                validator=TextValidator(lambda out: validate_has_fields(out, ["revenue", "ebitda"])),
+                validator=TextValidator(
+                    lambda out: validate_has_fields(out, ["revenue", "ebitda"])
+                ),
             ),
             PipelineStep(
                 name="earnings_analysis",
@@ -103,5 +109,5 @@ def create_earnings_analysis_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[],
                 validator=TextValidator(validate_is_non_empty),
             ),
-        ]
+        ],
     )

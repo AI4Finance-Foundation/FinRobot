@@ -88,11 +88,11 @@ def _batch_download(symbols: list[str]) -> dict[str, tuple[float, float]]:
     try:
         df = yf.download(
             symbols,
-            period="5d",       # 5 trading days covers weekends / holidays
+            period="5d",  # 5 trading days covers weekends / holidays
             group_by="ticker",
             auto_adjust=True,
             progress=False,
-            threads=False,      # avoid spawning threads inside to_thread
+            threads=False,  # avoid spawning threads inside to_thread
         )
     except (OSError, ValueError, RuntimeError, ImportError, AttributeError, TypeError):
         # yfinance raises a mix of these depending on network state, pandas
@@ -226,7 +226,7 @@ async def fetch_earnings_calendar(
             continue
         eps_raw = item.get("epsEstimated")
         try:
-            eps_estimate = float(eps_raw) if eps_raw is not None else None
+            eps_estimate = float(str(eps_raw)) if eps_raw is not None else None
         except (TypeError, ValueError):
             eps_estimate = None
 

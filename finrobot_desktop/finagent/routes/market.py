@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/market", tags=["market"])
 
 
-@router.get("/indices", response_model=list[dict])
-async def get_indices() -> list[dict]:
+@router.get("/indices", response_model=list[dict[str, object]])
+async def get_indices() -> list[dict[str, object]]:
     """Fetch current prices for major market indices (S&P 500, NASDAQ, DOW 30, VIX, etc.)."""
     from finagent.engine.compute.market import fetch_market_indices
 
@@ -21,8 +21,8 @@ async def get_indices() -> list[dict]:
     return [r.model_dump() for r in results]
 
 
-@router.get("/sectors", response_model=list[dict])
-async def get_sectors() -> list[dict]:
+@router.get("/sectors", response_model=list[dict[str, object]])
+async def get_sectors() -> list[dict[str, object]]:
     """Fetch current prices for GICS sector ETFs (XLK, XLF, XLE, etc.)."""
     from finagent.engine.compute.market import fetch_sector_etfs
 
@@ -30,8 +30,8 @@ async def get_sectors() -> list[dict]:
     return [r.model_dump() for r in results]
 
 
-@router.get("/earnings-calendar", response_model=list[dict])
-async def get_earnings_calendar(request: Request) -> list[dict]:
+@router.get("/earnings-calendar", response_model=list[dict[str, object]])
+async def get_earnings_calendar(request: Request) -> list[dict[str, object]]:
     """Fetch upcoming earnings events for the next 7 days.
 
     Requires an FMP API key configured in Settings. Returns an empty list

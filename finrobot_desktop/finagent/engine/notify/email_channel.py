@@ -1,4 +1,5 @@
 """Email notification channel via SMTP."""
+
 from __future__ import annotations
 
 import asyncio
@@ -43,7 +44,6 @@ class EmailChannel(NotifyChannel):
         port = self._port
         user = self._user
         password = self._pass
-        to_addr = self._to
 
         def _send() -> None:
             with smtplib.SMTP(host, port, timeout=10) as s:  # type: ignore[arg-type]

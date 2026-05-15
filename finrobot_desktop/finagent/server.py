@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 # Fix 4.4: Pipeline factories moved to registry module to break
 # circular import (server → web → tasks → server).
-from finagent.engine.pipelines.registry import get_pipeline_factories
+from finagent.engine.pipelines.registry import get_pipeline_factories  # noqa: E402
 
 
 def _get_pipeline_factories() -> dict[str, Callable[..., Any]]:
@@ -107,9 +107,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.artifact_store = artifact_store
     # Transcript writers: session_id → TranscriptWriter (in-memory cache)
     app.state.transcript_writers: dict[str, TranscriptWriter] = {}
-    app.state.sub_agents = create_sub_agents(
-        deps.settings, skill_registry=deps.skill_runtime
-    )
+    app.state.sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
 
     # Background task: archive stale artifacts (unviewed for 24h)
     async def _archive_stale_background() -> None:
@@ -299,7 +297,9 @@ async def _intercept_native_events(
                 except (ValueError, TypeError, AttributeError):
                     pass
             try:
-                content = result_part.content if hasattr(result_part, "content") else str(result_part)
+                content = (
+                    result_part.content if hasattr(result_part, "content") else str(result_part)
+                )
                 await writer.log_tool_result(
                     result_part.tool_call_id,
                     result_part.tool_name,
@@ -330,11 +330,7 @@ async def chat(request: Request) -> Response:
     except (json.JSONDecodeError, ValueError):
         body_json = {}
 
-    session_id: str = (
-        body_json.get("id")
-        or body_json.get("session_id")
-        or "default"
-    )
+    session_id: str = body_json.get("id") or body_json.get("session_id") or "default"
     model_hint: str = str(body_json.get("model") or "unknown")
 
     # Log the user's latest message before streaming begins.
@@ -347,7 +343,9 @@ async def chat(request: Request) -> Response:
             try:
                 await writer.log_user_message(text_content)
             except OSError:
-                logger.exception("TranscriptWriter: failed to log user_msg for session %s", session_id)
+                logger.exception(
+                    "TranscriptWriter: failed to log user_msg for session %s", session_id
+                )
 
     # Build the adapter manually so we can intercept the native event stream.
     # Starlette caches request._body after the first read, so calling
@@ -390,10 +388,7 @@ async def pipeline_stream(pipeline_type: str, ticker: str, request: Request) -> 
         return JSONResponse(
             status_code=400,
             content={
-                "error": (
-                    f"Invalid pipeline: {pipeline_type}. "
-                    f"Valid: {sorted(factories.keys())}"
-                )
+                "error": (f"Invalid pipeline: {pipeline_type}. Valid: {sorted(factories.keys())}")
             },
         )
 
@@ -420,9 +415,7 @@ async def pipeline_stream(pipeline_type: str, ticker: str, request: Request) -> 
                 }
             )
 
-        async def on_step_retry(
-            self, step_index: int, name: str, attempt: int, error: str
-        ) -> None:
+        async def on_step_retry(self, step_index: int, name: str, attempt: int, error: str) -> None:
             await queue.put(
                 {
                     "event": "step_retry",
@@ -439,11 +432,13 @@ async def pipeline_stream(pipeline_type: str, ticker: str, request: Request) -> 
             pipeline = factories[pipeline_type](sub_agents)
             result = await pipeline.execute(deps, ticker, progress=SseProgress())
             deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
-            await queue.put({
-                "event": "complete",
-                "ticker": ticker,
-                "report_url": f"/api/report/html?ticker={ticker}",
-            })
+            await queue.put(
+                {
+                    "event": "complete",
+                    "ticker": ticker,
+                    "report_url": f"/api/report/html?ticker={ticker}",
+                }
+            )
         except asyncio.CancelledError:
             # Client disconnected. Let event_stream's except-and-cancel path
             # observe the cancellation by re-raising through the task. The
@@ -535,8 +530,7 @@ async def export_excel(analysis_type: str, ticker: str, request: Request) -> Res
             raise HTTPException(
                 status_code=404,
                 detail=(
-                    "LBO inputs/result not in cache. Re-run the LBO pipeline "
-                    "to populate them."
+                    "LBO inputs/result not in cache. Re-run the LBO pipeline to populate them."
                 ),
             )
         xlsx_bytes = generate_lbo_excel(lbo_result, lbo_inputs)
@@ -558,9 +552,7 @@ async def export_excel(analysis_type: str, ticker: str, request: Request) -> Res
         content=xlsx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": (
-                f"attachment; filename={ticker.upper()}_{analysis_type}.xlsx"
-            )
+            "Content-Disposition": (f"attachment; filename={ticker.upper()}_{analysis_type}.xlsx")
         },
     )
 

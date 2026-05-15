@@ -391,6 +391,42 @@ html, body { height: 100%; }
 }
 
 /* ═══════════════════════════
+   PLAYGROUND RANGE INPUTS
+   ═══════════════════════════ */
+input[type="range"] {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border);
+  border-radius: 2px;
+  cursor: pointer;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 2px solid var(--bg-2);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 2px solid var(--bg-2);
+  cursor: pointer;
+}
+
+/* ═══════════════════════════
    ASSUMPTIONS SLIDERS
    ═══════════════════════════ */
 .assumption-row {

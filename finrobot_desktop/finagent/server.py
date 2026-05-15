@@ -34,6 +34,7 @@ from finagent.routes.runs import router as runs_router
 from finagent.routes.market import router as market_router
 from finagent.routes.journal import router as journal_router
 from finagent.routes.search import router as search_router
+from finagent.routes.notify import router as notify_router
 from finagent.routes.settings import load_non_secret_settings
 from finagent.routes.settings import router as settings_router
 from finagent.run_store import RunStore
@@ -165,6 +166,7 @@ app.include_router(artifacts_router)
 app.include_router(market_router)
 app.include_router(journal_router)
 app.include_router(search_router, prefix="/api/search", tags=["search"])
+app.include_router(notify_router)
 
 
 def _extract_user_text(message: dict[str, Any]) -> str:

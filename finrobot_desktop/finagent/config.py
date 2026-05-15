@@ -63,12 +63,26 @@ class FinAgentSettings(BaseSettings):
     fmp_api_key: str = ""
     finnhub_api_key: str = ""
     alpha_vantage_api_key: str = ""
+    adanos_api_key: str = ""
     sec_user_agent: str = "FinAgent admin@example.com"
 
     # Infrastructure
     cache_db_path: str = ""  # resolved at runtime by _default_cache_db_path()
     skills_dir: str = "skills"  # path to vendored skills (relative to project root or absolute)
     log_level: str = "INFO"
+
+    # Notification channels — all optional; empty string = channel disabled
+    feishu_webhook_url: str = ""
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    discord_webhook_url: str = ""
+    email_smtp_host: str = ""
+    email_smtp_port: int = 587
+    email_smtp_user: str = ""
+    email_smtp_pass: str = ""
+    email_to: str = ""
+    custom_webhook_url: str = ""
+    notify_on_complete: bool = True  # auto-notify when pipeline completes
 
     # Output language for LLM narrative. "en" = English, "zh" = Chinese (简体中文).
     # Only affects LLM-generated text — deterministic calculations are unchanged.
@@ -92,17 +106,28 @@ class FinAgentSettings(BaseSettings):
         return override or self.model_name
 
     def validate_runtime_config(self) -> None:
-        """Fail fast if the model configuration is incoherent.
+        """Fail fast if the model or data configuration is incoherent.
 
-        Checks the global ``model_name`` and every per-role override:
-        - provider prefix must be one of the supported backends;
-        - the provider's API key field must be populated (except "test").
+        Checks:
+        - LLM: provider prefix must be supported; API key must be set.
+        - Data: FMP API key is REQUIRED (not optional). Without it, DCF uses
+          a simplified formula with 10-20% deviation, earnings surprise data
+          is missing, and cross-validation is disabled. FMP is free to register.
 
         Called from ``cli._build_deps`` and ``sdk.FinAgent.__init__`` so
         users get an immediate error message instead of waiting 60 seconds
         for the first LLM call to fail. Raises ``ValueError`` on failure;
         CLI callers wrap that into ``click.ClickException``.
         """
+        # ── FMP key is required for core financial data ──
+        if not self.fmp_api_key:
+            raise ValueError(
+                "FINAGENT_FMP_API_KEY is not set. FMP is required for accurate "
+                "financial data (D&A, earnings surprises, cross-validation).\n"
+                "  Register for free at https://financialmodelingprep.com/\n"
+                "  Then set: export FINAGENT_FMP_API_KEY=your-key-here\n"
+                "  Or add it to .env or ~/.finagent/settings.json"
+            )
         names_to_check: list[str] = [self.model_name]
         for role in ("data", "analysis", "modeling", "synthesis", "report"):
             override = getattr(self, f"model_{role}", None)

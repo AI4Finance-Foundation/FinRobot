@@ -56,10 +56,11 @@ def _calculate_lbo_core(inputs: LBOInputs) -> LBOResult:
         moic=moic,
         irr=irr,
         irr_formula_warning=(
-            "IRR uses closed-form (entry_equity → exit_equity)^(1/n) − 1, assuming "
-            "no interim cash flows. Dividend recaps, management fee recaps, and "
-            "partial exits are ignored — actual IRR may be materially different. "
-            "For complex LBO structures, use a full NPV=0 solver."
+            "IRR computed via Newton-Raphson NPV=0 solver on the cash flow vector "
+            "[-entry_equity, 0, ..., 0, exit_equity]. Currently models a single "
+            "entry and single exit with no interim cash flows. Dividend recaps, "
+            "management fee recaps, and partial exits are not yet modeled — "
+            "actual IRR may differ if these are material."
         ),
     )
 
@@ -127,28 +128,97 @@ def _run_schedule(inputs: LBOInputs, entry_debt: float) -> tuple[list[LBOYear], 
     return schedule, exit_ebitda, exit_equity
 
 
-def _compute_irr(entry_equity: float, exit_equity: float, years: int) -> float:
-    """Closed-form IRR for a single-investment, single-exit profile.
+def _compute_irr(
+    entry_equity: float,
+    exit_equity: float,
+    years: int,
+    interim_flows: list[float] | None = None,
+) -> float:
+    """Compute IRR via Newton-Raphson on the cash flow NPV polynomial.
 
-    IRR = (exit_equity / entry_equity)^(1/n) - 1
+    Builds the cash flow vector: [-entry_equity, cf_1, cf_2, ..., cf_n + exit_equity]
+    where cf_i are interim cash flows (default 0). Then solves NPV(r) = 0 using
+    Newton-Raphson iteration.
 
-    LIMITATION: This formula assumes a single cash outflow at entry and a single
-    cash inflow at exit. It does NOT account for interim cash flows such as:
-    - Management fee recapitalizations
-    - Dividend recaps
-    - Partial exits or follow-on investments
-
-    For LBOs with interim distributions, a full NPV=0 solver (e.g. Newton-Raphson
-    on the cash flow vector) is required. This simplification overstates IRR when
-    significant interim cash flows exist.
+    For the simple case (no interim flows), this is equivalent to the closed-form
+    (exit/entry)^(1/n) - 1, but the solver generalizes to dividend recaps,
+    partial exits, and management fee recapitalizations.
 
     Returns -1.0 (total loss) if:
     - entry_equity <= 0 (invalid)
     - exit_equity <= 0 (equity wiped out)
+    - Solver fails to converge (degenerate cash flows)
+
+    Reference: Rosenbaum & Pearl, "Investment Banking" 3rd Ed., Chapter 8.
+    Newton-Raphson convergence: typically 5-10 iterations for LBO cash flows.
     """
     if entry_equity <= 0 or exit_equity <= 0:
         return -1.0
-    return float((exit_equity / entry_equity) ** (1.0 / years) - 1.0)
+
+    # Build cash flow vector
+    flows = [0.0] * (years + 1)
+    flows[0] = -entry_equity
+    if interim_flows:
+        for i, cf in enumerate(interim_flows[:years]):
+            flows[i + 1] += cf
+    flows[years] += exit_equity
+
+    return _solve_irr(flows)
+
+
+def _solve_irr(
+    cash_flows: list[float],
+    guess: float = 0.10,
+    max_iter: int = 100,
+) -> float:
+    """Newton-Raphson IRR solver for an arbitrary cash flow vector.
+
+    Solves: NPV(r) = Σ cf_t / (1+r)^t = 0
+
+    The derivative: NPV'(r) = Σ -t * cf_t / (1+r)^(t+1)
+
+    Convergence uses a scale-relative tolerance: NPV is considered zero when
+    it is < 1e-8 × max(|cf|). This handles both small (unit) and large
+    (billion-dollar) cash flows without precision issues.
+
+    Args:
+        cash_flows: Cash flow vector [cf_0, cf_1, ..., cf_n]. cf_0 is typically negative.
+        guess: Initial IRR guess (default 10%).
+        max_iter: Maximum iterations before giving up.
+
+    Returns:
+        IRR as a decimal. Returns -1.0 if solver fails to converge.
+    """
+    # Scale-relative tolerance: NPV < 1e-8 × largest cash flow
+    scale = max(abs(cf) for cf in cash_flows) if cash_flows else 1.0
+    tol = scale * 1e-8
+
+    r = guess
+    for _ in range(max_iter):
+        npv = 0.0
+        dnpv = 0.0
+        for t, cf in enumerate(cash_flows):
+            denom = (1 + r) ** t
+            npv += cf / denom
+            if t > 0:
+                dnpv -= t * cf / ((1 + r) ** (t + 1))
+
+        if abs(npv) < tol:
+            return r
+
+        if abs(dnpv) < 1e-14:
+            return -1.0
+
+        r_new = r - npv / dnpv
+
+        # Guard against divergence: if step would push r below -0.999
+        # (which makes discount factors explode), clamp it
+        if r_new <= -0.999:
+            r_new = -0.5
+
+        r = r_new
+
+    return -1.0
 
 
 def calculate_lbo_sensitivity(

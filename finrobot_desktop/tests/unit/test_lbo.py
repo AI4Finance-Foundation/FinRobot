@@ -178,7 +178,7 @@ class TestIRRFormulaWarning:
     def test_irr_formula_warning_present(self):
         result = calculate_lbo(_base_inputs())
         assert result.irr_formula_warning is not None
-        assert "closed-form" in result.irr_formula_warning
+        assert "Newton-Raphson" in result.irr_formula_warning
 
     def test_irr_formula_warning_mentions_interim_flows(self):
         result = calculate_lbo(_base_inputs())

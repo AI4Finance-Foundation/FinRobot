@@ -46,37 +46,15 @@ def calculate_dcf(
             "(Gordon Growth Model perpetuity is undefined when tg >= wacc)"
         )
 
-    # 2-4. Project revenue, EBITDA, FCF
-    projected_revenue = []
-    projected_ebitda = []
-    projected_fcf = []
-
+    # 2-4. Project revenue, EBITDA, FCF (WACC/TG-independent)
+    projected_fcf = _project_fcfs(inputs)
+    projected_revenue: list[float] = []
+    projected_ebitda: list[float] = []
     prev_revenue = inputs.revenue_base
     for g in inputs.revenue_growth_rates:
         rev = prev_revenue * (1 + g)
-        ebitda = rev * inputs.ebitda_margin
-
-        if inputs.da_pct_revenue is not None:
-            # P2a standard: EBIT(1-T) + D&A - CapEx - ΔNWC
-            da = rev * inputs.da_pct_revenue
-            ebit = ebitda - da
-            fcf = (
-                ebit * (1 - inputs.tax_rate)
-                + da
-                - rev * inputs.capex_pct_revenue
-                - rev * inputs.nwc_pct_revenue
-            )
-        else:
-            # P1.5 simplified: EBITDA(1-T) - CapEx - ΔNWC
-            fcf = (
-                ebitda * (1 - inputs.tax_rate)
-                - rev * inputs.capex_pct_revenue
-                - rev * inputs.nwc_pct_revenue
-            )
-
         projected_revenue.append(rev)
-        projected_ebitda.append(ebitda)
-        projected_fcf.append(fcf)
+        projected_ebitda.append(rev * inputs.ebitda_margin)
         prev_revenue = rev
 
     n = len(projected_fcf)
@@ -131,8 +109,16 @@ def calculate_sensitivity(
 ) -> dict[str, Any]:
     """Generate sensitivity table: implied price for each (WACC, terminal_growth) pair.
 
-    Returns None for cells where tg >= wacc (Gordon Growth Model undefined).
+    Projects FCFs once (they don't depend on WACC or TG), then discounts at
+    each (WACC, TG) combination. Returns None for cells where tg >= wacc
+    (Gordon Growth Model undefined).
     """
+    # --- Project FCFs once (WACC/TG-independent) ---
+    projected_fcf = _project_fcfs(inputs)
+    n = len(projected_fcf)
+    offset = 0.5 if mid_year else 0.0
+
+    # --- Discount at each (WACC, TG) pair ---
     implied_prices: list[list[float | None]] = []
     for w in wacc_range:
         row: list[float | None] = []
@@ -140,11 +126,47 @@ def calculate_sensitivity(
             if g >= w:
                 row.append(None)
             else:
-                result = calculate_dcf(inputs, wacc_override=w, tg_override=g, mid_year=mid_year)
-                row.append(result.implied_price)
+                pv_fcf = sum(
+                    fcf / (1 + w) ** (i + 1 - offset) for i, fcf in enumerate(projected_fcf)
+                )
+                tv = projected_fcf[-1] * (1 + g) / (w - g)
+                pv_tv = tv / (1 + w) ** (n - offset)
+                ev = pv_fcf + pv_tv
+                equity = ev - inputs.net_debt
+                row.append(equity / inputs.shares_outstanding)
         implied_prices.append(row)
     return {
         "wacc_values": wacc_range,
         "tg_values": tg_range,
         "implied_prices": implied_prices,
     }
+
+
+def _project_fcfs(inputs: DCFInputs) -> list[float]:
+    """Project free cash flows from inputs. WACC/TG-independent.
+
+    Shared by calculate_dcf (via inline code) and calculate_sensitivity.
+    """
+    projected_fcf: list[float] = []
+    prev_revenue = inputs.revenue_base
+    for g in inputs.revenue_growth_rates:
+        rev = prev_revenue * (1 + g)
+        ebitda = rev * inputs.ebitda_margin
+        if inputs.da_pct_revenue is not None:
+            da = rev * inputs.da_pct_revenue
+            ebit = ebitda - da
+            fcf = (
+                ebit * (1 - inputs.tax_rate)
+                + da
+                - rev * inputs.capex_pct_revenue
+                - rev * inputs.nwc_pct_revenue
+            )
+        else:
+            fcf = (
+                ebitda * (1 - inputs.tax_rate)
+                - rev * inputs.capex_pct_revenue
+                - rev * inputs.nwc_pct_revenue
+            )
+        projected_fcf.append(fcf)
+        prev_revenue = rev
+    return projected_fcf

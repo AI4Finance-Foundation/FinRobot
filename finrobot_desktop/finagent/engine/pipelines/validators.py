@@ -78,12 +78,18 @@ _NON_TICKER_ACRONYMS = {
 }
 
 
+_TICKER_REGEX = re.compile(r"\b([A-Z]{2,5})\b")
+
+
+def _extract_ticker_candidates(output: str) -> set[str]:
+    """Return 2–5 letter uppercase tokens from output, minus known non-ticker acronyms."""
+    return set(_TICKER_REGEX.findall(output)) - _NON_TICKER_ACRONYMS
+
+
 def validate_has_peers(output: str, min_peers: int = 3) -> ValidationResult:
     """Strict validator for peer analysis step.
     Checks that output mentions at least `min_peers` distinct company names/tickers."""
-    # Find uppercase 2-5 letter sequences in ORIGINAL text (not uppercased)
-    candidates = set(re.findall(r"\b([A-Z]{2,5})\b", output))
-    tickers = candidates - _NON_TICKER_ACRONYMS
+    tickers = _extract_ticker_candidates(output)
     if len(tickers) >= min_peers:
         return ValidationResult(passed=True)
     return ValidationResult(
@@ -175,9 +181,7 @@ def validate_report_format(output: str) -> ValidationResult:
 def validate_has_comps_table(output: str) -> ValidationResult:
     """Strict validator for comps pipeline output.
     Checks for multiples table structure."""
-    # At least 3 company tickers (match uppercase in original text)
-    candidates = set(re.findall(r"\b([A-Z]{2,5})\b", output))
-    tickers = candidates - _NON_TICKER_ACRONYMS
+    tickers = _extract_ticker_candidates(output)
     if len(tickers) < 3:
         return ValidationResult(
             passed=False,

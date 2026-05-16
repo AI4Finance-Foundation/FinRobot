@@ -312,7 +312,7 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
                     return (
                       <>
                         <tr key={`section-${section}`} style={{ background: 'var(--surface)', cursor: 'pointer' }} onClick={() => toggleSection(section)}>
-                          <td colSpan={4} style={{ padding: '6px 12px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '0.08em', userSelect: 'none' }}>
+                          <td colSpan={4} style={{ padding: '6px 12px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.08em', userSelect: 'none' }}>
                             <span style={{ marginRight: 6, display: 'inline-block', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0)', transition: 'transform 0.15s' }}>▼</span>
                             {section} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({diffs.length})</span>
                           </td>

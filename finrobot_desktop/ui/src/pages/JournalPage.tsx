@@ -7,7 +7,7 @@
  *   PUT    /api/journal/{id}         — update entry
  *   DELETE /api/journal/{id}         — delete entry
  *
- * Design: dark terminal aesthetic, gold accent, timeline layout with left border dots.
+ * Design: navy premium aesthetic, blue accent, timeline layout with left border dots.
  */
 
 import { useState } from 'react'
@@ -167,17 +167,17 @@ function ActionBadge({ action }: { action: ActionType }) {
     BUY: {
       color: 'var(--positive)',
       background: 'var(--positive-bg)',
-      border: '1px solid rgba(38, 166, 154, 0.25)',
+      border: '1px solid rgba(16, 185, 129, 0.25)',
     },
     SELL: {
       color: 'var(--negative)',
       background: 'var(--negative-bg)',
-      border: '1px solid rgba(239, 83, 80, 0.25)',
+      border: '1px solid rgba(239, 68, 68, 0.25)',
     },
     HOLD: {
-      color: 'var(--gold)',
-      background: 'var(--gold-dim)',
-      border: '1px solid rgba(226, 185, 61, 0.25)',
+      color: 'var(--accent)',
+      background: 'var(--accent-dim)',
+      border: '1px solid rgba(59, 130, 246, 0.25)',
     },
   }
 
@@ -280,12 +280,12 @@ function NewEntryForm({ onClose, onSuccess }: NewEntryFormProps) {
     const colorMap: Record<ActionType, string> = {
       BUY: 'var(--positive)',
       SELL: 'var(--negative)',
-      HOLD: 'var(--gold)',
+      HOLD: 'var(--accent)',
     }
     const bgMap: Record<ActionType, string> = {
       BUY: 'var(--positive-bg)',
       SELL: 'var(--negative-bg)',
-      HOLD: 'var(--gold-dim)',
+      HOLD: 'var(--accent-dim)',
     }
     return {
       flex: 1,
@@ -326,7 +326,7 @@ function NewEntryForm({ onClose, onSuccess }: NewEntryFormProps) {
             value={ticker}
             onChange={(e) => setTicker(e.target.value.toUpperCase())}
             maxLength={12}
-            onFocus={(e) => (e.target.style.borderColor = 'var(--gold)')}
+            onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
             onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
           />
         </div>
@@ -359,7 +359,7 @@ function NewEntryForm({ onClose, onSuccess }: NewEntryFormProps) {
             placeholder="135.40"
             value={entryPrice}
             onChange={(e) => setEntryPrice(e.target.value)}
-            onFocus={(e) => (e.target.style.borderColor = 'var(--gold)')}
+            onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
             onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
           />
         </div>
@@ -373,7 +373,7 @@ function NewEntryForm({ onClose, onSuccess }: NewEntryFormProps) {
             placeholder="162.30"
             value={targetPrice}
             onChange={(e) => setTargetPrice(e.target.value)}
-            onFocus={(e) => (e.target.style.borderColor = 'var(--gold)')}
+            onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
             onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
           />
         </div>
@@ -387,7 +387,7 @@ function NewEntryForm({ onClose, onSuccess }: NewEntryFormProps) {
           placeholder="Why are you making this decision? What's your core thesis..."
           value={thesis}
           onChange={(e) => setThesis(e.target.value)}
-          onFocus={(e) => (e.target.style.borderColor = 'var(--gold)')}
+          onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
           onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
         />
       </div>
@@ -400,7 +400,7 @@ function NewEntryForm({ onClose, onSuccess }: NewEntryFormProps) {
           placeholder="Risks, catalysts, exit criteria..."
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          onFocus={(e) => (e.target.style.borderColor = 'var(--gold)')}
+          onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
           onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
         />
       </div>
@@ -453,7 +453,7 @@ function NewEntryForm({ onClose, onSuccess }: NewEntryFormProps) {
             fontSize: 12,
             fontWeight: 700,
             color: '#000',
-            background: mutation.isPending ? 'var(--gold-hover)' : 'var(--gold)',
+            background: mutation.isPending ? 'var(--accent-hover)' : 'var(--accent)',
             border: '1px solid transparent',
             borderRadius: 4,
             cursor: mutation.isPending ? 'not-allowed' : 'pointer',
@@ -461,10 +461,10 @@ function NewEntryForm({ onClose, onSuccess }: NewEntryFormProps) {
             letterSpacing: '0.04em',
           }}
           onMouseEnter={(e) => {
-            if (!mutation.isPending) e.currentTarget.style.background = 'var(--gold-hover)'
+            if (!mutation.isPending) e.currentTarget.style.background = 'var(--accent-hover)'
           }}
           onMouseLeave={(e) => {
-            if (!mutation.isPending) e.currentTarget.style.background = 'var(--gold)'
+            if (!mutation.isPending) e.currentTarget.style.background = 'var(--accent)'
           }}
         >
           {mutation.isPending ? '保存中...' : '保存'}
@@ -541,7 +541,7 @@ function EditNotesForm({ entry, onClose }: EditNotesFormProps) {
           style={{ ...inputStyle, minHeight: 60 }}
           value={thesis}
           onChange={(e) => setThesis(e.target.value)}
-          onFocus={(e) => (e.target.style.borderColor = 'var(--gold)')}
+          onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
           onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
         />
       </div>
@@ -551,7 +551,7 @@ function EditNotesForm({ entry, onClose }: EditNotesFormProps) {
           style={{ ...inputStyle, minHeight: 48 }}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          onFocus={(e) => (e.target.style.borderColor = 'var(--gold)')}
+          onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
           onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
         />
       </div>
@@ -587,7 +587,7 @@ function EditNotesForm({ entry, onClose }: EditNotesFormProps) {
             fontSize: 11,
             fontWeight: 700,
             color: '#000',
-            background: 'var(--gold)',
+            background: 'var(--accent)',
             border: '1px solid transparent',
             borderRadius: 4,
             cursor: mutation.isPending ? 'not-allowed' : 'pointer',
@@ -620,7 +620,7 @@ function EntryCard({ entry }: { entry: JournalEntry }) {
   const actionColorMap: Record<ActionType, string> = {
     BUY: 'var(--positive)',
     SELL: 'var(--negative)',
-    HOLD: 'var(--gold)',
+    HOLD: 'var(--accent)',
   }
 
   const linkStyle: React.CSSProperties = {
@@ -665,7 +665,7 @@ function EntryCard({ entry }: { entry: JournalEntry }) {
           width: 9,
           height: 9,
           borderRadius: '50%',
-          border: '2px solid var(--gold)',
+          border: '2px solid var(--accent)',
           background: 'var(--bg-2)',
           zIndex: 1,
         }}
@@ -705,7 +705,7 @@ function EntryCard({ entry }: { entry: JournalEntry }) {
                 fontFamily: 'var(--font-mono)',
                 fontSize: 14,
                 fontWeight: 700,
-                color: 'var(--gold)',
+                color: 'var(--accent)',
                 letterSpacing: '0.04em',
               }}
             >
@@ -825,9 +825,9 @@ function EntryCard({ entry }: { entry: JournalEntry }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8 }}>
             <Link
               to={`/stocks/${entry.ticker}`}
-              style={{ ...linkStyle, color: 'var(--gold)' }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--gold-hover)')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--gold)')}
+              style={{ ...linkStyle, color: 'var(--accent)' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-hover)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--accent)')}
             >
               查看报告
             </Link>
@@ -938,14 +938,14 @@ export function JournalPage() {
               fontWeight: 700,
               letterSpacing: '0.04em',
               color: '#000',
-              background: showForm ? 'var(--gold-hover)' : 'var(--gold)',
+              background: showForm ? 'var(--accent-hover)' : 'var(--accent)',
               border: '1px solid transparent',
               borderRadius: 4,
               cursor: 'pointer',
               transition: 'background 0.12s',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--gold-hover)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = showForm ? 'var(--gold-hover)' : 'var(--gold)')}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = showForm ? 'var(--accent-hover)' : 'var(--accent)')}
           >
             {showForm ? '✕ 取消' : '+ 新建记录'}
           </button>

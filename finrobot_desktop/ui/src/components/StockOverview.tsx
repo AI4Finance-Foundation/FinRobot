@@ -100,7 +100,7 @@ export default function StockOverview() {
           <KPICard label="Market Cap" value={fmtUsd(market?.market_cap)} loading={!financials} trend={priceSpark} />
           <KPICard label="P/E Ratio" value={fmtMult(market?.pe_ratio)} loading={!financials} />
           <KPICard label="EV/EBITDA" value={fmtMult(valuation?.ev_ebitda)} loading={!financials} />
-          <KPICard label="Revenue" value={fmtUsd(income?.revenue)} loading={!financials} trend={volumeSpark} trendColor="var(--gold)" />
+          <KPICard label="Revenue" value={fmtUsd(income?.revenue)} loading={!financials} trend={volumeSpark} trendColor="var(--accent)" />
           <KPICard label="EBITDA Margin" value={fmtPct(ebitdaMargin)} loading={!financials} />
           {has52w ? (
             <KPICard

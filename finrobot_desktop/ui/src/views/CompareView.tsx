@@ -116,7 +116,7 @@ export default function CompareView() {
       {comparisonLoading && (
         <div className="card animate-in">
           <div className="card-body" style={{ textAlign: 'center', padding: 'var(--sp-6)' }}>
-            <div style={{ color: 'var(--gold)', marginBottom: 'var(--sp-3)' }}>
+            <div style={{ color: 'var(--accent)', marginBottom: 'var(--sp-3)' }}>
               Running DCF pipelines...
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
@@ -180,7 +180,7 @@ export default function CompareView() {
                   if (!c.warnings.length && !c.error) return null
                   return (
                     <div key={c.ticker} style={{ marginBottom: 'var(--sp-3)' }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--gold)', marginBottom: 'var(--sp-1)' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--accent)', marginBottom: 'var(--sp-1)' }}>
                         {c.ticker}
                       </div>
                       {c.error && (
@@ -229,7 +229,7 @@ function ValuationCard({ company }: { company: CompanyValuation }) {
       <div className="card-body" style={{ padding: 'var(--sp-4)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 'var(--sp-2)' }}>
           <div>
-            <span className="font-mono" style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--gold)', letterSpacing: '0.04em' }}>
+            <span className="font-mono" style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--accent)', letterSpacing: '0.04em' }}>
               {c.ticker}
             </span>
             {c.company_name && (
@@ -324,7 +324,7 @@ function ComparisonRow({ company }: { company: CompanyValuation }) {
   return (
     <tr>
       <td className="cell-first">
-        <span className="font-mono" style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--gold)', letterSpacing: '0.03em' }}>
+        <span className="font-mono" style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--accent)', letterSpacing: '0.03em' }}>
           {c.ticker}
         </span>
         {c.company_name && (

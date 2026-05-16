@@ -66,7 +66,7 @@ export default function EarningsSummary({ result }: Props) {
               <circle
                 cx="36" cy="36" r="30"
                 fill="none"
-                stroke={beatPct >= 70 ? 'var(--positive)' : beatPct >= 40 ? 'var(--gold)' : 'var(--negative)'}
+                stroke={beatPct >= 70 ? 'var(--positive)' : beatPct >= 40 ? 'var(--accent)' : 'var(--negative)'}
                 strokeWidth="5"
                 strokeLinecap="round"
                 strokeDasharray={`${beatPct * 1.885} 188.5`}

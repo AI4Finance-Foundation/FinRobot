@@ -135,7 +135,7 @@ export default function CompsSummary({ result, currentPrice }: Props) {
                       <span className="font-mono" style={{
                         fontWeight: 700,
                         fontSize: '0.82rem',
-                        color: isTarget ? 'var(--gold)' : 'var(--text-primary)',
+                        color: isTarget ? 'var(--accent)' : 'var(--text-primary)',
                         letterSpacing: '0.03em',
                       }}>
                         {c.ticker}
@@ -155,9 +155,9 @@ export default function CompsSummary({ result, currentPrice }: Props) {
               <tr className="row-border-top">
                 <td className="row-label">Peer Median</td>
                 <td className="fin-value cell">{'\u2014'}</td>
-                <td className="fin-value cell" style={{ color: 'var(--gold)' }}>{fmtMult(result.median_ev_ebitda)}</td>
-                <td className="fin-value cell" style={{ color: 'var(--gold)' }}>{fmtMult(result.median_pe)}</td>
-                <td className="fin-value cell-first" style={{ color: 'var(--gold)' }}>{fmtMult(result.median_ev_revenue)}</td>
+                <td className="fin-value cell" style={{ color: 'var(--accent)' }}>{fmtMult(result.median_ev_ebitda)}</td>
+                <td className="fin-value cell" style={{ color: 'var(--accent)' }}>{fmtMult(result.median_pe)}</td>
+                <td className="fin-value cell-first" style={{ color: 'var(--accent)' }}>{fmtMult(result.median_ev_revenue)}</td>
               </tr>
             </tbody>
           </table>

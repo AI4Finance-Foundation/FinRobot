@@ -14,12 +14,12 @@ export default function StatusBar(): React.ReactElement {
       {/* Left: connection status */}
       <div className="sb-section sb-left">
         <span className="sb-pulse-dot" />
-        <span className="sb-text">CONNECTED</span>
+        <span className="sb-text">已连接</span>
       </div>
 
       {/* Center: data source info */}
       <div className="sb-section sb-center">
-        <span className="sb-text">YFINANCE + FMP · 15M DELAY</span>
+        <span className="sb-text">YFINANCE + FMP · 延迟15分钟</span>
       </div>
 
       {/* Right: version + optional ticker */}

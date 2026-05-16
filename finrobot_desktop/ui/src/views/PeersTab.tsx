@@ -90,9 +90,9 @@ function EmptyCta({ label, cta, loading, loadingLabel, onClick }: EmptyCtaProps)
         style={{
           padding: '6px 16px',
           fontSize: '0.85rem',
-          background: loading ? 'var(--border)' : 'var(--gold-dim)',
-          color: 'var(--gold)',
-          border: '1px solid var(--gold)',
+          background: loading ? 'var(--border)' : 'var(--accent-dim)',
+          color: 'var(--accent)',
+          border: '1px solid var(--accent)',
           borderRadius: 4,
           cursor: loading ? 'wait' : 'pointer',
           opacity: loading ? 0.6 : 1,

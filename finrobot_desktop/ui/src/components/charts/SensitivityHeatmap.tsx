@@ -69,7 +69,7 @@ export default function SensitivityHeatmap({ data, title }: ChartProps) {
             <thead>
               <tr>
                 <th className="corner" style={{ fontSize: '0.65rem' }}>
-                  <span style={{ color: 'var(--gold)' }}>WACC</span>
+                  <span style={{ color: 'var(--accent)' }}>WACC</span>
                   {' \\ '}
                   <span style={{ color: 'var(--chart-1)' }}>TGR</span>
                 </th>

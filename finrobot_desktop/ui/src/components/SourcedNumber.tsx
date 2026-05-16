@@ -266,7 +266,7 @@ export function SourcedNumber({
               <a
                 href={`/library?artifact=${source.artifact_id}`}
                 style={{
-                  color: 'var(--gold)',
+                  color: 'var(--accent)',
                   fontSize: '0.72rem',
                   textDecoration: 'underline',
                   cursor: 'pointer',

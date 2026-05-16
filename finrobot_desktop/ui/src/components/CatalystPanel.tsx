@@ -28,7 +28,7 @@ function ImpactDots({ score }: { score: number }) {
           key={i}
           className="catalyst-dot"
           style={{
-            background: i < score ? 'var(--gold)' : 'var(--border)',
+            background: i < score ? 'var(--accent)' : 'var(--border)',
             width: 6,
             height: 6,
             borderRadius: '50%',

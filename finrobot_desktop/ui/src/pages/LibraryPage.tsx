@@ -180,7 +180,7 @@ const TYPE_COLORS: Record<string, string> = {
   ic_memo: 'var(--chart-5)',
   equity_research: 'var(--info)',
   peer_research: 'var(--info)',
-  ddm: 'var(--gold)',
+  ddm: 'var(--accent)',
   ad_hoc: 'var(--text-secondary)',
 }
 
@@ -221,7 +221,7 @@ function EmptyState({ onNavigate }: { onNavigate: () => void }) {
       </div>
       <button
         onClick={onNavigate}
-        style={{ padding: '8px 20px', background: 'var(--gold)', color: 'var(--text-primary)', border: 'none', borderRadius: 'var(--r-md)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600 }}
+        style={{ padding: '8px 20px', background: 'var(--accent)', color: 'var(--text-primary)', border: 'none', borderRadius: 'var(--r-md)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600 }}
       >
         前往股票
       </button>
@@ -317,7 +317,7 @@ function WorkspaceFormModal({
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
           <button onClick={onCancel} style={{ padding: '6px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem' }}>取消</button>
-          <button onClick={handleSave} style={{ padding: '6px 16px', background: 'var(--gold)', border: 'none', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
+          <button onClick={handleSave} style={{ padding: '6px 16px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
             {initial ? '重命名' : '创建'}
           </button>
         </div>
@@ -494,7 +494,7 @@ function JsonTree({ value, depth = 0 }: { value: unknown; depth?: number }) {
   if (typeof value === 'number') {
     return <span style={{ color: 'var(--chart-3)' }}>{value.toLocaleString('en-US', { maximumFractionDigits: 6 })}</span>
   }
-  if (typeof value === 'string') return <span style={{ color: 'var(--gold)' }}>"{value}"</span>
+  if (typeof value === 'string') return <span style={{ color: 'var(--accent)' }}>"{value}"</span>
   if (Array.isArray(value)) {
     if (value.length === 0) return <span style={{ color: 'var(--text-muted)' }}>[]</span>
     return (
@@ -629,7 +629,7 @@ function ArtifactDetail({
         {(['dcf', 'lbo', 'comps'] as const).includes(data.type as 'dcf' | 'lbo' | 'comps') && data.ticker && (
           <button
             onClick={() => void handleExcelExport()}
-            style={{ padding: '5px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--gold)', cursor: 'pointer', fontSize: '0.8rem' }}
+            style={{ padding: '5px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--accent)', cursor: 'pointer', fontSize: '0.8rem' }}
           >
             导出 Excel
           </button>
@@ -683,7 +683,7 @@ function ArtifactDetail({
             {data.compute_version.git_commit && (
               <div><span style={{ color: 'var(--text-muted)' }}>commit:</span> <span style={{ color: 'var(--text-primary)' }}>{data.compute_version.git_commit}</span></div>
             )}
-            <div><span style={{ color: 'var(--text-muted)' }}>formula:</span> <span style={{ color: 'var(--gold)' }}>{data.compute_version.formula_id}</span></div>
+            <div><span style={{ color: 'var(--text-muted)' }}>formula:</span> <span style={{ color: 'var(--accent)' }}>{data.compute_version.formula_id}</span></div>
             {data.compute_version.formula_warnings.map((w, i) => (
               <div key={i} style={{ color: 'var(--warning)', fontSize: '0.75rem' }}>⚠ {w}</div>
             ))}
@@ -1102,7 +1102,7 @@ export function LibraryPage() {
                   padding: '8px 4px',
                   background: 'none',
                   border: 'none',
-                  borderBottom: viewMode === v ? '2px solid var(--gold)' : '2px solid transparent',
+                  borderBottom: viewMode === v ? '2px solid var(--accent)' : '2px solid transparent',
                   color: viewMode === v ? 'var(--text-primary)' : 'var(--text-muted)',
                   cursor: 'pointer',
                   fontSize: '0.72rem',
@@ -1150,7 +1150,7 @@ export function LibraryPage() {
                       cursor: 'pointer', textAlign: 'left', gap: 10,
                     }}
                   >
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700, color: 'var(--gold)', flexShrink: 0 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700, color: 'var(--accent)', flexShrink: 0 }}>
                       {ticker.slice(0, 2)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -1158,7 +1158,7 @@ export function LibraryPage() {
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 1 }}>{count} 条记录 · {relativeTime(latestAt)}</div>
                     </div>
                     {selectedTicker === ticker && (
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: 'var(--gold)', flexShrink: 0 }}>
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: 'var(--accent)', flexShrink: 0 }}>
                         <path d="M3 6l3 3 3-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     )}
@@ -1315,7 +1315,7 @@ export function LibraryPage() {
                 </div>
                 <button
                   onClick={() => navigate(`/stocks/${selectedTicker}`)}
-                  style={{ padding: '6px 14px', background: 'var(--gold)', border: 'none', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}
+                  style={{ padding: '6px 14px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}
                 >
                   新建分析
                 </button>

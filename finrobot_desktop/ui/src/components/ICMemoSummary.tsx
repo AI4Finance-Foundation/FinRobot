@@ -11,7 +11,7 @@ interface Props {
 const VERDICT_STYLES: Record<string, { color: string; bg: string }> = {
   INVEST: { color: 'var(--positive)', bg: 'var(--positive-bg)' },
   PASS:   { color: 'var(--negative)', bg: 'var(--negative-bg)' },
-  HOLD:   { color: 'var(--gold)',     bg: 'var(--gold-dim)' },
+  HOLD:   { color: 'var(--accent)',     bg: 'var(--accent-dim)' },
 }
 
 function getVerdictStyle(verdict: string) {
@@ -134,11 +134,11 @@ export default function ICMemoSummary({ result }: Props) {
         </div>
       )}
 
-      {/* Recommendation (highlighted with gold border) */}
+      {/* Recommendation (highlighted with accent border) */}
       {result.recommendation.rationale && (
-        <div className="card animate-in" style={{ borderColor: 'var(--gold)', borderWidth: '1px', borderStyle: 'solid' }}>
+        <div className="card animate-in" style={{ borderColor: 'var(--accent)', borderWidth: '1px', borderStyle: 'solid' }}>
           <div className="card-header">
-            <span className="card-title" style={{ color: 'var(--gold)' }}>Recommendation</span>
+            <span className="card-title" style={{ color: 'var(--accent)' }}>Recommendation</span>
             <span
               className="status-badge"
               style={{ background: verdictStyle.bg, color: verdictStyle.color }}

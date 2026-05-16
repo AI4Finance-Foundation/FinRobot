@@ -2,7 +2,7 @@
 // All icons share the same outer <svg> wrapper (stroke=currentColor, stroke-width=1.6).
 // Usage:
 //   <IconDashboard size={18} />
-//   <IconGitHub className="text-amber" />
+//   <IconGitHub className="text-accent" />
 
 import type { SVGProps } from 'react'
 

@@ -11,13 +11,13 @@ interface Props {
 
 function irrColor(irr: number): string {
   if (irr >= 0.20) return 'var(--positive)'
-  if (irr >= 0.15) return 'var(--gold)'
+  if (irr >= 0.15) return 'var(--accent)'
   return 'var(--negative)'
 }
 
 function irrBg(irr: number): string {
   if (irr >= 0.20) return 'var(--positive-bg)'
-  if (irr >= 0.15) return 'var(--gold-dim)'
+  if (irr >= 0.15) return 'var(--accent-dim)'
   return 'var(--negative-bg)'
 }
 
@@ -96,7 +96,7 @@ export default function LBOSummary({ result }: Props) {
 
         {/* Warning */}
         {result.irr_formula_warning && (
-          <div className="inline-warning" style={{ color: 'var(--gold)', background: 'var(--gold-dim)' }}>
+          <div className="inline-warning" style={{ color: 'var(--accent)', background: 'var(--accent-dim)' }}>
             {result.irr_formula_warning}
           </div>
         )}

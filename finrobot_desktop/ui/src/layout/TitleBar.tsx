@@ -59,24 +59,24 @@ export function TitleBar(): React.ReactElement {
 
       {/* Center label */}
       <div className="titlebar-title" data-tauri-drag-region>
-        FINAGENT TERMINAL
+        FINAGENT
       </div>
 
       {/* Right action buttons */}
       <div className="titlebar-actions">
         <button
           className="tb-btn"
-          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={theme === 'dark' ? '切换为浅色模式' : '切换为深色模式'}
           onClick={toggleTheme}
         >
-          {theme === 'dark' ? <IconSun size={15} /> : <IconMoon size={15} />}
+          {theme === 'dark' ? <IconSun size={14} /> : <IconMoon size={14} />}
         </button>
         <button
           className={`tb-btn${aiPanelOpen ? ' active' : ''}`}
-          title="Toggle AI panel"
+          title="AI 助手"
           onClick={toggleAiPanel}
         >
-          <IconSparkle size={15} />
+          <IconSparkle size={14} />
         </button>
       </div>
     </div>

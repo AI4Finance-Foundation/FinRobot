@@ -2,7 +2,7 @@
  * Sidebar — 200px left nav replacing the old ActivityBar.
  *
  * Sections:
- *   1. NAVIGATE — 6 nav items with icon + label, gold active state
+ *   1. NAVIGATE — 6 nav items with icon + label, accent active state
  *   2. WATCHLIST — live ticker list from stocksStore + add-ticker input
  */
 
@@ -44,12 +44,12 @@ function IconJournal({ size = 16 }: { size?: number }) {
 // ── Nav items config ──────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
-  { label: 'Dashboard',   path: '/dashboard',   Icon: IconHome },
-  { label: 'Stocks',      path: '/stocks',       Icon: IconTrendingUp },
-  { label: 'Playground',  path: '/playground',   Icon: IconPlayground },
-  { label: 'Journal',     path: '/journal',      Icon: IconJournal },
-  { label: 'Library',     path: '/library',      Icon: IconFileText },
-  { label: 'Settings',    path: '/settings',     Icon: IconSettings },
+  { label: '工作台',   path: '/dashboard',   Icon: IconHome },
+  { label: '个股分析', path: '/stocks',       Icon: IconTrendingUp },
+  { label: '估值推演', path: '/playground',   Icon: IconPlayground },
+  { label: '决策日记', path: '/journal',      Icon: IconJournal },
+  { label: '报告库',   path: '/library',      Icon: IconFileText },
+  { label: '设置',     path: '/settings',     Icon: IconSettings },
 ] as const
 
 // ── WatchlistItem — renders one ticker row with live price ────────────────────
@@ -66,19 +66,20 @@ function WatchlistItem({ ticker, active }: { ticker: string; active: boolean }) 
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: '5px 12px',
+    padding: '6px 12px',
+    margin: '1px 8px',
     cursor: 'pointer',
-    borderLeft: active ? '2px solid var(--gold)' : '2px solid transparent',
-    background: active ? 'var(--gold-dim)' : 'transparent',
-    transition: 'all 0.12s',
-    minHeight: 28,
+    background: active ? 'var(--accent-dim)' : 'transparent',
+    borderRadius: 'var(--r-sm)',
+    transition: 'all 0.15s',
+    minHeight: 30,
   }
 
   const tickerStyle: React.CSSProperties = {
     fontFamily: 'var(--font-mono)',
     fontWeight: 700,
     fontSize: 12,
-    color: active ? 'var(--gold)' : 'var(--text-secondary)',
+    color: active ? 'var(--accent)' : 'var(--text-secondary)',
     letterSpacing: '0.04em',
   }
 
@@ -186,7 +187,7 @@ function AddTickerInput() {
       <input
         ref={inputRef}
         style={inputStyle}
-        placeholder="+ ADD"
+        placeholder="+ 添加"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -196,7 +197,7 @@ function AddTickerInput() {
       <button
         style={addBtnStyle}
         onClick={handleSubmit}
-        onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--gold)')}
+        onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent)')}
         onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
         aria-label="Add ticker"
         tabIndex={-1}
@@ -223,8 +224,8 @@ export function Sidebar(): React.ReactElement {
   // ── Styles ──────────────────────────────────────────────────────────────────
 
   const sidebarStyle: React.CSSProperties = {
-    width: 200,
-    minWidth: 200,
+    width: 220,
+    minWidth: 220,
     height: '100%',
     background: 'var(--sidebar-bg)',
     borderRight: '1px solid var(--border)',
@@ -236,23 +237,13 @@ export function Sidebar(): React.ReactElement {
 
   const sectionHeaderStyle: React.CSSProperties = {
     fontFamily: 'var(--font-mono)',
-    fontSize: 9,
-    fontWeight: 700,
+    fontSize: 10,
+    fontWeight: 600,
     textTransform: 'uppercase',
-    letterSpacing: '0.12em',
+    letterSpacing: '0.10em',
     color: 'var(--text-muted)',
-    padding: '14px 12px 6px',
+    padding: '16px 16px 8px',
     userSelect: 'none',
-  }
-
-  const footerStyle: React.CSSProperties = {
-    fontFamily: 'var(--font-mono)',
-    fontSize: 8,
-    color: 'var(--text-muted)',
-    padding: '8px 12px 12px',
-    letterSpacing: '0.04em',
-    marginTop: 'auto',
-    flexShrink: 0,
   }
 
   const watchlistItems = Array.from(watchlist)
@@ -261,30 +252,29 @@ export function Sidebar(): React.ReactElement {
     <aside className="sidebar" style={sidebarStyle} data-testid="sidebar">
       {/* ── NAVIGATE section ── */}
       <div>
-        <div style={sectionHeaderStyle}>Navigate</div>
+        <div style={sectionHeaderStyle}>导航</div>
         {NAV_ITEMS.map(({ label, path, Icon }) => {
           const active = isNavActive(path)
           const itemStyle: React.CSSProperties = {
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
-            padding: '6px 12px',
+            gap: 10,
+            padding: '8px 16px',
+            margin: '1px 8px',
             cursor: 'pointer',
-            borderLeft: active ? '2px solid var(--gold)' : '2px solid transparent',
-            background: active ? 'var(--gold-dim)' : 'transparent',
-            color: active ? 'var(--gold)' : 'var(--text-secondary)',
+            background: active ? 'var(--accent-dim)' : 'transparent',
+            color: active ? 'var(--accent)' : 'var(--text-secondary)',
             fontSize: 13,
-            fontWeight: active ? 500 : 400,
-            transition: 'all 0.12s',
+            fontWeight: active ? 600 : 400,
+            transition: 'all 0.15s',
             userSelect: 'none',
             border: 'none',
-            width: '100%',
+            width: 'calc(100% - 16px)',
             textAlign: 'left',
             fontFamily: 'var(--font-ui)',
             boxSizing: 'border-box',
-            borderLeftWidth: 2,
-            borderLeftStyle: 'solid',
-            borderLeftColor: active ? 'var(--gold)' : 'transparent',
+            borderRadius: 'var(--r-sm)',
+            position: 'relative',
           }
 
           return (
@@ -307,7 +297,7 @@ export function Sidebar(): React.ReactElement {
               aria-label={label}
               aria-current={active ? 'page' : undefined}
             >
-              <Icon size={14} />
+              <Icon size={15} />
               <span>{label}</span>
             </button>
           )
@@ -315,21 +305,21 @@ export function Sidebar(): React.ReactElement {
       </div>
 
       {/* ── Divider ── */}
-      <div style={{ height: 1, background: 'var(--border)', margin: '8px 0' }} />
+      <div style={{ height: 1, background: 'var(--border)', margin: '10px 16px' }} />
 
       {/* ── WATCHLIST section ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={sectionHeaderStyle}>Watchlist</div>
+        <div style={sectionHeaderStyle}>自选股</div>
 
         {watchlistItems.length === 0 ? (
           <div style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 10,
+            fontFamily: 'var(--font-ui)',
+            fontSize: 12,
             color: 'var(--text-muted)',
-            padding: '4px 12px 8px',
+            padding: '4px 16px 8px',
             fontStyle: 'italic',
           }}>
-            no tickers added
+            暂无自选股
           </div>
         ) : (
           <div style={{ overflowY: 'auto', flex: 1 }}>

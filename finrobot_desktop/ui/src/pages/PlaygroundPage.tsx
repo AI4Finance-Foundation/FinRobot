@@ -158,7 +158,7 @@ function SliderRow({ label, value, min, max, step, displayValue, minLabel, maxLa
           fontFamily: 'var(--font-mono)',
           fontSize: 13,
           fontWeight: 600,
-          color: 'var(--gold)',
+          color: 'var(--accent)',
         }}>
           {displayValue}
         </span>
@@ -203,10 +203,10 @@ function SensitivityTable({ data, baseWacc, baseTg }: SensitivityTableProps) {
   const midP = (minP + maxP) / 2
 
   function cellColor(price: number | null, isBase: boolean): string {
-    if (isBase) return 'var(--gold)'
+    if (isBase) return 'var(--accent)'
     if (price == null) return 'var(--text-muted)'
-    if (price >= midP) return `rgba(38, 166, 154, ${0.3 + 0.7 * (price - midP) / (maxP - midP + 0.001)})`
-    return `rgba(239, 83, 80, ${0.3 + 0.7 * (midP - price) / (midP - minP + 0.001)})`
+    if (price >= midP) return `rgba(16, 185, 129, ${0.3 + 0.7 * (price - midP) / (maxP - midP + 0.001)})`
+    return `rgba(239, 68, 68, ${0.3 + 0.7 * (midP - price) / (midP - minP + 0.001)})`
   }
 
   function textColor(price: number | null, isBase: boolean): string {
@@ -232,7 +232,7 @@ function SensitivityTable({ data, baseWacc, baseTg }: SensitivityTableProps) {
         <thead>
           <tr>
             <th style={{ ...thStyle, textAlign: 'left' }}>
-              <span style={{ color: 'var(--gold)' }}>WACC</span>
+              <span style={{ color: 'var(--accent)' }}>WACC</span>
               {' \\ '}
               <span style={{ color: 'var(--text-secondary)' }}>TGR</span>
             </th>
@@ -340,10 +340,10 @@ function TickerPrompt() {
             fontFamily: 'var(--font-mono)',
             fontSize: 12,
             fontWeight: 600,
-            background: 'var(--gold-dim)',
-            border: '1px solid var(--gold)',
+            background: 'var(--accent-dim)',
+            border: '1px solid var(--accent)',
             borderRadius: 'var(--r-sm)',
-            color: 'var(--gold)',
+            color: 'var(--accent)',
             padding: '8px 20px',
             cursor: 'pointer',
             letterSpacing: '0.06em',
@@ -860,7 +860,7 @@ export function PlaygroundPage() {
           <div style={cardHeaderStyle}>
             <span style={cardTitleStyle}>Assumptions</span>
             {dcfLoading && (
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--gold)', letterSpacing: '0.06em' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--accent)', letterSpacing: '0.06em' }}>
                 COMPUTING...
               </span>
             )}
@@ -959,7 +959,7 @@ export function PlaygroundPage() {
                 fontFamily: 'var(--font-mono)',
                 fontSize: 36,
                 fontWeight: 700,
-                color: dcfLoading ? 'var(--text-muted)' : 'var(--gold)',
+                color: dcfLoading ? 'var(--text-muted)' : 'var(--accent)',
                 lineHeight: 1,
                 letterSpacing: '-0.02em',
                 marginBottom: 6,
@@ -1021,8 +1021,8 @@ export function PlaygroundPage() {
                 label="基准"
                 price={dcfResult?.implied_price ?? null}
                 loading={dcfLoading}
-                color="var(--gold)"
-                bgColor="var(--gold-dim)"
+                color="var(--accent)"
+                bgColor="var(--accent-dim)"
               />
               <ScenarioBox
                 label="悲观"
@@ -1105,7 +1105,7 @@ export function PlaygroundPage() {
                   {currentPrice && (
                     <div style={metaItemStyle}>
                       <span style={labelStyle}>Price Percentile</span>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--gold)', fontWeight: 600 }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>
                         {mcResult.current_price_percentile.toFixed(0)}th
                       </span>
                     </div>

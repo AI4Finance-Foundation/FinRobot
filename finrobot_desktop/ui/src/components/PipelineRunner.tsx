@@ -295,7 +295,7 @@ export default function PipelineRunner() {
                   style={progress > 0
                     ? {
                         height: '100%',
-                        background: 'var(--gold)',
+                        background: 'var(--accent)',
                         borderRadius: '1px',
                         width: `${Math.min(progress * 100, 100)}%`,
                         transition: 'width 0.3s ease',

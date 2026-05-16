@@ -10,8 +10,8 @@
  *   4. Signals & Alerts   — catalyst events for top-3 watchlist tickers
  *   5. Recent Analyses    — live from GET /api/artifacts?limit=5
  *
- * Design: dark terminal (#0C0C0C bg), gold accent (#E2B93D), JetBrains Mono
- * for numbers, Inter for text, 6px radius, no shadows — zero placeholders.
+ * Design: navy premium (#0B1121 bg), blue accent (#3B82F6), JetBrains Mono
+ * for numbers, Inter for text, graduated radius, subtle shadows.
  */
 
 import { useNavigate, Link } from 'react-router-dom'
@@ -171,16 +171,16 @@ function SectionHeader({ title, action }: { title: string; action?: React.ReactN
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 10,
+        marginBottom: 12,
       }}
     >
       <span
         style={{
-          fontSize: 9,
+          fontSize: 11,
           fontFamily: 'var(--font-mono)',
-          fontWeight: 700,
+          fontWeight: 600,
           textTransform: 'uppercase',
-          letterSpacing: '0.10em',
+          letterSpacing: '0.08em',
           color: 'var(--text-muted)',
         }}
       >
@@ -240,22 +240,34 @@ function MarketTickerBar() {
           <div
             key={idx.symbol}
             style={{
-              background: 'var(--bg-2)',
+              background: 'var(--bg-1)',
               border: '1px solid var(--border)',
-              borderRadius: 'var(--r-sm)',
-              padding: '10px 12px',
+              borderRadius: 'var(--r-md)',
+              padding: '14px 16px',
               minWidth: 0,
+              transition: 'all 0.2s',
+              cursor: 'default',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-hover)'
+              e.currentTarget.style.transform = 'translateY(-1px)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border)'
+              e.currentTarget.style.transform = 'translateY(0)'
             }}
           >
             <div
               style={{
-                fontSize: 9,
+                fontSize: 10,
                 fontFamily: 'var(--font-mono)',
-                fontWeight: 700,
+                fontWeight: 600,
                 textTransform: 'uppercase',
-                letterSpacing: '0.08em',
+                letterSpacing: '0.06em',
                 color: 'var(--text-muted)',
-                marginBottom: 4,
+                marginBottom: 6,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -266,11 +278,11 @@ function MarketTickerBar() {
             <div
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 15,
+                fontSize: 16,
                 fontWeight: 700,
                 color: 'var(--text-primary)',
                 letterSpacing: '-0.02em',
-                marginBottom: 2,
+                marginBottom: 4,
               }}
             >
               {fmtPrice(idx.price)}
@@ -278,7 +290,7 @@ function MarketTickerBar() {
             <div
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 600,
                 color: isPositive ? 'var(--positive)' : 'var(--negative)',
               }}
@@ -323,8 +335,8 @@ function SectorStrip() {
         const isPositive = sector.change_pct >= 0
         const intensity = Math.min(Math.abs(sector.change_pct) / max, 1)
         const bg = isPositive
-          ? `rgba(38,166,154,${0.06 + intensity * 0.18})`
-          : `rgba(239,83,80,${0.06 + intensity * 0.18})`
+          ? `rgba(16,185,129,${0.06 + intensity * 0.18})`
+          : `rgba(239,68,68,${0.06 + intensity * 0.18})`
 
         return (
           <div
@@ -332,16 +344,17 @@ function SectorStrip() {
             title={sector.name}
             style={{
               background: bg,
-              border: `1px solid ${isPositive ? 'rgba(38,166,154,0.25)' : 'rgba(239,83,80,0.25)'}`,
-              borderRadius: 'var(--r-sm)',
-              padding: '6px 10px',
+              border: `1px solid ${isPositive ? 'rgba(16,185,129,0.20)' : 'rgba(239,68,68,0.20)'}`,
+              borderRadius: 'var(--r-md)',
+              padding: '8px 12px',
               flexShrink: 0,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 2,
-              minWidth: 56,
+              gap: 3,
+              minWidth: 60,
               cursor: 'default',
+              transition: 'transform 0.15s',
             }}
           >
             <span
@@ -390,33 +403,39 @@ function QuickActionCard({ icon, title, description, onClick }: QuickActionCardP
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-start',
-        gap: 8,
-        padding: '12px 14px',
-        background: 'var(--bg-2)',
+        gap: 10,
+        padding: '16px',
+        background: 'var(--bg-1)',
         border: '1px solid var(--border)',
-        borderRadius: 'var(--r-sm)',
+        borderRadius: 'var(--r-md)',
         cursor: 'pointer',
         textAlign: 'left',
-        transition: 'border-color 0.12s',
+        transition: 'all 0.2s',
         minWidth: 0,
       }}
       onMouseEnter={(e) => {
-        ;(e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--gold)'
+        const el = e.currentTarget as HTMLButtonElement
+        el.style.borderColor = 'var(--accent)'
+        el.style.transform = 'translateY(-2px)'
+        el.style.boxShadow = '0 4px 16px rgba(59, 130, 246, 0.12)'
       }}
       onMouseLeave={(e) => {
-        ;(e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)'
+        const el = e.currentTarget as HTMLButtonElement
+        el.style.borderColor = 'var(--border)'
+        el.style.transform = 'translateY(0)'
+        el.style.boxShadow = 'none'
       }}
     >
       <span
         style={{
-          width: 28,
-          height: 28,
+          width: 32,
+          height: 32,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: 'var(--r-sm)',
-          background: 'var(--gold-dim)',
-          color: 'var(--gold)',
+          background: 'var(--accent-dim)',
+          color: 'var(--accent)',
           flexShrink: 0,
         }}
       >
@@ -426,9 +445,9 @@ function QuickActionCard({ icon, title, description, onClick }: QuickActionCardP
         <div
           style={{
             fontSize: 13,
-            fontWeight: 700,
+            fontWeight: 600,
             color: 'var(--text-primary)',
-            marginBottom: 3,
+            marginBottom: 4,
             fontFamily: 'var(--font-ui)',
           }}
         >
@@ -436,9 +455,9 @@ function QuickActionCard({ icon, title, description, onClick }: QuickActionCardP
         </div>
         <div
           style={{
-            fontSize: 10,
+            fontSize: 11,
             color: 'var(--text-muted)',
-            lineHeight: 1.4,
+            lineHeight: 1.5,
             fontFamily: 'var(--font-ui)',
           }}
         >
@@ -520,7 +539,7 @@ function EarningsCalendar() {
             style={{
               background: 'none',
               border: 'none',
-              color: 'var(--gold)',
+              color: 'var(--accent)',
               cursor: 'pointer',
               fontSize: 11,
               padding: 0,
@@ -536,9 +555,9 @@ function EarningsCalendar() {
       {data && data.length > 0 && (
         <div
           style={{
-            background: 'var(--bg-2)',
+            background: 'var(--bg-1)',
             border: '1px solid var(--border)',
-            borderRadius: 'var(--r-sm)',
+            borderRadius: 'var(--r-md)',
             overflow: 'hidden',
           }}
         >
@@ -548,8 +567,8 @@ function EarningsCalendar() {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
-                padding: '7px 10px',
+                gap: 10,
+                padding: '9px 14px',
                 borderBottom: idx < data.length - 1 ? '1px solid var(--border)' : 'none',
               }}
             >
@@ -570,7 +589,7 @@ function EarningsCalendar() {
                   fontFamily: 'var(--font-mono)',
                   fontSize: 11,
                   fontWeight: 700,
-                  color: 'var(--gold)',
+                  color: 'var(--accent)',
                   width: 40,
                   flexShrink: 0,
                 }}
@@ -640,11 +659,12 @@ function SignalRow({ ticker }: { ticker: string }) {
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 8,
-        padding: '7px 10px',
-        background: 'var(--bg-2)',
+        gap: 10,
+        padding: '9px 14px',
+        background: 'var(--bg-1)',
         border: '1px solid var(--border)',
-        borderRadius: 'var(--r-sm)',
+        borderRadius: 'var(--r-md)',
+        transition: 'border-color 0.15s',
       }}
     >
       <span
@@ -661,7 +681,7 @@ function SignalRow({ ticker }: { ticker: string }) {
           fontFamily: 'var(--font-mono)',
           fontSize: 11,
           fontWeight: 700,
-          color: 'var(--gold)',
+          color: 'var(--accent)',
           flexShrink: 0,
           width: 44,
         }}
@@ -708,7 +728,7 @@ function SignalsSection() {
               to="/stocks"
               style={{
                 fontSize: 10,
-                color: 'var(--gold)',
+                color: 'var(--accent)',
                 textDecoration: 'none',
                 fontFamily: 'var(--font-mono)',
               }}
@@ -747,7 +767,7 @@ function SignalsSection() {
                 background: 'var(--positive-bg)',
                 padding: '2px 7px',
                 borderRadius: 3,
-                border: '1px solid rgba(38,166,154,0.2)',
+                border: '1px solid rgba(16,185,129,0.2)',
               }}
             >
               Desktop ✓
@@ -779,7 +799,7 @@ function RecentAnalysesSection() {
             to="/library"
             style={{
               fontSize: 10,
-              color: 'var(--gold)',
+              color: 'var(--accent)',
               textDecoration: 'none',
               fontFamily: 'var(--font-mono)',
             }}
@@ -830,9 +850,9 @@ function RecentAnalysesSection() {
       {data && data.length > 0 && (
         <div
           style={{
-            background: 'var(--bg-2)',
+            background: 'var(--bg-1)',
             border: '1px solid var(--border)',
-            borderRadius: 'var(--r-sm)',
+            borderRadius: 'var(--r-md)',
             overflow: 'hidden',
           }}
         >
@@ -845,15 +865,15 @@ function RecentAnalysesSection() {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
+                gap: 10,
                 width: '100%',
-                padding: '8px 10px',
+                padding: '10px 14px',
                 background: 'transparent',
                 border: 'none',
                 borderBottom: idx < data.length - 1 ? '1px solid var(--border)' : 'none',
                 cursor: 'pointer',
                 textAlign: 'left',
-                transition: 'background 0.1s',
+                transition: 'background 0.15s',
               }}
               onMouseEnter={(e) => {
                 ;(e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-3)'
@@ -868,8 +888,8 @@ function RecentAnalysesSection() {
                   fontSize: 9,
                   fontWeight: 700,
                   fontFamily: 'var(--font-mono)',
-                  color: 'var(--gold)',
-                  background: 'var(--gold-dim)',
+                  color: 'var(--accent)',
+                  background: 'var(--accent-dim)',
                   padding: '2px 6px',
                   borderRadius: 3,
                   flexShrink: 0,
@@ -944,12 +964,12 @@ export function DashboardPage() {
     >
       <div
         style={{
-          maxWidth: 960,
+          maxWidth: 1040,
           margin: '0 auto',
-          padding: '20px 20px 32px',
+          padding: '28px 32px 48px',
           display: 'flex',
           flexDirection: 'column',
-          gap: 20,
+          gap: 24,
         }}
       >
         {/* ── 1. Market Ticker Bar ─────────────────────────────────────────── */}

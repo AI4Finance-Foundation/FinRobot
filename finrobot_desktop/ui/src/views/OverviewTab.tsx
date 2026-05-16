@@ -96,7 +96,7 @@ function signalColor(signal: string): string {
   switch (signal) {
     case 'STRONG_BUY': return 'var(--positive)'
     case 'BUY':        return 'var(--positive)'
-    case 'HOLD':       return 'var(--gold, #f59e0b)'
+    case 'HOLD':       return 'var(--accent, #f59e0b)'
     case 'SELL':       return 'var(--negative)'
     case 'STRONG_SELL':return 'var(--negative)'
     default:           return 'var(--text-muted)'
@@ -218,7 +218,7 @@ function CompositeScoreCard({ score }: { score: ScoreResult }) {
       {/* Sub-score bars */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {subScores.map(({ key, label, value }) => {
-          const barColor = value >= 60 ? 'var(--positive)' : value >= 40 ? 'var(--gold, #f59e0b)' : 'var(--negative)'
+          const barColor = value >= 60 ? 'var(--positive)' : value >= 40 ? 'var(--accent, #f59e0b)' : 'var(--negative)'
           return (
             <div key={key}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -265,7 +265,7 @@ function SniperCard({ sniper }: { sniper: SniperResult }) {
     { label: 'Ideal Buy',      value: sniper.ideal_buy,     color: 'var(--positive)' },
     { label: 'Secondary Buy',  value: sniper.secondary_buy, color: 'var(--positive)' },
     { label: 'Stop Loss',      value: sniper.stop_loss,     color: 'var(--negative)' },
-    { label: 'Take Profit',    value: sniper.take_profit,   color: 'var(--gold, #f59e0b)' },
+    { label: 'Take Profit',    value: sniper.take_profit,   color: 'var(--accent, #f59e0b)' },
   ]
 
   return (
@@ -300,7 +300,7 @@ function SniperCard({ sniper }: { sniper: SniperResult }) {
           </span>
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             R:R ={' '}
-            <span style={{ color: 'var(--gold, #f59e0b)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+            <span style={{ color: 'var(--accent, #f59e0b)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
               {sniper.risk_reward_ratio.toFixed(2)}
             </span>
           </span>
@@ -450,7 +450,7 @@ function RunDcfPrompt() {
       }}
     >
       <div style={{ fontSize: '18px', marginBottom: '6px' }}>◎</div>
-      <div>请先运行 <strong style={{ color: 'var(--gold, #f59e0b)', fontFamily: 'var(--font-mono)' }}>DCF 估值</strong> 以解锁综合评分与作战计划</div>
+      <div>请先运行 <strong style={{ color: 'var(--accent, #f59e0b)', fontFamily: 'var(--font-mono)' }}>DCF 估值</strong> 以解锁综合评分与作战计划</div>
       <div style={{ fontSize: '11px', marginTop: '4px', fontStyle: 'italic' }}>
         点击上方工具栏的 DCF 按钮
       </div>

@@ -61,7 +61,7 @@ function ProgressRing({ progress }: { progress: number }) {
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="var(--gold)"
+          stroke="var(--accent)"
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -84,7 +84,7 @@ function ProgressRing({ progress }: { progress: number }) {
           fontFamily: 'var(--font-mono)',
           fontSize: 28,
           fontWeight: 700,
-          color: 'var(--gold)',
+          color: 'var(--accent)',
           letterSpacing: '-0.02em',
         }}
       >
@@ -112,7 +112,7 @@ function StepIcon({ status }: { status: string }) {
           width: 10,
           height: 10,
           borderRadius: '50%',
-          background: 'var(--gold)',
+          background: 'var(--accent)',
           animation: 'pulse-dot 1.2s ease infinite',
         }}
       />
@@ -270,7 +270,7 @@ export default function AnalysisProgress({
             fontSize: 13,
             fontWeight: 700,
             color: '#000',
-            background: 'var(--gold)',
+            background: 'var(--accent)',
             border: '1px solid transparent',
             borderRadius: 'var(--r-sm)',
             cursor: 'pointer',

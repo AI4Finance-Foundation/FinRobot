@@ -15,11 +15,11 @@ interface ChartProps {
   title: string
 }
 
-// Design system chart palette
+// Design system chart palette (matches v3 tokens in App.css)
 const COLORS = {
-  gross_margin: '#34D399',   // chart-3 (green)
-  ebitda_margin: '#C9A84C',  // chart-2 (gold)
-  operating_margin: '#60A5FA', // chart-1 (blue)
+  gross_margin: '#10B981',     // chart-2 (green)
+  ebitda_margin: '#8B5CF6',    // chart-4 (purple)
+  operating_margin: '#3B82F6', // chart-1 (blue)
 }
 
 const CHART_TOOLTIP = {

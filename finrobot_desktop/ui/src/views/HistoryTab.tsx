@@ -39,7 +39,7 @@ interface FieldDiff {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const TYPE_COLORS: Record<string, string> = {
-  dcf: 'var(--gold)',
+  dcf: 'var(--accent)',
   lbo: '#a78bfa',
   comps: '#60a5fa',
   research: '#34d399',
@@ -328,7 +328,7 @@ export default function HistoryTab({ ticker }: Props) {
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: 'var(--gold)',
+                  color: 'var(--accent)',
                   cursor: 'pointer',
                   textDecoration: 'underline',
                   fontSize: '0.82rem',
@@ -376,7 +376,7 @@ export default function HistoryTab({ ticker }: Props) {
                           checked={isSelected}
                           onChange={() => toggleDiff(a.id)}
                           aria-label={`Select ${a.type} artifact for diff`}
-                          style={{ cursor: 'pointer', accentColor: 'var(--gold)' }}
+                          style={{ cursor: 'pointer', accentColor: 'var(--accent)' }}
                         />
                       </td>
 

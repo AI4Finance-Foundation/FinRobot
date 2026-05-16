@@ -197,7 +197,7 @@ function InputWithFocus({ style: s, ...props }: React.InputHTMLAttributes<HTMLIn
       style={{
         ...inputStyle,
         ...s,
-        borderColor: focused ? 'var(--gold)' : 'var(--border)',
+        borderColor: focused ? 'var(--accent)' : 'var(--border)',
       }}
       onFocus={(e) => { setFocused(true); props.onFocus?.(e) }}
       onBlur={(e) => { setFocused(false); props.onBlur?.(e) }}
@@ -213,7 +213,7 @@ function SelectWithFocus({ style: s, ...props }: React.SelectHTMLAttributes<HTML
       style={{
         ...inputStyle,
         ...s,
-        borderColor: focused ? 'var(--gold)' : 'var(--border)',
+        borderColor: focused ? 'var(--accent)' : 'var(--border)',
         cursor: 'pointer',
       }}
       onFocus={(e) => { setFocused(true); props.onFocus?.(e) }}
@@ -242,9 +242,9 @@ function Checkbox({
         width: '14px',
         height: '14px',
         flexShrink: 0,
-        border: `1px solid ${checked ? 'var(--gold)' : 'var(--border)'}`,
+        border: `1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`,
         borderRadius: '2px',
-        background: checked ? 'var(--gold-dim)' : 'var(--bg-3)',
+        background: checked ? 'var(--accent-dim)' : 'var(--bg-3)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -258,7 +258,7 @@ function Checkbox({
         <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
           <path
             d="M1 3.5L3.5 6L8 1"
-            stroke="var(--gold)"
+            stroke="var(--accent)"
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -915,7 +915,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                   checked={theme === t}
                   onChange={() => setTheme(t)}
                   style={{
-                    accentColor: 'var(--gold)',
+                    accentColor: 'var(--accent)',
                     cursor: 'pointer',
                   }}
                 />

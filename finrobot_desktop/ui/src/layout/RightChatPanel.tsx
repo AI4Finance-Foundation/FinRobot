@@ -1,6 +1,6 @@
 // RightChatPanel — Phase 4 rewrite.
 //
-// Visual: amber theme, 420px, aligned 1:1 to finagent.html prototype.
+// Visual: accent theme, 420px, aligned 1:1 to finagent.html prototype.
 // State:  useUiStore (aiPanelOpen / aiPanelWidth / mode / currentModel /
 //         contextBundle) replaces useUiPrefs.chatExpanded.
 //
@@ -24,11 +24,6 @@ import { MarkdownLite } from '../components/MarkdownLite'
 import { useI18n } from '../i18n'
 import { ContextBar } from './AIPanel/ContextBar'
 import { PIPELINES } from '../lib/pipelines'
-import {
-  IconPaperclip,
-  IconTool,
-  IconClock,
-} from '../lib/icons'
 
 // ──────────────────────────────────────────────────────────────
 // Constants
@@ -118,8 +113,6 @@ export function RightChatPanel({
     getOrCreateSession(sessionKey),
   )
   const [inputText, setInputText] = useState('')
-  const [toolActive, setToolActive] = useState(true)
-  const [thinkActive, setThinkActive] = useState(false)
 
   // Track unread for collapsed state
   const [unreadCount, setUnreadCount] = useState(0)
@@ -395,10 +388,6 @@ export function RightChatPanel({
         hasMessages={messages.length > 0}
         mode={storeMode}
         onModeToggle={() => setStoreMode(storeMode === 'A' ? 'B' : 'A')}
-        toolActive={toolActive}
-        onToolToggle={() => setToolActive((v) => !v)}
-        thinkActive={thinkActive}
-        onThinkToggle={() => setThinkActive((v) => !v)}
       />
     </aside>
   )
@@ -462,7 +451,7 @@ function AiPanelHeader({
         style={{
           fontFamily: 'var(--font-mono)',
           fontSize: '10px',
-          color: ticker ? 'var(--amber)' : 'var(--text-3)',
+          color: ticker ? 'var(--accent)' : 'var(--text-3)',
           letterSpacing: '0.05em',
         }}
       >
@@ -778,21 +767,21 @@ function ThinkingIndicator(): React.ReactElement {
         <span
           style={{
             display: 'inline-block', width: '6px', height: '6px',
-            borderRadius: '50%', background: 'var(--amber)',
+            borderRadius: '50%', background: 'var(--accent)',
             animation: 'blink 1s 0ms infinite',
           }}
         />
         <span
           style={{
             display: 'inline-block', width: '6px', height: '6px',
-            borderRadius: '50%', background: 'var(--amber)',
+            borderRadius: '50%', background: 'var(--accent)',
             animation: 'blink 1s 150ms infinite',
           }}
         />
         <span
           style={{
             display: 'inline-block', width: '6px', height: '6px',
-            borderRadius: '50%', background: 'var(--amber)',
+            borderRadius: '50%', background: 'var(--accent)',
             animation: 'blink 1s 300ms infinite',
           }}
         />
@@ -816,10 +805,6 @@ interface AiInputAreaProps {
   hasMessages: boolean
   mode: AgentMode
   onModeToggle: () => void
-  toolActive: boolean
-  onToolToggle: () => void
-  thinkActive: boolean
-  onThinkToggle: () => void
 }
 
 function AiInputArea({
@@ -833,10 +818,6 @@ function AiInputArea({
   hasMessages,
   mode,
   onModeToggle,
-  toolActive,
-  onToolToggle,
-  thinkActive,
-  onThinkToggle,
 }: AiInputAreaProps): React.ReactElement {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isOverLimit = value.length > MAX_INPUT_LENGTH
@@ -851,17 +832,12 @@ function AiInputArea({
   }, [value])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
-    if (e.key === 'Enter' && e.shiftKey) return
-    // ⌘↵ or Enter → submit
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault()
-      if (!isEmpty && !isOverLimit && !isLoading) onSubmit()
-      return
-    }
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      if (!isEmpty && !isOverLimit && !isLoading) onSubmit()
-    }
+    if (e.key !== 'Enter') return
+    // 中文输入法选词时按 Enter 不能触发提交（关键 IME 兼容）
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
+    if (e.shiftKey) return  // Shift+Enter 换行
+    e.preventDefault()
+    if (!isEmpty && !isOverLimit && !isLoading) onSubmit()
   }
 
   return (
@@ -916,7 +892,9 @@ function AiInputArea({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="向 FinAgent 提问 · 输入 @ 引用文件 / 输入 / 选择 Pipeline"
+          placeholder={mode === 'B'
+            ? '输入 PL-XXX（例: PL-001 AAPL）启动 pipeline · ↵ 执行'
+            : '向 FinAgent 提问 · ↵ 发送 · ⇧↵ 换行'}
           rows={2}
           disabled={isLoading}
           aria-label={t('chat.input.placeholder')}
@@ -939,44 +917,16 @@ function AiInputArea({
         )}
 
         <div className="ai-input-bar">
-          {/* 附件 (Phase 5 TODO) */}
-          <button
-            className="input-btn"
-            title="附加文件 (@)"
-            type="button"
-            onClick={() => {/* Phase 5 */}}
-          >
-            <IconPaperclip size={13} />
-          </button>
-
-          {/* 工具开关 */}
-          <button
-            className={`input-btn${toolActive ? ' active' : ''}`}
-            title="工具开关"
-            type="button"
-            onClick={onToolToggle}
-          >
-            <IconTool size={13} />
-          </button>
-
-          {/* 深度思考 */}
-          <button
-            className={`input-btn${thinkActive ? ' active' : ''}`}
-            title="深度思考"
-            type="button"
-            onClick={onThinkToggle}
-          >
-            <IconClock size={13} />
-          </button>
-
-          {/* 模式切换 chip */}
+          {/* 模式切换 chip — A: 自由问答 / B: 启动 pipeline */}
           <button
             className={`input-mode${mode === 'B' ? ' mode-b' : ''}`}
-            title="切换模式"
+            title={mode === 'A'
+              ? '当前: 自由问答 — 点击切到 Pipeline 模式'
+              : '当前: Pipeline 模式（输入 PL-XXX 启动）— 点击切回问答'}
             onClick={onModeToggle}
             type="button"
           >
-            模式 · <span className="em">{mode}</span>
+            {mode === 'A' ? '问答' : 'Pipeline'} · <span className="em">{mode}</span>
           </button>
 
           <div className="spacer" />
@@ -1010,9 +960,10 @@ function AiInputArea({
                 cursor: isEmpty || isOverLimit ? 'not-allowed' : 'pointer',
               }}
               type="button"
+              title={mode === 'B' ? '执行 Pipeline (↵)' : '发送 (↵ · Shift+↵ 换行)'}
             >
-              {mode === 'B' ? '执行' : '运行'}
-              <span className="kbd">⌘↵</span>
+              {mode === 'B' ? '执行' : '发送'}
+              <span className="kbd">↵</span>
             </button>
           )}
         </div>

@@ -9,7 +9,7 @@ import { useDcfSensitivity } from '../hooks/useCompute'
 const STATUS_STYLES: Record<string, { color: string; label: string }> = {
   completed: { color: 'var(--positive)', label: 'Completed' },
   failed:    { color: 'var(--negative)', label: 'Failed' },
-  running:   { color: 'var(--gold)',     label: 'Running' },
+  running:   { color: 'var(--accent)',     label: 'Running' },
   created:   { color: 'var(--text-muted)', label: 'Created' },
 }
 
@@ -242,7 +242,7 @@ export default function RunHistory({ onBack }: Props) {
                           fontFamily: 'var(--font-mono)',
                           fontWeight: 700,
                           fontSize: '0.88rem',
-                          color: 'var(--gold)',
+                          color: 'var(--accent)',
                           letterSpacing: '0.03em',
                         }}>
                           {run.ticker}
@@ -262,7 +262,7 @@ export default function RunHistory({ onBack }: Props) {
                           borderRadius: 'var(--r-sm)',
                           background: run.status === 'completed' ? 'var(--positive-bg)'
                             : run.status === 'failed' ? 'var(--negative-bg)'
-                            : run.status === 'running' ? 'var(--gold-dim)'
+                            : run.status === 'running' ? 'var(--accent-dim)'
                             : 'transparent',
                         }}>
                           {st.label}

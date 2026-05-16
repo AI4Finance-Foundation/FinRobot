@@ -191,7 +191,7 @@ export default function AssumptionsEditor() {
               {'\u2192'} WACC
             </span>
             <div style={{ flex: 1 }} />
-            <span className="assumption-value" style={{ color: 'var(--gold)' }}>
+            <span className="assumption-value" style={{ color: 'var(--accent)' }}>
               {(waccDisplay * 100).toFixed(2)}%
             </span>
           </div>

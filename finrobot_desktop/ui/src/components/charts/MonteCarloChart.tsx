@@ -28,7 +28,7 @@ const CHART_TOOLTIP = {
 }
 
 const BAR_COLOR = '#60A5FA'
-const GOLD = '#C9A84C'
+const MARKER_COLOR = '#F59E0B'
 
 export default function MonteCarloChart({ result, currentPrice }: Props) {
   const { chartData, p25, p75, median, mean } = useMemo(() => {
@@ -100,17 +100,17 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
               strokeOpacity={0}
             />
 
-            {/* Current price line (gold dashed) */}
+            {/* Current price marker (dashed) */}
             {currentPrice != null && (
               <ReferenceLine
                 x={currentPrice}
-                stroke={GOLD}
+                stroke={MARKER_COLOR}
                 strokeWidth={1.5}
                 strokeDasharray="6 3"
                 label={{
                   value: `Current $${currentPrice.toFixed(0)}`,
                   position: 'top',
-                  fill: GOLD,
+                  fill: MARKER_COLOR,
                   fontSize: 10,
                   fontFamily: "'JetBrains Mono', monospace",
                 }}

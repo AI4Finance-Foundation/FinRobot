@@ -15,6 +15,8 @@ router = APIRouter(prefix="/api/notify", tags=["notify"])
 
 logger = logging.getLogger(__name__)
 
+_VALID_CHANNELS = frozenset({"feishu", "telegram", "discord", "email", "webhook"})
+
 
 class TestChannelResponse(BaseModel):
     channel: str
@@ -81,7 +83,6 @@ async def test_channel(channel: str, request: Request) -> TestChannelResponse:
 
     Returns 404 if the channel name is unknown or not configured.
     """
-    _VALID_CHANNELS = {"feishu", "telegram", "discord", "email", "webhook"}
     if channel not in _VALID_CHANNELS:
         raise HTTPException(
             status_code=404,

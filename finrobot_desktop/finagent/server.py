@@ -54,6 +54,10 @@ def _get_pipeline_factories() -> dict[str, Callable[..., Any]]:
     return get_pipeline_factories()
 
 
+# Analysis types accepted by the Excel export endpoint.
+_EXCEL_EXPORT_TYPES: frozenset[str] = frozenset({"dcf", "lbo", "comps"})
+
+
 async def hydrate_settings_from_secrets(settings: Any, secret_store: SecretStore) -> Any:
     """Return settings with API keys loaded from SecretStore."""
     update: dict[str, str] = {}
@@ -381,8 +385,6 @@ async def pipeline_stream(pipeline_type: str, ticker: str, request: Request) -> 
       - complete:   {ticker, report_url}
       - error:      {message}
     """
-    import asyncio
-
     factories = _get_pipeline_factories()
     if pipeline_type not in factories:
         return JSONResponse(
@@ -506,11 +508,10 @@ async def export_excel(analysis_type: str, ticker: str, request: Request) -> Res
     )
     from finagent.engine.models.financial import DCFResult, PeerComps
 
-    _VALID_TYPES = {"dcf", "lbo", "comps"}
-    if analysis_type not in _VALID_TYPES:
+    if analysis_type not in _EXCEL_EXPORT_TYPES:
         raise HTTPException(
             status_code=400,
-            detail=f"analysis_type must be one of {sorted(_VALID_TYPES)}",
+            detail=f"analysis_type must be one of {sorted(_EXCEL_EXPORT_TYPES)}",
         )
 
     cache = request.app.state.deps.report_cache.get(ticker.upper())

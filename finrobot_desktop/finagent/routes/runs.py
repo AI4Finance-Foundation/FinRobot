@@ -4,10 +4,11 @@ import asyncio
 import json
 import time
 from collections.abc import AsyncIterator
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from pydantic_ai import UnexpectedModelBehavior
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
@@ -15,6 +16,7 @@ from starlette.responses import StreamingResponse
 from finagent.engine.data.interface import ProviderError
 from finagent.engine.orchestrator import build_report_context
 from finagent.engine.pipelines.base import PipelineResult
+from finagent.engine.pipelines.registry import get_pipeline_factories
 from finagent.events import (
     ArtifactReady,
     RunCompleted,
@@ -81,8 +83,6 @@ class RunListResponse(BaseModel):
 
 @router.post("", response_model=CreateRunResponse)
 async def create_run(request_body: CreateRunRequest, request: Request) -> CreateRunResponse:
-    from finagent.engine.pipelines.registry import get_pipeline_factories
-
     factories = get_pipeline_factories()
     if request_body.pipeline_type not in factories:
         raise HTTPException(
@@ -181,10 +181,6 @@ async def stream_run_events(run_id: str, request: Request) -> StreamingResponse:
 
 
 async def _run_pipeline(run_id: str, request: Request) -> None:
-    from pydantic import ValidationError
-
-    from finagent.engine.pipelines.registry import get_pipeline_factories
-
     store: RunStore = request.app.state.run_store
     record = await store.get_run(run_id)
     if record is None:
@@ -341,6 +337,4 @@ def _result_to_json(result: PipelineResult) -> dict[str, Any]:
 
 
 def _iso_now() -> str:
-    from datetime import datetime, timezone
-
     return datetime.now(tz=timezone.utc).isoformat()

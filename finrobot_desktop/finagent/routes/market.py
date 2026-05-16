@@ -40,10 +40,10 @@ async def get_earnings_calendar(request: Request) -> list[dict[str, object]]:
     """
     from finagent.engine.compute.market import fetch_earnings_calendar
 
-    settings = getattr(request.app.state, "deps", None)
+    deps = getattr(request.app.state, "deps", None)
     fmp_key: str | None = None
-    if settings is not None:
-        fmp_key = getattr(settings.settings, "fmp_api_key", None) or None
+    if deps is not None:
+        fmp_key = getattr(deps.settings, "fmp_api_key", None) or None
 
     results = await fetch_earnings_calendar(fmp_key)
     return [r.model_dump() for r in results]

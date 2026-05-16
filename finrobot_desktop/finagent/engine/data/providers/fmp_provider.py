@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
 
@@ -73,7 +75,7 @@ class FMPProvider(DataProvider):
             )
         years: int | None = kwargs.get("years")
         limit = years if years and years > 1 else 1
-        try:
+        with self._wrap_errors(ticker, "fetch"):
             income = (
                 await self._get(f"/income-statement/{ticker}", params={"limit": limit})
             ).json()
@@ -81,14 +83,6 @@ class FMPProvider(DataProvider):
                 await self._get(f"/balance-sheet-statement/{ticker}", params={"limit": 1})
             ).json()
             profile = (await self._get(f"/profile/{ticker}")).json()
-        except httpx.TimeoutException as e:
-            raise ProviderError(f"FMP timeout for '{ticker}': {e}") from e
-        except httpx.HTTPStatusError as e:
-            raise ProviderError(f"FMP API error for '{ticker}': {e}") from e
-        except ProviderError:
-            raise
-        except (ValueError, KeyError, TypeError, AttributeError) as e:
-            raise ProviderError(f"FMP fetch failed for '{ticker}': {e}") from e
 
         bal = balance[0] if balance else {}
         prof = profile[0] if profile else {}
@@ -157,17 +151,8 @@ class FMPProvider(DataProvider):
 
     async def _fetch_news(self, ticker: str) -> DataResult:
         """Fetch recent news articles for a ticker from FMP /stock_news endpoint."""
-        try:
+        with self._wrap_errors(ticker, "news fetch"):
             resp = await self._get("/stock_news", params={"tickers": ticker, "limit": 20})
-        except httpx.TimeoutException as e:
-            raise ProviderError(f"FMP timeout fetching news for '{ticker}': {e}") from e
-        except httpx.HTTPStatusError as e:
-            raise ProviderError(f"FMP API error fetching news for '{ticker}': {e}") from e
-        except ProviderError:
-            raise
-        except (ValueError, KeyError, TypeError, AttributeError) as e:
-            raise ProviderError(f"FMP news fetch failed for '{ticker}': {e}") from e
-
         raw: list[dict[str, Any]] = resp.json()
         news_items = [
             {
@@ -188,17 +173,8 @@ class FMPProvider(DataProvider):
 
     async def _fetch_earnings(self, ticker: str) -> DataResult:
         """Fetch earnings surprises from FMP /earnings-surprises/{ticker}."""
-        try:
+        with self._wrap_errors(ticker, "earnings fetch"):
             resp = await self._get(f"/earnings-surprises/{ticker}")
-        except httpx.TimeoutException as e:
-            raise ProviderError(f"FMP timeout fetching earnings for '{ticker}': {e}") from e
-        except httpx.HTTPStatusError as e:
-            raise ProviderError(f"FMP API error fetching earnings for '{ticker}': {e}") from e
-        except ProviderError:
-            raise
-        except (ValueError, KeyError, TypeError, AttributeError) as e:
-            raise ProviderError(f"FMP earnings fetch failed for '{ticker}': {e}") from e
-
         raw: list[dict[str, Any]] = resp.json()
         earnings_history = [
             {
@@ -233,31 +209,16 @@ class FMPProvider(DataProvider):
         Otherwise fetches available transcripts and returns up to ``limit``
         most recent ones.
         """
-        try:
+        with self._wrap_errors(ticker, "earnings transcript fetch"):
             if quarter is not None and year is not None:
                 resp = await self._get(
                     f"/earning_call_transcript/{ticker}",
                     params={"quarter": quarter, "year": year},
                 )
-                raw: list[dict[str, Any]] = resp.json()
             else:
                 # FMP lists available transcripts at this endpoint without q/y params
-                resp = await self._get(
-                    f"/earning_call_transcript/{ticker}",
-                )
-                raw = resp.json()
-        except httpx.TimeoutException as e:
-            raise ProviderError(
-                f"FMP timeout fetching earnings transcript for '{ticker}': {e}"
-            ) from e
-        except httpx.HTTPStatusError as e:
-            raise ProviderError(
-                f"FMP API error fetching earnings transcript for '{ticker}': {e}"
-            ) from e
-        except ProviderError:
-            raise
-        except (ValueError, KeyError, TypeError, AttributeError) as e:
-            raise ProviderError(f"FMP earnings transcript fetch failed for '{ticker}': {e}") from e
+                resp = await self._get(f"/earning_call_transcript/{ticker}")
+        raw: list[dict[str, Any]] = resp.json()
 
         transcripts = []
         for item in raw[:limit]:
@@ -278,6 +239,22 @@ class FMPProvider(DataProvider):
             data_type=DataType.EARNINGS_TRANSCRIPT,
             timestamp=datetime.now(tz=timezone.utc),
         )
+
+    @contextmanager
+    def _wrap_errors(self, ticker: str, op: str) -> Iterator[None]:
+        """Translate httpx + parse errors into ProviderError with a uniform message.
+
+        Used by every public fetch path so each call site only needs to label
+        the operation; message formatting and exception fanout live here.
+        """
+        try:
+            yield
+        except httpx.TimeoutException as e:
+            raise ProviderError(f"FMP timeout during {op} for '{ticker}': {e}") from e
+        except httpx.HTTPStatusError as e:
+            raise ProviderError(f"FMP API error during {op} for '{ticker}': {e}") from e
+        except (ValueError, KeyError, TypeError, AttributeError) as e:
+            raise ProviderError(f"FMP {op} failed for '{ticker}': {e}") from e
 
     async def _get(self, path: str, params: dict[str, Any] | None = None) -> httpx.Response:
         """Make authenticated, rate-limited GET request to FMP API.

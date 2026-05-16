@@ -92,11 +92,18 @@ def scale_label(values: list[float]) -> tuple[float, str]:
 
 
 def figure_to_png(fig: Figure, cfg: ChartConfig) -> bytes:
-    """Render a matplotlib Figure to PNG bytes and close the figure."""
+    """Render a matplotlib Figure to PNG bytes and close the figure.
+
+    The figure is closed in a ``finally`` block so a savefig failure
+    (disk-full, ulimit, codec error) cannot leak the Figure into
+    matplotlib's process-wide registry — which is the actual driver of
+    the slow memory growth seen when this runs many times per request.
+    """
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=cfg.dpi, bbox_inches="tight")
-    plt.close(fig)
-    buf.seek(0)
+    try:
+        fig.savefig(buf, format="png", dpi=cfg.dpi, bbox_inches="tight")
+    finally:
+        plt.close(fig)
     return buf.getvalue()
 
 
@@ -106,12 +113,13 @@ def render_to_base64(fig: Figure, dpi: int = 150) -> str:
     Returns a string like ``data:image/png;base64,iVBOR...`` suitable for
     embedding in HTML or streaming via SSE to the frontend.
 
-    The figure is closed after rendering to free memory.
+    The figure is closed in a ``finally`` block (see ``figure_to_png``).
     """
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight")
-    plt.close(fig)
-    buf.seek(0)
+    try:
+        fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight")
+    finally:
+        plt.close(fig)
     encoded = base64.b64encode(buf.getvalue()).decode("ascii")
     return f"data:image/png;base64,{encoded}"
 

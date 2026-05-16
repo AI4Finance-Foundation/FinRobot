@@ -38,6 +38,7 @@ from finagent.engine.models.financial import (
     DCFResult,
     DDMInputs,
     DDMResult,
+    FinancialData,
     LBOInputs,
     LBOResult,
     PeerComps,
@@ -192,11 +193,15 @@ async def compare_companies(request_body: CompareRequest, request: Request) -> C
             pipeline = create_dcf_pipeline(sub_agents)
             result = await pipeline.execute(deps, ticker)
 
-            # Extract DCF result from structured data
+            # Single pass: pick up DCFResult and FinancialData (supplementary metrics)
             dcf_result: DCFResult | None = None
+            financials: FinancialData | None = None
             for value in result.structured_data.values():
-                if isinstance(value, DCFResult):
+                if dcf_result is None and isinstance(value, DCFResult):
                     dcf_result = value
+                elif financials is None and isinstance(value, FinancialData):
+                    financials = value
+                if dcf_result is not None and financials is not None:
                     break
 
             if dcf_result is None:
@@ -204,32 +209,14 @@ async def compare_companies(request_body: CompareRequest, request: Request) -> C
                     ticker=ticker, error="DCF pipeline completed but no DCFResult found"
                 )
 
-            # Extract financial data for supplementary metrics
-            company_name = ""
-            current_price: float | None = None
-            ev_ebitda: float | None = None
-            pe_ratio: float | None = None
-            warnings: list[str] = []
-
-            from finagent.engine.models.financial import FinancialData
-
-            for value in result.structured_data.values():
-                if isinstance(value, FinancialData):
-                    company_name = value.company_name
-                    current_price = value.market.current_price
-                    ev_ebitda = value.valuation.ev_ebitda
-                    pe_ratio = value.market.pe_ratio
-                    warnings = list(value.warnings)
-                    break
-
             return build_company_valuation(
                 ticker=ticker,
-                company_name=company_name,
-                current_price=current_price,
+                company_name=financials.company_name if financials else "",
+                current_price=financials.market.current_price if financials else None,
                 dcf_result=dcf_result,
-                ev_ebitda=ev_ebitda,
-                pe_ratio=pe_ratio,
-                warnings=warnings,
+                ev_ebitda=financials.valuation.ev_ebitda if financials else None,
+                pe_ratio=financials.market.pe_ratio if financials else None,
+                warnings=list(financials.warnings) if financials else [],
             )
         except (ValueError, RuntimeError, KeyError, TypeError) as e:
             logger.warning("Compare: %s failed: %s", ticker, e)

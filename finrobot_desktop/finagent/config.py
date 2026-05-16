@@ -32,6 +32,11 @@ _PROVIDER_KEY_FIELD: dict[str, str] = {
     "openai": "openai_api_key",
 }
 
+# Sub-agent roles with per-role model_<role> overrides on FinAgentSettings.
+# Used by get_model_for_role + validate_runtime_config; keep in sync with the
+# model_data / model_analysis / ... fields declared on FinAgentSettings.
+_AGENT_ROLES: tuple[str, ...] = ("data", "analysis", "modeling", "synthesis", "report")
+
 
 class FinAgentSettings(BaseSettings):
     """FinAgent configuration.
@@ -130,7 +135,7 @@ class FinAgentSettings(BaseSettings):
                 "  Or add it to .env or ~/.finagent/settings.json"
             )
         names_to_check: list[str] = [self.model_name]
-        for role in ("data", "analysis", "modeling", "synthesis", "report"):
+        for role in _AGENT_ROLES:
             override = getattr(self, f"model_{role}", None)
             if override:
                 names_to_check.append(override)

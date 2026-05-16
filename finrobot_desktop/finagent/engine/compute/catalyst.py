@@ -46,6 +46,16 @@ _SENTIMENT_MULT: dict[str, float] = {
 }
 
 
+def _expected_impact(event: CatalystEvent) -> float:
+    """Signed expected impact = impact_score × probability × sentiment_multiplier.
+
+    Single source of truth used by compute_expected_impact and
+    summarize_catalyst_outlook so the formula stays in lockstep.
+    """
+    mult = _SENTIMENT_MULT.get(event.sentiment, 0.0)
+    return event.impact_score * event.probability * mult
+
+
 # ---------------------------------------------------------------------------
 # Original functions (preserved from P1.5)
 # ---------------------------------------------------------------------------
@@ -146,13 +156,9 @@ def compute_expected_impact(events: list[CatalystEvent]) -> list[CatalystEvent]:
     Returns:
         Events sorted by absolute expected impact, highest first.
     """
-    scored: list[tuple[float, float, CatalystEvent]] = []
-    for e in events:
-        mult = _SENTIMENT_MULT.get(e.sentiment, 0.0)
-        ei = e.impact_score * e.probability * mult
-        scored.append((abs(ei), ei, e))
+    scored = [(abs(_expected_impact(e)), e) for e in events]
     scored.sort(key=lambda x: x[0], reverse=True)
-    return [s[2] for s in scored]
+    return [s[1] for s in scored]
 
 
 def summarize_catalyst_outlook(events: list[CatalystEvent]) -> dict[str, Any]:
@@ -174,8 +180,7 @@ def summarize_catalyst_outlook(events: list[CatalystEvent]) -> dict[str, Any]:
     negatives: list[CatalystEvent] = []
 
     for e in events:
-        mult = _SENTIMENT_MULT.get(e.sentiment, 0.0)
-        net += e.impact_score * e.probability * mult
+        net += _expected_impact(e)
         breakdown[e.category] = breakdown.get(e.category, 0) + 1
         if e.sentiment == "positive":
             positives.append(e)

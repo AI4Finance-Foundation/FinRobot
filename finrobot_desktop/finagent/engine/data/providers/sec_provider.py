@@ -37,6 +37,11 @@ class SECEdgarProvider(DataProvider):
         self._user_agent = user_agent
         self._last_request: float = 0.0
         self._lock = asyncio.Lock()
+        # company_tickers.json is ~5MB and lists every SEC-registered ticker.
+        # It changes rarely, so cache the parsed ticker→CIK map per provider
+        # instance to avoid re-downloading on every fetch() call.
+        self._ticker_cik_map: dict[str, str] | None = None
+        self._ticker_cik_lock = asyncio.Lock()
 
     @property
     def name(self) -> str:
@@ -222,12 +227,32 @@ class SECEdgarProvider(DataProvider):
         return text.strip()
 
     async def _resolve_cik(self, ticker: str) -> str:
-        """Resolve ticker to zero-padded CIK."""
-        tickers = (await self._get("https://www.sec.gov/files/company_tickers.json")).json()
-        for entry in tickers.values():
-            if entry.get("ticker", "").upper() == ticker.upper():
-                return str(entry["cik_str"]).zfill(10)
-        raise ProviderError(f"Could not resolve CIK for ticker '{ticker}'")
+        """Resolve ticker to zero-padded CIK.
+
+        Uses the per-instance ticker→CIK cache so the 5MB company_tickers.json
+        is downloaded at most once per provider lifetime.
+        """
+        cache = await self._load_ticker_cik_map()
+        cik = cache.get(ticker.upper())
+        if cik is None:
+            raise ProviderError(f"Could not resolve CIK for ticker '{ticker}'")
+        return cik
+
+    async def _load_ticker_cik_map(self) -> dict[str, str]:
+        """Lazily fetch and parse company_tickers.json into a ticker→CIK map."""
+        if self._ticker_cik_map is not None:
+            return self._ticker_cik_map
+        async with self._ticker_cik_lock:
+            if self._ticker_cik_map is not None:
+                return self._ticker_cik_map
+            tickers = (await self._get("https://www.sec.gov/files/company_tickers.json")).json()
+            mapping: dict[str, str] = {}
+            for entry in tickers.values():
+                symbol = str(entry.get("ticker", "")).upper()
+                if symbol:
+                    mapping[symbol] = str(entry["cik_str"]).zfill(10)
+            self._ticker_cik_map = mapping
+            return mapping
 
     async def _get(
         self,

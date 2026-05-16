@@ -86,19 +86,17 @@ class DataLayer:
                 # then merge: primary's own warnings + secondary's own
                 # warnings + any new discrepancies. Dropping secondary's
                 # warnings here would hide e.g. "FMP data delayed 15min"
-                # from the user (P3 audit I4). Order is preserved while
-                # de-duping so the same warning text isn't shown twice.
+                # from the user (P3 audit I4). dict.fromkeys preserves
+                # insertion order while de-duping so the same warning text
+                # isn't shown twice.
                 discrepancies = cross_validate(primary_result, result)
-                if discrepancies:
-                    for w in discrepancies:
-                        logger.warning(w)
-                merged: list[str] = []
-                seen: set[str] = set()
-                for w in list(primary_result.warnings) + list(result.warnings) + discrepancies:
-                    if w in seen:
-                        continue
-                    seen.add(w)
-                    merged.append(w)
+                for w in discrepancies:
+                    logger.warning(w)
+                merged = list(
+                    dict.fromkeys(
+                        [*primary_result.warnings, *result.warnings, *discrepancies]
+                    )
+                )
                 if merged != list(primary_result.warnings):
                     primary_result = primary_result.model_copy(update={"warnings": merged})
                 secondary_count += 1

@@ -61,10 +61,13 @@ class DataCache:
     async def _ensure_connection(self) -> aiosqlite.Connection:
         """Lazily create connection and table on first use, then reuse.
 
-        Lock prevents TOCTOU race when multiple coroutines call _ensure_connection
-        simultaneously before the first connection is established.
+        Hot path skips the lock entirely once the connection exists; the
+        lock only guards the first-init race (TOCTOU when multiple
+        coroutines call this simultaneously before the connection is set).
         WAL mode is enabled on first open so concurrent set() calls don't SQLITE_BUSY.
         """
+        if self._conn is not None:
+            return self._conn
         async with self._conn_lock:
             if self._conn is None:
                 self._conn = await aiosqlite.connect(self._db_path)

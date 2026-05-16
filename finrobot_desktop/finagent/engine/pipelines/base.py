@@ -241,19 +241,23 @@ class Pipeline:
 
         return pipeline_result
 
-    async def _execute_step_once(
+    async def _attempt(
         self,
         step: PipelineStep,
         deps: "FinAgentDeps",
         prompt: str,
-        structured_results: dict[str, object],
         ticker: str,
-    ) -> StepOutput | str:
-        """Execute a single step once via step.executor.
+        results: dict[str, str],
+        structured_results: dict[str, object],
+    ) -> ValidationResult:
+        """Run executor + store output + validate. Returns the validation result.
 
-        Returns the raw output before it is stored into results dicts.
+        Used by both the first attempt and each retry inside _run_step, so the
+        execute → store → validate triple lives in exactly one place.
         """
-        return await step.executor(step.agent, deps, prompt, structured_results, ticker)
+        output = await step.executor(step.agent, deps, prompt, structured_results, ticker)
+        self._store_output(step.name, output, results, structured_results)
+        return self._validate_step(step, step.name, results, structured_results)
 
     @staticmethod
     def _store_output(
@@ -304,15 +308,12 @@ class Pipeline:
         Returns the validation error string if the step failed after all retries,
         or None if the step passed validation.
         """
-        # First attempt
-        output = await self._execute_step_once(step, deps, prompt, structured_results, ticker)
-        self._store_output(step.name, output, results, structured_results)
-        validation = self._validate_step(step, step.name, results, structured_results)
-
+        validation = await self._attempt(
+            step, deps, prompt, ticker, results, structured_results
+        )
         if validation.passed:
             return None
 
-        # Retry loop
         for attempt in range(self.max_retries):
             logger.warning(
                 f"Step '{step.name}' retry {attempt + 1}/{self.max_retries}: {validation.error}"
@@ -325,16 +326,9 @@ class Pipeline:
                 f"Previous output failed validation: {validation.error}\n"
                 f"Fix the issues and try again.\n\n{results[step.name]}"
             )
-            output = await self._execute_step_once(
-                step,
-                deps,
-                retry_prompt,
-                structured_results,
-                ticker,
+            validation = await self._attempt(
+                step, deps, retry_prompt, ticker, results, structured_results
             )
-            self._store_output(step.name, output, results, structured_results)
-            validation = self._validate_step(step, step.name, results, structured_results)
-
             if validation.passed:
                 return None
 

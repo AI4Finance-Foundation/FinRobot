@@ -3,18 +3,27 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from pydantic_ai import Agent
 
+from finagent.engine.compute.data_processor import (
+    extract_historical_metrics,
+    forecast_financials,
+)
 from finagent.engine.compute.extractor import extract_financial_data
+from finagent.engine.compute.valuation_synthesis import synthesize_valuations
+from finagent.engine.data.interface import DataResult
 from finagent.engine.data.types import DataType
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import (
+    DCFResult,
     FinancialData,
     ForecastResult,
     HistoricalMetrics,
     MarginAssumptions,
+    PeerComps,
     StepOutput,
     ValuationMethod,
     ValuationSynthesis,
@@ -79,8 +88,6 @@ async def _build_historical_metrics(
     deps: FinAgentDeps, ticker: str, current_fd: FinancialData
 ) -> HistoricalMetrics | None:
     """Fetch multi-year data and build HistoricalMetrics. Returns None on failure."""
-    from finagent.engine.compute.data_processor import extract_historical_metrics
-
     try:
         if not hasattr(deps.data_layer, "fetch_historical"):
             return None
@@ -97,9 +104,6 @@ async def _build_historical_metrics(
 
         # Convert each yearly DataResult to FinancialData
         # Use a dummy price result (historical price not critical for metrics)
-        from finagent.engine.data.interface import DataResult
-        from datetime import datetime, timezone
-
         dummy_price = DataResult(
             data={"price_history": [{"close": current_fd.market.current_price}]},
             provider="derived",
@@ -127,8 +131,6 @@ async def _build_historical_metrics(
 
 def _build_forecast(hm: HistoricalMetrics) -> ForecastResult | None:
     """Build 3-year forecast from historical metrics with reasonable defaults."""
-    from finagent.engine.compute.data_processor import forecast_financials
-
     try:
         # Use historical revenue growth trend, clamped to reasonable range
         growth_rates = []
@@ -178,9 +180,6 @@ def build_valuation_synthesis(
     current_price: float,
 ) -> ValuationSynthesis | None:
     """Build ValuationSynthesis from DCFResult + PeerComps in structured_context."""
-    from finagent.engine.compute.valuation_synthesis import synthesize_valuations
-    from finagent.engine.models.financial import DCFResult, PeerComps
-
     methods: list[ValuationMethod] = []
 
     dcf = structured_context.get("financial_modeling")

@@ -163,6 +163,7 @@ async def compute_monte_carlo(request: MonteCarloRequest) -> MonteCarloResult:
         ebitda_margin_std=request.ebitda_margin_std,
         wacc_std=request.wacc_std,
         terminal_growth_std=request.terminal_growth_std,
+        mid_year=request.mid_year,
     )
 
 

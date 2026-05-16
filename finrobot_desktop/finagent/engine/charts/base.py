@@ -13,12 +13,9 @@ import base64
 import io
 from typing import Literal
 
-import matplotlib
-
-matplotlib.use("Agg")
-
-from matplotlib.figure import Figure  # noqa: E402
-from pydantic import BaseModel  # noqa: E402
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from pydantic import BaseModel
 
 
 class ChartConfig(BaseModel):
@@ -94,10 +91,8 @@ def scale_label(values: list[float]) -> tuple[float, str]:
     return 1.0, "$"
 
 
-def figure_to_png(fig: "Figure", cfg: ChartConfig) -> bytes:
+def figure_to_png(fig: Figure, cfg: ChartConfig) -> bytes:
     """Render a matplotlib Figure to PNG bytes and close the figure."""
-    import matplotlib.pyplot as plt
-
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=cfg.dpi, bbox_inches="tight")
     plt.close(fig)
@@ -115,8 +110,6 @@ def render_to_base64(fig: Figure, dpi: int = 150) -> str:
     """
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight")
-    import matplotlib.pyplot as plt
-
     plt.close(fig)
     buf.seek(0)
     encoded = base64.b64encode(buf.getvalue()).decode("ascii")

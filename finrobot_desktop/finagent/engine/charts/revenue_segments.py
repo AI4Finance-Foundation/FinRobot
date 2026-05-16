@@ -12,14 +12,10 @@ from __future__ import annotations
 
 from itertools import cycle
 
-import matplotlib
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 
-matplotlib.use("Agg")
-
-import matplotlib.pyplot as plt  # noqa: E402
-from matplotlib.figure import Figure  # noqa: E402
-
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, figure_to_png  # noqa: E402
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, figure_to_png
 
 
 def _build_palette(cfg: ChartConfig) -> list[str]:

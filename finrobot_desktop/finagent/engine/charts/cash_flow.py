@@ -11,13 +11,9 @@ visual encoding cannot be produced by text-only LLM output.
 
 from __future__ import annotations
 
-import matplotlib
-
-matplotlib.use("Agg")
-
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-from matplotlib.figure import Figure  # noqa: E402
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.figure import Figure
 
 from finagent.engine.charts.base import (
     ChartConfig,
@@ -25,7 +21,7 @@ from finagent.engine.charts.base import (
     _num,
     figure_to_png,
     scale_label,
-)  # noqa: E402
+)
 
 
 def _create_figure(

@@ -9,15 +9,11 @@ widths and offsets cannot be produced by text-only LLM output.
 
 from __future__ import annotations
 
-import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.figure import Figure
 
-matplotlib.use("Agg")
-
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-from matplotlib.figure import Figure  # noqa: E402
-
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, figure_to_png  # noqa: E402
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, figure_to_png
 
 # Colour palette for years — extends beyond ChartConfig's 3 named colours
 # so charts with 4+ years still look distinct.

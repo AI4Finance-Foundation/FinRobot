@@ -10,14 +10,10 @@ series discovery cannot be produced by text-only LLM output.
 
 from __future__ import annotations
 
-import matplotlib
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 
-matplotlib.use("Agg")
-
-import matplotlib.pyplot as plt  # noqa: E402
-from matplotlib.figure import Figure  # noqa: E402
-
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, figure_to_png  # noqa: E402
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, figure_to_png
 
 # Styling palette for up to 6 series; cycles if more are needed.
 _LINE_STYLES: list[tuple[str, str]] = [

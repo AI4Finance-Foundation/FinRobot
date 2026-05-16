@@ -1,7 +1,7 @@
 // RightChatPanel — Phase 4 rewrite.
 //
 // Visual: accent theme, 420px, aligned 1:1 to finagent.html prototype.
-// State:  useUiStore (aiPanelOpen / aiPanelWidth / mode / currentModel /
+// State:  useUiStore (aiPanelOpen / aiPanelWidth / currentModel /
 //         contextBundle) replaces useUiPrefs.chatExpanded.
 //
 // Props:  expanded / onToggle are kept for backward-compatibility with
@@ -17,13 +17,11 @@ import type { UIMessage, UIMessagePart, UIDataTypes, UITools, DynamicToolUIPart 
 import { isTextUIPart, isToolUIPart, isReasoningUIPart } from 'ai'
 import { useToastStore } from '../stores/toastStore'
 import { useUiStore } from '../stores/uiStore'
-import type { AgentMode } from '../stores/uiStore'
 import { ToolCard } from '../components/ToolCard'
 import type { ToolResult } from '../components/ToolCard'
 import { MarkdownLite } from '../components/MarkdownLite'
 import { useI18n } from '../i18n'
 import { ContextBar } from './AIPanel/ContextBar'
-import { PIPELINES } from '../lib/pipelines'
 
 // ──────────────────────────────────────────────────────────────
 // Constants
@@ -83,13 +81,12 @@ export function RightChatPanel({
   // ── uiStore bindings ────────────────────────────────────────
   const storeOpen       = useUiStore((s) => s.aiPanelOpen)
   const storeWidth      = useUiStore((s) => s.aiPanelWidth)
-  const storeMode       = useUiStore((s) => s.mode)
   const storeModel      = useUiStore((s) => s.currentModel)
   const toggleAiPanel   = useUiStore((s) => s.toggleAiPanel)
   const setAiPanelWidth = useUiStore((s) => s.setAiPanelWidth)
-  const setStoreMode    = useUiStore((s) => s.setMode)
   const setStoreModel   = useUiStore((s) => s.setCurrentModel)
-  const openTab         = useUiStore((s) => s.openTab)
+  const pendingChatPrompt   = useUiStore((s) => s.pendingChatPrompt)
+  const consumePendingPrompt = useUiStore((s) => s.consumePendingChatPrompt)
 
   // Prop-override: if caller supplies expanded/onToggle, use those.
   // Otherwise fall through to uiStore.
@@ -198,45 +195,29 @@ export function RightChatPanel({
     if (text.length > MAX_INPUT_LENGTH) return
     if (isLoading) return
 
-    // MODE B: parse PL-XXX and/or ticker → open pipeline tab
-    if (storeMode === 'B') {
-      // Try to match PL-XXX optionally followed by a ticker
-      const plMatch = text.match(/\b(PL-\d{3})\b/i)
-      const tickerMatch = text.match(/\b([A-Z]{1,5})\b/)
-      if (plMatch) {
-        const plId = plMatch[1].toUpperCase()
-        const pipeline = PIPELINES.find((p) => p.id === plId)
-        if (pipeline) {
-          const tabTicker = tickerMatch ? tickerMatch[1] : ticker
-          openTab({
-            id: `pipeline:${plId}`,
-            kind: 'pipeline',
-            title: `${pipeline.name}${tabTicker ? ` · ${tabTicker}` : ''}`,
-            payload: { pipelineId: plId, ticker: tabTicker },
-          })
-          setInputText('')
-          return
-        }
-      }
-      // No valid PL-XXX → toast
-      addToast({
-        type: 'error',
-        title: '请输入 PL-XXX 或 ticker',
-        description: '示例: "PL-001 AAPL" 或 "PL-002"',
-      })
-      return
-    }
-
-    // MODE A: normal sendMessage
     clearError()
     sendMessage({ text })
     setInputText('')
-  }, [inputText, isLoading, storeMode, sendMessage, clearError, openTab, ticker, addToast])
+  }, [inputText, isLoading, sendMessage, clearError])
 
   const handleReload = useCallback(() => {
     clearError()
     regenerate()
   }, [clearError, regenerate])
+
+  // ── Pending prompt from Dashboard hero (or anywhere) ─────────
+  // Fills the input box; auto-sends if the caller requested it.
+  useEffect(() => {
+    if (!pendingChatPrompt) return
+    const { text, autoSend } = pendingChatPrompt
+    setInputText(text)
+    consumePendingPrompt()
+    if (autoSend && !isLoading) {
+      clearError()
+      sendMessage({ text })
+      setInputText('')
+    }
+  }, [pendingChatPrompt, consumePendingPrompt, isLoading, sendMessage, clearError])
 
   const startNewSession = useCallback(() => {
     const id = crypto.randomUUID()
@@ -386,8 +367,6 @@ export function RightChatPanel({
         onReload={handleReload}
         error={error}
         hasMessages={messages.length > 0}
-        mode={storeMode}
-        onModeToggle={() => setStoreMode(storeMode === 'A' ? 'B' : 'A')}
       />
     </aside>
   )
@@ -803,8 +782,6 @@ interface AiInputAreaProps {
   onReload: () => void
   error: Error | undefined
   hasMessages: boolean
-  mode: AgentMode
-  onModeToggle: () => void
 }
 
 function AiInputArea({
@@ -816,8 +793,6 @@ function AiInputArea({
   onReload,
   error,
   hasMessages,
-  mode,
-  onModeToggle,
 }: AiInputAreaProps): React.ReactElement {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isOverLimit = value.length > MAX_INPUT_LENGTH
@@ -892,9 +867,7 @@ function AiInputArea({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={mode === 'B'
-            ? '输入 PL-XXX（例: PL-001 AAPL）启动 pipeline · ↵ 执行'
-            : '向 FinAgent 提问 · ↵ 发送 · ⇧↵ 换行'}
+          placeholder="向 FinAgent 提问 · ↵ 发送 · ⇧↵ 换行"
           rows={2}
           disabled={isLoading}
           aria-label={t('chat.input.placeholder')}
@@ -917,18 +890,6 @@ function AiInputArea({
         )}
 
         <div className="ai-input-bar">
-          {/* 模式切换 chip — A: 自由问答 / B: 启动 pipeline */}
-          <button
-            className={`input-mode${mode === 'B' ? ' mode-b' : ''}`}
-            title={mode === 'A'
-              ? '当前: 自由问答 — 点击切到 Pipeline 模式'
-              : '当前: Pipeline 模式（输入 PL-XXX 启动）— 点击切回问答'}
-            onClick={onModeToggle}
-            type="button"
-          >
-            {mode === 'A' ? '问答' : 'Pipeline'} · <span className="em">{mode}</span>
-          </button>
-
           <div className="spacer" />
 
           {/* 发送 / 停止 */}
@@ -954,15 +915,15 @@ function AiInputArea({
               data-testid="send-btn"
               onClick={onSubmit}
               disabled={isEmpty || isOverLimit}
-              className={`send${mode === 'B' ? ' mode-b' : ''}`}
+              className="send"
               style={{
                 opacity: isEmpty || isOverLimit ? 0.45 : 1,
                 cursor: isEmpty || isOverLimit ? 'not-allowed' : 'pointer',
               }}
               type="button"
-              title={mode === 'B' ? '执行 Pipeline (↵)' : '发送 (↵ · Shift+↵ 换行)'}
+              title="发送 (↵ · Shift+↵ 换行)"
             >
-              {mode === 'B' ? '执行' : '发送'}
+              发送
               <span className="kbd">↵</span>
             </button>
           )}

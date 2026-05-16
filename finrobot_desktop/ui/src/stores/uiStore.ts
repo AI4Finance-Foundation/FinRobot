@@ -75,11 +75,6 @@ export interface ContextBundle {
   workspace_path: string
 }
 
-// ─── Conversation mode ────────────────────────────────────────────
-
-/** A = narrative (LLM agent), B = computation (pipeline). */
-export type AgentMode = 'A' | 'B'
-
 // ─── Store shape ──────────────────────────────────────────────────
 
 export type Theme = 'dark' | 'light'
@@ -100,9 +95,12 @@ interface UiStoreState {
   activeTabId: string | null
 
   // AI Panel
-  mode: AgentMode
   currentModel: string
   contextBundle: ContextBundle
+
+  /** One-shot message handoff from other parts of the UI (Dashboard hero, etc.)
+   * into RightChatPanel. Panel consumes & clears it on read. */
+  pendingChatPrompt: { text: string; autoSend: boolean } | null
 
   // ── Actions ───────────────────────────────────────────────────
   setAiPanelOpen: (open: boolean) => void
@@ -116,8 +114,12 @@ interface UiStoreState {
 
   openTab: (tab: Tab) => void
 
-  setMode: (m: AgentMode) => void
   setCurrentModel: (model: string) => void
+
+  /** Hand a prompt to RightChatPanel and (optionally) auto-send it.
+   * Opens the AI panel if collapsed. */
+  sendChatPrompt: (text: string, autoSend?: boolean) => void
+  consumePendingChatPrompt: () => void
 
   setSelectedText: (text: string | undefined) => void
   addPinned: (item: ContextItem) => void
@@ -164,9 +166,9 @@ export const useUiStore = create<UiStoreState>()(
       openTabs: [DASHBOARD_TAB],
       activeTabId: DASHBOARD_TAB.id,
 
-      mode: 'A',
       currentModel: 'deepseek',
       contextBundle: initialContext,
+      pendingChatPrompt: null,
 
       // AI panel
       setAiPanelOpen: (aiPanelOpen) => set({ aiPanelOpen }),
@@ -202,9 +204,16 @@ export const useUiStore = create<UiStoreState>()(
           }
         }),
 
-      // mode & model
-      setMode: (mode) => set({ mode }),
+      // model
       setCurrentModel: (currentModel) => set({ currentModel }),
+
+      // chat handoff (Dashboard hero → RightChatPanel)
+      sendChatPrompt: (text, autoSend = true) =>
+        set({
+          pendingChatPrompt: { text, autoSend },
+          aiPanelOpen: true,
+        }),
+      consumePendingChatPrompt: () => set({ pendingChatPrompt: null }),
 
       // context bundle
       setSelectedText: (selected_text) =>
@@ -264,7 +273,6 @@ export const useUiStore = create<UiStoreState>()(
         aiPanelWidth: s.aiPanelWidth,
         aiPanelOpen: s.aiPanelOpen,
         theme: s.theme,
-        mode: s.mode,
         currentModel: s.currentModel,
         workspacePath: s.workspacePath,
       }),

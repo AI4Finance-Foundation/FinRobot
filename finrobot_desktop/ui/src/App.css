@@ -3388,17 +3388,6 @@ select.input-field {
 }
 .input-btn:hover { color: var(--text-primary); background: var(--elevated); }
 .input-btn.active { color: var(--accent); background: var(--accent-dim); }
-.input-mode {
-  font-family: var(--font-mono);
-  font-size: 11px; color: var(--text-muted);
-  background: var(--elevated); padding: 4px 8px;
-  border-radius: var(--r-sm); cursor: pointer;
-  margin-left: 4px; letter-spacing: 0.03em;
-  border: 1px solid var(--border-subtle); outline: none;
-}
-.input-mode:hover { color: var(--text-primary); }
-.input-mode .em { color: var(--accent); }
-.input-mode.mode-b .em { color: var(--accent); }
 .ai-input-bar .spacer { flex: 1; }
 .send {
   background: var(--accent); color: #FFFFFF;
@@ -3409,8 +3398,6 @@ select.input-field {
   display: flex; align-items: center; gap: 5px;
 }
 .send:hover { background: var(--accent-hover); }
-.send.mode-b { background: var(--accent); }
-.send.mode-b:hover { background: var(--accent-hover); }
 .send .kbd { opacity: 0.7; font-size: 10px; }
 
 /* 拖拽调宽手柄 */

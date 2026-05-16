@@ -108,19 +108,23 @@ class FMPProvider(DataProvider):
         inc: dict[str, Any], bal: dict[str, Any], prof: dict[str, Any]
     ) -> dict[str, Any]:
         """Extract a flat dict of normalized financial fields for one year."""
+        revenue = inc.get("revenue")
+        gross_profit = inc.get("grossProfit")
+        operating_income = inc.get("operatingIncome")
+        net_income = inc.get("netIncome")
+        mkt_cap = prof.get("mktCap")
+        price = prof.get("price")
+        shares = int(mkt_cap / price) if mkt_cap and price else None
+        # PE = market_cap / net_income (algebraically equivalent to
+        # price / EPS where EPS = net_income / shares = net_income * price / mkt_cap).
+        pe_ratio = mkt_cap / net_income if mkt_cap and net_income and net_income > 0 else None
         return {
-            "revenue": inc.get("revenue"),
+            "revenue": revenue,
             "ebitda": inc.get("ebitda"),
-            "net_income": inc.get("netIncome"),
-            "gross_margin": (
-                inc["grossProfit"] / inc["revenue"]
-                if inc.get("grossProfit") and inc.get("revenue")
-                else None
-            ),
+            "net_income": net_income,
+            "gross_margin": gross_profit / revenue if gross_profit and revenue else None,
             "operating_margin": (
-                inc["operatingIncome"] / inc["revenue"]
-                if inc.get("operatingIncome") and inc.get("revenue")
-                else None
+                operating_income / revenue if operating_income and revenue else None
             ),
             "depreciation_amortization": inc.get("depreciationAndAmortization"),
             "rd_expense": inc.get("researchAndDevelopmentExpenses"),
@@ -128,22 +132,11 @@ class FMPProvider(DataProvider):
             "interest_expense": inc.get("interestExpense"),
             "total_debt": bal.get("totalDebt", 0),
             "total_cash": bal.get("cashAndCashEquivalents", 0),
-            "market_cap": prof.get("mktCap"),
-            "shares_outstanding": (
-                int(prof["mktCap"] / prof["price"])
-                if prof.get("mktCap") and prof.get("price")
-                else None
-            ),
-            "pe_ratio": (
-                prof["price"] / (inc["netIncome"] / int(prof["mktCap"] / prof["price"]))
-                if inc.get("netIncome")
-                and prof.get("mktCap")
-                and prof.get("price")
-                and inc["netIncome"] > 0
-                else None
-            ),
+            "market_cap": mkt_cap,
+            "shares_outstanding": shares,
+            "pe_ratio": pe_ratio,
             "beta": prof.get("beta"),
-            "current_price": prof.get("price"),
+            "current_price": price,
             "company_name": prof.get("companyName"),
             "industry": prof.get("industry"),
             "sector": prof.get("sector"),

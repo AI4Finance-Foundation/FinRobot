@@ -1,4 +1,6 @@
+import base64
 import logging
+import statistics
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -7,22 +9,40 @@ from pydantic_ai import Agent, RunContext
 
 from finagent.config import FinAgentSettings
 from finagent.engine.agents.factory import create_sub_agents
+from finagent.engine.charts.base import ChartDataPoint
+from finagent.engine.charts.eps_pe import render as render_eps_pe
+from finagent.engine.charts.football_field import render as render_football_field
+from finagent.engine.charts.margin_trend import render as render_margin_trend
+from finagent.engine.charts.peer_comparison import render as render_peer_comparison
+from finagent.engine.charts.radar import render as render_radar
+from finagent.engine.charts.revenue_ebitda import render as render_revenue_ebitda
+from finagent.engine.charts.revenue_yoy import render as render_revenue_yoy
+from finagent.engine.charts.sensitivity import render as render_sensitivity
+from finagent.engine.charts.time_series_multi import render as render_time_series_multi
+from finagent.engine.charts.waterfall import render as render_waterfall
+from finagent.engine.data.types import DataType
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import (
+    CatalystAnalysis,
     DCFResult,
     DDMResult,
     FinancialData,
+    ForecastResult,
+    HistoricalMetrics,
     LBOInputs,
     LBOResult,
     PeerComps,
     ThesisResult,
-    CatalystAnalysis,
-    ForecastResult,
-    HistoricalMetrics,
     ValuationSynthesis,
 )
-from finagent.engine.data.types import DataType
 from finagent.engine.pipelines.base import PipelineResult
+from finagent.engine.pipelines.comps import create_comps_pipeline
+from finagent.engine.pipelines.dcf import create_dcf_pipeline
+from finagent.engine.pipelines.ddm import create_ddm_pipeline
+from finagent.engine.pipelines.earnings_analysis import create_earnings_analysis_pipeline
+from finagent.engine.pipelines.equity_research import create_equity_research_pipeline
+from finagent.engine.pipelines.ic_memo import create_ic_memo_pipeline
+from finagent.engine.pipelines.lbo import create_lbo_pipeline
 from finagent.engine.skills.registry import SkillRegistry
 
 logger = logging.getLogger(__name__)
@@ -30,8 +50,6 @@ logger = logging.getLogger(__name__)
 
 def _safe_render(chart_name: str, render_fn: Any, *args: Any) -> str | None:
     """Call a chart render function; return base64 data URI or None on failure."""
-    import base64
-
     try:
         png_bytes: bytes = render_fn(*args)
         encoded = base64.b64encode(png_bytes).decode("ascii")
@@ -55,8 +73,6 @@ def _generate_charts(
     Each chart is wrapped in try/except so one failure never blocks the report.
     Returns a dict of chart_name → base64 data URI string.
     """
-    from finagent.engine.charts.base import ChartDataPoint
-
     charts: dict[str, str] = {}
 
     # --- Charts from HistoricalMetrics ---
@@ -90,9 +106,7 @@ def _generate_charts(
             title=f"{hm.ticker} Revenue & EBITDA",
             data=rev_ebitda_rows,
         )
-        from finagent.engine.charts.revenue_ebitda import render as render_rev
-
-        uri = _safe_render("revenue_ebitda", render_rev, data)
+        uri = _safe_render("revenue_ebitda", render_revenue_ebitda, data)
         if uri:
             charts["revenue_ebitda"] = uri
 
@@ -111,9 +125,7 @@ def _generate_charts(
             title=f"{hm.ticker} Margin Trends",
             data=margin_rows,
         )
-        from finagent.engine.charts.margin_trend import render as render_margin
-
-        uri = _safe_render("margin_trend", render_margin, data)
+        uri = _safe_render("margin_trend", render_margin_trend, data)
         if uri:
             charts["margin_trend"] = uri
 
@@ -130,9 +142,7 @@ def _generate_charts(
             title=f"{hm.ticker} EPS & P/E",
             data=eps_rows,
         )
-        from finagent.engine.charts.eps_pe import render as render_eps
-
-        uri = _safe_render("eps_pe", render_eps, data)
+        uri = _safe_render("eps_pe", render_eps_pe, data)
         if uri:
             charts["eps_pe"] = uri
 
@@ -145,9 +155,7 @@ def _generate_charts(
             title=f"{hm.ticker} Revenue YoY Growth",
             data=rev_yoy_rows,
         )
-        from finagent.engine.charts.revenue_yoy import render as render_yoy
-
-        uri = _safe_render("revenue_yoy", render_yoy, data)
+        uri = _safe_render("revenue_yoy", render_revenue_yoy, data)
         if uri:
             charts["revenue_yoy"] = uri
 
@@ -166,9 +174,7 @@ def _generate_charts(
             title=f"{hm.ticker} Key Metrics",
             data=ts_rows,
         )
-        from finagent.engine.charts.time_series_multi import render as render_ts
-
-        uri = _safe_render("time_series_multi", render_ts, data)
+        uri = _safe_render("time_series_multi", render_time_series_multi, data)
         if uri:
             charts["time_series_multi"] = uri
 
@@ -195,9 +201,7 @@ def _generate_charts(
                     title="DCF Sensitivity",
                     data=sens_rows,
                 )
-                from finagent.engine.charts.sensitivity import render as render_sens
-
-                uri = _safe_render("sensitivity", render_sens, data)
+                uri = _safe_render("sensitivity", render_sensitivity, data)
                 if uri:
                     charts["sensitivity"] = uri
 
@@ -212,9 +216,7 @@ def _generate_charts(
             },
         ]
         data = ChartDataPoint(chart_type="waterfall", title="DCF Waterfall", data=wf_rows)
-        from finagent.engine.charts.waterfall import render as render_wf
-
-        uri = _safe_render("waterfall", render_wf, data)
+        uri = _safe_render("waterfall", render_waterfall, data)
         if uri:
             charts["waterfall"] = uri
 
@@ -242,16 +244,13 @@ def _generate_charts(
             title="EV/EBITDA Peer Comparison",
             data=pc_rows,
         )
-        from finagent.engine.charts.peer_comparison import render as render_peer
-
-        uri = _safe_render("peer_comparison", render_peer, data)
+        uri = _safe_render("peer_comparison", render_peer_comparison, data)
         if uri:
             charts["peer_comparison"] = uri
 
         # radar: target vs peer median
         target = peer_comps.target
         if peer_comps.peers:
-            import statistics
 
             def _median(vals: list[float]) -> float:
                 return statistics.median(vals) if vals else 0.0
@@ -280,8 +279,6 @@ def _generate_charts(
             data = ChartDataPoint(
                 chart_type="radar", title=f"{target.ticker} vs Peers", data=radar_rows
             )
-            from finagent.engine.charts.radar import render as render_radar
-
             uri = _safe_render("radar", render_radar, data)
             if uri:
                 charts["radar"] = uri
@@ -297,9 +294,7 @@ def _generate_charts(
             title="Valuation Range",
             data=ff_rows,
         )
-        from finagent.engine.charts.football_field import render as render_ff
-
-        uri = _safe_render("football_field", render_ff, data)
+        uri = _safe_render("football_field", render_football_field, data)
         if uri:
             charts["football_field"] = uri
 
@@ -483,8 +478,6 @@ def create_lead_agent(
 
     # --- Mode B tools: pipeline dispatch for deep analysis ---
 
-    from finagent.engine.pipelines.equity_research import create_equity_research_pipeline
-
     equity_pipeline = create_equity_research_pipeline(sub_agents)
 
     @agent.tool
@@ -500,8 +493,6 @@ def create_lead_agent(
             "artifact_id": result.artifact_id,
             "ticker": ticker.upper(),
         }
-
-    from finagent.engine.pipelines.comps import create_comps_pipeline
 
     comps_pipeline = create_comps_pipeline(sub_agents)
 
@@ -519,8 +510,6 @@ def create_lead_agent(
             "ticker": ticker.upper(),
         }
 
-    from finagent.engine.pipelines.dcf import create_dcf_pipeline
-
     dcf_pipeline = create_dcf_pipeline(sub_agents)
 
     @agent.tool
@@ -537,8 +526,6 @@ def create_lead_agent(
             "ticker": ticker.upper(),
         }
 
-    from finagent.engine.pipelines.lbo import create_lbo_pipeline
-
     lbo_pipeline = create_lbo_pipeline(sub_agents)
 
     @agent.tool
@@ -554,8 +541,6 @@ def create_lead_agent(
             "artifact_id": result.artifact_id,
             "ticker": ticker.upper(),
         }
-
-    from finagent.engine.pipelines.ddm import create_ddm_pipeline
 
     ddm_pipeline = create_ddm_pipeline(sub_agents)
 
@@ -574,8 +559,6 @@ def create_lead_agent(
             "ticker": ticker.upper(),
         }
 
-    from finagent.engine.pipelines.earnings_analysis import create_earnings_analysis_pipeline
-
     earnings_pipeline = create_earnings_analysis_pipeline(sub_agents)
 
     @agent.tool
@@ -591,8 +574,6 @@ def create_lead_agent(
             "artifact_id": result.artifact_id,
             "ticker": ticker.upper(),
         }
-
-    from finagent.engine.pipelines.ic_memo import create_ic_memo_pipeline
 
     ic_memo_pipeline = create_ic_memo_pipeline(sub_agents)
 

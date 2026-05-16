@@ -228,6 +228,10 @@ def calculate_lbo_sensitivity(
 ) -> dict[str, Any]:
     """Build IRR and MOIC sensitivity grids vs entry/exit EV/EBITDA multiples.
 
+    Runs the debt schedule once (it depends on leverage_multiple × ltm_ebitda,
+    not on entry/exit multiples), then computes MOIC and IRR for each
+    (entry, exit) pair from the schedule's exit EBITDA and remaining debt.
+
     Grid axes:
     - Rows: entry EV/EBITDA multiples (entry_range)
     - Cols: exit EV/EBITDA multiples (exit_range)
@@ -245,23 +249,31 @@ def calculate_lbo_sensitivity(
         exit_range = [round(base_exit - 2.0 + i * 0.5, 2) for i in range(9)]
         exit_range = [e for e in exit_range if e > 0]
 
+    # --- Run schedule once (entry_debt is fixed regardless of entry multiple) ---
+    entry_debt = inputs.leverage_multiple * inputs.ltm_ebitda
+    schedule, exit_ebitda, _ = _run_schedule(inputs, entry_debt)
+    remaining_debt = schedule[-1].ending_debt
+    years = inputs.holding_period_years
+
+    # --- Compute MOIC/IRR for each (entry, exit) pair ---
     irr_grid: list[list[float | None]] = []
     moic_grid: list[list[float | None]] = []
 
     for e_entry in entry_range:
         irr_row: list[float | None] = []
         moic_row: list[float | None] = []
+        entry_equity = e_entry * inputs.ltm_ebitda - entry_debt
         for e_exit in exit_range:
-            try:
-                override = inputs.model_copy(
-                    update={"entry_ev_ebitda": e_entry, "exit_ev_ebitda": e_exit}
-                )
-                r = _calculate_lbo_core(override)
-                irr_row.append(round(r.irr, 4))
-                moic_row.append(round(r.moic, 2))
-            except (ValueError, ArithmeticError, ZeroDivisionError):
+            if entry_equity <= 0:
                 irr_row.append(None)
                 moic_row.append(None)
+                continue
+            exit_ev = e_exit * exit_ebitda
+            exit_equity = exit_ev - remaining_debt
+            moic = exit_equity / entry_equity if entry_equity > 0 else 0.0
+            irr = _compute_irr(entry_equity, exit_equity, years)
+            irr_row.append(round(irr, 4))
+            moic_row.append(round(moic, 2))
         irr_grid.append(irr_row)
         moic_grid.append(moic_row)
 

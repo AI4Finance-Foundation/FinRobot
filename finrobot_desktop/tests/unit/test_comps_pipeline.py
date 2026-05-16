@@ -141,12 +141,3 @@ def test_comps_pipeline_has_structured_validator_on_target_data():
     assert isinstance(step.validator, StructuredValidator)
 
 
-def test_comps_pipeline_multiples_calc_has_custom_executor():
-    from finagent.engine.pipelines.comps import create_comps_pipeline
-    from finagent.engine.pipelines.base import DefaultAgentExecutor
-    from unittest.mock import MagicMock
-
-    agents = {k: MagicMock() for k in ["data", "analysis", "modeling", "report"]}
-    pipeline = create_comps_pipeline(agents)
-    step = next(s for s in pipeline.steps if s.name == "multiples_calc")
-    assert not isinstance(step.executor, DefaultAgentExecutor)

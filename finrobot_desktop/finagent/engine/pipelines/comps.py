@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from pydantic_ai import Agent
 
 from finagent.engine.data.types import DataType
-from finagent.engine.deps import FinAgentDeps
 from finagent.engine.pipelines.base import (
     Pipeline,
     PipelineStep,
@@ -24,42 +22,6 @@ from finagent.engine.pipelines.validators import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-async def _execute_peer_data(
-    agent: Agent[Any, Any],
-    deps: FinAgentDeps,
-    prompt: str,
-    structured_context: dict[str, object],
-    ticker: str,
-) -> str:
-    """Fetch CompanyFinancials for each peer selected in peer_selection step."""
-    step_result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
-    return step_result.output  # type: ignore[no-any-return]
-
-
-async def _execute_multiples_calc(
-    agent: Agent[Any, Any],
-    deps: FinAgentDeps,
-    prompt: str,
-    structured_context: dict[str, object],
-    ticker: str,
-) -> str:
-    """Code computes multiples — no LLM needed for this step."""
-    step_result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
-    return step_result.output  # type: ignore[no-any-return]
-
-
-async def _execute_statistical_bench(
-    agent: Agent[Any, Any],
-    deps: FinAgentDeps,
-    prompt: str,
-    structured_context: dict[str, object],
-    ticker: str,
-) -> str:
-    """Code computes peer statistics if PeerComps is available."""
-    step_result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
-    return step_result.output  # type: ignore[no-any-return]
 
 
 def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
@@ -95,7 +57,6 @@ def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 validator=TextValidator(
                     lambda out: validate_has_fields(out, ["revenue", "ebitda"])
                 ),
-                executor=_execute_peer_data,
             ),
             PipelineStep(
                 name="multiples_calc",
@@ -103,7 +64,6 @@ def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 agent=agents["modeling"],
                 required_data=[],
                 validator=TextValidator(validate_is_non_empty),
-                executor=_execute_multiples_calc,
             ),
             PipelineStep(
                 name="statistical_bench",
@@ -114,7 +74,6 @@ def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
                     validate_peer_comps,
                     validate_is_non_empty,
                 ),
-                executor=_execute_statistical_bench,
             ),
             PipelineStep(
                 name="output_gen",

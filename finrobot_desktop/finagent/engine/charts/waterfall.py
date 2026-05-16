@@ -9,10 +9,9 @@ guarantee that free-text LLM output cannot replicate.
 
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, render_chart
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, new_axes, render_chart
 
 # Colours for positive / negative / total bars
 _COLOR_POSITIVE = "#2e7d32"
@@ -61,9 +60,7 @@ def _create_figure(
                 colors.append(_COLOR_NEGATIVE)
             running += val
 
-    fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
-    fig.patch.set_facecolor(cfg.background_color)
-    ax.set_facecolor(cfg.background_color)
+    fig, ax = new_axes(cfg)
 
     x_positions = list(range(len(labels)))
     ax.bar(

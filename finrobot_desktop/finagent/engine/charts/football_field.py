@@ -10,10 +10,9 @@ computation that cannot be replicated by free-text LLM output.
 
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, render_chart
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, new_axes, render_chart
 
 
 def _create_figure(
@@ -39,9 +38,7 @@ def _create_figure(
 
     widths = [h - lo for h, lo in zip(highs, lows)]
 
-    fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
-    fig.patch.set_facecolor(cfg.background_color)
-    ax.set_facecolor(cfg.background_color)
+    fig, ax = new_axes(cfg)
 
     y_positions = list(range(len(methods)))
     bar_height = 0.5

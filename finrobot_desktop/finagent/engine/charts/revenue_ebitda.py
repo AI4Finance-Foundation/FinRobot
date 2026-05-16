@@ -10,10 +10,9 @@ free-text LLM output.
 
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, render_chart
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, new_axes, render_chart
 
 
 def _create_figure(
@@ -35,9 +34,7 @@ def _create_figure(
 
     x_labels = [f"{y}E" if fc else str(y) for y, fc in zip(years, forecasts)]
 
-    fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
-    fig.patch.set_facecolor(cfg.background_color)
-    ax.set_facecolor(cfg.background_color)
+    fig, ax = new_axes(cfg)
 
     bar_width = 0.35
     x_positions = list(range(len(years)))

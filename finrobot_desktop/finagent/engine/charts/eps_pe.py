@@ -9,10 +9,9 @@ metrics with proper null handling cannot be replicated by free-text LLM output.
 
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, render_chart
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, new_axes, render_chart
 
 
 def _create_figure(
@@ -39,9 +38,7 @@ def _create_figure(
             pe_years.append(int(_num(r.get("year"))))
             pe_values.append(_num(pe))
 
-    fig, ax_eps = plt.subplots(figsize=(cfg.width, cfg.height))
-    fig.patch.set_facecolor(cfg.background_color)
-    ax_eps.set_facecolor(cfg.background_color)
+    fig, ax_eps = new_axes(cfg)
 
     # EPS bars — left y-axis
     x_positions = list(range(len(years)))

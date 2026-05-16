@@ -9,11 +9,10 @@ widths and offsets cannot be produced by text-only LLM output.
 
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, render_chart
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, new_axes, render_chart
 
 # Colour palette for years — extends beyond ChartConfig's 3 named colours
 # so charts with 4+ years still look distinct.
@@ -73,9 +72,7 @@ def _create_figure(
     # Assign colours: use ChartConfig first two, then palette extras
     palette = [cfg.primary_color, cfg.accent_color] + _YEAR_PALETTE[2:]
 
-    fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
-    fig.patch.set_facecolor(cfg.background_color)
-    ax.set_facecolor(cfg.background_color)
+    fig, ax = new_axes(cfg)
 
     for i, year in enumerate(years):
         values = [lookup.get((q, year), 0.0) for q in seen_quarters]

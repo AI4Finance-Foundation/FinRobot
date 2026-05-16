@@ -16,7 +16,7 @@ import re
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, render_chart
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, new_axes, render_chart
 
 # Pattern for keys that represent percentage/ratio metrics
 _RATIO_PATTERN = re.compile(r"(margin|ratio|pct)", re.IGNORECASE)
@@ -54,7 +54,7 @@ def _create_figure(
     rows = data.data
 
     if not rows:
-        fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
+        fig, ax = new_axes(cfg)
         ax.set_title(data.title)
         return fig
 
@@ -67,9 +67,7 @@ def _create_figure(
     left_keys: list[str] = sorted(k for k in all_keys if not _is_ratio_key(k))
     right_keys: list[str] = sorted(k for k in all_keys if _is_ratio_key(k))
 
-    fig, ax_left = plt.subplots(figsize=(cfg.width, cfg.height))
-    fig.patch.set_facecolor(cfg.background_color)
-    ax_left.set_facecolor(cfg.background_color)
+    fig, ax_left = new_axes(cfg)
 
     x = list(range(len(x_labels)))
     lines_all = []

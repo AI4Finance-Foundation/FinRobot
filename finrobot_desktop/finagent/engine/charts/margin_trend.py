@@ -13,10 +13,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, render_chart
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, new_axes, render_chart
 
 
 @dataclass
@@ -66,9 +65,7 @@ def _create_figure(
 
     years = [int(_num(r.get("year"))) for r in rows]
 
-    fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
-    fig.patch.set_facecolor(cfg.background_color)
-    ax.set_facecolor(cfg.background_color)
+    fig, ax = new_axes(cfg)
 
     last_values: list[float] = []
     for ml in lines:

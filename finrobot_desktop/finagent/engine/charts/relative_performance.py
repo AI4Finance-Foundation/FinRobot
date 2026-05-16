@@ -10,10 +10,9 @@ series discovery cannot be produced by text-only LLM output.
 
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, render_chart
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, new_axes, render_chart
 
 # Styling palette for up to 6 series; cycles if more are needed.
 _LINE_STYLES: list[tuple[str, str]] = [
@@ -48,7 +47,7 @@ def _create_figure(
     rows = data.data
 
     if not rows:
-        fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
+        fig, ax = new_axes(cfg)
         ax.set_title(data.title)
         return fig
 
@@ -60,9 +59,7 @@ def _create_figure(
         k for k in rows[0] if isinstance(k, str) and k.endswith("_return")
     )
 
-    fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
-    fig.patch.set_facecolor(cfg.background_color)
-    ax.set_facecolor(cfg.background_color)
+    fig, ax = new_axes(cfg)
 
     for idx, key in enumerate(series_keys):
         values = [_num(r.get(key)) for r in rows]

@@ -11,10 +11,9 @@ from __future__ import annotations
 
 import statistics
 
-import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, render_chart
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, new_axes, render_chart
 
 
 def _create_figure(
@@ -47,9 +46,7 @@ def _create_figure(
 
     x_indices = list(range(len(dates)))
 
-    fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
-    fig.patch.set_facecolor(cfg.background_color)
-    ax.set_facecolor(cfg.background_color)
+    fig, ax = new_axes(cfg)
 
     # Shaded ±1σ band
     ax.fill_between(

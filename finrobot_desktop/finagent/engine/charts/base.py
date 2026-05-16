@@ -121,6 +121,25 @@ def validate_png(data: bytes) -> bool:
     return data[:4] == b"\x89PNG"
 
 
+def new_axes(cfg: ChartConfig, **subplots_kwargs: Any) -> tuple[Figure, Any]:
+    """Create a Figure + single Axes with the standard config background.
+
+    Wraps the ``plt.subplots(figsize=...) + fig.patch.set_facecolor +
+    ax.set_facecolor`` triplet that 13 of 17 chart modules repeat verbatim.
+    Forwards ``**subplots_kwargs`` so callers can still pass e.g.
+    ``subplot_kw={"projection": "polar"}``.
+
+    Returns ``(fig, ax)`` where ``ax`` is whatever ``plt.subplots`` returns —
+    a single Axes for the default case; the caller is responsible for
+    overriding ``ax.set_facecolor`` if a non-config background is wanted
+    (e.g. ``sensitivity.py`` overlays a grey background for masked cells).
+    """
+    fig, ax = plt.subplots(figsize=(cfg.width, cfg.height), **subplots_kwargs)
+    fig.patch.set_facecolor(cfg.background_color)
+    ax.set_facecolor(cfg.background_color)
+    return fig, ax
+
+
 def render_chart(
     create_figure: Callable[..., Figure],
     data: ChartDataPoint,

@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, render_chart
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, new_axes, render_chart
 
 
 def _create_figure(
@@ -54,9 +54,8 @@ def _create_figure(
 
     masked_grid = np.ma.masked_invalid(grid)  # type: ignore[no-untyped-call]
 
-    fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
-    fig.patch.set_facecolor(cfg.background_color)
-    ax.set_facecolor("#e0e0e0")  # grey background for masked/null cells
+    fig, ax = new_axes(cfg)
+    ax.set_facecolor("#e0e0e0")  # override: grey background for masked/null cells
 
     # Diverging colourmap — green=high price, red=low price
     cmap = plt.cm.RdYlGn  # type: ignore[attr-defined]

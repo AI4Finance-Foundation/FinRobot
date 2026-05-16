@@ -10,10 +10,9 @@ free-text LLM output.
 
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, render_chart
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, new_axes, render_chart
 
 
 def _create_figure(
@@ -32,9 +31,7 @@ def _create_figure(
     closes: list[float] = [_num(r.get("close")) for r in rows]
     volumes: list[float] = [_num(r.get("volume")) / 1e6 for r in rows]
 
-    fig, ax_price = plt.subplots(figsize=(cfg.width, cfg.height))
-    fig.patch.set_facecolor(cfg.background_color)
-    ax_price.set_facecolor(cfg.background_color)
+    fig, ax_price = new_axes(cfg)
 
     # Price line — left y-axis
     x_positions = list(range(len(dates)))

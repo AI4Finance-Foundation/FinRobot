@@ -11,7 +11,6 @@ visual encoding cannot be produced by text-only LLM output.
 
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 
@@ -19,6 +18,7 @@ from finagent.engine.charts.base import (
     ChartConfig,
     ChartDataPoint,
     _num,
+    new_axes,
     render_chart,
     scale_label,
 )
@@ -58,9 +58,7 @@ def _create_figure(
     fin_scaled = [v / divisor for v in financing]
     net_scaled = [o + i + f for o, i, f in zip(op_scaled, inv_scaled, fin_scaled)]
 
-    fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
-    fig.patch.set_facecolor(cfg.background_color)
-    ax.set_facecolor(cfg.background_color)
+    fig, ax = new_axes(cfg)
 
     x = np.arange(len(years))
     width = 0.6

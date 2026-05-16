@@ -9,10 +9,9 @@ formatting cannot be produced by text-only LLM output.
 
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, render_chart
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, new_axes, render_chart
 
 
 def _create_figure(
@@ -54,9 +53,7 @@ def _create_figure(
     negative_color = "#ef4444"  # red-500
     colors = [positive_color if v >= 0 else negative_color for v in yoy_values]
 
-    fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
-    fig.patch.set_facecolor(cfg.background_color)
-    ax.set_facecolor(cfg.background_color)
+    fig, ax = new_axes(cfg)
 
     ax.bar(yoy_years, yoy_values, color=colors, edgecolor="none", width=0.6)
 

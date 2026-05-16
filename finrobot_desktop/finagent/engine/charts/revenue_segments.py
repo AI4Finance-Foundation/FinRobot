@@ -12,10 +12,9 @@ from __future__ import annotations
 
 from itertools import cycle
 
-import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, render_chart
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, new_axes, render_chart
 
 
 def _build_palette(cfg: ChartConfig) -> list[str]:
@@ -48,9 +47,7 @@ def _create_figure(
     palette = _build_palette(cfg)
     colors = [c for _, c in zip(range(len(labels)), cycle(palette))]
 
-    fig, ax = plt.subplots(figsize=(cfg.width, cfg.height))
-    fig.patch.set_facecolor(cfg.background_color)
-    ax.set_facecolor(cfg.background_color)
+    fig, ax = new_axes(cfg)
 
     ax.pie(
         sizes,

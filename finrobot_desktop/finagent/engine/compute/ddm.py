@@ -90,8 +90,20 @@ def calculate_ddm_sensitivity(
 ) -> dict[str, object]:
     """Generate sensitivity table: equity value per share for each (CoE, tg) pair.
 
-    Returns None for cells where tg >= cost_of_equity (Gordon Growth undefined).
+    Projects dividends once (they don't depend on CoE or TG), then discounts
+    at each (CoE, TG) combination. Returns None for cells where tg >= CoE
+    (Gordon Growth Model undefined).
     """
+    # --- Project dividends once (CoE/TG-independent) ---
+    projected_dividends: list[float] = []
+    current_dividend = inputs.dividend_per_share
+    for rate in inputs.dividend_growth_rates:
+        current_dividend *= 1 + rate
+        projected_dividends.append(current_dividend)
+    n = len(projected_dividends)
+    last_dividend = projected_dividends[-1]
+
+    # --- Discount at each (CoE, TG) pair ---
     implied_prices: list[list[float | None]] = []
     for coe in coe_range:
         row: list[float | None] = []
@@ -99,16 +111,10 @@ def calculate_ddm_sensitivity(
             if tg >= coe:
                 row.append(None)
             else:
-                # Override cost of equity and terminal growth by reconstructing inputs
-                # with adjusted CAPM parameters
-                modified = inputs.model_copy(update={"terminal_growth_rate": tg})
-                # Direct CoE override: back-solve beta from desired CoE
-                # CoE = rf + beta * ERP  =>  beta = (CoE - rf) / ERP
-                if inputs.equity_risk_premium > 0:
-                    synthetic_beta = (coe - inputs.risk_free_rate) / inputs.equity_risk_premium
-                    modified = modified.model_copy(update={"beta": max(0, synthetic_beta)})
-                result = calculate_ddm(modified)
-                row.append(result.equity_value_per_share)
+                pv_divs = sum(d / (1 + coe) ** (i + 1) for i, d in enumerate(projected_dividends))
+                tv = last_dividend * (1 + tg) / (coe - tg)
+                pv_tv = tv / (1 + coe) ** n
+                row.append(pv_divs + pv_tv)
         implied_prices.append(row)
     return {
         "coe_values": coe_range,

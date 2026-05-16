@@ -35,7 +35,7 @@ from finagent.engine.models.financial import (
     ThesisResult,
     ValuationSynthesis,
 )
-from finagent.engine.pipelines.base import PipelineResult
+from finagent.engine.pipelines.base import Pipeline, PipelineResult
 from finagent.engine.pipelines.comps import create_comps_pipeline
 from finagent.engine.pipelines.dcf import create_dcf_pipeline
 from finagent.engine.pipelines.ddm import create_ddm_pipeline
@@ -302,6 +302,23 @@ def _generate_charts(
     return charts
 
 
+async def _run_pipeline_tool(
+    ctx: RunContext[FinAgentDeps], ticker: str, pipeline: Pipeline
+) -> dict[str, Any]:
+    """Execute a pipeline, cache its report context, and return the tool summary dict.
+
+    Shared dispatch for every @agent.tool that wraps a Pipeline — keeps the
+    execute/cache/return-shape contract identical across all run_* tools.
+    """
+    result = await pipeline.execute(ctx.deps, ticker)
+    ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
+    return {
+        "summary": result.format_summary(),
+        "artifact_id": result.artifact_id,
+        "ticker": ticker.upper(),
+    }
+
+
 def _collect_warnings(result: PipelineResult) -> list[str]:
     """Collect all warnings from structured data for the Data Source Notes section."""
     warnings: list[str] = []
@@ -486,13 +503,7 @@ def create_lead_agent(
         Uses a multi-step enforced pipeline. Takes 30-120 seconds.
         Use this when the user asks for: equity research, initiating coverage,
         stock analysis report, investment thesis, or deep-dive analysis."""
-        result = await equity_pipeline.execute(ctx.deps, ticker)
-        ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
-        return {
-            "summary": result.format_summary(),
-            "artifact_id": result.artifact_id,
-            "ticker": ticker.upper(),
-        }
+        return await _run_pipeline_tool(ctx, ticker, equity_pipeline)
 
     comps_pipeline = create_comps_pipeline(sub_agents)
 
@@ -502,13 +513,7 @@ def create_lead_agent(
         Uses a multi-step enforced pipeline.
         Use when user asks for: comps, comparable companies, peer analysis,
         trading multiples comparison."""
-        result = await comps_pipeline.execute(ctx.deps, ticker)
-        ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
-        return {
-            "summary": result.format_summary(),
-            "artifact_id": result.artifact_id,
-            "ticker": ticker.upper(),
-        }
+        return await _run_pipeline_tool(ctx, ticker, comps_pipeline)
 
     dcf_pipeline = create_dcf_pipeline(sub_agents)
 
@@ -518,13 +523,7 @@ def create_lead_agent(
         Uses a multi-step enforced pipeline.
         Use when user asks for: DCF, discounted cash flow, intrinsic value,
         valuation model."""
-        result = await dcf_pipeline.execute(ctx.deps, ticker)
-        ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
-        return {
-            "summary": result.format_summary(),
-            "artifact_id": result.artifact_id,
-            "ticker": ticker.upper(),
-        }
+        return await _run_pipeline_tool(ctx, ticker, dcf_pipeline)
 
     lbo_pipeline = create_lbo_pipeline(sub_agents)
 
@@ -534,13 +533,7 @@ def create_lead_agent(
         Uses a multi-step enforced pipeline with deterministic IRR/MOIC math.
         Use when user asks for: LBO, leveraged buyout, private equity analysis,
         buyout returns, IRR analysis, MOIC."""
-        result = await lbo_pipeline.execute(ctx.deps, ticker)
-        ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
-        return {
-            "summary": result.format_summary(),
-            "artifact_id": result.artifact_id,
-            "ticker": ticker.upper(),
-        }
+        return await _run_pipeline_tool(ctx, ticker, lbo_pipeline)
 
     ddm_pipeline = create_ddm_pipeline(sub_agents)
 
@@ -551,13 +544,7 @@ def create_lead_agent(
         Use when user asks for: DDM, dividend discount model, bank valuation,
         or when the company is a bank/financial institution.
         Also auto-selected when 'finagent dcf' detects a bank."""
-        result = await ddm_pipeline.execute(ctx.deps, ticker)
-        ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
-        return {
-            "summary": result.format_summary(),
-            "artifact_id": result.artifact_id,
-            "ticker": ticker.upper(),
-        }
+        return await _run_pipeline_tool(ctx, ticker, ddm_pipeline)
 
     earnings_pipeline = create_earnings_analysis_pipeline(sub_agents)
 
@@ -567,13 +554,7 @@ def create_lead_agent(
         Uses a multi-step enforced pipeline with deterministic beat/miss classification.
         Use when user asks for: earnings analysis, earnings quality, beat rate,
         earnings surprise, EPS trend."""
-        result = await earnings_pipeline.execute(ctx.deps, ticker)
-        ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
-        return {
-            "summary": result.format_summary(),
-            "artifact_id": result.artifact_id,
-            "ticker": ticker.upper(),
-        }
+        return await _run_pipeline_tool(ctx, ticker, earnings_pipeline)
 
     ic_memo_pipeline = create_ic_memo_pipeline(sub_agents)
 
@@ -583,12 +564,6 @@ def create_lead_agent(
         Uses a multi-step pipeline with IRR hurdle gate (PASS if IRR < 15%).
         Use when user asks for: IC memo, investment committee memo, PE analysis,
         buyout memo, invest/pass recommendation."""
-        result = await ic_memo_pipeline.execute(ctx.deps, ticker)
-        ctx.deps.report_cache[ticker.upper()] = build_report_context(ticker, result)
-        return {
-            "summary": result.format_summary(),
-            "artifact_id": result.artifact_id,
-            "ticker": ticker.upper(),
-        }
+        return await _run_pipeline_tool(ctx, ticker, ic_memo_pipeline)
 
     return agent  # type: ignore[return-value]

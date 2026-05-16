@@ -62,6 +62,13 @@ _CREATE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id)",
 ]
 
+# Column order consumed by _row_to_run; keep the SELECT lists below in sync
+# with this tuple so positional decoding matches the row layout.
+_RUN_SELECT_COLUMNS = (
+    "run_id, pipeline_type, ticker, status, created_at, completed_at, "
+    "duration_s, result_text, result_json, error"
+)
+
 
 class RunRecord(BaseModel):
     run_id: str
@@ -187,11 +194,7 @@ class RunStore:
     async def get_run(self, run_id: str) -> RunRecord | None:
         conn = await self._ensure_connection()
         async with conn.execute(
-            """
-            SELECT run_id, pipeline_type, ticker, status, created_at, completed_at,
-                   duration_s, result_text, result_json, error
-            FROM runs WHERE run_id = ?
-            """,
+            f"SELECT {_RUN_SELECT_COLUMNS} FROM runs WHERE run_id = ?",
             (run_id,),
         ) as cursor:
             row = await cursor.fetchone()
@@ -202,13 +205,7 @@ class RunStore:
     async def list_runs(self, limit: int = 50) -> list[RunRecord]:
         conn = await self._ensure_connection()
         async with conn.execute(
-            """
-            SELECT run_id, pipeline_type, ticker, status, created_at, completed_at,
-                   duration_s, result_text, result_json, error
-            FROM runs
-            ORDER BY created_at DESC
-            LIMIT ?
-            """,
+            f"SELECT {_RUN_SELECT_COLUMNS} FROM runs ORDER BY created_at DESC LIMIT ?",
             (limit,),
         ) as cursor:
             rows = await cursor.fetchall()

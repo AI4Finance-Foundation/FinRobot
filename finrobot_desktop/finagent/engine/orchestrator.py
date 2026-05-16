@@ -1,9 +1,10 @@
 import base64
 import logging
 import statistics
+from collections.abc import Iterable, Mapping
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from pydantic_ai import Agent, RunContext
 
@@ -46,6 +47,17 @@ from finagent.engine.pipelines.lbo import create_lbo_pipeline
 from finagent.engine.skills.registry import SkillRegistry
 
 logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
+
+
+def _first_of_type(sd: Mapping[str, Any], keys: Iterable[str], cls: type[_T]) -> _T | None:
+    """Return the first sd[key] that is an instance of cls, or None."""
+    for key in keys:
+        value = sd.get(key)
+        if isinstance(value, cls):
+            return value
+    return None
 
 
 def _safe_render(chart_name: str, render_fn: Any, *args: Any) -> str | None:
@@ -344,65 +356,17 @@ def build_report_context(ticker: str, result: PipelineResult) -> dict[str, Any]:
     """
     sd = result.structured_data
 
-    # Find FinancialData from whichever step produced it
-    fin: FinancialData | None = None
-    for key in ("data_collection", "historical_data", "target_data"):
-        candidate = sd.get(key)
-        if isinstance(candidate, FinancialData):
-            fin = candidate
-            break
-
-    # Extract typed models from known step names
-    dcf_result: DCFResult | None = None
-    for key in ("financial_modeling", "dcf_calc"):
-        candidate = sd.get(key)
-        if isinstance(candidate, DCFResult):
-            dcf_result = candidate
-            break
-
-    peer_comps: PeerComps | None = None
-    for key in ("peer_analysis", "statistical_bench"):
-        candidate = sd.get(key)
-        if isinstance(candidate, PeerComps):
-            peer_comps = candidate
-            break
-
-    thesis: ThesisResult | None = None
-    candidate = sd.get("thesis")
-    if isinstance(candidate, ThesisResult):
-        thesis = candidate
-
-    # Optional models (may not exist yet in all pipelines)
-    historical_metrics = sd.get("historical_metrics")
-    if not isinstance(historical_metrics, HistoricalMetrics):
-        historical_metrics = None
-
-    forecast = sd.get("forecast")
-    if not isinstance(forecast, ForecastResult):
-        forecast = None
-
-    catalyst_analysis = sd.get("catalyst_analysis")
-    if not isinstance(catalyst_analysis, CatalystAnalysis):
-        catalyst_analysis = None
-
-    valuation_synthesis = sd.get("valuation_synthesis")
-    if not isinstance(valuation_synthesis, ValuationSynthesis):
-        valuation_synthesis = None
-
-    lbo_inputs = sd.get("lbo_parameters")
-    if not isinstance(lbo_inputs, LBOInputs):
-        lbo_inputs = None
-
-    lbo_result = sd.get("lbo_calculation")
-    if not isinstance(lbo_result, LBOResult):
-        lbo_result = None
-
-    ddm_result: DDMResult | None = None
-    for key in ("ddm_calc",):
-        candidate = sd.get(key)
-        if isinstance(candidate, DDMResult):
-            ddm_result = candidate
-            break
+    fin = _first_of_type(sd, ("data_collection", "historical_data", "target_data"), FinancialData)
+    dcf_result = _first_of_type(sd, ("financial_modeling", "dcf_calc"), DCFResult)
+    peer_comps = _first_of_type(sd, ("peer_analysis", "statistical_bench"), PeerComps)
+    thesis = _first_of_type(sd, ("thesis",), ThesisResult)
+    historical_metrics = _first_of_type(sd, ("historical_metrics",), HistoricalMetrics)
+    forecast = _first_of_type(sd, ("forecast",), ForecastResult)
+    catalyst_analysis = _first_of_type(sd, ("catalyst_analysis",), CatalystAnalysis)
+    valuation_synthesis = _first_of_type(sd, ("valuation_synthesis",), ValuationSynthesis)
+    lbo_inputs = _first_of_type(sd, ("lbo_parameters",), LBOInputs)
+    lbo_result = _first_of_type(sd, ("lbo_calculation",), LBOResult)
+    ddm_result = _first_of_type(sd, ("ddm_calc",), DDMResult)
 
     logger.info(
         "build_report_context: sd_keys=%s hm=%s forecast=%s dcf=%s peers=%s vs=%s",

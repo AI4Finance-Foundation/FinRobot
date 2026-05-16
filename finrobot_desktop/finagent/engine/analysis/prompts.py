@@ -20,13 +20,12 @@ from finagent.config import FinAgentSettings
 from finagent.engine.data.interface import DataResult
 from finagent.engine.data.layer import DataLayer
 from finagent.engine.data.types import DataType
-from finagent.engine.reports.html_renderer import _format_number, _format_percent
+from finagent.engine.reports.html_renderer import (
+    _format_number as _fmt_num,
+    _format_percent as _fmt_pct,
+)
 
 logger = logging.getLogger(__name__)
-
-# Reuse the shared formatters from html_renderer
-_fmt_num = _format_number
-_fmt_pct = _format_percent
 
 
 def _build_financials_table(data: dict[str, Any]) -> str:

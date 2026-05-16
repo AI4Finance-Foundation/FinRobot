@@ -72,7 +72,7 @@ const en: Dict = {
   'tab.valuation':             'Valuation',
   'tab.comps':                 'Comps',
   'tab.history':               'History',
-  'tab.research':              '10-K Q&A',
+  'tab.research':              '10-K',
 
   // ── Research (RAG Q&A) tab ──
   'research.heading':          '10-K Q&A',
@@ -262,7 +262,7 @@ const zh: Dict = {
   'tab.valuation':             '估值',
   'tab.comps':                 '可比公司',
   'tab.history':               '历史',
-  'tab.research':              '10-K 问答',
+  'tab.research':              '10-K',
 
   'research.heading':          '10-K 问答',
   'research.placeholder':      '针对这家公司的 10-K 年报提问…',

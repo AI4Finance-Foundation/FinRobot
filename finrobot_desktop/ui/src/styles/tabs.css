@@ -17,6 +17,7 @@
   font-weight: 500;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
 }
 
 .tab-btn:hover { color: var(--text-primary); }

@@ -15,14 +15,15 @@ import yfinance as yf
 
 
 async def fetch_price_history(ticker: str, period: str = "1y") -> dict[str, Any]:
-    """Fetch historical OHLCV price data from yfinance.
+    """Fetch historical OHLCV price data + header metadata from yfinance.
 
     Args:
         ticker: Stock ticker symbol (e.g. "AAPL").
         period: yfinance period string (e.g. "1y", "6mo", "5d").
 
     Returns:
-        Dict with current_price, history list, data_source, and warnings.
+        Dict with current_price, change, change_pct, market_cap, company_name,
+        history list, data_source, warnings.
 
     Raises:
         ValueError: If no price data is available for the ticker.
@@ -44,8 +45,26 @@ async def fetch_price_history(ticker: str, period: str = "1y") -> dict[str, Any]
                     "volume": int(row["Volume"]),
                 }
             )
+
+        current_price = info.get("currentPrice") or info.get("regularMarketPrice")
+
+        # Compute change/change_pct from history (last 2 closes) — more reliable
+        # than info.regularMarketChange which can lag during market hours.
+        change: float | None = None
+        change_pct: float | None = None
+        if len(hist) >= 2:
+            last_close = float(hist["Close"].iloc[-1])
+            prev_close = float(hist["Close"].iloc[-2])
+            change = last_close - prev_close
+            if prev_close != 0:
+                change_pct = (change / prev_close) * 100
+
         return {
-            "current_price": info.get("currentPrice") or info.get("regularMarketPrice"),
+            "current_price": current_price,
+            "change": change,
+            "change_pct": change_pct,
+            "market_cap": info.get("marketCap"),
+            "company_name": info.get("longName") or info.get("shortName"),
             "history": history,
             "data_source": "yfinance",
             "warnings": [],

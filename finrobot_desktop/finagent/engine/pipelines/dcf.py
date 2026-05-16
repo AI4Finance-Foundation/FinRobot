@@ -17,7 +17,10 @@ from finagent.engine.pipelines.base import (
     StructuredValidator,
     TextValidator,
 )
-from finagent.engine.pipelines._helpers import execute_financial_data_step
+from finagent.engine.pipelines._helpers import (
+    build_sensitivity_ranges,
+    execute_financial_data_step,
+)
 from finagent.engine.pipelines.validators import (
     validate_has_fields,
     validate_is_non_empty,
@@ -25,7 +28,6 @@ from finagent.engine.pipelines.validators import (
     validate_financial_data,
     validate_dcf_result,
 )
-from finagent.engine.pipelines.equity_research import _build_sensitivity_ranges
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +85,9 @@ async def _execute_dcf_calc(
         raise ValueError(f"LLM failed to produce valid DCF parameters: {e}") from e
 
     dcf_result = calculate_dcf(dcf_inputs)
-    wacc_range, tg_range = _build_sensitivity_ranges(dcf_result)
+    wacc_range, tg_range = build_sensitivity_ranges(
+        dcf_result.wacc, dcf_result.inputs.terminal_growth_rate
+    )
     sensitivity = calculate_sensitivity(dcf_inputs, wacc_range=wacc_range, tg_range=tg_range)
     dcf_result = dcf_result.model_copy(update={"sensitivity_table": sensitivity})
 

@@ -93,9 +93,11 @@ class TestGenerateDCFExcel:
         inputs = _dcf_inputs()
         result = calculate_dcf(inputs, wacc_override=0.10)
         from finagent.engine.compute.dcf import calculate_sensitivity
-        from finagent.engine.pipelines.equity_research import _build_sensitivity_ranges
+        from finagent.engine.pipelines._helpers import build_sensitivity_ranges
 
-        wacc_range, tg_range = _build_sensitivity_ranges(result)
+        wacc_range, tg_range = build_sensitivity_ranges(
+            result.wacc, result.inputs.terminal_growth_rate
+        )
         sensitivity = calculate_sensitivity(inputs, wacc_range=wacc_range, tg_range=tg_range)
         result = result.model_copy(update={"sensitivity_table": sensitivity})
 

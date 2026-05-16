@@ -18,7 +18,6 @@ from finagent.engine.models.financial import (
     PeerComps,
     PeerSelection,
     DCFInputs,
-    DCFResult,
     ThesisResult,
     StepOutput,
 )
@@ -38,7 +37,10 @@ from finagent.engine.pipelines.base import (
     StructuredValidator,
     TextValidator,
 )
-from finagent.engine.pipelines._helpers import execute_financial_data_step
+from finagent.engine.pipelines._helpers import (
+    build_sensitivity_ranges,
+    execute_financial_data_step,
+)
 from finagent.engine.pipelines.validators import (
     validate_catalyst_analysis,
     validate_has_fields,
@@ -248,7 +250,9 @@ async def _execute_financial_modeling(
         dcf_result = calculate_dcf(dcf_inputs)
     except (ValueError, ArithmeticError) as e:
         raise ValueError(f"DCF calculation failed with provided parameters: {e}") from e
-    wacc_range, tg_range = _build_sensitivity_ranges(dcf_result)
+    wacc_range, tg_range = build_sensitivity_ranges(
+        dcf_result.wacc, dcf_result.inputs.terminal_growth_rate
+    )
     sensitivity = calculate_sensitivity(dcf_inputs, wacc_range=wacc_range, tg_range=tg_range)
     dcf_result = dcf_result.model_copy(update={"sensitivity_table": sensitivity})
 
@@ -336,23 +340,6 @@ async def _execute_thesis(
         f"Risks: {', '.join(thesis.risks[:2])}."
     )
     return StepOutput(text=narrative, structured=thesis)
-
-
-def _build_sensitivity_ranges(dcf_result: DCFResult) -> tuple[list[float], list[float]]:
-    """Build WACC and terminal growth ranges for sensitivity analysis."""
-    wacc = dcf_result.wacc
-    tg = dcf_result.inputs.terminal_growth_rate
-
-    wacc_range = [round(max(0.03, wacc - 0.02 + i * 0.01), 4) for i in range(5)]
-    tg_candidates = [round(max(0.0, tg - 0.01 + i * 0.005), 4) for i in range(5)]
-
-    min_wacc = min(wacc_range)
-    tg_range = [g for g in tg_candidates if g < min_wacc]
-
-    if len(tg_range) < 2:
-        tg_range = [round(0.005 + i * 0.005, 4) for i in range(5) if 0.005 + i * 0.005 < min_wacc]
-
-    return wacc_range, tg_range
 
 
 def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:

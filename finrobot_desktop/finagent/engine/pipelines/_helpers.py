@@ -151,6 +151,28 @@ def _build_forecast(hm: HistoricalMetrics) -> ForecastResult | None:
         return None
 
 
+def build_sensitivity_ranges(
+    discount_rate: float, terminal_growth: float
+) -> tuple[list[float], list[float]]:
+    """Build (discount-rate, terminal-growth) sweep ranges for sensitivity tables.
+
+    Used by DCF (discount_rate=WACC) and DDM (discount_rate=cost of equity).
+    Both apply a ±2% sweep around discount_rate paired with terminal-growth
+    candidates filtered to stay strictly below min(discount_rate_range), so
+    every cell in the resulting grid is a valid Gordon-growth denominator.
+    """
+    rate_range = [round(max(0.03, discount_rate - 0.02 + i * 0.01), 4) for i in range(5)]
+    tg_candidates = [round(max(0.0, terminal_growth - 0.01 + i * 0.005), 4) for i in range(5)]
+
+    min_rate = min(rate_range)
+    tg_range = [g for g in tg_candidates if g < min_rate]
+
+    if len(tg_range) < 2:
+        tg_range = [round(0.005 + i * 0.005, 4) for i in range(5) if 0.005 + i * 0.005 < min_rate]
+
+    return rate_range, tg_range
+
+
 def build_valuation_synthesis(
     structured_context: dict[str, object],
     current_price: float,

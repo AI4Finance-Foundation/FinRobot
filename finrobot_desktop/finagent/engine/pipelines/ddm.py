@@ -29,7 +29,10 @@ from finagent.engine.pipelines.base import (
     StructuredValidator,
     TextValidator,
 )
-from finagent.engine.pipelines._helpers import execute_financial_data_step
+from finagent.engine.pipelines._helpers import (
+    build_sensitivity_ranges,
+    execute_financial_data_step,
+)
 from finagent.engine.pipelines.validators import (
     validate_ddm_inputs,
     validate_ddm_output,
@@ -123,16 +126,9 @@ async def _execute_ddm_calc(
 
     ddm_result = calculate_ddm(inputs)
 
-    # Build sensitivity table: CoE range x terminal growth range
-    coe = ddm_result.cost_of_equity
-    tg = inputs.terminal_growth_rate
-    coe_range = [round(max(0.03, coe - 0.02 + i * 0.01), 4) for i in range(5)]
-    tg_candidates = [round(max(0.0, tg - 0.01 + i * 0.005), 4) for i in range(5)]
-    min_coe = min(coe_range)
-    tg_range = [g for g in tg_candidates if g < min_coe]
-    if len(tg_range) < 2:
-        tg_range = [round(0.005 + i * 0.005, 4) for i in range(5) if 0.005 + i * 0.005 < min_coe]
-
+    coe_range, tg_range = build_sensitivity_ranges(
+        ddm_result.cost_of_equity, inputs.terminal_growth_rate
+    )
     sensitivity = calculate_ddm_sensitivity(inputs, coe_range=coe_range, tg_range=tg_range)
 
     # Extract price range from sensitivity

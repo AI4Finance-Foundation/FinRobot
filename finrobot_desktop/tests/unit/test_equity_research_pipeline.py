@@ -360,15 +360,10 @@ async def test_peer_analysis_raises_when_data_collection_missing(mock_deps):
 
 
 def test_build_sensitivity_ranges_returns_valid_ranges():
-    """_build_sensitivity_ranges returns non-empty tg_range that stays below min(wacc_range)."""
-    from finagent.engine.pipelines.equity_research import _build_sensitivity_ranges
+    """build_sensitivity_ranges returns non-empty tg_range that stays below min(rate_range)."""
+    from finagent.engine.pipelines._helpers import build_sensitivity_ranges
 
-    dcf_result = MagicMock()
-    dcf_result.wacc = 0.09
-    dcf_result.inputs = MagicMock()
-    dcf_result.inputs.terminal_growth_rate = 0.025
-
-    wacc_range, tg_range = _build_sensitivity_ranges(dcf_result)
+    wacc_range, tg_range = build_sensitivity_ranges(0.09, 0.025)
 
     assert len(wacc_range) == 5
     assert len(tg_range) >= 1

@@ -46,17 +46,8 @@ def calculate_dcf(
             "(Gordon Growth Model perpetuity is undefined when tg >= wacc)"
         )
 
-    # 2-4. Project revenue, EBITDA, FCF (WACC/TG-independent)
-    projected_fcf = _project_fcfs(inputs)
-    projected_revenue: list[float] = []
-    projected_ebitda: list[float] = []
-    prev_revenue = inputs.revenue_base
-    for g in inputs.revenue_growth_rates:
-        rev = prev_revenue * (1 + g)
-        projected_revenue.append(rev)
-        projected_ebitda.append(rev * inputs.ebitda_margin)
-        prev_revenue = rev
-
+    # 2-4. Project revenue, EBITDA, FCF (WACC/TG-independent) in a single pass
+    projected_revenue, projected_ebitda, projected_fcf = _project_full(inputs)
     n = len(projected_fcf)
 
     # 5. Discount FCFs
@@ -114,7 +105,7 @@ def calculate_sensitivity(
     (Gordon Growth Model undefined).
     """
     # --- Project FCFs once (WACC/TG-independent) ---
-    projected_fcf = _project_fcfs(inputs)
+    _, _, projected_fcf = _project_full(inputs)
     n = len(projected_fcf)
     offset = 0.5 if mid_year else 0.0
 
@@ -142,12 +133,16 @@ def calculate_sensitivity(
     }
 
 
-def _project_fcfs(inputs: DCFInputs) -> list[float]:
-    """Project free cash flows from inputs. WACC/TG-independent.
+def _project_full(inputs: DCFInputs) -> tuple[list[float], list[float], list[float]]:
+    """Project revenue, EBITDA, and free cash flows in a single pass.
 
-    Shared by calculate_dcf (via inline code) and calculate_sensitivity.
+    WACC/TG-independent. Returns parallel lists indexed by projection year.
+    Shared by calculate_dcf and calculate_sensitivity so we only walk the
+    growth schedule once per call.
     """
-    projected_fcf: list[float] = []
+    revenue: list[float] = []
+    ebitda_list: list[float] = []
+    fcfs: list[float] = []
     prev_revenue = inputs.revenue_base
     for g in inputs.revenue_growth_rates:
         rev = prev_revenue * (1 + g)
@@ -167,6 +162,8 @@ def _project_fcfs(inputs: DCFInputs) -> list[float]:
                 - rev * inputs.capex_pct_revenue
                 - rev * inputs.nwc_pct_revenue
             )
-        projected_fcf.append(fcf)
+        revenue.append(rev)
+        ebitda_list.append(ebitda)
+        fcfs.append(fcf)
         prev_revenue = rev
-    return projected_fcf
+    return revenue, ebitda_list, fcfs

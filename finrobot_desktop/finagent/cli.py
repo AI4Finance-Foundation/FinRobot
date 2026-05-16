@@ -42,9 +42,7 @@ def _build_deps(model: str | None = None) -> "FinAgentDeps":
     from finagent.engine.deps import FinAgentDeps
     from finagent.engine.skills.registry import SkillRegistry
 
-    settings = get_settings()
-    if model:
-        settings = get_settings(model_name=model)
+    settings = get_settings(model_name=model) if model else get_settings()
 
     # Runtime config validation: checks LLM key + FMP key (required).
     # Raises ValueError; we convert to ClickException for clean CLI output.

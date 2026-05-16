@@ -26,6 +26,15 @@ for _quiet in ("httpx", "httpcore", "urllib3", "yfinance", "filelock"):
     logging.getLogger(_quiet).setLevel(logging.WARNING)
 
 
+# Reminder appended to CLI pipeline output. HTML rendering lives in the
+# server process; CLI runs are stand-alone and don't share state with it.
+_HTML_REPORT_NOTE = (
+    "\nNote: HTML reports require the server. Run 'finagent serve', "
+    "then trigger the analysis via the /chat API or Desktop app. "
+    "CLI results are not shared with the server (separate processes)."
+)
+
+
 def _build_deps(model: str | None = None) -> "FinAgentDeps":
     """Build deps only. No agent creation.
     Used by pipeline commands that create their own sub-agents."""
@@ -203,11 +212,7 @@ def research(ticker: str, model: str | None, lang: str | None) -> None:
 
     result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
-    click.echo(
-        "\nNote: HTML reports require the server. Run 'finagent serve', "
-        "then trigger the analysis via the /chat API or Desktop app. "
-        "CLI results are not shared with the server (separate processes)."
-    )
+    click.echo(_HTML_REPORT_NOTE)
 
 
 @cli.command()
@@ -278,11 +283,7 @@ def dcf(ticker: str, model: str | None, force_dcf: bool, lang: str | None) -> No
             pipeline = create_ddm_pipeline(sub_agents)
             result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
             click.echo(result.format_summary())
-            click.echo(
-                "\nNote: HTML reports require the server. Run 'finagent serve', "
-                "then trigger the analysis via the /chat API or Desktop app. "
-                "CLI results are not shared with the server (separate processes)."
-            )
+            click.echo(_HTML_REPORT_NOTE)
             return
 
     from finagent.engine.pipelines.dcf import create_dcf_pipeline
@@ -291,11 +292,7 @@ def dcf(ticker: str, model: str | None, force_dcf: bool, lang: str | None) -> No
 
     result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
-    click.echo(
-        "\nNote: HTML reports require the server. Run 'finagent serve', "
-        "then trigger the analysis via the /chat API or Desktop app. "
-        "CLI results are not shared with the server (separate processes)."
-    )
+    click.echo(_HTML_REPORT_NOTE)
 
 
 @cli.command()
@@ -324,11 +321,7 @@ def ddm(ticker: str, model: str | None, lang: str | None) -> None:
 
     result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
-    click.echo(
-        "\nNote: HTML reports require the server. Run 'finagent serve', "
-        "then trigger the analysis via the /chat API or Desktop app. "
-        "CLI results are not shared with the server (separate processes)."
-    )
+    click.echo(_HTML_REPORT_NOTE)
 
 
 @cli.command()
@@ -355,11 +348,7 @@ def lbo(ticker: str, model: str | None, lang: str | None) -> None:
 
     result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
-    click.echo(
-        "\nNote: HTML reports require the server. Run 'finagent serve', "
-        "then trigger the analysis via the /chat API or Desktop app. "
-        "CLI results are not shared with the server (separate processes)."
-    )
+    click.echo(_HTML_REPORT_NOTE)
 
 
 @cli.command()
@@ -412,11 +401,7 @@ def ic_memo(ticker: str, model: str | None, lang: str | None) -> None:
 
     result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
-    click.echo(
-        "\nNote: HTML reports require the server. Run 'finagent serve', "
-        "then trigger the analysis via the /chat API or Desktop app. "
-        "CLI results are not shared with the server (separate processes)."
-    )
+    click.echo(_HTML_REPORT_NOTE)
 
 
 @cli.command()

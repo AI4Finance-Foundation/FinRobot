@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import base64
 import io
-from typing import Literal
+from typing import Any, Callable, Literal
 
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
@@ -119,6 +119,28 @@ def render_to_base64(fig: Figure, dpi: int = 150) -> str:
 def validate_png(data: bytes) -> bool:
     """Check whether *data* starts with the PNG magic bytes (``\\x89PNG``)."""
     return data[:4] == b"\x89PNG"
+
+
+def render_chart(
+    create_figure: Callable[..., Figure],
+    data: ChartDataPoint,
+    config: ChartConfig | None = None,
+    **kwargs: Any,
+) -> bytes:
+    """Resolve the default config, build a Figure, and serialise it to PNG.
+
+    Each chart module pairs a private ``_create_figure`` with a public
+    ``render``; this helper consolidates the trivial ``cfg or default →
+    create → figure_to_png`` flow so the per-module ``render`` is a
+    one-liner and any cross-cutting concern (e.g. exception cleanup) only
+    needs to change in one place.
+
+    Extra ``**kwargs`` are forwarded to ``create_figure`` so chart variants
+    with additional knobs (``margin_trend``'s ``metrics`` / ``show_mean_line``)
+    can use the helper without losing type-checked options.
+    """
+    cfg = config or ChartConfig()
+    return figure_to_png(create_figure(data, cfg, **kwargs), cfg)
 
 
 def _num(v: float | str | None | bool) -> float:

@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 
-from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, figure_to_png
+from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, render_chart
 
 
 def _create_figure(
@@ -112,6 +112,4 @@ def render(
     Returns raw PNG bytes (not base64). Use ``render_to_base64`` from
     ``charts.base`` if a data URI is needed.
     """
-    cfg = config or ChartConfig()
-    fig = _create_figure(data, cfg)
-    return figure_to_png(fig, cfg)
+    return render_chart(_create_figure, data, config)

@@ -63,3 +63,10 @@ project-memory/
 
 # Research (unconfirmed directions, not open-sourced)
 调研/
+
+# evolve.sh — private module-level autopilot (script + runtime artifacts)
+scripts/evolve.sh
+scripts/evolve_progress.py
+scripts/.evolve_state.json
+scripts/evolve_raw.jsonl
+scripts/evolve.log

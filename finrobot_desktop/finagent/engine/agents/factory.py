@@ -8,26 +8,22 @@ from finagent.engine.skills.registry import SkillRegistry
 
 INSTRUCTIONS_DIR = Path(__file__).parent / "instructions"
 
+SUB_AGENT_ROLES: tuple[str, ...] = ("data", "analysis", "modeling", "synthesis", "report")
+
 
 def create_sub_agents(
     settings: FinAgentSettings,
     skill_registry: SkillRegistry | None = None,
 ) -> dict[str, Agent]:
-    """Create all 5 dedicated sub-agents.
+    """Create one Agent per role in SUB_AGENT_ROLES.
 
-    Returns:
-        dict mapping role name to Agent:
-        {
-            "data": Agent,
-            "analysis": Agent,
-            "modeling": Agent,
-            "synthesis": Agent,
-            "report": Agent,
-        }
+    Each role loads its instructions from instructions/{role}_agent.md and
+    may override the global model via settings.get_model_for_role(role).
+    Only the 'data' agent gets the query_financial_data tool registered.
     """
     agents = {}
 
-    for role in ["data", "analysis", "modeling", "synthesis", "report"]:
+    for role in SUB_AGENT_ROLES:
         instructions = (INSTRUCTIONS_DIR / f"{role}_agent.md").read_text()
 
         # Resolve per-role model override; falls back to global model_name

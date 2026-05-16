@@ -182,10 +182,10 @@ async def get_financials(ticker: str, request: Request) -> FinancialData:
     except (ValueError, ProviderError) as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     extracted = extract_financial_data(financials, price)
-    if financials.warnings:
-        extracted.warnings = _dedupe([*extracted.warnings, *financials.warnings])
-    if price.warnings:
-        extracted.warnings = _dedupe([*extracted.warnings, *price.warnings])
+    if financials.warnings or price.warnings:
+        extracted.warnings = _dedupe(
+            [*extracted.warnings, *financials.warnings, *price.warnings]
+        )
     return extracted
 
 

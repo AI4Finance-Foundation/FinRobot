@@ -185,9 +185,11 @@ def _build_historical_metrics(
         else None
     )
 
-    # ---- Align cashflow columns to income_stmt sorted_cols ----
-    # cashflow may have different column ordering; we look up each col individually
-    def _cf_value(row: pd.Series | None, col: pd.Timestamp) -> float:  # type: ignore[type-arg]
+    # ---- Cell lookup that tolerates missing row and missing column ----
+    # Income-statement rows are guaranteed to have every sorted_cols entry
+    # (those columns came from income_stmt itself), but cashflow rows may be
+    # ordered differently and can lack a date. One helper, used uniformly.
+    def _cell(row: pd.Series | None, col: pd.Timestamp) -> float:  # type: ignore[type-arg]
         if row is None:
             return 0.0
         try:
@@ -214,19 +216,20 @@ def _build_historical_metrics(
     fcf_list: list[float] = []
 
     for col in sorted_cols:
-        rev = _safe_float(rev_row[col]) if rev_row is not None else 0.0
-        gp = _safe_float(gp_row[col]) if gp_row is not None else 0.0
-        ebitda = _safe_float(ebitda_row[col]) if ebitda_row is not None else 0.0
-        oi = _safe_float(oi_row[col]) if oi_row is not None else 0.0
-        ni = _safe_float(ni_row[col]) if ni_row is not None else 0.0
-        eps = _safe_float(eps_row[col]) if eps_row is not None else 0.0
-        sga = _safe_float(sga_row[col]) if sga_row is not None else 0.0
+        rev = _cell(rev_row, col)
+        gp = _cell(gp_row, col)
+        ebitda = _cell(ebitda_row, col)
+        oi = _cell(oi_row, col)
+        ni = _cell(ni_row, col)
+        eps = _cell(eps_row, col)
+        sga = _cell(sga_row, col)
 
-        gross_margin = gp / rev if rev > 0 else 0.0
-        ebitda_margin = ebitda / rev if rev > 0 else 0.0
-        op_margin = oi / rev if rev > 0 else 0.0
+        rev_positive = rev > 0
+        gross_margin = gp / rev if rev_positive else 0.0
+        ebitda_margin = ebitda / rev if rev_positive else 0.0
+        op_margin = oi / rev if rev_positive else 0.0
+        sga_ratio = sga / rev if rev_positive else 0.0
         cogs = rev - gp
-        sga_ratio = sga / rev if rev > 0 else 0.0
 
         years_list.append(col.year)
         revenue_list.append(rev)
@@ -241,9 +244,9 @@ def _build_historical_metrics(
         eps_list.append(eps)
         sga_list.append(sga)
         sga_ratio_list.append(sga_ratio)
-        ocf_list.append(_cf_value(ocf_row, col))
-        icf_list.append(_cf_value(icf_row, col))
-        fcf_list.append(_cf_value(fcf_row, col))
+        ocf_list.append(_cell(ocf_row, col))
+        icf_list.append(_cell(icf_row, col))
+        fcf_list.append(_cell(fcf_row, col))
 
     # ---- YoY revenue growth (None for oldest year) ----
     revenue_growth: list[float | None] = []

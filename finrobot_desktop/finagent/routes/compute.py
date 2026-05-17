@@ -17,7 +17,12 @@ from finagent.engine.compute.composite_score import (
     ScoreRequest,
     calculate_composite_score,
 )
-from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
+from finagent.engine.compute.dcf import (
+    calculate_dcf,
+    calculate_sensitivity,
+    solve_for_implied_growth,
+    solve_for_implied_wacc,
+)
 from finagent.engine.compute.ddm import calculate_ddm
 from finagent.engine.compute.lbo import calculate_lbo, calculate_lbo_sensitivity
 from finagent.engine.compute.monte_carlo import (
@@ -75,6 +80,36 @@ class DcfSensitivityResult(BaseModel):
     implied_prices: list[list[float | None]]
 
 
+class DcfReverseRequest(BaseModel):
+    """Reverse-DCF input: solve either for implied growth or implied WACC."""
+
+    inputs: DCFInputs
+    target_price: float = Field(gt=0)
+    # Which axis to solve. "growth" finds the constant revenue growth rate that
+    # justifies target_price; "wacc" finds the discount rate.
+    solve_for: str = Field(default="growth", pattern="^(growth|wacc)$")
+    horizon_years: int = Field(default=5, ge=1, le=15)
+    wacc_override: float | None = Field(default=None, ge=0, le=0.50)
+    tg_override: float | None = Field(default=None, ge=-0.05, le=0.10)
+    mid_year: bool = False
+
+
+class DcfReverseResult(BaseModel):
+    solve_for: str
+    target_price: float
+    implied_growth: float | None = None
+    implied_wacc: float | None = None
+    computed_price: float | None = None
+    wacc: float | None = None
+    terminal_growth: float
+    horizon_years: int
+    bracket: list[float]
+    price_at_lo: float
+    price_at_hi: float
+    iterations: int
+    message: str | None = None
+
+
 class LboSensitivityRequest(BaseModel):
     inputs: LBOInputs
     entry_range: list[float] | None = None
@@ -104,6 +139,64 @@ async def compute_wacc(request: WaccRequest) -> WaccResponse:
 @router.post("/dcf", response_model=DCFResult)
 async def compute_dcf(inputs: DCFInputs) -> DCFResult:
     return calculate_dcf(inputs)
+
+
+@router.post("/dcf-reverse", response_model=DcfReverseResult)
+async def compute_dcf_reverse(request: DcfReverseRequest) -> DcfReverseResult:
+    """Reverse DCF — given the current market price, solve for either the
+    implied revenue growth rate or the implied discount rate.
+
+    The standard DCF answers "is this stock fair?". Reverse DCF flips it:
+    "what is the market actually assuming?". A retail investor can then judge
+    whether those assumptions are plausible against history, sector base
+    rates, or management guidance.
+
+    Reference: Damodaran, "Investment Valuation", Ch. 13 — implied valuation.
+    """
+    if request.solve_for == "growth":
+        result = solve_for_implied_growth(
+            request.inputs,
+            target_price=request.target_price,
+            horizon_years=request.horizon_years,
+            wacc_override=request.wacc_override,
+            tg_override=request.tg_override,
+            mid_year=request.mid_year,
+        )
+        return DcfReverseResult(
+            solve_for="growth",
+            target_price=request.target_price,
+            implied_growth=result["implied_growth"],
+            computed_price=result["computed_price"],
+            wacc=result["wacc"],
+            terminal_growth=result["terminal_growth"],
+            horizon_years=result["horizon_years"],
+            bracket=list(result["bracket"]),
+            price_at_lo=result["price_at_lo"],
+            price_at_hi=result["price_at_hi"],
+            iterations=result["iterations"],
+            message=result.get("message"),
+        )
+
+    # solve_for == "wacc"
+    result = solve_for_implied_wacc(
+        request.inputs,
+        target_price=request.target_price,
+        tg_override=request.tg_override,
+        mid_year=request.mid_year,
+    )
+    return DcfReverseResult(
+        solve_for="wacc",
+        target_price=request.target_price,
+        implied_wacc=result["implied_wacc"],
+        computed_price=result["computed_price"],
+        terminal_growth=result["terminal_growth"],
+        horizon_years=result["horizon_years"],
+        bracket=list(result["bracket"]),
+        price_at_lo=result["price_at_lo"],
+        price_at_hi=result["price_at_hi"],
+        iterations=result["iterations"],
+        message=result.get("message"),
+    )
 
 
 @router.post("/dcf-sensitivity", response_model=DcfSensitivityResult)

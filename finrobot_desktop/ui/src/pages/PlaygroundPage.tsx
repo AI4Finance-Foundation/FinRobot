@@ -438,6 +438,12 @@ export function PlaygroundPage() {
   const [bearResult, setBearResult] = useState<DCFResult | null>(null)
   const [scenarioLoading, setScenarioLoading] = useState(false)
 
+  // Reverse DCF — what growth / WACC is the current market price implying?
+  const [reverseGrowth, setReverseGrowth] = useState<number | null>(null)
+  const [reverseWacc, setReverseWacc] = useState<number | null>(null)
+  const [reverseLoading, setReverseLoading] = useState(false)
+  const [reverseMessage, setReverseMessage] = useState<string | null>(null)
+
   // ── Ticker input state (inline ticker change) ─────────────────────────────
   const [tickerInput, setTickerInput] = useState('')
 
@@ -642,6 +648,44 @@ export function PlaygroundPage() {
       if (bearRes.status === 'fulfilled') setBearResult(bearRes.value)
       setScenarioLoading(false)
     }).catch(() => setScenarioLoading(false))
+
+    // Reverse DCF — only runs when we have a real market price to invert.
+    // Two calls in parallel: solve for implied growth, solve for implied WACC.
+    if (cp != null) {
+      setReverseLoading(true)
+      setReverseMessage(null)
+      Promise.allSettled([
+        fetch(`${BASE_URL}/api/compute/dcf-reverse`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inputs, target_price: cp, solve_for: 'growth' }),
+          signal,
+        }).then((r) => r.ok ? r.json() : Promise.reject(r.status)),
+        fetch(`${BASE_URL}/api/compute/dcf-reverse`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inputs, target_price: cp, solve_for: 'wacc' }),
+          signal,
+        }).then((r) => r.ok ? r.json() : Promise.reject(r.status)),
+      ]).then(([gRes, wRes]) => {
+        if (gRes.status === 'fulfilled') {
+          setReverseGrowth(gRes.value.implied_growth)
+          if (gRes.value.message) setReverseMessage(gRes.value.message)
+        } else {
+          setReverseGrowth(null)
+        }
+        if (wRes.status === 'fulfilled') {
+          setReverseWacc(wRes.value.implied_wacc)
+        } else {
+          setReverseWacc(null)
+        }
+        setReverseLoading(false)
+      }).catch(() => setReverseLoading(false))
+    } else {
+      setReverseGrowth(null)
+      setReverseWacc(null)
+      setReverseMessage(null)
+    }
   }, [])
 
   // ── Debounced slider effect ───────────────────────────────────────────────
@@ -987,6 +1031,75 @@ export function PlaygroundPage() {
                 </div>
               )}
             </div>
+
+            {/* Reverse DCF — what is the market implying? */}
+            {currentPrice != null && (
+              <div style={{
+                marginBottom: 20,
+                padding: '12px 14px',
+                background: 'var(--bg-2)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--r-md)',
+              }}>
+                <div style={{ ...labelStyle, marginBottom: 8, color: 'var(--text-secondary)' }}>
+                  市场在赌什么？
+                  <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--text-muted)', textTransform: 'none', letterSpacing: 0 }}>
+                    现价 {fmtPrice(currentPrice)} 反推
+                  </span>
+                </div>
+
+                {reverseMessage ? (
+                  <div style={{ fontSize: 11, color: 'var(--warning)', lineHeight: 1.5 }}>
+                    {reverseMessage}
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 18 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ ...labelStyle, fontSize: 10, marginBottom: 4 }}>
+                        隐含 5 年增长
+                      </div>
+                      <div style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 22,
+                        fontWeight: 700,
+                        color: reverseLoading ? 'var(--text-muted)'
+                          : reverseGrowth == null ? 'var(--text-muted)'
+                          : reverseGrowth > 0.20 ? 'var(--warning)'
+                          : reverseGrowth < 0 ? 'var(--negative)'
+                          : 'var(--accent)',
+                        lineHeight: 1,
+                      }}>
+                        {reverseLoading ? '...' : reverseGrowth == null ? '—' : fmtPct(reverseGrowth)}
+                      </div>
+                    </div>
+                    <div style={{ width: 1, background: 'var(--border)' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ ...labelStyle, fontSize: 10, marginBottom: 4 }}>
+                        隐含折现率 (<TermTip term="WACC">WACC</TermTip>)
+                      </div>
+                      <div style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 22,
+                        fontWeight: 700,
+                        color: reverseLoading ? 'var(--text-muted)' : reverseWacc == null ? 'var(--text-muted)' : 'var(--accent)',
+                        lineHeight: 1,
+                      }}>
+                        {reverseLoading ? '...' : reverseWacc == null ? '—' : fmtPct(reverseWacc)}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{
+                  marginTop: 10,
+                  fontSize: 10,
+                  color: 'var(--text-muted)',
+                  lineHeight: 1.5,
+                }}>
+                  按当前模型反推：要让 DCF 算出 {fmtPrice(currentPrice)}，市场假设的增长 / 折现率必须是上面这两个数。看着不靠谱？说明市场和你的模型有分歧——也许是市场错了，也许是你的某个假设需要重审。
+                </div>
+              </div>
+            )}
 
             {/* EV */}
             {dcfResult && (

@@ -14,14 +14,17 @@
  * for numbers, Inter for text, graduated radius, subtle shadows.
  */
 
+import { useMemo } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useStocksStore } from '../stores/stocksStore'
 import { BASE_URL } from '../api/client'
+import { useTickerPrice } from '../hooks/useTickerData'
 import { TodaySummaryCard } from '../components/dashboard/TodaySummaryCard'
 import { LearningCarousel } from '../components/dashboard/LearningCarousel'
 import { ValuationOutliersCard } from '../components/dashboard/ValuationOutliersCard'
 import { DiscoverChip } from '../components/dashboard/DiscoverChip'
+import { Sparkline } from '../components/Sparkline'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -795,94 +798,126 @@ function RecentAnalysesSection() {
           }}
         >
           {data.map((artifact, idx) => (
-            <button
+            <RecentAnalysisRow
               key={artifact.id}
+              artifact={artifact}
+              isLast={idx === data.length - 1}
               onClick={() =>
                 navigate(artifact.ticker ? `/library/${artifact.ticker}` : '/library')
               }
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                width: '100%',
-                padding: '10px 14px',
-                background: 'transparent',
-                border: 'none',
-                borderBottom: idx < data.length - 1 ? '1px solid var(--border)' : 'none',
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'background 0.15s',
-              }}
-              onMouseEnter={(e) => {
-                ;(e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-3)'
-              }}
-              onMouseLeave={(e) => {
-                ;(e.currentTarget as HTMLButtonElement).style.background = 'transparent'
-              }}
-            >
-              {/* Type badge */}
-              <span
-                style={{
-                  fontSize: 9,
-                  fontWeight: 700,
-                  fontFamily: 'var(--font-mono)',
-                  color: 'var(--accent)',
-                  background: 'var(--accent-dim)',
-                  padding: '2px 6px',
-                  borderRadius: 3,
-                  flexShrink: 0,
-                  minWidth: 36,
-                  textAlign: 'center',
-                }}
-              >
-                {artifactTypeLabel(artifact.type)}
-              </span>
-
-              {/* Ticker + headline */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                {artifact.ticker && (
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      fontFamily: 'var(--font-mono)',
-                      color: 'var(--text-primary)',
-                      marginRight: 6,
-                    }}
-                  >
-                    {artifact.ticker}
-                  </span>
-                )}
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--text-secondary)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    display: 'inline',
-                  }}
-                >
-                  {artifact.headline}
-                </span>
-              </div>
-
-              {/* Relative time */}
-              <span
-                style={{
-                  fontSize: 9,
-                  color: 'var(--text-muted)',
-                  flexShrink: 0,
-                  fontFamily: 'var(--font-mono)',
-                }}
-              >
-                {relativeTime(artifact.created_at)}
-              </span>
-            </button>
+            />
           ))}
         </div>
       )}
     </div>
+  )
+}
+
+function RecentAnalysisRow({
+  artifact,
+  isLast,
+  onClick,
+}: {
+  artifact: ArtifactSummary
+  isLast: boolean
+  onClick: () => void
+}): React.ReactElement {
+  // 7-day sparkline — only meaningful for ticker-bound artifacts.
+  // Shares react-query cache with Sidebar/ValuationOutliers; no extra request.
+  const { data: priceData } = useTickerPrice(artifact.ticker ?? '')
+  const sparkValues = useMemo(() => {
+    const history = priceData?.history
+    if (!history || history.length === 0) return []
+    return history.slice(-7).map((p) => p.close)
+  }, [priceData?.history])
+
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        width: '100%',
+        padding: '10px 14px',
+        background: 'transparent',
+        border: 'none',
+        borderBottom: isLast ? 'none' : '1px solid var(--border)',
+        cursor: 'pointer',
+        textAlign: 'left',
+        transition: 'background 0.15s',
+      }}
+      onMouseEnter={(e) => {
+        ;(e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-3)'
+      }}
+      onMouseLeave={(e) => {
+        ;(e.currentTarget as HTMLButtonElement).style.background = 'transparent'
+      }}
+    >
+      {/* Type badge */}
+      <span
+        style={{
+          fontSize: 9,
+          fontWeight: 700,
+          fontFamily: 'var(--font-mono)',
+          color: 'var(--accent)',
+          background: 'var(--accent-dim)',
+          padding: '2px 6px',
+          borderRadius: 3,
+          flexShrink: 0,
+          minWidth: 36,
+          textAlign: 'center',
+        }}
+      >
+        {artifactTypeLabel(artifact.type)}
+      </span>
+
+      {/* Ticker + headline */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {artifact.ticker && (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--text-primary)',
+              marginRight: 6,
+            }}
+          >
+            {artifact.ticker}
+          </span>
+        )}
+        <span
+          style={{
+            fontSize: 11,
+            color: 'var(--text-secondary)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            display: 'inline',
+          }}
+        >
+          {artifact.headline}
+        </span>
+      </div>
+
+      {/* 7-day sparkline (only when ticker-bound and history present) */}
+      {artifact.ticker && sparkValues.length >= 2 && (
+        <Sparkline values={sparkValues} width={44} height={12} />
+      )}
+
+      {/* Relative time */}
+      <span
+        style={{
+          fontSize: 9,
+          color: 'var(--text-muted)',
+          flexShrink: 0,
+          fontFamily: 'var(--font-mono)',
+        }}
+      >
+        {relativeTime(artifact.created_at)}
+      </span>
+    </button>
   )
 }
 

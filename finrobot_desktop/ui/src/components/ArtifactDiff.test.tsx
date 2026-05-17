@@ -143,8 +143,8 @@ describe('ArtifactDiff — section collapsing', () => {
   it('AD12: sections are expanded by default', async () => {
     renderDiff(ART_A, ART_B)
     // Column headers should be visible
-    expect(await screen.findByText(/v1 \(old\)/i)).toBeInTheDocument()
-    expect(screen.getByText(/v2 \(new\)/i)).toBeInTheDocument()
+    expect(await screen.findByText(/v1 \(旧\)/)).toBeInTheDocument()
+    expect(screen.getByText(/v2 \(新\)/)).toBeInTheDocument()
   })
 
   it('AD13: clicking section header collapses it', async () => {

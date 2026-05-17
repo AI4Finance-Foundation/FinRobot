@@ -129,21 +129,21 @@ export default function EarningsSummary({ result }: Props) {
       {result.surprises.length > 0 && (
         <div className="card animate-in">
           <div className="card-header">
-            <span className="card-title">Quarterly Earnings History</span>
-            <span className="card-badge">{result.surprises.length} quarters</span>
+            <span className="card-title">季度业绩历史</span>
+            <span className="card-badge">{result.surprises.length} 个季度</span>
           </div>
           <div className="card-body" style={{ padding: 0, overflowX: 'auto' }}>
             <table className="fin-table" style={{ minWidth: 640 }}>
               <thead>
                 <tr>
-                  <th>Quarter</th>
-                  <th>EPS Act.</th>
-                  <th>EPS Est.</th>
-                  <th>Surprise</th>
+                  <th>季度</th>
+                  <th>EPS 实际</th>
+                  <th>EPS 预期</th>
+                  <th>差值</th>
                   <th style={{ textAlign: 'center', width: 60 }}></th>
-                  <th>Rev Act.</th>
-                  <th>Rev Est.</th>
-                  <th>Surprise</th>
+                  <th>营收实际</th>
+                  <th>营收预期</th>
+                  <th>差值</th>
                   <th style={{ textAlign: 'center', width: 60 }}></th>
                 </tr>
               </thead>

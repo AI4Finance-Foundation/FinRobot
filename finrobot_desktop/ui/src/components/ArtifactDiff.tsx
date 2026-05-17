@@ -300,10 +300,10 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: 'var(--surface)', position: 'sticky', top: 0, zIndex: 1 }}>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)' }}>Field</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)' }}>v1 (old)</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)' }}>v2 (new)</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)' }}>Change</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)' }}>字段</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)' }}>v1 (旧)</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)' }}>v2 (新)</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)' }}>变化</th>
                   </tr>
                 </thead>
                 <tbody>

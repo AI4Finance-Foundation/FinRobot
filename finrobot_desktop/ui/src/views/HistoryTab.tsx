@@ -147,9 +147,9 @@ function DiffPanel({
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
           <thead>
             <tr style={{ color: 'var(--text-muted)' }}>
-              <th style={{ textAlign: 'left', paddingBottom: 4 }}>Field</th>
-              <th style={{ textAlign: 'right', paddingBottom: 4 }}>Before</th>
-              <th style={{ textAlign: 'right', paddingBottom: 4 }}>After</th>
+              <th style={{ textAlign: 'left', paddingBottom: 4 }}>字段</th>
+              <th style={{ textAlign: 'right', paddingBottom: 4 }}>前</th>
+              <th style={{ textAlign: 'right', paddingBottom: 4 }}>后</th>
               <th style={{ textAlign: 'right', paddingBottom: 4 }}>Δ%</th>
             </tr>
           </thead>

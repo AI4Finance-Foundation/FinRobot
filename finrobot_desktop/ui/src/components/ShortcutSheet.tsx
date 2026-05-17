@@ -98,7 +98,7 @@ export default function ShortcutSheet({ open, onClose }: Props) {
         </div>
 
         <div className="shortcut-sheet-footer">
-          <span>Press <kbd className="shortcut-key-inline">⌘</kbd><kbd className="shortcut-key-inline">/</kbd> to toggle</span>
+          <span>按 <kbd className="shortcut-key-inline">⌘</kbd><kbd className="shortcut-key-inline">/</kbd> 打开/关闭</span>
         </div>
       </div>
     </div>

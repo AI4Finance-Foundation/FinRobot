@@ -83,13 +83,13 @@ function ScenarioCard({
       <div className="scenario-card-assumptions">
         {growthRate != null && (
           <div className="scenario-assumption">
-            <span>Growth Y1</span>
+            <span>第 1 年增速</span>
             <span>{(growthRate * 100).toFixed(1)}%</span>
           </div>
         )}
         {ebitdaMargin != null && (
           <div className="scenario-assumption">
-            <span>Margin</span>
+            <span>利润率</span>
             <span>{(ebitdaMargin * 100).toFixed(1)}%</span>
           </div>
         )}

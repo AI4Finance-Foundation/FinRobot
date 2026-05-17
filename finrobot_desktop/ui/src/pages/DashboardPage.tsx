@@ -23,6 +23,7 @@ import { useTickerPrice } from '../hooks/useTickerData'
 import { TodaySummaryCard } from '../components/dashboard/TodaySummaryCard'
 import { LearningCarousel } from '../components/dashboard/LearningCarousel'
 import { ValuationOutliersCard } from '../components/dashboard/ValuationOutliersCard'
+import { CompositeOverviewCard } from '../components/dashboard/CompositeOverviewCard'
 import { DiscoverChip } from '../components/dashboard/DiscoverChip'
 import { Sparkline } from '../components/Sparkline'
 import { WhyMovingPopover } from '../components/WhyMovingPopover'
@@ -1005,7 +1006,10 @@ export function DashboardPage() {
           <EarningsCalendar />
         </div>
 
-        {/* ── 5. Valuation outliers (FinAgent 独有差异点) ──────────────────── */}
+        {/* ── 5. Composite top-1 hero (散户「最值得看的一只」) ─────────────── */}
+        <CompositeOverviewCard />
+
+        {/* ── 6. Valuation outliers (FinAgent 独有差异点) ──────────────────── */}
         <ValuationOutliersCard />
 
         {/* ── 6. Recent Analyses ───────────────────────────────────────────── */}

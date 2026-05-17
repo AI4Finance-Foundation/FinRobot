@@ -54,20 +54,20 @@ export default function CompsSummary({ result, currentPrice }: Props) {
       <div className="valuation-hero animate-in">
         <div className="hero-header">
           <div>
-            <div className="valuation-label">Comparable Company Analysis</div>
+            <div className="valuation-label">同业可比公司分析</div>
             <div className="hero-ticker">{t.ticker}</div>
             {t.name && <div className="hero-sub">{t.name}</div>}
           </div>
           <div className="text-right">
-            <div className="valuation-label">Peer Set</div>
-            <div className="hero-stat">{result.peers.length} companies</div>
+            <div className="valuation-label">同业集合</div>
+            <div className="hero-stat">{result.peers.length} 家</div>
           </div>
         </div>
 
         {/* Implied price range */}
         {impliedPrices.length > 0 && (
           <div style={{ marginBottom: 'var(--sp-4)' }}>
-            <div className="section-label">Implied Price (Peer Median)</div>
+            <div className="section-label">隐含价（同业中位数）</div>
             <div style={{ display: 'flex', gap: 'var(--sp-5)' }}>
               {impliedPrices.map((ip) => {
                 const upside = currentPrice && currentPrice > 0
@@ -76,7 +76,7 @@ export default function CompsSummary({ result, currentPrice }: Props) {
                 return (
                   <div key={ip.method}>
                     <span className="implied-value">${ip.price.toFixed(2)}</span>
-                    <span className="implied-method">via {ip.method}</span>
+                    <span className="implied-method">按 {ip.method}</span>
                     {upside !== null && (
                       <span
                         className="implied-delta"
@@ -95,15 +95,15 @@ export default function CompsSummary({ result, currentPrice }: Props) {
         {/* Median stats */}
         <div className="valuation-metrics">
           <div>
-            <div className="metric-label">Median EV/EBITDA</div>
+            <div className="metric-label">中位 EV/EBITDA</div>
             <div className="metric-value">{result.median_ev_ebitda != null ? `${animatedEvEbitda.toFixed(1)}x` : '\u2014'}</div>
           </div>
           <div>
-            <div className="metric-label">Median P/E</div>
+            <div className="metric-label">中位 P/E</div>
             <div className="metric-value">{result.median_pe != null ? `${animatedPe.toFixed(1)}x` : '\u2014'}</div>
           </div>
           <div>
-            <div className="metric-label">Median EV/Rev</div>
+            <div className="metric-label">中位 EV/Rev</div>
             <div className="metric-value">{result.median_ev_revenue != null ? `${animatedEvRev.toFixed(1)}x` : '\u2014'}</div>
           </div>
         </div>
@@ -112,15 +112,15 @@ export default function CompsSummary({ result, currentPrice }: Props) {
       {/* Peer Table */}
       <div className="card animate-in">
         <div className="card-header">
-          <span className="card-title">Peer Comparison</span>
-          <span className="card-badge">{result.peers.length + 1} companies</span>
+          <span className="card-title">同业对比</span>
+          <span className="card-badge">{result.peers.length + 1} 家</span>
         </div>
         <div className="card-body" style={{ padding: 0, overflowX: 'auto' }}>
           <table className="fin-table" style={{ minWidth: 560 }}>
             <thead>
               <tr>
-                <th>Ticker</th>
-                <th>Market Cap</th>
+                <th>代码</th>
+                <th>市值</th>
                 <th>EV/EBITDA</th>
                 <th>P/E</th>
                 <th>EV/Rev</th>
@@ -153,7 +153,7 @@ export default function CompsSummary({ result, currentPrice }: Props) {
               })}
               {/* Median row */}
               <tr className="row-border-top">
-                <td className="row-label">Peer Median</td>
+                <td className="row-label">同业中位</td>
                 <td className="fin-value cell">{'\u2014'}</td>
                 <td className="fin-value cell" style={{ color: 'var(--accent)' }}>{fmtMult(result.median_ev_ebitda)}</td>
                 <td className="fin-value cell" style={{ color: 'var(--accent)' }}>{fmtMult(result.median_pe)}</td>
@@ -168,7 +168,7 @@ export default function CompsSummary({ result, currentPrice }: Props) {
       {result.peer_justification && (
         <div className="card animate-in">
           <div className="card-header">
-            <span className="card-title">Peer Selection Rationale</span>
+            <span className="card-title">同业选取依据</span>
           </div>
           <div className="card-body">
             <p className="body-text">{result.peer_justification}</p>

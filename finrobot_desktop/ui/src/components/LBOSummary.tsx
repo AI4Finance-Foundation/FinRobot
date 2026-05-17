@@ -59,12 +59,12 @@ export default function LBOSummary({ result }: Props) {
       <div className="valuation-hero animate-in">
         <div className="hero-header hero-header--lg">
           <div>
-            <div className="valuation-label">Leveraged Buyout Analysis</div>
+            <div className="valuation-label">杠杆收购分析 (LBO)</div>
             <div className="hero-ticker">{ticker}</div>
           </div>
           <div className="text-right">
-            <div className="valuation-label">Holding Period</div>
-            <div className="hero-stat">{result.schedule.length} years</div>
+            <div className="valuation-label">持有期</div>
+            <div className="hero-stat">{result.schedule.length} 年</div>
           </div>
         </div>
 
@@ -104,19 +104,19 @@ export default function LBOSummary({ result }: Props) {
         {/* Deal Structure metrics */}
         <div className="valuation-metrics">
           <div>
-            <div className="metric-label">Entry EV</div>
+            <div className="metric-label">入场企业价值</div>
             <div className="metric-value">{fmtUsd(result.entry_ev)}</div>
           </div>
           <div>
-            <div className="metric-label">Entry Debt</div>
+            <div className="metric-label">入场负债</div>
             <div className="metric-value">{fmtUsd(result.entry_debt)}</div>
           </div>
           <div>
-            <div className="metric-label">Entry Equity</div>
+            <div className="metric-label">入场股权</div>
             <div className="metric-value">{fmtUsd(result.entry_equity)}</div>
           </div>
           <div>
-            <div className="metric-label">D/E Ratio</div>
+            <div className="metric-label">负债 / 股权</div>
             <div className="metric-value">{fmtMult(debtToEquity)}</div>
           </div>
         </div>
@@ -125,21 +125,21 @@ export default function LBOSummary({ result }: Props) {
       {/* Returns Bridge — Entry vs Exit */}
       <div className="card animate-in">
         <div className="card-header">
-          <span className="card-title">Returns Bridge</span>
+          <span className="card-title">收益拆解</span>
         </div>
         <div className="card-body" style={{ padding: 0, overflowX: 'auto' }}>
           <table className="fin-table" style={{ minWidth: 400 }}>
             <thead>
               <tr>
                 <th>{ }</th>
-                <th>Entry</th>
-                <th>Exit</th>
-                <th>Change</th>
+                <th>入场</th>
+                <th>退出</th>
+                <th>变化</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td className="row-label">Enterprise Value</td>
+                <td className="row-label">企业价值</td>
                 <td className="fin-value cell">{fmtUsd(result.entry_ev)}</td>
                 <td className="fin-value cell">{fmtUsd(result.exit_ev)}</td>
                 <td className="fin-value cell" style={{
@@ -150,7 +150,7 @@ export default function LBOSummary({ result }: Props) {
                 </td>
               </tr>
               <tr>
-                <td className="row-label">Equity Value</td>
+                <td className="row-label">股权价值</td>
                 <td className="fin-value cell">{fmtUsd(result.entry_equity)}</td>
                 <td className="fin-value cell">{fmtUsd(result.exit_equity)}</td>
                 <td className="fin-value cell" style={{
@@ -161,7 +161,7 @@ export default function LBOSummary({ result }: Props) {
                 </td>
               </tr>
               <tr className="row-border-top">
-                <td className="row-label">EBITDA (Exit)</td>
+                <td className="row-label">EBITDA（退出）</td>
                 <td className="fin-value cell" style={{ color: 'var(--text-muted)' }}>{'\u2014'}</td>
                 <td className="fin-value cell">{fmtUsd(result.exit_ebitda)}</td>
                 <td className="fin-value cell" style={{ color: 'var(--text-muted)' }}>{'\u2014'}</td>
@@ -175,19 +175,19 @@ export default function LBOSummary({ result }: Props) {
       {result.schedule.length > 0 && (
         <div className="card animate-in">
           <div className="card-header">
-            <span className="card-title">Debt Schedule</span>
-            <span className="card-badge">{result.schedule.length} years</span>
+            <span className="card-title">负债时间表</span>
+            <span className="card-badge">{result.schedule.length} 年</span>
           </div>
           <div className="card-body" style={{ padding: 0, overflowX: 'auto' }}>
             <table className="fin-table" style={{ minWidth: 580 }}>
               <thead>
                 <tr>
-                  <th>Year</th>
-                  <th>Revenue</th>
+                  <th>年</th>
+                  <th>营收</th>
                   <th>EBITDA</th>
                   <th>FCF</th>
-                  <th>Debt Paydown</th>
-                  <th>Ending Debt</th>
+                  <th>当年还债</th>
+                  <th>期末负债</th>
                 </tr>
               </thead>
               <tbody>
@@ -215,14 +215,14 @@ export default function LBOSummary({ result }: Props) {
       {hasSensitivity && (
         <div className="card animate-in">
           <div className="card-header">
-            <span className="card-title">IRR Sensitivity</span>
-            <span className="card-badge">Entry × Exit Multiple</span>
+            <span className="card-title">IRR 敏感性</span>
+            <span className="card-badge">入场 × 退出倍数</span>
           </div>
           <div className="card-body" style={{ padding: 0, overflowX: 'auto' }}>
             <table className="fin-table" style={{ minWidth: 420 }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left', fontSize: '0.68rem' }}>Entry ↓ / Exit →</th>
+                  <th style={{ textAlign: 'left', fontSize: '0.68rem' }}>入场 ↓ / 退出 →</th>
                   {result.sensitivity.exit_multiples.map((em) => (
                     <th key={em} className="cell-sens-header">{em.toFixed(1)}x</th>
                   ))}

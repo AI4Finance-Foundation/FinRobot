@@ -142,10 +142,10 @@ function ScoreBar({ value, color }: { value: number; color: string }) {
 
 function CompositeScoreCard({ score }: { score: ScoreResult }) {
   const subScores = [
-    { key: 'fundamental', label: 'Fundamental', value: score.fundamental },
-    { key: 'valuation',   label: 'Valuation',   value: score.valuation },
-    { key: 'catalyst',    label: 'Catalyst',     value: score.catalyst },
-    { key: 'sentiment',   label: 'Sentiment',    value: score.sentiment },
+    { key: 'fundamental', label: '基本面',   value: score.fundamental },
+    { key: 'valuation',   label: '估值',     value: score.valuation },
+    { key: 'catalyst',    label: '催化剂',   value: score.catalyst },
+    { key: 'sentiment',   label: '情绪',     value: score.sentiment },
   ] as const
 
   const color = signalColor(score.signal)

@@ -20,6 +20,7 @@ import { useStocksStore } from '../stores/stocksStore'
 import { BASE_URL } from '../api/client'
 import { TodaySummaryCard } from '../components/dashboard/TodaySummaryCard'
 import { LearningCarousel } from '../components/dashboard/LearningCarousel'
+import { ValuationOutliersCard } from '../components/dashboard/ValuationOutliersCard'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -924,10 +925,13 @@ export function DashboardPage() {
           <EarningsCalendar />
         </div>
 
-        {/* ── 5. Recent Analyses ───────────────────────────────────────────── */}
+        {/* ── 5. Valuation outliers (FinAgent 独有差异点) ──────────────────── */}
+        <ValuationOutliersCard />
+
+        {/* ── 6. Recent Analyses ───────────────────────────────────────────── */}
         <RecentAnalysesSection />
 
-        {/* ── 6. Learning carousel (retail-friendly differentiator) ────────── */}
+        {/* ── 7. Learning carousel (retail-friendly differentiator) ────────── */}
         <LearningCarousel />
       </div>
     </div>

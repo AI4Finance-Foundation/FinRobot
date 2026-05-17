@@ -1,10 +1,11 @@
-"""Dashboard routes — AI-written today summary for the home page hero card."""
+"""Dashboard routes — AI today summary + valuation outliers for the home page."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -216,3 +217,115 @@ def _deterministic_fallback(m: dict[str, Any]) -> str:
     if not parts:
         return "今日数据尚未就绪。"
     return "今日 " + "、".join(parts) + "。"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Valuation outliers — for each watchlist ticker, find the latest DCF artifact
+# and compute (implied - current) / current. Sorted by abs(offset) DESC.
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ValuationOutliersRequest(BaseModel):
+    watchlist: list[str] = []
+
+
+class ValuationItem(BaseModel):
+    ticker: str
+    current_price: float | None
+    implied_price: float | None
+    offset_pct: float | None  # (implied - current) / current * 100
+    dcf_age_h: float | None   # hours since DCF was computed
+    artifact_id: str | None   # for "view full report" link
+
+
+class ValuationOutliersResponse(BaseModel):
+    items: list[ValuationItem]
+    generated_at: float
+
+
+@router.post("/valuation-overview", response_model=ValuationOutliersResponse)
+async def valuation_overview(
+    payload: ValuationOutliersRequest, request: Request
+) -> ValuationOutliersResponse:
+    """For each watchlist ticker, return latest DCF implied vs current price.
+
+    Pulls from the artifact store — does NOT trigger new DCF runs (that would
+    cost money and block the dashboard). If a ticker has no DCF artifact,
+    returns implied_price=null so the frontend can prompt the user to run one.
+    """
+    deps = getattr(request.app.state, "deps", None)
+    if deps is None:
+        raise HTTPException(status_code=503, detail="Backend deps not initialized")
+
+    store = request.app.state.artifact_store
+    watchlist = [t.upper().strip() for t in payload.watchlist if t.strip()][:8]
+    now_ts = time.time()
+    now_dt = datetime.now(timezone.utc)
+
+    async def _resolve(ticker: str) -> ValuationItem:
+        # 1) Find most recent DCF artifact (cheap — index.json lookup)
+        try:
+            summaries = await store.list_by_ticker(
+                ticker=ticker, type="dcf", include_archived=False, limit=1
+            )
+        except (OSError, ValueError, KeyError) as e:
+            logger.debug("artifact list_by_ticker %s: %s", ticker, e)
+            summaries = []
+
+        implied: float | None = None
+        age_h: float | None = None
+        art_id: str | None = None
+        if summaries:
+            top = summaries[0]
+            art_id = top.id
+            try:
+                artifact = await store.get(top.id)
+                if artifact:
+                    val = (artifact.outputs.structured or {}).get("implied_price")
+                    if isinstance(val, (int, float)) and val > 0:
+                        implied = float(val)
+                    created = top.created_at
+                    if created.tzinfo is None:
+                        created = created.replace(tzinfo=timezone.utc)
+                    age_h = round((now_dt - created).total_seconds() / 3600, 1)
+            except (OSError, ValueError, KeyError, AttributeError) as e:
+                logger.debug("artifact load %s: %s", top.id, e)
+
+        # 2) Current price via DataLayer (independent failure)
+        current: float | None = None
+        try:
+            from finagent.engine.data.types import DataType
+
+            res = await deps.data_layer.fetch(DataType.PRICE, ticker)
+            p = getattr(res, "data", None) or res
+            current_raw = (
+                getattr(p, "current_price", None)
+                or (p.get("current_price") if isinstance(p, dict) else None)
+            )
+            if isinstance(current_raw, (int, float)) and current_raw > 0:
+                current = float(current_raw)
+        except (ProviderError, httpx.HTTPError, asyncio.TimeoutError, ValueError, KeyError) as e:
+            logger.debug("price fetch %s: %s", ticker, e)
+
+        offset_pct: float | None = None
+        if current is not None and implied is not None:
+            offset_pct = round((implied - current) / current * 100, 2)
+
+        return ValuationItem(
+            ticker=ticker,
+            current_price=current,
+            implied_price=implied,
+            offset_pct=offset_pct,
+            dcf_age_h=age_h,
+            artifact_id=art_id,
+        )
+
+    items = await asyncio.gather(*[_resolve(t) for t in watchlist])
+    # Sort: items with offset first (by abs DESC), then items without
+    items_sorted = sorted(
+        items,
+        key=lambda x: (
+            x.offset_pct is None,  # False (have data) first
+            -abs(x.offset_pct) if x.offset_pct is not None else 0,
+        ),
+    )
+    return ValuationOutliersResponse(items=items_sorted, generated_at=now_ts)

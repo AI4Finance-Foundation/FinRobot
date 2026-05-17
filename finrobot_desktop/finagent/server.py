@@ -28,6 +28,7 @@ from finagent.routes.artifacts import router as artifacts_router
 from finagent.routes.ask import router as ask_router
 from finagent.routes.backtest import router as backtest_router
 from finagent.routes.compute import router as compute_router
+from finagent.routes.dashboard import router as dashboard_router
 from finagent.routes.data import router as data_router
 from finagent.routes.export import router as export_router
 from finagent.routes.runs import router as runs_router
@@ -166,6 +167,7 @@ app.include_router(settings_router)
 app.include_router(runs_router)
 app.include_router(artifacts_router)
 app.include_router(market_router)
+app.include_router(dashboard_router)
 app.include_router(journal_router)
 app.include_router(search_router, prefix="/api/search", tags=["search"])
 app.include_router(notify_router)

@@ -17,16 +17,8 @@
 import { useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useStocksStore } from '../stores/stocksStore'
-import { useUiStore } from '../stores/uiStore'
 import { BASE_URL } from '../api/client'
-import {
-  IconTrendingUp,
-  IconFileText,
-  IconZap,
-  IconSparkle,
-  IconClock,
-  IconActivity,
-} from '../lib/icons'
+import { TodaySummaryCard } from '../components/dashboard/TodaySummaryCard'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -386,88 +378,6 @@ function SectorStrip() {
   )
 }
 
-// ── 3a. Quick Actions ──────────────────────────────────────────────────────────
-
-interface QuickActionCardProps {
-  icon: React.ReactElement
-  title: string
-  description: string
-  onClick: () => void
-}
-
-function QuickActionCard({ icon, title, description, onClick }: QuickActionCardProps) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'flex-start',
-        gap: 10,
-        padding: '16px',
-        background: 'var(--bg-1)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--r-md)',
-        cursor: 'pointer',
-        textAlign: 'left',
-        transition: 'all 0.2s',
-        minWidth: 0,
-      }}
-      onMouseEnter={(e) => {
-        const el = e.currentTarget as HTMLButtonElement
-        el.style.borderColor = 'var(--accent)'
-        el.style.transform = 'translateY(-2px)'
-        el.style.boxShadow = '0 4px 16px rgba(59, 130, 246, 0.12)'
-      }}
-      onMouseLeave={(e) => {
-        const el = e.currentTarget as HTMLButtonElement
-        el.style.borderColor = 'var(--border)'
-        el.style.transform = 'translateY(0)'
-        el.style.boxShadow = 'none'
-      }}
-    >
-      <span
-        style={{
-          width: 32,
-          height: 32,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: 'var(--r-sm)',
-          background: 'var(--accent-dim)',
-          color: 'var(--accent)',
-          flexShrink: 0,
-        }}
-      >
-        {icon}
-      </span>
-      <div>
-        <div
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: 'var(--text-primary)',
-            marginBottom: 4,
-            fontFamily: 'var(--font-ui)',
-          }}
-        >
-          {title}
-        </div>
-        <div
-          style={{
-            fontSize: 11,
-            color: 'var(--text-muted)',
-            lineHeight: 1.5,
-            fontFamily: 'var(--font-ui)',
-          }}
-        >
-          {description}
-        </div>
-      </div>
-    </button>
-  )
-}
-
 // ── 3b. Earnings Calendar ──────────────────────────────────────────────────────
 
 function EarningsCalendar() {
@@ -552,7 +462,11 @@ function EarningsCalendar() {
         </div>
       )}
 
-      {data && data.length > 0 && (
+      {data && data.length > 0 && (() => {
+        // FMP returns the full global earnings calendar — thousands of rows.
+        // Show the next 50 events so the dashboard widget stays glanceable.
+        const visible = data.slice(0, 50)
+        return (
         <div
           style={{
             background: 'var(--bg-1)',
@@ -561,15 +475,15 @@ function EarningsCalendar() {
             overflow: 'hidden',
           }}
         >
-          {data.map((ev, idx) => (
+          {visible.map((ev, idx) => (
             <div
-              key={`${ev.ticker}-${ev.date}`}
+              key={`${ev.ticker}-${ev.date}-${idx}`}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
                 padding: '9px 14px',
-                borderBottom: idx < data.length - 1 ? '1px solid var(--border)' : 'none',
+                borderBottom: idx < visible.length - 1 ? '1px solid var(--border)' : 'none',
               }}
             >
               <span
@@ -615,7 +529,7 @@ function EarningsCalendar() {
                   fontWeight: 600,
                   color: ev.time === 'BMO' ? 'var(--positive)' : 'var(--warning)',
                   background:
-                    ev.time === 'BMO' ? 'var(--positive-bg)' : 'rgba(226,185,61,0.10)',
+                    ev.time === 'BMO' ? 'var(--positive-bg)' : 'rgba(245, 158, 11, 0.10)',
                   padding: '2px 5px',
                   borderRadius: 3,
                   flexShrink: 0,
@@ -626,7 +540,8 @@ function EarningsCalendar() {
             </div>
           ))}
         </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
@@ -757,22 +672,6 @@ function SignalsSection() {
           {tickers.map((ticker) => (
             <SignalRow key={ticker} ticker={ticker} />
           ))}
-          {/* Channel tags */}
-          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-            <span
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 9,
-                color: 'var(--positive)',
-                background: 'var(--positive-bg)',
-                padding: '2px 7px',
-                borderRadius: 3,
-                border: '1px solid rgba(16,185,129,0.2)',
-              }}
-            >
-              Desktop ✓
-            </span>
-          </div>
         </div>
       )}
     </div>
@@ -951,9 +850,6 @@ function RecentAnalysesSection() {
 // ── DashboardPage ──────────────────────────────────────────────────────────────
 
 export function DashboardPage() {
-  const navigate = useNavigate()
-  const setAiPanelOpen = useUiStore((s) => s.setAiPanelOpen)
-
   return (
     <div
       style={{
@@ -969,7 +865,7 @@ export function DashboardPage() {
           padding: '28px 32px 48px',
           display: 'flex',
           flexDirection: 'column',
-          gap: 24,
+          gap: 22,
         }}
       >
         {/* ── 1. Market Ticker Bar ─────────────────────────────────────────── */}
@@ -978,7 +874,10 @@ export function DashboardPage() {
         {/* ── 2. Sector ETF Strip ──────────────────────────────────────────── */}
         <SectorStrip />
 
-        {/* ── 3. Two-column: Quick Actions | Earnings Calendar ─────────────── */}
+        {/* ── 3. AI Today Summary (hero) ───────────────────────────────────── */}
+        <TodaySummaryCard />
+
+        {/* ── 4. Two-column: Watchlist Events | Earnings Calendar ──────────── */}
         <div
           style={{
             display: 'grid',
@@ -987,49 +886,9 @@ export function DashboardPage() {
             alignItems: 'start',
           }}
         >
-          {/* Quick Actions */}
-          <div>
-            <SectionHeader title="快捷操作" />
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 8,
-              }}
-            >
-              <QuickActionCard
-                icon={<IconTrendingUp size={14} />}
-                title="完整报告"
-                description="对任意股票运行 DCF、LBO 与同业对比"
-                onClick={() => navigate('/stocks')}
-              />
-              <QuickActionCard
-                icon={<IconActivity size={14} />}
-                title="对比分析"
-                description="多维度同业横向对比"
-                onClick={() => navigate('/stocks')}
-              />
-              <QuickActionCard
-                icon={<IconZap size={14} />}
-                title="估值推演"
-                description="情景分析与敏感性测试"
-                onClick={() => navigate('/playground')}
-              />
-              <QuickActionCard
-                icon={<IconFileText size={14} />}
-                title="回测验证"
-                description="历史信号回测"
-                onClick={() => navigate('/journal')}
-              />
-            </div>
-          </div>
-
-          {/* Earnings Calendar */}
+          <SignalsSection />
           <EarningsCalendar />
         </div>
-
-        {/* ── 4. Signals & Alerts ──────────────────────────────────────────── */}
-        <SignalsSection />
 
         {/* ── 5. Recent Analyses ───────────────────────────────────────────── */}
         <RecentAnalysesSection />

@@ -21,6 +21,7 @@ import { BASE_URL } from '../api/client'
 import { TodaySummaryCard } from '../components/dashboard/TodaySummaryCard'
 import { LearningCarousel } from '../components/dashboard/LearningCarousel'
 import { ValuationOutliersCard } from '../components/dashboard/ValuationOutliersCard'
+import { DiscoverChip } from '../components/dashboard/DiscoverChip'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -934,8 +935,13 @@ export function DashboardPage() {
         {/* ── 6. Recent Analyses ───────────────────────────────────────────── */}
         <RecentAnalysesSection />
 
-        {/* ── 7. Learning carousel (retail-friendly differentiator) ────────── */}
-        <LearningCarousel />
+        {/* ── 7. Learning carousel + Discover chip ─────────────────────────── */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+            <DiscoverChip />
+          </div>
+          <LearningCarousel />
+        </div>
       </div>
     </div>
   )

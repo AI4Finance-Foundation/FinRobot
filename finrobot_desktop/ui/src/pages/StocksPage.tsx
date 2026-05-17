@@ -46,6 +46,7 @@ import VerbToolbar from '../components/VerbToolbar'
 import WarningBanner from '../components/WarningBanner'
 import ToastContainer from '../components/Toast'
 import AnalysisProgress from '../components/AnalysisProgress'
+import { WhyMovingPopover } from '../components/WhyMovingPopover'
 
 // Tab views
 import OverviewTab from '../views/OverviewTab'
@@ -226,6 +227,37 @@ function StockHeaderNew({ ticker }: StockHeaderNewProps) {
           {t('common.notAvailable')}
         </span>
       )}
+
+      {/* Why moving? — one-click LLM explanation */}
+      <WhyMovingPopover ticker={ticker}>
+        {({ onClick, ariaExpanded }) => (
+          <button
+            onClick={onClick}
+            aria-label={`查看 ${ticker} 今日动向解释`}
+            aria-expanded={ariaExpanded}
+            title="为啥动？— 让 FinAgent 一句话解释"
+            style={{
+              padding: '3px 9px',
+              fontSize: '0.75rem',
+              border: '1px solid var(--border)',
+              borderRadius: 4,
+              background: 'var(--accent-dim)',
+              color: 'var(--accent)',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-ui)',
+              fontWeight: 500,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              whiteSpace: 'nowrap',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+          >
+            💡 为啥动
+          </button>
+        )}
+      </WhyMovingPopover>
 
       {/* Market cap */}
       <span style={{ fontSize: '0.87rem', color: 'var(--text-muted)' }}>

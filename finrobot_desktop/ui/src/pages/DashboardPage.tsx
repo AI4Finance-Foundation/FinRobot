@@ -19,6 +19,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useStocksStore } from '../stores/stocksStore'
 import { BASE_URL } from '../api/client'
 import { TodaySummaryCard } from '../components/dashboard/TodaySummaryCard'
+import { LearningCarousel } from '../components/dashboard/LearningCarousel'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -548,29 +549,22 @@ function EarningsCalendar() {
 
 // ── 4. Signals & Alerts ────────────────────────────────────────────────────────
 
-function SignalRow({ ticker }: { ticker: string }) {
-  const { data, isLoading } = useQuery<CatalystEvent[]>({
-    queryKey: ['catalysts', ticker],
-    queryFn: () => fetchCatalysts(ticker),
-    staleTime: 120_000,
-    retry: 1,
-  })
+interface CatalystWithTicker extends CatalystEvent {
+  ticker: string
+}
 
-  if (isLoading) {
-    return <Skeleton width="100%" height={34} />
-  }
+function impactColor(impact: string | undefined): string {
+  const i = (impact ?? '').toLowerCase()
+  if (i === 'positive') return 'var(--positive)'
+  if (i === 'negative') return 'var(--negative)'
+  return 'var(--warning)'
+}
 
-  if (!data || data.length === 0) return null
-
-  const top = data[0]
-  const impact = (top.impact ?? '').toLowerCase()
-  const dotColor =
-    impact === 'positive' ? 'var(--positive)' :
-    impact === 'negative' ? 'var(--negative)' :
-    'var(--warning)'
-
+function SignalRow({ row, onClick }: { row: CatalystWithTicker; onClick: () => void }): React.ReactElement {
+  const dot = impactColor(row.impact)
   return (
-    <div
+    <button
+      onClick={onClick}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -579,18 +573,17 @@ function SignalRow({ ticker }: { ticker: string }) {
         background: 'var(--bg-1)',
         border: '1px solid var(--border)',
         borderRadius: 'var(--r-md)',
-        transition: 'border-color 0.15s',
+        transition: 'all 0.15s',
+        cursor: 'pointer',
+        textAlign: 'left',
+        width: '100%',
       }}
+      onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)')}
+      onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)')}
+      type="button"
+      aria-label={`查看 ${row.ticker} 详情`}
     >
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: dotColor,
-          flexShrink: 0,
-        }}
-      />
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot, flexShrink: 0 }} />
       <span
         style={{
           fontFamily: 'var(--font-mono)',
@@ -601,7 +594,7 @@ function SignalRow({ ticker }: { ticker: string }) {
           width: 44,
         }}
       >
-        {ticker}
+        {row.ticker}
       </span>
       <span
         style={{
@@ -613,25 +606,70 @@ function SignalRow({ ticker }: { ticker: string }) {
           whiteSpace: 'nowrap',
         }}
       >
-        {top.title}
+        {row.title}
       </span>
-      <span
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9,
-          color: 'var(--text-muted)',
-          flexShrink: 0,
-        }}
-      >
-        {relativeTime(top.date)}
+      {row.category && (
+        <span
+          style={{
+            fontSize: 9,
+            color: 'var(--text-muted)',
+            background: 'var(--bg-2)',
+            padding: '1px 5px',
+            borderRadius: 2,
+            flexShrink: 0,
+            fontFamily: 'var(--font-mono)',
+            textTransform: 'lowercase',
+          }}
+        >
+          {row.category}
+        </span>
+      )}
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>
+        {relativeTime(row.date)}
       </span>
-    </div>
+    </button>
   )
 }
 
+function useAggregatedCatalysts(tickers: string[]): { rows: CatalystWithTicker[]; isLoading: boolean } {
+  // Run one query per ticker; aggregate + sort once all settled.
+  const queries = tickers.map((ticker) => ({
+    ticker,
+    result: useQuery<CatalystEvent[]>({
+      queryKey: ['catalysts', ticker],
+      queryFn: () => fetchCatalysts(ticker),
+      staleTime: 120_000,
+      retry: 1,
+    }),
+  }))
+
+  const isLoading = queries.some((q) => q.result.isLoading)
+
+  const rows: CatalystWithTicker[] = []
+  for (const { ticker, result } of queries) {
+    const data = result.data ?? []
+    // Take top 2 per ticker (sorted by importance desc within each)
+    const top2 = [...data]
+      .sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0))
+      .slice(0, 2)
+      .map((c) => ({ ...c, ticker }))
+    rows.push(...top2)
+  }
+
+  // Global sort by importance so the loudest events bubble to top across tickers.
+  rows.sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0))
+  return { rows, isLoading }
+}
+
+const MAX_VISIBLE_SIGNALS = 5
+const MAX_WATCHED_FOR_SIGNALS = 5  // bound concurrent queries
+
 function SignalsSection() {
+  const navigate = useNavigate()
   const watchlist = useStocksStore((s) => s.watchlist)
-  const tickers = Array.from(watchlist).slice(0, 3)
+  const tickers = Array.from(watchlist).slice(0, MAX_WATCHED_FOR_SIGNALS)
+  const { rows, isLoading } = useAggregatedCatalysts(tickers)
+  const visible = rows.slice(0, MAX_VISIBLE_SIGNALS)
 
   return (
     <div>
@@ -667,10 +705,33 @@ function SignalsSection() {
         >
           添加自选股以查看信号
         </div>
+      ) : isLoading && visible.length === 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} width="100%" height={34} />
+          ))}
+        </div>
+      ) : visible.length === 0 ? (
+        <div
+          style={{
+            padding: '10px 12px',
+            background: 'var(--bg-2)',
+            border: '1px dashed var(--border)',
+            borderRadius: 'var(--r-sm)',
+            fontSize: 11,
+            color: 'var(--text-muted)',
+          }}
+        >
+          自选股近期暂无重要事件
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {tickers.map((ticker) => (
-            <SignalRow key={ticker} ticker={ticker} />
+          {visible.map((row, i) => (
+            <SignalRow
+              key={`${row.ticker}-${row.date}-${i}`}
+              row={row}
+              onClick={() => navigate(`/stocks/${row.ticker}`)}
+            />
           ))}
         </div>
       )}
@@ -892,6 +953,9 @@ export function DashboardPage() {
 
         {/* ── 5. Recent Analyses ───────────────────────────────────────────── */}
         <RecentAnalysesSection />
+
+        {/* ── 6. Learning carousel (retail-friendly differentiator) ────────── */}
+        <LearningCarousel />
       </div>
     </div>
   )

@@ -47,7 +47,7 @@ function ExpandableList({ items, icon, iconColor, initialCount = 3 }: {
           className="research-expand-btn"
           onClick={() => setExpanded(!expanded)}
         >
-          {expanded ? 'Show less' : `+${items.length - initialCount} more`}
+          {expanded ? '收起' : `还有 ${items.length - initialCount} 项`}
         </button>
       )}
     </>
@@ -89,10 +89,10 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
       <div className="hero-header">
         <div>
           <div className="valuation-label">
-            Investment Rating
+            投资评级
             <span
               className="source-badge source-llm"
-              data-tooltip="AI judgment informed by data"
+              data-tooltip="AI 综合数据后给出的判断"
             >
               AI
             </span>
@@ -106,10 +106,10 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
         </div>
         <div className="text-right">
           <div className="valuation-label">
-            Price Target
+            目标价
             <span
               className="source-badge source-llm"
-              data-tooltip="AI judgment informed by DCF + comps"
+              data-tooltip="AI 基于 DCF + 同业对比的中性场景估算"
             >
               AI
             </span>
@@ -134,6 +134,23 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
         </div>
       )}
 
+      {/* Honest disclaimer — single point estimate is misleading without context */}
+      <div
+        style={{
+          fontSize: '0.7rem',
+          color: 'var(--text-muted)',
+          background: 'var(--bg-2, var(--surface))',
+          border: '1px dashed var(--border)',
+          borderRadius: 'var(--r-sm, 4px)',
+          padding: '6px 10px',
+          marginTop: '-6px',
+          marginBottom: 'var(--sp-5)',
+          lineHeight: 1.5,
+        }}
+      >
+        ⓘ 目标价为单一中性场景估算，对 WACC / 增长率敏感。建议在「估值推演」页拖动滑块查看乐观 / 悲观区间。
+      </div>
+
       {/* Investment Thesis — broken into digestible paragraphs */}
       {result.narrative && (
         <div className="research-thesis">
@@ -142,7 +159,7 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
               <rect x="1.5" y="1.5" width="9" height="9" rx="1" />
               <path d="M4 4h4M4 6h4M4 8h2" />
             </svg>
-            Investment Thesis
+            投资论点
           </div>
           <div
             className="research-thesis-text md-content"
@@ -159,7 +176,7 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
               <circle cx="6" cy="6" r="4" />
               <path d="M6 4v4M4 6h4" />
             </svg>
-            Catalysts
+            催化剂
             <span className="research-count">{result.catalysts.length}</span>
           </div>
           <ExpandableList
@@ -174,7 +191,7 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
               <path d="M6 3v4M6 9v0" />
               <circle cx="6" cy="6" r="4" />
             </svg>
-            Risks
+            风险
             <span className="research-count">{result.risks.length}</span>
           </div>
           <ExpandableList
@@ -192,13 +209,13 @@ export default function ResearchSummary({ result, currentPrice }: Props) {
             <rect x="2" y="1" width="10" height="12" rx="1" />
             <path d="M5 4h4M5 7h4M5 10h2" />
           </svg>
-          View Full Report
+          查看完整报告
         </button>
         <button className="btn" onClick={handleExportPdf}>
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M2 10v2h10v-2M7 2v7m-3-3l3 3 3-3" />
           </svg>
-          Export PDF
+          导出 PDF
         </button>
       </div>
     </div>

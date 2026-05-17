@@ -6,8 +6,9 @@
  *   2. WATCHLIST — live ticker list from stocksStore + add-ticker input
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useQueries } from '@tanstack/react-query'
 import {
   IconHome,
   IconTrendingUp,
@@ -19,6 +20,13 @@ import {
 } from '../lib/icons'
 import { useStocksStore, isValidTicker } from '../stores/stocksStore'
 import { useTickerPrice } from '../hooks/useTickerData'
+import { BASE_URL } from '../api/client'
+
+interface PriceData {
+  current_price: number
+  change_pct: number
+  prev_close?: number
+}
 
 // ── Inline SVG icons for routes not in icons.tsx ────────────────────────────
 
@@ -304,7 +312,41 @@ export function Sidebar(): React.ReactElement {
     userSelect: 'none',
   }
 
-  const watchlistItems = Array.from(watchlist)
+  // ── Watchlist: fetch all prices in parallel + sort by |change_pct| DESC ──
+  // Each query uses the same key as WatchlistItem.useTickerPrice → cache shared,
+  // no double fetch. We just need the data here to drive sort order.
+  const tickerList = useMemo(() => Array.from(watchlist), [watchlist])
+  const priceQueries = useQueries({
+    queries: tickerList.map((ticker) => ({
+      queryKey: ['ticker-price', ticker],
+      queryFn: async ({ signal }: { signal?: AbortSignal }): Promise<PriceData> => {
+        const r = await fetch(`${BASE_URL}/api/data/${ticker}/price`, { signal })
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json() as Promise<PriceData>
+      },
+      enabled: !!ticker,
+      staleTime: 60_000,
+      refetchInterval: 60_000,
+      retry: 2,
+    })),
+  })
+
+  const watchlistItems = useMemo(() => {
+    // Build [ticker, |change_pct|] then sort DESC. Tickers without data go last
+    // (stable order by name).
+    const withChange = tickerList.map((ticker, i) => ({
+      ticker,
+      abs: Math.abs(priceQueries[i]?.data?.change_pct ?? -Infinity),
+      hasData: priceQueries[i]?.data != null,
+    }))
+    return withChange
+      .sort((a, b) => {
+        if (a.hasData !== b.hasData) return a.hasData ? -1 : 1
+        if (a.abs !== b.abs) return b.abs - a.abs
+        return a.ticker.localeCompare(b.ticker)
+      })
+      .map((x) => x.ticker)
+  }, [tickerList, priceQueries])
 
   return (
     <aside className="sidebar" style={sidebarStyle} data-testid="sidebar">

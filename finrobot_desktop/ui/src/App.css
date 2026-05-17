@@ -3643,3 +3643,10 @@ select.input-field {
   border-color: var(--accent-hover);
   color: var(--text-0);
 }
+
+/* ──────────────────────────────────────────────────────────────────
+ * Utility: hide native scrollbars while preserving scroll behavior
+ * Used by horizontally-scrolling carousels (LearningCarousel, etc.)
+ * ──────────────────────────────────────────────────────────────── */
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.hide-scrollbar::-webkit-scrollbar { display: none; }

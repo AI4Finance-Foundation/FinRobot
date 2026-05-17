@@ -25,13 +25,13 @@ export default function FinancialsTab() {
     <div className="tab-content financials-tab">
       {/* Trends Section */}
       <section className="chart-section">
-        <h3 className="section-title">Trends</h3>
+        <h3 className="section-title">趋势</h3>
         <div className="chart-grid-2col">
           {historicalMetrics && (
             <>
-              <RevenueEbitdaChart data={historicalToRevenueEbitdaData(historicalMetrics)} title="Revenue & EBITDA" />
-              <MarginTrendChart data={historicalToMarginData(historicalMetrics)} title="Margin Trends" />
-              <RevenueYoYChart data={historicalToRevenueYoYData(historicalMetrics)} title="Revenue YoY Growth" />
+              <RevenueEbitdaChart data={historicalToRevenueEbitdaData(historicalMetrics)} title="营收 & EBITDA" />
+              <MarginTrendChart data={historicalToMarginData(historicalMetrics)} title="利润率走势" />
+              <RevenueYoYChart data={historicalToRevenueYoYData(historicalMetrics)} title="营收同比增速" />
             </>
           )}
         </div>
@@ -39,33 +39,33 @@ export default function FinancialsTab() {
 
       {/* Structure Section */}
       <section className="chart-section">
-        <h3 className="section-title">Structure</h3>
+        <h3 className="section-title">结构</h3>
         <div className="chart-grid-2col">
           {historicalMetrics && historicalMetrics.operating_cash_flow.length > 0 && (
-            <CashFlowChart data={historicalToCashFlowData(historicalMetrics)} title="Cash Flow Breakdown" />
+            <CashFlowChart data={historicalToCashFlowData(historicalMetrics)} title="现金流拆解" />
           )}
           {quarterlyData && !qtrLoading && (
-            <QuarterlyComparisonChart data={quarterlyToComparisonData(quarterlyData)} title="Quarterly Comparison" />
+            <QuarterlyComparisonChart data={quarterlyToComparisonData(quarterlyData)} title="季度对比" />
           )}
         </div>
       </section>
 
       {/* Earnings Calls Section */}
       <section className="chart-section">
-        <h3 className="section-title">Earnings Calls</h3>
+        <h3 className="section-title">财报电话会</h3>
         <EarningsCallPanel />
       </section>
 
       {/* Insights Section — parsed from research narrative */}
       {researchResult?.narrative && (
         <section className="chart-section">
-          <h3 className="section-title">AI Insights</h3>
+          <h3 className="section-title">AI 洞察</h3>
           <InsightBlock
-            title="Balance Sheet Analysis"
+            title="资产负债分析"
             content={extractNarrativeSection(researchResult.narrative, ['balance sheet', 'financial position'])}
           />
           <InsightBlock
-            title="Cash Flow Analysis"
+            title="现金流分析"
             content={extractNarrativeSection(researchResult.narrative, ['cash flow', 'liquidity'])}
           />
         </section>

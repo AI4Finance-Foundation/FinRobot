@@ -10,6 +10,7 @@ import NewsFeed from '../components/NewsFeed'
 import { useCatalysts } from '../hooks/useCatalysts'
 import { fmtUsd, fmtPct, fmtMult, fmtPrice } from '../utils/formatters'
 import { BASE_URL } from '../api/client'
+import { TermTip, isKnownTerm } from '../components/TermTip'
 
 type ChartMode = 'simple' | 'technical'
 
@@ -366,13 +367,40 @@ function SniperCard({ sniper }: { sniper: SniperResult }) {
 
 interface KpiRowProps {
   label: string
+  /** Optional jargon term to wrap in TermTip (e.g. "EBITDA"). Falls back to
+   *  auto-detection when the entire label matches a known term. */
+  term?: string
   value: string
   source: string
   explanation: string
   loading?: boolean
 }
 
-function KpiRow({ label, value, source, explanation, loading }: KpiRowProps) {
+function renderKpiLabel(label: string, term?: string): React.ReactNode {
+  const t = term ?? label
+  if (isKnownTerm(t)) {
+    return <TermTip term={t}>{label}</TermTip>
+  }
+  // For composite labels like "P/E 比率" try to find a known term token
+  for (const word of label.split(/\s+|（|）|\(|\)/)) {
+    const clean = word.replace(/[^A-Za-z\/]/g, '')
+    if (clean && isKnownTerm(clean)) {
+      const idx = label.indexOf(clean)
+      if (idx >= 0) {
+        return (
+          <>
+            {label.slice(0, idx)}
+            <TermTip term={clean}>{clean}</TermTip>
+            {label.slice(idx + clean.length)}
+          </>
+        )
+      }
+    }
+  }
+  return label
+}
+
+function KpiRow({ label, term, value, source, explanation, loading }: KpiRowProps) {
   return (
     <div
       style={{
@@ -386,7 +414,7 @@ function KpiRow({ label, value, source, explanation, loading }: KpiRowProps) {
       }}
     >
       <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: 'var(--font-mono)' }}>
-        {label}
+        {renderKpiLabel(label, term)}
       </div>
       {loading ? (
         <div className="skeleton" style={{ width: 80, height: 18, borderRadius: 3 }} />
@@ -677,35 +705,38 @@ export default function OverviewTab() {
         }}
       >
         <KpiRow
-          label="Revenue (TTM)"
+          label="营收 (TTM)"
           value={revenue != null ? fmtUsd(revenue) : '—'}
           source="yfinance"
           explanation="过去12个月总营收"
           loading={finLoading}
         />
         <KpiRow
-          label="EBITDA Margin"
+          label="EBITDA 利润率"
+          term="EBITDA"
           value={ebitdaMargin != null ? fmtPct(ebitdaMargin) : '—'}
           source="yfinance"
           explanation="扣除财务调整前的盈利能力"
           loading={finLoading}
         />
         <KpiRow
-          label="P/E Ratio"
+          label="P/E 市盈率"
+          term="P/E"
           value={peRatio != null ? fmtMult(peRatio) : '—'}
           source="yfinance"
           explanation="每一元盈利对应的股价"
           loading={finLoading}
         />
         <KpiRow
-          label="DCF Target"
+          label="DCF 目标价"
+          term="DCF"
           value={dcfTarget != null ? fmtPrice(dcfTarget) : '—'}
           source="dcf-model"
           explanation="基于现金流折现模型的内在价值"
           loading={false}
         />
         <KpiRow
-          label="Verdict"
+          label="综合判断"
           value={verdict}
           source="finagent"
           explanation="基于估值与基本面的综合判断"
@@ -729,13 +760,13 @@ export default function OverviewTab() {
             className={`chart-mode-btn${chartMode === 'simple' ? ' active' : ''}`}
             onClick={() => setChartMode('simple')}
           >
-            Simple
+            简明
           </button>
           <button
             className={`chart-mode-btn${chartMode === 'technical' ? ' active' : ''}`}
             onClick={() => setChartMode('technical')}
           >
-            Technical
+            技术
           </button>
         </div>
         {chartMode === 'simple' ? (

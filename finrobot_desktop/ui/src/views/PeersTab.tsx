@@ -41,13 +41,13 @@ export default function PeersTab() {
 
       {compsResult && (
         <div className="chart-grid-2col">
-          <CompanyRadarChart data={compsResultToRadarData(compsResult)} title="Financial Profile" />
-          <PeerComparisonChart data={compsResultToPeerChartData(compsResult)} title="Peer Multiples" />
+          <CompanyRadarChart data={compsResultToRadarData(compsResult)} title="财务画像" />
+          <PeerComparisonChart data={compsResultToPeerChartData(compsResult)} title="同业倍数对比" />
         </div>
       )}
 
       {performanceData && (
-        <RelativePerformanceChart data={performanceData} title="Relative Performance (normalized to 100)" />
+        <RelativePerformanceChart data={performanceData} title="相对走势（基期=100）" />
       )}
 
       {researchResult?.narrative && (
@@ -62,7 +62,7 @@ function CompetitorNarrative({ narrative }: { narrative: string }) {
   if (!content) return null
   return (
     <details className="insight-block">
-      <summary className="insight-title">Competitive Analysis</summary>
+      <summary className="insight-title">竞争分析</summary>
       <div className="insight-content">{content}</div>
     </details>
   )

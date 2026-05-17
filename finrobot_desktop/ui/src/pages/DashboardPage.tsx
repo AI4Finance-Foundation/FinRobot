@@ -14,7 +14,7 @@
  * for numbers, Inter for text, graduated radius, subtle shadows.
  */
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useStocksStore } from '../stores/stocksStore'
@@ -25,6 +25,7 @@ import { LearningCarousel } from '../components/dashboard/LearningCarousel'
 import { ValuationOutliersCard } from '../components/dashboard/ValuationOutliersCard'
 import { DiscoverChip } from '../components/dashboard/DiscoverChip'
 import { Sparkline } from '../components/Sparkline'
+import { WhyMovingPopover } from '../components/WhyMovingPopover'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -543,9 +544,22 @@ function impactColor(impact: string | undefined): string {
 
 function SignalRow({ row, onClick }: { row: CatalystWithTicker; onClick: () => void }): React.ReactElement {
   const dot = impactColor(row.impact)
+  const [hover, setHover] = useState(false)
   return (
-    <button
+    <div
       onClick={onClick}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onClick()}
+      onMouseEnter={(e) => {
+        ;(e.currentTarget as HTMLDivElement).style.borderColor = 'var(--accent)'
+        setHover(true)
+      }}
+      onMouseLeave={(e) => {
+        ;(e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)'
+        setHover(false)
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`查看 ${row.ticker} 详情`}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -559,10 +573,6 @@ function SignalRow({ row, onClick }: { row: CatalystWithTicker; onClick: () => v
         textAlign: 'left',
         width: '100%',
       }}
-      onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)')}
-      onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)')}
-      type="button"
-      aria-label={`查看 ${row.ticker} 详情`}
     >
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot, flexShrink: 0 }} />
       <span
@@ -605,10 +615,41 @@ function SignalRow({ row, onClick }: { row: CatalystWithTicker; onClick: () => v
           {row.category}
         </span>
       )}
+      {hover && (
+        <WhyMovingPopover ticker={row.ticker}>
+          {({ onClick: openPopover, ariaExpanded }) => (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                openPopover(e)
+              }}
+              aria-label={`查看 ${row.ticker} 今日动向`}
+              aria-expanded={ariaExpanded}
+              title="为啥动？"
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                padding: '0 2px',
+                fontSize: 12,
+                lineHeight: 1,
+                display: 'flex',
+                alignItems: 'center',
+                flexShrink: 0,
+              }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)')}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)')}
+            >
+              💡
+            </button>
+          )}
+        </WhyMovingPopover>
+      )}
       <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>
         {relativeTime(row.date)}
       </span>
-    </button>
+    </div>
   )
 }
 

@@ -11,6 +11,7 @@ import { useCatalysts } from '../hooks/useCatalysts'
 import { fmtUsd, fmtPct, fmtMult, fmtPrice } from '../utils/formatters'
 import { BASE_URL } from '../api/client'
 import { TermTip, isKnownTerm } from '../components/TermTip'
+import { useUiStore } from '../stores/uiStore'
 
 type ChartMode = 'simple' | 'technical'
 
@@ -141,13 +142,21 @@ function ScoreBar({ value, color }: { value: number; color: string }) {
   )
 }
 
-function CompositeScoreCard({ score }: { score: ScoreResult }) {
+function CompositeScoreCard({ score, ticker }: { score: ScoreResult; ticker: string | null }) {
+  const sendChatPrompt = useUiStore((s) => s.sendChatPrompt)
+
   const subScores = [
     { key: 'fundamental', label: '基本面',   value: score.fundamental },
     { key: 'valuation',   label: '估值',     value: score.valuation },
     { key: 'catalyst',    label: '催化剂',   value: score.catalyst },
     { key: 'sentiment',   label: '情绪',     value: score.sentiment },
   ] as const
+
+  function askWhy(key: string, label: string, value: number, breakdown: string): void {
+    if (!ticker) return
+    const prompt = `${ticker} 的「${label}」评分为 ${Math.round(value)} 分（100 分制）。系统给出的简短依据：「${breakdown}」。请用一段中文（200 字以内）展开解释：这个分数偏高/偏低意味着什么？投资人应该重点关注什么？`
+    sendChatPrompt(prompt, true)
+  }
 
   const color = signalColor(score.signal)
   const bg = signalBg(score.signal)
@@ -216,13 +225,36 @@ function CompositeScoreCard({ score }: { score: ScoreResult }) {
         </div>
       </div>
 
-      {/* Sub-score bars */}
+      {/* Sub-score bars — click to ask LLM "why this score?" */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {subScores.map(({ key, label, value }) => {
           const barColor = value >= 60 ? 'var(--positive)' : value >= 40 ? 'var(--accent, #f59e0b)' : 'var(--negative)'
+          const breakdown = score.breakdown[key as keyof typeof score.breakdown] ?? ''
           return (
-            <div key={key}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <button
+              key={key}
+              onClick={() => askWhy(key, label, value, breakdown)}
+              disabled={!ticker}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                cursor: ticker ? 'pointer' : 'default',
+                textAlign: 'left',
+                width: '100%',
+                borderRadius: 4,
+                transition: 'background 0.12s',
+              }}
+              onMouseEnter={(e) => {
+                if (ticker) (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-3)'
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = 'transparent'
+              }}
+              title={ticker ? `点击让 FinAgent 解释 ${ticker} 的${label}评分` : ''}
+              type="button"
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 4px' }}>
                 <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 500 }}>
                   {label}
                 </span>
@@ -246,15 +278,29 @@ function CompositeScoreCard({ score }: { score: ScoreResult }) {
                       fontStyle: 'italic',
                     }}
                   >
-                    {score.breakdown[key as keyof typeof score.breakdown]}
+                    {breakdown}
                   </span>
                 </div>
               </div>
-              <ScoreBar value={value} color={barColor} />
-            </div>
+              <div style={{ padding: '0 4px' }}>
+                <ScoreBar value={value} color={barColor} />
+              </div>
+            </button>
           )
         })}
       </div>
+
+      {ticker && (
+        <div style={{
+          marginTop: 8,
+          fontSize: 10,
+          color: 'var(--text-muted)',
+          textAlign: 'right',
+          fontStyle: 'italic',
+        }}>
+          点击任意子项 → FinAgent 帮你解释
+        </div>
+      )}
     </div>
   )
 }
@@ -263,10 +309,10 @@ function CompositeScoreCard({ score }: { score: ScoreResult }) {
 
 function SniperCard({ sniper }: { sniper: SniperResult }) {
   const pricePoints = [
-    { label: 'Ideal Buy',      value: sniper.ideal_buy,     color: 'var(--positive)' },
-    { label: 'Secondary Buy',  value: sniper.secondary_buy, color: 'var(--positive)' },
-    { label: 'Stop Loss',      value: sniper.stop_loss,     color: 'var(--negative)' },
-    { label: 'Take Profit',    value: sniper.take_profit,   color: 'var(--accent, #f59e0b)' },
+    { label: '理想买入',  value: sniper.ideal_buy,     color: 'var(--positive)' },
+    { label: '二次买入',  value: sniper.secondary_buy, color: 'var(--positive)' },
+    { label: '止损',      value: sniper.stop_loss,     color: 'var(--negative)' },
+    { label: '止盈',      value: sniper.take_profit,   color: 'var(--accent, #f59e0b)' },
   ]
 
   return (
@@ -654,7 +700,7 @@ export default function OverviewTab() {
           {/* Composite Score */}
           {scoreMutation.isPending && <CardSkeleton height={200} />}
           {scoreMutation.isSuccess && scoreMutation.data && (
-            <CompositeScoreCard score={scoreMutation.data} />
+            <CompositeScoreCard score={scoreMutation.data} ticker={ticker ?? null} />
           )}
           {scoreMutation.isError && (
             <div

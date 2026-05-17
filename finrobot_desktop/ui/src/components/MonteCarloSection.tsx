@@ -42,15 +42,15 @@ export default function MonteCarloSection() {
   return (
     <div className="card animate-in">
       <div className="card-header">
-        <span className="card-title">Monte Carlo Simulation</span>
+        <span className="card-title">蒙特卡洛模拟</span>
         <button className="btn-sm" onClick={handleRun} disabled={monteCarloLoading || !currentPrice}>
-          {monteCarloLoading ? 'Running...' : 'Run (10K simulations)'}
+          {monteCarloLoading ? '运行中…' : '跑 1 万次模拟'}
         </button>
       </div>
       <div className="card-body">
         {monteCarloLoading && (
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            Running 10,000 simulations…
+            正在跑 10,000 次模拟…
           </p>
         )}
       </div>

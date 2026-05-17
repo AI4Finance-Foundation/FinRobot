@@ -19,10 +19,10 @@ export default function ScenarioCompare() {
   return (
     <div className="scenario-compare animate-in">
       <div className="scenario-compare-header">
-        <span className="card-title">Scenario Comparison</span>
+        <span className="card-title">情景对比</span>
         {currentPrice != null && (
           <span className="scenario-current-price">
-            Current: ${currentPrice.toFixed(2)}
+            当前 ${currentPrice.toFixed(2)}
           </span>
         )}
       </div>

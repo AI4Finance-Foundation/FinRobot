@@ -43,7 +43,7 @@ export default function EarningsCallPanel() {
     return (
       <div className="card animate-in">
         <div className="card-header">
-          <span className="card-title">Earnings Call Transcripts</span>
+          <span className="card-title">财报电话会逐字稿</span>
         </div>
         <div className="card-body" style={{
           display: 'flex',
@@ -56,8 +56,8 @@ export default function EarningsCallPanel() {
           padding: 'var(--sp-6)',
         }}>
           {isMissingKey
-            ? 'Configure FMP API key in Settings to access earnings call transcripts.'
-            : msg || 'Failed to load earnings call transcripts.'}
+            ? '请在设置中配置 FMP API 密钥以查看财报电话会逐字稿。'
+            : msg || '加载财报电话会逐字稿失败。'}
         </div>
       </div>
     )
@@ -67,7 +67,7 @@ export default function EarningsCallPanel() {
     return (
       <div className="card animate-in">
         <div className="card-header">
-          <span className="card-title">Earnings Call Transcripts</span>
+          <span className="card-title">财报电话会逐字稿</span>
         </div>
         <div className="card-body" style={{ padding: 'var(--sp-4)' }}>
           <div className="skeleton" style={{ width: '100%', height: 200, borderRadius: 'var(--r-md)' }} />
@@ -82,7 +82,7 @@ export default function EarningsCallPanel() {
     return (
       <div className="card animate-in">
         <div className="card-header">
-          <span className="card-title">Earnings Call Transcripts</span>
+          <span className="card-title">财报电话会逐字稿</span>
         </div>
         <div className="card-body" style={{
           display: 'flex',
@@ -103,7 +103,7 @@ export default function EarningsCallPanel() {
   return (
     <div className="card animate-in">
       <div className="card-header">
-        <span className="card-title">Earnings Call Transcripts</span>
+        <span className="card-title">财报电话会逐字稿</span>
         <span className="card-badge">{transcripts.length} available</span>
       </div>
       <div className="card-body" style={{ padding: 0 }}>

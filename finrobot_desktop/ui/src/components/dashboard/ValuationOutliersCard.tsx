@@ -13,7 +13,9 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../../api/client'
 import { useStocksStore } from '../../stores/stocksStore'
+import { useTickerPrice } from '../../hooks/useTickerData'
 import { TermTip } from '../TermTip'
+import { Sparkline } from '../Sparkline'
 
 interface ValuationItem {
   ticker: string
@@ -202,6 +204,16 @@ function ValuationRow({
 }): React.ReactElement {
   const hasOffset = item.offset_pct != null
   const color = offsetColor(item.offset_pct)
+
+  // 7-day sparkline — slices the already-fetched history from useTickerPrice.
+  // Shares react-query cache with Sidebar's WatchlistItem; no extra request.
+  const { data: priceData } = useTickerPrice(item.ticker)
+  const sparkValues = useMemo(() => {
+    const history = priceData?.history
+    if (!history || history.length === 0) return []
+    return history.slice(-7).map((p) => p.close)
+  }, [priceData?.history])
+
   return (
     <div
       style={{
@@ -232,6 +244,10 @@ function ValuationRow({
       >
         {item.ticker}
       </button>
+
+      {sparkValues.length >= 2 && (
+        <Sparkline values={sparkValues} width={44} height={12} />
+      )}
 
       {hasOffset ? (
         <>

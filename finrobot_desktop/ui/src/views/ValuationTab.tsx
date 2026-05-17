@@ -244,10 +244,10 @@ export default function ValuationTab() {
             {sensitivityData && (
               <SensitivityHeatmap
                 data={sensitivityGridToHeatmapRows(sensitivityData)}
-                title="Sensitivity (WACC × TGR)"
+                title="敏感性矩阵（WACC × TGR）"
               />
             )}
-            <WaterfallChart data={dcfResultToWaterfallData(dcfResult)} title="DCF Bridge" />
+            <WaterfallChart data={dcfResultToWaterfallData(dcfResult)} title="DCF 价值桥" />
           </>
         ) : (
           <div
@@ -281,7 +281,7 @@ export default function ValuationTab() {
         {dcfResult && sensitivityData && (
           <FootballField
             data={dcfSensitivityToFootballData(dcfResult, sensitivityData)}
-            title="Valuation Range"
+            title="估值区间"
           />
         )}
         {/* Bull/Bear adjustment editor — only when base DCF inputs exist */}
@@ -295,7 +295,7 @@ export default function ValuationTab() {
         {historicalMetrics && historicalMetrics.price_data_available && (
           <EpsPeChart
             data={historicalToEpsPeData(historicalMetrics)}
-            title="Historical EPS & P/E"
+            title="历史 EPS 与 P/E"
           />
         )}
 
@@ -303,7 +303,7 @@ export default function ValuationTab() {
         {earningsResult?.surprises && earningsResult.surprises.length > 0 && (
           <EpsSurpriseChart
             data={earningsToSurpriseChartData(earningsResult.surprises)}
-            title="EPS Surprises"
+            title="EPS 超预期"
           />
         )}
       </section>

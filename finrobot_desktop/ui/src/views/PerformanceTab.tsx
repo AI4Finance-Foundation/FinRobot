@@ -38,7 +38,7 @@ export default function PerformanceTab() {
           }}
         >
           <h3 className="section-title" style={{ marginBottom: 0 }}>
-            Price Chart
+            价格走势
           </h3>
           <div className="chart-mode-toggle">
             <button
@@ -46,20 +46,20 @@ export default function PerformanceTab() {
               onClick={() => setChartMode('simple')}
               aria-pressed={chartMode === 'simple'}
             >
-              Simple
+              简明
             </button>
             <button
               className={`chart-mode-btn${chartMode === 'technical' ? ' active' : ''}`}
               onClick={() => setChartMode('technical')}
               aria-pressed={chartMode === 'technical'}
             >
-              Technical
+              技术
             </button>
           </div>
         </div>
 
         {chartMode === 'simple' ? (
-          <PriceChart title={`${ticker} Price History`} />
+          <PriceChart title={`${ticker} 历史价格`} />
         ) : (
           <TechnicalAnalysisView />
         )}
@@ -68,10 +68,10 @@ export default function PerformanceTab() {
       {/* Relative performance vs SPY */}
       {performanceData && (
         <section className="chart-section">
-          <h3 className="section-title">Relative Performance (vs SPY, normalized)</h3>
+          <h3 className="section-title">相对走势（vs SPY，归一化）</h3>
           <RelativePerformanceChart
             data={performanceData}
-            title="Relative Performance"
+            title="相对走势"
           />
         </section>
       )}

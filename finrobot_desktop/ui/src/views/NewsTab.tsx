@@ -27,7 +27,7 @@ export default function NewsTab() {
     return (
       <div className="tab-content news-tab">
         <div className="empty-state-card">
-          <p>Select a ticker to view news and catalysts</p>
+          <p>选择一只股票后查看新闻与催化剂事件</p>
         </div>
       </div>
     )

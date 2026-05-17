@@ -79,8 +79,8 @@ function DiffPanel({
     queryKey: ['artifact-diff', aId, bId],
     queryFn: async ({ signal }) => {
       const resp = await fetch(`${BASE_URL}/api/artifacts/${aId}/diff/${bId}`, { signal })
-      if (resp.status === 404) throw new Error('One or both artifacts were deleted')
-      if (!resp.ok) throw new Error(`Diff failed (${resp.status})`)
+      if (resp.status === 404) throw new Error('两份记录中至少有一份已被删除')
+      if (!resp.ok) throw new Error(`对比失败（${resp.status}）`)
       return resp.json() as Promise<FieldDiff[]>
     },
   })
@@ -267,8 +267,8 @@ export default function HistoryTab({ ticker }: Props) {
     if (diffSelection.length !== 2) {
       addToast({
         type: 'info',
-        title: 'Select two artifacts',
-        description: 'Check two artifacts to compare',
+        title: '请选两份记录',
+        description: '勾选两份记录后才能对比',
       })
       return
     }

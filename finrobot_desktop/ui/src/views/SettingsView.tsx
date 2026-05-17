@@ -578,13 +578,13 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               />
               <button style={ghostBtnStyle}>验证</button>
             </div>
-            <p style={hintStyle}>Required for full accuracy — free at financialmodelingprep.com</p>
+            <p style={hintStyle}>完整准确性所需 — 在 financialmodelingprep.com 免费注册</p>
           </div>
 
           {/* Finnhub */}
           <div style={fieldStyle}>
             <div style={labelStyle}>
-              <span>Finnhub API Key</span>
+              <span>Finnhub API 密钥</span>
               {finnhubConfigured ? (
                 <span style={configuredBadgeStyle}>已配置</span>
               ) : (
@@ -610,7 +610,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               type="email"
               value={secUserAgent}
               onChange={(e) => handleSecAgentChange(e.target.value)}
-              placeholder="Company Name admin@example.com"
+              placeholder="例如：公司名 admin@example.com"
             />
             <p style={hintStyle}>Enables: 10-K RAG Q&A — required by SEC EDGAR terms</p>
           </div>
@@ -625,7 +625,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
         <div style={fieldGroupStyle}>
           <div style={fieldStyle}>
             <div style={labelStyle}>
-              <span>Model</span>
+              <span>模型</span>
             </div>
             <SelectWithFocus
               value={modelName || settingsResp?.model_name || ''}
@@ -749,14 +749,14 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                   type="password"
                   value={telegramToken}
                   onChange={(e) => handleTelegramToken(e.target.value)}
-                  placeholder="Bot token (from @BotFather)"
+                  placeholder="Bot Token（@BotFather 获取）"
                 />
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <InputWithFocus
                     type="text"
                     value={telegramChatId}
                     onChange={(e) => handleTelegramChatId(e.target.value)}
-                    placeholder="Chat ID"
+                    placeholder="Chat ID（会话 ID）"
                   />
                   <TestButton
                     channel="telegram"
@@ -827,14 +827,14 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                   type="email"
                   value={emailTo}
                   onChange={(e) => handleEmailTo(e.target.value)}
-                  placeholder="Recipient email address"
+                  placeholder="收件人邮箱地址"
                 />
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <InputWithFocus
                     type="text"
                     value={emailSmtpHost}
                     onChange={(e) => handleSmtpHost(e.target.value)}
-                    placeholder="SMTP host (e.g. smtp.gmail.com)"
+                    placeholder="SMTP 主机（如 smtp.gmail.com）"
                     style={{ flex: 1 }}
                   />
                   <InputWithFocus
@@ -892,7 +892,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
         <h2 style={sectionTitleStyle}>外观</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={labelStyle}>
-            <span>Theme</span>
+            <span>主题</span>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
             {(['dark', 'light'] as const).map((t) => (
@@ -923,7 +923,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               </label>
             ))}
           </div>
-          <p style={hintStyle}>Also available via titlebar toggle</p>
+          <p style={hintStyle}>也可通过标题栏切换</p>
         </div>
       </section>
     </div>

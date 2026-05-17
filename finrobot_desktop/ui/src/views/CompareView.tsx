@@ -3,6 +3,7 @@ import { useAppStore } from '../stores/appStore'
 import type { ComparisonResultData, CompanyValuation } from '../stores/appStore'
 import { BASE_URL } from '../api/client'
 import { fmtMult, fmtPrice } from '../utils/formatters'
+import { TermTip, isKnownTerm } from '../components/TermTip'
 
 export default function CompareView() {
   const comparisonResult = useAppStore((s) => s.comparisonResult)
@@ -288,10 +289,25 @@ function ValuationCard({ company }: { company: CompanyValuation }) {
 
 
 function MiniMetric({ label, value }: { label: string; value: string | null }) {
+  // Auto-wrap known jargon terms with TermTip hover tooltips. Splits "EV/EBITDA"
+  // so each token gets its own lookup.
+  const renderLabel = (): React.ReactNode => {
+    if (label.includes('/')) {
+      const parts = label.split('/')
+      return parts.map((p, i) => (
+        <span key={i}>
+          {i > 0 && '/'}
+          {isKnownTerm(p) ? <TermTip term={p}>{p}</TermTip> : p}
+        </span>
+      ))
+    }
+    return isKnownTerm(label) ? <TermTip term={label}>{label}</TermTip> : label
+  }
+
   return (
     <div>
       <div style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-        {label}
+        {renderLabel()}
       </div>
       <div className="font-mono" style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>
         {value ?? '\u2014'}

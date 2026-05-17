@@ -157,6 +157,57 @@ function WatchlistItem({ ticker, active }: { ticker: string; active: boolean }) 
   )
 }
 
+// ── EmptyWatchlistHint — onboarding for first-time users ─────────────────────
+
+const SUGGESTED_TICKERS = ['AAPL', 'NVDA', 'TSLA', 'MSFT'] as const
+
+function EmptyWatchlistHint(): React.ReactElement {
+  const toggleWatchlist = useStocksStore((s) => s.toggleWatchlist)
+
+  return (
+    <div style={{ padding: '6px 12px 4px' }}>
+      <div
+        style={{
+          fontFamily: 'var(--font-ui)',
+          fontSize: 11,
+          color: 'var(--text-muted)',
+          lineHeight: 1.5,
+          marginBottom: 8,
+        }}
+      >
+        试试加几只熟悉的：
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        {SUGGESTED_TICKERS.map((ticker) => (
+          <button
+            key={ticker}
+            onClick={() => toggleWatchlist(ticker)}
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              fontWeight: 600,
+              color: 'var(--accent)',
+              background: 'var(--accent-dim)',
+              border: '1px solid transparent',
+              borderRadius: 4,
+              padding: '3px 9px',
+              cursor: 'pointer',
+              letterSpacing: '0.04em',
+              transition: 'border-color 0.12s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'transparent')}
+            title={`添加 ${ticker} 到自选股`}
+            type="button"
+          >
+            + {ticker}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── AddTickerInput ────────────────────────────────────────────────────────────
 
 function AddTickerInput() {
@@ -412,15 +463,7 @@ export function Sidebar(): React.ReactElement {
         <div style={sectionHeaderStyle}>自选股</div>
 
         {watchlistItems.length === 0 ? (
-          <div style={{
-            fontFamily: 'var(--font-ui)',
-            fontSize: 12,
-            color: 'var(--text-muted)',
-            padding: '4px 16px 8px',
-            fontStyle: 'italic',
-          }}>
-            暂无自选股
-          </div>
+          <EmptyWatchlistHint />
         ) : (
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {watchlistItems.map((ticker) => (

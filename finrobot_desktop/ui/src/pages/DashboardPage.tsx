@@ -184,7 +184,7 @@ function SectionHeader({ title, action }: { title: string; action?: React.ReactN
   )
 }
 
-// ── 1. Market Ticker Bar ───────────────────────────────────────────────────────
+// ── 1. Market Ticker Bar ─ single thin line, max info density ─────────────────
 
 function MarketTickerBar() {
   const { data, isLoading, isError } = useQuery<MarketIndex[]>({
@@ -194,102 +194,75 @@ function MarketTickerBar() {
     retry: 1,
   })
 
-  if (isError) {
-    return (
-      <div
-        style={{
-          padding: '10px 16px',
-          background: 'var(--bg-2)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--r-sm)',
-          fontSize: 11,
-          color: 'var(--text-muted)',
-          textAlign: 'center',
-          fontFamily: 'var(--font-mono)',
-        }}
-      >
-        市场数据暂不可用
-      </div>
-    )
-  }
-
+  if (isError) return null  // dashboard's TodaySummaryCard already surfaces this
   if (isLoading || !data) {
-    return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
-        {[0, 1, 2, 3, 4, 5].map((i) => (
-          <Skeleton key={i} width="100%" height={60} />
-        ))}
-      </div>
-    )
+    return <Skeleton width="100%" height={32} />
   }
 
   const indices = data.slice(0, 6)
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 22,
+        padding: '8px 14px',
+        background: 'var(--bg-1)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--r-sm)',
+        overflowX: 'auto',
+        scrollbarWidth: 'none',
+      }}
+      className="hide-scrollbar"
+      title="主要市场指数"
+    >
       {indices.map((idx) => {
-        const isPositive = idx.change_pct >= 0
+        const pos = idx.change_pct >= 0
         return (
           <div
             key={idx.symbol}
             style={{
-              background: 'var(--bg-1)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--r-md)',
-              padding: '14px 16px',
-              minWidth: 0,
-              transition: 'all 0.2s',
-              cursor: 'default',
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border-hover)'
-              e.currentTarget.style.transform = 'translateY(-1px)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border)'
-              e.currentTarget.style.transform = 'translateY(0)'
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: 6,
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
             }}
           >
-            <div
+            <span
               style={{
-                fontSize: 10,
                 fontFamily: 'var(--font-mono)',
+                fontSize: 10,
                 fontWeight: 600,
+                color: 'var(--text-muted)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.06em',
-                color: 'var(--text-muted)',
-                marginBottom: 6,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
               }}
             >
               {idx.name}
-            </div>
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 16,
-                fontWeight: 700,
-                color: 'var(--text-primary)',
-                letterSpacing: '-0.02em',
-                marginBottom: 4,
-              }}
-            >
-              {fmtPrice(idx.price)}
-            </div>
-            <div
+            </span>
+            <span
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 12,
+                fontWeight: 700,
+                color: 'var(--text-primary)',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {fmtPrice(idx.price)}
+            </span>
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
                 fontWeight: 600,
-                color: isPositive ? 'var(--positive)' : 'var(--negative)',
+                color: pos ? 'var(--positive)' : 'var(--negative)',
               }}
             >
               {fmtPct(idx.change_pct)}
-            </div>
+            </span>
           </div>
         )
       })}

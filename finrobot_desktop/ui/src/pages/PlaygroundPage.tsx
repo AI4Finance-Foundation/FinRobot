@@ -18,6 +18,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { BASE_URL } from '../api/client'
 import type { DCFInputs, DCFResult, SensitivityResult, MonteCarloResult } from '../stores/appStore'
 import MonteCarloChart from '../components/charts/MonteCarloChart'
+import { TermTip } from '../components/TermTip'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -232,7 +233,9 @@ function SensitivityTable({ data, baseWacc, baseTg }: SensitivityTableProps) {
         <thead>
           <tr>
             <th style={{ ...thStyle, textAlign: 'left' }}>
-              <span style={{ color: 'var(--accent)' }}>WACC</span>
+              <span style={{ color: 'var(--accent)' }}>
+                <TermTip term="WACC">WACC</TermTip>
+              </span>
               {' \\ '}
               <span style={{ color: 'var(--text-secondary)' }}>TGR</span>
             </th>
@@ -954,7 +957,9 @@ export function PlaygroundPage() {
           <div style={cardBodyStyle}>
             {/* Implied price hero */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ ...labelStyle, marginBottom: 6 }}>DCF 目标价</div>
+              <div style={{ ...labelStyle, marginBottom: 6 }}>
+                <TermTip term="DCF">DCF</TermTip> 目标价
+              </div>
               <div style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 36,
@@ -987,7 +992,9 @@ export function PlaygroundPage() {
             {dcfResult && (
               <div style={{ marginBottom: 20, display: 'flex', gap: 24 }}>
                 <div style={metaItemStyle}>
-                  <span style={labelStyle}>企业价值 (EV)</span>
+                  <span style={labelStyle}>
+                    企业价值 (<TermTip term="EV">EV</TermTip>)
+                  </span>
                   <span style={{ ...metaValueStyle, fontSize: 13, color: 'var(--text-primary)' }}>
                     {fmtLargeNum(dcfResult.enterprise_value)}
                   </span>
@@ -999,7 +1006,9 @@ export function PlaygroundPage() {
                   </span>
                 </div>
                 <div style={metaItemStyle}>
-                  <span style={labelStyle}>WACC</span>
+                  <span style={labelStyle}>
+                    <TermTip term="WACC">WACC</TermTip>
+                  </span>
                   <span style={{ ...metaValueStyle, fontSize: 13, color: 'var(--text-primary)' }}>
                     {fmtPct(dcfResult.wacc)}
                   </span>

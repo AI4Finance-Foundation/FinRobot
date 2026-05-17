@@ -23,6 +23,7 @@ import { useTickerPrice } from '../hooks/useTickerData'
 import { useUiStore } from '../stores/uiStore'
 import { BASE_URL } from '../api/client'
 import { WhyMovingPopover } from '../components/WhyMovingPopover'
+import { Sparkline } from '../components/Sparkline'
 
 interface PriceData {
   current_price: number
@@ -73,6 +74,14 @@ function WatchlistItem({ ticker, active }: { ticker: string; active: boolean }) 
   const price = data?.current_price
   const changePct = data?.change_pct
   const isPositive = changePct !== undefined && changePct >= 0
+
+  // 7-day sparkline — slice last ~7 trading days from the already-fetched 1y history.
+  // No extra request, react-query cache shared with /price call above.
+  const sparkValues = useMemo(() => {
+    const history = data?.history
+    if (!history || history.length === 0) return []
+    return history.slice(-7).map((p) => p.close)
+  }, [data?.history])
 
   const itemStyle: React.CSSProperties = {
     display: 'flex',
@@ -127,7 +136,10 @@ function WatchlistItem({ ticker, active }: { ticker: string; active: boolean }) 
       aria-label={`View ${ticker}`}
     >
       <span style={tickerStyle}>{ticker}</span>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+        {sparkValues.length >= 2 && (
+          <Sparkline values={sparkValues} width={34} height={11} />
+        )}
         <span style={priceStyle}>{priceLabel()}</span>
         {hover && (
           <>

@@ -10,6 +10,15 @@ import { BASE_URL } from '../api/client'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export interface PricePoint {
+  date: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+}
+
 export interface PriceData {
   ticker: string
   current_price: number
@@ -17,6 +26,7 @@ export interface PriceData {
   change_pct: number
   market_cap: number | null
   company_name: string | null
+  history?: PricePoint[]  // backend always returns this; typed optional for safety
 }
 
 export interface ArtifactSummary {

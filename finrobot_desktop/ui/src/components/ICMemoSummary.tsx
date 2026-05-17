@@ -138,7 +138,7 @@ export default function ICMemoSummary({ result }: Props) {
       {result.recommendation.rationale && (
         <div className="card animate-in" style={{ borderColor: 'var(--accent)', borderWidth: '1px', borderStyle: 'solid' }}>
           <div className="card-header">
-            <span className="card-title" style={{ color: 'var(--accent)' }}>Recommendation</span>
+            <span className="card-title" style={{ color: 'var(--accent)' }}>建议</span>
             <span
               className="status-badge"
               style={{ background: verdictStyle.bg, color: verdictStyle.color }}
@@ -158,14 +158,14 @@ export default function ICMemoSummary({ result }: Props) {
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M2 10v2h10v-2M7 2v7m-3-3l3 3 3-3" />
           </svg>
-          Export PDF
+          导出 PDF
         </button>
         <div className="flex-1" />
         <button className="btn btn-primary" onClick={() => useAppStore.getState().reset()}>
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M7 1v12M1 7h12" />
           </svg>
-          New Analysis
+          新建分析
         </button>
       </div>
     </>

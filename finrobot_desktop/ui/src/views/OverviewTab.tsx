@@ -340,13 +340,13 @@ function SniperCard({ sniper }: { sniper: SniperResult }) {
         </div>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            Position:{' '}
+            建议仓位:{' '}
             <span style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
               {sniper.position_size_pct.toFixed(1)}%
             </span>
           </span>
-          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            R:R ={' '}
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }} title="风险/回报比">
+            盈亏比 ={' '}
             <span style={{ color: 'var(--accent, #f59e0b)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
               {sniper.risk_reward_ratio.toFixed(2)}
             </span>

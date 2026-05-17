@@ -921,18 +921,18 @@ export function PlaygroundPage() {
                 flexDirection: 'column',
                 gap: 4,
               }}>
-                <div style={{ ...labelStyle, marginBottom: 6 }}>Seeded Inputs</div>
+                <div style={{ ...labelStyle, marginBottom: 6 }}>财报取数</div>
                 <div style={metaRowStyle}>
                   <div style={metaItemStyle}>
-                    <span style={labelStyle}>Revenue Base</span>
+                    <span style={labelStyle}>基期营收</span>
                     <span style={metaValueStyle}>{fmtLargeNum(seed.revenue_base)}</span>
                   </div>
                   <div style={metaItemStyle}>
-                    <span style={labelStyle}>Shares Out</span>
+                    <span style={labelStyle}>总股本</span>
                     <span style={metaValueStyle}>{(seed.shares_outstanding / 1e6).toFixed(0)}M</span>
                   </div>
                   <div style={metaItemStyle}>
-                    <span style={labelStyle}>Net Debt</span>
+                    <span style={labelStyle}>净债务</span>
                     <span style={metaValueStyle}>{fmtLargeNum(seed.net_debt)}</span>
                   </div>
                 </div>
@@ -944,10 +944,10 @@ export function PlaygroundPage() {
         {/* ── Right: Results ── */}
         <div style={cardStyle}>
           <div style={cardHeaderStyle}>
-            <span style={cardTitleStyle}>Results</span>
+            <span style={cardTitleStyle}>结果</span>
             {currentPrice && (
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-                Market: {fmtPrice(currentPrice)}
+                当前市价 {fmtPrice(currentPrice)}
               </span>
             )}
           </div>
@@ -987,13 +987,13 @@ export function PlaygroundPage() {
             {dcfResult && (
               <div style={{ marginBottom: 20, display: 'flex', gap: 24 }}>
                 <div style={metaItemStyle}>
-                  <span style={labelStyle}>Enterprise Value</span>
+                  <span style={labelStyle}>企业价值 (EV)</span>
                   <span style={{ ...metaValueStyle, fontSize: 13, color: 'var(--text-primary)' }}>
                     {fmtLargeNum(dcfResult.enterprise_value)}
                   </span>
                 </div>
                 <div style={metaItemStyle}>
-                  <span style={labelStyle}>Equity Value</span>
+                  <span style={labelStyle}>股权价值</span>
                   <span style={{ ...metaValueStyle, fontSize: 13, color: 'var(--text-primary)' }}>
                     {fmtLargeNum(dcfResult.equity_value)}
                   </span>
@@ -1008,7 +1008,7 @@ export function PlaygroundPage() {
             )}
 
             {/* Scenario boxes */}
-            <div style={{ ...labelStyle, marginBottom: 8 }}>Scenarios</div>
+            <div style={{ ...labelStyle, marginBottom: 8 }}>情景对比</div>
             <div style={{ display: 'flex', gap: 8 }}>
               <ScenarioBox
                 label="乐观"
@@ -1041,7 +1041,7 @@ export function PlaygroundPage() {
         {/* ── Sensitivity matrix ── */}
         <div style={cardStyle}>
           <div style={cardHeaderStyle}>
-            <span style={cardTitleStyle}>Sensitivity Matrix</span>
+            <span style={cardTitleStyle}>敏感性矩阵</span>
             {sensLoading && (
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
                 COMPUTING...
@@ -1071,7 +1071,7 @@ export function PlaygroundPage() {
         {/* ── Monte Carlo ── */}
         <div style={cardStyle}>
           <div style={cardHeaderStyle}>
-            <span style={cardTitleStyle}>Monte Carlo Distribution</span>
+            <span style={cardTitleStyle}>蒙特卡洛分布</span>
             {mcLoading && (
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
                 SIMULATING...
@@ -1104,7 +1104,7 @@ export function PlaygroundPage() {
                   </div>
                   {currentPrice && (
                     <div style={metaItemStyle}>
-                      <span style={labelStyle}>Price Percentile</span>
+                      <span style={labelStyle}>价格分位</span>
                       <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>
                         {mcResult.current_price_percentile.toFixed(0)}th
                       </span>

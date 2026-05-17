@@ -174,7 +174,7 @@ function CompositeScoreCard({ score }: { score: ScoreResult }) {
               marginBottom: '4px',
             }}
           >
-            Composite Score
+            综合评分
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
             <span
@@ -750,7 +750,7 @@ export default function OverviewTab() {
         <ResearchSummary result={researchResult} currentPrice={currentPrice} />
       ) : (
         <div className="empty-state-card">
-          <p>Run Research analysis to view investment thesis</p>
+          <p>跑一次 Research 分析以查看投资论点</p>
         </div>
       )}
 

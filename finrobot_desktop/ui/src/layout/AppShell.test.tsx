@@ -32,15 +32,15 @@ describe("AppShell — simplified shell structure", () => {
   it("renders core shell regions", () => {
     renderWithProviders();
     expect(screen.getByTestId("titlebar")).toBeInTheDocument();
-    expect(screen.getByTestId("activitybar")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar")).toBeInTheDocument();
     expect(screen.getByTestId("statusbar")).toBeInTheDocument();
   });
 
   it("clicking Stocks button navigates to /stocks", () => {
     renderWithProviders();
-    const stocksBtn = screen.getByTitle("Stocks");
+    const stocksBtn = screen.getByLabelText("个股分析");
     fireEvent.click(stocksBtn);
-    // ActivityBar uses react-router navigate; button should have active class
+    // Sidebar uses react-router navigate; button should remain in the doc
     expect(stocksBtn).toBeInTheDocument();
   });
 });

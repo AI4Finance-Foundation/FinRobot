@@ -56,7 +56,9 @@ const NAV_ITEMS = [
 
 function WatchlistItem({ ticker, active }: { ticker: string; active: boolean }) {
   const navigate = useNavigate()
-  const { data } = useTickerPrice(ticker)
+  const { data, isLoading } = useTickerPrice(ticker)
+  const toggleWatchlist = useStocksStore((s) => s.toggleWatchlist)
+  const [hover, setHover] = useState(false)
 
   const price = data?.current_price
   const changePct = data?.change_pct
@@ -69,10 +71,11 @@ function WatchlistItem({ ticker, active }: { ticker: string; active: boolean }) 
     padding: '6px 12px',
     margin: '1px 8px',
     cursor: 'pointer',
-    background: active ? 'var(--accent-dim)' : 'transparent',
+    background: active ? 'var(--accent-dim)' : hover ? 'var(--bg-3)' : 'transparent',
     borderRadius: 'var(--r-sm)',
     transition: 'all 0.15s',
     minHeight: 30,
+    gap: 6,
   }
 
   const tickerStyle: React.CSSProperties = {
@@ -92,20 +95,55 @@ function WatchlistItem({ ticker, active }: { ticker: string; active: boolean }) 
     fontVariantNumeric: 'tabular-nums',
   }
 
+  function priceLabel(): React.ReactNode {
+    if (isLoading) {
+      return (
+        <span style={{ width: 38, height: 8, borderRadius: 2, background: 'var(--bg-3)', display: 'inline-block', animation: 'skeleton-pulse 1.5s ease infinite' }} />
+      )
+    }
+    if (price === undefined) return '—'
+    return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
+
   return (
     <div
       style={itemStyle}
       onClick={() => navigate(`/stocks/${ticker}`)}
       onKeyDown={(e) => e.key === 'Enter' && navigate(`/stocks/${ticker}`)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       role="button"
       tabIndex={0}
       aria-label={`View ${ticker}`}
     >
       <span style={tickerStyle}>{ticker}</span>
-      <span style={priceStyle}>
-        {price !== undefined
-          ? `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-          : '—'}
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+        <span style={priceStyle}>{priceLabel()}</span>
+        {hover && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              toggleWatchlist(ticker)
+            }}
+            aria-label={`从自选股移除 ${ticker}`}
+            title="从自选股移除"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: '0 2px',
+              fontSize: 13,
+              lineHeight: 1,
+              display: 'flex',
+              alignItems: 'center',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--negative)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+          >
+            ×
+          </button>
+        )}
       </span>
     </div>
   )
@@ -115,7 +153,7 @@ function WatchlistItem({ ticker, active }: { ticker: string; active: boolean }) 
 
 function AddTickerInput() {
   const [value, setValue] = useState('')
-  const [error, setError] = useState(false)
+  const [errMsg, setErrMsg] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const toggleWatchlist = useStocksStore((s) => s.toggleWatchlist)
   const watchlist = useStocksStore((s) => s.watchlist)
@@ -124,32 +162,36 @@ function AddTickerInput() {
     const upper = value.trim().toUpperCase()
     if (!upper) return
     if (!isValidTicker(upper)) {
-      setError(true)
+      setErrMsg('代码格式无效（A-Z / 0-9，1-12 位）')
       return
     }
-    if (!watchlist.has(upper)) {
-      toggleWatchlist(upper)
+    if (watchlist.has(upper)) {
+      setErrMsg(`${upper} 已在自选股中`)
+      return
     }
+    toggleWatchlist(upper)
     setValue('')
-    setError(false)
+    setErrMsg(null)
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.nativeEvent.isComposing) return
     if (e.key === 'Enter') {
       handleSubmit()
     } else if (e.key === 'Escape') {
       setValue('')
-      setError(false)
+      setErrMsg(null)
       inputRef.current?.blur()
     } else {
-      setError(false)
+      setErrMsg(null)
     }
   }
+
+  const error = errMsg !== null
 
   const wrapStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
-    margin: '4px 8px 0',
     borderRadius: 4,
     border: `1px solid ${error ? 'var(--negative)' : 'var(--border-hover)'}`,
     background: 'var(--bg-2)',
@@ -183,27 +225,43 @@ function AddTickerInput() {
   }
 
   return (
-    <div style={wrapStyle}>
-      <input
-        ref={inputRef}
-        style={inputStyle}
-        placeholder="+ 添加"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={handleKeyDown}
-        maxLength={12}
-        aria-label="Add ticker to watchlist"
-      />
-      <button
-        style={addBtnStyle}
-        onClick={handleSubmit}
-        onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent)')}
-        onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
-        aria-label="Add ticker"
-        tabIndex={-1}
-      >
-        <IconPlus size={12} />
-      </button>
+    <div style={{ margin: '4px 8px 0' }}>
+      <div style={wrapStyle}>
+        <input
+          ref={inputRef}
+          style={inputStyle}
+          placeholder="+ NVDA / TSLA"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          maxLength={12}
+          aria-label="添加自选股代码"
+        />
+        <button
+          style={addBtnStyle}
+          onClick={handleSubmit}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+          aria-label="添加自选股"
+          tabIndex={-1}
+        >
+          <IconPlus size={12} />
+        </button>
+      </div>
+      {errMsg && (
+        <div
+          role="alert"
+          style={{
+            fontFamily: 'var(--font-ui)',
+            fontSize: 10,
+            color: 'var(--negative)',
+            padding: '3px 4px 0',
+            lineHeight: 1.4,
+          }}
+        >
+          {errMsg}
+        </div>
+      )}
     </div>
   )
 }

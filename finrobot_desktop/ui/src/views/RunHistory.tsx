@@ -181,13 +181,13 @@ export default function RunHistory({ onBack }: Props) {
           fontSize: '1.1rem',
           fontWeight: 700,
           color: 'var(--text-primary)',
-        }}>Run History</h2>
+        }}>运行历史</h2>
       </div>
 
       {/* Loading */}
       {isLoading && (
         <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: 'var(--sp-10)' }}>
-          Loading...
+          加载中…
         </div>
       )}
 

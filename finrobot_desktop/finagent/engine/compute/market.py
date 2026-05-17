@@ -224,6 +224,18 @@ async def fetch_earnings_calendar(
         ticker = str(item.get("symbol") or "")
         if not ticker:
             continue
+        # Filter to US-listed tickers. FMP's earning_calendar returns the full
+        # global universe (NSE/BSE India, .T Japan, .AX Australia, .L London,
+        # .HK Hong Kong, .TWO Taiwan, ...) — thousands of names per week, mostly
+        # noise for a US-focused dashboard. Whitelist US share-class suffixes
+        # (BRK.A, BRK.B, BF.B, LEN.B); drop everything else with a dot.
+        # Note .T / .L look like single-letter share classes but are Tokyo /
+        # London exchange suffixes, so we can't generalise to "any single
+        # uppercase letter".
+        if "." in ticker:
+            suffix = ticker.rsplit(".", 1)[1]
+            if suffix not in {"A", "B"}:
+                continue
         eps_raw = item.get("epsEstimated")
         try:
             eps_estimate = float(str(eps_raw)) if eps_raw is not None else None

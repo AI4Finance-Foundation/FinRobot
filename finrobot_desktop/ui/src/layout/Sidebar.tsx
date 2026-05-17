@@ -20,6 +20,7 @@ import {
 } from '../lib/icons'
 import { useStocksStore, isValidTicker } from '../stores/stocksStore'
 import { useTickerPrice } from '../hooks/useTickerData'
+import { useUiStore } from '../stores/uiStore'
 import { BASE_URL } from '../api/client'
 import { WhyMovingPopover } from '../components/WhyMovingPopover'
 
@@ -430,6 +431,29 @@ export function Sidebar(): React.ReactElement {
       .map((x) => x.ticker)
   }, [tickerList, priceQueries])
 
+  // Aggregate: avg change + winner/loser counts (data-honest — only counts
+  // tickers with real price data; doesn't assume zero for missing).
+  const aggregate = useMemo(() => {
+    const changes = priceQueries
+      .map((q) => q.data?.change_pct)
+      .filter((c): c is number => typeof c === 'number')
+    if (changes.length === 0) return null
+    const avg = changes.reduce((a, b) => a + b, 0) / changes.length
+    const ups = changes.filter((c) => c > 0).length
+    const downs = changes.filter((c) => c < 0).length
+    return { avg, ups, downs, total: changes.length }
+  }, [priceQueries])
+
+  const sendChatPrompt = useUiStore((s) => s.sendChatPrompt)
+  const handleAggregateClick = (): void => {
+    if (!aggregate) return
+    const sample = tickerList.slice(0, 8).join(', ')
+    sendChatPrompt(
+      `点评一下我的自选股今天的整体表现：${aggregate.total} 只均涨幅 ${aggregate.avg.toFixed(2)}% (${aggregate.ups} 涨 ${aggregate.downs} 跌)，包括 ${sample}。中文 2-3 句，指出最值得关注的 1 只。`,
+      true,
+    )
+  }
+
   return (
     <aside className="sidebar" style={sidebarStyle} data-testid="sidebar">
       {/* ── NAVIGATE section ── */}
@@ -492,6 +516,46 @@ export function Sidebar(): React.ReactElement {
       {/* ── WATCHLIST section ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={sectionHeaderStyle}>自选股</div>
+
+        {/* Aggregate row — click to ask LLM for daily summary */}
+        {aggregate && watchlistItems.length > 0 && (
+          <button
+            onClick={handleAggregateClick}
+            style={{
+              margin: '0 8px 6px',
+              padding: '6px 10px',
+              background: 'var(--bg-2)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--r-sm)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              color: 'var(--text-secondary)',
+              transition: 'border-color 0.12s',
+              textAlign: 'left',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+            title="点击让 FinAgent 点评今日自选股表现"
+            aria-label="点击让 FinAgent 点评今日自选股"
+            type="button"
+          >
+            <span style={{
+              color: aggregate.avg >= 0 ? 'var(--positive)' : 'var(--negative)',
+              fontWeight: 700,
+            }}>
+              {aggregate.avg >= 0 ? '+' : ''}{aggregate.avg.toFixed(2)}%
+            </span>
+            <span style={{ color: 'var(--text-muted)' }}>
+              {aggregate.ups}↑ {aggregate.downs}↓
+            </span>
+            <span style={{ flex: 1 }} />
+            <span style={{ fontSize: 11, color: 'var(--accent)' }}>💬</span>
+          </button>
+        )}
 
         {watchlistItems.length === 0 ? (
           <EmptyWatchlistHint />

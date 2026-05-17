@@ -906,7 +906,7 @@ export function StocksPage() {
         }}
         role="alert"
       >
-        Invalid ticker format: <strong>{ticker}</strong>
+        股票代码格式无效：<strong>{ticker}</strong>
         <br />
         <button
           onClick={() => navigate('/stocks')}
@@ -919,7 +919,7 @@ export function StocksPage() {
             textDecoration: 'underline',
           }}
         >
-          Back to search
+          返回搜索
         </button>
       </div>
     )

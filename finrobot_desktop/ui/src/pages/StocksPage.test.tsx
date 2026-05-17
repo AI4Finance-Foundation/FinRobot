@@ -249,7 +249,7 @@ describe('StocksPage — exception paths', () => {
     renderPage('/stocks/@@@')
 
     await waitFor(() => {
-      expect(screen.getByText(/Invalid ticker format/)).toBeInTheDocument()
+      expect(screen.getByText(/股票代码格式无效/)).toBeInTheDocument()
     })
     // No fetch should have been called
     expect(fetchSpy).not.toHaveBeenCalled()

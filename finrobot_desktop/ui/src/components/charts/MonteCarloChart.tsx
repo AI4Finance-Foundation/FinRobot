@@ -59,7 +59,7 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
   return (
     <div className="card animate-in">
       <div className="card-header">
-        <span className="card-title">Fair Value Distribution</span>
+        <span className="card-title">公允价值分布</span>
         <span className="card-badge font-mono">
           {result.n_valid.toLocaleString()} sims
         </span>
@@ -108,7 +108,7 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
                 strokeWidth={1.5}
                 strokeDasharray="6 3"
                 label={{
-                  value: `Current $${currentPrice.toFixed(0)}`,
+                  value: `现价 $${currentPrice.toFixed(0)}`,
                   position: 'top',
                   fill: MARKER_COLOR,
                   fontSize: 10,
@@ -123,7 +123,7 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
               stroke="#111827"
               strokeWidth={1.5}
               label={{
-                value: `Median $${median.toFixed(0)}`,
+                value: `中位 $${median.toFixed(0)}`,
                 position: 'insideTopRight',
                 fill: '#111827',
                 fontSize: 10,
@@ -188,11 +188,11 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
 
         {/* Stats row */}
         <div className="mc-stats">
-          <span className="font-mono">Mean: ${result.mean.toFixed(2)}</span>
+          <span className="font-mono">均值 ${result.mean.toFixed(2)}</span>
           <span className="mc-stats-sep" />
-          <span className="font-mono">Std: ${result.std.toFixed(2)}</span>
+          <span className="font-mono">标准差 ${result.std.toFixed(2)}</span>
           <span className="mc-stats-sep" />
-          <span className="font-mono">Valid: {result.n_valid.toLocaleString()}/{(result.assumptions_used['n_simulations'] ?? 10000).toLocaleString()}</span>
+          <span className="font-mono">有效 {result.n_valid.toLocaleString()}/{(result.assumptions_used['n_simulations'] ?? 10000).toLocaleString()}</span>
         </div>
       </div>
     </div>

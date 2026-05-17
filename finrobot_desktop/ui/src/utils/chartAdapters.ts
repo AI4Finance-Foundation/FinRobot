@@ -112,11 +112,11 @@ export function dcfResultToWaterfallData(
   result: DCFResult
 ): Array<Record<string, number | string | boolean | null>> {
   return [
-    { label: 'PV of FCF', value: result.pv_fcf_total, is_total: false },
-    { label: 'PV Terminal Value', value: result.pv_terminal, is_total: false },
-    { label: 'Enterprise Value', value: result.enterprise_value, is_total: true },
-    { label: 'Less: Net Debt', value: -(result.enterprise_value - result.equity_value), is_total: false },
-    { label: 'Equity Value', value: result.equity_value, is_total: true },
+    { label: 'FCF 现值', value: result.pv_fcf_total, is_total: false },
+    { label: '终值现值', value: result.pv_terminal, is_total: false },
+    { label: '企业价值', value: result.enterprise_value, is_total: true },
+    { label: '减：净债务', value: -(result.enterprise_value - result.equity_value), is_total: false },
+    { label: '股权价值', value: result.equity_value, is_total: true },
   ]
 }
 
@@ -147,9 +147,9 @@ export function compsResultToRadarData(
   const dims: { label: string; company: number | null; median: number | null }[] = [
     { label: 'P/E', company: t.pe_ratio, median: result.median_pe },
     { label: 'EV/EBITDA', company: t.ev_ebitda, median: result.median_ev_ebitda },
-    { label: 'EV/Revenue', company: t.ev_revenue, median: result.median_ev_revenue },
-    { label: 'Gross Margin', company: t.gross_margin, median: peerGrossMedian },
-    { label: 'Op. Margin', company: t.operating_margin, median: peerOpMedian },
+    { label: 'EV/营收', company: t.ev_revenue, median: result.median_ev_revenue },
+    { label: '毛利率', company: t.gross_margin, median: peerGrossMedian },
+    { label: '营业利润率', company: t.operating_margin, median: peerOpMedian },
   ]
 
   return dims

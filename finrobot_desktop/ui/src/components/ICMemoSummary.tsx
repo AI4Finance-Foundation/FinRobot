@@ -42,11 +42,11 @@ export default function ICMemoSummary({ result }: Props) {
       <div className="valuation-hero animate-in">
         <div className="hero-header hero-header--lg">
           <div>
-            <div className="valuation-label">Investment Committee Memo</div>
+            <div className="valuation-label">投委会备忘录</div>
             <div className="hero-ticker">{ticker}</div>
           </div>
           <div className="text-right">
-            <div className="valuation-label">IC Recommendation</div>
+            <div className="valuation-label">投委会建议</div>
             <span
               className="status-badge status-badge--lg"
               style={{ background: verdictStyle.bg, color: verdictStyle.color }}
@@ -75,9 +75,9 @@ export default function ICMemoSummary({ result }: Props) {
                 background: result.recommendation.irr >= 0.15 ? 'var(--positive-bg)' : 'var(--negative-bg)',
               }}
             >
-              {result.recommendation.irr >= 0.25 ? 'STRONG' :
-               result.recommendation.irr >= 0.20 ? 'ATTRACTIVE' :
-               result.recommendation.irr >= 0.15 ? 'MEETS HURDLE' : 'BELOW HURDLE'}
+              {result.recommendation.irr >= 0.25 ? '强烈推荐' :
+               result.recommendation.irr >= 0.20 ? '有吸引力' :
+               result.recommendation.irr >= 0.15 ? '达标' : '低于门槛'}
             </span>
           </div>
         )}
@@ -87,7 +87,7 @@ export default function ICMemoSummary({ result }: Props) {
       {result.situation_overview && (
         <div className="card animate-in">
           <div className="card-header">
-            <span className="card-title">Situation Overview</span>
+            <span className="card-title">情况概述</span>
           </div>
           <div className="card-body">
             <p className="body-text">{result.situation_overview}</p>
@@ -99,8 +99,8 @@ export default function ICMemoSummary({ result }: Props) {
       {result.financial_summary && (
         <div className="card animate-in">
           <div className="card-header">
-            <span className="card-title">Financial Analysis</span>
-            <span className="source-badge source-code" data-tooltip="Deterministic DCF + LBO">
+            <span className="card-title">财务分析</span>
+            <span className="source-badge source-code" data-tooltip="确定性 DCF + LBO 计算">
               CODE
             </span>
           </div>
@@ -114,7 +114,7 @@ export default function ICMemoSummary({ result }: Props) {
       {result.investment_thesis && (
         <div className="card animate-in">
           <div className="card-header">
-            <span className="card-title">Investment Thesis</span>
+            <span className="card-title">投资论点</span>
           </div>
           <div className="card-body">
             <p className="body-text">{result.investment_thesis}</p>
@@ -126,7 +126,7 @@ export default function ICMemoSummary({ result }: Props) {
       {result.risk_factors && (
         <div className="card animate-in">
           <div className="card-header">
-            <span className="card-title">Risk Factors</span>
+            <span className="card-title">风险因素</span>
           </div>
           <div className="card-body">
             <p className="body-text">{result.risk_factors}</p>

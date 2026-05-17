@@ -47,6 +47,7 @@ import WarningBanner from '../components/WarningBanner'
 import ToastContainer from '../components/Toast'
 import AnalysisProgress from '../components/AnalysisProgress'
 import { WhyMovingPopover } from '../components/WhyMovingPopover'
+import { Sparkline } from '../components/Sparkline'
 
 // Tab views
 import OverviewTab from '../views/OverviewTab'
@@ -99,6 +100,13 @@ function StockHeaderNew({ ticker }: StockHeaderNewProps) {
   const change = data?.change ?? 0
   const changeColor = change >= 0 ? 'var(--positive)' : 'var(--negative)'
   const changePct = data?.change_pct ?? 0
+
+  // 30-day sparkline from already-fetched 1y history (shared react-query cache)
+  const sparkValues = useMemo(() => {
+    const history = data?.history
+    if (!history || history.length === 0) return []
+    return history.slice(-30).map((p) => p.close)
+  }, [data?.history])
 
   if (isError && !data) {
     return (
@@ -225,6 +233,13 @@ function StockHeaderNew({ ticker }: StockHeaderNewProps) {
       ) : (
         <span style={{ fontSize: '0.88rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
           {t('common.notAvailable')}
+        </span>
+      )}
+
+      {/* 30-day sparkline — visual at-a-glance trend */}
+      {sparkValues.length >= 2 && (
+        <span title={`近 ${sparkValues.length} 个交易日走势`}>
+          <Sparkline values={sparkValues} width={70} height={20} fill />
         </span>
       )}
 

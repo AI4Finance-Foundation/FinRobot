@@ -34,7 +34,7 @@ export default function StockOverview() {
     queryKey: ['price', ticker],
     queryFn: async () => {
       const resp = await fetch(`${BASE_URL}/api/data/${ticker}/price`)
-      if (!resp.ok) throw new Error('Failed to fetch price data')
+      if (!resp.ok) throw new Error('获取价格数据失败')
       return resp.json() as Promise<{ history: PriceHistoryItem[]; data_source?: string }>
     },
     enabled: !!ticker,

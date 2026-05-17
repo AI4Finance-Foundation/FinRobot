@@ -205,7 +205,7 @@ describe('ArtifactDiff — error state', () => {
         </MemoryRouter>
       </QueryClientProvider>
     )
-    expect(await screen.findByText(/Failed to load diff/)).toBeInTheDocument()
+    expect(await screen.findByText(/加载差异失败/)).toBeInTheDocument()
   })
 })
 

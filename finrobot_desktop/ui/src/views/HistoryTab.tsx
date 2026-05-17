@@ -321,7 +321,7 @@ export default function HistoryTab({ ticker }: Props) {
               }}
             >
               <span style={{ color: 'var(--negative)' }}>
-                Failed to load history.
+                加载历史失败。
               </span>{' '}
               <button
                 onClick={() => void refetch()}

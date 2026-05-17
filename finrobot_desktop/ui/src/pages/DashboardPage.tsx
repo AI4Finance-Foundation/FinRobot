@@ -438,9 +438,9 @@ function EarningsCalendar() {
       )}
 
       {data && data.length > 0 && (() => {
-        // FMP returns the full global earnings calendar — thousands of rows.
-        // Show the next 50 events so the dashboard widget stays glanceable.
-        const visible = data.slice(0, 50)
+        // Dashboard widget = glance. Cap to next 10 events so it doesn't
+        // dwarf the rest of the page; full list lives behind "查看全部".
+        const visible = data.slice(0, 10)
         return (
         <div
           style={{
@@ -479,24 +479,27 @@ function EarningsCalendar() {
                   fontSize: 11,
                   fontWeight: 700,
                   color: 'var(--accent)',
-                  width: 40,
+                  minWidth: 70,
                   flexShrink: 0,
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {ev.ticker}
               </span>
-              <span
-                style={{
-                  fontSize: 10,
-                  color: 'var(--text-secondary)',
-                  flex: 1,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {ev.company_name}
-              </span>
+              {ev.company_name && ev.company_name !== ev.ticker && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: 'var(--text-secondary)',
+                    flex: 1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {ev.company_name}
+                </span>
+              )}
               <span
                 style={{
                   fontFamily: 'var(--font-mono)',

@@ -499,7 +499,7 @@ function usePriceHistory(ticker: string) {
     queryKey: ['price-history', ticker],
     queryFn: async () => {
       const resp = await fetch(`${BASE_URL}/api/data/${ticker}/price`)
-      if (!resp.ok) throw new Error('Failed to fetch price history')
+      if (!resp.ok) throw new Error('获取历史价格失败')
       const data = await resp.json() as { history?: PriceHistoryItem[] }
       return data.history ?? []
     },

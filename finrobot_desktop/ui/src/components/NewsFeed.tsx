@@ -46,7 +46,7 @@ export default function NewsFeed() {
     queryKey: ['news', ticker],
     queryFn: async () => {
       const resp = await fetch(`${BASE_URL}/api/data/${ticker}/news`)
-      if (!resp.ok) throw new Error('Failed to fetch news')
+      if (!resp.ok) throw new Error('获取新闻失败')
       return resp.json()
     },
     enabled: !!ticker,

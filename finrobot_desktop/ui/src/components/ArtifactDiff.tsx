@@ -282,7 +282,7 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
 
           {!typeMismatch && error && (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--negative)' }}>
-              Failed to load diff. Check that both artifacts exist.
+              加载差异失败，请确认两份记录都存在。
             </div>
           )}
 

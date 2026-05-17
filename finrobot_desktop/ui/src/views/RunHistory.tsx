@@ -67,7 +67,7 @@ export default function RunHistory({ onBack }: Props) {
     queryKey: ['runs'],
     queryFn: async () => {
       const { data, error } = await api.GET('/api/runs')
-      if (error) throw new Error('Failed to load runs')
+      if (error) throw new Error('加载运行记录失败')
       return data
     },
     refetchInterval: 5000,

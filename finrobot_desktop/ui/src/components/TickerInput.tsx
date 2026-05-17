@@ -22,7 +22,7 @@ export default function TickerInput() {
       const { data, error } = await api.GET('/api/data/{ticker}/financials', {
         params: { path: { ticker } },
       })
-      if (error) throw new Error((error as { detail?: string }).detail || 'Failed to load data')
+      if (error) throw new Error((error as { detail?: string }).detail || '加载数据失败')
       if (data) {
         setWarnings(data.warnings || [])
         if (data.market?.current_price != null) {
@@ -60,11 +60,11 @@ export default function TickerInput() {
         disabled={!input.trim() || phase === 'loading_data'}
         style={{ padding: '4px 12px', fontSize: '0.78rem' }}
       >
-        {isFetching ? 'Loading...' : 'Load'}
+        {isFetching ? '加载中…' : '加载'}
       </button>
       {isError && (
         <span style={{ color: 'var(--negative)', fontSize: '0.72rem' }}>
-          {(error as Error)?.message || 'Failed to load. Check backend is running.'}
+          {(error as Error)?.message || '加载失败，请确认后端已启动'}
         </span>
       )}
     </div>

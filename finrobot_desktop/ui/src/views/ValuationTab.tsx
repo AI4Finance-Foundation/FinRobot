@@ -95,7 +95,7 @@ function ScenarioEditor({ baseInputs }: ScenarioEditorProps) {
       setScenarioResult('bull', bullResult)
       setScenarioResult('bear', bearResult)
     } catch {
-      setError('Failed to compute scenarios. Is the backend running?')
+      setError('计算情景失败，请确认后端服务已启动')
     } finally {
       setComputing(false)
     }

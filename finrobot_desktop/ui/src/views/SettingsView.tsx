@@ -286,7 +286,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     queryKey: ['settings'],
     queryFn: async () => {
       const { data, error } = await api.GET('/api/settings')
-      if (error) throw new Error('Failed to load settings')
+      if (error) throw new Error('加载设置失败')
       return data
     },
   })

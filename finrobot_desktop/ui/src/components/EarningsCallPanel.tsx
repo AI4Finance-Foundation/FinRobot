@@ -29,7 +29,7 @@ export default function EarningsCallPanel() {
         const body = await resp.json().catch(() => ({ detail: '' }))
         throw new Error(body.detail || 'Earnings call transcripts not available')
       }
-      if (!resp.ok) throw new Error('Failed to fetch earnings call transcripts')
+      if (!resp.ok) throw new Error('获取财报电话会逐字稿失败')
       return resp.json() as Promise<EarningsCallList>
     },
     enabled: !!ticker,

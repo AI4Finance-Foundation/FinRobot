@@ -21,6 +21,7 @@ import {
 import { useStocksStore, isValidTicker } from '../stores/stocksStore'
 import { useTickerPrice } from '../hooks/useTickerData'
 import { BASE_URL } from '../api/client'
+import { WhyMovingPopover } from '../components/WhyMovingPopover'
 
 interface PriceData {
   current_price: number
@@ -128,29 +129,59 @@ function WatchlistItem({ ticker, active }: { ticker: string; active: boolean }) 
       <span style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
         <span style={priceStyle}>{priceLabel()}</span>
         {hover && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              toggleWatchlist(ticker)
-            }}
-            aria-label={`从自选股移除 ${ticker}`}
-            title="从自选股移除"
-            style={{
-              border: 'none',
-              background: 'transparent',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              padding: '0 2px',
-              fontSize: 13,
-              lineHeight: 1,
-              display: 'flex',
-              alignItems: 'center',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--negative)')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
-          >
-            ×
-          </button>
+          <>
+            <WhyMovingPopover ticker={ticker}>
+              {({ onClick, ariaExpanded }) => (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onClick(e)
+                  }}
+                  aria-label={`查看 ${ticker} 今日动向`}
+                  aria-expanded={ariaExpanded}
+                  title="为啥动？"
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: '0 2px',
+                    fontSize: 12,
+                    lineHeight: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+                >
+                  💡
+                </button>
+              )}
+            </WhyMovingPopover>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                toggleWatchlist(ticker)
+              }}
+              aria-label={`从自选股移除 ${ticker}`}
+              title="从自选股移除"
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                padding: '0 2px',
+                fontSize: 13,
+                lineHeight: 1,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--negative)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+            >
+              ×
+            </button>
+          </>
         )}
       </span>
     </div>

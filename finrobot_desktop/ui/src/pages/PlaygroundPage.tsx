@@ -40,14 +40,14 @@ const DEFAULT_INPUTS: Omit<DCFInputs, 'revenue_base' | 'shares_outstanding' | 'n
 interface SliderState {
   wacc: number           // 0.07 – 0.15
   terminalGrowth: number // 0.01 – 0.05
-  grossMargin: number    // 0.30 – 0.90 (used to seed ebitda_margin proxy)
+  ebitdaMargin: number    // 0.02 – 0.70 (passes through directly to DCF inputs)
   revenueGrowth: number  // 0.05 – 0.50 (5Y CAGR applied uniformly)
 }
 
 const DEFAULT_SLIDERS: SliderState = {
   wacc: 0.105,
   terminalGrowth: 0.030,
-  grossMargin: 0.70,
+  ebitdaMargin: 0.30,
   revenueGrowth: 0.20,
 }
 
@@ -100,8 +100,11 @@ function buildDcfInputs(
 
   const growthRates = Array.from({ length: 5 }, () => sliders.revenueGrowth)
 
-  // ebitda_margin = grossMargin * 0.35 (typical EBITDA/Gross ratio proxy)
-  const ebitda_margin = clamp(sliders.grossMargin * 0.35, 0.05, 0.60)
+  // EBITDA margin passes through directly — earlier versions applied a
+  // gross×0.35 fudge factor which understated margins for software / hardware
+  // (AAPL's real 35% landed at 16% under the proxy). Seeded from real
+  // ebitda/revenue in the financials fetch.
+  const ebitda_margin = clamp(sliders.ebitdaMargin, 0.02, 0.70)
 
   return {
     revenue_base: seed.revenue_base,
@@ -491,26 +494,46 @@ export function PlaygroundPage() {
         }
         setPriceLoading(false)
 
-        // Financials → seed DCF inputs
+        // Financials → seed DCF inputs. Response is nested by section
+        // (income / balance / market), not flat — historic versions of this
+        // file read fin.revenue directly and silently fell back to default
+        // $1B placeholder for every ticker.
         if (finRes.status === 'fulfilled' && finRes.value.ok) {
           const fin = await finRes.value.json() as {
-            revenue: number
-            gross_margin: number
-            shares_outstanding?: number
-            total_debt?: number
-            total_cash?: number
+            income?: {
+              revenue?: number | null
+              ebitda?: number | null
+              gross_margin?: number | null
+            }
+            balance?: {
+              total_debt?: number | null
+              total_cash?: number | null
+            }
+            market?: {
+              shares_outstanding?: number | null
+            }
           }
-          const revenue_base = fin.revenue ?? 1e9
-          const shares = fin.shares_outstanding ?? 1e9
-          const net_debt = (fin.total_debt ?? 0) - (fin.total_cash ?? 0)
+
+          const revenue_base = fin.income?.revenue ?? 1e9
+          const ebitda = fin.income?.ebitda ?? null
+          const shares = fin.market?.shares_outstanding ?? 1e9
+          const net_debt = (fin.balance?.total_debt ?? 0) - (fin.balance?.total_cash ?? 0)
 
           setSeed({ revenue_base, shares_outstanding: shares, net_debt })
 
-          // Seed sliders from actual financials
-          const seedGrossMargin = clamp(fin.gross_margin ?? 0.70, 0.30, 0.90)
+          // Prefer real EBITDA margin (ebitda / revenue). Fall back to a
+          // gross-margin proxy (×0.35) only if EBITDA is missing — covers
+          // tickers where yfinance reports gross but not EBITDA.
+          const seedEbitdaMargin = clamp(
+            ebitda != null && revenue_base > 0
+              ? ebitda / revenue_base
+              : (fin.income?.gross_margin ?? 0.30) * 0.35,
+            0.02,
+            0.70,
+          )
           setSliders((prev) => ({
             ...prev,
-            grossMargin: seedGrossMargin,
+            ebitdaMargin: seedEbitdaMargin,
           }))
         } else if (finRes.status === 'rejected') {
           // aborted — ignore
@@ -621,7 +644,7 @@ export function PlaygroundPage() {
       const adjusted: SliderState = {
         wacc: clamp(sl.wacc + delta.wacc, 0.04, 0.20),
         terminalGrowth: clamp(sl.terminalGrowth + delta.tg, 0.005, 0.08),
-        grossMargin: clamp(sl.grossMargin + delta.margin, 0.20, 0.95),
+        ebitdaMargin: clamp(sl.ebitdaMargin + delta.margin, 0.02, 0.70),
         revenueGrowth: clamp(sl.revenueGrowth + delta.growth, 0.01, 0.80),
       }
       return buildDcfInputs(adjusted, sd)
@@ -936,15 +959,15 @@ export function PlaygroundPage() {
               onChange={(v) => setSliders((s) => ({ ...s, terminalGrowth: v }))}
             />
             <SliderRow
-              label="毛利率"
-              value={sliders.grossMargin}
-              min={0.30}
-              max={0.90}
+              label="EBITDA 利润率"
+              value={sliders.ebitdaMargin}
+              min={0.02}
+              max={0.70}
               step={0.005}
-              displayValue={fmtPct(sliders.grossMargin)}
-              minLabel="30%"
-              maxLabel="90%"
-              onChange={(v) => setSliders((s) => ({ ...s, grossMargin: v }))}
+              displayValue={fmtPct(sliders.ebitdaMargin)}
+              minLabel="2%"
+              maxLabel="70%"
+              onChange={(v) => setSliders((s) => ({ ...s, ebitdaMargin: v }))}
             />
             <SliderRow
               label="营收增速 (5Y CAGR)"

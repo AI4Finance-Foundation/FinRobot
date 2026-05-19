@@ -128,6 +128,9 @@ def extract_financial_data(
             pe_ratio=data.get("pe_ratio"),
             price_52w_high=high_52w,
             price_52w_low=low_52w,
+            industry=data.get("industry"),
+            sector=data.get("sector"),
+            beta=data.get("beta"),
         ),
         valuation=ValuationMetrics(
             enterprise_value=ev,

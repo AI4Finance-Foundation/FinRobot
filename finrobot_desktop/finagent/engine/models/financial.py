@@ -38,6 +38,12 @@ class MarketData(BaseModel):
     pe_ratio: float | None = None
     price_52w_high: float | None = None
     price_52w_low: float | None = None
+    # Industry / sector strings as reported by the data provider. Used by
+    # dcf_seed to look up Damodaran industry medians when ticker-level data
+    # is missing. None when provider didn't expose it.
+    industry: str | None = None
+    sector: str | None = None
+    beta: float | None = Field(default=None, ge=0, le=5)
 
 
 class ValuationMetrics(BaseModel):

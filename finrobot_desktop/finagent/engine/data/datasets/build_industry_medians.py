@@ -25,9 +25,12 @@ Source: pages.stern.nyu.edu/~adamodar/New_Home_Page/datacurrent.html
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 BASE = Path(__file__).parent
 TAG = "2026-01"
@@ -125,9 +128,13 @@ def main() -> None:
 
     out_path = BASE / "industry_medians.csv"
     out.to_csv(out_path, index=False, float_format="%.4f")
-    print(f"Wrote {len(out)} industries → {out_path}")
-    print(out.head(10).to_string())
+    logger.info("Wrote %d industries → %s", len(out), out_path)
+    logger.info("%s", out.head(10).to_string())
 
 
 if __name__ == "__main__":
+    # CLI invocation — surface logger output to stdout. When imported as a
+    # module (the architecture audit doesn't allow print), the caller decides
+    # how to handle the logger.
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     main()

@@ -11,6 +11,8 @@ import {
 import type { TooltipValueType } from 'recharts'
 import { useMemo } from 'react'
 
+import { fmtUsd } from '../../utils/formatters'
+
 interface ChartProps {
   data: Record<string, number | string | boolean | null>[]
   title: string
@@ -93,7 +95,11 @@ export default function WaterfallChart({ data, title }: ChartProps) {
             <YAxis
               tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
               axisLine={{ stroke: '#E2E5EB' }}
-              tickFormatter={(v: number) => `$${v}`}
+              // Large values (e.g. AAPL terminal value ~$1.2T) need abbreviated
+              // ticks — raw `${v}` overflowed the Y-axis gutter and rendered as
+              // a clipped run of zeros in the production screenshot.
+              tickFormatter={fmtUsd}
+              width={60}
             />
             <Tooltip
               contentStyle={CHART_TOOLTIP} labelStyle={{ color: 'var(--text-primary)' }}
@@ -105,8 +111,8 @@ export default function WaterfallChart({ data, title }: ChartProps) {
               ) => {
                 const entry = item.payload
                 if (!entry) return ['', '']
-                if (entry.is_total) return [`$${entry.delta.toFixed(0)}`, 'Total']
-                return [`$${entry.value.toFixed(0)}`, entry.value >= 0 ? 'Add' : 'Subtract']
+                if (entry.is_total) return [fmtUsd(entry.delta), 'Total']
+                return [fmtUsd(entry.value), entry.value >= 0 ? 'Add' : 'Subtract']
               }}
             />
             <ReferenceLine y={0} stroke="#E2E5EB" />

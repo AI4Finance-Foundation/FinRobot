@@ -16,7 +16,7 @@
 
 import { useMemo, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { useStocksStore } from '../stores/stocksStore'
 import { BASE_URL } from '../api/client'
 import { useTickerPrice } from '../hooks/useTickerData'
@@ -655,29 +655,31 @@ function SignalRow({ row, onClick }: { row: CatalystWithTicker; onClick: () => v
 }
 
 function useAggregatedCatalysts(tickers: string[]): { rows: CatalystWithTicker[]; isLoading: boolean } {
-  // Run one query per ticker; aggregate + sort once all settled.
-  const queries = tickers.map((ticker) => ({
-    ticker,
-    result: useQuery<CatalystEvent[]>({
+  // useQueries is the single-hook batch API — using useQuery in a .map() would
+  // change hook count when the watchlist length changes and crash with
+  // "Rendered more hooks than during the previous render."
+  const results = useQueries({
+    queries: tickers.map((ticker) => ({
       queryKey: ['catalysts', ticker],
       queryFn: () => fetchCatalysts(ticker),
       staleTime: 120_000,
       retry: 1,
-    }),
-  }))
+    })),
+  })
 
-  const isLoading = queries.some((q) => q.result.isLoading)
+  const isLoading = results.some((r) => r.isLoading)
 
   const rows: CatalystWithTicker[] = []
-  for (const { ticker, result } of queries) {
-    const data = result.data ?? []
+  results.forEach((result, idx) => {
+    const ticker = tickers[idx]
+    const data = (result.data ?? []) as CatalystEvent[]
     // Take top 2 per ticker (sorted by importance desc within each)
     const top2 = [...data]
       .sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0))
       .slice(0, 2)
       .map((c) => ({ ...c, ticker }))
     rows.push(...top2)
-  }
+  })
 
   // Global sort by importance so the loudest events bubble to top across tickers.
   rows.sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0))

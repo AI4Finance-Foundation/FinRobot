@@ -60,6 +60,25 @@ _FINANCING_CF_NAMES = [
     "Net Cash Used Provided By Financing Activities",
     "Net Cash Provided By Financing Activities",
 ]
+# Cash-flow rows feeding the DCF FCF formula. yfinance row names vary by ticker
+# (Apple uses "Depreciation And Amortization"; some tickers split D&A; CapEx is
+# almost always reported as a negative number — sign flipped at extraction).
+_DA_NAMES = [
+    "Depreciation And Amortization",
+    "Depreciation Amortization Depletion",
+    "Reconciled Depreciation",
+    "Depreciation",
+]
+_CAPEX_NAMES = [
+    "Capital Expenditure",
+    "Capital Expenditures",
+    "Purchase Of Ppe",
+    "Net Ppe Purchase And Sale",
+]
+_NWC_CHANGE_NAMES = [
+    "Change In Working Capital",
+    "Changes In Working Capital",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +151,9 @@ def _build_historical_metrics(
     """
     # ---- Validate input ----
     if income_stmt is None or income_stmt.empty:
-        # Return a minimal placeholder rather than crashing — caller can surface warning
+        # Return a minimal placeholder rather than crashing — caller can surface warning.
+        # Cash-flow list fields default to [] via the model; downstream consumers
+        # (dcf_seed) detect emptiness and fall back to industry medians.
         return HistoricalMetrics(
             years=[],
             revenue=[],
@@ -184,6 +205,21 @@ def _build_historical_metrics(
         if (cashflow is not None and not cashflow.empty)
         else None
     )
+    da_row = (
+        _get_row(cashflow, _DA_NAMES)
+        if (cashflow is not None and not cashflow.empty)
+        else None
+    )
+    capex_row = (
+        _get_row(cashflow, _CAPEX_NAMES)
+        if (cashflow is not None and not cashflow.empty)
+        else None
+    )
+    nwc_row = (
+        _get_row(cashflow, _NWC_CHANGE_NAMES)
+        if (cashflow is not None and not cashflow.empty)
+        else None
+    )
 
     # ---- Cell lookup that tolerates missing row and missing column ----
     # Income-statement rows are guaranteed to have every sorted_cols entry
@@ -214,6 +250,9 @@ def _build_historical_metrics(
     ocf_list: list[float] = []
     icf_list: list[float] = []
     fcf_list: list[float] = []
+    da_list: list[float] = []
+    capex_list: list[float] = []
+    nwc_change_list: list[float] = []
 
     for col in sorted_cols:
         rev = _cell(rev_row, col)
@@ -247,6 +286,12 @@ def _build_historical_metrics(
         ocf_list.append(_cell(ocf_row, col))
         icf_list.append(_cell(icf_row, col))
         fcf_list.append(_cell(fcf_row, col))
+        # D&A is reported positive; CapEx is reported negative (cash outflow)
+        # — flip sign so downstream code treats both as positive magnitudes
+        # consistent with the FCF formula's "+ D&A - CapEx" convention.
+        da_list.append(_cell(da_row, col))
+        capex_list.append(abs(_cell(capex_row, col)))
+        nwc_change_list.append(_cell(nwc_row, col))
 
     # ---- YoY revenue growth (None for oldest year) ----
     revenue_growth: list[float | None] = []
@@ -294,4 +339,7 @@ def _build_historical_metrics(
         operating_cash_flow=ocf_list,
         investing_cash_flow=icf_list,
         financing_cash_flow=fcf_list,
+        depreciation_amortization=da_list,
+        capital_expenditure=capex_list,
+        change_in_working_capital=nwc_change_list,
     )

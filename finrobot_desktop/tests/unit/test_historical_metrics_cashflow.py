@@ -56,6 +56,25 @@ class TestHistoricalMetricsCashFlowFields:
         assert hm.investing_cash_flow == []
         assert hm.financing_cash_flow == []
 
+    def test_dcf_line_item_fields_default_to_empty_list(self):
+        """D&A / CapEx / ΔNWC fields must default to [] so dcf_seed can detect
+        absence and fall back to industry medians."""
+        hm = HistoricalMetrics(**self._minimal_kwargs())
+        assert hm.depreciation_amortization == []
+        assert hm.capital_expenditure == []
+        assert hm.change_in_working_capital == []
+
+    def test_dcf_line_item_fields_accept_lists(self):
+        hm = HistoricalMetrics(
+            **self._minimal_kwargs(),
+            depreciation_amortization=[1.1e10, 1.2e10, 1.3e10],
+            capital_expenditure=[1e10, 1.1e10, 1.2e10],
+            change_in_working_capital=[-5e8, -6e8, -7e8],
+        )
+        assert hm.depreciation_amortization == [1.1e10, 1.2e10, 1.3e10]
+        assert hm.capital_expenditure == [1e10, 1.1e10, 1.2e10]
+        assert hm.change_in_working_capital == [-5e8, -6e8, -7e8]
+
     def test_operating_cash_flow_accepts_list_of_floats(self):
         hm = HistoricalMetrics(
             **self._minimal_kwargs(),
@@ -181,12 +200,19 @@ def _make_income_stmt() -> pd.DataFrame:
 
 
 def _make_cashflow() -> pd.DataFrame:
-    """Minimal cash flow DataFrame matching yfinance format."""
+    """Minimal cash flow DataFrame matching yfinance format.
+
+    Includes the three rows feeding the DCF FCF formula. CapEx is reported as
+    a negative number — same convention as yfinance.
+    """
     cols = pd.to_datetime(["2022-12-31", "2021-12-31", "2020-12-31", "2019-12-31"])
     data = {
         "Operating Cash Flow": [122e9, 104e9, 80e9, 69e9],
         "Investing Cash Flow": [-23e9, -15e9, -10e9, -12e9],
         "Financing Cash Flow": [-110e9, -101e9, -86e9, -90e9],
+        "Depreciation And Amortization": [11e9, 11.3e9, 11.1e9, 12.5e9],
+        "Capital Expenditure": [-11e9, -10e9, -7.3e9, -10e9],
+        "Change In Working Capital": [1.2e9, -3e8, 8e8, -5e8],
     }
     df = pd.DataFrame(data, index=cols).T
     return df
@@ -348,6 +374,46 @@ class TestExtractHistoricalFromYfinance:
         assert len(result.eps) == len(result.years)
         assert all(v > 0 for v in result.eps)
 
+    def test_depreciation_amortization_populated(self):
+        """D&A is reported positive in cash flow stmt — pass through unchanged."""
+        from finagent.engine.compute.historical_extractor import (
+            extract_historical_from_yfinance,
+        )
+
+        result = self._run(extract_historical_from_yfinance("AAPL"))
+        assert len(result.depreciation_amortization) == len(result.years)
+        # oldest first: 2019=12.5B, 2022=11B
+        assert result.depreciation_amortization[0] == pytest.approx(12.5e9, rel=0.01)
+        assert result.depreciation_amortization[-1] == pytest.approx(11e9, rel=0.01)
+
+    def test_capital_expenditure_sign_flipped_to_positive(self):
+        """CapEx is negative in raw yfinance (cash outflow) but stored as positive
+        magnitude so dcf_seed can compute capex/revenue ratios directly."""
+        from finagent.engine.compute.historical_extractor import (
+            extract_historical_from_yfinance,
+        )
+
+        result = self._run(extract_historical_from_yfinance("AAPL"))
+        assert len(result.capital_expenditure) == len(result.years)
+        # all stored as positive
+        assert all(v >= 0 for v in result.capital_expenditure)
+        # oldest first: 2019=10B (flipped from -10B), 2022=11B
+        assert result.capital_expenditure[0] == pytest.approx(10e9, rel=0.01)
+        assert result.capital_expenditure[-1] == pytest.approx(11e9, rel=0.01)
+
+    def test_change_in_working_capital_can_be_negative(self):
+        """ΔWC can be positive (WC decreased, cash released) or negative (WC built up)."""
+        from finagent.engine.compute.historical_extractor import (
+            extract_historical_from_yfinance,
+        )
+
+        result = self._run(extract_historical_from_yfinance("AAPL"))
+        assert len(result.change_in_working_capital) == len(result.years)
+        # mock has mixed signs; just check shape
+        assert any(v < 0 for v in result.change_in_working_capital) or any(
+            v > 0 for v in result.change_in_working_capital
+        )
+
 
 class TestExtractHistoricalFromYfinanceFallbackNames:
     """Test that fallback row names are used when primary names are absent."""
@@ -422,3 +488,11 @@ class TestExtractHistoricalFromYfinanceMissingData:
         assert all(v == 0.0 for v in result.investing_cash_flow)
         assert len(result.financing_cash_flow) == len(result.years)
         assert all(v == 0.0 for v in result.financing_cash_flow)
+        # DCF line items must also be zero-filled — dcf_seed will detect this
+        # via sum==0 and fall back to industry medians.
+        assert len(result.depreciation_amortization) == len(result.years)
+        assert all(v == 0.0 for v in result.depreciation_amortization)
+        assert len(result.capital_expenditure) == len(result.years)
+        assert all(v == 0.0 for v in result.capital_expenditure)
+        assert len(result.change_in_working_capital) == len(result.years)
+        assert all(v == 0.0 for v in result.change_in_working_capital)

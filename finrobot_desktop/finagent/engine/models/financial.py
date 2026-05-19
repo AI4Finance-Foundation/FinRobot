@@ -308,6 +308,14 @@ class HistoricalMetrics(BaseModel):
     investing_cash_flow: list[float] = Field(default_factory=list)
     financing_cash_flow: list[float] = Field(default_factory=list)
 
+    # P7 — line items needed for standard DCF FCF formula: EBIT(1-t) + D&A - CapEx - ΔNWC.
+    # Parallel to revenue/ebitda — same year ordering. Empty when provider didn't expose
+    # the row; downstream consumers (dcf_seed) must fall back to industry medians and mark
+    # provenance accordingly.
+    depreciation_amortization: list[float] = Field(default_factory=list)
+    capital_expenditure: list[float] = Field(default_factory=list)
+    change_in_working_capital: list[float] = Field(default_factory=list)
+
 
 class MarginAssumptions(BaseModel):
     """User-provided or default margin targets for forecasting."""

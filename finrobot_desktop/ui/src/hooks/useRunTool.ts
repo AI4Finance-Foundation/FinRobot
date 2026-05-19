@@ -23,6 +23,8 @@ import { useToastStore } from '../stores/toastStore'
 import {
   useAppStore,
   type DCFResult,
+  type DcfReverseResult,
+  type DcfSeedResponse,
   type LBOResult,
   type CompsResult,
   type EarningsResult,
@@ -42,25 +44,6 @@ const TOOL_TAB_MAP: Record<ToolName, import('../stores/stocksStore').StocksTab> 
   ddm:        'valuation',
   earnings:   'financials',
   'ask-ai':   'overview',
-}
-
-// ── Default assumptions for direct compute endpoints ─────────────────────────
-
-const DEFAULT_COMPUTE_BODY: Record<string, unknown> = {
-  risk_free_rate: 0.043,
-  beta: 1.1,
-  equity_risk_premium: 0.055,
-  cost_of_debt: 0.05,
-  tax_rate: 0.21,
-  debt_ratio: 0.3,
-  terminal_growth_rate: 0.025,
-  revenue_growth_rates: [0.10, 0.10, 0.08, 0.07, 0.06],
-  ebitda_margin: 0.20,
-  capex_pct_revenue: 0.05,
-  nwc_pct_revenue: 0.02,
-  shares_outstanding: 1,
-  net_debt: 0,
-  revenue_base: 1,
 }
 
 // ── Error helper ─────────────────────────────────────────────────────────────
@@ -86,7 +69,13 @@ interface RunDetailPayload {
 }
 
 type RunResult =
-  | { kind: 'dcf'; result: DCFResult; ticker: string }
+  | {
+      kind: 'dcf'
+      result: DCFResult
+      ticker: string
+      reverseGrowth: DcfReverseResult | null
+      reverseWacc: DcfReverseResult | null
+    }
   | { kind: 'lbo'; result: LBOResult; ticker: string }
   | { kind: 'run'; runId: string; ticker: string; timedOut: boolean; pipelineType: string; detail: RunDetailPayload | null }
   | { kind: 'noop' }
@@ -103,6 +92,7 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
   const addToast = useToastStore((s) => s.addToast)
   const queryClient = useQueryClient()
   const setDcfResult = useAppStore((s) => s.setDcfResult)
+  const setDcfReverse = useAppStore((s) => s.setDcfReverse)
   const setLboResult = useAppStore((s) => s.setLboResult)
   const setCompsResult = useAppStore((s) => s.setCompsResult)
   const setEarningsResult = useAppStore((s) => s.setEarningsResult)
@@ -124,34 +114,29 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
 
       try {
         if (toolName === 'dcf') {
-          const finResp = await fetch(`${BASE_URL}/api/data/${tickerAtDispatch}/financials`)
-          let body = { ...DEFAULT_COMPUTE_BODY }
-
-          if (finResp.ok) {
-            const fin = (await finResp.json()) as Record<string, unknown>
-            const income = (fin.income ?? {}) as Record<string, unknown>
-            const market = (fin.market ?? {}) as Record<string, unknown>
-            const revenue = (income.revenue as number | undefined) ?? 1
-            const netDebt = ((fin.total_debt as number | undefined) ?? 0) - ((fin.total_cash as number | undefined) ?? 0)
-            const shares = (market.shares_outstanding as number | undefined) ?? 1
-            body = {
-              ...body,
-              revenue_base: revenue,
-              net_debt: netDebt,
-              shares_outstanding: shares,
-            }
-          }
-
-          const resp = await fetch(`${BASE_URL}/api/compute/dcf`, {
+          // Single authoritative entry: backend pulls financials, historical,
+          // and runs seed_dcf_inputs → calculate_dcf in one shot. Replaces
+          // the legacy DEFAULT_COMPUTE_BODY hardcoded path where every
+          // company shared the same 20% EBITDA / 5% capex assumptions.
+          const resp = await fetch(`${BASE_URL}/api/compute/dcf-seed`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
+            body: JSON.stringify({
+              ticker: tickerAtDispatch,
+              include_reverse: true,
+            }),
           })
           if (!resp.ok) {
             throw new ToolRunError('dcf', resp.status, await resp.text().catch(() => ''))
           }
-          const dcfResult = (await resp.json()) as DCFResult
-          return { kind: 'dcf', result: dcfResult, ticker: tickerAtDispatch }
+          const seed = (await resp.json()) as DcfSeedResponse
+          return {
+            kind: 'dcf',
+            result: seed.result,
+            ticker: tickerAtDispatch,
+            reverseGrowth: seed.reverse_growth,
+            reverseWacc: seed.reverse_wacc,
+          }
         }
 
         if (toolName === 'lbo') {
@@ -276,6 +261,7 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
       if (isFresh) {
         if (data.kind === 'dcf') {
           setDcfResult(data.result, 'standalone')
+          setDcfReverse(data.reverseGrowth, data.reverseWacc)
         } else if (data.kind === 'lbo') {
           setLboResult(data.result)
         } else if (data.kind === 'run' && data.detail?.result?.structured) {

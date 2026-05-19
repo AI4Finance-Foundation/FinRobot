@@ -244,8 +244,33 @@ export interface DCFResult {
   implied_price: number
   sensitivity_table: unknown
   inputs: DCFInputs
-  fcf_formula: string
-  fcf_formula_warning: string | null
+  // fcf_formula / fcf_formula_warning removed in Phase B — standard FCF
+  // (EBIT(1-T) + D&A - CapEx - ΔNWC) is the only path now, and the
+  // assumption_provenance carries per-field source attribution instead.
+}
+
+export interface DcfReverseResult {
+  solve_for: 'growth' | 'wacc'
+  target_price: number
+  implied_growth: number | null
+  implied_wacc: number | null
+  computed_price: number | null
+  wacc: number | null
+  terminal_growth: number
+  horizon_years: number
+  bracket: [number, number]
+  price_at_lo: number
+  price_at_hi: number
+  iterations: number
+  message: string | null
+}
+
+export interface DcfSeedResponse {
+  inputs: DCFInputs
+  result: DCFResult
+  current_price: number | null
+  reverse_growth: DcfReverseResult | null
+  reverse_wacc: DcfReverseResult | null
 }
 
 export interface SensitivityResult {
@@ -283,6 +308,10 @@ interface WorkspaceState {
   originalDcfInputs: DCFInputs | null
   dcfResult: DCFResult | null
   dcfSource: DcfSource
+  // Reverse DCF outputs from /api/compute/dcf-seed — used by ValuationCard
+  // to render "市场在为多少 growth 定价" tooltip alongside the headline price.
+  dcfReverseGrowth: DcfReverseResult | null
+  dcfReverseWacc: DcfReverseResult | null
   sensitivityData: SensitivityResult | null
   currentPrice: number | null
   priceChange: number | null
@@ -352,6 +381,10 @@ interface WorkspaceState {
   setDcfInputs: (inputs: DCFInputs) => void
   setOriginalDcfInputs: (inputs: DCFInputs) => void
   setDcfResult: (result: DCFResult, source?: DcfSource) => void
+  setDcfReverse: (
+    reverseGrowth: DcfReverseResult | null,
+    reverseWacc: DcfReverseResult | null,
+  ) => void
   setSensitivityData: (data: SensitivityResult) => void
   setCurrentPrice: (price: number) => void
   setPriceChange: (change: number, changePct: number) => void
@@ -398,6 +431,8 @@ const initialState = {
   originalDcfInputs: null,
   dcfResult: null,
   dcfSource: null,
+  dcfReverseGrowth: null,
+  dcfReverseWacc: null,
   sensitivityData: null,
   currentPrice: null,
   priceChange: null,
@@ -490,6 +525,7 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   setDcfInputs: (dcfInputs) => set({ dcfInputs }),
   setOriginalDcfInputs: (originalDcfInputs) => set({ originalDcfInputs }),
   setDcfResult: (dcfResult, source) => set({ dcfResult, ...(source !== undefined ? { dcfSource: source } : {}) }),
+  setDcfReverse: (dcfReverseGrowth, dcfReverseWacc) => set({ dcfReverseGrowth, dcfReverseWacc }),
   setSensitivityData: (sensitivityData) => set({ sensitivityData }),
   setCurrentPrice: (currentPrice) => set({ currentPrice }),
   setPriceChange: (priceChange, priceChangePct) => set({ priceChange, priceChangePct }),

@@ -22,21 +22,9 @@ import { TermTip } from '../components/TermTip'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const DEFAULT_INPUTS: Omit<DCFInputs, 'revenue_base' | 'shares_outstanding' | 'net_debt'> = {
-  revenue_growth_rates: [0.20, 0.18, 0.16, 0.14, 0.12],
-  ebitda_margin: 0.25,
-  capex_pct_revenue: 0.05,
-  nwc_pct_revenue: 0.02,
-  tax_rate: 0.21,
-  risk_free_rate: 0.045,
-  beta: 1.2,
-  equity_risk_premium: 0.055,
-  cost_of_debt: 0.05,
-  debt_ratio: 0.20,
-  terminal_growth_rate: 0.03,
-}
-
-// Simplified slider state for the playground (exposed controls only)
+// Simplified slider state for the playground (exposed controls only).
+// All values are seeded from the /api/compute/dcf-seed response on mount —
+// the static fallback below only applies before that fetch completes.
 interface SliderState {
   wacc: number           // 0.07 – 0.15
   terminalGrowth: number // 0.01 – 0.05
@@ -44,11 +32,14 @@ interface SliderState {
   revenueGrowth: number  // 0.05 – 0.50 (5Y CAGR applied uniformly)
 }
 
+// Pre-seed placeholder: the first render flashes through this before the
+// /dcf-seed response lands. Values are intentionally generic — the seed
+// fetch overrides them within a few hundred ms.
 const DEFAULT_SLIDERS: SliderState = {
-  wacc: 0.105,
-  terminalGrowth: 0.030,
+  wacc: 0.10,
+  terminalGrowth: 0.025,
   ebitdaMargin: 0.30,
-  revenueGrowth: 0.20,
+  revenueGrowth: 0.10,
 }
 
 // Scenario offsets
@@ -78,48 +69,32 @@ function clamp(val: number, min: number, max: number) {
   return Math.max(min, Math.min(max, val))
 }
 
-/** Build DCFInputs from slider state + seeded financials. */
-function buildDcfInputs(
-  sliders: SliderState,
-  seed: { revenue_base: number; shares_outstanding: number; net_debt: number },
-): DCFInputs {
-  // Back-solve component inputs from aggregated slider values.
-  // WACC = rfr + beta * ERP; we fix beta/ERP and adjust rfr so aggregate WACC lands on slider.
-  // Simple approach: keep existing ratios, adjust risk_free_rate so final WACC ≈ slider.wacc.
-  const erp = DEFAULT_INPUTS.equity_risk_premium
-  const beta = DEFAULT_INPUTS.beta
-  const costOfDebt = DEFAULT_INPUTS.cost_of_debt
-  const debtRatio = DEFAULT_INPUTS.debt_ratio
-  const taxRate = DEFAULT_INPUTS.tax_rate
-
-  // cost_of_equity = rfr + beta * erp
-  // WACC = ke*(1-d) + kd*(1-t)*d
-  // Solving for rfr:  rfr = (wacc - kd*(1-t)*d) / (1-d) - beta*erp
-  const kd_after_tax = costOfDebt * (1 - taxRate) * debtRatio
-  const rfr = (sliders.wacc - kd_after_tax) / (1 - debtRatio) - beta * erp
-
-  const growthRates = Array.from({ length: 5 }, () => sliders.revenueGrowth)
-
-  // EBITDA margin passes through directly — earlier versions applied a
-  // gross×0.35 fudge factor which understated margins for software / hardware
-  // (AAPL's real 35% landed at 16% under the proxy). Seeded from real
-  // ebitda/revenue in the financials fetch.
-  const ebitda_margin = clamp(sliders.ebitdaMargin, 0.02, 0.70)
+/** Build DCFInputs by overlaying slider state onto the baseline DCFInputs
+ * returned by /api/compute/dcf-seed.
+ *
+ * The baseline carries ticker-specific values for capex / D&A / NWC / tax /
+ * beta / cost_of_debt / debt_ratio (all derived from filings or Damodaran
+ * industry medians). Sliders only override the four user-facing axes:
+ *
+ *   WACC ←  back-solved through risk_free_rate so the aggregate matches the slider
+ *   terminal_growth_rate
+ *   ebitda_margin
+ *   revenue_growth_rates (5-year flat at slider value)
+ */
+function buildDcfInputs(sliders: SliderState, baseline: DCFInputs): DCFInputs {
+  // Solve for risk_free_rate that, given baseline's beta / ERP / debt / tax,
+  // produces the slider's aggregate WACC:
+  //   cost_of_equity = rfr + beta * erp
+  //   WACC = ke*(1-d) + kd*(1-t)*d
+  //   rfr  = (wacc - kd*(1-t)*d) / (1-d) - beta*erp
+  const kd_after_tax = baseline.cost_of_debt * (1 - baseline.tax_rate) * baseline.debt_ratio
+  const rfr = (sliders.wacc - kd_after_tax) / (1 - baseline.debt_ratio) - baseline.beta * baseline.equity_risk_premium
 
   return {
-    revenue_base: seed.revenue_base,
-    shares_outstanding: seed.shares_outstanding,
-    net_debt: seed.net_debt,
-    revenue_growth_rates: growthRates,
-    ebitda_margin,
-    capex_pct_revenue: DEFAULT_INPUTS.capex_pct_revenue,
-    nwc_pct_revenue: DEFAULT_INPUTS.nwc_pct_revenue,
-    tax_rate: taxRate,
+    ...baseline,
+    revenue_growth_rates: Array.from({ length: 5 }, () => sliders.revenueGrowth),
+    ebitda_margin: clamp(sliders.ebitdaMargin, 0.02, 0.70),
     risk_free_rate: Math.max(0.005, rfr),
-    beta,
-    equity_risk_premium: erp,
-    cost_of_debt: costOfDebt,
-    debt_ratio: debtRatio,
     terminal_growth_rate: sliders.terminalGrowth,
   }
 }
@@ -413,12 +388,11 @@ export function PlaygroundPage() {
   // ── Slider state ──────────────────────────────────────────────────────────
   const [sliders, setSliders] = useState<SliderState>(DEFAULT_SLIDERS)
 
-  // ── Seeded financials from backend ────────────────────────────────────────
-  const [seed, setSeed] = useState<{
-    revenue_base: number
-    shares_outstanding: number
-    net_debt: number
-  } | null>(null)
+  // ── Baseline DCFInputs from /api/compute/dcf-seed ─────────────────────────
+  // Every per-ticker assumption (capex / D&A / NWC / beta / tax / debt_ratio)
+  // lands here from the backend. The slider state above only overrides four
+  // user-facing axes via buildDcfInputs.
+  const [seed, setSeed] = useState<DCFInputs | null>(null)
 
   const [currentPrice, setCurrentPrice] = useState<number | null>(null)
   const [priceLoading, setPriceLoading] = useState(false)
@@ -478,70 +452,53 @@ export function PlaygroundPage() {
         setPriceLoading(true)
         setSeedLoading(true)
 
-        const [priceRes, finRes] = await Promise.allSettled([
-          fetch(`${BASE_URL}/api/data/${ticker}/price`, { signal }),
-          fetch(`${BASE_URL}/api/data/${ticker}/financials`, { signal }),
-        ])
+        // Single round-trip: backend pulls financials + historical + runs
+        // seed_dcf_inputs + calculate_dcf + reverse DCF. Replaces the legacy
+        // path that fetched /api/data/.../financials separately and used a
+        // hardcoded DEFAULT_INPUTS for capex / NWC / beta / tax / debt ratio.
+        const seedRes = await fetch(`${BASE_URL}/api/compute/dcf-seed`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticker, include_reverse: true }),
+          signal,
+        })
 
-        // Price
-        if (priceRes.status === 'fulfilled' && priceRes.value.ok) {
-          const priceData = await priceRes.value.json() as { current_price: number }
-          setCurrentPrice(priceData.current_price)
-        } else if (priceRes.status === 'rejected') {
-          // aborted — ignore
-        } else {
-          setCurrentPrice(null)
+        if (!seedRes.ok) {
+          setInitError(`Could not seed DCF for ${ticker} (HTTP ${seedRes.status})`)
+          setPriceLoading(false)
+          setSeedLoading(false)
+          return
+        }
+
+        const seedData = await seedRes.json() as {
+          inputs: DCFInputs
+          result: DCFResult
+          current_price: number | null
+          reverse_growth: { implied_growth: number | null; message: string | null } | null
+          reverse_wacc: { implied_wacc: number | null; message: string | null } | null
+        }
+
+        setSeed(seedData.inputs)
+        setDcfResult(seedData.result)
+        if (seedData.current_price != null) {
+          setCurrentPrice(seedData.current_price)
         }
         setPriceLoading(false)
 
-        // Financials → seed DCF inputs. Response is nested by section
-        // (income / balance / market), not flat — historic versions of this
-        // file read fin.revenue directly and silently fell back to default
-        // $1B placeholder for every ticker.
-        if (finRes.status === 'fulfilled' && finRes.value.ok) {
-          const fin = await finRes.value.json() as {
-            income?: {
-              revenue?: number | null
-              ebitda?: number | null
-              gross_margin?: number | null
-            }
-            balance?: {
-              total_debt?: number | null
-              total_cash?: number | null
-            }
-            market?: {
-              shares_outstanding?: number | null
-            }
-          }
+        // Hydrate sliders from the seeded baseline so what the user sees
+        // matches what the backend just computed.
+        const growth = seedData.inputs.revenue_growth_rates[0] ?? DEFAULT_SLIDERS.revenueGrowth
+        setSliders({
+          wacc: seedData.result.wacc,
+          terminalGrowth: seedData.inputs.terminal_growth_rate,
+          ebitdaMargin: clamp(seedData.inputs.ebitda_margin, 0.02, 0.70),
+          revenueGrowth: growth,
+        })
 
-          const revenue_base = fin.income?.revenue ?? 1e9
-          const ebitda = fin.income?.ebitda ?? null
-          const shares = fin.market?.shares_outstanding ?? 1e9
-          const net_debt = (fin.balance?.total_debt ?? 0) - (fin.balance?.total_cash ?? 0)
-
-          setSeed({ revenue_base, shares_outstanding: shares, net_debt })
-
-          // Prefer real EBITDA margin (ebitda / revenue). Fall back to a
-          // gross-margin proxy (×0.35) only if EBITDA is missing — covers
-          // tickers where yfinance reports gross but not EBITDA.
-          const seedEbitdaMargin = clamp(
-            ebitda != null && revenue_base > 0
-              ? ebitda / revenue_base
-              : (fin.income?.gross_margin ?? 0.30) * 0.35,
-            0.02,
-            0.70,
-          )
-          setSliders((prev) => ({
-            ...prev,
-            ebitdaMargin: seedEbitdaMargin,
-          }))
-        } else if (finRes.status === 'rejected') {
-          // aborted — ignore
-        } else {
-          setInitError('Could not load financials — using default seed values')
-          // Fallback seed for demo
-          setSeed({ revenue_base: 1e9, shares_outstanding: 1e9, net_debt: 0 })
-        }
+        // Reverse DCF — pre-populate "market is pricing in X%" panel.
+        setReverseGrowth(seedData.reverse_growth?.implied_growth ?? null)
+        setReverseWacc(seedData.reverse_wacc?.implied_wacc ?? null)
+        setReverseMessage(seedData.reverse_growth?.message ?? seedData.reverse_wacc?.message ?? null)
         setSeedLoading(false)
       } catch (err) {
         if ((err as Error).name !== 'AbortError') {

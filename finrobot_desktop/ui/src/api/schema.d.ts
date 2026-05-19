@@ -670,13 +670,6 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             inputs: components["schemas"]["DCFInputs"];
-            /**
-             * Fcf Formula
-             * @default simplified
-             */
-            fcf_formula: string;
-            /** Fcf Formula Warning */
-            fcf_formula_warning?: string | null;
         };
         /** DcfExportRequest */
         DcfExportRequest: {

@@ -116,7 +116,7 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
         if (toolName === 'dcf') {
           // Single authoritative entry: backend pulls financials, historical,
           // and runs seed_dcf_inputs → calculate_dcf in one shot. Replaces
-          // the legacy DEFAULT_COMPUTE_BODY hardcoded path where every
+          // the legacy hardcoded path (removed in Phase D1) where every
           // company shared the same 20% EBITDA / 5% capex assumptions.
           const resp = await fetch(`${BASE_URL}/api/compute/dcf-seed`, {
             method: 'POST',

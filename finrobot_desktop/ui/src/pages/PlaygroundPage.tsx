@@ -454,8 +454,9 @@ export function PlaygroundPage() {
 
         // Single round-trip: backend pulls financials + historical + runs
         // seed_dcf_inputs + calculate_dcf + reverse DCF. Replaces the legacy
-        // path that fetched /api/data/.../financials separately and used a
-        // hardcoded DEFAULT_INPUTS for capex / NWC / beta / tax / debt ratio.
+        // path (removed in Phase D1) that fetched /api/data/.../financials
+        // separately and used a hardcoded per-component table for capex /
+        // NWC / beta / tax / debt ratio.
         const seedRes = await fetch(`${BASE_URL}/api/compute/dcf-seed`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

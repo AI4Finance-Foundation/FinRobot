@@ -88,3 +88,8 @@ module = [
     "sentence_transformers.*",
 ]
 ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "xlrd>=2.0.2",
+]

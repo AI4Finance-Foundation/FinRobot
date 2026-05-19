@@ -112,6 +112,7 @@ def _make_fake_dcf_result() -> DCFResult:
         terminal_growth_rate=0.025,
         shares_outstanding=15_550_000_000,
         net_debt=81_123_000_000,
+        da_pct_revenue=0.035,
     )
     return DCFResult(
         cost_of_equity=0.1055,
@@ -127,8 +128,6 @@ def _make_fake_dcf_result() -> DCFResult:
         equity_value=1_648_000_000_000,
         implied_price=185.0,
         inputs=inputs,
-        fcf_formula="simplified",
-        fcf_formula_warning="Simplified FCF formula used.",
     )
 
 

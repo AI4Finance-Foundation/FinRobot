@@ -71,13 +71,9 @@ def extract_financial_data(
             "EV and EV-based multiples (EV/EBITDA, EV/Revenue) cannot be computed"
         )
 
+    # D&A is no longer required upstream — dcf_seed falls back to Damodaran
+    # industry median when this is missing, with provenance noted on each field.
     da = data.get("depreciation_amortization")
-    if da is None:
-        warnings.append(
-            "D&A unavailable — DCF will use simplified FCF formula; "
-            "implied price may be overstated 10-20% for capital-intensive companies. "
-            "Configure FMP or Finnhub API key to get D&A data."
-        )
 
     price_data = price_result.data
     price_history = price_data.get("price_history", [])

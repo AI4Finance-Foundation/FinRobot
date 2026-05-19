@@ -237,7 +237,10 @@ class TestExtractHistoricalFromYfinance:
     """Verify extract_historical_from_yfinance returns correct HistoricalMetrics."""
 
     def _run(self, coro):
-        return asyncio.get_event_loop().run_until_complete(coro)
+        # asyncio.get_event_loop() throws when no running loop exists in 3.11+;
+        # use asyncio.run which creates a fresh loop per call. Avoids test
+        # interference when other suites close the global loop.
+        return asyncio.run(coro)
 
     @pytest.fixture(autouse=True)
     def mock_yfinance(self):
@@ -419,7 +422,10 @@ class TestExtractHistoricalFromYfinanceFallbackNames:
     """Test that fallback row names are used when primary names are absent."""
 
     def _run(self, coro):
-        return asyncio.get_event_loop().run_until_complete(coro)
+        # asyncio.get_event_loop() throws when no running loop exists in 3.11+;
+        # use asyncio.run which creates a fresh loop per call. Avoids test
+        # interference when other suites close the global loop.
+        return asyncio.run(coro)
 
     @pytest.fixture(autouse=True)
     def mock_yfinance_with_fallback_cashflow_names(self):
@@ -465,7 +471,10 @@ class TestExtractHistoricalFromYfinanceMissingData:
     """Test graceful handling when yfinance returns empty / partial DataFrames."""
 
     def _run(self, coro):
-        return asyncio.get_event_loop().run_until_complete(coro)
+        # asyncio.get_event_loop() throws when no running loop exists in 3.11+;
+        # use asyncio.run which creates a fresh loop per call. Avoids test
+        # interference when other suites close the global loop.
+        return asyncio.run(coro)
 
     @pytest.fixture(autouse=True)
     def mock_yfinance_empty_cashflow(self):

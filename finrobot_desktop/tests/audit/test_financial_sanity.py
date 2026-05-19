@@ -88,6 +88,10 @@ class TestDCFSanity:
             terminal_growth_rate=0.025,
             shares_outstanding=15_120_000_000,
             net_debt=66_900_000_000,
+            # Pin to 0 so the hand-calculated $82.68 reference (computed before
+            # D&A became required) stays valid: D&A=0 means no tax shield,
+            # standard formula collapses to EBITDA(1-T) - CapEx - ΔNWC.
+            da_pct_revenue=0.0,
         )
 
     def test_apple_implied_price(self, apple_inputs: DCFInputs) -> None:
@@ -95,11 +99,23 @@ class TestDCFSanity:
         result = calculate_dcf(apple_inputs, wacc_override=0.10)
         assert abs(result.implied_price - 82.68) < 1.0, f"Got {result.implied_price:.2f}"
 
-    def test_simplified_formula_flagged(self, apple_inputs: DCFInputs) -> None:
-        """No D&A input → must flag as simplified formula."""
+    def test_da_zero_collapses_to_simplified_arithmetic(self, apple_inputs: DCFInputs) -> None:
+        """When D&A=0 the standard formula collapses to EBITDA(1-T) - CapEx - ΔNWC.
+
+        Phase B removed the explicit 'simplified' branch and its warning —
+        every DCFInputs now carries a non-None da_pct_revenue (filings or
+        Damodaran fallback). This sanity check confirms a D&A=0 input still
+        produces a coherent positive price.
+        """
         result = calculate_dcf(apple_inputs, wacc_override=0.10)
-        assert result.fcf_formula == "simplified"
-        assert result.fcf_formula_warning is not None
+        assert result.implied_price > 0
+        # FCF[0] = EBITDA(1-T) - CapEx - ΔNWC when D&A=0
+        rev0 = result.projected_revenue[0]
+        ebitda0 = result.projected_ebitda[0]
+        expected = ebitda0 * (1 - apple_inputs.tax_rate) - rev0 * (
+            apple_inputs.capex_pct_revenue + apple_inputs.nwc_pct_revenue
+        )
+        assert abs(result.projected_fcf[0] - expected) < 1
 
     def test_tg_exceeds_wacc_raises(self, apple_inputs: DCFInputs) -> None:
         """Gordon Growth undefined when tg >= WACC."""

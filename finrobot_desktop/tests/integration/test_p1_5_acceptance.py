@@ -29,6 +29,7 @@ class TestDeterminism:
             terminal_growth_rate=0.025,
             shares_outstanding=14_680_000_000,
             net_debt=-50_000_000_000,
+            da_pct_revenue=0.0,  # Phase B: required field, pin to 0 for legacy compat
         )
         result1 = calculate_dcf(inputs)
         result2 = calculate_dcf(inputs)
@@ -52,6 +53,7 @@ class TestDeterminism:
             terminal_growth_rate=0.025,
             shares_outstanding=1_000_000_000,
             net_debt=10_000_000_000,
+            da_pct_revenue=0.0,
         )
         r1 = calculate_dcf(inputs, wacc_override=0.12)
         r2 = calculate_dcf(inputs, wacc_override=0.12)
@@ -87,7 +89,11 @@ class TestNumericalCorrectness:
     def test_dcf_hand_calculated(self):
         """Hand-calculated expected value: ~$303.64. See spec for full workings.
         revenue_base=100B, 5×5% growth, EBITDA=35%, capex=5%, nwc=2%, tax=21%
-        wacc_override=10%, tg=2.5%, shares=1B, net_debt=10B"""
+        wacc_override=10%, tg=2.5%, shares=1B, net_debt=10B
+
+        da_pct_revenue=0 keeps the legacy hand-calc valid after Phase B: with
+        D&A=0 the standard formula collapses to EBITDA(1-T) - CapEx - ΔNWC.
+        """
         inputs = DCFInputs(
             revenue_base=100_000_000_000,
             revenue_growth_rates=[0.05] * 5,
@@ -103,6 +109,7 @@ class TestNumericalCorrectness:
             terminal_growth_rate=0.025,
             shares_outstanding=1_000_000_000,
             net_debt=10_000_000_000,
+            da_pct_revenue=0.0,
         )
         result = calculate_dcf(inputs, wacc_override=0.10)
         assert abs(result.implied_price - 303.64) < 0.10, (
@@ -111,7 +118,11 @@ class TestNumericalCorrectness:
         )
 
     def test_fcf_formula_explicit(self):
-        """Verify FCF = EBITDA*(1-tax) - revenue*capex_pct - revenue*nwc_pct"""
+        """Verify FCF = EBIT(1-tax) + D&A - revenue*capex_pct - revenue*nwc_pct.
+
+        With D&A=0 the standard formula collapses to:
+            FCF = EBITDA*(1-tax) - revenue*capex_pct - revenue*nwc_pct
+        """
         inputs = DCFInputs(
             revenue_base=100_000_000_000,
             revenue_growth_rates=[0.05],
@@ -127,6 +138,7 @@ class TestNumericalCorrectness:
             terminal_growth_rate=0.025,
             shares_outstanding=1_000_000_000,
             net_debt=10_000_000_000,
+            da_pct_revenue=0.0,
         )
         result = calculate_dcf(inputs)
         expected_revenue = 100_000_000_000 * 1.05

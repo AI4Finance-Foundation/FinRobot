@@ -51,10 +51,12 @@ def test_dcf_apple_fy2024_simplified():
         terminal_growth_rate=0.025,
         shares_outstanding=15_120_000_000,
         net_debt=66_900_000_000,
+        # da_pct_revenue=0 keeps the legacy hand-calc result aligned with the
+        # standard-only formula (D&A=0 → no tax shield → equal to simplified).
+        da_pct_revenue=0.0,
     )
     result = calculate_dcf(inputs, wacc_override=0.10)
 
     # Implied price within $1 of hand-calculated $82.68
     assert abs(result.implied_price - 82.68) < 1.0, f"Got {result.implied_price:.2f}"
-    assert result.fcf_formula == "simplified"
     assert result.projection_years == 5

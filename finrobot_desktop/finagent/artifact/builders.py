@@ -147,14 +147,13 @@ def build_dcf_artifact(
     data_source, fetched_at, raw_data = _extract_financial_data_dump(result, "historical_data")
     dcf = result.structured_data.get("dcf_calc")
 
-    formula_id = "dcf_simplified_v1"
+    # Standard D&A-inclusive formula is now the only path — simplified-FCF
+    # branch (and its overstate/understate warning) was removed in Phase B.
+    formula_id = "dcf_standard_with_da_v2"
     formula_warnings: list[str] = []
     assumptions_params: dict[str, Any] = {}
 
     if isinstance(dcf, DCFResult):
-        formula_id = f"dcf_{dcf.fcf_formula}_v1"
-        if dcf.fcf_formula_warning:
-            formula_warnings = [dcf.fcf_formula_warning]
         assumptions_params = _safe_dump(dcf.inputs)
 
     return Artifact(
@@ -381,8 +380,6 @@ def build_equity_research_artifact(
     assumptions_params: dict[str, Any] = {}
 
     if isinstance(dcf, DCFResult):
-        if dcf.fcf_formula_warning:
-            formula_warnings = [dcf.fcf_formula_warning]
         assumptions_params = _safe_dump(dcf.inputs)
 
     # Collect all meaningful structured outputs for the combined report
@@ -403,7 +400,7 @@ def build_equity_research_artifact(
         ),
         assumptions=ArtifactAssumptions(parameters=assumptions_params),
         compute_version=_make_base_compute_version(
-            f"equity_research_dcf_{getattr(dcf, 'fcf_formula', 'simplified')}_v1"
+            "equity_research_dcf_standard_with_da_v2"
             if isinstance(dcf, DCFResult)
             else "equity_research_v1",
             formula_warnings,
@@ -449,8 +446,6 @@ def build_ic_memo_artifact(
             "dcf_inputs": _safe_dump(ic.dcf_result.inputs),
             "lbo_inputs": {},  # LBOInputs stored in lbo_result.inputs if available
         }
-        if ic.dcf_result.fcf_formula_warning:
-            formula_warnings.append(ic.dcf_result.fcf_formula_warning)
         if ic.lbo_result.irr_formula_warning:
             formula_warnings.append(ic.lbo_result.irr_formula_warning)
 

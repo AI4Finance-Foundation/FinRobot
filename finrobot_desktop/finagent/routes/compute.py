@@ -80,6 +80,32 @@ class DcfSensitivityResult(BaseModel):
     implied_prices: list[list[float | None]]
 
 
+class DcfSeedRequest(BaseModel):
+    """One-shot DCF seeded from a ticker — single authoritative entry point.
+
+    Backend fetches financials + historical, calls ``seed_dcf_inputs`` to
+    derive every assumption from real filings (or Damodaran industry fallback),
+    then runs calculate_dcf + sensitivity + reverse DCF in one shot.
+    """
+
+    ticker: str = Field(min_length=1, max_length=10)
+    wacc_override: float | None = Field(default=None, ge=0, le=0.50)
+    tg_override: float | None = Field(default=None, ge=-0.05, le=0.10)
+    mid_year: bool = False
+    include_reverse: bool = True
+
+
+class DcfSeedResponse(BaseModel):
+    """Bundled DCF output. inputs.assumption_provenance carries the per-field
+    sources for the UI's "展开专家详情" tooltip."""
+
+    inputs: DCFInputs
+    result: DCFResult
+    current_price: float | None = None
+    reverse_growth: "DcfReverseResult | None" = None
+    reverse_wacc: "DcfReverseResult | None" = None
+
+
 class DcfReverseRequest(BaseModel):
     """Reverse-DCF input: solve either for implied growth or implied WACC."""
 
@@ -139,6 +165,110 @@ async def compute_wacc(request: WaccRequest) -> WaccResponse:
 @router.post("/dcf", response_model=DCFResult)
 async def compute_dcf(inputs: DCFInputs) -> DCFResult:
     return calculate_dcf(inputs)
+
+
+@router.post("/dcf-seed", response_model=DcfSeedResponse)
+async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedResponse:
+    """One-shot DCF for a ticker — the front-end's single authoritative path.
+
+    Replaces the legacy hardcoded DEFAULT_COMPUTE_BODY shipped from the UI:
+      1. fetch financials (LTM) + price + multi-year history
+      2. seed_dcf_inputs → DCFInputs (with assumption_provenance per field)
+      3. calculate_dcf + calculate_sensitivity
+      4. solve_for_implied_growth + solve_for_implied_wacc (when include_reverse)
+
+    Everything returned in a single bundled response so the UI doesn't need
+    follow-up calls to render the valuation card.
+    """
+    from finagent.engine.compute.dcf_seed import seed_dcf_inputs
+    from finagent.engine.compute.extractor import extract_financial_data
+    from finagent.engine.compute.historical_extractor import extract_historical_from_yfinance
+    from finagent.engine.data.types import DataType
+    from finagent.engine.pipelines._helpers import build_sensitivity_ranges
+
+    deps = request.app.state.deps
+    ticker = body.ticker.upper()
+
+    fin_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
+    price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
+    financial_data = extract_financial_data(fin_result, price_result)
+
+    try:
+        historical = await extract_historical_from_yfinance(ticker)
+    except (
+        ValueError,
+        KeyError,
+        TypeError,
+        AttributeError,
+        RuntimeError,
+        OSError,
+    ) as exc:
+        # yfinance / provider variants can fail with a wide range of low-level
+        # errors; we degrade gracefully to an empty HistoricalMetrics so
+        # dcf_seed falls through to Damodaran industry medians.
+        logger.warning("Historical extraction failed for %s: %s", ticker, exc)
+        from finagent.engine.models.financial import HistoricalMetrics
+
+        historical = HistoricalMetrics(
+            years=[],
+            revenue=[],
+            revenue_growth_yoy=[],
+            cogs=[],
+            gross_profit=[],
+            gross_margin=[],
+            sga=[],
+            sga_ratio=[],
+            ebitda=[],
+            ebitda_margin=[],
+            operating_income=[],
+            operating_margin=[],
+            net_income=[],
+            eps=[],
+            pe_ratio=[],
+            cagr_revenue=None,
+            ticker=ticker,
+        )
+
+    dcf_inputs = seed_dcf_inputs(financial_data, historical)
+    result = calculate_dcf(
+        dcf_inputs,
+        wacc_override=body.wacc_override,
+        tg_override=body.tg_override,
+        mid_year=body.mid_year,
+    )
+    wacc_range, tg_range = build_sensitivity_ranges(
+        result.wacc, result.inputs.terminal_growth_rate
+    )
+    sensitivity = calculate_sensitivity(dcf_inputs, wacc_range, tg_range)
+    result = result.model_copy(update={"sensitivity_table": sensitivity})
+
+    current_price = financial_data.market.current_price
+    reverse_growth: DcfReverseResult | None = None
+    reverse_wacc: DcfReverseResult | None = None
+    if body.include_reverse and current_price and current_price > 0:
+        rg = solve_for_implied_growth(
+            dcf_inputs,
+            target_price=current_price,
+            wacc_override=body.wacc_override,
+            tg_override=body.tg_override,
+            mid_year=body.mid_year,
+        )
+        reverse_growth = DcfReverseResult(solve_for="growth", **rg)
+        rw = solve_for_implied_wacc(
+            dcf_inputs,
+            target_price=current_price,
+            tg_override=body.tg_override,
+            mid_year=body.mid_year,
+        )
+        reverse_wacc = DcfReverseResult(solve_for="wacc", **rw)
+
+    return DcfSeedResponse(
+        inputs=dcf_inputs,
+        result=result,
+        current_price=current_price,
+        reverse_growth=reverse_growth,
+        reverse_wacc=reverse_wacc,
+    )
 
 
 @router.post("/dcf-reverse", response_model=DcfReverseResult)

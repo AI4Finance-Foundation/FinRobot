@@ -51,7 +51,8 @@ class TestComputeRoutes:
         first_data = first.json()
         second_data = second.json()
         assert first_data["implied_price"] == second_data["implied_price"]
-        assert first_data["fcf_formula"] == "standard_with_da"
+        # fcf_formula field was removed in Phase B (standard-with-D&A is the
+        # only formula now); deterministic check above is what mattered.
         # Verify the model produces a reasonable positive price
         assert first_data["implied_price"] > 0
         # Verify enterprise_value is computed

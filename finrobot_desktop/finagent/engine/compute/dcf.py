@@ -66,7 +66,6 @@ def calculate_dcf(
     equity_value = enterprise_value - inputs.net_debt
     implied_price = equity_value / inputs.shares_outstanding
 
-    using_simplified = inputs.da_pct_revenue is None
     return DCFResult(
         cost_of_equity=cost_of_equity,
         wacc=wacc,
@@ -81,14 +80,6 @@ def calculate_dcf(
         equity_value=equity_value,
         implied_price=implied_price,
         inputs=inputs,
-        fcf_formula="standard_with_da" if not using_simplified else "simplified",
-        fcf_formula_warning=(
-            "WARNING: Simplified FCF formula used (D&A unavailable). "
-            "Implied price may be overstated by 10-20% for capital-intensive companies. "
-            "Configure FMP or Finnhub API key for D&A data."
-        )
-        if using_simplified
-        else None,
     )
 
 
@@ -155,21 +146,17 @@ def _project_full(
     for g in rates:
         rev = prev_revenue * (1 + g)
         ebitda = rev * inputs.ebitda_margin
-        if inputs.da_pct_revenue is not None:
-            da = rev * inputs.da_pct_revenue
-            ebit = ebitda - da
-            fcf = (
-                ebit * (1 - inputs.tax_rate)
-                + da
-                - rev * inputs.capex_pct_revenue
-                - rev * inputs.nwc_pct_revenue
-            )
-        else:
-            fcf = (
-                ebitda * (1 - inputs.tax_rate)
-                - rev * inputs.capex_pct_revenue
-                - rev * inputs.nwc_pct_revenue
-            )
+        # Standard FCF: EBIT(1-t) + D&A - CapEx - ΔNWC, where EBIT = EBITDA - D&A.
+        # The simplified branch that dropped the D&A tax shield is gone — dcf_seed
+        # guarantees da_pct_revenue is non-None (filings → industry median fallback).
+        da = rev * inputs.da_pct_revenue
+        ebit = ebitda - da
+        fcf = (
+            ebit * (1 - inputs.tax_rate)
+            + da
+            - rev * inputs.capex_pct_revenue
+            - rev * inputs.nwc_pct_revenue
+        )
         revenue.append(rev)
         ebitda_list.append(ebitda)
         fcfs.append(fcf)

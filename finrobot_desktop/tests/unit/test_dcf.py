@@ -4,12 +4,16 @@ from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 
 
 def _make_inputs(**overrides):
+    # da_pct_revenue defaults to 0.0 so existing hand-calc tests (designed
+    # before D&A was required) still hit the same FCF arithmetic: when D&A=0,
+    # the standard formula collapses to EBITDA(1-T) - CapEx - ΔNWC.
     defaults = dict(
         revenue_base=100_000_000_000,
         revenue_growth_rates=[0.05] * 5,
         ebitda_margin=0.35,
         capex_pct_revenue=0.05,
         nwc_pct_revenue=0.02,
+        da_pct_revenue=0.0,
         tax_rate=0.21,
         risk_free_rate=0.04,
         beta=1.2,
@@ -112,8 +116,12 @@ def test_zero_capex_zero_nwc():
 
 
 def test_fcf_formula_explicit():
-    """FCF = EBITDA*(1-tax) - revenue*capex_pct - revenue*nwc_pct"""
-    inputs = _make_inputs()
+    """FCF = EBIT(1-tax) + D&A - revenue*capex_pct - revenue*nwc_pct.
+
+    With da_pct_revenue=0 the standard formula collapses to:
+        FCF = EBITDA(1-tax) - revenue*capex_pct - revenue*nwc_pct
+    """
+    inputs = _make_inputs()  # da_pct_revenue=0.0 by default helper
     result = calculate_dcf(inputs)
     rev0 = result.projected_revenue[0]
     ebitda0 = result.projected_ebitda[0]
@@ -156,49 +164,54 @@ def test_dcf_standard_formula_with_da_hand_calculated():
     # Y1 FCF check
     assert result.projected_fcf[0] == pytest.approx(23_887_500_000, rel=1e-9)
 
-    # Formula tag
-    assert result.fcf_formula == "standard_with_da"
 
+def test_dcf_da_tax_shield_increases_fcf():
+    """D&A creates a tax shield: FCF(D&A=0.10) > FCF(D&A=0).
 
-def test_dcf_simplified_formula_when_da_none():
-    """When da_pct_revenue is None, use P1.5 simplified formula."""
-    inputs = _make_inputs()  # da_pct_revenue defaults to None
-    result = calculate_dcf(inputs, wacc_override=0.10)
-    assert result.fcf_formula == "simplified"
-    # Y1 FCF should match simplified: EBITDA*(1-T) - capex - nwc
-    rev1 = 100e9 * 1.05
-    expected_fcf = rev1 * 0.35 * 0.79 - rev1 * 0.05 - rev1 * 0.02
-    assert result.projected_fcf[0] == pytest.approx(expected_fcf, rel=1e-9)
-
-
-def test_dcf_da_tax_shield_difference():
-    """Standard - simplified = D&A × tax_rate (the tax shield)."""
+    Difference = rev × da_pct × tax_rate. Phase B refactor removed the
+    simplified branch entirely, so this comparison is the standard formula
+    with two different D&A levels.
+    """
     inputs_with_da = _make_inputs(da_pct_revenue=0.10)
-    inputs_without = _make_inputs()
+    inputs_no_da = _make_inputs(da_pct_revenue=0.0)
 
     r_with = calculate_dcf(inputs_with_da, wacc_override=0.10)
-    r_without = calculate_dcf(inputs_without, wacc_override=0.10)
+    r_no = calculate_dcf(inputs_no_da, wacc_override=0.10)
 
-    # For each year, difference should be rev × da_pct × tax_rate
     for i in range(5):
         rev = r_with.projected_revenue[i]
         expected_diff = rev * 0.10 * 0.21
-        actual_diff = r_with.projected_fcf[i] - r_without.projected_fcf[i]
+        actual_diff = r_with.projected_fcf[i] - r_no.projected_fcf[i]
         assert actual_diff == pytest.approx(expected_diff, rel=1e-9)
+        # Monotonicity invariant — guarded separately by test_fcf_formula_invariants.py
+        assert r_with.projected_fcf[i] > r_no.projected_fcf[i]
 
 
-def test_dcf_da_zero_equivalent_to_simplified():
-    """da_pct_revenue=0.0 means no D&A → EBIT=EBITDA, but formula is 'standard_with_da'."""
-    inputs_da0 = _make_inputs(da_pct_revenue=0.0)
-    inputs_none = _make_inputs()
+def test_dcf_da_pct_revenue_defaults_to_zero():
+    """da_pct_revenue defaults to 0.0. This is the legacy-compat path for
+    direct callers; seed_dcf_inputs always overrides with a non-zero value
+    from filings or Damodaran fallback.
 
-    r_da0 = calculate_dcf(inputs_da0, wacc_override=0.10)
-    r_none = calculate_dcf(inputs_none, wacc_override=0.10)
-
-    # FCF values should be identical (D&A=0 → no tax shield difference)
-    for i in range(5):
-        assert r_da0.projected_fcf[i] == pytest.approx(r_none.projected_fcf[i], rel=1e-9)
-
-    # But formula label differs
-    assert r_da0.fcf_formula == "standard_with_da"
-    assert r_none.fcf_formula == "simplified"
+    Why default to 0 instead of being required: pre-Phase-B code paths
+    (artifacts, snapshots, ad-hoc what-if scripts) constructed DCFInputs
+    without D&A. Forcing them all to migrate would expand this PR's blast
+    radius. The dcf_seed unit tests guard the "never zero from seed" path.
+    """
+    inputs = DCFInputs(
+        revenue_base=100e9,
+        revenue_growth_rates=[0.05] * 5,
+        ebitda_margin=0.35,
+        capex_pct_revenue=0.05,
+        nwc_pct_revenue=0.02,
+        # da_pct_revenue omitted — picks up 0.0 default
+        tax_rate=0.21,
+        risk_free_rate=0.04,
+        beta=1.2,
+        equity_risk_premium=0.05,
+        cost_of_debt=0.04,
+        debt_ratio=0.1,
+        terminal_growth_rate=0.025,
+        shares_outstanding=1e9,
+        net_debt=10e9,
+    )
+    assert inputs.da_pct_revenue == 0.0

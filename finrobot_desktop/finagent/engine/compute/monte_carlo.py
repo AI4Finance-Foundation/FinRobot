@@ -166,24 +166,17 @@ def run_monte_carlo(
     # EBITDA = revenue * margin
     sim_ebitda = sim_revenue * sim_margin[:, np.newaxis]  # (n, n_years)
 
-    # FCF computation — two paths based on D&A availability
-    if inputs.da_pct_revenue is not None:
-        # Standard: EBIT(1-T) + D&A - CapEx - ΔNWC
-        sim_da = sim_revenue * inputs.da_pct_revenue
-        sim_ebit = sim_ebitda - sim_da
-        sim_fcf = (
-            sim_ebit * (1 - inputs.tax_rate)
-            + sim_da
-            - sim_revenue * inputs.capex_pct_revenue
-            - sim_revenue * inputs.nwc_pct_revenue
-        )
-    else:
-        # Simplified: EBITDA(1-T) - CapEx - ΔNWC
-        sim_fcf = (
-            sim_ebitda * (1 - inputs.tax_rate)
-            - sim_revenue * inputs.capex_pct_revenue
-            - sim_revenue * inputs.nwc_pct_revenue
-        )
+    # Standard FCF: EBIT(1-T) + D&A - CapEx - ΔNWC. The simplified branch that
+    # dropped the D&A tax shield (Phase B refactor) is gone — da_pct_revenue
+    # is now required on DCFInputs.
+    sim_da = sim_revenue * inputs.da_pct_revenue
+    sim_ebit = sim_ebitda - sim_da
+    sim_fcf = (
+        sim_ebit * (1 - inputs.tax_rate)
+        + sim_da
+        - sim_revenue * inputs.capex_pct_revenue
+        - sim_revenue * inputs.nwc_pct_revenue
+    )
 
     # --- Discount factors: 1 / (1 + wacc)^t for t = 1..n_years ---
     # Mid-year convention: discount at (t - 0.5) instead of t, consistent

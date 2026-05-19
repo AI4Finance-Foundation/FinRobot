@@ -396,8 +396,15 @@ def test_financial_data_da_fields_set():
     assert fd.income.rd_expense == 22e9
 
 
-def test_dcf_inputs_da_pct_revenue_default_none():
-    """da_pct_revenue defaults to None (P1.5 simplified formula)."""
+def test_dcf_inputs_da_pct_revenue_defaults_to_zero():
+    """da_pct_revenue defaults to 0.0 (legacy-compat).
+
+    Previously this defaulted to None, which triggered a separate "simplified"
+    FCF branch in calculate_dcf. Phase B removed that branch entirely — the
+    standard formula now always runs, and D&A=0 produces arithmetically
+    equivalent FCF to the old simplified path. seed_dcf_inputs always overrides
+    this default with a real value from filings or Damodaran fallback.
+    """
     inputs = DCFInputs(
         revenue_base=100e9,
         revenue_growth_rates=[0.05],
@@ -413,7 +420,7 @@ def test_dcf_inputs_da_pct_revenue_default_none():
         shares_outstanding=1e9,
         net_debt=10e9,
     )
-    assert inputs.da_pct_revenue is None
+    assert inputs.da_pct_revenue == 0.0
 
 
 def test_dcf_inputs_da_pct_revenue_set():
@@ -437,7 +444,7 @@ def test_dcf_inputs_da_pct_revenue_set():
 
 
 def test_dcf_inputs_da_pct_revenue_validation():
-    """da_pct_revenue must be 0-0.5 when set."""
+    """da_pct_revenue must be 0-0.5."""
     with pytest.raises(ValidationError):
         DCFInputs(
             revenue_base=100e9,
@@ -455,41 +462,6 @@ def test_dcf_inputs_da_pct_revenue_validation():
             net_debt=10e9,
             da_pct_revenue=0.8,  # > 0.5 → invalid
         )
-
-
-def test_dcf_result_fcf_formula_default():
-    """fcf_formula defaults to 'simplified'."""
-    inputs = DCFInputs(
-        revenue_base=100e9,
-        revenue_growth_rates=[0.05],
-        ebitda_margin=0.35,
-        capex_pct_revenue=0.05,
-        nwc_pct_revenue=0.02,
-        risk_free_rate=0.04,
-        beta=1.2,
-        equity_risk_premium=0.05,
-        cost_of_debt=0.04,
-        debt_ratio=0.1,
-        terminal_growth_rate=0.025,
-        shares_outstanding=1e9,
-        net_debt=10e9,
-    )
-    result = DCFResult(
-        cost_of_equity=0.10,
-        wacc=0.10,
-        projection_years=1,
-        projected_revenue=[105e9],
-        projected_ebitda=[36.75e9],
-        projected_fcf=[21.68e9],
-        terminal_value=300e9,
-        pv_terminal=272e9,
-        pv_fcf_total=19.7e9,
-        enterprise_value=291.7e9,
-        equity_value=281.7e9,
-        implied_price=281.7,
-        inputs=inputs,
-    )
-    assert result.fcf_formula == "simplified"
 
 
 # --- P2c: New models ---

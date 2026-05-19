@@ -178,20 +178,17 @@ class PeerSelection(BaseModel):
 
 
 class DCFInputs(BaseModel):
-    """Inputs for DCF calculation. LLM selects these, code computes the math.
+    """Inputs for DCF calculation. Built by ``seed_dcf_inputs`` from real
+    filings (3y historical medians) + Damodaran industry fallback. The LLM
+    never selects these numbers — it only interprets them in the output_gen
+    narrative step.
 
-    Note on FCF formula (P1.5 simplification):
-    FCF = EBITDA × (1 - tax) - revenue × capex_pct - revenue × nwc_pct
+    FCF formula (standard, always used):
+        FCF = EBIT(1-tax) + D&A - CapEx - ΔNWC
+            = (EBITDA - D&A)(1-tax) + D&A - revenue*capex_pct - revenue*nwc_pct
 
-    The explicit expansion:
-    - projected_ebitda = projected_revenue × ebitda_margin
-    - after_tax_ebitda = projected_ebitda × (1 - tax_rate)
-    - capex = projected_revenue × capex_pct_revenue
-    - nwc_change = projected_revenue × nwc_pct_revenue
-    - fcf = after_tax_ebitda - capex - nwc_change
-
-    This over-taxes by not deducting D&A before tax. Acceptable because yfinance
-    doesn't provide D&A separately.
+    The simplified branch that dropped the D&A tax shield is removed:
+    ``da_pct_revenue`` is now required (non-None), guaranteed by seed_dcf_inputs.
     """
 
     revenue_base: float = Field(description="Base year revenue in USD")
@@ -203,11 +200,17 @@ class DCFInputs(BaseModel):
     nwc_pct_revenue: float = Field(
         ge=-0.2, le=0.5, description="Net working capital change as % of revenue"
     )
-    da_pct_revenue: float | None = Field(
-        default=None,
+    da_pct_revenue: float = Field(
+        default=0.0,
         ge=0,
         le=0.5,
-        description="D&A as % of revenue. None = use simplified FCF formula (P1.5).",
+        description=(
+            "D&A as % of revenue. Default 0.0 (no tax shield — equivalent to "
+            "the legacy simplified-FCF arithmetic but routed through the standard "
+            "EBIT(1-T)+D&A formula). seed_dcf_inputs always sets a non-zero value "
+            "from 3y filings or Damodaran fallback; direct callers can omit it "
+            "for legacy compatibility."
+        ),
     )
     tax_rate: float = Field(ge=0, le=1, default=0.21)
 
@@ -258,9 +261,6 @@ class DCFResult(BaseModel):
 
     # Inputs used (for reproducibility)
     inputs: DCFInputs
-
-    fcf_formula: str = "simplified"  # "simplified" | "standard_with_da"
-    fcf_formula_warning: str | None = None  # Non-None when simplified formula was used
 
 
 class ThesisResult(BaseModel):

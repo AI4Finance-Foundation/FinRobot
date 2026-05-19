@@ -1,25 +1,46 @@
+"""DCF pipeline — deterministic from real filings.
+
+Previously this pipeline used a pydantic-ai agent to select DCFInputs from a
+prompt, which produced unstable, source-less assumptions (the LLM would pick
+EBITDA margin 20% for AAPL on one call and 35% on another). That path is gone.
+
+Now:
+  1. ``historical_data``: pull FinancialData snapshot + multi-year history.
+  2. ``dcf_calc``: deterministic — calls ``seed_dcf_inputs`` to derive every
+     DCF parameter from 3y medians of the company's own filings (or Damodaran
+     industry medians as fallback), then runs ``calculate_dcf`` and the
+     sensitivity grid.
+  3. ``output_gen``: LLM-written natural-language narrative *interpreting*
+     the seeded inputs. The LLM never picks numbers — it only explains them.
+
+Pipeline API (CLI / SDK / routes) is unchanged. The behavior change is purely
+internal: numbers come from filings, not from LLM guesses.
+"""
+
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-from pydantic import ValidationError
 from pydantic_ai import Agent
-from pydantic_ai.exceptions import AgentRunError
 
+from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
+from finagent.engine.compute.dcf_seed import seed_dcf_inputs
+from finagent.engine.compute.historical_extractor import (
+    extract_historical_from_yfinance,
+)
 from finagent.engine.data.types import DataType
 from finagent.engine.deps import FinAgentDeps
-from finagent.engine.models.financial import DCFInputs, StepOutput
-from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
+from finagent.engine.models.financial import FinancialData, StepOutput
+from finagent.engine.pipelines._helpers import (
+    build_sensitivity_ranges,
+    execute_financial_data_step,
+)
 from finagent.engine.pipelines.base import (
     Pipeline,
     PipelineStep,
     StructuredValidator,
     TextValidator,
-)
-from finagent.engine.pipelines._helpers import (
-    build_sensitivity_ranges,
-    execute_financial_data_step,
 )
 from finagent.engine.pipelines.validators import (
     validate_has_fields,
@@ -33,56 +54,30 @@ logger = logging.getLogger(__name__)
 
 
 async def _execute_dcf_calc(
-    agent: Agent[Any, Any],
-    deps: FinAgentDeps,
-    prompt: str,
+    agent: Agent[Any, Any],  # noqa: ARG001 — kept for executor signature; unused
+    deps: FinAgentDeps,  # noqa: ARG001 — kept for executor signature; unused
+    prompt: str,  # noqa: ARG001 — kept for executor signature; unused
     structured_context: dict[str, object],
     ticker: str,
 ) -> StepOutput:
-    """param_agent selects DCFInputs; code computes full DCFResult + sensitivity."""
-    # Extract actual D&A from financial data so the LLM can set da_pct_revenue correctly
-    da_instruction = ""
-    financial_data = structured_context.get("financial_data")
-    if financial_data and hasattr(financial_data, "income"):
-        income = financial_data.income
-        da_val = getattr(income, "depreciation_amortization", None)
-        rev_val = getattr(income, "revenue", None)
-        if da_val and rev_val and rev_val > 0:
-            da_pct = da_val / rev_val
-            da_instruction = (
-                f"\n\nIMPORTANT: Actual D&A from financial data is ${da_val / 1e9:.1f}B "
-                f"({da_pct:.1%} of revenue). You MUST set da_pct_revenue={da_pct:.4f} "
-                f"to use the standard FCF formula: EBIT(1-T)+D&A-CapEx-ΔNWC. "
-                f"Do NOT leave da_pct_revenue as null — that triggers an inaccurate simplified formula."
-            )
-        else:
-            da_instruction = (
-                "\n\nNote: D&A data is not available from providers. "
-                "Set da_pct_revenue to your best estimate (typically 0.02-0.08 depending on industry). "
-                "Leaving it null will use a simplified FCF formula that may be inaccurate for capital-intensive companies."
-            )
+    """Deterministic DCF: seed inputs from real filings, compute, sensitivity.
 
-    param_agent = Agent(
-        deps.settings.create_model(),
-        output_type=DCFInputs,
-        instructions=(
-            "Select DCF valuation parameters based on the historical financial data. "
-            "Use conservative assumptions. Revenue growth rates must reflect realistic projections."
-            + da_instruction
-            + "\n\nFor each assumption you select, provide a brief justification in the "
-            "assumption_provenance dict. "
-            "Keys should be the field name (e.g., 'revenue_growth_rates', 'ebitda_margin', "
-            "'terminal_growth_rate', 'beta'). "
-            "Values should be one sentence explaining why (e.g., 'Based on 5-year CAGR of "
-            "8.2% with deceleration assumption')."
-        ),
-        defer_model_check=True,
-    )
-    try:
-        param_result = await param_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
-        dcf_inputs = param_result.output
-    except (AgentRunError, ValidationError, ValueError) as e:
-        raise ValueError(f"LLM failed to produce valid DCF parameters: {e}") from e
+    No LLM call. Every assumption traces to either the company's own 3y
+    historical median or a Damodaran industry median; see ``seed_dcf_inputs``
+    for the full precedence ladder. The ``assumption_provenance`` dict on
+    DCFInputs carries a Chinese explanation per field, rendered by the UI
+    when the user clicks "展开专家详情".
+    """
+    financial_data = structured_context.get("historical_data")
+    if not isinstance(financial_data, FinancialData):
+        raise ValueError(
+            "dcf_calc requires FinancialData from the historical_data step "
+            "but received: " + type(financial_data).__name__
+        )
+
+    # Multi-year history powers the 3y-median assumption derivation.
+    historical = await extract_historical_from_yfinance(ticker)
+    dcf_inputs = seed_dcf_inputs(financial_data, historical)
 
     dcf_result = calculate_dcf(dcf_inputs)
     wacc_range, tg_range = build_sensitivity_ranges(
@@ -100,13 +95,17 @@ async def _execute_dcf_calc(
         f"WACC: {dcf_result.wacc:.1%}. EV: ${dcf_result.enterprise_value / 1e9:.1f}B. "
         f"Sensitivity: {price_range}."
     )
-    if dcf_result.fcf_formula_warning:
-        narrative = f"[{dcf_result.fcf_formula_warning}]\n\n{narrative}"
     return StepOutput(text=narrative, structured=dcf_result)
 
 
 def create_dcf_pipeline(agents: dict[str, Agent]) -> Pipeline:
-    """3-step DCF valuation pipeline (steps 2-5 collapsed into dcf_calc)."""
+    """3-step deterministic DCF pipeline.
+
+    Step 1 ``historical_data`` pulls financial data + price. Step 2 ``dcf_calc``
+    is deterministic — runs seed_dcf_inputs + calculate_dcf without any LLM
+    call. Step 3 ``output_gen`` is the only LLM step; it produces a natural
+    language narrative explaining the seeded assumptions and result.
+    """
     from finagent.artifact.builders import build_dcf_artifact
 
     return Pipeline(

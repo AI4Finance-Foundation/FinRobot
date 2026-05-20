@@ -42,7 +42,6 @@ dependencies = [
 
 [project.optional-dependencies]
 backtest = ["backtrader>=1.9"]
-rag = ["sentence-transformers>=2.0"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
@@ -85,7 +84,6 @@ module = [
     "openpyxl.*",
     "aiosqlite.*",
     "backtrader.*",
-    "sentence_transformers.*",
 ]
 ignore_missing_imports = true
 

@@ -6,14 +6,14 @@
  *
  * Props:
  *   ticker          — the stock being analyzed
- *   steps           — step array from useRunStream
- *   progress        — 0-1 from useRunStream
- *   status          — 'idle' | 'running' | 'completed' | 'failed'
+ *   steps           — step array from runStreamStore
+ *   progress        — 0-1 from runStreamStore
+ *   status          — 'running' | 'completed' | 'failed'
  *   error           — error message if failed
  *   onViewReport    — callback when user clicks "view report" after completion
  */
 
-import type { RunStep } from '../hooks/useRunStream'
+import type { RunStep } from '../stores/runStreamStore'
 
 // Pipeline step names in Chinese (aligned to research pipeline order)
 const STEP_LABELS: Record<string, string> = {
@@ -139,9 +139,15 @@ interface AnalysisProgressProps {
   ticker: string
   steps: RunStep[]
   progress: number
-  status: 'idle' | 'running' | 'completed' | 'failed'
+  status: 'running' | 'completed' | 'failed'
   error: string | null
+  /** Completed → view report. */
   onViewReport?: () => void
+  /** Failed → start a fresh research run for the same ticker. */
+  onRetry?: () => void
+  /** Failed → dismiss the overlay without retrying (lets the user navigate
+   *  to other tabs). Without this the user is trapped until they refresh. */
+  onDismiss?: () => void
 }
 
 export default function AnalysisProgress({
@@ -151,6 +157,8 @@ export default function AnalysisProgress({
   status,
   error,
   onViewReport,
+  onRetry,
+  onDismiss,
 }: AnalysisProgressProps) {
   const isComplete = status === 'completed'
   const isFailed = status === 'failed'
@@ -280,6 +288,51 @@ export default function AnalysisProgress({
         >
           查看报告
         </button>
+      )}
+
+      {/* Failed actions — retry + dismiss so the user can leave the overlay
+          without a hard refresh. */}
+      {isFailed && (onRetry || onDismiss) && (
+        <div style={{ marginTop: 8, display: 'flex', gap: 10 }}>
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              style={{
+                padding: '10px 24px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 13,
+                fontWeight: 700,
+                color: '#000',
+                background: 'var(--accent)',
+                border: '1px solid transparent',
+                borderRadius: 'var(--r-sm)',
+                cursor: 'pointer',
+                letterSpacing: '0.02em',
+              }}
+            >
+              重试
+            </button>
+          )}
+          {onDismiss && (
+            <button
+              onClick={onDismiss}
+              style={{
+                padding: '10px 24px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--r-sm)',
+                cursor: 'pointer',
+                letterSpacing: '0.02em',
+              }}
+            >
+              关闭
+            </button>
+          )}
+        </div>
       )}
 
       {/* Pulse animation for active step dot */}

@@ -151,6 +151,7 @@ class TestRunsRoutes:
                 result = MagicMock()
                 result.structured_data = {}
                 result.failed_validations = []
+                result.steps = []
                 result.format_summary.return_value = "summary"
                 return result
 
@@ -164,9 +165,15 @@ class TestRunsRoutes:
         app.state.run_store = RunStore(tmp_path / "runs.db")
         app.state.run_tasks = {}
 
+        # Patch the binding inside routes.runs, not the source module.
+        # `from finagent.engine.pipelines.registry import get_pipeline_factories`
+        # at runs.py:19 copied the reference; patching the source module leaves
+        # the local name pointing at the real registry, the real `dcf` pipeline
+        # ran with empty sub_agents/data_layer, never reached completed/failed,
+        # and the SSE stream's poll loop never broke out → test hung forever.
         with (
             patch(
-                "finagent.engine.pipelines.registry.get_pipeline_factories",
+                "finagent.routes.runs.get_pipeline_factories",
                 return_value={"dcf": lambda sub_agents: FakePipeline()},
             ),
             patch(

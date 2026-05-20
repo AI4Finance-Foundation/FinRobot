@@ -2,14 +2,19 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Any, Literal
 
+logger = logging.getLogger(__name__)
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ValidationError
+import httpx
 from pydantic_ai import UnexpectedModelBehavior
+from pydantic_ai.exceptions import AgentRunError
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
 
@@ -287,20 +292,44 @@ async def _run_pipeline(run_id: str, request: Request) -> None:
                 result_url=f"/api/runs/{run_id}",
             ),
         )
-    except (ProviderError, ValidationError, ValueError, RuntimeError, UnexpectedModelBehavior) as e:
+    except (
+        ProviderError,
+        ValidationError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+        RuntimeError,
+        UnexpectedModelBehavior,
+        AgentRunError,
+        OSError,
+        json.JSONDecodeError,
+        httpx.HTTPError,
+    ) as e:
+        # Anything that escapes pipeline execution must transition the run to
+        # `failed`, otherwise the SSE stream at /api/runs/{id}/events keeps
+        # polling `record.status == "running"` forever (it only breaks on
+        # completed/failed) and any client GETting the stream hangs. The old
+        # narrower tuple silently lost TypeError/AttributeError/etc. — the
+        # task died with the exception, status stayed `running`, the test
+        # runner hung, the desktop UI overlay would have hung too. We catch
+        # the broad-but-explicit set here (architecture audit forbids bare
+        # `except Exception`); CancelledError stays unaffected so shutdown
+        # still propagates cleanly.
+        logger.exception("Pipeline %s failed unexpectedly", run_id)
         await store.update_run(
             run_id,
             status="failed",
             completed_at=_iso_now(),
             duration_s=round(time.monotonic() - started, 1),
-            error=str(e)[:500],
+            error=str(e)[:500] or type(e).__name__,
         )
         await _append(
             store,
             RunFailed(
                 event="run.failed",
                 run_id=run_id,
-                error=str(e)[:500],
+                error=str(e)[:500] or type(e).__name__,
             ),
         )
     finally:

@@ -8,10 +8,16 @@ themselves, keeping the routes thin (parse params -> call service -> return).
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 import pandas as pd
 import yfinance as yf
+from yfinance.exceptions import YFException
+
+from finagent.engine.data.interface import ProviderError
+
+logger = logging.getLogger(__name__)
 
 
 async def fetch_price_history(ticker: str, period: str = "1y") -> dict[str, Any]:
@@ -26,13 +32,16 @@ async def fetch_price_history(ticker: str, period: str = "1y") -> dict[str, Any]
         history list, data_source, warnings.
 
     Raises:
-        ValueError: If no price data is available for the ticker.
+        ProviderError: If yfinance raises any exception or no price data is available.
     """
 
     def _fetch() -> dict[str, Any]:
-        t = yf.Ticker(ticker)
-        hist = t.history(period=period)
-        info = t.info or {}
+        try:
+            t = yf.Ticker(ticker)
+            hist = t.history(period=period)
+            info = t.info or {}
+        except (YFException, ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
+            raise ProviderError(f"yfinance price history failed for '{ticker}': {e}") from e
         history = []
         for date, row in hist.iterrows():
             history.append(
@@ -87,12 +96,15 @@ async def fetch_quarterly_data(ticker: str) -> dict[str, Any]:
     """
 
     def _fetch() -> dict[str, Any]:
-        t = yf.Ticker(ticker)
-        income = t.quarterly_income_stmt
-        cashflow = t.quarterly_cashflow
+        try:
+            t = yf.Ticker(ticker)
+            income = t.quarterly_income_stmt
+            cashflow = t.quarterly_cashflow
+        except (YFException, ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
+            raise ProviderError(f"yfinance quarterly data failed for '{ticker}': {e}") from e
 
         if income is None or income.empty:
-            raise ValueError(f"No quarterly data available for {ticker}")
+            raise ProviderError(f"No quarterly data available for {ticker}")
 
         quarters = []
         for col in income.columns[:8]:  # Last 8 quarters
@@ -151,9 +163,12 @@ async def fetch_performance_data(tickers: list[str], benchmark: str, period: str
     all_tickers = [*tickers, benchmark]
 
     def _fetch() -> dict[str, Any]:
-        df = yf.download(all_tickers, period=period, progress=False)
+        try:
+            df = yf.download(all_tickers, period=period, progress=False)
+        except (YFException, ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
+            raise ProviderError(f"yfinance download failed for {all_tickers}: {e}") from e
         if df.empty:
-            raise ValueError(f"No price data for {all_tickers}")
+            raise ProviderError(f"No price data for {all_tickers}")
 
         close = (
             df["Close"]

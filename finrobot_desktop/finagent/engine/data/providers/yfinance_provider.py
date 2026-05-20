@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import yfinance as yf
+from yfinance.exceptions import YFException
 
 from finagent.engine.data.interface import DataProvider, DataResult, ProviderError
 from finagent.engine.data.types import DataType
@@ -88,7 +89,7 @@ class YFinanceProvider(DataProvider):
                 break  # success
             except ProviderError:
                 raise
-            except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
+            except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError, YFException) as e:
                 if _is_rate_limit_error(e) and attempt < _MAX_RETRIES:
                     wait = _RETRY_DELAYS[attempt]
                     await asyncio.sleep(wait)
@@ -211,7 +212,7 @@ class YFinanceProvider(DataProvider):
                         "volume": row["Volume"],
                     }
                 )
-        except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
+        except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError, YFException) as e:
             raise ProviderError(f"Failed to fetch price for '{ticker}': {e}") from e
 
         return DataResult(
@@ -244,7 +245,7 @@ class YFinanceProvider(DataProvider):
                         "url": (content.get("canonicalUrl", {}).get("url") or item.get("link", "")),
                     }
                 )
-        except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
+        except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError, YFException) as e:
             raise ProviderError(f"Failed to fetch news for '{ticker}': {e}") from e
 
         return DataResult(

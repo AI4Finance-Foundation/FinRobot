@@ -225,6 +225,50 @@ class TestSECEdgarFetch:
                 await provider.fetch("AAPL", "filings")
 
 
+class TestSECNetworkErrors:
+    """New catch branches: ConnectError on filings + RAG_10K paths."""
+
+    async def test_connect_error_on_filings_raises_provider_error(self, provider):
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(side_effect=httpx.ConnectError("connection refused")),
+        ):
+            with pytest.raises(ProviderError):
+                await provider.fetch("AAPL", "filings")
+
+    async def test_connect_error_on_rag_raises_provider_error(self, provider):
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(side_effect=httpx.ConnectError("connection refused")),
+        ):
+            with pytest.raises(ProviderError):
+                await provider.fetch("AAPL", "10k_rag")
+
+    async def test_cik_map_load_failure_does_not_cache_empty_map(self, provider):
+        """If _load_ticker_cik_map fails, _ticker_cik_map must remain None so next
+        request retries instead of hitting a permanently empty map."""
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(side_effect=httpx.ConnectError("down")),
+        ):
+            with pytest.raises(ProviderError):
+                await provider.fetch("AAPL", "filings")
+        # Map must not be cached — next call will retry
+        assert provider._ticker_cik_map is None
+
+    async def test_remote_protocol_error_on_filings_raises_provider_error(self, provider):
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(side_effect=httpx.RemoteProtocolError("EOF")),
+        ):
+            with pytest.raises(ProviderError):
+                await provider.fetch("AAPL", "filings")
+
+
 class TestExtractMdna:
     """Tests for Item 7 extraction via _extract_items."""
 

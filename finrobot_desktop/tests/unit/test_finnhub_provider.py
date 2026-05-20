@@ -198,6 +198,50 @@ class TestFinnhubNews:
         assert "news" in provider.capabilities()
 
 
+class TestFinnhubNetworkErrors:
+    """New catch branches: ConnectError / RemoteProtocolError / ReadError / WriteError."""
+
+    @pytest.mark.asyncio
+    async def test_connect_error_raises_provider_error(self, provider):
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(side_effect=httpx.ConnectError("connection refused")),
+        ):
+            with pytest.raises(ProviderError, match="network error"):
+                await provider.fetch("AAPL", "financials")
+
+    @pytest.mark.asyncio
+    async def test_remote_protocol_error_raises_provider_error(self, provider):
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(side_effect=httpx.RemoteProtocolError("unexpected EOF")),
+        ):
+            with pytest.raises(ProviderError, match="network error"):
+                await provider.fetch("AAPL", "financials")
+
+    @pytest.mark.asyncio
+    async def test_read_error_raises_provider_error(self, provider):
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(side_effect=httpx.ReadError("read failed")),
+        ):
+            with pytest.raises(ProviderError, match="network error"):
+                await provider.fetch("AAPL", "news")
+
+    @pytest.mark.asyncio
+    async def test_write_error_raises_provider_error(self, provider):
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(side_effect=httpx.WriteError("write failed")),
+        ):
+            with pytest.raises(ProviderError, match="network error"):
+                await provider.fetch("AAPL", "profile")
+
+
 class TestFinnhubRateLimiter:
     def test_provider_has_rate_limit_attributes(self, provider):
         """Rate limiter requires _lock and _last_call on every instance."""

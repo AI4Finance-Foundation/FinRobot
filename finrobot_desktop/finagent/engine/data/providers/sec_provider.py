@@ -56,13 +56,34 @@ class SECEdgarProvider(DataProvider):
                 f"data_type '{data_type}' is not supported by SEC EDGAR. Supported: {_SUPPORTED}"
             )
         if data_type == DataType.RAG_10K:
-            return await self._fetch_10k_rag(ticker)
+            try:
+                return await self._fetch_10k_rag(ticker)
+            except ProviderError:
+                raise
+            except (
+                httpx.TimeoutException,
+                httpx.HTTPStatusError,
+                httpx.ConnectError,
+                httpx.RemoteProtocolError,
+                httpx.ReadError,
+                httpx.WriteError,
+            ) as e:
+                raise ProviderError(f"SEC EDGAR RAG fetch failed for '{ticker}': {e}") from e
+            except (ValueError, KeyError, TypeError, AttributeError) as e:
+                raise ProviderError(f"SEC EDGAR RAG parse failed for '{ticker}': {e}") from e
         try:
             data, warnings = await self._fetch_filings(ticker)
         except httpx.TimeoutException as e:
             raise ProviderError(f"SEC EDGAR timeout for '{ticker}': {e}") from e
         except httpx.HTTPStatusError as e:
             raise ProviderError(f"SEC EDGAR API error for '{ticker}': {e}") from e
+        except (
+            httpx.ConnectError,
+            httpx.RemoteProtocolError,
+            httpx.ReadError,
+            httpx.WriteError,
+        ) as e:
+            raise ProviderError(f"SEC EDGAR network error for '{ticker}': {e}") from e
         except ProviderError:
             raise
         except (ValueError, KeyError, TypeError, AttributeError) as e:
@@ -239,13 +260,30 @@ class SECEdgarProvider(DataProvider):
         return cik
 
     async def _load_ticker_cik_map(self) -> dict[str, str]:
-        """Lazily fetch and parse company_tickers.json into a ticker→CIK map."""
+        """Lazily fetch and parse company_tickers.json into a ticker→CIK map.
+
+        On network failure the map is NOT cached — next call will retry.
+        On success the map is cached for the provider instance lifetime.
+        """
         if self._ticker_cik_map is not None:
             return self._ticker_cik_map
         async with self._ticker_cik_lock:
             if self._ticker_cik_map is not None:
                 return self._ticker_cik_map
-            tickers = (await self._get("https://www.sec.gov/files/company_tickers.json")).json()
+            try:
+                tickers = (
+                    await self._get("https://www.sec.gov/files/company_tickers.json")
+                ).json()
+            except (
+                httpx.TimeoutException,
+                httpx.HTTPStatusError,
+                httpx.ConnectError,
+                httpx.RemoteProtocolError,
+                httpx.ReadError,
+                httpx.WriteError,
+            ) as e:
+                # Do NOT assign _ticker_cik_map — next request will retry.
+                raise ProviderError(f"SEC EDGAR: failed to load ticker→CIK map: {e}") from e
             mapping: dict[str, str] = {}
             for entry in tickers.values():
                 symbol = str(entry.get("ticker", "")).upper()

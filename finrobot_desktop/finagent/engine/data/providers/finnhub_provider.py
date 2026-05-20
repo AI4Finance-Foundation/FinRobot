@@ -69,6 +69,13 @@ class FinnhubProvider(DataProvider):
             raise ProviderError(f"Finnhub timeout for '{ticker}': {e}") from e
         except httpx.HTTPStatusError as e:
             raise ProviderError(f"Finnhub API error for '{ticker}': {e}") from e
+        except (
+            httpx.ConnectError,
+            httpx.RemoteProtocolError,
+            httpx.ReadError,
+            httpx.WriteError,
+        ) as e:
+            raise ProviderError(f"Finnhub network error for '{ticker}': {e}") from e
         except ProviderError:
             raise
         except (ValueError, KeyError, TypeError, AttributeError) as e:

@@ -246,6 +246,13 @@ class FMPProvider(DataProvider):
             raise ProviderError(f"FMP timeout during {op} for '{ticker}': {e}") from e
         except httpx.HTTPStatusError as e:
             raise ProviderError(f"FMP API error during {op} for '{ticker}': {e}") from e
+        except (
+            httpx.ConnectError,
+            httpx.RemoteProtocolError,
+            httpx.ReadError,
+            httpx.WriteError,
+        ) as e:
+            raise ProviderError(f"FMP network error during {op} for '{ticker}': {e}") from e
         except (ValueError, KeyError, TypeError, AttributeError) as e:
             raise ProviderError(f"FMP {op} failed for '{ticker}': {e}") from e
 

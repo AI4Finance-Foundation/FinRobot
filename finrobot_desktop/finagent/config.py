@@ -8,6 +8,15 @@ from pydantic_ai.models import Model
 from pydantic_settings import BaseSettings
 
 
+# Locate the .env relative to the source tree, not the process cwd. Tauri
+# launches the Python sidecar from a different working directory (somewhere
+# inside the .app bundle), so pydantic-settings' default env_file=".env"
+# relative path silently misses every key in dev mode and leaves the user
+# staring at "OPENAI_API_KEY must be set" while .env sits right there.
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_ENV_FILE = _REPO_ROOT / ".env"
+
+
 def _default_cache_db_path() -> str:
     """Return the default cache database path.
 
@@ -94,7 +103,7 @@ class FinAgentSettings(BaseSettings):
     # Only affects LLM-generated text — deterministic calculations are unchanged.
     language: str = Field(default="en", pattern=r"^(en|zh)$")
 
-    model_config = {"env_prefix": "FINAGENT_", "env_file": ".env"}
+    model_config = {"env_prefix": "FINAGENT_", "env_file": str(_ENV_FILE)}
 
     def model_post_init(self, __context: Any) -> None:
         """Resolve cache_db_path default after env/settings loading."""
@@ -112,27 +121,30 @@ class FinAgentSettings(BaseSettings):
         return override or self.model_name
 
     def validate_runtime_config(self) -> None:
-        """Fail fast if the model or data configuration is incoherent.
+        """Fail fast if the model configuration is incoherent.
 
         Checks:
         - LLM: provider prefix must be supported; API key must be set.
-        - Data: FMP API key is REQUIRED (not optional). Without it, DCF uses
-          a simplified formula with 10-20% deviation, earnings surprise data
-          is missing, and cross-validation is disabled. FMP is free to register.
+        - Data: FMP API key is OPTIONAL. Without it, FinAgent falls back to
+          yfinance for financials (D&A uses simplified formula, no earnings
+          surprises, no cross-validation), which is fine for casual use.
+          A warning is emitted at startup so users know what they're missing.
 
         Called from ``cli._build_deps`` and ``sdk.FinAgent.__init__`` so
         users get an immediate error message instead of waiting 60 seconds
         for the first LLM call to fail. Raises ``ValueError`` on failure;
         CLI callers wrap that into ``click.ClickException``.
         """
-        # ── FMP key is required for core financial data ──
+        # FMP key is optional — yfinance handles fallback. Just warn.
         if not self.fmp_api_key:
-            raise ValueError(
-                "FINAGENT_FMP_API_KEY is not set. FMP is required for accurate "
-                "financial data (D&A, earnings surprises, cross-validation).\n"
-                "  Register for free at https://financialmodelingprep.com/\n"
-                "  Then set: export FINAGENT_FMP_API_KEY=your-key-here\n"
-                "  Or add it to .env or ~/.finagent/settings.json"
+            import warnings
+
+            warnings.warn(
+                "FINAGENT_FMP_API_KEY not set — falling back to yfinance. "
+                "DCF will use simplified D&A formula (10-20% deviation), and "
+                "earnings surprises + cross-validation are unavailable. "
+                "Register free at https://financialmodelingprep.com/ for better data.",
+                stacklevel=2,
             )
         names_to_check: list[str] = [self.model_name]
         for role in _AGENT_ROLES:
@@ -208,3 +220,19 @@ class FinAgentSettings(BaseSettings):
 def get_settings(**overrides: Any) -> FinAgentSettings:
     """Get settings. Pass overrides for testing."""
     return FinAgentSettings(**overrides)
+
+
+def is_field_from_environ(field: str) -> bool:
+    """True if FINAGENT_<FIELD> is set in the process environment.
+
+    Lives in config.py so the os.environ peek does not leak into route
+    code (audit red-line: only config.py + secret_store.py may touch
+    os.environ). Note this does NOT distinguish a real env var from a
+    value loaded out of .env — once pydantic-settings reads .env it
+    populates pydantic state but does NOT set os.environ. So this
+    function only fires for true OS-level env vars; .env-only values
+    fall back to the "value present but no os env" inference path.
+    """
+    import os
+
+    return bool(os.environ.get(f"FINAGENT_{field.upper()}"))

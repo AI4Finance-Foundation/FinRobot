@@ -107,6 +107,31 @@ const configuredBadgeStyle: React.CSSProperties = {
   borderRadius: '2px',
 }
 
+// Source badge (e.g. "来自 .env", "来自 keychain") — neutral colour so it
+// doesn't compete with the configured/required badges next to it.
+const sourceBadgeStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '9px',
+  background: 'var(--bg-3)',
+  color: 'var(--text-muted)',
+  padding: '1px 5px',
+  borderRadius: '2px',
+  border: '1px solid var(--border)',
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  keychain: '来自 keychain',
+  settings_json: '来自 settings.json',
+  env: '来自 .env',
+  default: '默认值',
+}
+
+function SourceBadge({ source }: { source?: string | null }) {
+  if (!source) return null
+  const label = SOURCE_LABELS[source] ?? source
+  return <span style={sourceBadgeStyle}>{label}</span>
+}
+
 const ghostBtnStyle: React.CSSProperties = {
   background: 'transparent',
   border: '1px solid var(--border)',
@@ -358,6 +383,48 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     },
   })
 
+  // ── POST /api/settings/reset mutation ────────────────────────────────────
+  // "恢复 .env 默认" — clears the listed fields out of settings.json (and
+  // keychain for secrets) so .env / env-vars regain priority. Backend does
+  // NOT copy .env values into settings.json — it just removes the override.
+  const resetMutation = useMutation({
+    mutationFn: async (fields: string[]) => {
+      const resp = await fetch(`${BASE_URL}/api/settings/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields }),
+      })
+      if (!resp.ok) {
+        const j = await resp.json().catch(() => ({}))
+        throw new Error(j?.detail || `Reset failed (${resp.status})`)
+      }
+      return (await resp.json()) as never
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['settings'], data)
+      // Wipe the local-edit state so the inputs re-bind to the server
+      // values. Without this, our setStates from before the reset would
+      // keep displaying the user-typed value even after the field is
+      // technically reverted to .env.
+      setFmpKey('')
+      setFinnhubKey('')
+      setLlmApiKey('')
+      // Re-initialize from response so model_name / sec_user_agent reflect
+      // whatever .env contains.
+      const r = data as { model_name?: string; sec_user_agent?: string }
+      if (r?.model_name) setModelName(r.model_name)
+      if (r?.sec_user_agent !== undefined) setSecUserAgent(r.sec_user_agent ?? '')
+      addToast({
+        type: 'success',
+        title: '已恢复 .env 默认',
+        description: 'settings.json 中的覆盖已清除，重启后从环境变量重新加载',
+      })
+    },
+    onError: (err: Error) => {
+      addToast({ type: 'error', title: '恢复失败', description: err.message })
+    },
+  })
+
   // ── Debounced auto-save for standard settings ────────────────────────────
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -487,6 +554,17 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   const currentProvider = (modelName || settingsResp?.model_name || '').split(':')[0]
   const fmpConfigured = settingsResp?.fmp_api_key_set ?? false
   const finnhubConfigured = settingsResp?.finnhub_api_key_set ?? false
+  const fieldSources = (settingsResp?.field_sources ?? {}) as Record<string, string>
+  const sourceOf = (field: string): string | null => fieldSources[field] ?? null
+  const startupError = settingsResp?.startup_error ?? null
+
+  const handleResetField = (fields: string[]) => {
+    if (!fields.length) return
+    if (!window.confirm(`恢复 ${fields.join(', ')} 的 .env 默认？此操作会清除 settings.json 中的覆盖。`)) {
+      return
+    }
+    resetMutation.mutate(fields)
+  }
 
   if (isLoading) {
     return (
@@ -508,6 +586,36 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
 
   return (
     <div>
+      {/* ── Startup error banner ── */}
+      {/* Surfaces validate_runtime_config() failures captured at server boot
+          so users see "ANTHROPIC_API_KEY missing" instead of a silent
+          server crash or a 60-second pipeline hang. */}
+      {startupError && (
+        <div
+          style={{
+            background: 'var(--negative-bg)',
+            border: '1px solid var(--negative)',
+            borderRadius: 'var(--r-sm)',
+            padding: '12px 14px',
+            marginBottom: '12px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '11px',
+            color: 'var(--negative)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+          }}
+        >
+          <div style={{ fontWeight: 600 }}>启动配置错误</div>
+          <div style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+            {startupError}
+          </div>
+          <div style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
+            修复下方字段后会自动重新校验。LLM 路由将在配置修复前返回 503。
+          </div>
+        </div>
+      )}
+
       {/* ── Save indicator ── */}
       <div
         style={{
@@ -568,6 +676,16 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               ) : (
                 <span style={requiredBadgeStyle}>必填</span>
               )}
+              <SourceBadge source={sourceOf('fmp_api_key')} />
+              {sourceOf('fmp_api_key') === 'keychain' && (
+                <button
+                  style={ghostBtnStyle}
+                  onClick={() => handleResetField(['fmp_api_key'])}
+                  title="清除 keychain 中的覆盖，让 .env 重新生效"
+                >
+                  恢复 .env
+                </button>
+              )}
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <InputWithFocus
@@ -590,6 +708,16 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               ) : (
                 <span style={optionalBadgeStyle}>可选</span>
               )}
+              <SourceBadge source={sourceOf('finnhub_api_key')} />
+              {sourceOf('finnhub_api_key') === 'keychain' && (
+                <button
+                  style={ghostBtnStyle}
+                  onClick={() => handleResetField(['finnhub_api_key'])}
+                  title="清除 keychain 中的覆盖，让 .env 重新生效"
+                >
+                  恢复 .env
+                </button>
+              )}
             </div>
             <InputWithFocus
               type="password"
@@ -605,6 +733,16 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
             <div style={labelStyle}>
               <span>SEC EDGAR User-Agent</span>
               <span style={optionalBadgeStyle}>可选</span>
+              <SourceBadge source={sourceOf('sec_user_agent')} />
+              {sourceOf('sec_user_agent') === 'settings_json' && (
+                <button
+                  style={ghostBtnStyle}
+                  onClick={() => handleResetField(['sec_user_agent'])}
+                  title="清除 settings.json 中的覆盖，让 .env 重新生效"
+                >
+                  恢复 .env
+                </button>
+              )}
             </div>
             <InputWithFocus
               type="email"
@@ -626,6 +764,16 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           <div style={fieldStyle}>
             <div style={labelStyle}>
               <span>模型</span>
+              <SourceBadge source={sourceOf('model_name')} />
+              {sourceOf('model_name') === 'settings_json' && (
+                <button
+                  style={ghostBtnStyle}
+                  onClick={() => handleResetField(['model_name'])}
+                  title="清除 settings.json 中的 model_name 覆盖，让 .env 重新生效"
+                >
+                  恢复 .env
+                </button>
+              )}
             </div>
             <SelectWithFocus
               value={modelName || settingsResp?.model_name || ''}
@@ -651,6 +799,16 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                   <span style={requiredBadgeStyle}>必填</span>
                 )
               })()}
+              <SourceBadge source={sourceOf(`${currentProvider}_api_key`)} />
+              {sourceOf(`${currentProvider}_api_key`) === 'keychain' && (
+                <button
+                  style={ghostBtnStyle}
+                  onClick={() => handleResetField([`${currentProvider}_api_key`])}
+                  title="清除 keychain 中的覆盖，让 .env 重新生效"
+                >
+                  恢复 .env
+                </button>
+              )}
             </div>
             <InputWithFocus
               type="password"

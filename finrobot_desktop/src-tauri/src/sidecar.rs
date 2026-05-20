@@ -4,10 +4,16 @@
 //! waits up to 30 seconds for `/health` to return 200, and returns the
 //! `CommandChild` handle so the caller can kill it on exit.
 
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use tauri::AppHandle;
 use tauri_plugin_shell::{process::CommandEvent, ShellExt};
+
+/// How many recent `[sidecar:err]` lines to keep in the ring buffer for
+/// post-mortem reporting when the sidecar fails to become ready.
+const STDERR_RING_CAPACITY: usize = 50;
 
 /// Spawn the bundled `finagent-server` sidecar and block until it is ready.
 ///
@@ -16,6 +22,14 @@ use tauri_plugin_shell::{process::CommandEvent, ShellExt};
 ///
 /// Stdout/stderr from the sidecar are forwarded to the host process's stderr
 /// so they appear in the terminal during `cargo tauri dev`.
+///
+/// While the sidecar boots, the most recent `STDERR_RING_CAPACITY` lines of
+/// its stderr are also stashed in a ring buffer. If `/health` does not
+/// respond within 30 seconds, those lines are replayed to our stderr so the
+/// user (or the dev) can see the real Python traceback — historically this
+/// information vanished because the Tauri window had no terminal attached
+/// and the only visible failure was the generic "did not become ready"
+/// message.
 ///
 /// # Errors
 ///
@@ -33,6 +47,12 @@ pub fn spawn_and_wait_for_ready(
         .spawn()
         .map_err(|e| format!("failed to spawn sidecar: {e}"))?;
 
+    // Ring buffer of recent stderr lines. Shared between the forward task
+    // and the readiness-polling thread so we can dump it on timeout.
+    let stderr_ring: Arc<Mutex<VecDeque<String>>> =
+        Arc::new(Mutex::new(VecDeque::with_capacity(STDERR_RING_CAPACITY)));
+    let stderr_ring_for_task = stderr_ring.clone();
+
     // Forward sidecar output to our own stderr in a background task.
     // This keeps the log stream visible during development without blocking.
     tauri::async_runtime::spawn(async move {
@@ -45,11 +65,25 @@ pub fn spawn_and_wait_for_ready(
                 }
                 CommandEvent::Stderr(bytes) => {
                     if let Ok(line) = std::str::from_utf8(&bytes) {
-                        eprintln!("[sidecar:err] {}", line.trim_end());
+                        let trimmed = line.trim_end().to_string();
+                        eprintln!("[sidecar:err] {trimmed}");
+                        // Keep at most STDERR_RING_CAPACITY lines.
+                        if let Ok(mut buf) = stderr_ring_for_task.lock() {
+                            if buf.len() == STDERR_RING_CAPACITY {
+                                buf.pop_front();
+                            }
+                            buf.push_back(trimmed);
+                        }
                     }
                 }
                 CommandEvent::Error(msg) => {
                     eprintln!("[sidecar:error] {msg}");
+                    if let Ok(mut buf) = stderr_ring_for_task.lock() {
+                        if buf.len() == STDERR_RING_CAPACITY {
+                            buf.pop_front();
+                        }
+                        buf.push_back(format!("[sidecar:error] {msg}"));
+                    }
                 }
                 CommandEvent::Terminated(payload) => {
                     eprintln!(
@@ -78,6 +112,24 @@ pub fn spawn_and_wait_for_ready(
             _ => continue,
         }
     }
+
+    // Replay the captured stderr so the operator can see WHY the sidecar
+    // never became ready. Without this, all they'd see in the Tauri shell
+    // is the bare "did not become ready" string below.
+    eprintln!(
+        "[sidecar] -------- last {} stderr lines (replay) --------",
+        STDERR_RING_CAPACITY
+    );
+    if let Ok(buf) = stderr_ring.lock() {
+        if buf.is_empty() {
+            eprintln!("[sidecar] (stderr ring buffer is empty)");
+        } else {
+            for line in buf.iter() {
+                eprintln!("[sidecar:err] {line}");
+            }
+        }
+    }
+    eprintln!("[sidecar] ----------------------------------------------");
 
     Err("sidecar did not become ready within 30 seconds".into())
 }

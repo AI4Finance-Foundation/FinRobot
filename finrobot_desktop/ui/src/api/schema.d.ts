@@ -297,6 +297,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset Settings Route */
+        post: operations["reset_settings_route_api_settings_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs": {
         parameters: {
             query?: never;
@@ -1113,6 +1130,10 @@ export interface components {
             fmp_api_key_set: boolean;
             /** Finnhub Api Key Set */
             finnhub_api_key_set: boolean;
+            /** Alpha Vantage Api Key Set */
+            alpha_vantage_api_key_set: boolean;
+            /** Adanos Api Key Set */
+            adanos_api_key_set: boolean;
             /** Sec User Agent */
             sec_user_agent: string;
             /** Log Level */
@@ -1121,6 +1142,12 @@ export interface components {
             available_providers: string[];
             /** Valid Model Providers */
             valid_model_providers: ("anthropic" | "deepseek" | "openai")[];
+            /** Field Sources */
+            field_sources: {
+                [key: string]: "keychain" | "settings_json" | "env" | "default";
+            };
+            /** Startup Error */
+            startup_error?: string | null;
         };
         /** SettingsUpdate */
         SettingsUpdate: {
@@ -1150,6 +1177,29 @@ export interface components {
             fmp_api_key?: string | null;
             /** Finnhub Api Key */
             finnhub_api_key?: string | null;
+            /** Alpha Vantage Api Key */
+            alpha_vantage_api_key?: string | null;
+            /** Adanos Api Key */
+            adanos_api_key?: string | null;
+            /** Feishu Webhook Url */
+            feishu_webhook_url?: string | null;
+            /** Telegram Chat Id */
+            telegram_chat_id?: string | null;
+            /** Discord Webhook Url */
+            discord_webhook_url?: string | null;
+            /** Email Smtp Host */
+            email_smtp_host?: string | null;
+            /** Email Smtp Port */
+            email_smtp_port?: number | null;
+            /** Email To */
+            email_to?: string | null;
+            /** Custom Webhook Url */
+            custom_webhook_url?: string | null;
+        };
+        /** SettingsResetRequest */
+        SettingsResetRequest: {
+            /** Fields */
+            fields?: string[];
         };
         /** ValidationError */
         ValidationError: {
@@ -1720,6 +1770,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_settings_route_api_settings_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettingsResetRequest"];
             };
         };
         responses: {

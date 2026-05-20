@@ -62,6 +62,11 @@ _EXCEL_EXPORT_TYPES: frozenset[str] = frozenset({"dcf", "lbo", "comps"})
 async def hydrate_settings_from_secrets(settings: Any, secret_store: SecretStore) -> Any:
     """Return settings with API keys loaded from SecretStore."""
     update: dict[str, str] = {}
+    # Keep this list in sync with routes.settings._SECRET_FIELDS — secrets
+    # live in the keychain, not in settings.json, and must be hydrated back
+    # into FinAgentSettings on every boot so downstream code (data layer,
+    # LLM providers, notification channels) sees the same values whether
+    # the user originally configured them via .env or via the UI.
     for key in (
         "anthropic_api_key",
         "deepseek_api_key",
@@ -69,6 +74,8 @@ async def hydrate_settings_from_secrets(settings: Any, secret_store: SecretStore
         "fmp_api_key",
         "finnhub_api_key",
         "alpha_vantage_api_key",
+        "adanos_api_key",
+        "telegram_bot_token",
     ):
         value = await secret_store.get(key)
         if value:
@@ -82,6 +89,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings(**load_non_secret_settings(settings_path))
     secret_store = create_secret_store()
     settings = await hydrate_settings_from_secrets(settings, secret_store)
+
+    # Fail-fast config validation — but DO NOT crash the server. The desktop
+    # app needs HTTP to be up so the UI can render the SettingsView and the
+    # user can paste a missing API key. Instead we stash the error on
+    # app.state.startup_error; LLM-touching routes read this flag and reply
+    # 503 with the same error message, and the UI shows a top banner.
+    #
+    # Without this gate, the user's first symptom was a 60-second hang on
+    # the first analysis attempt, followed by an OpenAIError missing-key
+    # exception buried in Python stderr — invisible inside the Tauri shell.
+    startup_error: str | None = None
+    try:
+        settings.validate_runtime_config()
+    except ValueError as exc:
+        startup_error = str(exc)
+        logger.error("Runtime config validation failed: %s", startup_error)
+    app.state.startup_error = startup_error
 
     # Load skills if available
     skills_path = Path(settings.skills_dir)

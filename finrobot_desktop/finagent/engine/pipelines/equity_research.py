@@ -15,9 +15,9 @@ from finagent.engine.models.financial import (
     CatalystAnalysis,
     FinancialData,
     CompanyFinancials,
+    HistoricalMetrics,
     PeerComps,
     PeerSelection,
-    DCFInputs,
     ThesisResult,
     StepOutput,
 )
@@ -29,6 +29,8 @@ from finagent.engine.compute.catalyst import (
 from finagent.engine.compute.extractor import extract_company_financials
 from finagent.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
 from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
+from finagent.engine.compute.dcf_seed import seed_dcf_inputs
+from finagent.engine.compute.historical_extractor import extract_historical_from_yfinance
 from finagent.engine.analysis.news_classifier import classify_news
 from finagent.engine.compute.news import fetch_news
 from finagent.engine.pipelines.base import (
@@ -217,39 +219,71 @@ async def _execute_peer_analysis(
 
 
 async def _execute_financial_modeling(
-    agent: Agent[Any, Any],
-    deps: FinAgentDeps,
-    prompt: str,
+    agent: Agent[Any, Any],  # noqa: ARG001 — kept for executor signature; unused
+    deps: FinAgentDeps,  # noqa: ARG001 — kept for executor signature; unused
+    prompt: str,  # noqa: ARG001 — kept for executor signature; unused
     structured_context: dict[str, object],
     ticker: str,
 ) -> StepOutput:
-    """param_agent selects DCF assumptions; calculate_dcf() does all math."""
-    param_agent = Agent(
-        deps.settings.create_model(),
-        output_type=DCFInputs,
-        instructions=(
-            "Select DCF valuation parameters based on the financial data and peer analysis. "
-            "Use conservative assumptions. Revenue growth rates must reflect realistic projections. "
-            "WACC inputs must be internally consistent."
-            "\n\nFor each assumption you select, provide a brief justification in the "
-            "assumption_provenance dict. "
-            "Keys should be the field name (e.g., 'revenue_growth_rates', 'ebitda_margin', "
-            "'terminal_growth_rate', 'beta'). "
-            "Values should be one sentence explaining why (e.g., 'Based on 5-year CAGR of "
-            "8.2% with deceleration assumption')."
-        ),
-        defer_model_check=True,
-    )
-    try:
-        param_result = await param_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
-        dcf_inputs = param_result.output
-    except (AgentRunError, ValidationError, ValueError) as e:
-        raise ValueError(f"LLM failed to produce valid DCF parameters: {e}") from e
+    """Deterministic DCF: seed inputs from real filings, compute, sensitivity.
 
+    DCFInputs is constructed exclusively via ``seed_dcf_inputs`` (CLAUDE.md
+    architecture red-line #5). The LLM does not pick any numbers here — its
+    role is reduced to narrating the seeded result downstream (the thesis +
+    report steps). Every field traces to either the ticker's 3y historical
+    median or a Damodaran industry median, with provenance recorded in
+    DCFInputs.assumption_provenance for the UI's "展开专家详情" panel.
+
+    Previously this step ran a ``param_agent`` (LLM) that produced DCFInputs
+    from the prompt — that path is gone. Resurrecting it would walk back the
+    P0 reconfiguration audited by ``tests/audit/test_dcf_red_lines.py``.
+    """
+    financial_data = structured_context.get("data_collection")
+    if not isinstance(financial_data, FinancialData):
+        raise ValueError(
+            "financial_modeling requires FinancialData from the data_collection "
+            "step but received: " + type(financial_data).__name__
+        )
+
+    # Prefer historical_metrics already built by execute_financial_data_step;
+    # fall back to a fresh yfinance fetch when the pipeline ran in a mode that
+    # skipped multi-year extraction.
+    historical = structured_context.get("historical_metrics")
+    if not isinstance(historical, HistoricalMetrics):
+        try:
+            historical = await extract_historical_from_yfinance(ticker)
+        except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as exc:
+            logger.warning(
+                "Historical extraction failed for %s: %s — falling back to "
+                "Damodaran industry medians via seed_dcf_inputs.",
+                ticker,
+                exc,
+            )
+            historical = HistoricalMetrics(
+                years=[],
+                revenue=[],
+                revenue_growth_yoy=[],
+                cogs=[],
+                gross_profit=[],
+                gross_margin=[],
+                sga=[],
+                sga_ratio=[],
+                ebitda=[],
+                ebitda_margin=[],
+                operating_income=[],
+                operating_margin=[],
+                net_income=[],
+                eps=[],
+                pe_ratio=[],
+                cagr_revenue=None,
+                ticker=ticker,
+            )
+
+    dcf_inputs = seed_dcf_inputs(financial_data, historical)
     try:
         dcf_result = calculate_dcf(dcf_inputs)
     except (ValueError, ArithmeticError) as e:
-        raise ValueError(f"DCF calculation failed with provided parameters: {e}") from e
+        raise ValueError(f"DCF calculation failed with seeded parameters: {e}") from e
     wacc_range, tg_range = build_sensitivity_ranges(
         dcf_result.wacc, dcf_result.inputs.terminal_growth_rate
     )
@@ -268,8 +302,9 @@ async def _execute_financial_modeling(
     )
 
     # Build ValuationSynthesis from DCF + peer comps for football field chart.
-    fin = structured_context.get("data_collection")
-    current_price = fin.market.current_price if hasattr(fin, "market") else 0
+    current_price = (
+        financial_data.market.current_price if hasattr(financial_data, "market") else 0
+    )
     if current_price > 0:
         from finagent.engine.pipelines._helpers import build_valuation_synthesis
 

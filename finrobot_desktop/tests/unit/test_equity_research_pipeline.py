@@ -283,35 +283,72 @@ async def test_step1_produces_financial_data(mock_deps):
 
 @pytest.mark.asyncio
 async def test_step3_dcf_deterministic(mock_deps):
-    """Step 3 with same DCFInputs -> same DCFResult."""
-    from finagent.engine.models.financial import DCFInputs, DCFResult
+    """Step 3 with the same FinancialData → same DCFResult (no LLM call).
+
+    Asserts the architectural property after the seed_dcf_inputs refactor
+    (CLAUDE.md red-line #5): financial_modeling must be deterministic — it
+    does not query an LLM for DCF parameters. Repeated calls with identical
+    inputs must produce bit-identical outputs.
+    """
+    from datetime import datetime, timezone
+
+    from finagent.engine.models.financial import (
+        BalanceSheet,
+        DCFResult,
+        FinancialData,
+        HistoricalMetrics,
+        IncomeStatement,
+        MarketData,
+        ValuationMetrics,
+    )
     from finagent.engine.pipelines.equity_research import _execute_financial_modeling
 
-    dcf_inputs = DCFInputs(
-        revenue_base=100e9,
-        revenue_growth_rates=[0.05, 0.05],
-        ebitda_margin=0.35,
-        capex_pct_revenue=0.05,
-        nwc_pct_revenue=0.02,
-        tax_rate=0.21,
-        risk_free_rate=0.04,
-        beta=1.2,
-        equity_risk_premium=0.05,
-        cost_of_debt=0.04,
-        debt_ratio=0.1,
-        terminal_growth_rate=0.025,
-        shares_outstanding=1e9,
-        net_debt=10e9,
+    fd = FinancialData(
+        ticker="AAPL",
+        company_name="Apple Inc.",
+        timestamp=datetime.now(tz=timezone.utc),
+        income=IncomeStatement(
+            revenue=385e9,
+            ebitda=130e9,
+            net_income=95e9,
+            gross_margin=0.43,
+            operating_margin=0.30,
+            interest_expense=3e9,
+        ),
+        balance=BalanceSheet(total_debt=120e9, total_cash=60e9),
+        market=MarketData(
+            market_cap=2.5e12,
+            shares_outstanding=15.5e9,
+            current_price=150.0,
+            industry="Consumer Electronics",
+            beta=1.25,
+        ),
+        valuation=ValuationMetrics(),
     )
-    mock_agent = MagicMock()
-    mock_param_result = MagicMock()
-    mock_param_result.output = dcf_inputs
-    mock_agent_instance = MagicMock()
-    mock_agent_instance.run = AsyncMock(return_value=mock_param_result)
+    hm = HistoricalMetrics(
+        years=[],
+        revenue=[],
+        revenue_growth_yoy=[],
+        cogs=[],
+        gross_profit=[],
+        gross_margin=[],
+        sga=[],
+        sga_ratio=[],
+        ebitda=[],
+        ebitda_margin=[],
+        operating_income=[],
+        operating_margin=[],
+        net_income=[],
+        eps=[],
+        pe_ratio=[],
+        cagr_revenue=None,
+        ticker="AAPL",
+    )
+    ctx = {"data_collection": fd, "historical_metrics": hm}
 
-    with patch("finagent.engine.pipelines.equity_research.Agent", return_value=mock_agent_instance):
-        out1 = await _execute_financial_modeling(mock_agent, mock_deps, "prompt", {}, "AAPL")
-        out2 = await _execute_financial_modeling(mock_agent, mock_deps, "prompt", {}, "AAPL")
+    mock_agent = MagicMock()
+    out1 = await _execute_financial_modeling(mock_agent, mock_deps, "prompt", ctx, "AAPL")
+    out2 = await _execute_financial_modeling(mock_agent, mock_deps, "prompt", ctx, "AAPL")
 
     assert isinstance(out1.structured, DCFResult)
     assert out1.structured.implied_price == out2.structured.implied_price

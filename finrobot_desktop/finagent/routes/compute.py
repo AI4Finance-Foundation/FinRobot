@@ -149,6 +149,32 @@ class LboSensitivityResult(BaseModel):
     moic_grid: list[list[float | None]]
 
 
+class LboSeedRequest(BaseModel):
+    """One-shot LBO seeded from a ticker — single authoritative entry point.
+
+    Backend fetches financials + historical, calls ``seed_lbo_inputs`` to
+    derive every assumption from real filings (or Damodaran industry fallback /
+    PE convention for deal-structure quantities), then runs calculate_lbo +
+    sensitivity in one shot. Replaces the legacy front-end path that shipped
+    14 hardcoded LBO parameters per ticker.
+    """
+
+    ticker: str = Field(min_length=1, max_length=10)
+    holding_period_years: int | None = Field(default=None, ge=1, le=10)
+    entry_ev_ebitda: float | None = Field(default=None, gt=0, le=30)
+    exit_ev_ebitda: float | None = Field(default=None, gt=0, le=30)
+    leverage_multiple: float | None = Field(default=None, ge=0, le=20)
+
+
+class LboSeedResponse(BaseModel):
+    """Bundled LBO output. inputs.assumption_provenance carries the per-field
+    sources for the UI's "展开专家详情" tooltip — mirrors DcfSeedResponse."""
+
+    inputs: LBOInputs
+    result: LBOResult
+    current_price: float | None = None
+
+
 @router.post("/wacc", response_model=WaccResponse)
 async def compute_wacc(request: WaccRequest) -> WaccResponse:
     cost_of_equity, wacc = calculate_wacc(
@@ -362,6 +388,78 @@ async def compute_lbo_sensitivity(
         exit_range=request.exit_range,
     )
     return LboSensitivityResult(**raw)
+
+
+@router.post("/lbo-seed", response_model=LboSeedResponse)
+async def compute_lbo_seed(body: LboSeedRequest, request: Request) -> LboSeedResponse:
+    """One-shot LBO for a ticker — the front-end's single authoritative path.
+
+    Replaces the legacy hardcoded LBO body shipped from the UI (14 parameters
+    identical for every company). Structurally mirrors /dcf-seed:
+      1. fetch financials (LTM) + price + multi-year history
+      2. seed_lbo_inputs → LBOInputs (with assumption_provenance per field)
+      3. calculate_lbo + calculate_lbo_sensitivity
+
+    Everything returned in a single bundled response so the UI doesn't need
+    follow-up calls to render the LBO panel.
+    """
+    from finagent.engine.compute.extractor import extract_financial_data
+    from finagent.engine.compute.historical_extractor import extract_historical_from_yfinance
+    from finagent.engine.compute.lbo_seed import seed_lbo_inputs
+    from finagent.engine.data.types import DataType
+    from finagent.engine.models.financial import HistoricalMetrics
+
+    deps = request.app.state.deps
+    ticker = body.ticker.upper()
+
+    fin_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
+    price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
+    financial_data = extract_financial_data(fin_result, price_result)
+
+    try:
+        historical = await extract_historical_from_yfinance(ticker)
+    except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as exc:
+        logger.warning("Historical extraction failed for %s: %s", ticker, exc)
+        historical = HistoricalMetrics(
+            years=[],
+            revenue=[],
+            revenue_growth_yoy=[],
+            cogs=[],
+            gross_profit=[],
+            gross_margin=[],
+            sga=[],
+            sga_ratio=[],
+            ebitda=[],
+            ebitda_margin=[],
+            operating_income=[],
+            operating_margin=[],
+            net_income=[],
+            eps=[],
+            pe_ratio=[],
+            cagr_revenue=None,
+            ticker=ticker,
+        )
+
+    # Build the kwargs dict so we only pass overrides the caller actually set —
+    # otherwise seed_lbo_inputs receives None and falls over its defaults.
+    seed_kwargs: dict[str, float | int] = {}
+    if body.holding_period_years is not None:
+        seed_kwargs["holding_period_years"] = body.holding_period_years
+    if body.entry_ev_ebitda is not None:
+        seed_kwargs["entry_ev_ebitda"] = body.entry_ev_ebitda
+    if body.exit_ev_ebitda is not None:
+        seed_kwargs["exit_ev_ebitda"] = body.exit_ev_ebitda
+    if body.leverage_multiple is not None:
+        seed_kwargs["leverage_multiple"] = body.leverage_multiple
+
+    lbo_inputs = seed_lbo_inputs(financial_data, historical, **seed_kwargs)  # type: ignore[arg-type]
+    lbo_result = calculate_lbo(lbo_inputs)
+
+    return LboSeedResponse(
+        inputs=lbo_inputs,
+        result=lbo_result,
+        current_price=financial_data.market.current_price,
+    )
 
 
 @router.post("/multiples", response_model=CompanyFinancials)

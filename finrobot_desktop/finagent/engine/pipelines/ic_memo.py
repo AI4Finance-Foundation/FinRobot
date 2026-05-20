@@ -2,13 +2,16 @@
 
 5 steps:
   1. situation_overview  — company overview + transaction rationale (LLM)
-  2. financial_analysis  — runs DCF + LBO inline, returns ICFinancials (code + LLM params)
+  2. financial_analysis  — runs DCF + LBO inline via deterministic seed
+                            functions (CLAUDE.md red-line #5; no LLM picks
+                            DCF or LBO numbers), returns ICFinancials
   3. investment_thesis   — LLM articulates 3-5 key investment considerations
   4. risk_factors        — LLM generates risks, code enforces 3-item structure
   5. recommendation      — LLM verdict, code gate: IRR < 15% forces PASS
 
 What code does that LLM cannot:
-  - Deterministic DCF + LBO execution from typed parameter models
+  - Deterministic DCF + LBO execution from typed parameter models seeded
+    from 3y historical medians and Damodaran industry fallback
   - IRR hurdle gate: overrides LLM recommendation to PASS if IRR < 15%
   - Risk ranking by impact (code ranks by order, not LLM discretion)
 """
@@ -18,19 +21,19 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import ValidationError
 from pydantic_ai import Agent
-from pydantic_ai.exceptions import AgentRunError
 
 from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
+from finagent.engine.compute.dcf_seed import seed_dcf_inputs
 from finagent.engine.compute.extractor import extract_financial_data
+from finagent.engine.compute.historical_extractor import extract_historical_from_yfinance
 from finagent.engine.compute.lbo import calculate_lbo
+from finagent.engine.compute.lbo_seed import seed_lbo_inputs
 from finagent.engine.data.types import DataType
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import (
-    DCFInputs,
+    HistoricalMetrics,
     ICFinancials,
-    LBOInputs,
     StepOutput,
 )
 from finagent.engine.pipelines.base import (
@@ -52,34 +55,58 @@ _IRR_HURDLE = 0.15  # 15% minimum IRR for IC Invest recommendation
 
 
 async def _execute_ic_financials(
-    agent: Agent[Any, Any],
+    agent: Agent[Any, Any],  # noqa: ARG001 — kept for executor signature; unused
     deps: FinAgentDeps,
-    prompt: str,
-    structured_context: dict[str, object],
+    prompt: str,  # noqa: ARG001 — kept for executor signature; unused
+    structured_context: dict[str, object],  # noqa: ARG001 — unused after refactor
     ticker: str,
 ) -> StepOutput:
-    """Run DCF + LBO in parallel; return combined ICFinancials."""
-    # Fetch raw data
+    """Run DCF + LBO deterministically; return combined ICFinancials.
+
+    Both DCFInputs and LBOInputs are built exclusively via their respective
+    seed functions (``seed_dcf_inputs`` / ``seed_lbo_inputs``) — CLAUDE.md
+    architecture red-line #5 forbids LLM-selected DCF or LBO numbers.
+    Every assumption traces to a 3y historical median, the Damodaran
+    industry median, or — for LBO deal-structure quantities — standard PE
+    convention recorded in ``assumption_provenance``.
+    """
     financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
     price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
     financial_data = extract_financial_data(financials_result, price_result)
 
-    # --- DCF ---
-    dcf_param_agent = Agent(
-        deps.settings.create_model(),
-        output_type=DCFInputs,
-        instructions=(
-            "Select conservative DCF valuation parameters based on the financial data. "
-            "Use realistic assumptions. Avoid overly optimistic revenue growth."
-        ),
-        defer_model_check=True,
-    )
+    # Multi-year history powers the 3y-median assumption derivation. Fall
+    # back to an empty HistoricalMetrics on extraction failure so the seed
+    # functions degrade gracefully to Damodaran industry medians.
     try:
-        dcf_param_result = await dcf_param_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
-        dcf_inputs = dcf_param_result.output
-    except (AgentRunError, ValidationError, ValueError) as e:
-        raise ValueError(f"LLM failed to produce valid DCF parameters: {e}") from e
+        historical = await extract_historical_from_yfinance(ticker)
+    except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as exc:
+        logger.warning(
+            "Historical extraction failed for %s: %s — falling back to industry medians.",
+            ticker,
+            exc,
+        )
+        historical = HistoricalMetrics(
+            years=[],
+            revenue=[],
+            revenue_growth_yoy=[],
+            cogs=[],
+            gross_profit=[],
+            gross_margin=[],
+            sga=[],
+            sga_ratio=[],
+            ebitda=[],
+            ebitda_margin=[],
+            operating_income=[],
+            operating_margin=[],
+            net_income=[],
+            eps=[],
+            pe_ratio=[],
+            cagr_revenue=None,
+            ticker=ticker,
+        )
 
+    # --- DCF ---
+    dcf_inputs = seed_dcf_inputs(financial_data, historical)
     dcf_result = calculate_dcf(dcf_inputs)
     wacc_range, tg_range = build_sensitivity_ranges(
         dcf_result.wacc, dcf_result.inputs.terminal_growth_rate
@@ -88,22 +115,7 @@ async def _execute_ic_financials(
     dcf_result = dcf_result.model_copy(update={"sensitivity_table": sensitivity})
 
     # --- LBO ---
-    lbo_param_agent = Agent(
-        deps.settings.create_model(),
-        output_type=LBOInputs,
-        instructions=(
-            "Select LBO model assumptions for a private equity acquisition of this company. "
-            "Use realistic PE assumptions: entry EV/EBITDA 6-12×, leverage 3-7×, hold 4-7 years. "
-            "Ticker must be the company ticker symbol."
-        ),
-        defer_model_check=True,
-    )
-    try:
-        lbo_param_result = await lbo_param_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
-        lbo_inputs = lbo_param_result.output
-    except (AgentRunError, ValidationError, ValueError) as e:
-        raise ValueError(f"LLM failed to produce valid LBO parameters: {e}") from e
-
+    lbo_inputs = seed_lbo_inputs(financial_data, historical)
     lbo_result = calculate_lbo(lbo_inputs)
 
     combined = ICFinancials(

@@ -140,42 +140,21 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
         }
 
         if (toolName === 'lbo') {
-          const finResp = await fetch(`${BASE_URL}/api/data/${tickerAtDispatch}/financials`)
-          let ltmEbitda = 1_000_000_000
-          let revenueBase = 5_000_000_000
-          if (finResp.ok) {
-            const fin = (await finResp.json()) as Record<string, unknown>
-            const income = (fin.income ?? {}) as Record<string, unknown>
-            ltmEbitda = (income.ebitda as number | undefined) ?? 1_000_000_000
-            revenueBase = (income.revenue as number | undefined) ?? ltmEbitda * 5
-          }
-
-          const resp = await fetch(`${BASE_URL}/api/compute/lbo`, {
+          // Single authoritative entry: backend pulls financials, historical,
+          // and runs seed_lbo_inputs → calculate_lbo in one shot. Replaces
+          // the legacy hardcoded path where every company shared the same
+          // 5% growth / 20% EBITDA / 8× entry assumptions (CLAUDE.md
+          // architecture red-line #5; mirrors the DCF dcf-seed contract).
+          const resp = await fetch(`${BASE_URL}/api/compute/lbo-seed`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ticker: tickerAtDispatch,
-              ltm_ebitda: ltmEbitda,
-              revenue_base: revenueBase,
-              revenue_growth_rate: 0.05,
-              ebitda_margin: 0.20,
-              entry_ev_ebitda: 8.0,
-              exit_ev_ebitda: 8.0,
-              leverage_multiple: 5.0,
-              holding_period_years: 5,
-              interest_rate: 0.07,
-              mandatory_amort_pct: 0.05,
-              tax_rate: 0.21,
-              capex_pct_revenue: 0.04,
-              nwc_change_pct_revenue: 0.02,
-              da_pct_revenue: 0.03,
-            }),
+            body: JSON.stringify({ ticker: tickerAtDispatch }),
           })
           if (!resp.ok) {
             throw new ToolRunError('lbo', resp.status, await resp.text().catch(() => ''))
           }
-          const lboResult = (await resp.json()) as LBOResult
-          return { kind: 'lbo', result: lboResult, ticker: tickerAtDispatch }
+          const seed = (await resp.json()) as { result: LBOResult }
+          return { kind: 'lbo', result: seed.result, ticker: tickerAtDispatch }
         }
 
         if (toolName === 'comps' || toolName === 'ic-memo' || toolName === 'ddm' || toolName === 'earnings') {

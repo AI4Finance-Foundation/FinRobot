@@ -2,9 +2,12 @@
 
 4 steps:
   1. data_collection  — fetch financials/price, produce FinancialData
-  2. lbo_parameters   — LLM selects LBOInputs assumptions
+  2. lbo_parameters   — deterministic seed_lbo_inputs() builds LBOInputs from
+                        3y historical medians + Damodaran industry fallback
+                        (CLAUDE.md red-line #5; no LLM picks numbers)
   3. lbo_calculation  — deterministic calculate_lbo() + sensitivity
   4. lbo_narrative    — LLM writes narrative / investment memo section
+                        (narrate-only; never selects numbers)
 """
 
 from __future__ import annotations
@@ -12,14 +15,20 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import ValidationError
 from pydantic_ai import Agent
-from pydantic_ai.exceptions import AgentRunError
 
+from finagent.engine.compute.historical_extractor import extract_historical_from_yfinance
 from finagent.engine.compute.lbo import calculate_lbo
+from finagent.engine.compute.lbo_seed import seed_lbo_inputs
 from finagent.engine.data.types import DataType
 from finagent.engine.deps import FinAgentDeps
-from finagent.engine.models.financial import LBOInputs, LBOResult, StepOutput
+from finagent.engine.models.financial import (
+    FinancialData,
+    HistoricalMetrics,
+    LBOInputs,
+    LBOResult,
+    StepOutput,
+)
 from finagent.engine.pipelines.base import (
     Pipeline,
     PipelineStep,
@@ -39,29 +48,64 @@ logger = logging.getLogger(__name__)
 
 
 async def _execute_lbo_params(
-    agent: Agent[Any, Any],
-    deps: FinAgentDeps,
-    prompt: str,
+    agent: Agent[Any, Any],  # noqa: ARG001 — kept for executor signature; unused
+    deps: FinAgentDeps,  # noqa: ARG001 — kept for executor signature; unused
+    prompt: str,  # noqa: ARG001 — kept for executor signature; unused
     structured_context: dict[str, object],
     ticker: str,
 ) -> StepOutput:
-    """LLM selects LBOInputs assumptions from financial data."""
-    param_agent = Agent(
-        deps.settings.create_model(),
-        output_type=LBOInputs,
-        instructions=(
-            "Select LBO model assumptions for a private equity acquisition of this company. "
-            "Use realistic assumptions: entry EV/EBITDA 6-12×, exit 8-14×, leverage 3-7×, "
-            "holding period 3-7 years. Ticker must be the company's ticker symbol."
-        ),
-        defer_model_check=True,
-    )
-    try:
-        result = await param_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
-        inputs = result.output
-    except (AgentRunError, ValidationError, ValueError) as e:
-        raise ValueError(f"LLM failed to produce valid LBO parameters: {e}") from e
+    """Deterministic LBO seed: builds LBOInputs from real filings.
 
+    Mirrors the DCF pipeline structure (see ``finagent.engine.pipelines.dcf``).
+    LLM does not pick any LBO assumptions — ``seed_lbo_inputs`` derives every
+    numeric field from the ticker's 3y historical median, the Damodaran
+    industry median, or — for deal-structure quantities (entry/exit multiples,
+    leverage, holding period) that are not financial-statement values — from
+    standard PE convention recorded in ``assumption_provenance``.
+
+    Replacing this with an LLM ``param_agent`` would walk back CLAUDE.md
+    architecture red-line #5 and is enforced against by
+    ``tests/audit/test_lbo_red_lines.py``.
+    """
+    financial_data = structured_context.get("data_collection")
+    if not isinstance(financial_data, FinancialData):
+        raise ValueError(
+            "lbo_parameters requires FinancialData from the data_collection "
+            "step but received: " + type(financial_data).__name__
+        )
+
+    historical = structured_context.get("historical_metrics")
+    if not isinstance(historical, HistoricalMetrics):
+        try:
+            historical = await extract_historical_from_yfinance(ticker)
+        except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as exc:
+            logger.warning(
+                "Historical extraction failed for %s: %s — falling back to "
+                "Damodaran industry medians via seed_lbo_inputs.",
+                ticker,
+                exc,
+            )
+            historical = HistoricalMetrics(
+                years=[],
+                revenue=[],
+                revenue_growth_yoy=[],
+                cogs=[],
+                gross_profit=[],
+                gross_margin=[],
+                sga=[],
+                sga_ratio=[],
+                ebitda=[],
+                ebitda_margin=[],
+                operating_income=[],
+                operating_margin=[],
+                net_income=[],
+                eps=[],
+                pe_ratio=[],
+                cagr_revenue=None,
+                ticker=ticker,
+            )
+
+    inputs: LBOInputs = seed_lbo_inputs(financial_data, historical)
     return StepOutput(text=inputs.model_dump_json(), structured=inputs)
 
 

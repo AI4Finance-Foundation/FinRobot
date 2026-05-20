@@ -440,6 +440,16 @@ class LBOInputs(BaseModel):
     cash_sweep: bool = Field(default=True, description="Sweep all excess FCF to debt")
     tax_rate: float = Field(default=0.25, ge=0, le=1)
 
+    # Parallels DCFInputs.assumption_provenance — populated by seed_lbo_inputs.
+    # Maps each LBO assumption field name to a Chinese-localised explanation of
+    # where the number came from (3y historical median / industry median / PE
+    # convention) so the UI can render a 散户-friendly provenance panel.
+    # The DCFInputs equivalent is the canonical reference for the contract.
+    assumption_provenance: dict[str, str] = Field(
+        default_factory=dict,
+        description="Maps assumption field names to their reasoning/source",
+    )
+
 
 class LBOYear(BaseModel):
     """One year of LBO operations. All numbers deterministically computed."""

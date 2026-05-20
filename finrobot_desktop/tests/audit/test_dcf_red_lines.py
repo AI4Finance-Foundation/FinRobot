@@ -248,5 +248,113 @@ def test_dcf_result_does_not_resurrect_fcf_formula_fields():
     )
 
 
+# ---------------------------------------------------------------------------
+# 5. Pipeline financial_modeling step uses seed_dcf_inputs, not a param_agent
+# ---------------------------------------------------------------------------
+
+
+def test_ic_memo_financials_step_uses_seed_dcf_inputs():
+    """The financial_analysis step in ic_memo.py must construct DCFInputs
+    exclusively via ``seed_dcf_inputs`` — never via an LLM ``dcf_param_agent``.
+
+    The IC memo pipeline runs DCF + LBO inline, so it is subject to the same
+    architecture red-line #5 as the standalone DCF and equity-research
+    pipelines.
+    """
+    src = (REPO_ROOT / "finagent" / "engine" / "pipelines" / "ic_memo.py").read_text()
+
+    func_marker = "async def _execute_ic_financials("
+    assert func_marker in src, (
+        "_execute_ic_financials function missing from ic_memo.py — "
+        "did you rename it?"
+    )
+    start = src.index(func_marker)
+    next_func = src.find("\nasync def ", start + 1)
+    if next_func == -1:
+        next_func = src.find("\ndef ", start + 1)
+    if next_func == -1:
+        next_func = len(src)
+    body = src[start:next_func]
+
+    assert "seed_dcf_inputs" in body, (
+        "_execute_ic_financials must call seed_dcf_inputs() to construct DCFInputs."
+    )
+
+    body_no_docstring = re.sub(r'"""[\s\S]*?"""', "", body, count=1)
+    banned = {
+        "dcf_param_agent": (
+            "dcf_param_agent reintroduces the LLM-picks-DCF-numbers path. "
+            "Use seed_dcf_inputs instead."
+        ),
+        "output_type=DCFInputs": (
+            "Agent(output_type=DCFInputs) is forbidden by CLAUDE.md red-line #5."
+        ),
+    }
+    offenders = [tok for tok in banned if tok in body_no_docstring]
+    assert not offenders, "\n".join(
+        f"_execute_ic_financials body contains banned token '{tok}': {banned[tok]}"
+        for tok in offenders
+    )
+
+
+def test_equity_research_financial_modeling_uses_seed_dcf_inputs():
+    """The financial_modeling step in equity_research.py must construct
+    DCFInputs exclusively via ``seed_dcf_inputs``.
+
+    Previously this step ran a ``param_agent`` (LLM with ``output_type=DCFInputs``)
+    that picked DCF numbers from a prompt. CLAUDE.md red-line #5 forbids that
+    path; numbers must trace to real filings or Damodaran industry medians.
+
+    This guard greps the source of ``_execute_financial_modeling`` for:
+      • Required token: ``seed_dcf_inputs`` must be called inside the function.
+      • Banned tokens: ``param_agent`` and ``output_type=DCFInputs`` must not
+        appear anywhere in the file — both were the LLM-selects-numbers path.
+    """
+    src = (REPO_ROOT / "finagent" / "engine" / "pipelines" / "equity_research.py").read_text()
+
+    # Locate the function body via a coarse marker.
+    func_marker = "async def _execute_financial_modeling("
+    assert func_marker in src, (
+        "_execute_financial_modeling function missing from equity_research.py — "
+        "did you rename it?"
+    )
+
+    start = src.index(func_marker)
+    # End at the next top-level async def or def, whichever comes first.
+    next_func = src.find("\nasync def ", start + 1)
+    if next_func == -1:
+        next_func = len(src)
+    body = src[start:next_func]
+
+    assert "seed_dcf_inputs" in body, (
+        "_execute_financial_modeling must call seed_dcf_inputs() to construct "
+        "DCFInputs. Direct ``DCFInputs(...)`` construction or LLM ``param_agent`` "
+        "is forbidden (CLAUDE.md red-line #5)."
+    )
+
+    # Banned patterns must not appear in the *function body itself* (docstring
+    # references to the deleted path elsewhere in the file are fine — they
+    # explain why we removed it). Strip the docstring then look for the LLM
+    # pattern markers.
+    body_no_docstring = re.sub(r'"""[\s\S]*?"""', "", body, count=1)
+
+    banned_in_body = {
+        "param_agent": (
+            "param_agent reintroduces the LLM-picks-DCF-numbers path. "
+            "Remove and route through seed_dcf_inputs instead."
+        ),
+        "output_type=DCFInputs": (
+            "Agent(output_type=DCFInputs) makes the LLM produce DCF parameters. "
+            "That is forbidden by CLAUDE.md red-line #5."
+        ),
+    }
+    offenders = [tok for tok in banned_in_body if tok in body_no_docstring]
+    assert not offenders, "\n".join(
+        f"_execute_financial_modeling body contains banned token '{tok}': "
+        f"{banned_in_body[tok]}"
+        for tok in offenders
+    )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

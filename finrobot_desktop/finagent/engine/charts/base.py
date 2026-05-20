@@ -39,29 +39,22 @@ class ChartDataPoint(BaseModel):
     """
 
     chart_type: Literal[
-        # Existing
         "revenue_ebitda",
         "margin_trend",
         "peer_comparison",
         "sensitivity",
         "football_field",
-        "price",
         "eps_pe",
         "waterfall",
         "radar",
-        # P6 Task 1 — margin_trend variants
+        # margin_trend variants
         "gross_margin",
         "ebitda_margin_detail",
         "sga_ratio",
         "ltm_ebitda_margin",
-        # P6 — new chart types
+        # other active chart types
         "revenue_yoy",
-        "cash_flow",
-        "quarterly_comparison",
-        "technical_indicators",
         "valuation_band",
-        "relative_performance",
-        "revenue_segments",
         "time_series_multi",
     ]
     data: list[dict[str, float | str | None | bool]]

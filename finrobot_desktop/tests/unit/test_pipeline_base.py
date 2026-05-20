@@ -11,9 +11,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic_ai import Agent
+from pydantic_ai.exceptions import AgentRunError
 from pydantic_ai.models.test import TestModel
 
-from finagent.engine.data.interface import DataResult
+from finagent.engine.data.interface import DataResult, ProviderError
 from finagent.engine.models.financial import StepOutput
 from finagent.engine.pipelines.base import (
     Pipeline,
@@ -21,6 +22,7 @@ from finagent.engine.pipelines.base import (
     PipelineStep,
     StructuredValidator,
     TextValidator,
+    _is_recoverable_exception,
 )
 from finagent.engine.pipelines.validators import ValidationResult, validate_is_non_empty
 
@@ -526,3 +528,140 @@ async def test_retry_revalidates_structured_data():
     result = await pipeline.execute(mock_deps, "AAPL")
     assert len(call_count) == 2
     assert result.structured_data["test_step"]["value"] == 10
+
+
+# ---------------------------------------------------------------------------
+# Executor-exception retry tests
+# ---------------------------------------------------------------------------
+
+
+class TestIsRecoverableException:
+    """Unit tests for the _is_recoverable_exception predicate."""
+
+    def test_agent_run_error_is_recoverable(self):
+        assert _is_recoverable_exception(AgentRunError("model overloaded"))
+
+    def test_provider_error_is_recoverable(self):
+        assert _is_recoverable_exception(ProviderError("yfinance 429"))
+
+    def test_httpx_timeout_is_recoverable(self):
+        import httpx
+
+        assert _is_recoverable_exception(httpx.TimeoutException("timed out"))
+
+    def test_httpx_connect_error_is_recoverable(self):
+        import httpx
+
+        assert _is_recoverable_exception(httpx.ConnectError("connection refused"))
+
+    def test_rate_limit_str_is_recoverable(self):
+        assert _is_recoverable_exception(RuntimeError("HTTP 429: rate limit exceeded"))
+
+    def test_too_many_requests_is_recoverable(self):
+        assert _is_recoverable_exception(ValueError("too many requests"))
+
+    def test_timeout_str_is_recoverable(self):
+        assert _is_recoverable_exception(OSError("operation timeout"))
+
+    def test_insufficient_balance_is_not_recoverable(self):
+        """402 billing error must not trigger retry."""
+        assert not _is_recoverable_exception(RuntimeError("Insufficient Balance (402)"))
+
+    def test_insufficient_balance_case_insensitive(self):
+        assert not _is_recoverable_exception(RuntimeError("INSUFFICIENT BALANCE"))
+
+    def test_generic_value_error_is_not_recoverable(self):
+        assert not _is_recoverable_exception(ValueError("bad input schema"))
+
+
+@pytest.mark.asyncio
+async def test_executor_agent_run_error_retries_then_succeeds():
+    """AgentRunError on first 2 calls → 3rd call succeeds → step completes."""
+    call_count = []
+
+    async def flaky_executor(agent, deps, prompt, structured_context, ticker):
+        call_count.append(1)
+        if len(call_count) <= 2:
+            raise AgentRunError("model overloaded")
+        return "recovered output"
+
+    step = PipelineStep(
+        name="flaky_step",
+        agent=MagicMock(),
+        validator=TextValidator(validate_is_non_empty),
+        executor=flaky_executor,
+    )
+    # max_retries=3 → budget for 3 retries after the initial attempt
+    pipeline = Pipeline(steps=[step], max_retries=3)
+    mock_deps = MagicMock()
+    mock_deps.skill_runtime = None
+
+    # Patch asyncio.sleep to avoid real delays in tests.
+    import asyncio
+    from unittest.mock import patch
+
+    with patch.object(asyncio, "sleep", new=AsyncMock()):
+        result = await pipeline.execute(mock_deps, "AAPL")
+
+    # initial attempt + 2 retries = 3 total calls
+    assert len(call_count) == 3
+    assert result.steps["flaky_step"] == "recovered output"
+    assert result.failed_validations == []
+
+
+@pytest.mark.asyncio
+async def test_executor_insufficient_balance_not_retried():
+    """Insufficient Balance (non-recoverable) must propagate without retry."""
+    call_count = []
+
+    async def billing_error_executor(agent, deps, prompt, structured_context, ticker):
+        call_count.append(1)
+        raise RuntimeError("Insufficient Balance (402)")
+
+    step = PipelineStep(
+        name="billing_step",
+        agent=MagicMock(),
+        validator=TextValidator(validate_is_non_empty),
+        executor=billing_error_executor,
+    )
+    pipeline = Pipeline(steps=[step], max_retries=3)
+    mock_deps = MagicMock()
+    mock_deps.skill_runtime = None
+
+    with pytest.raises(RuntimeError, match="Insufficient Balance"):
+        await pipeline.execute(mock_deps, "AAPL")
+
+    # Must have been called exactly once — no retries.
+    assert len(call_count) == 1
+
+
+@pytest.mark.asyncio
+async def test_executor_provider_error_rate_limit_retries():
+    """ProviderError with 'rate limit' message is treated as recoverable."""
+    call_count = []
+
+    async def rate_limited_executor(agent, deps, prompt, structured_context, ticker):
+        call_count.append(1)
+        if len(call_count) <= 1:
+            raise ProviderError("rate limit: 429 from yfinance")
+        return "data fetched successfully"
+
+    step = PipelineStep(
+        name="data_step",
+        agent=MagicMock(),
+        validator=TextValidator(validate_is_non_empty),
+        executor=rate_limited_executor,
+    )
+    pipeline = Pipeline(steps=[step], max_retries=3)
+    mock_deps = MagicMock()
+    mock_deps.skill_runtime = None
+
+    import asyncio
+    from unittest.mock import patch
+
+    with patch.object(asyncio, "sleep", new=AsyncMock()):
+        result = await pipeline.execute(mock_deps, "AAPL")
+
+    assert len(call_count) == 2
+    assert result.steps["data_step"] == "data fetched successfully"
+    assert result.failed_validations == []

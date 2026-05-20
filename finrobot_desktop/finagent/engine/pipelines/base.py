@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
@@ -9,13 +10,43 @@ if TYPE_CHECKING:
     from finagent.artifact.models import Artifact
     from finagent.engine.deps import FinAgentDeps
 
+import httpx
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
+from pydantic_ai.exceptions import AgentRunError
 
 from finagent.engine.data.interface import ProviderError
 from finagent.engine.data.types import DataType
 from finagent.engine.models.financial import StepOutput
 from finagent.engine.pipelines.validators import ValidationResult
+
+# Seconds to wait before each executor-exception retry (index = attempt number).
+_RETRY_DELAYS = [2, 5, 10]
+
+# Substrings that mark an exception as recoverable (rate-limit / transient).
+# All comparisons are lower-cased.
+_RECOVERABLE_SUBSTRINGS = ("429", "rate limit", "too many requests", "timeout")
+
+# Substrings that mark an exception as a non-recoverable billing / auth error.
+# These must NOT be retried.
+_FATAL_SUBSTRINGS = ("insufficient balance",)
+
+
+def _is_recoverable_exception(exc: BaseException) -> bool:
+    """Return True when *exc* is a transient / rate-limit error worth retrying.
+
+    Rules (applied in order):
+    1. If the message contains a fatal substring → NOT recoverable (return False).
+    2. If it is one of the typed recoverable classes → recoverable.
+    3. If the message contains a recoverable substring → recoverable.
+    4. Otherwise → NOT recoverable.
+    """
+    msg = str(exc).lower()
+    if any(s in msg for s in _FATAL_SUBSTRINGS):
+        return False
+    if isinstance(exc, (AgentRunError, ProviderError, httpx.TimeoutException, httpx.ConnectError)):
+        return True
+    return any(s in msg for s in _RECOVERABLE_SUBSTRINGS)
 
 logger = logging.getLogger(__name__)
 
@@ -305,37 +336,105 @@ class Pipeline:
         """Execute a single pipeline step with retry logic.
 
         Encapsulates: execution -> output storage -> validation -> retry loop.
+
+        Two retry triggers share the same loop:
+        - Validation failure (original behaviour): ``validation.passed == False``.
+        - Recoverable executor exception: ``AgentRunError``, ``ProviderError``,
+          ``httpx.TimeoutException / ConnectError``, or any exception whose
+          message contains "429" / "rate limit" / "too many requests" / "timeout".
+
+        Non-recoverable exceptions (e.g. "Insufficient Balance" 402) propagate
+        immediately without consuming any retry budget.
+
         Returns the validation error string if the step failed after all retries,
-        or None if the step passed validation.
+        or None if the step succeeded.
         """
-        validation = await self._attempt(
-            step, deps, prompt, ticker, results, structured_results
-        )
-        if validation.passed:
+        # ── helpers ────────────────────────────────────────────────────────────
+
+        async def _attempt_with_exc_retry(current_prompt: str, budget: int) -> tuple[
+            "ValidationResult | None", str | None, int
+        ]:
+            """Run _attempt, catching recoverable exceptions as retry signals.
+
+            Returns (validation_result, exc_error_str, remaining_budget).
+            - If the attempt succeeds or fails validation normally, exc_error_str is None.
+            - If a recoverable exception fires, validation_result is None and
+              exc_error_str carries the error message.
+            - A non-recoverable exception propagates immediately (budget is not
+              consumed).
+            """
+            try:
+                val = await self._attempt(
+                    step, deps, current_prompt, ticker, results, structured_results
+                )
+                return val, None, budget
+            except BaseException as exc:
+                if not _is_recoverable_exception(exc):
+                    raise
+                return None, str(exc), budget
+
+        # ── first attempt ──────────────────────────────────────────────────────
+        validation, exc_err, _ = await _attempt_with_exc_retry(prompt, self.max_retries)
+
+        # Fast path: first attempt succeeded with valid output.
+        if validation is not None and validation.passed:
             return None
 
+        # ── unified retry loop ─────────────────────────────────────────────────
         for attempt in range(self.max_retries):
+            # Determine the error label and the prompt to use on the next attempt.
+            if exc_err is not None:
+                error_label = exc_err
+                retry_prompt = prompt  # re-run with original prompt on exc retry
+            else:
+                assert validation is not None  # invariant: one of the two is set
+                error_label = validation.error or ""
+                retry_prompt = (
+                    f"Previous output failed validation: {validation.error}\n"
+                    f"Fix the issues and try again.\n\n{results.get(step.name, '')}"
+                )
+
             logger.warning(
-                f"Step '{step.name}' retry {attempt + 1}/{self.max_retries}: {validation.error}"
+                "Step '%s' retry %d/%d: %s",
+                step.name,
+                attempt + 1,
+                self.max_retries,
+                error_label,
             )
             if progress is not None:
-                await progress.on_step_retry(
-                    step_index, step.name, attempt + 1, validation.error or ""
-                )
-            retry_prompt = (
-                f"Previous output failed validation: {validation.error}\n"
-                f"Fix the issues and try again.\n\n{results[step.name]}"
+                await progress.on_step_retry(step_index, step.name, attempt + 1, error_label)
+
+            # Back-off only for executor exceptions (not for validation failures,
+            # which benefit from an immediate re-prompt rather than sleeping).
+            if exc_err is not None and attempt < len(_RETRY_DELAYS):
+                await asyncio.sleep(_RETRY_DELAYS[attempt])
+
+            validation, exc_err, _ = await _attempt_with_exc_retry(
+                retry_prompt, self.max_retries - attempt - 1
             )
-            validation = await self._attempt(
-                step, deps, retry_prompt, ticker, results, structured_results
-            )
-            if validation.passed:
+
+            if validation is not None and validation.passed:
                 return None
 
+        # ── all retries exhausted ──────────────────────────────────────────────
+        if exc_err is not None:
+            final_error = f"executor error after {self.max_retries} retries: {exc_err}"
+            logger.warning(
+                "Pipeline step '%s' executor failed after %d retries: %s. "
+                "Continuing with best-effort output.",
+                step.name,
+                self.max_retries,
+                exc_err,
+            )
+            return final_error
+
+        assert validation is not None
         logger.warning(
-            f"Pipeline step '{step.name}' failed validation after "
-            f"{self.max_retries} retries: {validation.error}. "
-            f"Continuing with best-effort output."
+            "Pipeline step '%s' failed validation after %d retries: %s. "
+            "Continuing with best-effort output.",
+            step.name,
+            self.max_retries,
+            validation.error,
         )
         return validation.error
 

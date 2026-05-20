@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { useAppStore } from '../stores/appStore'
 import { useTickerFinancials, useTickerPrice } from '../hooks/useTickerData'
 import PriceChart from '../components/charts/PriceChart'
@@ -142,7 +142,15 @@ function ScoreBar({ value, color }: { value: number; color: string }) {
   )
 }
 
-function CompositeScoreCard({ score, ticker }: { score: ScoreResult; ticker: string | null }) {
+function CompositeScoreCard({
+  score,
+  ticker,
+  precision,
+}: {
+  score: ScoreResult
+  ticker: string | null
+  precision: 'rough' | 'dcf-refined'
+}) {
   const sendChatPrompt = useUiStore((s) => s.sendChatPrompt)
 
   const subScores = [
@@ -182,9 +190,34 @@ function CompositeScoreCard({ score, ticker }: { score: ScoreResult; ticker: str
               letterSpacing: '0.08em',
               fontFamily: 'var(--font-mono)',
               marginBottom: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
             }}
           >
             综合评分
+            <span
+              title={
+                precision === 'dcf-refined'
+                  ? '已结合 DCF 估值偏离精化评分'
+                  : '基于 P/E + 催化剂 + 基本面的粗版评分。跑一次 DCF 可精化'
+              }
+              style={{
+                fontFamily: 'var(--font-ui)',
+                fontSize: 9,
+                fontWeight: 600,
+                padding: '1px 6px',
+                borderRadius: 3,
+                background:
+                  precision === 'dcf-refined' ? 'rgba(34,197,94,0.16)' : 'var(--bg-3, var(--surface))',
+                color:
+                  precision === 'dcf-refined' ? 'var(--positive)' : 'var(--text-secondary)',
+                textTransform: 'none',
+                letterSpacing: 0,
+              }}
+            >
+              {precision === 'dcf-refined' ? 'DCF 精化版' : '粗版'}
+            </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
             <span
@@ -390,19 +423,35 @@ function SniperCard({ sniper }: { sniper: SniperResult }) {
         ))}
       </div>
 
-      {/* Support / Resistance */}
-      <div style={{ display: 'flex', gap: '16px', marginTop: '10px' }}>
-        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-          Support:{' '}
+      {/* 支撑 / 压力位 — 标注来源避免散户误以为是技术分析师画的 */}
+      <div style={{ display: 'flex', gap: '16px', marginTop: '10px', alignItems: 'center' }}>
+        <span
+          style={{ fontSize: '11px', color: 'var(--text-muted)' }}
+          title="基于近 252 个交易日收盘价的统计分位数（25%/75%）"
+        >
+          支撑位:{' '}
           <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--positive)' }}>
             {fmtPrice(sniper.support_level)}
           </span>
         </span>
-        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-          Resistance:{' '}
+        <span
+          style={{ fontSize: '11px', color: 'var(--text-muted)' }}
+          title="基于近 252 个交易日收盘价的统计分位数（25%/75%）"
+        >
+          压力位:{' '}
           <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--negative)' }}>
             {fmtPrice(sniper.resistance_level)}
           </span>
+        </span>
+        <span
+          style={{
+            fontSize: '9px',
+            color: 'var(--text-muted)',
+            fontStyle: 'italic',
+            marginLeft: 'auto',
+          }}
+        >
+          来源：近 1 年价格统计
         </span>
       </div>
     </div>
@@ -507,51 +556,43 @@ function CardSkeleton({ height = 160 }: { height?: number }) {
   )
 }
 
-// ── "Run DCF First" prompt ─────────────────────────────────────────────────────
+// ── Sniper locked hint (when DCF hasn't been run yet) ─────────────────────────
 
-function RunDcfPrompt() {
+function SniperLockedHint() {
   return (
     <div
       style={{
         background: 'var(--bg-2, var(--elevated))',
         border: '1px dashed var(--border)',
         borderRadius: 'var(--r-sm, 6px)',
-        padding: '20px',
+        padding: '12px 14px',
         marginBottom: '12px',
-        textAlign: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
         color: 'var(--text-muted)',
-        fontSize: '13px',
+        fontSize: '12px',
       }}
     >
-      <div style={{ fontSize: '18px', marginBottom: '6px' }}>◎</div>
-      <div>请先运行 <strong style={{ color: 'var(--accent, #f59e0b)', fontFamily: 'var(--font-mono)' }}>DCF 估值</strong> 以解锁综合评分与作战计划</div>
-      <div style={{ fontSize: '11px', marginTop: '4px', fontStyle: 'italic' }}>
-        点击上方工具栏的 DCF 按钮
+      <div>
+        <strong style={{ color: 'var(--text-secondary)' }}>作战计划</strong>{' '}
+        <span style={{ color: 'var(--text-muted)' }}>
+          — 跑一次 DCF 解锁理想买入 / 止损 / 止盈价位
+        </span>
       </div>
+      <span
+        style={{
+          fontSize: '10px',
+          color: 'var(--text-muted)',
+          fontFamily: 'var(--font-mono)',
+          fontStyle: 'italic',
+        }}
+      >
+        上方工具栏 → 跑 DCF
+      </span>
     </div>
   )
-}
-
-// ── Price history fetcher for sniper endpoint ──────────────────────────────────
-
-interface PriceHistoryItem {
-  date: string
-  close: number
-  [key: string]: string | number | boolean | null
-}
-
-function usePriceHistory(ticker: string) {
-  return useQuery({
-    queryKey: ['price-history', ticker],
-    queryFn: async () => {
-      const resp = await fetch(`${BASE_URL}/api/data/${ticker}/price`)
-      if (!resp.ok) throw new Error('获取历史价格失败')
-      const data = await resp.json() as { history?: PriceHistoryItem[] }
-      return data.history ?? []
-    },
-    enabled: !!ticker,
-    staleTime: 5 * 60_000,
-  })
 }
 
 // ── Main OverviewTab ───────────────────────────────────────────────────────────
@@ -567,13 +608,14 @@ export default function OverviewTab() {
   const [chartMode, setChartMode] = useState<ChartMode>('simple')
   const [activeAnalysisType, setActiveAnalysisType] = useState<AnalysisType | null>(null)
 
-  // Fetch catalysts when ticker changes
-  useCatalysts()
+  // Fetch catalysts when ticker changes. We pull isError/error here so the
+  // panel can distinguish "no catalysts" from "LLM/backend failed".
+  const { isError: catalystsError, error: catalystsErrorObj } = useCatalysts()
 
-  // Fetch price + financials for KPI cards
+  // Fetch price + financials for KPI cards. `priceData.history` carries the
+  // 1-year daily closes — reused by the sniper mutation below (no separate fetch).
   const { data: priceData } = useTickerPrice(ticker ?? '')
   const { data: financials, isLoading: finLoading } = useTickerFinancials(ticker ?? '')
-  const { data: priceHistory } = usePriceHistory(ticker ?? '')
 
   // ── Composite Score mutation ──────────────────────────────────────────────────
   const scoreMutation = useMutation<ScoreResult, Error, void>({
@@ -619,7 +661,7 @@ export default function OverviewTab() {
   // ── Sniper mutation ───────────────────────────────────────────────────────────
   const sniperMutation = useMutation<SniperResult, Error, void>({
     mutationFn: async () => {
-      const closePrices = (priceHistory ?? []).map((h) => h.close).filter(Boolean)
+      const closePrices = (priceData?.history ?? []).map((p) => p.close).filter(Boolean)
 
       const body: Record<string, unknown> = {
         ticker,
@@ -638,12 +680,20 @@ export default function OverviewTab() {
     },
   })
 
-  // Trigger score + sniper when dcfResult + priceData are available
+  // Score: triggers as soon as ticker + financials/price are available.
+  // DCF is OPTIONAL — when missing, score uses P/E + catalysts + fundamentals
+  // and is labeled "粗版"; once DCF lands, re-run for "DCF 精化版".
+  useEffect(() => {
+    if (!ticker || !priceData || !financials) return
+    scoreMutation.mutate()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticker, dcfResult?.implied_price, priceData?.current_price, financials])
+
+  // Sniper: still requires DCF target to make sense (ideal_buy / stop_loss
+  // anchor off DCF). Hint card shown when DCF hasn't run.
   useEffect(() => {
     if (!dcfResult || !priceData || !ticker) return
-    scoreMutation.mutate()
     sniperMutation.mutate()
-  // Only re-trigger when the core inputs change (not on every render)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticker, dcfResult?.implied_price, priceData?.current_price])
 
@@ -692,33 +742,36 @@ export default function OverviewTab() {
   return (
     <div className="tab-content overview-tab">
 
-      {/* ── Composite Score + Sniper (require DCF) ── */}
+      {/* ── Composite Score (always shown; DCF optional refinement) ── */}
+      {scoreMutation.isPending && <CardSkeleton height={200} />}
+      {scoreMutation.isSuccess && scoreMutation.data && (
+        <CompositeScoreCard
+          score={scoreMutation.data}
+          ticker={ticker ?? null}
+          precision={hasDcf ? 'dcf-refined' : 'rough'}
+        />
+      )}
+      {scoreMutation.isError && (
+        <div
+          style={{
+            padding: '10px 14px',
+            marginBottom: '12px',
+            borderRadius: '6px',
+            background: 'var(--negative-bg)',
+            color: 'var(--negative)',
+            fontSize: '12px',
+            border: '1px solid var(--negative)',
+          }}
+        >
+          评分服务暂不可用：{scoreMutation.error.message}
+        </div>
+      )}
+
+      {/* ── Sniper Points (requires DCF) ── */}
       {!hasDcf ? (
-        <RunDcfPrompt />
+        <SniperLockedHint />
       ) : (
         <>
-          {/* Composite Score */}
-          {scoreMutation.isPending && <CardSkeleton height={200} />}
-          {scoreMutation.isSuccess && scoreMutation.data && (
-            <CompositeScoreCard score={scoreMutation.data} ticker={ticker ?? null} />
-          )}
-          {scoreMutation.isError && (
-            <div
-              style={{
-                padding: '10px 14px',
-                marginBottom: '12px',
-                borderRadius: '6px',
-                background: 'var(--negative-bg)',
-                color: 'var(--negative)',
-                fontSize: '12px',
-                border: '1px solid var(--negative)',
-              }}
-            >
-              Score unavailable: {scoreMutation.error.message}
-            </div>
-          )}
-
-          {/* Sniper Points */}
           {sniperMutation.isPending && <CardSkeleton height={160} />}
           {sniperMutation.isSuccess && sniperMutation.data && (
             <SniperCard sniper={sniperMutation.data} />
@@ -735,7 +788,7 @@ export default function OverviewTab() {
                 border: '1px solid var(--negative)',
               }}
             >
-              Sniper points unavailable: {sniperMutation.error.message}
+              作战计划暂不可用：{sniperMutation.error.message}
             </div>
           )}
         </>
@@ -836,6 +889,8 @@ export default function OverviewTab() {
         <CatalystPanel
           catalysts={catalysts ?? []}
           loading={catalystsLoading}
+          isError={catalystsError}
+          errorMessage={catalystsErrorObj instanceof Error ? catalystsErrorObj.message : undefined}
         />
       )}
 

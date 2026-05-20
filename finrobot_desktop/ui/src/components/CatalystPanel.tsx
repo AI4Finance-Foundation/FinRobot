@@ -3,6 +3,11 @@ import type { CatalystEvent, CatalystCategory } from '../stores/appStore'
 interface Props {
   catalysts: CatalystEvent[]
   loading?: boolean
+  /** True when the catalysts query failed (backend 5xx / network). Distinct from
+   *  "no catalysts found" — drives a red error card with retry hint. */
+  isError?: boolean
+  /** Human-readable failure message from the failed query. */
+  errorMessage?: string
 }
 
 const CATEGORY_STYLES: Record<CatalystCategory, { color: string; bg: string; label: string }> = {
@@ -72,7 +77,7 @@ function CatalystCard({ event }: { event: CatalystEvent }) {
   )
 }
 
-export default function CatalystPanel({ catalysts, loading }: Props) {
+export default function CatalystPanel({ catalysts, loading, isError, errorMessage }: Props) {
   if (loading) {
     return (
       <div className="card animate-in">
@@ -81,6 +86,43 @@ export default function CatalystPanel({ catalysts, loading }: Props) {
         </div>
         <div className="card-body" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
           Loading catalysts...
+        </div>
+      </div>
+    )
+  }
+
+  // Backend / LLM failure — make it visible instead of pretending "no catalysts".
+  if (isError) {
+    return (
+      <div className="card animate-in" role="alert">
+        <div className="card-header">
+          <span className="card-title">Catalysts</span>
+          <div className="card-header-right">
+            <span
+              className="card-badge"
+              style={{ background: 'var(--negative-bg)', color: 'var(--negative)' }}
+            >
+              load failed
+            </span>
+          </div>
+        </div>
+        <div
+          className="card-body"
+          style={{
+            textAlign: 'center',
+            color: 'var(--negative)',
+            fontSize: '0.87rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+          }}
+        >
+          <div>催化剂服务暂不可用</div>
+          {errorMessage && (
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}>
+              {errorMessage}
+            </div>
+          )}
         </div>
       </div>
     )

@@ -207,8 +207,13 @@ class TestClassifyNews:
         assert result[0].importance == 4
 
     @pytest.mark.asyncio
-    async def test_classify_news_llm_failure_returns_empty(self):
-        """When LLM agent raises, classify_news returns empty list (graceful degradation)."""
+    async def test_classify_news_llm_failure_raises(self):
+        """When LLM agent raises, classify_news propagates a RuntimeError.
+
+        We deliberately surface failure instead of silently returning []
+        so that downstream callers can distinguish a real LLM outage from
+        the legitimate "no catalysts" case.
+        """
         from pydantic_ai.exceptions import AgentRunError
 
         raw_items = [
@@ -228,6 +233,5 @@ class TestClassifyNews:
             mock_agent_instance.run.side_effect = AgentRunError("LLM failed")
             MockAgent.return_value = mock_agent_instance
 
-            result = await classify_news(raw_items, mock_deps)
-
-        assert result == []
+            with pytest.raises(RuntimeError, match="News classification failed"):
+                await classify_news(raw_items, mock_deps)

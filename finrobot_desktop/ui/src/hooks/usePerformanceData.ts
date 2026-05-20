@@ -10,11 +10,14 @@ export function usePerformanceData(peerTickers: string[]) {
 
   const allTickers = ticker ? [ticker, ...peerTickers].join(',') : ''
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['performance', allTickers],
     queryFn: async () => {
       const resp = await fetch(`${BASE_URL}/api/data/performance?tickers=${allTickers}&benchmark=SPY&period=1y`)
-      if (!resp.ok) return null
+      if (!resp.ok) {
+        const detail = await resp.text().catch(() => '')
+        throw new Error(`performance ${resp.status}: ${detail || resp.statusText}`)
+      }
       return resp.json()
     },
     enabled: !!ticker,
@@ -23,5 +26,5 @@ export function usePerformanceData(peerTickers: string[]) {
   useEffect(() => { setPerformanceLoading(isLoading) }, [isLoading, setPerformanceLoading])
   useEffect(() => { if (data) setPerformanceData(data) }, [data, setPerformanceData])
 
-  return { data, isLoading }
+  return { data, isLoading, isError, error }
 }

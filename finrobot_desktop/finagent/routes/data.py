@@ -19,6 +19,7 @@ from finagent.engine.compute.historical_extractor import extract_historical_from
 from finagent.engine.analysis.news_classifier import classify_news
 from finagent.engine.compute.news import fetch_news
 from finagent.engine.compute.sentiment import score_headline
+from finagent.engine.data.cache import cached_fetch
 from finagent.engine.data.interface import ProviderError
 from finagent.engine.data.types import DataType
 from finagent.engine.models.earnings_call import EarningsCallList, EarningsCallTranscript
@@ -115,7 +116,23 @@ async def get_catalysts(
     if not raw_news:
         return []
 
-    classified = await classify_news(raw_news, deps)
+    # LLM classification failure must surface as a real 5xx — silently
+    # returning [] makes a backend outage indistinguishable from "no
+    # catalysts found", which is the failure mode this endpoint exists to
+    # avoid.
+    try:
+        classified = await classify_news(raw_news, deps)
+    except RuntimeError as e:
+        logger.error("Catalyst classification failed for %s: %s", ticker, e)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "catalyst_classification_failed",
+                "message": str(e),
+                "ticker": ticker.upper(),
+            },
+        ) from e
+
     catalysts = extract_catalysts_from_news(classified, min_importance=min_importance)
     catalysts = compute_expected_impact(catalysts)
     catalysts = rank_catalysts(catalysts)
@@ -190,33 +207,67 @@ async def get_financials(ticker: str, request: Request) -> FinancialData:
 
 
 @router.get("/{ticker}/price")
-async def get_price(ticker: str, period: str = "1y") -> dict[str, Any]:
-    """Price data with configurable time period."""
+async def get_price(ticker: str, request: Request, period: str = "1y") -> dict[str, Any]:
+    """Price data with configurable time period.
+
+    Cached for 15 minutes (TTL set in cache._TTL_SECONDS[DataType.PRICE]).
+    The cache key includes ``period`` so /price?period=1y and /price?period=5d
+    don't collide.
+    """
+    cache = request.app.state.deps.data_layer.cache
+    ticker_upper = ticker.upper()
     try:
-        result = await fetch_price_history(ticker.upper(), period)
+        return await cached_fetch(
+            cache,
+            DataType.PRICE,
+            ticker_upper,
+            lambda: fetch_price_history(ticker_upper, period),
+            cache_key_suffix=f":{period}",
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    return result
 
 
 @router.get("/{ticker}/historical", response_model=HistoricalMetrics)
-async def get_historical(ticker: str) -> HistoricalMetrics:
-    """Multi-year historical financial metrics including cash flows."""
+async def get_historical(ticker: str, request: Request) -> HistoricalMetrics:
+    """Multi-year historical financial metrics including cash flows.
+
+    Cached for 24h — annual financials only refresh after each 10-K filing.
+    """
+    cache = request.app.state.deps.data_layer.cache
+    ticker_upper = ticker.upper()
+
+    async def _fetch_as_dict() -> dict[str, Any]:
+        metrics = await extract_historical_from_yfinance(ticker_upper)
+        return metrics.model_dump(mode="json")
+
     try:
-        metrics = await extract_historical_from_yfinance(ticker.upper())
+        payload = await cached_fetch(
+            cache, DataType.HISTORICAL, ticker_upper, _fetch_as_dict
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    return metrics
+
+    return HistoricalMetrics.model_validate(payload)
 
 
 @router.get("/{ticker}/quarterly")
-async def get_quarterly(ticker: str) -> dict[str, Any]:
-    """Quarterly income statement + cash flow data."""
+async def get_quarterly(ticker: str, request: Request) -> dict[str, Any]:
+    """Quarterly income statement + cash flow data.
+
+    Cached for 24h — quarterly reports come out once per quarter.
+    """
+    cache = request.app.state.deps.data_layer.cache
+    ticker_upper = ticker.upper()
     try:
-        result = await fetch_quarterly_data(ticker.upper())
+        return await cached_fetch(
+            cache,
+            DataType.QUARTERLY,
+            ticker_upper,
+            lambda: fetch_quarterly_data(ticker_upper),
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    return result
 
 
 @router.get("/{ticker}/earnings-calls", response_model=EarningsCallList)

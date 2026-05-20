@@ -32,13 +32,15 @@ import { useQueryClient, useMutation } from '@tanstack/react-query'
 
 // Stores
 import { useAppStore } from '../stores/appStore'
-import { useStocksStore, isValidTicker, type StocksTab, type ToolName } from '../stores/stocksStore'
+import { useStocksStore, isValidTicker, type StocksTab } from '../stores/stocksStore'
 import { useI18n } from '../i18n'
 import { useUiStore } from '../stores/uiStore'
 
 // Hooks
 import { useTickerPrice } from '../hooks/useTickerData'
-import { useRunStream } from '../hooks/useRunStream'
+import { useHistoricalData, useQuarterlyData } from '../hooks/useHistoricalData'
+import { useRunStreamStore, selectRunByTicker } from '../stores/runStreamStore'
+import { useToastStore } from '../stores/toastStore'
 
 // Components
 import { ErrorBoundary } from '../components/ErrorBoundary'
@@ -778,82 +780,103 @@ export function StocksPage() {
   const warnings = appStore.warnings
   const setAiPanelOpen = useUiStore((s) => s.setAiPanelOpen)
 
-  // ── Full analysis pipeline state ──
-  const runStream = useRunStream()
-  const [fullAnalysisActive, setFullAnalysisActive] = useState(false)
-  const [fullAnalysisRunId, setFullAnalysisRunId] = useState<string | null>(null)
+  // ── Prefetch heavy tab data the moment the user lands on a ticker, so
+  //    switching to 财务 / 估值 doesn't trigger a 2-3 second wait. Cached via
+  //    react-query — these hooks return data into appStore but we don't use
+  //    the return value here.
+  useHistoricalData()
+  useQuarterlyData()
 
-  const isFullAnalysisRunning = fullAnalysisActive && (runStream.status === 'running' || runStream.status === 'idle')
+  // ── Full analysis pipeline state — lives in runStreamStore so the run survives
+  //    route changes (sidebar nav, etc.). Per-ticker keyed so multiple tickers
+  //    can run in parallel.
+  const runState = useRunStreamStore(selectRunByTicker(ticker))
+  const startStoreRun = useRunStreamStore((s) => s.startRun)
+  const dismissStoreRun = useRunStreamStore((s) => s.dismiss)
+
+  const isFullAnalysisRunning = runState?.status === 'running'
+  const showAnalysisOverlay = Boolean(runState && !runState.dismissed)
+  // Timestamp shown on the rerun button — only meaningful once a run finished
+  const lastRunAt =
+    runState && runState.status === 'completed'
+      ? runState.startedAt
+      : null
 
   const handleFullAnalysis = useCallback(async () => {
     if (!ticker) return
-    setFullAnalysisActive(true)
     try {
-      const id = await runStream.startRun('research', ticker)
-      setFullAnalysisRunId(id)
+      await startStoreRun('research', ticker)
     } catch {
-      setFullAnalysisActive(false)
+      // startRun already left no run in the store on failure — nothing to undo
     }
-  }, [ticker, runStream])
+  }, [ticker, startStoreRun])
 
-  // When full analysis completes, fetch result and store it
-  useEffect(() => {
-    if (!fullAnalysisActive) return
-    if (runStream.status === 'completed' && fullAnalysisRunId) {
-      // Result will be fetched when user clicks "view report" or auto-fetch
-      // For now, just keep the overlay showing the completion state
-    }
-    if (runStream.status === 'failed') {
-      // Keep overlay to show error; user can dismiss
-    }
-  }, [runStream.status, fullAnalysisActive, fullAnalysisRunId])
+  const addToast = useToastStore((s) => s.addToast)
 
   const handleViewReport = useCallback(async () => {
-    // Fetch the run result and store it in appStore
-    if (fullAnalysisRunId) {
+    const runId = runState?.runId
+    if (runId) {
       try {
-        const resp = await fetch(`${BASE_URL}/api/runs/${fullAnalysisRunId}`)
-        if (resp.ok) {
-          const detail = await resp.json()
-          const structured = detail.result?.structured
-          if (structured) {
-            // Extract research thesis
-            if (structured.thesis) {
-              appStore.setResearchResult(structured.thesis)
-            }
-            // Extract DCF
-            const dcfCalc = structured.financial_modeling
-            if (dcfCalc) {
-              appStore.setDcfResult(dcfCalc, 'research')
-            }
+        const resp = await fetch(`${BASE_URL}/api/runs/${runId}`)
+        if (!resp.ok) {
+          const detail = await resp.text().catch(() => '')
+          throw new Error(`HTTP ${resp.status}: ${detail || resp.statusText}`)
+        }
+        const detail = await resp.json()
+        const structured = detail.result?.structured
+        if (structured) {
+          if (structured.thesis) {
+            appStore.setResearchResult(structured.thesis)
+          }
+          const dcfCalc = structured.financial_modeling
+          if (dcfCalc) {
+            appStore.setDcfResult(dcfCalc, 'research')
+          }
+          // peer_analysis is PeerComps shape — identical to CompsResult.
+          // Without this, PeersTab keeps showing the empty CTA even after
+          // a successful research run already produced peer multiples.
+          if (structured.peer_analysis) {
+            appStore.setCompsResult(structured.peer_analysis)
           }
         }
-      } catch {
-        // silently ignore fetch errors
+      } catch (err) {
+        // Surface failure to the user instead of silently swallowing — and keep the
+        // overlay open so they can retry the report fetch without re-running the
+        // whole pipeline.
+        addToast({
+          type: 'error',
+          title: '报告加载失败',
+          description: err instanceof Error ? err.message : String(err),
+        })
+        return
       }
     }
-    setFullAnalysisActive(false)
+    dismissStoreRun(ticker)
     setActiveTab('overview')
-  }, [fullAnalysisRunId, appStore, setActiveTab])
+  }, [runState?.runId, ticker, appStore, setActiveTab, dismissStoreRun, addToast])
 
   // AbortController ref — cancelled on ticker change
   const abortRef = useRef<AbortController | null>(null)
 
-  // Sync URL ticker → stores
+  // Sync URL ticker → stores. Validity check here is load-bearing: top-level
+  // hooks (useHistoricalData/useQuarterlyData) gate their fetches on
+  // appStore.ticker truthiness, so writing an invalid ticker would fire
+  // /api/data/@@@/historical before the render guard below ever gets a chance
+  // to reject it. Also covers valid→invalid transitions so stale state from
+  // the previous ticker doesn't leak.
   useEffect(() => {
-    // Cancel previous ticker's in-flight requests
     if (abortRef.current) {
       abortRef.current.abort()
     }
     abortRef.current = new AbortController()
 
-    if (ticker) {
+    if (ticker && isValidTicker(ticker)) {
       setCurrentTicker(ticker)
-      // Also sync to the legacy appStore so existing chart hooks keep working
       appStore.setTicker(ticker)
       appStore.setPhase('data_ready')
     } else {
       setCurrentTicker('')
+      appStore.setTicker('')
     }
 
     return () => {
@@ -1008,21 +1031,7 @@ export function StocksPage() {
             onAskAi={() => setAiPanelOpen(true)}
             onFullAnalysis={handleFullAnalysis}
             fullAnalysisRunning={isFullAnalysisRunning}
-            onToolComplete={(tool: ToolName) => {
-              // Switch to relevant tab after tool completes
-              const tabMap: Record<ToolName, StocksTab> = {
-                research:   'overview',
-                dcf:        'valuation',
-                lbo:        'valuation',
-                comps:      'comps',
-                catalysts:  'news',
-                'ic-memo':  'history',
-                ddm:        'valuation',
-                earnings:   'financials',
-                'ask-ai':   activeTab,
-              }
-              setActiveTab(tabMap[tool])
-            }}
+            lastRunAt={lastRunAt}
           />
         </ErrorBoundary>
 
@@ -1034,7 +1043,7 @@ export function StocksPage() {
       </div>
 
       {/* ── Tab content / Analysis progress overlay ── */}
-      {fullAnalysisActive ? (
+      {showAnalysisOverlay && runState ? (
         <div
           style={{
             flex: 1,
@@ -1044,11 +1053,13 @@ export function StocksPage() {
         >
           <AnalysisProgress
             ticker={ticker}
-            steps={runStream.steps}
-            progress={runStream.progress}
-            status={runStream.status}
-            error={runStream.error}
+            steps={runState.steps}
+            progress={runState.progress}
+            status={runState.status}
+            error={runState.error}
             onViewReport={handleViewReport}
+            onRetry={handleFullAnalysis}
+            onDismiss={() => dismissStoreRun(ticker)}
           />
         </div>
       ) : (

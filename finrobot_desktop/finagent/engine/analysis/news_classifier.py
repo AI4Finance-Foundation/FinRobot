@@ -47,7 +47,14 @@ async def classify_news(
         deps: FinAgentDeps with settings for model configuration.
 
     Returns:
-        List of classified NewsItem. Empty list if input is empty or LLM fails.
+        List of classified NewsItem. Empty list only if ``raw_items`` is empty.
+
+    Raises:
+        RuntimeError: When the LLM classification call fails or returns
+            output that fails Pydantic validation. Callers must decide how
+            to surface this — previously this was silently swallowed which
+            made downstream "no catalysts" indistinguishable from a real
+            LLM outage.
     """
     if not raw_items:
         return []
@@ -77,4 +84,4 @@ async def classify_news(
         return list(result.output.items)
     except (AgentRunError, ValueError, TypeError) as e:
         logger.warning(f"News classification failed: {e}")
-        return []
+        raise RuntimeError(f"News classification failed: {e}") from e

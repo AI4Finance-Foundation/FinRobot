@@ -3,6 +3,7 @@ import type { EarningsResult } from '../stores/appStore'
 import { useAppStore } from '../stores/appStore'
 import { fmtUsd, fmtEps } from '../utils/formatters'
 import EpsSurpriseChart from './charts/EpsSurpriseChart'
+import { TermTip } from './TermTip'
 
 interface Props {
   result: EarningsResult
@@ -26,9 +27,9 @@ function directionBg(dir: string): string {
 }
 
 function directionLabel(dir: string): string {
-  if (dir === 'beat') return 'BEAT'
-  if (dir === 'miss') return 'MISS'
-  return 'INLINE'
+  if (dir === 'beat') return '超预期'
+  if (dir === 'miss') return '不及预期'
+  return '持平'
 }
 
 export default function EarningsSummary({ result }: Props) {
@@ -39,22 +40,21 @@ export default function EarningsSummary({ result }: Props) {
 
   return (
     <>
-      {/* Hero — Earnings Quality Scorecard */}
+      {/* Hero — 财报质量记分卡 */}
       <div className="valuation-hero animate-in">
         <div className="hero-header hero-header--lg">
           <div>
-            <div className="valuation-label">Earnings Analysis</div>
+            <div className="valuation-label">财报分析</div>
             <div className="hero-ticker">{result.ticker}</div>
           </div>
           <div className="text-right">
-            <div className="valuation-label">Quarters Analyzed</div>
+            <div className="valuation-label">已分析季度数</div>
             <div className="hero-stat">{result.surprises.length}</div>
           </div>
         </div>
 
-        {/* Beat Rate — hero metric */}
+        {/* 超预期率 — 头部指标 */}
         <div className="metrics-row metrics-row--sm">
-          {/* Circular beat rate indicator */}
           <div style={{ position: 'relative', width: 72, height: 72, flexShrink: 0 }}>
             <svg width="72" height="72" viewBox="0 0 72 72">
               <circle
@@ -77,19 +77,19 @@ export default function EarningsSummary({ result }: Props) {
             <div className="circle-overlay">{Math.round(animatedBeatPct)}%</div>
           </div>
           <div>
-            <div className="beat-caption">EPS Beat Rate</div>
+            <div className="beat-caption"><TermTip term="Beat">EPS 超预期率</TermTip></div>
             <div className="beat-detail">
               {result.consecutive_beats > 0
-                ? `${result.consecutive_beats} consecutive beat${result.consecutive_beats > 1 ? 's' : ''} (current streak)`
-                : 'No active beat streak'}
+                ? `当前连续 ${result.consecutive_beats} 季超预期`
+                : '当前无连续超预期记录'}
             </div>
           </div>
         </div>
 
-        {/* Aggregate stats */}
+        {/* 汇总统计 */}
         <div className="valuation-metrics">
           <div>
-            <div className="metric-label">Avg EPS Surprise</div>
+            <div className="metric-label">EPS 平均超预期幅度</div>
             <div className="metric-value" style={{
               color: result.avg_eps_surprise_pct >= 0 ? 'var(--positive)' : 'var(--negative)',
             }}>
@@ -97,7 +97,7 @@ export default function EarningsSummary({ result }: Props) {
             </div>
           </div>
           <div>
-            <div className="metric-label">Avg Revenue Surprise</div>
+            <div className="metric-label">营收平均超预期幅度</div>
             <div className="metric-value" style={{
               color: result.avg_revenue_surprise_pct >= 0 ? 'var(--positive)' : 'var(--negative)',
             }}>
@@ -105,7 +105,7 @@ export default function EarningsSummary({ result }: Props) {
             </div>
           </div>
           <div>
-            <div className="metric-label">Consecutive Beats</div>
+            <div className="metric-label">连续超预期季数</div>
             <div className="metric-value">{result.consecutive_beats}</div>
           </div>
         </div>
@@ -121,7 +121,7 @@ export default function EarningsSummary({ result }: Props) {
             surprise_pct: s.eps_surprise_pct,
             direction: s.eps_direction,
           }))}
-          title="EPS: Actual vs Consensus"
+          title="EPS：实际 vs 一致预期"
         />
       )}
 
@@ -191,14 +191,14 @@ export default function EarningsSummary({ result }: Props) {
         </div>
       )}
 
-      {/* New Analysis button */}
+      {/* 新建分析按钮 */}
       <div className="export-bar animate-in">
         <div className="flex-1" />
         <button className="btn btn-primary" onClick={() => useAppStore.getState().reset()}>
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M7 1v12M1 7h12" />
           </svg>
-          New Analysis
+          新建分析
         </button>
       </div>
     </>

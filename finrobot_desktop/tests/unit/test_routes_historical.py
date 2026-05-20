@@ -6,17 +6,19 @@ Verifies:
 - Key fields (ticker, years, operating_cash_flow) are present in response
 """
 
+from __future__ import annotations
+
 import pytest
 from httpx import AsyncClient, ASGITransport
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 from finagent.engine.models.financial import HistoricalMetrics
 
 
 @pytest.mark.asyncio
-async def test_historical_endpoint_returns_metrics():
+async def test_historical_endpoint_returns_metrics(app_with_deps):
     """GET /api/data/{ticker}/historical returns HistoricalMetrics."""
-    from finagent.server import app
+    app = app_with_deps
 
     mock_metrics = HistoricalMetrics(
         years=[2022, 2023, 2024],
@@ -44,7 +46,7 @@ async def test_historical_endpoint_returns_metrics():
 
     with patch(
         "finagent.routes.data.extract_historical_from_yfinance",
-        return_value=mock_metrics,
+        new=AsyncMock(return_value=mock_metrics),
     ) as mock_fn:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:

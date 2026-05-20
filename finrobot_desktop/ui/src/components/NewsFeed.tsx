@@ -22,10 +22,10 @@ interface NewsFeedResponse {
 }
 
 function sentimentDot(score: number | null): { color: string; label: string } {
-  if (score == null) return { color: 'var(--text-muted)', label: 'N/A' }
-  if (score > 0.15) return { color: 'var(--positive)', label: 'Positive' }
-  if (score < -0.15) return { color: 'var(--negative)', label: 'Negative' }
-  return { color: 'var(--text-muted)', label: 'Neutral' }
+  if (score == null) return { color: 'var(--text-muted)', label: '未评级' }
+  if (score > 0.15) return { color: 'var(--positive)', label: '利好' }
+  if (score < -0.15) return { color: 'var(--negative)', label: '利空' }
+  return { color: 'var(--text-muted)', label: '中性' }
 }
 
 function formatPublished(isoStr: string): string {
@@ -59,15 +59,15 @@ export default function NewsFeed() {
   return (
     <div className="card news-feed">
       <div className="card-header">
-        <span className="card-title">News</span>
+        <span className="card-title">新闻</span>
         {data && items.length > 0 && (
           <span className="news-feed-meta">
             <span
               className="news-sentiment-dot"
               style={{ background: sentimentDot(overall).color }}
-              title={`Overall: ${sentimentDot(overall).label} (${overall.toFixed(2)})`}
+              title={`整体情绪：${sentimentDot(overall).label}（${overall.toFixed(2)}）`}
             />
-            <span className="news-feed-count">{items.length} articles</span>
+            <span className="news-feed-count">{items.length} 条</span>
           </span>
         )}
       </div>
@@ -83,10 +83,10 @@ export default function NewsFeed() {
           </div>
         )}
         {isError && (
-          <div className="news-feed-empty">News unavailable</div>
+          <div className="news-feed-empty">新闻暂不可用</div>
         )}
         {!isLoading && !isError && items.length === 0 && (
-          <div className="news-feed-empty">No recent news</div>
+          <div className="news-feed-empty">近期暂无新闻</div>
         )}
         {!isLoading && items.length > 0 && (
           <ul className="news-feed-list">
@@ -97,7 +97,7 @@ export default function NewsFeed() {
                   <span
                     className="news-sentiment-dot"
                     style={{ background: dot.color }}
-                    title={`${dot.label} (${item.sentiment_score?.toFixed(2) ?? 'N/A'})`}
+                    title={`${dot.label}（${item.sentiment_score?.toFixed(2) ?? '未评级'}）`}
                   />
                   <div className="news-feed-content">
                     <a

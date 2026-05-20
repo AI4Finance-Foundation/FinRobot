@@ -1,5 +1,7 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
+from typing import Any
 
 import aiosqlite
 from pydantic import BaseModel
@@ -33,6 +35,10 @@ _TTL_SECONDS: dict[str, int] = {
     DataType.FILINGS: 604800,  # 7 days (SEC filings don't change)
     DataType.RAG_10K: 604800,  # 7 days
     DataType.PROFILE: 86400,  # 24 hours
+    # Route-level cache for yfinance-only deep financial data. Update cadence
+    # is quarterly so a 24h freshness window is ample.
+    DataType.HISTORICAL: 86400,
+    DataType.QUARTERLY: 86400,
 }
 _DEFAULT_TTL_SECONDS: int = 3600  # 1 hour
 
@@ -146,3 +152,43 @@ class DataCache:
         if self._conn is not None:
             await self._conn.close()
             self._conn = None
+
+
+async def cached_fetch(
+    cache: DataCache,
+    data_type: DataType,
+    ticker: str,
+    fetcher: Callable[[], Awaitable[dict[str, Any]]],
+    cache_key_suffix: str = "",
+) -> dict[str, Any]:
+    """Generic cache wrapper for raw-dict endpoints not backed by a Provider.
+
+    Routes like /price, /historical, /quarterly call yfinance directly (no
+    provider chain), but still deserve the same SQLite cache as Provider-backed
+    types. This helper checks cache, calls the fetcher on miss, then writes
+    the result back wrapped in a DataResult envelope.
+
+    The ``cache_key_suffix`` lets callers vary the cache slot per parameter
+    combination (e.g. ``f":{period}"`` for /price where 1y vs 5d are different
+    payloads).
+
+    Returns the raw dict — callers don't need to unwrap DataResult.
+    """
+    cache_key = f"{ticker}{cache_key_suffix}"
+
+    cached = await cache.get(data_type, cache_key)
+    if cached is not None and not cached.is_stale:
+        return cached.data.data
+
+    data = await fetcher()
+
+    envelope = DataResult(
+        data=data,
+        provider="route-direct",
+        ticker=cache_key,
+        data_type=data_type,
+        timestamp=datetime.now(tz=timezone.utc),
+        warnings=list(data.get("warnings", [])) if isinstance(data, dict) else [],
+    )
+    await cache.set(data_type, cache_key, envelope)
+    return data

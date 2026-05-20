@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useAppStore } from '../stores/appStore'
 import type { DCFInputs } from '../stores/appStore'
-import { useHistoricalData } from '../hooks/useHistoricalData'
 import { useRunTool } from '../hooks/useRunTool'
 import { useStocksStore } from '../stores/stocksStore'
+import { useTickerFinancials } from '../hooks/useTickerData'
 import { useI18n } from '../i18n'
 import { useDcfCompute } from '../hooks/useCompute'
 import AssumptionsEditor from '../components/AssumptionsEditor'
@@ -204,9 +204,45 @@ function ScenarioEditor({ baseInputs }: ScenarioEditorProps) {
   )
 }
 
-export default function ValuationTab() {
-  useHistoricalData() // ensure historical data is loaded for EpsPe
+// Industries treated as banks for DDM eligibility. Keep in sync with the
+// server-side check in useRunTool.ts (also enforced backend-side as a safety net).
+const BANK_INDUSTRIES = [
+  'Banks—Diversified', 'Banks—Regional', 'Banks - Diversified',
+  'Banks - Regional', 'Savings & Cooperative Banks',
+]
+const FINANCIAL_SECTORS = ['Financial Services', 'Financials']
+// LBO doesn't make sense for these sectors — already capital-structured
+// (banks/REITs) or speculative-cashflow (early-stage tech).
+const LBO_EXCLUDED_SECTORS = ['Financial Services', 'Financials', 'Real Estate']
 
+interface ProSuitability {
+  ddmFits: boolean
+  lboFits: boolean
+  reason: string
+}
+
+function deriveSuitability(financials: unknown): ProSuitability {
+  const fin = financials as Record<string, unknown> | undefined
+  const market = (fin?.market ?? {}) as Record<string, unknown>
+  const sector = (market.sector as string) ?? ''
+  const industry = (market.industry as string) ?? ''
+
+  const isBankSector = FINANCIAL_SECTORS.includes(sector) && industry.toLowerCase().includes('bank')
+  const isBankIndustry = BANK_INDUSTRIES.includes(industry)
+  const ddmFits = isBankSector || isBankIndustry
+
+  const lboFits = sector !== '' && !LBO_EXCLUDED_SECTORS.includes(sector)
+
+  return {
+    ddmFits,
+    lboFits,
+    reason: `${sector || '未知行业'}${industry ? ` · ${industry}` : ''}`,
+  }
+}
+
+export default function ValuationTab() {
+  // Historical data is prefetched by StocksPage (parent) the moment the ticker
+  // is loaded — by the time this tab mounts the appStore slot is already warm.
   const dcfResult = useAppStore((s) => s.dcfResult)
   const dcfInputs = useAppStore((s) => s.dcfInputs)
   const dcfSource = useAppStore((s) => s.dcfSource)
@@ -219,6 +255,9 @@ export default function ValuationTab() {
   const ticker = useStocksStore((s) => s.currentTicker)
   const { t } = useI18n()
   const { mutate, isPending } = useRunTool({ ticker })
+
+  const { data: financials } = useTickerFinancials(ticker ?? '')
+  const suitability = useMemo(() => deriveSuitability(financials), [financials])
 
   const showScenarioCompare =
     [scenarioResults.base, scenarioResults.bull, scenarioResults.bear].filter(Boolean).length >= 2
@@ -308,7 +347,64 @@ export default function ValuationTab() {
         )}
       </section>
 
-      {/* LBO Analysis */}
+      {/* Pro valuation tools — LBO / DDM, gated by sector suitability */}
+      {(suitability.lboFits || suitability.ddmFits) && (
+        <section className="chart-section">
+          <h3 className="section-title">专业估值工具</h3>
+          <p style={{
+            color: 'var(--text-muted)',
+            fontSize: '0.82rem',
+            margin: '0 0 12px 0',
+            fontStyle: 'italic',
+          }}>
+            根据当前股票特征（{suitability.reason}）筛选出可用的进阶模型
+          </p>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {suitability.lboFits && !lboResult && (
+              <button
+                onClick={() => mutate('lbo')}
+                disabled={isPending || !ticker}
+                title="模拟以杠杆收购方式持有 5 年的内部收益率（IRR）"
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '0.87rem',
+                  fontWeight: 500,
+                  background: isPending ? 'var(--border)' : 'var(--accent-dim)',
+                  color: 'var(--accent)',
+                  border: '1px solid var(--accent)',
+                  borderRadius: 4,
+                  cursor: isPending ? 'wait' : 'pointer',
+                  opacity: isPending ? 0.6 : 1,
+                }}
+              >
+                {isPending ? '...' : '跑 LBO 杠杆收购分析'}
+              </button>
+            )}
+            {suitability.ddmFits && (
+              <button
+                onClick={() => mutate('ddm')}
+                disabled={isPending || !ticker}
+                title="股息折现模型：用未来股息折现给股票定价（仅银行股适用）"
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '0.87rem',
+                  fontWeight: 500,
+                  background: isPending ? 'var(--border)' : 'var(--accent-dim)',
+                  color: 'var(--accent)',
+                  border: '1px solid var(--accent)',
+                  borderRadius: 4,
+                  cursor: isPending ? 'wait' : 'pointer',
+                  opacity: isPending ? 0.6 : 1,
+                }}
+              >
+                {isPending ? '...' : '跑 DDM 股息折现'}
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* LBO Analysis result */}
       {lboResult && (
         <section className="chart-section">
           <h3 className="section-title">{t('valuation.lbo.title')}</h3>

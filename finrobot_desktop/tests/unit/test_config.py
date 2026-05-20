@@ -111,12 +111,18 @@ class TestValidateRuntimeConfig:
         with pytest.raises(ValueError, match="FINAGENT_DEEPSEEK_API_KEY is not set"):
             s.validate_runtime_config()
 
-    def test_missing_fmp_api_key_raises_value_error(self, monkeypatch):
-        """FMP key is required — not optional."""
+    def test_missing_fmp_api_key_emits_warning(self, monkeypatch):
+        """FMP key is optional — emits warning, never raises (散户优先：yfinance fallback)."""
+        import warnings
+
         monkeypatch.delenv("FINAGENT_FMP_API_KEY", raising=False)
         s = FinAgentSettings(_env_file=None, model_name="test")
-        with pytest.raises(ValueError, match="FINAGENT_FMP_API_KEY is not set"):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
             s.validate_runtime_config()
+        fmp_warnings = [w for w in caught if "FINAGENT_FMP_API_KEY" in str(w.message)]
+        assert len(fmp_warnings) == 1
+        assert "yfinance" in str(fmp_warnings[0].message)
 
     def test_bad_per_role_override_also_caught(self):
         """Per-role overrides must be validated too, not just model_name."""

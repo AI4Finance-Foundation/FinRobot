@@ -243,7 +243,7 @@ const zh: Dict = {
   'verb.catalysts':            '找催化剂',
   'verb.ic-memo':              'IC Memo',
   'verb.ddm':                  '跑 DDM',
-  'verb.earnings':             'Earnings',
+  'verb.earnings':             '财报',
   'verb.ask-ai':               '问 AI',
   'verb.more':                 '更多',
   'verb.dcf.tooltip':          '使用默认假设和实时财务数据，计算 DCF 估值',
@@ -262,7 +262,7 @@ const zh: Dict = {
   'tab.valuation':             '估值',
   'tab.comps':                 '可比公司',
   'tab.history':               '历史',
-  'tab.research':              '10-K',
+  'tab.research':              '年报',
 
   'research.heading':          '10-K 问答',
   'research.placeholder':      '针对这家公司的 10-K 年报提问…',

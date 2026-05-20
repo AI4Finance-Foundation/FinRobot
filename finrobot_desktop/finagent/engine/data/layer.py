@@ -15,6 +15,16 @@ class DataLayer:
         self._providers = providers
         self._cache = cache
 
+    @property
+    def cache(self) -> DataCache:
+        """Public accessor for the shared SQLite cache.
+
+        Route handlers that bypass the provider chain (e.g. /price, /historical,
+        /quarterly — yfinance-only deep data) use this with ``cached_fetch``
+        to participate in the same caching layer as Provider-backed data.
+        """
+        return self._cache
+
     async def close(self) -> None:
         """Close the underlying cache connection.
 

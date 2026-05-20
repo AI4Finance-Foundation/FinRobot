@@ -1,43 +1,29 @@
 /**
- * VerbToolbar — action buttons for the Stocks page.
+ * VerbToolbar — minimal action bar for the Stocks page.
  *
- * Primary row: Full Analysis (hero), DCF, Comps, Earnings
- * More dropdown: LBO, DDM, IC Memo, Catalysts
- * Ask AI button on the right side
+ * After the 2026-05 simplification this bar only carries two buttons:
+ *   - 一键全面分析 (hero, primary action)
+ *   - 问 AI (right side)
+ *
+ * Per-tool actions (DCF / LBO / DDM / Comps / Earnings / IC Memo / Catalysts)
+ * moved into their respective tabs to remove the "verb input vs noun view"
+ * cognitive split — see /memory/feedback_product_direction.md.
  */
 
-import { useCallback, useState, useRef, useEffect } from 'react'
-import { useRunTool } from '../hooks/useRunTool'
-import { useStocksStore, type ToolName } from '../stores/stocksStore'
-import { useI18n } from '../i18n'
+import { useEffect, useState } from 'react'
 
-// ── Tool groups ──────────────────────────────────────────────────────────────
-
-interface ToolConfig {
-  name: ToolName
-  labelKey: string
-  tooltipKey: string
+interface VerbToolbarProps {
+  ticker: string
+  onAskAi?: () => void
+  onFullAnalysis?: () => void
+  fullAnalysisRunning?: boolean
+  /** Unix ms of last successful run completion. Drives the rerun-label timestamp. */
+  lastRunAt?: number | null
 }
-
-const PRIMARY_TOOLS: ToolConfig[] = [
-  { name: 'dcf',       labelKey: 'verb.dcf',       tooltipKey: 'verb.dcf.tooltip' },
-  { name: 'comps',     labelKey: 'verb.comps',     tooltipKey: 'verb.comps.tooltip' },
-  { name: 'earnings',  labelKey: 'verb.earnings',  tooltipKey: 'verb.earnings.tooltip' },
-]
-
-const MORE_TOOLS: ToolConfig[] = [
-  { name: 'lbo',       labelKey: 'verb.lbo',       tooltipKey: 'verb.lbo.tooltip' },
-  { name: 'ddm',       labelKey: 'verb.ddm',       tooltipKey: 'verb.ddm.tooltip' },
-  { name: 'ic-memo',   labelKey: 'verb.ic-memo',   tooltipKey: 'verb.ic-memo.tooltip' },
-  { name: 'catalysts', labelKey: 'verb.catalysts', tooltipKey: 'verb.catalysts.tooltip' },
-]
-
-// ── Spinner ──────────────────────────────────────────────────────────────────
 
 function Spinner() {
   return (
     <svg
-      className="verb-btn-spinner"
       width="12"
       height="12"
       viewBox="0 0 12 12"
@@ -50,128 +36,37 @@ function Spinner() {
   )
 }
 
-// ── Props ────────────────────────────────────────────────────────────────────
+/** Human-friendly "2 分钟前" — recomputed every 30s so the label doesn't stale. */
+function useRelativeTime(epochMs: number | null | undefined): string {
+  const [, force] = useState(0)
+  useEffect(() => {
+    if (!epochMs) return
+    const id = window.setInterval(() => force((n) => n + 1), 30_000)
+    return () => window.clearInterval(id)
+  }, [epochMs])
 
-interface VerbToolbarProps {
-  ticker: string
-  onAskAi?: () => void
-  onToolComplete?: (tool: ToolName) => void
-  onFullAnalysis?: () => void
-  fullAnalysisRunning?: boolean
+  if (!epochMs) return ''
+  const diffSec = Math.max(0, Math.floor((Date.now() - epochMs) / 1000))
+  if (diffSec < 60)        return `${diffSec} 秒前`
+  if (diffSec < 3600)      return `${Math.floor(diffSec / 60)} 分钟前`
+  if (diffSec < 86_400)    return `${Math.floor(diffSec / 3600)} 小时前`
+  return `${Math.floor(diffSec / 86_400)} 天前`
 }
-
-// ── Component ────────────────────────────────────────────────────────────────
 
 export default function VerbToolbar({
   ticker,
   onAskAi,
-  onToolComplete,
   onFullAnalysis,
   fullAnalysisRunning,
+  lastRunAt,
 }: VerbToolbarProps) {
-  const runningTools = useStocksStore((s) => s.runningTools)
-  const { t } = useI18n()
-  const [moreOpen, setMoreOpen] = useState(false)
-  const moreRef = useRef<HTMLDivElement>(null)
+  const rel = useRelativeTime(lastRunAt)
 
-  const { mutate, isPending } = useRunTool({
-    ticker,
-    onSuccess: onToolComplete,
-  })
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    if (!moreOpen) return
-    const handler = (e: MouseEvent) => {
-      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
-        setMoreOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [moreOpen])
-
-  const handleClick = useCallback(
-    (tool: ToolName) => {
-      if (tool === 'ask-ai') {
-        onAskAi?.()
-        return
-      }
-      if (runningTools.has(tool)) return
-      mutate(tool)
-      setMoreOpen(false)
-    },
-    [runningTools, mutate, onAskAi],
-  )
-
-  function renderBtn(tool: ToolConfig, variant: 'primary' | 'dropdown' = 'primary') {
-    const isRunning = runningTools.has(tool.name)
-    const isDisabled = isRunning || !ticker
-    const label = t(tool.labelKey)
-    const tooltip = t(tool.tooltipKey)
-
-    if (variant === 'dropdown') {
-      return (
-        <button
-          key={tool.name}
-          onClick={() => handleClick(tool.name)}
-          disabled={isDisabled}
-          title={tooltip}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            width: '100%',
-            padding: '8px 14px',
-            background: 'transparent',
-            border: 'none',
-            color: isRunning ? 'var(--accent)' : 'var(--text-primary)',
-            cursor: isDisabled ? 'not-allowed' : 'pointer',
-            opacity: isDisabled && !isRunning ? 0.45 : 1,
-            fontSize: '0.87rem',
-            textAlign: 'left',
-            transition: 'background 0.1s',
-          }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--elevated)' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-        >
-          {isRunning && <Spinner />}
-          {label}
-        </button>
-      )
-    }
-
-    return (
-      <button
-        key={tool.name}
-        className={`verb-btn${isRunning ? ' verb-btn--loading' : ''}`}
-        aria-label={`${label}: ${tooltip}`}
-        aria-busy={isRunning}
-        disabled={isDisabled}
-        onClick={() => handleClick(tool.name)}
-        title={tooltip}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 5,
-          padding: '6px 14px',
-          fontSize: '0.87rem',
-          fontWeight: 500,
-          borderRadius: 'var(--r-sm)',
-          border: '1px solid var(--border)',
-          background: isRunning ? 'var(--accent-dim)' : 'var(--base)',
-          color: isRunning ? 'var(--accent)' : 'var(--text-secondary)',
-          cursor: isDisabled ? 'not-allowed' : 'pointer',
-          opacity: isDisabled && !isRunning ? 0.45 : 1,
-          transition: 'background 0.15s, color 0.15s, border-color 0.15s',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {isRunning && <Spinner />}
-        {label}
-      </button>
-    )
-  }
+  const heroLabel = fullAnalysisRunning
+    ? '分析中...'
+    : lastRunAt
+      ? `⟳ 重新分析 · ${rel}`
+      : '⚡ 一键全面分析'
 
   return (
     <div
@@ -186,10 +81,10 @@ export default function VerbToolbar({
         flexWrap: 'wrap',
       }}
     >
-      {/* Hero: Full Analysis */}
       <button
         onClick={() => onFullAnalysis?.()}
         disabled={!ticker || fullAnalysisRunning}
+        title="跑 research + DCF + 同业 + 财报 四个分析（约 30-60 秒）"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -207,64 +102,13 @@ export default function VerbToolbar({
           whiteSpace: 'nowrap',
           letterSpacing: '0.02em',
         }}
-        title="一键运行完整研究流程：数据拉取、DCF、LBO、同业对比、催化剂、投资论点"
       >
         {fullAnalysisRunning && <Spinner />}
-        {fullAnalysisRunning ? '分析中...' : '一键全面分析'}
+        {heroLabel}
       </button>
 
-      {/* Primary tools */}
-      {PRIMARY_TOOLS.map((tool) => renderBtn(tool))}
-
-      {/* More dropdown */}
-      <div ref={moreRef} style={{ position: 'relative' }}>
-        <button
-          onClick={() => setMoreOpen((v) => !v)}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '6px 12px',
-            fontSize: '0.87rem',
-            fontWeight: 500,
-            borderRadius: 'var(--r-sm)',
-            border: '1px solid var(--border)',
-            background: moreOpen ? 'var(--elevated)' : 'var(--base)',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            transition: 'all 0.15s',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {t('verb.more') || 'More'}
-          <span style={{ fontSize: '0.7rem' }}>{moreOpen ? '▲' : '▼'}</span>
-        </button>
-
-        {moreOpen && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '100%',
-              left: 0,
-              marginTop: 4,
-              background: 'var(--base)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--r-md)',
-              boxShadow: 'var(--shadow-md)',
-              minWidth: 160,
-              overflow: 'hidden',
-              zIndex: 100,
-            }}
-          >
-            {MORE_TOOLS.map((tool) => renderBtn(tool, 'dropdown'))}
-          </div>
-        )}
-      </div>
-
-      {/* Spacer */}
       <div style={{ flex: 1 }} />
 
-      {/* Ask AI — separated to the right */}
       <button
         onClick={() => onAskAi?.()}
         disabled={!ticker}
@@ -284,9 +128,9 @@ export default function VerbToolbar({
           transition: 'background 0.15s',
           whiteSpace: 'nowrap',
         }}
-        title={t('verb.ask-ai.tooltip')}
+        title="向 FinAgent 提问关于这只股票的任何问题"
       >
-        {t('verb.ask-ai')}
+        问 AI
       </button>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

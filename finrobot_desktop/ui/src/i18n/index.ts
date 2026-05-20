@@ -17,11 +17,9 @@ interface UiPrefsState {
 }
 
 function defaultLocale(): Locale {
-  if (typeof navigator !== 'undefined') {
-    const lang = navigator.language?.toLowerCase() ?? 'en'
-    if (lang.startsWith('zh')) return 'zh'
-  }
-  return 'en'
+  // 产品定位：散户优先 — 默认中文。
+  // 英文用户可通过顶部语言切换器改回 en（持久化到 localStorage）。
+  return 'zh'
 }
 
 export const useUiPrefs = create<UiPrefsState>()(

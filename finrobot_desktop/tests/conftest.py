@@ -2,9 +2,39 @@
 
 import asyncio
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+
+from finagent.engine.data.cache import DataCache
+
+
+@pytest.fixture
+def app_with_deps(tmp_path):
+    """Yield the FastAPI app with a minimal ``state.deps`` set up.
+
+    Routes that touch ``request.app.state.deps.data_layer.cache`` (e.g.
+    /price, /historical, /quarterly after the 2026-05 cache wiring) blow up
+    when the lifespan handler is bypassed, which is the default in unit tests.
+    This fixture installs an isolated DataCache backed by a per-test SQLite
+    file under ``tmp_path`` so tests can exercise the cache wrapper end-to-end.
+    """
+    from finagent.server import app
+
+    cache = DataCache(str(tmp_path / "test_cache.db"))
+    saved_deps = getattr(app.state, "deps", None)
+    app.state.deps = SimpleNamespace(data_layer=SimpleNamespace(cache=cache))
+    try:
+        yield app
+    finally:
+        # Sync close — the test loop may already be tearing down; aiosqlite's
+        # async close would re-enter a closed loop and warn loudly. The OS
+        # cleans the per-test sqlite file with tmp_path anyway.
+        if saved_deps is None:
+            del app.state.deps
+        else:
+            app.state.deps = saved_deps
 
 
 @pytest.fixture

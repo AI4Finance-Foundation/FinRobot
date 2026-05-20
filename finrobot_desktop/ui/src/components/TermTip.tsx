@@ -63,6 +63,34 @@ const GLOSSARY: Record<string, { short: string; askPrompt: string }> = {
     short: '净资产收益率 = 净利润 / 股东权益。股东资本的"赚钱效率"',
     askPrompt: 'ROE（净资产收益率）多少算优秀？跟 ROA、ROIC 有什么区别？用一段中文给金融新手解释。',
   },
+  'Terminal Value': {
+    short: '终值：永续期之后所有现金流的现值，DCF 里通常占总价值 60-80%',
+    askPrompt: 'Terminal Value（终值）在 DCF 里是怎么算的？为什么它对结果影响这么大？用一段中文给金融新手解释。',
+  },
+  'PV of FCF': {
+    short: '预测期内自由现金流的现值之和（折现回今天）',
+    askPrompt: 'PV of FCF（自由现金流现值）是什么？为什么 DCF 要把未来的钱折回今天？用一段中文给金融新手解释。',
+  },
+  'Enterprise Value': {
+    short: '企业价值 = 股权 + 净债务。代表买下整个公司要付的钱',
+    askPrompt: 'Enterprise Value（企业价值）和市值有什么区别？为什么估值时常用 EV 而不是 Market Cap？用一段中文给金融新手解释。',
+  },
+  'Equity Value': {
+    short: '股权价值 = 企业价值 - 净债务。归股东的那部分',
+    askPrompt: 'Equity Value（股权价值）和 Enterprise Value 怎么换算？这两个值哪个对散户更有用？用一段中文给金融新手解释。',
+  },
+  'EV/EBITDA': {
+    short: '企业价值 / 经营盈利。看几年能用经营利润回本',
+    askPrompt: 'EV/EBITDA 这个估值倍数怎么用？多少算便宜？跟 P/E 有什么区别？用一段中文给金融新手解释。',
+  },
+  Beat: {
+    short: '超预期：实际 EPS 高于分析师一致预期',
+    askPrompt: '财报 Beat（超预期）一定意味着股价会涨吗？应该看哪些细节？用一段中文给金融新手解释。',
+  },
+  Miss: {
+    short: '不及预期：实际 EPS 低于分析师一致预期',
+    askPrompt: '财报 Miss（不及预期）后该追跌还是抄底？应该看哪些细节？用一段中文给金融新手解释。',
+  },
 }
 
 export function isKnownTerm(term: string): boolean {

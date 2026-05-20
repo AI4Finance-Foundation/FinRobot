@@ -16,25 +16,26 @@ def build_data_layer(settings: Any) -> DataLayer:
     """Build provider chain from runtime settings.
 
     Provider priority (highest first):
-      1. FMP (REQUIRED — financials, earnings, news, transcripts)
+      1. FMP (optional — financials, earnings, news, transcripts; appended only when key set)
       2. Finnhub (optional — additional news, company profile)
-      3. yfinance (always — price fallback, historical data)
+      3. yfinance (always — price fallback, historical data, financials when no FMP)
       4. SEC EDGAR (always — 10-K filings, RAG)
 
-    FMP is the primary data source for financial statements, D&A,
-    earnings surprises, and cross-validation. Without it, DCF uses a
-    simplified formula with 10-20% deviation. validate_runtime_config()
-    enforces FMP key presence at startup.
+    FMP gives the most accurate financial statements + D&A + earnings
+    surprises + enables cross-validation. Without it, yfinance handles
+    financials (DCF uses simplified D&A formula, 10-20% deviation).
+    validate_runtime_config() emits a warning when FMP is unset.
     """
-    from finagent.engine.data.providers.fmp_provider import FMPProvider
     from finagent.engine.data.providers.news_aggregator import NewsAggregatorProvider
     from finagent.engine.data.providers.sec_provider import SECEdgarProvider
     from finagent.engine.data.providers.yfinance_provider import YFinanceProvider
 
     providers: list[Any] = []
 
-    # FMP is primary — required for accurate financials
-    providers.append(FMPProvider(api_key=settings.fmp_api_key))
+    if settings.fmp_api_key:
+        from finagent.engine.data.providers.fmp_provider import FMPProvider
+
+        providers.append(FMPProvider(api_key=settings.fmp_api_key))
 
     if settings.finnhub_api_key:
         from finagent.engine.data.providers.finnhub_provider import FinnhubProvider

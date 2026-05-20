@@ -19,3 +19,7 @@ class DataType(StrEnum):
     RAG_10K = "10k_rag"
     EARNINGS_TRANSCRIPT = "earnings_transcript"
     SENTIMENT = "sentiment"
+    # Route-level cache types for endpoints that bypass the provider chain
+    # (yfinance-only deep financial data — historical multi-year + quarterly).
+    HISTORICAL = "historical"
+    QUARTERLY = "quarterly"

@@ -21,6 +21,7 @@ import {
 import { useStocksStore, isValidTicker } from '../stores/stocksStore'
 import { useTickerPrice } from '../hooks/useTickerData'
 import { useUiStore } from '../stores/uiStore'
+import { useRunStreamStore } from '../stores/runStreamStore'
 import { BASE_URL } from '../api/client'
 import { WhyMovingPopover } from '../components/WhyMovingPopover'
 import { Sparkline } from '../components/Sparkline'
@@ -378,6 +379,13 @@ export function Sidebar(): React.ReactElement {
 
   const isNavActive = (path: string) => location.pathname.startsWith(path)
 
+  // Active analysis runs — badge on "个股分析" when something is running
+  const activeRuns = useRunStreamStore((s) => s.runs)
+  const runningTickers = useMemo(
+    () => Object.values(activeRuns).filter((r) => r.status === 'running').map((r) => r.ticker),
+    [activeRuns],
+  )
+
   // Extract active ticker from URL (e.g. /stocks/NVDA)
   const tickerMatch = location.pathname.match(/^\/stocks\/([A-Z0-9.\-]{1,12})/)
   const activeTicker = tickerMatch ? tickerMatch[1] : null
@@ -495,11 +503,24 @@ export function Sidebar(): React.ReactElement {
             position: 'relative',
           }
 
+          const showRunBadge = path === '/stocks' && runningTickers.length > 0
+
+          // When clicking 「个股分析」 while a run is active, jump to that
+          // ticker's page instead of dumping the user on the empty state —
+          // they almost certainly want to see the in-flight analysis.
+          const handleNavClick = () => {
+            if (path === '/stocks' && runningTickers.length > 0) {
+              navigate(`/stocks/${runningTickers[0]}`)
+            } else {
+              navigate(path)
+            }
+          }
+
           return (
             <button
               key={path}
               style={itemStyle}
-              onClick={() => navigate(path)}
+              onClick={handleNavClick}
               onMouseEnter={(e) => {
                 if (!active) {
                   e.currentTarget.style.background = 'var(--bg-3)'
@@ -514,9 +535,37 @@ export function Sidebar(): React.ReactElement {
               }}
               aria-label={label}
               aria-current={active ? 'page' : undefined}
+              title={
+                showRunBadge
+                  ? `分析中：${runningTickers.join(', ')}（点击查看进度）`
+                  : undefined
+              }
             >
               <Icon size={15} />
               <span>{label}</span>
+              {showRunBadge && (
+                <span
+                  aria-label={`${runningTickers.length} 个分析进行中`}
+                  style={{
+                    marginLeft: 'auto',
+                    minWidth: 18,
+                    height: 18,
+                    padding: '0 6px',
+                    borderRadius: 9,
+                    background: 'var(--accent)',
+                    color: '#000',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    lineHeight: '18px',
+                    textAlign: 'center',
+                    boxShadow: '0 0 0 0 var(--accent)',
+                    animation: 'sidebar-run-pulse 1.6s ease-in-out infinite',
+                  }}
+                >
+                  {runningTickers.length}
+                </span>
+              )}
             </button>
           )
         })}
@@ -586,6 +635,12 @@ export function Sidebar(): React.ReactElement {
         <AddTickerInput />
       </div>
 
+      <style>{`
+        @keyframes sidebar-run-pulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb, 96, 165, 250), 0.55); }
+          50%      { box-shadow: 0 0 0 4px rgba(var(--accent-rgb, 96, 165, 250), 0); }
+        }
+      `}</style>
     </aside>
   )
 }

@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 import pytest
 from httpx import AsyncClient, ASGITransport
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 
 @pytest.mark.asyncio
-async def test_quarterly_endpoint_returns_data():
+async def test_quarterly_endpoint_returns_data(app_with_deps):
     """GET /api/data/{ticker}/quarterly returns quarterly financial data."""
-    from finagent.server import app
+    app = app_with_deps
 
     mock_quarters = {
         "ticker": "AAPL",
@@ -28,8 +30,10 @@ async def test_quarterly_endpoint_returns_data():
         ],
     }
 
-    with patch("finagent.routes.data.fetch_quarterly_data") as mock_fn:
-        mock_fn.return_value = mock_quarters
+    with patch(
+        "finagent.routes.data.fetch_quarterly_data",
+        new=AsyncMock(return_value=mock_quarters),
+    ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/api/data/AAPL/quarterly")

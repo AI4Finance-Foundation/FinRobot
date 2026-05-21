@@ -1,0 +1,146 @@
+"""End-to-end tests for GET /api/valuation/historical-bands/{ticker} (v5 PR3)."""
+
+from __future__ import annotations
+
+from datetime import date, datetime, timezone
+from pathlib import Path
+
+import pytest
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
+from pydantic import BaseModel, ConfigDict
+
+from finagent.engine.data.cache import DataCache
+from finagent.engine.data.interface import DataResult
+from finagent.engine.data.types import DataType
+from finagent.routes.valuation import router
+
+UTC = timezone.utc
+NOW = datetime(2026, 5, 21, tzinfo=UTC)
+
+
+def _yearly_results(years: list[int]) -> list[DataResult]:
+    return [
+        DataResult(
+            data={
+                "fiscal_year": f"{y}-12-31",
+                "ebitda": 25_000_000_000.0 + y * 100,
+                "operating_cash_flow": 18_000_000_000.0,
+                "capital_expenditure": -2_000_000_000.0,
+                "total_debt": 11_000_000_000.0,
+                "total_cash": 8_000_000_000.0,
+                "shares_outstanding": 2.4e9,
+            },
+            provider="stub",
+            ticker="NVDA",
+            data_type=DataType.FINANCIALS,
+            timestamp=NOW,
+        )
+        for y in years
+    ]
+
+
+def _price_result(num_days: int = 30) -> DataResult:
+    history = [
+        {"date": f"2026-{((i // 28) + 1):02d}-{((i % 28) + 1):02d}", "close": 800 + i}
+        for i in range(num_days)
+    ]
+    return DataResult(
+        data={"current_price": 800.0 + num_days - 1, "price_history": history},
+        provider="stub",
+        ticker="NVDA",
+        data_type=DataType.PRICE,
+        timestamp=NOW,
+    )
+
+
+class _StubDataLayer:
+    """Minimal DataLayer that satisfies the route's fetch surface."""
+
+    def __init__(self, cache_db: str) -> None:
+        self._cache = DataCache(db_path=cache_db)
+        self.fetch_calls: list[tuple[str, str]] = []
+        self.fetch_historical_calls: list[tuple[str, str, int]] = []
+
+    @property
+    def cache(self) -> DataCache:
+        return self._cache
+
+    async def fetch(self, data_type: DataType | str, ticker: str, **_: object) -> DataResult:
+        self.fetch_calls.append((str(data_type), ticker))
+        if data_type == DataType.PRICE:
+            return _price_result(60)
+        return DataResult(
+            data={}, provider="stub", ticker=ticker, data_type=DataType(data_type), timestamp=NOW
+        )
+
+    async def fetch_historical(
+        self, data_type: DataType | str, ticker: str, years: int = 5, **_: object
+    ) -> list[DataResult]:
+        self.fetch_historical_calls.append((str(data_type), ticker, years))
+        return _yearly_results([2022, 2023, 2024, 2025])
+
+
+class _StubDeps(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    data_layer: _StubDataLayer
+
+
+def _app(tmp_path: Path) -> tuple[FastAPI, _StubDataLayer]:
+    layer = _StubDataLayer(cache_db=str(tmp_path / "cache.db"))
+    app = FastAPI()
+    app.include_router(router)
+    app.state.deps = _StubDeps(data_layer=layer)
+    return app, layer
+
+
+@pytest.mark.asyncio
+async def test_historical_bands_endpoint_ev_ebitda_returns_quantiles(tmp_path: Path) -> None:
+    app, layer = _app(tmp_path)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/valuation/historical-bands/NVDA?metric=ev_ebitda&years=3")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ticker"] == "NVDA"
+    assert body["metric"] == "ev_ebitda"
+    assert body["sample_count"] > 0
+    assert body["current"] is not None
+    assert body["median"] is not None
+    assert body["classification"] in ("expensive", "fair", "cheap", "unknown")
+
+
+@pytest.mark.asyncio
+async def test_historical_bands_endpoint_cached_so_second_call_skips_fetch(tmp_path: Path) -> None:
+    app, layer = _app(tmp_path)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        await client.get("/api/valuation/historical-bands/NVDA?metric=ev_ebitda&years=3")
+        first_history = len(layer.fetch_historical_calls)
+        first_price = len(layer.fetch_calls)
+        await client.get("/api/valuation/historical-bands/NVDA?metric=ev_ebitda&years=3")
+    # Second call must NOT trigger fetch_historical or fetch — cache hit.
+    assert len(layer.fetch_historical_calls) == first_history
+    assert len(layer.fetch_calls) == first_price
+
+
+@pytest.mark.asyncio
+async def test_historical_bands_endpoint_503_when_data_layer_missing(tmp_path: Path) -> None:
+    app = FastAPI()
+    app.include_router(router)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/valuation/historical-bands/NVDA")
+    assert r.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_historical_bands_endpoint_p_fcf_metric(tmp_path: Path) -> None:
+    app, _ = _app(tmp_path)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/valuation/historical-bands/NVDA?metric=p_fcf&years=2")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["metric"] == "p_fcf"
+    assert body["sample_count"] > 0
+
+
+# Suppress unused-import warning for the date import (used in fixtures).
+_ = date

@@ -13,6 +13,7 @@ import { useEffect } from "react";
 import { AppShell } from "./layout/AppShell";
 import { StocksPage } from "./pages/StocksPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { StockWorkspace } from "./views/StockWorkspace";
 
 export const REDIRECT_TOAST_KEY = "finagent.redirect_toast";
 
@@ -52,9 +53,13 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/stocks" replace /> },
 
       // v5 live routes
+      // /stock/:ticker (singular) is the canonical v5 URL — single-page
+      // ticker workspace. /stocks (plural) keeps the landing list +
+      // legacy multi-tab StocksPage during the v5 rollout; PR15 retires
+      // StocksPage once "我的研究" ships.
       { path: "stocks", element: <StocksPage /> },
       { path: "stocks/:ticker", element: <StocksPage /> },
-      { path: "stock/:ticker", element: <StocksPage /> },
+      { path: "stock/:ticker", element: <StockWorkspace /> },
       { path: "settings", element: <SettingsPage /> },
 
       // v5 deprecation redirects (one release window) — spec §11.4

@@ -69,16 +69,16 @@ describe('ToolCard — result display', () => {
     })
     const link = screen.getByTestId('artifact-link')
     expect(link).toBeInTheDocument()
-    expect(link).toHaveAttribute('href', '/library/AAPL?artifact=art_abc')
+    expect(link).toHaveAttribute('href', '/stock/AAPL?artifact=art_abc')
   })
 
-  it('shows artifact link without ticker (falls back to /library?artifact=...)', () => {
+  it('shows artifact link without ticker (falls back to /stocks?artifact=...)', () => {
     renderCard({
       state: 'complete',
       result: { summary: 'done', artifact_id: 'art_xyz' },
     })
     const link = screen.getByTestId('artifact-link')
-    expect(link).toHaveAttribute('href', '/library?artifact=art_xyz')
+    expect(link).toHaveAttribute('href', '/stocks?artifact=art_xyz')
   })
 
   it('does not show artifact link when no artifact_id', () => {

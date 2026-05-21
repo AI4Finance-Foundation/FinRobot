@@ -33,12 +33,13 @@ const MAX_INPUT_LENGTH = 20_000
 // Context-aware suggestion chips per route
 // ──────────────────────────────────────────────────────────────
 
+// v5 (spec §11.1.C): /dashboard /playground /journal /library are retired
+// (the redirect handler in router.tsx turns them into a toast + a hop to
+// /stocks). The chip map drops to two live routes; the Stocks-page chips
+// keep their previous list since that's where 90% of the suggestion traffic
+// goes.
 const ROUTE_CHIPS: Record<string, string[]> = {
-  '/dashboard':  ['今日市场概况', '本周财报速览', '投资组合总结'],
   '/stocks':     ['解释 DCF 假设', '对比同业竞争', '蒙特卡洛模拟', '10-K 问答'],
-  '/playground': ['解释 WACC', '乐观情景推演', '悲观情景推演'],
-  '/journal':    ['回测胜率分析', 'Alpha 统计', '最佳/最差决策'],
-  '/library':    ['搜索报告', '对比分析'],
   '/settings':   ['检查 API 状态', '数据覆盖范围'],
 }
 
@@ -1042,7 +1043,11 @@ function IconColumn({
           <button
             className="ai-icon-menu-item"
             onClick={() => {
-              window.location.href = '/library'
+              // v5 (spec §11.1.C): /library is retired. History lives in the
+              // ticker workspace's 「我的研究」 section. Push the user back
+              // to /stocks landing; the retired /library route also redirects
+              // there, so older links keep working too.
+              window.location.href = '/stocks'
               setShowMenu(false)
             }}
             type="button"

@@ -1,8 +1,9 @@
+// v5 (spec §11.1.C): pruned to two icon buttons matching Sidebar's NAV_ITEMS
+// (个股 + 设置). Dashboard / Library are retired; their old routes redirect.
+
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  IconHome,
   IconTrendingUp,
-  IconFileText,
   IconSettings,
 } from '../lib/icons'
 
@@ -43,22 +44,10 @@ export function ActivityBar(): React.ReactElement {
   return (
     <div className="activity-bar" data-testid="activitybar">
       <ActBtn
-        icon={<IconHome size={18} />}
-        label="Dashboard"
-        path="/dashboard"
-        active={isActive('/dashboard')}
-      />
-      <ActBtn
         icon={<IconTrendingUp size={18} />}
         label="Stocks"
         path="/stocks"
-        active={isActive('/stocks')}
-      />
-      <ActBtn
-        icon={<IconFileText size={18} />}
-        label="Library"
-        path="/library"
-        active={isActive('/library')}
+        active={isActive('/stocks') || isActive('/stock')}
       />
       <ActBtn
         icon={<IconSettings size={18} />}

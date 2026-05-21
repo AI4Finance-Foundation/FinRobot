@@ -264,7 +264,7 @@ export function SourcedNumber({
           {source.artifact_id && (
             <div style={{ marginTop: 8 }}>
               <a
-                href={`/library?artifact=${source.artifact_id}`}
+                href={`/stocks?artifact=${source.artifact_id}`}
                 style={{
                   color: 'var(--accent)',
                   fontSize: '0.72rem',

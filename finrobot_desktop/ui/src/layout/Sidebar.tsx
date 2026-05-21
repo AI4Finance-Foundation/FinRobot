@@ -10,9 +10,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useQueries } from '@tanstack/react-query'
 import {
-  IconHome,
   IconTrendingUp,
-  IconFileText,
   IconSettings,
   IconActivity,
   IconDatabase,
@@ -32,35 +30,14 @@ interface PriceData {
   prev_close?: number
 }
 
-// ── Inline SVG icons for routes not in icons.tsx ────────────────────────────
-
-function IconPlayground({ size = 16 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18" />
-    </svg>
-  )
-}
-
-function IconJournal({ size = 16 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-      <line x1="8" y1="7" x2="15" y2="7" />
-      <line x1="8" y1="11" x2="15" y2="11" />
-    </svg>
-  )
-}
-
 // ── Nav items config ──────────────────────────────────────────────────────────
+//
+// v5 (spec §11.1): collapsed 6 menu to 2 (个股 + 设置). 工作台 / 报告库 /
+// 决策日记 / 估值推演 all moved into ticker workspace sections — see
+// ADR-B. Retired routes still resolve via redirect for one release.
 
 const NAV_ITEMS = [
-  { label: '工作台',   path: '/dashboard',   Icon: IconHome },
-  { label: '个股分析', path: '/stocks',       Icon: IconTrendingUp },
-  { label: '估值推演', path: '/playground',   Icon: IconPlayground },
-  { label: '决策日记', path: '/journal',      Icon: IconJournal },
-  { label: '报告库',   path: '/library',      Icon: IconFileText },
+  { label: '个股',     path: '/stocks',       Icon: IconTrendingUp },
   { label: '设置',     path: '/settings',     Icon: IconSettings },
 ] as const
 

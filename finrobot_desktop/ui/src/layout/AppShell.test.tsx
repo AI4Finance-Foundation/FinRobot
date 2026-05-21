@@ -38,7 +38,10 @@ describe("AppShell — simplified shell structure", () => {
 
   it("clicking Stocks button navigates to /stocks", () => {
     renderWithProviders();
-    const stocksBtn = screen.getByLabelText("个股分析");
+    // v5 (spec §11.1): NAV_ITEMS label simplified 个股分析 → 个股 (个股 now the
+    // landing for everything: dashboard / library / playground / journal all
+    // redirect here).
+    const stocksBtn = screen.getByLabelText("个股");
     fireEvent.click(stocksBtn);
     // Sidebar uses react-router navigate; button should remain in the doc
     expect(stocksBtn).toBeInTheDocument();

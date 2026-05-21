@@ -464,7 +464,7 @@ describe('RightChatPanel — tool card state machine', () => {
     renderPanel()
     await waitFor(() => {
       const link = screen.getByTestId('artifact-link')
-      expect(link).toHaveAttribute('href', '/library/AAPL?artifact=art_002')
+      expect(link).toHaveAttribute('href', '/stock/AAPL?artifact=art_002')
     })
   })
 

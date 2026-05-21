@@ -406,7 +406,11 @@ export function CmdKOverlay() {
   const handleAIFallback = useCallback(() => {
     const text = trimmedQuery;
     if (!text) return;
-    navigate(`/library?ai_query=${encodeURIComponent(text)}`);
+    // v5 (spec §11.1.C): /library is retired. Free-text questions land on
+    // /stocks (search-first landing). The Ask AI fab in StockWorkspace picks
+    // up the same query via session storage when wired in PR8.
+    sessionStorage.setItem('finagent.cmdk_ai_query', text);
+    navigate('/stocks');
     saveRecentSearch(text);
     handleClose();
   }, [trimmedQuery, navigate, handleClose]);

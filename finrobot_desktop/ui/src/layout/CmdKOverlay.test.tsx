@@ -60,13 +60,15 @@ function makeSearchResult(
     artifact: {
       title: "AAPL · DCF",
       subtitle: "2026-05-13",
-      action: "navigate:/library/AAPL?artifact=art_001",
+      // v5 (spec §11.1.D): artifact suggestions now jump to /stock/{ticker}.
+      action: "navigate:/stock/AAPL?artifact=art_001",
       score: 2,
     },
     session: {
       title: "AAPL FY2026 分析",
       subtitle: "5 条消息 · deepseek:deepseek-chat",
-      action: "navigate:/library?session=sess_001",
+      // /library retired — session links land on /stocks landing for now.
+      action: "navigate:/stocks?session=sess_001",
       score: 1,
     },
   } as const;
@@ -309,7 +311,7 @@ describe("CmdKOverlay — AI fallback", () => {
     expect(screen.getByTestId("ai-fallback-button")).toBeInTheDocument();
   });
 
-  it("AI fallback button closes overlay and navigates to /library?ai_query=", async () => {
+  it("AI fallback button closes overlay and navigates to /stocks with ai_query stashed", async () => {
     useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: "xyzzy random" });
     mockFetch({ query: "xyzzy random", results: [] });
     renderOverlay();

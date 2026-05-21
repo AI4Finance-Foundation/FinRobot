@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import { useTickerPrice } from '../hooks/useTickerData'
 import { useStocksStore } from '../stores/stocksStore'
+import { RunAnalysisDropdown } from './RunAnalysisDropdown'
 
 // Inline icons — PR16 will swap the whole codebase to lucide-react SVG.
 // Until then we keep dependency-light inline strokes; visual close enough
@@ -170,29 +171,16 @@ export function TickerHero({ ticker }: TickerHeroProps): React.ReactElement {
             </button>
             {dropdownOpen && (
               <div
-                data-testid="run-analysis-dropdown"
                 style={{
                   position: 'absolute',
                   right: 0,
                   top: 'calc(100% + 4px)',
-                  background: 'var(--bg-card, #fff)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  padding: 4,
-                  minWidth: 220,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                  fontSize: 13,
                 }}
               >
-                <div
-                  style={{
-                    padding: '8px 12px',
-                    color: 'var(--text-faint)',
-                    fontSize: 11,
-                  }}
-                >
-                  PR8 实施中 — RunAnalysisDropdown 6 项菜单
-                </div>
+                <RunAnalysisDropdown
+                  ticker={ticker}
+                  onLaunched={() => setDropdownOpen(false)}
+                />
               </div>
             )}
           </div>

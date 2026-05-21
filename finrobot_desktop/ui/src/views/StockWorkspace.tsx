@@ -12,6 +12,7 @@
 import { useParams } from 'react-router-dom'
 import { TickerHero } from './TickerHero'
 import { AnchorNav } from './AnchorNav'
+import { PipelineProgressPanel } from './PipelineProgressPanel'
 
 const PLACEHOLDER_SECTION_STYLE: React.CSSProperties = {
   border: '1px dashed var(--border-soft)',
@@ -63,6 +64,7 @@ export function StockWorkspace(): React.ReactElement {
           padding: '12px 24px 96px',
         }}
       >
+        <PipelineProgressPanel ticker={symbol} />
         {/*
           The section list below mirrors spec §6's IA. Until PR9–PR15 wire
           real components in, each slot shows a "coming in PR X" placeholder

@@ -1,0 +1,237 @@
+"""Historical EV/EBITDA + P/FCF band computation (v5 §6.6).
+
+Pure leaf-layer: route adapter feeds in already-fetched financials + price
+history, this module emits a deterministic band + timeline. No providers,
+no LLM, no upper-layer imports.
+
+Algorithm (single function, no per-metric duplication):
+  1. The yearly financials list is sorted by ascending fiscal-year date.
+  2. For each price point we attach the most recent fiscal year on or before
+     that price's date — that's the "current at the time" denominator.
+  3. We compute the multiple per sample, drop non-finite / non-positive
+     samples, and reduce to (current, P25, median, P75, P90) plus a sampled
+     timeline (≤120 points so the UI line stays readable).
+
+Why deterministic + audit-pinned: spec §6.6 lets the front end say "现在贵 /
+合理 / 便宜" verbatim by comparing `current` to `p75` / `p90`. That
+classification has to be reproducible — same inputs, same answer, no LLM.
+"""
+
+from __future__ import annotations
+
+import bisect
+import statistics
+from dataclasses import dataclass
+from datetime import date
+from typing import Literal
+
+HistoricalMetricName = Literal["ev_ebitda", "p_fcf"]
+"""Two metrics supported in v5 (spec §6.6)."""
+
+_MAX_TIMELINE_POINTS = 120
+"""Front-end chart caps at ~3y * monthly = 36 points; 120 is a safe ceiling
+that keeps the JSON payload small while preserving variation when callers
+ask for higher-resolution windows."""
+
+
+@dataclass(frozen=True)
+class YearlyFinancials:
+    """Single fiscal-year snapshot needed for one band metric.
+
+    The route layer parses raw yfinance / FMP rows into this shape so the
+    compute function stays agnostic to provider keys.
+    """
+
+    fiscal_date: date
+    """The fiscal-year-end date — used to align with price history."""
+
+    ebitda: float | None
+    """Annual EBITDA in absolute dollars. None means EBITDA not reported."""
+
+    free_cash_flow: float | None
+    """Annual FCF (OperatingCF - CapEx). None means data unavailable."""
+
+    net_debt: float
+    """Total debt minus cash & equivalents; can be negative (net cash)."""
+
+
+@dataclass(frozen=True)
+class PricePoint:
+    """A single (date, close-price) row from the historical price stream."""
+
+    sample_date: date
+    close: float
+
+
+@dataclass(frozen=True)
+class HistoricalBand:
+    """v5 §6.6 response payload for one ticker/metric."""
+
+    metric: HistoricalMetricName
+    current: float | None
+    median: float | None
+    p25: float | None
+    p75: float | None
+    p90: float | None
+    timeline: list[tuple[date, float]]
+    sample_count: int
+    warnings: list[str]
+
+
+def compute_historical_band(
+    *,
+    metric: HistoricalMetricName,
+    yearly: list[YearlyFinancials],
+    prices: list[PricePoint],
+    shares_outstanding: float,
+) -> HistoricalBand:
+    """Build the band + timeline + quantiles for a single metric.
+
+    Inputs are typed dataclasses so callers can't accidentally pass raw
+    provider dicts; alignment between fiscal years and price dates is
+    handled here (most recent fiscal year ≤ price date), and degenerate
+    rows are dropped rather than raising — the UI shows what's available.
+    """
+    warnings: list[str] = []
+
+    if shares_outstanding <= 0:
+        return _empty(metric, ["shares_outstanding 不可得 — historical bands 无法计算"])
+    if not prices:
+        return _empty(metric, ["price 历史为空 — 无法计算 historical bands"])
+    if not yearly:
+        return _empty(metric, ["financials 历史为空 — 无法计算 historical bands"])
+
+    fiscal_dates, fiscals = _sort_yearly(yearly)
+
+    samples: list[tuple[date, float]] = []
+    skipped_no_financial = 0
+    for point in prices:
+        fy = _financial_for_date(point.sample_date, fiscal_dates, fiscals)
+        if fy is None:
+            skipped_no_financial += 1
+            continue
+        multiple = _compute_multiple(metric, point, fy, shares_outstanding)
+        if multiple is None or multiple <= 0:
+            continue
+        samples.append((point.sample_date, multiple))
+
+    if not samples:
+        return _empty(metric, ["所有 sample 均无法计算 multiple — 检查 EBITDA / FCF 是否报披露"])
+
+    if skipped_no_financial:
+        warnings.append(f"{skipped_no_financial} 个 price 早于最早的 fiscal year — 已跳过")
+
+    values = [v for _, v in samples]
+    current = samples[-1][1]  # last sample is the most recent price multiple
+    timeline = _downsample(samples, _MAX_TIMELINE_POINTS)
+
+    return HistoricalBand(
+        metric=metric,
+        current=current,
+        median=statistics.median(values),
+        p25=_quantile(values, 0.25),
+        p75=_quantile(values, 0.75),
+        p90=_quantile(values, 0.90),
+        timeline=timeline,
+        sample_count=len(values),
+        warnings=warnings,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _empty(metric: HistoricalMetricName, warnings: list[str]) -> HistoricalBand:
+    return HistoricalBand(
+        metric=metric,
+        current=None,
+        median=None,
+        p25=None,
+        p75=None,
+        p90=None,
+        timeline=[],
+        sample_count=0,
+        warnings=warnings,
+    )
+
+
+def _sort_yearly(
+    yearly: list[YearlyFinancials],
+) -> tuple[list[date], list[YearlyFinancials]]:
+    items = sorted(yearly, key=lambda y: y.fiscal_date)
+    return [y.fiscal_date for y in items], items
+
+
+def _financial_for_date(
+    sample_date: date,
+    fiscal_dates: list[date],
+    fiscals: list[YearlyFinancials],
+) -> YearlyFinancials | None:
+    """Return the most recent fiscal year on or before sample_date, or None."""
+    idx = bisect.bisect_right(fiscal_dates, sample_date) - 1
+    if idx < 0:
+        return None
+    return fiscals[idx]
+
+
+def _compute_multiple(
+    metric: HistoricalMetricName,
+    price: PricePoint,
+    fy: YearlyFinancials,
+    shares: float,
+) -> float | None:
+    market_cap = price.close * shares
+    if market_cap <= 0:
+        return None
+    if metric == "ev_ebitda":
+        if fy.ebitda is None or fy.ebitda <= 0:
+            return None
+        return (market_cap + fy.net_debt) / fy.ebitda
+    # metric == "p_fcf" — the Literal alias has no other variants.
+    if fy.free_cash_flow is None or fy.free_cash_flow <= 0:
+        return None
+    return market_cap / fy.free_cash_flow
+
+
+def _quantile(values: list[float], q: float) -> float:
+    """Inclusive linear-interpolation quantile (matches numpy default)."""
+    if not values:
+        raise ValueError("quantile on empty values")
+    if len(values) == 1:
+        return values[0]
+    s = sorted(values)
+    pos = q * (len(s) - 1)
+    lo = int(pos)
+    hi = min(lo + 1, len(s) - 1)
+    frac = pos - lo
+    return s[lo] + frac * (s[hi] - s[lo])
+
+
+def _downsample(
+    samples: list[tuple[date, float]],
+    max_points: int,
+) -> list[tuple[date, float]]:
+    """Uniform downsample to at most max_points keeping the first + last samples."""
+    if len(samples) <= max_points:
+        return samples
+    # Leave 2 slots for the explicit first / last indices to stay under the cap.
+    interior = max(0, max_points - 2)
+    step = (len(samples) - 1) / (interior + 1)
+    indices = {0, len(samples) - 1}
+    for i in range(1, interior + 1):
+        indices.add(int(i * step))
+    ordered = sorted(indices)[:max_points]
+    return [samples[i] for i in ordered]
+
+
+# Re-export the runtime sentinel for type checkers — kept for parity with the
+# rest of compute/* which expose Literal aliases at module scope.
+__all__ = [
+    "HistoricalBand",
+    "HistoricalMetricName",
+    "PricePoint",
+    "YearlyFinancials",
+    "compute_historical_band",
+]

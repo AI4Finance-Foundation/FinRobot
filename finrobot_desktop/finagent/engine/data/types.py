@@ -23,3 +23,8 @@ class DataType(StrEnum):
     # (yfinance-only deep financial data — historical multi-year + quarterly).
     HISTORICAL = "historical"
     QUARTERLY = "quarterly"
+    # Historical valuation bands (v5 §6.6): EV/EBITDA + P/FCF time series with
+    # P25/P75/P90 quantiles. Derived deterministically from price history +
+    # quarterly financials; cached separately so the band endpoint can have
+    # its own TTL independent of the underlying historical / price types.
+    HISTORICAL_BANDS = "historical_bands"

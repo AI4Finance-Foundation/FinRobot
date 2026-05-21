@@ -39,6 +39,10 @@ _TTL_SECONDS: dict[str, int] = {
     # is quarterly so a 24h freshness window is ample.
     DataType.HISTORICAL: 86400,
     DataType.QUARTERLY: 86400,
+    # v5 §6.6 historical valuation bands — recomputing them is expensive
+    # (price + financial fan-out) but underlying numbers move ≤ daily, so a
+    # 12h TTL hits the sweet spot between freshness and load.
+    DataType.HISTORICAL_BANDS: 43200,
 }
 _DEFAULT_TTL_SECONDS: int = 3600  # 1 hour
 

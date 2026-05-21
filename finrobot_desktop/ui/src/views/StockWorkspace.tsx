@@ -13,6 +13,11 @@ import { useParams } from 'react-router-dom'
 import { TickerHero } from './TickerHero'
 import { AnchorNav } from './AnchorNav'
 import { PipelineProgressPanel } from './PipelineProgressPanel'
+import { HeroVerdict } from './sections/HeroVerdict'
+import { DataSnapshot } from './sections/DataSnapshot'
+import { CatalystGrid } from './sections/CatalystGrid'
+import { RiskGrid } from './sections/RiskGrid'
+import { FootballField } from './sections/FootballField'
 
 const PLACEHOLDER_SECTION_STYLE: React.CSSProperties = {
   border: '1px dashed var(--border-soft)',
@@ -65,32 +70,12 @@ export function StockWorkspace(): React.ReactElement {
         }}
       >
         <PipelineProgressPanel ticker={symbol} />
-        {/*
-          The section list below mirrors spec §6's IA. Until PR9–PR15 wire
-          real components in, each slot shows a "coming in PR X" placeholder
-          that's still clickable from the anchor nav, so design + IA review
-          can happen against the actual scroll behaviour.
-        */}
-        <SectionPlaceholder
-          id="sec-now"
-          title="🎯 当前判断"
-          body="HERO 卡片 — PR9 实施。需要 latest equity_research artifact 的 signal / target / 当时-现在价。"
-        />
-        <SectionPlaceholder
-          id="sec-catalyst"
-          title="🔥 催化剂"
-          body="6 类催化剂 top 4 卡片 — PR10。复用现有 /api/data/{ticker}/catalysts endpoint。"
-        />
-        <SectionPlaceholder
-          id="sec-risk"
-          title="⚠️ 风险因素"
-          body="2×2 风险 grid — PR10。来源 thesis step 的 risks 字段。"
-        />
-        <SectionPlaceholder
-          id="sec-football"
-          title="🏟️ 估值范围 (Football Field)"
-          body="4 valuation + 2 multiple 横向 box plot — PR11 (ADR-C)。"
-        />
+        {/* PR9–PR11 sections live below. Remaining placeholders downstream
+            will be replaced by PR12+. */}
+        <HeroVerdict ticker={symbol} />
+        <CatalystGrid ticker={symbol} />
+        <RiskGrid ticker={symbol} />
+        <FootballField ticker={symbol} />
         <SectionPlaceholder
           id="sec-sensitivity"
           title="📉 敏感性分析"
@@ -101,11 +86,7 @@ export function StockWorkspace(): React.ReactElement {
           title="📊 历史估值带"
           body="EV/EBITDA + P/FCF 时间序列 + 分位带 — PR12。后端 PR3 已就位。"
         />
-        <SectionPlaceholder
-          id="sec-data"
-          title="📊 数据快照"
-          body="4 card 市值 / PE / 7d mini chart / 下次财报 — PR9 / 既有组件改造。"
-        />
+        <DataSnapshot ticker={symbol} />
         <SectionPlaceholder
           id="sec-financials"
           title="💰 财务报表"

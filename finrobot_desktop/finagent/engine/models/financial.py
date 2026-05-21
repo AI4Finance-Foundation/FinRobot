@@ -609,3 +609,56 @@ class DDMResult(BaseModel):
     def upside(self) -> float:
         """Upside/downside vs current price as a decimal."""
         return self.equity_value_per_share / self.inputs.current_price - 1
+
+
+# ---------------------------------------------------------------------------
+# Football Field aggregation (v5 §6.4)
+# ---------------------------------------------------------------------------
+
+
+ValuationMethodType = Literal["valuation", "multiple"]
+"""Distinguishes independent valuation methods (DCF / Comps / DDM / LBO) from
+multiple-based reverse-engineered ranges (EV/EBITDA, P/FCF) so the UI can render
+them with different visual weight — solid bars vs dashed bars (spec §6.4)."""
+
+ValuationMethodName = Literal[
+    "dcf",
+    "comps_pe",
+    "lbo",
+    "ddm",
+    "ev_ebitda",
+    "p_fcf",
+]
+
+
+class ValuationMethodRange(BaseModel):
+    """One method's low / mid / high target-price band for the Football Field.
+
+    A leaner cousin of ValuationMethod tagged with `method_type` so the front
+    end can render valuation methods as solid bars and multiple-based reverse
+    ranges as dashed bars (v5 §6.4).
+    """
+
+    method: ValuationMethodName
+    method_type: ValuationMethodType
+    low: float = Field(gt=0)
+    mid: float = Field(gt=0)
+    high: float = Field(gt=0)
+    confidence: float = Field(ge=0, le=1)
+    source: str = Field(description="Human-readable provenance, e.g. 'monte_carlo_p10_p90'")
+    warnings: list[str] = Field(default_factory=list)
+
+
+class ValuationAggregate(BaseModel):
+    """Response payload for ``GET /api/valuation/aggregate/{ticker}``.
+
+    Contains every method we could compute for the ticker at request time.
+    Missing methods are simply absent from `methods`; the UI shows what's
+    available and explains the gaps via `warnings`.
+    """
+
+    ticker: str
+    current_price: float | None
+    as_of: datetime
+    methods: list[ValuationMethodRange]
+    warnings: list[str] = Field(default_factory=list)

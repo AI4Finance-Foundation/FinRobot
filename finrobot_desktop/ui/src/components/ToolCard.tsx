@@ -108,7 +108,7 @@ export function ToolCard({
   // ?artifact=… query the new "我的研究" section will consume in PR15.
   const artifactHref =
     result?.artifact_id && result?.ticker
-      ? `/stock/${result.ticker}?artifact=${result.artifact_id}`
+      ? `/stocks/${result.ticker}?artifact=${result.artifact_id}`
       : result?.artifact_id
         ? `/stocks?artifact=${result.artifact_id}`
         : null

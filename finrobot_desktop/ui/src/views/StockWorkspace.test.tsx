@@ -70,6 +70,17 @@ vi.mock('../stores/runStreamStore', () => ({
       dismiss: vi.fn(),
       clear: vi.fn(),
     }),
+  selectRunByTicker: (ticker: string) => (s: { runs?: Record<string, unknown> }) =>
+    s.runs?.[ticker],
+}))
+
+vi.mock('../stores/toastStore', () => ({
+  useToastStore: <T,>(selector: (s: unknown) => T) =>
+    selector({
+      addToast: vi.fn(),
+      removeToast: vi.fn(),
+      toasts: [],
+    }),
 }))
 
 // Stub network so component queries resolve without a live backend.
@@ -227,9 +238,9 @@ function renderWorkspace() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/stock/NVDA']}>
+      <MemoryRouter initialEntries={['/stocks/NVDA']}>
         <Routes>
-          <Route path="/stock/:ticker" element={<StockWorkspace />} />
+          <Route path="/stocks/:ticker" element={<StockWorkspace />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,

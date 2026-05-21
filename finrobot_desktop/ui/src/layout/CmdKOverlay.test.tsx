@@ -61,7 +61,7 @@ function makeSearchResult(
       title: "AAPL · DCF",
       subtitle: "2026-05-13",
       // v5 (spec §11.1.D): artifact suggestions now jump to /stock/{ticker}.
-      action: "navigate:/stock/AAPL?artifact=art_001",
+      action: "navigate:/stocks/AAPL?artifact=art_001",
       score: 2,
     },
     session: {

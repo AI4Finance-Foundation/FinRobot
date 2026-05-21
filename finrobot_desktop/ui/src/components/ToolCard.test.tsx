@@ -69,7 +69,7 @@ describe('ToolCard — result display', () => {
     })
     const link = screen.getByTestId('artifact-link')
     expect(link).toBeInTheDocument()
-    expect(link).toHaveAttribute('href', '/stock/AAPL?artifact=art_abc')
+    expect(link).toHaveAttribute('href', '/stocks/AAPL?artifact=art_abc')
   })
 
   it('shows artifact link without ticker (falls back to /stocks?artifact=...)', () => {

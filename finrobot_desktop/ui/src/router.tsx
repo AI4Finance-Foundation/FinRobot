@@ -52,14 +52,12 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/stocks" replace /> },
 
-      // v5 live routes
-      // /stock/:ticker (singular) is the canonical v5 URL — single-page
-      // ticker workspace. /stocks (plural) keeps the landing list +
-      // legacy multi-tab StocksPage during the v5 rollout; PR15 retires
-      // StocksPage once "我的研究" ships.
+      // v5 live routes — single canonical path. The old 8-tab StocksPage
+      // is retained ONLY at /stocks (no ticker) as a landing placeholder
+      // until spec §2 cross-ticker landing ships. Any /stocks/:ticker
+      // hit renders the v5 single-page StockWorkspace.
       { path: "stocks", element: <StocksPage /> },
-      { path: "stocks/:ticker", element: <StocksPage /> },
-      { path: "stock/:ticker", element: <StockWorkspace /> },
+      { path: "stocks/:ticker", element: <StockWorkspace /> },
       { path: "settings", element: <SettingsPage /> },
 
       // v5 deprecation redirects (one release window) — spec §11.4
@@ -85,7 +83,7 @@ export const router = createBrowserRouter([
         path: "library/:ticker",
         element: (
           <RedirectWithToast
-            to="/stock"
+            to="/stocks"
             message="报告库已合并到「我的研究」section"
             preserveTicker
           />
@@ -113,7 +111,7 @@ export const router = createBrowserRouter([
         path: "playground/:ticker",
         element: (
           <RedirectWithToast
-            to="/stock"
+            to="/stocks"
             message="估值假设调节 v2.1 重新设计"
             preserveTicker
           />

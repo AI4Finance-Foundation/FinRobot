@@ -58,8 +58,12 @@ export function AnchorNav(): React.ReactElement {
   const [activeId, setActiveId] = useState<string | null>(null)
 
   // IntersectionObserver — flag the section with the largest visible portion
-  // as active. threshold 0.3 matches spec §3.3.
+  // as active. threshold 0.3 matches spec §3.3. JSDOM doesn't ship the API,
+  // so we no-op there (test environment) and let click-to-scroll still work.
   useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') {
+      return
+    }
     const ids = ANCHOR_GROUPS.flatMap((g) => g.items.map((i) => i.id))
     const observed: HTMLElement[] = ids
       .map((id) => document.getElementById(id))

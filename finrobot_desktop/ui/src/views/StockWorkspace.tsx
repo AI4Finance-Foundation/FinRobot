@@ -20,6 +20,9 @@ import { RiskGrid } from './sections/RiskGrid'
 import { FootballField } from './sections/FootballField'
 import { SensitivityHeatmap } from './sections/SensitivityHeatmap'
 import { HistoricalBandChart } from './sections/HistoricalBandChart'
+import { FinancialsSection } from './sections/FinancialsSection'
+import { PerformanceSection } from './sections/PerformanceSection'
+import { PeersSection } from './sections/PeersSection'
 import { NewsList } from './sections/NewsList'
 import { SentimentCard } from './sections/SentimentCard'
 import { MyResearchFeed } from './sections/MyResearchFeed'
@@ -86,21 +89,9 @@ export function StockWorkspace(): React.ReactElement {
         <SensitivityHeatmap ticker={symbol} />
         <HistoricalBandChart ticker={symbol} />
         <DataSnapshot ticker={symbol} />
-        <SectionPlaceholder
-          id="sec-financials"
-          title="💰 财务报表"
-          body="4 季度营收 / 毛利率 / 净利润 / YoY — PR13 (FinancialsTab 拆分 · 用户 in-flight 改造合并后接入)。"
-        />
-        <SectionPlaceholder
-          id="sec-performance"
-          title="📈 走势分析"
-          body="YTD / 波动率 / 夏普 / 距 52w 高 — PR13 (PerformanceTab 拆分 · 同上)。"
-        />
-        <SectionPlaceholder
-          id="sec-peers"
-          title="🏢 同业对标"
-          body="5 行表格（NVDA + 4 peer）— PR13 (PeersTab 拆分 · 同上)。"
-        />
+        <FinancialsSection ticker={symbol} />
+        <PerformanceSection ticker={symbol} />
+        <PeersSection ticker={symbol} />
         <NewsList ticker={symbol} />
         <SentimentCard ticker={symbol} />
         <SectionPlaceholder

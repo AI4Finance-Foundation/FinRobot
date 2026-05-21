@@ -17,6 +17,7 @@ const ANCHOR_GROUPS: AnchorGroup[] = [
     label: '总览',
     items: [
       { id: 'sec-now', label: '当前判断' },
+      { id: 'sec-score', label: '综合评分' },
       { id: 'sec-catalyst', label: '催化剂' },
       { id: 'sec-risk', label: '风险' },
     ],
@@ -27,20 +28,28 @@ const ANCHOR_GROUPS: AnchorGroup[] = [
       { id: 'sec-football', label: '估值范围' },
       { id: 'sec-sensitivity', label: '敏感性' },
       { id: 'sec-band', label: '历史估值带' },
+      { id: 'sec-monte-carlo', label: '蒙特卡洛' },
     ],
   },
   {
     label: '数据',
     items: [
-      { id: 'sec-data', label: '数据快照' },
-      { id: 'sec-financials', label: '财务' },
-      { id: 'sec-performance', label: '走势' },
-      { id: 'sec-peers', label: '同业' },
+      { id: 'sec-data', label: '快照' },
+      { id: 'sec-price', label: '股价走势' },
+      { id: 'sec-revenue', label: '营收 / EBITDA' },
+      { id: 'sec-margins', label: '利润率' },
+      { id: 'sec-cashflow', label: '现金流' },
+      { id: 'sec-financials', label: '季度财务' },
+      { id: 'sec-performance', label: '走势统计' },
     ],
   },
   {
     label: '市场',
     items: [
+      { id: 'sec-peers', label: '同业表' },
+      { id: 'sec-peer-radar', label: '同业雷达' },
+      { id: 'sec-peer-bars', label: '同业倍数' },
+      { id: 'sec-sniper', label: '阻力支撑' },
       { id: 'sec-news', label: '新闻' },
       { id: 'sec-sentiment', label: '散户情绪' },
       { id: 'sec-earnings', label: '财报会' },
@@ -108,9 +117,13 @@ export function AnchorNav(): React.ReactElement {
         background: 'var(--bg-card, #fff)',
         borderBottom: '1px solid var(--border)',
         overflowX: 'auto',
+        overflowY: 'hidden',
         height: 42,
       }}
     >
+      {/* No maxWidth here — let the row expand to its natural width so the
+          nav's overflowX:auto kicks in instead of flex shrinking the labels
+          into vertical 2-char columns. */}
       <div
         style={{
           display: 'flex',
@@ -118,12 +131,21 @@ export function AnchorNav(): React.ReactElement {
           gap: 12,
           padding: '0 24px',
           height: '100%',
-          maxWidth: 960,
-          margin: '0 auto',
+          width: 'max-content',
+          minWidth: '100%',
         }}
       >
         {ANCHOR_GROUPS.map((group, gi) => (
-          <span key={group.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span
+            key={group.label}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
+            }}
+          >
             <span
               aria-hidden="true"
               style={{
@@ -131,6 +153,8 @@ export function AnchorNav(): React.ReactElement {
                 fontSize: 11,
                 letterSpacing: 0.4,
                 textTransform: 'uppercase',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
               }}
             >
               {group.label}
@@ -154,6 +178,7 @@ export function AnchorNav(): React.ReactElement {
                     fontWeight: active ? 600 : 400,
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
+                    flexShrink: 0,
                   }}
                 >
                   {item.label}
@@ -164,7 +189,7 @@ export function AnchorNav(): React.ReactElement {
               <span
                 aria-hidden="true"
                 className="anchor-group-divider"
-                style={{ width: 1, height: 16, background: 'var(--border)' }}
+                style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }}
               />
             )}
           </span>

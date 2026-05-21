@@ -27,6 +27,11 @@ from finagent.artifact.models import (
     ArtifactSummary,
     ArtifactType,
 )
+from finagent.artifact.summary_extractor import (
+    extract_entry_price,
+    extract_target_date,
+    extract_target_price,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +49,14 @@ def _ticker_dir(base: Path, ticker: str | None) -> Path:
 
 
 def _summary_from_artifact(artifact: Artifact) -> ArtifactSummary:
-    """Build a lean ArtifactSummary from a full Artifact."""
+    """Build a lean ArtifactSummary from a full Artifact.
+
+    v5 (ADR-0001) additionally pulls entry_price / target_price / target_date
+    from the artifact internals so the "我的研究" section can render signal
+    lamps without re-loading the full artifact. `signal` itself stays None —
+    routes compute it lazily against a fresh quote.
+    """
+    target_price = extract_target_price(artifact)
     return ArtifactSummary(
         id=artifact.id,
         ticker=artifact.ticker,
@@ -54,6 +66,10 @@ def _summary_from_artifact(artifact: Artifact) -> ArtifactSummary:
         headline=artifact.outputs.summary_text[:120] or artifact.id,
         source=artifact.meta.source,
         archived=artifact.meta.archived,
+        entry_price=extract_entry_price(artifact),
+        target_price=target_price,
+        target_date=extract_target_date(artifact, target_price),
+        signal=None,
     )
 
 

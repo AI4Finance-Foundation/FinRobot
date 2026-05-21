@@ -22,12 +22,24 @@ interface SniperLevelsCardProps {
   ticker: string
 }
 
+function isCompleteSniper(d: unknown): d is SniperPoints {
+  if (!d || typeof d !== 'object') return false
+  const o = d as Record<string, unknown>
+  return (
+    typeof o.ideal_buy === 'number' &&
+    typeof o.secondary_buy === 'number' &&
+    typeof o.stop_loss === 'number' &&
+    typeof o.take_profit === 'number'
+  )
+}
+
 export function SniperLevelsCard({
   ticker,
 }: SniperLevelsCardProps): React.ReactElement {
   const { data, isLoading, isError } = useSniperPoints(ticker)
   const { data: priceData } = useTickerPrice(ticker)
   const currentPrice = priceData?.current_price ?? null
+  const validPoints = isCompleteSniper(data) ? data : null
 
   return (
     <section id="sec-sniper" style={SECTION_STYLE}>
@@ -44,12 +56,12 @@ export function SniperLevelsCard({
       {isError && (
         <p style={{ fontSize: 12, color: 'var(--red, #EF4444)' }}>买卖点计算失败</p>
       )}
-      {!data && !isLoading && !isError && (
+      {!validPoints && !isLoading && !isError && (
         <p style={{ fontSize: 12.5, color: 'var(--text-soft)' }}>
           需要 DCF 目标价（跑「AI 完整研报」后产生）和过去 90 天价格才能算阻力位。
         </p>
       )}
-      {data && <SniperBody points={data} currentPrice={currentPrice} />}
+      {validPoints && <SniperBody points={validPoints} currentPrice={currentPrice} />}
     </section>
   )
 }

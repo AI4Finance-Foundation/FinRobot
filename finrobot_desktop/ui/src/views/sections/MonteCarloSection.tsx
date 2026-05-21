@@ -7,6 +7,18 @@
 import { useMonteCarloAuto } from '../../hooks/useComputeQuery'
 import { useTickerPrice } from '../../hooks/useTickerData'
 import MonteCarloChart from '../../components/charts/MonteCarloChart'
+import type { MonteCarloResult } from '../../stores/appStore'
+
+function isCompleteMC(d: unknown): d is MonteCarloResult {
+  if (!d || typeof d !== 'object') return false
+  const o = d as Record<string, unknown>
+  return (
+    Array.isArray(o.histogram_bins) &&
+    Array.isArray(o.histogram_counts) &&
+    typeof o.mean === 'number' &&
+    !!o.percentiles
+  )
+}
 
 const SECTION_STYLE: React.CSSProperties = {
   border: '1px solid var(--border)',
@@ -26,6 +38,7 @@ export function MonteCarloSection({
   const { data, isLoading, isError, error } = useMonteCarloAuto(ticker)
   const { data: priceData } = useTickerPrice(ticker)
   const currentPrice = priceData?.current_price ?? null
+  const validResult = isCompleteMC(data) ? data : null
 
   return (
     <section id="sec-monte-carlo" style={SECTION_STYLE}>
@@ -44,12 +57,12 @@ export function MonteCarloSection({
           模拟失败 — {String(error?.message ?? '').slice(0, 140)}
         </p>
       )}
-      {!data && !isLoading && !isError && (
+      {!validResult && !isLoading && !isError && (
         <p style={{ fontSize: 12.5, color: 'var(--text-soft)' }}>
           需要 DCF 假设（跑「AI 完整研报」或「DCF」后产生）才能跑蒙特卡洛。
         </p>
       )}
-      {data && <MonteCarloChart result={data} currentPrice={currentPrice} />}
+      {validResult && <MonteCarloChart result={validResult} currentPrice={currentPrice} />}
     </section>
   )
 }

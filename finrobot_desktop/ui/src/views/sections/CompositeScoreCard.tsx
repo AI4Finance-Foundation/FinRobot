@@ -22,10 +22,24 @@ interface CompositeScoreCardProps {
   ticker: string
 }
 
+function isCompleteScore(d: unknown): d is CompositeScore {
+  if (!d || typeof d !== 'object') return false
+  const o = d as Record<string, unknown>
+  return (
+    typeof o.total === 'number' &&
+    typeof o.fundamental === 'number' &&
+    typeof o.valuation === 'number' &&
+    typeof o.catalyst === 'number' &&
+    typeof o.sentiment === 'number' &&
+    typeof o.signal === 'string'
+  )
+}
+
 export function CompositeScoreCard({
   ticker,
 }: CompositeScoreCardProps): React.ReactElement {
   const { data, isLoading, isError } = useCompositeScore(ticker)
+  const validScore = isCompleteScore(data) ? data : null
 
   return (
     <section id="sec-score" style={SECTION_STYLE}>
@@ -42,13 +56,13 @@ export function CompositeScoreCard({
       {isError && (
         <p style={{ fontSize: 12, color: 'var(--red, #EF4444)' }}>评分计算失败</p>
       )}
-      {!data && !isLoading && !isError && (
+      {!validScore && !isLoading && !isError && (
         <p style={{ fontSize: 12.5, color: 'var(--text-soft)' }}>
           需要至少一个基本面字段（PE / 毛利率 / 催化剂 / DCF 目标价）才能给分。
           先跑一次 AI 完整研报。
         </p>
       )}
-      {data && <ScoreBody score={data} />}
+      {validScore && <ScoreBody score={validScore} />}
     </section>
   )
 }
@@ -83,10 +97,10 @@ function ScoreBody({ score }: { score: CompositeScore }): React.ReactElement {
             {signalThresholdHint(score.signal)}
           </span>
         </div>
-        <SubScoreBar label="基本面" value={score.fundamental} reason={score.breakdown.fundamental} />
-        <SubScoreBar label="估值" value={score.valuation} reason={score.breakdown.valuation} />
-        <SubScoreBar label="催化" value={score.catalyst} reason={score.breakdown.catalyst} />
-        <SubScoreBar label="情绪" value={score.sentiment} reason={score.breakdown.sentiment} />
+        <SubScoreBar label="基本面" value={score.fundamental} reason={score.breakdown?.fundamental} />
+        <SubScoreBar label="估值" value={score.valuation} reason={score.breakdown?.valuation} />
+        <SubScoreBar label="催化" value={score.catalyst} reason={score.breakdown?.catalyst} />
+        <SubScoreBar label="情绪" value={score.sentiment} reason={score.breakdown?.sentiment} />
       </div>
     </div>
   )

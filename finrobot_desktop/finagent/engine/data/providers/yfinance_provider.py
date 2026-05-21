@@ -138,6 +138,13 @@ class YFinanceProvider(DataProvider):
             # Bank-specific metrics (available for financials)
             "book_value_per_share": info.get("bookValue"),
             "return_on_equity": info.get("returnOnEquity"),
+            # v5 PR4c forward-estimate inputs — required by
+            # engine/compute/forward_estimates.py. yfinance only carries
+            # forward EPS / PE (no consensus EBITDA / FCF), so the leaf has
+            # to derive forward EBITDA/FCF from forward_revenue × TTM margin.
+            "forward_eps": info.get("forwardEps"),
+            "forward_pe": info.get("forwardPE"),
+            "trailing_eps": info.get("trailingEps"),
         }
         return DataResult(
             data=data,

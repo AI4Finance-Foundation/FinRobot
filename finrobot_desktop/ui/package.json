@@ -12,7 +12,8 @@
     "format:check": "prettier --check 'src/**/*.{ts,tsx}'",
     "generate:api": "npx openapi-typescript http://127.0.0.1:8321/openapi.json -o src/api/schema.d.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "e2e": "playwright test --project=chromium"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.182",
@@ -36,6 +37,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/vite": "^4.2.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

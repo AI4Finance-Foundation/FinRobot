@@ -13,6 +13,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from finagent.engine.compute.signal import Signal
+
 ArtifactType = Literal[
     "dcf",
     "lbo",
@@ -118,7 +120,13 @@ class Artifact(BaseModel):
 
 
 class ArtifactSummary(BaseModel):
-    """Sidebar / Library view — strips heavy fields."""
+    """Sidebar / Library view — strips heavy fields.
+
+    v5 (ADR-0001) adds four optional fields powering the "我的研究" section's
+    signal lamp + hit-rate banner. All default to None so legacy JSON
+    artifacts (written before v5) deserialize cleanly; the UI must treat None
+    as "no signal" and skip from hit-rate stats.
+    """
 
     id: str
     ticker: str | None
@@ -128,3 +136,36 @@ class ArtifactSummary(BaseModel):
     headline: str  # short text — e.g. "DCF implied $185 / WACC 8.2%"
     source: str  # from meta
     archived: bool = False  # 24h no view → archived
+
+    entry_price: float | None = Field(
+        default=None,
+        description=(
+            "Quote snapshot taken when the pipeline was triggered (USD/share). "
+            "Mirrors journal.entry_price semantics. None for legacy artifacts "
+            "or cross-ticker analyses without a single entry price."
+        ),
+    )
+    target_price: float | None = Field(
+        default=None,
+        description=(
+            "AI-given target price from the thesis step (USD/share). "
+            "Mirrors journal.target_price semantics. None when the artifact "
+            "type has no thesis (peer_research / ad_hoc) or for legacy data."
+        ),
+    )
+    target_date: datetime | None = Field(
+        default=None,
+        description=(
+            "Deadline for the thesis (defaults to created_at + 365 days, set "
+            "in the thesis step). None when target_price itself is None."
+        ),
+    )
+    signal: Signal | None = Field(
+        default=None,
+        description=(
+            "Lazy-computed verdict (hit / watching / failed) — never persisted. "
+            "Route handlers call finagent.engine.compute.signal.compute_signal "
+            "at list time using a fresh quote. None when any of entry_price / "
+            "target_price / current_price are unavailable."
+        ),
+    )

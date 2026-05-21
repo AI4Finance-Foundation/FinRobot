@@ -18,6 +18,11 @@ import { DataSnapshot } from './sections/DataSnapshot'
 import { CatalystGrid } from './sections/CatalystGrid'
 import { RiskGrid } from './sections/RiskGrid'
 import { FootballField } from './sections/FootballField'
+import { SensitivityHeatmap } from './sections/SensitivityHeatmap'
+import { HistoricalBandChart } from './sections/HistoricalBandChart'
+import { NewsList } from './sections/NewsList'
+import { SentimentCard } from './sections/SentimentCard'
+import { MyResearchFeed } from './sections/MyResearchFeed'
 
 const PLACEHOLDER_SECTION_STYLE: React.CSSProperties = {
   border: '1px dashed var(--border-soft)',
@@ -70,58 +75,40 @@ export function StockWorkspace(): React.ReactElement {
         }}
       >
         <PipelineProgressPanel ticker={symbol} />
-        {/* PR9–PR11 sections live below. Remaining placeholders downstream
-            will be replaced by PR12+. */}
+        {/* v5 sections in spec §6 order. PR13 (FinancialsSection /
+            PerformanceSection / PeersSection) lives in the legacy view
+            tabs the user is independently modifying — they'll fold into
+            this workspace once those refactors land. */}
         <HeroVerdict ticker={symbol} />
         <CatalystGrid ticker={symbol} />
         <RiskGrid ticker={symbol} />
         <FootballField ticker={symbol} />
-        <SectionPlaceholder
-          id="sec-sensitivity"
-          title="📉 敏感性分析"
-          body="DCF 5×5 热力图 — PR12。来源 /api/compute/dcf-sensitivity。"
-        />
-        <SectionPlaceholder
-          id="sec-band"
-          title="📊 历史估值带"
-          body="EV/EBITDA + P/FCF 时间序列 + 分位带 — PR12。后端 PR3 已就位。"
-        />
+        <SensitivityHeatmap ticker={symbol} />
+        <HistoricalBandChart ticker={symbol} />
         <DataSnapshot ticker={symbol} />
         <SectionPlaceholder
           id="sec-financials"
           title="💰 财务报表"
-          body="4 季度营收 / 毛利率 / 净利润 / YoY — PR13 (FinancialsTab 拆分)。"
+          body="4 季度营收 / 毛利率 / 净利润 / YoY — PR13 (FinancialsTab 拆分 · 用户 in-flight 改造合并后接入)。"
         />
         <SectionPlaceholder
           id="sec-performance"
           title="📈 走势分析"
-          body="YTD / 波动率 / 夏普 / 距 52w 高 — PR13 (PerformanceTab 拆分)。"
+          body="YTD / 波动率 / 夏普 / 距 52w 高 — PR13 (PerformanceTab 拆分 · 同上)。"
         />
         <SectionPlaceholder
           id="sec-peers"
           title="🏢 同业对标"
-          body="5 行表格（NVDA + 4 peer）— PR13 (PeersTab 拆分)。"
+          body="5 行表格（NVDA + 4 peer）— PR13 (PeersTab 拆分 · 同上)。"
         />
-        <SectionPlaceholder
-          id="sec-news"
-          title="📰 新闻动态"
-          body="最近 12 条 + 情绪 dot — PR14 (NewsTab 改造)。"
-        />
-        <SectionPlaceholder
-          id="sec-sentiment"
-          title="👥 散户情绪"
-          body="adanos provider 数据 — PR14。后端 PR4b 已就位 /api/sentiment/{ticker}。"
-        />
+        <NewsList ticker={symbol} />
+        <SentimentCard ticker={symbol} />
         <SectionPlaceholder
           id="sec-earnings"
           title="🎙️ 财报电话会"
-          body="下次电话会 + 上次要点 — PR14 (EarningsCallPanel 改造)。"
+          body="下次电话会 + 上次要点 — PR14 子任务（EarningsCallPanel 用户 in-flight 改造完后接入）。"
         />
-        <SectionPlaceholder
-          id="sec-research"
-          title="📚 我的研究"
-          body="ArtifactSummary feed + 命中率 banner + sparkline — PR15。后端 PR1 已就位 signal 字段。"
-        />
+        <MyResearchFeed ticker={symbol} />
       </main>
     </div>
   )

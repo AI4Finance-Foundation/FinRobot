@@ -6,6 +6,7 @@
 
 import { useLatestArtifact } from '../../hooks/useV5Artifacts'
 import { useTickerPrice } from '../../hooks/useTickerData'
+import { downloadShareCard } from '../../utils/shareCard'
 
 const SECTION_STYLE: React.CSSProperties = {
   border: '1px solid var(--border)',
@@ -93,6 +94,47 @@ export function HeroVerdict({ ticker }: HeroVerdictProps): React.ReactElement {
         当时股价 ${entry.toFixed(2)}
         {current !== null && ` → 当前 $${current.toFixed(2)}`}
       </p>
+
+      <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+        <button
+          type="button"
+          data-testid="hero-share-card"
+          onClick={() =>
+            downloadShareCard({
+              artifact: latest,
+              currentPrice: current,
+              daysSinceEntry: daysSince,
+            })
+          }
+          style={{
+            fontSize: 11.5,
+            padding: '6px 12px',
+            borderRadius: 6,
+            border: '1px solid var(--border)',
+            background: 'transparent',
+            color: 'var(--text-soft)',
+            cursor: 'pointer',
+          }}
+        >
+          📤 分享图
+        </button>
+        <a
+          href={`${import.meta.env.VITE_API_BASE_URL ?? ''}/api/exports/pdf/${latest.id}`}
+          target="_blank"
+          rel="noreferrer noopener"
+          style={{
+            fontSize: 11.5,
+            padding: '6px 12px',
+            borderRadius: 6,
+            border: '1px solid var(--border)',
+            background: 'transparent',
+            color: 'var(--text-soft)',
+            textDecoration: 'none',
+          }}
+        >
+          📥 PDF
+        </a>
+      </div>
     </section>
   )
 }

@@ -17,6 +17,8 @@ from starlette.requests import Request
 from finagent.artifact.diff import FieldDiff, diff_artifacts
 from finagent.artifact.models import Artifact, ArtifactSummary, ArtifactType
 from finagent.artifact.store import ArtifactStore
+from finagent.engine.data.layer import DataLayer
+from finagent.routes._artifact_signal import attach_signals
 
 router = APIRouter(prefix="/api/artifacts", tags=["artifacts"])
 
@@ -27,6 +29,12 @@ def _store(request: Request) -> ArtifactStore:
     if store is None:
         raise HTTPException(status_code=503, detail="Artifact store not initialised")
     return store
+
+
+def _data_layer(request: Request) -> DataLayer | None:
+    """Best-effort DataLayer for lazy signal compute; None when unavailable."""
+    deps = getattr(request.app.state, "deps", None)
+    return getattr(deps, "data_layer", None) if deps is not None else None
 
 
 @router.get("", response_model=list[ArtifactSummary])
@@ -49,12 +57,16 @@ async def list_artifacts(
         List of ArtifactSummary sorted by created_at descending.
     """
     store = _store(request)
-    return await store.list_by_ticker(
+    summaries = await store.list_by_ticker(
         ticker=ticker.upper() if ticker else None,
         type=type,
         include_archived=archived,
         limit=limit,
     )
+    data_layer = _data_layer(request)
+    if data_layer is not None:
+        summaries = await attach_signals(summaries, data_layer)
+    return summaries
 
 
 @router.get("/by-ticker/{ticker}/timeline", response_model=list[ArtifactSummary])
@@ -78,11 +90,15 @@ async def ticker_timeline(
         List of ArtifactSummary (all types) for the ticker, newest first.
     """
     store = _store(request)
-    return await store.list_by_ticker(
+    summaries = await store.list_by_ticker(
         ticker=ticker.upper(),
         include_archived=True,
         limit=limit,
     )
+    data_layer = _data_layer(request)
+    if data_layer is not None:
+        summaries = await attach_signals(summaries, data_layer)
+    return summaries
 
 
 @router.get("/{artifact_id}", response_model=Artifact)

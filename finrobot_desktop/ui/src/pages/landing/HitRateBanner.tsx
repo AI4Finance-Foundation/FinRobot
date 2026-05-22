@@ -1,8 +1,8 @@
-// HitRateBanner — overall + by-verdict accuracy snapshot on /stocks.
+// HitRateBanner — Track Record · forecast accuracy snapshot on /stocks.
 //
 // Three window chips (30d / 90d / all) drive a single useDashboardHitRate
-// call. When `n_closed === 0` the banner shows a "样本不足" hint instead
-// of fabricating a number — no fake confidence here.
+// call. When `n_closed === 0` the banner shows an "insufficient sample"
+// hint instead of fabricating a number — no fake confidence here.
 
 import { useState } from 'react'
 import { useDashboardHitRate, type HitRateWindow } from '../../hooks/useDashboardHitRate'
@@ -47,7 +47,7 @@ export function HitRateBanner(): React.ReactElement {
             margin: 0,
           }}
         >
-          胜率简报
+          Track Record · 命中率
         </h2>
         <span style={{ flex: 1 }} />
         <div style={{ display: 'flex', gap: 4 }}>
@@ -129,7 +129,7 @@ function OverallTile({
           textTransform: 'uppercase',
         }}
       >
-        Overall · 已结论 {bucket.n_closed} / 共 {bucket.n_total}
+        Overall · settled {bucket.n_closed} / total {bucket.n_total}
       </div>
       <div
         style={{
@@ -150,7 +150,9 @@ function OverallTile({
           color: insufficient ? 'var(--text-muted)' : 'var(--text-secondary)',
         }}
       >
-        {insufficient ? '样本不足 · 至少需要 1 条已结论分析' : `命中 ${bucket.n_hit} 条 · 跑得越多越稳`}
+        {insufficient
+          ? 'Insufficient track record · need ≥1 settled position to compute hit rate'
+          : `${bucket.n_hit} of ${bucket.n_closed} settled positions hit target`}
       </div>
     </div>
   )
@@ -213,7 +215,7 @@ function VerdictTile({
         {insufficient ? '—' : `${(bucket.hit_rate! * 100).toFixed(0)}%`}
       </div>
       <div style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--text-muted)' }}>
-        {bucket.n_hit}/{bucket.n_closed} 命中
+        {bucket.n_hit}/{bucket.n_closed} hits
       </div>
     </div>
   )

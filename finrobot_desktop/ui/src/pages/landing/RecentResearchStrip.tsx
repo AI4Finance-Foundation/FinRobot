@@ -1,18 +1,48 @@
-// RecentResearchStrip — top-5 latest artifacts (horizontal cards).
+// RecentResearchStrip — drawer cards: top-5 most recently touched tickers,
+// each card listing the ticker's recent runs as clickable rows.
 //
-// Each card surfaces: ticker / verdict / signal lamp / entry → target →
-// current / delta-to-target / age. Click jumps to the ticker workspace.
+// 2026-05-23 (v2): row-based. Click a row → that artifact's detail page
+// (/stocks/:ticker/runs/:artifact_id). Click the card header → ticker
+// workspace. If the ticker has more than 5 runs in total, an overflow
+// footer links to the workspace's full timeline.
 
 import { useNavigate } from 'react-router-dom'
 import {
   useDashboardRecentResearch,
-  type RecentResearchItem,
+  type RecentTickerItem,
+  type RecentTickerRun,
   type Signal,
 } from '../../hooks/useDashboardRecentResearch'
 
+// Pipeline key → human label. After the 2026-05-23 1-pipeline-only refactor
+// most rows show 「研报」; the other keys are kept for backwards compat with
+// historical artifacts users may have generated before the cleanup.
+const TYPE_SHORT: Record<string, string> = {
+  research: '研报',
+  equity_research: '研报',
+  'ic-memo': '投委',
+  ic_memo: '投委',
+  earnings: '财报',
+  earnings_analysis: '财报',
+  dcf: 'DCF',
+  lbo: 'LBO',
+  ddm: 'DDM',
+  comps: '同业',
+  peer_research: '同业',
+  playground_snapshot: '手调',
+  ad_hoc: 'Ad hoc',
+}
+
+const MAX_RUNS_SHOWN = 5
+
+// Bump from 5 → 20 now that this strip is the sole landing-page surface
+// for "my research library" (03 table removed). Horizontal scroll handles
+// the overflow naturally on desktop.
+const LANDING_TICKER_LIMIT = 20
+
 export function RecentResearchStrip(): React.ReactElement {
   const navigate = useNavigate()
-  const { data, isLoading, isError } = useDashboardRecentResearch(5)
+  const { data, isLoading, isError } = useDashboardRecentResearch(LANDING_TICKER_LIMIT)
 
   return (
     <section data-testid="recent-research-strip">
@@ -22,7 +52,7 @@ export function RecentResearchStrip(): React.ReactElement {
       >
         <span className="group-num">02</span>
         <span className="group-title" style={{ fontSize: 20, letterSpacing: 2.5 }}>
-          最近研究
+          Studied Tickers · 历史研究
         </span>
         <span style={{ flex: 1 }} />
         <span
@@ -33,7 +63,9 @@ export function RecentResearchStrip(): React.ReactElement {
             letterSpacing: '0.06em',
           }}
         >
-          {data?.total_in_store ? `共 ${data.total_in_store} 份在库` : ''}
+          {data && data.distinct_ticker_count > 0
+            ? `${data.distinct_ticker_count} tickers · ${data.total_in_store} artifacts`
+            : ''}
         </span>
       </div>
 
@@ -48,7 +80,7 @@ export function RecentResearchStrip(): React.ReactElement {
             textAlign: 'center',
           }}
         >
-          后端无响应 · 启动 FinAgent server 后刷新页面。
+          Backend offline · start FinAgent server and refresh.
         </div>
       )}
 
@@ -65,7 +97,7 @@ export function RecentResearchStrip(): React.ReactElement {
             textAlign: 'center',
           }}
         >
-          还没有分析记录 · 顶部输入框搜个 ticker 试试。
+          No research artifacts yet · search a ticker above to initiate coverage.
         </div>
       )}
 
@@ -77,15 +109,17 @@ export function RecentResearchStrip(): React.ReactElement {
             gap: 14,
             overflowX: 'auto',
             paddingBottom: 8,
+            alignItems: 'flex-start',
           }}
         >
           {data.items.map((item) => (
-            <ResearchCard
-              key={item.artifact_id}
+            <TickerDrawerCard
+              key={item.ticker}
               item={item}
-              onClick={() => {
-                if (item.ticker) navigate(`/stocks/${item.ticker}`)
-              }}
+              onOpenWorkspace={() => navigate(`/stocks/${item.ticker}`)}
+              onOpenRun={(run) =>
+                navigate(`/stocks/${item.ticker}/runs/${run.artifact_id}`)
+              }
             />
           ))}
         </div>
@@ -94,146 +128,215 @@ export function RecentResearchStrip(): React.ReactElement {
   )
 }
 
-function ResearchCard({
+function TickerDrawerCard({
   item,
-  onClick,
+  onOpenWorkspace,
+  onOpenRun,
 }: {
-  item: RecentResearchItem
-  onClick: () => void
+  item: RecentTickerItem
+  onOpenWorkspace: () => void
+  onOpenRun: (run: RecentTickerRun) => void
 }): React.ReactElement {
+  const overflow = item.run_count - item.runs.length
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      data-testid="recent-research-card"
+    <div
+      data-testid={`recent-research-card-${item.ticker}`}
       className="cosmic-card"
       style={{
-        width: 260,
+        width: 304,
         flexShrink: 0,
-        padding: 18,
         textAlign: 'left',
-        cursor: 'pointer',
         background: 'rgba(15,15,34,0.6)',
         border: '1px solid var(--border-soft)',
         borderRadius: 'var(--radius-lg)',
         display: 'flex',
         flexDirection: 'column',
-        gap: 10,
-        transition: 'border-color 0.18s, transform 0.18s',
+        transition: 'border-color 0.18s',
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.borderColor = 'var(--border-glow)'
-        e.currentTarget.style.transform = 'translateY(-2px)'
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.borderColor = 'var(--border-soft)'
-        e.currentTarget.style.transform = 'translateY(0)'
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <button
+        type="button"
+        data-testid={`recent-research-card-${item.ticker}-header`}
+        onClick={onOpenWorkspace}
+        title={`打开 ${item.ticker} 工作区`}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '14px 16px 12px',
+          background: 'transparent',
+          border: 'none',
+          borderBottom: '1px solid var(--border-faint)',
+          cursor: 'pointer',
+          color: 'inherit',
+          font: 'inherit',
+          width: '100%',
+          textAlign: 'left',
+        }}
+      >
         <span
           style={{
             fontFamily: 'var(--font-display)',
-            fontSize: 16,
+            fontSize: 17,
             letterSpacing: 2,
             color: 'var(--text-primary)',
           }}
         >
-          {item.ticker ?? item.cross_tickers.join(' · ') ?? '—'}
+          {item.ticker}
         </span>
-        {item.verdict && <VerdictPill verdict={item.verdict} />}
+        {item.latest_signal && <SignalLamp signal={item.latest_signal} />}
         <span style={{ flex: 1 }} />
-        {item.signal && <SignalLamp signal={item.signal} />}
-      </div>
-
-      <div
-        style={{
-          fontFamily: 'var(--font-body)',
-          fontSize: 12,
-          fontWeight: 400,
-          color: 'var(--text-secondary)',
-          lineHeight: 1.45,
-          minHeight: 36,
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden',
-        }}
-      >
-        {item.headline}
-      </div>
-
-      {(item.entry_price && item.target_price && item.current_price) ? (
-        <div
+        <span
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-            gap: 6,
             fontFamily: 'var(--font-mono)',
             fontSize: 11,
-            fontVariantNumeric: 'tabular-nums',
+            color: 'var(--text-muted)',
+            letterSpacing: '0.04em',
           }}
         >
-          <PriceBox label="入场" value={item.entry_price} />
-          <PriceBox label="目标" value={item.target_price} tone="primary" />
-          <PriceBox label="当前" value={item.current_price} tone="cyan" />
-        </div>
-      ) : (
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
-          无目标价 · 信号不可判定
-        </div>
-      )}
+          {item.run_count} 份 ›
+        </span>
+      </button>
 
-      <div
+      <ul
         style={{
+          listStyle: 'none',
+          margin: 0,
+          padding: '4px 0',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginTop: 4,
+          flexDirection: 'column',
         }}
       >
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
-          {item.age_label.toUpperCase()}
-        </span>
-        {item.delta_to_target_pct !== null && (
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              color:
-                item.delta_to_target_pct >= 0.5
-                  ? 'var(--success)'
-                  : item.delta_to_target_pct < 0
-                    ? 'var(--danger)'
-                    : 'var(--accent-cyan)',
-            }}
-          >
-            {item.delta_to_target_pct >= 0 ? '+' : ''}
-            {(item.delta_to_target_pct * 100).toFixed(0)}% → 目标
-          </span>
-        )}
-      </div>
+        {item.runs.map((run) => (
+          <li key={run.artifact_id}>
+            <RunRow run={run} onClick={() => onOpenRun(run)} />
+          </li>
+        ))}
+      </ul>
+
+      {overflow > 0 && (
+        <button
+          type="button"
+          data-testid={`recent-research-card-${item.ticker}-overflow`}
+          onClick={onOpenWorkspace}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            padding: '8px 16px 12px',
+            background: 'transparent',
+            border: 'none',
+            borderTop: '1px solid var(--border-faint)',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            color: 'var(--accent-cyan)',
+            letterSpacing: '0.04em',
+          }}
+        >
+          + 还有 {overflow} 份历史 · 查看全部 →
+        </button>
+      )}
+    </div>
+  )
+}
+
+function RunRow({
+  run,
+  onClick,
+}: {
+  run: RecentTickerRun
+  onClick: () => void
+}): React.ReactElement {
+  const typeLabel = TYPE_SHORT[run.type] ?? run.type.slice(0, 6)
+  return (
+    <button
+      type="button"
+      data-testid={`recent-research-run-${run.artifact_id}`}
+      onClick={onClick}
+      title={`打开 ${typeLabel} 报告详情`}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '52px 56px 1fr auto',
+        alignItems: 'center',
+        gap: 8,
+        width: '100%',
+        padding: '8px 16px',
+        background: 'transparent',
+        border: 'none',
+        borderRadius: 0,
+        cursor: 'pointer',
+        color: 'inherit',
+        font: 'inherit',
+        textAlign: 'left',
+        transition: 'background 0.15s',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'rgba(59,130,246,0.06)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'transparent'
+      }}
+    >
+      <span
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11,
+          color: 'var(--text-secondary)',
+          padding: '2px 7px',
+          background: 'rgba(59,130,246,0.08)',
+          border: '1px solid rgba(59,130,246,0.18)',
+          borderRadius: 999,
+          letterSpacing: '0.04em',
+          textAlign: 'center',
+        }}
+      >
+        {typeLabel}
+      </span>
+      <VerdictText verdict={run.verdict} />
+      <span
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11,
+          color: 'var(--text-muted)',
+          letterSpacing: '0.04em',
+        }}
+      >
+        {run.age_label}
+      </span>
+      <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>›</span>
     </button>
   )
 }
 
-function VerdictPill({ verdict }: { verdict: 'BUY' | 'HOLD' | 'SELL' }): React.ReactElement {
-  const colors: Record<typeof verdict, { fg: string; bg: string }> = {
-    BUY: { fg: 'var(--success)', bg: 'rgba(22,163,74,0.14)' },
-    HOLD: { fg: '#F59E0B', bg: 'rgba(217,119,6,0.14)' },
-    SELL: { fg: 'var(--danger)', bg: 'rgba(220,38,38,0.14)' },
+function VerdictText({
+  verdict,
+}: {
+  verdict: 'BUY' | 'HOLD' | 'SELL' | null
+}): React.ReactElement {
+  if (!verdict) {
+    return <span style={{ color: 'var(--text-faint)', fontSize: 11 }}>—</span>
   }
-  const c = colors[verdict]
+  const fg =
+    verdict === 'BUY'
+      ? 'var(--success)'
+      : verdict === 'SELL'
+        ? 'var(--danger)'
+        : '#F59E0B'
   return (
     <span
       style={{
         fontFamily: 'var(--font-display)',
-        fontSize: 9,
-        letterSpacing: 2,
-        color: c.fg,
-        background: c.bg,
-        padding: '3px 8px',
-        borderRadius: 4,
+        fontSize: 10,
+        letterSpacing: 1.4,
+        color: fg,
       }}
     >
       {verdict}
@@ -264,32 +367,6 @@ function SignalLamp({ signal }: { signal: Signal }): React.ReactElement {
   )
 }
 
-function PriceBox({
-  label,
-  value,
-  tone,
-}: {
-  label: string
-  value: number
-  tone?: 'primary' | 'cyan'
-}): React.ReactElement {
-  const fg = tone === 'primary'
-    ? 'var(--primary)'
-    : tone === 'cyan'
-      ? 'var(--accent-cyan)'
-      : 'var(--text-secondary)'
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-      <span style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-        {label}
-      </span>
-      <span style={{ fontSize: 13, color: fg, fontWeight: 600 }}>
-        ${value.toFixed(2)}
-      </span>
-    </div>
-  )
-}
-
 function StripSkeleton(): React.ReactElement {
   return (
     <div className="hide-scrollbar" style={{ display: 'flex', gap: 14, overflowX: 'auto' }}>
@@ -297,8 +374,8 @@ function StripSkeleton(): React.ReactElement {
         <div
           key={i}
           style={{
-            width: 260,
-            height: 168,
+            width: 304,
+            height: 220,
             flexShrink: 0,
             borderRadius: 'var(--radius-lg)',
             background:

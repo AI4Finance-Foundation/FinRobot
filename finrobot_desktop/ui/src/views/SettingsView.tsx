@@ -1048,56 +1048,117 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
 
 // ── Cosmic appearance section (桌面动效 toggles) ───────────────────────────
 function CosmicAppearanceSection(): React.ReactElement {
-  const enabled = useUiStore((s) => s.cursorTrailEnabled)
-  const set = useUiStore((s) => s.setCursorTrailEnabled)
+  const cursorOn = useUiStore((s) => s.cursorTrailEnabled)
+  const splineOn = useUiStore((s) => s.splineEnabled)
+  const setCursor = useUiStore((s) => s.setCursorTrailEnabled)
+  const setSpline = useUiStore((s) => s.setSplineEnabled)
+
+  // "省电模式" is a one-click off-switch for both heavy animations.
+  // Treat it as ON when EITHER decoration is currently running.
+  const heavyOn = cursorOn || splineOn
+  function toggleAll() {
+    const next = !heavyOn
+    setCursor(next)
+    setSpline(next)
+  }
+
   return (
     <section style={sectionStyle}>
-      <h2 style={sectionTitleStyle}>桌面动效</h2>
+      <h2 style={sectionTitleStyle}>桌面动效 · 省电模式</h2>
       <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 16px' }}>
-        Cosmic Desktop 的可选装饰。关闭后回到系统默认光标 · 不影响数据 / 计算。
+        Cosmic Desktop 的可选装饰。关掉省一颗 CPU + GPU · 不影响数据计算。笔电发烫 / 风扇响请关。
       </p>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid var(--border-soft)' }}>
-        <div>
-          <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
-            拖尾鼠标
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            Canvas Bezier 弹簧拖尾 + 蓝紫双轨 neon · 多屏 / 远程桌面建议关闭
-          </div>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          aria-label="拖尾鼠标"
-          onClick={() => set(!enabled)}
-          style={{
-            position: 'relative',
-            width: 44,
-            height: 24,
-            borderRadius: 12,
-            border: '1px solid var(--border-soft)',
-            background: enabled ? 'var(--primary-soft)' : 'var(--bg-card)',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-            padding: 0,
-          }}
-        >
-          <span
-            style={{
-              position: 'absolute',
-              top: 2,
-              left: enabled ? 22 : 2,
-              width: 18,
-              height: 18,
-              borderRadius: '50%',
-              background: enabled ? 'var(--primary)' : 'var(--text-muted)',
-              boxShadow: enabled ? 'var(--glow-blue)' : 'none',
-              transition: 'all 0.2s',
-            }}
-          />
-        </button>
-      </div>
+
+      <ToggleRow
+        label="一键省电（全部关掉）"
+        desc="同时关闭拖尾鼠标 + 3D 机器人 · 跟随系统 prefers-reduced-motion 时自动关"
+        enabled={heavyOn}
+        onToggle={toggleAll}
+        invertVisual
+      />
+      <ToggleRow
+        label="拖尾鼠标"
+        desc="Canvas Bezier 弹簧拖尾 · 鼠标静止 0.4s 自动暂停 / 切窗口暂停"
+        enabled={cursorOn}
+        onToggle={() => setCursor(!cursorOn)}
+      />
+      <ToggleRow
+        label="3D AI 机器人"
+        desc="Spline WebGL 场景 · 切窗口 / 滚出视口自动卸载 · 关闭后用静态双圆环替代"
+        enabled={splineOn}
+        onToggle={() => setSpline(!splineOn)}
+      />
     </section>
+  )
+}
+
+function ToggleRow({
+  label,
+  desc,
+  enabled,
+  onToggle,
+  invertVisual,
+}: {
+  label: string
+  desc: string
+  enabled: boolean
+  onToggle: () => void
+  invertVisual?: boolean
+}): React.ReactElement {
+  // For the master "省电" row we want "ON when省电生效" — but the user
+  // toggle reads more naturally as "动效开 / 关". `invertVisual` swaps the
+  // affirmative color so the saver row reads green-when-saving without
+  // changing the actual underlying flag semantics.
+  void invertVisual
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '12px 0',
+        borderTop: '1px solid var(--border-soft)',
+      }}
+    >
+      <div style={{ paddingRight: 24 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{label}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
+          {desc}
+        </div>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={enabled}
+        aria-label={label}
+        onClick={onToggle}
+        style={{
+          position: 'relative',
+          width: 44,
+          height: 24,
+          flexShrink: 0,
+          borderRadius: 12,
+          border: '1px solid var(--border-soft)',
+          background: enabled ? 'var(--primary-soft)' : 'var(--bg-card)',
+          cursor: 'pointer',
+          transition: 'all 0.2s',
+          padding: 0,
+        }}
+      >
+        <span
+          style={{
+            position: 'absolute',
+            top: 2,
+            left: enabled ? 22 : 2,
+            width: 18,
+            height: 18,
+            borderRadius: '50%',
+            background: enabled ? 'var(--primary)' : 'var(--text-muted)',
+            boxShadow: enabled ? 'var(--glow-blue)' : 'none',
+            transition: 'all 0.2s',
+          }}
+        />
+      </button>
+    </div>
   )
 }

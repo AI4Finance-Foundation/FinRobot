@@ -90,6 +90,11 @@ interface UiStoreState {
    *  the toggle for users on low-end laptops / multi-monitor edge cases. */
   cursorTrailEnabled: boolean
 
+  /** Spline 3D AI Analyst (hero + landing backdrop). WebGL viewer; when
+   *  off, the static FakeRobotRings fallback renders instead. Off keeps
+   *  the GPU idle — significant fan / heat win on laptops. */
+  splineEnabled: boolean
+
   // Workspace
   workspacePath: string
 
@@ -112,6 +117,7 @@ interface UiStoreState {
   setRightPanelTab: (tab: 'watchlist' | 'ai') => void
 
   setCursorTrailEnabled: (on: boolean) => void
+  setSplineEnabled: (on: boolean) => void
 
   setWorkspacePath: (p: string) => void
 
@@ -163,6 +169,7 @@ export const useUiStore = create<UiStoreState>()(
       aiPanelWidth: DEFAULT_AIPANEL_W,
       rightPanelTab: 'watchlist',
       cursorTrailEnabled: true,
+      splineEnabled: true,
 
       workspacePath: DEFAULT_WORKSPACE_PATH,
 
@@ -182,6 +189,7 @@ export const useUiStore = create<UiStoreState>()(
 
       // Cosmic cursor trail
       setCursorTrailEnabled: (cursorTrailEnabled) => set({ cursorTrailEnabled }),
+      setSplineEnabled: (splineEnabled) => set({ splineEnabled }),
 
       // workspace
       setWorkspacePath: (workspacePath) =>
@@ -270,13 +278,31 @@ export const useUiStore = create<UiStoreState>()(
         aiPanelOpen: s.aiPanelOpen,
         rightPanelTab: s.rightPanelTab,
         cursorTrailEnabled: s.cursorTrailEnabled,
+        splineEnabled: s.splineEnabled,
         currentModel: s.currentModel,
         workspacePath: s.workspacePath,
       }),
-      onRehydrateStorage: () => () => {
+      onRehydrateStorage: () => (state) => {
         // v5: 砍了 theme toggle · 强制清理旧持久化的 light 主题
         // 否则之前点过 light toggle 的用户启动后还是 light，看着乱。
         document.documentElement.removeAttribute('data-theme')
+        // prefers-reduced-motion: 自动关掉所有 heavy 装饰（仅首次冷启动）
+        // 已经 hydrate 过的用户保留其手动选择。
+        if (typeof window !== 'undefined' && state) {
+          const mql = typeof window.matchMedia === 'function'
+            ? window.matchMedia('(prefers-reduced-motion: reduce)')
+            : null
+          if (mql?.matches) {
+            const stored = localStorage.getItem('finagent-ui-shell')
+            // Only auto-disable if the user has no persisted choice — i.e.,
+            // they never used Settings to flip these on. Once they manually
+            // turn on the cosmic decorations we respect that.
+            if (!stored || !stored.includes('"cursorTrailEnabled"')) {
+              state.cursorTrailEnabled = false
+              state.splineEnabled = false
+            }
+          }
+        }
       },
     },
   ),

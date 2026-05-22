@@ -7,8 +7,19 @@
 //
 // Sizing: caller sets the bounding box (typically 40% width inside the
 // hero grid); SplineHero fills it.
+//
+// CPU/heat-saving (2026-05-22):
+//   - uiStore.splineEnabled gates the WebGL viewer entirely; when off we
+//     render the static FakeRobotRings fallback (CSS-only, almost free)
+//   - unmount the viewer when document.hidden / window blurred so the
+//     WebGL context stops burning GPU in the background
+//   - IntersectionObserver: don't even mount the viewer if the container
+//     is currently off-screen (landing backdrop variant scrolls off as
+//     the user inspects the tables below — no point rendering 3D under
+//     the fold)
 
 import { useEffect, useRef, useState } from 'react'
+import { useUiStore } from '../stores/uiStore'
 
 const SCRIPT_SRC = 'https://unpkg.com/@splinetool/viewer@1.9.54/build/spline-viewer.js'
 const SCENE_SRC = 'https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode'
@@ -48,9 +59,52 @@ export function SplineHero({
 }: Props): React.ReactElement {
   const containerRef = useRef<HTMLDivElement>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'failed'>('loading')
+  const [visible, setVisible] = useState(true)
+  const [pageActive, setPageActive] = useState(
+    typeof document === 'undefined' ? true : !document.hidden,
+  )
   const showChip = showStatusChip ?? variant === 'hero'
+  const enabled = useUiStore((s) => s.splineEnabled)
+  // The actual render condition: opt-in + tab visible + scrolled into view.
+  // When any of these flip false we render the static FakeRobotRings
+  // fallback (or nothing for the backdrop variant) instead of the WebGL
+  // viewer — that's the heat saver.
+  const allowed = enabled && pageActive && visible
+
+  // Track tab / window visibility so we can unmount the WebGL viewer when
+  // the user switches away. Keeps the GPU idle in the background — the
+  // single biggest factor in the laptop-fan complaint.
+  useEffect(() => {
+    function onVis() { setPageActive(!document.hidden) }
+    function onBlur() { setPageActive(false) }
+    function onFocus() { setPageActive(!document.hidden) }
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('blur', onBlur)
+    window.addEventListener('focus', onFocus)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('blur', onBlur)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [])
+
+  // IntersectionObserver — only mount the viewer when the container is in
+  // the viewport. Landing-page backdrop scrolls off when the user inspects
+  // the studied-tickers table; no need to keep rendering 3D below the fold.
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return
+    const el = containerRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      ([entry]) => setVisible(entry?.isIntersecting ?? true),
+      { rootMargin: '120px' },  // start rendering slightly before it enters
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
 
   useEffect(() => {
+    if (!allowed) return
     let cancelled = false
 
     // Inject the viewer module once. Re-renders attach to the existing tag.
@@ -97,7 +151,7 @@ export function SplineHero({
       cancelled = true
       if (timeoutId) clearTimeout(timeoutId)
     }
-  }, [])
+  }, [allowed])
 
   // "Built with Spline" branding lives inside spline-viewer's shadow DOM
   // (the free Spline tier renders it on every scene). Inject a style tag
@@ -163,7 +217,7 @@ export function SplineHero({
         pointerEvents: isBackdrop ? 'none' : undefined,
       }}
     >
-      {status !== 'failed' && (
+      {allowed && status !== 'failed' && (
         <spline-viewer
           url={SCENE_SRC}
           events-target="global"
@@ -194,7 +248,12 @@ export function SplineHero({
           }}
         />
       )}
-      {status !== 'ready' && !isBackdrop && <FakeRobotRings />}
+      {/* Render the static double-ring fallback in two cases:
+            (a) Spline failed / not ready yet (the original use)
+            (b) Spline is disabled or paused — keeps the layout slot
+                filled in the hero variant; the backdrop variant just
+                renders nothing so the starfield shows through. */}
+      {(!allowed || status !== 'ready') && !isBackdrop && <FakeRobotRings />}
       {status === 'ready' && showChip && (
         <div
           aria-hidden

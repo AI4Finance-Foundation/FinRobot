@@ -20,7 +20,7 @@ export function HitRateBanner(): React.ReactElement {
   return (
     <section
       data-testid="hit-rate-banner"
-      className="cosmic-card"
+      className="cosmic-card cosmic-card-glass"
       style={{ padding: 28 }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>

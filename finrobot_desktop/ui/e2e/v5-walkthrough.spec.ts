@@ -243,8 +243,9 @@ test('v5 5-step retail walkthrough', async ({ page }) => {
   await expect(page.locator('#sec-now')).toBeAttached()
   await expect(page.locator('#sec-research')).toBeAttached()
 
-  // Step 2 — open + 跑分析 dropdown.
-  await page.getByTestId('run-analysis-trigger').click()
+  // Step 2 — split-button: chevron opens the 6-model dropdown (the main
+  // trigger button now fires `research` directly, not a menu).
+  await page.getByTestId('run-analysis-more').click()
   await expect(page.getByTestId('run-analysis-dropdown')).toBeVisible()
   await page.screenshot({
     path: '../docs/v5-screenshots/02-run-analysis-dropdown.png',

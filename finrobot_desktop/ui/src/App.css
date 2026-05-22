@@ -3701,16 +3701,29 @@ select.input-field {
   animation: cosmic-drift-fast 120s linear infinite reverse;
 }
 
-/* ── Card primitive — neon top line via ::before ─────────────── */
+/* ── Card primitive — neon top line via ::before ───────────────
+   2026-05-22: backdrop-filter removed from the base `.cosmic-card`.
+   34 sections × persistent GPU compositing layers + Spline WebGL on
+   another surface was the GPU bottleneck flagged in the heat audit.
+   Solid alpha + 1px border + neon top line still reads as a cosmic
+   card visually, costs almost nothing GPU-side.
+
+   For the 5-7 high-emphasis "hero" cards that genuinely benefit from
+   frosted glass (HeroVerdict / HitRateBanner / FootballField /
+   StudiedTickersTable / cosmic-group-header backdrop), opt-in via
+   `.cosmic-card.cosmic-card-glass`. */
 .cosmic-card {
   position: relative;
-  background: rgba(15, 15, 34, 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(15, 15, 34, 0.92);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-lg);
   padding: 24px;
   transition: border-color 0.2s, box-shadow 0.2s;
+}
+.cosmic-card.cosmic-card-glass {
+  background: rgba(15, 15, 34, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 .cosmic-card::before {
   content: "";

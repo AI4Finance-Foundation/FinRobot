@@ -1078,13 +1078,13 @@ function CosmicAppearanceSection(): React.ReactElement {
       />
       <ToggleRow
         label="拖尾鼠标"
-        desc="Canvas Bezier 弹簧拖尾 · 鼠标静止 0.4s 自动暂停 / 切窗口暂停"
+        desc="Canvas Bezier 弹簧拖尾 · 默认关（之前是 60fps 烧 CPU 的死循环 · 现在加了自动暂停但仍建议低配机关）"
         enabled={cursorOn}
         onToggle={() => setCursor(!cursorOn)}
       />
       <ToggleRow
         label="3D AI 机器人"
-        desc="Spline WebGL 场景 · 切窗口 / 滚出视口自动卸载 · 关闭后用静态双圆环替代"
+        desc="Spline WebGL · 只出现在 /stocks 首页背景 · 进个股工作区不挂载（2026-05-22 用户反馈：详情页要看数字不看 3D）"
         enabled={splineOn}
         onToggle={() => setSpline(!splineOn)}
       />

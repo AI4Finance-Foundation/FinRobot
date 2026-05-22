@@ -40,7 +40,7 @@ export function FootballField({ ticker }: FootballFieldProps): React.ReactElemen
 
   if (isLoading) {
     return (
-      <section id="sec-football" className="cosmic-card" style={{ margin: "12px 0" }}>
+      <section id="sec-football" className="cosmic-card cosmic-card-glass" style={{ margin: "12px 0" }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
           🏟️ 估值范围 (Football Field)
         </h2>
@@ -51,7 +51,7 @@ export function FootballField({ ticker }: FootballFieldProps): React.ReactElemen
 
   if (isError || methods.length === 0) {
     return (
-      <section id="sec-football" className="cosmic-card" style={{ margin: "12px 0" }}>
+      <section id="sec-football" className="cosmic-card cosmic-card-glass" style={{ margin: "12px 0" }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
           🏟️ 估值范围 (Football Field)
         </h2>
@@ -68,7 +68,7 @@ export function FootballField({ ticker }: FootballFieldProps): React.ReactElemen
   }
 
   return (
-    <section id="sec-football" className="cosmic-card" style={{ margin: "12px 0" }}>
+    <section id="sec-football" className="cosmic-card cosmic-card-glass" style={{ margin: "12px 0" }}>
       <header style={{ marginBottom: 14 }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
           🏟️ 估值范围 (Football Field)

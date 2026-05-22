@@ -54,7 +54,7 @@ export function StudiedTickersTable(): React.ReactElement {
 
       {items.length > 0 && (
         <div
-          className="cosmic-card"
+          className="cosmic-card cosmic-card-glass"
           style={{ padding: 0, overflow: 'hidden', borderRadius: 'var(--radius-lg)' }}
         >
           <div
@@ -277,7 +277,7 @@ function ErrorBox({ children }: { children: React.ReactNode }): React.ReactEleme
 
 function Skeleton(): React.ReactElement {
   return (
-    <div className="cosmic-card" style={{ padding: 0, overflow: 'hidden' }}>
+    <div className="cosmic-card cosmic-card-glass" style={{ padding: 0, overflow: 'hidden' }}>
       {[0, 1, 2, 3].map((i) => (
         <div
           key={i}

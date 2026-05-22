@@ -86,13 +86,15 @@ interface UiStoreState {
   /** Which tab is foregrounded inside the right panel. */
   rightPanelTab: 'watchlist' | 'ai'
 
-  /** Cosmic desktop trail cursor (spec §5.3). Default true; Settings exposes
-   *  the toggle for users on low-end laptops / multi-monitor edge cases. */
+  /** Cosmic desktop trail cursor (spec §5.3). Default OFF — a 60fps RAF
+   *  loop pinning one core was the #1 fan/heat complaint. Users who want
+   *  the "桌面 App 灵魂" can opt-in via Settings. */
   cursorTrailEnabled: boolean
 
-  /** Spline 3D AI Analyst (hero + landing backdrop). WebGL viewer; when
-   *  off, the static FakeRobotRings fallback renders instead. Off keeps
-   *  the GPU idle — significant fan / heat win on laptops. */
+  /** Spline 3D AI Analyst on the /stocks landing backdrop. Default ON —
+   *  only mounts on the landing route (ticker workspace no longer carries
+   *  it as of 2026-05-22 — user feedback: detail page should show numbers,
+   *  not 3D). When off, the static FakeRobotRings fallback renders. */
   splineEnabled: boolean
 
   // Workspace
@@ -168,7 +170,11 @@ export const useUiStore = create<UiStoreState>()(
       aiPanelOpen: true,
       aiPanelWidth: DEFAULT_AIPANEL_W,
       rightPanelTab: 'watchlist',
-      cursorTrailEnabled: true,
+      // Heat-conservative defaults — cosmic decorations are opt-in for
+      // anything that pegs a CPU core. Spline (single landing backdrop)
+      // stays on because it only mounts on /stocks and unmounts the
+      // moment the user enters a ticker workspace.
+      cursorTrailEnabled: false,
       splineEnabled: true,
 
       workspacePath: DEFAULT_WORKSPACE_PATH,

@@ -44,7 +44,7 @@ export function HeroVerdict({ ticker }: HeroVerdictProps): React.ReactElement {
   // Pre-pipeline (cold) state — single CTA pointing to the run dropdown.
   if (!latest || target === null || entry === null) {
     return (
-      <section id="sec-now" className="cosmic-card" style={{ margin: '12px 0' }}>
+      <section id="sec-now" className="cosmic-card cosmic-card-glass" style={{ margin: '12px 0' }}>
         <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>
           🎯 当前判断 — 待 AI 完整研报
         </div>
@@ -66,7 +66,7 @@ export function HeroVerdict({ ticker }: HeroVerdictProps): React.ReactElement {
   const daysSince = ageDays(latest.created_at)
 
   return (
-    <section id="sec-now" className="cosmic-card" style={{ margin: '12px 0' }}>
+    <section id="sec-now" className="cosmic-card cosmic-card-glass" style={{ margin: '12px 0' }}>
       <header
         style={{
           display: 'flex',

@@ -1,9 +1,13 @@
-// Ticker workspace hero — cosmic redesign (spec §3.2 + 5.4).
+// Ticker workspace hero — cosmic redesign (spec §3.2).
 //
-// Layout: left 60% (breadcrumb / symbol / price / actions) + right 40%
-// (SplineHero AI Analyst). Replaces the v5 slim 110px sticky bar; the
-// hero now scrolls with content. PipelineProgressPanel takes over the
-// "current status" duty that the sticky bar used to provide.
+// 2026-05-22: SplineHero removed from this surface. The 3D AI Analyst
+// belongs on /stocks landing only — at the ticker workspace level it was
+// (a) duplicating GPU load with the landing backdrop on every nav, and
+// (b) competing for attention with the actual financial numbers the user
+// came here to read. Single-column layout now; the breadcrumb / symbol /
+// price block uses the full hero width.
+//
+// PipelineProgressPanel takes over the "current status" duty.
 
 import { useEffect, useRef, useState } from 'react'
 import { useTickerPrice } from '../hooks/useTickerData'
@@ -11,7 +15,6 @@ import { useV5ArtifactTimeline } from '../hooks/useV5Artifacts'
 import { useStocksStore } from '../stores/stocksStore'
 import { useRunStreamStore, selectRunByTicker } from '../stores/runStreamStore'
 import { useToastStore } from '../stores/toastStore'
-import { SplineHero } from '../components/SplineHero'
 import { RunAnalysisDropdown } from './RunAnalysisDropdown'
 
 const PRIMARY_PIPELINE = 'research'  // 内含 data → catalyst → peer → DCF → thesis → report
@@ -150,16 +153,12 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
     >
       <div
         style={{
-          maxWidth: 1600,
+          maxWidth: 1280,
           margin: '0 auto',
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1.5fr) minmax(0, 1fr)',
-          gap: 32,
-          alignItems: 'stretch',
-          minHeight: 460,
+          minWidth: 0,
         }}
       >
-        {/* Left 60% — symbol / price / actions */}
+        {/* Single-column hero — Spline 3D moved to /stocks landing only */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
           <Breadcrumb ticker={ticker} />
 
@@ -321,10 +320,6 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
           </div>
         </div>
 
-        {/* Right 40% — Spline AI Analyst */}
-        <div style={{ position: 'relative', minHeight: 420 }}>
-          <SplineHero variant="hero" />
-        </div>
       </div>
     </header>
   )

@@ -10,7 +10,6 @@ import { useRunStreamStore, selectRunByTicker } from '../stores/runStreamStore'
 import { useToastStore } from '../stores/toastStore'
 import { useAppStore } from '../stores/appStore'
 import { TickerHero } from './TickerHero'
-import { AnchorNav } from './AnchorNav'
 import { PipelineProgressPanel } from './PipelineProgressPanel'
 import { HeroVerdict } from './sections/HeroVerdict'
 import { DataSnapshot } from './sections/DataSnapshot'
@@ -87,14 +86,14 @@ export function StockWorkspace(): React.ReactElement {
   }
 
   return (
-    <div data-testid="stock-workspace" style={{ minHeight: '100vh' }}>
+    <div data-testid="stock-workspace" style={{ minHeight: '100vh', position: 'relative', zIndex: 1 }}>
       <TickerHero ticker={symbol} />
-      <AnchorNav />
+      {/* AnchorNav 退役 — section 导航搬到 ⌘K (Stage A, spec §8). */}
       <main
         style={{
-          maxWidth: 960,
+          maxWidth: 1280,
           margin: '0 auto',
-          padding: '12px 24px 96px',
+          padding: '24px 32px 96px',
         }}
       >
         <PipelineProgressPanel ticker={symbol} />

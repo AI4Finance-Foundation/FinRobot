@@ -1,13 +1,10 @@
-// RightChatPanel — Phase 4 rewrite.
+// AiChatTab — chat body of the right panel (cosmic Stage A split).
 //
-// Visual: accent theme, 420px, aligned 1:1 to finagent.html prototype.
-// State:  useUiStore (aiPanelOpen / aiPanelWidth / currentModel /
-//         contextBundle) replaces useUiPrefs.chatExpanded.
-//
-// Props:  expanded / onToggle are kept for backward-compatibility with
-//         existing tests. AppShell passes no props (0-arg call); tests
-//         still inject them and they still work — see "prop override"
-//         logic below.
+// Was: the entire RightChatPanel (outer aside + expand/collapse + chat).
+// Now: chat content only; the aside + expand + tab toggle live in
+// RightChatPanel/index.tsx. This file owns the per-ticker chat session,
+// the model picker header, ContextBar, message list, suggestion chips,
+// and the input area.
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useLocation } from 'react-router-dom'
@@ -15,13 +12,13 @@ import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import type { UIMessage, UIMessagePart, UIDataTypes, UITools, DynamicToolUIPart } from 'ai'
 import { isTextUIPart, isToolUIPart, isReasoningUIPart } from 'ai'
-import { useToastStore } from '../stores/toastStore'
-import { useUiStore } from '../stores/uiStore'
-import { ToolCard } from '../components/ToolCard'
-import type { ToolResult } from '../components/ToolCard'
-import { MarkdownLite } from '../components/MarkdownLite'
-import { useI18n } from '../i18n'
-import { ContextBar } from './AIPanel/ContextBar'
+import { useToastStore } from '../../stores/toastStore'
+import { useUiStore } from '../../stores/uiStore'
+import { ToolCard } from '../../components/ToolCard'
+import type { ToolResult } from '../../components/ToolCard'
+import { MarkdownLite } from '../../components/MarkdownLite'
+import { useI18n } from '../../i18n'
+import { ContextBar } from '../AIPanel/ContextBar'
 
 // ──────────────────────────────────────────────────────────────
 // Constants
@@ -57,24 +54,24 @@ const MODELS = [
 type ModelValue = (typeof MODELS)[number]['value']
 
 // ──────────────────────────────────────────────────────────────
-// RightChatPanel props (kept for test backward-compatibility)
+// AiChatTab — chat body, no aside wrapper.
+//
+// Props are inherited from the legacy RightChatPanel API so existing
+// tests that injected `expanded` / `onToggle` keep working through the
+// shim in RightChatPanel/index.tsx.
 // ──────────────────────────────────────────────────────────────
 
-interface RightChatPanelProps {
+interface AiChatTabProps {
   /** When provided by tests/legacy callers, overrides uiStore.aiPanelOpen. */
   expanded?: boolean
   /** When provided by tests/legacy callers, called instead of uiStore.toggleAiPanel. */
   onToggle?: () => void
 }
 
-// ──────────────────────────────────────────────────────────────
-// Component
-// ──────────────────────────────────────────────────────────────
-
-export function RightChatPanel({
+export function AiChatTab({
   expanded: expandedProp,
   onToggle: onToggleProp,
-}: RightChatPanelProps = {}): React.ReactElement {
+}: AiChatTabProps = {}): React.ReactElement {
   const { ticker } = useParams<{ ticker?: string }>()
   const addToast = useToastStore((s) => s.addToast)
   const { t } = useI18n()
@@ -277,7 +274,9 @@ export function RightChatPanel({
   }, [handleToggle, messages])
 
   // ── Collapsed: legacy/test path (prop injected) ───────────────
-  // When tests inject expanded={false}, keep old IconColumn to preserve testids.
+  // Tests that inject expanded={false} still expect an IconColumn; the
+  // uiStore path renders nothing here because the splitter (index.tsx)
+  // owns the aside + the expand button.
   if (expandedProp === false) {
     return (
       <IconColumn
@@ -294,50 +293,16 @@ export function RightChatPanel({
     )
   }
 
-  // ── Panel style ──────────────────────────────────────────────
-  // expandedProp === true (test) → fixed width, no store
-  // expandedProp === undefined (uiStore) → store width, animated
-  const panelStyle: React.CSSProperties = expandedProp !== undefined
-    ? { width: '360px', borderLeft: '1px solid var(--border)', backgroundColor: 'var(--surface)' }
-    : isExpanded ? { width: `${storeWidth}px` } : {}
-
-  // uiStore-controlled: add 'open' when expanded; test path always open
-  const panelClass = [
-    'ai-panel',
-    (expandedProp !== undefined || isExpanded) ? 'open' : '',
-  ].filter(Boolean).join(' ')
+  // Reference held variables (read by tests / future floating-summary):
+  void panelRef
+  void onResizeMouseDown
+  void handleExpandToggle
 
   return (
-    <aside
-      ref={panelRef}
-      data-testid="right-chat-panel"
-      className={panelClass}
-      style={panelStyle}
+    <div
+      data-testid="right-chat-panel-chat"
+      style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}
     >
-      {/* Floating expand button — visible only when collapsed (uiStore path only) */}
-      {expandedProp === undefined && (
-        <button
-          data-testid="expand-btn"
-          className="ai-panel-expand-btn"
-          onClick={handleExpandToggle}
-          title="展开 AI 面板 (⌘L)"
-          type="button"
-        >
-          <span className="expand-icon">◈</span>
-          <span className="expand-hint">⌘L</span>
-          {unreadCount > 0 && (
-            <span className="expand-badge">
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
-        </button>
-      )}
-
-      {/* Resize handle — only when controlled by uiStore and expanded */}
-      {expandedProp === undefined && isExpanded && (
-        <div className="aipanel-resize-handle" onMouseDown={onResizeMouseDown} />
-      )}
-
       <AiPanelHeader
         modelValue={modelValue}
         onModelChange={handleModelChange}
@@ -369,7 +334,7 @@ export function RightChatPanel({
         error={error}
         hasMessages={messages.length > 0}
       />
-    </aside>
+    </div>
   )
 }
 

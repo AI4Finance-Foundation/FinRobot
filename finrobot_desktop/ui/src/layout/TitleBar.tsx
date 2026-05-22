@@ -1,84 +1,155 @@
-// TitleBar — terminal-style: traffic lights + center label + theme/AI toggles.
+// TitleBar — cosmic redesign (spec §5.1).
+//
+// Reserves 72px on the left for Tauri's native macOS traffic lights
+// (overlay titleBarStyle). Centre: FINAGENT brandmark with blue brand-dot
+// and gradient logo word. Right: halo-input cmdK trigger + AI sparkle btn.
 
+import { useAppStore } from '../stores/appStore'
 import { useUiStore } from '../stores/uiStore'
 import { IconSparkle } from '../lib/icons'
 
-// Simple inline sun/moon icons — no extra dependency needed.
-function IconSun({ size = 16 }: { size?: number }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.6}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="5" />
-      <line x1="12" y1="1" x2="12" y2="3" />
-      <line x1="12" y1="21" x2="12" y2="23" />
-      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-      <line x1="1" y1="12" x2="3" y2="12" />
-      <line x1="21" y1="12" x2="23" y2="12" />
-      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-    </svg>
-  )
-}
-
-function IconMoon({ size = 16 }: { size?: number }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.6}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-    </svg>
-  )
-}
-
 export function TitleBar(): React.ReactElement {
-  const theme = useUiStore((s) => s.theme)
-  const toggleTheme = useUiStore((s) => s.toggleTheme)
   const aiPanelOpen = useUiStore((s) => s.aiPanelOpen)
   const toggleAiPanel = useUiStore((s) => s.toggleAiPanel)
+  const setCmdPaletteOpen = useAppStore((s) => s.setCmdPaletteOpen)
 
   return (
-    <div className="titlebar" data-tauri-drag-region data-testid="titlebar">
-      {/* Reserve space for Tauri's native macOS traffic lights (Overlay titleBarStyle) */}
+    <div
+      className="titlebar"
+      data-tauri-drag-region
+      data-testid="titlebar"
+      style={{
+        position: 'relative',
+        height: 44,
+        padding: '0 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        background: 'rgba(10, 10, 24, 0.78)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: '1px solid var(--border-faint)',
+        zIndex: 80,
+      }}
+    >
+      {/* macOS traffic lights overlay reservation */}
       <div style={{ width: 72, flexShrink: 0 }} />
 
-      {/* Center label */}
-      <div className="titlebar-title" data-tauri-drag-region>
-        FINAGENT
-      </div>
+      {/* Brandmark */}
+      <button
+        type="button"
+        onClick={() => setCmdPaletteOpen(true)}
+        title="⌘K"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          background: 'transparent',
+          border: 'none',
+          color: 'var(--text-primary)',
+          cursor: 'pointer',
+          fontFamily: 'var(--font-display)',
+          fontSize: 14,
+          letterSpacing: '4px',
+        }}
+      >
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: 'var(--primary)',
+            boxShadow: 'var(--glow-blue)',
+          }}
+        />
+        <span
+          style={{
+            background: 'linear-gradient(135deg, var(--primary), var(--secondary))',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            color: 'transparent',
+          }}
+        >
+          FINAGENT
+        </span>
+      </button>
 
-      {/* Right action buttons */}
-      <div className="titlebar-actions">
-        <button
-          className="tb-btn"
-          title={theme === 'dark' ? '切换为浅色模式' : '切换为深色模式'}
-          onClick={toggleTheme}
+      <div style={{ flex: 1 }} data-tauri-drag-region />
+
+      {/* cmdK trigger — halo flowing border */}
+      <button
+        type="button"
+        data-testid="titlebar-cmdk"
+        onClick={() => setCmdPaletteOpen(true)}
+        className="halo-input"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          minWidth: 260,
+          padding: '4px 12px',
+          color: 'var(--text-secondary)',
+          background: 'rgba(10, 10, 24, 0.7)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 12,
+          cursor: 'pointer',
+        }}
+      >
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }} aria-hidden>⌕</span>
+        <span style={{ flex: 1, textAlign: 'left' }}>搜索股票 / 命令 …</span>
+        <span
+          style={{
+            display: 'inline-flex',
+            gap: 3,
+            fontSize: 10,
+            color: 'var(--text-muted)',
+          }}
         >
-          {theme === 'dark' ? <IconSun size={14} /> : <IconMoon size={14} />}
-        </button>
-        <button
-          className={`tb-btn${aiPanelOpen ? ' active' : ''}`}
-          title="AI 助手"
-          onClick={toggleAiPanel}
-        >
-          <IconSparkle size={14} />
-        </button>
-      </div>
+          <kbd
+            style={{
+              padding: '1px 5px',
+              border: '1px solid var(--border-soft)',
+              borderRadius: 3,
+              background: 'rgba(255,255,255,0.03)',
+            }}
+          >
+            ⌘
+          </kbd>
+          <kbd
+            style={{
+              padding: '1px 5px',
+              border: '1px solid var(--border-soft)',
+              borderRadius: 3,
+              background: 'rgba(255,255,255,0.03)',
+            }}
+          >
+            K
+          </kbd>
+        </span>
+      </button>
+
+      {/* AI panel toggle */}
+      <button
+        className={`tb-btn${aiPanelOpen ? ' active' : ''}`}
+        title="AI 助手 (⌘L)"
+        onClick={toggleAiPanel}
+        style={{
+          width: 32,
+          height: 32,
+          display: 'grid',
+          placeItems: 'center',
+          border: `1px solid ${aiPanelOpen ? 'var(--border-glow)' : 'var(--border-soft)'}`,
+          borderRadius: 8,
+          background: aiPanelOpen ? 'var(--primary-soft)' : 'transparent',
+          color: aiPanelOpen ? 'var(--primary)' : 'var(--text-secondary)',
+          cursor: 'pointer',
+          transition: 'all 0.2s',
+          boxShadow: aiPanelOpen ? 'var(--glow-blue)' : 'none',
+        }}
+      >
+        <IconSparkle size={14} />
+      </button>
     </div>
   )
 }

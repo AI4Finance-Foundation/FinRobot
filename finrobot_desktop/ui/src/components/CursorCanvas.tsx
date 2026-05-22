@@ -14,9 +14,12 @@ export function CursorCanvas(): null {
 
   useEffect(() => {
     if (!enabled) return
-    // Respect prefers-reduced-motion — disable trail for accessibility.
-    const mql = window.matchMedia('(prefers-reduced-motion: reduce)')
-    if (mql.matches) return
+    if (typeof window === 'undefined') return
+    // jsdom doesn't ship matchMedia; treat absence as "no reduce preference".
+    const mql = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)')
+      : null
+    if (mql?.matches) return
 
     const handle = mountCursorTrail()
     return () => handle.stop()

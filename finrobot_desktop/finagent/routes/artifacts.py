@@ -2,6 +2,7 @@
 
 Endpoints:
   GET    /api/artifacts                        — list/filter all artifacts
+  GET    /api/artifacts/studied-tickers        — distinct tickers I've analysed
   GET    /api/artifacts/{id}                   — fetch full artifact
   DELETE /api/artifacts/{id}                   — remove artifact
   GET    /api/artifacts/{a_id}/diff/{b_id}     — field-level diff
@@ -11,7 +12,11 @@ Endpoints:
 
 from __future__ import annotations
 
+from collections import defaultdict
+from datetime import datetime
+
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from starlette.requests import Request
 
 from finagent.artifact.diff import FieldDiff, diff_artifacts
@@ -21,6 +26,25 @@ from finagent.engine.data.layer import DataLayer
 from finagent.routes._artifact_signal import attach_signals
 
 router = APIRouter(prefix="/api/artifacts", tags=["artifacts"])
+
+
+class StudiedTicker(BaseModel):
+    """One row in /api/artifacts/studied-tickers — a ticker the user has run analysis on."""
+
+    ticker: str
+    run_count: int
+    latest_created_at: datetime
+    latest_type: str
+    latest_artifact_id: str
+    latest_target_price: float | None
+    latest_entry_price: float | None
+    latest_signal: str | None
+    types: list[str]
+
+
+class StudiedTickersResponse(BaseModel):
+    items: list[StudiedTicker]
+    generated_at: datetime
 
 
 def _store(request: Request) -> ArtifactStore:
@@ -99,6 +123,68 @@ async def ticker_timeline(
     if data_layer is not None:
         summaries = await attach_signals(summaries, data_layer)
     return summaries
+
+
+@router.get("/studied-tickers", response_model=StudiedTickersResponse)
+async def studied_tickers(
+    request: Request,
+    include_archived: bool = False,
+    limit: int = 100,
+) -> StudiedTickersResponse:
+    """Return every ticker the user has ever run analysis on, with metadata.
+
+    Powers the /stocks landing's "我研究过的所有股票" table. Each row carries
+    the latest run's verdict, entry/target prices, and a list of all pipeline
+    types that have been run for that ticker (so the UI can show DCF / LBO /
+    research chips).
+
+    Sort: by latest_created_at descending — most recently touched on top.
+    """
+    store = _store(request)
+    # Pull a generous sample. The store re-sorts by created_at desc so the
+    # head naturally biases towards recently-touched tickers.
+    summaries = await store.list_by_ticker(
+        ticker=None,
+        include_archived=include_archived,
+        limit=500,
+    )
+    if not summaries:
+        return StudiedTickersResponse(items=[], generated_at=datetime.now().astimezone())
+
+    # Attach live signals so the table can show hit/watching/failed lamp.
+    data_layer = _data_layer(request)
+    if data_layer is not None:
+        summaries = await attach_signals(summaries, data_layer)
+
+    # Group by ticker, latest entry wins for metadata.
+    grouped: dict[str, list[ArtifactSummary]] = defaultdict(list)
+    for s in summaries:
+        if not s.ticker:
+            continue
+        grouped[s.ticker].append(s)
+
+    items: list[StudiedTicker] = []
+    for ticker_sym, group in grouped.items():
+        latest = max(group, key=lambda s: s.created_at)
+        types = sorted({s.type for s in group})
+        items.append(
+            StudiedTicker(
+                ticker=ticker_sym,
+                run_count=len(group),
+                latest_created_at=latest.created_at,
+                latest_type=latest.type,
+                latest_artifact_id=latest.id,
+                latest_target_price=latest.target_price,
+                latest_entry_price=latest.entry_price,
+                latest_signal=latest.signal,
+                types=types,
+            )
+        )
+
+    items.sort(key=lambda x: x.latest_created_at, reverse=True)
+    items = items[:limit]
+
+    return StudiedTickersResponse(items=items, generated_at=datetime.now().astimezone())
 
 
 @router.get("/{artifact_id}", response_model=Artifact)

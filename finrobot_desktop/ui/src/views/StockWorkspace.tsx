@@ -1,8 +1,20 @@
-// v5 Stock Workspace — the single-page ticker view that replaces the old
-// 8-tab layout (spec §3). Mounted at /stocks/:ticker. Owns the ticker-
-// scoped pipeline-completion toast (moved here from the retired
-// StocksPage so users who scroll away from the progress panel still
-// learn when a background run finishes or fails).
+// StockWorkspace — single-ticker dashboard at /stocks/:ticker.
+//
+// Job per CLAUDE.md: "保持 dashboard 形态：实时行情 + 跑 AI 入口 +
+// artifact timeline 跳转，不承担研报阅读". The 12-chapter research
+// reading lives at /stocks/:ticker/runs/:artifactId (ArtifactDetailPage).
+//
+// Layout:
+//   - TickerHero       — name / price / live overlay / actions
+//   - PipelineProgress — in-progress streaming run status (when running)
+//   - 2-column grid    — left MarketDataZone (live, always present),
+//                        right AIZone (cold = big CTA / hot = artifact
+//                        summary + 12-chapter mini-grid + version timeline)
+//
+// Section contents that constituted the actual research (HeroVerdict /
+// FootballField / Sensitivity / Peers / Risks / etc) now live as
+// chapters inside ArtifactDetailPage so the workspace serves as a clean
+// entry point rather than duplicating the report body.
 
 import { useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
@@ -11,37 +23,16 @@ import { useToastStore } from '../stores/toastStore'
 import { useAppStore } from '../stores/appStore'
 import { TickerHero } from './TickerHero'
 import { PipelineProgressPanel } from './PipelineProgressPanel'
-import { HeroVerdict } from './sections/HeroVerdict'
-import { DataSnapshot } from './sections/DataSnapshot'
-import { CatalystGrid } from './sections/CatalystGrid'
-import { RiskGrid } from './sections/RiskGrid'
-import { CompositeScoreCard } from './sections/CompositeScoreCard'
-import { FootballField } from './sections/FootballField'
-import { SensitivityHeatmap } from './sections/SensitivityHeatmap'
-import { HistoricalBandChart } from './sections/HistoricalBandChart'
-import { MonteCarloSection } from './sections/MonteCarloSection'
-import { PriceTrendSection } from './sections/PriceTrendSection'
-import { RevenueEbitdaSection } from './sections/RevenueEbitdaSection'
-import { MarginsTrendSection } from './sections/MarginsTrendSection'
-import { CashFlowSection } from './sections/CashFlowSection'
-import { FinancialsSection } from './sections/FinancialsSection'
-import { PerformanceSection } from './sections/PerformanceSection'
-import { PeersSection } from './sections/PeersSection'
-import { PeerRadarSection } from './sections/PeerRadarSection'
-import { PeerComparisonBarsSection } from './sections/PeerComparisonBarsSection'
-import { SniperLevelsCard } from './sections/SniperLevelsCard'
-import { NewsTimeline } from './sections/NewsTimeline'
-import { SentimentCard } from './sections/SentimentCard'
-import { MyResearchFeed } from './sections/MyResearchFeed'
-import EarningsCallPanel from '../components/EarningsCallPanel'
+import { MarketDataZone } from './workspace/MarketDataZone'
+import { AIZone } from './workspace/AIZone'
 
 export function StockWorkspace(): React.ReactElement {
   const { ticker } = useParams<{ ticker: string }>()
   const symbol = (ticker || '').toUpperCase()
 
-  // Mirror the URL ticker into appStore so legacy hooks (useHistoricalData /
-  // usePerformanceData / PriceChart) that read from the store work when
-  // entering via /stocks/:ticker without going through the command palette.
+  // Mirror URL ticker into appStore so legacy hooks (useHistoricalData /
+  // usePerformanceData / PriceChart) keep working when the user lands
+  // directly on /stocks/:ticker without going through ⌘K search.
   const setStoreTicker = useAppStore((s) => s.setTicker)
   const storeTicker = useAppStore((s) => s.ticker)
   useEffect(() => {
@@ -51,8 +42,8 @@ export function StockWorkspace(): React.ReactElement {
   }, [symbol, storeTicker, setStoreTicker])
 
   // Pipeline completion toast — fires once per runId when status transitions
-  // running → completed/failed. Without this, users who scrolled away from
-  // PipelineProgressPanel get no feedback when a background analysis finishes.
+  // running → completed / failed. Without this, users scrolled away from
+  // PipelineProgressPanel get no feedback when a background run finishes.
   const runState = useRunStreamStore(selectRunByTicker(symbol))
   const addToast = useToastStore((s) => s.addToast)
   const lastNotifiedRunIdRef = useRef<string | null>(null)
@@ -64,14 +55,14 @@ export function StockWorkspace(): React.ReactElement {
       lastNotifiedRunIdRef.current = runId
       addToast({
         type: 'success',
-        title: `${symbol} 分析完成`,
-        description: '估值 / 同业 / 论点已更新，滚动查看或点「当前判断」锚点跳转',
+        title: `${symbol} 研报完成`,
+        description: '12 章节 artifact 已落盘 · 在右侧 AI 区点「打开完整 12 章研报」查看',
       })
     } else if (runState.status === 'failed') {
       lastNotifiedRunIdRef.current = runId
       addToast({
         type: 'error',
-        title: `${symbol} 分析失败`,
+        title: `${symbol} 研报失败`,
         description: runState.error ?? '请稍后重试',
       })
     }
@@ -88,66 +79,28 @@ export function StockWorkspace(): React.ReactElement {
   return (
     <div data-testid="stock-workspace" style={{ minHeight: '100vh', position: 'relative', zIndex: 1 }}>
       <TickerHero ticker={symbol} />
-      {/* AnchorNav 退役 — section 导航搬到 ⌘K (Stage A, spec §8). */}
       <main
         style={{
-          maxWidth: 1280,
+          maxWidth: 1480,
           margin: '0 auto',
-          padding: '24px 32px 96px',
+          padding: '16px 32px 96px',
         }}
       >
         <PipelineProgressPanel ticker={symbol} />
 
-        <GroupHeader index="01" title="总览" />
-        <HeroVerdict ticker={symbol} />
-        <CompositeScoreCard ticker={symbol} />
-        <CatalystGrid ticker={symbol} />
-        <RiskGrid ticker={symbol} />
-
-        <GroupHeader index="02" title="估值" />
-        <FootballField ticker={symbol} />
-        <SensitivityHeatmap ticker={symbol} />
-        <HistoricalBandChart ticker={symbol} />
-        <MonteCarloSection ticker={symbol} />
-
-        <GroupHeader index="03" title="数据" />
-        <DataSnapshot ticker={symbol} />
-        <PriceTrendSection ticker={symbol} />
-        <RevenueEbitdaSection ticker={symbol} />
-        <MarginsTrendSection ticker={symbol} />
-        <CashFlowSection ticker={symbol} />
-        <FinancialsSection ticker={symbol} />
-        <PerformanceSection ticker={symbol} />
-
-        <GroupHeader index="04" title="市场" />
-        <PeersSection ticker={symbol} />
-        <PeerRadarSection ticker={symbol} />
-        <PeerComparisonBarsSection ticker={symbol} />
-        <SniperLevelsCard ticker={symbol} />
-        <NewsTimeline ticker={symbol} />
-        <SentimentCard ticker={symbol} />
-        <section id="sec-earnings" style={{ margin: '12px 0' }}>
-          <EarningsCallPanel ticker={symbol} />
-        </section>
-
-        <GroupHeader index="05" title="我的" />
-        <MyResearchFeed ticker={symbol} />
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 24,
+            marginTop: 12,
+            alignItems: 'start',
+          }}
+        >
+          <MarketDataZone ticker={symbol} />
+          <AIZone ticker={symbol} />
+        </div>
       </main>
-    </div>
-  )
-}
-
-function GroupHeader({
-  index,
-  title,
-}: {
-  index: string
-  title: string
-}): React.ReactElement {
-  return (
-    <div className="cosmic-group-header">
-      <span className="group-num">{index}</span>
-      <span className="group-title">{title}</span>
     </div>
   )
 }

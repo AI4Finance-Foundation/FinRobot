@@ -1,8 +1,8 @@
-// v5 golden-path 5-step regression test (spec §15 condition 5).
+// v5 golden-path regression test (spec §15 condition 5).
 //
-// This is the closest we can run to "tauri dev + Playwright MCP 5 步散户走查"
-// in a JSDOM-only environment. It exercises the same five user-visible
-// checkpoints listed in spec §15:
+// This is the closest we can run to "tauri dev + Playwright MCP 散户走查"
+// in a JSDOM-only environment. It exercises the user-visible checkpoints
+// listed in spec §15:
 //
 //   1. 冷启动 workspace 搜索进 NVDA  → StockWorkspace mounts with sticky hero
 //      + anchor nav over 14 sections.
@@ -12,9 +12,6 @@
 //      row per step from the mocked run state.
 //   4. 滚动到「我的研究」section 看 artifact 卡片 → MyResearchFeed surfaces
 //      both the StatBanner numbers and per-artifact cards.
-//   5. 点分享图下载 PNG → HeroVerdict's 📤 分享图 button is wired and the
-//      OffscreenCanvas helper is exercised (without asserting the actual
-//      blob, since JSDOM can't paint).
 //
 // What this test does NOT cover that real Playwright would: actual paint /
 // visual diff, native OS download flow, font rendering. Those need a GUI
@@ -22,7 +19,7 @@
 // docs/v5-delivery-report.md §7 exit condition 5.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -247,53 +244,39 @@ function renderWorkspace() {
   )
 }
 
-describe('v5 5-step golden path (spec §15 condition 5)', () => {
-  it('Step 1: cold start renders hero + 13 cosmic sections (AnchorNav retired in Stage A)', async () => {
+describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
+  it('Step 1: cold start renders TickerHero + dual zones (market data + AI)', async () => {
     renderWorkspace()
-    // Cosmic hero shows ticker symbol + the watchlist toggle + the run trigger.
+    // Hero with cosmic ticker glyph + the primary run trigger.
     expect(screen.getByTestId('ticker-hero')).toBeInTheDocument()
-    expect(screen.getByTestId('watchlist-toggle')).toBeInTheDocument()
     expect(screen.getByTestId('run-analysis-trigger')).toBeInTheDocument()
-    // Stage A retired AnchorNav — section navigation moved to ⌘K.
+    // Dual-zone dashboard: market data (left, always live) + AI zone (right).
+    expect(screen.getByTestId('market-data-zone')).toBeInTheDocument()
+    expect(screen.getByTestId('ai-zone')).toBeInTheDocument()
+    // AnchorNav is retired in favour of ⌘K.
     expect(screen.queryByTestId('anchor-nav')).not.toBeInTheDocument()
-    // Section anchors themselves are still rendered on the page as
-    // `id="sec-..."` so cmdK can scrollIntoView them.
-    const ids = [
-      'sec-now',
-      'sec-catalyst',
-      'sec-risk',
-      'sec-football',
-      'sec-sensitivity',
-      'sec-band',
-      'sec-data',
-      'sec-financials',
-      'sec-performance',
-      'sec-peers',
-      'sec-news',
-      'sec-sentiment',
-      'sec-research',
-    ]
-    for (const id of ids) {
-      expect(document.getElementById(id)).not.toBeNull()
-    }
   })
 
-  it('Step 2: clicking + 跑分析 directly fires research; chevron opens 6 alt models', async () => {
+  it('Step 2: 运行完整分析 fires research; no alt-pipeline UI surface exists', async () => {
     renderWorkspace()
-    // Primary CTA: single-click → fire `research` directly (no menu).
+    // 1 ticker = 1 run = 1 equity_research artifact carrying the full
+    // FinRobot 12-chapter payload.
     fireEvent.click(screen.getByTestId('run-analysis-trigger'))
     expect(startRunMock).toHaveBeenCalledWith('research', 'NVDA')
-    expect(screen.queryByTestId('run-analysis-dropdown')).not.toBeInTheDocument()
-
-    // Secondary chevron opens the alt-models menu (6 individual pipelines,
-    // not including `research` since that's the primary CTA's job).
-    fireEvent.click(screen.getByTestId('run-analysis-more'))
-    expect(screen.getByTestId('run-analysis-dropdown')).toBeInTheDocument()
-    for (const id of ['run-ic-memo', 'run-earnings', 'run-dcf', 'run-lbo', 'run-ddm', 'run-comps']) {
-      expect(screen.getByTestId(id)).toBeInTheDocument()
+    // No chevron / dropdown / alt-pipeline menu — single canonical entry.
+    for (const id of [
+      'run-analysis-more',
+      'run-analysis-dropdown',
+      'run-research',
+      'run-ic-memo',
+      'run-earnings',
+      'run-dcf',
+      'run-lbo',
+      'run-ddm',
+      'run-comps',
+    ]) {
+      expect(screen.queryByTestId(id)).not.toBeInTheDocument()
     }
-    // `run-research` is intentionally absent — main button covers it.
-    expect(screen.queryByTestId('run-research')).not.toBeInTheDocument()
   })
 
   it('Step 3: pipeline progress panel renders 6 step rows from SSE-driven state', async () => {
@@ -313,57 +296,16 @@ describe('v5 5-step golden path (spec §15 condition 5)', () => {
     }
   })
 
-  it('Step 4: 我的研究 section shows StatBanner numbers + artifact cards', async () => {
+  it('Step 4: AI zone shows latest artifact card + chapter mini-grid + version timeline when artifacts exist', async () => {
     renderWorkspace()
-    // StatBanner shows once we have ≥3 closed artifacts (mock returns 2 hit + 1 failed).
-    const banner = await screen.findByTestId('stat-banner')
-    expect(banner).toBeInTheDocument()
-    expect(banner.textContent).toMatch(/命中率/)
-    // Each artifact gets its own card.
-    expect(
-      await screen.findByTestId('artifact-card-art_2026-05-21T00:00:00_NVDA_equity_research'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByTestId('artifact-card-art_2026-05-12T00:00:00_NVDA_dcf'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByTestId('artifact-card-art_2026-04-01T00:00:00_NVDA_lbo'),
-    ).toBeInTheDocument()
+    // Hot state surfaces (mock timeline returns 3 NVDA artifacts incl 1 equity_research).
+    expect(await screen.findByTestId('ai-zone-latest')).toBeInTheDocument()
+    expect(screen.getByTestId('ai-zone-chapters')).toBeInTheDocument()
+    expect(screen.getByTestId('ai-zone-timeline')).toBeInTheDocument()
+    // Cold-state CTA is not shown when we have a hot artifact.
+    expect(screen.queryByTestId('ai-zone-cold')).not.toBeInTheDocument()
+    // "Open full report" CTA wires to the artifact detail route.
+    expect(screen.getByTestId('open-latest-report')).toBeInTheDocument()
   })
 
-  it('Step 5: HERO share-card button wires through to the canvas helper', async () => {
-    // JSDOM's canvas getContext returns null, so shareCard.ts would throw
-    // "canvas 2D context unavailable" before reaching the blob path. Stub
-    // getContext + toBlob to exercise the round-trip without a real canvas.
-    const ctxStub = {
-      fillRect: vi.fn(),
-      fillText: vi.fn(),
-      beginPath: vi.fn(),
-      arc: vi.fn(),
-      fill: vi.fn(),
-      moveTo: vi.fn(),
-      lineTo: vi.fn(),
-      stroke: vi.fn(),
-      measureText: vi.fn(() => ({ width: 100 })),
-      set fillStyle(_: string) {},
-      set font(_: string) {},
-      set textBaseline(_: string) {},
-      set strokeStyle(_: string) {},
-      set lineWidth(_: number) {},
-    }
-    HTMLCanvasElement.prototype.getContext = vi.fn(() => ctxStub) as unknown as HTMLCanvasElement['getContext']
-    const toBlob = vi.fn((cb: BlobCallback) => cb(new Blob(['stub'], { type: 'image/png' })))
-    HTMLCanvasElement.prototype.toBlob = toBlob as unknown as HTMLCanvasElement['toBlob']
-    URL.createObjectURL = vi.fn(() => 'blob:stub-url')
-    URL.revokeObjectURL = vi.fn()
-
-    renderWorkspace()
-    const shareBtn = await screen.findByTestId('hero-share-card')
-    expect(shareBtn).toBeInTheDocument()
-    fireEvent.click(shareBtn)
-    await waitFor(() => {
-      expect(toBlob).toHaveBeenCalled()
-    })
-    expect(URL.createObjectURL).toHaveBeenCalled()
-  })
 })

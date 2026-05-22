@@ -15,7 +15,7 @@ const SECTION_STYLE: React.CSSProperties = {
   borderRadius: 12,
   padding: 20,
   margin: '12px 0',
-  background: 'var(--bg-card, #fff)',
+  background: 'var(--bg-card)',
 }
 
 interface CompositeScoreCardProps {
@@ -54,7 +54,7 @@ export function CompositeScoreCard({
         <p style={{ fontSize: 12, color: 'var(--text-faint)' }}>计算中…</p>
       )}
       {isError && (
-        <p style={{ fontSize: 12, color: 'var(--red, #EF4444)' }}>评分计算失败</p>
+        <p style={{ fontSize: 12, color: 'var(--danger)' }}>评分计算失败</p>
       )}
       {!validScore && !isLoading && !isError && (
         <p style={{ fontSize: 12.5, color: 'var(--text-soft)' }}>

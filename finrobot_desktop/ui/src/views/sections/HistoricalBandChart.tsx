@@ -11,7 +11,7 @@ const SECTION_STYLE: React.CSSProperties = {
   borderRadius: 12,
   padding: 20,
   margin: '12px 0',
-  background: 'var(--bg-card, #fff)',
+  background: 'var(--bg-card)',
 }
 
 const CHART_HEIGHT = 160
@@ -58,7 +58,7 @@ export function HistoricalBandChart({ ticker }: HistoricalBandChartProps): React
         <p style={{ fontSize: 12, color: 'var(--text-faint)' }}>历史估值带加载中…</p>
       )}
       {isError && (
-        <p style={{ fontSize: 12, color: 'var(--red, #EF4444)' }}>历史估值带加载失败</p>
+        <p style={{ fontSize: 12, color: 'var(--danger)' }}>历史估值带加载失败</p>
       )}
       {data && data.sample_count > 0 && (
         <>

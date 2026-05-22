@@ -89,6 +89,12 @@ export function ArtifactDetailPage(): React.ReactElement {
   const assumptionEntries = Object.entries(assumptions.parameters ?? {})
   const inputEntries = Object.entries(inputs.raw_data ?? {})
 
+  // Headline lives on ArtifactSummary, not the full Artifact. Synthesise one
+  // from summary_text (the saved one-liner) or compute_version/formula_id.
+  const headline =
+    (outputs.summary_text ?? '').split('\n')[0]?.slice(0, 220) ||
+    `${chineseLabel(data.type)} · ${data.id.slice(0, 32)}`
+
   return (
     <div style={pagePadding}>
       <BackNav ticker={symbol} />
@@ -129,7 +135,7 @@ export function ArtifactDetailPage(): React.ReactElement {
             lineHeight: 1.55,
           }}
         >
-          {data.headline}
+          {headline}
         </p>
         <MetaBar created={meta.created_at} source={meta.source} version={compute_version} />
         <CompareVersionPicker
@@ -145,7 +151,7 @@ export function ArtifactDetailPage(): React.ReactElement {
           artifactA={{
             id: artifactId,
             created_at: (meta.created_at as string) ?? compareB.created_at,
-            headline: data.headline,
+            headline: headline,
             type: data.type,
           }}
           artifactB={{

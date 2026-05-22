@@ -51,8 +51,5 @@ describe('SettingsView', () => {
     expect(await screen.findByText('通知通道')).toBeInTheDocument()
   })
 
-  it('renders 外观 section', async () => {
-    renderWithQuery(<SettingsView onComplete={() => {}} />)
-    expect(await screen.findByText('外观')).toBeInTheDocument()
-  })
+  // 外观 section removed in v5: theme toggle 推迟 v2.1 (spec §10.4)
 })

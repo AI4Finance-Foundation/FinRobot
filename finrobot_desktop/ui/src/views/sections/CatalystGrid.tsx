@@ -4,18 +4,7 @@
 // (no new backend required).
 
 import { useTickerCatalysts } from '../../hooks/useTickerData'
-
-interface CatalystEvent {
-  category?: string
-  type?: string
-  title?: string
-  headline?: string
-  date?: string
-  impact_direction?: 'up' | 'down' | 'neutral'
-  impact_magnitude?: 'high' | 'med' | 'low'
-  expected_impact_magnitude?: number
-  source?: string
-}
+import type { CatalystEventData as CatalystEvent } from '../../hooks/useTickerData'
 
 const CATEGORY_LABELS: Record<string, { icon: string; label: string }> = {
   earnings: { icon: '📅', label: '财报' },
@@ -33,7 +22,7 @@ const SECTION_STYLE: React.CSSProperties = {
   borderRadius: 12,
   padding: 20,
   margin: '12px 0',
-  background: 'var(--bg-card, #fff)',
+  background: 'var(--bg-card)',
 }
 
 interface CatalystGridProps {
@@ -43,13 +32,12 @@ interface CatalystGridProps {
 export function CatalystGrid({ ticker }: CatalystGridProps): React.ReactElement {
   const { data, isLoading, isError } = useTickerCatalysts(ticker)
 
-  const events = (data as CatalystEvent[] | undefined) ?? []
+  const events: CatalystEvent[] = data ?? []
+  // Backend emits a numeric impact_score (1..5); sort desc so the largest
+  // shocks bubble to top 4. magnitudeWeight is kept as a fallback for any
+  // string-based legacy payload.
   const topFour = [...events]
-    .sort(
-      (a, b) =>
-        magnitudeWeight(b.impact_magnitude ?? null) -
-        magnitudeWeight(a.impact_magnitude ?? null),
-    )
+    .sort((a, b) => (b.impact_score ?? 0) - (a.impact_score ?? 0))
     .slice(0, 4)
 
   return (
@@ -64,29 +52,19 @@ export function CatalystGrid({ ticker }: CatalystGridProps): React.ReactElement 
           </p>
         </div>
         {events.length > 4 && (
-          <a
-            href="#"
-            onClick={(e) => e.preventDefault()}
-            style={{
-              fontSize: 11,
-              color: 'var(--text-faint)',
-              textDecoration: 'none',
-              cursor: 'not-allowed',
-            }}
-            title="全部催化剂抽屉 - PR15 接入"
-          >
-            全部催化剂 ▸
-          </a>
+          <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
+            共 {events.length} 条 · 展示影响力 top 4
+          </span>
         )}
       </header>
 
       {isLoading && (
         <p style={{ marginTop: 12, fontSize: 12, color: 'var(--text-faint)' }}>
-          ⏳ 催化剂识别中（首次加载 ~10s · 二次访问走 24h cache）
+          ⏳ 催化剂识别中（首次加载 ~20s · LLM 在分类新闻 · 二次访问走 24h cache）
         </p>
       )}
       {isError && (
-        <p style={{ marginTop: 12, fontSize: 12, color: 'var(--red, #EF4444)' }}>
+        <p style={{ marginTop: 12, fontSize: 12, color: 'var(--danger)' }}>
           催化剂加载失败 — 检查数据源
         </p>
       )}
@@ -106,8 +84,9 @@ export function CatalystGrid({ ticker }: CatalystGridProps): React.ReactElement 
           }}
         >
           {topFour.map((ev, idx) => {
-            const cat = ev.category || ev.type || 'market'
+            const cat = ev.category || 'market'
             const meta = CATEGORY_LABELS[cat] || CATEGORY_LABELS.market
+            const display = deriveCatalystDisplay(ev)
             return (
               <article
                 key={idx}
@@ -126,18 +105,16 @@ export function CatalystGrid({ ticker }: CatalystGridProps): React.ReactElement 
                   {meta.icon} {meta.label}
                 </span>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>
-                  {ev.title || ev.headline || '(未命名事件)'}
+                  {ev.headline ?? '(未命名事件)'}
                 </span>
-                <span style={{ fontSize: 11, color: 'var(--text-soft)' }}>
-                  {ev.date ?? ''}
-                </span>
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: impactColor(ev.impact_direction, ev.impact_magnitude),
-                  }}
-                >
-                  {impactLabel(ev.impact_direction, ev.impact_magnitude)}
+                {ev.reasoning && (
+                  <span style={{ fontSize: 11, color: 'var(--text-soft)', lineHeight: 1.45 }}>
+                    {ev.reasoning.slice(0, 100)}
+                    {ev.reasoning.length > 100 ? '…' : ''}
+                  </span>
+                )}
+                <span style={{ fontSize: 11, color: display.color }}>
+                  {display.label}
                 </span>
               </article>
             )
@@ -148,23 +125,18 @@ export function CatalystGrid({ ticker }: CatalystGridProps): React.ReactElement 
   )
 }
 
-function magnitudeWeight(magnitude: string | null): number {
-  if (magnitude === 'high') return 3
-  if (magnitude === 'med') return 2
-  if (magnitude === 'low') return 1
-  return 0
-}
-
-function impactColor(dir?: string, mag?: string): string {
-  if (dir === 'down') return '#EF4444'
-  if (dir === 'up' && mag === 'high') return '#10B981'
-  if (dir === 'up') return '#16A34A'
-  return 'var(--text-faint)'
-}
-
-function impactLabel(dir?: string, mag?: string): string {
-  if (!dir) return ''
-  const arrow = dir === 'up' ? '↑' : dir === 'down' ? '↓' : '→'
-  const magText = mag === 'high' ? '高影响' : mag === 'med' ? '中影响' : mag === 'low' ? '低影响' : ''
-  return `${arrow} ${magText}`.trim()
+function deriveCatalystDisplay(ev: CatalystEvent): { color: string; label: string } {
+  const score = ev.impact_score ?? 0
+  const magText = score >= 4 ? '高影响' : score >= 2 ? '中影响' : score >= 1 ? '低影响' : ''
+  if (ev.sentiment === 'negative') {
+    return { color: '#EF4444', label: `↓ ${magText}`.trim() }
+  }
+  if (ev.sentiment === 'positive') {
+    const color = score >= 4 ? '#10B981' : '#16A34A'
+    return { color, label: `↑ ${magText}`.trim() }
+  }
+  if (ev.sentiment === 'neutral') {
+    return { color: 'var(--text-soft)', label: `→ ${magText}`.trim() }
+  }
+  return { color: 'var(--text-faint)', label: magText }
 }

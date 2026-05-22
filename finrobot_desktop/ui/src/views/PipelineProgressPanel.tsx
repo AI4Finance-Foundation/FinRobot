@@ -52,7 +52,7 @@ export function PipelineProgressPanel({ ticker }: PipelineProgressPanelProps): R
         border: '1px solid var(--border)',
         borderRadius: 10,
         padding: 20,
-        background: 'var(--bg-card, #fff)',
+        background: 'var(--bg-card)',
         margin: '12px 0',
       }}
     >
@@ -122,7 +122,7 @@ export function PipelineProgressPanel({ ticker }: PipelineProgressPanelProps): R
       {run.status === 'failed' && (
         <p
           data-testid="pipeline-failed"
-          style={{ marginTop: 8, fontSize: 12, color: 'var(--red, #EF4444)' }}
+          style={{ marginTop: 8, fontSize: 12, color: 'var(--danger)' }}
         >
           ⚠️ Pipeline 失败 · {run.error ?? '查看日志'}
         </p>
@@ -139,10 +139,10 @@ function spinnerStyle(status: string): React.CSSProperties {
     display: 'inline-block',
   }
   if (status === 'running') {
-    return { ...base, background: 'var(--green, #10B981)', boxShadow: '0 0 0 3px rgba(16,185,129,0.18)' }
+    return { ...base, background: 'var(--success)', boxShadow: '0 0 0 3px rgba(16,185,129,0.18)' }
   }
   if (status === 'failed') {
-    return { ...base, background: 'var(--red, #EF4444)' }
+    return { ...base, background: 'var(--danger)' }
   }
   return { ...base, background: 'var(--text-faint)' }
 }
@@ -155,12 +155,13 @@ function statusGlyph(status: string): string {
 }
 
 function labelForPipeline(pipelineType: string): string {
+  // 这里的 key 是 pipeline 注册名（registry.py），不是 artifact.type。
   switch (pipelineType) {
-    case 'equity_research':
+    case 'research':
       return 'AI 完整研报'
-    case 'ic_memo':
+    case 'ic-memo':
       return '投委备忘'
-    case 'earnings_analysis':
+    case 'earnings':
       return '财报电话会分析'
     case 'lbo':
       return 'LBO 估值'

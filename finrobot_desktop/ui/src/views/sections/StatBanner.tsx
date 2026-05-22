@@ -16,7 +16,9 @@ interface StatBannerProps {
 }
 
 export function StatBanner({ ticker, artifacts }: StatBannerProps): React.ReactElement | null {
-  const signals: (Signal | null)[] = artifacts.map((a) => a.signal)
+  // Normalise undefined → null up front so downstream filters can rely on a
+  // narrow shape (backend may omit `signal` for legacy artifacts).
+  const signals: (Signal | null)[] = artifacts.map((a) => a.signal ?? null)
   const nTotal = signals.filter((s) => s !== null).length
   if (nTotal < 3) return null
 
@@ -50,7 +52,7 @@ export function StatBanner({ ticker, artifacts }: StatBannerProps): React.ReactE
           </span>
         ) : (
           <>
-            <span style={{ fontSize: 28, fontWeight: 700, color: 'var(--green, #10B981)' }}>
+            <span style={{ fontSize: 28, fontWeight: 700, color: 'var(--success)' }}>
               命中率 {Math.round((nHit / nClosed) * 100)}%
             </span>
             <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>

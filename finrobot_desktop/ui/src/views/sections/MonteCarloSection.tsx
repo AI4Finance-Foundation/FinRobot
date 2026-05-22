@@ -25,7 +25,7 @@ const SECTION_STYLE: React.CSSProperties = {
   borderRadius: 12,
   padding: 20,
   margin: '12px 0',
-  background: 'var(--bg-card, #fff)',
+  background: 'var(--bg-card)',
 }
 
 interface MonteCarloSectionProps {
@@ -53,7 +53,7 @@ export function MonteCarloSection({
         <p style={{ fontSize: 12, color: 'var(--text-faint)' }}>模拟中…（5000 次仿真，约 100ms）</p>
       )}
       {isError && (
-        <p style={{ fontSize: 12, color: 'var(--red, #EF4444)' }}>
+        <p style={{ fontSize: 12, color: 'var(--danger)' }}>
           模拟失败 — {String(error?.message ?? '').slice(0, 140)}
         </p>
       )}

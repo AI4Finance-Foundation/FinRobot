@@ -15,7 +15,7 @@ const SECTION_STYLE: React.CSSProperties = {
   borderRadius: 12,
   padding: 24,
   margin: '12px 0',
-  background: 'var(--bg-card, #fff)',
+  background: 'var(--bg-card)',
 }
 
 interface HeroVerdictProps {
@@ -71,7 +71,7 @@ export function HeroVerdict({ ticker }: HeroVerdictProps): React.ReactElement {
             style={{
               marginLeft: 12,
               fontSize: 22,
-              color: distancePct >= 0 ? 'var(--green, #10B981)' : 'var(--red, #EF4444)',
+              color: distancePct >= 0 ? 'var(--success)' : 'var(--danger)',
               fontWeight: 600,
             }}
           >

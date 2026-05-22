@@ -10,7 +10,7 @@ const SECTION_STYLE: React.CSSProperties = {
   borderRadius: 12,
   padding: 20,
   margin: '12px 0',
-  background: 'var(--bg-card, #fff)',
+  background: 'var(--bg-card)',
 }
 
 interface RevenueEbitdaSectionProps {
@@ -42,7 +42,7 @@ export function RevenueEbitdaSection({
         <p style={{ fontSize: 12, color: 'var(--text-faint)' }}>历史财务加载中…</p>
       )}
       {isError && (
-        <p style={{ fontSize: 12, color: 'var(--red, #EF4444)' }}>历史财务加载失败</p>
+        <p style={{ fontSize: 12, color: 'var(--danger)' }}>历史财务加载失败</p>
       )}
       {chartData.length > 0 && <RevenueEbitdaChart data={chartData} title="" />}
       {!isLoading && chartData.length === 0 && (

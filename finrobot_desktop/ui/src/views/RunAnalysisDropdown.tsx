@@ -91,7 +91,7 @@ export function RunAnalysisDropdown({ ticker, onLaunched }: RunAnalysisDropdownP
     <div
       data-testid="run-analysis-dropdown"
       style={{
-        background: 'var(--bg-card, #fff)',
+        background: 'var(--bg-card)',
         border: '1px solid var(--border)',
         borderRadius: 8,
         padding: 6,
@@ -141,7 +141,7 @@ export function RunAnalysisDropdown({ ticker, onLaunched }: RunAnalysisDropdownP
                     style={{
                       marginLeft: 6,
                       fontSize: 10,
-                      color: 'var(--green, #10B981)',
+                      color: 'var(--success)',
                       fontWeight: 500,
                     }}
                   >

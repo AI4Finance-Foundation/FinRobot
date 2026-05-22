@@ -1,26 +1,30 @@
-// v5 §6.10 同业对标 — 5 行表格 (target 高亮 + 4 peers).
-// Reads the latest comps artifact via PR1 v5 hooks; falls back to a CTA
-// when no peer_analysis has run yet. Doesn't touch the user's in-flight
-// PeersTab — wires through the artifact store instead.
+// v5 §6.10 同业对标 — 5+ rows (target highlighted + peer rows).
+// Pulls outputs.structured.peer_analysis from the equity_research artifact
+// (or outputs.structured directly from a comps artifact) via useArtifactDetail.
 
-import { useLatestArtifact } from '../../hooks/useV5Artifacts'
+import { useArtifactDetail, useLatestArtifact } from '../../hooks/useV5Artifacts'
 
+// Mirror of finagent.engine.models.financial.CompanyFinancials.
 interface CompanyFinancials {
   ticker: string
   name?: string | null
   market_cap?: number | null
   pe_ratio?: number | null
-  ebitda?: number | null
+  ev_ebitda?: number | null
   revenue?: number | null
   gross_margin?: number | null
   operating_margin?: number | null
 }
 
-interface PeerCompsStructured {
+interface PeerComps {
   target?: CompanyFinancials
   peers?: CompanyFinancials[]
   median_pe?: number | null
   median_ev_ebitda?: number | null
+}
+
+interface EquityResearchStructured {
+  peer_analysis?: PeerComps
 }
 
 const SECTION_STYLE: React.CSSProperties = {
@@ -28,7 +32,7 @@ const SECTION_STYLE: React.CSSProperties = {
   borderRadius: 12,
   padding: 20,
   margin: '12px 0',
-  background: 'var(--bg-card, #fff)',
+  background: 'var(--bg-card)',
 }
 
 interface PeersSectionProps {
@@ -36,93 +40,107 @@ interface PeersSectionProps {
 }
 
 export function PeersSection({ ticker }: PeersSectionProps): React.ReactElement {
-  // Try comps artifact first; fall back to equity_research's peer_analysis output.
   const comps = useLatestArtifact(ticker, 'comps').latest
   const equity = useLatestArtifact(ticker, 'equity_research').latest
+  const source = comps ?? equity
+  const { data: detail, isLoading } = useArtifactDetail(source?.id)
 
-  // Summary endpoint strips the heavy `outputs.structured.peer_analysis`
-  // payload — we'd need a full-Artifact loader to pull peer rows. Plumb
-  // that in PR15. For now show the headline + a CTA so the section anchors
-  // remain consistent and the section isn't empty when a comps artifact
-  // exists.
-  const latest = comps ?? equity
-  const placeholder: PeerCompsStructured = {}
-
-  if (!latest) {
+  if (!source) {
     return (
       <section id="sec-peers" style={SECTION_STYLE}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>🏢 同业对标</h2>
         <p style={{ marginTop: 8, fontSize: 13, color: 'var(--text-soft)' }}>
-          跑「单独同业对标」或「AI 完整研报」后，这里展示 5 家可比公司财务比较。
+          跑「单独同业对标」或「AI 完整研报」后，这里展示可比公司财务比较。
         </p>
       </section>
     )
   }
 
-  // Render the placeholder structure so the section has a stable layout
-  // and tests can pin selectors; numbers come in PR15's full-Artifact wire.
-  const rows: CompanyFinancials[] = [
-    { ticker, name: latest.headline?.slice(0, 24) ?? ticker, market_cap: null, pe_ratio: null },
-  ]
+  // comps artifact stores PeerComps directly at outputs.structured;
+  // equity_research wraps it under outputs.structured.peer_analysis.
+  const structured = detail?.outputs?.structured as
+    | (PeerComps & EquityResearchStructured)
+    | undefined
+  const peerComps: PeerComps | undefined =
+    structured?.peer_analysis ?? (structured?.target ? structured : undefined)
+
+  const target = peerComps?.target
+  const peers = peerComps?.peers ?? []
+  const rows: CompanyFinancials[] = target ? [target, ...peers] : peers
 
   return (
     <section id="sec-peers" style={SECTION_STYLE}>
       <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>🏢 同业对标</h2>
       <p style={{ marginTop: 2, fontSize: 11, color: 'var(--text-faint)' }}>
-        来源 {latest.type} artifact · 完整 peer 表格待 PR15 plumb 全 artifact
+        来源 {source.type} artifact · {rows.length} 家公司
+        {typeof peerComps?.median_pe === 'number' &&
+          ` · 同业中位 PE ${peerComps.median_pe.toFixed(1)}`}
+        {typeof peerComps?.median_ev_ebitda === 'number' &&
+          ` · EV/EBITDA ${peerComps.median_ev_ebitda.toFixed(1)}`}
       </p>
-      <table
-        data-testid="peers-table"
-        style={{
-          marginTop: 12,
-          width: '100%',
-          borderCollapse: 'collapse',
-          fontSize: 12,
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        <thead>
-          <tr style={{ color: 'var(--text-faint)' }}>
-            <th style={cellStyle('left')}>公司</th>
-            <th style={cellStyle('right')}>市值</th>
-            <th style={cellStyle('right')}>PE</th>
-            <th style={cellStyle('right')}>营收增长</th>
-            <th style={cellStyle('right')}>毛利率</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr
-              key={r.ticker}
-              data-testid={`peer-row-${r.ticker}`}
-              style={{ background: i === 0 ? 'rgba(16,185,129,0.06)' : 'transparent' }}
-            >
-              <td style={cellStyle('left')}>
-                <strong>{r.ticker}</strong>
-                {r.name && (
-                  <span style={{ marginLeft: 6, color: 'var(--text-faint)', fontSize: 11 }}>
-                    {r.name}
-                  </span>
-                )}
-              </td>
-              <td style={cellStyle('right')}>{formatMoney(r.market_cap)}</td>
-              <td style={cellStyle('right')}>{r.pe_ratio?.toFixed(1) ?? '—'}</td>
-              <td style={cellStyle('right')}>—</td>
-              <td style={cellStyle('right')}>{formatPct(r.gross_margin)}</td>
+
+      {isLoading && (
+        <p style={{ marginTop: 12, fontSize: 12, color: 'var(--text-faint)' }}>加载中…</p>
+      )}
+      {!isLoading && rows.length === 0 && (
+        <p style={{ marginTop: 12, fontSize: 12, color: 'var(--text-faint)' }}>
+          本次分析未生成同业表 — Headline: {source.headline}
+        </p>
+      )}
+
+      {rows.length > 0 && (
+        <table
+          data-testid="peers-table"
+          style={{
+            marginTop: 12,
+            width: '100%',
+            borderCollapse: 'collapse',
+            fontSize: 12,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          <thead>
+            <tr style={{ color: 'var(--text-faint)' }}>
+              <th style={cellStyle('left')}>公司</th>
+              <th style={cellStyle('right')}>市值</th>
+              <th style={cellStyle('right')}>PE</th>
+              <th style={cellStyle('right')}>EV/EBITDA</th>
+              <th style={cellStyle('right')}>毛利率</th>
+              <th style={cellStyle('right')}>营业利润率</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <p style={{ marginTop: 8, fontSize: 11, color: 'var(--text-faint)' }}>
-        Headline: {latest.headline}
-      </p>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const isTarget = i === 0 && !!target
+              return (
+                <tr
+                  key={`${r.ticker}-${i}`}
+                  data-testid={`peer-row-${r.ticker}`}
+                  data-target={isTarget ? 'true' : undefined}
+                  style={{ background: isTarget ? 'rgba(16,185,129,0.06)' : 'transparent' }}
+                >
+                  <td style={cellStyle('left')}>
+                    <strong>{r.ticker}</strong>
+                    {r.name && (
+                      <span style={{ marginLeft: 6, color: 'var(--text-faint)', fontSize: 11 }}>
+                        {r.name}
+                      </span>
+                    )}
+                  </td>
+                  <td style={cellStyle('right')}>{formatMoney(r.market_cap)}</td>
+                  <td style={cellStyle('right')}>{r.pe_ratio?.toFixed(1) ?? '—'}</td>
+                  <td style={cellStyle('right')}>{r.ev_ebitda?.toFixed(1) ?? '—'}</td>
+                  <td style={cellStyle('right')}>{formatPct(r.gross_margin)}</td>
+                  <td style={cellStyle('right')}>{formatPct(r.operating_margin)}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
     </section>
   )
 }
-
-// Suppress unused-import warning for the placeholder structured type — kept
-// as documentation of the shape PR15 will plumb.
-export type { PeerCompsStructured }
 
 function cellStyle(align: 'left' | 'right'): React.CSSProperties {
   return {

@@ -87,7 +87,7 @@ function Card({ label, value, sub, subColor }: CardProps): React.ReactElement {
         border: '1px solid var(--border)',
         borderRadius: 8,
         padding: 16,
-        background: 'var(--bg-card, #fff)',
+        background: 'var(--bg-card)',
       }}
     >
       <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>{label}</div>

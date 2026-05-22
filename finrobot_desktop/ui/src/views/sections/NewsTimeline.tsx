@@ -28,7 +28,7 @@ const SECTION_STYLE: React.CSSProperties = {
   borderRadius: 12,
   padding: 20,
   margin: '12px 0',
-  background: 'var(--bg-card, #fff)',
+  background: 'var(--bg-card)',
 }
 
 interface NewsTimelineProps {
@@ -84,7 +84,7 @@ export function NewsTimeline({ ticker }: NewsTimelineProps): React.ReactElement 
         <p style={{ fontSize: 12, color: 'var(--text-faint)' }}>加载中…</p>
       )}
       {isError && (
-        <p style={{ fontSize: 12, color: 'var(--red, #EF4444)' }}>新闻加载失败</p>
+        <p style={{ fontSize: 12, color: 'var(--danger)' }}>新闻加载失败</p>
       )}
       {!isLoading && items.length === 0 && (
         <p style={{ fontSize: 12, color: 'var(--text-faint)' }}>近期无相关新闻。</p>

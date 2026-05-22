@@ -11,7 +11,7 @@ const SECTION_STYLE: React.CSSProperties = {
   borderRadius: 12,
   padding: 20,
   margin: '12px 0',
-  background: 'var(--bg-card, #fff)',
+  background: 'var(--bg-card)',
 }
 
 interface CashFlowSectionProps {
@@ -37,7 +37,7 @@ export function CashFlowSection({
         <p style={{ fontSize: 12, color: 'var(--text-faint)' }}>加载中…</p>
       )}
       {isError && (
-        <p style={{ fontSize: 12, color: 'var(--red, #EF4444)' }}>加载失败</p>
+        <p style={{ fontSize: 12, color: 'var(--danger)' }}>加载失败</p>
       )}
       {chartData.length > 0 && <CashFlowChart data={chartData} title="" />}
       {!isLoading && chartData.length === 0 && (

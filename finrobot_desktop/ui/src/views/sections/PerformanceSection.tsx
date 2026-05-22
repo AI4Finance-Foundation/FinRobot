@@ -23,7 +23,7 @@ const SECTION_STYLE: React.CSSProperties = {
   borderRadius: 12,
   padding: 20,
   margin: '12px 0',
-  background: 'var(--bg-card, #fff)',
+  background: 'var(--bg-card)',
 }
 
 interface PerformanceSectionProps {
@@ -75,7 +75,7 @@ export function PerformanceSection({ ticker }: PerformanceSectionProps): React.R
         >
           <Card label="YTD 涨幅" value={formatPct(metrics.ytdReturn)} color={metricColor(metrics.ytdReturn)} />
           <Card label="年化波动率" value={formatPct(metrics.volatility)} color="var(--text)" />
-          <Card label="夏普比率" value={metrics.sharpe.toFixed(2)} color={metrics.sharpe >= 1 ? 'var(--green, #10B981)' : 'var(--text)'} />
+          <Card label="夏普比率" value={metrics.sharpe.toFixed(2)} color={metrics.sharpe >= 1 ? 'var(--success)' : 'var(--text)'} />
           <Card
             label="距 52w 高"
             value={formatPct(metrics.fromHigh)}
@@ -170,5 +170,5 @@ function formatPct(v: number): string {
 }
 
 function metricColor(v: number): string {
-  return v >= 0 ? 'var(--green, #10B981)' : 'var(--red, #EF4444)'
+  return v >= 0 ? 'var(--success)' : 'var(--danger)'
 }

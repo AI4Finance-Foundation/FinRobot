@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
+import { extractErrorDetail } from '../api/errors'
 import { useAppStore } from '../stores/appStore'
 
 interface EarningsCallTranscript {
@@ -17,29 +18,38 @@ interface EarningsCallList {
   transcripts: EarningsCallTranscript[]
 }
 
-export default function EarningsCallPanel() {
-  const ticker = useAppStore((s) => s.ticker)
+interface EarningsCallPanelProps {
+  /** When omitted, falls back to appStore.ticker (legacy v4 callsite). */
+  ticker?: string
+}
+
+export default function EarningsCallPanel({ ticker: tickerProp }: EarningsCallPanelProps = {}) {
+  const storeTicker = useAppStore((s) => s.ticker)
+  const ticker = tickerProp ?? storeTicker
   const [selectedIdx, setSelectedIdx] = useState(0)
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['earnings-calls', ticker],
     queryFn: async () => {
       const resp = await fetch(`${BASE_URL}/api/data/${ticker}/earnings-calls?limit=8`)
-      if (resp.status === 404) {
-        const body = await resp.json().catch(() => ({ detail: '' }))
-        throw new Error(body.detail || 'Earnings call transcripts not available')
+      if (!resp.ok) {
+        throw new Error(await extractErrorDetail(resp, '无法加载财报电话会逐字稿'))
       }
-      if (!resp.ok) throw new Error('获取财报电话会逐字稿失败')
       return resp.json() as Promise<EarningsCallList>
     },
     enabled: !!ticker,
     retry: false,
+    // Transcripts are immutable once published — cache aggressively.
+    staleTime: 60 * 60_000,
+    gcTime: 24 * 60 * 60_000,
+    refetchOnMount: false,
   })
 
-  // FMP key not configured
+  // The backend returns Chinese, user-actionable detail (e.g. "需要 FMP API
+  // 密钥…请在 设置 → API 密钥 配置"). extractErrorDetail surfaces that
+  // verbatim, so we can render error.message directly.
   if (isError) {
-    const msg = (error as Error)?.message || ''
-    const isMissingKey = msg.includes('FMP API key')
+    const msg = (error as Error)?.message || '加载财报电话会逐字稿失败。'
     return (
       <div className="card animate-in">
         <div className="card-header">
@@ -55,15 +65,15 @@ export default function EarningsCallPanel() {
           textAlign: 'center',
           padding: 'var(--sp-6)',
         }}>
-          {isMissingKey
-            ? '请在设置中配置 FMP API 密钥以查看财报电话会逐字稿。'
-            : msg || '加载财报电话会逐字稿失败。'}
+          {msg}
         </div>
       </div>
     )
   }
 
-  if (isLoading) {
+  // Only show skeleton on cold-start (no cache). Once data is in cache, switching
+  // tabs should never re-flash skeleton.
+  if (isLoading && !data) {
     return (
       <div className="card animate-in">
         <div className="card-header">

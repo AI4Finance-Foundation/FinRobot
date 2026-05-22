@@ -1,21 +1,14 @@
-// v5 §6.3 风险因素 — 2×2 risk-card grid sourced from the latest
-// equity_research artifact's thesis step output. Falls back to a CTA when
+// v5 §6.3 风险因素 — 2×N grid sourced from the equity_research artifact's
+// thesis step (outputs.structured.thesis.risks). Falls back to a CTA when
 // no analysis exists yet.
 
-import { useLatestArtifact } from '../../hooks/useV5Artifacts'
-
-interface ThesisRisk {
-  severity?: 'high' | 'med' | 'low'
-  title?: string
-  description?: string
-  source?: string
-}
+import { useArtifactDetail, useLatestArtifact } from '../../hooks/useV5Artifacts'
 
 interface ThesisStructured {
-  risks?: ThesisRisk[]
+  risks?: string[]
 }
 
-interface EquityResearchOutputs {
+interface EquityResearchStructured {
   thesis?: ThesisStructured
 }
 
@@ -24,7 +17,7 @@ const SECTION_STYLE: React.CSSProperties = {
   borderRadius: 12,
   padding: 20,
   margin: '12px 0',
-  background: 'var(--bg-card, #fff)',
+  background: 'var(--bg-card)',
 }
 
 interface RiskGridProps {
@@ -33,11 +26,7 @@ interface RiskGridProps {
 
 export function RiskGrid({ ticker }: RiskGridProps): React.ReactElement {
   const { latest } = useLatestArtifact(ticker, 'equity_research')
-
-  // The summary endpoint strips heavy fields — risks live on the full Artifact.
-  // For now we surface only what the summary headline already carries plus a
-  // CTA. PR15 will plumb full artifact loading through useArtifactDetail.
-  const placeholderRisks: ThesisRisk[] = []
+  const { data: detail, isLoading } = useArtifactDetail(latest?.id)
 
   if (!latest) {
     return (
@@ -50,58 +39,59 @@ export function RiskGrid({ ticker }: RiskGridProps): React.ReactElement {
     )
   }
 
+  const structured = (detail?.outputs?.structured ?? {}) as EquityResearchStructured
+  const risks = structured.thesis?.risks ?? []
+
   return (
     <section id="sec-risk" style={SECTION_STYLE}>
-      <div style={{ fontSize: 14, fontWeight: 600 }}>⚠️ 风险因素</div>
-      <p style={{ marginTop: 4, fontSize: 11, color: 'var(--text-faint)' }}>
-        来源 thesis step · 完整 risks 数组待 PR15 plumb 全 artifact 加载
-      </p>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
-          gap: 10,
-          marginTop: 12,
-        }}
-      >
-        {placeholderRisks.length > 0
-          ? placeholderRisks.map((risk, idx) => <RiskCard key={idx} risk={risk} />)
-          : (
-              <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--text-faint)' }}>
-                Headline: {latest.headline}
-              </div>
-            )}
+      <div style={{ fontSize: 14, fontWeight: 600 }}>
+        ⚠️ 风险因素
+        {risks.length > 0 && (
+          <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--text-faint)', fontWeight: 400 }}>
+            · {risks.length} 项 · 来源 thesis step
+          </span>
+        )}
       </div>
+      {isLoading && (
+        <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-faint)' }}>加载中…</p>
+      )}
+      {!isLoading && risks.length === 0 && (
+        <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-faint)' }}>
+          本次研报未识别明确风险点 — Headline: {latest.headline}
+        </p>
+      )}
+      {risks.length > 0 && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 10,
+            marginTop: 12,
+          }}
+        >
+          {risks.map((r, i) => (
+            <RiskCard key={i} text={r} />
+          ))}
+        </div>
+      )}
     </section>
   )
 }
 
-function RiskCard({ risk }: { risk: ThesisRisk }): React.ReactElement {
-  const severity = risk.severity ?? 'med'
-  const color = severity === 'high' ? '#EF4444' : severity === 'med' ? '#F59E0B' : '#10B981'
+function RiskCard({ text }: { text: string }): React.ReactElement {
   return (
     <article
       style={{
-        border: `1px solid ${color}33`,
-        borderLeft: `4px solid ${color}`,
+        border: '1px solid var(--border-soft)',
+        borderLeft: '4px solid #F59E0B',
         borderRadius: 6,
         padding: 12,
+        fontSize: 12,
+        lineHeight: 1.55,
+        color: 'var(--text)',
       }}
     >
-      <div style={{ fontSize: 12, fontWeight: 600 }}>{risk.title ?? '(未命名风险)'}</div>
-      <p style={{ marginTop: 4, fontSize: 11.5, color: 'var(--text-soft)' }}>
-        {risk.description ?? ''}
-      </p>
-      {risk.source && (
-        <p style={{ marginTop: 4, fontSize: 10.5, color: 'var(--text-faint)' }}>
-          来源：{risk.source}
-        </p>
-      )}
+      {text}
     </article>
   )
 }
-
-// Suppress unused-import warning for the structured types — they're the
-// contract surface that PR15 will use when it switches to the full Artifact
-// loader. Keeping them here documents the shape we expect.
-export type { EquityResearchOutputs }

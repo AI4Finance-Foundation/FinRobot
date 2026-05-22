@@ -354,9 +354,6 @@ interface WorkspaceState {
   cmdPaletteOpen: boolean
   cmdKQuery: string
 
-  // Ask panel
-  askPanelOpen: boolean
-
   // Tab navigation
   activeTab: ActiveTab
 
@@ -402,7 +399,6 @@ interface WorkspaceState {
   setCmdPaletteOpen: (open: boolean) => void
   toggleCmdPalette: () => void
   setCmdKQuery: (q: string) => void
-  setAskPanelOpen: (open: boolean) => void
   setActiveTab: (tab: ActiveTab) => void
   setCatalysts: (data: CatalystEvent[] | null) => void
   setCatalystsLoading: (loading: boolean) => void
@@ -454,7 +450,6 @@ const initialState = {
   showSettings: false,
   cmdPaletteOpen: false,
   cmdKQuery: '',
-  askPanelOpen: false,
   activeTab: 'overview' as ActiveTab,
   catalysts: null,
   catalystsLoading: false,
@@ -501,13 +496,18 @@ export const useAppStore = create<WorkspaceState>((set) => ({
     dcfSource: null,
     dcfInputs: null,
     originalDcfInputs: null,
+    dcfReverseGrowth: null,
+    dcfReverseWacc: null,
     sensitivityData: null,
+    currentPrice: null,
+    priceChange: null,
+    priceChangePct: null,
+    dataFetchedAt: null,
     warnings: [],
     phase: 'idle',
     activeScenario: 'base' as ScenarioKey,
     scenarios: { ...emptyScenarios },
     scenarioResults: { ...emptyScenarioResults },
-    askPanelOpen: false,
     activeTab: 'overview' as ActiveTab,
     catalysts: null,
     catalystsLoading: false,
@@ -543,7 +543,6 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   setCmdPaletteOpen: (cmdPaletteOpen) => set({ cmdPaletteOpen }),
   toggleCmdPalette: () => set((s) => ({ cmdPaletteOpen: !s.cmdPaletteOpen })),
   setCmdKQuery: (cmdKQuery) => set({ cmdKQuery }),
-  setAskPanelOpen: (askPanelOpen) => set({ askPanelOpen }),
   setActiveTab: (activeTab) => set({ activeTab }),
   setCatalysts: (catalysts) => set({ catalysts }),
   setCatalystsLoading: (catalystsLoading) => set({ catalystsLoading }),

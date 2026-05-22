@@ -229,7 +229,10 @@ test.beforeEach(async ({ page }) => {
 
 test('v5 5-step retail walkthrough', async ({ page }) => {
   // Step 1 — cold start: land on the legacy /stocks placeholder, then
-  // navigate to /stocks/NVDA to surface the StockWorkspace.
+  // navigate to /stocks/NVDA to surface the StockWorkspace. Stage A
+  // retired AnchorNav — section nav now lives in ⌘K. Assert the
+  // cosmic hero is visible and the workspace section IDs exist on
+  // the page so cmdK can scrollIntoView them.
   await page.goto('/stocks/NVDA')
   await page.waitForSelector('[data-testid="ticker-hero"]')
   await page.screenshot({
@@ -237,7 +240,8 @@ test('v5 5-step retail walkthrough', async ({ page }) => {
     fullPage: true,
   })
   await expect(page.getByTestId('ticker-hero')).toBeVisible()
-  await expect(page.getByTestId('anchor-nav')).toBeVisible()
+  await expect(page.locator('#sec-now')).toBeAttached()
+  await expect(page.locator('#sec-research')).toBeAttached()
 
   // Step 2 — open + 跑分析 dropdown.
   await page.getByTestId('run-analysis-trigger').click()
@@ -246,13 +250,13 @@ test('v5 5-step retail walkthrough', async ({ page }) => {
     path: '../docs/v5-screenshots/02-run-analysis-dropdown.png',
     fullPage: true,
   })
-  // Don't actually click equity_research because the SSE source we'd need
-  // to attach to is mocked separately. Close the dropdown and continue.
+  // Verify DCF entry is present (the Stage A fix added it).
+  await expect(page.getByTestId('run-dcf')).toBeVisible()
   await page.keyboard.press('Escape')
 
-  // Step 3 — football field visible after scrolling. Scroll to sec-football
-  // via the anchor nav button so the screenshot pins that section's layout.
-  await page.getByTestId('anchor-sec-football').click()
+  // Step 3 — football field visible after scrolling. Use the hash anchor
+  // (CmdK uses scrollIntoView on the same ID).
+  await page.locator('#sec-football').scrollIntoViewIfNeeded()
   await page.waitForSelector('[data-testid="football-field-svg-wrapper"]')
   await page.screenshot({
     path: '../docs/v5-screenshots/03-football-field.png',
@@ -260,7 +264,7 @@ test('v5 5-step retail walkthrough', async ({ page }) => {
   })
 
   // Step 4 — scroll to 我的研究, ensure stat banner + cards render.
-  await page.getByTestId('anchor-sec-research').click()
+  await page.locator('#sec-research').scrollIntoViewIfNeeded()
   await page.waitForSelector('[data-testid="stat-banner"]')
   await expect(page.getByTestId('stat-banner')).toContainText('命中率')
   await page.screenshot({
@@ -271,7 +275,7 @@ test('v5 5-step retail walkthrough', async ({ page }) => {
   // Step 5 — share button in HERO. Click it (download API stubbed in JSDOM;
   // in real chromium it actually saves a PNG, but we don't assert that here
   // to avoid filesystem dependencies in CI).
-  await page.getByTestId('anchor-sec-now').click()
+  await page.locator('#sec-now').scrollIntoViewIfNeeded()
   await page.waitForSelector('[data-testid="hero-share-card"]')
   await page.screenshot({
     path: '../docs/v5-screenshots/05-hero-share.png',

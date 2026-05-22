@@ -258,6 +258,64 @@ def test_thesis_requires_catalyst_and_risk():
         )
 
 
+def test_thesis_narrative_slots_optional_for_backward_compat():
+    """FinRobot parity narrative fields (incl. company_overview) must be
+    optional so legacy artifacts persisted before the schema bump still
+    deserialize cleanly. New runs populate them; old runs read None.
+    """
+    minimal = ThesisResult(
+        recommendation="Hold",
+        price_target=150.0,
+        price_target_basis="DCF",
+        catalysts=["new product"],
+        risks=["competition"],
+        narrative="neutral",
+    )
+    assert minimal.company_overview is None
+    assert minimal.tagline is None
+    assert minimal.key_takeaways is None
+    assert minimal.valuation_overview is None
+    assert minimal.competitor_analysis is None
+    assert minimal.news_summary is None
+
+
+def test_thesis_accepts_full_finrobot_parity_narrative():
+    """All 6 narrative slots can be populated together — represents the
+    target shape once company_overview agent ships (P3.1 FinRobot parity).
+    """
+    full = ThesisResult(
+        recommendation="Buy",
+        price_target=295.0,
+        price_target_basis="DCF + Comps blended",
+        catalysts=["iPhone 17 ASP", "India capacity ramp"],
+        risks=["Greater China", "EU DMA"],
+        narrative="Apple BUY with $295 target.",
+        tagline="Services 高毛利 + 印度供应链分散，估值仍有 14% 空间",
+        key_takeaways=[
+            "Services franchise reaches inflection point",
+            "iPhone 17 cycle ASP +6% YoY",
+            "India capacity 12% → 25% by FY27",
+        ],
+        company_overview=(
+            "Apple Inc. designs, manufactures, and markets smartphones, "
+            "personal computers, tablets, wearables and accessories worldwide. "
+            "Operates through five reportable segments: iPhone (52%), "
+            "Services (25%), Wearables (10%), Mac (8%), iPad (5%). "
+            "Vertically integrated ecosystem with 2.2B active devices."
+        ),
+        valuation_overview="DCF 范围 $272-310，Comps $258-297，加权目标 $295。",
+        competitor_analysis="Services unit economics 优于 Mag-7 peers。",
+        news_summary="近 30 天 net bullish · India ramp + Services 创历史新高。",
+    )
+    assert full.company_overview is not None
+    assert "Services" in full.company_overview
+    assert full.tagline is not None and "印度" in full.tagline
+    assert full.key_takeaways is not None and len(full.key_takeaways) == 3
+    # Re-serialise + reload must preserve all narrative slots
+    rt = ThesisResult.model_validate(full.model_dump())
+    assert rt.company_overview == full.company_overview
+
+
 def test_dcf_result_stores_required_fields():
     inputs = DCFInputs(
         revenue_base=100e9,

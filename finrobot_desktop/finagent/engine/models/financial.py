@@ -266,10 +266,13 @@ class DCFResult(BaseModel):
 class ThesisResult(BaseModel):
     """Investment thesis. LLM provides judgment, code validates structure.
 
-    FinRobot parity narrative fields (tagline / key_takeaways / valuation_
-    overview / competitor_analysis / news_summary) are optional so old
-    artifacts still validate after the schema bump; new pipeline runs
-    populate them once the LLM cooperates.
+    FinRobot parity narrative fields are optional so old artifacts still
+    validate after the schema bump; new pipeline runs populate them once
+    the LLM cooperates. Together these 6 slots cover FinRobot equity's
+    8-agent surface (tagline / company_overview / investment_overview /
+    valuation_overview / risks / competitor_analysis / major_takeaways /
+    news_summary) — investment_overview maps to recommendation + narrative,
+    major_takeaways maps to key_takeaways, risks maps to risks list.
     """
 
     recommendation: str = Field(description="Buy/Hold/Sell")
@@ -279,7 +282,7 @@ class ThesisResult(BaseModel):
     risks: list[str] = Field(min_length=1)
     narrative: str
 
-    # ── FinRobot parity LLM narrative slots (P0 retail user value) ────────
+    # ── FinRobot parity LLM narrative slots ───────────────────────────────
     tagline: str | None = Field(
         default=None,
         description=(
@@ -290,9 +293,18 @@ class ThesisResult(BaseModel):
     key_takeaways: list[str] | None = Field(
         default=None,
         description=(
-            "3-5 bullet points the retail reader should walk away with. "
+            "3-5 bullet points the analyst reader should walk away with. "
             "Distinct from `catalysts` (future events) and `risks` (downsides) "
             "— these are present-tense conclusions."
+        ),
+    )
+    company_overview: str | None = Field(
+        default=None,
+        description=(
+            "200-300 字 Company Overview (FinRobot 第 8 agent parity). "
+            "Cover business model, reportable segments with revenue mix, "
+            "geographic exposure, and the durable moat. Investment-bank "
+            "tone — no retail simplification."
         ),
     )
     valuation_overview: str | None = Field(

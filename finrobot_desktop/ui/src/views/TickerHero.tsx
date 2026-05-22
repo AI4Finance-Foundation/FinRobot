@@ -14,6 +14,8 @@ import { useToastStore } from '../stores/toastStore'
 import { SplineHero } from '../components/SplineHero'
 import { RunAnalysisDropdown } from './RunAnalysisDropdown'
 
+const PRIMARY_PIPELINE = 'research'  // 内含 data → catalyst → peer → DCF → thesis → report
+
 const ARTIFACT_TYPE_TO_PIPELINE: Record<string, string> = {
   equity_research: 'research',
   ic_memo: 'ic-memo',
@@ -103,6 +105,31 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       addToast({ type: 'error', title: `${ticker} 重跑失败`, description: msg })
+    }
+  }
+
+  // Primary CTA — one-click full equity research (FinRobot-style 一键全套).
+  // The chevron next to it is for power users who want a single specific
+  // valuation model only; the main button never opens a menu.
+  async function handleLaunchPrimary(): Promise<void> {
+    if (rerunBusy) return
+    try {
+      const runId = await startRun(PRIMARY_PIPELINE, ticker)
+      addToast({
+        type: 'success',
+        title: `${ticker} AI 完整研报已启动`,
+        description: `run_id: ${runId.slice(0, 12)} · 顶部进度面板会逐步更新`,
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      addToast({
+        type: 'error',
+        title: `${ticker} 启动分析失败`,
+        description:
+          msg.includes('Failed to fetch') || msg.includes('NetworkError')
+            ? '后端未响应 — 检查 sidecar 是否启动（StatusBar 应显示「已连接」）'
+            : msg,
+      })
     }
   }
 
@@ -212,16 +239,45 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
             )}
           </div>
 
-          {/* Actions */}
+          {/* Actions — split button: main button kicks off the full AI
+              equity-research pipeline directly (FinRobot 同款一键全套：
+              内含 DCF + 同业 + 催化剂 + 论点 + 风险). Chevron half opens a
+              menu of 6 单独估值模型 for advanced users — that's the only
+              path that needs a sub-menu now. */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 4 }}>
-            <div ref={dropdownWrapperRef} style={{ position: 'relative' }}>
+            <div ref={dropdownWrapperRef} style={{ position: 'relative', display: 'flex' }}>
               <button
                 type="button"
                 data-testid="run-analysis-trigger"
                 className="btn-shimmer"
-                onClick={() => setDropdownOpen((v) => !v)}
+                onClick={() => handleLaunchPrimary()}
+                disabled={rerunBusy}
+                title={rerunBusy ? '当前还有分析在跑' : '一键跑 AI 完整研报（含 DCF / 同业 / 论点）'}
+                style={{
+                  borderTopRightRadius: 0,
+                  borderBottomRightRadius: 0,
+                  marginRight: 0,
+                  opacity: rerunBusy ? 0.5 : 1,
+                  cursor: rerunBusy ? 'not-allowed' : 'pointer',
+                }}
               >
                 运行完整分析
+              </button>
+              <button
+                type="button"
+                data-testid="run-analysis-more"
+                aria-label="其他单独模型"
+                onClick={() => setDropdownOpen((v) => !v)}
+                className="btn-shimmer"
+                style={{
+                  borderTopLeftRadius: 0,
+                  borderBottomLeftRadius: 0,
+                  borderLeft: '1px solid rgba(255,255,255,0.18)',
+                  padding: '12px 12px',
+                  minWidth: 38,
+                }}
+                title="其他单独估值模型（DCF / LBO / DDM …）"
+              >
                 <ChevronDownIcon size={14} />
               </button>
               {dropdownOpen && (

@@ -278,23 +278,22 @@ describe('v5 5-step golden path (spec §15 condition 5)', () => {
     }
   })
 
-  it('Step 2: clicking + 跑分析 opens the 6-item dropdown and starts the run', async () => {
+  it('Step 2: clicking + 跑分析 directly fires research; chevron opens 6 alt models', async () => {
     renderWorkspace()
+    // Primary CTA: single-click → fire `research` directly (no menu).
     fireEvent.click(screen.getByTestId('run-analysis-trigger'))
-    // Dropdown reveals all six pipeline buttons.
+    expect(startRunMock).toHaveBeenCalledWith('research', 'NVDA')
+    expect(screen.queryByTestId('run-analysis-dropdown')).not.toBeInTheDocument()
+
+    // Secondary chevron opens the alt-models menu (6 individual pipelines,
+    // not including `research` since that's the primary CTA's job).
+    fireEvent.click(screen.getByTestId('run-analysis-more'))
     expect(screen.getByTestId('run-analysis-dropdown')).toBeInTheDocument()
-    for (const id of [
-      'run-research',
-      'run-ic-memo',
-      'run-earnings',
-      'run-lbo',
-      'run-ddm',
-      'run-comps',
-    ]) {
+    for (const id of ['run-ic-memo', 'run-earnings', 'run-dcf', 'run-lbo', 'run-ddm', 'run-comps']) {
       expect(screen.getByTestId(id)).toBeInTheDocument()
     }
-    fireEvent.click(screen.getByTestId('run-research'))
-    expect(startRunMock).toHaveBeenCalledWith('research', 'NVDA')
+    // `run-research` is intentionally absent — main button covers it.
+    expect(screen.queryByTestId('run-research')).not.toBeInTheDocument()
   })
 
   it('Step 3: pipeline progress panel renders 6 step rows from SSE-driven state', async () => {

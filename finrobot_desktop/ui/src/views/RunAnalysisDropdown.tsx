@@ -1,7 +1,10 @@
-// v5 RunAnalysisDropdown — the 6-item「+ 跑分析 ▾」menu (spec §4).
-// All six entries trigger POST /api/runs via runStreamStore.startRun.
-// No disabled placeholder items, no "我手调假设" entry — those were
-// explicitly cut in spec §4 to avoid dead-button drift.
+// RunAnalysisDropdown — secondary menu of single-model pipelines.
+//
+// 2026-05-22 user feedback: 7 single-pick rows overloaded the dropdown.
+// FinRobot's pattern was "一键跑全套" — that's now the primary button in
+// TickerHero (fires `research` directly). This dropdown only houses the
+// 6 single-model paths for advanced users who want JUST DCF / JUST LBO
+// without the full pipeline.
 
 import { useRunStreamStore } from '../stores/runStreamStore'
 import { useToastStore } from '../stores/toastStore'
@@ -11,28 +14,20 @@ interface MenuItem {
   title: string
   duration: string
   group: string
-  recommended?: boolean
 }
 
 // pipelineType 必须和 finagent/engine/pipelines/registry.py 的 key 一字不差。
 // 历史踩坑：UI 曾用 equity_research / ic_memo / earnings_analysis，后端返
 // "Invalid pipeline" 把整条 + 跑分析 ▾ 打死。
 const MENU: MenuItem[] = [
-  // AI 研报 group
-  {
-    pipelineType: 'research',
-    title: 'AI 完整研报',
-    duration: '60s',
-    group: 'AI 研报',
-    recommended: true,
-  },
-  { pipelineType: 'ic-memo', title: '投委备忘 (IC Memo)', duration: '60s', group: 'AI 研报' },
-  { pipelineType: 'earnings', title: '财报电话会分析', duration: '45s', group: 'AI 研报' },
-  // 估值模型 group
+  // 估值模型 group — single-model paths for power users
   { pipelineType: 'dcf', title: 'DCF 现金流折现', duration: '45s', group: '估值模型' },
   { pipelineType: 'lbo', title: 'LBO 估值', duration: '45s', group: '估值模型' },
   { pipelineType: 'ddm', title: '股息折现 (DDM)', duration: '45s', group: '估值模型' },
   { pipelineType: 'comps', title: '单独同业对标', duration: '45s', group: '估值模型' },
+  // 专题报告 group — non-valuation focused reports
+  { pipelineType: 'ic-memo', title: '投委备忘 (IC Memo)', duration: '60s', group: '专题报告' },
+  { pipelineType: 'earnings', title: '财报电话会分析', duration: '45s', group: '专题报告' },
 ]
 
 interface RunAnalysisDropdownProps {
@@ -92,14 +87,29 @@ export function RunAnalysisDropdown({ ticker, onLaunched }: RunAnalysisDropdownP
       data-testid="run-analysis-dropdown"
       style={{
         background: 'var(--bg-card)',
-        border: '1px solid var(--border)',
-        borderRadius: 8,
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: '1px solid var(--border-soft)',
+        borderRadius: 'var(--radius-md)',
         padding: 6,
-        minWidth: 260,
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.10)',
+        minWidth: 280,
+        boxShadow: 'var(--shadow-lg)',
         fontSize: 13,
       }}
     >
+      <div
+        style={{
+          padding: '8px 10px 6px',
+          fontFamily: 'var(--font-body)',
+          fontSize: 11,
+          color: 'var(--text-muted)',
+          lineHeight: 1.5,
+          borderBottom: '1px solid var(--border-faint)',
+        }}
+      >
+        散户用左侧「运行完整分析」就够（内含 DCF / 同业 / 论点 / 风险）。
+        这里只单独跑某一种估值模型 / 专题报告。
+      </div>
       {groups.map((g) => (
         <div key={g} style={{ padding: '4px 0' }}>
           <div
@@ -127,29 +137,19 @@ export function RunAnalysisDropdown({ ticker, onLaunched }: RunAnalysisDropdownP
                 width: '100%',
                 padding: '8px 10px',
                 border: 'none',
-                background: item.recommended ? 'rgba(16, 185, 129, 0.06)' : 'transparent',
-                color: 'var(--text)',
+                background: 'transparent',
+                color: 'var(--text-secondary)',
                 cursor: existingRun?.status === 'running' ? 'not-allowed' : 'pointer',
                 textAlign: 'left',
                 borderRadius: 6,
+                fontFamily: 'var(--font-body)',
+                fontSize: 12.5,
               }}
             >
-              <span style={{ fontWeight: item.recommended ? 600 : 400 }}>
-                {item.title}
-                {item.recommended && (
-                  <span
-                    style={{
-                      marginLeft: 6,
-                      fontSize: 10,
-                      color: 'var(--success)',
-                      fontWeight: 500,
-                    }}
-                  >
-                    · 推荐
-                  </span>
-                )}
+              <span>{item.title}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
+                {item.duration}
               </span>
-              <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>{item.duration}</span>
             </button>
           ))}
         </div>

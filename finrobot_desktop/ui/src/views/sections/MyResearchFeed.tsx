@@ -1,6 +1,7 @@
 // v5 §6.14 我的研究 — artifact feed grouped by type badge with signal dot.
 // Sources: PR1's GET /api/artifacts/by-ticker/{ticker}/timeline.
 
+import { useNavigate } from 'react-router-dom'
 import { useV5ArtifactTimeline } from '../../hooks/useV5Artifacts'
 import type { ArtifactSummaryV5 } from '../../types/v5'
 import { StatBanner } from './StatBanner'
@@ -33,6 +34,7 @@ interface MyResearchFeedProps {
 
 export function MyResearchFeed({ ticker }: MyResearchFeedProps): React.ReactElement | null {
   const { data, isLoading } = useV5ArtifactTimeline(ticker)
+  const navigate = useNavigate()
   const artifacts = data ?? []
   // Spec §6.14: hide entire section (and its anchor) when 0 artifacts.
   if (!isLoading && artifacts.length === 0) return null
@@ -44,7 +46,7 @@ export function MyResearchFeed({ ticker }: MyResearchFeedProps): React.ReactElem
       >
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>📚 我的研究</h2>
         <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
-          {artifacts.length} 份分析
+          {artifacts.length} 份分析 · 点卡片看完整研报
         </span>
       </header>
 
@@ -56,14 +58,24 @@ export function MyResearchFeed({ ticker }: MyResearchFeedProps): React.ReactElem
 
       <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
         {artifacts.map((a) => (
-          <ArtifactCard key={a.id} artifact={a} />
+          <ArtifactCard
+            key={a.id}
+            artifact={a}
+            onOpen={() => navigate(`/stocks/${ticker}/runs/${a.id}`)}
+          />
         ))}
       </div>
     </section>
   )
 }
 
-function ArtifactCard({ artifact }: { artifact: ArtifactSummaryV5 }): React.ReactElement {
+function ArtifactCard({
+  artifact,
+  onOpen,
+}: {
+  artifact: ArtifactSummaryV5
+  onOpen: () => void
+}): React.ReactElement {
   const meta = TYPE_META[artifact.type] ?? TYPE_META.ad_hoc
   const dotColor =
     artifact.signal === 'hit'
@@ -77,6 +89,16 @@ function ArtifactCard({ artifact }: { artifact: ArtifactSummaryV5 }): React.Reac
     <article
       data-testid={`artifact-card-${artifact.id}`}
       data-signal={artifact.signal ?? 'none'}
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onOpen()
+        }
+      }}
+      title="查看完整研报"
       style={{
         border: '1px solid var(--border-soft)',
         borderLeft: artifact.signal
@@ -87,6 +109,16 @@ function ArtifactCard({ artifact }: { artifact: ArtifactSummaryV5 }): React.Reac
         display: 'flex',
         alignItems: 'center',
         gap: 12,
+        cursor: 'pointer',
+        transition: 'background 0.15s, border-color 0.15s',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'rgba(59,130,246,0.05)'
+        e.currentTarget.style.borderColor = 'var(--border-glow)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'transparent'
+        e.currentTarget.style.borderColor = 'var(--border-soft)'
       }}
     >
       <span
@@ -117,11 +149,13 @@ function ArtifactCard({ artifact }: { artifact: ArtifactSummaryV5 }): React.Reac
         <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-faint)' }}>
           {formatRelative(artifact.created_at)} · {artifact.source}
         </span>
-        {artifact.target_price !== null && artifact.entry_price !== null && (
-          <div style={{ fontSize: 11, color: 'var(--text-soft)', marginTop: 2 }}>
-            target ${artifact.target_price.toFixed(2)} · entry ${artifact.entry_price.toFixed(2)}
-          </div>
-        )}
+        {typeof artifact.target_price === 'number' &&
+          typeof artifact.entry_price === 'number' && (
+            <div style={{ fontSize: 11, color: 'var(--text-soft)', marginTop: 2 }}>
+              target ${artifact.target_price.toFixed(2)} · entry $
+              {artifact.entry_price.toFixed(2)}
+            </div>
+          )}
       </span>
     </article>
   )

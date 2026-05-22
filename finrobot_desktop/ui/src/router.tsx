@@ -13,6 +13,7 @@ import { useEffect } from "react";
 import { AppShell } from "./layout/AppShell";
 import { StocksPage } from "./pages/StocksPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { ArtifactDetailPage } from "./pages/ArtifactDetailPage";
 import { StockWorkspace } from "./views/StockWorkspace";
 
 export const REDIRECT_TOAST_KEY = "finagent.redirect_toast";
@@ -58,6 +59,7 @@ export const router = createBrowserRouter([
       // hit renders the v5 single-page StockWorkspace.
       { path: "stocks", element: <StocksPage /> },
       { path: "stocks/:ticker", element: <StockWorkspace /> },
+      { path: "stocks/:ticker/runs/:artifactId", element: <ArtifactDetailPage /> },
       { path: "settings", element: <SettingsPage /> },
 
       // v5 deprecation redirects (one release window) — spec §11.4

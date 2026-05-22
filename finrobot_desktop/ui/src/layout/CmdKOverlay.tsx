@@ -14,10 +14,11 @@ import { useEffect, useRef, useCallback, useMemo } from "react";
 import { Command } from "cmdk";
 import { useQuery } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAppStore } from "../stores/appStore";
 import { useToastStore } from "../stores/toastStore";
 import { useI18n, tSync } from "../i18n";
+import { STOCK_WORKSPACE_SECTIONS } from "../views/sectionDirectory";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -245,7 +246,15 @@ export function CmdKOverlay() {
   const setCmdPaletteOpen = useAppStore((s) => s.setCmdPaletteOpen);
   const setCmdKQuery = useAppStore((s) => s.setCmdKQuery);
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useI18n();
+
+  // Detect if we're on a ticker workspace — if so, surface the section
+  // navigator (replaces the v5 AnchorNav sticky bar per spec §8).
+  const onTickerWorkspace = useMemo(
+    () => /^\/stocks\/[A-Z0-9.\-]{1,12}/.test(location.pathname),
+    [location.pathname],
+  );
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -568,9 +577,62 @@ export function CmdKOverlay() {
       {/* ------------------------------------------------------------------ */}
       <Command.List
         data-testid="cmdk-list"
-        style={{ maxHeight: "400px", overflowY: "auto" }}
+        style={{ maxHeight: "440px", overflowY: "auto" }}
         aria-label={t("cmdk.results.aria")}
       >
+        {/* Section navigator — shows when on a ticker workspace and query
+            is empty. Replaces the v5 AnchorNav sticky horizontal bar
+            (spec §8). Clicking a row scrolls to the section. */}
+        {onTickerWorkspace && trimmedQuery.length === 0 && (
+          <>
+            {STOCK_WORKSPACE_SECTIONS.map((group) => (
+              <Command.Group
+                key={`section-group:${group.label}`}
+                heading={group.label}
+                data-testid={`section-group-${group.label}`}
+              >
+                {group.items.map((it) => (
+                  <Command.Item
+                    key={`section:${it.id}`}
+                    value={`section:${it.label}:${group.label}`}
+                    onSelect={() => {
+                      const el = document.getElementById(it.id)
+                      if (el) {
+                        el.scrollIntoView({ behavior: "smooth", block: "start" })
+                      }
+                      handleClose()
+                    }}
+                    data-testid="section-jump-item"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "8px 12px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <span
+                      aria-hidden
+                      style={{
+                        width: 24,
+                        textAlign: "center",
+                        fontSize: 13,
+                        color: "var(--accent-cyan)",
+                        fontFamily: "var(--font-mono)",
+                      }}
+                    >
+                      §
+                    </span>
+                    <span style={{ fontSize: 14, color: "var(--text-primary)" }}>
+                      {it.label}
+                    </span>
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            ))}
+          </>
+        )}
+
         {/* Recent searches — shown when query is empty */}
         {showRecentSearches && (
           <Command.Group

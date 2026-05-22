@@ -28,7 +28,9 @@ FinAgent = **FinRobot equity 桌面 app 化重写** + **Claude Code 对话架构
 
 ## 后端架构（FastAPI + PydanticAI 1.7x）
 
-- **5 个 pipeline**：`research / ic-memo / earnings / dcf / lbo / ddm / comps`，注册在 `engine/pipelines/registry.py`，每个 pipeline 都有 `artifact_builder=...`，自动持久化完整 Artifact 到 `ArtifactStore`
+- **唯一 UI-facing pipeline：`research`** — 一键产出包含 FinRobot 8 章 + 桌面增强（蒙特卡洛 / 狙击位 / 敏感性 / 财报会 / Peers 3 视图）的全量 artifact。**1 ticker = 1 跑 = 1 份 artifact，不再有"分类型报告"。**
+- **SDK-only pipelines**（保留但 UI 永远不暴露）：`ic-memo / earnings / dcf / lbo / ddm / comps`。能力都已折进 research。这些 key 留给 `/api/runs` 编程接口 + 历史 artifact 反向兼容；如需调整某一估值的假设，走 `/api/compute/*` REST。
+- **注册位置**：`engine/pipelines/registry.py`，每个 pipeline 都有 `artifact_builder=...`，自动持久化完整 Artifact 到 `ArtifactStore`。
 - **路由按职责分文件**：`routes/{analyze,artifacts,ask,backtest,compute,dashboard,data,export,journal,market,notify,runs,search,sentiment,settings,valuation}.py`
 - **数据层** `engine/data/` — providers (yfinance / FMP / Finnhub / SEC EDGAR) + SQLite cache + WeakValueDictionary 防 stampede 不内存泄漏
 - **聚合层** `engine/aggregations/` — 叶层纯函数（hit_rate_overview / recent_research）
@@ -91,9 +93,9 @@ surface 位置：HeroVerdict / FootballField / PeersSection / NewsTimeline 顶�
 
 ## 测试金字塔
 
-- **1247 pytest pass** + 2 skipped（unit + integration + routes + audit + artifact）
-- **191 vitest pass** + 2 skipped（components + stores + hooks）
-- **2 Playwright e2e pass**：v5 walkthrough + cosmic research flow（landing → studied tickers → workspace → ArtifactDetailPage）
+- **1437 pytest pass** + 1 skipped（unit + integration + routes + audit + artifact）
+- **191 vitest pass** + 2 skipped（components + stores + hooks · StockWorkspace.test rewritten for dual-zone dashboard contract）
+- **Playwright e2e 待重写**：2 个 e2e (`v5-walkthrough` + `cosmic-research-flow`) 依赖旧 23-section 锚点 + StatBanner / MyResearchFeed / FootballField testids — dashboard 重写后必破，列入 cleanup PR 重写为 landing → workspace dual-zone → ArtifactDetailPage 12-chapter 路径
 
 ## UI 设计规范强制（桌面 App）
 

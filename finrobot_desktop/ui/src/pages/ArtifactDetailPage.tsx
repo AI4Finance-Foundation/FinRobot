@@ -9,8 +9,11 @@
 // run finished the user could only re-read the 200-char headline. This
 // page is the "open the actual research" surface.
 
+import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { useArtifactDetail } from '../hooks/useV5Artifacts'
+import { useArtifactDetail, useV5ArtifactTimeline } from '../hooks/useV5Artifacts'
+import { ArtifactDiff } from '../components/ArtifactDiff'
+import type { ArtifactSummaryV5 } from '../types/v5'
 
 interface ArtifactInputs {
   data_source?: string
@@ -47,6 +50,8 @@ export function ArtifactDetailPage(): React.ReactElement {
   const symbol = (ticker || '').toUpperCase()
   const navigate = useNavigate()
   const { data, isLoading, isError, error } = useArtifactDetail(artifactId)
+  const { data: timeline } = useV5ArtifactTimeline(symbol)
+  const [compareB, setCompareB] = useState<ArtifactSummaryV5 | null>(null)
 
   if (!artifactId) {
     return <EmptyPanel title="缺少 artifact 编号" body="访问路径不完整 · 回工作区重新选择研报。" />
@@ -127,7 +132,31 @@ export function ArtifactDetailPage(): React.ReactElement {
           {data.headline}
         </p>
         <MetaBar created={meta.created_at} source={meta.source} version={compute_version} />
+        <CompareVersionPicker
+          currentId={artifactId}
+          currentType={data.type}
+          timeline={timeline ?? []}
+          onPick={setCompareB}
+        />
       </header>
+
+      {compareB && data && (
+        <ArtifactDiff
+          artifactA={{
+            id: artifactId,
+            created_at: (meta.created_at as string) ?? compareB.created_at,
+            headline: data.headline,
+            type: data.type,
+          }}
+          artifactB={{
+            id: compareB.id,
+            created_at: compareB.created_at,
+            headline: compareB.headline,
+            type: compareB.type,
+          }}
+          onClose={() => setCompareB(null)}
+        />
+      )}
 
       {/* Summary text */}
       {outputs.summary_text && (
@@ -262,6 +291,137 @@ function BackNav({ ticker }: { ticker: string }): React.ReactElement {
       <span style={{ color: 'var(--text-dim)' }}>›</span>
       <span style={{ color: 'var(--accent-cyan)' }}>历史研报</span>
     </nav>
+  )
+}
+
+function CompareVersionPicker({
+  currentId,
+  currentType,
+  timeline,
+  onPick,
+}: {
+  currentId: string
+  currentType: string
+  timeline: ArtifactSummaryV5[]
+  onPick: (a: ArtifactSummaryV5) => void
+}): React.ReactElement | null {
+  const [open, setOpen] = useState(false)
+  // Only artifacts of the same type can diff cleanly — the differ guard
+  // refuses mismatched types anyway. Hide entries that are the current one.
+  const comparable = timeline.filter(
+    (a) => a.id !== currentId && a.type === currentType,
+  )
+  if (comparable.length === 0) return null
+
+  return (
+    <div style={{ marginTop: 14, position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11,
+          color: 'var(--primary)',
+          background: 'var(--primary-soft)',
+          border: '1px solid var(--border-glow)',
+          borderRadius: 6,
+          padding: '6px 12px',
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          cursor: 'pointer',
+        }}
+      >
+        ↹ 对比历史版本 ({comparable.length})
+      </button>
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 6px)',
+            left: 0,
+            minWidth: 280,
+            maxWidth: 360,
+            background: 'rgba(15,15,34,0.96)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid var(--border-glow)',
+            borderRadius: 'var(--radius-md)',
+            padding: 6,
+            zIndex: 60,
+            boxShadow: 'var(--shadow-lg)',
+          }}
+        >
+          {comparable.slice(0, 10).map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => {
+                onPick(a)
+                setOpen(false)
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                padding: '8px 10px',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-secondary)',
+                fontFamily: 'var(--font-body)',
+                fontSize: 12,
+                cursor: 'pointer',
+                borderRadius: 'var(--radius-sm)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--primary-soft)'
+                e.currentTarget.style.color = 'var(--text-primary)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent'
+                e.currentTarget.style.color = 'var(--text-secondary)'
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10,
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.06em',
+                  marginBottom: 2,
+                }}
+              >
+                {new Date(a.created_at).toLocaleString('zh-CN', {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </div>
+              <div
+                style={{
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {a.headline}
+              </div>
+            </button>
+          ))}
+          {comparable.length > 10 && (
+            <div
+              style={{
+                padding: '6px 10px',
+                fontSize: 11,
+                color: 'var(--text-muted)',
+                borderTop: '1px solid var(--border-faint)',
+              }}
+            >
+              … 仅显示最近 10 条
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 

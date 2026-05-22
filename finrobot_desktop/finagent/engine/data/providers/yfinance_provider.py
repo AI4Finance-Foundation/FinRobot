@@ -206,6 +206,15 @@ class YFinanceProvider(DataProvider):
     async def _fetch_price(self, ticker: str, t: yf.Ticker, info: dict[str, Any]) -> DataResult:
         try:
             current_price = info.get("currentPrice") or info.get("regularMarketPrice")
+            # Exchange name for the LIVE pill (TickerHero) — NASDAQ vs NYSE
+            # vs AMEX matters for retail investors who associate trust signals
+            # with exchange. fullExchangeName ("NasdaqGS" etc.) gets pretty-
+            # printed by the UI; raw "exchange" code is the fallback.
+            exchange = (
+                info.get("fullExchangeName")
+                or info.get("exchange")
+                or info.get("exchangeShortName")
+            )
             hist = await asyncio.to_thread(t.history, period="1y")
             price_history = []
             for date, row in hist.iterrows():
@@ -223,7 +232,11 @@ class YFinanceProvider(DataProvider):
             raise ProviderError(f"Failed to fetch price for '{ticker}': {e}") from e
 
         return DataResult(
-            data={"current_price": current_price, "price_history": price_history},
+            data={
+                "current_price": current_price,
+                "price_history": price_history,
+                "exchange": exchange,
+            },
             provider=self.name,
             ticker=ticker,
             data_type=DataType.PRICE,

@@ -48,26 +48,11 @@ export function PerformanceSection({ ticker }: PerformanceSectionProps): React.R
 
   return (
     <section id="sec-performance" style={SECTION_STYLE}>
-      <header
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-      >
-        <div>
-          <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>📈 走势分析</h2>
-          <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--text-faint)' }}>
-            基于近 1 年日收盘价计算
-          </p>
-        </div>
-        <span
-          style={{
-            fontSize: 11,
-            color: 'var(--text-faint)',
-            opacity: 0.6,
-            cursor: 'not-allowed',
-          }}
-          title="12 种 FinRobot 专业图抽屉 待 v2.1"
-        >
-          12 种走势图 ▸
-        </span>
+      <header>
+        <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>📈 走势分析</h2>
+        <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--text-faint)' }}>
+          基于近 1 年日收盘价计算
+        </p>
       </header>
 
       {isLoading && (
@@ -91,7 +76,11 @@ export function PerformanceSection({ ticker }: PerformanceSectionProps): React.R
           <Card label="YTD 涨幅" value={formatPct(metrics.ytdReturn)} color={metricColor(metrics.ytdReturn)} />
           <Card label="年化波动率" value={formatPct(metrics.volatility)} color="var(--text)" />
           <Card label="夏普比率" value={metrics.sharpe.toFixed(2)} color={metrics.sharpe >= 1 ? 'var(--green, #10B981)' : 'var(--text)'} />
-          <Card label="距 52w 高" value={formatPct(metrics.fromHigh)} color="var(--red, #EF4444)" />
+          <Card
+            label="距 52w 高"
+            value={formatPct(metrics.fromHigh)}
+            color={metricColor(metrics.fromHigh)}
+          />
         </div>
       )}
     </section>
@@ -163,8 +152,11 @@ function computeMetrics(history: PriceHistoryPoint[]): PerfMetrics {
   const dailyStd = Math.sqrt(variance)
   const volatility = dailyStd * Math.sqrt(252)
 
-  // Sharpe — assume risk-free rate 4% (US 10Y), annualized
-  const annReturn = mean * 252
+  // Sharpe — geometric annualised return (exp(mean·252) - 1) less risk-free 4%
+  // divided by annualised vol. Using the arithmetic `mean·252` understates
+  // returns whenever there's compounding (i.e. always), which biased the
+  // ratio low for momentum names and high for choppy ones.
+  const annReturn = Math.exp(mean * 252) - 1
   const sharpe = volatility > 0 ? (annReturn - 0.04) / volatility : 0
 
   const high = Math.max(...closes)

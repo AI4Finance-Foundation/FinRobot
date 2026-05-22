@@ -7,6 +7,8 @@
 import { useLatestArtifact } from '../../hooks/useV5Artifacts'
 import { useTickerPrice } from '../../hooks/useTickerData'
 import { downloadShareCard } from '../../utils/shareCard'
+import { useToastStore } from '../../stores/toastStore'
+import { BASE_URL } from '../../api/client'
 
 const SECTION_STYLE: React.CSSProperties = {
   border: '1px solid var(--border)',
@@ -118,10 +120,41 @@ export function HeroVerdict({ ticker }: HeroVerdictProps): React.ReactElement {
         >
           📤 分享图
         </button>
-        <a
-          href={`${import.meta.env.VITE_API_BASE_URL ?? ''}/api/exports/pdf/${latest.id}`}
-          target="_blank"
-          rel="noreferrer noopener"
+        <button
+          type="button"
+          data-testid="hero-pdf-download"
+          onClick={async () => {
+            const addToast = useToastStore.getState().addToast
+            try {
+              const resp = await fetch(`${BASE_URL}/api/exports/pdf/${latest.id}`, {
+                method: 'POST',
+              })
+              if (!resp.ok) {
+                if (resp.status === 501) {
+                  addToast({
+                    type: 'info',
+                    title: 'PDF 导出未启用',
+                    description: '后端需安装 weasyprint 才能生成 PDF · 暂用分享图替代',
+                  })
+                  return
+                }
+                throw new Error(`HTTP ${resp.status}`)
+              }
+              const blob = await resp.blob()
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `${ticker}_${latest.id}.pdf`
+              document.body.appendChild(a)
+              a.click()
+              a.remove()
+              URL.revokeObjectURL(url)
+              addToast({ type: 'success', title: 'PDF 已下载', description: a.download })
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err)
+              addToast({ type: 'error', title: 'PDF 导出失败', description: msg })
+            }
+          }}
           style={{
             fontSize: 11.5,
             padding: '6px 12px',
@@ -129,11 +162,11 @@ export function HeroVerdict({ ticker }: HeroVerdictProps): React.ReactElement {
             border: '1px solid var(--border)',
             background: 'transparent',
             color: 'var(--text-soft)',
-            textDecoration: 'none',
+            cursor: 'pointer',
           }}
         >
           📥 PDF
-        </a>
+        </button>
       </div>
     </section>
   )

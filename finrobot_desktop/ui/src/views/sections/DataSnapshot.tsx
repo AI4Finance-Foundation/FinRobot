@@ -11,10 +11,16 @@ export function DataSnapshot({ ticker }: DataSnapshotProps): React.ReactElement 
   const { data: price } = useTickerPrice(ticker)
   const { data: financials } = useTickerFinancials(ticker)
 
-  const marketCap = (financials as { market_cap?: number } | undefined)?.market_cap ?? null
-  const peRatio = (financials as { pe_ratio?: number } | undefined)?.pe_ratio ?? null
-  const current = price?.current_price ?? null
+  // Backend nests these under `market` — see FinancialsData. Falling back to
+  // the live price feed when the financials snapshot is missing (e.g. data
+  // layer error or fresh ticker not yet cached).
+  const marketCap = financials?.market?.market_cap ?? price?.market_cap ?? null
+  const peRatio = financials?.market?.pe_ratio ?? null
+  const current = financials?.market?.current_price ?? price?.current_price ?? null
   const changePct = price?.change_pct ?? null
+  // Next-earnings: yfinance often carries it on the price feed (info dict);
+  // the FinancialData fallback is honest if yfinance hasn't dated the next call.
+  const nextEarnings: string | null = price?.next_earnings_date ?? null
 
   return (
     <section
@@ -40,12 +46,31 @@ export function DataSnapshot({ ticker }: DataSnapshotProps): React.ReactElement 
       />
       <Card
         label="下次财报"
-        value="待接 §6.13"
-        sub="财报日历待 PR14 接入"
+        value={nextEarnings ? formatEarningsDate(nextEarnings) : '待披露'}
+        sub={nextEarnings ? earningsCountdown(nextEarnings) : 'yfinance 暂未给出日期'}
         subColor="var(--text-faint)"
       />
     </section>
   )
+}
+
+function formatEarningsDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+  } catch {
+    return '待披露'
+  }
+}
+
+function earningsCountdown(iso: string): string {
+  try {
+    const days = Math.round((new Date(iso).getTime() - Date.now()) / (24 * 3600 * 1000))
+    if (days < 0) return `${Math.abs(days)} 天前`
+    if (days === 0) return '今天'
+    return `还有 ${days} 天`
+  } catch {
+    return ''
+  }
 }
 
 interface CardProps {

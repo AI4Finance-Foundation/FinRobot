@@ -162,7 +162,7 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
                 }}
               >
                 <span className="cosmic-pulse-dot" style={{ marginRight: 6 }} />
-                LIVE · NASDAQ
+                LIVE · {formatExchange(price?.exchange)}
               </span>
             </div>
             <MorphTagline />
@@ -334,6 +334,21 @@ function MorphTagline(): React.ReactElement {
       ))}
     </div>
   )
+}
+
+/**
+ * yfinance returns "NasdaqGS" / "NYQ" / "AMEX" raw codes — pretty-print
+ * them for the LIVE pill. Falls back to a generic "美股" so non-US tickers
+ * (which we don't really support yet) don't show a confusing code.
+ */
+function formatExchange(raw: string | null | undefined): string {
+  if (!raw) return '美股'
+  const lower = raw.toLowerCase()
+  if (lower.includes('nasdaq') || lower === 'nms' || lower === 'ngm' || lower === 'ncm') return 'NASDAQ'
+  if (lower.includes('nyse') || lower === 'nyq' || lower === 'nys') return 'NYSE'
+  if (lower.includes('amex') || lower === 'pcx' || lower === 'ase') return 'AMEX'
+  if (lower.includes('otc')) return 'OTC'
+  return raw.toUpperCase()
 }
 
 function ghostBtnStyle(highlighted: boolean): React.CSSProperties {

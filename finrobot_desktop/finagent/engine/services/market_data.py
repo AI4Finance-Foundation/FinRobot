@@ -74,6 +74,17 @@ async def fetch_price_history(ticker: str, period: str = "1y") -> dict[str, Any]
             "change_pct": change_pct,
             "market_cap": info.get("marketCap"),
             "company_name": info.get("longName") or info.get("shortName"),
+            # Exchange string for the TickerHero LIVE pill — "NasdaqGS" / "NYQ" etc.
+            # Stays best-effort; UI falls back to "美股" when null.
+            "exchange": (
+                info.get("fullExchangeName")
+                or info.get("exchange")
+                or info.get("exchangeShortName")
+            ),
+            # Next earnings date — if yfinance gives it, surface it.
+            # Falls back to None so the UI hides the "下次财报" callout
+            # rather than stamping "待披露" everywhere (DataSnapshot bug).
+            "next_earnings_date": _format_next_earnings(info),
             "history": history,
             "data_source": "yfinance",
             "warnings": [],
@@ -194,6 +205,29 @@ async def fetch_performance_data(tickers: list[str], benchmark: str, period: str
         return {"series": series}
 
     return await asyncio.to_thread(_fetch)
+
+
+def _format_next_earnings(info: dict[str, Any]) -> str | None:
+    """Extract the next-earnings date from a yfinance info dict.
+
+    yfinance exposes one of: earningsDate (list of timestamps),
+    earningsTimestamp (single epoch), or nothing. Returns ISO date or None.
+    """
+    raw = info.get("earningsDate") or info.get("earningsTimestamp")
+    if raw is None:
+        return None
+    try:
+        if isinstance(raw, list) and raw:
+            raw = raw[0]
+        if isinstance(raw, (int, float)):
+            from datetime import datetime, timezone
+
+            return datetime.fromtimestamp(int(raw), tz=timezone.utc).strftime("%Y-%m-%d")
+        if isinstance(raw, str):
+            return raw[:10]  # yfinance sometimes returns ISO timestamp string
+    except (ValueError, TypeError, OSError):
+        return None
+    return None
 
 
 def _safe_get(df: pd.DataFrame, col: Any, row_names: list[str]) -> float | None:

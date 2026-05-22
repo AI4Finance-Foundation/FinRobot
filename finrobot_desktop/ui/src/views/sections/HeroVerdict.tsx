@@ -4,7 +4,7 @@
 // dominant 38px number (preventing the misread "AI 今天赚 X%"). Day-over-day
 // price action becomes a small dated footnote, never the lead.
 
-import { useLatestArtifact } from '../../hooks/useV5Artifacts'
+import { useLatestArtifact, useArtifactDetail } from '../../hooks/useV5Artifacts'
 import { useTickerPrice } from '../../hooks/useTickerData'
 import { downloadShareCard } from '../../utils/shareCard'
 import { useToastStore } from '../../stores/toastStore'
@@ -22,14 +22,32 @@ interface HeroVerdictProps {
   ticker: string
 }
 
+interface ThesisDetail {
+  tagline?: string
+  key_takeaways?: string[]
+  valuation_overview?: string
+  competitor_analysis?: string
+  news_summary?: string
+}
+
 export function HeroVerdict({ ticker }: HeroVerdictProps): React.ReactElement {
   const { latest } = useLatestArtifact(ticker, 'equity_research')
   const { data: priceData } = useTickerPrice(ticker)
+  const { data: artifact } = useArtifactDetail(latest?.id)
 
   const target = latest?.target_price ?? null
   const entry = latest?.entry_price ?? null
   const current = priceData?.current_price ?? null
   const signal = latest?.signal ?? null
+
+  // FinRobot parity narrative fields live on the full artifact only —
+  // ArtifactSummary doesn't carry them. Pull them off the cached detail.
+  const thesis = ((artifact?.outputs as { structured?: { thesis?: unknown } } | undefined)
+    ?.structured?.thesis ?? null) as ThesisDetail | null
+  const tagline = typeof thesis?.tagline === 'string' ? thesis.tagline : null
+  const takeaways = Array.isArray(thesis?.key_takeaways)
+    ? thesis!.key_takeaways!.filter((s): s is string => typeof s === 'string')
+    : []
 
   // Pre-pipeline (cold) state — single CTA pointing to the run dropdown.
   if (!latest || target === null || entry === null) {
@@ -81,9 +99,44 @@ export function HeroVerdict({ ticker }: HeroVerdictProps): React.ReactElement {
         )}
       </div>
 
-      <p style={{ marginTop: 8, color: 'var(--text-mid)', fontSize: 13, lineHeight: 1.55 }}>
-        {(latest.headline || '').slice(0, 80)}
-      </p>
+      {tagline ? (
+        <p
+          style={{
+            marginTop: 10,
+            color: 'var(--accent-cyan)',
+            fontSize: 14,
+            lineHeight: 1.55,
+            fontFamily: 'var(--font-body)',
+            fontWeight: 500,
+            textShadow: '0 0 12px rgba(34,211,238,0.25)',
+          }}
+        >
+          “{tagline}”
+        </p>
+      ) : (
+        <p style={{ marginTop: 8, color: 'var(--text-mid)', fontSize: 13, lineHeight: 1.55 }}>
+          {(latest.headline || '').slice(0, 80)}
+        </p>
+      )}
+
+      {takeaways.length > 0 && (
+        <ul
+          style={{
+            marginTop: 12,
+            paddingLeft: 22,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            color: 'var(--text-secondary)',
+            fontSize: 12.5,
+            lineHeight: 1.5,
+          }}
+        >
+          {takeaways.slice(0, 5).map((t, i) => (
+            <li key={i}>{t}</li>
+          ))}
+        </ul>
+      )}
 
       <p
         style={{

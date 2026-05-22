@@ -264,7 +264,13 @@ class DCFResult(BaseModel):
 
 
 class ThesisResult(BaseModel):
-    """Investment thesis. LLM provides judgment, code validates structure."""
+    """Investment thesis. LLM provides judgment, code validates structure.
+
+    FinRobot parity narrative fields (tagline / key_takeaways / valuation_
+    overview / competitor_analysis / news_summary) are optional so old
+    artifacts still validate after the schema bump; new pipeline runs
+    populate them once the LLM cooperates.
+    """
 
     recommendation: str = Field(description="Buy/Hold/Sell")
     price_target: float = Field(gt=0)
@@ -272,6 +278,37 @@ class ThesisResult(BaseModel):
     catalysts: list[str] = Field(min_length=1)
     risks: list[str] = Field(min_length=1)
     narrative: str
+
+    # ── FinRobot parity LLM narrative slots (P0 retail user value) ────────
+    tagline: str | None = Field(
+        default=None,
+        description=(
+            "One-sentence shareable conclusion (≤ 60 中文字符). "
+            "Example: 'NVDA · AI 算力超级周期受益者，估值仍有 30% 上行空间'."
+        ),
+    )
+    key_takeaways: list[str] | None = Field(
+        default=None,
+        description=(
+            "3-5 bullet points the retail reader should walk away with. "
+            "Distinct from `catalysts` (future events) and `risks` (downsides) "
+            "— these are present-tense conclusions."
+        ),
+    )
+    valuation_overview: str | None = Field(
+        default=None,
+        description=(
+            "150-200 字解读 DCF / Comps / DDM 之间为什么有差距、加权之后的目标价怎么来。"
+        ),
+    )
+    competitor_analysis: str | None = Field(
+        default=None,
+        description="vs 同业的竞争格局叙事（市占 / 增速 / 倍数对比的人话总结）。",
+    )
+    news_summary: str | None = Field(
+        default=None,
+        description="近 30 天关键新闻的 3-5 句话整体情绪叙事。",
+    )
 
 
 class StepOutput(BaseModel):

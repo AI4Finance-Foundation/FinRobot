@@ -358,7 +358,19 @@ async def _execute_thesis(
             "and catalyst analysis. "
             "Reference specific catalysts from the catalyst analysis when discussing "
             "upside drivers and risks. "
-            "Provide a recommendation (Buy/Hold/Sell), price target, catalysts, and risks."
+            "Provide a recommendation (Buy/Hold/Sell), price target, catalysts, and risks. "
+            "\n\n"
+            "ALSO produce the following retail-investor narrative fields (in 中文 unless "
+            "the surrounding context is in English):\n"
+            "  - tagline:           a single sentence ≤ 60 characters that captures the "
+            "trade thesis in one line; works as a share-card subtitle.\n"
+            "  - key_takeaways:     3-5 bullet points the retail reader should walk away "
+            "with. NOT future events (those are `catalysts`) and NOT downsides (those are "
+            "`risks`) — present-tense conclusions about why this is a Buy/Hold/Sell now.\n"
+            "  - valuation_overview: 150-200 字解读 — why DCF vs Comps vs DDM give the "
+            "implied prices they do, and how the weighted target was reached.\n"
+            "  - competitor_analysis: 3-4 句话讲清楚 vs 同业的市占 / 增速 / 估值倍数差异。\n"
+            "  - news_summary:      3-5 句话总结近 30 天关键新闻的整体情绪与对论点的支撑/挑战。"
         ),
         defer_model_check=True,
     )

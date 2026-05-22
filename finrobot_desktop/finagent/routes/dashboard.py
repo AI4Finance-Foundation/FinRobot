@@ -221,7 +221,8 @@ async def _gather_ticker_snapshot(deps: Any, ticker: str) -> dict[str, Any]:
         extract_catalysts_from_news,
         rank_catalysts,
     )
-    from finagent.engine.compute.news import classify_news, fetch_news
+    from finagent.engine.analysis.news_classifier import classify_news
+    from finagent.engine.compute.news import fetch_news
     from finagent.engine.data.types import DataType
 
     async def _price() -> tuple[float | None, float | None]:
@@ -256,7 +257,10 @@ async def _gather_ticker_snapshot(deps: Any, ticker: str) -> dict[str, Any]:
             cats = extract_catalysts_from_news(classified, min_importance=3)
             cats = compute_expected_impact(cats)
             cats = rank_catalysts(cats)
-            cat_dicts = [c.model_dump() if hasattr(c, "model_dump") else c for c in cats[:2]]
+            cat_dicts: list[dict[str, Any]] = [
+                c.model_dump() if hasattr(c, "model_dump") else dict(c)  # type: ignore[arg-type]
+                for c in cats[:2]
+            ]
         except (
             AgentRunError,
             ModelHTTPError,
@@ -496,3 +500,309 @@ async def scores_overview(
     response = ScoresOverviewResponse(items=items_sorted, generated_at=now)
     _SCORES_CACHE[cache_key] = (now, response)
     return response
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Landing-page banner: cross-ticker hit-rate + recent research
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class HitRateBucket(BaseModel):
+    """One verdict-bucket (or overall) hit-rate snapshot."""
+
+    n_total: int
+    n_closed: int
+    n_hit: int
+    hit_rate: float | None
+    """null when n_closed == 0 (sample too small)."""
+
+
+class HitRateOverview(BaseModel):
+    """Response for /api/dashboard/hit-rate."""
+
+    window: str  # "30d" | "90d" | "all"
+    sample_window_days: int | None
+    overall: HitRateBucket
+    by_verdict: dict[str, HitRateBucket]  # always has BUY / HOLD / SELL keys
+    generated_at: datetime
+
+
+class RecentResearchItem(BaseModel):
+    """One row in /api/dashboard/recent-research."""
+
+    artifact_id: str
+    ticker: str | None
+    cross_tickers: list[str]
+    type: str
+    headline: str
+    verdict: str | None
+    entry_price: float | None
+    target_price: float | None
+    current_price: float | None
+    delta_to_target_pct: float | None
+    signal: str | None  # "hit" | "watching" | "failed" | null
+    created_at: datetime
+    age_label: str
+
+
+class RecentResearchResponse(BaseModel):
+    items: list[RecentResearchItem]
+    total_in_store: int
+    generated_at: datetime
+
+
+# Simple TTL caches — landing page makes both calls on cold load; one minute
+# is short enough to feel live and long enough to absorb a refresh storm.
+_HIT_RATE_CACHE: dict[tuple[str, str], tuple[float, HitRateOverview]] = {}
+_RECENT_CACHE: dict[tuple[int, bool], tuple[float, RecentResearchResponse]] = {}
+_LANDING_CACHE_TTL_S = 60.0
+
+
+@router.get("/hit-rate", response_model=HitRateOverview)
+async def hit_rate(
+    request: Request,
+    window: str = "all",
+    verdict_filter: str = "all",
+) -> HitRateOverview:
+    """Cross-ticker hit-rate buckets for the /stocks landing banner.
+
+    `window`:        "30d" | "90d" | "all" (default "all")
+    `verdict_filter`: "BUY" | "HOLD" | "SELL" | "all" — narrows the artifacts
+                      *before* the overall / by_verdict roll-up so a focused
+                      view (e.g. only BUY calls) still shows verdict slices.
+
+    The endpoint never returns 500 for sparse data — empty buckets come back
+    as `hit_rate=null`. UI renders a "样本不足" hint in that case.
+    """
+    if window not in ("30d", "90d", "all"):
+        raise HTTPException(status_code=400, detail="window must be 30d|90d|all")
+    if verdict_filter not in ("BUY", "HOLD", "SELL", "all"):
+        raise HTTPException(status_code=400, detail="verdict_filter must be BUY|HOLD|SELL|all")
+
+    cache_key = (window, verdict_filter)
+    now_ts = time.time()
+    cached = _HIT_RATE_CACHE.get(cache_key)
+    if cached and now_ts - cached[0] < _LANDING_CACHE_TTL_S:
+        return cached[1]
+
+    deps = getattr(request.app.state, "deps", None)
+    if deps is None or deps.artifact_store is None:
+        raise HTTPException(status_code=503, detail="Backend deps not initialized")
+    store = deps.artifact_store
+
+    inputs = await _collect_signal_inputs(store, verdict_filter)
+    from finagent.engine.aggregations.hit_rate_overview import (
+        Window,
+        compute_hit_rate_overview,
+    )
+
+    stats = compute_hit_rate_overview(
+        artifacts=inputs,
+        window=window,  # type: ignore[arg-type]
+    )
+
+    overview = HitRateOverview(
+        window=stats.window,
+        sample_window_days=stats.sample_window_days,
+        overall=HitRateBucket(
+            n_total=stats.overall.n_total,
+            n_closed=stats.overall.n_closed,
+            n_hit=stats.overall.n_hit,
+            hit_rate=stats.overall.hit_rate,
+        ),
+        by_verdict={
+            k: HitRateBucket(
+                n_total=v.n_total,
+                n_closed=v.n_closed,
+                n_hit=v.n_hit,
+                hit_rate=v.hit_rate,
+            )
+            for k, v in stats.by_verdict.items()
+        },
+        generated_at=stats.generated_at,
+    )
+    _HIT_RATE_CACHE[cache_key] = (now_ts, overview)
+    # Mark Window import as used (the type alias keeps mypy happy on the
+    # comma-separated import above; the cast is just for ergonomics).
+    _ = Window
+    return overview
+
+
+@router.get("/recent-research", response_model=RecentResearchResponse)
+async def recent_research(
+    request: Request,
+    limit: int = 5,
+    include_archived: bool = False,
+) -> RecentResearchResponse:
+    """Top-N recent artifacts for the /stocks landing strip.
+
+    Each row carries the lazily-computed signal verdict + a friendly
+    `age_label` so the UI does no clock math.
+    """
+    if limit < 1 or limit > 20:
+        raise HTTPException(status_code=400, detail="limit must be 1..20")
+
+    cache_key = (limit, include_archived)
+    now_ts = time.time()
+    cached = _RECENT_CACHE.get(cache_key)
+    if cached and now_ts - cached[0] < _LANDING_CACHE_TTL_S:
+        return cached[1]
+
+    deps = getattr(request.app.state, "deps", None)
+    if deps is None or deps.artifact_store is None:
+        raise HTTPException(status_code=503, detail="Backend deps not initialized")
+    store = deps.artifact_store
+
+    summaries = await store.list_by_ticker(
+        ticker=None,
+        include_archived=include_archived,
+        limit=200,  # over-fetch so we have headroom after dropping signal-less entries
+    )
+    total_in_store = len(summaries)
+    if not summaries:
+        empty = RecentResearchResponse(
+            items=[], total_in_store=0, generated_at=datetime.now(tz=timezone.utc)
+        )
+        _RECENT_CACHE[cache_key] = (now_ts, empty)
+        return empty
+
+    # Need top-N by date *before* fetching prices (price call is the bottleneck).
+    summaries.sort(key=lambda s: s.created_at, reverse=True)
+    head = summaries[: max(limit * 2, limit)]  # slight overshoot for verdict / headline lookups
+    tickers = sorted({s.ticker for s in head if s.ticker})
+
+    from finagent.engine.data.quote_batch import fetch_quotes_batch
+
+    try:
+        quotes = await asyncio.to_thread(fetch_quotes_batch, tickers)
+    except (ImportError, AttributeError, ValueError, TypeError, OSError):
+        logger.exception("Quote batch failed for recent-research")
+        quotes = dict.fromkeys(tickers)
+
+    inputs = await _build_recent_inputs(store, head, quotes, limit)
+
+    from finagent.engine.aggregations.recent_research import assemble_recent_research
+
+    views = assemble_recent_research(inputs=inputs, limit=limit)
+
+    items = [
+        RecentResearchItem(
+            artifact_id=v.artifact_id,
+            ticker=v.ticker,
+            cross_tickers=list(v.cross_tickers),
+            type=v.type,
+            headline=v.headline,
+            verdict=v.verdict,
+            entry_price=v.entry_price,
+            target_price=v.target_price,
+            current_price=v.current_price,
+            delta_to_target_pct=v.delta_to_target_pct,
+            signal=v.signal,
+            created_at=v.created_at,
+            age_label=v.age_label,
+        )
+        for v in views
+    ]
+
+    response = RecentResearchResponse(
+        items=items,
+        total_in_store=total_in_store,
+        generated_at=datetime.now(tz=timezone.utc),
+    )
+    _RECENT_CACHE[cache_key] = (now_ts, response)
+    return response
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Helpers — assembly between ArtifactStore + aggregation modules
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+async def _collect_signal_inputs(
+    store: Any,
+    verdict_filter: str,
+) -> list[Any]:
+    """Walk artifacts → ArtifactSignalInput list (with live prices).
+
+    `verdict_filter` is applied here so the overview's overall bucket
+    reflects the filter — without this the UI's "show only my BUYs" toggle
+    would still mix HOLD/SELL into overall.
+    """
+    from finagent.artifact.summary_extractor import extract_verdict
+    from finagent.engine.aggregations.hit_rate_overview import ArtifactSignalInput
+    from finagent.engine.data.quote_batch import fetch_quotes_batch
+
+    summaries = await store.list_by_ticker(
+        ticker=None, include_archived=False, limit=500
+    )
+    if not summaries:
+        return []
+
+    # Per-artifact verdict requires loading the full Artifact; we batch by
+    # artifact_id so the same json file isn't read twice.
+    verdicts: dict[str, str | None] = {}
+    headlines: dict[str, str] = {}
+    for s in summaries:
+        if s.id in verdicts:
+            continue
+        art = await store.get(s.id)
+        verdicts[s.id] = extract_verdict(art) if art is not None else None
+        headlines[s.id] = s.headline
+
+    tickers = sorted({s.ticker for s in summaries if s.ticker})
+    try:
+        quotes = await asyncio.to_thread(fetch_quotes_batch, tickers)
+    except (ImportError, AttributeError, ValueError, TypeError, OSError):
+        logger.exception("Quote batch failed for hit-rate overview")
+        quotes = dict.fromkeys(tickers)
+
+    out: list[ArtifactSignalInput] = []
+    for s in summaries:
+        verdict = verdicts.get(s.id)
+        if verdict_filter != "all" and verdict != verdict_filter:
+            continue
+        current = quotes.get(s.ticker) if s.ticker else None
+        out.append(
+            ArtifactSignalInput(
+                entry_price=s.entry_price,
+                target_price=s.target_price,
+                current_price=current,
+                entry_date=s.created_at,
+                target_date=s.target_date,
+                verdict=verdict,
+            )
+        )
+    return out
+
+
+async def _build_recent_inputs(
+    store: Any,
+    summaries: list[Any],
+    quotes: dict[str, float | None],
+    _limit: int,
+) -> list[Any]:
+    """Convert ArtifactSummary[] → RecentResearchInput[] with verdicts loaded."""
+    from finagent.artifact.summary_extractor import extract_verdict
+    from finagent.engine.aggregations.recent_research import RecentResearchInput
+
+    out: list[RecentResearchInput] = []
+    for s in summaries:
+        art = await store.get(s.id)
+        verdict = extract_verdict(art) if art is not None else None
+        current = quotes.get(s.ticker) if s.ticker else None
+        out.append(
+            RecentResearchInput(
+                artifact_id=s.id,
+                ticker=s.ticker,
+                cross_tickers=tuple(s.cross_tickers),
+                type=s.type,
+                headline=s.headline,
+                verdict=verdict,
+                entry_price=s.entry_price,
+                target_price=s.target_price,
+                target_date=s.target_date,
+                current_price=current,
+                created_at=s.created_at,
+            )
+        )
+    return out

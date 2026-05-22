@@ -21,6 +21,7 @@ import sqlite3
 
 from fastapi import APIRouter, HTTPException
 
+from finagent.engine.data.quote_batch import fetch_quotes_batch
 from finagent.models.journal import JournalEntry, JournalEntryCreate, JournalStore
 
 logger = logging.getLogger(__name__)
@@ -86,6 +87,20 @@ async def create_entry(body: JournalEntryCreate) -> JournalEntry:
     return await _enrich_with_price(entry)
 
 
+def _apply_price(entry: JournalEntry, current: float | None) -> JournalEntry:
+    """Compute pnl_pct/pnl_abs and stamp current_price onto the entry in place."""
+    if current is None or entry.entry_price <= 0:
+        return entry
+    entry.current_price = round(current, 2)
+    if entry.action == "SELL":
+        entry.pnl_pct = round((entry.entry_price - current) / entry.entry_price * 100, 2)
+        entry.pnl_abs = round(entry.entry_price - current, 2)
+    else:
+        entry.pnl_pct = round((current - entry.entry_price) / entry.entry_price * 100, 2)
+        entry.pnl_abs = round(current - entry.entry_price, 2)
+    return entry
+
+
 @router.get("", response_model=list[JournalEntry])
 async def list_entries() -> list[JournalEntry]:
     """List all journal entries (newest first), enriched with live price (up to 20)."""
@@ -94,11 +109,17 @@ async def list_entries() -> list[JournalEntry]:
     except sqlite3.Error:
         logger.exception("JournalStore.list_all failed")
         raise HTTPException(status_code=500, detail="Failed to read journal entries")
-    # Enrich concurrently; limit to 20 to avoid hammering yfinance
-    enriched_futures = [_enrich_with_price(e) for e in entries[:20]]
-    enriched = await asyncio.gather(*enriched_futures)
-    # Entries beyond 20 stay un-enriched (current_price / pnl will be None)
-    return list(enriched) + entries[20:]
+    # Batch yfinance for the first 20 entries — one HTTP call, not N. The
+    # tail stays un-enriched on purpose (current_price/pnl remain None).
+    head = entries[:20]
+    tickers = [e.ticker for e in head]
+    try:
+        quotes = await asyncio.to_thread(fetch_quotes_batch, tickers)
+    except (ImportError, AttributeError, ValueError, TypeError, OSError):
+        logger.exception("Batched quote fetch failed — journal entries return without P&L")
+        quotes = dict.fromkeys(tickers)
+    enriched = [_apply_price(e, quotes.get(e.ticker)) for e in head]
+    return enriched + entries[20:]
 
 
 @router.get("/{entry_id}", response_model=JournalEntry)

@@ -65,6 +65,25 @@ def extract_target_price(artifact: "Artifact") -> float | None:
     return None
 
 
+def extract_verdict(artifact: "Artifact") -> str | None:
+    """Pull BUY / HOLD / SELL recommendation from a synthesis thesis.
+
+    Stage A landing's hit-rate banner buckets by verdict. Returns None when
+    the artifact has no thesis (e.g. peer_research, ad_hoc) or the recommend
+    field is missing / malformed.
+    """
+    thesis = artifact.outputs.structured.get("thesis")
+    if not isinstance(thesis, dict):
+        return None
+    raw = thesis.get("recommendation") or thesis.get("verdict")
+    if not isinstance(raw, str):
+        return None
+    normalised = raw.strip().upper()
+    if normalised in ("BUY", "HOLD", "SELL"):
+        return normalised
+    return None
+
+
 def extract_target_date(artifact: "Artifact", target_price: float | None) -> datetime | None:
     """target_date defaults to created_at + 365d once a target exists."""
     if target_price is None:

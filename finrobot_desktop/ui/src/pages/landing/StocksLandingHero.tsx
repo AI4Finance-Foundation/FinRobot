@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStocksStore, isValidTicker } from '../../stores/stocksStore'
 import { HitRateBanner } from './HitRateBanner'
 import { RecentResearchStrip } from './RecentResearchStrip'
+import { StudiedTickersTable } from './StudiedTickersTable'
 import { HotTickerChips } from './HotTickerChips'
 
 const TAGLINES = [
@@ -202,6 +203,9 @@ export function StocksLandingHero(): React.ReactElement {
 
       {/* Recent research strip */}
       <RecentResearchStrip />
+
+      {/* All studied tickers — distinct ticker rollup with run counts */}
+      <StudiedTickersTable />
     </div>
   )
 }

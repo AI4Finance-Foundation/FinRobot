@@ -17,9 +17,9 @@ interface ChartProps {
 
 // Design system chart palette (matches v3 tokens in App.css)
 const COLORS = {
-  gross_margin: '#10B981',     // chart-2 (green)
-  ebitda_margin: '#8B5CF6',    // chart-4 (purple)
-  operating_margin: '#3B82F6', // chart-1 (blue)
+  gross_margin: 'var(--success)',     // chart-2 (green)
+  ebitda_margin: 'var(--secondary)',    // chart-4 (purple)
+  operating_margin: 'var(--primary)', // chart-1 (blue)
 }
 
 const CHART_TOOLTIP = {
@@ -58,13 +58,13 @@ export default function MarginTrendChart({ data, title }: ChartProps) {
             </defs>
             <XAxis
               dataKey="year"
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <YAxis
               tickFormatter={formatPercent}
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <Tooltip
               formatter={(value: TooltipValueType | undefined) =>

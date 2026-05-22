@@ -25,8 +25,8 @@ interface ChartProps {
   title: string
 }
 
-const BEAT_COLOR = '#34D399'
-const MISS_COLOR = '#F87171'
+const BEAT_COLOR = 'var(--success)'
+const MISS_COLOR = 'var(--danger)'
 const INLINE_COLOR = '#C9A84C'
 const ESTIMATE_COLOR = 'rgba(122, 130, 153, 0.6)'
 
@@ -58,16 +58,16 @@ export default function EpsSurpriseChart({ data, title }: ChartProps) {
           <ComposedChart data={data} barGap={1} barCategoryGap="20%">
             <XAxis
               dataKey="quarter"
-              tick={{ fill: '#4B5563', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
               interval={0}
               angle={-30}
               textAnchor="end"
               height={45}
             />
             <YAxis
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
               tickFormatter={(v: number) => `$${v.toFixed(2)}`}
             />
             <Tooltip
@@ -81,7 +81,7 @@ export default function EpsSurpriseChart({ data, title }: ChartProps) {
               labelFormatter={(label: unknown) => `Quarter: ${String(label ?? '')}`}
             />
             <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
-            <ReferenceLine y={0} stroke="#E2E5EB" strokeDasharray="3 3" />
+            <ReferenceLine y={0} stroke="var(--border-soft)" strokeDasharray="3 3" />
             <Bar
               dataKey="eps_estimated"
               name="Estimate"
@@ -102,7 +102,7 @@ export default function EpsSurpriseChart({ data, title }: ChartProps) {
             <Line
               type="monotone"
               dataKey="eps_estimated"
-              stroke="#9CA3AF"
+              stroke="var(--text-muted)"
               strokeWidth={1}
               strokeDasharray="4 3"
               dot={false}

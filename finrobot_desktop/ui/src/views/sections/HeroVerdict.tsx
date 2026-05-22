@@ -280,11 +280,11 @@ function readVerdict(
 function SignalDot({ signal }: { signal: 'hit' | 'watching' | 'failed' | null }) {
   const color =
     signal === 'hit'
-      ? '#10B981'
+      ? 'var(--success)'
       : signal === 'failed'
-        ? '#EF4444'
+        ? 'var(--danger)'
         : signal === 'watching'
-          ? '#F59E0B'
+          ? 'var(--warning)'
           : 'var(--text-faint)'
   return (
     <span

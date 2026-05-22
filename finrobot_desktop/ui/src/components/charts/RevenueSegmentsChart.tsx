@@ -13,7 +13,7 @@ interface ChartProps {
   title: string
 }
 
-const COLORS = ['#60A5FA', '#C9A84C', '#34D399', '#F87171', '#A78BFA', '#FB923C']
+const COLORS = ['var(--primary)', '#C9A84C', 'var(--success)', 'var(--danger)', 'var(--secondary)', 'var(--warning)']
 
 const CHART_TOOLTIP = {
   backgroundColor: 'var(--bg-3)',

@@ -14,9 +14,9 @@ import type { OHLCRow } from './CandlestickChart'
 
 // ---------- Design tokens ----------
 
-const RSI_COLOR = '#60A5FA'    // --chart-1
-const OVERBOUGHT_COLOR = '#F87171' // --negative
-const OVERSOLD_COLOR = '#34D399'   // --positive
+const RSI_COLOR = 'var(--primary)'    // --chart-1
+const OVERBOUGHT_COLOR = 'var(--danger)' // --negative
+const OVERSOLD_COLOR = 'var(--success)'   // --positive
 
 const CHART_TOOLTIP = {
   backgroundColor: 'var(--bg-3)',
@@ -77,14 +77,14 @@ export default function TechnicalIndicators({ data, showRSI }: TechnicalIndicato
           <XAxis
             dataKey="date"
             tick={false}
-            axisLine={{ stroke: '#E2E5EB' }}
+            axisLine={{ stroke: 'var(--border-soft)' }}
             height={0}
           />
           <YAxis
             domain={[0, 100]}
             ticks={[30, 50, 70]}
-            tick={{ fill: '#4B5563', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
-            axisLine={{ stroke: '#E2E5EB' }}
+            tick={{ fill: 'var(--text-muted)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+            axisLine={{ stroke: 'var(--border-soft)' }}
             width={40}
           />
           <Tooltip
@@ -99,7 +99,7 @@ export default function TechnicalIndicators({ data, showRSI }: TechnicalIndicato
           {/* Overbought / oversold zones */}
           <ReferenceLine y={70} stroke={OVERBOUGHT_COLOR} strokeDasharray="3 3" strokeOpacity={0.6} />
           <ReferenceLine y={30} stroke={OVERSOLD_COLOR} strokeDasharray="3 3" strokeOpacity={0.6} />
-          <ReferenceLine y={50} stroke="#E2E5EB" strokeDasharray="2 2" />
+          <ReferenceLine y={50} stroke="var(--border-soft)" strokeDasharray="2 2" />
 
           <Line
             dataKey="rsi"

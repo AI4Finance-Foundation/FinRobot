@@ -17,7 +17,7 @@ interface ChartProps {
 }
 
 // Design system chart palette
-const COLORS = ['#60A5FA', '#C9A84C', '#34D399', '#A78BFA', '#FB923C', '#F87171']
+const COLORS = ['var(--primary)', '#C9A84C', 'var(--success)', 'var(--secondary)', 'var(--warning)', 'var(--danger)']
 
 const CHART_TOOLTIP = {
   backgroundColor: 'var(--bg-3)',
@@ -53,15 +53,15 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
           <BarChart data={shaped} layout="vertical" barSize={20}>
             <XAxis
               type="number"
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
               tickFormatter={(v: number) => `$${v}`}
             />
             <YAxis
               type="category"
               dataKey="method"
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
               width={120}
             />
             <Tooltip
@@ -89,13 +89,13 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
             {currentPrice != null && (
               <ReferenceLine
                 x={currentPrice}
-                stroke="#111827"
+                stroke="var(--bg-deep)"
                 strokeWidth={1.5}
                 strokeDasharray="4 3"
                 label={{
                   value: `$${currentPrice.toFixed(0)}`,
                   position: 'top',
-                  fill: '#111827',
+                  fill: 'var(--bg-deep)',
                   fontSize: 11,
                   fontFamily: "'JetBrains Mono', monospace",
                 }}

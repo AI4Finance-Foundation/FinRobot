@@ -8,17 +8,17 @@ import { StatBanner } from './StatBanner'
 
 
 const TYPE_META: Record<string, { label: string; color: string }> = {
-  equity_research: { label: 'AI 研报', color: '#10B981' },
-  dcf: { label: 'DCF', color: '#3B82F6' },
-  ic_memo: { label: '投委备忘', color: '#8B5CF6' },
-  earnings: { label: '财报分析', color: '#F97316' },
-  earnings_analysis: { label: '财报分析', color: '#F97316' },
-  lbo: { label: 'LBO', color: '#EC4899' },
-  comps: { label: '同业对标', color: '#14B8A6' },
-  ddm: { label: 'DDM', color: '#8B5CF6' },
+  equity_research: { label: 'AI 研报', color: 'var(--success)' },
+  dcf: { label: 'DCF', color: 'var(--primary)' },
+  ic_memo: { label: '投委备忘', color: 'var(--secondary)' },
+  earnings: { label: '财报分析', color: 'var(--warning)' },
+  earnings_analysis: { label: '财报分析', color: 'var(--warning)' },
+  lbo: { label: 'LBO', color: 'var(--accent-pink)' },
+  comps: { label: '同业对标', color: 'var(--accent-cyan)' },
+  ddm: { label: 'DDM', color: 'var(--secondary)' },
   playground_snapshot: { label: '手调假设', color: '#6B7280' },
-  ad_hoc: { label: 'Ad hoc', color: '#9CA3AF' },
-  peer_research: { label: '同业研究', color: '#14B8A6' },
+  ad_hoc: { label: 'Ad hoc', color: 'var(--text-muted)' },
+  peer_research: { label: '同业研究', color: 'var(--accent-cyan)' },
 }
 
 interface MyResearchFeedProps {
@@ -72,11 +72,11 @@ function ArtifactCard({
   const meta = TYPE_META[artifact.type] ?? TYPE_META.ad_hoc
   const dotColor =
     artifact.signal === 'hit'
-      ? '#10B981'
+      ? 'var(--success)'
       : artifact.signal === 'failed'
-        ? '#EF4444'
+        ? 'var(--danger)'
         : artifact.signal === 'watching'
-          ? '#F59E0B'
+          ? 'var(--warning)'
           : 'transparent'
   return (
     <article

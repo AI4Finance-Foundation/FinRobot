@@ -41,7 +41,7 @@ function daysForRange(range: TimeRange): number {
 }
 
 // Design system chart palette
-const PRICE_COLOR = '#60A5FA'   // chart-1
+const PRICE_COLOR = 'var(--primary)'   // chart-1
 const VOLUME_COLOR = '#C9A84C'  // chart-2
 
 const CHART_TOOLTIP = {
@@ -128,8 +128,8 @@ export default function PriceChart({ data, title }: ChartProps) {
             </defs>
             <XAxis
               dataKey="date"
-              tick={{ fill: '#4B5563', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
               tickFormatter={(d: string) => {
                 const date = new Date(d)
                 return range === '1M'
@@ -141,16 +141,16 @@ export default function PriceChart({ data, title }: ChartProps) {
             <YAxis
               yAxisId="price"
               orientation="left"
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
               tickFormatter={(v: number) => `$${v}`}
               domain={['auto', 'auto']}
             />
             <YAxis
               yAxisId="volume"
               orientation="right"
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
               tickFormatter={formatVolume}
             />
             <Tooltip

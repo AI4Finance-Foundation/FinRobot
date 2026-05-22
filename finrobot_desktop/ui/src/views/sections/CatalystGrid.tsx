@@ -122,10 +122,10 @@ function deriveCatalystDisplay(ev: CatalystEvent): { color: string; label: strin
   const score = ev.impact_score ?? 0
   const magText = score >= 4 ? '高影响' : score >= 2 ? '中影响' : score >= 1 ? '低影响' : ''
   if (ev.sentiment === 'negative') {
-    return { color: '#EF4444', label: `↓ ${magText}`.trim() }
+    return { color: 'var(--danger)', label: `↓ ${magText}`.trim() }
   }
   if (ev.sentiment === 'positive') {
-    const color = score >= 4 ? '#10B981' : '#16A34A'
+    const color = score >= 4 ? 'var(--success)' : '#16A34A'
     return { color, label: `↑ ${magText}`.trim() }
   }
   if (ev.sentiment === 'neutral') {

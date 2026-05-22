@@ -45,6 +45,40 @@ export function useLatestArtifact(
   return { ...query, latest }
 }
 
+/** Full artifact (inputs / assumptions / outputs / meta) for a single id.
+ *
+ * Backed by `GET /api/artifacts/{id}` (defined in routes/artifacts.py). The
+ * timeline endpoint only returns ArtifactSummary which strips heavy fields —
+ * sections that need outputs.structured.* (risk grid, peer table, sensitivity
+ * heatmap) must use this hook. Cached aggressively because artifacts are
+ * immutable once written. */
+export interface ArtifactDetail {
+  id: string
+  ticker: string | null
+  type: string
+  created_at: string
+  // The outputs blob is intentionally unknown — each pipeline writes its own
+  // structured shape; section components down-cast to the contract they care
+  // about. Keeping it `unknown` here forces every consumer to define their
+  // own narrow type and avoids accidental field drift across sections.
+  outputs: Record<string, unknown>
+  inputs: Record<string, unknown>
+  assumptions: Record<string, unknown>
+  meta: Record<string, unknown>
+}
+
+export function useArtifactDetail(artifactId: string | null | undefined) {
+  return useQuery<ArtifactDetail, Error>({
+    queryKey: ['artifact-detail', artifactId],
+    queryFn: ({ signal }) =>
+      getJson<ArtifactDetail>(`${BASE_URL}/api/artifacts/${artifactId}`, signal),
+    enabled: !!artifactId,
+    staleTime: Infinity, // artifacts are immutable once written
+    refetchOnMount: false,
+    retry: 1,
+  })
+}
+
 /** Football Field aggregation (PR2 endpoint). */
 export function useValuationAggregate(ticker: string) {
   return useQuery<ValuationAggregate, Error>({

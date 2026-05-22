@@ -43,19 +43,19 @@ export default function QuarterlyComparisonChart({ data, title }: ChartProps) {
             <XAxis
               dataKey="quarter"
               tick={{
-                fill: '#4B5563',
+                fill: 'var(--text-muted)',
                 fontSize: 11,
                 fontFamily: "'JetBrains Mono', monospace",
               }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
               angle={-30}
               textAnchor="end"
               height={45}
             />
             <YAxis
               tickFormatter={formatBillions}
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <Tooltip
               formatter={(value: TooltipValueType | undefined) =>
@@ -65,14 +65,14 @@ export default function QuarterlyComparisonChart({ data, title }: ChartProps) {
               labelStyle={{ color: 'var(--text-primary)' }}
             />
             <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
-            <Bar dataKey="revenue" name="Revenue" fill="#60A5FA" radius={[2, 2, 0, 0]} />
+            <Bar dataKey="revenue" name="Revenue" fill="var(--primary)" radius={[2, 2, 0, 0]} />
             <Bar
               dataKey="operating_income"
               name="Operating Income"
               fill="#C9A84C"
               radius={[2, 2, 0, 0]}
             />
-            <Bar dataKey="net_income" name="Net Income" fill="#34D399" radius={[2, 2, 0, 0]} />
+            <Bar dataKey="net_income" name="Net Income" fill="var(--success)" radius={[2, 2, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

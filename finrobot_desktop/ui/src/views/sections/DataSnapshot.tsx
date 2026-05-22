@@ -42,7 +42,7 @@ export function DataSnapshot({ ticker }: DataSnapshotProps): React.ReactElement 
             ? `${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}% 今日`
             : null
         }
-        subColor={changePct !== null && changePct >= 0 ? '#10B981' : '#EF4444'}
+        subColor={changePct !== null && changePct >= 0 ? 'var(--success)' : 'var(--danger)'}
       />
       <Card
         label="下次财报"

@@ -45,13 +45,13 @@ export default function RevenueYoYChart({ data, title }: ChartProps) {
           <BarChart data={chartData} barGap={2}>
             <XAxis
               dataKey="year"
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <YAxis
               tickFormatter={formatPct}
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <Tooltip
               formatter={(value: TooltipValueType | undefined) =>
@@ -61,12 +61,12 @@ export default function RevenueYoYChart({ data, title }: ChartProps) {
               labelStyle={{ color: 'var(--text-primary)' }}
             />
             <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
-            <ReferenceLine y={0} stroke="#E2E5EB" strokeWidth={1} />
+            <ReferenceLine y={0} stroke="var(--border-soft)" strokeWidth={1} />
             <Bar dataKey="yoy_pct" name="YoY Growth %" radius={[2, 2, 0, 0]}>
               {chartData.map((entry, index) => (
                 <Cell
                   key={`yoy-${index}`}
-                  fill={(entry.yoy_pct ?? 0) >= 0 ? '#34D399' : '#F87171'}
+                  fill={(entry.yoy_pct ?? 0) >= 0 ? 'var(--success)' : 'var(--danger)'}
                 />
               ))}
             </Bar>

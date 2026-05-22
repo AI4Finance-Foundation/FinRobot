@@ -243,9 +243,9 @@ function TimelineRow({ item }: { item: NewsItem }): React.ReactElement {
 
 function sentimentColor(score: number | null | undefined): string {
   if (typeof score !== 'number') return 'var(--text-faint)'
-  if (score >= 0.1) return '#10B981'
-  if (score <= -0.1) return '#EF4444'
-  return '#F59E0B'
+  if (score >= 0.1) return 'var(--success)'
+  if (score <= -0.1) return 'var(--danger)'
+  return 'var(--warning)'
 }
 
 function formatDate(iso?: string): string {

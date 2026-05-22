@@ -164,14 +164,14 @@ function Timeline({ points, band }: TimelineProps): React.ReactElement {
           x2={CHART_PAD_X + innerW}
           y1={yMed}
           y2={yMed}
-          stroke="#10B981"
+          stroke="var(--success)"
           strokeWidth={1}
           strokeDasharray="4 4"
           opacity={0.6}
         />
       )}
       {/* main series */}
-      <path d={path} stroke="#3B82F6" strokeWidth={1.5} fill="none" />
+      <path d={path} stroke="var(--primary)" strokeWidth={1.5} fill="none" />
     </svg>
   )
 }
@@ -187,7 +187,7 @@ function Classification({
     fair: '当前估值合理（P25 ↔ P75）',
     cheap: '当前估值偏便宜（低于 P25）',
   }[klass]
-  const color = klass === 'expensive' ? '#EF4444' : klass === 'cheap' ? '#10B981' : '#F59E0B'
+  const color = klass === 'expensive' ? 'var(--danger)' : klass === 'cheap' ? 'var(--success)' : 'var(--warning)'
   return (
     <p
       data-testid="historical-band-classification"

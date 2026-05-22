@@ -48,13 +48,13 @@ export default function CashFlowChart({ data, title }: ChartProps) {
           <ComposedChart data={enriched} barGap={2}>
             <XAxis
               dataKey="year"
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <YAxis
               tickFormatter={formatBillions}
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <Tooltip
               formatter={(value: TooltipValueType | undefined) =>
@@ -64,16 +64,16 @@ export default function CashFlowChart({ data, title }: ChartProps) {
               labelStyle={{ color: 'var(--text-primary)' }}
             />
             <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
-            <Bar dataKey="operating" name="Operating" fill="#34D399" radius={[2, 2, 0, 0]} />
-            <Bar dataKey="investing" name="Investing" fill="#F87171" radius={[2, 2, 0, 0]} />
+            <Bar dataKey="operating" name="Operating" fill="var(--success)" radius={[2, 2, 0, 0]} />
+            <Bar dataKey="investing" name="Investing" fill="var(--danger)" radius={[2, 2, 0, 0]} />
             <Bar dataKey="financing" name="Financing" fill="#C9A84C" radius={[2, 2, 0, 0]} />
             <Line
               type="monotone"
               dataKey="net"
               name="Net Cash Flow"
-              stroke="#60A5FA"
+              stroke="var(--primary)"
               strokeWidth={2}
-              dot={{ r: 3, fill: '#60A5FA' }}
+              dot={{ r: 3, fill: 'var(--primary)' }}
             />
           </ComposedChart>
         </ResponsiveContainer>

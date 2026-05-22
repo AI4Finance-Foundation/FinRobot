@@ -71,28 +71,28 @@ function SniperBody({
       label: '理想买点',
       value: points.ideal_buy,
       sub: `安全边际 ${(points.safety_margin * 100).toFixed(0)}%`,
-      color: '#10B981',
+      color: 'var(--success)',
       testId: 'sniper-ideal-buy',
     },
     {
       label: '二次买点',
       value: points.secondary_buy,
       sub: '20 日支撑',
-      color: '#34D399',
+      color: 'var(--success)',
       testId: 'sniper-secondary-buy',
     },
     {
       label: '止损位',
       value: points.stop_loss,
       sub: '波动调整下沿',
-      color: '#EF4444',
+      color: 'var(--danger)',
       testId: 'sniper-stop-loss',
     },
     {
       label: '止盈位',
       value: points.take_profit,
       sub: 'DCF 目标',
-      color: '#F59E0B',
+      color: 'var(--warning)',
       testId: 'sniper-take-profit',
     },
   ]
@@ -158,7 +158,7 @@ function SniperBody({
           <strong
             data-testid="sniper-risk-reward"
             style={{
-              color: points.risk_reward_ratio >= 2 ? '#10B981' : 'var(--text)',
+              color: points.risk_reward_ratio >= 2 ? 'var(--success)' : 'var(--text)',
               fontWeight: 700,
             }}
           >
@@ -195,10 +195,10 @@ function PriceRuler({
   const pct = (v: number) => `${((v - min) / range) * 100}%`
 
   const markers = [
-    { v: points.stop_loss, label: '止损', color: '#EF4444', above: false },
-    { v: points.ideal_buy, label: '理想买', color: '#10B981', above: false },
-    { v: points.secondary_buy, label: '二次买', color: '#34D399', above: true },
-    { v: points.take_profit, label: '止盈', color: '#F59E0B', above: true },
+    { v: points.stop_loss, label: '止损', color: 'var(--danger)', above: false },
+    { v: points.ideal_buy, label: '理想买', color: 'var(--success)', above: false },
+    { v: points.secondary_buy, label: '二次买', color: 'var(--success)', above: true },
+    { v: points.take_profit, label: '止盈', color: 'var(--warning)', above: true },
   ]
 
   return (
@@ -264,7 +264,7 @@ function PriceRuler({
               width: 12,
               height: 12,
               borderRadius: 6,
-              background: '#3B82F6',
+              background: 'var(--primary)',
               boxShadow: '0 0 0 3px rgba(59,130,246,0.25)',
             }}
           />
@@ -272,7 +272,7 @@ function PriceRuler({
             style={{
               marginTop: 4,
               fontSize: 10.5,
-              color: '#3B82F6',
+              color: 'var(--primary)',
               fontWeight: 600,
             }}
           >

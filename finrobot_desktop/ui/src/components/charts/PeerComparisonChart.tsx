@@ -16,9 +16,9 @@ interface ChartProps {
 }
 
 // Design system chart palette
-const PRIMARY = '#60A5FA'         // chart-1
+const PRIMARY = 'var(--primary)'         // chart-1
 const ACCENT = '#C9A84C'          // chart-2
-const TARGET_HIGHLIGHT = '#FB923C' // chart-5
+const TARGET_HIGHLIGHT = 'var(--warning)' // chart-5
 
 const CHART_TOOLTIP = {
   backgroundColor: 'var(--bg-3)',
@@ -42,12 +42,12 @@ export default function PeerComparisonChart({ data, title }: ChartProps) {
           <BarChart data={data} barGap={2}>
             <XAxis
               dataKey="ticker"
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <YAxis
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <Tooltip
               formatter={(value: TooltipValueType | undefined) => {

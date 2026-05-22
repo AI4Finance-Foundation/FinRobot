@@ -56,7 +56,7 @@ export function SentimentCard({ ticker }: SentimentCardProps): React.ReactElemen
             height: 18,
             borderRadius: 9,
             overflow: 'hidden',
-            background: 'var(--bg-soft, #f5f6f8)',
+            background: 'var(--bg-card)',
           }}
         >
           <span

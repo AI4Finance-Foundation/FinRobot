@@ -30,11 +30,12 @@ export interface ArtifactSummaryV5 {
   archived: boolean
 
   // v5 PR1 additions — backend populates from artifact.outputs.structured.
-  // null when the artifact pre-dates v5 or its pipeline doesn't have a thesis.
-  entry_price: number | null
-  target_price: number | null
-  target_date: string | null
-  signal: Signal | null
+  // Optional + nullable: missing on legacy artifacts (field absent → undefined
+  // in JSON) and explicitly null on v5 artifacts whose pipeline has no thesis.
+  entry_price?: number | null
+  target_price?: number | null
+  target_date?: string | null
+  signal?: Signal | null
 }
 
 /** Mirror of `engine.compute.signal.HitRateStats` (PR1). */

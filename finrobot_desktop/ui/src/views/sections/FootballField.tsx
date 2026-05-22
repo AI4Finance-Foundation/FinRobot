@@ -103,7 +103,7 @@ export function FootballField({ ticker }: FootballFieldProps): React.ReactElemen
                 ((current - axis.min) / (axis.max - axis.min)) * (LABEL_WIDTH + RIGHT_PAD)
               }px)`,
               width: 2,
-              background: 'var(--blue, #3B82F6)',
+              background: 'var(--primary)',
               opacity: 0.55,
             }}
           />
@@ -252,7 +252,7 @@ function MethodRow({ method, axis }: MethodRowProps): React.ReactElement {
           top: 4,
           width: 2,
           height: ROW_HEIGHT - 8,
-          background: isMultiple ? '#3B82F6' : '#10B981',
+          background: isMultiple ? 'var(--primary)' : 'var(--success)',
         }}
       />
       <span

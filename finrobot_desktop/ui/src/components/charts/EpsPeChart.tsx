@@ -16,7 +16,7 @@ interface ChartProps {
 }
 
 // Design system chart palette
-const EPS_COLOR = '#60A5FA'   // chart-1
+const EPS_COLOR = 'var(--primary)'   // chart-1
 const PE_COLOR = '#C9A84C'    // chart-2
 
 const CHART_TOOLTIP = {
@@ -47,34 +47,34 @@ export default function EpsPeChart({ data, title }: ChartProps) {
             </defs>
             <XAxis
               dataKey="year"
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <YAxis
               yAxisId="eps"
               orientation="left"
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
               tickFormatter={(v: number) => `$${v.toFixed(2)}`}
               label={{
                 value: 'EPS',
                 angle: -90,
                 position: 'insideLeft',
-                fill: '#4B5563',
+                fill: 'var(--text-muted)',
                 fontSize: 11,
               }}
             />
             <YAxis
               yAxisId="pe"
               orientation="right"
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
               tickFormatter={(v: number) => `${v.toFixed(0)}x`}
               label={{
                 value: 'P/E',
                 angle: 90,
                 position: 'insideRight',
-                fill: '#4B5563',
+                fill: 'var(--text-muted)',
                 fontSize: 11,
               }}
             />

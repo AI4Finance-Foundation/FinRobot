@@ -33,8 +33,8 @@ export function HitRateSparkline({ signals }: HitRateSparklineProps): React.Reac
 }
 
 function dotColor(s: Signal | null): string {
-  if (s === 'hit') return '#10B981'
-  if (s === 'failed') return '#EF4444'
-  if (s === 'watching') return '#F59E0B'
+  if (s === 'hit') return 'var(--success)'
+  if (s === 'failed') return 'var(--danger)'
+  if (s === 'watching') return 'var(--warning)'
   return 'var(--text-faint)'
 }

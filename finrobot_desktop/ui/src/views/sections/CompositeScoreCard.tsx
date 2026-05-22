@@ -223,15 +223,15 @@ function SubScoreBar({
 function signalColor(signal: CompositeScore['signal']): string {
   switch (signal) {
     case 'STRONG_BUY':
-      return '#10B981'
+      return 'var(--success)'
     case 'BUY':
-      return '#34D399'
+      return 'var(--success)'
     case 'HOLD':
-      return '#F59E0B'
+      return 'var(--warning)'
     case 'SELL':
-      return '#F87171'
+      return 'var(--danger)'
     case 'STRONG_SELL':
-      return '#EF4444'
+      return 'var(--danger)'
   }
 }
 
@@ -256,9 +256,9 @@ function signalThresholdHint(signal: CompositeScore['signal']): string {
 }
 
 function barColor(value: number): string {
-  if (value >= 70) return '#10B981'
-  if (value >= 55) return '#34D399'
-  if (value >= 40) return '#F59E0B'
-  if (value >= 25) return '#F87171'
-  return '#EF4444'
+  if (value >= 70) return 'var(--success)'
+  if (value >= 55) return 'var(--success)'
+  if (value >= 40) return 'var(--warning)'
+  if (value >= 25) return 'var(--danger)'
+  return 'var(--danger)'
 }

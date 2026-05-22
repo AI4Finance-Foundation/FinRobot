@@ -19,8 +19,8 @@ interface ChartProps {
 }
 
 // Design system colors
-const POSITIVE_COLOR = '#34D399'
-const NEGATIVE_COLOR = '#F87171'
+const POSITIVE_COLOR = 'var(--success)'
+const NEGATIVE_COLOR = 'var(--danger)'
 const TOTAL_COLOR = '#C9A84C'
 
 const CHART_TOOLTIP = {
@@ -85,16 +85,16 @@ export default function WaterfallChart({ data, title }: ChartProps) {
           <BarChart data={bars}>
             <XAxis
               dataKey="label"
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
               interval={0}
               angle={-30}
               textAnchor="end"
               height={60}
             />
             <YAxis
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
               // Large values (e.g. AAPL terminal value ~$1.2T) need abbreviated
               // ticks — raw `${v}` overflowed the Y-axis gutter and rendered as
               // a clipped run of zeros in the production screenshot.
@@ -115,7 +115,7 @@ export default function WaterfallChart({ data, title }: ChartProps) {
                 return [fmtUsd(entry.value), entry.value >= 0 ? 'Add' : 'Subtract']
               }}
             />
-            <ReferenceLine y={0} stroke="#E2E5EB" />
+            <ReferenceLine y={0} stroke="var(--border-soft)" />
             <Bar dataKey="base" stackId="waterfall" fill="transparent" />
             <Bar dataKey="delta" stackId="waterfall" radius={[3, 3, 0, 0]}>
               {bars.map((entry, index) => (

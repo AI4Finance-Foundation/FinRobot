@@ -27,8 +27,8 @@ const CHART_TOOLTIP = {
   fontSize: '0.78rem',
 }
 
-const BAR_COLOR = '#60A5FA'
-const MARKER_COLOR = '#F59E0B'
+const BAR_COLOR = 'var(--primary)'
+const MARKER_COLOR = 'var(--warning)'
 
 export default function MonteCarloChart({ result, currentPrice }: Props) {
   const { chartData, p25, p75, median, mean } = useMemo(() => {
@@ -69,15 +69,15 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
           <BarChart data={chartData} barCategoryGap={0} barGap={0}>
             <XAxis
               dataKey="binMid"
-              tick={{ fill: '#4B5563', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
               tickFormatter={(v: number) => `$${v.toFixed(0)}`}
               interval="preserveStartEnd"
               minTickGap={40}
             />
             <YAxis
-              tick={{ fill: '#4B5563', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
               tickFormatter={(v: number) => v.toLocaleString()}
             />
             <Tooltip
@@ -120,12 +120,12 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
             {/* Median line (dark solid on light bg) */}
             <ReferenceLine
               x={median}
-              stroke="#111827"
+              stroke="var(--bg-deep)"
               strokeWidth={1.5}
               label={{
                 value: `中位 $${median.toFixed(0)}`,
                 position: 'insideTopRight',
-                fill: '#111827',
+                fill: 'var(--bg-deep)',
                 fontSize: 10,
                 fontFamily: "'JetBrains Mono', monospace",
               }}
@@ -134,7 +134,7 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
             {/* Mean line (blue dashed) */}
             <ReferenceLine
               x={mean}
-              stroke="#60A5FA"
+              stroke="var(--primary)"
               strokeWidth={1}
               strokeDasharray="4 2"
             />

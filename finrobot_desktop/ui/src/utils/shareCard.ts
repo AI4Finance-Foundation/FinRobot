@@ -66,8 +66,9 @@ function draw(ctx: CanvasRenderingContext2D, { artifact, currentPrice, daysSince
   ctx.stroke()
 
   // Main number: gain since entry (when computable), else target distance.
-  const entry = artifact.entry_price
-  const target = artifact.target_price
+  // Use typeof — backend may serialise missing fields as undefined, not null.
+  const entry = typeof artifact.entry_price === 'number' ? artifact.entry_price : null
+  const target = typeof artifact.target_price === 'number' ? artifact.target_price : null
   let bigText = '—'
   let bigColor = '#6B7280'
   let smallLine = ''

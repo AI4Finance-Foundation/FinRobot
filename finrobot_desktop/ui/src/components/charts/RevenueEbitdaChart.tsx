@@ -16,7 +16,7 @@ interface ChartProps {
 }
 
 // Design system chart palette
-const REVENUE_COLOR = '#60A5FA'      // chart-1
+const REVENUE_COLOR = 'var(--primary)'      // chart-1
 const EBITDA_COLOR = '#C9A84C'       // chart-2
 const FORECAST_REVENUE = 'rgba(96, 165, 250, 0.45)'
 const FORECAST_EBITDA = 'rgba(201, 168, 76, 0.45)'
@@ -49,13 +49,13 @@ export default function RevenueEbitdaChart({ data, title }: ChartProps) {
           <BarChart data={data} barGap={2}>
             <XAxis
               dataKey="year"
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <YAxis
               tickFormatter={formatBillions}
-              tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-              axisLine={{ stroke: '#E2E5EB' }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <Tooltip
               formatter={(value: TooltipValueType | undefined) =>

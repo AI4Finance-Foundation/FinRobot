@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useAppStore } from '../stores/appStore'
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
+import { extractErrorDetail } from '../api/errors'
 
 export function useHistoricalData() {
   const ticker = useAppStore((s) => s.ticker)
@@ -13,8 +14,7 @@ export function useHistoricalData() {
     queryFn: async () => {
       const resp = await fetch(`${BASE_URL}/api/data/${ticker}/historical`)
       if (!resp.ok) {
-        const detail = await resp.text().catch(() => '')
-        throw new Error(`historical ${resp.status}: ${detail || resp.statusText}`)
+        throw new Error(await extractErrorDetail(resp, '无法加载多年财务数据'))
       }
       return resp.json()
     },
@@ -22,10 +22,16 @@ export function useHistoricalData() {
     // Historical financials change once per quarter at most — keep a long cache.
     staleTime: 30 * 60_000,
     gcTime: 60 * 60_000,
+    // Don't refetch on remount: ticker is the cache key, so cache hits stay
+    // hot across tab switches. setTicker() clears appStore on ticker change.
+    refetchOnMount: false,
   })
 
   useEffect(() => { setHistoricalLoading(isLoading) }, [isLoading, setHistoricalLoading])
-  useEffect(() => { setHistoricalMetrics(data ?? null) }, [data, setHistoricalMetrics])
+  // Only mirror real data into the store. Writing null on every mount while
+  // react-query is still resolving causes tab-switch flashes — the store
+  // briefly goes null even though the cache has data.
+  useEffect(() => { if (data) setHistoricalMetrics(data) }, [data, setHistoricalMetrics])
 
   return { data, isLoading, isError, error }
 }
@@ -40,18 +46,18 @@ export function useQuarterlyData() {
     queryFn: async () => {
       const resp = await fetch(`${BASE_URL}/api/data/${ticker}/quarterly`)
       if (!resp.ok) {
-        const detail = await resp.text().catch(() => '')
-        throw new Error(`quarterly ${resp.status}: ${detail || resp.statusText}`)
+        throw new Error(await extractErrorDetail(resp, '无法加载季度财务数据'))
       }
       return resp.json()
     },
     enabled: !!ticker,
     staleTime: 30 * 60_000,
     gcTime: 60 * 60_000,
+    refetchOnMount: false,
   })
 
   useEffect(() => { setQuarterlyLoading(isLoading) }, [isLoading, setQuarterlyLoading])
-  useEffect(() => { setQuarterlyData(data ?? null) }, [data, setQuarterlyData])
+  useEffect(() => { if (data) setQuarterlyData(data) }, [data, setQuarterlyData])
 
   return { data, isLoading, isError, error }
 }

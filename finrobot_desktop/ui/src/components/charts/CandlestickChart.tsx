@@ -34,11 +34,11 @@ interface CandlestickChartProps {
 
 // ---------- Design tokens (matches App.css design system) ----------
 
-const UP_COLOR = '#34D399'   // --positive
-const DOWN_COLOR = '#F87171' // --negative
-const SMA20_COLOR = '#A78BFA' // --chart-4
-const SMA50_COLOR = '#FB923C' // --chart-5
-const BB_STROKE = '#60A5FA'
+const UP_COLOR = 'var(--success)'   // --positive
+const DOWN_COLOR = 'var(--danger)' // --negative
+const SMA20_COLOR = 'var(--secondary)' // --chart-4
+const SMA50_COLOR = 'var(--warning)' // --chart-5
+const BB_STROKE = 'var(--primary)'
 
 const CHART_TOOLTIP = {
   backgroundColor: 'var(--bg-3)',
@@ -237,8 +237,8 @@ export default function CandlestickChart({
       >
         <XAxis
           dataKey="date"
-          tick={{ fill: '#4B5563', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
-          axisLine={{ stroke: '#E2E5EB' }}
+          tick={{ fill: 'var(--text-muted)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+          axisLine={{ stroke: 'var(--border-soft)' }}
           tickFormatter={(d: string) => {
             const date = new Date(d)
             return `${date.getFullYear().toString().slice(2)}/${(date.getMonth() + 1)
@@ -253,8 +253,8 @@ export default function CandlestickChart({
           yAxisId="price"
           orientation="left"
           domain={priceDomain}
-          tick={{ fill: '#4B5563', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
-          axisLine={{ stroke: '#E2E5EB' }}
+          tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+          axisLine={{ stroke: 'var(--border-soft)' }}
           tickFormatter={(v: number) => `$${v}`}
         />
 

@@ -15,7 +15,7 @@ interface ChartProps {
 }
 
 // Design system chart palette
-const COMPANY_COLOR = '#60A5FA'  // chart-1
+const COMPANY_COLOR = 'var(--primary)'  // chart-1
 const BENCHMARK_COLOR = '#C9A84C' // chart-2
 
 const CHART_TOOLTIP = {
@@ -38,13 +38,13 @@ export default function CompanyRadarChart({ data, title }: ChartProps) {
       <div className="card-body">
         <ResponsiveContainer width="100%" height={300}>
           <RechartsRadarChart data={data} cx="50%" cy="50%" outerRadius="70%">
-            <PolarGrid stroke="#E2E5EB" />
+            <PolarGrid stroke="var(--border-soft)" />
             <PolarAngleAxis
               dataKey="dimension"
-              tick={{ fill: '#4B5563', fontSize: 11 }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
             />
             <PolarRadiusAxis
-              tick={{ fill: '#9CA3AF', fontSize: 10 }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
               axisLine={false}
             />
             <Tooltip contentStyle={CHART_TOOLTIP} labelStyle={{ color: 'var(--text-primary)' }} />

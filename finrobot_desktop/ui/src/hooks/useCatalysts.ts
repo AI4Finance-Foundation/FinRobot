@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAppStore } from '../stores/appStore'
 import { BASE_URL } from '../api/client'
+import { extractErrorDetail } from '../api/errors'
 
 export function useCatalysts() {
   const ticker = useAppStore((s) => s.ticker)
@@ -13,19 +14,20 @@ export function useCatalysts() {
     queryFn: async () => {
       const resp = await fetch(`${BASE_URL}/api/data/${ticker}/catalysts`)
       if (!resp.ok) {
-        const detail = await resp.text().catch(() => '')
-        throw new Error(`catalysts ${resp.status}: ${detail || resp.statusText}`)
+        throw new Error(await extractErrorDetail(resp, '无法加载催化剂事件'))
       }
       return resp.json()
     },
     enabled: !!ticker,
     staleTime: 5 * 60 * 1000, // 5 minutes — news doesn't change that fast
+    refetchOnMount: false,
     // Catalysts depend on LLM availability; don't hammer the backend on transient failures.
     retry: 1,
   })
 
   useEffect(() => { setCatalystsLoading(isLoading) }, [isLoading, setCatalystsLoading])
-  useEffect(() => { setCatalysts(data ?? null) }, [data, setCatalysts])
+  // Only mirror real data into the store to avoid tab-switch null flashes.
+  useEffect(() => { if (data) setCatalysts(data) }, [data, setCatalysts])
 
   return { data, isLoading, isError, error }
 }

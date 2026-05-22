@@ -12,13 +12,6 @@ interface EquityResearchStructured {
   thesis?: ThesisStructured
 }
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 interface RiskGridProps {
   ticker: string
@@ -30,7 +23,7 @@ export function RiskGrid({ ticker }: RiskGridProps): React.ReactElement {
 
   if (!latest) {
     return (
-      <section id="sec-risk" style={SECTION_STYLE}>
+      <section id="sec-risk" className="cosmic-card" style={{ margin: "12px 0" }}>
         <div style={{ fontSize: 14, fontWeight: 600 }}>⚠️ 风险因素</div>
         <p style={{ marginTop: 8, color: 'var(--text-soft)', fontSize: 13 }}>
           跑一次 AI 完整研报后，这里展示 AI 提取的风险因素（来源 thesis step）。
@@ -43,7 +36,7 @@ export function RiskGrid({ ticker }: RiskGridProps): React.ReactElement {
   const risks = structured.thesis?.risks ?? []
 
   return (
-    <section id="sec-risk" style={SECTION_STYLE}>
+    <section id="sec-risk" className="cosmic-card" style={{ margin: "12px 0" }}>
       <div style={{ fontSize: 14, fontWeight: 600 }}>
         ⚠️ 风险因素
         {risks.length > 0 && (

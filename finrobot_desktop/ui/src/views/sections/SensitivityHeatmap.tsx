@@ -23,13 +23,6 @@ interface EquityResearchStructured {
   financial_modeling?: DCFStructured
 }
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 interface SensitivityHeatmapProps {
   ticker: string
@@ -43,7 +36,7 @@ export function SensitivityHeatmap({ ticker }: SensitivityHeatmapProps): React.R
 
   if (!source) {
     return (
-      <section id="sec-sensitivity" style={SECTION_STYLE}>
+      <section id="sec-sensitivity" className="cosmic-card" style={{ margin: "12px 0" }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>📉 敏感性分析</h2>
         <p style={{ marginTop: 8, color: 'var(--text-soft)', fontSize: 13 }}>
           跑一次 AI 完整研报或 DCF 估值后，这里展示 WACC × 永续增长率 5×5 隐含股价矩阵。
@@ -69,7 +62,7 @@ export function SensitivityHeatmap({ ticker }: SensitivityHeatmapProps): React.R
   const span = max - min || 1
 
   return (
-    <section id="sec-sensitivity" style={SECTION_STYLE}>
+    <section id="sec-sensitivity" className="cosmic-card" style={{ margin: "12px 0" }}>
       <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>📉 敏感性分析</h2>
       <p style={{ marginTop: 4, fontSize: 11, color: 'var(--text-faint)' }}>
         WACC × 永续增长率 → 隐含股价 · 数据来自 {source.type} artifact

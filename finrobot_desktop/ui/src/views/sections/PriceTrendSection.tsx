@@ -7,13 +7,6 @@ import { useEffect } from 'react'
 import { useAppStore } from '../../stores/appStore'
 import PriceChart from '../../components/charts/PriceChart'
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 interface PriceTrendSectionProps {
   ticker: string
@@ -36,7 +29,7 @@ export function PriceTrendSection({
   }, [ticker, storeTicker, setTicker])
 
   return (
-    <section id="sec-price" style={SECTION_STYLE}>
+    <section id="sec-price" className="cosmic-card" style={{ margin: "12px 0" }}>
       <header style={{ marginBottom: 10 }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>📈 股价走势</h2>
       </header>

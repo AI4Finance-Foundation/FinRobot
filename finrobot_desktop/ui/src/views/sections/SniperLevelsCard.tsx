@@ -10,13 +10,6 @@ import { useSniperPoints } from '../../hooks/useComputeQuery'
 import { useTickerPrice } from '../../hooks/useTickerData'
 import type { SniperPoints } from '../../hooks/useComputeQuery'
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 interface SniperLevelsCardProps {
   ticker: string
@@ -42,7 +35,7 @@ export function SniperLevelsCard({
   const validPoints = isCompleteSniper(data) ? data : null
 
   return (
-    <section id="sec-sniper" style={SECTION_STYLE}>
+    <section id="sec-sniper" className="cosmic-card" style={{ margin: "12px 0" }}>
       <header style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>🎯 阻力位 / 支撑位</h2>
         <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>

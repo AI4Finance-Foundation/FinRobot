@@ -97,19 +97,20 @@ export function StockWorkspace(): React.ReactElement {
         }}
       >
         <PipelineProgressPanel ticker={symbol} />
-        {/* v5 sections in AnchorNav order. The FinRobot equity feature
-            parity layer (composite-score / monte-carlo / price-trend /
-            revenue / margins / cashflow / peer-radar / peer-bars /
-            sniper / news-timeline) wraps existing chart components from
-            ui/src/components/charts/ that survived the v5 tab teardown. */}
+
+        <GroupHeader index="01" title="总览" />
         <HeroVerdict ticker={symbol} />
         <CompositeScoreCard ticker={symbol} />
         <CatalystGrid ticker={symbol} />
         <RiskGrid ticker={symbol} />
+
+        <GroupHeader index="02" title="估值" />
         <FootballField ticker={symbol} />
         <SensitivityHeatmap ticker={symbol} />
         <HistoricalBandChart ticker={symbol} />
         <MonteCarloSection ticker={symbol} />
+
+        <GroupHeader index="03" title="数据" />
         <DataSnapshot ticker={symbol} />
         <PriceTrendSection ticker={symbol} />
         <RevenueEbitdaSection ticker={symbol} />
@@ -117,6 +118,8 @@ export function StockWorkspace(): React.ReactElement {
         <CashFlowSection ticker={symbol} />
         <FinancialsSection ticker={symbol} />
         <PerformanceSection ticker={symbol} />
+
+        <GroupHeader index="04" title="市场" />
         <PeersSection ticker={symbol} />
         <PeerRadarSection ticker={symbol} />
         <PeerComparisonBarsSection ticker={symbol} />
@@ -126,8 +129,25 @@ export function StockWorkspace(): React.ReactElement {
         <section id="sec-earnings" style={{ margin: '12px 0' }}>
           <EarningsCallPanel ticker={symbol} />
         </section>
+
+        <GroupHeader index="05" title="我的" />
         <MyResearchFeed ticker={symbol} />
       </main>
+    </div>
+  )
+}
+
+function GroupHeader({
+  index,
+  title,
+}: {
+  index: string
+  title: string
+}): React.ReactElement {
+  return (
+    <div className="cosmic-group-header">
+      <span className="group-num">{index}</span>
+      <span className="group-title">{title}</span>
     </div>
   )
 }

@@ -5,13 +5,6 @@
 import { useArtifactDetail, useLatestArtifact } from '../../hooks/useV5Artifacts'
 import CompanyRadarChart from '../../components/charts/CompanyRadarChart'
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 interface CompanyFinancials {
   ticker: string
@@ -47,7 +40,7 @@ export function PeerRadarSection({
   const chartData = buildRadarData(peerComps)
 
   return (
-    <section id="sec-peer-radar" style={SECTION_STYLE}>
+    <section id="sec-peer-radar" className="cosmic-card" style={{ margin: "12px 0" }}>
       <header style={{ marginBottom: 10 }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>🕸️ 同业雷达</h2>
         <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>

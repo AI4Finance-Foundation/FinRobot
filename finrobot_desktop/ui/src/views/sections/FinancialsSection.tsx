@@ -22,13 +22,6 @@ interface QuarterlyResponse {
   quarters?: QuarterRow[]
 }
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 interface FinancialsSectionProps {
   ticker: string
@@ -54,7 +47,7 @@ export function FinancialsSection({ ticker }: FinancialsSectionProps): React.Rea
     allRows.length > 0 && allRows.length < 8 && enriched.length > 1
 
   return (
-    <section id="sec-financials" style={SECTION_STYLE}>
+    <section id="sec-financials" className="cosmic-card" style={{ margin: "12px 0" }}>
       <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>💰 财务报表</h2>
       <p style={{ marginTop: 2, fontSize: 11, color: 'var(--text-faint)' }}>
         近 4 季度趋势 · 完整三表抽屉 待 v2.1

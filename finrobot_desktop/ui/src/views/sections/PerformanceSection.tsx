@@ -18,13 +18,6 @@ interface PriceResponse {
   history?: PriceHistoryPoint[]
 }
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 interface PerformanceSectionProps {
   ticker: string
@@ -47,7 +40,7 @@ export function PerformanceSection({ ticker }: PerformanceSectionProps): React.R
   const metrics = history.length >= 30 ? computeMetrics(history) : null
 
   return (
-    <section id="sec-performance" style={SECTION_STYLE}>
+    <section id="sec-performance" className="cosmic-card" style={{ margin: "12px 0" }}>
       <header>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>📈 走势分析</h2>
         <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--text-faint)' }}>

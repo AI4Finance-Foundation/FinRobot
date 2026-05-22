@@ -3,6 +3,7 @@
 // (or outputs.structured directly from a comps artifact) via useArtifactDetail.
 
 import { useArtifactDetail, useLatestArtifact } from '../../hooks/useV5Artifacts'
+import { useThesisNarrative } from '../../hooks/useThesisNarrative'
 
 // Mirror of finagent.engine.models.financial.CompanyFinancials.
 interface CompanyFinancials {
@@ -27,13 +28,6 @@ interface EquityResearchStructured {
   peer_analysis?: PeerComps
 }
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 interface PeersSectionProps {
   ticker: string
@@ -44,10 +38,11 @@ export function PeersSection({ ticker }: PeersSectionProps): React.ReactElement 
   const equity = useLatestArtifact(ticker, 'equity_research').latest
   const source = comps ?? equity
   const { data: detail, isLoading } = useArtifactDetail(source?.id)
+  const thesis = useThesisNarrative(ticker)
 
   if (!source) {
     return (
-      <section id="sec-peers" style={SECTION_STYLE}>
+      <section id="sec-peers" className="cosmic-card" style={{ margin: "12px 0" }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>🏢 同业对标</h2>
         <p style={{ marginTop: 8, fontSize: 13, color: 'var(--text-soft)' }}>
           跑「单独同业对标」或「AI 完整研报」后，这里展示可比公司财务比较。
@@ -69,7 +64,7 @@ export function PeersSection({ ticker }: PeersSectionProps): React.ReactElement 
   const rows: CompanyFinancials[] = target ? [target, ...peers] : peers
 
   return (
-    <section id="sec-peers" style={SECTION_STYLE}>
+    <section id="sec-peers" className="cosmic-card" style={{ margin: "12px 0" }}>
       <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>🏢 同业对标</h2>
       <p style={{ marginTop: 2, fontSize: 11, color: 'var(--text-faint)' }}>
         来源 {source.type} artifact · {rows.length} 家公司
@@ -138,7 +133,60 @@ export function PeersSection({ ticker }: PeersSectionProps): React.ReactElement 
           </tbody>
         </table>
       )}
+      {thesis?.competitor_analysis && (
+        <NarrativeCallout
+          label="竞争格局"
+          icon="⚔️"
+          body={thesis.competitor_analysis}
+        />
+      )}
     </section>
+  )
+}
+
+function NarrativeCallout({
+  label,
+  icon,
+  body,
+}: {
+  label: string
+  icon: string
+  body: string
+}): React.ReactElement {
+  return (
+    <div
+      style={{
+        marginTop: 16,
+        padding: '14px 16px',
+        borderRadius: 'var(--radius-md)',
+        background: 'rgba(34, 211, 238, 0.06)',
+        border: '1px solid rgba(34, 211, 238, 0.22)',
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: 'var(--accent-cyan)',
+          marginBottom: 6,
+        }}
+      >
+        {icon} {label}
+      </div>
+      <p
+        style={{
+          margin: 0,
+          fontFamily: 'var(--font-body)',
+          fontSize: 13,
+          color: 'var(--text-secondary)',
+          lineHeight: 1.65,
+        }}
+      >
+        {body}
+      </p>
+    </div>
   )
 }
 

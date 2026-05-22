@@ -15,8 +15,14 @@ const SCENE_SRC = 'https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode'
 const LOAD_TIMEOUT_MS = 8000
 
 interface Props {
-  /** Per spec §5.4 mode. 'hero' = 480px tall main piece; 'floating' = 120px ball. */
-  variant?: 'hero' | 'floating'
+  /** Per spec §5.4 mode + landing addition:
+   *  - 'hero'     = 480px tall main piece (ticker workspace right column)
+   *  - 'floating' = 120px ball (RHS status nub)
+   *  - 'backdrop' = full container, lower opacity, no badge / no chrome
+   *                 (landing page atmosphere — never blocks the title) */
+  variant?: 'hero' | 'floating' | 'backdrop'
+  /** Show the cyan "AI Analyst" chip in the corner. Defaults true on hero, false elsewhere. */
+  showStatusChip?: boolean
 }
 
 declare module 'react' {
@@ -36,9 +42,13 @@ declare module 'react' {
   }
 }
 
-export function SplineHero({ variant = 'hero' }: Props): React.ReactElement {
+export function SplineHero({
+  variant = 'hero',
+  showStatusChip,
+}: Props): React.ReactElement {
   const containerRef = useRef<HTMLDivElement>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'failed'>('loading')
+  const showChip = showStatusChip ?? variant === 'hero'
 
   useEffect(() => {
     let cancelled = false
@@ -89,19 +99,68 @@ export function SplineHero({ variant = 'hero' }: Props): React.ReactElement {
     }
   }, [])
 
+  // "Built with Spline" branding lives inside spline-viewer's shadow DOM
+  // (the free Spline tier renders it on every scene). Inject a style tag
+  // into the shadow root once the viewer is ready to nuke it. Retries for
+  // 5 seconds because the shadow DOM finishes attaching after the script
+  // load event in some browsers.
+  useEffect(() => {
+    if (status !== 'ready') return
+    let tries = 0
+    const handle = setInterval(() => {
+      tries += 1
+      const viewers = containerRef.current?.querySelectorAll('spline-viewer')
+      if (!viewers || viewers.length === 0) {
+        if (tries > 20) clearInterval(handle)
+        return
+      }
+      let hit = false
+      viewers.forEach((v) => {
+        const root = (v as HTMLElement & { shadowRoot?: ShadowRoot | null }).shadowRoot
+        if (!root) return
+        if (root.querySelector('[data-cosmic-killed-logo]')) {
+          hit = true
+          return
+        }
+        const style = document.createElement('style')
+        style.dataset.cosmicKilledLogo = '1'
+        style.textContent = `
+          #logo, .logo, a[href*="spline.design"], [class*="logo" i], [id*="logo" i] {
+            display: none !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+          }
+        `
+        root.appendChild(style)
+        hit = true
+      })
+      if (hit || tries > 20) clearInterval(handle)
+    }, 250)
+    return () => clearInterval(handle)
+  }, [status])
+
   const isHero = variant === 'hero'
+  const isBackdrop = variant === 'backdrop'
 
   return (
     <div
       ref={containerRef}
+      aria-hidden={isBackdrop}
       style={{
         position: 'relative',
         width: '100%',
-        height: isHero ? '100%' : 120,
-        minHeight: isHero ? 380 : 120,
-        borderRadius: 'var(--radius-xl)',
+        height: isHero || isBackdrop ? '100%' : 120,
+        minHeight: isHero ? 380 : isBackdrop ? 320 : 120,
+        borderRadius: isBackdrop ? 0 : 'var(--radius-xl)',
         overflow: 'hidden',
-        background: 'radial-gradient(ellipse at center, rgba(59,130,246,0.12) 0%, transparent 70%)',
+        // Backdrop variant should melt into the surrounding starfield, so
+        // skip the lens-flare gradient that frames the hero piece.
+        background: isBackdrop
+          ? 'transparent'
+          : 'radial-gradient(ellipse at center, rgba(59,130,246,0.12) 0%, transparent 70%)',
+        // Cosmetic mask covering the lower-right corner where the Spline
+        // branding sits before our shadow-DOM CSS injection lands.
+        pointerEvents: isBackdrop ? 'none' : undefined,
       }}
     >
       {status !== 'failed' && (
@@ -111,13 +170,32 @@ export function SplineHero({ variant = 'hero' }: Props): React.ReactElement {
           style={{
             width: '100%',
             height: '100%',
-            opacity: status === 'ready' ? 1 : 0,
+            opacity: status === 'ready' ? (isBackdrop ? 0.85 : 1) : 0,
             transition: 'opacity 0.6s ease',
           } as React.CSSProperties}
         />
       )}
-      {status !== 'ready' && <FakeRobotRings />}
+      {/* Belt-and-suspenders mask over the bottom-right Spline badge — the
+          shadow-DOM CSS killer also fires, but if the viewer loads faster
+          than our useEffect this overlay keeps the badge invisible. */}
       {status === 'ready' && (
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            right: 0,
+            width: 168,
+            height: 44,
+            background:
+              'linear-gradient(135deg, transparent 0%, var(--bg-void) 55%)',
+            pointerEvents: 'none',
+            zIndex: 3,
+          }}
+        />
+      )}
+      {status !== 'ready' && !isBackdrop && <FakeRobotRings />}
+      {status === 'ready' && showChip && (
         <div
           aria-hidden
           style={{

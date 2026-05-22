@@ -6,13 +6,6 @@ import { useV5ArtifactTimeline } from '../../hooks/useV5Artifacts'
 import type { ArtifactSummaryV5 } from '../../types/v5'
 import { StatBanner } from './StatBanner'
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 const TYPE_META: Record<string, { label: string; color: string }> = {
   equity_research: { label: 'AI 研报', color: '#10B981' },
@@ -40,7 +33,7 @@ export function MyResearchFeed({ ticker }: MyResearchFeedProps): React.ReactElem
   if (!isLoading && artifacts.length === 0) return null
 
   return (
-    <section id="sec-research" style={SECTION_STYLE}>
+    <section id="sec-research" className="cosmic-card" style={{ margin: "12px 0" }}>
       <header
         style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}
       >

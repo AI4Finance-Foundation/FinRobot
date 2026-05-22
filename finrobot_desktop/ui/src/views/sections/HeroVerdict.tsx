@@ -10,14 +10,6 @@ import { downloadShareCard } from '../../utils/shareCard'
 import { useToastStore } from '../../stores/toastStore'
 import { BASE_URL } from '../../api/client'
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 24,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
-
 interface HeroVerdictProps {
   ticker: string
 }
@@ -52,16 +44,20 @@ export function HeroVerdict({ ticker }: HeroVerdictProps): React.ReactElement {
   // Pre-pipeline (cold) state — single CTA pointing to the run dropdown.
   if (!latest || target === null || entry === null) {
     return (
-      <section id="sec-now" style={SECTION_STYLE}>
-        <div style={{ fontSize: 14, color: 'var(--text-faint)' }}>
+      <section id="sec-now" className="cosmic-card" style={{ margin: '12px 0' }}>
+        <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>
           🎯 当前判断 — 待 AI 完整研报
         </div>
-        <p style={{ marginTop: 8, color: 'var(--text-soft)', fontSize: 13 }}>
-          跑一次 AI 完整研报后，这里展示信号灯 / 目标价 / 当时 vs 现在的价格对比。
+        <p style={{ marginTop: 8, color: 'var(--text-secondary)', fontSize: 13 }}>
+          跑一次 AI 完整研报后，这里展示 BUY/HOLD/SELL 大徽章 / 目标价 / 当时 vs 现在的价格对比。
         </p>
       </section>
     )
   }
+
+  // Derive BUY/HOLD/SELL from the artifact thesis if available — falls back
+  // to the signal lamp colour when the LLM didn't emit a verdict yet.
+  const verdict = readVerdict(thesis)
 
   const distancePct =
     current !== null && target > 0 ? ((target - current) / current) * 100 : null
@@ -70,11 +66,45 @@ export function HeroVerdict({ ticker }: HeroVerdictProps): React.ReactElement {
   const daysSince = ageDays(latest.created_at)
 
   return (
-    <section id="sec-now" style={SECTION_STYLE}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <SignalDot signal={signal} />
-        <span style={{ fontSize: 14, fontWeight: 600 }}>🎯 当前判断</span>
-        <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
+    <section id="sec-now" className="cosmic-card" style={{ margin: '12px 0' }}>
+      <header
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          marginBottom: 18,
+          flexWrap: 'wrap',
+        }}
+      >
+        {verdict ? (
+          <span
+            className={`cosmic-badge cosmic-badge-${verdict.toLowerCase()}`}
+            data-testid="hero-verdict-badge"
+            aria-label={`${verdict} verdict`}
+          >
+            {verdict}
+          </span>
+        ) : (
+          <SignalDot signal={signal} />
+        )}
+        <span
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 14,
+            letterSpacing: 2.5,
+            color: 'var(--text-primary)',
+          }}
+        >
+          当前判断
+        </span>
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            color: 'var(--text-muted)',
+            letterSpacing: '0.06em',
+          }}
+        >
           @ {daysSince} 天前 · 自报告以来{' '}
           {sinceEntryPct !== null
             ? `${sinceEntryPct >= 0 ? '↑' : '↓'} ${Math.abs(sinceEntryPct).toFixed(1)}%`
@@ -82,15 +112,28 @@ export function HeroVerdict({ ticker }: HeroVerdictProps): React.ReactElement {
         </span>
       </header>
 
-      <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: -0.5 }}>
+      <div
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 38,
+          fontWeight: 600,
+          letterSpacing: -0.5,
+          color: 'var(--text-primary)',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
         目标 ${target.toFixed(2)}
         {distancePct !== null && (
           <span
             style={{
-              marginLeft: 12,
+              marginLeft: 14,
               fontSize: 22,
               color: distancePct >= 0 ? 'var(--success)' : 'var(--danger)',
               fontWeight: 600,
+              textShadow:
+                distancePct >= 0
+                  ? '0 0 16px var(--success-glow)'
+                  : '0 0 16px var(--danger-glow)',
             }}
           >
             · 距 {distancePct >= 0 ? '+' : ''}
@@ -223,6 +266,15 @@ export function HeroVerdict({ ticker }: HeroVerdictProps): React.ReactElement {
       </div>
     </section>
   )
+}
+
+function readVerdict(
+  thesis: ThesisDetail | null,
+): 'BUY' | 'HOLD' | 'SELL' | null {
+  const raw = (thesis as unknown as { recommendation?: string } | null)?.recommendation
+  if (!raw || typeof raw !== 'string') return null
+  const norm = raw.trim().toUpperCase()
+  return norm === 'BUY' || norm === 'HOLD' || norm === 'SELL' ? norm : null
 }
 
 function SignalDot({ signal }: { signal: 'hit' | 'watching' | 'failed' | null }) {

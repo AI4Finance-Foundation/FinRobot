@@ -6,6 +6,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../../api/client'
+import { useThesisNarrative } from '../../hooks/useThesisNarrative'
 
 interface NewsItem {
   title?: string
@@ -23,13 +24,6 @@ interface NewsResponse {
   sources_used?: string[]
 }
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 interface NewsTimelineProps {
   ticker: string
@@ -50,9 +44,10 @@ export function NewsTimeline({ ticker }: NewsTimelineProps): React.ReactElement 
 
   const items = (data?.items ?? []).slice(0, 16)
   const overall = data?.overall_sentiment ?? null
+  const thesis = useThesisNarrative(ticker)
 
   return (
-    <section id="sec-news" style={SECTION_STYLE}>
+    <section id="sec-news" className="cosmic-card" style={{ margin: "12px 0" }}>
       <header style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10 }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>📰 新闻时间线</h2>
         {overall !== null && (
@@ -79,6 +74,42 @@ export function NewsTimeline({ ticker }: NewsTimelineProps): React.ReactElement 
           </span>
         )}
       </header>
+
+      {thesis?.news_summary && (
+        <div
+          style={{
+            marginBottom: 14,
+            padding: '12px 14px',
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(34, 211, 238, 0.06)',
+            border: '1px solid rgba(34, 211, 238, 0.22)',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'var(--accent-cyan)',
+              marginBottom: 6,
+            }}
+          >
+            🗞️ 近 30 天新闻摘要
+          </div>
+          <p
+            style={{
+              margin: 0,
+              fontFamily: 'var(--font-body)',
+              fontSize: 13,
+              color: 'var(--text-secondary)',
+              lineHeight: 1.65,
+            }}
+          >
+            {thesis.news_summary}
+          </p>
+        </div>
+      )}
 
       {isLoading && (
         <p style={{ fontSize: 12, color: 'var(--text-faint)' }}>加载中…</p>

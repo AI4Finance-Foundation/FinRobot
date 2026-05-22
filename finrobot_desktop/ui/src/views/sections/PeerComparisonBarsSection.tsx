@@ -6,13 +6,6 @@
 import { useArtifactDetail, useLatestArtifact } from '../../hooks/useV5Artifacts'
 import PeerComparisonChart from '../../components/charts/PeerComparisonChart'
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 interface CompanyFinancials {
   ticker: string
@@ -41,7 +34,7 @@ export function PeerComparisonBarsSection({
   const chartData = buildBarData(peerComps)
 
   return (
-    <section id="sec-peer-bars" style={SECTION_STYLE}>
+    <section id="sec-peer-bars" className="cosmic-card" style={{ margin: "12px 0" }}>
       <header style={{ marginBottom: 10 }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>📊 同业倍数对比</h2>
         <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>

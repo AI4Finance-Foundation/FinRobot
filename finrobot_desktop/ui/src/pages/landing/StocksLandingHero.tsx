@@ -17,6 +17,7 @@ import { HitRateBanner } from './HitRateBanner'
 import { RecentResearchStrip } from './RecentResearchStrip'
 import { StudiedTickersTable } from './StudiedTickersTable'
 import { HotTickerChips } from './HotTickerChips'
+import { SplineHero } from '../../components/SplineHero'
 
 const TAGLINES = [
   '确定性计算 · LLM 叙事',
@@ -67,8 +68,32 @@ export function StocksLandingHero(): React.ReactElement {
         gap: 56,
       }}
     >
+      {/* Backdrop Spline robot — sits behind the title block as the
+          "AI Analyst at rest" mascot. pointer-events:none so the title
+          and search input always win the click. */}
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          top: -40,
+          right: -120,
+          width: 640,
+          height: 520,
+          maxWidth: '60vw',
+          zIndex: 0,
+          opacity: 0.55,
+          pointerEvents: 'none',
+          maskImage:
+            'radial-gradient(ellipse at 60% 45%, black 0%, black 60%, transparent 90%)',
+          WebkitMaskImage:
+            'radial-gradient(ellipse at 60% 45%, black 0%, black 60%, transparent 90%)',
+        }}
+      >
+        <SplineHero variant="backdrop" />
+      </div>
+
       {/* Title block */}
-      <div style={{ textAlign: 'center' }}>
+      <div style={{ textAlign: 'center', position: 'relative', zIndex: 2 }}>
         <div
           style={{
             fontFamily: 'var(--font-display)',
@@ -121,6 +146,8 @@ export function StocksLandingHero(): React.ReactElement {
       <form
         onSubmit={handleSubmit}
         style={{
+          position: 'relative',
+          zIndex: 2,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',

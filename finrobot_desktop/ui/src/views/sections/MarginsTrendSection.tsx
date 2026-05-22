@@ -5,13 +5,6 @@
 import { useHistoricalData } from '../../hooks/useHistoricalData'
 import MarginTrendChart from '../../components/charts/MarginTrendChart'
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 interface MarginsTrendSectionProps {
   ticker: string
@@ -24,7 +17,7 @@ export function MarginsTrendSection({
   const chartData = transformToChartData(data)
 
   return (
-    <section id="sec-margins" style={SECTION_STYLE}>
+    <section id="sec-margins" className="cosmic-card" style={{ margin: "12px 0" }}>
       <header style={{ marginBottom: 10 }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>📈 利润率趋势</h2>
         <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>

@@ -8,6 +8,7 @@
 
 import { useMemo } from 'react'
 import { useValuationAggregate } from '../../hooks/useV5Artifacts'
+import { useThesisNarrative } from '../../hooks/useThesisNarrative'
 import type { ValuationMethodRange } from '../../types/v5'
 
 const METHOD_LABELS: Record<string, string> = {
@@ -19,13 +20,6 @@ const METHOD_LABELS: Record<string, string> = {
   p_fcf: 'P/FCF',
 }
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 const ROW_HEIGHT = 28
 const LABEL_WIDTH = 120
@@ -37,6 +31,7 @@ interface FootballFieldProps {
 
 export function FootballField({ ticker }: FootballFieldProps): React.ReactElement {
   const { data, isLoading, isError } = useValuationAggregate(ticker)
+  const thesis = useThesisNarrative(ticker)
 
   const methods = data?.methods ?? []
   const current = data?.current_price ?? null
@@ -45,7 +40,7 @@ export function FootballField({ ticker }: FootballFieldProps): React.ReactElemen
 
   if (isLoading) {
     return (
-      <section id="sec-football" style={SECTION_STYLE}>
+      <section id="sec-football" className="cosmic-card" style={{ margin: "12px 0" }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
           🏟️ 估值范围 (Football Field)
         </h2>
@@ -56,7 +51,7 @@ export function FootballField({ ticker }: FootballFieldProps): React.ReactElemen
 
   if (isError || methods.length === 0) {
     return (
-      <section id="sec-football" style={SECTION_STYLE}>
+      <section id="sec-football" className="cosmic-card" style={{ margin: "12px 0" }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
           🏟️ 估值范围 (Football Field)
         </h2>
@@ -73,7 +68,7 @@ export function FootballField({ ticker }: FootballFieldProps): React.ReactElemen
   }
 
   return (
-    <section id="sec-football" style={SECTION_STYLE}>
+    <section id="sec-football" className="cosmic-card" style={{ margin: "12px 0" }}>
       <header style={{ marginBottom: 14 }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
           🏟️ 估值范围 (Football Field)
@@ -131,6 +126,14 @@ export function FootballField({ ticker }: FootballFieldProps): React.ReactElemen
         </div>
       </div>
 
+      {thesis?.valuation_overview && (
+        <NarrativeCallout
+          label="估值解读"
+          icon="🔬"
+          body={thesis.valuation_overview}
+        />
+      )}
+
       {data && data.warnings.length > 0 && (
         <details style={{ marginTop: 16, fontSize: 11 }}>
           <summary style={{ cursor: 'pointer', color: 'var(--text-faint)' }}>
@@ -144,6 +147,52 @@ export function FootballField({ ticker }: FootballFieldProps): React.ReactElemen
         </details>
       )}
     </section>
+  )
+}
+
+function NarrativeCallout({
+  label,
+  icon,
+  body,
+}: {
+  label: string
+  icon: string
+  body: string
+}): React.ReactElement {
+  return (
+    <div
+      style={{
+        marginTop: 18,
+        padding: '14px 16px',
+        borderRadius: 'var(--radius-md)',
+        background: 'rgba(34, 211, 238, 0.06)',
+        border: '1px solid rgba(34, 211, 238, 0.22)',
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: 'var(--accent-cyan)',
+          marginBottom: 6,
+        }}
+      >
+        {icon} {label}
+      </div>
+      <p
+        style={{
+          margin: 0,
+          fontFamily: 'var(--font-body)',
+          fontSize: 13,
+          color: 'var(--text-secondary)',
+          lineHeight: 1.65,
+        }}
+      >
+        {body}
+      </p>
+    </div>
   )
 }
 

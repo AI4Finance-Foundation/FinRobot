@@ -17,13 +17,6 @@ const CATEGORY_LABELS: Record<string, { icon: string; label: string }> = {
   market: { icon: '📊', label: '市场' },
 }
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 interface CatalystGridProps {
   ticker: string
@@ -41,7 +34,7 @@ export function CatalystGrid({ ticker }: CatalystGridProps): React.ReactElement 
     .slice(0, 4)
 
   return (
-    <section id="sec-catalyst" style={SECTION_STYLE}>
+    <section id="sec-catalyst" className="cosmic-card" style={{ margin: "12px 0" }}>
       <header
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
       >

@@ -20,13 +20,6 @@ function isCompleteMC(d: unknown): d is MonteCarloResult {
   )
 }
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 interface MonteCarloSectionProps {
   ticker: string
@@ -41,7 +34,7 @@ export function MonteCarloSection({
   const validResult = isCompleteMC(data) ? data : null
 
   return (
-    <section id="sec-monte-carlo" style={SECTION_STYLE}>
+    <section id="sec-monte-carlo" className="cosmic-card" style={{ margin: "12px 0" }}>
       <header style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>🎲 蒙特卡洛公允价值分布</h2>
         <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>

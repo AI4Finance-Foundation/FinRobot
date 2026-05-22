@@ -3,13 +3,6 @@
 
 import { useSentimentSnapshot } from '../../hooks/useV5Artifacts'
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 interface SentimentCardProps {
   ticker: string
@@ -20,7 +13,7 @@ export function SentimentCard({ ticker }: SentimentCardProps): React.ReactElemen
 
   if (isLoading) {
     return (
-      <section id="sec-sentiment" style={SECTION_STYLE}>
+      <section id="sec-sentiment" className="cosmic-card" style={{ margin: "12px 0" }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>👥 散户情绪</h2>
         <p style={{ fontSize: 12, color: 'var(--text-faint)' }}>加载中…</p>
       </section>
@@ -29,7 +22,7 @@ export function SentimentCard({ ticker }: SentimentCardProps): React.ReactElemen
 
   if (!data || data.available === false) {
     return (
-      <section id="sec-sentiment" style={SECTION_STYLE}>
+      <section id="sec-sentiment" className="cosmic-card" style={{ margin: "12px 0" }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>👥 散户情绪</h2>
         <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-soft)' }}>
           未配置 Adanos 凭据 · <a href="/settings">跳设置 →</a>
@@ -47,7 +40,7 @@ export function SentimentCard({ ticker }: SentimentCardProps): React.ReactElemen
   const bear = data.bearish_pct ?? 0
 
   return (
-    <section id="sec-sentiment" style={SECTION_STYLE}>
+    <section id="sec-sentiment" className="cosmic-card" style={{ margin: "12px 0" }}>
       <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
         👥 散户情绪
         <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--text-faint)', fontWeight: 400 }}>

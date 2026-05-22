@@ -6,13 +6,6 @@
 import { useHistoricalData } from '../../hooks/useHistoricalData'
 import CashFlowChart from '../../components/charts/CashFlowChart'
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 interface CashFlowSectionProps {
   ticker: string
@@ -25,7 +18,7 @@ export function CashFlowSection({
   const chartData = transformToChartData(data)
 
   return (
-    <section id="sec-cashflow" style={SECTION_STYLE}>
+    <section id="sec-cashflow" className="cosmic-card" style={{ margin: "12px 0" }}>
       <header style={{ marginBottom: 10 }}>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>💧 现金流分布</h2>
         <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>

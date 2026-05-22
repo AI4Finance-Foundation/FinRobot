@@ -6,13 +6,6 @@ import { useState } from 'react'
 import { useHistoricalBand } from '../../hooks/useV5Artifacts'
 import type { HistoricalMetric } from '../../types/v5'
 
-const SECTION_STYLE: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-  margin: '12px 0',
-  background: 'var(--bg-card)',
-}
 
 const CHART_HEIGHT = 160
 const CHART_PAD_X = 24
@@ -27,7 +20,7 @@ export function HistoricalBandChart({ ticker }: HistoricalBandChartProps): React
   const { data, isLoading, isError } = useHistoricalBand(ticker, metric, 3)
 
   return (
-    <section id="sec-band" style={SECTION_STYLE}>
+    <section id="sec-band" className="cosmic-card" style={{ margin: "12px 0" }}>
       <header
         style={{
           display: 'flex',

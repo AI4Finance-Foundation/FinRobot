@@ -384,6 +384,66 @@ class ArtifactStore:
 
             await asyncio.to_thread(_update)
 
+    async def rebuild_summaries(self) -> int:
+        """Re-derive every per-ticker index.json from the on-disk Artifact files.
+
+        ADR-0001 (v5) added entry_price / target_price / signal / target_date
+        to ArtifactSummary. Indexes written before that ship lack those keys.
+        ``ArtifactSummary.model_validate`` then fills them with None, which
+        makes HeroVerdict / FootballField / SensitivityHeatmap drop into the
+        cold-state branch even though the underlying Artifact file *does*
+        carry a thesis.price_target.
+
+        This method runs the freshest ``_summary_from_artifact`` extractor
+        over every artifact file and rewrites the index. Idempotent — and
+        cheap on steady state because we only call ``_write_atomic`` when
+        the recomputed JSON differs byte-for-byte from what's already on
+        disk. Without that skip, every startup (including every
+        ``uvicorn --reload`` worker cycle) would rewrite every ticker's
+        index even though the data is unchanged.
+
+        Returns the number of ticker dirs whose index was rewritten.
+        """
+
+        def _do() -> int:
+            if not self._base.exists():
+                return 0
+            rewritten = 0
+            for sub in self._base.iterdir():
+                if not sub.is_dir():
+                    continue
+                entries: list[dict[str, Any]] = []
+                for art_file in sub.glob("*.json"):
+                    if art_file.name == "index.json":
+                        continue
+                    raw = self._read_json(art_file)
+                    if raw is None:
+                        continue
+                    try:
+                        artifact = Artifact.model_validate(raw)
+                    except (ValueError, TypeError, KeyError):
+                        logger.warning("rebuild_summaries: skipping unparseable %s", art_file)
+                        continue
+                    summary = _summary_from_artifact(artifact)
+                    entries.append(json.loads(summary.model_dump_json()))
+                idx_path = sub / "index.json"
+                new_payload = json.dumps(entries, default=str)
+                # Skip write when nothing changed — saves N disk writes per
+                # startup for users with N studied tickers, and silences
+                # the uvicorn --reload noise.
+                if idx_path.exists():
+                    try:
+                        existing = idx_path.read_text(encoding="utf-8")
+                    except OSError:
+                        existing = None
+                    if existing == new_payload:
+                        continue
+                self._write_atomic(idx_path, new_payload)
+                rewritten += 1
+            return rewritten
+
+        return await asyncio.to_thread(_do)
+
     async def archive_stale(self, hours: int = 24) -> int:
         """Mark artifacts unviewed for *hours* as archived.
 

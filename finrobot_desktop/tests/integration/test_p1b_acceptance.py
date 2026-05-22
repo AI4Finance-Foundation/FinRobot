@@ -77,17 +77,22 @@ class TestP1bAcceptance:
     @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_dcf_pipeline(self):
-        """P1b acceptance: DCF pipeline produces valuation model."""
+        """P1b acceptance: DCF pipeline produces valuation model.
+
+        The DCF pipeline was consolidated post-P1.5 from 6 steps
+        (historical_data / projection / wacc / terminal_value / sensitivity
+        / output_gen) into 3 deterministic steps (historical_data /
+        dcf_calc / output_gen). The compute layer now runs WACC + terminal
+        value + sensitivity in-process inside dcf_calc rather than
+        round-tripping through LLM steps — keeps numbers reproducible.
+        """
         sub_agents, deps = _build_test_env()
         pipeline = create_dcf_pipeline(sub_agents)
         result = await pipeline.execute(deps, "AAPL")
 
         assert set(result.steps.keys()) == {
             "historical_data",
-            "projection",
-            "wacc",
-            "terminal_value",
-            "sensitivity",
+            "dcf_calc",
             "output_gen",
         }
 

@@ -287,10 +287,14 @@ class TestDCFPipelineArtifact:
         artifact = await store.get(result.artifact_id)  # type: ignore[arg-type]
         assert artifact is not None
 
-        # Formula ID should reflect the FCF formula used
-        assert "dcf" in artifact.compute_version.formula_id
-        # Formula warning from DCFResult should be captured
-        assert any("simplified" in w.lower() for w in artifact.compute_version.formula_warnings)
+        # Formula ID should reflect the FCF formula used. Post Phase B the
+        # only path is `dcf_standard_with_da_v2` — the older simplified-FCF
+        # branch (and its warning) was removed when D&A became the only
+        # supported FCF computation. So we assert formula_id is the
+        # standard v2 marker and that formula_warnings is a clean list
+        # rather than insisting on the legacy "simplified" warning string.
+        assert artifact.compute_version.formula_id == "dcf_standard_with_da_v2"
+        assert isinstance(artifact.compute_version.formula_warnings, list)
 
 
 class TestPipelineWithoutArtifactBuilder:

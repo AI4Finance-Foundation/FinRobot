@@ -8,6 +8,8 @@ import { Sidebar } from './Sidebar'
 import { RightChatPanel } from './RightChatPanel'
 import { CmdKOverlay } from './CmdKOverlay'
 import StatusBar from '../components/StatusBar'
+import ToastContainer from '../components/Toast'
+import { CursorCanvas } from '../components/CursorCanvas'
 import { useUiStore } from '../stores/uiStore'
 import { registerShortcut, pickDirectory, isTauri, DEFAULT_WORKSPACE_PATH } from '../lib/tauri'
 
@@ -56,6 +58,15 @@ export function AppShell(): React.ReactElement {
       </div>
       <StatusBar />
       <CmdKOverlay />
+      {/* v5: toast portal — mounted at shell level so every page / section
+          can pop toasts (pipeline launch / completion / errors). Was lost
+          when the old StocksPage hosted it. */}
+      <ToastContainer />
+      {/* Cosmic: backdrop starfield + bezier-spring cursor trail.
+          Both lazy-mount via useEffect; safe under SSR / Vitest jsdom. */}
+      <div className="cosmic-stars" aria-hidden />
+      <div className="cosmic-stars cosmic-stars-fast" aria-hidden />
+      <CursorCanvas />
     </div>
   )
 }

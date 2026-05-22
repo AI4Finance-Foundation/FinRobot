@@ -83,9 +83,12 @@ interface UiStoreState {
   // AI Panel
   aiPanelOpen: boolean
   aiPanelWidth: number
+  /** Which tab is foregrounded inside the right panel. */
+  rightPanelTab: 'watchlist' | 'ai'
 
-  // Theme
-  theme: Theme
+  /** Cosmic desktop trail cursor (spec §5.3). Default true; Settings exposes
+   *  the toggle for users on low-end laptops / multi-monitor edge cases. */
+  cursorTrailEnabled: boolean
 
   // Workspace
   workspacePath: string
@@ -106,9 +109,9 @@ interface UiStoreState {
   setAiPanelOpen: (open: boolean) => void
   toggleAiPanel: () => void
   setAiPanelWidth: (w: number) => void
+  setRightPanelTab: (tab: 'watchlist' | 'ai') => void
 
-  setTheme: (t: Theme) => void
-  toggleTheme: () => void
+  setCursorTrailEnabled: (on: boolean) => void
 
   setWorkspacePath: (p: string) => void
 
@@ -158,8 +161,8 @@ export const useUiStore = create<UiStoreState>()(
     (set, get) => ({
       aiPanelOpen: true,
       aiPanelWidth: DEFAULT_AIPANEL_W,
-
-      theme: 'dark' as Theme,
+      rightPanelTab: 'watchlist',
+      cursorTrailEnabled: true,
 
       workspacePath: DEFAULT_WORKSPACE_PATH,
 
@@ -175,17 +178,10 @@ export const useUiStore = create<UiStoreState>()(
       toggleAiPanel: () => set((s) => ({ aiPanelOpen: !s.aiPanelOpen })),
       setAiPanelWidth: (w) =>
         set({ aiPanelWidth: clamp(w, MIN_AIPANEL_W, MAX_AIPANEL_W) }),
+      setRightPanelTab: (rightPanelTab) => set({ rightPanelTab }),
 
-      // theme
-      setTheme: (theme) => {
-        document.documentElement.setAttribute('data-theme', theme)
-        set({ theme })
-      },
-      toggleTheme: () => {
-        const next = get().theme === 'dark' ? 'light' : 'dark'
-        document.documentElement.setAttribute('data-theme', next)
-        set({ theme: next })
-      },
+      // Cosmic cursor trail
+      setCursorTrailEnabled: (cursorTrailEnabled) => set({ cursorTrailEnabled }),
 
       // workspace
       setWorkspacePath: (workspacePath) =>
@@ -272,15 +268,15 @@ export const useUiStore = create<UiStoreState>()(
       partialize: (s) => ({
         aiPanelWidth: s.aiPanelWidth,
         aiPanelOpen: s.aiPanelOpen,
-        theme: s.theme,
+        rightPanelTab: s.rightPanelTab,
+        cursorTrailEnabled: s.cursorTrailEnabled,
         currentModel: s.currentModel,
         workspacePath: s.workspacePath,
       }),
-      onRehydrateStorage: () => (state) => {
-        // Apply persisted theme to DOM on startup
-        if (state?.theme) {
-          document.documentElement.setAttribute('data-theme', state.theme)
-        }
+      onRehydrateStorage: () => () => {
+        // v5: 砍了 theme toggle · 强制清理旧持久化的 light 主题
+        // 否则之前点过 light toggle 的用户启动后还是 light，看着乱。
+        document.documentElement.removeAttribute('data-theme')
       },
     },
   ),

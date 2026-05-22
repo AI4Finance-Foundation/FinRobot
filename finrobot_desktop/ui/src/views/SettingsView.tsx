@@ -302,8 +302,6 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 export default function SettingsView({ onComplete: _onComplete }: Props) {
   const queryClient = useQueryClient()
-  const theme = useUiStore((s) => s.theme)
-  const setTheme = useUiStore((s) => s.setTheme)
   const addToast = useToastStore((s) => s.addToast)
 
   // ── Remote settings ──────────────────────────────────────────────────────
@@ -1043,47 +1041,63 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
         </div>
       </section>
 
-      {/* ═════════════════════════════════════════════
-          Section 4: Appearance
-          ═════════════════════════════════════════════ */}
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>外观</h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={labelStyle}>
-            <span>主题</span>
-          </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            {(['dark', 'light'] as const).map((t) => (
-              <label
-                key={t}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '11px',
-                  color: theme === t ? 'var(--text-primary)' : 'var(--text-secondary)',
-                }}
-              >
-                <input
-                  type="radio"
-                  name="theme"
-                  value={t}
-                  checked={theme === t}
-                  onChange={() => setTheme(t)}
-                  style={{
-                    accentColor: 'var(--accent)',
-                    cursor: 'pointer',
-                  }}
-                />
-                {t === 'dark' ? '深色' : '浅色'}
-              </label>
-            ))}
-          </div>
-          <p style={hintStyle}>也可通过标题栏切换</p>
-        </div>
-      </section>
+      <CosmicAppearanceSection />
     </div>
+  )
+}
+
+// ── Cosmic appearance section (桌面动效 toggles) ───────────────────────────
+function CosmicAppearanceSection(): React.ReactElement {
+  const enabled = useUiStore((s) => s.cursorTrailEnabled)
+  const set = useUiStore((s) => s.setCursorTrailEnabled)
+  return (
+    <section style={sectionStyle}>
+      <h2 style={sectionTitleStyle}>桌面动效</h2>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 16px' }}>
+        Cosmic Desktop 的可选装饰。关闭后回到系统默认光标 · 不影响数据 / 计算。
+      </p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid var(--border-soft)' }}>
+        <div>
+          <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+            拖尾鼠标
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+            Canvas Bezier 弹簧拖尾 + 蓝紫双轨 neon · 多屏 / 远程桌面建议关闭
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          aria-label="拖尾鼠标"
+          onClick={() => set(!enabled)}
+          style={{
+            position: 'relative',
+            width: 44,
+            height: 24,
+            borderRadius: 12,
+            border: '1px solid var(--border-soft)',
+            background: enabled ? 'var(--primary-soft)' : 'var(--bg-card)',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            padding: 0,
+          }}
+        >
+          <span
+            style={{
+              position: 'absolute',
+              top: 2,
+              left: enabled ? 22 : 2,
+              width: 18,
+              height: 18,
+              borderRadius: '50%',
+              background: enabled ? 'var(--primary)' : 'var(--text-muted)',
+              boxShadow: enabled ? 'var(--glow-blue)' : 'none',
+              transition: 'all 0.2s',
+            }}
+          />
+        </button>
+      </div>
+    </section>
   )
 }

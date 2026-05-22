@@ -1,129 +1,148 @@
 @import "tailwindcss";
 
-/* ═══════════════════════════════════════════════
-   FINAGENT DESIGN SYSTEM v3.0
-   Navy Premium — professional finance, subtle depth, blue accent
-   ═══════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   FINAGENT DESIGN SYSTEM · COSMIC DESKTOP
+   Deep space dark + dual-rail neon (blue/purple) + cyan live signal
+   See: project-memory/编码模式/UI-风格规范-cosmic桌面版.md (§2/§3)
+   Light theme deferred to v2.1 — dark-only here.
+   ═══════════════════════════════════════════════════════════════ */
 
 :root {
-  /* ── Background Layers (navy-black spectrum) ── */
-  --bg-0: #0B1121;
-  --bg-1: #0F1629;
-  --bg-2: #141D32;
-  --bg-3: #1A2540;
-  --bg-4: #213152;
+  /* ── Cosmic background stack ─────────────────────────────────── */
+  --bg-void:      #05050d;   /* outer starfield */
+  --bg-deep:      #0a0a18;   /* primary surface */
+  --bg-card:      #0f0f22;
+  --bg-elevated:  #15152e;
+  --bg-overlay:   rgba(15, 15, 34, 0.72);
 
-  /* ── Borders ── */
-  --border: #1E293B;
-  --border-subtle: #1B2435;
-  --border-hover: #334155;
+  /* ── Borders (three glow tiers) ──────────────────────────────── */
+  --border-faint: rgba(139, 92, 246, 0.08);
+  --border-soft:  rgba(139, 92, 246, 0.18);
+  --border-glow:  rgba(59, 130, 246, 0.45);
 
-  /* ── Text ── */
-  --text-primary: #F1F5F9;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
-  --text-0: #F1F5F9;
-  --text-1: #E2E8F0;
-  --text-2: #94A3B8;
-  --text-3: #64748B;
+  /* ── Dual rail brand ─────────────────────────────────────────── */
+  --primary:        #3B82F6;
+  --primary-soft:   rgba(59, 130, 246, 0.14);
+  --secondary:      #8B5CF6;
+  --secondary-soft: rgba(139, 92, 246, 0.16);
 
-  /* ── Brand (blue accent — trust, professionalism) ── */
-  --accent: #3B82F6;
-  --accent-dim: rgba(59, 130, 246, 0.10);
-  --accent-glow: rgba(59, 130, 246, 0.06);
-  --accent-hover: #2563EB;
+  /* ── Live / accent ───────────────────────────────────────────── */
+  --accent-cyan: #22D3EE;
+  --accent-pink: #EC4899;
 
-  /* ── Semantic ── */
-  --positive: #10B981;
-  --positive-bg: rgba(16, 185, 129, 0.10);
-  --negative: #EF4444;
-  --negative-bg: rgba(239, 68, 68, 0.10);
-  --warning: #F59E0B;
-  --info: #3B82F6;
+  /* ── US market semantic (green up / red down) ────────────────── */
+  --success:      #16A34A;
+  --success-glow: rgba(22, 163, 74, 0.45);
+  --warning:      #D97706;
+  --danger:       #DC2626;
+  --danger-glow:  rgba(220, 38, 38, 0.45);
 
-  /* ── Chart Palette ── */
-  --chart-1: #3B82F6;
-  --chart-2: #10B981;
-  --chart-3: #EF4444;
-  --chart-4: #8B5CF6;
-  --chart-5: #06B6D4;
+  /* ── Text four-step ──────────────────────────────────────────── */
+  --text-primary:   #F5F5FF;
+  --text-secondary: rgba(245, 245, 255, 0.72);
+  --text-muted:     rgba(245, 245, 255, 0.42);
+  --text-dim:       rgba(245, 245, 255, 0.22);
 
-  /* ── Spacing ── */
-  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
-  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
+  /* ── Neon glow halos (only for key data + signal feedback) ──── */
+  --glow-blue:   0 0 24px rgba(59, 130, 246, 0.5), 0 0 60px rgba(59, 130, 246, 0.18);
+  --glow-purple: 0 0 24px rgba(139, 92, 246, 0.5), 0 0 60px rgba(139, 92, 246, 0.18);
+  --glow-cyan:   0 0 20px rgba(34, 211, 238, 0.5);
 
-  /* ── Radius (graduated scale for depth) ── */
-  --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  /* ── Radius four-step ────────────────────────────────────────── */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
 
-  /* ── Elevation (subtle depth — premium feel) ── */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25), 0 2px 4px rgba(0, 0, 0, 0.15);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2);
+  /* ── Spacing ladder (4/8/12/16/24/32/48) ─────────────────────── */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 48px;
 
-  /* ── Fonts ── */
-  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
-  --font-sans: var(--font-ui);
-  --font-serif: Georgia, 'Times New Roman', serif;
+  /* ── Three-rail font system ──────────────────────────────────── */
+  --font-display: 'Audiowide', sans-serif;                 /* section title / badge */
+  --font-body:    'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', monospace;  /* every number, ever */
+  --font-ui:      var(--font-body);
+  --font-sans:    var(--font-body);
 
-  /* ── Legacy aliases (keep existing components working) ── */
-  --base: var(--bg-0);
-  --surface: var(--bg-1);
-  --elevated: var(--bg-2);
-  --line: var(--border);
-  --line-bright: var(--border-hover);
+  /* ── Elevation (subtle, cosmic prefers glow over shadow) ─────── */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.55);
 
-  --blue: #3B82F6;
-  --blue-dim: #2563EB;
-  --blue-soft: rgba(59, 130, 246, 0.08);
+  /* ── Shell layout dimensions ─────────────────────────────────── */
+  --titlebar-h:    44px;
+  --activitybar-w: 64px;  /* slim icon-only — cosmic spec §5.2 */
+  --explorer-w:    260px;
+  --aipanel-w:     420px;
+  --statusbar-h:   28px;
+  --tabs-h:        38px;
+  --breadcrumb-h:  32px;
+  --sidebar-bg:    var(--bg-void);
 
-  /* ── Additional semantic ── */
-  --green: var(--positive);
-  --green-dim: #059669;
-  --red: var(--negative);
-  --purple: #8B5CF6;
+  /* ──────────────────────────────────────────────────────────────
+     Legacy-token compatibility aliases (the 3500-line of existing
+     CSS + 100+ components reference `--bg-0` / `--accent` / `--text-1` /
+     `--positive` etc.). Cosmic redefines the underlying values; the
+     names stay so churn is zero for downstream files.
+     ────────────────────────────────────────────────────────────── */
+  --bg-0: var(--bg-void);
+  --bg-1: var(--bg-deep);
+  --bg-2: var(--bg-card);
+  --bg-3: var(--bg-elevated);
+  --bg-4: #1c1c3a;
 
-  /* ── Shell layout dimensions ── */
-  --titlebar-h: 42px;
-  --activitybar-w: 220px;
-  --explorer-w: 260px;
-  --aipanel-w: 340px;
-  --statusbar-h: 28px;
-  --tabs-h: 38px;
-  --breadcrumb-h: 32px;
+  --border:         var(--border-soft);
+  --border-subtle:  var(--border-faint);
+  --border-hover:   var(--border-glow);
 
-  /* ── Sidebar ── */
-  --sidebar-bg: #080E1E;
-}
+  --text-0: var(--text-primary);
+  --text-1: var(--text-primary);
+  --text-2: var(--text-secondary);
+  --text-3: var(--text-muted);
 
-[data-theme="light"] {
-  --bg-0: #F8FAFC;
-  --bg-1: #FFFFFF;
-  --bg-2: #F1F5F9;
-  --bg-3: #E2E8F0;
-  --bg-4: #CBD5E1;
-  --border: #E2E8F0;
-  --border-subtle: #E2E8F0;
-  --border-hover: #CBD5E1;
-  --text-primary: #0F172A;
-  --text-secondary: #475569;
-  --text-muted: #94A3B8;
-  --text-0: #0F172A;
-  --text-1: #1E293B;
-  --text-2: #475569;
-  --text-3: #94A3B8;
-  --accent: #2563EB;
-  --accent-dim: rgba(37, 99, 235, 0.08);
-  --accent-glow: rgba(37, 99, 235, 0.04);
-  --accent-hover: #1D4ED8;
-  --positive: #059669;
-  --positive-bg: rgba(5, 150, 105, 0.08);
-  --negative: #DC2626;
-  --negative-bg: rgba(220, 38, 38, 0.08);
-  --sidebar-bg: #F1F5F9;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.06);
+  --accent:       var(--primary);
+  --accent-dim:   var(--primary-soft);
+  --accent-glow:  rgba(59, 130, 246, 0.06);
+  --accent-hover: #5a9bff;
+
+  --positive:    var(--success);
+  --positive-bg: rgba(22, 163, 74, 0.12);
+  --negative:    var(--danger);
+  --negative-bg: rgba(220, 38, 38, 0.12);
+  --info:        var(--primary);
+
+  /* Chart palette: prefer dual-rail + cyan over the legacy 5-way mix. */
+  --chart-1: var(--primary);
+  --chart-2: var(--success);
+  --chart-3: var(--danger);
+  --chart-4: var(--secondary);
+  --chart-5: var(--accent-cyan);
+
+  --base:     var(--bg-void);
+  --surface:  var(--bg-deep);
+  --elevated: var(--bg-card);
+  --line:        var(--border-soft);
+  --line-bright: var(--border-glow);
+
+  --blue:      var(--primary);
+  --blue-dim:  #2c6fe0;
+  --blue-soft: var(--primary-soft);
+  --green:     var(--success);
+  --green-dim: #138a3e;
+  --red:       var(--danger);
+  --purple:    var(--secondary);
+
+  --bg-soft:   var(--bg-card);
+  --text:      var(--text-primary);
+  --text-mid:  var(--text-secondary);
+  --text-soft: var(--text-muted);
+  --text-faint: var(--text-dim);
+
+  /* Radius aliases for the legacy --r-* scale. */
+  --r-sm: var(--radius-sm);
+  --r-md: var(--radius-md);
+  --r-lg: var(--radius-lg);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -3650,3 +3669,260 @@ select.input-field {
  * ──────────────────────────────────────────────────────────────── */
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 .hide-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ══════════════════════════════════════════════════════════════════
+   COSMIC layer — primitives that didn't exist in the navy v3 system.
+   Reach for these first when building new components per the cosmic
+   spec; legacy classes continue to work but get a cosmic colour pass
+   automatically via the alias block at the top of this file.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Drift starfield (z:0 behind everything, drift animation) ── */
+.cosmic-stars {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1.5px 1.5px at 20% 30%, rgba(255, 255, 255, 0.85), transparent 60%),
+    radial-gradient(1.5px 1.5px at 80% 70%, rgba(255, 255, 255, 0.7), transparent 60%),
+    radial-gradient(1px 1px at 50% 50%, rgba(180, 200, 255, 0.55), transparent 60%),
+    radial-gradient(1px 1px at 35% 80%, rgba(255, 255, 255, 0.6), transparent 60%),
+    radial-gradient(1.5px 1.5px at 65% 25%, rgba(200, 220, 255, 0.55), transparent 60%);
+  background-size: 600px 600px, 750px 750px, 500px 500px, 800px 800px, 700px 700px;
+  animation: cosmic-drift-slow 180s linear infinite;
+}
+.cosmic-stars.cosmic-stars-fast {
+  background:
+    radial-gradient(1px 1px at 15% 60%, rgba(34, 211, 238, 0.6), transparent 60%),
+    radial-gradient(1px 1px at 75% 35%, rgba(139, 92, 246, 0.5), transparent 60%),
+    radial-gradient(1px 1px at 45% 20%, rgba(255, 255, 255, 0.4), transparent 60%);
+  background-size: 480px 480px, 600px 600px, 520px 520px;
+  animation: cosmic-drift-fast 120s linear infinite reverse;
+}
+
+/* ── Card primitive — neon top line via ::before ─────────────── */
+.cosmic-card {
+  position: relative;
+  background: rgba(15, 15, 34, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.cosmic-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(59, 130, 246, 0.6),
+    rgba(139, 92, 246, 0.6),
+    transparent
+  );
+  opacity: 0.55;
+  pointer-events: none;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.cosmic-card:hover {
+  border-color: var(--border-glow);
+  box-shadow: 0 8px 32px rgba(59, 130, 246, 0.12);
+}
+
+/* ── Big BUY/HOLD/SELL verdict badge ──────────────────────────── */
+.cosmic-badge {
+  font-family: var(--font-display);
+  font-size: 24px;
+  letter-spacing: 4px;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: uppercase;
+}
+.cosmic-badge.cosmic-badge-buy {
+  background: var(--success);
+  color: #04140a;
+  box-shadow: 0 0 32px var(--success-glow);
+}
+.cosmic-badge.cosmic-badge-hold {
+  background: var(--warning);
+  color: #1a0f02;
+  box-shadow: 0 0 32px rgba(217, 119, 6, 0.45);
+}
+.cosmic-badge.cosmic-badge-sell {
+  background: var(--danger);
+  color: #1f0303;
+  box-shadow: 0 0 32px var(--danger-glow);
+}
+
+/* ── Shimmer CTA button (primary action) ─────────────────────── */
+.btn-shimmer {
+  position: relative;
+  overflow: hidden;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  box-shadow: var(--glow-blue);
+  transition: transform 0.2s;
+}
+.btn-shimmer:hover { transform: translateY(-1px); }
+.btn-shimmer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(110deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  animation: cosmic-shimmer 5s linear infinite;
+}
+
+/* ── Halo input — flowing border (search / cmdK) ─────────────── */
+.halo-input {
+  position: relative;
+  background: rgba(10, 10, 24, 0.7);
+  border-radius: var(--radius-md);
+  padding: 1px;
+}
+.halo-input::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-md);
+  padding: 1px;
+  background: conic-gradient(
+    from 0deg,
+    var(--primary),
+    var(--secondary),
+    var(--accent-cyan),
+    var(--primary)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: cosmic-halo 4s linear infinite;
+  pointer-events: none;
+}
+.halo-input input {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 8px 12px;
+}
+
+/* ── Live pulse dot (e.g. "● LIVE") ──────────────────────────── */
+.cosmic-pulse-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 12px var(--success-glow);
+  animation: cosmic-pulse-dot 1.6s ease-in-out infinite;
+}
+
+/* ── Pipeline active step ripple ─────────────────────────────── */
+.cosmic-pulse-ring {
+  position: relative;
+}
+.cosmic-pulse-ring::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 1.5px solid var(--primary);
+  animation: cosmic-pulse-ring 1.4s ease-out infinite;
+  pointer-events: none;
+}
+
+/* ── Group / section header (Audiowide + cyan numbering) ─────── */
+.cosmic-group-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 48px 0 20px;
+}
+.cosmic-group-header .group-num {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: var(--accent-cyan);
+  padding: 4px 10px;
+  border: 1px solid rgba(34, 211, 238, 0.4);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 12px rgba(34, 211, 238, 0.15);
+}
+.cosmic-group-header .group-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  letter-spacing: 3px;
+  color: var(--text-primary);
+}
+
+/* ── Custom cursor support ───────────────────────────────────── */
+body.cursor-trail-on,
+body.cursor-trail-on * { cursor: none !important; }
+
+/* ── 7 cosmic keyframes (spec §7, no other animation kinds) ──── */
+@keyframes cosmic-pull-up {
+  0%   { transform: translateY(120%); opacity: 0; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+@keyframes cosmic-morph {
+  0%, 22%   { opacity: 0; transform: translateY(8px); }
+  4%, 18%   { opacity: 1; transform: translateY(0); }
+  100%      { opacity: 0; }
+}
+@keyframes cosmic-shimmer {
+  0%   { left: -150%; }
+  100% { left: 150%; }
+}
+@keyframes cosmic-halo {
+  0%   { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+@keyframes cosmic-pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(1.35); }
+}
+@keyframes cosmic-pulse-ring {
+  0%   { transform: scale(1);   opacity: 0.6; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+@keyframes cosmic-drift-slow {
+  0%   { transform: translate(0, 0); }
+  100% { transform: translate(-200px, -120px); }
+}
+@keyframes cosmic-drift-fast {
+  0%   { transform: translate(0, 0); }
+  100% { transform: translate(140px, 80px); }
+}
+
+/* Audiowide letter-spacing rescue — sub-16px text becomes illegible
+   without it, so any helper class that scales Audiowide down also
+   needs explicit spacing override at the call site (cosmic spec §3). */
+.cosmic-display {
+  font-family: var(--font-display);
+  letter-spacing: 2px;
+}

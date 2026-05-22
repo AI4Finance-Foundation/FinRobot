@@ -123,9 +123,19 @@ def _clear_caches() -> None:
 
 
 def _save(store: ArtifactStore, art: Artifact) -> None:
+    """Sync wrapper for ArtifactStore.save inside test bodies.
+
+    Uses a fresh event loop per call so that earlier pipeline tests
+    closing their own loop (or installing a custom policy) don't leak
+    state into the dashboard route assertions.
+    """
     import asyncio
 
-    asyncio.get_event_loop().run_until_complete(store.save(art))
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(store.save(art))
+    finally:
+        loop.close()
 
 
 def test_hit_rate_empty_store_returns_null_hit_rate(client: TestClient) -> None:

@@ -7,7 +7,7 @@
 //   1. 冷启动 workspace 搜索进 NVDA  → StockWorkspace mounts with sticky hero
 //      + anchor nav over 14 sections.
 //   2. 点「+ 跑分析 ▾」选 AI 完整研报 → dropdown trigger opens menu of 6 items
-//      and clicking equity_research calls runStreamStore.startRun.
+//      and clicking "research" calls runStreamStore.startRun.
 //   3. 等 SSE pipeline 6 step 进度面板走完 → PipelineProgressPanel renders one
 //      row per step from the mocked run state.
 //   4. 滚动到「我的研究」section 看 artifact 卡片 → MyResearchFeed surfaces
@@ -44,7 +44,7 @@ function makeRunState(overrides: Record<string, unknown> = {}) {
   return {
     runId: 'run-stub-1',
     ticker: 'NVDA',
-    pipelineType: 'equity_research',
+    pipelineType: 'research',
     steps: [
       { name: 'data_collection', status: 'completed', duration_s: 4.2 },
       { name: 'catalyst_analysis', status: 'completed', duration_s: 5.8 },
@@ -248,14 +248,16 @@ function renderWorkspace() {
 }
 
 describe('v5 5-step golden path (spec §15 condition 5)', () => {
-  it('Step 1: cold start renders sticky hero + anchor nav over 14 sections', async () => {
+  it('Step 1: cold start renders hero + 13 cosmic sections (AnchorNav retired in Stage A)', async () => {
     renderWorkspace()
-    // Sticky hero shows ticker symbol + the watchlist toggle + the run trigger.
+    // Cosmic hero shows ticker symbol + the watchlist toggle + the run trigger.
     expect(screen.getByTestId('ticker-hero')).toBeInTheDocument()
     expect(screen.getByTestId('watchlist-toggle')).toBeInTheDocument()
     expect(screen.getByTestId('run-analysis-trigger')).toBeInTheDocument()
-    // Anchor nav reaches all 14 canonical sec-* targets.
-    expect(screen.getByTestId('anchor-nav')).toBeInTheDocument()
+    // Stage A retired AnchorNav — section navigation moved to ⌘K.
+    expect(screen.queryByTestId('anchor-nav')).not.toBeInTheDocument()
+    // Section anchors themselves are still rendered on the page as
+    // `id="sec-..."` so cmdK can scrollIntoView them.
     const ids = [
       'sec-now',
       'sec-catalyst',
@@ -272,7 +274,7 @@ describe('v5 5-step golden path (spec §15 condition 5)', () => {
       'sec-research',
     ]
     for (const id of ids) {
-      expect(screen.getByTestId(`anchor-${id}`)).toBeInTheDocument()
+      expect(document.getElementById(id)).not.toBeNull()
     }
   })
 
@@ -282,17 +284,17 @@ describe('v5 5-step golden path (spec §15 condition 5)', () => {
     // Dropdown reveals all six pipeline buttons.
     expect(screen.getByTestId('run-analysis-dropdown')).toBeInTheDocument()
     for (const id of [
-      'run-equity_research',
-      'run-ic_memo',
-      'run-earnings_analysis',
+      'run-research',
+      'run-ic-memo',
+      'run-earnings',
       'run-lbo',
       'run-ddm',
       'run-comps',
     ]) {
       expect(screen.getByTestId(id)).toBeInTheDocument()
     }
-    fireEvent.click(screen.getByTestId('run-equity_research'))
-    expect(startRunMock).toHaveBeenCalledWith('equity_research', 'NVDA')
+    fireEvent.click(screen.getByTestId('run-research'))
+    expect(startRunMock).toHaveBeenCalledWith('research', 'NVDA')
   })
 
   it('Step 3: pipeline progress panel renders 6 step rows from SSE-driven state', async () => {

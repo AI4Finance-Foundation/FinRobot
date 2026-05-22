@@ -5,7 +5,7 @@
 // hero now scrolls with content. PipelineProgressPanel takes over the
 // "current status" duty that the sticky bar used to provide.
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTickerPrice } from '../hooks/useTickerData'
 import { useV5ArtifactTimeline } from '../hooks/useV5Artifacts'
 import { useStocksStore } from '../stores/stocksStore'
@@ -108,12 +108,8 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
 
   const current = price?.current_price
   const changePct = price?.change_pct
-  const prevClose = price?.prev_close
+  const changeAbs = price?.change ?? undefined
   const isUp = typeof changePct === 'number' && changePct >= 0
-  const changeAbs = useMemo(() => {
-    if (typeof current !== 'number' || typeof prevClose !== 'number') return undefined
-    return current - prevClose
-  }, [current, prevClose])
 
   return (
     <header

@@ -19,12 +19,17 @@ interface Props {
   variant?: 'hero' | 'floating'
 }
 
-declare global {
+declare module 'react' {
+  // React 19: JSX intrinsics live under React.JSX rather than the global
+  // JSX namespace. Augment that interface so `<spline-viewer />` typechecks.
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace JSX {
     interface IntrinsicElements {
       'spline-viewer': React.DetailedHTMLProps<
-        React.HTMLAttributes<HTMLElement> & { url?: string; events?: string },
+        React.HTMLAttributes<HTMLElement> & {
+          url?: string
+          'events-target'?: string
+        },
         HTMLElement
       >
     }
@@ -108,7 +113,7 @@ export function SplineHero({ variant = 'hero' }: Props): React.ReactElement {
             height: '100%',
             opacity: status === 'ready' ? 1 : 0,
             transition: 'opacity 0.6s ease',
-          }}
+          } as React.CSSProperties}
         />
       )}
       {status !== 'ready' && <FakeRobotRings />}

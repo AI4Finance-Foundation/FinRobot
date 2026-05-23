@@ -25,7 +25,7 @@ export function TitleBar(): React.ReactElement {
         display: 'flex',
         alignItems: 'center',
         gap: 16,
-        background: 'rgba(10, 10, 24, 0.78)',
+        background: 'var(--bg-sticky-78)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
         borderBottom: '1px solid var(--border-faint)',

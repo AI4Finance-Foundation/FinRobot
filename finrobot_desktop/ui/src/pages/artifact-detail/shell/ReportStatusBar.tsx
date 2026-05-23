@@ -90,7 +90,7 @@ export function ReportStatusBar({ entries }: ReportStatusBarProps): React.ReactE
         display: 'flex',
         alignItems: 'center',
         padding: '0 24px',
-        background: 'rgba(10, 10, 24, 0.92)',
+        background: 'var(--bg-sticky-92)',
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
         borderTop: '1px solid var(--border-faint)',

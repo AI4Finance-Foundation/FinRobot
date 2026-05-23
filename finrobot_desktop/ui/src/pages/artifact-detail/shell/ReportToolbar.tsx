@@ -102,7 +102,7 @@ export function ReportToolbar({
         gap: 14,
         padding: '10px 24px',
         margin: '0 -24px 16px',
-        background: 'rgba(10, 10, 24, 0.88)',
+        background: 'var(--bg-sticky-88)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
         borderBottom: '1px solid var(--border-soft)',

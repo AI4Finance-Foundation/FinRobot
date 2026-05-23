@@ -37,6 +37,20 @@
   --danger:       #DC2626;
   --danger-glow:  rgba(220, 38, 38, 0.45);
 
+  /* ── Amber accent (HOLD verdict + market-data zone headers).
+     Distinct from --warning (which is the deeper #D97706 used for actual
+     warning banners). Several sites historically wrote the literal
+     #F59E0B or used `var(--accent-amber, #F59E0B)` with a fallback that
+     never resolved; this declaration makes the token real. */
+  --accent-amber: #F59E0B;
+
+  /* ── Translucent backgrounds for sticky bars (titlebar / report
+     toolbar / status bar / overlays). Same hue as --bg-deep with the
+     blur layer behind it, varied by opacity for the surface stack. */
+  --bg-sticky-78: rgba(10, 10, 24, 0.78);
+  --bg-sticky-88: rgba(10, 10, 24, 0.88);
+  --bg-sticky-92: rgba(10, 10, 24, 0.92);
+
   /* ── Text four-step ──────────────────────────────────────────── */
   --text-primary:   #F5F5FF;
   --text-secondary: rgba(245, 245, 255, 0.72);

@@ -332,7 +332,7 @@ function VerdictText({
       ? 'var(--success)'
       : verdict === 'SELL'
         ? 'var(--danger)'
-        : '#F59E0B'
+        : 'var(--accent-amber)'
   return (
     <span
       style={{

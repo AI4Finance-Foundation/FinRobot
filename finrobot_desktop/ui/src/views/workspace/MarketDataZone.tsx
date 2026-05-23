@@ -137,7 +137,7 @@ function ZoneHeader(): React.ReactElement {
           fontFamily: 'var(--font-display)',
           fontSize: 16,
           letterSpacing: '2px',
-          color: 'var(--accent-amber, #F59E0B)',
+          color: 'var(--accent-amber)',
           textShadow: '0 0 12px rgba(245, 158, 11, 0.35)',
         }}
       >

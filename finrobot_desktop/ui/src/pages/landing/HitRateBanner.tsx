@@ -170,7 +170,7 @@ function VerdictTile({
 }): React.ReactElement {
   const colorMap = {
     success: { fg: 'var(--success)', glow: 'var(--success-glow)' },
-    warning: { fg: '#F59E0B', glow: 'rgba(217,119,6,0.45)' },
+    warning: { fg: 'var(--accent-amber)', glow: 'rgba(217,119,6,0.45)' },
     danger: { fg: 'var(--danger)', glow: 'var(--danger-glow)' },
   } as const
   const c = colorMap[tone]

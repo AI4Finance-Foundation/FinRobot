@@ -40,6 +40,19 @@ def reset_quote_cache_singleton() -> None:
     _GLOBAL_QUOTE_CACHE = None
 
 
+async def close_quote_cache_singleton() -> None:
+    """Close the process-wide QuoteCache aiosqlite connection.
+
+    Called from the server lifespan on shutdown so the aiosqlite worker
+    thread stops cleanly and WAL gets checkpointed instead of racing the
+    asyncio loop teardown.
+    """
+    global _GLOBAL_QUOTE_CACHE
+    if _GLOBAL_QUOTE_CACHE is not None:
+        await _GLOBAL_QUOTE_CACHE.close()
+        _GLOBAL_QUOTE_CACHE = None
+
+
 def _get_singleton() -> QuoteCache:
     global _GLOBAL_QUOTE_CACHE
     if _GLOBAL_QUOTE_CACHE is None:

@@ -1,6 +1,6 @@
 """Read-side helpers for session transcripts.
 
-Scans ``~/.finagent-desktop/sessions/*.jsonl`` files and returns typed
+Scans ``~/.finagent/sessions/*.jsonl`` files and returns typed
 summaries or full event lists for replay / cmd+K search.
 """
 
@@ -13,7 +13,19 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_DIR = Path.home() / ".finagent-desktop" / "sessions"
+
+# Tests monkey-patch this attribute to redirect reads to a tmp dir.
+# Production leaves it None so :func:`_default_dir` resolves to the
+# unified sessions location at call time.
+_DEFAULT_DIR: Path | None = None
+
+
+def _default_dir() -> Path:
+    if _DEFAULT_DIR is not None:
+        return _DEFAULT_DIR
+    from finagent.paths import SESSIONS_DIR
+
+    return SESSIONS_DIR
 
 
 @dataclass
@@ -41,7 +53,7 @@ class SessionSummary:
 
 
 def _session_path(session_id: str, base_dir: Path | None = None) -> Path:
-    return (base_dir or _DEFAULT_DIR) / f"{session_id}.jsonl"
+    return (base_dir or _default_dir()) / f"{session_id}.jsonl"
 
 
 def list_sessions(
@@ -57,7 +69,7 @@ def list_sessions(
     Returns:
         List of ``SessionSummary`` sorted by ``last_active_at`` descending.
     """
-    base = base_dir or _DEFAULT_DIR
+    base = base_dir or _default_dir()
     if not base.exists():
         return []
     summaries: list[SessionSummary] = []

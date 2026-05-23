@@ -10,13 +10,26 @@ Covers:
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
 
 from finagent.artifact.migrate import migrate_filesystem_to_sqlite
 from finagent.artifact.sqlite_store import SqliteArtifactStore
 from tests.artifact.conftest import _make_artifact
+
+
+@pytest_asyncio.fixture
+async def store(tmp_path: Path) -> AsyncIterator[SqliteArtifactStore]:
+    """Per-test SqliteArtifactStore; close() at teardown to keep aiosqlite
+    from racing the event-loop teardown and emitting noisy warnings."""
+    s = SqliteArtifactStore(db_path=tmp_path / "new.db")
+    try:
+        yield s
+    finally:
+        await s.close()
 
 
 def _write_artifact_json(base: Path, ticker: str, artifact_id: str) -> None:
@@ -27,18 +40,20 @@ def _write_artifact_json(base: Path, ticker: str, artifact_id: str) -> None:
 
 
 @pytest.mark.asyncio
-async def test_migrate_empty_legacy_returns_zero(tmp_path: Path) -> None:
+async def test_migrate_empty_legacy_returns_zero(
+    tmp_path: Path, store: SqliteArtifactStore
+) -> None:
     legacy = tmp_path / "legacy"
     legacy.mkdir()
-    store = SqliteArtifactStore(db_path=tmp_path / "new.db")
     n = await migrate_filesystem_to_sqlite(legacy_root=legacy, store=store)
     assert n == 0
 
 
 @pytest.mark.asyncio
-async def test_migrate_nonexistent_returns_zero(tmp_path: Path) -> None:
+async def test_migrate_nonexistent_returns_zero(
+    tmp_path: Path, store: SqliteArtifactStore
+) -> None:
     """Legacy path may not exist on a fresh install — return 0, don't crash."""
-    store = SqliteArtifactStore(db_path=tmp_path / "new.db")
     n = await migrate_filesystem_to_sqlite(
         legacy_root=tmp_path / "does_not_exist", store=store
     )
@@ -46,12 +61,13 @@ async def test_migrate_nonexistent_returns_zero(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_migrate_inserts_all_json_files(tmp_path: Path) -> None:
+async def test_migrate_inserts_all_json_files(
+    tmp_path: Path, store: SqliteArtifactStore
+) -> None:
     legacy = tmp_path / "legacy"
     _write_artifact_json(legacy, "AAPL", "art_a1")
     _write_artifact_json(legacy, "AAPL", "art_a2")
     _write_artifact_json(legacy, "MSFT", "art_m1")
-    store = SqliteArtifactStore(db_path=tmp_path / "new.db")
 
     n = await migrate_filesystem_to_sqlite(legacy_root=legacy, store=store)
     assert n == 3
@@ -61,21 +77,23 @@ async def test_migrate_inserts_all_json_files(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_migrate_ignores_index_json(tmp_path: Path) -> None:
+async def test_migrate_ignores_index_json(
+    tmp_path: Path, store: SqliteArtifactStore
+) -> None:
     legacy = tmp_path / "legacy"
     _write_artifact_json(legacy, "AAPL", "art_a1")
     # legacy stores wrote an index.json sibling — must not be re-ingested
     (legacy / "AAPL" / "index.json").write_text("[]")
-    store = SqliteArtifactStore(db_path=tmp_path / "new.db")
     n = await migrate_filesystem_to_sqlite(legacy_root=legacy, store=store)
     assert n == 1
 
 
 @pytest.mark.asyncio
-async def test_migrate_is_idempotent(tmp_path: Path) -> None:
+async def test_migrate_is_idempotent(
+    tmp_path: Path, store: SqliteArtifactStore
+) -> None:
     legacy = tmp_path / "legacy"
     _write_artifact_json(legacy, "AAPL", "art_a1")
-    store = SqliteArtifactStore(db_path=tmp_path / "new.db")
     await migrate_filesystem_to_sqlite(legacy_root=legacy, store=store)
     # Second run upserts same id → no duplicate row
     await migrate_filesystem_to_sqlite(legacy_root=legacy, store=store)
@@ -84,13 +102,14 @@ async def test_migrate_is_idempotent(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_migrate_skips_corrupt(tmp_path: Path) -> None:
+async def test_migrate_skips_corrupt(
+    tmp_path: Path, store: SqliteArtifactStore
+) -> None:
     legacy = tmp_path / "legacy"
     tdir = legacy / "AAPL"
     tdir.mkdir(parents=True)
     (tdir / "art_corrupt.json").write_text("{not json")
     _write_artifact_json(legacy, "AAPL", "art_good")
-    store = SqliteArtifactStore(db_path=tmp_path / "new.db")
 
     n = await migrate_filesystem_to_sqlite(legacy_root=legacy, store=store)
     assert n == 1

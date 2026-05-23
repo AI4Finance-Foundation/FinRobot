@@ -23,7 +23,7 @@ from finagent.engine.orchestrator import build_report_context, create_lead_agent
 from finagent.engine.skills.registry import SkillRegistry
 from finagent.artifact.migrate import migrate_filesystem_to_sqlite
 from finagent.artifact.store import ArtifactStore
-from finagent.paths import ensure_home, migrate_legacy_paths
+from finagent.paths import SETTINGS_JSON, ensure_home, migrate_legacy_paths
 from finagent.audit.transcript import TranscriptWriter
 from finagent.routes.analyze import router as analyze_router
 from finagent.routes.artifacts import router as artifacts_router
@@ -89,7 +89,15 @@ async def hydrate_settings_from_secrets(settings: Any, secret_store: SecretStore
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    settings_path = Path.home() / ".finagent" / "settings.json"
+    # Unify storage under ~/.finagent/ + best-effort migrate legacy paths
+    # BEFORE loading settings: load_non_secret_settings reads from disk
+    # and migrate_legacy_paths moves files into place — order matters when
+    # both legacy and unified locations could coexist on a half-upgraded
+    # machine. ensure_home/migrate are cheap + idempotent.
+    ensure_home()
+    migrate_legacy_paths()
+
+    settings_path = SETTINGS_JSON
     settings = get_settings(**load_non_secret_settings(settings_path))
     secret_store = create_secret_store()
     settings = await hydrate_settings_from_secrets(settings, secret_store)
@@ -114,11 +122,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Load skills if available
     skills_path = Path(settings.skills_dir)
     registry = SkillRegistry(skills_path) if skills_path.exists() else None
-
-    # Unify storage under ~/.finagent/ + best-effort migrate legacy db paths
-    # (~/.cache/finagent/cache.db → ~/.finagent/data_cache.db). Cheap; idempotent.
-    ensure_home()
-    migrate_legacy_paths()
 
     data_layer = build_data_layer(settings)
 
@@ -180,6 +183,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # completes they fall through to the same fetch they would have made
     # without this hook, so the warmup is a strict latency improvement —
     # never a correctness dependency.
+    #
+    # Sequenced AFTER the legacy artifact migration so that, on the very
+    # first boot after upgrading, the warmup sees the migrated tickers
+    # instead of an empty SQLite. Without this await, an upgrading user
+    # paid the cold yfinance cost on their first dashboard load.
     async def _warm_quote_cache_background() -> None:
         try:
             summaries = await artifact_store.list_by_ticker(
@@ -195,9 +203,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         except (OSError, ValueError, TypeError, RuntimeError):
             logger.exception("Quote cache warmup failed — non-fatal")
 
+    async def _migrate_then_warm_background() -> None:
+        await _migrate_legacy_artifacts_background()
+        await _warm_quote_cache_background()
+
     asyncio.create_task(_archive_stale_background())
-    asyncio.create_task(_migrate_legacy_artifacts_background())
-    asyncio.create_task(_warm_quote_cache_background())
+    asyncio.create_task(_migrate_then_warm_background())
 
     yield
     for task in list(app.state.run_tasks.values()):
@@ -208,6 +219,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await asyncio.gather(*app.state.run_tasks.values(), return_exceptions=True)
     await data_layer.close()
     await app.state.run_store.close()
+    # Close every aiosqlite-backed store explicitly so the WAL gets
+    # checkpointed before the asyncio loop tears down. Without this the
+    # connection worker thread races the loop close and produces noisy
+    # "Event loop is closed" warnings on every Tauri shutdown / pytest run.
+    try:
+        await artifact_store.close()
+    except (OSError, RuntimeError):
+        logger.exception("ArtifactStore shutdown error")
+    from finagent.engine.data.quote_batch import close_quote_cache_singleton
+
+    try:
+        await close_quote_cache_singleton()
+    except (OSError, RuntimeError):
+        logger.exception("QuoteCache shutdown error")
     # Flush all open transcript writers so session_end events are recorded.
     for writer in list(app.state.transcript_writers.values()):
         try:

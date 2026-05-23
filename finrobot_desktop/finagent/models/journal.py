@@ -63,7 +63,10 @@ class JournalStore:
 
     def __init__(self, db_path: str | Path | None = None) -> None:
         if db_path is None:
-            db_path = Path.home() / ".finagent-desktop" / "journal.db"
+            from finagent.paths import JOURNAL_DB, ensure_home
+
+            ensure_home()
+            db_path = JOURNAL_DB
         self._db_path = Path(db_path)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()

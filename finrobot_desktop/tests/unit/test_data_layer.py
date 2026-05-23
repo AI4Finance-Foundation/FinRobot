@@ -55,7 +55,13 @@ class MockProvider(DataProvider):
 
 @pytest.fixture
 async def cache(tmp_path):
-    return DataCache(db_path=str(tmp_path / "layer_test.db"))
+    """Per-test DataCache; close() at teardown so the aiosqlite worker
+    thread doesn't race the event loop teardown and emit warnings."""
+    c = DataCache(db_path=str(tmp_path / "layer_test.db"))
+    try:
+        yield c
+    finally:
+        await c.close()
 
 
 # ---------------------------------------------------------------------------

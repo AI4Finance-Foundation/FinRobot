@@ -17,23 +17,6 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 _ENV_FILE = _REPO_ROOT / ".env"
 
 
-def _default_cache_db_path() -> str:
-    """Return the default cache database path.
-
-    Resolves to ``~/.finagent/data_cache.db`` (the unified storage home
-    introduced 2026-05-23). The legacy in-repo ``finagent_cache.db`` is
-    still honoured so existing development setups keep working without
-    a config change.
-    """
-    legacy = Path("finagent_cache.db")
-    if legacy.exists():
-        return str(legacy)
-    from finagent.paths import DATA_CACHE_DB, ensure_home
-
-    ensure_home()
-    return str(DATA_CACHE_DB)
-
-
 # Valid providers and the settings field holding their API key. A provider
 # listed here but absent from _PROVIDER_KEY_FIELD needs no key (e.g. "test").
 _VALID_PROVIDERS: frozenset[str] = frozenset({"deepseek", "anthropic", "openai", "test"})
@@ -84,7 +67,7 @@ class FinAgentSettings(BaseSettings):
     sec_user_agent: str = "FinAgent admin@example.com"
 
     # Infrastructure
-    cache_db_path: str = ""  # resolved at runtime by _default_cache_db_path()
+    cache_db_path: str = ""  # resolved at runtime by paths.default_data_cache_db_path()
     skills_dir: str = "skills"  # path to vendored skills (relative to project root or absolute)
     log_level: str = "INFO"
 
@@ -110,7 +93,9 @@ class FinAgentSettings(BaseSettings):
     def model_post_init(self, __context: Any) -> None:
         """Resolve cache_db_path default after env/settings loading."""
         if not self.cache_db_path:
-            object.__setattr__(self, "cache_db_path", _default_cache_db_path())
+            from finagent.paths import default_data_cache_db_path
+
+            object.__setattr__(self, "cache_db_path", default_data_cache_db_path())
 
     def get_model_for_role(self, role: str) -> str:
         """Return the model name for a specific agent role.

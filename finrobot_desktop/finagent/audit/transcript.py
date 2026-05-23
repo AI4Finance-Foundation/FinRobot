@@ -1,7 +1,7 @@
 """Per-session JSONL transcript for audit and replay.
 
 Each FinAgent conversation is appended to:
-  ~/.finagent-desktop/sessions/<session_id>.jsonl
+  ~/.finagent/sessions/<session_id>.jsonl
 
 Append-only, mode 0o600 on first write. One JSON event per line.
 
@@ -27,7 +27,20 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_DIR = Path.home() / ".finagent-desktop" / "sessions"
+
+# Tests monkey-patch this attribute to redirect writes. Production leaves
+# it None so :func:`_default_dir` falls through to the unified location
+# resolved at call time (so ``monkeypatch.setenv('HOME', ...)`` + paths
+# reload also works).
+_DEFAULT_DIR: Path | None = None
+
+
+def _default_dir() -> Path:
+    if _DEFAULT_DIR is not None:
+        return _DEFAULT_DIR
+    from finagent.paths import SESSIONS_DIR
+
+    return SESSIONS_DIR
 
 
 class TranscriptWriter:
@@ -44,7 +57,7 @@ class TranscriptWriter:
 
     def __init__(self, session_id: str, base_dir: Path | None = None) -> None:
         self.session_id = session_id
-        self._base_dir = base_dir or _DEFAULT_DIR
+        self._base_dir = base_dir or _default_dir()
         self._path = self._base_dir / f"{session_id}.jsonl"
         self._lock = asyncio.Lock()
         self._first_write_done = False

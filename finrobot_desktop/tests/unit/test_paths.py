@@ -32,6 +32,9 @@ def test_constants_resolve_under_finagent_home(tmp_path, monkeypatch):
     assert paths.QUOTES_DB == tmp_path / ".finagent" / "quotes.db"
     assert paths.DATA_CACHE_DB == tmp_path / ".finagent" / "data_cache.db"
     assert paths.RUNS_DB == tmp_path / ".finagent" / "runs.db"
+    assert paths.JOURNAL_DB == tmp_path / ".finagent" / "journal.db"
+    assert paths.SESSIONS_DIR == tmp_path / ".finagent" / "sessions"
+    assert paths.SETTINGS_JSON == tmp_path / ".finagent" / "settings.json"
 
 
 def test_ensure_home_creates_dir(tmp_path, monkeypatch):
@@ -99,3 +102,65 @@ def test_migrate_legacy_moves_wal_sidecars(tmp_path, monkeypatch):
     assert (target / "data_cache.db").read_bytes() == b"main"
     assert (target / "data_cache.db-wal").read_bytes() == b"wal"
     assert (target / "data_cache.db-shm").read_bytes() == b"shm"
+
+
+def test_migrate_legacy_journal_db(tmp_path, monkeypatch):
+    """``~/.finagent-desktop/journal.db`` → ``~/.finagent/journal.db``."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    legacy = tmp_path / ".finagent-desktop" / "journal.db"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_bytes(b"journal-content")
+
+    paths = _reload_paths(tmp_path)
+    moved = paths.migrate_legacy_paths()
+
+    assert (tmp_path / ".finagent" / "journal.db").read_bytes() == b"journal-content"
+    assert not legacy.exists()
+    assert str(legacy) in moved
+
+
+def test_migrate_legacy_sessions_dir(tmp_path, monkeypatch):
+    """``~/.finagent-desktop/sessions/`` → ``~/.finagent/sessions/`` (whole dir)."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    legacy = tmp_path / ".finagent-desktop" / "sessions"
+    legacy.mkdir(parents=True)
+    (legacy / "abc.jsonl").write_text("event-1\n")
+    (legacy / "def.jsonl").write_text("event-2\n")
+
+    paths = _reload_paths(tmp_path)
+    moved = paths.migrate_legacy_paths()
+
+    target = tmp_path / ".finagent" / "sessions"
+    assert target.is_dir()
+    assert (target / "abc.jsonl").read_text() == "event-1\n"
+    assert (target / "def.jsonl").read_text() == "event-2\n"
+    assert not legacy.exists()
+    assert str(legacy) in moved
+
+
+def test_migrate_sessions_dir_skipped_when_new_dir_exists(tmp_path, monkeypatch):
+    """If the new sessions dir already exists, the legacy dir is left
+    alone (manual cleanup)."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    legacy = tmp_path / ".finagent-desktop" / "sessions"
+    legacy.mkdir(parents=True)
+    (legacy / "old.jsonl").write_text("legacy")
+    new = tmp_path / ".finagent" / "sessions"
+    new.mkdir(parents=True)
+    (new / "new.jsonl").write_text("new")
+
+    paths = _reload_paths(tmp_path)
+    moved = paths.migrate_legacy_paths()
+
+    assert (new / "new.jsonl").read_text() == "new"
+    assert (legacy / "old.jsonl").read_text() == "legacy"
+    assert str(legacy) not in moved
+
+
+def test_default_data_cache_db_path_uses_unified_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)  # avoid hitting an in-repo finagent_cache.db
+    paths = _reload_paths(tmp_path)
+
+    result = paths.default_data_cache_db_path()
+    assert result == str(tmp_path / ".finagent" / "data_cache.db")

@@ -13,10 +13,12 @@ Schema notes (covered by these tests):
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
 
 from finagent.artifact.sqlite_store import SqliteArtifactStore
 from tests.artifact.conftest import _make_artifact
@@ -24,9 +26,20 @@ from tests.artifact.conftest import _make_artifact
 UTC = timezone.utc
 
 
-@pytest.fixture
-def store(tmp_path: Path) -> SqliteArtifactStore:
-    return SqliteArtifactStore(db_path=tmp_path / "artifacts.db")
+@pytest_asyncio.fixture
+async def store(tmp_path: Path) -> AsyncIterator[SqliteArtifactStore]:
+    """SqliteArtifactStore bound to a per-test tmp db, closed on teardown.
+
+    Without the explicit ``close()`` aiosqlite leaves its connection
+    worker thread alive after the test's event loop tears down — pytest
+    then logs a noisy ``RuntimeError: Event loop is closed`` warning per
+    test. Yield-style teardown closes the connection cleanly.
+    """
+    s = SqliteArtifactStore(db_path=tmp_path / "artifacts.db")
+    try:
+        yield s
+    finally:
+        await s.close()
 
 
 @pytest.mark.asyncio

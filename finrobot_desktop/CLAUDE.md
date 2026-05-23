@@ -188,13 +188,16 @@ FinAgent = **FinRobot equity 桌面 app 化重写** + **Claude Code 对话架构
 - **注册位置**：`engine/pipelines/registry.py`，每个 pipeline 都有 `artifact_builder=...`，自动持久化完整 Artifact 到 `ArtifactStore`。
 - **路由按职责分文件**：`routes/{analyze,artifacts,ask,backtest,compute,dashboard,data,export,journal,market,notify,runs,search,sentiment,settings,valuation}.py`
 - **数据层** `engine/data/` — providers (yfinance / FMP / Finnhub / SEC EDGAR) + `DataCache` (aiosqlite, WAL) + `QuoteCache` (L1 内存 dict + L2 SQLite, 60s TTL) + WeakValueDictionary 防 stampede 不内存泄漏
-- **统一存储** 全部状态住在 `~/.finagent/`：
+- **统一存储** 全部状态住在 `~/.finagent/`（路径常量见 `finagent/paths.py`）：
   - `artifacts.db` — `SqliteArtifactStore`，二级索引 `(ticker, created_at)` / `verdict` / `archived`；`ArtifactSummary.verdict` 在 save 时一次性 extract 写列，dashboard 聚合不再 N+1 读全 artifact
   - `quotes.db` — `QuoteCache` L2 持久化（跨进程存活）
   - `data_cache.db` — provider 响应缓存（旧 `~/.cache/finagent/cache.db` 启动时自动迁移）
   - `runs.db` — pipeline SSE 事件流 + run 元数据
+  - `journal.db` — trade-journal（performance review，旧 `~/.finagent-desktop/journal.db` 启动时自动迁移）
+  - `sessions/*.jsonl` — chat transcript（旧 `~/.finagent-desktop/sessions/` 启动时自动迁移）
   - `settings.json` — 用户配置
-- **旧路径自动迁移** lifespan 首启检测 `~/.finagent-desktop/artifacts/` JSON 时 upsert 到 `artifacts.db`；`~/.cache/finagent/cache.db` 整体 move 到 `~/.finagent/data_cache.db`；幂等，可重跑
+- **旧路径自动迁移** lifespan 首启时 `migrate_legacy_paths()`：`~/.cache/finagent/cache.db` → `~/.finagent/data_cache.db`、`~/.finagent-desktop/journal.db` → `~/.finagent/journal.db`、`~/.finagent-desktop/sessions/` 整目录搬到 `~/.finagent/sessions/`；artifact 的 `~/.finagent-desktop/artifacts/` JSON 在后台 task 里 upsert 到 `artifacts.db`（JSON 留着作为本地备份）；全部幂等
+- **lifespan 关停顺序** cancel run_tasks → close data_layer → close run_store → close artifact_store → close quote_cache singleton → flush transcript writers，每个 aiosqlite store 都显式 `close()`，避免 WAL 不 checkpoint + asyncio loop teardown race 出 `Event loop is closed` 警告
 - **landing 性能** lifespan 后台 `_warm_quote_cache_background` 预填 distinct studied tickers 报价，冷启动从 ~5s 降到 < 10ms（实测 hit-rate 4.80s → 0.007s）
 - **聚合层** `engine/aggregations/` — 叶层纯函数（hit_rate_overview / recent_research）
 - **compute 层** `engine/compute/`（FinRobot 同款 + 增强）：
@@ -264,7 +267,7 @@ surface 位置：`/stocks/:ticker/runs/:artifactId` 路由（ArtifactDetailPage�
 
 ## 测试金字塔
 
-- **1500 pytest pass** + 2 skipped + 6 deselected (`-m "not slow"`)（unit + integration + routes + audit + artifact；新增 `tests/unit/test_paths.py` 6 个 + `tests/artifact/test_sqlite_store.py` 13 个 + `tests/artifact/test_migrate.py` 6 个 + `tests/unit/test_quote_cache.py` 7 个）
+- **1504 pytest pass** + 2 skipped + 6 deselected (`-m "not slow"`)（unit + integration + routes + audit + artifact；`tests/unit/test_paths.py` 覆盖 paths 常量 + journal.db + sessions/ 迁移 / `test_sqlite_store.py` + `test_migrate.py` 覆盖 SQLite ArtifactStore + 文件系统→SQLite 迁移 / `test_quote_cache.py` 覆盖 L1+L2 quote cache）
 - **250 vitest pass** + 2 skipped（components + stores + hooks + i18n smoke + format helpers + errorMessage 映射 + `ChapterTechnical.test.tsx`）
 - **Playwright e2e 待新建**：旧 2 个 spec (`v5-walkthrough` + `cosmic-research-flow`) 已删（依赖死 23-section 锚点 + StatBanner/HeroVerdict/FootballField testids）。新 e2e 应该覆盖 landing → workspace dual-zone (cold/running/hot) → ArtifactDetailPage 12-chapter (TOC scroll-spy + chapter mini-grid #anchor jump + Diff modal) 路径。BACKLOG 待排
 

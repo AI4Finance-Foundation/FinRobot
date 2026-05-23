@@ -379,7 +379,24 @@ function HotState({
           )}
         </div>
 
-        {latest.headline && (
+        {/* Prefer the real synthesis_agent tagline (≤60 char LLM-written
+            share-card line) over the generic pipeline.format_summary
+            preview that's stored in headline. tagline lands on
+            ArtifactSummaryV5 via summary_extractor.extract_tagline. */}
+        {latest.tagline ? (
+          <p
+            style={{
+              fontSize: 14,
+              color: 'var(--accent-cyan)',
+              fontStyle: 'italic',
+              lineHeight: 1.55,
+              marginBottom: 14,
+              textShadow: '0 0 10px rgba(34,211,238,0.2)',
+            }}
+          >
+            "{latest.tagline}"
+          </p>
+        ) : latest.headline ? (
           <p
             style={{
               fontSize: 13,
@@ -391,7 +408,7 @@ function HotState({
             {latest.headline.slice(0, 200)}
             {latest.headline.length > 200 ? '…' : ''}
           </p>
-        )}
+        ) : null}
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button

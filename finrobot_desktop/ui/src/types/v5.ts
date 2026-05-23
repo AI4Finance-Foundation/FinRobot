@@ -47,6 +47,13 @@ export interface ArtifactSummaryV5 {
    * has no thesis (peer_research / ad_hoc) or recommendation is malformed.
    */
   verdict?: string | null
+  /**
+   * ≤ 60 char shareable conclusion written by the synthesis_agent
+   * (FinRobot parity narrative slot). Use this on dashboard entry cards
+   * instead of `headline` (which is just pipeline.format_summary preview).
+   * None for legacy artifacts produced before the narrative bump.
+   */
+  tagline?: string | null
 }
 
 /** Mirror of `engine.compute.signal.HitRateStats` (PR1). */

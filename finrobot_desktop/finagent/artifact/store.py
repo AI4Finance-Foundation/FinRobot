@@ -29,6 +29,7 @@ from finagent.artifact.models import (
 )
 from finagent.artifact.summary_extractor import (
     extract_entry_price,
+    extract_tagline,
     extract_target_date,
     extract_target_price,
     extract_verdict,
@@ -78,6 +79,7 @@ def _summary_from_artifact(artifact: Artifact) -> ArtifactSummary:
         target_date=extract_target_date(artifact, target_price),
         signal=None,
         verdict=extract_verdict(artifact),
+        tagline=extract_tagline(artifact),
     )
 
 

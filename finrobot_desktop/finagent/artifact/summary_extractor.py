@@ -84,6 +84,28 @@ def extract_verdict(artifact: "Artifact") -> str | None:
     return None
 
 
+def extract_tagline(artifact: "Artifact") -> str | None:
+    """Pull the FinRobot parity `tagline` — a ≤60-char shareable conclusion
+    written by the synthesis_agent. Surfaced on the workspace AI zone's
+    hot-state card so analysts see the actual LLM call instead of the
+    generic pipeline.format_summary() preview that gets stored as headline.
+
+    Returns None when:
+      · artifact has no thesis (peer_research / ad_hoc)
+      · thesis lacks the optional tagline slot (legacy artifacts pre the
+        2026-05 FinRobot parity narrative bump)
+      · tagline isn't a string after coercion
+    """
+    thesis = artifact.outputs.structured.get("thesis")
+    if not isinstance(thesis, dict):
+        return None
+    raw = thesis.get("tagline")
+    if not isinstance(raw, str):
+        return None
+    stripped = raw.strip()
+    return stripped or None
+
+
 def extract_target_date(artifact: "Artifact", target_price: float | None) -> datetime | None:
     """target_date defaults to created_at + 365d once a target exists."""
     if target_price is None:

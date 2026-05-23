@@ -180,3 +180,14 @@ class ArtifactSummary(BaseModel):
             "or when the recommendation field is missing / malformed."
         ),
     )
+    tagline: str | None = Field(
+        default=None,
+        description=(
+            "≤ 60 char shareable conclusion written by the synthesis_agent "
+            "(FinRobot parity narrative slot). Populated by summary_extractor."
+            "extract_tagline; lets the workspace AI zone hot-state card show "
+            "the real LLM call instead of the truncated pipeline.format_summary "
+            "preview that gets stored in `headline`. None for legacy artifacts "
+            "produced before the FinRobot narrative bump."
+        ),
+    )

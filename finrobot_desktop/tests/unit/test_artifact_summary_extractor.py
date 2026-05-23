@@ -15,8 +15,10 @@ from finagent.artifact.models import (
 from finagent.artifact.store import _summary_from_artifact
 from finagent.artifact.summary_extractor import (
     extract_entry_price,
+    extract_tagline,
     extract_target_date,
     extract_target_price,
+    extract_verdict,
 )
 
 UTC = timezone.utc
@@ -118,3 +120,77 @@ def test_summary_from_legacy_artifact_keeps_v5_fields_none() -> None:
     assert s.target_price is None
     assert s.target_date is None
     assert s.signal is None
+
+
+# ── verdict ──────────────────────────────────────────────────────────────────
+
+
+def test_verdict_pulls_recommendation_field() -> None:
+    art = _artifact(structured={"thesis": {"recommendation": "Buy", "price_target": 100.0}})
+    assert extract_verdict(art) == "BUY"
+
+
+def test_verdict_normalises_case_and_whitespace() -> None:
+    for raw in ("  hold ", "Hold", "HOLD"):
+        art = _artifact(structured={"thesis": {"recommendation": raw, "price_target": 100.0}})
+        assert extract_verdict(art) == "HOLD"
+
+
+def test_verdict_falls_back_to_verdict_alias_when_recommendation_missing() -> None:
+    art = _artifact(structured={"thesis": {"verdict": "SELL", "price_target": 100.0}})
+    assert extract_verdict(art) == "SELL"
+
+
+def test_verdict_returns_none_for_malformed_input() -> None:
+    assert extract_verdict(_artifact(structured={"thesis": {"recommendation": "Maybe"}})) is None
+    assert extract_verdict(_artifact(structured={"thesis": {}})) is None
+    assert extract_verdict(_artifact(structured={"thesis": "not a dict"})) is None
+    assert extract_verdict(_artifact()) is None
+
+
+# ── tagline ──────────────────────────────────────────────────────────────────
+
+
+def test_tagline_pulls_synthesis_agent_field() -> None:
+    art = _artifact(
+        structured={
+            "thesis": {
+                "tagline": "Services 高毛利 + 印度产能分散 · 估值仍有 14% 空间",
+                "price_target": 295.0,
+            }
+        }
+    )
+    assert extract_tagline(art) == "Services 高毛利 + 印度产能分散 · 估值仍有 14% 空间"
+
+
+def test_tagline_strips_whitespace_and_treats_empty_as_none() -> None:
+    assert extract_tagline(_artifact(structured={"thesis": {"tagline": "  hello  "}})) == "hello"
+    assert extract_tagline(_artifact(structured={"thesis": {"tagline": "   "}})) is None
+    assert extract_tagline(_artifact(structured={"thesis": {"tagline": ""}})) is None
+
+
+def test_tagline_none_for_legacy_artifact_without_field() -> None:
+    # Legacy artifacts (pre FinRobot narrative bump) have no tagline slot.
+    art = _artifact(structured={"thesis": {"recommendation": "BUY", "price_target": 100.0}})
+    assert extract_tagline(art) is None
+
+
+def test_tagline_none_when_no_thesis() -> None:
+    assert extract_tagline(_artifact()) is None
+    assert extract_tagline(_artifact(structured={"thesis": "not a dict"})) is None
+
+
+def test_summary_from_artifact_carries_verdict_and_tagline() -> None:
+    art = _artifact(
+        raw_data={"market": {"current_price": 876.42}},
+        structured={
+            "thesis": {
+                "recommendation": "BUY",
+                "price_target": 920.0,
+                "tagline": "AI 算力超级周期受益者 · 估值仍有 30% 空间",
+            }
+        },
+    )
+    s = _summary_from_artifact(art)
+    assert s.verdict == "BUY"
+    assert s.tagline == "AI 算力超级周期受益者 · 估值仍有 30% 空间"

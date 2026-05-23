@@ -126,7 +126,14 @@ async def fetch_quotes_batch_cached(
 
     L1 hit ⇒ pure dict lookup, sub-millisecond.
     L2 hit ⇒ single SELECT against indexed PK, ~1ms.
-    Cold ⇒ one yfinance call shared across all callers within the 60s TTL.
+    Cold ⇒ one fan-out fetch shared across all callers within the 60s TTL.
+
+    The cold path runs ``_fetch_one`` per ticker concurrently via
+    ``asyncio.gather`` + ``asyncio.to_thread``. yfinance's ``fast_info`` is
+    a blocking HTTPS round-trip per ticker; the legacy ``yf.Tickers(...)``
+    batch container loops sequentially over them at ~1.5s/ticker, which
+    dominated landing cold-start. Per-ticker concurrency drops a 4-ticker
+    warmup from ~6s to ~2s (network-bound, not thread-overhead-bound).
     """
     syms = [t.strip().upper() for t in tickers if t and t.strip()]
     if not syms:
@@ -134,6 +141,10 @@ async def fetch_quotes_batch_cached(
     cache = _get_singleton()
 
     async def yf_async(missing: list[str]) -> dict[str, float | None]:
-        return await asyncio.to_thread(_fetch_via_yfinance, missing)
+        results = await asyncio.gather(
+            *(asyncio.to_thread(_fetch_one, sym) for sym in missing),
+            return_exceptions=False,
+        )
+        return dict(zip(missing, results, strict=True))
 
     return await cache.get_batch(syms, fetcher=yf_async)

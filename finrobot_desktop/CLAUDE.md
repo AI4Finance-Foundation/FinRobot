@@ -198,7 +198,7 @@ FinAgent = **FinRobot equity 桌面 app 化重写** + **Claude Code 对话架构
   - `settings.json` — 用户配置
 - **旧路径自动迁移** lifespan 首启时 `migrate_legacy_paths()`：`~/.cache/finagent/cache.db` → `~/.finagent/data_cache.db`、`~/.finagent-desktop/journal.db` → `~/.finagent/journal.db`、`~/.finagent-desktop/sessions/` 整目录搬到 `~/.finagent/sessions/`；artifact 的 `~/.finagent-desktop/artifacts/` JSON 在后台 task 里 upsert 到 `artifacts.db`（JSON 留着作为本地备份）；全部幂等
 - **lifespan 关停顺序** cancel run_tasks → close data_layer → close run_store → close artifact_store → close quote_cache singleton → flush transcript writers，每个 aiosqlite store 都显式 `close()`，避免 WAL 不 checkpoint + asyncio loop teardown race 出 `Event loop is closed` 警告
-- **landing 性能** lifespan 后台 `_warm_quote_cache_background` 预填 distinct studied tickers 报价，冷启动从 ~5s 降到 < 10ms（实测 hit-rate 4.80s → 0.007s）
+- **landing 性能** lifespan 后台 `_warm_quote_cache_background` 预填 distinct studied tickers 报价；`fetch_quotes_batch_cached` 内部 cold 路径用 `asyncio.gather` + `asyncio.to_thread` 把 yfinance fast_info 并发 fan-out（N 个 ticker 同时拉，不再串行循环 1.5s/ticker）。冷启动 hit-rate **4.80s → 0.007s**（warmup 后），warmup 自身 4 ticker ≈ 1.5-2s（旧串行 ~6s）
 - **聚合层** `engine/aggregations/` — 叶层纯函数（hit_rate_overview / recent_research）
 - **compute 层** `engine/compute/`（FinRobot 同款 + 增强）：
   - 估值：`dcf / ddm / lbo / comps / multiples / wacc / valuation_aggregator / valuation_synthesis`
@@ -267,7 +267,7 @@ surface 位置：`/stocks/:ticker/runs/:artifactId` 路由（ArtifactDetailPage�
 
 ## 测试金字塔
 
-- **1504 pytest pass** + 2 skipped + 6 deselected (`-m "not slow"`)（unit + integration + routes + audit + artifact；`tests/unit/test_paths.py` 覆盖 paths 常量 + journal.db + sessions/ 迁移 / `test_sqlite_store.py` + `test_migrate.py` 覆盖 SQLite ArtifactStore + 文件系统→SQLite 迁移 / `test_quote_cache.py` 覆盖 L1+L2 quote cache）
+- **≥ 1500 pytest pass** + 2 skipped + 6 deselected (`-m "not slow"`)（unit + integration + routes + audit + artifact；`tests/unit/test_paths.py` 覆盖 paths 常量 + journal.db + sessions/ 迁移 / `test_sqlite_store.py` + `test_migrate.py` 覆盖 SQLite ArtifactStore + 文件系统→SQLite 迁移 / `test_quote_cache.py` 覆盖 L1+L2 quote cache / `test_quote_batch.py::test_cached_cold_path_fans_out_per_ticker_concurrently` 守护 yfinance per-ticker 并发不被回退到串行循环）。实跑时间 `pytest -m "not slow" -q` ~58s
 - **250 vitest pass** + 2 skipped（components + stores + hooks + i18n smoke + format helpers + errorMessage 映射 + `ChapterTechnical.test.tsx`）
 - **Playwright e2e 待新建**：旧 2 个 spec (`v5-walkthrough` + `cosmic-research-flow`) 已删（依赖死 23-section 锚点 + StatBanner/HeroVerdict/FootballField testids）。新 e2e 应该覆盖 landing → workspace dual-zone (cold/running/hot) → ArtifactDetailPage 12-chapter (TOC scroll-spy + chapter mini-grid #anchor jump + Diff modal) 路径。BACKLOG 待排
 

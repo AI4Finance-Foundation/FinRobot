@@ -168,21 +168,21 @@ async def test_cached_warm_hit_skips_yfinance(
     monkeypatch.setenv("HOME", str(tmp_path))
     quote_batch.reset_quote_cache_singleton()
 
-    yf_calls: list[list[str]] = []
+    yf_calls: list[str] = []
 
-    def fake_yf(tickers: list[str]) -> dict[str, float | None]:
-        yf_calls.append(list(tickers))
-        return {t: 200.0 for t in tickers}
+    def fake_one(symbol: str) -> float | None:
+        yf_calls.append(symbol)
+        return 200.0
 
-    monkeypatch.setattr(quote_batch, "_fetch_via_yfinance", fake_yf)
+    monkeypatch.setattr(quote_batch, "_fetch_one", fake_one)
 
     out1 = await quote_batch.fetch_quotes_batch_cached(["AAPL", "MSFT"])
     assert out1 == {"AAPL": 200.0, "MSFT": 200.0}
-    assert len(yf_calls) == 1
+    assert sorted(yf_calls) == ["AAPL", "MSFT"]
 
     out2 = await quote_batch.fetch_quotes_batch_cached(["AAPL"])
     assert out2 == {"AAPL": 200.0}
-    assert len(yf_calls) == 1  # served from L1; no extra yfinance call
+    assert sorted(yf_calls) == ["AAPL", "MSFT"]  # no extra fetch — L1 hit
 
     quote_batch.reset_quote_cache_singleton()
 
@@ -195,6 +195,43 @@ async def test_cached_empty_batch_is_noop(
     quote_batch.reset_quote_cache_singleton()
     out = await quote_batch.fetch_quotes_batch_cached([])
     assert out == {}
+    quote_batch.reset_quote_cache_singleton()
+
+
+@pytest.mark.asyncio
+async def test_cached_cold_path_fans_out_per_ticker_concurrently(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """4 ticker cold fetch must run concurrently, not in a serial loop.
+
+    Without this the lifespan warmup blocks ~6s on synchronous yfinance
+    HTTPS per ticker (the original landing cold-start regression — see
+    docs/superpowers/plans/2026-05-23-storage-overhaul-and-landing-perf.md).
+    """
+    import time as _time
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    quote_batch.reset_quote_cache_singleton()
+
+    def slow_one(symbol: str) -> float | None:
+        _time.sleep(0.05)  # simulate per-ticker network round-trip
+        return 100.0
+
+    monkeypatch.setattr(quote_batch, "_fetch_one", slow_one)
+
+    t0 = _time.monotonic()
+    out = await quote_batch.fetch_quotes_batch_cached(["A", "B", "C", "D"])
+    elapsed = _time.monotonic() - t0
+
+    assert out == {"A": 100.0, "B": 100.0, "C": 100.0, "D": 100.0}
+    # Serial loop would take ≥ 4 × 50ms = 200ms. Concurrent gather + thread
+    # pool runs all four in parallel; allow 120ms for scheduler overhead +
+    # SQLite write but still well below the serial floor.
+    assert elapsed < 0.12, (
+        f"Expected concurrent per-ticker fan-out, got {elapsed:.3f}s — "
+        "likely regressed to sequential yf.Tickers loop"
+    )
+
     quote_batch.reset_quote_cache_singleton()
 
 

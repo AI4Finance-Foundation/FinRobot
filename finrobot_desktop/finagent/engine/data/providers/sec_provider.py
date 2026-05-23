@@ -4,7 +4,7 @@ import asyncio
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -268,8 +268,13 @@ class SECEdgarProvider(DataProvider):
         if self._ticker_cik_map is not None:
             return self._ticker_cik_map
         async with self._ticker_cik_lock:
-            if self._ticker_cik_map is not None:
-                return self._ticker_cik_map
+            # Re-check after acquiring the lock — another task may have
+            # populated the map while we were waiting. mypy narrowed
+            # self._ticker_cik_map to None on the first check above, so
+            # cast to reopen the Optional.
+            cached = cast(dict[str, str] | None, self._ticker_cik_map)
+            if cached is not None:
+                return cached
             try:
                 tickers = (
                     await self._get("https://www.sec.gov/files/company_tickers.json")

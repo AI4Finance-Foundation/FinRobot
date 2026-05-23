@@ -14,6 +14,7 @@ from __future__ import annotations
 import re
 
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from finagent.engine.charts.base import ChartConfig, ChartDataPoint, _num, new_axes, render_chart
@@ -89,7 +90,7 @@ def _create_figure(
     ax_left.set_xticklabels(x_labels)
 
     # --- Right axis: ratio/margin metrics (percentage) ---
-    ax_right: plt.Axes | None = None
+    ax_right: Axes | None = None
     if right_keys:
         ax_right = ax_left.twinx()
         right_colors = [cfg.accent_color, "#ef4444", "#f59e0b", "#10b981"]

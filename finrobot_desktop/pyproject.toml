@@ -66,15 +66,7 @@ line-length = 100
 
 [tool.mypy]
 python_version = "3.11"
-warn_return_any = true
-warn_unused_configs = true
-disallow_any_generics = true
-check_untyped_defs = true
-
-[[tool.mypy.overrides]]
-module = "finagent.*"
-disallow_untyped_defs = true
-warn_unreachable = true
+strict = true
 
 [[tool.mypy.overrides]]
 module = [
@@ -84,8 +76,15 @@ module = [
     "openpyxl.*",
     "aiosqlite.*",
     "backtrader.*",
+    "weasyprint.*",
 ]
 ignore_missing_imports = true
+
+# backtrader exposes Strategy as Any, so any subclass triggers
+# "Class cannot subclass Strategy (has type Any)" in --strict.
+[[tool.mypy.overrides]]
+module = "finagent.engine.backtest.backtrader_adapter"
+disallow_subclassing_any = false
 
 [dependency-groups]
 dev = [

@@ -54,6 +54,12 @@ class NormalizedFinancialKeys(TypedDict, total=False):
     sga_expense: float | None
     interest_expense: float | None
 
+    # Company metadata (always optional — providers may not surface these)
+    company_name: str | None
+    industry: str | None
+    sector: str | None
+    beta: float | None
+
 
 REQUIRED_KEYS: frozenset[str] = frozenset(
     {

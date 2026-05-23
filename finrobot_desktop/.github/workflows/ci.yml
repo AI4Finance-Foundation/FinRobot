@@ -34,7 +34,7 @@ jobs:
         run: uv run ruff format --check finagent/
 
       - name: Type check
-        run: uv run mypy finagent/ --ignore-missing-imports
+        run: uv run mypy finagent/ --strict
 
       - name: Unit tests
         run: uv run pytest tests/unit/ -v

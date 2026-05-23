@@ -189,12 +189,12 @@ def _price_for(
     _, _, fcfs = _project_full(inputs, [growth_rate] * horizon_years)
     offset = 0.5 if mid_year else 0.0
     n = horizon_years
-    pv_fcf = sum(f / (1 + wacc) ** (i + 1 - offset) for i, f in enumerate(fcfs))
+    pv_fcf: float = sum(f / (1 + wacc) ** (i + 1 - offset) for i, f in enumerate(fcfs))
     tv = fcfs[-1] * (1 + terminal_growth) / (wacc - terminal_growth)
     pv_tv = tv / (1 + wacc) ** (n - offset)
     enterprise_value = pv_fcf + pv_tv
     equity_value = enterprise_value - inputs.net_debt
-    return equity_value / inputs.shares_outstanding
+    return float(equity_value / inputs.shares_outstanding)
 
 
 def solve_for_implied_growth(
@@ -323,10 +323,10 @@ def solve_for_implied_wacc(
     offset = 0.5 if mid_year else 0.0
 
     def _price_at(wacc: float) -> float:
-        pv_fcf = sum(f / (1 + wacc) ** (i + 1 - offset) for i, f in enumerate(fcfs))
+        pv_fcf: float = sum(f / (1 + wacc) ** (i + 1 - offset) for i, f in enumerate(fcfs))
         tv = fcfs[-1] * (1 + tg) / (wacc - tg)
         pv_tv = tv / (1 + wacc) ** (n - offset)
-        return ((pv_fcf + pv_tv) - inputs.net_debt) / inputs.shares_outstanding
+        return float(((pv_fcf + pv_tv) - inputs.net_debt) / inputs.shares_outstanding)
 
     p_lo = _price_at(lo)
     p_hi = _price_at(hi)

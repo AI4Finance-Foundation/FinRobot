@@ -261,13 +261,12 @@ async def fetch_earnings_calendar(
             )
         )
 
-    # Sort ascending by date so the frontend receives chronological order
-    events.sort(key=lambda e: e.date)
+    events.sort(key=lambda ev: ev.date)
 
     # Dedup (ticker, date) — FMP occasionally returns multiple rows for the same
     # company on the same date (BMO + AMC, listing-exchange duplicates). Keep
     # the first occurrence so downstream React keys stay unique.
     deduped: dict[tuple[str, str], EarningsEvent] = {}
-    for e in events:
-        deduped.setdefault((e.ticker, e.date), e)
+    for event in events:
+        deduped.setdefault((event.ticker, event.date), event)
     return list(deduped.values())

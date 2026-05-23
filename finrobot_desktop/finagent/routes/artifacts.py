@@ -166,7 +166,7 @@ async def studied_tickers(
     items: list[StudiedTicker] = []
     for ticker_sym, group in grouped.items():
         latest = max(group, key=lambda s: s.created_at)
-        types = sorted({s.type for s in group})
+        types: list[str] = sorted({s.type for s in group})
         items.append(
             StudiedTicker(
                 ticker=ticker_sym,

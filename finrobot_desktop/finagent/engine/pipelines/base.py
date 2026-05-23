@@ -203,7 +203,8 @@ class Pipeline:
 
         # Resolve output language: explicit arg > settings > default "en"
         _settings = getattr(deps, "settings", None)
-        effective_lang = lang or getattr(_settings, "language", "en")
+        settings_lang = getattr(_settings, "language", None)
+        effective_lang: str = lang or (settings_lang if isinstance(settings_lang, str) else "en")
 
         for i, step in enumerate(self.steps, start=1):
             logger.info(f"Step {i}/{total}: {step.name}...")
@@ -309,7 +310,7 @@ class Pipeline:
         elif isinstance(output, str):
             results[step_name] = output
         else:
-            results[step_name] = str(output)  # type: ignore[unreachable]
+            results[step_name] = str(output)
 
     @staticmethod
     def _validate_step(

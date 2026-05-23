@@ -14,7 +14,7 @@ What this code does that raw LLM cannot:
 from __future__ import annotations
 
 import asyncio
-from typing import Sequence
+from typing import Any, Sequence, cast
 
 import pandas as pd
 import yfinance as yf
@@ -96,7 +96,7 @@ def _get_row(df: pd.DataFrame, names: Sequence[str]) -> pd.Series | None:
         return None
     for name in names:
         if name in df.index:
-            return df.loc[name]
+            return cast(pd.Series, df.loc[name])
     return None
 
 
@@ -132,7 +132,7 @@ async def extract_historical_from_yfinance(ticker: str, years: int = 5) -> Histo
     return _build_historical_metrics(ticker, income_stmt, cashflow, info, years)
 
 
-def _fetch_yfinance(ticker: str) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+def _fetch_yfinance(ticker: str) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
     """Blocking yfinance call — must be run in a thread."""
     t = yf.Ticker(ticker)
     return t.income_stmt, t.cashflow, t.info
@@ -142,7 +142,7 @@ def _build_historical_metrics(
     ticker: str,
     income_stmt: pd.DataFrame,
     cashflow: pd.DataFrame,
-    info: dict,
+    info: dict[str, Any],
     max_years: int,
 ) -> HistoricalMetrics:
     """Pure function: build HistoricalMetrics from raw DataFrames + info dict.
@@ -175,10 +175,12 @@ def _build_historical_metrics(
         )
 
     # ---- Sort columns oldest-first ----
-    # yfinance returns columns as Timestamps, most-recent first.
-    sorted_cols = sorted(income_stmt.columns)  # ascending = oldest first
+    # yfinance returns columns as Timestamps, most-recent first. pandas-stubs
+    # types Index elements as Hashable, so we narrow back to Timestamp for
+    # downstream .year access and _cell() calls.
+    sorted_cols = cast(list[pd.Timestamp], sorted(income_stmt.columns))
     if len(sorted_cols) > max_years:
-        sorted_cols = sorted_cols[-max_years:]  # take the most recent N
+        sorted_cols = sorted_cols[-max_years:]
 
     # ---- Extract income statement rows ----
     rev_row = _get_row(income_stmt, _REVENUE_NAMES)

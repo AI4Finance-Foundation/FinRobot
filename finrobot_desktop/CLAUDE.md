@@ -225,24 +225,25 @@ FinAgent = **FinRobot equity 桌面 app 化重写** + **Claude Code 对话架构
 /                              → /stocks
 /stocks                        → StocksLandingHero
 /stocks/:ticker                → StockWorkspace（双区 dashboard · 左 MarketDataZone / 右 AIZone · 三态 cold/running/hot）
-/stocks/:ticker/runs/:artifactId → ArtifactDetailPage（12 章 FinRobot-parity 长滚动 · sticky toolbar/TOC/right-rail）
+/stocks/:ticker/runs/:artifactId → ArtifactDetailPage（12 章 FinRobot-parity 长滚动 · sticky toolbar/TOC/right-rail + 底部 ReportStatusBar 显示章节进度 + 回顶）
 /settings                      → SettingsPage
 ```
 
 ### Shell（`layout/`）
 
 - `TitleBar` 44px：brand-dot logo + halo cmdK input + AI 助手按钮（Tauri overlay 三色控件）
-- `Sidebar` 64px：极窄 icon-only，active 3px 蓝光竖条
-- `RightChatPanel/` 单一 AiChatTab：per-ticker 对话 AI，可拖拽宽度 + ⌘L 收起
+- `Sidebar` 64px：极窄 icon-only，active 3px 蓝光竖条；点「个股」走 `navMemoryStore.lastStocksPath` 恢复最近一次的 deep path（持久化到 localStorage），⌘+click 强制回 landing
+- `RightChatPanel/` 单一 AiChatTab：per-ticker 对话 AI，可拖拽宽度 + ⌘L 收起；suggestion chips 按路由细分（landing / workspace / artifact-detail / settings 各一套）
 - `CmdKOverlay`：⌘K 全局，含 section 导航 panel
 - `AppShell`：CursorCanvas（Bezier 12-spring 拖尾） + cosmic-stars 双层 drift 背景
 
 ### Cosmic 设计 token（`App.css`）
 
-- 深空双轨：`--bg-void/deep/card/elevated` + `--primary/secondary/accent-cyan/accent-pink`
+- 深空双轨：`--bg-void/deep/card/elevated` + `--primary/secondary/accent-cyan/accent-pink/accent-amber`
+- 半透明 sticky 层：`--bg-sticky-{78,88,92}`（TitleBar / ReportToolbar / ReportStatusBar 三档透明度）
 - 三轨字体：`--font-display` (Audiowide) + `--font-mono` (JetBrains Mono) + `--font-body` (Inter)
 - 7 个合法动效 keyframes：`cosmic-pull-up / morph / shimmer / halo / pulse-dot / pulse-ring / drift-slow + drift-fast`
-- 工具类：`.cosmic-card` / `.cosmic-badge.cosmic-badge-{buy,hold,sell}` / `.btn-shimmer` / `.halo-input` / `.cosmic-group-header`
+- 工具类：`.cosmic-card` / `.cosmic-badge.cosmic-badge-{buy,hold,sell}` / `.btn-shimmer` / `.halo-input` / `.cosmic-group-header` / `.ai-icon-btn`
 
 ### FinRobot LLM 叙事字段（ThesisResult）
 
@@ -268,7 +269,7 @@ surface 位置：`/stocks/:ticker/runs/:artifactId` 路由（ArtifactDetailPage�
 ## 测试金字塔
 
 - **≥ 1500 pytest pass** + 2 skipped + 6 deselected (`-m "not slow"`)（unit + integration + routes + audit + artifact；`tests/unit/test_paths.py` 覆盖 paths 常量 + journal.db + sessions/ 迁移 / `test_sqlite_store.py` + `test_migrate.py` 覆盖 SQLite ArtifactStore + 文件系统→SQLite 迁移 / `test_quote_cache.py` 覆盖 L1+L2 quote cache / `test_quote_batch.py::test_cached_cold_path_fans_out_per_ticker_concurrently` 守护 yfinance per-ticker 并发不被回退到串行循环）。实跑时间 `pytest -m "not slow" -q` ~58s
-- **250 vitest pass** + 2 skipped（components + stores + hooks + i18n smoke + format helpers + errorMessage 映射 + `ChapterTechnical.test.tsx`）
+- **253 vitest pass** + 2 skipped（components + stores + hooks + i18n smoke + format helpers + errorMessage 映射 + `ChapterTechnical.test.tsx` + `useQuotesWarmed.test.tsx`）
 - **Playwright e2e 待新建**：旧 2 个 spec (`v5-walkthrough` + `cosmic-research-flow`) 已删（依赖死 23-section 锚点 + StatBanner/HeroVerdict/FootballField testids）。新 e2e 应该覆盖 landing → workspace dual-zone (cold/running/hot) → ArtifactDetailPage 12-chapter (TOC scroll-spy + chapter mini-grid #anchor jump + Diff modal) 路径。BACKLOG 待排
 
 ## UI 设计规范强制（桌面 App）

@@ -607,18 +607,17 @@ function VerdictPill({
 }
 
 function readVerdict(
-  a: { signal?: string | null } | null,
+  a: { verdict?: string | null } | null,
 ): 'BUY' | 'HOLD' | 'SELL' | null {
-  // ArtifactSummaryV5 carries `signal` (hit/watching/failed) which is the
-  // realised verdict — not the LLM recommendation. For the dashboard we
-  // surface the LLM verdict where possible via the type-narrow on signal-
-  // adjacent fields. For now treat all surfaces as HOLD when we can't read.
-  if (!a) return null
-  // signal field semantics: hit = target reached, watching = pending,
-  // failed = stop. Map to a coarse verdict label only when the run completed.
-  if (a.signal === 'hit') return 'BUY'
-  if (a.signal === 'failed') return 'SELL'
-  return 'HOLD'
+  // Backend populates `verdict` from summary_extractor.extract_verdict
+  // which pulls thesis.recommendation and normalises to BUY/HOLD/SELL.
+  // None for artifacts without a thesis (peer_research / ad_hoc) — caller
+  // should fall back to showing "—" rather than fabricating a verdict.
+  // DO NOT read `signal` here — that's the realised-vs-target outcome
+  // (hit / watching / failed), which is a different concept entirely.
+  if (!a?.verdict) return null
+  const v = a.verdict.toUpperCase()
+  return v === 'BUY' || v === 'HOLD' || v === 'SELL' ? v : null
 }
 
 function ageLabel(iso: string): string {

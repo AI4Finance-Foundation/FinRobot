@@ -163,9 +163,20 @@ class ArtifactSummary(BaseModel):
     signal: Signal | None = Field(
         default=None,
         description=(
-            "Lazy-computed verdict (hit / watching / failed) — never persisted. "
-            "Route handlers call finagent.engine.compute.signal.compute_signal "
-            "at list time using a fresh quote. None when any of entry_price / "
-            "target_price / current_price are unavailable."
+            "Lazy-computed realised-vs-target signal (hit / watching / failed) — "
+            "never persisted. Route handlers call finagent.engine.compute.signal."
+            "compute_signal at list time using a fresh quote. None when any of "
+            "entry_price / target_price / current_price are unavailable. "
+            "DO NOT confuse with `verdict` — signal is the post-trade outcome, "
+            "verdict is the LLM's pre-trade BUY/HOLD/SELL call."
+        ),
+    )
+    verdict: str | None = Field(
+        default=None,
+        description=(
+            "LLM-emitted BUY / HOLD / SELL recommendation from the thesis step. "
+            "Populated by summary_extractor.extract_verdict at summary build "
+            "time. None when the artifact has no thesis (peer_research / ad_hoc) "
+            "or when the recommendation field is missing / malformed."
         ),
     )

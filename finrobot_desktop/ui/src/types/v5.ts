@@ -35,7 +35,18 @@ export interface ArtifactSummaryV5 {
   entry_price?: number | null
   target_price?: number | null
   target_date?: string | null
+  /**
+   * Realised-vs-target outcome — hit / watching / failed. Lazy-computed by
+   * the backend against a fresh quote. DO NOT use as the LLM verdict; that
+   * lives in the `verdict` field below.
+   */
   signal?: Signal | null
+  /**
+   * LLM-emitted BUY / HOLD / SELL recommendation from the thesis step.
+   * Populated by summary_extractor.extract_verdict. None when the artifact
+   * has no thesis (peer_research / ad_hoc) or recommendation is malformed.
+   */
+  verdict?: string | null
 }
 
 /** Mirror of `engine.compute.signal.HitRateStats` (PR1). */

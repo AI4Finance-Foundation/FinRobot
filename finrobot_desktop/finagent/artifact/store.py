@@ -31,6 +31,7 @@ from finagent.artifact.summary_extractor import (
     extract_entry_price,
     extract_target_date,
     extract_target_price,
+    extract_verdict,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,12 @@ def _summary_from_artifact(artifact: Artifact) -> ArtifactSummary:
     from the artifact internals so the "我的研究" section can render signal
     lamps without re-loading the full artifact. `signal` itself stays None —
     routes compute it lazily against a fresh quote.
+
+    2026-05-23: also extracts `verdict` (BUY/HOLD/SELL recommendation from
+    the thesis step) so the workspace AI zone can label timeline rows with
+    the actual LLM call instead of the realised-vs-target signal — those
+    are two different things and conflating them mis-labels HOLD calls
+    that haven't reached target yet as if they were SELL.
     """
     target_price = extract_target_price(artifact)
     return ArtifactSummary(
@@ -70,6 +77,7 @@ def _summary_from_artifact(artifact: Artifact) -> ArtifactSummary:
         target_price=target_price,
         target_date=extract_target_date(artifact, target_price),
         signal=None,
+        verdict=extract_verdict(artifact),
     )
 
 

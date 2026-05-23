@@ -9,7 +9,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useTickerPrice } from '../../../hooks/useTickerData'
 import { useRunStreamStore } from '../../../stores/runStreamStore'
 import { useToastStore } from '../../../stores/toastStore'
-import { BASE_URL } from '../../../api/client'
 import type { ArtifactSummaryV5 } from '../../../types/v5'
 
 interface ReportToolbarProps {
@@ -62,36 +61,11 @@ export function ReportToolbar({
     }
   }
 
-  async function handlePdf(): Promise<void> {
-    try {
-      const resp = await fetch(`${BASE_URL}/api/exports/pdf/${artifactId}`, { method: 'POST' })
-      if (resp.status === 501) {
-        addToast({
-          type: 'info',
-          title: 'PDF 导出未启用',
-          description: '后端缺 weasyprint 依赖 · 暂走分享图',
-        })
-        return
-      }
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-      const blob = await resp.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${ticker}_${artifactId.slice(0, 12)}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
-      addToast({ type: 'success', title: 'PDF 已下载', description: a.download })
-    } catch (err) {
-      addToast({
-        type: 'error',
-        title: 'PDF 导出失败',
-        description: err instanceof Error ? err.message : String(err),
-      })
-    }
-  }
+  // PDF export intentionally absent: routes/export.py only exposes
+  // /excel/{dcf,lbo,comps}; there is no /api/exports/pdf/{id} endpoint
+  // (old route file was deleted with no replacement). The button stays
+  // visible as a roadmap signal but is disabled — hover tooltip explains.
+  // Listed under BACKLOG P3.4 — "PDF 导出按 10 章模板重写".
 
   function handleVersionChange(targetArtifactId: string): void {
     if (targetArtifactId && targetArtifactId !== artifactId) {
@@ -227,7 +201,9 @@ export function ReportToolbar({
         <ToolbarButton disabled title="P4.2 — 可编辑假设重算（待落地）">
           ✏️ What-if
         </ToolbarButton>
-        <ToolbarButton onClick={handlePdf}>📤 PDF</ToolbarButton>
+        <ToolbarButton disabled title="PDF 导出建设中 · 需要 weasyprint 10-章模板 + /api/exports/pdf 路由 (BACKLOG P3.4)">
+          📤 PDF
+        </ToolbarButton>
         <ToolbarButton onClick={handleRerun} primary>
           ↻ Re-run
         </ToolbarButton>

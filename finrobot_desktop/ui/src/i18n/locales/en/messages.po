@@ -693,3 +693,7 @@ msgstr "No research yet. Search a ticker above to start analysis."
 #. js-lingui-explicit-id
 msgid "cmdk.section.tickers"
 msgstr "Tickers"
+
+#. js-lingui-explicit-id
+msgid "landing.warmup.label"
+msgstr "Warming live quote cache ·"

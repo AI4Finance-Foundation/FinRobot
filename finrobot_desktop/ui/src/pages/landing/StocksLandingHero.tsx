@@ -16,68 +16,9 @@ import { isValidTicker } from '../../stores/stocksStore'
 import { HitRateBanner } from './HitRateBanner'
 import { RecentResearchStrip } from './RecentResearchStrip'
 import { HotTickerChips } from './HotTickerChips'
+import { DashboardSkeleton } from './DashboardSkeleton'
 import { SplineHero } from '../../components/SplineHero'
 import { useQuotesWarmed } from '../../hooks/useQuotesWarmed'
-
-// Skeleton placeholder for the hit-rate banner + recent research strip
-// while the backend QuoteCache warmup task is still running. Sizing
-// roughly matches the real components so the page doesn't reflow when
-// the data lands.
-function DashboardSkeleton(): React.ReactElement {
-  return (
-    <div
-      data-testid="dashboard-skeleton"
-      style={{ display: 'flex', flexDirection: 'column', gap: 32 }}
-    >
-      <div
-        className="cosmic-card cosmic-card-glass"
-        style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}
-      >
-        <div
-          className="skeleton"
-          style={{ height: 16, width: '40%' }}
-          aria-hidden
-        />
-        <div style={{ display: 'flex', gap: 24 }}>
-          {[0, 1, 2].map((i) => (
-            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div className="skeleton" style={{ height: 36 }} aria-hidden />
-              <div className="skeleton" style={{ height: 12, width: '60%' }} aria-hidden />
-            </div>
-          ))}
-        </div>
-      </div>
-      <div style={{ display: 'flex', gap: 16, overflow: 'hidden' }}>
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="cosmic-card cosmic-card-glass"
-            style={{ minWidth: 220, padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}
-          >
-            <div className="skeleton" style={{ height: 18, width: '50%' }} aria-hidden />
-            <div className="skeleton" style={{ height: 32 }} aria-hidden />
-            <div className="skeleton" style={{ height: 12 }} aria-hidden />
-            <div className="skeleton" style={{ height: 12, width: '80%' }} aria-hidden />
-          </div>
-        ))}
-      </div>
-      <div
-        role="status"
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          color: 'var(--text-muted)',
-          letterSpacing: '0.14em',
-          textTransform: 'uppercase',
-          textAlign: 'center',
-        }}
-      >
-        正在预热行情缓存 ·
-      </div>
-    </div>
-  )
-}
-
 
 const TAGLINES = [
   '确定性计算 · LLM 叙事',

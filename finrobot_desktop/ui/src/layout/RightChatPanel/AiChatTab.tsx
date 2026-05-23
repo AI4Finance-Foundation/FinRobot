@@ -554,9 +554,14 @@ function MessageBubble({ message }: { message: UIMessage }): React.ReactElement 
   const isUser = message.role === 'user'
   // Read the SDK-supplied createdAt instead of new Date() — the latter
   // re-runs on every render so all historical messages would show "now".
-  // Old messages persisted before createdAt was wired may be missing it;
-  // in that case we drop the timestamp rather than fabricate one.
-  const timeStr = formatMessageTime(message.createdAt)
+  // The ai SDK v1 UIMessage type stopped surfacing `createdAt` at the
+  // root and moved per-message extras into the typed `metadata` slot.
+  // useChat() doesn't parameterise metadata, so the field is reachable
+  // only via a narrowed read. Old messages persisted before any sender
+  // populated this will be undefined; formatMessageTime drops them
+  // rather than fabricating "now".
+  const createdAt = (message as UIMessage & { createdAt?: string | Date | undefined }).createdAt
+  const timeStr = formatMessageTime(createdAt)
 
   return (
     <div
@@ -577,7 +582,7 @@ function MessageBubble({ message }: { message: UIMessage }): React.ReactElement 
   )
 }
 
-function formatMessageTime(createdAt: Date | undefined): string {
+function formatMessageTime(createdAt: Date | string | undefined): string {
   if (!createdAt) return ''
   const d = createdAt instanceof Date ? createdAt : new Date(createdAt)
   if (Number.isNaN(d.getTime())) return ''

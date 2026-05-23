@@ -689,3 +689,7 @@ msgstr "Could not load research history. Check your connection and retry."
 #. js-lingui-explicit-id
 msgid "landing.recentResearch.empty"
 msgstr "No research yet. Search a ticker above to start analysis."
+
+#. js-lingui-explicit-id
+msgid "cmdk.section.tickers"
+msgstr "Tickers"

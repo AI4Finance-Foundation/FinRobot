@@ -681,7 +681,7 @@ export function CmdKOverlay() {
 
         {/* Ticker results */}
         {grouped.ticker.length > 0 && (
-          <Command.Group heading="Ticker" data-testid="ticker-group">
+          <Command.Group heading={t("cmdk.section.tickers")} data-testid="ticker-group">
             {grouped.ticker.map((r) => (
               <ResultItem
                 key={`ticker:${r.action}`}

@@ -23,7 +23,6 @@ import { useRunStreamStore, selectRunByTicker } from '../stores/runStreamStore'
 import { useToastStore } from '../stores/toastStore'
 import { useAppStore } from '../stores/appStore'
 import { TickerHero } from './TickerHero'
-import { PipelineProgressPanel } from './PipelineProgressPanel'
 import { MarketDataZone } from './workspace/MarketDataZone'
 import { AIZone } from './workspace/AIZone'
 
@@ -103,21 +102,22 @@ export function StockWorkspace(): React.ReactElement {
         style={{
           maxWidth: 1480,
           margin: '0 auto',
-          padding: '16px 32px 96px',
+          padding: '24px 32px 96px',
         }}
       >
-        <PipelineProgressPanel ticker={symbol} />
-
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
             gap: 24,
-            marginTop: 12,
             alignItems: 'start',
           }}
         >
           <MarketDataZone ticker={symbol} />
+          {/* PipelineProgressPanel is rendered inside AIZone — it shares
+              the AI column's visual real estate (cold / running / hot are
+              three states of the same surface) instead of stacking on
+              top of MarketDataZone where it stole vertical room. */}
           <AIZone ticker={symbol} />
         </div>
       </main>

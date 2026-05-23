@@ -49,6 +49,46 @@ interface RunStreamState {
   clear: (ticker: string) => void
 }
 
+// ── Pipeline → real step names ─────────────────────────────────────────────
+//
+// SSE `run.started` only carries `total_steps`, not the per-step names —
+// those arrive lazily on each `step.started`. If we initialise the steps
+// list with "Step 1 / Step 2 / …" placeholders, the PipelineProgressPanel
+// renders garbage labels for every step that hasn't started yet (user got
+// 数据收集 ✓ + 催化剂识别 ⟳ + Step 3 / Step 4 / Step 5 / Step 6 ⏳).
+//
+// Mirror the actual pipeline registry here so the names show up even
+// before the SSE for each step lands. Backend remains the source of
+// truth — incoming step.started / step.completed events still overwrite
+// the name field, so a pipeline rename on the backend won't silently
+// diverge (it just briefly shows the stale name until the first event).
+const PIPELINE_STEP_NAMES: Record<string, string[]> = {
+  research: [
+    'data_collection',
+    'catalyst_analysis',
+    'peer_analysis',
+    'financial_modeling',
+    'thesis',
+    'report',
+  ],
+  'ic-memo': ['data_collection', 'financial_analysis', 'memo_drafting', 'report'],
+  earnings: ['data_collection', 'earnings_extraction', 'thesis', 'report'],
+  dcf: ['data_collection', 'financial_modeling', 'report'],
+  lbo: ['data_collection', 'lbo_modeling', 'report'],
+  ddm: ['data_collection', 'ddm_modeling', 'report'],
+  comps: ['data_collection', 'peer_analysis', 'report'],
+}
+
+function stepNamesForPipeline(pipelineType: string, totalSteps: number): string[] {
+  const known = PIPELINE_STEP_NAMES[pipelineType]
+  if (known && known.length === totalSteps) return known
+  if (known) return known.slice(0, totalSteps)
+  // Unknown pipeline OR backend reported a different step count than we
+  // hardcoded — fall back to numeric placeholders so we don't fabricate
+  // wrong names. SSE events will overwrite as they land.
+  return Array.from({ length: totalSteps }, (_, i) => `Step ${i + 1}`)
+}
+
 // ── Module-level EventSource registry (not in store: not serialisable) ──────
 
 const sources = new Map<string, EventSource>()
@@ -80,11 +120,11 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
     es.addEventListener('run.started', (e) => {
       const data = JSON.parse((e as MessageEvent).data)
       const totalSteps = data.total_steps || 4
+      const cur = get().runs[ticker]
+      const pipelineType = cur?.pipelineType ?? 'research'
+      const names = stepNamesForPipeline(pipelineType, totalSteps)
       patch(ticker, {
-        steps: Array.from({ length: totalSteps }, (_, i) => ({
-          name: `Step ${i + 1}`,
-          status: 'pending' as const,
-        })),
+        steps: names.map((name) => ({ name, status: 'pending' as const })),
       })
     })
 

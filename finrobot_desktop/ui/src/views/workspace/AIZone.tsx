@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom'
 import { useLatestArtifact, useV5ArtifactTimeline } from '../../hooks/useV5Artifacts'
 import { useRunStreamStore, selectRunByTicker } from '../../stores/runStreamStore'
 import { useToastStore } from '../../stores/toastStore'
+import { PipelineProgressPanel } from '../PipelineProgressPanel'
 
 interface AIZoneProps {
   ticker: string
@@ -82,6 +83,16 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
     }
   }
 
+  // Three states share this column:
+  //   running  → progress panel only (cold/hot would be misleading)
+  //   has artifact → hot card stack
+  //   neither  → cold CTA
+  // After the run completes, PipelineProgressPanel keeps showing its
+  // "完成 · 总耗时 Xs" header (with → 打开研报 / ✕ dismiss buttons) UNTIL
+  // the user dismisses it; the hot card renders below it in the meantime
+  // so the analyst sees the new verdict immediately.
+  const showProgress = !!runState && !runState.dismissed
+
   return (
     <section data-testid="ai-zone">
       <ZoneHeader hasArtifact={!!latest} versionsCount={sameTypeTimeline.length} />
@@ -89,7 +100,9 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
         research pipeline 跑出来的 artifact · 含 8 LLM agents 叙事 + DCF / Comps / Peers 确定性计算。
       </p>
 
-      {latest ? (
+      {showProgress && <PipelineProgressPanel ticker={ticker} />}
+
+      {latest && !isRunning ? (
         <HotState
           ticker={ticker}
           latest={latest}
@@ -98,9 +111,9 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
           onRerun={launchResearch}
           onOpen={(id) => navigate(`/stocks/${ticker}/runs/${id}`)}
         />
-      ) : (
+      ) : !isRunning && !latest ? (
         <ColdState ticker={ticker} isRunning={isRunning} onLaunch={launchResearch} />
-      )}
+      ) : null}
     </section>
   )
 }

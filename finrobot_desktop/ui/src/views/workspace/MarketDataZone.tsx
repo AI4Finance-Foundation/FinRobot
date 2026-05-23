@@ -116,19 +116,6 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
         )}
       </MktCard>
 
-      {/* Earnings calls placeholder (full panel lives in ArtifactDetailPage ch 10) */}
-      <MktCard title="🎙 财报电话会">
-        <p
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            color: 'var(--text-muted)',
-            lineHeight: 1.6,
-          }}
-        >
-          完整文字记录 + 音频在研报视图 · Financial Data 章
-        </p>
-      </MktCard>
     </section>
   )
 }

@@ -58,8 +58,8 @@ FinAgent = **FinRobot equity 桌面 app 化重写** + **Claude Code 对话架构
 ```
 /                              → /stocks
 /stocks                        → StocksLandingHero
-/stocks/:ticker                → StockWorkspace（dashboard 形态）
-/stocks/:ticker/runs/:artifactId → ArtifactDetailPage（10 章完整研报形态 · FinRobot parity 目标）
+/stocks/:ticker                → StockWorkspace（双区 dashboard · 左 MarketDataZone / 右 AIZone · 三态 cold/running/hot）
+/stocks/:ticker/runs/:artifactId → ArtifactDetailPage（12 章 FinRobot-parity 长滚动 · sticky toolbar/TOC/right-rail）
 /settings                      → SettingsPage
 ```
 
@@ -89,13 +89,21 @@ FinAgent = **FinRobot equity 桌面 app 化重写** + **Claude Code 对话架构
 - `catalysts` / `risks` — 数组
 - `company_overview` — 200-300 字 Company Overview（FinRobot 第 8 agent parity，business / segments / geography / moat 投行口吻）
 
-surface 位置：HeroVerdict / FootballField / PeersSection / NewsTimeline 顶部 NarrativeCallout。
+surface 位置：`/stocks/:ticker/runs/:artifactId` 路由（ArtifactDetailPage）的 12 章节按字段映射渲染：
+- `tagline` → 00 Cover 顶部 italic 引文
+- `key_takeaways` + `recommendation` → 01 Investment Thesis takeaways list + verdict badge
+- `company_overview` → 02 Company Overview narrative callout
+- `valuation_overview` → 04 Valuation Analysis narrative callout
+- `news_summary` → 05 Recent News & Events narrative callout
+- `competitor_analysis` → 09 Competitive Landscape narrative callout
+
+工作区 (`/stocks/:ticker`) 的 AIZone hot state 只显示 `headline` + `verdict` 大徽章 + `target_price` 作为入口卡，详情拉详情页看。
 
 ## 测试金字塔
 
 - **1437 pytest pass** + 1 skipped（unit + integration + routes + audit + artifact）
 - **191 vitest pass** + 2 skipped（components + stores + hooks · StockWorkspace.test rewritten for dual-zone dashboard contract）
-- **Playwright e2e 待重写**：2 个 e2e (`v5-walkthrough` + `cosmic-research-flow`) 依赖旧 23-section 锚点 + StatBanner / MyResearchFeed / FootballField testids — dashboard 重写后必破，列入 cleanup PR 重写为 landing → workspace dual-zone → ArtifactDetailPage 12-chapter 路径
+- **Playwright e2e 待新建**：旧 2 个 spec (`v5-walkthrough` + `cosmic-research-flow`) 已删（依赖死 23-section 锚点 + StatBanner/HeroVerdict/FootballField testids）。新 e2e 应该覆盖 landing → workspace dual-zone (cold/running/hot) → ArtifactDetailPage 12-chapter (TOC scroll-spy + chapter mini-grid #anchor jump + Diff modal) 路径。BACKLOG 待排
 
 ## UI 设计规范强制（桌面 App）
 
@@ -134,7 +142,7 @@ surface 位置：HeroVerdict / FootballField / PeersSection / NewsTimeline 顶�
 
 ## 工程纪律（项目级铁律）
 
-- **颜色 token 化** — SVG 图表 / sections 不写硬编码 hex，只用 `var(--primary/success/danger/warning/accent-cyan/accent-pink/secondary)`。唯一豁免：`#C9A84C`（watching 信号 gold）
+- **颜色 token 化** — SVG 图表 / chapters / workspace zones 不写硬编码 hex，只用 `var(--primary/success/danger/warning/accent-cyan/accent-pink/secondary)`。唯一豁免：`#C9A84C`（watching 信号 gold）
 - **数字溯源** — pipeline 数字都从 `engine/compute/*` 纯函数算出，artifact 落盘后可经 `/api/artifacts/{id}` 复现
 - **每文件 + 测试一 commit**（`feedback_commit_per_file`）
 - **改 UI 必须 `npm run build`（不止 `tsc`）**（`feedback_frontend_smoke_test`）

@@ -168,28 +168,6 @@ html, body { height: 100%; }
 /* ── Utility: Mono Numbers ── */
 .font-mono { font-family: var(--font-mono); }
 
-/* ── Ticker display (used by TickerInput) ── */
-.ticker-display {
-  display: flex; align-items: center; gap: var(--sp-3);
-}
-.ticker-symbol {
-  font-family: var(--font-mono); font-weight: 700; font-size: 1rem;
-  color: var(--accent); letter-spacing: 0.03em;
-}
-.ticker-name {
-  font-size: 0.85rem; color: var(--text-secondary); font-weight: 400;
-}
-.ticker-price {
-  font-family: var(--font-mono); font-weight: 600; font-size: 0.95rem;
-  color: var(--text-primary);
-}
-.ticker-change {
-  font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600;
-  padding: 2px 8px; border-radius: var(--r-sm);
-}
-.ticker-change.positive { color: var(--positive); background: var(--positive-bg); }
-.ticker-change.negative { color: var(--negative); background: var(--negative-bg); }
-
 /* ═══════════════════════════
    MAIN LAYOUT
    ═══════════════════════════ */

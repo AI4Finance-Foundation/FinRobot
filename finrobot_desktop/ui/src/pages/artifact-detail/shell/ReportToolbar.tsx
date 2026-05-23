@@ -5,7 +5,7 @@
 //   - version select (jumps to a sibling artifact of the same ticker/type)
 //   - secondary actions: Diff vs prior, What-if (P4.2 placeholder), PDF, Re-run
 
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useTickerPrice } from '../../../hooks/useTickerData'
 import { useRunStreamStore } from '../../../stores/runStreamStore'
 import { useToastStore } from '../../../stores/toastStore'
@@ -118,7 +118,8 @@ export function ReportToolbar({
         borderBottom: '1px solid var(--border-soft)',
       }}
     >
-      {/* Breadcrumb */}
+      {/* Breadcrumb — every non-current crumb is a real Link so users can
+          jump back to landing / workspace without resorting to browser back. */}
       <div
         style={{
           fontFamily: 'var(--font-mono)',
@@ -126,10 +127,23 @@ export function ReportToolbar({
           letterSpacing: '0.06em',
           color: 'var(--text-muted)',
           textTransform: 'uppercase',
+          minWidth: 0,
         }}
       >
-        FINAGENT <Sep /> STOCKS <Sep />
-        <span style={{ color: 'var(--accent-cyan)' }}>{ticker}</span> <Sep /> RESEARCH <Sep />
+        <Link to="/stocks" style={crumbLinkStyle}>
+          FINAGENT
+        </Link>
+        <Sep />
+        <Link to="/stocks" style={crumbLinkStyle}>
+          STOCKS
+        </Link>
+        <Sep />
+        <Link to={`/stocks/${ticker}`} style={{ ...crumbLinkStyle, color: 'var(--accent-cyan)' }}>
+          {ticker}
+        </Link>
+        <Sep />
+        <span style={{ color: 'var(--text-muted)' }}>RESEARCH</span>
+        <Sep />
         <span style={{ color: 'var(--secondary)' }}>{reportVersionLabel}</span>
       </div>
 
@@ -224,6 +238,12 @@ export function ReportToolbar({
 
 function Sep(): React.ReactElement {
   return <span style={{ color: 'var(--text-dim)', margin: '0 6px' }}>›</span>
+}
+
+const crumbLinkStyle: React.CSSProperties = {
+  color: 'inherit',
+  textDecoration: 'none',
+  transition: 'color 0.18s',
 }
 
 function ToolbarButton({

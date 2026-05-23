@@ -14,7 +14,7 @@
 // inputs.raw_data for the audit dump.
 
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useArtifactDetail, useV5ArtifactTimeline } from '../hooks/useV5Artifacts'
 import { useAppStore } from '../stores/appStore'
 import { useToastStore } from '../stores/toastStore'
@@ -91,10 +91,28 @@ export function ArtifactDetailPage(): React.ReactElement {
   const { ticker, artifactId } = useParams<{ ticker: string; artifactId: string }>()
   const symbol = (ticker || '').toUpperCase()
   const navigate = useNavigate()
+  const location = useLocation()
   const { data, isLoading, isError, error } = useArtifactDetail(artifactId)
   const { data: timeline } = useV5ArtifactTimeline(symbol)
   const [diffPartner, setDiffPartner] = useState<ArtifactSummaryV5 | null>(null)
   const addToast = useToastStore((s) => s.addToast)
+
+  // React Router v6 doesn't auto-scroll to #hash on navigate; chapter
+  // mini-grid in AIZone links here with /stocks/X/runs/id#thesis etc.
+  // Manually scrollIntoView once the artifact resolves AND on subsequent
+  // hash changes. Wait one tick so the target <section id> has mounted.
+  useEffect(() => {
+    if (!location.hash) return
+    if (isLoading) return
+    const id = decodeURIComponent(location.hash.slice(1))
+    if (!id) return
+    requestAnimationFrame(() => {
+      const el = document.getElementById(id)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    })
+  }, [location.hash, isLoading])
 
   // Mirror URL ticker into appStore so any hook that reads from there
   // (useHistoricalData / useQuarterlyData / etc) works when the user
@@ -284,7 +302,20 @@ export function ArtifactDetailPage(): React.ReactElement {
             >
               ← 回 {symbol} 工作区
             </button>
-            <button type="button" onClick={() => navigate(-1)} style={navBtnStyle}>
+            <button
+              type="button"
+              onClick={() => {
+                // navigate(-1) jumps out of the SPA entirely when the user
+                // landed here from a bookmark / direct link / fresh tab
+                // (no history stack). Fall back to landing in that case.
+                if (window.history.length > 1) {
+                  navigate(-1)
+                } else {
+                  navigate('/stocks')
+                }
+              }}
+              style={navBtnStyle}
+            >
               上一页
             </button>
           </div>

@@ -9,24 +9,30 @@
 //
 // PipelineProgressPanel takes over the "current status" duty.
 
-import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useTickerPrice } from '../hooks/useTickerData'
 import { useV5ArtifactTimeline } from '../hooks/useV5Artifacts'
-import { useStocksStore } from '../stores/stocksStore'
 import { useRunStreamStore, selectRunByTicker } from '../stores/runStreamStore'
 import { useToastStore } from '../stores/toastStore'
-import { RunAnalysisDropdown } from './RunAnalysisDropdown'
 
-const PRIMARY_PIPELINE = 'research'  // 内含 data → catalyst → peer → DCF → thesis → report
+// 1 ticker = 1 跑 = 1 份全量 artifact (FinRobot parity 10 章 + 桌面增强).
+// dcf / lbo / ddm / comps / ic-memo / earnings 6 个旧 pipeline 后端保留给 SDK
+// + `/api/compute/*`，UI 永远不暴露 — 它们的能力都已折进 research。
+const PRIMARY_PIPELINE = 'research'
 
+// 旧 artifact 兼容映射：用户历史上跑过的 dcf/lbo/etc artifact 还在 store 里，
+// "重跑" 按钮需要把它们映射回 research（因为这些独立 pipeline 已不可达）。
 const ARTIFACT_TYPE_TO_PIPELINE: Record<string, string> = {
   equity_research: 'research',
-  ic_memo: 'ic-memo',
-  earnings_analysis: 'earnings',
-  dcf: 'dcf',
-  lbo: 'lbo',
-  ddm: 'ddm',
-  comps: 'comps',
+  research: 'research',
+  ic_memo: 'research',
+  'ic-memo': 'research',
+  earnings_analysis: 'research',
+  earnings: 'research',
+  dcf: 'research',
+  lbo: 'research',
+  ddm: 'research',
+  comps: 'research',
 }
 
 const TAGLINES = [
@@ -35,14 +41,6 @@ const TAGLINES = [
   '每一个数字 · 都能追溯到函数调用',
   'AI ANALYST · 持续工作中',
 ] as const
-
-function StarIcon({ filled, size = 14 }: { filled?: boolean; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? '#F59E0B' : 'none'} stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-    </svg>
-  )
-}
 
 function RefreshIcon({ size = 13 }: { size?: number }) {
   return (
@@ -54,25 +52,12 @@ function RefreshIcon({ size = 13 }: { size?: number }) {
   )
 }
 
-function ChevronDownIcon({ size = 14 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  )
-}
-
 interface Props {
   ticker: string
 }
 
 export function TickerHero({ ticker }: Props): React.ReactElement {
   const { data: price } = useTickerPrice(ticker)
-  const watchlist = useStocksStore((s) => s.watchlist)
-  const toggleWatchlist = useStocksStore((s) => s.toggleWatchlist)
-  const isWatched = watchlist.has(ticker)
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-  const dropdownWrapperRef = useRef<HTMLDivElement>(null)
 
   const runState = useRunStreamStore(selectRunByTicker(ticker))
   const startRun = useRunStreamStore((s) => s.startRun)
@@ -84,17 +69,6 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
     : 'research'
   const lastPipeline = runState?.pipelineType ?? fallbackPipeline
   const rerunBusy = runState?.status === 'running'
-
-  useEffect(() => {
-    if (!dropdownOpen) return
-    function onDocMouseDown(e: MouseEvent) {
-      if (!dropdownWrapperRef.current) return
-      if (e.target instanceof Node && dropdownWrapperRef.current.contains(e.target)) return
-      setDropdownOpen(false)
-    }
-    document.addEventListener('mousedown', onDocMouseDown)
-    return () => document.removeEventListener('mousedown', onDocMouseDown)
-  }, [dropdownOpen])
 
   async function handleRerun(): Promise<void> {
     if (rerunBusy) return
@@ -111,9 +85,9 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
     }
   }
 
-  // Primary CTA — one-click full equity research (FinRobot-style 一键全套).
-  // The chevron next to it is for power users who want a single specific
-  // valuation model only; the main button never opens a menu.
+  // Primary CTA — one-click full equity research. There is no longer any
+  // chevron / secondary menu: 1 ticker = 1 跑 = 1 份 research artifact 含全量
+  // (DCF + Comps + Catalysts + Risks + Sensitivity + Earnings + Peers …).
   async function handleLaunchPrimary(): Promise<void> {
     if (rerunBusy) return
     try {
@@ -238,73 +212,23 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
             )}
           </div>
 
-          {/* Actions — split button: main button kicks off the full AI
-              equity-research pipeline directly (FinRobot 同款一键全套：
-              内含 DCF + 同业 + 催化剂 + 论点 + 风险). Chevron half opens a
-              menu of 6 单独估值模型 for advanced users — that's the only
-              path that needs a sub-menu now. */}
+          {/* Actions — single primary button. 1 ticker = 1 跑 = 1 份 research
+              artifact (含 FinRobot 8 章 + 桌面增强：DCF/Comps/Catalysts/
+              Risks/Sensitivity/Earnings/Peers …). No secondary menu. */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 4 }}>
-            <div ref={dropdownWrapperRef} style={{ position: 'relative', display: 'flex' }}>
-              <button
-                type="button"
-                data-testid="run-analysis-trigger"
-                className="btn-shimmer"
-                onClick={() => handleLaunchPrimary()}
-                disabled={rerunBusy}
-                title={rerunBusy ? '当前还有分析在跑' : '一键跑 AI 完整研报（含 DCF / 同业 / 论点）'}
-                style={{
-                  borderTopRightRadius: 0,
-                  borderBottomRightRadius: 0,
-                  marginRight: 0,
-                  opacity: rerunBusy ? 0.5 : 1,
-                  cursor: rerunBusy ? 'not-allowed' : 'pointer',
-                }}
-              >
-                运行完整分析
-              </button>
-              <button
-                type="button"
-                data-testid="run-analysis-more"
-                aria-label="其他单独模型"
-                onClick={() => setDropdownOpen((v) => !v)}
-                className="btn-shimmer"
-                style={{
-                  borderTopLeftRadius: 0,
-                  borderBottomLeftRadius: 0,
-                  borderLeft: '1px solid rgba(255,255,255,0.18)',
-                  padding: '12px 12px',
-                  minWidth: 38,
-                }}
-                title="其他单独估值模型（DCF / LBO / DDM …）"
-              >
-                <ChevronDownIcon size={14} />
-              </button>
-              {dropdownOpen && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 'calc(100% + 6px)',
-                    zIndex: 50,
-                  }}
-                >
-                  <RunAnalysisDropdown
-                    ticker={ticker}
-                    onLaunched={() => setDropdownOpen(false)}
-                  />
-                </div>
-              )}
-            </div>
-
             <button
               type="button"
-              data-testid="watchlist-toggle"
-              onClick={() => toggleWatchlist(ticker)}
-              style={ghostBtnStyle(isWatched)}
-              title={isWatched ? '从自选股移除' : '加入自选股'}
+              data-testid="run-analysis-trigger"
+              className="btn-shimmer"
+              onClick={() => handleLaunchPrimary()}
+              disabled={rerunBusy}
+              title={rerunBusy ? '当前还有分析在跑' : '一键跑完整研报（10 章 + 全部估值方法 + 桌面增强）'}
+              style={{
+                opacity: rerunBusy ? 0.5 : 1,
+                cursor: rerunBusy ? 'not-allowed' : 'pointer',
+              }}
             >
-              <StarIcon filled={isWatched} size={14} />
-              {isWatched ? '已加入自选' : '加入自选'}
+              运行完整分析
             </button>
 
             <button
@@ -313,9 +237,9 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
               onClick={handleRerun}
               disabled={rerunBusy}
               style={{ ...ghostBtnStyle(false), opacity: rerunBusy ? 0.45 : 1, cursor: rerunBusy ? 'not-allowed' : 'pointer' }}
-              title={rerunBusy ? '当前还有分析在跑' : `重跑：${lastPipeline}`}
+              title={rerunBusy ? '当前还有分析在跑' : '重跑最新研报'}
             >
-              <RefreshIcon size={13} /> {rerunBusy ? '正在跑' : `重跑 ${lastPipeline}`}
+              <RefreshIcon size={13} /> {rerunBusy ? '正在跑' : '重跑研报'}
             </button>
           </div>
         </div>
@@ -327,6 +251,7 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
 
 // ── Breadcrumb ─────────────────────────────────────────────────────────────
 function Breadcrumb({ ticker }: { ticker: string }): React.ReactElement {
+  const linkStyle: React.CSSProperties = { color: 'inherit', textDecoration: 'none' }
   return (
     <div
       style={{
@@ -340,9 +265,13 @@ function Breadcrumb({ ticker }: { ticker: string }): React.ReactElement {
         textTransform: 'uppercase',
       }}
     >
-      <span>FINAGENT</span>
+      <Link to="/stocks" style={linkStyle}>
+        FINAGENT
+      </Link>
       <span style={{ color: 'var(--text-dim)' }}>›</span>
-      <span>Stocks</span>
+      <Link to="/stocks" style={linkStyle}>
+        Stocks
+      </Link>
       <span style={{ color: 'var(--text-dim)' }}>›</span>
       <span style={{ color: 'var(--accent-cyan)' }}>{ticker}</span>
     </div>
@@ -418,3 +347,4 @@ function ghostBtnStyle(highlighted: boolean): React.CSSProperties {
     transition: 'all 0.2s',
   }
 }
+

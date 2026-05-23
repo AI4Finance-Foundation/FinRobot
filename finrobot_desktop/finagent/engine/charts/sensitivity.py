@@ -52,7 +52,7 @@ def _create_figure(
             if val is not None:
                 grid[i, j] = val
 
-    masked_grid = np.ma.masked_invalid(grid)  # type: ignore[no-untyped-call]
+    masked_grid = np.ma.masked_invalid(grid)
 
     fig, ax = new_axes(cfg)
     ax.set_facecolor("#e0e0e0")  # override: grey background for masked/null cells

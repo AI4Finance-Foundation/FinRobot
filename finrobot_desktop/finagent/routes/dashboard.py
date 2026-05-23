@@ -258,7 +258,7 @@ async def _gather_ticker_snapshot(deps: Any, ticker: str) -> dict[str, Any]:
             cats = compute_expected_impact(cats)
             cats = rank_catalysts(cats)
             cat_dicts: list[dict[str, Any]] = [
-                c.model_dump() if hasattr(c, "model_dump") else dict(c)  # type: ignore[arg-type]
+                c.model_dump() if hasattr(c, "model_dump") else dict(c)
                 for c in cats[:2]
             ]
         except (

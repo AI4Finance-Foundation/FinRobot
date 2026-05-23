@@ -47,7 +47,7 @@ async def execute_financial_data_step(
     Also builds HistoricalMetrics and ForecastResult from multi-year data
     and injects them into structured_context for chart generation.
     """
-    step_result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
+    step_result = await agent.run(prompt, deps=deps)
     financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
     price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
     financial_data = extract_financial_data(financials_result, price_result)

@@ -89,5 +89,6 @@ ignore_missing_imports = true
 
 [dependency-groups]
 dev = [
+    "pandas-stubs>=3.0.0.260204",
     "xlrd>=2.0.2",
 ]

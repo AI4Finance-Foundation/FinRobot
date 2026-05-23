@@ -575,11 +575,11 @@ class PipelineResult(BaseModel):
         primary_source: str | None = None
         for model in self.structured_data.values():
             if hasattr(model, "warnings"):
-                for w in model.warnings:  # type: ignore[union-attr]
+                for w in model.warnings:
                     if w not in all_warnings:
                         all_warnings.append(w)
             if hasattr(model, "data_source") and primary_source is None:
-                primary_source = model.data_source  # type: ignore[union-attr]
+                primary_source = model.data_source
 
         if all_warnings:
             notes = ["## Data Source Notes\n"]

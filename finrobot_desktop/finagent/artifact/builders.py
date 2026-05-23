@@ -126,7 +126,7 @@ def _collect_warnings(result: "PipelineResult") -> list[str]:
     warnings: list[str] = list(result.warnings)
     for val in result.structured_data.values():
         if hasattr(val, "warnings"):
-            for w in val.warnings:  # type: ignore[union-attr]
+            for w in val.warnings:
                 if w not in warnings:
                     warnings.append(w)
     return warnings

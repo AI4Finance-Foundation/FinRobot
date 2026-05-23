@@ -17,7 +17,15 @@ Discount Models). Also Rosenbaum & Pearl, "Investment Banking" 3rd Ed.
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 from finagent.engine.models.financial import DDMInputs, DDMResult
+
+
+class DDMSensitivity(TypedDict):
+    coe_values: list[float]
+    tg_values: list[float]
+    implied_prices: list[list[float | None]]
 
 
 def calculate_ddm(inputs: DDMInputs) -> DDMResult:
@@ -87,7 +95,7 @@ def calculate_ddm_sensitivity(
     inputs: DDMInputs,
     coe_range: list[float],
     tg_range: list[float],
-) -> dict[str, object]:
+) -> DDMSensitivity:
     """Generate sensitivity table: equity value per share for each (CoE, tg) pair.
 
     Projects dividends once (they don't depend on CoE or TG), then discounts

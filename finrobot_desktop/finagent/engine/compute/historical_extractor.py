@@ -86,7 +86,7 @@ _NWC_CHANGE_NAMES = [
 # ---------------------------------------------------------------------------
 
 
-def _get_row(df: pd.DataFrame, names: Sequence[str]) -> pd.Series | None:  # type: ignore[type-arg]
+def _get_row(df: pd.DataFrame, names: Sequence[str]) -> pd.Series | None:
     """Return the first matching row from *df* by trying *names* in order.
 
     Returns None if *df* is empty, *names* is empty, or no name matches.
@@ -225,7 +225,7 @@ def _build_historical_metrics(
     # Income-statement rows are guaranteed to have every sorted_cols entry
     # (those columns came from income_stmt itself), but cashflow rows may be
     # ordered differently and can lack a date. One helper, used uniformly.
-    def _cell(row: pd.Series | None, col: pd.Timestamp) -> float:  # type: ignore[type-arg]
+    def _cell(row: pd.Series | None, col: pd.Timestamp) -> float:
         if row is None:
             return 0.0
         try:

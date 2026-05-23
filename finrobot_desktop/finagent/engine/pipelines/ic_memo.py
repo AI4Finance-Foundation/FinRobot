@@ -143,7 +143,7 @@ async def _execute_recommendation(
 
     Gate: if LBO IRR < 15%, recommendation is overridden to PASS regardless of LLM output.
     """
-    step_result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
+    step_result = await agent.run(prompt, deps=deps)
     ic_financials = structured_context.get("financial_analysis")
 
     if isinstance(ic_financials, ICFinancials):

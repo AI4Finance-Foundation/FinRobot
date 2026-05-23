@@ -133,10 +133,7 @@ async def _execute_ddm_calc(
 
     # Extract price range from sensitivity
     all_prices = [
-        p
-        for row in sensitivity["implied_prices"]  # type: ignore[union-attr]
-        for p in row  # type: ignore[union-attr]
-        if p is not None and p > 0  # type: ignore[operator]
+        p for row in sensitivity["implied_prices"] for p in row if p is not None and p > 0
     ]
     price_range = f"${min(all_prices):.0f}–${max(all_prices):.0f}" if all_prices else "N/A"
 

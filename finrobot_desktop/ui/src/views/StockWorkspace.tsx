@@ -18,6 +18,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRunStreamStore, selectRunByTicker } from '../stores/runStreamStore'
 import { useToastStore } from '../stores/toastStore'
 import { useAppStore } from '../stores/appStore'
@@ -41,11 +42,17 @@ export function StockWorkspace(): React.ReactElement {
     }
   }, [symbol, storeTicker, setStoreTicker])
 
-  // Pipeline completion toast — fires once per runId when status transitions
-  // running → completed / failed. Without this, users scrolled away from
-  // PipelineProgressPanel get no feedback when a background run finishes.
+  // Pipeline completion toast + cache invalidation — fires once per runId
+  // when status transitions running → completed / failed. Two jobs:
+  //   1. surface a toast so users scrolled away from PipelineProgressPanel
+  //      still learn the run finished
+  //   2. invalidate the artifact-timeline + latest-artifact queries so the
+  //      AI zone re-fetches and flips out of cold state. Without this,
+  //      `useV5ArtifactTimeline` (staleTime: Infinity, immutable artifacts)
+  //      keeps serving the pre-run snapshot forever.
   const runState = useRunStreamStore(selectRunByTicker(symbol))
   const addToast = useToastStore((s) => s.addToast)
+  const queryClient = useQueryClient()
   const lastNotifiedRunIdRef = useRef<string | null>(null)
   useEffect(() => {
     const runId = runState?.runId
@@ -53,6 +60,19 @@ export function StockWorkspace(): React.ReactElement {
     if (lastNotifiedRunIdRef.current === runId) return
     if (runState.status === 'completed') {
       lastNotifiedRunIdRef.current = runId
+      // Refetch every read model that an equity_research artifact touches.
+      // Artifacts are immutable per-id but the *list* of artifacts for a
+      // ticker grows on every run, so the timeline / studied-tickers /
+      // recent-research queries must invalidate too.
+      // react-query invalidates by key-prefix match, so partial keys cover
+      // every limit / window variant. Keys must mirror the hooks exactly:
+      //   useV5ArtifactTimeline:      ['v5-artifacts-timeline', ticker]
+      //   useStudiedTickers:          ['studied-tickers', limit]
+      //   useDashboardHitRate:        ['dashboard', 'hit-rate', window]
+      //   useDashboardRecentResearch: ['dashboard', 'recent-research', limit]
+      queryClient.invalidateQueries({ queryKey: ['v5-artifacts-timeline', symbol] })
+      queryClient.invalidateQueries({ queryKey: ['studied-tickers'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       addToast({
         type: 'success',
         title: `${symbol} 研报完成`,
@@ -66,7 +86,7 @@ export function StockWorkspace(): React.ReactElement {
         description: runState.error ?? '请稍后重试',
       })
     }
-  }, [runState?.runId, runState?.status, runState?.error, symbol, addToast])
+  }, [runState?.runId, runState?.status, runState?.error, symbol, addToast, queryClient])
 
   if (!symbol) {
     return (

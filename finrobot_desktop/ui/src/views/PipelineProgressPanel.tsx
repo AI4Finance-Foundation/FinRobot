@@ -1,9 +1,12 @@
-// v5 PipelineProgressPanel — 6-step pipeline progress display (spec §5.1).
+// v5 PipelineProgressPanel — 6-step pipeline progress display.
 // Reads the live RunState from runStreamStore (which receives backend SSE
-// events; see PR4a audit for the 6-event contract). Renders one row per
-// step; matches the equity_research pipeline's step names exactly.
+// events). Renders one row per step matching the equity_research pipeline's
+// step names. Header switches between running / completed / failed states
+// so the panel isn't a stale "正在跑" forever once the run actually finishes.
 
+import { useNavigate } from 'react-router-dom'
 import { useRunStreamStore } from '../stores/runStreamStore'
+import { useLatestArtifact } from '../hooks/useV5Artifacts'
 
 const STEP_LABELS: Record<string, { label: string; help: string }> = {
   data_collection: {
@@ -38,18 +41,31 @@ interface PipelineProgressPanelProps {
 
 export function PipelineProgressPanel({ ticker }: PipelineProgressPanelProps): React.ReactElement | null {
   const run = useRunStreamStore((s) => s.runs[ticker])
+  const dismiss = useRunStreamStore((s) => s.dismiss)
+  const navigate = useNavigate()
+  // Pull the freshly-invalidated latest artifact so the "→ 打开研报" CTA can
+  // route directly into the report view that just got generated.
+  const { latest } = useLatestArtifact(ticker, 'equity_research')
 
   if (!run || run.dismissed) {
     return null
   }
 
   const eta = estimateEta(run.steps)
+  const completedCount = run.steps.filter((s) => s.status === 'completed').length
+  const totalDuration = run.steps.reduce((sum, s) => sum + (s.duration_s ?? 0), 0)
 
   return (
     <div
       data-testid="pipeline-progress-panel"
       style={{
-        border: '1px solid var(--border)',
+        border: `1px solid ${
+          run.status === 'completed'
+            ? 'rgba(22, 163, 74, 0.32)'
+            : run.status === 'failed'
+              ? 'rgba(220, 38, 38, 0.32)'
+              : 'var(--border-soft)'
+        }`,
         borderRadius: 10,
         padding: 20,
         background: 'var(--bg-card)',
@@ -61,23 +77,74 @@ export function PipelineProgressPanel({ ticker }: PipelineProgressPanelProps): R
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: 12,
           marginBottom: 12,
+          flexWrap: 'wrap',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           <span style={spinnerStyle(run.status)} />
           <span style={{ fontWeight: 600, fontSize: 13 }}>
-            正在跑 {labelForPipeline(run.pipelineType)}
+            {run.status === 'completed'
+              ? `${labelForPipeline(run.pipelineType)} · 完成`
+              : run.status === 'failed'
+                ? `${labelForPipeline(run.pipelineType)} · 失败`
+                : `正在跑 ${labelForPipeline(run.pipelineType)}`}
           </span>
-          {eta && (
+          {run.status === 'running' && eta && (
+            <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>· 还剩 ~{eta}s</span>
+          )}
+          {run.status === 'completed' && totalDuration > 0 && (
             <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
-              · 还剩 ~{eta}s
+              · 总耗时 {totalDuration.toFixed(1)}s
             </span>
           )}
         </div>
-        <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
-          {run.steps.filter((s) => s.status === 'completed').length}/{run.steps.length}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
+            {completedCount}/{run.steps.length}
+          </span>
+          {run.status === 'completed' && latest && (
+            <button
+              type="button"
+              data-testid="pipeline-open-report"
+              onClick={() => navigate(`/stocks/${ticker}/runs/${latest.id}`)}
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                padding: '5px 11px',
+                borderRadius: 6,
+                background: 'linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%)',
+                color: 'white',
+                border: 'none',
+                cursor: 'pointer',
+                letterSpacing: '0.04em',
+              }}
+            >
+              → 打开研报
+            </button>
+          )}
+          {(run.status === 'completed' || run.status === 'failed') && (
+            <button
+              type="button"
+              data-testid="pipeline-dismiss"
+              onClick={() => dismiss(ticker)}
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                padding: '5px 10px',
+                borderRadius: 6,
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                border: '1px solid var(--border-soft)',
+                cursor: 'pointer',
+              }}
+              aria-label="关闭进度面板"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </header>
       <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 6 }}>
         {run.steps.map((step, idx) => {

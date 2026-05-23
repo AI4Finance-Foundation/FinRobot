@@ -216,6 +216,7 @@ function ColdState({
       </p>
       <button
         type="button"
+        data-testid="run-analysis-trigger"
         onClick={onLaunch}
         disabled={isRunning}
         style={{

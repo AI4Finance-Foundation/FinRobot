@@ -1,39 +1,18 @@
-// Ticker workspace hero — cosmic redesign (spec §3.2).
+// TickerHero — identity strip at the top of the workspace.
 //
-// 2026-05-22: SplineHero removed from this surface. The 3D AI Analyst
-// belongs on /stocks landing only — at the ticker workspace level it was
-// (a) duplicating GPU load with the landing backdrop on every nav, and
-// (b) competing for attention with the actual financial numbers the user
-// came here to read. Single-column layout now; the breadcrumb / symbol /
-// price block uses the full hero width.
+// Job: breadcrumb back to landing + ticker glyph + LIVE pill + morph
+// tagline + current price / day-change.
 //
-// PipelineProgressPanel takes over the "current status" duty.
+// What it does NOT do: anything related to running research. The "run"
+// / "rerun" buttons used to live here, but they duplicated the AIZone's
+// cold-state CTA + hot-state rerun action. After the dual-zone dashboard
+// landed, the hero kept showing redundant controls — surfaced by user as
+// "这个东西也不该留在这了". All run-related affordances now live in AIZone
+// (data-testid="run-analysis-trigger" moved with them so tests still pin
+// on the canonical trigger).
 
 import { Link } from 'react-router-dom'
 import { useTickerPrice } from '../hooks/useTickerData'
-import { useV5ArtifactTimeline } from '../hooks/useV5Artifacts'
-import { useRunStreamStore, selectRunByTicker } from '../stores/runStreamStore'
-import { useToastStore } from '../stores/toastStore'
-
-// 1 ticker = 1 跑 = 1 份全量 artifact (FinRobot parity 10 章 + 桌面增强).
-// dcf / lbo / ddm / comps / ic-memo / earnings 6 个旧 pipeline 后端保留给 SDK
-// + `/api/compute/*`，UI 永远不暴露 — 它们的能力都已折进 research。
-const PRIMARY_PIPELINE = 'research'
-
-// 旧 artifact 兼容映射：用户历史上跑过的 dcf/lbo/etc artifact 还在 store 里，
-// "重跑" 按钮需要把它们映射回 research（因为这些独立 pipeline 已不可达）。
-const ARTIFACT_TYPE_TO_PIPELINE: Record<string, string> = {
-  equity_research: 'research',
-  research: 'research',
-  ic_memo: 'research',
-  'ic-memo': 'research',
-  earnings_analysis: 'research',
-  earnings: 'research',
-  dcf: 'research',
-  lbo: 'research',
-  ddm: 'research',
-  comps: 'research',
-}
 
 const TAGLINES = [
   '确定性计算 · LLM 叙事',
@@ -42,73 +21,12 @@ const TAGLINES = [
   'AI ANALYST · 持续工作中',
 ] as const
 
-function RefreshIcon({ size = 13 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 4 23 10 17 10" />
-      <polyline points="1 20 1 14 7 14" />
-      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-    </svg>
-  )
-}
-
 interface Props {
   ticker: string
 }
 
 export function TickerHero({ ticker }: Props): React.ReactElement {
   const { data: price } = useTickerPrice(ticker)
-
-  const runState = useRunStreamStore(selectRunByTicker(ticker))
-  const startRun = useRunStreamStore((s) => s.startRun)
-  const addToast = useToastStore((s) => s.addToast)
-  const { data: artifactTimeline } = useV5ArtifactTimeline(ticker)
-  const lastArtifactType = artifactTimeline?.[0]?.type
-  const fallbackPipeline = lastArtifactType
-    ? ARTIFACT_TYPE_TO_PIPELINE[lastArtifactType] ?? 'research'
-    : 'research'
-  const lastPipeline = runState?.pipelineType ?? fallbackPipeline
-  const rerunBusy = runState?.status === 'running'
-
-  async function handleRerun(): Promise<void> {
-    if (rerunBusy) return
-    try {
-      const runId = await startRun(lastPipeline, ticker)
-      addToast({
-        type: 'success',
-        title: `${ticker} ${lastPipeline} 已重跑`,
-        description: `run_id: ${runId.slice(0, 12)} · 顶部进度面板会逐步更新`,
-      })
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      addToast({ type: 'error', title: `${ticker} 重跑失败`, description: msg })
-    }
-  }
-
-  // Primary CTA — one-click full equity research. There is no longer any
-  // chevron / secondary menu: 1 ticker = 1 跑 = 1 份 research artifact 含全量
-  // (DCF + Comps + Catalysts + Risks + Sensitivity + Earnings + Peers …).
-  async function handleLaunchPrimary(): Promise<void> {
-    if (rerunBusy) return
-    try {
-      const runId = await startRun(PRIMARY_PIPELINE, ticker)
-      addToast({
-        type: 'success',
-        title: `${ticker} AI 完整研报已启动`,
-        description: `run_id: ${runId.slice(0, 12)} · 顶部进度面板会逐步更新`,
-      })
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      addToast({
-        type: 'error',
-        title: `${ticker} 启动分析失败`,
-        description:
-          msg.includes('Failed to fetch') || msg.includes('NetworkError')
-            ? '后端未响应 — 检查 sidecar 是否启动（StatusBar 应显示「已连接」）'
-            : msg,
-      })
-    }
-  }
 
   const current = price?.current_price
   const changePct = price?.change_pct
@@ -212,36 +130,9 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
             )}
           </div>
 
-          {/* Actions — single primary button. 1 ticker = 1 跑 = 1 份 research
-              artifact (含 FinRobot 8 章 + 桌面增强：DCF/Comps/Catalysts/
-              Risks/Sensitivity/Earnings/Peers …). No secondary menu. */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 4 }}>
-            <button
-              type="button"
-              data-testid="run-analysis-trigger"
-              className="btn-shimmer"
-              onClick={() => handleLaunchPrimary()}
-              disabled={rerunBusy}
-              title={rerunBusy ? '当前还有分析在跑' : '一键跑完整研报（10 章 + 全部估值方法 + 桌面增强）'}
-              style={{
-                opacity: rerunBusy ? 0.5 : 1,
-                cursor: rerunBusy ? 'not-allowed' : 'pointer',
-              }}
-            >
-              运行完整分析
-            </button>
-
-            <button
-              type="button"
-              data-testid="rerun-latest"
-              onClick={handleRerun}
-              disabled={rerunBusy}
-              style={{ ...ghostBtnStyle(false), opacity: rerunBusy ? 0.45 : 1, cursor: rerunBusy ? 'not-allowed' : 'pointer' }}
-              title={rerunBusy ? '当前还有分析在跑' : '重跑最新研报'}
-            >
-              <RefreshIcon size={13} /> {rerunBusy ? '正在跑' : '重跑研报'}
-            </button>
-          </div>
+          {/* Run / rerun actions intentionally removed — see file header.
+              The single canonical entry point is AIZone's cold-state
+              「立即跑 AI 研报」 button (data-testid run-analysis-trigger). */}
         </div>
 
       </div>
@@ -329,22 +220,5 @@ function formatExchange(raw: string | null | undefined): string {
   if (lower.includes('amex') || lower === 'pcx' || lower === 'ase') return 'AMEX'
   if (lower.includes('otc')) return 'OTC'
   return raw.toUpperCase()
-}
-
-function ghostBtnStyle(highlighted: boolean): React.CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '11px 18px',
-    background: highlighted ? 'rgba(245,158,11,0.10)' : 'rgba(15,15,34,0.6)',
-    color: highlighted ? '#F59E0B' : 'var(--text-secondary)',
-    border: `1px solid ${highlighted ? 'rgba(245,158,11,0.32)' : 'var(--border-soft)'}`,
-    borderRadius: 10,
-    fontFamily: 'var(--font-mono)',
-    fontSize: 12,
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  }
 }
 

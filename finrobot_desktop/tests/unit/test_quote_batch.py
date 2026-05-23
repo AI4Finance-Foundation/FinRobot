@@ -204,33 +204,33 @@ async def test_cached_cold_path_fans_out_per_ticker_concurrently(
 ) -> None:
     """4 ticker cold fetch must run concurrently, not in a serial loop.
 
-    Without this the lifespan warmup blocks ~6s on synchronous yfinance
-    HTTPS per ticker (the original landing cold-start regression — see
-    docs/superpowers/plans/2026-05-23-storage-overhaul-and-landing-perf.md).
+    Uses ``threading.Barrier(4)`` rather than a wall-time threshold so the
+    assertion is timing-independent — slow CI runners won't flake. A
+    concurrent fan-out has 4 threads sitting at ``barrier.wait()``
+    simultaneously and clears it in one step; a serial loop would have
+    only 1 thread inside ``_fetch_one`` at any moment and deadlock the
+    barrier until its timeout, raising ``BrokenBarrierError``.
+
+    Without per-ticker concurrency the lifespan warmup blocks ~6s on
+    sequential yfinance HTTPS round-trips — see
+    docs/superpowers/plans/2026-05-23-storage-overhaul-and-landing-perf.md.
     """
-    import time as _time
+    import threading
 
     monkeypatch.setenv("HOME", str(tmp_path))
     quote_batch.reset_quote_cache_singleton()
 
-    def slow_one(symbol: str) -> float | None:
-        _time.sleep(0.05)  # simulate per-ticker network round-trip
+    barrier = threading.Barrier(parties=4, timeout=2.0)
+
+    def gated(symbol: str) -> float | None:
+        barrier.wait()  # blocks until 4 concurrent threads arrive
         return 100.0
 
-    monkeypatch.setattr(quote_batch, "_fetch_one", slow_one)
+    monkeypatch.setattr(quote_batch, "_fetch_one", gated)
 
-    t0 = _time.monotonic()
     out = await quote_batch.fetch_quotes_batch_cached(["A", "B", "C", "D"])
-    elapsed = _time.monotonic() - t0
-
     assert out == {"A": 100.0, "B": 100.0, "C": 100.0, "D": 100.0}
-    # Serial loop would take ≥ 4 × 50ms = 200ms. Concurrent gather + thread
-    # pool runs all four in parallel; allow 120ms for scheduler overhead +
-    # SQLite write but still well below the serial floor.
-    assert elapsed < 0.12, (
-        f"Expected concurrent per-ticker fan-out, got {elapsed:.3f}s — "
-        "likely regressed to sequential yf.Tickers loop"
-    )
+    assert barrier.n_waiting == 0  # all 4 cleared the barrier cleanly
 
     quote_batch.reset_quote_cache_singleton()
 

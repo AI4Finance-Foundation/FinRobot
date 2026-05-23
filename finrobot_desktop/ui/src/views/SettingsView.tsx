@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, BASE_URL } from '../api/client'
 import { useToastStore } from '../stores/toastStore'
 import { useUiStore } from '../stores/uiStore'
+import { mapErrorToUserMessage, FetchHttpError } from '../utils/errorMessage'
 
 interface Props {
   onComplete: () => void
@@ -344,6 +345,11 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   const [webhookEnabled, setWebhookEnabled] = useState(false)
   const [webhookUrl, setWebhookUrl] = useState('')
 
+  // Pending fields awaiting user confirmation before resetting their
+  // settings.json override back to the .env default. Set by handleResetField,
+  // cleared by the inline confirm modal.
+  const [pendingReset, setPendingReset] = useState<string[] | null>(null)
+
   // ── Save indicator ───────────────────────────────────────────────────────
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -376,7 +382,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     },
     onError: (err: Error) => {
       setSaveState('error')
-      addToast({ type: 'error', title: '保存失败', description: err.message })
+      addToast({ type: 'error', title: '保存失败', description: mapErrorToUserMessage(err) })
       saveTimerRef.current = setTimeout(() => setSaveState('idle'), 3000)
     },
   })
@@ -394,7 +400,8 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       })
       if (!resp.ok) {
         const j = await resp.json().catch(() => ({}))
-        throw new Error(j?.detail || `Reset failed (${resp.status})`)
+        if (j?.detail) throw new Error(j.detail)
+        throw new FetchHttpError(resp.status, resp.statusText)
       }
       return (await resp.json()) as never
     },
@@ -419,7 +426,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       })
     },
     onError: (err: Error) => {
-      addToast({ type: 'error', title: '恢复失败', description: err.message })
+      addToast({ type: 'error', title: '恢复失败', description: mapErrorToUserMessage(err) })
     },
   })
 
@@ -558,10 +565,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
 
   const handleResetField = (fields: string[]) => {
     if (!fields.length) return
-    if (!window.confirm(`恢复 ${fields.join(', ')} 的 .env 默认？此操作会清除 settings.json 中的覆盖。`)) {
-      return
-    }
-    resetMutation.mutate(fields)
+    setPendingReset(fields)
   }
 
   if (isLoading) {
@@ -668,7 +672,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           {/* FMP */}
           <div style={fieldStyle}>
             <div style={labelStyle}>
-              <span>FMP API Key</span>
+              <span>FMP API 密钥</span>
               {fmpConfigured ? (
                 <span style={configuredBadgeStyle}>已配置</span>
               ) : (
@@ -690,9 +694,8 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                 type="password"
                 value={fmpKey}
                 onChange={(e) => handleFmpKeyChange(e.target.value)}
-                placeholder={fmpConfigured ? '••••••••' : 'Enter FMP API key'}
+                placeholder={fmpConfigured ? '••••••••' : '输入 FMP API 密钥'}
               />
-              <button style={ghostBtnStyle}>验证</button>
             </div>
             <p style={hintStyle}>完整准确性所需 — 在 financialmodelingprep.com 免费注册</p>
           </div>
@@ -721,9 +724,9 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               type="password"
               value={finnhubKey}
               onChange={(e) => handleFinnhubKeyChange(e.target.value)}
-              placeholder={finnhubConfigured ? '••••••••' : 'Enter Finnhub API key'}
+              placeholder={finnhubConfigured ? '••••••••' : '输入 Finnhub API 密钥'}
             />
-            <p style={hintStyle}>Enables: real-time news, WebSocket price</p>
+            <p style={hintStyle}>启用：实时新闻 + WebSocket 行情</p>
           </div>
 
           {/* SEC EDGAR */}
@@ -748,7 +751,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               onChange={(e) => handleSecAgentChange(e.target.value)}
               placeholder="例如：公司名 admin@example.com"
             />
-            <p style={hintStyle}>Enables: 10-K RAG Q&A — required by SEC EDGAR terms</p>
+            <p style={hintStyle}>启用：10-K 年报问答 — SEC EDGAR 条款要求</p>
           </div>
         </div>
       </section>
@@ -1042,6 +1045,111 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       </section>
 
       <CosmicAppearanceSection />
+
+      {pendingReset && (
+        <ResetConfirmModal
+          fields={pendingReset}
+          onCancel={() => setPendingReset(null)}
+          onConfirm={() => {
+            const f = pendingReset
+            setPendingReset(null)
+            resetMutation.mutate(f)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function ResetConfirmModal({
+  fields,
+  onCancel,
+  onConfirm,
+}: {
+  fields: string[]
+  onCancel: () => void
+  onConfirm: () => void
+}): React.ReactElement {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onCancel}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(5,5,13,0.72)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+        display: 'grid',
+        placeItems: 'center',
+        zIndex: 200,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          minWidth: 360,
+          maxWidth: 440,
+          padding: '20px 22px',
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--border-soft)',
+          borderRadius: 'var(--radius-md)',
+          boxShadow: '0 16px 40px rgba(0,0,0,0.4)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            letterSpacing: '0.06em',
+            color: 'var(--warning)',
+          }}
+        >
+          确认恢复默认
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.55 }}>
+          将 <code style={{ color: 'var(--accent-cyan)' }}>{fields.join(', ')}</code> 恢复为 .env 默认值，会清除当前覆盖。
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              padding: '7px 14px',
+              borderRadius: 6,
+              border: '1px solid var(--border-soft)',
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+            }}
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              padding: '7px 14px',
+              borderRadius: 6,
+              border: 'none',
+              background: 'var(--warning)',
+              color: '#1a1207',
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            确认恢复
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1053,38 +1161,40 @@ function CosmicAppearanceSection(): React.ReactElement {
   const setCursor = useUiStore((s) => s.setCursorTrailEnabled)
   const setSpline = useUiStore((s) => s.setSplineEnabled)
 
-  // "省电模式" is a one-click off-switch for both heavy animations.
-  // Treat it as ON when EITHER decoration is currently running.
-  const heavyOn = cursorOn || splineOn
-  function toggleAll() {
-    const next = !heavyOn
-    setCursor(next)
-    setSpline(next)
+  // 省电模式 = 所有装饰动效全关。开关 ON 时表示「正在省电」。
+  const saverOn = !cursorOn && !splineOn
+  function toggleSaver() {
+    if (saverOn) {
+      setCursor(true)
+      setSpline(true)
+    } else {
+      setCursor(false)
+      setSpline(false)
+    }
   }
 
   return (
     <section style={sectionStyle}>
-      <h2 style={sectionTitleStyle}>桌面动效 · 省电模式</h2>
+      <h2 style={sectionTitleStyle}>外观与电量</h2>
       <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 16px' }}>
-        Cosmic Desktop 的可选装饰。关掉省一颗 CPU + GPU · 不影响数据计算。笔电发烫 / 风扇响请关。
+        关掉装饰动效可以省电、降低风扇噪音。不影响任何数据和分析结果。
       </p>
 
       <ToggleRow
-        label="一键省电（全部关掉）"
-        desc="同时关闭拖尾鼠标 + 3D 机器人 · 跟随系统 prefers-reduced-motion 时自动关"
-        enabled={heavyOn}
-        onToggle={toggleAll}
-        invertVisual
+        label="省电模式"
+        desc="一键关闭下面所有动效。笔记本用电池时建议开启。"
+        enabled={saverOn}
+        onToggle={toggleSaver}
       />
       <ToggleRow
-        label="拖尾鼠标"
-        desc="Canvas Bezier 弹簧拖尾 · 默认关（之前是 60fps 烧 CPU 的死循环 · 现在加了自动暂停但仍建议低配机关）"
+        label="鼠标光带"
+        desc="鼠标移动时跟随的彩色尾迹，纯装饰。"
         enabled={cursorOn}
         onToggle={() => setCursor(!cursorOn)}
       />
       <ToggleRow
-        label="3D AI 机器人"
-        desc="Spline WebGL · 只出现在 /stocks 首页背景 · 进个股工作区不挂载（2026-05-22 用户反馈：详情页要看数字不看 3D）"
+        label="首页 3D 机器人"
+        desc="股票首页背景上漂浮的 3D 模型，纯装饰。打开分析页时不会出现。"
         enabled={splineOn}
         onToggle={() => setSpline(!splineOn)}
       />
@@ -1097,19 +1207,12 @@ function ToggleRow({
   desc,
   enabled,
   onToggle,
-  invertVisual,
 }: {
   label: string
   desc: string
   enabled: boolean
   onToggle: () => void
-  invertVisual?: boolean
 }): React.ReactElement {
-  // For the master "省电" row we want "ON when省电生效" — but the user
-  // toggle reads more naturally as "动效开 / 关". `invertVisual` swaps the
-  // affirmative color so the saver row reads green-when-saving without
-  // changing the actual underlying flag semantics.
-  void invertVisual
   return (
     <div
       style={{

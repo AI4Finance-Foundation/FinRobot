@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
 import { extractErrorDetail } from '../api/errors'
 import { useAppStore } from '../stores/appStore'
+import { useI18n } from '../i18n'
+import { formatDate } from '../utils/format'
 
 interface EarningsCallTranscript {
   ticker: string
@@ -27,6 +29,7 @@ export default function EarningsCallPanel({ ticker: tickerProp }: EarningsCallPa
   const storeTicker = useAppStore((s) => s.ticker)
   const ticker = tickerProp ?? storeTicker
   const [selectedIdx, setSelectedIdx] = useState(0)
+  const { locale } = useI18n()
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['earnings-calls', ticker],
@@ -157,12 +160,7 @@ export default function EarningsCallPanel({ ticker: tickerProp }: EarningsCallPa
             color: 'var(--text-muted)',
             borderBottom: '1px solid var(--border-subtle)',
           }}>
-            {new Date(selected.date).toLocaleDateString('en-US', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
+            {formatDate(selected.date, locale, 'long')}
           </div>
         )}
 

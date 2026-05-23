@@ -1,9 +1,10 @@
-// Chapter 09 — Competitive Landscape. Surfaces PeerComps target +
-// peers table (P/E, EV/EBITDA, margins) alongside the LLM-synthesised
-// competitor_analysis narrative. FinRobot has parallel
-// Gross Margin / SG&A / EBITDA Margin subchapters — we expose
-// gross_margin / operating_margin from peers for like-for-like compare.
-
+import PeerComparisonChart from '../../../components/charts/PeerComparisonChart'
+import CompanyRadarChart from '../../../components/charts/CompanyRadarChart'
+import {
+  compsResultToPeerChartData,
+  compsResultToRadarData,
+} from '../../../utils/chartAdapters'
+import type { CompsResult } from '../../../stores/appStore'
 import { Chapter, Narrative, SubChapter, tableStyle } from './ChapterBase'
 import type { PeerCompsShape, ThesisShape } from './types'
 
@@ -21,13 +22,25 @@ export function ChapterCompetitive({
   const peerList = peers?.peers ?? []
   const all = target ? [target, ...peerList] : peerList
 
+  const compsForCharts: CompsResult | null =
+    target && peerList.length > 0
+      ? ({
+          target,
+          peers: peerList,
+          median_ev_ebitda: peers?.median_ev_ebitda ?? null,
+          median_pe: peers?.median_pe ?? null,
+          median_ev_revenue: peers?.median_ev_revenue ?? null,
+          mean_ev_ebitda: null,
+          mean_pe: null,
+          peer_justification: peers?.peer_justification ?? '',
+          positioning_narrative: peers?.positioning_narrative ?? '',
+        } as unknown as CompsResult)
+      : null
+  const peerBarData = compsForCharts ? compsResultToPeerChartData(compsForCharts) : []
+  const radarData = compsForCharts ? compsResultToRadarData(compsForCharts) : []
+
   return (
-    <Chapter
-      id="competitive"
-      num="09"
-      title="Competitive Landscape"
-      sub="Peer Comps · Margin Compare"
-    >
+    <Chapter id="competitive">
       {narrative && (
         <Narrative>
           <p>{narrative}</p>
@@ -126,6 +139,18 @@ export function ChapterCompetitive({
           )}
         </p>
       ) : null}
+
+      {peerBarData.length > 0 && (
+        <SubChapter heading="Multiples Comparison">
+          <PeerComparisonChart data={peerBarData} title="P/E & EV/EBITDA vs Peers" />
+        </SubChapter>
+      )}
+
+      {radarData.length > 0 && (
+        <SubChapter heading="Multi-Dimensional Profile">
+          <CompanyRadarChart data={radarData} title="Target vs Peer Median (normalised 0–100)" />
+        </SubChapter>
+      )}
 
       {peers?.positioning_narrative && (
         <SubChapter heading="Positioning vs Peers">

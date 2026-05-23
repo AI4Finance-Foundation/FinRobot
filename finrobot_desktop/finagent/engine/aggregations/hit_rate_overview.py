@@ -51,7 +51,6 @@ class HitRateOverviewStats:
     """Roll-up returned to the route layer; route wraps into Pydantic."""
 
     window: Window
-    sample_window_days: int | None
     overall: HitRateBucketStats
     by_verdict: dict[str, HitRateBucketStats]
     generated_at: datetime
@@ -103,7 +102,6 @@ def compute_hit_rate_overview(
 
     return HitRateOverviewStats(
         window=window,
-        sample_window_days=cutoff_days,
         overall=_bucket_stats(overall_signals),
         by_verdict={k: _bucket_stats(v) for k, v in by_verdict_signals.items()},
         generated_at=clock,

@@ -20,16 +20,18 @@ _ENV_FILE = _REPO_ROOT / ".env"
 def _default_cache_db_path() -> str:
     """Return the default cache database path.
 
-    Uses ``~/.cache/finagent/cache.db`` on Unix/Mac.  If the legacy
-    ``finagent_cache.db`` exists in the current working directory, returns
-    that instead so existing installations keep working without config changes.
+    Resolves to ``~/.finagent/data_cache.db`` (the unified storage home
+    introduced 2026-05-23). The legacy in-repo ``finagent_cache.db`` is
+    still honoured so existing development setups keep working without
+    a config change.
     """
     legacy = Path("finagent_cache.db")
     if legacy.exists():
         return str(legacy)
-    cache_dir = Path.home() / ".cache" / "finagent"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    return str(cache_dir / "cache.db")
+    from finagent.paths import DATA_CACHE_DB, ensure_home
+
+    ensure_home()
+    return str(DATA_CACHE_DB)
 
 
 # Valid providers and the settings field holding their API key. A provider

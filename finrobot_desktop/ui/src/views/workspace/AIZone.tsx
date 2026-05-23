@@ -12,39 +12,14 @@ import { useLatestArtifact, useV5ArtifactTimeline } from '../../hooks/useV5Artif
 import { useRunStreamStore, selectRunByTicker } from '../../stores/runStreamStore'
 import { useToastStore } from '../../stores/toastStore'
 import { PipelineProgressPanel } from '../PipelineProgressPanel'
+import { verdictLabel } from '../../utils/verdict'
+import { formatDate } from '../../utils/format'
+import { mapErrorToUserMessage } from '../../utils/errorMessage'
+import { useI18n } from '../../i18n'
+import { allChapterLabels } from '../../pages/artifact-detail/chapters/labels'
 
 interface AIZoneProps {
   ticker: string
-}
-
-const CHAPTERS = [
-  { num: '00', name: 'Cover' },
-  { num: '01', name: 'Investment Thesis' },
-  { num: '02', name: 'Company Overview' },
-  { num: '03', name: 'Financial Analysis' },
-  { num: '04', name: 'Valuation' },
-  { num: '05', name: 'News & Events' },
-  { num: '06', name: 'Sensitivity' },
-  { num: '07', name: 'Catalysts' },
-  { num: '08', name: 'Technical' },
-  { num: '09', name: 'Competitive' },
-  { num: '10', name: 'Financial Data' },
-  { num: '11', name: 'Disclaimer' },
-] as const
-
-const CHAPTER_ID_MAP: Record<string, string> = {
-  '00': 'cover',
-  '01': 'thesis',
-  '02': 'overview',
-  '03': 'financial',
-  '04': 'valuation',
-  '05': 'news',
-  '06': 'sensitivity',
-  '07': 'catalysts',
-  '08': 'technical',
-  '09': 'competitive',
-  '10': 'data',
-  '11': 'disclaimer',
 }
 
 export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
@@ -62,23 +37,23 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
     if (isRunning) {
       addToast({
         type: 'info',
-        title: `${ticker} 已有 ${runState?.pipelineType} 跑在进行中`,
-        description: '等当前 run 结束再起新的',
+        title: `${ticker} 已有分析正在进行`,
+        description: '请等待当前分析结束后再发起新的',
       })
       return
     }
     try {
-      const runId = await startRun('research', ticker)
+      await startRun('research', ticker)
       addToast({
         type: 'success',
         title: `${ticker} 研报已启动`,
-        description: `run_id: ${runId.slice(0, 12)} · ~60s 完成后在此处刷新`,
+        description: '分析进行中，约 60 秒后此处会自动刷新',
       })
     } catch (err) {
       addToast({
         type: 'error',
         title: '启动研报失败',
-        description: err instanceof Error ? err.message : String(err),
+        description: mapErrorToUserMessage(err),
       })
     }
   }
@@ -97,7 +72,7 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
     <section data-testid="ai-zone">
       <ZoneHeader hasArtifact={!!latest} versionsCount={sameTypeTimeline.length} />
       <p style={zoneDesc}>
-        research pipeline 跑出来的 artifact · 含 8 LLM agents 叙事 + DCF / Comps / Peers 确定性计算。
+        AI 投研报告 · 投资论点、估值分析（DCF / 同业 / DDM）、风险催化剂等 12 章节，数字由代码算出，判断由 LLM 给出。
       </p>
 
       {showProgress && <PipelineProgressPanel ticker={ticker} />}
@@ -156,7 +131,7 @@ function ZoneHeader({
           letterSpacing: '0.08em',
         }}
       >
-        {hasArtifact ? `当前 v · 共 ${versionsCount} 份` : '未跑过'}
+        {hasArtifact ? `共 ${versionsCount} 份研报` : '未跑过'}
       </span>
     </div>
   )
@@ -266,6 +241,7 @@ function HotState({
   onOpen: (id: string) => void
 }): React.ReactElement {
   const navigate = useNavigate()
+  const { locale } = useI18n()
   const verdict = readVerdict(latest)
   const target = latest.target_price ?? null
   const verdictTone =
@@ -347,7 +323,7 @@ function HotState({
                 boxShadow: `0 0 18px ${verdictTone.glow}`,
               }}
             >
-              {verdict}
+              {verdictLabel(verdict)}
             </span>
           )}
           {target !== null && (
@@ -467,11 +443,11 @@ function HotState({
           </span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-          {CHAPTERS.map((c) => (
+          {allChapterLabels(locale).map((c) => (
             <button
-              key={c.num}
+              key={c.id}
               type="button"
-              onClick={() => navigate(`/stocks/${ticker}/runs/${latest.id}#${CHAPTER_ID_MAP[c.num]}`)}
+              onClick={() => navigate(`/stocks/${ticker}/runs/${latest.id}#${c.id}`)}
               style={{
                 textAlign: 'left',
                 padding: 10,
@@ -509,7 +485,7 @@ function HotState({
                   marginTop: 2,
                 }}
               >
-                {c.name}
+                {c.title}
               </div>
             </button>
           ))}
@@ -575,10 +551,7 @@ function HotState({
                       : '—'}
                   </span>
                   <span style={{ color: 'var(--text-dim)', fontSize: 10.5 }}>
-                    {new Date(a.created_at).toLocaleString('zh-CN', {
-                      month: '2-digit',
-                      day: '2-digit',
-                    })}{' '}
+                    {formatDate(a.created_at, locale, 'short')}{' '}
                     · {ageLabel(a.created_at)}
                   </span>
                   <span style={{ color: 'var(--secondary)', textDecoration: 'underline' }}>

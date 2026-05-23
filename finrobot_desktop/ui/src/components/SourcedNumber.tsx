@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { useParams } from 'react-router-dom'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -105,6 +106,11 @@ export function SourcedNumber({
   const popoverRef = useRef<HTMLDivElement>(null)
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Ticker is needed to build the deep link to the artifact detail page.
+  // SourcedNumber renders inside ticker-scoped routes (workspace / artifact
+  // detail); when rendered elsewhere (tests, future cross-ticker views) the
+  // ticker is undefined and the "open report" link is hidden.
+  const { ticker } = useParams<{ ticker?: string }>()
 
   const showPopover = hasContent(source)
   const displayed = formatValue(value, format)
@@ -242,29 +248,29 @@ export function SourcedNumber({
         <div
           ref={popoverRef}
           role="dialog"
-          aria-label="Data source"
+          aria-label="数据来源"
           style={popoverStyle}
           onMouseEnter={handlePopoverMouseEnter}
           onMouseLeave={handlePopoverMouseLeave}
         >
-          <ProvRow label="Source" value={source.provider ?? 'Unknown'} />
+          <ProvRow label="来源" value={source.provider ?? '未知'} />
           {source.fetched_at && (
-            <ProvRow label="Fetched" value={formatFetchedAt(source.fetched_at)} />
+            <ProvRow label="抓取时间" value={formatFetchedAt(source.fetched_at)} />
           )}
           {source.formula_id && (
-            <ProvRow label="Formula" value={source.formula_id} mono />
+            <ProvRow label="公式" value={source.formula_id} mono />
           )}
           {source.formula_warning && (
             <ProvRow
-              label="Warning"
+              label="警告"
               value={source.formula_warning}
               warn
             />
           )}
-          {source.artifact_id && (
+          {source.artifact_id && ticker && (
             <div style={{ marginTop: 8 }}>
               <a
-                href={`/stocks?artifact=${source.artifact_id}`}
+                href={`/stocks/${ticker}/runs/${source.artifact_id}`}
                 style={{
                   color: 'var(--accent)',
                   fontSize: '0.72rem',
@@ -273,7 +279,7 @@ export function SourcedNumber({
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
-                Open full artifact →
+                打开完整研报 →
               </a>
             </div>
           )}

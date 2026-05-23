@@ -2,3 +2,7 @@ node_modules/
 out/
 dist/
 build/
+
+# Lingui compiled catalogs (regenerated from .po by `npx lingui compile`)
+src/i18n/locales/*/messages.mjs
+src/i18n/locales/*/messages.js

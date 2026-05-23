@@ -121,17 +121,19 @@ class DataLayer:
         if cached is not None:
             stale = cached.data
             age_hours = (datetime.now(tz=timezone.utc) - cached.cached_at).total_seconds() / 3600
+            # 中文 warning surfaces in the UI's WarningBanner — retail users
+            # need to know they're looking at potentially-stale data so they
+            # don't act on a price/financial figure that's hours/days old.
             stale_warning = (
-                f"WARNING: Using stale cached data ({age_hours:.0f}h old). "
-                f"All live providers failed for {ticker}/{data_type}. "
-                f"Financial figures may be outdated — verify before acting on this data."
+                f"⚠️ 数据源全部失败，正在显示 {age_hours:.0f} 小时前的缓存数据 "
+                f"（{ticker} / {data_type}）。请稍后重试以获取最新数据。"
             )
             logger.warning(stale_warning)
             return stale.model_copy(update={"warnings": [stale_warning] + stale.warnings})
 
         # 4. No data anywhere
         msg = (
-            f"Data unavailable for {ticker}/{data_type}: all providers failed and no cache exists."
+            f"数据暂不可用（{ticker} / {data_type}）：所有数据源失败且无缓存。"
         )
         logger.error(msg)
         return DataResult(

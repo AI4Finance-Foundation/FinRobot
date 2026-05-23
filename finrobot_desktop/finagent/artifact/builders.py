@@ -100,7 +100,8 @@ def _safe_dump(obj: Any) -> dict[str, Any]:
         return {}
     if hasattr(obj, "model_dump"):
         try:
-            return obj.model_dump(mode="json")  # type: ignore[return-value]
+            dumped: dict[str, Any] = obj.model_dump(mode="json")
+            return dumped
         except (ImportError, AttributeError, TypeError, ValueError):
             return {}
     if isinstance(obj, dict):
@@ -384,7 +385,13 @@ def build_equity_research_artifact(
 
     # Collect all meaningful structured outputs for the combined report
     structured_out: dict[str, Any] = {}
-    for key in ("financial_modeling", "peer_analysis", "thesis", "catalyst_analysis"):
+    for key in (
+        "financial_modeling",
+        "peer_analysis",
+        "thesis",
+        "catalyst_analysis",
+        "technical_analysis",
+    ):
         val = result.structured_data.get(key)
         if val is not None:
             structured_out[key] = _safe_dump(val)

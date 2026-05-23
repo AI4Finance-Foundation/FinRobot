@@ -27,4 +27,9 @@ if ! command -v uv &>/dev/null; then
     exit 1
 fi
 
-exec uv run finagent serve "$@"
+# --reload is dev-only behavior: this script is the Phase 4b implementation
+# that delegates to uv. Phase 4c bundled interpreter will replace this whole
+# script, at which point reload becomes inappropriate. Until then, every
+# `cargo tauri dev` run is a dev run, so reload by default — saves restarting
+# the desktop app after every Python edit.
+exec uv run finagent serve --reload "$@"

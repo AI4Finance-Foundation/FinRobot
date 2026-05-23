@@ -78,8 +78,8 @@ describe('ArtifactDiff — basic rendering', () => {
 
   it('AD03: shows v1 / v2 labels', () => {
     renderDiff(ART_A, ART_B)
-    expect(screen.getByText('v1 (older)')).toBeInTheDocument()
-    expect(screen.getByText('v2 (newer)')).toBeInTheDocument()
+    expect(screen.getByText('v1（旧）')).toBeInTheDocument()
+    expect(screen.getByText('v2（新）')).toBeInTheDocument()
   })
 
   it('AD04: renders field count in footer', async () => {
@@ -91,7 +91,7 @@ describe('ArtifactDiff — basic rendering', () => {
 describe('ArtifactDiff — type mismatch', () => {
   it('AD05: shows type mismatch error', () => {
     renderDiff(ART_A, ART_LBO)
-    expect(screen.getByText('Cannot compare: type mismatch')).toBeInTheDocument()
+    expect(screen.getByText('无法对比：研报类型不一致')).toBeInTheDocument()
   })
 
   it('AD06: shows DCF vs LBO in mismatch', () => {
@@ -107,7 +107,7 @@ describe('ArtifactDiff — type mismatch', () => {
   it('AD08: close button works in type mismatch', () => {
     const onClose = vi.fn()
     renderDiff(ART_A, ART_LBO, onClose)
-    fireEvent.click(screen.getByText('Close'))
+    fireEvent.click(screen.getByText('关闭'))
     expect(onClose).toHaveBeenCalledOnce()
   })
 })
@@ -123,7 +123,7 @@ describe('ArtifactDiff — identical result', () => {
         </MemoryRouter>
       </QueryClientProvider>
     )
-    expect(await screen.findByText(/Two results are identical/)).toBeInTheDocument()
+    expect(await screen.findByText(/两份研报完全一致/)).toBeInTheDocument()
   })
 })
 
@@ -175,7 +175,7 @@ describe('ArtifactDiff — close behavior', () => {
     const onClose = vi.fn()
     renderDiff(ART_A, ART_B, onClose)
     await screen.findByText(/3 fields changed/)
-    fireEvent.click(screen.getByLabelText('Close diff'))
+    fireEvent.click(screen.getByLabelText('关闭差异'))
     expect(onClose).toHaveBeenCalledOnce()
   })
 

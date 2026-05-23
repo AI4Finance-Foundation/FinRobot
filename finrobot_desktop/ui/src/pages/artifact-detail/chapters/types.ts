@@ -87,9 +87,54 @@ export interface PeerCompsShape {
   positioning_narrative?: string
 }
 
+export interface MonteCarloShape {
+  implied_prices?: number[]
+  percentiles?: Record<string, number>
+  mean?: number
+  std?: number
+  current_price_percentile?: number
+  histogram_bins?: number[]
+  histogram_counts?: number[]
+  assumptions_used?: Record<string, unknown>
+  n_valid?: number
+}
+
+export interface SniperShape {
+  ideal_buy?: number
+  secondary_buy?: number
+  stop_loss?: number
+  take_profit?: number
+  position_size_pct?: number
+  safety_margin?: number
+  support_level?: number
+  resistance_level?: number
+  risk_reward_ratio?: number
+}
+
+export interface HistoricalBandShape {
+  metric?: 'ev_ebitda' | 'p_fcf' | string
+  current?: number | null
+  median?: number | null
+  p25?: number | null
+  p75?: number | null
+  p90?: number | null
+  timeline?: Array<[string, number]>
+  sample_count?: number
+  classification?: 'expensive' | 'fair' | 'cheap' | 'unknown'
+  warnings?: string[]
+}
+
+export interface TechnicalAnalysisShape {
+  monte_carlo?: MonteCarloShape | null
+  sniper?: SniperShape | null
+  historical_bands?: HistoricalBandShape | null
+  warnings?: string[]
+}
+
 export interface ArtifactStructured {
   thesis?: ThesisShape
   financial_modeling?: DcfShape
   peer_analysis?: PeerCompsShape
   catalyst_analysis?: CatalystAnalysisShape
+  technical_analysis?: TechnicalAnalysisShape
 }

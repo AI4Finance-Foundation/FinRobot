@@ -41,6 +41,26 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/data", tags=["data"])
 
 
+def _data_http_error(exc: Exception, ticker: str) -> HTTPException:
+    """Translate data-layer exceptions into proper HTTP status codes + 中文 detail.
+
+    - ProviderError → 502 Bad Gateway (upstream API failed)
+    - ValueError    → 422 Unprocessable Entity (request data invalid / ticker not recognized)
+
+    Detail is Chinese so the desktop UI can surface it directly to retail users
+    without an extra translation layer.
+    """
+    if isinstance(exc, ProviderError):
+        return HTTPException(
+            status_code=502,
+            detail=f"数据源暂不可用（{ticker}）：{exc}",
+        )
+    return HTTPException(
+        status_code=422,
+        detail=f"无法获取 {ticker} 的数据：{exc}",
+    )
+
+
 @router.get("/sources/status")
 async def get_sources_status(request: Request) -> dict[str, list[dict[str, object]]]:
     """Return all configured data providers with their enabled status and capabilities.
@@ -88,7 +108,7 @@ async def get_performance(
             period=period,
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        raise _data_http_error(e, tickers) from e
     return result
 
 
@@ -111,7 +131,7 @@ async def get_catalysts(
     try:
         raw_news = await fetch_news(data_layer, ticker.upper())
     except (ValueError, ProviderError) as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        raise _data_http_error(e, ticker.upper()) from e
 
     if not raw_news:
         return []
@@ -151,7 +171,7 @@ async def get_news(ticker: str, request: Request) -> AggregatedNewsFeed:
     try:
         result = await data_layer.fetch(DataType.NEWS, ticker.upper())
     except (ValueError, ProviderError) as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        raise _data_http_error(e, ticker.upper()) from e
 
     raw_items = result.data.get("news_items", [])
     items: list[AggregatedNewsItem] = []
@@ -197,7 +217,7 @@ async def get_financials(ticker: str, request: Request) -> FinancialData:
         financials = await data_layer.fetch(DataType.FINANCIALS, ticker.upper())
         price = await data_layer.fetch(DataType.PRICE, ticker.upper())
     except (ValueError, ProviderError) as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        raise _data_http_error(e, ticker.upper()) from e
     extracted = extract_financial_data(financials, price)
     if financials.warnings or price.warnings:
         extracted.warnings = _dedupe(
@@ -225,7 +245,7 @@ async def get_price(ticker: str, request: Request, period: str = "1y") -> dict[s
             cache_key_suffix=f":{period}",
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        raise _data_http_error(e, ticker_upper) from e
 
 
 @router.get("/{ticker}/historical", response_model=HistoricalMetrics)
@@ -246,7 +266,7 @@ async def get_historical(ticker: str, request: Request) -> HistoricalMetrics:
             cache, DataType.HISTORICAL, ticker_upper, _fetch_as_dict
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        raise _data_http_error(e, ticker_upper) from e
 
     return HistoricalMetrics.model_validate(payload)
 
@@ -267,7 +287,7 @@ async def get_quarterly(ticker: str, request: Request) -> dict[str, Any]:
             lambda: fetch_quarterly_data(ticker_upper),
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        raise _data_http_error(e, ticker_upper) from e
 
 
 @router.get("/{ticker}/earnings-calls", response_model=EarningsCallList)
@@ -290,10 +310,11 @@ async def get_earnings_calls(
         DataType.EARNINGS_TRANSCRIPT in p.capabilities() for p in data_layer._providers
     )
     if not has_transcript_provider:
+        # 503 Service Unavailable — config-dependent capability not enabled.
+        # Detail is Chinese + actionable so UI can prompt the user to fix it.
         raise HTTPException(
-            status_code=404,
-            detail="FMP API key required for earnings call transcripts. "
-            "Configure it in Settings to access this feature.",
+            status_code=503,
+            detail="财报电话会逐字稿需要 FMP API 密钥。请在 设置 → API 密钥 配置 FMP_API_KEY 后重试。",
         )
 
     try:
@@ -305,7 +326,7 @@ async def get_earnings_calls(
             limit=limit,
         )
     except (ValueError, ProviderError) as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        raise _data_http_error(e, ticker.upper()) from e
 
     raw_transcripts = result.data.get("transcripts", [])
     transcripts = []

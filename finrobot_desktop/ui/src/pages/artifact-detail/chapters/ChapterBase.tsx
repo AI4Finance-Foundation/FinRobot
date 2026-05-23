@@ -2,16 +2,30 @@
 // FinRobot-parity 12-chapter long-scroll report.
 
 import type { CSSProperties, ReactNode } from 'react'
+import { useI18n } from '../../../i18n'
+import { chapterLabel, type ChapterId } from './labels'
 
 interface ChapterProps {
-  id: string
-  num: string
-  title: string
+  id: ChapterId
+  /** Optional override — usually omit; the title is read from chapterLabel(id, locale). */
+  num?: string
+  title?: string
   sub?: string
   children: ReactNode
 }
 
-export function Chapter({ id, num, title, sub, children }: ChapterProps): React.ReactElement {
+export function Chapter({
+  id,
+  num: numOverride,
+  title: titleOverride,
+  sub: subOverride,
+  children,
+}: ChapterProps): React.ReactElement {
+  const { locale } = useI18n()
+  const label = chapterLabel(id, locale)
+  const num = numOverride ?? label.num
+  const title = titleOverride ?? label.title
+  const sub = subOverride ?? label.sub
   return (
     <section
       id={id}

@@ -20,6 +20,8 @@
     "shell:allow-open",
     "dialog:default",
     "fs:default",
-    "global-shortcut:default"
+    "global-shortcut:default",
+    "os:default",
+    "os:allow-locale"
   ]
 }

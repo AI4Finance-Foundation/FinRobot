@@ -12,10 +12,9 @@
 
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useStocksStore, isValidTicker } from '../../stores/stocksStore'
+import { isValidTicker } from '../../stores/stocksStore'
 import { HitRateBanner } from './HitRateBanner'
 import { RecentResearchStrip } from './RecentResearchStrip'
-import { StudiedTickersTable } from './StudiedTickersTable'
 import { HotTickerChips } from './HotTickerChips'
 import { SplineHero } from '../../components/SplineHero'
 
@@ -28,7 +27,6 @@ const TAGLINES = [
 
 export function StocksLandingHero(): React.ReactElement {
   const navigate = useNavigate()
-  const recentTickers = useStocksStore((s) => s.recentTickers)
 
   const [inputValue, setInputValue] = useState('')
   const [inputError, setInputError] = useState('')
@@ -222,17 +220,15 @@ export function StocksLandingHero(): React.ReactElement {
             {inputError}
           </div>
         )}
-        <HotTickerChips recentTickers={recentTickers} />
+        <HotTickerChips />
       </form>
 
       {/* Hit-rate banner */}
       <HitRateBanner />
 
-      {/* Recent research strip */}
+      {/* Recent research strip — ticker drawer cards. 单一 ticker rollup
+          surface 取代了之前的 02 抽屉 + 03 全量表（cohabitation 冗余）。 */}
       <RecentResearchStrip />
-
-      {/* All studied tickers — distinct ticker rollup with run counts */}
-      <StudiedTickersTable />
     </div>
   )
 }

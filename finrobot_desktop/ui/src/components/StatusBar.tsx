@@ -5,8 +5,7 @@ import { useLocation } from 'react-router-dom'
 export default function StatusBar(): React.ReactElement {
   const location = useLocation()
 
-  // Extract ticker from URL if on a stock/pipeline page (/pipeline/NVDA, /stock/NVDA, etc.)
-  const tickerMatch = location.pathname.match(/\/(?:pipeline|stock|report)\/([A-Z0-9.]+)/i)
+  const tickerMatch = location.pathname.match(/\/stocks\/([A-Z0-9.]+)/i)
   const ticker = tickerMatch ? tickerMatch[1].toUpperCase() : null
 
   return (

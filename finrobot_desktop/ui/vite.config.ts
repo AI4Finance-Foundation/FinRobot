@@ -24,6 +24,13 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test-setup.ts"],
     globals: true,
-    exclude: ["**/node_modules/**", "**/dist/**", "**/out/**"],
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/out/**",
+      // Playwright e2e specs use @playwright/test, not vitest. Without this,
+      // vitest crashes with "test.beforeEach() not expected here".
+      "**/e2e/**",
+    ],
   },
 });

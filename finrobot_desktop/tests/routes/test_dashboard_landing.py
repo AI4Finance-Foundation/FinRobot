@@ -117,9 +117,16 @@ def store(app: FastAPI) -> ArtifactStore:
 
 
 @pytest.fixture(autouse=True)
-def _clear_caches() -> None:
+def _clear_caches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     dashboard_mod._HIT_RATE_CACHE.clear()
     dashboard_mod._RECENT_CACHE.clear()
+    # Isolate the QuoteCache L1/L2 per-test so the singleton does not bleed
+    # quotes from previous tests' fixtures into the next assertion.
+    from finagent import paths
+    from finagent.engine.data import quote_batch
+
+    monkeypatch.setattr(paths, "QUOTES_DB", tmp_path / "quotes.db")
+    quote_batch.reset_quote_cache_singleton()
 
 
 def _save(store: ArtifactStore, art: Artifact) -> None:
@@ -150,11 +157,6 @@ def test_hit_rate_empty_store_returns_null_hit_rate(client: TestClient) -> None:
 
 def test_hit_rate_rejects_bad_window(client: TestClient) -> None:
     resp = client.get("/api/dashboard/hit-rate?window=7d")
-    assert resp.status_code == 400
-
-
-def test_hit_rate_rejects_bad_verdict_filter(client: TestClient) -> None:
-    resp = client.get("/api/dashboard/hit-rate?verdict_filter=UNCLEAR")
     assert resp.status_code == 400
 
 
@@ -197,48 +199,13 @@ def test_hit_rate_aggregates_real_artifacts(
     assert data["by_verdict"]["HOLD"]["hit_rate"] is None
 
 
-def test_hit_rate_verdict_filter_narrows_overall(
-    client: TestClient,
-    store: ArtifactStore,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _stub_yfinance(monkeypatch, {"AAPL": 128.0, "MSFT": 128.0})
-    _save(
-        store,
-        _make_artifact(
-            artifact_id="art_BUY_AAPL",
-            ticker="AAPL",
-            entry_price=100.0,
-            target_price=130.0,
-            verdict="BUY",
-            days_ago=30,
-        ),
-    )
-    _save(
-        store,
-        _make_artifact(
-            artifact_id="art_HOLD_MSFT",
-            ticker="MSFT",
-            entry_price=100.0,
-            target_price=130.0,
-            verdict="HOLD",
-            days_ago=30,
-        ),
-    )
-    resp = client.get("/api/dashboard/hit-rate?verdict_filter=BUY")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["overall"]["n_total"] == 1
-    assert data["by_verdict"]["BUY"]["n_total"] == 1
-    assert data["by_verdict"]["HOLD"]["n_total"] == 0
-
-
 def test_recent_research_empty_store(client: TestClient) -> None:
     resp = client.get("/api/dashboard/recent-research")
     assert resp.status_code == 200
     data = resp.json()
     assert data["items"] == []
     assert data["total_in_store"] == 0
+    assert data["distinct_ticker_count"] == 0
 
 
 def test_recent_research_rejects_bad_limit(client: TestClient) -> None:
@@ -246,11 +213,12 @@ def test_recent_research_rejects_bad_limit(client: TestClient) -> None:
     assert client.get("/api/dashboard/recent-research?limit=21").status_code == 400
 
 
-def test_recent_research_returns_top_n_by_date(
+def test_recent_research_rolls_up_same_ticker_into_one_card(
     client: TestClient,
     store: ArtifactStore,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Three AAPL artifacts collapse into one card with 3 runs newest-first."""
     _stub_yfinance(monkeypatch, {"AAPL": 115.0})
     for i, days in enumerate([1, 5, 10]):
         _save(
@@ -264,11 +232,149 @@ def test_recent_research_returns_top_n_by_date(
                 days_ago=days,
             ),
         )
+    resp = client.get("/api/dashboard/recent-research?limit=5")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_in_store"] == 3
+    assert data["distinct_ticker_count"] == 1
+    items = data["items"]
+    assert len(items) == 1
+    card = items[0]
+    assert card["ticker"] == "AAPL"
+    assert card["run_count"] == 3
+    assert card["latest_signal"] in ("hit", "watching")
+    # Rows are newest-first, each with its own verdict + artifact_id.
+    rows = card["runs"]
+    assert len(rows) == 3
+    assert [r["artifact_id"] for r in rows] == ["art_AAPL_0", "art_AAPL_1", "art_AAPL_2"]
+    assert all(r["verdict"] == "BUY" for r in rows)
+
+
+def test_recent_research_caps_runs_per_card_and_reports_overflow(
+    client: TestClient,
+    store: ArtifactStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """7 runs for one ticker → 5 rows surfaced, run_count=7 for overflow footer."""
+    _stub_yfinance(monkeypatch, {"AAPL": 115.0})
+    for i in range(7):
+        _save(
+            store,
+            _make_artifact(
+                artifact_id=f"art_AAPL_{i}",
+                ticker="AAPL",
+                entry_price=100.0,
+                target_price=130.0,
+                verdict="BUY",
+                days_ago=i,
+            ),
+        )
+    resp = client.get("/api/dashboard/recent-research?limit=5")
+    assert resp.status_code == 200
+    card = resp.json()["items"][0]
+    assert card["run_count"] == 7
+    assert len(card["runs"]) == 5
+    assert [r["artifact_id"] for r in card["runs"]] == [
+        "art_AAPL_0", "art_AAPL_1", "art_AAPL_2", "art_AAPL_3", "art_AAPL_4",
+    ]
+
+
+def test_recent_research_top_n_distinct_tickers(
+    client: TestClient,
+    store: ArtifactStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Three different tickers, limit=2 returns two most recently touched."""
+    _stub_yfinance(monkeypatch, {"AAPL": 115.0, "MSFT": 115.0, "NVDA": 115.0})
+    _save(store, _make_artifact(
+        artifact_id="art_AAPL", ticker="AAPL",
+        entry_price=100.0, target_price=130.0, verdict="BUY", days_ago=15,
+    ))
+    _save(store, _make_artifact(
+        artifact_id="art_NVDA", ticker="NVDA",
+        entry_price=100.0, target_price=130.0, verdict="BUY", days_ago=5,
+    ))
+    _save(store, _make_artifact(
+        artifact_id="art_MSFT", ticker="MSFT",
+        entry_price=100.0, target_price=130.0, verdict="BUY", days_ago=1,
+    ))
     resp = client.get("/api/dashboard/recent-research?limit=2")
     assert resp.status_code == 200
-    items = resp.json()["items"]
-    assert len(items) == 2
-    assert items[0]["artifact_id"] == "art_AAPL_0"  # most recent
-    assert items[0]["signal"] in ("hit", "watching")
-    assert items[0]["delta_to_target_pct"] == pytest.approx(0.5)
-    assert "ago" in items[0]["age_label"] or items[0]["age_label"] == "just now"
+    data = resp.json()
+    assert data["distinct_ticker_count"] == 3
+    assert [c["ticker"] for c in data["items"]] == ["MSFT", "NVDA"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Regression guards: routes must not N+1-read the full artifact for verdict
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_hit_rate_does_not_read_full_artifact_for_verdict(
+    client: TestClient,
+    store: ArtifactStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`ArtifactSummary.verdict` is populated at save time, so the hit-rate
+    aggregation must use the summary column instead of reloading each full
+    artifact JSON. Pre-2026-05-23 the route fanned out ``store.get(s.id)``
+    per summary — that was the dominant chunk of landing cold-start.
+    """
+    _stub_yfinance(monkeypatch, {"AAPL": 128.0, "MSFT": 60.0})
+    for tkr in ("AAPL", "MSFT"):
+        _save(
+            store,
+            _make_artifact(
+                artifact_id=f"art_{tkr}",
+                ticker=tkr,
+                entry_price=100.0,
+                target_price=130.0,
+                verdict="BUY",
+                days_ago=30,
+            ),
+        )
+    calls: list[str] = []
+    original_get = store._impl.get  # bypass __getattr__ shim
+
+    async def counting_get(artifact_id: str):  # type: ignore[no-untyped-def]
+        calls.append(artifact_id)
+        return await original_get(artifact_id)
+
+    store._impl.get = counting_get  # type: ignore[assignment]
+
+    resp = client.get("/api/dashboard/hit-rate")
+    assert resp.status_code == 200
+    assert calls == [], f"hit-rate called store.get {len(calls)} times, expected 0"
+
+
+def test_recent_research_does_not_read_full_artifact_for_verdict(
+    client: TestClient,
+    store: ArtifactStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Same guarantee for the recent-research drawer endpoint."""
+    _stub_yfinance(monkeypatch, {"AAPL": 115.0})
+    for i in range(3):
+        _save(
+            store,
+            _make_artifact(
+                artifact_id=f"art_AAPL_{i}",
+                ticker="AAPL",
+                entry_price=100.0,
+                target_price=130.0,
+                verdict="BUY",
+                days_ago=i,
+            ),
+        )
+    calls: list[str] = []
+    original_get = store._impl.get
+
+    async def counting_get(artifact_id: str):  # type: ignore[no-untyped-def]
+        calls.append(artifact_id)
+        return await original_get(artifact_id)
+
+    store._impl.get = counting_get  # type: ignore[assignment]
+
+    resp = client.get("/api/dashboard/recent-research?limit=5")
+    assert resp.status_code == 200
+    assert calls == [], f"recent-research called store.get {len(calls)} times, expected 0"

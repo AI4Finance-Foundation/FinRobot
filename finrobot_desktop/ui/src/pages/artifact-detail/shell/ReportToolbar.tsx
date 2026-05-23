@@ -1,21 +1,28 @@
 // Sticky top toolbar for the 12-chapter research report view.
-// Lives at the top of ArtifactDetailPage and surfaces:
-//   - breadcrumb path back through /stocks → ticker → this report
-//   - live price chip + distance-to-target overlay (artifact thesis × live)
-//   - version select (jumps to a sibling artifact of the same ticker/type)
-//   - secondary actions: Diff vs prior, What-if (P4.2 placeholder), PDF, Re-run
+//
+// Single-row, Finder-style (Spacedrive-inspired): one ← back arrow as the
+// canonical return path, a 3-segment breadcrumb whose tail doubles as a
+// version dropdown, a quote strip with live price / change / distance to
+// target, and a primary Re-run action plus a small ⋯ overflow for the
+// less-frequent surfaces (What-if hint / PDF). The chrome lives in one
+// 48px row so the chapter content gets the screen height; secondary
+// actions hide behind ⋯ rather than crowding the bar.
 
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTickerPrice } from '../../../hooks/useTickerData'
 import { useRunStreamStore } from '../../../stores/runStreamStore'
 import { useToastStore } from '../../../stores/toastStore'
 import type { ArtifactSummaryV5 } from '../../../types/v5'
+import { useI18n } from '../../../i18n'
+import { formatDate } from '../../../utils/format'
+import { mapErrorToUserMessage } from '../../../utils/errorMessage'
 
 interface ReportToolbarProps {
   ticker: string
   artifactId: string
   reportType: string
-  reportVersionLabel: string  // e.g. "v3 · 2026-05-23"
+  reportVersionLabel: string
   targetPrice: number | null
   timeline: ArtifactSummaryV5[]
   onOpenDiff: () => void
@@ -34,6 +41,20 @@ export function ReportToolbar({
   const { data: priceData } = useTickerPrice(ticker)
   const startRun = useRunStreamStore((s) => s.startRun)
   const addToast = useToastStore((s) => s.addToast)
+  const { locale, t } = useI18n()
+  const [overflowOpen, setOverflowOpen] = useState(false)
+  const overflowRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!overflowOpen) return
+    function onDoc(e: MouseEvent): void {
+      if (!overflowRef.current?.contains(e.target as Node)) {
+        setOverflowOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [overflowOpen])
 
   const livePrice = priceData?.current_price ?? null
   const changePct = priceData?.change_pct ?? null
@@ -43,29 +64,25 @@ export function ReportToolbar({
       ? ((targetPrice - livePrice) / livePrice) * 100
       : null
 
+  const sameTypeTimeline = timeline.filter((a) => a.type === reportType)
+
   async function handleRerun(): Promise<void> {
     try {
-      const runId = await startRun('research', ticker)
+      await startRun('research', ticker)
       addToast({
         type: 'success',
         title: `${ticker} 重跑研报已启动`,
-        description: `run_id: ${runId.slice(0, 12)} · 完成后在工作区抽屉中看 v 历史`,
+        description: '分析进行中，完成后可在工作区抽屉查看版本历史',
       })
       navigate(`/stocks/${ticker}`)
     } catch (err) {
       addToast({
         type: 'error',
         title: '启动重跑失败',
-        description: err instanceof Error ? err.message : String(err),
+        description: mapErrorToUserMessage(err),
       })
     }
   }
-
-  // PDF export intentionally absent: routes/export.py only exposes
-  // /excel/{dcf,lbo,comps}; there is no /api/exports/pdf/{id} endpoint
-  // (old route file was deleted with no replacement). The button stays
-  // visible as a roadmap signal but is disabled — hover tooltip explains.
-  // Listed under BACKLOG P3.4 — "PDF 导出按 10 章模板重写".
 
   function handleVersionChange(targetArtifactId: string): void {
     if (targetArtifactId && targetArtifactId !== artifactId) {
@@ -80,11 +97,10 @@ export function ReportToolbar({
         position: 'sticky',
         top: 0,
         zIndex: 30,
-        display: 'grid',
-        gridTemplateColumns: '1fr auto auto',
+        display: 'flex',
         alignItems: 'center',
-        gap: 20,
-        padding: '14px 24px',
+        gap: 14,
+        padding: '10px 24px',
         margin: '0 -24px 16px',
         background: 'rgba(10, 10, 24, 0.88)',
         backdropFilter: 'blur(16px)',
@@ -92,134 +108,176 @@ export function ReportToolbar({
         borderBottom: '1px solid var(--border-soft)',
       }}
     >
-      {/* Breadcrumb — every non-current crumb is a real Link so users can
-          jump back to landing / workspace without resorting to browser back. */}
-      <div
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 11,
-          letterSpacing: '0.06em',
-          color: 'var(--text-muted)',
-          textTransform: 'uppercase',
-          minWidth: 0,
+      {/* Back arrow — the single canonical return path. Always goes to the
+          ticker workspace so the breadcrumb and the arrow stay in sync. */}
+      <button
+        type="button"
+        data-testid="report-back"
+        onClick={() => navigate(`/stocks/${ticker}`)}
+        title={`返回 ${ticker} 工作区`}
+        style={backBtnStyle}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.color = 'var(--text-primary)'
+          e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.color = 'var(--text-secondary)'
+          e.currentTarget.style.background = 'transparent'
         }}
       >
-        <Link to="/stocks" style={crumbLinkStyle}>
-          FINAGENT
-        </Link>
-        <Sep />
-        <Link to="/stocks" style={crumbLinkStyle}>
+        <ArrowLeft />
+      </button>
+
+      {/* Breadcrumb — 3 segments, last is a hidden-select dropdown that
+          mirrors the version label and lets the user jump siblings. */}
+      <div style={breadcrumbBoxStyle}>
+        <button type="button" onClick={() => navigate('/stocks')} style={crumbBtnStyle}>
           STOCKS
-        </Link>
+        </button>
         <Sep />
-        <Link to={`/stocks/${ticker}`} style={{ ...crumbLinkStyle, color: 'var(--accent-cyan)' }}>
-          {ticker}
-        </Link>
-        <Sep />
-        <span style={{ color: 'var(--text-muted)' }}>RESEARCH</span>
-        <Sep />
-        <span style={{ color: 'var(--secondary)' }}>{reportVersionLabel}</span>
-      </div>
-
-      {/* Live price + distance to target */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'var(--font-mono)' }}>
-        <span
-          style={{
-            fontSize: 17,
-            color: 'var(--text-primary)',
-            fontVariantNumeric: 'tabular-nums',
-          }}
+        <button
+          type="button"
+          onClick={() => navigate(`/stocks/${ticker}`)}
+          style={{ ...crumbBtnStyle, color: 'var(--accent-cyan)' }}
         >
-          {typeof livePrice === 'number' ? `$${livePrice.toFixed(2)}` : '—'}
+          {ticker}
+        </button>
+        <Sep />
+        <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+          <span style={{ color: 'var(--secondary)' }}>{reportVersionLabel}</span>
+          {sameTypeTimeline.length > 1 && (
+            <>
+              <ChevronDown />
+              <select
+                data-testid="version-select"
+                value={artifactId}
+                onChange={(e) => handleVersionChange(e.target.value)}
+                title="切换其他版本"
+                aria-label="切换其他版本"
+                style={hiddenSelectStyle}
+              >
+                {sameTypeTimeline.map((a) => (
+                  <option key={a.id} value={a.id} style={{ background: 'var(--bg-card)' }}>
+                    {a.id === artifactId ? `${t('report.timeline.current')} · ` : ''}
+                    {formatDate(a.created_at, locale, 'short')}
+                    {' · '}
+                    {(a.signal ?? 'pending').toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
         </span>
-        {typeof changePct === 'number' && (
-          <span
-            style={{
-              fontSize: 12,
-              padding: '3px 8px',
-              borderRadius: 5,
-              background: isUp ? 'rgba(22,163,74,0.14)' : 'rgba(220,38,38,0.14)',
-              color: isUp ? 'var(--success)' : 'var(--danger)',
-              border: `1px solid ${isUp ? 'rgba(22,163,74,0.32)' : 'rgba(220,38,38,0.32)'}`,
-            }}
-          >
-            {isUp ? '↑' : '↓'} {Math.abs(changePct).toFixed(2)}%
-          </span>
-        )}
-        {distancePct !== null && (
-          <span
-            style={{
-              fontSize: 12,
-              padding: '3px 8px',
-              borderRadius: 5,
-              color: 'var(--secondary)',
-              background: 'var(--secondary-soft)',
-              border: '1px solid var(--secondary)',
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            距目标 {distancePct >= 0 ? '+' : ''}
-            {distancePct.toFixed(1)}%
-          </span>
-        )}
       </div>
 
-      {/* Action group */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {timeline.length > 1 && (
-          <select
-            data-testid="version-select"
-            value={artifactId}
-            onChange={(e) => handleVersionChange(e.target.value)}
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              padding: '5px 10px',
-              borderRadius: 6,
-              background: 'var(--bg-card)',
-              color: 'var(--secondary)',
-              border: '1px solid var(--secondary)',
-              cursor: 'pointer',
-            }}
-          >
-            {timeline
-              .filter((a) => a.type === reportType)
-              .map((a) => (
-                <option key={a.id} value={a.id} style={{ background: 'var(--bg-card)' }}>
-                  {a.id === artifactId ? '当前 · ' : ''}
-                  {new Date(a.created_at).toLocaleString('zh-CN', {
-                    month: '2-digit',
-                    day: '2-digit',
-                  })}
-                  {' · '}
-                  {(a.signal ?? 'pending').toUpperCase()}
-                </option>
-              ))}
-          </select>
+      {/* Quote strip — only renders if we have live price data. Keeps the
+          row from looking empty pre-fetch but doesn't reserve space. */}
+      {typeof livePrice === 'number' && (
+        <div style={quoteStripStyle}>
+          <span style={quotePriceStyle}>${livePrice.toFixed(2)}</span>
+          {typeof changePct === 'number' && (
+            <span
+              style={{
+                ...quoteChipStyle,
+                background: isUp ? 'rgba(22,163,74,0.14)' : 'rgba(220,38,38,0.14)',
+                color: isUp ? 'var(--success)' : 'var(--danger)',
+                border: `1px solid ${isUp ? 'rgba(22,163,74,0.32)' : 'rgba(220,38,38,0.32)'}`,
+              }}
+            >
+              {isUp ? '↑' : '↓'} {Math.abs(changePct).toFixed(2)}%
+            </span>
+          )}
+          {distancePct !== null && (
+            <span
+              style={{
+                ...quoteChipStyle,
+                color: 'var(--secondary)',
+                background: 'var(--secondary-soft)',
+                border: '1px solid var(--secondary)',
+              }}
+            >
+              距目标 {distancePct >= 0 ? '+' : ''}
+              {distancePct.toFixed(1)}%
+            </span>
+          )}
+        </div>
+      )}
+
+      <span style={{ flex: 1, minWidth: 8 }} />
+
+      {/* Primary actions — Re-run is the focal CTA. Diff sits next to it
+          because version comparison is the second most-used action. */}
+      <ToolbarButton onClick={handleRerun} primary>
+        ↻ Re-run
+      </ToolbarButton>
+      <ToolbarButton onClick={onOpenDiff}>↹ Diff</ToolbarButton>
+
+      {/* Overflow menu — What-if hint + PDF (both disabled-ish today) hide
+          here so the bar stays calm. ⋯ click opens a small floating menu. */}
+      <div ref={overflowRef} style={{ position: 'relative' }}>
+        <ToolbarButton onClick={() => setOverflowOpen((v) => !v)} title="更多操作">
+          ⋯
+        </ToolbarButton>
+        {overflowOpen && (
+          <div style={overflowMenuStyle}>
+            <OverflowItem
+              disabled
+              hint="可编辑假设重算 · 即将上线"
+              onClick={() => setOverflowOpen(false)}
+            >
+              ✏️ What-if
+            </OverflowItem>
+            <OverflowItem
+              disabled
+              hint="PDF 导出即将上线"
+              onClick={() => setOverflowOpen(false)}
+            >
+              📤 PDF
+            </OverflowItem>
+          </div>
         )}
-        <ToolbarButton onClick={onOpenDiff}>↹ Diff</ToolbarButton>
-        <ToolbarButton disabled title="P4.2 — 可编辑假设重算（待落地）">
-          ✏️ What-if
-        </ToolbarButton>
-        <ToolbarButton disabled title="PDF 导出建设中 · 需要 weasyprint 10-章模板 + /api/exports/pdf 路由 (BACKLOG P3.4)">
-          📤 PDF
-        </ToolbarButton>
-        <ToolbarButton onClick={handleRerun} primary>
-          ↻ Re-run
-        </ToolbarButton>
       </div>
     </div>
   )
 }
 
-function Sep(): React.ReactElement {
-  return <span style={{ color: 'var(--text-dim)', margin: '0 6px' }}>›</span>
+function ArrowLeft(): React.ReactElement {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M15 18L9 12l6-6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
 }
 
-const crumbLinkStyle: React.CSSProperties = {
-  color: 'inherit',
-  textDecoration: 'none',
-  transition: 'color 0.18s',
+function ChevronDown(): React.ReactElement {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      style={{ marginLeft: 3, color: 'var(--text-muted)' }}
+    >
+      <path
+        d="M6 9l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function Sep(): React.ReactElement {
+  return <span style={{ color: 'var(--text-dim)', margin: '0 6px' }}>›</span>
 }
 
 function ToolbarButton({
@@ -255,9 +313,150 @@ function ToolbarButton({
         opacity: disabled ? 0.45 : 1,
         letterSpacing: '0.04em',
         transition: 'all 0.18s',
+        whiteSpace: 'nowrap',
       }}
     >
       {children}
     </button>
   )
+}
+
+function OverflowItem({
+  children,
+  hint,
+  disabled,
+  onClick,
+}: {
+  children: React.ReactNode
+  hint?: string
+  disabled?: boolean
+  onClick: () => void
+}): React.ReactElement {
+  return (
+    <button
+      type="button"
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      title={hint}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        width: '100%',
+        gap: 16,
+        padding: '8px 12px',
+        background: 'transparent',
+        border: 'none',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11,
+        color: disabled ? 'var(--text-dim)' : 'var(--text-secondary)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        letterSpacing: '0.04em',
+        textAlign: 'left',
+      }}
+      onMouseEnter={(e) => {
+        if (!disabled) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'transparent'
+      }}
+    >
+      <span>{children}</span>
+      {hint && disabled && (
+        <span style={{ fontSize: 9.5, color: 'var(--text-dim)', opacity: 0.8 }}>
+          即将上线
+        </span>
+      )}
+    </button>
+  )
+}
+
+const backBtnStyle: React.CSSProperties = {
+  width: 30,
+  height: 30,
+  display: 'grid',
+  placeItems: 'center',
+  border: '1px solid var(--border-soft)',
+  background: 'transparent',
+  borderRadius: 6,
+  cursor: 'pointer',
+  color: 'var(--text-secondary)',
+  transition: 'all 0.18s',
+  flexShrink: 0,
+}
+
+const breadcrumbBoxStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  letterSpacing: '0.06em',
+  color: 'var(--text-muted)',
+  textTransform: 'uppercase',
+  display: 'flex',
+  alignItems: 'center',
+  minWidth: 0,
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+}
+
+const crumbBtnStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  padding: 0,
+  margin: 0,
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  fontSize: 'inherit',
+  letterSpacing: 'inherit',
+  color: 'var(--text-muted)',
+  textTransform: 'inherit',
+  transition: 'color 0.18s',
+}
+
+const hiddenSelectStyle: React.CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  opacity: 0,
+  cursor: 'pointer',
+  appearance: 'none',
+  border: 'none',
+  background: 'transparent',
+}
+
+const quoteStripStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  fontFamily: 'var(--font-mono)',
+  paddingLeft: 14,
+  borderLeft: '1px solid var(--border-faint)',
+  marginLeft: 4,
+}
+
+const quotePriceStyle: React.CSSProperties = {
+  fontSize: 15,
+  color: 'var(--text-primary)',
+  fontVariantNumeric: 'tabular-nums',
+}
+
+const quoteChipStyle: React.CSSProperties = {
+  fontSize: 11,
+  padding: '2px 7px',
+  borderRadius: 5,
+  fontVariantNumeric: 'tabular-nums',
+}
+
+const overflowMenuStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 'calc(100% + 6px)',
+  right: 0,
+  minWidth: 180,
+  background: 'var(--bg-elevated)',
+  border: '1px solid var(--border-soft)',
+  borderRadius: 8,
+  boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
+  padding: 4,
+  zIndex: 40,
+  display: 'flex',
+  flexDirection: 'column',
 }

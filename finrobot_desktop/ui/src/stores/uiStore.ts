@@ -23,7 +23,6 @@ export type TabKind =
   | 'report'
   | 'monitor'
   | 'datasources'
-  | 'watchlist'
   | 'settings'
   | 'about'
   | 'backtest'
@@ -83,8 +82,6 @@ interface UiStoreState {
   // AI Panel
   aiPanelOpen: boolean
   aiPanelWidth: number
-  /** Which tab is foregrounded inside the right panel. */
-  rightPanelTab: 'watchlist' | 'ai'
 
   /** Cosmic desktop trail cursor (spec §5.3). Default OFF — a 60fps RAF
    *  loop pinning one core was the #1 fan/heat complaint. Users who want
@@ -116,7 +113,6 @@ interface UiStoreState {
   setAiPanelOpen: (open: boolean) => void
   toggleAiPanel: () => void
   setAiPanelWidth: (w: number) => void
-  setRightPanelTab: (tab: 'watchlist' | 'ai') => void
 
   setCursorTrailEnabled: (on: boolean) => void
   setSplineEnabled: (on: boolean) => void
@@ -169,7 +165,6 @@ export const useUiStore = create<UiStoreState>()(
     (set, get) => ({
       aiPanelOpen: true,
       aiPanelWidth: DEFAULT_AIPANEL_W,
-      rightPanelTab: 'watchlist',
       // Heat-conservative defaults — cosmic decorations are opt-in for
       // anything that pegs a CPU core. Spline (single landing backdrop)
       // stays on because it only mounts on /stocks and unmounts the
@@ -191,7 +186,6 @@ export const useUiStore = create<UiStoreState>()(
       toggleAiPanel: () => set((s) => ({ aiPanelOpen: !s.aiPanelOpen })),
       setAiPanelWidth: (w) =>
         set({ aiPanelWidth: clamp(w, MIN_AIPANEL_W, MAX_AIPANEL_W) }),
-      setRightPanelTab: (rightPanelTab) => set({ rightPanelTab }),
 
       // Cosmic cursor trail
       setCursorTrailEnabled: (cursorTrailEnabled) => set({ cursorTrailEnabled }),
@@ -282,7 +276,6 @@ export const useUiStore = create<UiStoreState>()(
       partialize: (s) => ({
         aiPanelWidth: s.aiPanelWidth,
         aiPanelOpen: s.aiPanelOpen,
-        rightPanelTab: s.rightPanelTab,
         cursorTrailEnabled: s.cursorTrailEnabled,
         splineEnabled: s.splineEnabled,
         currentModel: s.currentModel,

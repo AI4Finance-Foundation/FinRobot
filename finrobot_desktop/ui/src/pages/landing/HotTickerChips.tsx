@@ -1,21 +1,28 @@
 // HotTickerChips — recent + popular ticker pills on the landing search.
 //
-// Shows up to 8 ticker chips, prioritising user's recents; falls back to
-// a curated popular set for first-time users.
+// Source of truth = /api/artifacts/studied-tickers (tickers the user has
+// actually run analysis on, ordered by latest activity). When the user
+// has no research history, fall back to a curated POPULAR set so a
+// first-time visitor still gets one-click shortcuts.
 
 import { useNavigate } from 'react-router-dom'
+import { useStudiedTickers } from '../../hooks/useStudiedTickers'
 
 const POPULAR = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'META', 'GOOGL', 'BRKB'] as const
+const MAX_CHIPS = 6
 
-interface Props {
-  recentTickers: string[]
-}
-
-export function HotTickerChips({ recentTickers }: Props): React.ReactElement {
+export function HotTickerChips(): React.ReactElement {
   const navigate = useNavigate()
-  const recent = recentTickers.slice(0, 8)
-  const showRecent = recent.length > 0
-  const list = showRecent ? recent : POPULAR
+  const { data } = useStudiedTickers(MAX_CHIPS)
+
+  const studied = data?.items
+    ?.slice()
+    .sort((a, b) => b.latest_created_at.localeCompare(a.latest_created_at))
+    .map((item) => item.ticker)
+    .slice(0, MAX_CHIPS) ?? []
+
+  const showRecent = studied.length > 0
+  const list = showRecent ? studied : POPULAR
 
   return (
     <div style={{ textAlign: 'center' }}>

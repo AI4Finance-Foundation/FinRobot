@@ -8,9 +8,9 @@ import type { ThesisShape } from './types'
 export function ChapterThesis({ thesis }: { thesis: ThesisShape | null }): React.ReactElement {
   if (!thesis) {
     return (
-      <Chapter id="thesis" num="01" title="Investment Thesis" sub="Recommendation · Tagline · Key Takeaways">
+      <Chapter id="thesis">
         <Narrative>
-          <p>该 artifact 缺少 thesis 字段 — 极可能是非 equity_research pipeline 跑出来的（dcf-only / comps-only），跑一次 research pipeline 即可。</p>
+          <p>该研报缺少投资论点字段，请重新生成完整研报。</p>
         </Narrative>
       </Chapter>
     )
@@ -22,7 +22,7 @@ export function ChapterThesis({ thesis }: { thesis: ThesisShape | null }): React
   const narrative = thesis.narrative ?? ''
 
   return (
-    <Chapter id="thesis" num="01" title="Investment Thesis" sub="Recommendation · Tagline · Key Takeaways">
+    <Chapter id="thesis">
       {(verdict || target !== null) && (
         <div
           style={{

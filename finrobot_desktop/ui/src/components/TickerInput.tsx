@@ -64,7 +64,7 @@ export default function TickerInput() {
       </button>
       {isError && (
         <span style={{ color: 'var(--negative)', fontSize: '0.72rem' }}>
-          {(error as Error)?.message || '加载失败，请确认后端已启动'}
+          {(error as Error)?.message || '加载失败，请稍后重试'}
         </span>
       )}
     </div>

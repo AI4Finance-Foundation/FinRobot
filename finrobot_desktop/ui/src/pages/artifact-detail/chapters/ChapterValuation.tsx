@@ -1,17 +1,49 @@
-// Chapter 04 — Valuation Analysis. DCF anchor + LLM valuation_overview
-// narrative. The football-field visualization that triangulates across
-// DCF / Comps / DDM / LBO lives on the workspace; here we expose the
-// canonical implied-price + WACC + terminal assumptions for audit.
-
-import { Chapter, KvGrid, Narrative } from './ChapterBase'
+import { useQuery } from '@tanstack/react-query'
+import FootballField from '../../../components/charts/FootballField'
+import { BASE_URL } from '../../../api/client'
+import { Chapter, KvGrid, Narrative, SubChapter } from './ChapterBase'
 import type { DcfShape, ThesisShape } from './types'
+
+interface ValuationMethodRange {
+  method: string
+  method_type: string
+  low: number
+  mid: number
+  high: number
+  confidence: number
+  source: string
+  warnings: string[]
+}
+
+interface ValuationAggregate {
+  ticker: string
+  current_price: number | null
+  methods: ValuationMethodRange[]
+  warnings: string[]
+}
+
+function useValuationAggregate(ticker: string | null | undefined) {
+  return useQuery<ValuationAggregate, Error>({
+    queryKey: ['valuation-aggregate', ticker],
+    queryFn: async () => {
+      const resp = await fetch(`${BASE_URL}/api/valuation/aggregate/${ticker}`)
+      if (!resp.ok) throw new Error(`${resp.status}`)
+      return (await resp.json()) as ValuationAggregate
+    },
+    enabled: !!ticker,
+    staleTime: 10 * 60_000,
+    refetchOnMount: false,
+    retry: 0,
+  })
+}
 
 interface ChapterValuationProps {
   dcf: DcfShape | null
   thesis: ThesisShape | null
+  ticker: string
 }
 
-export function ChapterValuation({ dcf, thesis }: ChapterValuationProps): React.ReactElement {
+export function ChapterValuation({ dcf, thesis, ticker }: ChapterValuationProps): React.ReactElement {
   const overview = thesis?.valuation_overview ?? null
   const wacc = dcf?.wacc ?? null
   const terminalGrowth = dcf?.inputs?.terminal_growth_rate ?? null
@@ -20,6 +52,14 @@ export function ChapterValuation({ dcf, thesis }: ChapterValuationProps): React.
   const implied = dcf?.implied_price ?? null
   const ev = dcf?.enterprise_value ?? null
   const eq = dcf?.equity_value ?? null
+
+  const { data: aggregate } = useValuationAggregate(ticker)
+  const footballRows = (aggregate?.methods ?? []).map((m) => ({
+    method: m.method,
+    low: m.low,
+    mid: m.mid,
+    high: m.high,
+  }))
 
   type Cell = { label: string; value: string; delta?: string; tone?: 'up' | 'down' }
   const cells: Cell[] = [
@@ -36,12 +76,7 @@ export function ChapterValuation({ dcf, thesis }: ChapterValuationProps): React.
   ].filter((c): c is Cell => Boolean(c))
 
   return (
-    <Chapter
-      id="valuation"
-      num="04"
-      title="Valuation Analysis"
-      sub="DCF · WACC · Terminal Value · Implied Price"
-    >
+    <Chapter id="valuation">
       {overview && (
         <Narrative>
           <p>{overview}</p>
@@ -64,6 +99,16 @@ export function ChapterValuation({ dcf, thesis }: ChapterValuationProps): React.
         >
           该 artifact 缺 DCF 输出 — 跑 research pipeline 可生成完整估值模型。
         </p>
+      )}
+
+      {footballRows.length > 0 && (
+        <SubChapter heading="Valuation Triangulation (Football Field)">
+          <FootballField
+            data={footballRows}
+            title="DCF / Comps / DDM / LBO Target-Price Range"
+            currentPrice={aggregate?.current_price ?? undefined}
+          />
+        </SubChapter>
       )}
 
       {thesis?.price_target && (

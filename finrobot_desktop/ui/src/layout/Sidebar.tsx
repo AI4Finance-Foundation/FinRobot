@@ -1,14 +1,13 @@
 // Sidebar — cosmic 64px slim icon-only nav (spec §5.2).
 //
-// Old 200-wide sidebar (NAVIGATE list + WATCHLIST + AddTickerInput) is
-// gone; watchlist moved into RightChatPanel/WatchlistTab.tsx. What remains
-// is a vertical icon strip: top = primary nav, divider, bottom = settings.
+// Vertical icon strip: top = primary nav, divider, bottom = settings.
 // Active state shows a 3px blue glowing left rail (spec §5.2).
 
 import { useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { IconTrendingUp, IconSettings } from '../lib/icons'
 import { useRunStreamStore } from '../stores/runStreamStore'
+import { useNavMemoryStore } from '../stores/navMemoryStore'
 
 interface NavItem {
   label: string
@@ -38,18 +37,32 @@ export function Sidebar(): React.ReactElement {
     [activeRuns],
   )
 
+  const lastStocksPath = useNavMemoryStore((s) => s.lastStocksPath)
+
   function isActive(path: string): boolean {
     return location.pathname.startsWith(path)
   }
 
-  function handleClick(path: string): void {
-    // While runs are in-flight, jumping to /stocks lands on the first
-    // running ticker so the user sees the progress, not a cold landing.
-    if (path === '/stocks' && runningTickers.length > 0) {
-      navigate(`/stocks/${runningTickers[0]}`)
-    } else {
-      navigate(path)
+  function handleClick(path: string, event?: React.MouseEvent): void {
+    // /stocks click resolution: running ticker > remembered deep path >
+    // landing. Hold ⌘/Ctrl to force-skip memory and reach the landing
+    // page (escape hatch when the remembered path is stale).
+    if (path === '/stocks') {
+      const forceLanding = !!event && (event.metaKey || event.ctrlKey)
+      if (forceLanding) {
+        navigate('/stocks')
+        return
+      }
+      if (runningTickers.length > 0) {
+        navigate(`/stocks/${runningTickers[0]}`)
+        return
+      }
+      if (lastStocksPath && lastStocksPath !== location.pathname) {
+        navigate(lastStocksPath)
+        return
+      }
     }
+    navigate(path)
   }
 
   return (
@@ -76,7 +89,7 @@ export function Sidebar(): React.ReactElement {
             key={item.path}
             item={item}
             active={isActive(item.path)}
-            onClick={() => handleClick(item.path)}
+            onClick={(e) => handleClick(item.path, e)}
             badge={item.path === '/stocks' ? runningTickers.length : 0}
           />
         ))}
@@ -100,7 +113,7 @@ export function Sidebar(): React.ReactElement {
             key={item.path}
             item={item}
             active={isActive(item.path)}
-            onClick={() => handleClick(item.path)}
+            onClick={(e) => handleClick(item.path, e)}
             badge={0}
           />
         ))}
@@ -113,7 +126,7 @@ interface SideIconProps {
   item: NavItem
   active: boolean
   badge: number
-  onClick: () => void
+  onClick: (event: React.MouseEvent) => void
 }
 
 function SideIcon({ item, active, badge, onClick }: SideIconProps): React.ReactElement {
@@ -122,7 +135,7 @@ function SideIcon({ item, active, badge, onClick }: SideIconProps): React.ReactE
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={(e) => onClick(e)}
       aria-label={label}
       aria-current={active ? 'page' : undefined}
       title={badge > 0 ? `${label} · ${badge} 个分析进行中` : label}

@@ -1,14 +1,21 @@
 """Most-recent-research strip on the /stocks landing page.
 
-Top-N artifacts by created_at desc, each enriched with:
-- Live current_price (route layer supplies; this module stays pure).
-- delta_to_target_pct = (current - entry) / (target - entry) when both
-  directions are available; clamped to [-2.0, 2.0] so a wild outlier doesn't
-  blow up the chart.
-- signal: hit / watching / failed via compute_signal.
-- age_label: "12m ago" / "3h ago" / "5d ago" / "2026-04-12" (date once > 30d).
+Drawer-style: top-N **tickers** by latest_at desc, each card opens to show
+the ticker's most recent runs as clickable rows.
 
-Pure function — no I/O.
+Card shape:
+- ticker, run_count (total artifacts for the ticker)
+- latest_signal (header lamp: hit / watching / failed / None)
+- latest_at (sort key)
+- runs: list of RecentTickerRun (max 5 most recent), each carrying its own
+  verdict + type + age_label + artifact_id so the UI can route every row
+  to /stocks/:ticker/runs/:artifact_id independently.
+
+Older runs beyond the top-5 still get counted in run_count — UI surfaces a
+"+ N 更多" footer linking to the ticker workspace's full timeline.
+
+Pure function — no I/O. Route layer supplies per-run verdict + live
+current_price for the latest run.
 """
 
 from __future__ import annotations
@@ -17,6 +24,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from finagent.engine.compute.signal import Signal, compute_signal
+
+# Max rows surfaced per ticker card. Tickers with more artifacts fall back
+# to the workspace's full timeline via the card footer.
+MAX_RUNS_PER_TICKER = 5
 
 
 @dataclass(frozen=True)
@@ -37,55 +48,78 @@ class RecentResearchInput:
 
 
 @dataclass(frozen=True)
-class RecentResearchView:
-    """Output one row for the landing strip."""
+class RecentTickerRun:
+    """One clickable row inside a ticker card."""
 
     artifact_id: str
-    ticker: str | None
-    cross_tickers: tuple[str, ...]
-    type: str
-    headline: str
-    verdict: str | None
-    entry_price: float | None
-    target_price: float | None
-    current_price: float | None
-    delta_to_target_pct: float | None
-    signal: Signal | None
+    type: str  # pipeline key — research / dcf / lbo / ddm / comps / ic-memo / earnings
+    verdict: str | None  # BUY / HOLD / SELL / None
     created_at: datetime
     age_label: str
 
 
-def assemble_recent_research(
+@dataclass(frozen=True)
+class RecentTickerView:
+    """One ticker card in the landing strip."""
+
+    ticker: str
+    run_count: int  # total artifacts for the ticker (NOT len(runs) — runs is capped)
+    runs: tuple[RecentTickerRun, ...]  # newest first, max MAX_RUNS_PER_TICKER
+    latest_signal: Signal | None  # header lamp; computed from latest run's prices
+    latest_at: datetime  # sort key
+
+
+def assemble_recent_tickers(
     *,
     inputs: list[RecentResearchInput],
     limit: int,
     now: datetime | None = None,
-) -> list[RecentResearchView]:
-    """Sort desc by created_at, take top N, enrich each."""
+) -> list[RecentTickerView]:
+    """Group by ticker, take top-N tickers by latest_at desc, cap rows per card.
+
+    Inputs without a ticker are dropped (no rollup key). Each surviving
+    ticker yields one RecentTickerView with up to MAX_RUNS_PER_TICKER rows.
+    The latest input drives latest_signal (header lamp); older inputs only
+    contribute their row entries.
+    """
     if limit <= 0:
         return []
     clock = now if now is not None else datetime.now(tz=timezone.utc)
-    ordered = sorted(inputs, key=lambda i: _ensure_tz(i.created_at), reverse=True)[:limit]
-    return [_assemble_one(i, clock) for i in ordered]
+
+    by_ticker: dict[str, list[RecentResearchInput]] = {}
+    for inp in inputs:
+        if not inp.ticker:
+            continue
+        by_ticker.setdefault(inp.ticker, []).append(inp)
+
+    views = [_assemble_ticker(ticker, group, clock) for ticker, group in by_ticker.items()]
+    views.sort(key=lambda v: _ensure_tz(v.latest_at), reverse=True)
+    return views[:limit]
 
 
-def _assemble_one(inp: RecentResearchInput, now: datetime) -> RecentResearchView:
-    sig = _signal_for(inp, now)
-    delta = _delta_to_target(inp)
-    return RecentResearchView(
-        artifact_id=inp.artifact_id,
-        ticker=inp.ticker,
-        cross_tickers=inp.cross_tickers,
-        type=inp.type,
-        headline=inp.headline,
-        verdict=inp.verdict,
-        entry_price=inp.entry_price,
-        target_price=inp.target_price,
-        current_price=inp.current_price,
-        delta_to_target_pct=delta,
-        signal=sig,
-        created_at=inp.created_at,
-        age_label=format_age_label(inp.created_at, now),
+def _assemble_ticker(
+    ticker: str,
+    group: list[RecentResearchInput],
+    now: datetime,
+) -> RecentTickerView:
+    sorted_group = sorted(group, key=lambda i: _ensure_tz(i.created_at), reverse=True)
+    latest = sorted_group[0]
+    runs = tuple(
+        RecentTickerRun(
+            artifact_id=inp.artifact_id,
+            type=inp.type,
+            verdict=inp.verdict,
+            created_at=inp.created_at,
+            age_label=format_age_label(inp.created_at, now),
+        )
+        for inp in sorted_group[:MAX_RUNS_PER_TICKER]
+    )
+    return RecentTickerView(
+        ticker=ticker,
+        run_count=len(group),
+        runs=runs,
+        latest_signal=_signal_for(latest, now),
+        latest_at=latest.created_at,
     )
 
 
@@ -111,20 +145,6 @@ def _signal_for(inp: RecentResearchInput, now: datetime) -> Signal | None:
         )
     except ValueError:
         return None
-
-
-def _delta_to_target(inp: RecentResearchInput) -> float | None:
-    if (
-        inp.entry_price is None
-        or inp.target_price is None
-        or inp.current_price is None
-    ):
-        return None
-    denom = inp.target_price - inp.entry_price
-    if abs(denom) < 1e-9:
-        return None
-    raw = (inp.current_price - inp.entry_price) / denom
-    return max(-2.0, min(2.0, raw))
 
 
 def format_age_label(created_at: datetime, now: datetime) -> str:

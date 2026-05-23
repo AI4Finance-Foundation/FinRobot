@@ -7,7 +7,7 @@
 // and the input area.
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useParams, useLocation } from 'react-router-dom'
+import { useParams, useLocation, useNavigate } from 'react-router-dom'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import type { UIMessage, UIMessagePart, UIDataTypes, UITools, DynamicToolUIPart } from 'ai'
@@ -539,7 +539,8 @@ function MessageList({
 function MessageBubble({ message }: { message: UIMessage }): React.ReactElement {
   const isUser = message.role === 'user'
   const now = new Date()
-  const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  // HH:MM — locale-invariant 24h format works for both zh and en chat surfaces.
+  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 
   return (
     <div
@@ -929,6 +930,7 @@ function IconColumn({
   const [showMenu, setShowMenu] = useState(false)
   const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
   const { t } = useI18n()
+  const navigate = useNavigate()
 
   const handlePointerDown = (): void => {
     const timer = setTimeout(() => {
@@ -1008,11 +1010,7 @@ function IconColumn({
           <button
             className="ai-icon-menu-item"
             onClick={() => {
-              // v5 (spec §11.1.C): /library is retired. History lives in the
-              // ticker workspace's 「我的研究」 section. Push the user back
-              // to /stocks landing; the retired /library route also redirects
-              // there, so older links keep working too.
-              window.location.href = '/stocks'
+              navigate('/stocks')
               setShowMenu(false)
             }}
             type="button"

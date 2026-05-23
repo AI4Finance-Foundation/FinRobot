@@ -9,6 +9,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
+import { useI18n } from '../i18n'
+import { formatDate } from '../utils/format'
+import { FetchHttpError } from '../utils/errorMessage'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -168,6 +171,7 @@ function groupBySection(diffs: FieldDiff[]): Map<string, FieldDiff[]> {
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProps) {
+  const { locale } = useI18n()
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
 
   // Type mismatch guard
@@ -177,7 +181,7 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
     queryKey: ['artifact-diff', artifactA.id, artifactB.id],
     queryFn: async () => {
       const resp = await fetch(`${BASE_URL}/api/artifacts/${artifactA.id}/diff/${artifactB.id}`)
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      if (!resp.ok) throw new FetchHttpError(resp.status, resp.statusText)
       return resp.json() as Promise<FieldDiff[]>
     },
     enabled: !typeMismatch,
@@ -193,13 +197,7 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
     })
   }
 
-  const fmtDate = (iso: string) => {
-    try {
-      return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-    } catch {
-      return iso
-    }
-  }
+  const fmtDate = (iso: string) => formatDate(iso, locale, 'datetime')
 
   const overlayStyle: React.CSSProperties = {
     position: 'fixed',
@@ -227,14 +225,14 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
 
   return (
     <div style={overlayStyle} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={dialogStyle} role="dialog" aria-modal="true" aria-label="Artifact diff">
+      <div style={dialogStyle} role="dialog" aria-modal="true" aria-label="研报差异">
         {/* Header */}
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Field-level diff</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>字段级差异</div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '4px 10px' }}>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block' }}>v1 (older)</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block' }}>v1（旧）</span>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>{artifactA.headline}</span>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block' }}>{fmtDate(artifactA.created_at)}</span>
               </div>
@@ -242,7 +240,7 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
                 <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '4px 10px' }}>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block' }}>v2 (newer)</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block' }}>v2（新）</span>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>{artifactB.headline}</span>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block' }}>{fmtDate(artifactB.created_at)}</span>
               </div>
@@ -250,7 +248,7 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
           </div>
           <button
             onClick={onClose}
-            aria-label="Close diff"
+            aria-label="关闭差异"
             style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: 4, borderRadius: 'var(--r-sm)', lineHeight: 1 }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -264,19 +262,19 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
           {typeMismatch && (
             <div style={{ padding: 32, textAlign: 'center' }}>
               <div style={{ fontSize: '2rem', marginBottom: 12 }}>⚠</div>
-              <div style={{ color: 'var(--warning)', fontWeight: 600, marginBottom: 8 }}>Cannot compare: type mismatch</div>
+              <div style={{ color: 'var(--warning)', fontWeight: 600, marginBottom: 8 }}>无法对比：研报类型不一致</div>
               <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                {artifactA.type.toUpperCase()} vs {artifactB.type.toUpperCase()} — diff only works between artifacts of the same type.
+                {artifactA.type.toUpperCase()} vs {artifactB.type.toUpperCase()} — 仅支持同类型研报之间的对比。
               </div>
               <button onClick={onClose} style={{ marginTop: 16, padding: '8px 20px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', cursor: 'pointer' }}>
-                Close
+                关闭
               </button>
             </div>
           )}
 
           {!typeMismatch && isLoading && (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-              <div style={{ marginBottom: 8 }}>Loading diff…</div>
+              <div style={{ marginBottom: 8 }}>正在加载差异…</div>
             </div>
           )}
 
@@ -289,8 +287,8 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
           {!typeMismatch && data && data.length === 0 && (
             <div style={{ padding: 40, textAlign: 'center' }}>
               <div style={{ fontSize: '1.5rem', marginBottom: 8 }}>✓</div>
-              <div style={{ color: 'var(--positive)', fontWeight: 600 }}>Two results are identical</div>
-              <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 4 }}>All assumptions and outputs match exactly.</div>
+              <div style={{ color: 'var(--positive)', fontWeight: 600 }}>两份研报完全一致</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 4 }}>假设和输出全部相同。</div>
             </div>
           )}
 

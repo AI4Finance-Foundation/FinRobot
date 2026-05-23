@@ -13,13 +13,7 @@
 
 import { Link } from 'react-router-dom'
 import { useTickerPrice } from '../hooks/useTickerData'
-
-const TAGLINES = [
-  '确定性计算 · LLM 叙事',
-  'NUMBER FIRST · NARRATIVE SECOND',
-  '每一个数字 · 都能追溯到函数调用',
-  'AI ANALYST · 持续工作中',
-] as const
+import { useI18n } from '../i18n'
 
 interface Props {
   ticker: string
@@ -27,6 +21,7 @@ interface Props {
 
 export function TickerHero({ ticker }: Props): React.ReactElement {
   const { data: price } = useTickerPrice(ticker)
+  const { locale } = useI18n()
 
   const current = price?.current_price
   const changePct = price?.change_pct
@@ -38,119 +33,108 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
       data-testid="ticker-hero"
       style={{
         position: 'relative',
-        padding: '32px 32px 24px',
+        padding: '16px 32px 14px',
         background: 'linear-gradient(180deg, rgba(15,15,34,0.4) 0%, transparent 100%)',
         borderBottom: '1px solid var(--border-faint)',
       }}
     >
-      <div
-        style={{
-          maxWidth: 1280,
-          margin: '0 auto',
-          minWidth: 0,
-        }}
-      >
-        {/* Single-column hero — Spline 3D moved to /stocks landing only */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
-          <Breadcrumb ticker={ticker} />
+      <div style={{ maxWidth: 1280, margin: '0 auto', minWidth: 0 }}>
+        <Breadcrumb ticker={ticker} locale={locale} />
 
-          <div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' }}>
-              <span
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 80,
-                  letterSpacing: 6,
-                  color: 'var(--text-primary)',
-                  lineHeight: 1,
-                  textShadow: '0 0 30px rgba(59,130,246,0.35)',
-                }}
-              >
-                {ticker}
-              </span>
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 12,
-                  color: 'var(--text-muted)',
-                  padding: '4px 10px',
-                  border: '1px solid var(--border-soft)',
-                  borderRadius: 6,
-                  letterSpacing: '0.08em',
-                }}
-              >
-                <span className="cosmic-pulse-dot" style={{ marginRight: 6 }} />
-                LIVE · {formatExchange(price?.exchange)}
-              </span>
-            </div>
-            <MorphTagline />
-          </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 18,
+            flexWrap: 'wrap',
+            marginTop: 10,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 36,
+              letterSpacing: 3,
+              color: 'var(--text-primary)',
+              lineHeight: 1,
+              textShadow: '0 0 18px rgba(59,130,246,0.3)',
+            }}
+          >
+            {ticker}
+          </span>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              color: 'var(--text-muted)',
+              padding: '3px 8px',
+              border: '1px solid var(--border-soft)',
+              borderRadius: 5,
+              letterSpacing: '0.06em',
+            }}
+          >
+            <span className="cosmic-pulse-dot" style={{ marginRight: 6 }} />
+            LIVE · {formatExchange(price?.exchange)}
+          </span>
 
-          {/* Price block */}
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 18, flexWrap: 'wrap' }}>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 26,
+              fontWeight: 500,
+              letterSpacing: '-0.5px',
+              color: 'var(--text-primary)',
+              fontVariantNumeric: 'tabular-nums',
+              marginLeft: 12,
+            }}
+          >
+            {typeof current === 'number' ? `$${current.toFixed(2)}` : '—'}
+          </span>
+          {typeof changePct === 'number' && (
             <span
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
                 fontFamily: 'var(--font-mono)',
-                fontSize: 56,
-                fontWeight: 500,
-                letterSpacing: '-1px',
-                color: 'var(--text-primary)',
+                fontSize: 13,
+                color: isUp ? 'var(--success)' : 'var(--danger)',
+                padding: '3px 9px',
+                background: isUp ? 'rgba(22,163,74,0.12)' : 'rgba(220,38,38,0.12)',
+                border: `1px solid ${isUp ? 'rgba(22,163,74,0.32)' : 'rgba(220,38,38,0.32)'}`,
+                borderRadius: 6,
                 fontVariantNumeric: 'tabular-nums',
               }}
             >
-              {typeof current === 'number' ? `$${current.toFixed(2)}` : '—'}
+              {isUp ? '↑' : '↓'}{' '}
+              {typeof changeAbs === 'number' && (
+                <>
+                  {isUp ? '+' : ''}
+                  {changeAbs.toFixed(2)} ·{' '}
+                </>
+              )}
+              {isUp ? '+' : ''}
+              {changePct.toFixed(2)}%
             </span>
-            {typeof changePct === 'number' && (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 17,
-                  color: isUp ? 'var(--success)' : 'var(--danger)',
-                  padding: '6px 12px',
-                  background: isUp ? 'rgba(22,163,74,0.12)' : 'rgba(220,38,38,0.12)',
-                  border: `1px solid ${isUp ? 'rgba(22,163,74,0.32)' : 'rgba(220,38,38,0.32)'}`,
-                  borderRadius: 8,
-                  boxShadow: `0 0 16px ${isUp ? 'var(--success-glow)' : 'var(--danger-glow)'}`,
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                {isUp ? '↑' : '↓'}{' '}
-                {typeof changeAbs === 'number' && (
-                  <>
-                    {isUp ? '+' : ''}
-                    {changeAbs.toFixed(2)} ·{' '}
-                  </>
-                )}
-                {isUp ? '+' : ''}
-                {changePct.toFixed(2)}%
-              </span>
-            )}
-          </div>
-
-          {/* Run / rerun actions intentionally removed — see file header.
-              The single canonical entry point is AIZone's cold-state
-              「立即跑 AI 研报」 button (data-testid run-analysis-trigger). */}
+          )}
         </div>
-
       </div>
     </header>
   )
 }
 
 // ── Breadcrumb ─────────────────────────────────────────────────────────────
-function Breadcrumb({ ticker }: { ticker: string }): React.ReactElement {
+function Breadcrumb({ ticker, locale }: { ticker: string; locale: 'zh' | 'en' }): React.ReactElement {
   const linkStyle: React.CSSProperties = { color: 'inherit', textDecoration: 'none' }
+  const stocksLabel = locale === 'en' ? 'Stocks' : '股票'
   return (
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
+        gap: 8,
         fontFamily: 'var(--font-mono)',
-        fontSize: 11,
+        fontSize: 10.5,
         color: 'var(--text-muted)',
         letterSpacing: '0.06em',
         textTransform: 'uppercase',
@@ -161,48 +145,10 @@ function Breadcrumb({ ticker }: { ticker: string }): React.ReactElement {
       </Link>
       <span style={{ color: 'var(--text-dim)' }}>›</span>
       <Link to="/stocks" style={linkStyle}>
-        Stocks
+        {stocksLabel}
       </Link>
       <span style={{ color: 'var(--text-dim)' }}>›</span>
       <span style={{ color: 'var(--accent-cyan)' }}>{ticker}</span>
-    </div>
-  )
-}
-
-// ── Morph tagline (4-phrase cycle) ────────────────────────────────────────
-function MorphTagline(): React.ReactElement {
-  return (
-    <div
-      aria-hidden
-      style={{
-        position: 'relative',
-        height: 28,
-        marginTop: 12,
-        maxWidth: 560,
-        overflow: 'hidden',
-        fontFamily: 'var(--font-display)',
-        fontSize: 15,
-        letterSpacing: 1.6,
-        color: 'var(--accent-cyan)',
-        textShadow: '0 0 12px rgba(34,211,238,0.5)',
-      }}
-    >
-      {TAGLINES.map((t, i) => (
-        <span
-          key={t}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            animation: `cosmic-morph 12s ease-in-out infinite`,
-            animationDelay: `${i * 3}s`,
-            opacity: 0,
-          }}
-        >
-          {t}
-        </span>
-      ))}
     </div>
   )
 }

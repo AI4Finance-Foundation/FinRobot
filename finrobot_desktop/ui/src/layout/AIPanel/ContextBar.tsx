@@ -90,7 +90,6 @@ function CtxPopover({ openTabs, onSelect, onClose }: PopoverProps): React.ReactE
     .slice(0, 5)
 
   const staticItems: ContextItem[] = [
-    { kind: 'symbol',    id: 'watchlist',  label: '自选股列表' },
     { kind: 'workspace', id: 'workspace',  label: 'Workspace' },
   ]
 

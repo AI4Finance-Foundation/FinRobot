@@ -6,6 +6,7 @@
 
 import { useState } from 'react'
 import { useDashboardHitRate, type HitRateWindow } from '../../hooks/useDashboardHitRate'
+import { verdictLabel } from '../../utils/verdict'
 
 const WINDOWS: { value: HitRateWindow; label: string }[] = [
   { value: '30d', label: '30 天' },
@@ -77,7 +78,7 @@ export function HitRateBanner(): React.ReactElement {
 
       {isError && (
         <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-          后端无响应 · 启动 FinAgent server 后刷新页面。
+          数据加载失败，请稍后刷新页面。
         </p>
       )}
 
@@ -93,9 +94,9 @@ export function HitRateBanner(): React.ReactElement {
           }}
         >
           <OverallTile bucket={data.overall} />
-          <VerdictTile label="BUY" tone="success" bucket={data.by_verdict.BUY} />
-          <VerdictTile label="HOLD" tone="warning" bucket={data.by_verdict.HOLD} />
-          <VerdictTile label="SELL" tone="danger" bucket={data.by_verdict.SELL} />
+          <VerdictTile label={verdictLabel('BUY')} tone="success" bucket={data.by_verdict.BUY} />
+          <VerdictTile label={verdictLabel('HOLD')} tone="warning" bucket={data.by_verdict.HOLD} />
+          <VerdictTile label={verdictLabel('SELL')} tone="danger" bucket={data.by_verdict.SELL} />
         </div>
       )}
     </section>

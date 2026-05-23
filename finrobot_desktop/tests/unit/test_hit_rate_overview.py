@@ -99,7 +99,7 @@ def test_window_30d_cuts_older_artifacts() -> None:
     ]
     res = compute_hit_rate_overview(artifacts=arts, window="30d", now=NOW)
     assert res.overall.n_total == 1
-    assert res.sample_window_days == 30
+    assert res.window == "30d"
 
 
 def test_missing_prices_drop_silently() -> None:

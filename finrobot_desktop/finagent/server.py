@@ -21,7 +21,9 @@ from finagent.engine.data.interface import ProviderError
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.orchestrator import build_report_context, create_lead_agent
 from finagent.engine.skills.registry import SkillRegistry
+from finagent.artifact.migrate import migrate_filesystem_to_sqlite
 from finagent.artifact.store import ArtifactStore
+from finagent.paths import ensure_home, migrate_legacy_paths
 from finagent.audit.transcript import TranscriptWriter
 from finagent.routes.analyze import router as analyze_router
 from finagent.routes.artifacts import router as artifacts_router
@@ -38,7 +40,6 @@ from finagent.routes.search import router as search_router
 from finagent.routes.notify import router as notify_router
 from finagent.routes.settings import load_non_secret_settings
 from finagent.routes.settings import router as settings_router
-from finagent.routes.exports import router as exports_router
 from finagent.routes.sentiment import router as sentiment_router
 from finagent.routes.valuation import router as valuation_router
 from finagent.run_store import RunStore
@@ -114,9 +115,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     skills_path = Path(settings.skills_dir)
     registry = SkillRegistry(skills_path) if skills_path.exists() else None
 
+    # Unify storage under ~/.finagent/ + best-effort migrate legacy db paths
+    # (~/.cache/finagent/cache.db → ~/.finagent/data_cache.db). Cheap; idempotent.
+    ensure_home()
+    migrate_legacy_paths()
+
     data_layer = build_data_layer(settings)
 
-    # Artifact store: persists computational snapshots for audit trail
+    # Artifact store: SQLite-backed (since 2026-05-23). The ``ArtifactStore``
+    # name is a shim that delegates to ``SqliteArtifactStore`` — the old
+    # ~/.finagent-desktop/artifacts/<ticker>/<id>.json filesystem layout is
+    # gone; data lives in ~/.finagent/artifacts.db with secondary indexes on
+    # (ticker, created_at), verdict, archived. Eliminates the N+1 reads
+    # that dominated landing cold-start.
     artifact_store = ArtifactStore()
 
     # Create agent
@@ -138,7 +149,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.run_tasks = {}
     app.state.artifact_store = artifact_store
     # Transcript writers: session_id → TranscriptWriter (in-memory cache)
-    app.state.transcript_writers: dict[str, TranscriptWriter] = {}
+    transcript_writers: dict[str, TranscriptWriter] = {}
+    app.state.transcript_writers = transcript_writers
     app.state.sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
 
     # Background task: archive stale artifacts (unviewed for 24h)
@@ -150,7 +162,42 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         except (OSError, ValueError, TypeError, RuntimeError):
             logger.exception("Startup artifact archive failed — non-fatal")
 
+    # One-shot legacy migration: pull every ~/.finagent-desktop/artifacts/
+    # JSON file into the new SqliteArtifactStore. Idempotent (saves are
+    # upserts) — re-runs on every startup but only does real work the first
+    # time after the user upgrades.
+    async def _migrate_legacy_artifacts_background() -> None:
+        try:
+            count = await migrate_filesystem_to_sqlite(store=artifact_store)
+            if count:
+                logger.info("Migrated %d legacy filesystem artifacts to SQLite", count)
+        except (OSError, ValueError, TypeError, RuntimeError):
+            logger.exception("Legacy artifact migration failed — non-fatal")
+
+    # Warm the QuoteCache for every studied ticker so the first landing
+    # page load doesn't pay the cold yfinance penalty (4-5s pre-fix). The
+    # cache TTL is 60s; if the user touches the dashboard before warmup
+    # completes they fall through to the same fetch they would have made
+    # without this hook, so the warmup is a strict latency improvement —
+    # never a correctness dependency.
+    async def _warm_quote_cache_background() -> None:
+        try:
+            summaries = await artifact_store.list_by_ticker(
+                ticker=None, include_archived=False, limit=500
+            )
+            tickers = sorted({s.ticker for s in summaries if s.ticker})
+            if not tickers:
+                return
+            from finagent.engine.data.quote_batch import fetch_quotes_batch_cached
+
+            await fetch_quotes_batch_cached(tickers)
+            logger.info("Quote cache warmed for %d studied tickers", len(tickers))
+        except (OSError, ValueError, TypeError, RuntimeError):
+            logger.exception("Quote cache warmup failed — non-fatal")
+
     asyncio.create_task(_archive_stale_background())
+    asyncio.create_task(_migrate_legacy_artifacts_background())
+    asyncio.create_task(_warm_quote_cache_background())
 
     yield
     for task in list(app.state.run_tasks.values()):
@@ -200,7 +247,6 @@ app.include_router(search_router, prefix="/api/search", tags=["search"])
 app.include_router(notify_router)
 app.include_router(valuation_router)
 app.include_router(sentiment_router)
-app.include_router(exports_router)
 
 
 def _extract_user_text(message: dict[str, Any]) -> str:
@@ -338,7 +384,7 @@ async def _intercept_native_events(
                 )
                 await writer.log_tool_result(
                     result_part.tool_call_id,
-                    result_part.tool_name,
+                    result_part.tool_name or "",
                     content,
                     is_error=is_error,
                     artifact_id=artifact_id,

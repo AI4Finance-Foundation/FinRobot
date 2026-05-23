@@ -16,16 +16,20 @@ from finagent.engine.aggregations.hit_rate_overview import (
     compute_hit_rate_overview,
 )
 from finagent.engine.aggregations.recent_research import (
-    RecentResearchView,
-    assemble_recent_research,
+    MAX_RUNS_PER_TICKER,
+    RecentTickerRun,
+    RecentTickerView,
+    assemble_recent_tickers,
     format_age_label,
 )
 
 __all__ = [
     "HitRateBucketStats",
     "HitRateOverviewStats",
-    "RecentResearchView",
-    "assemble_recent_research",
+    "MAX_RUNS_PER_TICKER",
+    "RecentTickerRun",
+    "RecentTickerView",
+    "assemble_recent_tickers",
     "compute_hit_rate_overview",
     "format_age_label",
 ]

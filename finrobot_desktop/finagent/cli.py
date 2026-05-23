@@ -621,9 +621,38 @@ def analyze(ticker: str, analysis_type: str, model: str | None) -> None:
 @cli.command()
 @click.option("--host", default="127.0.0.1", show_default=True, help="Bind address")
 @click.option("--port", default=8321, show_default=True)
-def serve(host: str, port: int) -> None:
-    """Start the FinAgent server."""
-    import uvicorn
-    from finagent.server import app
+@click.option(
+    "--reload",
+    is_flag=True,
+    default=False,
+    help="Auto-restart on code changes (dev mode). Watches finagent/.",
+)
+@click.option(
+    "--log-level",
+    default="info",
+    show_default=True,
+    type=click.Choice(["critical", "error", "warning", "info", "debug", "trace"]),
+)
+def serve(host: str, port: int, reload: bool, log_level: str) -> None:
+    """Start the FinAgent server.
 
-    uvicorn.run(app, host=host, port=port)
+    Use ``--reload`` during development so editing Python files
+    auto-restarts the worker — avoids stale-process 500s after edits.
+    """
+    import uvicorn
+
+    if reload:
+        # reload mode requires an import string (not the app object) so the
+        # worker can re-import after file changes.
+        uvicorn.run(
+            "finagent.server:app",
+            host=host,
+            port=port,
+            reload=True,
+            reload_dirs=["finagent"],
+            log_level=log_level,
+        )
+    else:
+        from finagent.server import app
+
+        uvicorn.run(app, host=host, port=port, log_level=log_level)

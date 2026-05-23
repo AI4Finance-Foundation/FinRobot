@@ -100,7 +100,12 @@ class RunStore:
     """SQLite-backed run, event, and artifact metadata store."""
 
     def __init__(self, db_path: str | Path | None = None) -> None:
-        self._db_path = str(db_path or Path.home() / ".finagent" / "runs.db")
+        if db_path is None:
+            from finagent.paths import RUNS_DB, ensure_home
+
+            ensure_home()
+            db_path = RUNS_DB
+        self._db_path = str(db_path)
         self._conn: aiosqlite.Connection | None = None
         self._conn_lock = asyncio.Lock()
 

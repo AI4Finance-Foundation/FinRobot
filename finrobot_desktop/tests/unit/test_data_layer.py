@@ -129,7 +129,9 @@ class TestProviderFailure:
         layer2 = DataLayer([failing_provider], cache)
         result = await layer2.fetch("financials", "AAPL")
         assert result is not None
-        assert any("stale" in w for w in result.warnings)
+        # The fallback warning is 中文 (surfaces in the desktop UI); check for
+        # the user-facing "缓存数据" phrase rather than the old English "stale".
+        assert any("缓存数据" in w for w in result.warnings)
 
     async def test_provider_fails_no_cache_returns_error_result(self, cache):
         """No crash — returns a DataResult the LLM can relay to the user."""
@@ -139,7 +141,8 @@ class TestProviderFailure:
         assert result is not None
         assert result.provider == "none"
         assert len(result.warnings) > 0
-        assert any("unavailable" in w.lower() or "failed" in w.lower() for w in result.warnings)
+        # Message was 中文-ified for the desktop UI (was: "Data unavailable... all providers failed").
+        assert any("不可用" in w or "失败" in w for w in result.warnings)
 
 
 class TestMultipleProviders:
@@ -213,7 +216,8 @@ class TestChainFallback:
         layer = DataLayer([p1, p2, p3], cache)
         result = await layer.fetch("financials", "AAPL")
         assert result.provider == "none"
-        assert any("unavailable" in w.lower() or "failed" in w.lower() for w in result.warnings)
+        # Message was 中文-ified for the desktop UI (was: "Data unavailable... all providers failed").
+        assert any("不可用" in w or "失败" in w for w in result.warnings)
 
 
 class TestCrossValidationIntegration:

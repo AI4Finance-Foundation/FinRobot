@@ -13,6 +13,7 @@ from finagent.engine.data.types import DataType
 from finagent.engine.deps import FinAgentDeps
 from finagent.engine.models.financial import (
     CatalystAnalysis,
+    DCFResult,
     FinancialData,
     CompanyFinancials,
     HistoricalMetrics,
@@ -31,6 +32,7 @@ from finagent.engine.compute.multiples import calculate_multiples, calculate_pee
 from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 from finagent.engine.compute.dcf_seed import seed_dcf_inputs
 from finagent.engine.compute.historical_extractor import extract_historical_from_yfinance
+from finagent.engine.compute.technical_payload import build_technical_analysis
 from finagent.engine.analysis.news_classifier import classify_news
 from finagent.engine.compute.news import fetch_news
 from finagent.engine.pipelines.base import (
@@ -53,6 +55,7 @@ from finagent.engine.pipelines.validators import (
     validate_financial_data,
     validate_peer_comps,
     validate_dcf_result,
+    validate_technical_analysis,
     validate_thesis,
 )
 
@@ -315,6 +318,72 @@ async def _execute_financial_modeling(
     return StepOutput(text=narrative, structured=dcf_result)
 
 
+async def _execute_technical_analysis(
+    agent: Agent[Any, Any],  # noqa: ARG001 — kept for executor signature; unused
+    deps: FinAgentDeps,
+    prompt: str,  # noqa: ARG001 — kept for executor signature; unused
+    structured_context: dict[str, object],
+    ticker: str,
+) -> StepOutput:
+    """Run Monte Carlo + Sniper + Historical Bands → chapter 09 payload.
+
+    Deterministic: every number traces back to seeded DCF inputs and the
+    data layer's price/financials cache. The LLM contributes nothing here —
+    it would only narrate downstream if the thesis step chose to.
+    """
+    dcf = structured_context.get("financial_modeling")
+    financial_data = structured_context.get("data_collection")
+    if not isinstance(dcf, DCFResult):
+        raise ValueError(
+            "technical_analysis requires DCFResult from financial_modeling step "
+            "but received: " + type(dcf).__name__
+        )
+    if not isinstance(financial_data, FinancialData):
+        raise ValueError(
+            "technical_analysis requires FinancialData from data_collection step "
+            "but received: " + type(financial_data).__name__
+        )
+
+    current_price = (
+        financial_data.market.current_price if hasattr(financial_data, "market") else 0.0
+    )
+
+    payload = await build_technical_analysis(
+        ticker=ticker,
+        dcf_inputs=dcf.inputs,
+        dcf_target=dcf.implied_price,
+        current_price=current_price,
+        data_layer=deps.data_layer,
+    )
+
+    summary_parts: list[str] = []
+    if payload.monte_carlo is not None:
+        mc = payload.monte_carlo
+        summary_parts.append(
+            f"Monte Carlo ({mc.n_valid:,} sims): mean ${mc.mean:.2f}, "
+            f"P5–P95 ${mc.percentiles['5']:.2f}–${mc.percentiles['95']:.2f}, "
+            f"current at {mc.current_price_percentile:.0f}th pct."
+        )
+    if payload.sniper is not None:
+        sn = payload.sniper
+        summary_parts.append(
+            f"Sniper levels: buy ${sn.ideal_buy:.2f}, stop ${sn.stop_loss:.2f}, "
+            f"target ${sn.take_profit:.2f} (R/R {sn.risk_reward_ratio:.1f})."
+        )
+    if payload.historical_bands is not None:
+        hb = payload.historical_bands
+        cur = f"{hb.current:.1f}x" if hb.current is not None else "n/a"
+        med = f"{hb.median:.1f}x" if hb.median is not None else "n/a"
+        summary_parts.append(
+            f"EV/EBITDA band ({hb.sample_count} pts): current {cur} vs median {med} "
+            f"→ {hb.classification}."
+        )
+    if not summary_parts:
+        summary_parts.append("Technical analysis skipped — all branches unavailable.")
+
+    return StepOutput(text=" ".join(summary_parts), structured=payload)
+
+
 async def _execute_thesis(
     agent: Agent[Any, Any],
     deps: FinAgentDeps,
@@ -442,6 +511,17 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[],
                 validator=StructuredValidator(validate_dcf_result, validate_is_non_empty),
                 executor=_execute_financial_modeling,
+            ),
+            PipelineStep(
+                name="technical_analysis",
+                skill_section=None,
+                agent=agents["modeling"],
+                required_data=[],
+                validator=StructuredValidator(
+                    validate_technical_analysis,
+                    validate_is_non_empty,
+                ),
+                executor=_execute_technical_analysis,
             ),
             PipelineStep(
                 name="thesis",

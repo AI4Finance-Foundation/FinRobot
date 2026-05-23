@@ -1,17 +1,41 @@
-// Chapter 06 — Sensitivity Analysis. Three-subchapter layout mirroring
-// FinRobot's structure: Key Assumptions / Confidence Intervals /
-// Sensitivity Notes. DCFResult.sensitivity_table populates the matrix
-// when present (compute.dcf produces a 2D map of WACC × growth rate).
-
+import SensitivityHeatmap from '../../../components/charts/SensitivityHeatmap'
 import { Chapter, SubChapter } from './ChapterBase'
 import type { DcfShape } from './types'
+
+interface SensitivityTableShape {
+  wacc_values?: number[]
+  tg_values?: number[]
+  implied_prices?: number[][]
+}
+
+function flattenSensitivity(
+  table: Record<string, unknown> | null | undefined,
+): { wacc: number; tg: number; implied_price: number }[] {
+  if (!table) return []
+  const t = table as SensitivityTableShape
+  const waccs = Array.isArray(t.wacc_values) ? t.wacc_values : []
+  const tgs = Array.isArray(t.tg_values) ? t.tg_values : []
+  const prices = Array.isArray(t.implied_prices) ? t.implied_prices : []
+  const rows: { wacc: number; tg: number; implied_price: number }[] = []
+  for (let i = 0; i < waccs.length; i++) {
+    const row = prices[i]
+    if (!Array.isArray(row)) continue
+    for (let j = 0; j < tgs.length; j++) {
+      const price = row[j]
+      if (typeof price !== 'number' || !Number.isFinite(price)) continue
+      rows.push({ wacc: waccs[i], tg: tgs[j], implied_price: price })
+    }
+  }
+  return rows
+}
 
 export function ChapterSensitivity({ dcf }: { dcf: DcfShape | null }): React.ReactElement {
   const table = dcf?.sensitivity_table ?? null
   const inputs = dcf?.inputs
+  const heatmapRows = flattenSensitivity(table)
 
   return (
-    <Chapter id="sensitivity" num="06" title="Sensitivity Analysis" sub="Assumptions · CIs · Notes">
+    <Chapter id="sensitivity">
       <SubChapter heading="Key Assumptions">
         <p
           style={{
@@ -61,26 +85,11 @@ export function ChapterSensitivity({ dcf }: { dcf: DcfShape | null }): React.Rea
       </SubChapter>
 
       <SubChapter heading="Sensitivity Matrix">
-        {table && Object.keys(table).length > 0 ? (
-          <pre
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11.5,
-              color: 'var(--text-secondary)',
-              background: 'rgba(15, 15, 34, 0.6)',
-              padding: 14,
-              borderRadius: 'var(--radius-sm)',
-              overflow: 'auto',
-              border: '1px solid var(--border-soft)',
-              lineHeight: 1.65,
-              margin: 0,
-            }}
-          >
-            {JSON.stringify(table, null, 2)}
-          </pre>
+        {heatmapRows.length > 0 ? (
+          <SensitivityHeatmap data={heatmapRows} title="WACC × Terminal Growth → Implied Price" />
         ) : (
           <p style={mutedNote}>
-            该 artifact 未保存 sensitivity_table — compute/dcf 在 v2 之后开始持久化此矩阵，重跑后此处会渲染 5×5 WACC × CAGR 热力网格。
+            该 artifact 未保存 sensitivity_table——请重跑 research 以生成 WACC × 终值增长率热力网格。
           </p>
         )}
       </SubChapter>

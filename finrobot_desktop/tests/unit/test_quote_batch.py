@@ -153,5 +153,50 @@ def test_logger_warns_on_yfinance_missing(
     assert any("yfinance unavailable" in r.message for r in caplog.records)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Async cached entry point
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_cached_warm_hit_skips_yfinance(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Second call within TTL must return from cache without invoking the
+    underlying yfinance helper. Eliminates the 7-second fan-out from the
+    dashboard hit-rate + recent-research endpoints."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    quote_batch.reset_quote_cache_singleton()
+
+    yf_calls: list[list[str]] = []
+
+    def fake_yf(tickers: list[str]) -> dict[str, float | None]:
+        yf_calls.append(list(tickers))
+        return {t: 200.0 for t in tickers}
+
+    monkeypatch.setattr(quote_batch, "_fetch_via_yfinance", fake_yf)
+
+    out1 = await quote_batch.fetch_quotes_batch_cached(["AAPL", "MSFT"])
+    assert out1 == {"AAPL": 200.0, "MSFT": 200.0}
+    assert len(yf_calls) == 1
+
+    out2 = await quote_batch.fetch_quotes_batch_cached(["AAPL"])
+    assert out2 == {"AAPL": 200.0}
+    assert len(yf_calls) == 1  # served from L1; no extra yfinance call
+
+    quote_batch.reset_quote_cache_singleton()
+
+
+@pytest.mark.asyncio
+async def test_cached_empty_batch_is_noop(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    quote_batch.reset_quote_cache_singleton()
+    out = await quote_batch.fetch_quotes_batch_cached([])
+    assert out == {}
+    quote_batch.reset_quote_cache_singleton()
+
+
 # Marker so unused-import detection passes cleanly.
 _unused = MagicMock

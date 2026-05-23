@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
-    """6-step comps analysis pipeline per ARCHITECTURE.md section 2.3."""
+    """6-step comps analysis pipeline (SDK-only, capability folded into research)."""
     from finagent.artifact.builders import build_comps_artifact
 
     return Pipeline(

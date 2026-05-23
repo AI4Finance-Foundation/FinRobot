@@ -3,6 +3,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
+import { FetchHttpError } from '../utils/errorMessage'
 
 export interface StudiedTicker {
   ticker: string
@@ -29,7 +30,7 @@ export function useStudiedTickers(limit = 100) {
         `${BASE_URL}/api/artifacts/studied-tickers?limit=${limit}`,
         { signal },
       )
-      if (!r.ok) throw new Error(`studied-tickers HTTP ${r.status}`)
+      if (!r.ok) throw new FetchHttpError(r.status, r.statusText)
       return r.json() as Promise<StudiedTickersResponse>
     },
     staleTime: 60_000,

@@ -3,6 +3,9 @@
 // we render it as the entry section so PDF exports get a proper cover.
 
 import type { ThesisShape } from './types'
+import { verdictLabel } from '../../../utils/verdict'
+import { formatDate } from '../../../utils/format'
+import { useI18n } from '../../../i18n'
 
 interface ChapterCoverProps {
   ticker: string
@@ -11,6 +14,8 @@ interface ChapterCoverProps {
   artifactId: string
   computeVersion: string | null
   reportType: string
+  versionNumber: number | null
+  totalVersions: number
 }
 
 const VERDICT_TONE: Record<string, { bg: string; fg: string; border: string }> = {
@@ -35,10 +40,13 @@ export function ChapterCover({
   ticker,
   thesis,
   createdAt,
-  artifactId,
+  artifactId: _artifactId,
   computeVersion,
   reportType,
+  versionNumber,
+  totalVersions,
 }: ChapterCoverProps): React.ReactElement {
+  const { locale } = useI18n()
   const verdict = (thesis?.recommendation ?? '').toUpperCase()
   const tone = VERDICT_TONE[verdict] ?? VERDICT_TONE.HOLD
   const target = thesis?.price_target ?? null
@@ -48,142 +56,132 @@ export function ChapterCover({
       id="cover"
       data-testid="chapter-cover"
       style={{
-        margin: '24px 0 56px',
-        padding: '56px 32px',
+        margin: '12px 0 28px',
+        padding: '28px 28px 24px',
         background:
-          'radial-gradient(ellipse 70% 50% at 50% 30%, rgba(139, 92, 246, 0.18), transparent 70%), linear-gradient(160deg, rgba(15, 15, 34, 0.95), rgba(10, 10, 24, 0.6))',
+          'radial-gradient(ellipse 70% 60% at 50% 30%, rgba(139, 92, 246, 0.14), transparent 70%), linear-gradient(160deg, rgba(15, 15, 34, 0.95), rgba(10, 10, 24, 0.6))',
         border: '1px solid var(--border-soft)',
         borderRadius: 'var(--radius-lg)',
         position: 'relative',
         scrollMarginTop: 84,
       }}
     >
-      <span
-        style={{
-          position: 'absolute',
-          top: 20,
-          left: 32,
-          fontFamily: 'var(--font-display)',
-          fontSize: 11,
-          color: 'var(--text-muted)',
-          letterSpacing: '0.3em',
-        }}
-      >
-        FINAGENT EQUITY RESEARCH
-      </span>
-      <span
-        style={{
-          position: 'absolute',
-          top: 20,
-          right: 32,
-          fontFamily: 'var(--font-mono)',
-          fontSize: 11,
-          color: 'var(--text-muted)',
-        }}
-      >
-        {createdAt ? new Date(createdAt).toLocaleString('zh-CN') : 'REPORT'}
-      </span>
-
       <div
         style={{
-          marginTop: 32,
-          fontFamily: 'var(--font-display)',
-          fontSize: 96,
-          letterSpacing: 8,
-          color: 'var(--text-primary)',
-          textShadow: '0 0 40px rgba(59, 130, 246, 0.45)',
-          lineHeight: 1,
-        }}
-      >
-        {ticker}
-      </div>
-
-      <div
-        style={{
-          marginTop: 22,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           fontFamily: 'var(--font-mono)',
-          fontSize: 11,
+          fontSize: 10.5,
           color: 'var(--text-muted)',
           letterSpacing: '0.08em',
+          marginBottom: 14,
         }}
       >
-        TYPE {reportType.toUpperCase()} · ARTIFACT {artifactId.slice(0, 12)}
-        {computeVersion && <> · {computeVersion}</>}
+        <span style={{ fontFamily: 'var(--font-display)', letterSpacing: '0.3em' }}>
+          FINAGENT {locale === 'en' ? 'EQUITY RESEARCH' : '股票研报'}
+        </span>
+        <span>{createdAt ? formatDate(createdAt, locale, 'datetime') : ''}</span>
       </div>
 
-      {(verdict || target !== null) && (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 24,
+          flexWrap: 'wrap',
+        }}
+      >
         <div
           style={{
-            marginTop: 36,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 28,
-            flexWrap: 'wrap',
+            fontFamily: 'var(--font-display)',
+            fontSize: 56,
+            letterSpacing: 5,
+            color: 'var(--text-primary)',
+            textShadow: '0 0 28px rgba(59, 130, 246, 0.4)',
+            lineHeight: 1,
           }}
         >
-          {verdict && (
+          {ticker}
+        </div>
+
+        {verdict && (
+          <span
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 28,
+              letterSpacing: 4,
+              padding: '4px 18px',
+              background: tone.bg,
+              color: tone.fg,
+              border: `1.5px solid ${tone.border}`,
+              borderRadius: 6,
+              boxShadow: `0 0 18px ${tone.bg}`,
+            }}
+          >
+            {verdictLabel(verdict)}
+          </span>
+        )}
+
+        {target !== null && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <span
               style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 56,
-                letterSpacing: 8,
-                padding: '6px 32px',
-                background: tone.bg,
-                color: tone.fg,
-                border: `2px solid ${tone.border}`,
-                borderRadius: 8,
-                boxShadow: `0 0 32px ${tone.bg}`,
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                color: 'var(--text-muted)',
+                letterSpacing: '0.08em',
               }}
             >
-              {verdict}
+              {locale === 'en' ? '12-MONTH TARGET' : '12 个月目标价'}
             </span>
-          )}
-          {target !== null && (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 11,
-                  color: 'var(--text-muted)',
-                  letterSpacing: '0.1em',
-                  textTransform: 'uppercase',
-                }}
-              >
-                12-MONTH TARGET
-              </span>
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 48,
-                  fontWeight: 500,
-                  color: 'var(--text-primary)',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                ${target.toFixed(2)}
-              </span>
-              {thesis?.price_target_basis && (
-                <span
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 11,
-                    color: 'var(--text-muted)',
-                  }}
-                >
-                  {thesis.price_target_basis}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 26,
+                fontWeight: 500,
+                color: 'var(--text-primary)',
+                fontVariantNumeric: 'tabular-nums',
+                lineHeight: 1.1,
+              }}
+            >
+              ${target.toFixed(2)}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div
+        style={{
+          marginTop: 12,
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10.5,
+          color: 'var(--text-muted)',
+          letterSpacing: '0.06em',
+        }}
+      >
+        {locale === 'en' ? 'TYPE' : '类型'} {reportType.toUpperCase()}
+        {versionNumber !== null && (
+          <>
+            {' · '}
+            {locale === 'en'
+              ? `v${versionNumber}${totalVersions > 1 ? ` of ${totalVersions}` : ''}`
+              : `第 v${versionNumber} 版${totalVersions > 1 ? ` · 共 ${totalVersions} 份` : ''}`}
+          </>
+        )}
+        {computeVersion && <> · {computeVersion}</>}
+        {thesis?.price_target_basis && (
+          <> · {thesis.price_target_basis}</>
+        )}
+      </div>
 
       {thesis?.tagline && (
         <p
           style={{
-            marginTop: 26,
+            marginTop: 14,
+            marginBottom: 0,
             fontFamily: 'var(--font-body)',
-            fontSize: 17,
+            fontSize: 14,
             fontStyle: 'italic',
             color: 'var(--accent-cyan)',
             lineHeight: 1.5,
@@ -194,18 +192,6 @@ export function ChapterCover({
           "{thesis.tagline}"
         </p>
       )}
-
-      <div
-        style={{
-          marginTop: 24,
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10.5,
-          color: 'var(--text-dim)',
-          letterSpacing: '0.1em',
-        }}
-      >
-        PREPARED BY FINAGENT · DETERMINISTIC COMPUTE + LLM NARRATIVE
-      </div>
     </section>
   )
 }

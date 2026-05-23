@@ -77,58 +77,6 @@ export function TitleBar(): React.ReactElement {
 
       <div style={{ flex: 1 }} data-tauri-drag-region />
 
-      {/* cmdK trigger — halo flowing border */}
-      <button
-        type="button"
-        data-testid="titlebar-cmdk"
-        onClick={() => setCmdPaletteOpen(true)}
-        className="halo-input"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          minWidth: 260,
-          padding: '4px 12px',
-          color: 'var(--text-secondary)',
-          background: 'rgba(10, 10, 24, 0.7)',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 12,
-          cursor: 'pointer',
-        }}
-      >
-        <span style={{ fontSize: 12, color: 'var(--text-muted)' }} aria-hidden>⌕</span>
-        <span style={{ flex: 1, textAlign: 'left' }}>搜索股票 / 命令 …</span>
-        <span
-          style={{
-            display: 'inline-flex',
-            gap: 3,
-            fontSize: 10,
-            color: 'var(--text-muted)',
-          }}
-        >
-          <kbd
-            style={{
-              padding: '1px 5px',
-              border: '1px solid var(--border-soft)',
-              borderRadius: 3,
-              background: 'rgba(255,255,255,0.03)',
-            }}
-          >
-            ⌘
-          </kbd>
-          <kbd
-            style={{
-              padding: '1px 5px',
-              border: '1px solid var(--border-soft)',
-              borderRadius: 3,
-              background: 'rgba(255,255,255,0.03)',
-            }}
-          >
-            K
-          </kbd>
-        </span>
-      </button>
-
       {/* AI panel toggle */}
       <button
         className={`tb-btn${aiPanelOpen ? ' active' : ''}`}

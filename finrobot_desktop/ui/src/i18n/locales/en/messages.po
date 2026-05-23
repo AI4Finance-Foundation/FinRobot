@@ -1,0 +1,691 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+
+#. js-lingui-explicit-id
+msgid "app.name"
+msgstr "FinAgent"
+
+#. js-lingui-explicit-id
+msgid "app.tagline"
+msgstr "AI-powered equity research workstation"
+
+#. js-lingui-explicit-id
+msgid "chat.collapse"
+msgstr "Collapse"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.body"
+msgstr "I have access to live prices, financials, news and can run valuations."
+
+#. js-lingui-explicit-id
+msgid "chat.empty.example.1"
+msgstr "Why is {ticker} down today?"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.example.2"
+msgstr "Summarize {ticker}'s last quarter"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.example.3"
+msgstr "Compare {ticker} to its peers"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.example.generic.1"
+msgstr "Explain DCF in 30 seconds"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.example.generic.2"
+msgstr "What's the difference between LBO and DCF?"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.example.generic.3"
+msgstr "How do you read a 10-K?"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.heading"
+msgstr "Ask anything about finance"
+
+#. js-lingui-explicit-id
+msgid "chat.error.context"
+msgstr "Conversation too long. Start a new chat."
+
+#. js-lingui-explicit-id
+msgid "chat.error.generic"
+msgstr "Request failed."
+
+#. js-lingui-explicit-id
+msgid "chat.error.unavailable"
+msgstr "Service unavailable. Try again in a moment."
+
+#. js-lingui-explicit-id
+msgid "chat.expand"
+msgstr "Open chat"
+
+#. js-lingui-explicit-id
+msgid "chat.history"
+msgstr "History"
+
+#. js-lingui-explicit-id
+msgid "chat.input.placeholder"
+msgstr "Message FinAgent… (Enter to send, Shift+Enter for newline)"
+
+#. js-lingui-explicit-id
+msgid "chat.model.tooltip"
+msgstr "Model"
+
+#. js-lingui-explicit-id
+msgid "chat.newSession"
+msgstr "New chat"
+
+#. js-lingui-explicit-id
+msgid "chat.overlength"
+msgstr "{count} / {max} characters"
+
+#. js-lingui-explicit-id
+msgid "chat.reasoning"
+msgstr "Reasoning"
+
+#. js-lingui-explicit-id
+msgid "chat.retry"
+msgstr "Retry"
+
+#. js-lingui-explicit-id
+msgid "chat.send"
+msgstr "Send"
+
+#. js-lingui-explicit-id
+msgid "chat.stop"
+msgstr "Stop"
+
+#. js-lingui-explicit-id
+msgid "chat.thinking"
+msgstr "Thinking…"
+
+#. js-lingui-explicit-id
+msgid "chat.ticker.switched"
+msgstr "Switched to {ticker} — previous chat saved to Library"
+
+#. js-lingui-explicit-id
+msgid "chat.title.explore"
+msgstr "Explore"
+
+#. js-lingui-explicit-id
+msgid "chat.title.new"
+msgstr "New chat"
+
+#. js-lingui-explicit-id
+msgid "chat.tool.share"
+msgstr "Share to chat"
+
+#. js-lingui-explicit-id
+msgid "cmdk.empty"
+msgstr "Type a ticker (e.g. AAPL), a question, or a /command"
+
+#. js-lingui-explicit-id
+msgid "cmdk.error.actionFailed"
+msgstr "Action failed"
+
+#. js-lingui-explicit-id
+msgid "cmdk.error.invalidAction"
+msgstr "Invalid action"
+
+#. js-lingui-explicit-id
+msgid "cmdk.error.tickerRequired"
+msgstr "A ticker is required to run that tool"
+
+#. js-lingui-explicit-id
+msgid "cmdk.error.unknownAction"
+msgstr "Unknown action"
+
+#. js-lingui-explicit-id
+msgid "cmdk.foot.close"
+msgstr "Close"
+
+#. js-lingui-explicit-id
+msgid "cmdk.foot.confirm"
+msgstr "Confirm"
+
+#. js-lingui-explicit-id
+msgid "cmdk.foot.select"
+msgstr "Select"
+
+#. js-lingui-explicit-id
+msgid "cmdk.foot.tipDcf"
+msgstr "Type /dcf AAPL to run a tool directly"
+
+#. js-lingui-explicit-id
+msgid "cmdk.overlength"
+msgstr "Query truncated (max {max} chars)"
+
+#. js-lingui-explicit-id
+msgid "cmdk.placeholder"
+msgstr "Ticker, question or /command…"
+
+#. js-lingui-explicit-id
+msgid "cmdk.results.aria"
+msgstr "Search results"
+
+#. js-lingui-explicit-id
+msgid "cmdk.results.askHint"
+msgstr "Press Enter to ask the AI / start a new chat"
+
+#. js-lingui-explicit-id
+msgid "cmdk.results.networkError"
+msgstr "Search failed — check your network connection."
+
+#. js-lingui-explicit-id
+msgid "cmdk.results.nothing"
+msgstr "Nothing matched \"{query}\""
+
+#. js-lingui-explicit-id
+msgid "cmdk.results.searching"
+msgstr "Searching…"
+
+#. js-lingui-explicit-id
+msgid "cmdk.results.timeout"
+msgstr "Search timed out. Try again."
+
+#. js-lingui-explicit-id
+msgid "cmdk.search.aria"
+msgstr "Search"
+
+#. js-lingui-explicit-id
+msgid "cmdk.section.artifacts"
+msgstr "Past analyses"
+
+#. js-lingui-explicit-id
+msgid "cmdk.section.commands"
+msgstr "Commands"
+
+#. js-lingui-explicit-id
+msgid "cmdk.section.recent"
+msgstr "Recent searches"
+
+#. js-lingui-explicit-id
+msgid "cmdk.section.sessions"
+msgstr "Chat history"
+
+#. js-lingui-explicit-id
+msgid "common.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+msgid "common.close"
+msgstr "Close"
+
+#. js-lingui-explicit-id
+msgid "common.delete"
+msgstr "Delete"
+
+#. js-lingui-explicit-id
+msgid "common.error"
+msgstr "Error"
+
+#. js-lingui-explicit-id
+msgid "common.loading"
+msgstr "Loading…"
+
+#. js-lingui-explicit-id
+msgid "common.notAvailable"
+msgstr "N/A"
+
+#. js-lingui-explicit-id
+msgid "common.open"
+msgstr "Open"
+
+#. js-lingui-explicit-id
+msgid "common.retry"
+msgstr "Retry"
+
+#. js-lingui-explicit-id
+msgid "library.delete"
+msgstr "Delete"
+
+#. js-lingui-explicit-id
+msgid "library.empty"
+msgstr "No saved analyses yet. Run any tool to start filling your library."
+
+#. js-lingui-explicit-id
+msgid "library.export"
+msgstr "Export"
+
+#. js-lingui-explicit-id
+msgid "library.filter.all"
+msgstr "All"
+
+#. js-lingui-explicit-id
+msgid "library.filter.comps"
+msgstr "Comps"
+
+#. js-lingui-explicit-id
+msgid "library.filter.dcf"
+msgstr "DCF"
+
+#. js-lingui-explicit-id
+msgid "library.filter.icmemo"
+msgstr "IC memo"
+
+#. js-lingui-explicit-id
+msgid "library.filter.lbo"
+msgstr "LBO"
+
+#. js-lingui-explicit-id
+msgid "library.filter.research"
+msgstr "Research"
+
+#. js-lingui-explicit-id
+msgid "library.open"
+msgstr "Open"
+
+#. js-lingui-explicit-id
+msgid "library.title"
+msgstr "Library"
+
+#. js-lingui-explicit-id
+msgid "nav.library"
+msgstr "Library"
+
+#. js-lingui-explicit-id
+msgid "nav.recent"
+msgstr "Recent"
+
+#. js-lingui-explicit-id
+msgid "nav.recent.empty"
+msgstr "Tickers you visit appear here"
+
+#. js-lingui-explicit-id
+msgid "nav.settings"
+msgstr "Settings"
+
+#. js-lingui-explicit-id
+msgid "nav.stocks"
+msgstr "Stocks"
+
+#. js-lingui-explicit-id
+msgid "peers.cta"
+msgstr "Compare peers now"
+
+#. js-lingui-explicit-id
+msgid "peers.empty"
+msgstr "No peer comparison yet. Click \"Compare peers\" to analyze."
+
+#. js-lingui-explicit-id
+msgid "research.ask"
+msgstr "Ask"
+
+#. js-lingui-explicit-id
+msgid "research.citations"
+msgstr "Citations"
+
+#. js-lingui-explicit-id
+msgid "research.empty"
+msgstr "Ask a question about the SEC 10-K filing to get started."
+
+#. js-lingui-explicit-id
+msgid "research.error"
+msgstr "Unable to get an answer right now. Please try again later."
+
+#. js-lingui-explicit-id
+msgid "research.heading"
+msgstr "10-K Q&A"
+
+#. js-lingui-explicit-id
+msgid "research.placeholder"
+msgstr "Ask about this company's 10-K filing…"
+
+#. js-lingui-explicit-id
+msgid "research.relevance"
+msgstr "relevance"
+
+#. js-lingui-explicit-id
+msgid "research.source"
+msgstr "Source: SEC 10-K Filing"
+
+#. js-lingui-explicit-id
+msgid "settings.apikey.anthropic"
+msgstr "Anthropic API key"
+
+#. js-lingui-explicit-id
+msgid "settings.apikey.deepseek"
+msgstr "DeepSeek API key"
+
+#. js-lingui-explicit-id
+msgid "settings.apikey.notset"
+msgstr "Not configured"
+
+#. js-lingui-explicit-id
+msgid "settings.apikey.openai"
+msgstr "OpenAI API key"
+
+#. js-lingui-explicit-id
+msgid "settings.apikey.placeholder"
+msgstr "sk-…"
+
+#. js-lingui-explicit-id
+msgid "settings.apikey.set"
+msgstr "✓ Set"
+
+#. js-lingui-explicit-id
+msgid "settings.language"
+msgstr "Language"
+
+#. js-lingui-explicit-id
+msgid "settings.model.default"
+msgstr "Default model"
+
+#. js-lingui-explicit-id
+msgid "settings.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+msgid "settings.saveFailed"
+msgstr "Save failed: {error}"
+
+#. js-lingui-explicit-id
+msgid "settings.saved"
+msgstr "Saved."
+
+#. js-lingui-explicit-id
+msgid "settings.section.about"
+msgstr "About"
+
+#. js-lingui-explicit-id
+msgid "settings.section.appearance"
+msgstr "Appearance"
+
+#. js-lingui-explicit-id
+msgid "settings.section.data"
+msgstr "Data sources"
+
+#. js-lingui-explicit-id
+msgid "settings.section.models"
+msgstr "Models & API keys"
+
+#. js-lingui-explicit-id
+msgid "settings.title"
+msgstr "Settings"
+
+#. js-lingui-explicit-id
+msgid "stock.error.retry"
+msgstr "Retry"
+
+#. js-lingui-explicit-id
+msgid "stock.error.title"
+msgstr "Could not load price data"
+
+#. js-lingui-explicit-id
+msgid "stock.loading"
+msgstr "Loading market data…"
+
+#. js-lingui-explicit-id
+msgid "stock.marketcap"
+msgstr "Mkt cap"
+
+#. js-lingui-explicit-id
+msgid "stocks.empty.analyze"
+msgstr "Analyze"
+
+#. js-lingui-explicit-id
+msgid "stocks.empty.invalid"
+msgstr "Letters, digits, . and - only (max 12 chars)"
+
+#. js-lingui-explicit-id
+msgid "stocks.empty.placeholder"
+msgstr "AAPL"
+
+#. js-lingui-explicit-id
+msgid "stocks.empty.quick"
+msgstr "Quick access"
+
+#. js-lingui-explicit-id
+msgid "stocks.empty.recent"
+msgstr "Recent"
+
+#. js-lingui-explicit-id
+msgid "stocks.empty.title"
+msgstr "Type a ticker or pick one below"
+
+#. js-lingui-explicit-id
+msgid "tab.comps"
+msgstr "Comps"
+
+#. js-lingui-explicit-id
+msgid "tab.financials"
+msgstr "Financials"
+
+#. js-lingui-explicit-id
+msgid "tab.history"
+msgstr "History"
+
+#. js-lingui-explicit-id
+msgid "tab.news"
+msgstr "News"
+
+#. js-lingui-explicit-id
+msgid "tab.overview"
+msgstr "Overview"
+
+#. js-lingui-explicit-id
+msgid "tab.performance"
+msgstr "Performance"
+
+#. js-lingui-explicit-id
+msgid "tab.research"
+msgstr "10-K"
+
+#. js-lingui-explicit-id
+msgid "tab.valuation"
+msgstr "Valuation"
+
+#. js-lingui-explicit-id
+msgid "tool.error.cancelled"
+msgstr "Request cancelled"
+
+#. js-lingui-explicit-id
+msgid "tool.error.generic"
+msgstr "{tool} failed. Please try again."
+
+#. js-lingui-explicit-id
+msgid "tool.error.invalid"
+msgstr "Invalid inputs for {tool}"
+
+#. js-lingui-explicit-id
+msgid "tool.error.unavailable"
+msgstr "Service temporarily unavailable. Please try again later."
+
+#. js-lingui-explicit-id
+msgid "tool.error.unknown"
+msgstr "Unknown error"
+
+#. js-lingui-explicit-id
+msgid "tool.error.unsupported"
+msgstr "{tool} is not yet supported"
+
+#. js-lingui-explicit-id
+msgid "tool.toast.failure"
+msgstr "{tool} failed"
+
+#. js-lingui-explicit-id
+msgid "tool.toast.success"
+msgstr "{tool} complete — saved to Library"
+
+#. js-lingui-explicit-id
+msgid "toolcard.failed"
+msgstr "Tool call failed"
+
+#. js-lingui-explicit-id
+msgid "toolcard.openArtifact"
+msgstr "📁 Open report"
+
+#. js-lingui-explicit-id
+msgid "toolcard.retry"
+msgstr "Retry"
+
+#. js-lingui-explicit-id
+msgid "topbar.account.tooltip"
+msgstr "Account"
+
+#. js-lingui-explicit-id
+msgid "topbar.language.tooltip"
+msgstr "Language"
+
+#. js-lingui-explicit-id
+msgid "topbar.search.placeholder"
+msgstr "Search ticker or ask anything (⌘K)"
+
+#. js-lingui-explicit-id
+msgid "topbar.settings.tooltip"
+msgstr "Settings"
+
+#. js-lingui-explicit-id
+msgid "valuation.comp.title"
+msgstr "Comprehensive Valuation"
+
+#. js-lingui-explicit-id
+msgid "valuation.dcf.cta"
+msgstr "Run DCF now"
+
+#. js-lingui-explicit-id
+msgid "valuation.dcf.empty"
+msgstr "No DCF run yet. Click \"Run DCF\" above to value this company."
+
+#. js-lingui-explicit-id
+msgid "valuation.dcf.title"
+msgstr "DCF Workspace"
+
+#. js-lingui-explicit-id
+msgid "valuation.lbo.title"
+msgstr "LBO Analysis"
+
+#. js-lingui-explicit-id
+msgid "valuation.source.research"
+msgstr "Valuation from Research analysis. Run standalone DCF for fresh assumptions."
+
+#. js-lingui-explicit-id
+msgid "valuation.source.standalone"
+msgstr "Standalone DCF analysis."
+
+#. js-lingui-explicit-id
+msgid "verb.ask-ai"
+msgstr "Ask AI"
+
+#. js-lingui-explicit-id
+msgid "verb.ask-ai.tooltip"
+msgstr "Open the chat panel and ask anything about this stock"
+
+#. js-lingui-explicit-id
+msgid "verb.catalysts"
+msgstr "Find catalysts"
+
+#. js-lingui-explicit-id
+msgid "verb.catalysts.tooltip"
+msgstr "Extract upcoming catalysts from recent news and filings"
+
+#. js-lingui-explicit-id
+msgid "verb.comps"
+msgstr "Compare peers"
+
+#. js-lingui-explicit-id
+msgid "verb.comps.tooltip"
+msgstr "Run comparable company analysis — fetch peer multiples"
+
+#. js-lingui-explicit-id
+msgid "verb.dcf"
+msgstr "Run DCF"
+
+#. js-lingui-explicit-id
+msgid "verb.dcf.tooltip"
+msgstr "Run discounted cash flow valuation with default assumptions + live financials"
+
+#. js-lingui-explicit-id
+msgid "verb.ddm"
+msgstr "Run DDM"
+
+#. js-lingui-explicit-id
+msgid "verb.ddm.tooltip"
+msgstr "Dividend discount model — best for banks and dividend-paying stocks"
+
+#. js-lingui-explicit-id
+msgid "verb.earnings"
+msgstr "Earnings"
+
+#. js-lingui-explicit-id
+msgid "verb.earnings.tooltip"
+msgstr "Earnings analysis — beat/miss classification + trend across quarters"
+
+#. js-lingui-explicit-id
+msgid "verb.ic-memo"
+msgstr "IC memo"
+
+#. js-lingui-explicit-id
+msgid "verb.ic-memo.tooltip"
+msgstr "Generate an Investment Committee memo: situation, thesis, risks, recommendation"
+
+#. js-lingui-explicit-id
+msgid "verb.lbo"
+msgstr "Run LBO"
+
+#. js-lingui-explicit-id
+msgid "verb.lbo.tooltip"
+msgstr "Run leveraged buyout model: IRR, MOIC, debt schedule, sensitivity grid"
+
+#. js-lingui-explicit-id
+msgid "verb.more"
+msgstr "More"
+
+#. js-lingui-explicit-id
+msgid "verdict.buy"
+msgstr "BUY"
+
+#. js-lingui-explicit-id
+msgid "verdict.hold"
+msgstr "HOLD"
+
+#. js-lingui-explicit-id
+msgid "verdict.sell"
+msgstr "SELL"
+
+#. js-lingui-explicit-id
+msgid "errors.network.offline"
+msgstr "Network connection failed. Please check your connection."
+
+#. js-lingui-explicit-id
+msgid "errors.server.unavailable"
+msgstr "Service temporarily unavailable. Please try again later."
+
+#. js-lingui-explicit-id
+msgid "errors.client.invalid"
+msgstr "Request failed. Please refresh the page."
+
+#. js-lingui-explicit-id
+msgid "errors.notfound"
+msgstr "Resource not found."
+
+#. js-lingui-explicit-id
+msgid "errors.cancelled"
+msgstr "Cancelled."
+
+#. js-lingui-explicit-id
+msgid "errors.unknown"
+msgstr "Failed to load. Please try again later."
+
+#. js-lingui-explicit-id
+msgid "report.timeline.current"
+msgstr "current"
+
+#. js-lingui-explicit-id
+msgid "report.timeline.empty"
+msgstr "No history yet. Run analysis again to build a timeline."
+
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.error"
+msgstr "Could not load research history. Check your connection and retry."
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.empty"
+msgstr "No research yet. Search a ticker above to start analysis."

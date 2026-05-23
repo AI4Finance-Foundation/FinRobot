@@ -21,4 +21,8 @@ export type {
   CatalystEventShape,
   PeerCompsShape,
   CompanyFinancialsShape,
+  MonteCarloShape,
+  SniperShape,
+  HistoricalBandShape,
+  TechnicalAnalysisShape,
 } from './types'

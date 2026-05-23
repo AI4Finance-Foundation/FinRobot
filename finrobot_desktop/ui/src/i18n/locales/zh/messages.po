@@ -1,0 +1,691 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"MIME-Version: 1.0\n"
+
+#. js-lingui-explicit-id
+msgid "app.name"
+msgstr "FinAgent"
+
+#. js-lingui-explicit-id
+msgid "app.tagline"
+msgstr "AI 驱动的股票研究工作站"
+
+#. js-lingui-explicit-id
+msgid "chat.collapse"
+msgstr "收起"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.body"
+msgstr "我能查实时行情、财报、新闻，也能跑估值模型。"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.example.1"
+msgstr "{ticker} 今天为什么跌？"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.example.2"
+msgstr "总结 {ticker} 上季度业绩"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.example.3"
+msgstr "把 {ticker} 和同业对比一下"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.example.generic.1"
+msgstr "30 秒解释 DCF"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.example.generic.2"
+msgstr "LBO 和 DCF 有什么区别？"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.example.generic.3"
+msgstr "怎么读 10-K 年报？"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.heading"
+msgstr "问一个关于金融的问题"
+
+#. js-lingui-explicit-id
+msgid "chat.error.context"
+msgstr "对话过长，请开启新对话。"
+
+#. js-lingui-explicit-id
+msgid "chat.error.generic"
+msgstr "请求失败。"
+
+#. js-lingui-explicit-id
+msgid "chat.error.unavailable"
+msgstr "服务暂时不可用，稍后再试。"
+
+#. js-lingui-explicit-id
+msgid "chat.expand"
+msgstr "展开对话"
+
+#. js-lingui-explicit-id
+msgid "chat.history"
+msgstr "历史"
+
+#. js-lingui-explicit-id
+msgid "chat.input.placeholder"
+msgstr "给 FinAgent 留言…（Enter 发送，Shift+Enter 换行）"
+
+#. js-lingui-explicit-id
+msgid "chat.model.tooltip"
+msgstr "选择模型"
+
+#. js-lingui-explicit-id
+msgid "chat.newSession"
+msgstr "新对话"
+
+#. js-lingui-explicit-id
+msgid "chat.overlength"
+msgstr "{count} / {max} 字符"
+
+#. js-lingui-explicit-id
+msgid "chat.reasoning"
+msgstr "思考过程"
+
+#. js-lingui-explicit-id
+msgid "chat.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
+msgid "chat.send"
+msgstr "发送"
+
+#. js-lingui-explicit-id
+msgid "chat.stop"
+msgstr "停止"
+
+#. js-lingui-explicit-id
+msgid "chat.thinking"
+msgstr "思考中…"
+
+#. js-lingui-explicit-id
+msgid "chat.ticker.switched"
+msgstr "已切到 {ticker} — 旧对话已保存到资料库"
+
+#. js-lingui-explicit-id
+msgid "chat.title.explore"
+msgstr "探索"
+
+#. js-lingui-explicit-id
+msgid "chat.title.new"
+msgstr "新对话"
+
+#. js-lingui-explicit-id
+msgid "chat.tool.share"
+msgstr "分享到对话"
+
+#. js-lingui-explicit-id
+msgid "cmdk.empty"
+msgstr "输入股票代码（如 AAPL）、问题或 /命令"
+
+#. js-lingui-explicit-id
+msgid "cmdk.error.actionFailed"
+msgstr "操作执行失败"
+
+#. js-lingui-explicit-id
+msgid "cmdk.error.invalidAction"
+msgstr "操作格式无效"
+
+#. js-lingui-explicit-id
+msgid "cmdk.error.tickerRequired"
+msgstr "运行工具需要指定股票代码"
+
+#. js-lingui-explicit-id
+msgid "cmdk.error.unknownAction"
+msgstr "未知操作类型"
+
+#. js-lingui-explicit-id
+msgid "cmdk.foot.close"
+msgstr "关闭"
+
+#. js-lingui-explicit-id
+msgid "cmdk.foot.confirm"
+msgstr "确认"
+
+#. js-lingui-explicit-id
+msgid "cmdk.foot.select"
+msgstr "选择"
+
+#. js-lingui-explicit-id
+msgid "cmdk.foot.tipDcf"
+msgstr "输入 /dcf AAPL 直接跑工具"
+
+#. js-lingui-explicit-id
+msgid "cmdk.overlength"
+msgstr "查询过长，已截断（最多 {max} 字符）"
+
+#. js-lingui-explicit-id
+msgid "cmdk.placeholder"
+msgstr "股票代码、问题或 /命令…"
+
+#. js-lingui-explicit-id
+msgid "cmdk.results.aria"
+msgstr "搜索结果"
+
+#. js-lingui-explicit-id
+msgid "cmdk.results.askHint"
+msgstr "按 Enter 直接问 AI / 开始新对话"
+
+#. js-lingui-explicit-id
+msgid "cmdk.results.networkError"
+msgstr "搜索失败 — 请检查网络"
+
+#. js-lingui-explicit-id
+msgid "cmdk.results.nothing"
+msgstr "没找到 \"{query}\""
+
+#. js-lingui-explicit-id
+msgid "cmdk.results.searching"
+msgstr "搜索中…"
+
+#. js-lingui-explicit-id
+msgid "cmdk.results.timeout"
+msgstr "搜索超时，请重试"
+
+#. js-lingui-explicit-id
+msgid "cmdk.search.aria"
+msgstr "搜索"
+
+#. js-lingui-explicit-id
+msgid "cmdk.section.artifacts"
+msgstr "历史分析"
+
+#. js-lingui-explicit-id
+msgid "cmdk.section.commands"
+msgstr "命令"
+
+#. js-lingui-explicit-id
+msgid "cmdk.section.recent"
+msgstr "最近搜索"
+
+#. js-lingui-explicit-id
+msgid "cmdk.section.sessions"
+msgstr "对话历史"
+
+#. js-lingui-explicit-id
+msgid "common.cancel"
+msgstr "取消"
+
+#. js-lingui-explicit-id
+msgid "common.close"
+msgstr "关闭"
+
+#. js-lingui-explicit-id
+msgid "common.delete"
+msgstr "删除"
+
+#. js-lingui-explicit-id
+msgid "common.error"
+msgstr "错误"
+
+#. js-lingui-explicit-id
+msgid "common.loading"
+msgstr "加载中…"
+
+#. js-lingui-explicit-id
+msgid "common.notAvailable"
+msgstr "—"
+
+#. js-lingui-explicit-id
+msgid "common.open"
+msgstr "打开"
+
+#. js-lingui-explicit-id
+msgid "common.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
+msgid "library.delete"
+msgstr "删除"
+
+#. js-lingui-explicit-id
+msgid "library.empty"
+msgstr "还没有分析记录。跑任何工具就会出现在这里。"
+
+#. js-lingui-explicit-id
+msgid "library.export"
+msgstr "导出"
+
+#. js-lingui-explicit-id
+msgid "library.filter.all"
+msgstr "全部"
+
+#. js-lingui-explicit-id
+msgid "library.filter.comps"
+msgstr "同业"
+
+#. js-lingui-explicit-id
+msgid "library.filter.dcf"
+msgstr "DCF"
+
+#. js-lingui-explicit-id
+msgid "library.filter.icmemo"
+msgstr "IC Memo"
+
+#. js-lingui-explicit-id
+msgid "library.filter.lbo"
+msgstr "LBO"
+
+#. js-lingui-explicit-id
+msgid "library.filter.research"
+msgstr "研究"
+
+#. js-lingui-explicit-id
+msgid "library.open"
+msgstr "打开"
+
+#. js-lingui-explicit-id
+msgid "library.title"
+msgstr "资料库"
+
+#. js-lingui-explicit-id
+msgid "nav.library"
+msgstr "资料库"
+
+#. js-lingui-explicit-id
+msgid "nav.recent"
+msgstr "最近"
+
+#. js-lingui-explicit-id
+msgid "nav.recent.empty"
+msgstr "访问过的股票会显示在这里"
+
+#. js-lingui-explicit-id
+msgid "nav.settings"
+msgstr "设置"
+
+#. js-lingui-explicit-id
+msgid "nav.stocks"
+msgstr "股票"
+
+#. js-lingui-explicit-id
+msgid "peers.cta"
+msgstr "立即对比同业"
+
+#. js-lingui-explicit-id
+msgid "peers.empty"
+msgstr "尚未做同业对比。点击 \"对比同业\" 开始分析。"
+
+#. js-lingui-explicit-id
+msgid "research.ask"
+msgstr "提问"
+
+#. js-lingui-explicit-id
+msgid "research.citations"
+msgstr "引用段落"
+
+#. js-lingui-explicit-id
+msgid "research.empty"
+msgstr "提一个关于 SEC 10-K 年报的问题来开始。"
+
+#. js-lingui-explicit-id
+msgid "research.error"
+msgstr "获取回答失败，请稍后重试。"
+
+#. js-lingui-explicit-id
+msgid "research.heading"
+msgstr "10-K 问答"
+
+#. js-lingui-explicit-id
+msgid "research.placeholder"
+msgstr "针对这家公司的 10-K 年报提问…"
+
+#. js-lingui-explicit-id
+msgid "research.relevance"
+msgstr "相关度"
+
+#. js-lingui-explicit-id
+msgid "research.source"
+msgstr "来源：SEC 10-K 年报"
+
+#. js-lingui-explicit-id
+msgid "settings.apikey.anthropic"
+msgstr "Anthropic API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.apikey.deepseek"
+msgstr "DeepSeek API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.apikey.notset"
+msgstr "未配置"
+
+#. js-lingui-explicit-id
+msgid "settings.apikey.openai"
+msgstr "OpenAI API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.apikey.placeholder"
+msgstr "sk-…"
+
+#. js-lingui-explicit-id
+msgid "settings.apikey.set"
+msgstr "✓ 已配置"
+
+#. js-lingui-explicit-id
+msgid "settings.language"
+msgstr "语言"
+
+#. js-lingui-explicit-id
+msgid "settings.model.default"
+msgstr "默认模型"
+
+#. js-lingui-explicit-id
+msgid "settings.save"
+msgstr "保存"
+
+#. js-lingui-explicit-id
+msgid "settings.saveFailed"
+msgstr "保存失败：{error}"
+
+#. js-lingui-explicit-id
+msgid "settings.saved"
+msgstr "已保存"
+
+#. js-lingui-explicit-id
+msgid "settings.section.about"
+msgstr "关于"
+
+#. js-lingui-explicit-id
+msgid "settings.section.appearance"
+msgstr "外观"
+
+#. js-lingui-explicit-id
+msgid "settings.section.data"
+msgstr "数据源"
+
+#. js-lingui-explicit-id
+msgid "settings.section.models"
+msgstr "模型与 API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.title"
+msgstr "设置"
+
+#. js-lingui-explicit-id
+msgid "stock.error.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
+msgid "stock.error.title"
+msgstr "无法加载行情"
+
+#. js-lingui-explicit-id
+msgid "stock.loading"
+msgstr "加载行情中…"
+
+#. js-lingui-explicit-id
+msgid "stock.marketcap"
+msgstr "市值"
+
+#. js-lingui-explicit-id
+msgid "stocks.empty.analyze"
+msgstr "分析"
+
+#. js-lingui-explicit-id
+msgid "stocks.empty.invalid"
+msgstr "只能是字母、数字、点和短划线（最长 12 位）"
+
+#. js-lingui-explicit-id
+msgid "stocks.empty.placeholder"
+msgstr "AAPL"
+
+#. js-lingui-explicit-id
+msgid "stocks.empty.quick"
+msgstr "快捷"
+
+#. js-lingui-explicit-id
+msgid "stocks.empty.recent"
+msgstr "最近"
+
+#. js-lingui-explicit-id
+msgid "stocks.empty.title"
+msgstr "输入股票代码或从下方选择"
+
+#. js-lingui-explicit-id
+msgid "tab.comps"
+msgstr "可比公司"
+
+#. js-lingui-explicit-id
+msgid "tab.financials"
+msgstr "财务"
+
+#. js-lingui-explicit-id
+msgid "tab.history"
+msgstr "历史"
+
+#. js-lingui-explicit-id
+msgid "tab.news"
+msgstr "新闻"
+
+#. js-lingui-explicit-id
+msgid "tab.overview"
+msgstr "概览"
+
+#. js-lingui-explicit-id
+msgid "tab.performance"
+msgstr "走势"
+
+#. js-lingui-explicit-id
+msgid "tab.research"
+msgstr "年报"
+
+#. js-lingui-explicit-id
+msgid "tab.valuation"
+msgstr "估值"
+
+#. js-lingui-explicit-id
+msgid "tool.error.cancelled"
+msgstr "已取消"
+
+#. js-lingui-explicit-id
+msgid "tool.error.generic"
+msgstr "{tool} 失败，请稍后重试"
+
+#. js-lingui-explicit-id
+msgid "tool.error.invalid"
+msgstr "{tool} 入参非法"
+
+#. js-lingui-explicit-id
+msgid "tool.error.unavailable"
+msgstr "服务暂时不可用，请稍后重试"
+
+#. js-lingui-explicit-id
+msgid "tool.error.unknown"
+msgstr "未知错误"
+
+#. js-lingui-explicit-id
+msgid "tool.error.unsupported"
+msgstr "{tool} 尚未支持"
+
+#. js-lingui-explicit-id
+msgid "tool.toast.failure"
+msgstr "{tool} 失败"
+
+#. js-lingui-explicit-id
+msgid "tool.toast.success"
+msgstr "{tool} 完成 — 已保存到资料库"
+
+#. js-lingui-explicit-id
+msgid "toolcard.failed"
+msgstr "工具调用失败"
+
+#. js-lingui-explicit-id
+msgid "toolcard.openArtifact"
+msgstr "📁 打开研报"
+
+#. js-lingui-explicit-id
+msgid "toolcard.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
+msgid "topbar.account.tooltip"
+msgstr "账号"
+
+#. js-lingui-explicit-id
+msgid "topbar.language.tooltip"
+msgstr "语言"
+
+#. js-lingui-explicit-id
+msgid "topbar.search.placeholder"
+msgstr "搜索股票或提问 (⌘K)"
+
+#. js-lingui-explicit-id
+msgid "topbar.settings.tooltip"
+msgstr "设置"
+
+#. js-lingui-explicit-id
+msgid "valuation.comp.title"
+msgstr "综合估值"
+
+#. js-lingui-explicit-id
+msgid "valuation.dcf.cta"
+msgstr "立即跑 DCF"
+
+#. js-lingui-explicit-id
+msgid "valuation.dcf.empty"
+msgstr "尚未运行 DCF。点击上方 \"跑 DCF\" 开始估值。"
+
+#. js-lingui-explicit-id
+msgid "valuation.dcf.title"
+msgstr "DCF 工作区"
+
+#. js-lingui-explicit-id
+msgid "valuation.lbo.title"
+msgstr "LBO 分析"
+
+#. js-lingui-explicit-id
+msgid "valuation.source.research"
+msgstr "估值来自研究流程。如需重新假设，请运行独立 DCF。"
+
+#. js-lingui-explicit-id
+msgid "valuation.source.standalone"
+msgstr "独立 DCF 分析。"
+
+#. js-lingui-explicit-id
+msgid "verb.ask-ai"
+msgstr "问 AI"
+
+#. js-lingui-explicit-id
+msgid "verb.ask-ai.tooltip"
+msgstr "展开聊天面板，针对这只股票提问"
+
+#. js-lingui-explicit-id
+msgid "verb.catalysts"
+msgstr "找催化剂"
+
+#. js-lingui-explicit-id
+msgid "verb.catalysts.tooltip"
+msgstr "从近期新闻和公告中提取潜在催化剂"
+
+#. js-lingui-explicit-id
+msgid "verb.comps"
+msgstr "对比同业"
+
+#. js-lingui-explicit-id
+msgid "verb.comps.tooltip"
+msgstr "同业对比分析 — 抓取可比公司倍数"
+
+#. js-lingui-explicit-id
+msgid "verb.dcf"
+msgstr "跑 DCF"
+
+#. js-lingui-explicit-id
+msgid "verb.dcf.tooltip"
+msgstr "使用默认假设和实时财务数据，计算 DCF 估值"
+
+#. js-lingui-explicit-id
+msgid "verb.ddm"
+msgstr "跑 DDM"
+
+#. js-lingui-explicit-id
+msgid "verb.ddm.tooltip"
+msgstr "股息折现模型 — 适用于银行/分红股"
+
+#. js-lingui-explicit-id
+msgid "verb.earnings"
+msgstr "财报"
+
+#. js-lingui-explicit-id
+msgid "verb.earnings.tooltip"
+msgstr "财报分析 — beat/miss 分类 + 趋势"
+
+#. js-lingui-explicit-id
+msgid "verb.ic-memo"
+msgstr "IC Memo"
+
+#. js-lingui-explicit-id
+msgid "verb.ic-memo.tooltip"
+msgstr "生成投委会备忘录：情境、论点、风险、建议"
+
+#. js-lingui-explicit-id
+msgid "verb.lbo"
+msgstr "跑 LBO"
+
+#. js-lingui-explicit-id
+msgid "verb.lbo.tooltip"
+msgstr "运行 LBO 模型：IRR、MOIC、债务摊销、敏感性"
+
+#. js-lingui-explicit-id
+msgid "verb.more"
+msgstr "更多"
+
+#. js-lingui-explicit-id
+msgid "verdict.buy"
+msgstr "买入"
+
+#. js-lingui-explicit-id
+msgid "verdict.hold"
+msgstr "持有"
+
+#. js-lingui-explicit-id
+msgid "verdict.sell"
+msgstr "卖出"
+
+#. js-lingui-explicit-id
+msgid "errors.network.offline"
+msgstr "网络连接失败，请检查网络"
+
+#. js-lingui-explicit-id
+msgid "errors.server.unavailable"
+msgstr "服务暂时不可用，请稍后重试"
+
+#. js-lingui-explicit-id
+msgid "errors.client.invalid"
+msgstr "请求异常，请刷新页面"
+
+#. js-lingui-explicit-id
+msgid "errors.notfound"
+msgstr "数据不存在"
+
+#. js-lingui-explicit-id
+msgid "errors.cancelled"
+msgstr "已取消"
+
+#. js-lingui-explicit-id
+msgid "errors.unknown"
+msgstr "加载失败，请稍后重试"
+
+#. js-lingui-explicit-id
+msgid "report.timeline.current"
+msgstr "当前"
+
+#. js-lingui-explicit-id
+msgid "report.timeline.empty"
+msgstr "尚无历史版本 · 重跑分析后将累积"
+
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.error"
+msgstr "数据加载失败，请检查网络连接后重试"
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.empty"
+msgstr "暂无历史研究，在上方搜索股票代码即可开始分析"

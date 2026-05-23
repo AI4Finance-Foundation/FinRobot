@@ -12,15 +12,13 @@ from starlette.requests import Request
 
 from finagent.artifact.models import Artifact
 from finagent.artifact.store import ArtifactStore
-from finagent.engine.compute.historical_valuation import (
-    HistoricalBand,
-    HistoricalMetricName,
-    PricePoint,
-    YearlyFinancials,
-    compute_historical_band,
-)
+from finagent.engine.compute.historical_valuation import HistoricalMetricName
 from finagent.engine.compute.valuation_aggregator import aggregate_valuation
 from finagent.engine.data.cache import cached_fetch
+from finagent.engine.data.historical_loaders import (
+    classify_band,
+    compute_bands_via_data_layer,
+)
 from finagent.engine.data.interface import ProviderError
 from finagent.engine.data.layer import DataLayer
 from finagent.engine.data.types import DataType
@@ -242,8 +240,8 @@ async def historical_bands(
     ticker = ticker.upper()
 
     async def _build() -> dict[str, Any]:
-        band = await _compute_bands_via_data_layer(ticker, metric, years, data_layer)
-        classification = _classify(band)
+        band = await compute_bands_via_data_layer(ticker, metric, years, data_layer)
+        classification = classify_band(band)
         payload = HistoricalBandResponse(
             ticker=ticker,
             metric=band.metric,
@@ -269,149 +267,3 @@ async def historical_bands(
     return HistoricalBandResponse.model_validate(raw)
 
 
-async def _compute_bands_via_data_layer(
-    ticker: str,
-    metric: HistoricalMetricName,
-    years: int,
-    data_layer: DataLayer,
-) -> HistoricalBand:
-    """Glue layer: fetch financials + price history, hand off to the compute leaf."""
-    yearly = await _load_yearly_financials(ticker, data_layer, years=max(years, 5))
-    prices = await _load_price_history(ticker, data_layer, years=years)
-    shares = _extract_shares_from_yearly(yearly)
-    return compute_historical_band(
-        metric=metric,
-        yearly=[y for y, _ in yearly],
-        prices=prices,
-        shares_outstanding=shares or 0.0,
-    )
-
-
-async def _load_yearly_financials(
-    ticker: str, data_layer: DataLayer, years: int
-) -> list[tuple[YearlyFinancials, float | None]]:
-    """Return (yearly snapshot, that year's shares_outstanding-or-None) tuples.
-
-    Different providers carry different field sets; what we strictly need is
-    fiscal_date + ebitda + (optional) free_cash_flow + net_debt. Missing
-    fields stay None — compute_historical_band drops degenerate rows.
-    """
-    try:
-        results = await data_layer.fetch_historical(DataType.FINANCIALS, ticker, years=years)
-    except (ProviderError, ValueError, KeyError) as exc:
-        logger.info("yearly financials fetch failed for %s: %s", ticker, exc)
-        return []
-
-    out: list[tuple[YearlyFinancials, float | None]] = []
-    for result in results:
-        data = result.data if isinstance(result.data, dict) else {}
-        fiscal_raw = data.get("fiscal_year") or data.get("date")
-        fy_date = _parse_date(fiscal_raw)
-        if fy_date is None:
-            continue
-        out.append(
-            (
-                YearlyFinancials(
-                    fiscal_date=fy_date,
-                    ebitda=_pos_or_none(data.get("ebitda")),
-                    free_cash_flow=_pos_or_none(_derive_fcf(data)),
-                    net_debt=float(data.get("total_debt") or 0.0)
-                    - float(data.get("total_cash") or 0.0),
-                ),
-                _pos_or_none(data.get("shares_outstanding")),
-            )
-        )
-    return out
-
-
-async def _load_price_history(ticker: str, data_layer: DataLayer, years: int) -> list[PricePoint]:
-    """Pull the price history from whichever provider supplies DataType.PRICE."""
-    try:
-        result = await data_layer.fetch(DataType.PRICE, ticker)
-    except (ProviderError, ValueError, KeyError) as exc:
-        logger.info("price history fetch failed for %s: %s", ticker, exc)
-        return []
-    history = result.data.get("price_history") if isinstance(result.data, dict) else None
-    if not isinstance(history, list):
-        return []
-
-    cutoff = date(datetime.now(tz=timezone.utc).year - years, 1, 1)
-    points: list[PricePoint] = []
-    for row in history:
-        if not isinstance(row, dict):
-            continue
-        d = _parse_date(row.get("date"))
-        if d is None or d < cutoff:
-            continue
-        close = row.get("close")
-        try:
-            close_f = float(close) if close is not None else None
-        except (TypeError, ValueError):
-            continue
-        if close_f is None or close_f <= 0:
-            continue
-        points.append(PricePoint(sample_date=d, close=close_f))
-    points.sort(key=lambda p: p.sample_date)
-    return points
-
-
-def _extract_shares_from_yearly(
-    yearly: list[tuple[YearlyFinancials, float | None]],
-) -> float | None:
-    """Take the most recent year's shares; fall back to the newest non-None."""
-    for _, shares in reversed(yearly):
-        if shares is not None and shares > 0:
-            return shares
-    return None
-
-
-def _derive_fcf(data: dict[str, Any]) -> float | None:
-    """FCF = OperatingCashFlow - CapEx when both rows are present."""
-    ocf = data.get("operating_cash_flow")
-    capex = data.get("capital_expenditure")
-    if ocf is None or capex is None:
-        # Some providers ship a pre-computed free_cash_flow field.
-        explicit = data.get("free_cash_flow")
-        try:
-            return float(explicit) if explicit is not None else None
-        except (TypeError, ValueError):
-            return None
-    try:
-        return float(ocf) - abs(float(capex))
-    except (TypeError, ValueError):
-        return None
-
-
-def _pos_or_none(v: Any) -> float | None:
-    try:
-        f = float(v) if v is not None else None
-    except (TypeError, ValueError):
-        return None
-    return f if f is not None and f > 0 else None
-
-
-def _parse_date(raw: Any) -> date | None:
-    if isinstance(raw, date):
-        return raw
-    if not isinstance(raw, str):
-        return None
-    try:
-        return datetime.fromisoformat(raw.replace("Z", "+00:00")).date()
-    except ValueError:
-        pass
-    try:
-        return date.fromisoformat(raw[:10])
-    except ValueError:
-        return None
-
-
-def _classify(band: HistoricalBand) -> Literal["expensive", "fair", "cheap", "unknown"]:
-    if band.current is None or band.p25 is None or band.p75 is None:
-        return "unknown"
-    if band.p90 is not None and band.current >= band.p90:
-        return "expensive"
-    if band.current >= band.p75:
-        return "expensive"
-    if band.current <= band.p25:
-        return "cheap"
-    return "fair"

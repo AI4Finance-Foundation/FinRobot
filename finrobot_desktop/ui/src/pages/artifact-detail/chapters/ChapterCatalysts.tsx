@@ -25,12 +25,7 @@ export function ChapterCatalysts({
   )
 
   return (
-    <Chapter
-      id="catalysts"
-      num="07"
-      title="Key Catalysts"
-      sub="Positive · Risk Factors · Events to Monitor"
-    >
+    <Chapter id="catalysts">
       <SubChapter heading="↑ Positive Catalysts (Upside Potential)">
         {top_positive.length > 0 ? (
           <CatalystList items={top_positive} tone="positive" />

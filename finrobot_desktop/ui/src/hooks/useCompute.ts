@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { api, BASE_URL } from '../api/client'
+import { FetchHttpError } from '../utils/errorMessage'
 import type { DCFInputs, DCFResult, SensitivityResult, MonteCarloResult } from '../stores/appStore'
 
 export function useDcfCompute() {
@@ -68,8 +69,7 @@ export function useMonteCarloCompute() {
         body: JSON.stringify(req),
       })
       if (!res.ok) {
-        const errBody = await res.text().catch(() => '')
-        throw new Error(`Monte Carlo compute failed: ${res.status} ${errBody}`)
+        throw new FetchHttpError(res.status, res.statusText)
       }
       return res.json() as Promise<MonteCarloResult>
     },

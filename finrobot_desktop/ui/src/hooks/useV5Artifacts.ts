@@ -4,6 +4,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
+import { FetchHttpError } from '../utils/errorMessage'
 import type {
   ArtifactSummaryV5,
   HistoricalBandResponse,
@@ -15,7 +16,7 @@ import type {
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const resp = await fetch(url, { signal })
   if (!resp.ok) {
-    throw new Error(`${resp.status} ${resp.statusText}`)
+    throw new FetchHttpError(resp.status, resp.statusText)
   }
   return (await resp.json()) as T
 }

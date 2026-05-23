@@ -2,10 +2,11 @@
 // Highlights the active chapter via IntersectionObserver scroll-spy.
 
 import { useEffect, useState } from 'react'
+import { useI18n } from '../../../i18n'
 
 export interface TOCEntry {
   id: string       // matches <section id="..."> on the chapter
-  num: string      // "00" .. "11"
+  num: string      // "01" .. "12"
   title: string    // investment-bank tone label
 }
 
@@ -14,6 +15,8 @@ interface ReportTOCProps {
 }
 
 export function ReportTOC({ entries }: ReportTOCProps): React.ReactElement {
+  const { locale } = useI18n()
+  const label = locale === 'en' ? 'REPORT NAV' : '研报章节'
   const [activeId, setActiveId] = useState<string>(entries[0]?.id ?? '')
 
   useEffect(() => {
@@ -44,21 +47,20 @@ export function ReportTOC({ entries }: ReportTOCProps): React.ReactElement {
         alignSelf: 'start',
         maxHeight: 'calc(100vh - 100px)',
         overflowY: 'auto',
-        padding: '18px 0',
-        borderRight: '1px solid var(--border-faint)',
+        padding: '14px 0',
       }}
     >
       <div
         style={{
           fontFamily: 'var(--font-display)',
-          fontSize: 11,
-          letterSpacing: '2.5px',
+          fontSize: 10,
+          letterSpacing: '2px',
           color: 'var(--text-muted)',
-          marginBottom: 14,
-          paddingRight: 14,
+          marginBottom: 10,
+          paddingLeft: 10,
         }}
       >
-        REPORT NAV
+        {label}
       </div>
       {entries.map((entry) => {
         const isActive = entry.id === activeId
@@ -70,25 +72,29 @@ export function ReportTOC({ entries }: ReportTOCProps): React.ReactElement {
             data-active={isActive ? 'true' : 'false'}
             style={{
               display: 'block',
-              padding: '7px 14px 7px 16px',
+              padding: '5px 8px 5px 10px',
               color: isActive ? 'var(--secondary)' : 'var(--text-muted)',
               textDecoration: 'none',
               fontFamily: 'var(--font-body)',
-              fontSize: 12,
+              fontSize: 11,
+              lineHeight: 1.35,
               borderLeft: `2px solid ${isActive ? 'var(--secondary)' : 'transparent'}`,
               background: isActive ? 'rgba(139, 92, 246, 0.08)' : 'transparent',
               boxShadow: isActive ? '-1px 0 12px rgba(139, 92, 246, 0.3)' : 'none',
               transition: 'all 0.18s',
-              marginRight: 14,
-              borderRadius: '0 6px 6px 0',
+              marginRight: 8,
+              borderRadius: '0 5px 5px 0',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
             }}
           >
             <span
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 10,
+                fontSize: 9.5,
                 color: isActive ? 'var(--secondary)' : 'var(--text-dim)',
-                marginRight: 8,
+                marginRight: 6,
               }}
             >
               {entry.num}

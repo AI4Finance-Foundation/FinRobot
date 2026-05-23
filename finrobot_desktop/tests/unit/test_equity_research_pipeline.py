@@ -84,9 +84,9 @@ def _make_test_agents(output: str = "analysis output") -> dict[str, Agent]:
 
 
 class TestPipelineStructure:
-    def test_has_exactly_6_steps(self):
+    def test_has_exactly_7_steps(self):
         pipeline = create_equity_research_pipeline(_make_test_agents())
-        assert len(pipeline.steps) == 6
+        assert len(pipeline.steps) == 7
 
     def test_step_names_correct(self):
         pipeline = create_equity_research_pipeline(_make_test_agents())
@@ -96,6 +96,7 @@ class TestPipelineStructure:
             "catalyst_analysis",
             "peer_analysis",
             "financial_modeling",
+            "technical_analysis",
             "thesis",
             "report",
         ]
@@ -107,6 +108,7 @@ class TestPipelineStructure:
         assert step_map["catalyst_analysis"] is None
         assert step_map["peer_analysis"] == "comps-analysis"
         assert step_map["financial_modeling"] == "dcf-model"
+        assert step_map["technical_analysis"] is None
         assert step_map["thesis"] == "initiating-coverage"
         assert step_map["report"] is None
 
@@ -118,7 +120,7 @@ class TestPipelineStructure:
         assert "news" in step1.required_data
         assert "filings" not in step1.required_data
 
-    def test_steps_2_to_6_required_data_empty(self):
+    def test_steps_2_to_7_required_data_empty(self):
         pipeline = create_equity_research_pipeline(_make_test_agents())
         for step in pipeline.steps[1:]:
             assert step.required_data == []
@@ -165,8 +167,8 @@ def _make_stub_execute_fn(step_name: str):
 
 
 class TestPipelineExecution:
-    async def test_execute_produces_result_with_all_6_step_keys(self, capsys):
-        """Pipeline orchestration routes through all 6 steps and collects their outputs."""
+    async def test_execute_produces_result_with_all_7_step_keys(self, capsys):
+        """Pipeline orchestration routes through all 7 steps and collects their outputs."""
         pipeline = create_equity_research_pipeline(
             _make_test_agents("revenue 385B ebitda 130B price_history available")
         )
@@ -183,11 +185,12 @@ class TestPipelineExecution:
             "catalyst_analysis",
             "peer_analysis",
             "financial_modeling",
+            "technical_analysis",
             "thesis",
             "report",
         }
 
-    async def test_execute_logs_6_progress_messages(self, caplog):
+    async def test_execute_logs_7_progress_messages(self, caplog):
         import logging
 
         with caplog.at_level(logging.INFO):
@@ -203,8 +206,8 @@ class TestPipelineExecution:
                 step.validator = TextValidator(validate_is_non_empty)
             await pipeline.execute(FakeDeps(), "AAPL")
         messages = " ".join(r.message for r in caplog.records)
-        for i in range(1, 7):
-            assert f"Step {i}/6" in messages
+        for i in range(1, 8):
+            assert f"Step {i}/7" in messages
 
 
 # ---------------------------------------------------------------------------

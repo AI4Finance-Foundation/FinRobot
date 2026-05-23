@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FinAgent · AAPL Workspace · Dashboard Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg-void: #05050d;
+  --bg-deep: #0a0a18;
+  --bg-card: #0f0f22;
+  --bg-elevated: #15152e;
+
+  --border-faint: rgba(139, 92, 246, 0.08);
+  --border-soft: rgba(139, 92, 246, 0.18);
+  --border-data: rgba(255, 255, 255, 0.08);
+
+  --primary: #3B82F6;
+  --secondary: #8B5CF6;
+  --secondary-soft: rgba(139, 92, 246, 0.16);
+  --accent-cyan: #22D3EE;
+  --accent-pink: #EC4899;
+  --accent-amber: #F59E0B;
+
+  --success: #16A34A;
+  --success-glow: rgba(22, 163, 74, 0.45);
+  --warning: #D97706;
+  --danger: #DC2626;
+
+  --text-primary: #F5F5FF;
+  --text-secondary: rgba(245, 245, 255, 0.78);
+  --text-muted: rgba(245, 245, 255, 0.46);
+  --text-dim: rgba(245, 245, 255, 0.24);
+
+  --font-display: 'Audiowide', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-body: 'Inter', system-ui, sans-serif;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--bg-void);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+}
+body { min-height: 100vh; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@keyframes shimmer {
+  0%, 100% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
+}
+@keyframes cardLoad {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes haloPulse {
+  0% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
+  35% { box-shadow: 0 0 40px 6px rgba(139, 92, 246, 0.4); }
+  100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
+}
+
+/* BG */
+.bg-canvas {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.18), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(139, 92, 246, 0.15), transparent 60%),
+    linear-gradient(180deg, #05050d 0%, #0a0a18 100%);
+}
+.bg-grid {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.18;
+  background-image:
+    linear-gradient(rgba(139, 92, 246, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139, 92, 246, 0.08) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 60% 50% at 50% 50%, #000 30%, transparent 80%);
+}
+
+/* ── Demo toolbar ──────────────────────────────────────────────── */
+.demo-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 24px;
+  background: rgba(10, 10, 24, 0.92);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border-soft);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.demo-toolbar .meta { color: var(--text-muted); letter-spacing: 0.04em; }
+.demo-toolbar .meta strong { color: var(--accent-cyan); }
+.demo-toolbar .switch {
+  display: inline-flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.demo-toolbar .switch button {
+  padding: 7px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: all 0.2s;
+}
+.demo-toolbar .switch button.active {
+  background: var(--secondary-soft);
+  color: var(--secondary);
+  box-shadow: inset 0 0 12px rgba(139, 92, 246, 0.2);
+}
+
+/* ── Page shell ────────────────────────────────────────────────── */
+.shell {
+  position: relative;
+  z-index: 1;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 24px 32px 100px;
+}
+
+/* ── Hero ──────────────────────────────────────────────────────── */
+.hero {
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border-faint);
+  margin-bottom: 28px;
+}
+.breadcrumb {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 22px;
+}
+.breadcrumb .sep { color: var(--text-dim); margin: 0 8px; }
+.breadcrumb .now { color: var(--accent-cyan); }
+.symbol-row { display: flex; align-items: baseline; gap: 18px; margin-bottom: 18px; flex-wrap: wrap; }
+.symbol {
+  font-family: var(--font-display);
+  font-size: 88px;
+  letter-spacing: 7px;
+  text-shadow: 0 0 36px rgba(59, 130, 246, 0.35);
+  line-height: 1;
+}
+.live-pill {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  letter-spacing: 0.08em;
+}
+.live-pill::before {
+  content: '';
+  display: inline-block;
+  width: 6px; height: 6px;
+  background: var(--accent-cyan);
+  border-radius: 50%;
+  margin-right: 8px;
+  box-shadow: 0 0 8px var(--accent-cyan);
+  animation: pulse 2s ease-in-out infinite;
+}
+.company {
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+  margin-bottom: 18px;
+}
+.price-row { display: flex; align-items: baseline; gap: 18px; margin-bottom: 20px; flex-wrap: wrap; }
+.price-main {
+  font-family: var(--font-mono);
+  font-size: 56px;
+  font-weight: 500;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+}
+.price-change {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(22, 163, 74, 0.12);
+  border: 1px solid rgba(22, 163, 74, 0.32);
+  color: var(--success);
+  box-shadow: 0 0 16px var(--success-glow);
+}
+
+/* 3 status chips */
+.status-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 22px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-data);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.chip .dot { width: 6px; height: 6px; border-radius: 50%; }
+.chip-live { border-color: rgba(34, 211, 238, 0.3); }
+.chip-live .dot { background: var(--accent-cyan); box-shadow: 0 0 8px var(--accent-cyan); animation: pulse 2s ease-in-out infinite; }
+.chip-ai.cold { border-style: dashed; color: var(--text-muted); }
+.chip-ai.cold .dot { background: var(--text-dim); }
+.chip-ai.hot { border-color: var(--secondary); color: var(--secondary); background: var(--secondary-soft); }
+.chip-ai.hot .dot { background: var(--secondary); box-shadow: 0 0 8px var(--secondary); }
+.chip-ai .rerun {
+  margin-left: 6px;
+  color: var(--secondary);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 11px;
+}
+.chip-source { border-color: rgba(245, 158, 11, 0.3); }
+.chip-source .dot { background: var(--accent-amber); }
+
+/* Hero actions */
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn-primary {
+  padding: 13px 24px;
+  background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  box-shadow: 0 0 22px rgba(139, 92, 246, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 3s ease-in-out infinite;
+}
+.btn-primary.large {
+  padding: 17px 32px;
+  font-size: 14px;
+}
+.btn-ghost {
+  padding: 11px 18px;
+  background: rgba(15, 15, 34, 0.6);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-ghost:hover { color: var(--text-primary); border-color: var(--secondary); }
+
+/* ── Two-zone grid ─────────────────────────────────────────────── */
+.zones {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 12px;
+}
+
+/* Zone header */
+.zone-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-faint);
+}
+.zone-header.market { border-bottom-color: rgba(245, 158, 11, 0.25); }
+.zone-header.ai { border-bottom-color: rgba(139, 92, 246, 0.3); }
+.zone-header .ribbon {
+  font-family: var(--font-display);
+  font-size: 16px;
+  letter-spacing: 2px;
+}
+.zone-header.market .ribbon { color: var(--accent-amber); text-shadow: 0 0 12px rgba(245, 158, 11, 0.35); }
+.zone-header.ai .ribbon { color: var(--secondary); text-shadow: 0 0 12px rgba(139, 92, 246, 0.4); }
+.zone-header .meta {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+
+.zone-desc {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  line-height: 1.55;
+}
+
+/* Market data cards (gray) */
+.mkt-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-data);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  transition: border-color 0.2s;
+}
+.mkt-card:hover { border-color: rgba(245, 158, 11, 0.22); }
+.mkt-card .title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.mkt-card .title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.mkt-card .live-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--accent-cyan);
+  padding: 1px 6px;
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  border-radius: 3px;
+  letter-spacing: 0.08em;
+}
+.kv-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: var(--border-data);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.kv-cell {
+  background: var(--bg-card);
+  padding: 10px 12px;
+}
+.kv-cell .label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+}
+.kv-cell .value {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.kv-cell .value.up { color: var(--success); }
+.kv-cell .delta { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+
+.mini-chart { height: 70px; margin-top: 4px; }
+.mini-chart svg { width: 100%; height: 100%; }
+
+/* Catalyst rows */
+.cal-list { display: flex; flex-direction: column; gap: 6px; }
+.cal-row {
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 7px 10px;
+  background: rgba(15, 15, 34, 0.5);
+  border-radius: 6px;
+}
+.cal-row .date { color: var(--accent-amber); }
+.cal-row .name { color: var(--text-secondary); }
+.cal-row .days { color: var(--text-muted); font-size: 10.5px; }
+
+/* News rows */
+.news-row {
+  padding: 9px 10px;
+  background: rgba(15, 15, 34, 0.5);
+  border-radius: 6px;
+  margin-bottom: 5px;
+  font-size: 12px;
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+.news-row .ndate { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); }
+.news-row .ntitle { color: var(--text-secondary); line-height: 1.4; }
+
+/* Earnings call list */
+.ec-row {
+  display: grid;
+  grid-template-columns: 70px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 10px;
+  background: rgba(15, 15, 34, 0.5);
+  border-radius: 6px;
+  margin-bottom: 5px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.ec-row .ecq { color: var(--accent-cyan); }
+.ec-row .ecd { color: var(--text-secondary); }
+.ec-row .ecplay { color: var(--accent-cyan); cursor: pointer; }
+
+/* ── AI Zone cards (purple) ─────────────────────────────────────── */
+.ai-card {
+  background: linear-gradient(160deg, rgba(139, 92, 246, 0.06), rgba(15, 15, 34, 0.4));
+  border: 1px solid rgba(139, 92, 246, 0.28);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  position: relative;
+  animation: cardLoad 0.5s ease-out;
+}
+.ai-card.cold {
+  background: rgba(15, 15, 34, 0.3);
+  border-style: dashed;
+  border-color: rgba(139, 92, 246, 0.2);
+  padding: 36px 20px;
+  text-align: center;
+}
+.ai-card.cold .placeholder-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+.ai-card.cold .cold-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: 2px;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+.ai-card.cold .cold-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.65;
+  max-width: 420px;
+  margin: 0 auto 18px;
+}
+.ai-card.cold .cold-desc strong { color: var(--accent-cyan); }
+
+.ai-card .title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.ai-card .title-row .title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--secondary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ai-card .badge-version {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: var(--secondary-soft);
+  color: var(--secondary);
+  letter-spacing: 0.06em;
+}
+.ai-card .age {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+/* Latest report card (hot) */
+.report-card .verdict-row { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+.verdict-badge-lg {
+  font-family: var(--font-display);
+  font-size: 28px;
+  letter-spacing: 4px;
+  padding: 4px 20px;
+  background: rgba(22, 163, 74, 0.18);
+  color: var(--success);
+  border: 1.5px solid var(--success);
+  border-radius: 8px;
+  box-shadow: 0 0 18px rgba(22, 163, 74, 0.3);
+}
+.target-block {
+  display: flex;
+  flex-direction: column;
+}
+.target-block .target-val {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.target-block .target-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.dist-pill {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 6px 12px;
+  background: rgba(22, 163, 74, 0.14);
+  border: 1px solid var(--success);
+  color: var(--success);
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.tagline {
+  font-size: 13.5px;
+  color: var(--accent-cyan);
+  font-style: italic;
+  line-height: 1.6;
+  margin: 12px 0;
+  text-shadow: 0 0 10px rgba(34, 211, 238, 0.2);
+}
+
+.cta-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+.cta-open {
+  padding: 11px 18px;
+  background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.35);
+}
+
+/* Chapter preview grid */
+.chapter-preview {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+.chap-mini {
+  padding: 10px;
+  background: rgba(15, 15, 34, 0.5);
+  border: 1px solid var(--border-faint);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.chap-mini:hover { border-color: var(--secondary); background: rgba(139, 92, 246, 0.08); }
+.chap-mini .ch-num {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+}
+.chap-mini .ch-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  margin-top: 2px;
+}
+
+/* Timeline */
+.timeline-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.timeline-row {
+  display: grid;
+  grid-template-columns: 50px 60px 80px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(15, 15, 34, 0.5);
+  border-left: 2px solid var(--border-soft);
+  border-radius: 0 6px 6px 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.timeline-row.current {
+  border-left-color: var(--secondary);
+  background: rgba(139, 92, 246, 0.08);
+}
+.timeline-row .vname { color: var(--text-primary); font-weight: 600; }
+.timeline-row .vdate { color: var(--text-dim); font-size: 10.5px; }
+.timeline-row .vverd { font-size: 10px; padding: 1px 6px; border-radius: 3px; }
+.timeline-row .vverd.buy { background: rgba(22, 163, 74, 0.18); color: var(--success); }
+.timeline-row .vverd.hold { background: rgba(217, 119, 6, 0.18); color: var(--warning); }
+.timeline-row .vtarget { color: var(--text-secondary); }
+.timeline-row .vopen { color: var(--secondary); text-decoration: underline; }
+
+/* Pipeline mini cards (cold state extra hint) */
+.pipeline-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.pipeline-mini {
+  padding: 8px 10px;
+  background: rgba(15, 15, 34, 0.4);
+  border: 1px solid var(--border-faint);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-align: left;
+}
+.pipeline-mini strong { color: var(--secondary); font-weight: 500; }
+
+/* Color legend at very bottom */
+.legend {
+  margin-top: 48px;
+  padding: 18px 22px;
+  background: rgba(15, 15, 34, 0.6);
+  border: 1px dashed var(--border-soft);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.7;
+}
+.legend h3 {
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--accent-cyan);
+  margin-bottom: 10px;
+}
+.legend .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin-right: 8px; }
+.legend .sw-mkt { background: var(--accent-amber); }
+.legend .sw-ai { background: var(--secondary); }
+.legend .sw-overlay { background: var(--accent-cyan); }
+.legend code { background: var(--secondary-soft); padding: 1px 6px; border-radius: 3px; color: var(--secondary); }
+</style>
+</head>
+<body>
+<div class="bg-canvas"></div>
+<div class="bg-grid"></div>
+
+<!-- demo state switch -->
+<div class="demo-toolbar">
+  <div class="meta">
+    DEMO · route <strong>/stocks/AAPL</strong> · StockWorkspace dashboard 形态 · 点切换查看 cold/hot 状态
+  </div>
+  <div class="switch">
+    <button id="btn-cold" class="active" onclick="setState('cold')">冷态（未跑研报）</button>
+    <button id="btn-hot" onclick="setState('hot')">已有研报 v3</button>
+  </div>
+</div>
+
+<div class="shell">
+
+  <!-- ═══════ HERO ═══════ -->
+  <header class="hero">
+    <div class="breadcrumb">
+      FINAGENT <span class="sep">›</span> STOCKS <span class="sep">›</span> <span class="now">AAPL</span>
+    </div>
+
+    <div class="symbol-row">
+      <span class="symbol">AAPL</span>
+      <span class="live-pill">LIVE · NASDAQ</span>
+    </div>
+
+    <div class="company">Apple Inc. · Information Technology / Consumer Electronics</div>
+
+    <div class="price-row">
+      <span class="price-main">$258.42</span>
+      <span class="price-change">↑ +1.83 · +0.72%</span>
+      <span class="dist-pill hot-only" style="display:none;">距目标 $295 · +14.1%</span>
+    </div>
+
+    <!-- 3 status chips -->
+    <div class="status-bar">
+      <span class="chip chip-live">
+        <span class="dot"></span>
+        行情同步中 · 每 60s 刷新
+      </span>
+      <span class="chip chip-ai" id="chip-ai">
+        <span class="dot"></span>
+        <span id="chip-ai-text">AI 研报 · 未跑过</span>
+        <span class="rerun" id="chip-ai-rerun" style="display:none;" onclick="alert('跳转 /stocks/AAPL/runs/{latest_id}')">查看 v3</span>
+      </span>
+      <span class="chip chip-source">
+        <span class="dot"></span>
+        数据源 yfinance · SEC EDGAR · FMP
+      </span>
+    </div>
+
+    <!-- COLD: single big CTA -->
+    <div class="actions cold-only">
+      <button class="btn-primary large" onclick="alert('调 POST /api/runs · pipeline=research')">
+        ▶ 跑首份 AI 研报（research pipeline · ~60s · 含 12 章节）
+      </button>
+      <button class="btn-ghost">⭐ 加入自选</button>
+      <button class="btn-ghost">⌘K 查看其他 ticker</button>
+    </div>
+
+    <!-- HOT: open report + secondary -->
+    <div class="actions hot-only" style="display:none;">
+      <button class="btn-primary" onclick="alert('跳转 /stocks/AAPL/runs/a7f3c891')">📖 打开最新研报 v3</button>
+      <button class="btn-ghost">↻ 重跑 research</button>
+      <button class="btn-ghost">🧮 单独跑估值 ▾</button>
+      <button class="btn-ghost">⭐ 已自选</button>
+      <button class="btn-ghost">⚖ 加入对比</button>
+    </div>
+  </header>
+
+  <!-- ═══════ TWO ZONES ═══════ -->
+  <div class="zones">
+
+    <!-- ══ ZONE A: 市场数据 (永远 LIVE) ══ -->
+    <section>
+      <div class="zone-header market">
+        <span class="ribbon">📊 市场数据</span>
+        <span class="meta">LIVE · 不依赖 AI</span>
+      </div>
+      <p class="zone-desc">
+        这一区永远在 — yfinance / SEC EDGAR / FMP 实时拉。<strong style="color:var(--accent-amber);">跟跑不跑 AI 无关</strong>，进页面就有数据。
+      </p>
+
+      <!-- Market snapshot -->
+      <div class="mkt-card">
+        <div class="title-row">
+          <span class="title">📊 行情快照</span>
+          <span class="live-tag">LIVE</span>
+        </div>
+        <div class="kv-grid">
+          <div class="kv-cell"><div class="label">市值</div><div class="value">$3.95T</div><div class="delta">Rank #1 US</div></div>
+          <div class="kv-cell"><div class="label">P/E (TTM)</div><div class="value">31.2</div><div class="delta">5Y avg 28.4</div></div>
+          <div class="kv-cell"><div class="label">EV/EBITDA</div><div class="value">22.8</div><div class="delta">peer median 19.5</div></div>
+          <div class="kv-cell"><div class="label">FCF Yield</div><div class="value">2.8%</div><div class="delta">$109B TTM</div></div>
+          <div class="kv-cell"><div class="label">Beta (5y)</div><div class="value">1.21</div><div class="delta">vs SPX</div></div>
+          <div class="kv-cell"><div class="label">52W Range</div><div class="value" style="font-size:13px;">$165 – $262</div><div class="delta">at 92nd percentile</div></div>
+        </div>
+      </div>
+
+      <!-- Price chart -->
+      <div class="mkt-card">
+        <div class="title-row">
+          <span class="title">📈 价格趋势 · 1Y</span>
+          <span class="live-tag">LIVE</span>
+        </div>
+        <div class="mini-chart">
+          <svg viewBox="0 0 400 70" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="gp1" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.5" />
+                <stop offset="100%" stop-color="#22D3EE" stop-opacity="0" />
+              </linearGradient>
+            </defs>
+            <path d="M0,55 L25,52 L50,58 L75,48 L100,50 L125,42 L150,38 L175,40 L200,32 L225,28 L250,30 L275,22 L300,18 L325,24 L350,16 L375,12 L400,8"
+                  fill="none" stroke="var(--accent-cyan)" stroke-width="1.5" />
+            <path d="M0,55 L25,52 L50,58 L75,48 L100,50 L125,42 L150,38 L175,40 L200,32 L225,28 L250,30 L275,22 L300,18 L325,24 L350,16 L375,12 L400,8 L400,70 L0,70 Z"
+                  fill="url(#gp1)" />
+          </svg>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);margin-top:6px;">
+          <span>1Y +18.4%</span><span>vs SPX +12.1%</span><span style="color:var(--success);">超额 +6.3%</span>
+        </div>
+      </div>
+
+      <!-- Revenue & FCF TTM -->
+      <div class="mkt-card">
+        <div class="title-row">
+          <span class="title">💰 财务指标 · TTM</span>
+          <span class="live-tag">SEC 10-K</span>
+        </div>
+        <div class="kv-grid">
+          <div class="kv-cell"><div class="label">营收 TTM</div><div class="value">$383.2B</div><div class="delta">YoY +0.4%</div></div>
+          <div class="kv-cell"><div class="label">EBITDA</div><div class="value">$130.1B</div><div class="delta">margin 33.9%</div></div>
+          <div class="kv-cell"><div class="label">营业利润</div><div class="value">$120.7B</div><div class="delta">margin 31.5%</div></div>
+          <div class="kv-cell"><div class="label">净利润</div><div class="value">$93.7B</div><div class="delta">EPS $6.08</div></div>
+        </div>
+      </div>
+
+      <!-- Catalyst calendar -->
+      <div class="mkt-card">
+        <div class="title-row">
+          <span class="title">📅 催化剂日历</span>
+        </div>
+        <div class="cal-list">
+          <div class="cal-row"><span class="date">2026-01-30</span><span class="name">FY26 Q1 财报</span><span class="days">+252 天</span></div>
+          <div class="cal-row"><span class="date">2026-06-08</span><span class="name">WWDC 2026</span><span class="days">+16 天</span></div>
+          <div class="cal-row"><span class="date">2026-07-15</span><span class="name">EU DMA 听证</span><span class="days">+53 天</span></div>
+          <div class="cal-row"><span class="date">2026-09-15</span><span class="name">iPhone 18 发布（预估）</span><span class="days">+115 天</span></div>
+        </div>
+      </div>
+
+      <!-- Earnings calls -->
+      <div class="mkt-card">
+        <div class="title-row">
+          <span class="title">🎙 财报电话会 · 8 期可读</span>
+        </div>
+        <div class="ec-row"><span class="ecq">FY25 Q4</span><span class="ecd">2026-04-30 · Tim Cook</span><span class="ecplay">▶ 文字 + 音频</span></div>
+        <div class="ec-row"><span class="ecq">FY25 Q3</span><span class="ecd">2026-01-31 · Tim Cook</span><span class="ecplay">▶ 文字 + 音频</span></div>
+        <div class="ec-row"><span class="ecq">FY25 Q2</span><span class="ecd">2025-10-30 · Tim Cook</span><span class="ecplay">▶ 文字 + 音频</span></div>
+      </div>
+
+      <!-- News -->
+      <div class="mkt-card">
+        <div class="title-row">
+          <span class="title">📰 近期新闻 · 30 天 24 条</span>
+          <span class="live-tag">RSS</span>
+        </div>
+        <div class="news-row"><span class="ndate">2026-05-22</span><span class="ntitle">Tata Electronics 在 Hosur 启动第二座 iPhone 工厂</span></div>
+        <div class="news-row"><span class="ndate">2026-05-20</span><span class="ntitle">iPhone 17 生产订单上调 8% · Pegatron Foxconn Q3 加班</span></div>
+        <div class="news-row"><span class="ndate">2026-05-18</span><span class="ntitle">Services 季度营收创历史新高 $26.6B</span></div>
+        <div class="news-row"><span class="ndate">2026-05-16</span><span class="ntitle">EU 委员会就 App Store 反引导启动正式调查</span></div>
+        <div class="news-row"><span class="ndate">2026-05-13</span><span class="ntitle">Apple Intelligence 触达 65% 装机量 · 互动数据超内部目标</span></div>
+      </div>
+    </section>
+
+    <!-- ══ ZONE B: AI 研报 (cold = empty card; hot = artifact summary) ══ -->
+    <section>
+      <div class="zone-header ai">
+        <span class="ribbon">🤖 AI 研报</span>
+        <span class="meta" id="zone-ai-meta">未跑过</span>
+      </div>
+      <p class="zone-desc">
+        这一区是 <strong style="color:var(--secondary);">research pipeline 跑出来的 artifact 内容</strong>，跑一次 ~60s，含 12 章节 + 8 LLM agents 叙事。
+      </p>
+
+      <!-- COLD: big empty card -->
+      <div class="cold-only">
+        <div class="ai-card cold">
+          <div class="placeholder-icon">🤖</div>
+          <div class="cold-title">还未为 AAPL 生成研报</div>
+          <div class="cold-desc">
+            跑一次 <strong>AI 研报</strong>，会生成 12 章节投行级 equity research：
+            投资论点 / 公司概览 / 财务分析 / 估值（DCF + Comps + DDM + LBO）/ 新闻 / 敏感度 / 催化剂 / 技术分析 / 同业对标 / 财务数据
+          </div>
+          <button class="btn-primary large" onclick="setState('hot')">
+            ▶ 立即跑 AI 研报（~60s）
+          </button>
+          <div class="pipeline-grid">
+            <div class="pipeline-mini">→ <strong>research</strong>（完整 12 章 · 推荐）</div>
+            <div class="pipeline-mini">→ <strong>dcf</strong>（仅估值 · 45s）</div>
+            <div class="pipeline-mini">→ <strong>ic-memo</strong>（投委备忘 · 60s）</div>
+            <div class="pipeline-mini">→ <strong>earnings</strong>（财报会分析 · 45s）</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HOT: artifact summary -->
+      <div class="hot-only" style="display:none;">
+        <!-- Latest report -->
+        <div class="ai-card report-card">
+          <div class="title-row">
+            <span class="title">📄 最新研报</span>
+            <span class="badge-version">v3 · current</span>
+            <span class="age">@ 刚刚</span>
+          </div>
+          <div class="verdict-row">
+            <span class="verdict-badge-lg">BUY</span>
+            <div class="target-block">
+              <span class="target-label">12-Month Target</span>
+              <span class="target-val">$295.00</span>
+            </div>
+            <span class="dist-pill">↑ +14.1% upside</span>
+          </div>
+          <p class="tagline">"Services 高毛利结构性扩张 + 印度供应链分散对冲地缘风险，估值仍有 14% 空间"</p>
+          <div class="cta-row">
+            <button class="cta-open" onclick="alert('跳转 /stocks/AAPL/runs/a7f3c891')">→ 打开完整 12 章研报</button>
+            <button class="btn-ghost" style="padding:9px 14px;font-size:11.5px;">↹ 跟 v2 对比</button>
+            <button class="btn-ghost" style="padding:9px 14px;font-size:11.5px;">📤 PDF</button>
+          </div>
+        </div>
+
+        <!-- Chapter preview -->
+        <div class="ai-card">
+          <div class="title-row">
+            <span class="title">📑 12 章节快速预览</span>
+            <span class="age">点任意章节直接跳转</span>
+          </div>
+          <div class="chapter-preview">
+            <div class="chap-mini"><div class="ch-num">00</div><div class="ch-name">Cover</div></div>
+            <div class="chap-mini"><div class="ch-num">01</div><div class="ch-name">Investment Thesis</div></div>
+            <div class="chap-mini"><div class="ch-num">02</div><div class="ch-name">Company Overview</div></div>
+            <div class="chap-mini"><div class="ch-num">03</div><div class="ch-name">Financial Analysis</div></div>
+            <div class="chap-mini"><div class="ch-num">04</div><div class="ch-name">Valuation</div></div>
+            <div class="chap-mini"><div class="ch-num">05</div><div class="ch-name">News &amp; Events</div></div>
+            <div class="chap-mini"><div class="ch-num">06</div><div class="ch-name">Sensitivity</div></div>
+            <div class="chap-mini"><div class="ch-num">07</div><div class="ch-name">Catalysts</div></div>
+            <div class="chap-mini"><div class="ch-num">08</div><div class="ch-name">Technical</div></div>
+            <div class="chap-mini"><div class="ch-num">09</div><div class="ch-name">Competitive</div></div>
+            <div class="chap-mini"><div class="ch-num">10</div><div class="ch-name">Financial Data</div></div>
+            <div class="chap-mini"><div class="ch-num">11</div><div class="ch-name">Disclaimer</div></div>
+          </div>
+        </div>
+
+        <!-- Version timeline -->
+        <div class="ai-card">
+          <div class="title-row">
+            <span class="title">⏱ 历史版本 · 3 份</span>
+            <span class="age">同 ticker · artifact 不可变 · 新跑追加新版</span>
+          </div>
+          <div class="timeline-list">
+            <div class="timeline-row current">
+              <span class="vname">v3</span>
+              <span class="vverd buy">BUY</span>
+              <span class="vtarget">$295</span>
+              <span class="vdate">2026-05-23 · 刚刚</span>
+              <span class="vopen">打开 →</span>
+            </div>
+            <div class="timeline-row">
+              <span class="vname">v2</span>
+              <span class="vverd hold">HOLD</span>
+              <span class="vtarget">$288</span>
+              <span class="vdate">2026-05-19 · 4 天前</span>
+              <span class="vopen">打开 →</span>
+            </div>
+            <div class="timeline-row">
+              <span class="vname">v1</span>
+              <span class="vverd hold">HOLD</span>
+              <span class="vtarget">$282</span>
+              <span class="vdate">2026-05-15 · 8 天前</span>
+              <span class="vopen">打开 →</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </div>
+
+  <!-- ═══════ COLOR LEGEND ═══════ -->
+  <div class="legend">
+    <h3>🎨 数据来源色码图例</h3>
+    <p><span class="swatch sw-mkt"></span><strong style="color:var(--accent-amber);">琥珀 · 市场数据</strong> — yfinance / SEC / FMP 实时拉，<strong>跟 AI 无关</strong>。进页面就有。</p>
+    <p><span class="swatch sw-ai"></span><strong style="color:var(--secondary);">紫色 · AI 研报</strong> — research pipeline 跑出来的 artifact，<strong>跑一次产生一个不可变快照</strong>。未跑就空着。</p>
+    <p><span class="swatch sw-overlay"></span><strong style="color:var(--accent-cyan);">青色 · LIVE overlay</strong> — artifact 之上叠的实时数（如「距目标 +14.1%」= live price 算出来的）。FinRobot 静态 HTML 没法做，<strong>桌面 app 独占</strong>。</p>
+    <p style="color:var(--text-muted);margin-top:10px;line-height:1.65;">
+      📍 这页是 <code>/stocks/AAPL</code> dashboard。<strong style="color:var(--text-secondary);">职责：实时行情 + 跑 AI 入口 + artifact timeline 跳转</strong>。
+      不在这里阅读研报正文 — 那是 <code>/stocks/AAPL/runs/{artifactId}</code> 的事（12 章长滚动那个）。
+    </p>
+  </div>
+
+</div>
+
+<script>
+function setState(state) {
+  const cold = state === 'cold';
+  document.querySelectorAll('.cold-only').forEach(el => el.style.display = cold ? '' : 'none');
+  document.querySelectorAll('.hot-only').forEach(el => el.style.display = cold ? 'none' : '');
+  document.getElementById('btn-cold').classList.toggle('active', cold);
+  document.getElementById('btn-hot').classList.toggle('active', !cold);
+  const chipAi = document.getElementById('chip-ai');
+  chipAi.classList.toggle('cold', cold);
+  chipAi.classList.toggle('hot', !cold);
+  document.getElementById('chip-ai-text').textContent = cold ? 'AI 研报 · 未跑过' : 'AI 研报 · v3 @ 刚刚';
+  document.getElementById('chip-ai-rerun').style.display = cold ? 'none' : '';
+  document.getElementById('zone-ai-meta').textContent = cold ? '未跑过' : 'v3 · 刚刚 · 3 个历史版本';
+}
+setState('cold');
+</script>
+</body>
+</html>

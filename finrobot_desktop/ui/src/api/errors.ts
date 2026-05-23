@@ -29,5 +29,7 @@ export async function extractErrorDetail(
       (detail as { error?: string }).error
     if (message) return message
   }
-  return `${fallback}（HTTP ${resp.status}）`
+  // Do not leak HTTP status to end users — they don't care, and "HTTP 500"
+  // looks like a crash. The dev-side info is still in resp.status / network tab.
+  return fallback
 }

@@ -14,7 +14,7 @@ export function ChapterCompanyOverview({
   const overview = thesis?.company_overview ?? null
 
   return (
-    <Chapter id="overview" num="02" title="Company Overview" sub="Business · Segments · Geography · Moat">
+    <Chapter id="overview">
       {overview ? (
         <Narrative>
           <p>{overview}</p>
@@ -31,8 +31,7 @@ export function ChapterCompanyOverview({
             lineHeight: 1.7,
           }}
         >
-          该 artifact 跑于 <code style={{ color: 'var(--accent-cyan)' }}>company_overview</code> 字段上线（2026-05-23）之前。
-          重跑一次 <code style={{ color: 'var(--accent-cyan)' }}>research</code> pipeline 即可在本章生成 200-300 字投行口吻公司概述（业务/分部/地域/护城河）。
+          该研报未包含公司概览字段，请重新生成完整研报即可在本章看到投行口吻的业务、分部、地区与护城河描述。
         </div>
       )}
     </Chapter>

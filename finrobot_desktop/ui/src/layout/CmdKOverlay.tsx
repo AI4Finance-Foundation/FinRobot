@@ -18,6 +18,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAppStore } from "../stores/appStore";
 import { useToastStore } from "../stores/toastStore";
 import { useI18n, tSync } from "../i18n";
+import { FetchHttpError } from "../utils/errorMessage";
 import { STOCK_WORKSPACE_SECTIONS } from "../views/sectionDirectory";
 
 // ---------------------------------------------------------------------------
@@ -348,7 +349,7 @@ export function CmdKOverlay() {
           { signal: fetchSignal }
         );
         if (!resp.ok) {
-          throw new Error(`Search failed: ${resp.status}`);
+          throw new FetchHttpError(resp.status, resp.statusText);
         }
         return (await resp.json()) as SearchResponse;
       } catch (err) {

@@ -17,11 +17,12 @@
 // entry point rather than duplicating the report body.
 
 import { useEffect, useRef } from 'react'
-import { useParams } from 'react-router-dom'
+import { useLocation, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRunStreamStore, selectRunByTicker } from '../stores/runStreamStore'
 import { useToastStore } from '../stores/toastStore'
 import { useAppStore } from '../stores/appStore'
+import { useNavMemoryStore } from '../stores/navMemoryStore'
 import { TickerHero } from './TickerHero'
 import { MarketDataZone } from './workspace/MarketDataZone'
 import { AIZone } from './workspace/AIZone'
@@ -29,6 +30,7 @@ import { AIZone } from './workspace/AIZone'
 export function StockWorkspace(): React.ReactElement {
   const { ticker } = useParams<{ ticker: string }>()
   const symbol = (ticker || '').toUpperCase()
+  const location = useLocation()
 
   // Mirror URL ticker into appStore so legacy hooks (useHistoricalData /
   // usePerformanceData / PriceChart) keep working when the user lands
@@ -40,6 +42,13 @@ export function StockWorkspace(): React.ReactElement {
       setStoreTicker(symbol)
     }
   }, [symbol, storeTicker, setStoreTicker])
+
+  // Remember this path so the sidebar can restore context after the user
+  // detours through /settings or any other top-level section.
+  const setLastStocksPath = useNavMemoryStore((s) => s.setLastStocksPath)
+  useEffect(() => {
+    if (symbol) setLastStocksPath(location.pathname)
+  }, [location.pathname, symbol, setLastStocksPath])
 
   // Pipeline completion toast + cache invalidation — fires once per runId
   // when status transitions running → completed / failed. Two jobs:
@@ -75,7 +84,7 @@ export function StockWorkspace(): React.ReactElement {
       addToast({
         type: 'success',
         title: `${symbol} 研报完成`,
-        description: '12 章节 artifact 已落盘 · 在右侧 AI 区点「打开完整 12 章研报」查看',
+        description: '完整 12 章研报已生成，点击右侧 AI 区"打开完整研报"查看',
       })
     } else if (runState.status === 'failed') {
       lastNotifiedRunIdRef.current = runId
@@ -90,7 +99,7 @@ export function StockWorkspace(): React.ReactElement {
   if (!symbol) {
     return (
       <div style={{ padding: 48, color: 'var(--text-faint)' }}>
-        缺少 ticker — 请通过搜索或自选股进入。
+        缺少股票代码，请通过搜索或自选股进入。
       </div>
     )
   }

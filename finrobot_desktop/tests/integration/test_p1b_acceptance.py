@@ -41,6 +41,7 @@ class TestP1bAcceptance:
             "catalyst_analysis",
             "peer_analysis",
             "financial_modeling",
+            "technical_analysis",
             "thesis",
             "report",
         }

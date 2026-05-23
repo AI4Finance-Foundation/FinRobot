@@ -1,8 +1,15 @@
-// Chapter 03 — Financial Analysis. Pairs the artifact-frozen base-year
-// financials (from inputs.raw_data, captured at run time) with the DCF
-// step's 3-year forecast (projected_revenue / projected_ebitda /
-// projected_fcf). FinRobot has a similar mix — historicals + forecasts.
-
+import RevenueEbitdaChart from '../../../components/charts/RevenueEbitdaChart'
+import MarginTrendChart from '../../../components/charts/MarginTrendChart'
+import CashFlowChart from '../../../components/charts/CashFlowChart'
+import {
+  historicalToRevenueEbitdaData,
+  historicalToMarginData,
+  historicalToCashFlowData,
+  dcfResultToRevenueEbitdaData,
+  dcfResultToMarginData,
+} from '../../../utils/chartAdapters'
+import type { DCFResult } from '../../../stores/appStore'
+import { useHistoricalData } from '../../../hooks/useHistoricalData'
 import { Chapter, KvGrid, SubChapter, tableStyle } from './ChapterBase'
 import type { DcfShape } from './types'
 
@@ -15,10 +22,39 @@ export function ChapterFinancialAnalysis({
   dcf,
   rawData,
 }: ChapterFinancialAnalysisProps): React.ReactElement {
+  const { data: historical } = useHistoricalData()
   const baseRev = (rawData?.revenue as number | undefined) ?? dcf?.inputs?.revenue_base ?? null
   const baseEbitda = (rawData?.ebitda as number | undefined) ?? null
   const baseNet = (rawData?.net_income as number | undefined) ?? null
   const fcfTtm = (rawData?.fcf_ttm as number | undefined) ?? null
+
+  const hasDcfForecast =
+    dcf?.projected_revenue != null &&
+    dcf.projected_revenue.length > 0 &&
+    dcf.projected_ebitda != null &&
+    dcf.projected_ebitda.length > 0 &&
+    dcf.inputs?.revenue_base != null &&
+    dcf.inputs?.ebitda_margin != null
+
+  const revenueChartData = (() => {
+    const hist = historical ? historicalToRevenueEbitdaData(historical) : []
+    if (hasDcfForecast) {
+      const fcst = dcfResultToRevenueEbitdaData(dcf as unknown as DCFResult)
+      return [...hist, ...fcst.slice(1)]
+    }
+    return hist
+  })()
+
+  const marginChartData = (() => {
+    const hist = historical ? historicalToMarginData(historical) : []
+    if (hasDcfForecast) {
+      const fcst = dcfResultToMarginData(dcf as unknown as DCFResult)
+      return [...hist, ...fcst.slice(1)]
+    }
+    return hist
+  })()
+
+  const cashFlowChartData = historical ? historicalToCashFlowData(historical) : []
 
   const cells = [
     baseRev !== null && {
@@ -32,13 +68,26 @@ export function ChapterFinancialAnalysis({
   ].filter((c): c is { label: string; value: string; delta?: string } => c !== false)
 
   return (
-    <Chapter
-      id="financial"
-      num="03"
-      title="Financial Analysis"
-      sub="Base Year · 3Y Forecast · Key Ratios"
-    >
+    <Chapter id="financial">
       {cells.length > 0 && <KvGrid cells={cells} columns={4} />}
+
+      {revenueChartData.length > 0 && (
+        <SubChapter heading="Revenue & EBITDA Trajectory">
+          <RevenueEbitdaChart data={revenueChartData} title="Historical + DCF Forecast" />
+        </SubChapter>
+      )}
+
+      {marginChartData.length > 0 && (
+        <SubChapter heading="Margin Trend">
+          <MarginTrendChart data={marginChartData} title="Gross / EBITDA / Operating Margin" />
+        </SubChapter>
+      )}
+
+      {cashFlowChartData.length > 0 && (
+        <SubChapter heading="Cash Flow Composition">
+          <CashFlowChart data={cashFlowChartData} title="Operating / Investing / Financing" />
+        </SubChapter>
+      )}
 
       {dcf?.projected_revenue && dcf.projected_revenue.length > 0 && (
         <SubChapter heading="DCF Forecast (Code-Computed)">

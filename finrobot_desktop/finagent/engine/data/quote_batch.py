@@ -1,58 +1,70 @@
-"""Batched live-quote helper — fetch last_price for many tickers in one call.
+"""Batched live-quote helpers.
 
-Existing call sites (`routes/journal.py::_fetch_current_price`) iterate the
-single-ticker yfinance fast_info path. That's fine for one entry but linear
-for the new dashboard endpoints which fan out 20+ tickers per request.
+Two entry points:
+  fetch_quotes_batch(tickers)        — synchronous, NO cache, direct yfinance.
+                                        Kept for legacy callers wrapped in
+                                        asyncio.to_thread; do not introduce new
+                                        usage.
+  fetch_quotes_batch_cached(tickers) — async, two-layer cached (in-memory +
+                                        SQLite). Preferred entry point for
+                                        routes and pipelines.
 
-This module exposes `fetch_quotes_batch(tickers)` — a synchronous helper that
-uses yfinance's `Tickers("AAA BBB CCC")` multi-ticker API to issue one HTTP
-call and return a `{ticker: price | None}` mapping. Failures degrade per
-ticker, never as a whole.
-
-Lazy import: yfinance stays an optional dep. ImportError surfaces only when
-this helper is actually used.
+The async path consults a process-wide :class:`QuoteCache` singleton with a
+60s TTL. Per-ticker failures (delisted, fast_info miss) get cached as
+``None`` so we don't beat yfinance on every refresh for a dead symbol.
 
 Leaf-layer rules: no imports from routes / pipelines / agents.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Iterable
+
+from finagent.engine.data.quote_cache import QuoteCache
 
 logger = logging.getLogger(__name__)
 
 
-def fetch_quotes_batch(tickers: Iterable[str]) -> dict[str, float | None]:
-    """Return `{ticker: last_price | None}` for the given symbols.
+_GLOBAL_QUOTE_CACHE: QuoteCache | None = None
 
-    Single-call when yfinance is available; degrades to a dict with every
-    value None when the dependency is missing. Per-ticker failures (delisted
-    symbol, fast_info miss) come back as None.
 
-    Caller is expected to wrap with `asyncio.to_thread`; yfinance is fully
-    synchronous.
+def reset_quote_cache_singleton() -> None:
+    """Drop the process-wide QuoteCache. Test-only helper.
+
+    Lets tests rebind ``QUOTES_DB`` (e.g. via ``monkeypatch.setenv('HOME', ...)``)
+    and start with a clean L1.
     """
-    symbols = [t.strip().upper() for t in tickers if t and t.strip()]
-    if not symbols:
-        return {}
+    global _GLOBAL_QUOTE_CACHE
+    _GLOBAL_QUOTE_CACHE = None
 
+
+def _get_singleton() -> QuoteCache:
+    global _GLOBAL_QUOTE_CACHE
+    if _GLOBAL_QUOTE_CACHE is None:
+        _GLOBAL_QUOTE_CACHE = QuoteCache()
+    return _GLOBAL_QUOTE_CACHE
+
+
+def _fetch_via_yfinance(tickers: list[str]) -> dict[str, float | None]:
+    """Synchronous yfinance call — wrap in :func:`asyncio.to_thread` from async."""
+    if not tickers:
+        return {}
     try:
         import yfinance as yf
     except ImportError:
         logger.warning("yfinance unavailable — returning all-None quote batch")
-        return dict.fromkeys(symbols)
+        return dict.fromkeys(tickers)
 
-    # yfinance accepts a space-separated string or a list; both produce the
-    # same `Tickers` container. fast_info per child is the cheapest path.
     try:
-        container = yf.Tickers(" ".join(symbols))
+        container = yf.Tickers(" ".join(tickers))
     except (ValueError, OSError) as exc:
         logger.warning("yf.Tickers init failed (%s) — falling back to per-ticker", exc)
-        return {sym: _fetch_one(sym) for sym in symbols}
+        return {sym: _fetch_one(sym) for sym in tickers}
 
     out: dict[str, float | None] = {}
-    for sym in symbols:
+    for sym in tickers:
         try:
             t = container.tickers.get(sym) or container.tickers.get(sym.upper())
             if t is None:
@@ -82,3 +94,33 @@ def _fetch_one(symbol: str) -> float | None:
     except (ImportError, AttributeError, ValueError, TypeError, OSError):
         logger.exception("Single-ticker fallback failed for %s", symbol)
         return None
+
+
+def fetch_quotes_batch(tickers: Iterable[str]) -> dict[str, float | None]:
+    """Synchronous, no-cache. Direct yfinance.
+
+    Kept for backwards compatibility with legacy callers that wrap this in
+    ``asyncio.to_thread``. New code should prefer
+    :func:`fetch_quotes_batch_cached`.
+    """
+    return _fetch_via_yfinance([t.strip().upper() for t in tickers if t and t.strip()])
+
+
+async def fetch_quotes_batch_cached(
+    tickers: Iterable[str],
+) -> dict[str, float | None]:
+    """Async, two-layer cached. Preferred entry point for routes + pipelines.
+
+    L1 hit ⇒ pure dict lookup, sub-millisecond.
+    L2 hit ⇒ single SELECT against indexed PK, ~1ms.
+    Cold ⇒ one yfinance call shared across all callers within the 60s TTL.
+    """
+    syms = [t.strip().upper() for t in tickers if t and t.strip()]
+    if not syms:
+        return {}
+    cache = _get_singleton()
+
+    async def yf_async(missing: list[str]) -> dict[str, float | None]:
+        return await asyncio.to_thread(_fetch_via_yfinance, missing)
+
+    return await cache.get_batch(syms, fetcher=yf_async)

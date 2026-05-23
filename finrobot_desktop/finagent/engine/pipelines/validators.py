@@ -28,6 +28,34 @@ def validate_is_non_empty(output: str) -> ValidationResult:
     return ValidationResult(passed=False, error="Output is empty or whitespace")
 
 
+def validate_technical_analysis(output: object) -> ValidationResult:
+    """Technical-analysis step validator.
+
+    The payload itself is always returned (with partial None branches when
+    individual computes fail), so we only fail when none of the three
+    branches produced anything — that means the artifact would have a
+    chapter-09 placeholder forever.
+    """
+    from finagent.engine.compute.technical_payload import TechnicalAnalysis
+
+    if not isinstance(output, TechnicalAnalysis):
+        return ValidationResult(
+            passed=False,
+            error=f"technical_analysis output must be TechnicalAnalysis, got {type(output).__name__}",
+        )
+    if (
+        output.monte_carlo is None
+        and output.sniper is None
+        and output.historical_bands is None
+    ):
+        joined = "; ".join(output.warnings) or "no diagnostics"
+        return ValidationResult(
+            passed=False,
+            error=f"all technical-analysis branches failed: {joined}",
+        )
+    return ValidationResult(passed=True)
+
+
 def validate_has_fields(output: str, fields: list[str]) -> ValidationResult:
     """P0 validator. Checks that output string mentions all required field names."""
     normalized = output.lower()

@@ -7,7 +7,22 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { SourcedNumber } from './SourcedNumber'
+
+// SourcedNumber reads the ticker via useParams() to build the deep link to
+// the artifact detail page. Tests that need the artifact link must render
+// inside a route that provides :ticker; the helper below scopes a memory
+// router around the component under test.
+function renderWithTicker(ui: React.ReactElement, ticker = 'AAPL'): void {
+  render(
+    <MemoryRouter initialEntries={[`/stocks/${ticker}`]}>
+      <Routes>
+        <Route path="/stocks/:ticker" element={ui} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
 
 describe('SourcedNumber', () => {
   beforeEach(() => {
@@ -144,7 +159,7 @@ describe('SourcedNumber', () => {
   })
 
   it('shows artifact link when artifact_id is present', () => {
-    render(
+    renderWithTicker(
       <SourcedNumber
         value={50}
         source={{ provider: 'DCF engine', artifact_id: 'art_2026-05-13_AAPL_dcf' }}
@@ -155,7 +170,9 @@ describe('SourcedNumber', () => {
     act(() => { vi.advanceTimersByTime(250) })
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByText(/Open full artifact/)).toBeInTheDocument()
+    const link = screen.getByText(/打开完整研报/) as HTMLAnchorElement
+    expect(link).toBeInTheDocument()
+    expect(link.getAttribute('href')).toBe('/stocks/AAPL/runs/art_2026-05-13_AAPL_dcf')
   })
 
   // ── Keyboard access ──────────────────────────────────────────────────────────

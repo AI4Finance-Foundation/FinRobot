@@ -54,30 +54,22 @@ class TestSaveGet:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_artifact_file_is_created(
-        self, store: ArtifactStore, sample_artifact: Artifact, tmp_store_dir: Path
+    async def test_cross_ticker_artifact_round_trip(
+        self, store: ArtifactStore
     ) -> None:
-        await store.save(sample_artifact)
-        expected_file = tmp_store_dir / "AAPL" / f"{sample_artifact.id}.json"
-        assert expected_file.exists()
+        """Cross-ticker artifacts (ticker=None) save + load like any other.
 
-    @pytest.mark.asyncio
-    async def test_index_file_is_created(
-        self, store: ArtifactStore, sample_artifact: Artifact, tmp_store_dir: Path
-    ) -> None:
-        await store.save(sample_artifact)
-        index_file = tmp_store_dir / "AAPL" / "index.json"
-        assert index_file.exists()
-
-    @pytest.mark.asyncio
-    async def test_cross_ticker_saved_to_cross_dir(
-        self, store: ArtifactStore, tmp_store_dir: Path
-    ) -> None:
+        Legacy implementation kept them in a separate ``_cross/`` directory;
+        the SQLite implementation identifies them by ``ticker IS NULL``.
+        Either way, the user-visible contract is the same: save then get.
+        """
         art = _make_artifact(id="art_2026-05-13T10:00:00__cross_comps", ticker=None, type="comps")
         art.cross_tickers = ["AAPL", "MSFT"]
         await store.save(art)
-        expected_file = tmp_store_dir / "_cross" / f"{art.id}.json"
-        assert expected_file.exists()
+        loaded = await store.get(art.id)
+        assert loaded is not None
+        assert loaded.ticker is None
+        assert loaded.cross_tickers == ["AAPL", "MSFT"]
 
 
 class TestListByTicker:
@@ -266,11 +258,11 @@ class TestMarkViewed:
 class TestArchiveStale:
     @pytest.mark.asyncio
     async def test_stale_artifact_is_archived(self, store: ArtifactStore) -> None:
-        """An artifact that's never been viewed and was created 25h ago gets archived."""
-        art = _make_artifact(
-            id="art_old",
-            created_at=datetime(2026, 5, 12, 9, 0, 0, tzinfo=UTC),  # ~25h ago from _TS
-        )
+        """An artifact created >24h ago and never viewed gets archived."""
+        from datetime import timedelta
+
+        long_ago = datetime.now(UTC) - timedelta(hours=48)
+        art = _make_artifact(id="art_old", created_at=long_ago)
         await store.save(art)
 
         count = await store.archive_stale(hours=24)

@@ -13,6 +13,8 @@ import {
   type RecentTickerRun,
   type Signal,
 } from '../../hooks/useDashboardRecentResearch'
+import { verdictLabel } from '../../utils/verdict'
+import { useI18n } from '../../i18n'
 
 // Pipeline key → human label. After the 2026-05-23 1-pipeline-only refactor
 // most rows show 「研报」; the other keys are kept for backwards compat with
@@ -42,6 +44,7 @@ const LANDING_TICKER_LIMIT = 20
 
 export function RecentResearchStrip(): React.ReactElement {
   const navigate = useNavigate()
+  const { t } = useI18n()
   const { data, isLoading, isError } = useDashboardRecentResearch(LANDING_TICKER_LIMIT)
 
   return (
@@ -80,7 +83,7 @@ export function RecentResearchStrip(): React.ReactElement {
             textAlign: 'center',
           }}
         >
-          Backend offline · start FinAgent server and refresh.
+          {t('landing.recentResearch.error')}
         </div>
       )}
 
@@ -97,7 +100,7 @@ export function RecentResearchStrip(): React.ReactElement {
             textAlign: 'center',
           }}
         >
-          No research artifacts yet · search a ticker above to initiate coverage.
+          {t('landing.recentResearch.empty')}
         </div>
       )}
 
@@ -339,7 +342,7 @@ function VerdictText({
         color: fg,
       }}
     >
-      {verdict}
+      {verdictLabel(verdict)}
     </span>
   )
 }

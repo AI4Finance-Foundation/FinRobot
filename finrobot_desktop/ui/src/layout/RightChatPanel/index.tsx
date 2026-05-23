@@ -1,18 +1,17 @@
-// RightChatPanel — cosmic Stage A two-tab splitter.
+// RightChatPanel — cosmic Stage A AI chat surface.
 //
-// Owns the outer aside, expand/collapse state, width resize, and a top
-// tab bar that switches between WatchlistTab (live prices + AI banter
-// CTA) and AiChatTab (per-ticker conversational AI).
+// Owns the outer aside, expand/collapse state, width resize, and a
+// header row that just hosts the collapse button. The body is always
+// AiChatTab (per-ticker conversational AI).
 //
-// AppShell still imports this as `RightChatPanel`; existing tests
-// importing `./RightChatPanel` resolve via this file thanks to
-// directory-resolution. Old prop shape (`expanded` / `onToggle`) is
-// preserved so legacy tests keep working.
+// AppShell imports this as `RightChatPanel`; existing tests importing
+// `./RightChatPanel` resolve via this file thanks to directory
+// resolution. Old prop shape (`expanded` / `onToggle`) is preserved so
+// legacy tests keep working.
 
 import { useCallback, useRef } from 'react'
 import { useUiStore } from '../../stores/uiStore'
 import { AiChatTab } from './AiChatTab'
-import { WatchlistTab } from './WatchlistTab'
 
 interface RightChatPanelProps {
   /** Tests inject this; AppShell passes nothing. */
@@ -28,16 +27,14 @@ export function RightChatPanel({
   const storeWidth = useUiStore((s) => s.aiPanelWidth)
   const toggleAiPanel = useUiStore((s) => s.toggleAiPanel)
   const setAiPanelWidth = useUiStore((s) => s.setAiPanelWidth)
-  const rightPanelTab = useUiStore((s) => s.rightPanelTab)
-  const setRightPanelTab = useUiStore((s) => s.setRightPanelTab)
 
   const isExpanded = expandedProp !== undefined ? expandedProp : storeOpen
   const handleToggle = onToggleProp ?? toggleAiPanel
 
   // Legacy test path — when `expanded` is injected, the caller is
   // exercising the chat surface specifically (existing 40+ tests). We
-  // skip the tab splitter entirely and route through AiChatTab plus the
-  // legacy aside CSS classes so test IDs / DOM shape stay stable.
+  // route through AiChatTab plus the legacy aside CSS classes so test
+  // IDs / DOM shape stay stable.
   if (expandedProp !== undefined) {
     // `expanded={false}` → no aside, AiChatTab renders IconColumn only
     // (legacy test contract). `expanded={true}` → full chat surface
@@ -124,27 +121,27 @@ export function RightChatPanel({
 
       {isExpanded && (
         <>
-          {/* Tab toggle row */}
+          {/* Header row — title + collapse */}
           <div
-            role="tablist"
-            aria-label="Right panel tabs"
             style={{
               display: 'flex',
-              padding: '8px 8px 0',
-              gap: 4,
+              alignItems: 'center',
+              padding: '10px 12px 8px',
+              gap: 8,
               borderBottom: '1px solid var(--border-faint)',
             }}
           >
-            <TabBtn
-              label="自选"
-              active={rightPanelTab === 'watchlist'}
-              onClick={() => setRightPanelTab('watchlist')}
-            />
-            <TabBtn
-              label="AI 助手"
-              active={rightPanelTab === 'ai'}
-              onClick={() => setRightPanelTab('ai')}
-            />
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'var(--primary)',
+              }}
+            >
+              AI 助手
+            </span>
             <span style={{ flex: 1 }} />
             <button
               type="button"
@@ -164,44 +161,9 @@ export function RightChatPanel({
             </button>
           </div>
 
-          {/* Tab content */}
-          {rightPanelTab === 'watchlist' ? <WatchlistTab /> : <AiChatTab />}
+          <AiChatTab />
         </>
       )}
     </aside>
-  )
-}
-
-function TabBtn({
-  label,
-  active,
-  onClick,
-}: {
-  label: string
-  active: boolean
-  onClick: () => void
-}): React.ReactElement {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      style={{
-        padding: '6px 14px',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 11,
-        letterSpacing: '0.06em',
-        textTransform: 'uppercase',
-        color: active ? 'var(--primary)' : 'var(--text-muted)',
-        background: active ? 'var(--primary-soft)' : 'transparent',
-        border: 'none',
-        borderRadius: 'var(--radius-sm)',
-        cursor: 'pointer',
-        transition: 'color 0.15s, background 0.15s',
-      }}
-    >
-      {label}
-    </button>
   )
 }

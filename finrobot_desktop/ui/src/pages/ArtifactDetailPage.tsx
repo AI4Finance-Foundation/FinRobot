@@ -14,17 +14,21 @@
 // inputs.raw_data for the audit dump.
 
 import { useEffect, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useParams } from 'react-router-dom'
 import { useArtifactDetail, useV5ArtifactTimeline } from '../hooks/useV5Artifacts'
 import { useAppStore } from '../stores/appStore'
+import { useNavMemoryStore } from '../stores/navMemoryStore'
 import { useToastStore } from '../stores/toastStore'
 import { ArtifactDiff } from '../components/ArtifactDiff'
 import type { ArtifactSummaryV5 } from '../types/v5'
+import { useI18n } from '../i18n'
+import { formatDate } from '../utils/format'
+import { mapErrorToUserMessage } from '../utils/errorMessage'
 
 import { ReportToolbar } from './artifact-detail/shell/ReportToolbar'
 import { ReportTOC } from './artifact-detail/shell/ReportTOC'
-import type { TOCEntry } from './artifact-detail/shell/ReportTOC'
 import { ReportRightRail } from './artifact-detail/shell/ReportRightRail'
+import { ReportStatusBar } from './artifact-detail/shell/ReportStatusBar'
 import {
   ChapterCover,
   ChapterThesis,
@@ -44,23 +48,11 @@ import type {
   CatalystAnalysisShape,
   DcfShape,
   PeerCompsShape,
+  TechnicalAnalysisShape,
   ThesisShape,
 } from './artifact-detail/chapters'
 
-const TOC: TOCEntry[] = [
-  { id: 'cover', num: '00', title: 'Cover' },
-  { id: 'thesis', num: '01', title: 'Investment Thesis' },
-  { id: 'overview', num: '02', title: 'Company Overview' },
-  { id: 'financial', num: '03', title: 'Financial Analysis' },
-  { id: 'valuation', num: '04', title: 'Valuation Analysis' },
-  { id: 'news', num: '05', title: 'Recent News & Events' },
-  { id: 'sensitivity', num: '06', title: 'Sensitivity Analysis' },
-  { id: 'catalysts', num: '07', title: 'Key Catalysts' },
-  { id: 'technical', num: '08', title: 'Technical & Advanced' },
-  { id: 'competitive', num: '09', title: 'Competitive Landscape' },
-  { id: 'data', num: '10', title: 'Financial Data' },
-  { id: 'disclaimer', num: '11', title: 'Disclaimer' },
-]
+import { allChapterLabels } from './artifact-detail/chapters/labels'
 
 interface ArtifactInputs {
   data_source?: string
@@ -90,10 +82,10 @@ interface ArtifactMeta {
 export function ArtifactDetailPage(): React.ReactElement {
   const { ticker, artifactId } = useParams<{ ticker: string; artifactId: string }>()
   const symbol = (ticker || '').toUpperCase()
-  const navigate = useNavigate()
   const location = useLocation()
   const { data, isLoading, isError, error } = useArtifactDetail(artifactId)
   const { data: timeline } = useV5ArtifactTimeline(symbol)
+  const { locale } = useI18n()
   const [diffPartner, setDiffPartner] = useState<ArtifactSummaryV5 | null>(null)
   const addToast = useToastStore((s) => s.addToast)
 
@@ -125,14 +117,21 @@ export function ArtifactDetailPage(): React.ReactElement {
     }
   }, [symbol, storeTicker, setStoreTicker])
 
+  // Sidebar restores this deep path when the user clicks 个股 after
+  // detouring through /settings — see useNavMemoryStore.
+  const setLastStocksPath = useNavMemoryStore((s) => s.setLastStocksPath)
+  useEffect(() => {
+    if (symbol) setLastStocksPath(location.pathname)
+  }, [location.pathname, symbol, setLastStocksPath])
+
   if (!artifactId) {
-    return <CenterMessage title="缺少 artifact 编号" body="访问路径不完整 · 回工作区重新选择研报。" />
+    return <CenterMessage title="缺少研报编号" body="访问路径不完整，请回工作区重新选择研报。" />
   }
 
   if (isLoading) {
     return (
       <div style={{ padding: 48, color: 'var(--text-muted)' }}>
-        <p style={{ fontFamily: 'var(--font-mono)' }}>Loading artifact {artifactId.slice(0, 12)}…</p>
+        <p style={{ fontFamily: 'var(--font-mono)' }}>加载研报中…</p>
       </div>
     )
   }
@@ -141,7 +140,7 @@ export function ArtifactDetailPage(): React.ReactElement {
     return (
       <CenterMessage
         title="加载失败"
-        body={error?.message ?? '后端未返回 artifact · 检查 server 是否启动。'}
+        body={mapErrorToUserMessage(error) || '无法加载研报，请稍后重试。'}
       />
     )
   }
@@ -159,16 +158,23 @@ export function ArtifactDetailPage(): React.ReactElement {
     (structured.peer_analysis as PeerCompsShape | undefined) ?? null
   const catalysts: CatalystAnalysisShape | null =
     (structured.catalyst_analysis as CatalystAnalysisShape | undefined) ?? null
+  const technical: TechnicalAnalysisShape | null =
+    (structured.technical_analysis as TechnicalAnalysisShape | undefined) ?? null
 
   const createdAt = meta.created_at ?? null
-  const versionLabel = createdAt
-    ? new Date(createdAt).toLocaleDateString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      })
-    : data.id.slice(0, 12)
   const computeVersionStr = compute_version?.version ?? null
+
+  // Derive a human-friendly version number (v1/v2/v3) from the timeline.
+  // Timeline arrives newest→oldest; oldest is v1, newest is v(N). If this
+  // artifact isn't in the timeline (race condition during a fresh run),
+  // fall back to N/A and keep totalVersions at 0 so the cover hides it.
+  const sameTypeTimeline = (timeline ?? []).filter((a) => a.type === data.type)
+  const totalVersions = sameTypeTimeline.length
+  const idxFromEnd = sameTypeTimeline.findIndex((a) => a.id === artifactId)
+  const versionNumber = idxFromEnd === -1 ? null : totalVersions - idxFromEnd
+  const versionLabel = versionNumber !== null
+    ? `v${versionNumber}${createdAt ? ` · ${formatDate(createdAt, locale, 'short')}` : ''}`
+    : createdAt ? formatDate(createdAt, locale, 'short') : data.id.slice(0, 12)
 
   // Pre-compute diff partner candidate: the most recent prior artifact of the
   // same type, surfaced by the Diff button. ArtifactDiff handles its own UI.
@@ -191,10 +197,10 @@ export function ArtifactDetailPage(): React.ReactElement {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '240px 1fr 280px',
-          maxWidth: 1480,
+          gridTemplateColumns: '184px 1fr 268px',
+          maxWidth: 1640,
           margin: '0 auto',
-          gap: 24,
+          gap: 18,
           padding: '0 24px 80px',
           alignItems: 'start',
         }}
@@ -216,7 +222,7 @@ export function ArtifactDetailPage(): React.ReactElement {
           />
         </div>
 
-        <ReportTOC entries={TOC} />
+        <ReportTOC entries={allChapterLabels(locale).map((c) => ({ id: c.id, num: c.num, title: c.title }))} />
 
         <main style={{ minWidth: 0, padding: '12px 0 60px' }}>
           <ChapterCover
@@ -226,15 +232,17 @@ export function ArtifactDetailPage(): React.ReactElement {
             artifactId={data.id}
             computeVersion={computeVersionStr}
             reportType={data.type}
+            versionNumber={versionNumber}
+            totalVersions={totalVersions}
           />
           <ChapterThesis thesis={thesis} />
           <ChapterCompanyOverview thesis={thesis} />
           <ChapterFinancialAnalysis dcf={dcf} rawData={inputs.raw_data ?? null} />
-          <ChapterValuation dcf={dcf} thesis={thesis} />
+          <ChapterValuation dcf={dcf} thesis={thesis} ticker={symbol} />
           <ChapterNews thesis={thesis} />
           <ChapterSensitivity dcf={dcf} />
           <ChapterCatalysts catalysts={catalysts} thesis={thesis} />
-          <ChapterTechnical ticker={symbol} />
+          <ChapterTechnical ticker={symbol} technical={technical} />
           <ChapterCompetitive peers={peers} thesis={thesis} />
           <ChapterFinancialData
             rawData={inputs.raw_data ?? null}
@@ -286,39 +294,6 @@ export function ArtifactDetailPage(): React.ReactElement {
             </section>
           ) : null}
 
-          <div
-            style={{
-              marginTop: 40,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: 16,
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => navigate(`/stocks/${symbol}`)}
-              style={navBtnStyle}
-            >
-              ← 回 {symbol} 工作区
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                // navigate(-1) jumps out of the SPA entirely when the user
-                // landed here from a bookmark / direct link / fresh tab
-                // (no history stack). Fall back to landing in that case.
-                if (window.history.length > 1) {
-                  navigate(-1)
-                } else {
-                  navigate('/stocks')
-                }
-              }}
-              style={navBtnStyle}
-            >
-              上一页
-            </button>
-          </div>
         </main>
 
         <ReportRightRail
@@ -328,6 +303,7 @@ export function ArtifactDetailPage(): React.ReactElement {
           reportType={data.type}
           wacc={dcf?.wacc ?? null}
           terminalGrowth={dcf?.inputs?.terminal_growth_rate ?? null}
+          originalImpliedPrice={dcf?.implied_price ?? null}
         />
       </div>
 
@@ -348,6 +324,10 @@ export function ArtifactDetailPage(): React.ReactElement {
           onClose={() => setDiffPartner(null)}
         />
       )}
+
+      <ReportStatusBar
+        entries={allChapterLabels(locale).map((c) => ({ id: c.id, num: c.num, title: c.title }))}
+      />
     </div>
   )
 }
@@ -371,13 +351,3 @@ function CenterMessage({ title, body }: { title: string; body: string }): React.
   )
 }
 
-const navBtnStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 12,
-  color: 'var(--text-muted)',
-  background: 'transparent',
-  border: '1px solid var(--border-soft)',
-  borderRadius: 8,
-  padding: '8px 14px',
-  cursor: 'pointer',
-}

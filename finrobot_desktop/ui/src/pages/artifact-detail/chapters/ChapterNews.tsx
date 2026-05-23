@@ -10,12 +10,7 @@ export function ChapterNews({ thesis }: { thesis: ThesisShape | null }): React.R
   const summary = thesis?.news_summary ?? null
 
   return (
-    <Chapter
-      id="news"
-      num="05"
-      title="Recent News &amp; Events"
-      sub="30-Day Newsflow Synthesis"
-    >
+    <Chapter id="news">
       {summary ? (
         <Narrative>
           <p>{summary}</p>

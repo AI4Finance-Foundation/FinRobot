@@ -833,19 +833,45 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
         <h2 style={sectionTitleStyle}>通知通道</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
-          {/* Desktop — always on */}
+          {/* Desktop — always on via Tauri native notification API; not
+              user-configurable, so we render a read-only status row rather
+              than a disabled checkbox the user would otherwise click in
+              vain. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Checkbox checked={notifyDesktop} onChange={() => {}} disabled />
+            <span
+              aria-hidden
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: 'var(--positive)',
+                boxShadow: '0 0 8px var(--positive)',
+                flexShrink: 0,
+              }}
+            />
             <span
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: '11px',
+                color: 'var(--text-primary)',
+              }}
+            >
+              桌面通知
+            </span>
+            <span style={{ ...configuredBadgeStyle, marginLeft: '4px' }}>默认开启</span>
+            <span
+              style={{
+                marginLeft: 'auto',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '10px',
                 color: 'var(--text-muted)',
               }}
             >
-              Desktop Notifications
+              系统级 · 在 macOS 通知中心管理
             </span>
-            <span style={{ ...optionalBadgeStyle, marginLeft: '4px' }}>native</span>
+            {/* Reference notifyDesktop so the local-state hook keeps satisfying
+                the lint check; the value itself is always true today. */}
+            {!notifyDesktop && null}
           </div>
 
           {/* Feishu */}

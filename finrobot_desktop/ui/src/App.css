@@ -3261,14 +3261,14 @@ select.input-field {
   border: 1px solid var(--border); outline: none;
 }
 .ai-model:hover { color: var(--text-primary); border-color: var(--accent); }
-.ai-close {
+.ai-icon-btn {
   background: transparent; border: none;
   color: var(--text-3); cursor: pointer;
   width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 3px; font-size: 16px;
 }
-.ai-close:hover { background: var(--bg-3); color: var(--text-0); }
+.ai-icon-btn:hover { background: var(--bg-3); color: var(--text-0); }
 
 /* 上下文条 — 隐藏，功能未完成 */
 .ai-context {

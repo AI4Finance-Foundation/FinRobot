@@ -30,15 +30,32 @@ const MAX_INPUT_LENGTH = 20_000
 // Context-aware suggestion chips per route
 // ──────────────────────────────────────────────────────────────
 
-// v5 (spec §11.1.C): /dashboard /playground /journal /library are retired
-// (the redirect handler in router.tsx turns them into a toast + a hop to
-// /stocks). The chip map drops to two live routes; the Stocks-page chips
-// keep their previous list since that's where 90% of the suggestion traffic
-// goes.
-const ROUTE_CHIPS: Record<string, string[]> = {
-  '/stocks':     ['解释 DCF 假设', '对比同业竞争', '蒙特卡洛模拟', '10-K 问答'],
-  '/settings':   ['检查 API 状态', '数据覆盖范围'],
-}
+// Suggestion chips per route. Patterns are tested in order; first match
+// wins. The artifact-detail surface gets its own report-aware chips so the
+// AI panel suggests questions about *this* report rather than the workspace
+// generic ones.
+const ROUTE_CHIP_PATTERNS: Array<{ test: (path: string) => boolean; chips: string[] }> = [
+  // /stocks/:ticker/runs/:artifactId — 12-chapter report detail
+  {
+    test: (p) => /^\/stocks\/[^/]+\/runs\//.test(p),
+    chips: ['解释这份研报的 DCF 假设', '对比同期竞争对手估值', '哪些催化剂最值得跟踪', '与上一版有何差异'],
+  },
+  // /stocks/:ticker — ticker workspace
+  {
+    test: (p) => /^\/stocks\/[^/]+$/.test(p),
+    chips: ['解释 DCF 假设', '对比同业竞争', '蒙特卡洛模拟', '10-K 问答'],
+  },
+  // /stocks landing
+  {
+    test: (p) => p === '/stocks',
+    chips: ['搜一个新股票', '解释 DCF / LBO / Comps', 'FinAgent 怎么用'],
+  },
+  // /settings
+  {
+    test: (p) => p.startsWith('/settings'),
+    chips: ['检查 API 状态', '数据覆盖范围'],
+  },
+]
 
 // ──────────────────────────────────────────────────────────────
 // MODELS — aligned to prototype.  Legacy values 'deepseek' / 'anthropic' / 'openai'
@@ -257,11 +274,8 @@ export function AiChatTab({
   // ── Route-aware chips ────────────────────────────────────────
   const location = useLocation()
   const routeChips = useMemo((): string[] => {
-    // Match on pathname prefix so /stocks/AAPL → /stocks chips
-    const match = Object.keys(ROUTE_CHIPS).find((route) =>
-      location.pathname === route || location.pathname.startsWith(route + '/'),
-    )
-    return match ? ROUTE_CHIPS[match] : []
+    const match = ROUTE_CHIP_PATTERNS.find((p) => p.test(location.pathname))
+    return match ? match.chips : []
   }, [location.pathname])
 
   // ── Handle expand toggle for collapsed state ─────────────────
@@ -418,7 +432,7 @@ function AiPanelHeader({
         data-testid="new-session-btn"
         onClick={onNewSession}
         title={t('chat.newSession')}
-        className="ai-close"
+        className="ai-icon-btn"
         style={{ fontSize: '13px' }}
         type="button"
       >
@@ -430,7 +444,7 @@ function AiPanelHeader({
         data-testid="collapse-btn"
         onClick={onToggle}
         title={t('chat.collapse')}
-        className="ai-close"
+        className="ai-icon-btn"
         type="button"
       >
         ×
@@ -538,9 +552,11 @@ function MessageList({
 
 function MessageBubble({ message }: { message: UIMessage }): React.ReactElement {
   const isUser = message.role === 'user'
-  const now = new Date()
-  // HH:MM — locale-invariant 24h format works for both zh and en chat surfaces.
-  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  // Read the SDK-supplied createdAt instead of new Date() — the latter
+  // re-runs on every render so all historical messages would show "now".
+  // Old messages persisted before createdAt was wired may be missing it;
+  // in that case we drop the timestamp rather than fabricate one.
+  const timeStr = formatMessageTime(message.createdAt)
 
   return (
     <div
@@ -548,7 +564,9 @@ function MessageBubble({ message }: { message: UIMessage }): React.ReactElement 
       className={`msg ${isUser ? 'user' : 'agent'}`}
     >
       <div className="msg-head">
-        {isUser ? `USER · ${timeStr}` : `● FINAGENT · ${timeStr}`}
+        {isUser
+          ? timeStr ? `USER · ${timeStr}` : 'USER'
+          : timeStr ? `● FINAGENT · ${timeStr}` : '● FINAGENT'}
       </div>
       {isUser ? (
         <UserBubble message={message} />
@@ -557,6 +575,13 @@ function MessageBubble({ message }: { message: UIMessage }): React.ReactElement 
       )}
     </div>
   )
+}
+
+function formatMessageTime(createdAt: Date | undefined): string {
+  if (!createdAt) return ''
+  const d = createdAt instanceof Date ? createdAt : new Date(createdAt)
+  if (Number.isNaN(d.getTime())) return ''
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 function UserBubble({ message }: { message: UIMessage }): React.ReactElement {

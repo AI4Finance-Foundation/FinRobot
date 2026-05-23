@@ -58,16 +58,19 @@ export default function EarningsCallPanel({ ticker: tickerProp }: EarningsCallPa
         <div className="card-header">
           <span className="card-title">财报电话会逐字稿</span>
         </div>
-        <div className="card-body" style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: 120,
-          color: 'var(--text-muted)',
-          fontSize: '0.82rem',
-          textAlign: 'center',
-          padding: 'var(--sp-6)',
-        }}>
+        <div
+          className="card-body"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: 120,
+            color: 'var(--text-muted)',
+            fontSize: '0.82rem',
+            textAlign: 'center',
+            padding: 'var(--sp-6)',
+          }}
+        >
           {msg}
         </div>
       </div>
@@ -83,7 +86,10 @@ export default function EarningsCallPanel({ ticker: tickerProp }: EarningsCallPa
           <span className="card-title">财报电话会逐字稿</span>
         </div>
         <div className="card-body" style={{ padding: 'var(--sp-4)' }}>
-          <div className="skeleton" style={{ width: '100%', height: 200, borderRadius: 'var(--r-md)' }} />
+          <div
+            className="skeleton"
+            style={{ width: '100%', height: 200, borderRadius: 'var(--r-md)' }}
+          />
         </div>
       </div>
     )
@@ -97,14 +103,17 @@ export default function EarningsCallPanel({ ticker: tickerProp }: EarningsCallPa
         <div className="card-header">
           <span className="card-title">财报电话会逐字稿</span>
         </div>
-        <div className="card-body" style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: 120,
-          color: 'var(--text-muted)',
-          fontSize: '0.82rem',
-        }}>
+        <div
+          className="card-body"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: 120,
+            color: 'var(--text-muted)',
+            fontSize: '0.82rem',
+          }}
+        >
           No earnings call transcripts available for {ticker}.
         </div>
       </div>
@@ -121,14 +130,16 @@ export default function EarningsCallPanel({ ticker: tickerProp }: EarningsCallPa
       </div>
       <div className="card-body" style={{ padding: 0 }}>
         {/* Quarter selector */}
-        <div style={{
-          display: 'flex',
-          gap: 'var(--sp-2)',
-          padding: 'var(--sp-3) var(--sp-4)',
-          borderBottom: '1px solid var(--border-subtle)',
-          overflowX: 'auto',
-          flexWrap: 'wrap',
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 'var(--sp-2)',
+            padding: 'var(--sp-3) var(--sp-4)',
+            borderBottom: '1px solid var(--border-subtle)',
+            overflowX: 'auto',
+            flexWrap: 'wrap',
+          }}
+        >
           {transcripts.map((t, i) => (
             <button
               key={`${t.year}-Q${t.quarter}`}
@@ -154,27 +165,31 @@ export default function EarningsCallPanel({ ticker: tickerProp }: EarningsCallPa
 
         {/* Date info */}
         {selected.date && (
-          <div style={{
-            padding: 'var(--sp-2) var(--sp-4)',
-            fontSize: '0.72rem',
-            color: 'var(--text-muted)',
-            borderBottom: '1px solid var(--border-subtle)',
-          }}>
+          <div
+            style={{
+              padding: 'var(--sp-2) var(--sp-4)',
+              fontSize: '0.72rem',
+              color: 'var(--text-muted)',
+              borderBottom: '1px solid var(--border-subtle)',
+            }}
+          >
             {formatDate(selected.date, locale, 'long')}
           </div>
         )}
 
         {/* Transcript content */}
-        <div style={{
-          padding: 'var(--sp-4)',
-          maxHeight: 400,
-          overflowY: 'auto',
-          fontSize: '0.8rem',
-          lineHeight: 1.7,
-          color: 'var(--text-primary)',
-          whiteSpace: 'pre-wrap',
-          fontFamily: 'var(--font-ui)',
-        }}>
+        <div
+          style={{
+            padding: 'var(--sp-4)',
+            maxHeight: 400,
+            overflowY: 'auto',
+            fontSize: '0.8rem',
+            lineHeight: 1.7,
+            color: 'var(--text-primary)',
+            whiteSpace: 'pre-wrap',
+            fontFamily: 'var(--font-ui)',
+          }}
+        >
           {selected.content
             ? selected.content
             : 'Transcript content not available for this quarter.'}

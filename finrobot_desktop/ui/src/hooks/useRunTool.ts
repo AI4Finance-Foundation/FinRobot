@@ -35,15 +35,15 @@ import { useI18n } from '../i18n'
 // ── Tool → tab mapping ────────────────────────────────────────────────────────
 
 const TOOL_TAB_MAP: Record<ToolName, import('../stores/stocksStore').StocksTab> = {
-  research:   'overview',
-  dcf:        'valuation',
-  lbo:        'valuation',
-  comps:      'comps',
-  catalysts:  'news',
-  'ic-memo':  'history',
-  ddm:        'valuation',
-  earnings:   'financials',
-  'ask-ai':   'overview',
+  research: 'overview',
+  dcf: 'valuation',
+  lbo: 'valuation',
+  comps: 'comps',
+  catalysts: 'news',
+  'ic-memo': 'history',
+  ddm: 'valuation',
+  earnings: 'financials',
+  'ask-ai': 'overview',
 }
 
 // ── Error helper ─────────────────────────────────────────────────────────────
@@ -77,7 +77,14 @@ type RunResult =
       reverseWacc: DcfReverseResult | null
     }
   | { kind: 'lbo'; result: LBOResult; ticker: string }
-  | { kind: 'run'; runId: string; ticker: string; timedOut: boolean; pipelineType: string; detail: RunDetailPayload | null }
+  | {
+      kind: 'run'
+      runId: string
+      ticker: string
+      timedOut: boolean
+      pipelineType: string
+      detail: RunDetailPayload | null
+    }
   | { kind: 'noop' }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -157,7 +164,12 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
           return { kind: 'lbo', result: seed.result, ticker: tickerAtDispatch }
         }
 
-        if (toolName === 'comps' || toolName === 'ic-memo' || toolName === 'ddm' || toolName === 'earnings') {
+        if (
+          toolName === 'comps' ||
+          toolName === 'ic-memo' ||
+          toolName === 'ddm' ||
+          toolName === 'earnings'
+        ) {
           // DDM pre-check: only suitable for bank/financial stocks
           if (toolName === 'ddm') {
             const finCheck = await fetch(`${BASE_URL}/api/data/${tickerAtDispatch}/financials`)
@@ -166,17 +178,21 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
               const market = (finData.market ?? {}) as Record<string, unknown>
               const sector = (market.sector as string) ?? ''
               const industry = (market.industry as string) ?? ''
-              const isBank = ['Financial Services', 'Financials'].includes(sector)
-                && industry.toLowerCase().includes('bank')
+              const isBank =
+                ['Financial Services', 'Financials'].includes(sector) &&
+                industry.toLowerCase().includes('bank')
               const isBankIndustry = [
-                'Banks—Diversified', 'Banks—Regional', 'Banks - Diversified',
-                'Banks - Regional', 'Savings & Cooperative Banks',
+                'Banks—Diversified',
+                'Banks—Regional',
+                'Banks - Diversified',
+                'Banks - Regional',
+                'Savings & Cooperative Banks',
               ].includes(industry)
               if (!isBank && !isBankIndustry) {
                 throw new Error(
                   `DDM 不适用于 ${tickerAtDispatch}（${sector} / ${industry}）。` +
-                  `DDM 是股息折现模型，专为银行和高分红金融股设计。` +
-                  `请使用 DCF 或 LBO 进行估值。`
+                    `DDM 是股息折现模型，专为银行和高分红金融股设计。` +
+                    `请使用 DCF 或 LBO 进行估值。`,
                 )
               }
             }
@@ -215,7 +231,14 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
               detail = (await fullResp.json()) as RunDetailPayload
             }
           }
-          return { kind: 'run', runId: run_id, ticker: tickerAtDispatch, timedOut: !completed, pipelineType: pipeline, detail }
+          return {
+            kind: 'run',
+            runId: run_id,
+            ticker: tickerAtDispatch,
+            timedOut: !completed,
+            pipelineType: pipeline,
+            detail,
+          }
         }
 
         if (toolName === 'catalysts') {
@@ -249,13 +272,17 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
           const pt = data.pipelineType
 
           if (pt === 'comps') {
-            const comps = (structured.statistical_bench ?? structured.peer_comps) as CompsResult | undefined
+            const comps = (structured.statistical_bench ?? structured.peer_comps) as
+              | CompsResult
+              | undefined
             if (comps) setCompsResult(comps)
           } else if (pt === 'earnings') {
             const earnings = structured.earnings_data as EarningsResult | undefined
             if (earnings) setEarningsResult(earnings)
           } else if (pt === 'ic-memo') {
-            const financialAnalysis = structured.financial_analysis as Record<string, unknown> | undefined
+            const financialAnalysis = structured.financial_analysis as
+              | Record<string, unknown>
+              | undefined
             let irr: number | null = null
             if (financialAnalysis?.lbo_result && typeof financialAnalysis.lbo_result === 'object') {
               irr = (financialAnalysis.lbo_result as Record<string, unknown>).irr as number | null
@@ -277,7 +304,9 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
             setIcMemoResult(icMemo)
           } else if (pt === 'ddm') {
             // DDM results go to valuation — structured may contain dcf-like output
-            const dcfCalc = (structured.dcf_calc ?? Object.values(structured)[0]) as DCFResult | undefined
+            const dcfCalc = (structured.dcf_calc ?? Object.values(structured)[0]) as
+              | DCFResult
+              | undefined
             if (dcfCalc) setDcfResult(dcfCalc, 'standalone')
           }
         }

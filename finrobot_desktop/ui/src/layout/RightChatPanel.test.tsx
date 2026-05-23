@@ -209,10 +209,7 @@ describe('RightChatPanel — collapse / expand', () => {
     render(
       <MemoryRouter>
         <Routes>
-          <Route
-            path="/"
-            element={<RightChatPanel expanded onToggle={onToggle} />}
-          />
+          <Route path="/" element={<RightChatPanel expanded onToggle={onToggle} />} />
         </Routes>
       </MemoryRouter>,
     )
@@ -225,10 +222,7 @@ describe('RightChatPanel — collapse / expand', () => {
     render(
       <MemoryRouter>
         <Routes>
-          <Route
-            path="/"
-            element={<RightChatPanel expanded={false} onToggle={onToggle} />}
-          />
+          <Route path="/" element={<RightChatPanel expanded={false} onToggle={onToggle} />} />
         </Routes>
       </MemoryRouter>,
     )
@@ -253,10 +247,7 @@ describe('RightChatPanel — unread badge', () => {
     const { rerender } = render(
       <MemoryRouter>
         <Routes>
-          <Route
-            path="/"
-            element={<RightChatPanel expanded={false} onToggle={onToggle} />}
-          />
+          <Route path="/" element={<RightChatPanel expanded={false} onToggle={onToggle} />} />
         </Routes>
       </MemoryRouter>,
     )
@@ -269,10 +260,7 @@ describe('RightChatPanel — unread badge', () => {
     rerender(
       <MemoryRouter>
         <Routes>
-          <Route
-            path="/"
-            element={<RightChatPanel expanded={false} onToggle={onToggle} />}
-          />
+          <Route path="/" element={<RightChatPanel expanded={false} onToggle={onToggle} />} />
         </Routes>
       </MemoryRouter>,
     )
@@ -601,12 +589,11 @@ describe('RightChatPanel — model selector', () => {
     expect(screen.getByTestId('model-selector')).toBeInTheDocument()
   })
 
-  it('model selector defaults to Claude Sonnet label', () => {
+  it('model selector defaults to DeepSeek Chat label', () => {
     renderPanel()
     const badge = screen.getByTestId('model-selector')
-    // Model selector is now a read-only span showing the human label.
-    // Default local model is 'anthropic' → label 'Claude Sonnet'.
-    expect(badge.textContent).toBe('Claude Sonnet')
+    // Read-only badge shows the store's currentModel default ('deepseek').
+    expect(badge.textContent).toBe('DeepSeek Chat')
   })
 
   it('model badge is read-only (configured via Settings)', () => {

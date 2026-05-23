@@ -105,7 +105,10 @@ export function StockWorkspace(): React.ReactElement {
   }
 
   return (
-    <div data-testid="stock-workspace" style={{ minHeight: '100vh', position: 'relative', zIndex: 1 }}>
+    <div
+      data-testid="stock-workspace"
+      style={{ minHeight: '100vh', position: 'relative', zIndex: 1 }}
+    >
       <TickerHero ticker={symbol} />
       <main
         style={{

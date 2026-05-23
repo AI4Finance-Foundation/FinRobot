@@ -47,7 +47,8 @@ export function ChapterSensitivity({ dcf }: { dcf: DcfShape | null }): React.Rea
           DCF anchors on four pivots:
           {inputs?.revenue_growth_rates && inputs.revenue_growth_rates.length > 0 && (
             <>
-              {' '}revenue CAGR{' '}
+              {' '}
+              revenue CAGR{' '}
               <strong style={{ color: 'var(--text-primary)' }}>
                 {(meanArray(inputs.revenue_growth_rates) * 100).toFixed(1)}%
               </strong>
@@ -56,7 +57,8 @@ export function ChapterSensitivity({ dcf }: { dcf: DcfShape | null }): React.Rea
           )}
           {inputs?.ebitda_margin !== undefined && (
             <>
-              {' '}terminal EBITDA margin{' '}
+              {' '}
+              terminal EBITDA margin{' '}
               <strong style={{ color: 'var(--text-primary)' }}>
                 {(inputs.ebitda_margin * 100).toFixed(1)}%
               </strong>
@@ -65,7 +67,8 @@ export function ChapterSensitivity({ dcf }: { dcf: DcfShape | null }): React.Rea
           )}
           {dcf?.wacc !== undefined && (
             <>
-              {' '}WACC{' '}
+              {' '}
+              WACC{' '}
               <strong style={{ color: 'var(--text-primary)' }}>
                 {(dcf.wacc * 100).toFixed(2)}%
               </strong>
@@ -74,7 +77,8 @@ export function ChapterSensitivity({ dcf }: { dcf: DcfShape | null }): React.Rea
           )}
           {inputs?.terminal_growth_rate !== undefined && (
             <>
-              {' '}terminal growth{' '}
+              {' '}
+              terminal growth{' '}
               <strong style={{ color: 'var(--text-primary)' }}>
                 {(inputs.terminal_growth_rate * 100).toFixed(2)}%
               </strong>
@@ -96,9 +100,11 @@ export function ChapterSensitivity({ dcf }: { dcf: DcfShape | null }): React.Rea
 
       <SubChapter heading="Sensitivity Notes">
         <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
-          Target valuation is most sensitive to <strong style={{ color: 'var(--text-primary)' }}>terminal EBIT margin</strong>{' '}
-          and <strong style={{ color: 'var(--text-primary)' }}>terminal growth rate</strong>. WACC sensitivity is asymmetric due to
-          non-linear discount-rate compounding. Revenue CAGR has comparatively muted impact unless paired with margin compression.
+          Target valuation is most sensitive to{' '}
+          <strong style={{ color: 'var(--text-primary)' }}>terminal EBIT margin</strong> and{' '}
+          <strong style={{ color: 'var(--text-primary)' }}>terminal growth rate</strong>. WACC
+          sensitivity is asymmetric due to non-linear discount-rate compounding. Revenue CAGR has
+          comparatively muted impact unless paired with margin compression.
         </p>
       </SubChapter>
     </Chapter>

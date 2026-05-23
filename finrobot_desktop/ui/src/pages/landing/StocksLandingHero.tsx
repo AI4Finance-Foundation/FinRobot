@@ -90,8 +90,7 @@ export function StocksLandingHero(): React.ReactElement {
           zIndex: 0,
           opacity: 0.55,
           pointerEvents: 'none',
-          maskImage:
-            'radial-gradient(ellipse at 60% 45%, black 0%, black 60%, transparent 90%)',
+          maskImage: 'radial-gradient(ellipse at 60% 45%, black 0%, black 60%, transparent 90%)',
           WebkitMaskImage:
             'radial-gradient(ellipse at 60% 45%, black 0%, black 60%, transparent 90%)',
         }}
@@ -178,7 +177,9 @@ export function StocksLandingHero(): React.ReactElement {
               borderRadius: 'var(--radius-md)',
             }}
           >
-            <span style={{ color: 'var(--text-muted)', fontSize: 14 }} aria-hidden>⌕</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 14 }} aria-hidden>
+              ⌕
+            </span>
             <input
               type="text"
               value={inputValue}

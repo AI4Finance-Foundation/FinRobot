@@ -12,16 +12,16 @@
 //   - Dates ⇒ ISO "YYYY-MM-DD" short form everywhere; long form follows locale
 //   - Currency ⇒ Intl.NumberFormat handles symbol placement ($1.23 vs ￥1.23)
 
-import type { Locale } from "../i18n"
+import type { Locale } from '../i18n'
 
 const NF_LOCALE: Record<Locale, string> = {
-  zh: "zh-CN",
-  en: "en-US",
+  zh: 'zh-CN',
+  en: 'en-US',
 }
 
 /** Default-decimals number with grouping. e.g. `1,234.56` */
 export function formatNumber(n: number | null | undefined, locale: Locale, digits = 2): string {
-  if (n === null || n === undefined || Number.isNaN(n)) return "—"
+  if (n === null || n === undefined || Number.isNaN(n)) return '—'
   return new Intl.NumberFormat(NF_LOCALE[locale], {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
@@ -30,7 +30,7 @@ export function formatNumber(n: number | null | undefined, locale: Locale, digit
 
 /** Integer with grouping; no fractional part. e.g. `1,234` */
 export function formatInteger(n: number | null | undefined, locale: Locale): string {
-  if (n === null || n === undefined || Number.isNaN(n)) return "—"
+  if (n === null || n === undefined || Number.isNaN(n)) return '—'
   return new Intl.NumberFormat(NF_LOCALE[locale], { maximumFractionDigits: 0 }).format(n)
 }
 
@@ -43,18 +43,18 @@ export function formatInteger(n: number | null | undefined, locale: Locale): str
  * Below the first threshold falls back to formatInteger.
  */
 export function formatCompactNumber(n: number | null | undefined, locale: Locale): string {
-  if (n === null || n === undefined || Number.isNaN(n)) return "—"
+  if (n === null || n === undefined || Number.isNaN(n)) return '—'
   const abs = Math.abs(n)
-  if (locale === "zh") {
-    if (abs >= 1e12) return (n / 1e12).toFixed(2) + " 万亿"
-    if (abs >= 1e8) return (n / 1e8).toFixed(2) + " 亿"
-    if (abs >= 1e4) return (n / 1e4).toFixed(1) + " 万"
+  if (locale === 'zh') {
+    if (abs >= 1e12) return (n / 1e12).toFixed(2) + ' 万亿'
+    if (abs >= 1e8) return (n / 1e8).toFixed(2) + ' 亿'
+    if (abs >= 1e4) return (n / 1e4).toFixed(1) + ' 万'
     return formatInteger(n, locale)
   }
-  if (abs >= 1e12) return (n / 1e12).toFixed(2) + "T"
-  if (abs >= 1e9) return (n / 1e9).toFixed(2) + "B"
-  if (abs >= 1e6) return (n / 1e6).toFixed(2) + "M"
-  if (abs >= 1e3) return (n / 1e3).toFixed(1) + "K"
+  if (abs >= 1e12) return (n / 1e12).toFixed(2) + 'T'
+  if (abs >= 1e9) return (n / 1e9).toFixed(2) + 'B'
+  if (abs >= 1e6) return (n / 1e6).toFixed(2) + 'M'
+  if (abs >= 1e3) return (n / 1e3).toFixed(1) + 'K'
   return formatInteger(n, locale)
 }
 
@@ -68,10 +68,10 @@ export function formatPercent(
   digits = 1,
   alreadyPercent = false,
 ): string {
-  if (n === null || n === undefined || Number.isNaN(n)) return "—"
+  if (n === null || n === undefined || Number.isNaN(n)) return '—'
   const ratio = alreadyPercent ? n / 100 : n
   return new Intl.NumberFormat(NF_LOCALE[locale], {
-    style: "percent",
+    style: 'percent',
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   }).format(ratio)
@@ -87,9 +87,9 @@ export function formatCurrency(
   locale: Locale,
   digits = 2,
 ): string {
-  if (n === null || n === undefined || Number.isNaN(n)) return "—"
+  if (n === null || n === undefined || Number.isNaN(n)) return '—'
   return new Intl.NumberFormat(NF_LOCALE[locale], {
-    style: "currency",
+    style: 'currency',
     currency,
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
@@ -105,46 +105,46 @@ export function formatCurrency(
 export function formatDate(
   d: Date | string | number | null | undefined,
   locale: Locale,
-  style: "short" | "long" | "datetime" = "short",
+  style: 'short' | 'long' | 'datetime' = 'short',
 ): string {
-  if (d === null || d === undefined) return "—"
-  const date = typeof d === "string" || typeof d === "number" ? new Date(d) : d
-  if (Number.isNaN(date.getTime())) return "—"
+  if (d === null || d === undefined) return '—'
+  const date = typeof d === 'string' || typeof d === 'number' ? new Date(d) : d
+  if (Number.isNaN(date.getTime())) return '—'
 
-  if (style === "short") {
+  if (style === 'short') {
     // ISO YYYY-MM-DD — locale-invariant and column-aligned for tables.
     const y = date.getFullYear()
-    const m = String(date.getMonth() + 1).padStart(2, "0")
-    const day = String(date.getDate()).padStart(2, "0")
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
     return `${y}-${m}-${day}`
   }
 
-  if (style === "long") {
-    if (locale === "zh") {
+  if (style === 'long') {
+    if (locale === 'zh') {
       return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
     }
     return new Intl.DateTimeFormat(NF_LOCALE[locale], {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
     }).format(date)
   }
 
   // datetime
-  if (locale === "zh") {
+  if (locale === 'zh') {
     const y = date.getFullYear()
-    const mo = String(date.getMonth() + 1).padStart(2, "0")
-    const day = String(date.getDate()).padStart(2, "0")
-    const h = String(date.getHours()).padStart(2, "0")
-    const min = String(date.getMinutes()).padStart(2, "0")
+    const mo = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const h = String(date.getHours()).padStart(2, '0')
+    const min = String(date.getMinutes()).padStart(2, '0')
     return `${y}-${mo}-${day} ${h}:${min}`
   }
   return new Intl.DateTimeFormat(NF_LOCALE[locale], {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   }).format(date)
 }
 
@@ -157,9 +157,9 @@ export function formatRelativeTime(
   locale: Locale,
   now: Date = new Date(),
 ): string {
-  if (d === null || d === undefined) return "—"
-  const date = typeof d === "string" || typeof d === "number" ? new Date(d) : d
-  if (Number.isNaN(date.getTime())) return "—"
+  if (d === null || d === undefined) return '—'
+  const date = typeof d === 'string' || typeof d === 'number' ? new Date(d) : d
+  if (Number.isNaN(date.getTime())) return '—'
 
   const diffMs = now.getTime() - date.getTime()
   const sec = Math.round(diffMs / 1000)
@@ -167,16 +167,16 @@ export function formatRelativeTime(
   const hr = Math.round(min / 60)
   const day = Math.round(hr / 24)
 
-  if (locale === "zh") {
-    if (sec < 60) return "刚刚"
+  if (locale === 'zh') {
+    if (sec < 60) return '刚刚'
     if (min < 60) return `${min} 分钟前`
     if (hr < 24) return `${hr} 小时前`
     if (day < 30) return `${day} 天前`
-    return formatDate(date, locale, "short")
+    return formatDate(date, locale, 'short')
   }
-  if (sec < 60) return "just now"
+  if (sec < 60) return 'just now'
   if (min < 60) return `${min} min ago`
   if (hr < 24) return `${hr}h ago`
   if (day < 30) return `${day}d ago`
-  return formatDate(date, locale, "short")
+  return formatDate(date, locale, 'short')
 }

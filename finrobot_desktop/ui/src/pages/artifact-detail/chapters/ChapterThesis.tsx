@@ -52,7 +52,13 @@ export function ChapterThesis({ thesis }: { thesis: ThesisShape | null }): React
             </span>
           )}
           {target !== null && (
-            <span style={{ fontSize: 22, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+            <span
+              style={{
+                fontSize: 22,
+                color: 'var(--text-primary)',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
               目标 ${target.toFixed(2)}
             </span>
           )}

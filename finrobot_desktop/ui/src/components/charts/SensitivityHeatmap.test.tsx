@@ -7,8 +7,8 @@ const SAMPLE_DATA = [
   { wacc: 0.08, tg: 0.025, implied_price: 170 },
   { wacc: 0.09, tg: 0.02, implied_price: 130 },
   { wacc: 0.09, tg: 0.025, implied_price: 145 },
-  { wacc: 0.10, tg: 0.02, implied_price: 110 },
-  { wacc: 0.10, tg: 0.025, implied_price: 125 },
+  { wacc: 0.1, tg: 0.02, implied_price: 110 },
+  { wacc: 0.1, tg: 0.025, implied_price: 125 },
 ]
 
 describe('SensitivityHeatmap', () => {
@@ -24,7 +24,10 @@ describe('SensitivityHeatmap', () => {
 
   it('returns null for undefined data', () => {
     const { container } = render(
-      <SensitivityHeatmap data={undefined as unknown as Record<string, number | string | boolean | null>[]} title="Null" />
+      <SensitivityHeatmap
+        data={undefined as unknown as Record<string, number | string | boolean | null>[]}
+        title="Null"
+      />,
     )
     expect(container.firstChild).toBeNull()
   })

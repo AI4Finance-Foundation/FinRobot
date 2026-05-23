@@ -21,7 +21,10 @@ describe('PeerComparisonChart', () => {
 
   it('returns null for undefined data', () => {
     const { container } = render(
-      <PeerComparisonChart data={undefined as unknown as Record<string, number | string | boolean | null>[]} title="Null" />
+      <PeerComparisonChart
+        data={undefined as unknown as Record<string, number | string | boolean | null>[]}
+        title="Null"
+      />,
     )
     expect(container.firstChild).toBeNull()
   })

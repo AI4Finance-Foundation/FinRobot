@@ -67,40 +67,9 @@ function formatFetchedAt(iso: string | undefined): string {
   }
 }
 
-// ── Popover ───────────────────────────────────────────────────────────────────
-
-interface PopoverPosition {
-  top: boolean
-  right: boolean
-}
-
-function usePopoverPosition(
-  triggerRef: React.RefObject<HTMLElement | null>,
-): PopoverPosition {
-  const [pos, setPos] = useState<PopoverPosition>({ top: false, right: false })
-
-  const recalc = useCallback(() => {
-    if (!triggerRef.current) return
-    const rect = triggerRef.current.getBoundingClientRect()
-    const spaceBelow = window.innerHeight - rect.bottom
-    const spaceRight = window.innerWidth - rect.right
-    setPos({
-      top: spaceBelow < 180,
-      right: spaceRight < 220,
-    })
-  }, [triggerRef])
-
-  return { ...pos, recalc } as PopoverPosition & { recalc: () => void }
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function SourcedNumber({
-  value,
-  source,
-  format,
-  className,
-}: SourcedNumberProps) {
+export function SourcedNumber({ value, source, format, className }: SourcedNumberProps) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLSpanElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -206,13 +175,9 @@ export function SourcedNumber({
     lineHeight: 1.5,
     color: 'var(--text-secondary)',
     // Vertical positioning
-    ...(flipTop
-      ? { bottom: '100%', marginBottom: 6 }
-      : { top: '100%', marginTop: 6 }),
+    ...(flipTop ? { bottom: '100%', marginBottom: 6 } : { top: '100%', marginTop: 6 }),
     // Horizontal positioning
-    ...(flipRight
-      ? { right: 0 }
-      : { left: 0 }),
+    ...(flipRight ? { right: 0 } : { left: 0 }),
   }
 
   return (
@@ -257,16 +222,8 @@ export function SourcedNumber({
           {source.fetched_at && (
             <ProvRow label="抓取时间" value={formatFetchedAt(source.fetched_at)} />
           )}
-          {source.formula_id && (
-            <ProvRow label="公式" value={source.formula_id} mono />
-          )}
-          {source.formula_warning && (
-            <ProvRow
-              label="警告"
-              value={source.formula_warning}
-              warn
-            />
-          )}
+          {source.formula_id && <ProvRow label="公式" value={source.formula_id} mono />}
+          {source.formula_warning && <ProvRow label="警告" value={source.formula_warning} warn />}
           {source.artifact_id && ticker && (
             <div style={{ marginTop: 8 }}>
               <a
@@ -302,9 +259,7 @@ function ProvRow({
 }) {
   return (
     <div style={{ display: 'flex', gap: 6, marginBottom: 3 }}>
-      <span style={{ color: 'var(--text-muted)', minWidth: 56, flexShrink: 0 }}>
-        {label}:
-      </span>
+      <span style={{ color: 'var(--text-muted)', minWidth: 56, flexShrink: 0 }}>{label}:</span>
       <span
         style={{
           color: warn ? 'var(--negative)' : 'var(--text-primary)',

@@ -48,12 +48,20 @@ export default function CashFlowChart({ data, title }: ChartProps) {
           <ComposedChart data={enriched} barGap={2}>
             <XAxis
               dataKey="year"
-              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{
+                fill: 'var(--text-muted)',
+                fontSize: 11,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
               axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <YAxis
               tickFormatter={formatBillions}
-              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{
+                fill: 'var(--text-muted)',
+                fontSize: 11,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
               axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <Tooltip

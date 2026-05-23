@@ -15,8 +15,8 @@ interface CommandItem {
 interface FuzzyMatch {
   item: CommandItem
   score: number
-  indices: number[]        // matched char positions in label
-  descIndices: number[]    // matched char positions in description
+  indices: number[] // matched char positions in label
+  descIndices: number[] // matched char positions in description
 }
 
 interface Props {
@@ -120,9 +120,13 @@ function HighlightedText({ text, indices }: { text: string; indices: number[] })
     if (isMatch !== inMatch) {
       if (run) {
         parts.push(
-          inMatch
-            ? <mark key={i} className="cmd-match">{run}</mark>
-            : <span key={i}>{run}</span>
+          inMatch ? (
+            <mark key={i} className="cmd-match">
+              {run}
+            </mark>
+          ) : (
+            <span key={i}>{run}</span>
+          ),
         )
       }
       run = ''
@@ -132,9 +136,13 @@ function HighlightedText({ text, indices }: { text: string; indices: number[] })
   }
   if (run) {
     parts.push(
-      inMatch
-        ? <mark key={text.length} className="cmd-match">{run}</mark>
-        : <span key={text.length}>{run}</span>
+      inMatch ? (
+        <mark key={text.length} className="cmd-match">
+          {run}
+        </mark>
+      ) : (
+        <span key={text.length}>{run}</span>
+      ),
     )
   }
 
@@ -150,14 +158,7 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  const {
-    ticker,
-    phase,
-    setTicker,
-    setPhase,
-    setPipelineType,
-    setView,
-  } = useAppStore()
+  const { ticker, phase, setTicker, setPhase, setPipelineType, setView } = useAppStore()
 
   // Load recent on open
   useEffect(() => {
@@ -197,13 +198,22 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
     }
 
     // Pipeline commands (only when data is loaded)
-    const canSwitchPipeline = phase === 'data_ready' || phase === 'pipeline_done' || phase === 'interactive'
+    const canSwitchPipeline =
+      phase === 'data_ready' || phase === 'pipeline_done' || phase === 'interactive'
     if (canSwitchPipeline) {
       const pipelines: { type: PipelineType; label: string; desc: string }[] = [
-        { type: 'research', label: 'Run Equity Research', desc: 'Full investment thesis + price target' },
+        {
+          type: 'research',
+          label: 'Run Equity Research',
+          desc: 'Full investment thesis + price target',
+        },
         { type: 'dcf', label: 'Run DCF Analysis', desc: 'Discounted cash flow valuation' },
         { type: 'comps', label: 'Run Comps Analysis', desc: 'Peer comparison multiples' },
-        { type: 'earnings', label: 'Run Earnings Analysis', desc: 'Beat/miss history + surprise metrics' },
+        {
+          type: 'earnings',
+          label: 'Run Earnings Analysis',
+          desc: 'Beat/miss history + surprise metrics',
+        },
         { type: 'lbo', label: 'Run LBO Analysis', desc: 'Leveraged buyout returns (IRR/MOIC)' },
       ]
       for (const p of pipelines) {
@@ -300,7 +310,7 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
 
       if (labelMatch || descMatch) {
         const labelScore = labelMatch?.score ?? -100
-        const descScore = descMatch ? descMatch.score - 5 : -100  // prefer label matches
+        const descScore = descMatch ? descMatch.score - 5 : -100 // prefer label matches
         results.push({
           item: cmd,
           score: Math.max(labelScore, descScore),
@@ -332,7 +342,7 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
     }
 
     return Array.from(sectionMap.values()).sort(
-      (a, b) => (SECTION_ORDER[a.key] ?? 99) - (SECTION_ORDER[b.key] ?? 99)
+      (a, b) => (SECTION_ORDER[a.key] ?? 99) - (SECTION_ORDER[b.key] ?? 99),
     )
   }, [matches])
 
@@ -386,7 +396,7 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
           break
       }
     },
-    [flatItems, selectedIndex, onClose, execCommand]
+    [flatItems, selectedIndex, onClose, execCommand],
   )
 
   if (!open) return null
@@ -398,7 +408,15 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
       <div className="cmd-palette" onClick={(e) => e.stopPropagation()}>
         {/* Search input */}
         <div className="cmd-input-wrap">
-          <svg className="cmd-input-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <svg
+            className="cmd-input-icon"
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          >
             <circle cx="7" cy="7" r="4.5" />
             <path d="M10.5 10.5L14 14" />
           </svg>
@@ -416,7 +434,9 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
             autoComplete="off"
           />
           {query && (
-            <span className="cmd-result-count">{flatItems.length} result{flatItems.length !== 1 ? 's' : ''}</span>
+            <span className="cmd-result-count">
+              {flatItems.length} result{flatItems.length !== 1 ? 's' : ''}
+            </span>
           )}
           <kbd className="cmd-kbd">ESC</kbd>
         </div>
@@ -456,9 +476,7 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
                         </span>
                       )}
                     </div>
-                    {item.shortcut && (
-                      <kbd className="cmd-shortcut">{item.shortcut}</kbd>
-                    )}
+                    {item.shortcut && <kbd className="cmd-shortcut">{item.shortcut}</kbd>}
                   </div>
                 )
               })}
@@ -468,9 +486,16 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
 
         {/* Footer hint */}
         <div className="cmd-footer">
-          <span><kbd className="cmd-kbd-sm">&uarr;</kbd><kbd className="cmd-kbd-sm">&darr;</kbd> navigate</span>
-          <span><kbd className="cmd-kbd-sm">&crarr;</kbd> select</span>
-          <span><kbd className="cmd-kbd-sm">esc</kbd> close</span>
+          <span>
+            <kbd className="cmd-kbd-sm">&uarr;</kbd>
+            <kbd className="cmd-kbd-sm">&darr;</kbd> navigate
+          </span>
+          <span>
+            <kbd className="cmd-kbd-sm">&crarr;</kbd> select
+          </span>
+          <span>
+            <kbd className="cmd-kbd-sm">esc</kbd> close
+          </span>
         </div>
       </div>
     </div>
@@ -481,14 +506,30 @@ function CommandIcon({ type }: { type: string }) {
   switch (type) {
     case 'search':
       return (
-        <svg className="cmd-item-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3">
+        <svg
+          className="cmd-item-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+        >
           <circle cx="6" cy="6" r="4" />
           <path d="M9.5 9.5L12.5 12.5" />
         </svg>
       )
     case 'chart':
       return (
-        <svg className="cmd-item-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3">
+        <svg
+          className="cmd-item-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+        >
           <rect x="1" y="5" width="3" height="8" rx="0.5" />
           <rect x="5.5" y="2" width="3" height="11" rx="0.5" />
           <rect x="10" y="7" width="3" height="6" rx="0.5" />
@@ -496,20 +537,44 @@ function CommandIcon({ type }: { type: string }) {
       )
     case 'nav':
       return (
-        <svg className="cmd-item-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3">
+        <svg
+          className="cmd-item-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+        >
           <path d="M5 3l4 4-4 4" />
         </svg>
       )
     case 'settings':
       return (
-        <svg className="cmd-item-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3">
+        <svg
+          className="cmd-item-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+        >
           <circle cx="7" cy="7" r="2" />
           <path d="M7 1v2m0 8v2M1 7h2m8 0h2" />
         </svg>
       )
     case 'clock':
       return (
-        <svg className="cmd-item-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3">
+        <svg
+          className="cmd-item-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+        >
           <circle cx="7" cy="7" r="5.5" />
           <path d="M7 4v3.5l2.5 1.5" />
         </svg>

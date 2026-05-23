@@ -13,7 +13,7 @@
 //
 // The catalog keys live in i18n/locales/{zh,en}/messages.po under `errors.*`.
 
-import { tSync } from "../i18n"
+import { tSync } from '../i18n'
 
 /**
  * Typed HTTP error. Throw this from fetch wrappers instead of plain Error
@@ -25,11 +25,11 @@ export class FetchHttpError extends Error {
   readonly status: number
   readonly statusText: string
 
-  constructor(status: number, statusText = "") {
+  constructor(status: number, statusText = '') {
     // The dev-facing message is fine to keep technical; the UI never reads
     // err.message directly when going through mapErrorToUserMessage.
-    super(`HTTP ${status}${statusText ? ` ${statusText}` : ""}`)
-    this.name = "FetchHttpError"
+    super(`HTTP ${status}${statusText ? ` ${statusText}` : ''}`)
+    this.name = 'FetchHttpError'
     this.status = status
     this.statusText = statusText
   }
@@ -45,19 +45,19 @@ export class FetchHttpError extends Error {
 export function mapErrorToUserMessage(err: unknown): string {
   // Network failure — fetch couldn't get a response at all.
   if (err instanceof TypeError && /fetch|network/i.test(err.message)) {
-    return tSync("errors.network.offline")
+    return tSync('errors.network.offline')
   }
 
   // User cancelled (AbortController).
-  if (err instanceof DOMException && err.name === "AbortError") {
-    return tSync("errors.cancelled")
+  if (err instanceof DOMException && err.name === 'AbortError') {
+    return tSync('errors.cancelled')
   }
 
   // Typed HTTP error.
   if (err instanceof FetchHttpError) {
-    if (err.status >= 500) return tSync("errors.server.unavailable")
-    if (err.status === 404) return tSync("errors.notfound")
-    if (err.status >= 400) return tSync("errors.client.invalid")
+    if (err.status >= 500) return tSync('errors.server.unavailable')
+    if (err.status === 404) return tSync('errors.notfound')
+    if (err.status >= 400) return tSync('errors.client.invalid')
   }
 
   // Plain Error with a message. Heuristic: messages containing "HTTP <num>"
@@ -68,14 +68,14 @@ export function mapErrorToUserMessage(err: unknown): string {
     if (/^HTTP\s+\d{3}/i.test(msg.trim())) {
       const m = msg.match(/HTTP\s+(\d{3})/i)
       const status = m ? Number(m[1]) : 0
-      if (status >= 500) return tSync("errors.server.unavailable")
-      if (status === 404) return tSync("errors.notfound")
-      if (status >= 400) return tSync("errors.client.invalid")
+      if (status >= 500) return tSync('errors.server.unavailable')
+      if (status === 404) return tSync('errors.notfound')
+      if (status >= 400) return tSync('errors.client.invalid')
     }
     if (msg && msg.length > 0 && !/^Error$/i.test(msg)) {
       return msg
     }
   }
 
-  return tSync("errors.unknown")
+  return tSync('errors.unknown')
 }

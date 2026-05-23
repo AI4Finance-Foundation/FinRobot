@@ -124,7 +124,13 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
 }
 
 // ── Breadcrumb ─────────────────────────────────────────────────────────────
-function Breadcrumb({ ticker, locale }: { ticker: string; locale: 'zh' | 'en' }): React.ReactElement {
+function Breadcrumb({
+  ticker,
+  locale,
+}: {
+  ticker: string
+  locale: 'zh' | 'en'
+}): React.ReactElement {
   const linkStyle: React.CSSProperties = { color: 'inherit', textDecoration: 'none' }
   const stocksLabel = locale === 'en' ? 'Stocks' : '股票'
   return (
@@ -161,10 +167,10 @@ function Breadcrumb({ ticker, locale }: { ticker: string; locale: 'zh' | 'en' })
 function formatExchange(raw: string | null | undefined): string {
   if (!raw) return '美股'
   const lower = raw.toLowerCase()
-  if (lower.includes('nasdaq') || lower === 'nms' || lower === 'ngm' || lower === 'ncm') return 'NASDAQ'
+  if (lower.includes('nasdaq') || lower === 'nms' || lower === 'ngm' || lower === 'ncm')
+    return 'NASDAQ'
   if (lower.includes('nyse') || lower === 'nyq' || lower === 'nys') return 'NYSE'
   if (lower.includes('amex') || lower === 'pcx' || lower === 'ase') return 'AMEX'
   if (lower.includes('otc')) return 'OTC'
   return raw.toUpperCase()
 }
-

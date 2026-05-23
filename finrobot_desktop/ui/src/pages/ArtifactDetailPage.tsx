@@ -172,9 +172,12 @@ export function ArtifactDetailPage(): React.ReactElement {
   const totalVersions = sameTypeTimeline.length
   const idxFromEnd = sameTypeTimeline.findIndex((a) => a.id === artifactId)
   const versionNumber = idxFromEnd === -1 ? null : totalVersions - idxFromEnd
-  const versionLabel = versionNumber !== null
-    ? `v${versionNumber}${createdAt ? ` · ${formatDate(createdAt, locale, 'short')}` : ''}`
-    : createdAt ? formatDate(createdAt, locale, 'short') : data.id.slice(0, 12)
+  const versionLabel =
+    versionNumber !== null
+      ? `v${versionNumber}${createdAt ? ` · ${formatDate(createdAt, locale, 'short')}` : ''}`
+      : createdAt
+        ? formatDate(createdAt, locale, 'short')
+        : data.id.slice(0, 12)
 
   // Pre-compute diff partner candidate: the most recent prior artifact of the
   // same type, surfaced by the Diff button. ArtifactDiff handles its own UI.
@@ -222,7 +225,9 @@ export function ArtifactDetailPage(): React.ReactElement {
           />
         </div>
 
-        <ReportTOC entries={allChapterLabels(locale).map((c) => ({ id: c.id, num: c.num, title: c.title }))} />
+        <ReportTOC
+          entries={allChapterLabels(locale).map((c) => ({ id: c.id, num: c.num, title: c.title }))}
+        />
 
         <main style={{ minWidth: 0, padding: '12px 0 60px' }}>
           <ChapterCover
@@ -293,7 +298,6 @@ export function ArtifactDetailPage(): React.ReactElement {
               </ul>
             </section>
           ) : null}
-
         </main>
 
         <ReportRightRail
@@ -350,4 +354,3 @@ function CenterMessage({ title, body }: { title: string; body: string }): React.
     </div>
   )
 }
-

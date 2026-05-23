@@ -74,9 +74,7 @@ export function ReportStatusBar({ entries }: ReportStatusBarProps): React.ReactE
 
   const total = entries.length
   const current = entries[activeIdx]
-  const chapterLabel = current
-    ? `${current.num} · ${current.title}`
-    : ''
+  const chapterLabel = current ? `${current.num} · ${current.title}` : ''
 
   return (
     <div
@@ -117,12 +115,17 @@ export function ReportStatusBar({ entries }: ReportStatusBarProps): React.ReactE
 
       <span data-testid="report-status-chapter" style={{ color: 'var(--text-secondary)' }}>
         章节 {String(activeIdx + 1).padStart(2, '0')}/{String(total).padStart(2, '0')}
-        {chapterLabel && <span style={{ color: 'var(--text-dim)', marginLeft: 8 }}>{chapterLabel}</span>}
+        {chapterLabel && (
+          <span style={{ color: 'var(--text-dim)', marginLeft: 8 }}>{chapterLabel}</span>
+        )}
       </span>
 
       <span style={{ flex: 1 }} />
 
-      <span data-testid="report-status-progress" style={{ color: 'var(--text-dim)', marginRight: 14 }}>
+      <span
+        data-testid="report-status-progress"
+        style={{ color: 'var(--text-dim)', marginRight: 14 }}
+      >
         {progressPct.toFixed(0)}%
       </span>
 

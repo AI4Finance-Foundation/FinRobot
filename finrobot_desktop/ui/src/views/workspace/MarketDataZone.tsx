@@ -20,9 +20,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
   return (
     <section data-testid="market-data-zone">
       <ZoneHeader />
-      <p style={zoneDesc}>
-        来源 yfinance / SEC EDGAR / FMP · 实时拉，跟 AI 研报互不依赖。
-      </p>
+      <p style={zoneDesc}>来源 yfinance / SEC EDGAR / FMP · 实时拉，跟 AI 研报互不依赖。</p>
 
       {/* 行情快照 */}
       <MktCard title="📊 行情快照" liveTag="LIVE">
@@ -89,7 +87,14 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
                   borderRadius: 6,
                 }}
               >
-                <span style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span
+                  style={{
+                    color: 'var(--text-secondary)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {c.headline ?? '(未命名事件)'}
                 </span>
                 <span
@@ -115,7 +120,6 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
           <Empty>暂无近期事件 · 财报 / 产品发布 / 监管</Empty>
         )}
       </MktCard>
-
     </section>
   )
 }
@@ -291,7 +295,11 @@ function PriceSparkline({
 
   return (
     <div>
-      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: '100%', height: 70 }}>
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        preserveAspectRatio="none"
+        style={{ width: '100%', height: 70 }}
+      >
         <defs>
           <linearGradient id="sp-grad-mkt" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor="var(--accent-cyan)" stopOpacity="0.5" />

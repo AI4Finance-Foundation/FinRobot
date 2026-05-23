@@ -241,8 +241,7 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
 
 // ── Selectors ───────────────────────────────────────────────────────────────
 
-export const selectRunByTicker = (ticker: string) => (s: RunStreamState) =>
-  s.runs[ticker]
+export const selectRunByTicker = (ticker: string) => (s: RunStreamState) => s.runs[ticker]
 
 export const selectActiveRunCount = (s: RunStreamState): number =>
   Object.values(s.runs).filter((r) => r.status === 'running').length

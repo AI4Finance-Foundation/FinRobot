@@ -41,9 +41,7 @@ describe('useQuotesWarmed', () => {
   })
 
   it('returns warmed=false initially while backend is still warming', async () => {
-    fetchSpy.mockResolvedValue(
-      jsonResponse({ warmed: false, studied_ticker_count: 0 }),
-    )
+    fetchSpy.mockResolvedValue(jsonResponse({ warmed: false, studied_ticker_count: 0 }))
     const { result } = renderHook(() => useQuotesWarmed(), {
       wrapper: makeWrapper(),
     })
@@ -55,9 +53,7 @@ describe('useQuotesWarmed', () => {
   })
 
   it('reflects warmed=true with ticker count once backend reports it', async () => {
-    fetchSpy.mockResolvedValue(
-      jsonResponse({ warmed: true, studied_ticker_count: 7 }),
-    )
+    fetchSpy.mockResolvedValue(jsonResponse({ warmed: true, studied_ticker_count: 7 }))
     const { result } = renderHook(() => useQuotesWarmed(), {
       wrapper: makeWrapper(),
     })
@@ -80,10 +76,7 @@ describe('useQuotesWarmed', () => {
 
     // Wait until warmed flips true (react-query polls per the hook's
     // refetchInterval: 500ms while warmed=false).
-    await waitFor(
-      () => expect(result.current.data?.warmed).toBe(true),
-      { timeout: 3000 },
-    )
+    await waitFor(() => expect(result.current.data?.warmed).toBe(true), { timeout: 3000 })
 
     const callsAtWarmed = fetchSpy.mock.calls.length
     // Wait longer than the 500ms refetch interval; if the hook was

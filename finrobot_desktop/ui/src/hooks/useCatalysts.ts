@@ -25,9 +25,13 @@ export function useCatalysts() {
     retry: 1,
   })
 
-  useEffect(() => { setCatalystsLoading(isLoading) }, [isLoading, setCatalystsLoading])
+  useEffect(() => {
+    setCatalystsLoading(isLoading)
+  }, [isLoading, setCatalystsLoading])
   // Only mirror real data into the store to avoid tab-switch null flashes.
-  useEffect(() => { if (data) setCatalysts(data) }, [data, setCatalysts])
+  useEffect(() => {
+    if (data) setCatalysts(data)
+  }, [data, setCatalysts])
 
   return { data, isLoading, isError, error }
 }

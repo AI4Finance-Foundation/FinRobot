@@ -31,33 +31,6 @@ export function RightChatPanel({
   const isExpanded = expandedProp !== undefined ? expandedProp : storeOpen
   const handleToggle = onToggleProp ?? toggleAiPanel
 
-  // Legacy test path — when `expanded` is injected, the caller is
-  // exercising the chat surface specifically (existing 40+ tests). We
-  // route through AiChatTab plus the legacy aside CSS classes so test
-  // IDs / DOM shape stay stable.
-  if (expandedProp !== undefined) {
-    // `expanded={false}` → no aside, AiChatTab renders IconColumn only
-    // (legacy test contract). `expanded={true}` → full chat surface
-    // wrapped in the legacy aside so existing CSS / test IDs still work.
-    if (expandedProp === false) {
-      return <AiChatTab expanded={expandedProp} onToggle={onToggleProp} />
-    }
-    return (
-      <aside
-        data-testid="right-chat-panel"
-        className="ai-panel open"
-        style={{
-          width: 360,
-          borderLeft: '1px solid var(--border)',
-          backgroundColor: 'var(--surface)',
-        }}
-      >
-        <AiChatTab expanded={expandedProp} onToggle={onToggleProp} />
-      </aside>
-    )
-  }
-
-  // ── Resize handle ───────────────────────────────────────────
   const panelRef = useRef<HTMLElement>(null)
   const resizing = useRef(false)
   const resizeStartX = useRef(0)
@@ -84,22 +57,38 @@ export function RightChatPanel({
     [storeWidth, setAiPanelWidth],
   )
 
-  const panelStyle: React.CSSProperties = expandedProp !== undefined
-    ? { width: 360, borderLeft: '1px solid var(--border)', backgroundColor: 'var(--surface)' }
-    : isExpanded ? { width: storeWidth } : {}
+  if (expandedProp !== undefined) {
+    if (expandedProp === false) {
+      return <AiChatTab expanded={expandedProp} onToggle={onToggleProp} />
+    }
+    return (
+      <aside
+        data-testid="right-chat-panel"
+        className="ai-panel open"
+        style={{
+          width: 360,
+          borderLeft: '1px solid var(--border)',
+          backgroundColor: 'var(--surface)',
+        }}
+      >
+        <AiChatTab expanded={expandedProp} onToggle={onToggleProp} />
+      </aside>
+    )
+  }
 
-  const panelClass = [
-    'ai-panel',
-    (expandedProp !== undefined || isExpanded) ? 'open' : '',
-  ].filter(Boolean).join(' ')
+  const panelStyle: React.CSSProperties =
+    expandedProp !== undefined
+      ? { width: 360, borderLeft: '1px solid var(--border)', backgroundColor: 'var(--surface)' }
+      : isExpanded
+        ? { width: storeWidth }
+        : {}
+
+  const panelClass = ['ai-panel', expandedProp !== undefined || isExpanded ? 'open' : '']
+    .filter(Boolean)
+    .join(' ')
 
   return (
-    <aside
-      ref={panelRef}
-      data-testid="right-chat-panel"
-      className={panelClass}
-      style={panelStyle}
-    >
+    <aside ref={panelRef} data-testid="right-chat-panel" className={panelClass} style={panelStyle}>
       {/* Collapsed-state expand button (only when uiStore controlled) */}
       {expandedProp === undefined && !isExpanded && (
         <button

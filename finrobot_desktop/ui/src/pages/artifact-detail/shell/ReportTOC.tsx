@@ -5,9 +5,9 @@ import { useEffect, useState } from 'react'
 import { useI18n } from '../../../i18n'
 
 export interface TOCEntry {
-  id: string       // matches <section id="..."> on the chapter
-  num: string      // "01" .. "12"
-  title: string    // investment-bank tone label
+  id: string // matches <section id="..."> on the chapter
+  num: string // "01" .. "12"
+  title: string // investment-bank tone label
 }
 
 interface ReportTOCProps {

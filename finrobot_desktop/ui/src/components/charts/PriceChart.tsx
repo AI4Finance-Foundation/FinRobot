@@ -27,22 +27,27 @@ const PERIOD_MAP: Record<TimeRange, string> = {
   '3M': '3mo',
   '6M': '6mo',
   '1Y': '1y',
-  'ALL': 'max',
+  ALL: 'max',
 }
 
 function daysForRange(range: TimeRange): number {
   switch (range) {
-    case '1M': return 30
-    case '3M': return 90
-    case '6M': return 180
-    case '1Y': return 365
-    case 'ALL': return Infinity
+    case '1M':
+      return 30
+    case '3M':
+      return 90
+    case '6M':
+      return 180
+    case '1Y':
+      return 365
+    case 'ALL':
+      return Infinity
   }
 }
 
 // Design system chart palette
-const PRICE_COLOR = 'var(--primary)'   // chart-1
-const VOLUME_COLOR = '#C9A84C'  // chart-2
+const PRICE_COLOR = 'var(--primary)' // chart-1
+const VOLUME_COLOR = '#C9A84C' // chart-2
 
 const CHART_TOOLTIP = {
   backgroundColor: 'var(--bg-3)',
@@ -76,13 +81,13 @@ export default function PriceChart({ data, title }: ChartProps) {
     queryKey: ['price', ticker, debouncedRange],
     queryFn: async () => {
       const resp = await fetch(
-        `${BASE_URL}/api/data/${ticker}/price?period=${PERIOD_MAP[debouncedRange]}`
+        `${BASE_URL}/api/data/${ticker}/price?period=${PERIOD_MAP[debouncedRange]}`,
       )
       if (!resp.ok) return []
       const json = await resp.json()
       return (json.history ?? []) as Record<string, number | string | boolean | null>[]
     },
-    enabled: !!ticker && !data,  // Only fetch if no data prop
+    enabled: !!ticker && !data, // Only fetch if no data prop
   })
 
   // Use provided data (with client-side filtering) or fetched data
@@ -128,7 +133,11 @@ export default function PriceChart({ data, title }: ChartProps) {
             </defs>
             <XAxis
               dataKey="date"
-              tick={{ fill: 'var(--text-muted)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{
+                fill: 'var(--text-muted)',
+                fontSize: 10,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
               axisLine={{ stroke: 'var(--border-soft)' }}
               tickFormatter={(d: string) => {
                 const date = new Date(d)
@@ -141,7 +150,11 @@ export default function PriceChart({ data, title }: ChartProps) {
             <YAxis
               yAxisId="price"
               orientation="left"
-              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{
+                fill: 'var(--text-muted)',
+                fontSize: 11,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
               axisLine={{ stroke: 'var(--border-soft)' }}
               tickFormatter={(v: number) => `$${v}`}
               domain={['auto', 'auto']}
@@ -149,13 +162,21 @@ export default function PriceChart({ data, title }: ChartProps) {
             <YAxis
               yAxisId="volume"
               orientation="right"
-              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{
+                fill: 'var(--text-muted)',
+                fontSize: 11,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
               axisLine={{ stroke: 'var(--border-soft)' }}
               tickFormatter={formatVolume}
             />
             <Tooltip
-              contentStyle={CHART_TOOLTIP} labelStyle={{ color: 'var(--text-primary)' }}
-              formatter={(value: TooltipValueType | undefined, name: string | number | undefined) => {
+              contentStyle={CHART_TOOLTIP}
+              labelStyle={{ color: 'var(--text-primary)' }}
+              formatter={(
+                value: TooltipValueType | undefined,
+                name: string | number | undefined,
+              ) => {
                 const v = typeof value === 'number' ? value : 0
                 const n = String(name ?? '')
                 if (n === 'Volume') return [formatVolume(v), n]

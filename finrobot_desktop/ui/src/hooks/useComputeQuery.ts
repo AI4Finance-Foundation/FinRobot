@@ -196,9 +196,7 @@ function extractDcfInputs(outputs: Record<string, unknown> | undefined): DCFInpu
   return null
 }
 
-function pickArtifactWithDcf(
-  timeline: ArtifactSummaryV5[] | undefined,
-): ArtifactSummaryV5 | null {
+function pickArtifactWithDcf(timeline: ArtifactSummaryV5[] | undefined): ArtifactSummaryV5 | null {
   if (!timeline) return null
   return (
     timeline.find((a) => a.type === 'dcf') ??
@@ -225,13 +223,8 @@ export function useMonteCarloAuto(ticker: string) {
 
   return useQuery<MonteCarloResult, Error>({
     queryKey: ['monte-carlo-auto', ticker, dcfArtifact?.id, currentPrice],
-    queryFn: () =>
-      postJson<typeof body, MonteCarloResult>('/api/compute/monte-carlo', body),
-    enabled:
-      !!ticker &&
-      currentPrice !== null &&
-      currentPrice > 0 &&
-      dcfInputs !== null,
+    queryFn: () => postJson<typeof body, MonteCarloResult>('/api/compute/monte-carlo', body),
+    enabled: !!ticker && currentPrice !== null && currentPrice > 0 && dcfInputs !== null,
     staleTime: 60 * 60_000,
     refetchOnMount: false,
     retry: 0, // a failed monte-carlo is usually a math issue (e.g. WACC<=TGR);

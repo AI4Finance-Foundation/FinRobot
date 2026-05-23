@@ -307,5 +307,4 @@ describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
     // "Open full report" CTA wires to the artifact detail route.
     expect(screen.getByTestId('open-latest-report')).toBeInTheDocument()
   })
-
 })

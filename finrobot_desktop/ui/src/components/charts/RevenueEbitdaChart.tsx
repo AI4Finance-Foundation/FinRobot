@@ -99,7 +99,14 @@ function CosmicTooltip({ active, payload, label }: CosmicTooltipProps) {
             key={String(p.dataKey ?? p.name)}
             style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}
           >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                color: 'var(--text-secondary)',
+              }}
+            >
               <span
                 aria-hidden
                 style={{

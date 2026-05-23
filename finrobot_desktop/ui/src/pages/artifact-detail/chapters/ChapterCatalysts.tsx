@@ -10,10 +10,7 @@ interface ChapterCatalystsProps {
   thesis: ThesisShape | null
 }
 
-export function ChapterCatalysts({
-  catalysts,
-  thesis,
-}: ChapterCatalystsProps): React.ReactElement {
+export function ChapterCatalysts({ catalysts, thesis }: ChapterCatalystsProps): React.ReactElement {
   const top_positive = catalysts?.top_positive ?? []
   const top_negative = catalysts?.top_negative ?? []
   const thesisCatalysts = thesis?.catalysts ?? []
@@ -124,7 +121,8 @@ function CatalystList({
               marginTop: 4,
             }}
           >
-            CATEGORY {e.category} · IMPACT {e.impact_score}/5 · PROBABILITY {(e.probability * 100).toFixed(0)}%
+            CATEGORY {e.category} · IMPACT {e.impact_score}/5 · PROBABILITY{' '}
+            {(e.probability * 100).toFixed(0)}%
           </div>
         </div>
       ))}

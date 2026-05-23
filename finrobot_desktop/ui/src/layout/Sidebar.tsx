@@ -15,13 +15,9 @@ interface NavItem {
   Icon: typeof IconTrendingUp
 }
 
-const TOP_NAV: NavItem[] = [
-  { label: '个股', path: '/stocks', Icon: IconTrendingUp },
-]
+const TOP_NAV: NavItem[] = [{ label: '个股', path: '/stocks', Icon: IconTrendingUp }]
 
-const BOTTOM_NAV: NavItem[] = [
-  { label: '设置', path: '/settings', Icon: IconSettings },
-]
+const BOTTOM_NAV: NavItem[] = [{ label: '设置', path: '/settings', Icon: IconSettings }]
 
 const SIDEBAR_W = 64
 const ICON_BOX = 44
@@ -33,7 +29,10 @@ export function Sidebar(): React.ReactElement {
   // Run badge: pulses on /stocks icon when something is running.
   const activeRuns = useRunStreamStore((s) => s.runs)
   const runningTickers = useMemo(
-    () => Object.values(activeRuns).filter((r) => r.status === 'running').map((r) => r.ticker),
+    () =>
+      Object.values(activeRuns)
+        .filter((r) => r.status === 'running')
+        .map((r) => r.ticker),
     [activeRuns],
   )
 

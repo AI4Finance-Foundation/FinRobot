@@ -15,11 +15,12 @@ export function HotTickerChips(): React.ReactElement {
   const navigate = useNavigate()
   const { data } = useStudiedTickers(MAX_CHIPS)
 
-  const studied = data?.items
-    ?.slice()
-    .sort((a, b) => b.latest_created_at.localeCompare(a.latest_created_at))
-    .map((item) => item.ticker)
-    .slice(0, MAX_CHIPS) ?? []
+  const studied =
+    data?.items
+      ?.slice()
+      .sort((a, b) => b.latest_created_at.localeCompare(a.latest_created_at))
+      .map((item) => item.ticker)
+      .slice(0, MAX_CHIPS) ?? []
 
   const showRecent = studied.length > 0
   const list = showRecent ? studied : POPULAR

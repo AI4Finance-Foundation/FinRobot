@@ -93,7 +93,9 @@ export function ReportRightRail({
                   }}
                 >
                   <span style={{ fontWeight: 600 }}>
-                    {current ? t('report.timeline.current') : formatDate(a.created_at, locale, 'short')}
+                    {current
+                      ? t('report.timeline.current')
+                      : formatDate(a.created_at, locale, 'short')}
                   </span>
                   {a.target_price !== null && a.target_price !== undefined && (
                     <span style={{ marginLeft: 8, color: 'var(--text-secondary)' }}>
@@ -132,7 +134,7 @@ function WhatIfEditor({
   initialTg: number | null
   originalImpliedPrice: number | null
 }): React.ReactElement {
-  const baseWacc = initialWacc ?? 0.10
+  const baseWacc = initialWacc ?? 0.1
   const baseTg = initialTg ?? 0.025
 
   const [waccPct, setWaccPct] = useState<number>(baseWacc * 100)
@@ -145,10 +147,7 @@ function WhatIfEditor({
   // Debounce slider changes so dragging doesn't fire 50 requests.
   useEffect(() => {
     const handle = setTimeout(() => {
-      if (
-        Math.abs(waccPct / 100 - baseWacc) < 1e-4 &&
-        Math.abs(tgPct / 100 - baseTg) < 1e-4
-      ) {
+      if (Math.abs(waccPct / 100 - baseWacc) < 1e-4 && Math.abs(tgPct / 100 - baseTg) < 1e-4) {
         mutation.reset()
         return
       }
@@ -169,9 +168,7 @@ function WhatIfEditor({
   }, [baseWacc, baseTg, mutation])
 
   const newImplied = mutation.data?.result?.implied_price ?? null
-  const dirty =
-    Math.abs(waccPct / 100 - baseWacc) > 1e-4 ||
-    Math.abs(tgPct / 100 - baseTg) > 1e-4
+  const dirty = Math.abs(waccPct / 100 - baseWacc) > 1e-4 || Math.abs(tgPct / 100 - baseTg) > 1e-4
   const delta =
     newImplied !== null && originalImpliedPrice !== null
       ? ((newImplied - originalImpliedPrice) / originalImpliedPrice) * 100
@@ -223,18 +220,29 @@ function WhatIfEditor({
           fontFamily: 'var(--font-mono)',
         }}
       >
-        <div style={{ fontSize: 9.5, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 4 }}>
+        <div
+          style={{
+            fontSize: 9.5,
+            color: 'var(--text-muted)',
+            letterSpacing: '0.1em',
+            marginBottom: 4,
+          }}
+        >
           IMPLIED PRICE
         </div>
         {mutation.isPending ? (
           <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>computing…</div>
         ) : mutation.isError ? (
-          <div style={{ fontSize: 11, color: 'var(--danger)' }}>
-            重算失败 · 检查参数范围或重试
-          </div>
+          <div style={{ fontSize: 11, color: 'var(--danger)' }}>重算失败 · 检查参数范围或重试</div>
         ) : newImplied !== null ? (
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontSize: 18, color: 'var(--accent-cyan)', fontVariantNumeric: 'tabular-nums' }}>
+            <span
+              style={{
+                fontSize: 18,
+                color: 'var(--accent-cyan)',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
               ${newImplied.toFixed(2)}
             </span>
             {delta !== null && (

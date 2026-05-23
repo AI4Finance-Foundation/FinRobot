@@ -36,7 +36,13 @@ export function DashboardSkeleton(): React.ReactElement {
           <div
             key={i}
             className="cosmic-card cosmic-card-glass"
-            style={{ minWidth: 220, padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}
+            style={{
+              minWidth: 220,
+              padding: 20,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
           >
             <div className="skeleton" style={{ height: 18, width: '50%' }} aria-hidden />
             <div className="skeleton" style={{ height: 32 }} aria-hidden />

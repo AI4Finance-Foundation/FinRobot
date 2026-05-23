@@ -131,7 +131,10 @@ export function ChapterFinancialAnalysis({
                     Free Cash Flow
                   </td>
                   {dcf.projected_fcf.map((v, i) => (
-                    <td key={i} style={{ ...tdStyle, textAlign: 'right', color: 'var(--accent-cyan)' }}>
+                    <td
+                      key={i}
+                      style={{ ...tdStyle, textAlign: 'right', color: 'var(--accent-cyan)' }}
+                    >
                       {fmtBillions(v)}
                     </td>
                   ))}

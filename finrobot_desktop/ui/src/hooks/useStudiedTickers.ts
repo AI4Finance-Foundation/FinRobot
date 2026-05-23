@@ -26,10 +26,7 @@ export function useStudiedTickers(limit = 100) {
   return useQuery<StudiedTickersResponse>({
     queryKey: ['studied-tickers', limit],
     queryFn: async ({ signal }) => {
-      const r = await fetch(
-        `${BASE_URL}/api/artifacts/studied-tickers?limit=${limit}`,
-        { signal },
-      )
+      const r = await fetch(`${BASE_URL}/api/artifacts/studied-tickers?limit=${limit}`, { signal })
       if (!r.ok) throw new FetchHttpError(r.status, r.statusText)
       return r.json() as Promise<StudiedTickersResponse>
     },

@@ -6,7 +6,13 @@ const ICONS: Record<ToastType, React.ReactElement> = {
   success: (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
       <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M4.5 7.2L6.2 8.9L9.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M4.5 7.2L6.2 8.9L9.5 5.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   ),
   error: (
@@ -41,9 +47,7 @@ export default function ToastContainer() {
           <span className="toast-icon">{ICONS[toast.type]}</span>
           <div className="toast-content">
             <span className="toast-title">{toast.title}</span>
-            {toast.description && (
-              <span className="toast-desc">{toast.description}</span>
-            )}
+            {toast.description && <span className="toast-desc">{toast.description}</span>}
           </div>
         </div>
       ))}

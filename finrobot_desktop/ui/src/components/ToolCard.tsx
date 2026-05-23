@@ -68,12 +68,7 @@ function StatusIcon({ state }: { state: ToolCardState }): React.ReactElement {
       )
     case 'error':
       return (
-        <svg
-          className="h-3 w-3 text-red-400"
-          viewBox="0 0 12 12"
-          fill="none"
-          aria-label="error"
-        >
+        <svg className="h-3 w-3 text-red-400" viewBox="0 0 12 12" fill="none" aria-label="error">
           <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" />
           <path
             d="M4 4L8 8M8 4L4 8"
@@ -133,9 +128,7 @@ export function ToolCard({
             title={`${toolName}(${argsPreview(args)})`}
           >
             <span style={{ color: 'var(--text-primary)' }}>{toolName}</span>
-            <span style={{ color: 'var(--text-muted)' }}>
-              ({argsPreview(args)})
-            </span>
+            <span style={{ color: 'var(--text-muted)' }}>({argsPreview(args)})</span>
           </button>
 
           {state === 'complete' && (
@@ -191,11 +184,7 @@ export function ToolCard({
         <div className="mt-2 flex items-center gap-2 text-xs" style={{ color: 'var(--negative)' }}>
           <span>{errorText ?? t('toolcard.failed')}</span>
           {onRetry && (
-            <button
-              onClick={onRetry}
-              className="underline"
-              style={{ color: 'var(--info)' }}
-            >
+            <button onClick={onRetry} className="underline" style={{ color: 'var(--info)' }}>
               {t('toolcard.retry')}
             </button>
           )}

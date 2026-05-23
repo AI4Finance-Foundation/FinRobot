@@ -39,7 +39,9 @@ interface PipelineProgressPanelProps {
   ticker: string
 }
 
-export function PipelineProgressPanel({ ticker }: PipelineProgressPanelProps): React.ReactElement | null {
+export function PipelineProgressPanel({
+  ticker,
+}: PipelineProgressPanelProps): React.ReactElement | null {
   const run = useRunStreamStore((s) => s.runs[ticker])
   const dismiss = useRunStreamStore((s) => s.dismiss)
   const navigate = useNavigate()
@@ -159,15 +161,12 @@ export function PipelineProgressPanel({ ticker }: PipelineProgressPanelProps): R
                 gap: 10,
                 padding: '6px 8px',
                 borderRadius: 6,
-                background:
-                  step.status === 'running' ? 'rgba(16, 185, 129, 0.06)' : 'transparent',
+                background: step.status === 'running' ? 'rgba(16, 185, 129, 0.06)' : 'transparent',
                 fontSize: 12.5,
               }}
             >
               <span style={{ width: 18, color: 'var(--text-faint)' }}>{`${idx + 1}.`}</span>
-              <span style={{ width: 16, textAlign: 'center' }}>
-                {statusGlyph(step.status)}
-              </span>
+              <span style={{ width: 16, textAlign: 'center' }}>{statusGlyph(step.status)}</span>
               <span style={{ flex: 1 }}>
                 <strong style={{ fontWeight: 600 }}>{meta.label}</strong>
                 <span style={{ color: 'var(--text-faint)', marginLeft: 8, fontSize: 11.5 }}>
@@ -244,7 +243,9 @@ function labelForPipeline(pipelineType: string): string {
 }
 
 function estimateEta(steps: { status: string; duration_s?: number }[]): number | null {
-  const completed = steps.filter((s) => s.status === 'completed' && typeof s.duration_s === 'number')
+  const completed = steps.filter(
+    (s) => s.status === 'completed' && typeof s.duration_s === 'number',
+  )
   if (completed.length === 0) return null
   const avg = completed.reduce((sum, s) => sum + (s.duration_s ?? 0), 0) / completed.length
   const remaining = steps.length - completed.length

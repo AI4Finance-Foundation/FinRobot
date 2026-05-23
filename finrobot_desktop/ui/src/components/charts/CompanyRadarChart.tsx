@@ -15,7 +15,7 @@ interface ChartProps {
 }
 
 // Design system chart palette
-const COMPANY_COLOR = 'var(--primary)'  // chart-1
+const COMPANY_COLOR = 'var(--primary)' // chart-1
 const BENCHMARK_COLOR = '#C9A84C' // chart-2
 
 const CHART_TOOLTIP = {
@@ -43,10 +43,7 @@ export default function CompanyRadarChart({ data, title }: ChartProps) {
               dataKey="dimension"
               tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
             />
-            <PolarRadiusAxis
-              tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
-              axisLine={false}
-            />
+            <PolarRadiusAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} />
             <Tooltip contentStyle={CHART_TOOLTIP} labelStyle={{ color: 'var(--text-primary)' }} />
             <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
             <Radar

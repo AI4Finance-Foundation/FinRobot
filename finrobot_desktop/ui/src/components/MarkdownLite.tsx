@@ -202,7 +202,10 @@ function renderInline(text: string): ReactNode[] {
           {tok.slice(1, -1)}
         </code>,
       )
-    } else if ((tok.startsWith('*') && tok.endsWith('*')) || (tok.startsWith('_') && tok.endsWith('_'))) {
+    } else if (
+      (tok.startsWith('*') && tok.endsWith('*')) ||
+      (tok.startsWith('_') && tok.endsWith('_'))
+    ) {
       out.push(<em key={out.length}>{tok.slice(1, -1)}</em>)
     } else {
       out.push(tok)

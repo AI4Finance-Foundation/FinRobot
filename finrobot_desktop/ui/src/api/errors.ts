@@ -12,21 +12,14 @@
  *   503 — capability disabled (missing API key, etc.)
  */
 
-export async function extractErrorDetail(
-  resp: Response,
-  fallback: string,
-): Promise<string> {
-  const body = await resp
-    .json()
-    .catch(() => null as unknown as { detail?: unknown } | null)
+export async function extractErrorDetail(resp: Response, fallback: string): Promise<string> {
+  const body = await resp.json().catch(() => null as unknown as { detail?: unknown } | null)
 
   const detail = body?.detail
   if (typeof detail === 'string' && detail.trim()) return detail
   if (detail && typeof detail === 'object') {
     // Some endpoints (catalysts) return {error, message, ticker}
-    const message =
-      (detail as { message?: string }).message ??
-      (detail as { error?: string }).error
+    const message = (detail as { message?: string }).message ?? (detail as { error?: string }).error
     if (message) return message
   }
   // Do not leak HTTP status to end users — they don't care, and "HTTP 500"

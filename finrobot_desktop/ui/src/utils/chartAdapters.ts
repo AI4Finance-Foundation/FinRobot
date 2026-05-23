@@ -1,11 +1,18 @@
-import type { DCFResult, DCFInputs, SensitivityResult, CompsResult, CompanyFinancials, HistoricalMetrics, QuarterlyData, EarningsSurprise } from '../stores/appStore'
+import type {
+  DCFResult,
+  SensitivityResult,
+  CompsResult,
+  HistoricalMetrics,
+  QuarterlyData,
+  EarningsSurprise,
+} from '../stores/appStore'
 
 /**
  * Convert backend DcfSensitivityResult grid to the flat array format
  * that SensitivityHeatmap expects.
  */
 export function sensitivityGridToHeatmapRows(
-  result: SensitivityResult
+  result: SensitivityResult,
 ): Array<{ wacc: number; tg: number; implied_price: number | null }> {
   const rows: Array<{ wacc: number; tg: number; implied_price: number | null }> = []
   for (let i = 0; i < result.wacc_values.length; i++) {
@@ -25,7 +32,7 @@ export function sensitivityGridToHeatmapRows(
  * Year 0 = base year (actual), Years 1..N = forecast.
  */
 export function dcfResultToRevenueEbitdaData(
-  result: DCFResult
+  result: DCFResult,
 ): Array<Record<string, number | string | boolean | null>> {
   const currentYear = new Date().getFullYear()
   const rows: Array<Record<string, number | string | boolean | null>> = []
@@ -57,7 +64,7 @@ export function dcfResultToRevenueEbitdaData(
  * Operating margin approximated as EBITDA margin minus D&A (if available).
  */
 export function dcfResultToMarginData(
-  result: DCFResult
+  result: DCFResult,
 ): Array<Record<string, number | string | boolean | null>> {
   const currentYear = new Date().getFullYear()
   const rows: Array<Record<string, number | string | boolean | null>> = []
@@ -93,7 +100,7 @@ export function dcfResultToMarginData(
  * Target row is flagged with is_target: true.
  */
 export function compsResultToPeerChartData(
-  result: CompsResult
+  result: CompsResult,
 ): Array<Record<string, number | string | boolean | null>> {
   const all = [result.target, ...result.peers]
   return all.map((c) => ({
@@ -109,13 +116,17 @@ export function compsResultToPeerChartData(
  * Each entry has { label, value, is_total }.
  */
 export function dcfResultToWaterfallData(
-  result: DCFResult
+  result: DCFResult,
 ): Array<Record<string, number | string | boolean | null>> {
   return [
     { label: 'FCF 现值', value: result.pv_fcf_total, is_total: false },
     { label: '终值现值', value: result.pv_terminal, is_total: false },
     { label: '企业价值', value: result.enterprise_value, is_total: true },
-    { label: '减：净债务', value: -(result.enterprise_value - result.equity_value), is_total: false },
+    {
+      label: '减：净债务',
+      value: -(result.enterprise_value - result.equity_value),
+      is_total: false,
+    },
     { label: '股权价值', value: result.equity_value, is_total: true },
   ]
 }
@@ -126,7 +137,7 @@ export function dcfResultToWaterfallData(
  * giving both the company and benchmark shapes that are easy to compare visually.
  */
 export function compsResultToRadarData(
-  result: CompsResult
+  result: CompsResult,
 ): Array<Record<string, number | string | boolean | null>> {
   const t = result.target
 
@@ -136,9 +147,7 @@ export function compsResultToRadarData(
     if (valid.length === 0) return null
     const sorted = [...valid].sort((a, b) => a - b)
     const mid = Math.floor(sorted.length / 2)
-    return sorted.length % 2 === 0
-      ? (sorted[mid - 1] + sorted[mid]) / 2
-      : sorted[mid]
+    return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
   }
 
   const peerGrossMedian = medianOf(result.peers.map((p) => p.gross_margin))
@@ -159,7 +168,7 @@ export function compsResultToRadarData(
         d.median != null &&
         isFinite(d.company) &&
         isFinite(d.median) &&
-        Math.max(Math.abs(d.company), Math.abs(d.median)) > 0
+        Math.max(Math.abs(d.company), Math.abs(d.median)) > 0,
     )
     .map((d) => {
       const scale = Math.max(Math.abs(d.company!), Math.abs(d.median!))
@@ -182,7 +191,7 @@ export function compsResultToRadarData(
  */
 export function dcfSensitivityToFootballData(
   result: DCFResult,
-  sensitivity: SensitivityResult
+  sensitivity: SensitivityResult,
 ): Array<Record<string, number | string | boolean | null>> {
   const midPrice = result.implied_price
   const grid = sensitivity.implied_prices

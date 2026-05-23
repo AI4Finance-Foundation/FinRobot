@@ -27,11 +27,15 @@ export function useHistoricalData() {
     refetchOnMount: false,
   })
 
-  useEffect(() => { setHistoricalLoading(isLoading) }, [isLoading, setHistoricalLoading])
+  useEffect(() => {
+    setHistoricalLoading(isLoading)
+  }, [isLoading, setHistoricalLoading])
   // Only mirror real data into the store. Writing null on every mount while
   // react-query is still resolving causes tab-switch flashes — the store
   // briefly goes null even though the cache has data.
-  useEffect(() => { if (data) setHistoricalMetrics(data) }, [data, setHistoricalMetrics])
+  useEffect(() => {
+    if (data) setHistoricalMetrics(data)
+  }, [data, setHistoricalMetrics])
 
   return { data, isLoading, isError, error }
 }
@@ -56,8 +60,12 @@ export function useQuarterlyData() {
     refetchOnMount: false,
   })
 
-  useEffect(() => { setQuarterlyLoading(isLoading) }, [isLoading, setQuarterlyLoading])
-  useEffect(() => { if (data) setQuarterlyData(data) }, [data, setQuarterlyData])
+  useEffect(() => {
+    setQuarterlyLoading(isLoading)
+  }, [isLoading, setQuarterlyLoading])
+  useEffect(() => {
+    if (data) setQuarterlyData(data)
+  }, [data, setQuarterlyData])
 
   return { data, isLoading, isError, error }
 }

@@ -73,8 +73,8 @@ export function ChapterDisclaimer({
               过往业绩不代表未来表现。读者应在投资前自行尽职调查，并咨询有执业资格的金融顾问。
             </p>
             <p style={{ marginTop: 12 }}>
-              FinAgent 及其贡献者对任何因依赖本研报而产生的损失不承担任何责任。本软件以
-              Apache-2.0 开源协议发布，按"现状"提供，不附带任何明示或暗示的担保。
+              FinAgent 及其贡献者对任何因依赖本研报而产生的损失不承担任何责任。本软件以 Apache-2.0
+              开源协议发布，按"现状"提供，不附带任何明示或暗示的担保。
             </p>
           </>
         )}
@@ -89,7 +89,11 @@ export function ChapterDisclaimer({
           }}
         >
           {isEn ? 'ID' : '编号'} {artifactId.slice(0, 12)} ·{' '}
-          {computeVersion && <>{isEn ? 'COMPUTE' : '计算版本'} {computeVersion} · </>}
+          {computeVersion && (
+            <>
+              {isEn ? 'COMPUTE' : '计算版本'} {computeVersion} ·{' '}
+            </>
+          )}
           {createdAt && (
             <>
               {isEn ? 'GENERATED' : '生成时间'} {formatDate(createdAt, locale, 'datetime')}

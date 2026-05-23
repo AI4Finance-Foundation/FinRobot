@@ -77,9 +77,7 @@ export function HitRateBanner(): React.ReactElement {
       </div>
 
       {isError && (
-        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-          数据加载失败，请稍后刷新页面。
-        </p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>数据加载失败，请稍后刷新页面。</p>
       )}
 
       {isLoading && !data && <BannerSkeleton />}

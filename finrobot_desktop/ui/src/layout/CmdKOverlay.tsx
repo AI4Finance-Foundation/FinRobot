@@ -10,52 +10,52 @@
  * All four paths share the single `cmdPaletteOpen` flag in appStore.
  */
 
-import { useEffect, useRef, useCallback, useMemo } from "react";
-import { Command } from "cmdk";
-import { useQuery } from "@tanstack/react-query";
-import { useDebounce } from "use-debounce";
-import { useNavigate, useLocation } from "react-router-dom";
-import { useAppStore } from "../stores/appStore";
-import { useToastStore } from "../stores/toastStore";
-import { useI18n, tSync } from "../i18n";
-import { FetchHttpError } from "../utils/errorMessage";
-import { STOCK_WORKSPACE_SECTIONS } from "../views/sectionDirectory";
+import { useEffect, useRef, useCallback, useMemo } from 'react'
+import { Command } from 'cmdk'
+import { useQuery } from '@tanstack/react-query'
+import { useDebounce } from 'use-debounce'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { useAppStore } from '../stores/appStore'
+import { useToastStore } from '../stores/toastStore'
+import { useI18n, tSync } from '../i18n'
+import { FetchHttpError } from '../utils/errorMessage'
+import { STOCK_WORKSPACE_SECTIONS } from '../views/sectionDirectory'
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const MAX_QUERY_LENGTH = 200;
-const RECENT_SEARCHES_KEY = "finagent:recent-searches";
-const MAX_RECENT_SEARCHES = 10;
-const SEARCH_DEBOUNCE_MS = 200;
-const SEARCH_STALE_TIME_MS = 30_000;
-const SEARCH_TIMEOUT_MS = 5_000;
+const MAX_QUERY_LENGTH = 200
+const RECENT_SEARCHES_KEY = 'finagent:recent-searches'
+const MAX_RECENT_SEARCHES = 10
+const SEARCH_DEBOUNCE_MS = 200
+const SEARCH_STALE_TIME_MS = 30_000
+const SEARCH_TIMEOUT_MS = 5_000
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type ResultKind = "ticker" | "slash_command" | "artifact" | "session";
+type ResultKind = 'ticker' | 'slash_command' | 'artifact' | 'session'
 
 export interface SearchResult {
-  kind: ResultKind;
-  title: string;
-  subtitle: string;
-  action: string;
-  score: number;
+  kind: ResultKind
+  title: string
+  subtitle: string
+  action: string
+  score: number
 }
 
 interface SearchResponse {
-  query: string;
-  results: SearchResult[];
+  query: string
+  results: SearchResult[]
 }
 
 interface GroupedResults {
-  ticker: SearchResult[];
-  slash_command: SearchResult[];
-  artifact: SearchResult[];
-  session: SearchResult[];
+  ticker: SearchResult[]
+  slash_command: SearchResult[]
+  artifact: SearchResult[]
+  session: SearchResult[]
 }
 
 // ---------------------------------------------------------------------------
@@ -64,21 +64,21 @@ interface GroupedResults {
 
 export function loadRecentSearches(): string[] {
   try {
-    const raw = localStorage.getItem(RECENT_SEARCHES_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((v): v is string => typeof v === "string");
+    const raw = localStorage.getItem(RECENT_SEARCHES_KEY)
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((v): v is string => typeof v === 'string')
   } catch {
-    return [];
+    return []
   }
 }
 
 export function saveRecentSearch(query: string): void {
   try {
-    const existing = loadRecentSearches().filter((q) => q !== query);
-    const updated = [query, ...existing].slice(0, MAX_RECENT_SEARCHES);
-    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+    const existing = loadRecentSearches().filter((q) => q !== query)
+    const updated = [query, ...existing].slice(0, MAX_RECENT_SEARCHES)
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated))
   } catch {
     // localStorage unavailable — silently skip
   }
@@ -88,73 +88,71 @@ export function saveRecentSearch(query: string): void {
 // Action executor (exported for tests)
 // ---------------------------------------------------------------------------
 
-type NavigateFn = ReturnType<typeof useNavigate>;
+type NavigateFn = ReturnType<typeof useNavigate>
 
 export function buildActionExecutor(navigate: NavigateFn, close: () => void) {
   return function executeAction(action: string, queryText?: string): void {
     try {
-      const colonIdx = action.indexOf(":");
+      const colonIdx = action.indexOf(':')
       if (colonIdx === -1) {
         useToastStore.getState().addToast({
-          type: "error",
-          title: tSync("cmdk.error.invalidAction"),
+          type: 'error',
+          title: tSync('cmdk.error.invalidAction'),
           description: action,
-        });
-        return;
+        })
+        return
       }
-      const kind = action.slice(0, colonIdx);
-      const rest = action.slice(colonIdx + 1);
+      const kind = action.slice(0, colonIdx)
+      const rest = action.slice(colonIdx + 1)
 
-      if (kind === "navigate") {
-        const target = rest.startsWith("/") ? rest : `/${rest}`;
-        navigate(target);
-        if (queryText) saveRecentSearch(queryText);
-        close();
-        return;
+      if (kind === 'navigate') {
+        const target = rest.startsWith('/') ? rest : `/${rest}`
+        navigate(target)
+        if (queryText) saveRecentSearch(queryText)
+        close()
+        return
       }
 
-      if (kind === "run") {
+      if (kind === 'run') {
         // rest: "dcf:AAPL" / "ic-memo:AAPL"
-        const firstColon = rest.indexOf(":");
+        const firstColon = rest.indexOf(':')
         if (firstColon === -1) {
           useToastStore.getState().addToast({
-            type: "error",
-            title: tSync("cmdk.error.tickerRequired"),
+            type: 'error',
+            title: tSync('cmdk.error.tickerRequired'),
             description: `run:${rest}:??`,
-          });
-          return;
+          })
+          return
         }
-        const tool = rest.slice(0, firstColon);
-        const ticker = rest.slice(firstColon + 1).toUpperCase();
-        if (!ticker || ticker === "??") {
+        const tool = rest.slice(0, firstColon)
+        const ticker = rest.slice(firstColon + 1).toUpperCase()
+        if (!ticker || ticker === '??') {
           useToastStore.getState().addToast({
-            type: "error",
-            title: tSync("cmdk.error.tickerRequired"),
+            type: 'error',
+            title: tSync('cmdk.error.tickerRequired'),
             description: `/${tool} ??`,
-          });
-          return;
+          })
+          return
         }
-        navigate(
-          `/stocks/${ticker}?action=run_${tool.replace(/-/g, "_")}`
-        );
-        if (queryText) saveRecentSearch(queryText);
-        close();
-        return;
+        navigate(`/stocks/${ticker}?action=run_${tool.replace(/-/g, '_')}`)
+        if (queryText) saveRecentSearch(queryText)
+        close()
+        return
       }
 
       useToastStore.getState().addToast({
-        type: "error",
-        title: tSync("cmdk.error.unknownAction"),
+        type: 'error',
+        title: tSync('cmdk.error.unknownAction'),
         description: `kind=${kind}`,
-      });
+      })
     } catch {
       useToastStore.getState().addToast({
-        type: "error",
-        title: tSync("cmdk.error.actionFailed"),
+        type: 'error',
+        title: tSync('cmdk.error.actionFailed'),
         description: action,
-      });
+      })
     }
-  };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -163,30 +161,30 @@ export function buildActionExecutor(navigate: NavigateFn, close: () => void) {
 
 function KindIcon({ kind }: { kind: ResultKind }) {
   const icons: Record<ResultKind, string> = {
-    ticker: "📈",
-    slash_command: "/",
-    artifact: "📄",
-    session: "💬",
-  };
+    ticker: '📈',
+    slash_command: '/',
+    artifact: '📄',
+    session: '💬',
+  }
   return (
     <span
       className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs"
       style={{
-        backgroundColor: "var(--surface)",
-        color: "var(--text-secondary)",
-        fontFamily: kind === "slash_command" ? "var(--font-mono, monospace)" : undefined,
-        fontWeight: kind === "slash_command" ? 700 : undefined,
+        backgroundColor: 'var(--surface)',
+        color: 'var(--text-secondary)',
+        fontFamily: kind === 'slash_command' ? 'var(--font-mono, monospace)' : undefined,
+        fontWeight: kind === 'slash_command' ? 700 : undefined,
       }}
       aria-hidden="true"
     >
       {icons[kind]}
     </span>
-  );
+  )
 }
 
 interface ResultItemProps {
-  result: SearchResult;
-  onSelect: (action: string) => void;
+  result: SearchResult
+  onSelect: (action: string) => void
 }
 
 function ResultItem({ result, onSelect }: ResultItemProps) {
@@ -197,24 +195,24 @@ function ResultItem({ result, onSelect }: ResultItemProps) {
       onSelect={() => onSelect(result.action)}
       data-testid="cmdk-result-item"
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "10px",
-        padding: "8px 12px",
-        cursor: "pointer",
-        borderRadius: "6px",
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '8px 12px',
+        cursor: 'pointer',
+        borderRadius: '6px',
       }}
     >
       <KindIcon kind={result.kind} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
           style={{
-            fontSize: "14px",
+            fontSize: '14px',
             fontWeight: 500,
-            color: "var(--text-primary)",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            color: 'var(--text-primary)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}
         >
           {result.title}
@@ -222,11 +220,11 @@ function ResultItem({ result, onSelect }: ResultItemProps) {
         {result.subtitle && (
           <div
             style={{
-              fontSize: "12px",
-              color: "var(--text-muted)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+              fontSize: '12px',
+              color: 'var(--text-muted)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
             {result.subtitle}
@@ -234,7 +232,7 @@ function ResultItem({ result, onSelect }: ResultItemProps) {
         )}
       </div>
     </Command.Item>
-  );
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -242,30 +240,30 @@ function ResultItem({ result, onSelect }: ResultItemProps) {
 // ---------------------------------------------------------------------------
 
 export function CmdKOverlay() {
-  const open = useAppStore((s) => s.cmdPaletteOpen);
-  const rawQuery = useAppStore((s) => s.cmdKQuery ?? "");
-  const setCmdPaletteOpen = useAppStore((s) => s.setCmdPaletteOpen);
-  const setCmdKQuery = useAppStore((s) => s.setCmdKQuery);
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { t } = useI18n();
+  const open = useAppStore((s) => s.cmdPaletteOpen)
+  const rawQuery = useAppStore((s) => s.cmdKQuery ?? '')
+  const setCmdPaletteOpen = useAppStore((s) => s.setCmdPaletteOpen)
+  const setCmdKQuery = useAppStore((s) => s.setCmdKQuery)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { t } = useI18n()
 
   // Detect if we're on a ticker workspace — if so, surface the section
   // navigator (replaces the v5 AnchorNav sticky bar per spec §8).
   const onTickerWorkspace = useMemo(
-    () => /^\/stocks\/[A-Z0-9.\-]{1,12}/.test(location.pathname),
+    () => /^\/stocks\/[A-Z0-9.-]{1,12}/.test(location.pathname),
     [location.pathname],
-  );
+  )
 
-  const abortRef = useRef<AbortController | null>(null);
+  const abortRef = useRef<AbortController | null>(null)
 
   // ---------------------------------------------------------------------------
   // Controlled close: also clear query
   // ---------------------------------------------------------------------------
   const handleClose = useCallback(() => {
-    setCmdPaletteOpen(false);
-    setCmdKQuery("");
-  }, [setCmdPaletteOpen, setCmdKQuery]);
+    setCmdPaletteOpen(false)
+    setCmdKQuery('')
+  }, [setCmdPaletteOpen, setCmdKQuery])
 
   // ---------------------------------------------------------------------------
   // Trigger 1: ⌘K / Ctrl+K global keydown  +  finagent:open-cmdk event
@@ -275,44 +273,42 @@ export function CmdKOverlay() {
   // ---------------------------------------------------------------------------
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         // Prevent default even when an input is focused — overlay should
         // always respond (exception paths G6, G7).
-        e.preventDefault();
-        e.stopPropagation();
-        useAppStore.getState().toggleCmdPalette();
+        e.preventDefault()
+        e.stopPropagation()
+        useAppStore.getState().toggleCmdPalette()
         // When toggling off, also clear the query
         if (useAppStore.getState().cmdPaletteOpen === false) {
-          useAppStore.getState().setCmdKQuery("");
+          useAppStore.getState().setCmdKQuery('')
         }
-        return;
+        return
       }
       // Esc closes and clears
-      if (e.key === "Escape" && useAppStore.getState().cmdPaletteOpen) {
-        handleClose();
+      if (e.key === 'Escape' && useAppStore.getState().cmdPaletteOpen) {
+        handleClose()
       }
     }
     function onOpenEvent() {
-      useAppStore.getState().setCmdPaletteOpen(true);
+      useAppStore.getState().setCmdPaletteOpen(true)
     }
-    window.addEventListener("keydown", onKeyDown, true /* capture, beats inputs */);
-    window.addEventListener("finagent:open-cmdk", onOpenEvent);
+    window.addEventListener('keydown', onKeyDown, true /* capture, beats inputs */)
+    window.addEventListener('finagent:open-cmdk', onOpenEvent)
     return () => {
-      window.removeEventListener("keydown", onKeyDown, true);
-      window.removeEventListener("finagent:open-cmdk", onOpenEvent);
-    };
-  }, [handleClose]);
+      window.removeEventListener('keydown', onKeyDown, true)
+      window.removeEventListener('finagent:open-cmdk', onOpenEvent)
+    }
+  }, [handleClose])
 
   // ---------------------------------------------------------------------------
   // Query processing
   // ---------------------------------------------------------------------------
-  const isTruncated = rawQuery.length > MAX_QUERY_LENGTH;
-  const effectiveQuery = isTruncated
-    ? rawQuery.slice(0, MAX_QUERY_LENGTH)
-    : rawQuery;
-  const trimmedQuery = effectiveQuery.trim();
+  const isTruncated = rawQuery.length > MAX_QUERY_LENGTH
+  const effectiveQuery = isTruncated ? rawQuery.slice(0, MAX_QUERY_LENGTH) : rawQuery
+  const trimmedQuery = effectiveQuery.trim()
 
-  const [debouncedQuery] = useDebounce(trimmedQuery, SEARCH_DEBOUNCE_MS);
+  const [debouncedQuery] = useDebounce(trimmedQuery, SEARCH_DEBOUNCE_MS)
 
   // ---------------------------------------------------------------------------
   // Search fetch — AbortController + timeout
@@ -324,53 +320,50 @@ export function CmdKOverlay() {
     error,
     refetch,
   } = useQuery<SearchResponse>({
-    queryKey: ["cmdk-search", debouncedQuery],
+    queryKey: ['cmdk-search', debouncedQuery],
     queryFn: async ({ signal: querySignal }) => {
       if (abortRef.current) {
-        abortRef.current.abort();
+        abortRef.current.abort()
       }
-      const controller = new AbortController();
-      abortRef.current = controller;
+      const controller = new AbortController()
+      abortRef.current = controller
 
-      const timeoutId = setTimeout(
-        () => controller.abort(new Error("timeout")),
-        SEARCH_TIMEOUT_MS
-      );
+      const timeoutId = setTimeout(() => controller.abort(new Error('timeout')), SEARCH_TIMEOUT_MS)
 
       // Merge query-cancellation signal with our own controller
-      let fetchSignal: AbortSignal = controller.signal;
-      if (typeof AbortSignal.any === "function") {
-        fetchSignal = AbortSignal.any([controller.signal, querySignal]);
+      let fetchSignal: AbortSignal = controller.signal
+      if (typeof AbortSignal.any === 'function') {
+        fetchSignal = AbortSignal.any([controller.signal, querySignal])
       }
 
       try {
-        const resp = await fetch(
-          `/api/search?q=${encodeURIComponent(debouncedQuery)}&limit=20`,
-          { signal: fetchSignal }
-        );
+        const resp = await fetch(`/api/search?q=${encodeURIComponent(debouncedQuery)}&limit=20`, {
+          signal: fetchSignal,
+        })
         if (!resp.ok) {
-          throw new FetchHttpError(resp.status, resp.statusText);
+          throw new FetchHttpError(resp.status, resp.statusText)
         }
-        return (await resp.json()) as SearchResponse;
+        return (await resp.json()) as SearchResponse
       } catch (err) {
         if (err instanceof Error) {
           if (
-            err.message.includes("timeout") ||
-            (err.name === "AbortError" && controller.signal.reason instanceof Error &&
-              (controller.signal.reason as Error).message === "timeout")
+            err.message.includes('timeout') ||
+            (err.name === 'AbortError' &&
+              controller.signal.reason instanceof Error &&
+              (controller.signal.reason as Error).message === 'timeout')
           ) {
-            throw new Error(tSync("cmdk.results.timeout"));
+            throw new Error(tSync('cmdk.results.timeout'))
           }
         }
-        throw err;
+        throw err
       } finally {
-        clearTimeout(timeoutId);
+        clearTimeout(timeoutId)
       }
     },
     enabled: debouncedQuery.length > 0,
     staleTime: SEARCH_STALE_TIME_MS,
     retry: false,
-  });
+  })
 
   // ---------------------------------------------------------------------------
   // Group results by kind
@@ -381,49 +374,49 @@ export function CmdKOverlay() {
       slash_command: [],
       artifact: [],
       session: [],
-    };
-    for (const r of searchData?.results ?? []) {
-      if (r.kind in groups) groups[r.kind].push(r);
     }
-    return groups;
-  }, [searchData]);
+    for (const r of searchData?.results ?? []) {
+      if (r.kind in groups) groups[r.kind].push(r)
+    }
+    return groups
+  }, [searchData])
 
   // ---------------------------------------------------------------------------
   // Recent searches — recomputed each time overlay opens or query changes
   // ---------------------------------------------------------------------------
   const recentSearches = useMemo<string[]>(() => {
-    if (trimmedQuery.length > 0) return [];
-    return loadRecentSearches();
+    if (trimmedQuery.length > 0) return []
+    return loadRecentSearches()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trimmedQuery, open]);
+  }, [trimmedQuery, open])
 
   // ---------------------------------------------------------------------------
   // Action execution
   // ---------------------------------------------------------------------------
   const executeAction = useMemo(
     () => buildActionExecutor(navigate, handleClose),
-    [navigate, handleClose]
-  );
+    [navigate, handleClose],
+  )
 
   const handleSelectAction = useCallback(
     (action: string) => executeAction(action, trimmedQuery),
-    [executeAction, trimmedQuery]
-  );
+    [executeAction, trimmedQuery],
+  )
 
   // ---------------------------------------------------------------------------
   // AI fallback
   // ---------------------------------------------------------------------------
   const handleAIFallback = useCallback(() => {
-    const text = trimmedQuery;
-    if (!text) return;
+    const text = trimmedQuery
+    if (!text) return
     // v5 (spec §11.1.C): /library is retired. Free-text questions land on
     // /stocks (search-first landing). The Ask AI fab in StockWorkspace picks
     // up the same query via session storage when wired in PR8.
-    sessionStorage.setItem('finagent.cmdk_ai_query', text);
-    navigate('/stocks');
-    saveRecentSearch(text);
-    handleClose();
-  }, [trimmedQuery, navigate, handleClose]);
+    sessionStorage.setItem('finagent.cmdk_ai_query', text)
+    navigate('/stocks')
+    saveRecentSearch(text)
+    handleClose()
+  }, [trimmedQuery, navigate, handleClose])
 
   // ---------------------------------------------------------------------------
   // Derived state
@@ -432,16 +425,13 @@ export function CmdKOverlay() {
     grouped.ticker.length > 0 ||
     grouped.slash_command.length > 0 ||
     grouped.artifact.length > 0 ||
-    grouped.session.length > 0;
+    grouped.session.length > 0
 
-  const showEmpty =
-    !isLoading && !isError && debouncedQuery.length > 0 && !hasResults;
+  const showEmpty = !isLoading && !isError && debouncedQuery.length > 0 && !hasResults
 
-  const showRecentSearches =
-    trimmedQuery.length === 0 && recentSearches.length > 0;
+  const showRecentSearches = trimmedQuery.length === 0 && recentSearches.length > 0
 
-  const showPlaceholder =
-    trimmedQuery.length === 0 && recentSearches.length === 0;
+  const showPlaceholder = trimmedQuery.length === 0 && recentSearches.length === 0
 
   // ---------------------------------------------------------------------------
   // Render
@@ -450,16 +440,16 @@ export function CmdKOverlay() {
     <Command.Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) handleClose();
+        if (!next) handleClose()
       }}
-      label={t("cmdk.search.aria")}
+      label={t('cmdk.search.aria')}
       shouldFilter={false}
-      aria-label={t("cmdk.search.aria")}
+      aria-label={t('cmdk.search.aria')}
       loop
       style={
         {
           // Override default cmdk dialog styles to match design system
-          "--cmdk-shadow": "0 16px 48px rgba(0,0,0,0.6)",
+          '--cmdk-shadow': '0 16px 48px rgba(0,0,0,0.6)',
         } as React.CSSProperties
       }
     >
@@ -468,16 +458,16 @@ export function CmdKOverlay() {
       {/* ------------------------------------------------------------------ */}
       <div
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          padding: "0 12px",
-          borderBottom: "1px solid var(--border)",
-          height: "48px",
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '0 12px',
+          borderBottom: '1px solid var(--border)',
+          height: '48px',
         }}
       >
         <span
-          style={{ color: "var(--text-muted)", fontSize: "16px", flexShrink: 0 }}
+          style={{ color: 'var(--text-muted)', fontSize: '16px', flexShrink: 0 }}
           aria-hidden="true"
         >
           🔍
@@ -485,15 +475,15 @@ export function CmdKOverlay() {
         <Command.Input
           value={effectiveQuery}
           onValueChange={setCmdKQuery}
-          placeholder={t("cmdk.placeholder")}
+          placeholder={t('cmdk.placeholder')}
           style={{
             flex: 1,
-            background: "transparent",
-            border: "none",
-            outline: "none",
-            fontSize: "14px",
-            color: "var(--text-primary)",
-            padding: "0",
+            background: 'transparent',
+            border: 'none',
+            outline: 'none',
+            fontSize: '14px',
+            color: 'var(--text-primary)',
+            padding: '0',
           }}
           autoFocus
           data-testid="cmdk-input"
@@ -501,12 +491,12 @@ export function CmdKOverlay() {
         {isLoading && (
           <span
             style={{
-              fontSize: "12px",
-              color: "var(--text-muted)",
+              fontSize: '12px',
+              color: 'var(--text-muted)',
               flexShrink: 0,
             }}
             aria-live="polite"
-            aria-label={t("cmdk.results.searching")}
+            aria-label={t('cmdk.results.searching')}
           >
             …
           </span>
@@ -519,14 +509,14 @@ export function CmdKOverlay() {
           role="alert"
           data-testid="truncation-warning"
           style={{
-            padding: "6px 12px",
-            fontSize: "12px",
-            color: "var(--warning)",
-            backgroundColor: "var(--surface)",
-            borderBottom: "1px solid var(--border)",
+            padding: '6px 12px',
+            fontSize: '12px',
+            color: 'var(--warning)',
+            backgroundColor: 'var(--surface)',
+            borderBottom: '1px solid var(--border)',
           }}
         >
-          {t("cmdk.overlength", { max: MAX_QUERY_LENGTH })}
+          {t('cmdk.overlength', { max: MAX_QUERY_LENGTH })}
         </div>
       )}
 
@@ -536,39 +526,39 @@ export function CmdKOverlay() {
           role="alert"
           data-testid="search-error"
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "8px 12px",
-            fontSize: "12px",
-            color: "var(--danger)",
-            backgroundColor: "var(--surface)",
-            borderBottom: "1px solid var(--border)",
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            fontSize: '12px',
+            color: 'var(--danger)',
+            backgroundColor: 'var(--surface)',
+            borderBottom: '1px solid var(--border)',
           }}
         >
           <span>
             {error instanceof Error &&
-            (error.message === t("cmdk.results.timeout") ||
-              error.message.toLowerCase().includes("timeout") ||
-              error.message.includes("超时"))
-              ? t("cmdk.results.timeout")
-              : t("cmdk.results.networkError")}
+            (error.message === t('cmdk.results.timeout') ||
+              error.message.toLowerCase().includes('timeout') ||
+              error.message.includes('超时'))
+              ? t('cmdk.results.timeout')
+              : t('cmdk.results.networkError')}
           </span>
           <button
             onClick={() => refetch()}
             data-testid="retry-button"
             style={{
-              marginLeft: "8px",
-              padding: "2px 8px",
-              fontSize: "12px",
-              border: "1px solid var(--danger)",
-              color: "var(--danger)",
-              backgroundColor: "transparent",
-              borderRadius: "4px",
-              cursor: "pointer",
+              marginLeft: '8px',
+              padding: '2px 8px',
+              fontSize: '12px',
+              border: '1px solid var(--danger)',
+              color: 'var(--danger)',
+              backgroundColor: 'transparent',
+              borderRadius: '4px',
+              cursor: 'pointer',
             }}
           >
-            {t("common.retry")}
+            {t('common.retry')}
           </button>
         </div>
       )}
@@ -578,8 +568,8 @@ export function CmdKOverlay() {
       {/* ------------------------------------------------------------------ */}
       <Command.List
         data-testid="cmdk-list"
-        style={{ maxHeight: "440px", overflowY: "auto" }}
-        aria-label={t("cmdk.results.aria")}
+        style={{ maxHeight: '440px', overflowY: 'auto' }}
+        aria-label={t('cmdk.results.aria')}
       >
         {/* Section navigator — shows when on a ticker workspace and query
             is empty. Replaces the v5 AnchorNav sticky horizontal bar
@@ -599,34 +589,32 @@ export function CmdKOverlay() {
                     onSelect={() => {
                       const el = document.getElementById(it.id)
                       if (el) {
-                        el.scrollIntoView({ behavior: "smooth", block: "start" })
+                        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
                       }
                       handleClose()
                     }}
                     data-testid="section-jump-item"
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "8px 12px",
-                      cursor: "pointer",
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 12px',
+                      cursor: 'pointer',
                     }}
                   >
                     <span
                       aria-hidden
                       style={{
                         width: 24,
-                        textAlign: "center",
+                        textAlign: 'center',
                         fontSize: 13,
-                        color: "var(--accent-cyan)",
-                        fontFamily: "var(--font-mono)",
+                        color: 'var(--accent-cyan)',
+                        fontFamily: 'var(--font-mono)',
                       }}
                     >
                       §
                     </span>
-                    <span style={{ fontSize: 14, color: "var(--text-primary)" }}>
-                      {it.label}
-                    </span>
+                    <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>{it.label}</span>
                   </Command.Item>
                 ))}
               </Command.Group>
@@ -636,10 +624,7 @@ export function CmdKOverlay() {
 
         {/* Recent searches — shown when query is empty */}
         {showRecentSearches && (
-          <Command.Group
-            heading={t("cmdk.section.recent")}
-            data-testid="recent-searches-group"
-          >
+          <Command.Group heading={t('cmdk.section.recent')} data-testid="recent-searches-group">
             {recentSearches.map((q) => (
               <Command.Item
                 key={`recent:${q}`}
@@ -647,20 +632,20 @@ export function CmdKOverlay() {
                 onSelect={() => setCmdKQuery(q)}
                 data-testid="recent-search-item"
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  padding: "8px 12px",
-                  cursor: "pointer",
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
                 }}
               >
                 <span
                   style={{
-                    fontSize: "14px",
-                    color: "var(--text-muted)",
+                    fontSize: '14px',
+                    color: 'var(--text-muted)',
                     flexShrink: 0,
-                    width: "24px",
-                    textAlign: "center",
+                    width: '24px',
+                    textAlign: 'center',
                   }}
                   aria-hidden="true"
                 >
@@ -668,8 +653,8 @@ export function CmdKOverlay() {
                 </span>
                 <span
                   style={{
-                    fontSize: "14px",
-                    color: "var(--text-secondary)",
+                    fontSize: '14px',
+                    color: 'var(--text-secondary)',
                   }}
                 >
                   {q}
@@ -681,52 +666,36 @@ export function CmdKOverlay() {
 
         {/* Ticker results */}
         {grouped.ticker.length > 0 && (
-          <Command.Group heading={t("cmdk.section.tickers")} data-testid="ticker-group">
+          <Command.Group heading={t('cmdk.section.tickers')} data-testid="ticker-group">
             {grouped.ticker.map((r) => (
-              <ResultItem
-                key={`ticker:${r.action}`}
-                result={r}
-                onSelect={handleSelectAction}
-              />
+              <ResultItem key={`ticker:${r.action}`} result={r} onSelect={handleSelectAction} />
             ))}
           </Command.Group>
         )}
 
         {/* Slash command results */}
         {grouped.slash_command.length > 0 && (
-          <Command.Group heading={t("cmdk.section.commands")} data-testid="slash-group">
+          <Command.Group heading={t('cmdk.section.commands')} data-testid="slash-group">
             {grouped.slash_command.map((r) => (
-              <ResultItem
-                key={`slash:${r.action}`}
-                result={r}
-                onSelect={handleSelectAction}
-              />
+              <ResultItem key={`slash:${r.action}`} result={r} onSelect={handleSelectAction} />
             ))}
           </Command.Group>
         )}
 
         {/* Artifact results */}
         {grouped.artifact.length > 0 && (
-          <Command.Group heading={t("cmdk.section.artifacts")} data-testid="artifact-group">
+          <Command.Group heading={t('cmdk.section.artifacts')} data-testid="artifact-group">
             {grouped.artifact.map((r) => (
-              <ResultItem
-                key={`artifact:${r.action}`}
-                result={r}
-                onSelect={handleSelectAction}
-              />
+              <ResultItem key={`artifact:${r.action}`} result={r} onSelect={handleSelectAction} />
             ))}
           </Command.Group>
         )}
 
         {/* Session results */}
         {grouped.session.length > 0 && (
-          <Command.Group heading={t("cmdk.section.sessions")} data-testid="session-group">
+          <Command.Group heading={t('cmdk.section.sessions')} data-testid="session-group">
             {grouped.session.map((r) => (
-              <ResultItem
-                key={`session:${r.action}`}
-                result={r}
-                onSelect={handleSelectAction}
-              />
+              <ResultItem key={`session:${r.action}`} result={r} onSelect={handleSelectAction} />
             ))}
           </Command.Group>
         )}
@@ -736,13 +705,13 @@ export function CmdKOverlay() {
           <div
             data-testid="empty-placeholder"
             style={{
-              padding: "32px 16px",
-              textAlign: "center",
-              fontSize: "14px",
-              color: "var(--text-muted)",
+              padding: '32px 16px',
+              textAlign: 'center',
+              fontSize: '14px',
+              color: 'var(--text-muted)',
             }}
           >
-            {t("cmdk.empty")}
+            {t('cmdk.empty')}
           </div>
         )}
 
@@ -751,34 +720,32 @@ export function CmdKOverlay() {
           <Command.Empty data-testid="ai-fallback">
             <div
               style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "12px",
-                padding: "24px 16px",
-                textAlign: "center",
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '24px 16px',
+                textAlign: 'center',
               }}
             >
-              <span
-                style={{ fontSize: "14px", color: "var(--text-muted)" }}
-              >
-                {t("cmdk.results.nothing", { query: debouncedQuery })}
+              <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
+                {t('cmdk.results.nothing', { query: debouncedQuery })}
               </span>
               <button
                 onClick={handleAIFallback}
                 data-testid="ai-fallback-button"
                 style={{
-                  padding: "6px 16px",
-                  fontSize: "14px",
+                  padding: '6px 16px',
+                  fontSize: '14px',
                   fontWeight: 500,
-                  backgroundColor: "var(--info)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: "pointer",
+                  backgroundColor: 'var(--info)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
                 }}
               >
-                {t("cmdk.results.askHint")}
+                {t('cmdk.results.askHint')}
               </button>
             </div>
           </Command.Empty>
@@ -791,55 +758,55 @@ export function CmdKOverlay() {
       <div
         data-testid="cmdk-footer"
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "8px 12px",
-          borderTop: "1px solid var(--border)",
-          fontSize: "12px",
-          color: "var(--text-muted)",
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '8px 12px',
+          borderTop: '1px solid var(--border)',
+          fontSize: '12px',
+          color: 'var(--text-muted)',
         }}
       >
         <span>
           <kbd
             style={{
-              padding: "1px 5px",
-              border: "1px solid var(--border)",
-              borderRadius: "3px",
-              fontSize: "11px",
-              backgroundColor: "var(--surface)",
+              padding: '1px 5px',
+              border: '1px solid var(--border)',
+              borderRadius: '3px',
+              fontSize: '11px',
+              backgroundColor: 'var(--surface)',
             }}
           >
             ↑↓
-          </kbd>{" "}
-          {t("cmdk.foot.select")}{" "}
+          </kbd>{' '}
+          {t('cmdk.foot.select')}{' '}
           <kbd
             style={{
-              padding: "1px 5px",
-              border: "1px solid var(--border)",
-              borderRadius: "3px",
-              fontSize: "11px",
-              backgroundColor: "var(--surface)",
+              padding: '1px 5px',
+              border: '1px solid var(--border)',
+              borderRadius: '3px',
+              fontSize: '11px',
+              backgroundColor: 'var(--surface)',
             }}
           >
             Enter
-          </kbd>{" "}
-          {t("cmdk.foot.confirm")}{" "}
+          </kbd>{' '}
+          {t('cmdk.foot.confirm')}{' '}
           <kbd
             style={{
-              padding: "1px 5px",
-              border: "1px solid var(--border)",
-              borderRadius: "3px",
-              fontSize: "11px",
-              backgroundColor: "var(--surface)",
+              padding: '1px 5px',
+              border: '1px solid var(--border)',
+              borderRadius: '3px',
+              fontSize: '11px',
+              backgroundColor: 'var(--surface)',
             }}
           >
             Esc
-          </kbd>{" "}
-          {t("cmdk.foot.close")}
+          </kbd>{' '}
+          {t('cmdk.foot.close')}
         </span>
-        <span style={{ opacity: 0.6 }}>{t("cmdk.foot.tipDcf")}</span>
+        <span style={{ opacity: 0.6 }}>{t('cmdk.foot.tipDcf')}</span>
       </div>
     </Command.Dialog>
-  );
+  )
 }

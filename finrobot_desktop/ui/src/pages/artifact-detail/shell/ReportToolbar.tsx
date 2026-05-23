@@ -227,11 +227,7 @@ export function ReportToolbar({
             >
               ✏️ What-if
             </OverflowItem>
-            <OverflowItem
-              disabled
-              hint="PDF 导出即将上线"
-              onClick={() => setOverflowOpen(false)}
-            >
+            <OverflowItem disabled hint="PDF 导出即将上线" onClick={() => setOverflowOpen(false)}>
               📤 PDF
             </OverflowItem>
           </div>
@@ -363,9 +359,7 @@ function OverflowItem({
     >
       <span>{children}</span>
       {hint && disabled && (
-        <span style={{ fontSize: 9.5, color: 'var(--text-dim)', opacity: 0.8 }}>
-          即将上线
-        </span>
+        <span style={{ fontSize: 9.5, color: 'var(--text-dim)', opacity: 0.8 }}>即将上线</span>
       )}
     </button>
   )

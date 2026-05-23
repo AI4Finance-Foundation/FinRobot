@@ -28,7 +28,8 @@ export function ChapterNews({ thesis }: { thesis: ThesisShape | null }): React.R
             lineHeight: 1.7,
           }}
         >
-          该 artifact 未生成 news_summary 段 — 跑一次 research pipeline 即在此章产出近 30 天关键事件的整体情绪与论点支撑 / 挑战分析。
+          该 artifact 未生成 news_summary 段 — 跑一次 research pipeline 即在此章产出近 30
+          天关键事件的整体情绪与论点支撑 / 挑战分析。
         </p>
       )}
       <p

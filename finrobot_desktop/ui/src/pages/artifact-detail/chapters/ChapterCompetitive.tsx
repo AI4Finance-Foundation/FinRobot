@@ -1,9 +1,6 @@
 import PeerComparisonChart from '../../../components/charts/PeerComparisonChart'
 import CompanyRadarChart from '../../../components/charts/CompanyRadarChart'
-import {
-  compsResultToPeerChartData,
-  compsResultToRadarData,
-} from '../../../utils/chartAdapters'
+import { compsResultToPeerChartData, compsResultToRadarData } from '../../../utils/chartAdapters'
 import type { CompsResult } from '../../../stores/appStore'
 import { Chapter, Narrative, SubChapter, tableStyle } from './ChapterBase'
 import type { PeerCompsShape, ThesisShape } from './types'
@@ -13,10 +10,7 @@ interface ChapterCompetitiveProps {
   thesis: ThesisShape | null
 }
 
-export function ChapterCompetitive({
-  peers,
-  thesis,
-}: ChapterCompetitiveProps): React.ReactElement {
+export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): React.ReactElement {
   const narrative = thesis?.competitor_analysis ?? null
   const target = peers?.target
   const peerList = peers?.peers ?? []
@@ -65,11 +59,7 @@ export function ChapterCompetitive({
               return (
                 <tr
                   key={c.ticker}
-                  style={
-                    isTarget
-                      ? { background: 'rgba(34, 211, 238, 0.06)' }
-                      : undefined
-                  }
+                  style={isTarget ? { background: 'rgba(34, 211, 238, 0.06)' } : undefined}
                 >
                   <td
                     style={{
@@ -99,7 +89,9 @@ export function ChapterCompetitive({
                     {c.pe_ratio !== null && c.pe_ratio !== undefined ? c.pe_ratio.toFixed(1) : '—'}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {c.ev_ebitda !== null && c.ev_ebitda !== undefined ? c.ev_ebitda.toFixed(1) : '—'}
+                    {c.ev_ebitda !== null && c.ev_ebitda !== undefined
+                      ? c.ev_ebitda.toFixed(1)
+                      : '—'}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
                     {(c.gross_margin * 100).toFixed(1)}%

@@ -1,13 +1,4 @@
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  Cell,
-} from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts'
 import type { TooltipValueType } from 'recharts'
 
 interface ChartProps {
@@ -16,8 +7,8 @@ interface ChartProps {
 }
 
 // Design system chart palette
-const PRIMARY = 'var(--primary)'         // chart-1
-const ACCENT = '#C9A84C'          // chart-2
+const PRIMARY = 'var(--primary)' // chart-1
+const ACCENT = '#C9A84C' // chart-2
 const TARGET_HIGHLIGHT = 'var(--warning)' // chart-5
 
 const CHART_TOOLTIP = {
@@ -42,11 +33,19 @@ export default function PeerComparisonChart({ data, title }: ChartProps) {
           <BarChart data={data} barGap={2}>
             <XAxis
               dataKey="ticker"
-              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{
+                fill: 'var(--text-muted)',
+                fontSize: 11,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
               axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <YAxis
-              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{
+                fill: 'var(--text-muted)',
+                fontSize: 11,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
               axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <Tooltip
@@ -54,23 +53,18 @@ export default function PeerComparisonChart({ data, title }: ChartProps) {
                 const v = typeof value === 'number' ? value : 0
                 return v.toFixed(1)
               }}
-              contentStyle={CHART_TOOLTIP} labelStyle={{ color: 'var(--text-primary)' }}
+              contentStyle={CHART_TOOLTIP}
+              labelStyle={{ color: 'var(--text-primary)' }}
             />
             <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
             <Bar dataKey="ev_ebitda" name="EV/EBITDA" radius={[3, 3, 0, 0]}>
               {data.map((entry, index) => (
-                <Cell
-                  key={`ev-${index}`}
-                  fill={entry.is_target ? TARGET_HIGHLIGHT : PRIMARY}
-                />
+                <Cell key={`ev-${index}`} fill={entry.is_target ? TARGET_HIGHLIGHT : PRIMARY} />
               ))}
             </Bar>
             <Bar dataKey="pe_ratio" name="P/E Ratio" radius={[3, 3, 0, 0]}>
               {data.map((entry, index) => (
-                <Cell
-                  key={`pe-${index}`}
-                  fill={entry.is_target ? TARGET_HIGHLIGHT : ACCENT}
-                />
+                <Cell key={`pe-${index}`} fill={entry.is_target ? TARGET_HIGHLIGHT : ACCENT} />
               ))}
             </Bar>
           </BarChart>

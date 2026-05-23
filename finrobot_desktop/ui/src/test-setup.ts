@@ -4,10 +4,7 @@ import '@testing-library/jest-dom'
 // Default locale was changed to zh for retail-investor product positioning,
 // so pin tests to en via the persisted zustand store key before any module load.
 if (typeof localStorage !== 'undefined') {
-  localStorage.setItem(
-    'finagent-ui-prefs',
-    JSON.stringify({ state: { locale: 'en' }, version: 0 }),
-  )
+  localStorage.setItem('finagent-ui-prefs', JSON.stringify({ state: { locale: 'en' }, version: 0 }))
 }
 
 // jsdom does not implement ResizeObserver — polyfill for component tests that

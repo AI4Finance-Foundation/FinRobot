@@ -162,7 +162,7 @@ function clamp(n: number, lo: number, hi: number): number {
 
 export const useUiStore = create<UiStoreState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       aiPanelOpen: true,
       aiPanelWidth: DEFAULT_AIPANEL_W,
       // Heat-conservative defaults — cosmic decorations are opt-in for
@@ -184,8 +184,7 @@ export const useUiStore = create<UiStoreState>()(
       // AI panel
       setAiPanelOpen: (aiPanelOpen) => set({ aiPanelOpen }),
       toggleAiPanel: () => set((s) => ({ aiPanelOpen: !s.aiPanelOpen })),
-      setAiPanelWidth: (w) =>
-        set({ aiPanelWidth: clamp(w, MIN_AIPANEL_W, MAX_AIPANEL_W) }),
+      setAiPanelWidth: (w) => set({ aiPanelWidth: clamp(w, MIN_AIPANEL_W, MAX_AIPANEL_W) }),
 
       // Cosmic cursor trail
       setCursorTrailEnabled: (cursorTrailEnabled) => set({ cursorTrailEnabled }),
@@ -288,9 +287,10 @@ export const useUiStore = create<UiStoreState>()(
         // prefers-reduced-motion: 自动关掉所有 heavy 装饰（仅首次冷启动）
         // 已经 hydrate 过的用户保留其手动选择。
         if (typeof window !== 'undefined' && state) {
-          const mql = typeof window.matchMedia === 'function'
-            ? window.matchMedia('(prefers-reduced-motion: reduce)')
-            : null
+          const mql =
+            typeof window.matchMedia === 'function'
+              ? window.matchMedia('(prefers-reduced-motion: reduce)')
+              : null
           if (mql?.matches) {
             const stored = localStorage.getItem('finagent-ui-shell')
             // Only auto-disable if the user has no persisted choice — i.e.,

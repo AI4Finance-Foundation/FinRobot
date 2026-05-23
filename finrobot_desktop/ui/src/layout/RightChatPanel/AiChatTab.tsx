@@ -38,7 +38,12 @@ const ROUTE_CHIP_PATTERNS: Array<{ test: (path: string) => boolean; chips: strin
   // /stocks/:ticker/runs/:artifactId — 12-chapter report detail
   {
     test: (p) => /^\/stocks\/[^/]+\/runs\//.test(p),
-    chips: ['解释这份研报的 DCF 假设', '对比同期竞争对手估值', '哪些催化剂最值得跟踪', '与上一版有何差异'],
+    chips: [
+      '解释这份研报的 DCF 假设',
+      '对比同期竞争对手估值',
+      '哪些催化剂最值得跟踪',
+      '与上一版有何差异',
+    ],
   },
   // /stocks/:ticker — ticker workspace
   {
@@ -62,10 +67,10 @@ const ROUTE_CHIP_PATTERNS: Array<{ test: (path: string) => boolean; chips: strin
 // are preserved as aliases so existing tests and persisted uiStore values keep
 // working.  AppShell-level UI shows the "human" label; value is sent to backend.
 const MODELS = [
-  { value: 'deepseek',          label: 'DeepSeek Chat' },
-  { value: 'qwen-max',          label: 'Qwen Max' },
-  { value: 'anthropic',         label: 'Claude Sonnet' },
-  { value: 'gpt-4o',            label: 'GPT-4o' },
+  { value: 'deepseek', label: 'DeepSeek Chat' },
+  { value: 'qwen-max', label: 'Qwen Max' },
+  { value: 'anthropic', label: 'Claude Sonnet' },
+  { value: 'gpt-4o', label: 'GPT-4o' },
 ] as const
 
 type ModelValue = (typeof MODELS)[number]['value']
@@ -94,18 +99,17 @@ export function AiChatTab({
   const { t } = useI18n()
 
   // ── uiStore bindings ────────────────────────────────────────
-  const storeOpen       = useUiStore((s) => s.aiPanelOpen)
-  const storeWidth      = useUiStore((s) => s.aiPanelWidth)
-  const storeModel      = useUiStore((s) => s.currentModel)
-  const toggleAiPanel   = useUiStore((s) => s.toggleAiPanel)
+  const storeOpen = useUiStore((s) => s.aiPanelOpen)
+  const storeWidth = useUiStore((s) => s.aiPanelWidth)
+  const storeModel = useUiStore((s) => s.currentModel)
+  const toggleAiPanel = useUiStore((s) => s.toggleAiPanel)
   const setAiPanelWidth = useUiStore((s) => s.setAiPanelWidth)
-  const setStoreModel   = useUiStore((s) => s.setCurrentModel)
-  const pendingChatPrompt   = useUiStore((s) => s.pendingChatPrompt)
+  const pendingChatPrompt = useUiStore((s) => s.pendingChatPrompt)
   const consumePendingPrompt = useUiStore((s) => s.consumePendingChatPrompt)
 
   // Prop-override: if caller supplies expanded/onToggle, use those.
   // Otherwise fall through to uiStore.
-  const isExpanded  = expandedProp !== undefined ? expandedProp  : storeOpen
+  const isExpanded = expandedProp !== undefined ? expandedProp : storeOpen
   const handleToggle = onToggleProp !== undefined ? onToggleProp : toggleAiPanel
 
   // Per-ticker session map so switching ticker preserves prior conversations.
@@ -121,34 +125,16 @@ export function AiChatTab({
     return id
   }, [])
 
-  const [sessionId, setSessionId] = useState<string>(() =>
-    getOrCreateSession(sessionKey),
-  )
+  const [sessionId, setSessionId] = useState<string>(() => getOrCreateSession(sessionKey))
   const [inputText, setInputText] = useState('')
 
   // Track unread for collapsed state
   const [unreadCount, setUnreadCount] = useState(0)
   const lastSeenMessageCountRef = useRef(0)
 
-  // local model state for test/legacy compat when expanded prop is injected
-  const [localModel, setLocalModel] = useState<ModelValue>('anthropic')
-
-  // When caller provides expanded prop (legacy / test mode), use local model.
-  // When controlled by uiStore, use storeModel.
-  const modelValue: ModelValue =
-    expandedProp !== undefined
-      ? localModel
-      : MODELS.some((m) => m.value === storeModel)
-        ? (storeModel as ModelValue)
-        : 'deepseek'
-
-  const handleModelChange = (m: ModelValue): void => {
-    if (expandedProp !== undefined) {
-      setLocalModel(m)
-    } else {
-      setStoreModel(m)
-    }
-  }
+  const modelValue: ModelValue = MODELS.some((m) => m.value === storeModel)
+    ? (storeModel as ModelValue)
+    : 'deepseek'
 
   // Transport — recreated when ticker/model changes
   const transport = useMemo(
@@ -160,25 +146,24 @@ export function AiChatTab({
     [ticker, modelValue],
   )
 
-  const { messages, status, error, sendMessage, stop, regenerate, clearError } =
-    useChat({
-      id: sessionId,
-      transport,
-      onError(err) {
-        const msg = err.message ?? ''
-        if (msg.includes('context') || msg.includes('token')) {
-          addToast({ type: 'error', title: t('chat.error.context') })
-        } else if (msg.includes('503') || msg.includes('Service Unavailable')) {
-          addToast({ type: 'error', title: t('chat.error.unavailable') })
-        } else {
-          addToast({
-            type: 'error',
-            title: t('chat.error.generic'),
-            description: msg || undefined,
-          })
-        }
-      },
-    })
+  const { messages, status, error, sendMessage, stop, regenerate, clearError } = useChat({
+    id: sessionId,
+    transport,
+    onError(err) {
+      const msg = err.message ?? ''
+      if (msg.includes('context') || msg.includes('token')) {
+        addToast({ type: 'error', title: t('chat.error.context') })
+      } else if (msg.includes('503') || msg.includes('Service Unavailable')) {
+        addToast({ type: 'error', title: t('chat.error.unavailable') })
+      } else {
+        addToast({
+          type: 'error',
+          title: t('chat.error.generic'),
+          description: msg || undefined,
+        })
+      }
+    },
+  })
 
   const isLoading = status === 'submitted' || status === 'streaming'
 
@@ -196,9 +181,7 @@ export function AiChatTab({
         setUnreadCount(assistantCount - lastSeenMessageCountRef.current)
       }
     } else {
-      lastSeenMessageCountRef.current = messages.filter(
-        (m) => m.role === 'assistant',
-      ).length
+      lastSeenMessageCountRef.current = messages.filter((m) => m.role === 'assistant').length
       setUnreadCount(0)
     }
   }, [messages, isExpanded])
@@ -282,9 +265,7 @@ export function AiChatTab({
   const handleExpandToggle = useCallback(() => {
     handleToggle()
     setUnreadCount(0)
-    lastSeenMessageCountRef.current = messages.filter(
-      (m) => m.role === 'assistant',
-    ).length
+    lastSeenMessageCountRef.current = messages.filter((m) => m.role === 'assistant').length
   }, [handleToggle, messages])
 
   // ── Collapsed: legacy/test path (prop injected) ───────────────
@@ -297,9 +278,7 @@ export function AiChatTab({
         onToggle={() => {
           handleToggle()
           setUnreadCount(0)
-          lastSeenMessageCountRef.current = messages.filter(
-            (m) => m.role === 'assistant',
-          ).length
+          lastSeenMessageCountRef.current = messages.filter((m) => m.role === 'assistant').length
         }}
         unreadCount={unreadCount}
         onNewSession={startNewSession}
@@ -319,7 +298,6 @@ export function AiChatTab({
     >
       <AiPanelHeader
         modelValue={modelValue}
-        onModelChange={handleModelChange}
         onToggle={handleToggle}
         onNewSession={startNewSession}
         ticker={ticker}
@@ -334,9 +312,7 @@ export function AiChatTab({
         onExample={setInputText}
       />
 
-      {routeChips.length > 0 && (
-        <SuggestionChips chips={routeChips} onSelect={setInputText} />
-      )}
+      {routeChips.length > 0 && <SuggestionChips chips={routeChips} onSelect={setInputText} />}
 
       <AiInputArea
         value={inputText}
@@ -385,7 +361,6 @@ function SuggestionChips({ chips, onSelect }: SuggestionChipsProps): React.React
 
 interface AiPanelHeaderProps {
   modelValue: ModelValue
-  onModelChange: (m: ModelValue) => void
   onToggle: () => void
   onNewSession: () => void
   ticker: string | undefined
@@ -393,7 +368,6 @@ interface AiPanelHeaderProps {
 
 function AiPanelHeader({
   modelValue,
-  onModelChange,
   onToggle,
   onNewSession,
   ticker,
@@ -497,9 +471,7 @@ function MessageList({
       >
         <div style={{ textAlign: 'center', color: 'var(--text-3)' }}>
           <div style={{ fontSize: '20px', marginBottom: '6px' }}>◈</div>
-          <div style={{ fontSize: '12px', color: 'var(--text-2)' }}>
-            {t('chat.empty.heading')}
-          </div>
+          <div style={{ fontSize: '12px', color: 'var(--text-2)' }}>{t('chat.empty.heading')}</div>
           <div style={{ fontSize: '11px', color: 'var(--text-3)', marginTop: '4px' }}>
             {t('chat.empty.body')}
           </div>
@@ -531,10 +503,7 @@ function MessageList({
   }
 
   return (
-    <div
-      data-testid="message-list"
-      className="ai-messages"
-    >
+    <div data-testid="message-list" className="ai-messages">
       {messages.map((message) => (
         <MessageBubble key={message.id} message={message} />
       ))}
@@ -564,20 +533,17 @@ function MessageBubble({ message }: { message: UIMessage }): React.ReactElement 
   const timeStr = formatMessageTime(createdAt)
 
   return (
-    <div
-      data-testid={`message-${message.role}`}
-      className={`msg ${isUser ? 'user' : 'agent'}`}
-    >
+    <div data-testid={`message-${message.role}`} className={`msg ${isUser ? 'user' : 'agent'}`}>
       <div className="msg-head">
         {isUser
-          ? timeStr ? `USER · ${timeStr}` : 'USER'
-          : timeStr ? `● FINAGENT · ${timeStr}` : '● FINAGENT'}
+          ? timeStr
+            ? `USER · ${timeStr}`
+            : 'USER'
+          : timeStr
+            ? `● FINAGENT · ${timeStr}`
+            : '● FINAGENT'}
       </div>
-      {isUser ? (
-        <UserBubble message={message} />
-      ) : (
-        <AssistantContent message={message} />
-      )}
+      {isUser ? <UserBubble message={message} /> : <AssistantContent message={message} />}
     </div>
   )
 }
@@ -595,11 +561,7 @@ function UserBubble({ message }: { message: UIMessage }): React.ReactElement {
     .map((p) => (p.type === 'text' ? p.text : ''))
     .join('')
 
-  return (
-    <div className="msg-body">
-      {text}
-    </div>
-  )
+  return <div className="msg-body">{text}</div>
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -630,10 +592,7 @@ function ToolCardFromPart({
 
   if (state === 'input-streaming' || state === 'input-available') {
     cardState = 'running'
-  } else if (
-    state === 'output-available' ||
-    state === 'approval-responded'
-  ) {
+  } else if (state === 'output-available' || state === 'approval-responded') {
     cardState = 'complete'
     const rawOutput = anyPart.output
     if (rawOutput && typeof rawOutput === 'object') {
@@ -669,19 +628,14 @@ function AssistantContent({ message }: { message: UIMessage }): React.ReactEleme
       {message.parts.map((part, idx) => {
         if (isTextUIPart(part)) {
           return (
-            <div
-              key={idx}
-              data-testid="text-part"
-            >
+            <div key={idx} data-testid="text-part">
               <MarkdownLite text={part.text} />
             </div>
           )
         }
 
         if (isReasoningUIPart(part)) {
-          return (
-            <ReasoningCollapsible key={idx} text={part.text ?? ''} />
-          )
+          return <ReasoningCollapsible key={idx} text={part.text ?? ''} />
         }
 
         if (isToolUIPart(part)) {
@@ -708,9 +662,14 @@ function ReasoningCollapsible({ text }: { text: string }): React.ReactElement {
       <button
         onClick={() => setOpen((v) => !v)}
         style={{
-          background: 'none', border: 'none', cursor: 'pointer',
-          color: 'var(--text-3)', fontSize: '11px',
-          display: 'flex', alignItems: 'center', gap: '4px',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          color: 'var(--text-3)',
+          fontSize: '11px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
         }}
         type="button"
       >
@@ -719,9 +678,12 @@ function ReasoningCollapsible({ text }: { text: string }): React.ReactElement {
       {open && (
         <div
           style={{
-            marginTop: '4px', padding: '6px 10px',
-            background: 'var(--bg-3)', borderRadius: '4px',
-            whiteSpace: 'pre-wrap', fontFamily: 'var(--font-mono)',
+            marginTop: '4px',
+            padding: '6px 10px',
+            background: 'var(--bg-3)',
+            borderRadius: '4px',
+            whiteSpace: 'pre-wrap',
+            fontFamily: 'var(--font-mono)',
             fontSize: '11px',
           }}
         >
@@ -734,30 +696,36 @@ function ReasoningCollapsible({ text }: { text: string }): React.ReactElement {
 
 function ThinkingIndicator(): React.ReactElement {
   return (
-    <div
-      data-testid="thinking-indicator"
-      className="msg agent"
-    >
+    <div data-testid="thinking-indicator" className="msg agent">
       <div className="msg-head">● FINAGENT</div>
       <div className="msg-body" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
         <span
           style={{
-            display: 'inline-block', width: '6px', height: '6px',
-            borderRadius: '50%', background: 'var(--accent)',
+            display: 'inline-block',
+            width: '6px',
+            height: '6px',
+            borderRadius: '50%',
+            background: 'var(--accent)',
             animation: 'blink 1s 0ms infinite',
           }}
         />
         <span
           style={{
-            display: 'inline-block', width: '6px', height: '6px',
-            borderRadius: '50%', background: 'var(--accent)',
+            display: 'inline-block',
+            width: '6px',
+            height: '6px',
+            borderRadius: '50%',
+            background: 'var(--accent)',
             animation: 'blink 1s 150ms infinite',
           }}
         />
         <span
           style={{
-            display: 'inline-block', width: '6px', height: '6px',
-            borderRadius: '50%', background: 'var(--accent)',
+            display: 'inline-block',
+            width: '6px',
+            height: '6px',
+            borderRadius: '50%',
+            background: 'var(--accent)',
             animation: 'blink 1s 300ms infinite',
           }}
         />
@@ -807,7 +775,7 @@ function AiInputArea({
     if (e.key !== 'Enter') return
     // 中文输入法选词时按 Enter 不能触发提交（关键 IME 兼容）
     if (e.nativeEvent.isComposing || e.keyCode === 229) return
-    if (e.shiftKey) return  // Shift+Enter 换行
+    if (e.shiftKey) return // Shift+Enter 换行
     e.preventDefault()
     if (!isEmpty && !isOverLimit && !isLoading) onSubmit()
   }
@@ -840,11 +808,14 @@ function AiInputArea({
               data-testid="reload-btn"
               onClick={onReload}
               style={{
-                marginLeft: '8px', flexShrink: 0,
-                padding: '2px 8px', fontSize: '11px',
+                marginLeft: '8px',
+                flexShrink: 0,
+                padding: '2px 8px',
+                fontSize: '11px',
                 background: 'var(--bg-3)',
                 border: '1px solid var(--line-bright)',
-                borderRadius: '3px', color: 'var(--text-1)',
+                borderRadius: '3px',
+                color: 'var(--text-1)',
                 cursor: 'pointer',
               }}
               type="button"
@@ -895,13 +866,19 @@ function AiInputArea({
               data-testid="stop-btn"
               onClick={onStop}
               style={{
-                padding: '5px 11px', borderRadius: '4px',
+                padding: '5px 11px',
+                borderRadius: '4px',
                 background: 'rgba(248,113,113,0.15)',
                 border: '1px solid rgba(248,113,113,0.3)',
-                color: 'var(--red)', fontSize: '10px',
-                fontFamily: 'var(--font-mono)', cursor: 'pointer',
-                fontWeight: 700, letterSpacing: '0.05em',
-                display: 'flex', alignItems: 'center', gap: '5px',
+                color: 'var(--red)',
+                fontSize: '10px',
+                fontFamily: 'var(--font-mono)',
+                cursor: 'pointer',
+                fontWeight: 700,
+                letterSpacing: '0.05em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
               }}
               type="button"
             >
@@ -931,8 +908,10 @@ function AiInputArea({
       {value.length > MAX_INPUT_LENGTH * 0.8 && !isOverLimit && (
         <div
           style={{
-            marginTop: '4px', textAlign: 'right',
-            fontSize: '11px', color: 'var(--warning)',
+            marginTop: '4px',
+            textAlign: 'right',
+            fontSize: '11px',
+            color: 'var(--warning)',
           }}
         >
           {value.length.toLocaleString()} / {MAX_INPUT_LENGTH.toLocaleString()}
@@ -952,11 +931,7 @@ interface IconColumnProps {
   onNewSession: () => void
 }
 
-function IconColumn({
-  onToggle,
-  unreadCount,
-  onNewSession,
-}: IconColumnProps): React.ReactElement {
+function IconColumn({ onToggle, unreadCount, onNewSession }: IconColumnProps): React.ReactElement {
   const [showMenu, setShowMenu] = useState(false)
   const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
   const { t } = useI18n()
@@ -983,10 +958,7 @@ function IconColumn({
   }
 
   return (
-    <aside
-      data-testid="icon-column"
-      className="ai-icon-column"
-    >
+    <aside data-testid="icon-column" className="ai-icon-column">
       <div style={{ position: 'relative' }}>
         <button
           data-testid="expand-btn"
@@ -1002,10 +974,7 @@ function IconColumn({
         </button>
 
         {unreadCount > 0 && (
-          <span
-            data-testid="unread-badge"
-            className="ai-icon-column-badge"
-          >
+          <span data-testid="unread-badge" className="ai-icon-column-badge">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}

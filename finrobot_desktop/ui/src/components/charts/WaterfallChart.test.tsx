@@ -23,7 +23,10 @@ describe('WaterfallChart', () => {
 
   it('returns null for undefined data', () => {
     const { container } = render(
-      <WaterfallChart data={undefined as unknown as Record<string, number | string | boolean | null>[]} title="Null" />
+      <WaterfallChart
+        data={undefined as unknown as Record<string, number | string | boolean | null>[]}
+        title="Null"
+      />,
     )
     expect(container.firstChild).toBeNull()
   })

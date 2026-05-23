@@ -124,9 +124,7 @@ describe('ChapterTechnical', () => {
     expect(screen.queryByText('Support / Resistance Levels')).not.toBeInTheDocument()
     expect(screen.queryByText('Historical EV/EBITDA Bands')).not.toBeInTheDocument()
     // The legacy placeholder language must be gone.
-    expect(
-      screen.queryByText(/computed on-demand via/i),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByText(/computed on-demand via/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/P4 — desktop augmentation/i)).not.toBeInTheDocument()
   })
 })

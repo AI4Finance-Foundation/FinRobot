@@ -17,8 +17,8 @@ interface ChartProps {
 
 // Design system chart palette (matches v3 tokens in App.css)
 const COLORS = {
-  gross_margin: 'var(--success)',     // chart-2 (green)
-  ebitda_margin: 'var(--secondary)',    // chart-4 (purple)
+  gross_margin: 'var(--success)', // chart-2 (green)
+  ebitda_margin: 'var(--secondary)', // chart-4 (purple)
   operating_margin: 'var(--primary)', // chart-1 (blue)
 }
 
@@ -52,25 +52,34 @@ export default function MarginTrendChart({ data, title }: ChartProps) {
                 <stop offset="95%" stopColor={COLORS.gross_margin} stopOpacity={0.01} />
               </linearGradient>
               <linearGradient id="ebitdaGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={COLORS.ebitda_margin} stopOpacity={0.10} />
+                <stop offset="0%" stopColor={COLORS.ebitda_margin} stopOpacity={0.1} />
                 <stop offset="95%" stopColor={COLORS.ebitda_margin} stopOpacity={0.01} />
               </linearGradient>
             </defs>
             <XAxis
               dataKey="year"
-              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{
+                fill: 'var(--text-muted)',
+                fontSize: 11,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
               axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <YAxis
               tickFormatter={formatPercent}
-              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{
+                fill: 'var(--text-muted)',
+                fontSize: 11,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
               axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <Tooltip
               formatter={(value: TooltipValueType | undefined) =>
                 formatPercent(typeof value === 'number' ? value : 0)
               }
-              contentStyle={CHART_TOOLTIP} labelStyle={{ color: 'var(--text-primary)' }}
+              contentStyle={CHART_TOOLTIP}
+              labelStyle={{ color: 'var(--text-primary)' }}
             />
             <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
             <Area

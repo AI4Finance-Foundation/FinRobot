@@ -35,11 +35,8 @@ const TYPE_SHORT: Record<string, string> = {
   ad_hoc: 'Ad hoc',
 }
 
-const MAX_RUNS_SHOWN = 5
-
-// Bump from 5 → 20 now that this strip is the sole landing-page surface
-// for "my research library" (03 table removed). Horizontal scroll handles
-// the overflow naturally on desktop.
+// Bump to 20 now that this strip is the sole landing-page surface
+// for "my research library". Horizontal scroll handles the overflow.
 const LANDING_TICKER_LIMIT = 20
 
 export function RecentResearchStrip(): React.ReactElement {
@@ -49,10 +46,7 @@ export function RecentResearchStrip(): React.ReactElement {
 
   return (
     <section data-testid="recent-research-strip">
-      <div
-        className="cosmic-group-header"
-        style={{ margin: 0, marginBottom: 16 }}
-      >
+      <div className="cosmic-group-header" style={{ margin: 0, marginBottom: 16 }}>
         <span className="group-num">02</span>
         <span className="group-title" style={{ fontSize: 20, letterSpacing: 2.5 }}>
           Studied Tickers · 历史研究
@@ -120,9 +114,7 @@ export function RecentResearchStrip(): React.ReactElement {
               key={item.ticker}
               item={item}
               onOpenWorkspace={() => navigate(`/stocks/${item.ticker}`)}
-              onOpenRun={(run) =>
-                navigate(`/stocks/${item.ticker}/runs/${run.artifact_id}`)
-              }
+              onOpenRun={(run) => navigate(`/stocks/${item.ticker}/runs/${run.artifact_id}`)}
             />
           ))}
         </div>
@@ -319,11 +311,7 @@ function RunRow({
   )
 }
 
-function VerdictText({
-  verdict,
-}: {
-  verdict: 'BUY' | 'HOLD' | 'SELL' | null
-}): React.ReactElement {
+function VerdictText({ verdict }: { verdict: 'BUY' | 'HOLD' | 'SELL' | null }): React.ReactElement {
   if (!verdict) {
     return <span style={{ color: 'var(--text-faint)', fontSize: 11 }}>—</span>
   }

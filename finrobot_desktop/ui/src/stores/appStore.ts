@@ -470,9 +470,7 @@ function deriveScenario(base: DCFInputs, direction: 'bull' | 'bear'): DCFInputs 
   const mult = direction === 'bull' ? 1 : -1
   return {
     ...base,
-    revenue_growth_rates: base.revenue_growth_rates.map(
-      (r) => Math.max(0, r * (1 + mult * 0.2))
-    ),
+    revenue_growth_rates: base.revenue_growth_rates.map((r) => Math.max(0, r * (1 + mult * 0.2))),
     ebitda_margin: Math.max(0, Math.min(1, base.ebitda_margin * (1 + mult * 0.1))),
     risk_free_rate: Math.max(0, base.risk_free_rate - mult * 0.01),
   }
@@ -481,50 +479,52 @@ function deriveScenario(base: DCFInputs, direction: 'bull' | 'bear'): DCFInputs 
 export const useAppStore = create<WorkspaceState>((set) => ({
   ...initialState,
 
-  setTicker: (ticker) => set({
-    ticker,
-    researchResult: null,
-    compsResult: null,
-    earningsResult: null,
-    lboResult: null,
-    icMemoResult: null,
-    monteCarloResult: null,
-    monteCarloLoading: false,
-    comparisonResult: null,
-    comparisonLoading: false,
-    dcfResult: null,
-    dcfSource: null,
-    dcfInputs: null,
-    originalDcfInputs: null,
-    dcfReverseGrowth: null,
-    dcfReverseWacc: null,
-    sensitivityData: null,
-    currentPrice: null,
-    priceChange: null,
-    priceChangePct: null,
-    dataFetchedAt: null,
-    warnings: [],
-    phase: 'idle',
-    activeScenario: 'base' as ScenarioKey,
-    scenarios: { ...emptyScenarios },
-    scenarioResults: { ...emptyScenarioResults },
-    activeTab: 'overview' as ActiveTab,
-    catalysts: null,
-    catalystsLoading: false,
-    historicalMetrics: null,
-    quarterlyData: null,
-    performanceData: null,
-    historicalLoading: false,
-    quarterlyLoading: false,
-    performanceLoading: false,
-  }),
+  setTicker: (ticker) =>
+    set({
+      ticker,
+      researchResult: null,
+      compsResult: null,
+      earningsResult: null,
+      lboResult: null,
+      icMemoResult: null,
+      monteCarloResult: null,
+      monteCarloLoading: false,
+      comparisonResult: null,
+      comparisonLoading: false,
+      dcfResult: null,
+      dcfSource: null,
+      dcfInputs: null,
+      originalDcfInputs: null,
+      dcfReverseGrowth: null,
+      dcfReverseWacc: null,
+      sensitivityData: null,
+      currentPrice: null,
+      priceChange: null,
+      priceChangePct: null,
+      dataFetchedAt: null,
+      warnings: [],
+      phase: 'idle',
+      activeScenario: 'base' as ScenarioKey,
+      scenarios: { ...emptyScenarios },
+      scenarioResults: { ...emptyScenarioResults },
+      activeTab: 'overview' as ActiveTab,
+      catalysts: null,
+      catalystsLoading: false,
+      historicalMetrics: null,
+      quarterlyData: null,
+      performanceData: null,
+      historicalLoading: false,
+      quarterlyLoading: false,
+      performanceLoading: false,
+    }),
   setPhase: (phase) => set({ phase }),
   setPipelineType: (pipelineType) => set({ pipelineType }),
   setView: (view) => set({ view }),
   setWarnings: (warnings) => set({ warnings }),
   setDcfInputs: (dcfInputs) => set({ dcfInputs }),
   setOriginalDcfInputs: (originalDcfInputs) => set({ originalDcfInputs }),
-  setDcfResult: (dcfResult, source) => set({ dcfResult, ...(source !== undefined ? { dcfSource: source } : {}) }),
+  setDcfResult: (dcfResult, source) =>
+    set({ dcfResult, ...(source !== undefined ? { dcfSource: source } : {}) }),
   setDcfReverse: (dcfReverseGrowth, dcfReverseWacc) => set({ dcfReverseGrowth, dcfReverseWacc }),
   setSensitivityData: (sensitivityData) => set({ sensitivityData }),
   setCurrentPrice: (currentPrice) => set({ currentPrice }),
@@ -553,39 +553,43 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   setQuarterlyLoading: (quarterlyLoading) => set({ quarterlyLoading }),
   setPerformanceLoading: (performanceLoading) => set({ performanceLoading }),
 
-  setActiveScenario: (activeScenario) => set((s) => {
-    const inputs = s.scenarios[activeScenario]
-    const result = s.scenarioResults[activeScenario]
-    return {
-      activeScenario,
-      ...(inputs ? { dcfInputs: inputs } : {}),
-      ...(result ? { dcfResult: result } : {}),
-    }
-  }),
+  setActiveScenario: (activeScenario) =>
+    set((s) => {
+      const inputs = s.scenarios[activeScenario]
+      const result = s.scenarioResults[activeScenario]
+      return {
+        activeScenario,
+        ...(inputs ? { dcfInputs: inputs } : {}),
+        ...(result ? { dcfResult: result } : {}),
+      }
+    }),
 
-  setScenarioInputs: (key, inputs) => set((s) => ({
-    scenarios: { ...s.scenarios, [key]: inputs },
-    ...(s.activeScenario === key ? { dcfInputs: inputs } : {}),
-  })),
+  setScenarioInputs: (key, inputs) =>
+    set((s) => ({
+      scenarios: { ...s.scenarios, [key]: inputs },
+      ...(s.activeScenario === key ? { dcfInputs: inputs } : {}),
+    })),
 
-  setScenarioResult: (key, result) => set((s) => ({
-    scenarioResults: { ...s.scenarioResults, [key]: result },
-    ...(s.activeScenario === key ? { dcfResult: result } : {}),
-  })),
+  setScenarioResult: (key, result) =>
+    set((s) => ({
+      scenarioResults: { ...s.scenarioResults, [key]: result },
+      ...(s.activeScenario === key ? { dcfResult: result } : {}),
+    })),
 
-  initScenarios: (baseInputs, baseResult) => set({
-    activeScenario: 'base' as ScenarioKey,
-    scenarios: {
-      base: baseInputs,
-      bull: deriveScenario(baseInputs, 'bull'),
-      bear: deriveScenario(baseInputs, 'bear'),
-    },
-    scenarioResults: {
-      base: baseResult,
-      bull: null,
-      bear: null,
-    },
-  }),
+  initScenarios: (baseInputs, baseResult) =>
+    set({
+      activeScenario: 'base' as ScenarioKey,
+      scenarios: {
+        base: baseInputs,
+        bull: deriveScenario(baseInputs, 'bull'),
+        bear: deriveScenario(baseInputs, 'bear'),
+      },
+      scenarioResults: {
+        base: baseResult,
+        bull: null,
+        bear: null,
+      },
+    }),
 
   reset: () => set(initialState),
 }))

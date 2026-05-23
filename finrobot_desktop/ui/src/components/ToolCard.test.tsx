@@ -122,11 +122,8 @@ describe('ToolCard — args expand/collapse', () => {
 })
 
 describe('ToolCard — data-state attribute', () => {
-  it.each(['pending', 'running', 'complete', 'error'] as const)(
-    'has data-state="%s"',
-    (state) => {
-      renderCard({ state })
-      expect(screen.getByTestId('tool-card')).toHaveAttribute('data-state', state)
-    },
-  )
+  it.each(['pending', 'running', 'complete', 'error'] as const)('has data-state="%s"', (state) => {
+    renderCard({ state })
+    expect(screen.getByTestId('tool-card')).toHaveAttribute('data-state', state)
+  })
 })

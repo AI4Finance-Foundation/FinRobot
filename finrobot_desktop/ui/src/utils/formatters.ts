@@ -48,13 +48,21 @@ export function fmtEps(val: number | null | undefined): string {
 }
 
 /** Generic financial format — dispatches to specific formatter. */
-export function fmt(val: number | null | undefined, style: 'usd' | 'pct' | 'mult' | 'num' | 'price'): string {
+export function fmt(
+  val: number | null | undefined,
+  style: 'usd' | 'pct' | 'mult' | 'num' | 'price',
+): string {
   if (val == null) return EM_DASH
   switch (style) {
-    case 'usd': return fmtUsd(val)
-    case 'pct': return fmtPct(val)
-    case 'mult': return fmtMult(val)
-    case 'price': return fmtPrice(val)
-    case 'num': return val.toLocaleString()
+    case 'usd':
+      return fmtUsd(val)
+    case 'pct':
+      return fmtPct(val)
+    case 'mult':
+      return fmtMult(val)
+    case 'price':
+      return fmtPrice(val)
+    case 'num':
+      return val.toLocaleString()
   }
 }

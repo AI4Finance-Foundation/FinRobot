@@ -18,10 +18,7 @@ interface ChapterTechnicalProps {
   technical: TechnicalAnalysisShape | null
 }
 
-export function ChapterTechnical({
-  ticker,
-  technical,
-}: ChapterTechnicalProps): React.ReactElement {
+export function ChapterTechnical({ ticker, technical }: ChapterTechnicalProps): React.ReactElement {
   const { data: price } = useTickerPrice(ticker)
   const { data: fin } = useTickerFinancials(ticker)
   const current = price?.current_price ?? null
@@ -52,7 +49,9 @@ export function ChapterTechnical({
       delta: range52Position >= 80 ? 'near high' : range52Position <= 20 ? 'near low' : 'mid-range',
     },
     beta !== null && { label: 'Beta (5Y)', value: beta.toFixed(2), delta: 'vs SPX' },
-  ].filter((c): c is { label: string; value: string; delta?: string; tone?: 'up' | 'down' } => c !== false)
+  ].filter(
+    (c): c is { label: string; value: string; delta?: string; tone?: 'up' | 'down' } => c !== false,
+  )
 
   const mc = technical?.monte_carlo ?? null
   const sniper = technical?.sniper ?? null
@@ -175,16 +174,40 @@ function MonteCarloPanel({
             )
           })}
           {percentiles['5'] !== undefined && (
-            <Marker x={xScale(percentiles['5'])} label="P5" color="var(--warning)" height={innerH} padY={padY} />
+            <Marker
+              x={xScale(percentiles['5'])}
+              label="P5"
+              color="var(--warning)"
+              height={innerH}
+              padY={padY}
+            />
           )}
           {percentiles['50'] !== undefined && (
-            <Marker x={xScale(percentiles['50'])} label="P50" color="var(--accent-cyan)" height={innerH} padY={padY} />
+            <Marker
+              x={xScale(percentiles['50'])}
+              label="P50"
+              color="var(--accent-cyan)"
+              height={innerH}
+              padY={padY}
+            />
           )}
           {percentiles['95'] !== undefined && (
-            <Marker x={xScale(percentiles['95'])} label="P95" color="var(--warning)" height={innerH} padY={padY} />
+            <Marker
+              x={xScale(percentiles['95'])}
+              label="P95"
+              color="var(--warning)"
+              height={innerH}
+              padY={padY}
+            />
           )}
           {current !== null && current >= minPrice && current <= maxPrice && (
-            <Marker x={xScale(current)} label="Current" color="var(--success)" height={innerH} padY={padY} />
+            <Marker
+              x={xScale(current)}
+              label="Current"
+              color="var(--success)"
+              height={innerH}
+              padY={padY}
+            />
           )}
         </svg>
       )}
@@ -207,7 +230,15 @@ function Marker({
 }): React.ReactElement {
   return (
     <g>
-      <line x1={x} x2={x} y1={padY} y2={padY + height} stroke={color} strokeWidth={1.5} strokeDasharray="4 3" />
+      <line
+        x1={x}
+        x2={x}
+        y1={padY}
+        y2={padY + height}
+        stroke={color}
+        strokeWidth={1.5}
+        strokeDasharray="4 3"
+      />
       <text
         x={x}
         y={padY - 6}
@@ -319,9 +350,7 @@ function HistoricalBandPanel({ band }: { band: HistoricalBandShape }): React.Rea
 
   const values = timeline.map(([, v]) => v)
   const minVal =
-    values.length > 0
-      ? Math.min(...values, band.p25 ?? Infinity, band.median ?? Infinity)
-      : 0
+    values.length > 0 ? Math.min(...values, band.p25 ?? Infinity, band.median ?? Infinity) : 0
   const maxVal =
     values.length > 0
       ? Math.max(...values, band.p75 ?? -Infinity, band.p90 ?? -Infinity, band.current ?? -Infinity)
@@ -350,9 +379,7 @@ function HistoricalBandPanel({ band }: { band: HistoricalBandShape }): React.Rea
         <Stat
           label="Median"
           value={
-            band.median !== undefined && band.median !== null
-              ? `${band.median.toFixed(1)}x`
-              : '—'
+            band.median !== undefined && band.median !== null ? `${band.median.toFixed(1)}x` : '—'
           }
         />
         <Stat
@@ -394,25 +421,44 @@ function HistoricalBandPanel({ band }: { band: HistoricalBandShape }): React.Rea
           style={{ width: '100%', height: 'auto', display: 'block', marginTop: 12 }}
         >
           {band.p90 !== undefined && band.p90 !== null && (
-            <BandLine y={yScale(band.p90)} label="P90" color="var(--warning)" width={width} padX={padX} />
+            <BandLine
+              y={yScale(band.p90)}
+              label="P90"
+              color="var(--warning)"
+              width={width}
+              padX={padX}
+            />
           )}
           {band.p75 !== undefined && band.p75 !== null && (
-            <BandLine y={yScale(band.p75)} label="P75" color="var(--secondary)" width={width} padX={padX} />
+            <BandLine
+              y={yScale(band.p75)}
+              label="P75"
+              color="var(--secondary)"
+              width={width}
+              padX={padX}
+            />
           )}
           {band.median !== undefined && band.median !== null && (
-            <BandLine y={yScale(band.median)} label="Median" color="var(--accent-cyan)" width={width} padX={padX} />
+            <BandLine
+              y={yScale(band.median)}
+              label="Median"
+              color="var(--accent-cyan)"
+              width={width}
+              padX={padX}
+            />
           )}
           {band.p25 !== undefined && band.p25 !== null && (
-            <BandLine y={yScale(band.p25)} label="P25" color="var(--success)" width={width} padX={padX} />
+            <BandLine
+              y={yScale(band.p25)}
+              label="P25"
+              color="var(--success)"
+              width={width}
+              padX={padX}
+            />
           )}
           <path d={path} stroke="var(--text-primary)" strokeWidth={1.5} fill="none" />
           {band.current !== undefined && band.current !== null && timeline.length > 0 && (
-            <circle
-              cx={xScale(timeline.length - 1)}
-              cy={yScale(band.current)}
-              r={5}
-              fill={color}
-            />
+            <circle cx={xScale(timeline.length - 1)} cy={yScale(band.current)} r={5} fill={color} />
           )}
         </svg>
       )}
@@ -445,13 +491,7 @@ function BandLine({
         strokeDasharray="3 3"
         opacity={0.7}
       />
-      <text
-        x={width - padX + 4}
-        y={y + 3}
-        fontFamily="var(--font-mono)"
-        fontSize={10}
-        fill={color}
-      >
+      <text x={width - padX + 4} y={y + 3} fontFamily="var(--font-mono)" fontSize={10} fill={color}>
         {label}
       </text>
     </g>

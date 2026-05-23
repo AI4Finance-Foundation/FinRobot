@@ -72,7 +72,8 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
     <section data-testid="ai-zone">
       <ZoneHeader hasArtifact={!!latest} versionsCount={sameTypeTimeline.length} />
       <p style={zoneDesc}>
-        AI 投研报告 · 投资论点、估值分析（DCF / 同业 / DDM）、风险催化剂等 12 章节，数字由代码算出，判断由 LLM 给出。
+        AI 投研报告 · 投资论点、估值分析（DCF / 同业 / DDM）、风险催化剂等 12
+        章节，数字由代码算出，判断由 LLM 给出。
       </p>
 
       {showProgress && <PipelineProgressPanel ticker={ticker} />}
@@ -186,8 +187,9 @@ function ColdState({
           margin: '0 auto 18px',
         }}
       >
-        跑一次 <strong style={{ color: 'var(--accent-cyan)' }}>research</strong> pipeline 即生成 12 章节投行级研报：
-        投资论点 · 公司概览 · 财务分析 · 估值（DCF + Comps + DDM + LBO）· 新闻 · 敏感度 · 催化剂 · 技术分析 · 同业对标 · 财务数据
+        跑一次 <strong style={{ color: 'var(--accent-cyan)' }}>research</strong> pipeline 即生成 12
+        章节投行级研报： 投资论点 · 公司概览 · 财务分析 · 估值（DCF + Comps + DDM + LBO）· 新闻 ·
+        敏感度 · 催化剂 · 技术分析 · 同业对标 · 财务数据
       </p>
       <button
         type="button"
@@ -407,12 +409,7 @@ function HotState({
           >
             → 打开完整 12 章研报
           </button>
-          <button
-            type="button"
-            onClick={onRerun}
-            disabled={isRunning}
-            style={ghostBtn(isRunning)}
-          >
+          <button type="button" onClick={onRerun} disabled={isRunning} style={ghostBtn(isRunning)}>
             {isRunning ? '正在跑 …' : '↻ 重跑'}
           </button>
         </div>
@@ -551,8 +548,7 @@ function HotState({
                       : '—'}
                   </span>
                   <span style={{ color: 'var(--text-dim)', fontSize: 10.5 }}>
-                    {formatDate(a.created_at, locale, 'short')}{' '}
-                    · {ageLabel(a.created_at)}
+                    {formatDate(a.created_at, locale, 'short')} · {ageLabel(a.created_at)}
                   </span>
                   <span style={{ color: 'var(--secondary)', textDecoration: 'underline' }}>
                     打开 →
@@ -596,9 +592,7 @@ function VerdictPill({
   )
 }
 
-function readVerdict(
-  a: { verdict?: string | null } | null,
-): 'BUY' | 'HOLD' | 'SELL' | null {
+function readVerdict(a: { verdict?: string | null } | null): 'BUY' | 'HOLD' | 'SELL' | null {
   // Backend populates `verdict` from summary_extractor.extract_verdict
   // which pulls thesis.recommendation and normalises to BUY/HOLD/SELL.
   // None for artifacts without a thesis (peer_research / ad_hoc) — caller

@@ -170,9 +170,7 @@ export function ChapterCover({
           </>
         )}
         {computeVersion && <> · {computeVersion}</>}
-        {thesis?.price_target_basis && (
-          <> · {thesis.price_target_basis}</>
-        )}
+        {thesis?.price_target_basis && <> · {thesis.price_target_basis}</>}
       </div>
 
       {thesis?.tagline && (

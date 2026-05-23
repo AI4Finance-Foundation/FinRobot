@@ -33,7 +33,7 @@ export interface PriceData {
   exchange?: string | null
   /** Next earnings date ISO when yfinance carries it; null/undefined hides the badge. */
   next_earnings_date?: string | null
-  history?: PricePoint[]  // backend always returns this; typed optional for safety
+  history?: PricePoint[] // backend always returns this; typed optional for safety
 }
 
 // Mirror of finagent.engine.models.financial.FinancialData — backend nests
@@ -122,7 +122,7 @@ export function useTickerPrice(ticker: string) {
     queryFn: ({ signal }) =>
       fetchJson<PriceData>(`${BASE_URL}/api/data/${ticker}/price`, signal, '无法加载行情'),
     enabled: !!ticker,
-    staleTime: 60_000,      // 1 min — price data is volatile
+    staleTime: 60_000, // 1 min — price data is volatile
     refetchInterval: 60_000,
     retry: 2,
   })

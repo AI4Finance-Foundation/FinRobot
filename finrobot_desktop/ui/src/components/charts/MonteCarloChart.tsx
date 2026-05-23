@@ -52,36 +52,44 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
     }
   }, [result])
 
-  const pctLabel = currentPrice != null
-    ? `Current price ($${currentPrice.toFixed(2)}) is at the ${result.current_price_percentile.toFixed(0)}th percentile`
-    : null
+  const pctLabel =
+    currentPrice != null
+      ? `Current price ($${currentPrice.toFixed(2)}) is at the ${result.current_price_percentile.toFixed(0)}th percentile`
+      : null
 
   return (
     <div className="card animate-in">
       <div className="card-header">
         <span className="card-title">公允价值分布</span>
-        <span className="card-badge font-mono">
-          {result.n_valid.toLocaleString()} sims
-        </span>
+        <span className="card-badge font-mono">{result.n_valid.toLocaleString()} sims</span>
       </div>
       <div className="card-body">
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={chartData} barCategoryGap={0} barGap={0}>
             <XAxis
               dataKey="binMid"
-              tick={{ fill: 'var(--text-muted)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{
+                fill: 'var(--text-muted)',
+                fontSize: 10,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
               axisLine={{ stroke: 'var(--border-soft)' }}
               tickFormatter={(v: number) => `$${v.toFixed(0)}`}
               interval="preserveStartEnd"
               minTickGap={40}
             />
             <YAxis
-              tick={{ fill: 'var(--text-muted)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{
+                fill: 'var(--text-muted)',
+                fontSize: 10,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
               axisLine={{ stroke: 'var(--border-soft)' }}
               tickFormatter={(v: number) => v.toLocaleString()}
             />
             <Tooltip
-              contentStyle={CHART_TOOLTIP} labelStyle={{ color: 'var(--text-primary)' }}
+              contentStyle={CHART_TOOLTIP}
+              labelStyle={{ color: 'var(--text-primary)' }}
               formatter={(value: TooltipValueType | undefined) => {
                 const v = typeof value === 'number' ? value : 0
                 return [v.toLocaleString(), 'Simulations']
@@ -93,12 +101,7 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
             />
 
             {/* 25-75 percentile shaded region */}
-            <ReferenceArea
-              x1={p25}
-              x2={p75}
-              fill="rgba(96, 165, 250, 0.08)"
-              strokeOpacity={0}
-            />
+            <ReferenceArea x1={p25} x2={p75} fill="rgba(96, 165, 250, 0.08)" strokeOpacity={0} />
 
             {/* Current price marker (dashed) */}
             {currentPrice != null && (
@@ -132,22 +135,12 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
             />
 
             {/* Mean line (blue dashed) */}
-            <ReferenceLine
-              x={mean}
-              stroke="var(--primary)"
-              strokeWidth={1}
-              strokeDasharray="4 2"
-            />
+            <ReferenceLine x={mean} stroke="var(--primary)" strokeWidth={1} strokeDasharray="4 2" />
 
             <Bar dataKey="count" radius={[2, 2, 0, 0]}>
               {chartData.map((entry, index) => {
                 const inRange = entry.binMid >= p25 && entry.binMid <= p75
-                return (
-                  <Cell
-                    key={`mc-${index}`}
-                    fill={inRange ? BAR_COLOR : `${BAR_COLOR}66`}
-                  />
-                )
+                return <Cell key={`mc-${index}`} fill={inRange ? BAR_COLOR : `${BAR_COLOR}66`} />
               })}
             </Bar>
           </BarChart>
@@ -180,11 +173,7 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
         </div>
 
         {/* Current price percentile callout */}
-        {pctLabel && (
-          <div className="mc-callout">
-            {pctLabel}
-          </div>
-        )}
+        {pctLabel && <div className="mc-callout">{pctLabel}</div>}
 
         {/* Stats row */}
         <div className="mc-stats">
@@ -192,7 +181,10 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
           <span className="mc-stats-sep" />
           <span className="font-mono">标准差 ${result.std.toFixed(2)}</span>
           <span className="mc-stats-sep" />
-          <span className="font-mono">有效 {result.n_valid.toLocaleString()}/{(result.assumptions_used['n_simulations'] ?? 10000).toLocaleString()}</span>
+          <span className="font-mono">
+            有效 {result.n_valid.toLocaleString()}/
+            {(result.assumptions_used['n_simulations'] ?? 10000).toLocaleString()}
+          </span>
         </div>
       </div>
     </div>

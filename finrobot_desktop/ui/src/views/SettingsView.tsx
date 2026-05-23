@@ -151,13 +151,7 @@ const ghostBtnStyle: React.CSSProperties = {
 
 type TestState = 'idle' | 'loading' | 'ok' | 'fail'
 
-function TestButton({
-  channel,
-  disabled,
-}: {
-  channel: string
-  disabled?: boolean
-}) {
+function TestButton({ channel, disabled }: { channel: string; disabled?: boolean }) {
   const [state, setState] = useState<TestState>('idle')
 
   const handleTest = async () => {
@@ -175,14 +169,7 @@ function TestButton({
     setTimeout(() => setState('idle'), 3000)
   }
 
-  const label =
-    state === 'loading'
-      ? '...'
-      : state === 'ok'
-        ? '✓'
-        : state === 'fail'
-          ? '✗'
-          : '测试'
+  const label = state === 'loading' ? '...' : state === 'ok' ? '✓' : state === 'fail' ? '✗' : '测试'
 
   const style: React.CSSProperties = {
     ...ghostBtnStyle,
@@ -193,11 +180,7 @@ function TestButton({
           ? 'var(--negative)'
           : 'var(--text-secondary)',
     borderColor:
-      state === 'ok'
-        ? 'var(--positive)'
-        : state === 'fail'
-          ? 'var(--negative)'
-          : 'var(--border)',
+      state === 'ok' ? 'var(--positive)' : state === 'fail' ? 'var(--negative)' : 'var(--border)',
     opacity: disabled ? 0.4 : 1,
     cursor: disabled ? 'not-allowed' : 'pointer',
     minWidth: '36px',
@@ -205,11 +188,7 @@ function TestButton({
   }
 
   return (
-    <button
-      style={style}
-      onClick={handleTest}
-      disabled={disabled || state === 'loading'}
-    >
+    <button style={style} onClick={handleTest} disabled={disabled || state === 'loading'}>
       {label}
     </button>
   )
@@ -225,8 +204,14 @@ function InputWithFocus({ style: s, ...props }: React.InputHTMLAttributes<HTMLIn
         ...s,
         borderColor: focused ? 'var(--accent)' : 'var(--border)',
       }}
-      onFocus={(e) => { setFocused(true); props.onFocus?.(e) }}
-      onBlur={(e) => { setFocused(false); props.onBlur?.(e) }}
+      onFocus={(e) => {
+        setFocused(true)
+        props.onFocus?.(e)
+      }}
+      onBlur={(e) => {
+        setFocused(false)
+        props.onBlur?.(e)
+      }}
     />
   )
 }
@@ -242,8 +227,14 @@ function SelectWithFocus({ style: s, ...props }: React.SelectHTMLAttributes<HTML
         borderColor: focused ? 'var(--accent)' : 'var(--border)',
         cursor: 'pointer',
       }}
-      onFocus={(e) => { setFocused(true); props.onFocus?.(e) }}
-      onBlur={(e) => { setFocused(false); props.onBlur?.(e) }}
+      onFocus={(e) => {
+        setFocused(true)
+        props.onFocus?.(e)
+      }}
+      onBlur={(e) => {
+        setFocused(false)
+        props.onBlur?.(e)
+      }}
     />
   )
 }
@@ -501,7 +492,10 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     setLlmApiKey(v)
     if (!v.trim()) return
     const provider = (modelName || settingsResp?.model_name || '').split(':')[0]
-    const keyField = `${provider}_api_key` as 'anthropic_api_key' | 'deepseek_api_key' | 'openai_api_key'
+    const keyField = `${provider}_api_key` as
+      | 'anthropic_api_key'
+      | 'deepseek_api_key'
+      | 'openai_api_key'
     scheduleStandardSave({ [keyField]: v.trim() })
   }
 
@@ -609,9 +603,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           }}
         >
           <div style={{ fontWeight: 600 }}>启动配置错误</div>
-          <div style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
-            {startupError}
-          </div>
+          <div style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>{startupError}</div>
           <div style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
             修复下方字段后会自动重新校验。LLM 路由将在配置修复前返回 503。
           </div>
@@ -815,12 +807,10 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               type="password"
               value={llmApiKey}
               onChange={(e) => handleLlmKeyChange(e.target.value)}
-              placeholder={
-                (() => {
-                  const keyField = `${currentProvider}_api_key_set` as keyof typeof settingsResp
-                  return settingsResp?.[keyField] ? '••••••••' : `Enter ${currentProvider} API key`
-                })()
-              }
+              placeholder={(() => {
+                const keyField = `${currentProvider}_api_key_set` as keyof typeof settingsResp
+                return settingsResp?.[keyField] ? '••••••••' : `Enter ${currentProvider} API key`
+              })()}
             />
           </div>
         </div>
@@ -832,7 +822,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       <section style={sectionStyle}>
         <h2 style={sectionTitleStyle}>通知通道</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-
           {/* Desktop — always on via Tauri native notification API; not
               user-configurable, so we render a read-only status row rather
               than a disabled checkbox the user would otherwise click in
@@ -877,10 +866,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           {/* Feishu */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Checkbox
-                checked={feishuEnabled}
-                onChange={setFeishuEnabled}
-              />
+              <Checkbox checked={feishuEnabled} onChange={setFeishuEnabled} />
               <span
                 style={{
                   fontFamily: 'var(--font-mono)',
@@ -907,10 +893,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           {/* Telegram */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Checkbox
-                checked={telegramEnabled}
-                onChange={setTelegramEnabled}
-              />
+              <Checkbox checked={telegramEnabled} onChange={setTelegramEnabled} />
               <span
                 style={{
                   fontFamily: 'var(--font-mono)',
@@ -955,10 +938,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           {/* Discord */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Checkbox
-                checked={discordEnabled}
-                onChange={setDiscordEnabled}
-              />
+              <Checkbox checked={discordEnabled} onChange={setDiscordEnabled} />
               <span
                 style={{
                   fontFamily: 'var(--font-mono)',
@@ -985,10 +965,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           {/* Email */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Checkbox
-                checked={emailEnabled}
-                onChange={setEmailEnabled}
-              />
+              <Checkbox checked={emailEnabled} onChange={setEmailEnabled} />
               <span
                 style={{
                   fontFamily: 'var(--font-mono)',
@@ -1029,10 +1006,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                     placeholder="587"
                     style={{ width: '70px' }}
                   />
-                  <TestButton
-                    channel="email"
-                    disabled={!emailTo.trim() || !emailSmtpHost.trim()}
-                  />
+                  <TestButton channel="email" disabled={!emailTo.trim() || !emailSmtpHost.trim()} />
                 </div>
               </div>
             )}
@@ -1041,10 +1015,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           {/* Custom Webhook */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Checkbox
-                checked={webhookEnabled}
-                onChange={setWebhookEnabled}
-              />
+              <Checkbox checked={webhookEnabled} onChange={setWebhookEnabled} />
               <span
                 style={{
                   fontFamily: 'var(--font-mono)',
@@ -1138,7 +1109,8 @@ function ResetConfirmModal({
           确认恢复默认
         </div>
         <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.55 }}>
-          将 <code style={{ color: 'var(--accent-cyan)' }}>{fields.join(', ')}</code> 恢复为 .env 默认值，会清除当前覆盖。
+          将 <code style={{ color: 'var(--accent-cyan)' }}>{fields.join(', ')}</code> 恢复为 .env
+          默认值，会清除当前覆盖。
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
           <button

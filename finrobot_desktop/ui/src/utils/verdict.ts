@@ -5,9 +5,9 @@
 // Backend types remain the uppercase string union; we only localise at the
 // display layer.
 
-import { tSync, type Locale } from "../i18n"
+import { tSync, type Locale } from '../i18n'
 
-export type Verdict = "BUY" | "HOLD" | "SELL"
+export type Verdict = 'BUY' | 'HOLD' | 'SELL'
 
 /**
  * Translate a verdict for display. Pass an explicit locale to avoid hook usage
@@ -21,9 +21,9 @@ export function verdictLabel(
   verdict: Verdict | string | null | undefined,
   locale?: Locale,
 ): string {
-  if (!verdict) return "—"
+  if (!verdict) return '—'
   const upper = verdict.toUpperCase()
-  if (upper !== "BUY" && upper !== "HOLD" && upper !== "SELL") return upper
+  if (upper !== 'BUY' && upper !== 'HOLD' && upper !== 'SELL') return upper
 
   // Both locales go through the catalog:
   //   zh → '买入' / '持有' / '卖出' (中国券商 standard)
@@ -31,7 +31,6 @@ export function verdictLabel(
   // The `locale` parameter is reserved for callers who explicitly need a
   // non-default locale; current store snapshot is used by default.
   void locale
-  const key =
-    upper === "BUY" ? "verdict.buy" : upper === "HOLD" ? "verdict.hold" : "verdict.sell"
+  const key = upper === 'BUY' ? 'verdict.buy' : upper === 'HOLD' ? 'verdict.hold' : 'verdict.sell'
   return tSync(key)
 }

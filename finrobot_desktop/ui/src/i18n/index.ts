@@ -10,18 +10,18 @@
 // Catalogs live in ./locales/{zh,en}/messages.po and are compiled to
 // messages.mjs by `npx lingui compile` (run automatically via npm scripts).
 
-import { i18n } from "@lingui/core"
-import { create } from "zustand"
-import { persist, createJSONStorage } from "zustand/middleware"
+import { i18n } from '@lingui/core'
+import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 
-import { messages as zhMessages } from "./locales/zh/messages.mjs"
-import { messages as enMessages } from "./locales/en/messages.mjs"
+import { messages as zhMessages } from './locales/zh/messages.mjs'
+import { messages as enMessages } from './locales/en/messages.mjs'
 
-export type Locale = "zh" | "en"
+export type Locale = 'zh' | 'en'
 
 export const LOCALES: { code: Locale; label: string; native: string }[] = [
-  { code: "zh", label: "Chinese", native: "中文" },
-  { code: "en", label: "English", native: "English" },
+  { code: 'zh', label: 'Chinese', native: '中文' },
+  { code: 'en', label: 'English', native: 'English' },
 ]
 
 // ── Load all catalogs once at module init ─────────────────────────────
@@ -37,7 +37,7 @@ function defaultLocale(): Locale {
   // Sync default — async OS-locale detection happens in initLocale() at app startup.
   // We pick 'zh' here for the SSR/first-render frame; detectLocale() may override
   // before the first paint by calling setLocale.
-  return "zh"
+  return 'zh'
 }
 
 export const useUiPrefs = create<UiPrefsState>()(
@@ -50,7 +50,7 @@ export const useUiPrefs = create<UiPrefsState>()(
       },
     }),
     {
-      name: "finagent-ui-prefs",
+      name: 'finagent-ui-prefs',
       storage: createJSONStorage(() => localStorage),
       onRehydrateStorage: () => (state) => {
         // After zustand rehydrates from localStorage, activate Lingui with the persisted locale.

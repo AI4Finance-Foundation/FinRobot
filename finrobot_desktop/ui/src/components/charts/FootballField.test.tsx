@@ -21,7 +21,10 @@ describe('FootballField', () => {
 
   it('returns null for undefined data', () => {
     const { container } = render(
-      <FootballField data={undefined as unknown as Record<string, number | string | boolean | null>[]} title="Null" />
+      <FootballField
+        data={undefined as unknown as Record<string, number | string | boolean | null>[]}
+        title="Null"
+      />,
     )
     expect(container.firstChild).toBeNull()
   })

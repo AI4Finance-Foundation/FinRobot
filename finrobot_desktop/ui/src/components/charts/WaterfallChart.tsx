@@ -42,9 +42,8 @@ interface WaterfallBar {
 }
 
 export default function WaterfallChart({ data, title }: ChartProps) {
-  if (!data || data.length === 0) return null
-
   const bars = useMemo<WaterfallBar[]>(() => {
+    if (!data || data.length === 0) return []
     let runningTotal = 0
     return data.map((d) => {
       const value = Number(d.value)
@@ -75,6 +74,8 @@ export default function WaterfallChart({ data, title }: ChartProps) {
     })
   }, [data])
 
+  if (bars.length === 0) return null
+
   return (
     <div className="card animate-in">
       <div className="card-header">
@@ -85,7 +86,11 @@ export default function WaterfallChart({ data, title }: ChartProps) {
           <BarChart data={bars}>
             <XAxis
               dataKey="label"
-              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{
+                fill: 'var(--text-muted)',
+                fontSize: 11,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
               axisLine={{ stroke: 'var(--border-soft)' }}
               interval={0}
               angle={-30}
@@ -93,7 +98,11 @@ export default function WaterfallChart({ data, title }: ChartProps) {
               height={60}
             />
             <YAxis
-              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+              tick={{
+                fill: 'var(--text-muted)',
+                fontSize: 11,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
               axisLine={{ stroke: 'var(--border-soft)' }}
               // Large values (e.g. AAPL terminal value ~$1.2T) need abbreviated
               // ticks — raw `${v}` overflowed the Y-axis gutter and rendered as
@@ -102,7 +111,8 @@ export default function WaterfallChart({ data, title }: ChartProps) {
               width={60}
             />
             <Tooltip
-              contentStyle={CHART_TOOLTIP} labelStyle={{ color: 'var(--text-primary)' }}
+              contentStyle={CHART_TOOLTIP}
+              labelStyle={{ color: 'var(--text-primary)' }}
               formatter={(
                 _val: TooltipValueType | undefined,
                 _name: string | number | undefined,

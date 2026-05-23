@@ -4,2109 +4,2109 @@
  */
 
 export interface paths {
-    "/web/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Index Page */
-        get: operations["index_page_web__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/web/reports": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Reports Page */
-        get: operations["reports_page_web_reports_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/web/report/{task_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Report View Page */
-        get: operations["report_view_page_web_report__task_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/web/run": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Run Pipeline */
-        post: operations["run_pipeline_api_web_run_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/web/status/{task_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Task Status */
-        get: operations["task_status_api_web_status__task_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/web/history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Task History */
-        get: operations["task_history_api_web_history_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/compute/wacc": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Compute Wacc */
-        post: operations["compute_wacc_api_compute_wacc_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/compute/dcf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Compute Dcf */
-        post: operations["compute_dcf_api_compute_dcf_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/compute/dcf-sensitivity": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Compute Dcf Sensitivity */
-        post: operations["compute_dcf_sensitivity_api_compute_dcf_sensitivity_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/compute/lbo": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Compute Lbo */
-        post: operations["compute_lbo_api_compute_lbo_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/compute/lbo-sensitivity": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Compute Lbo Sensitivity */
-        post: operations["compute_lbo_sensitivity_api_compute_lbo_sensitivity_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/compute/multiples": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Compute Multiples */
-        post: operations["compute_multiples_api_compute_multiples_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/compute/peer-stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Compute Peer Stats */
-        post: operations["compute_peer_stats_api_compute_peer_stats_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/data/{ticker}/financials": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Financials */
-        get: operations["get_financials_api_data__ticker__financials_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/data/{ticker}/price": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Price */
-        get: operations["get_price_api_data__ticker__price_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/export/excel/dcf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Export Dcf Excel Interactive
-         * @description Generate DCF Excel from client-provided inputs/result (interactive mode).
-         */
-        post: operations["export_dcf_excel_interactive_api_export_excel_dcf_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/settings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Settings Route */
-        get: operations["get_settings_route_api_settings_get"];
-        /** Put Settings Route */
-        put: operations["put_settings_route_api_settings_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/settings/reset": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reset Settings Route */
-        post: operations["reset_settings_route_api_settings_reset_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Runs */
-        get: operations["list_runs_api_runs_get"];
-        put?: never;
-        /** Create Run */
-        post: operations["create_run_api_runs_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/runs/{run_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Run */
-        get: operations["get_run_api_runs__run_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/runs/{run_id}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Stream Run Events */
-        get: operations["stream_run_events_api_runs__run_id__events_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/chat": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Chat */
-        post: operations["chat_chat_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/pipeline/stream/{pipeline_type}/{ticker}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Pipeline Stream
-         * @description Stream pipeline progress as Server-Sent Events.
-         *
-         *     Events emitted (one JSON object per SSE `data:` frame):
-         *       - step_start: {step, total, name}
-         *       - step_end:   {step, total, name, duration}
-         *       - step_retry: {step, name, attempt}
-         *       - complete:   {ticker, report_url}
-         *       - error:      {message}
-         */
-        get: operations["pipeline_stream_api_pipeline_stream__pipeline_type___ticker__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Health */
-        get: operations["health_health_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/report/html": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Report Html
-         * @description Generate and return HTML equity research report from cached pipeline results.
-         */
-        get: operations["report_html_api_report_html_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/export/excel/{analysis_type}/{ticker}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Export Excel
-         * @description Download .xlsx model for analysis_type in {'dcf', 'lbo', 'comps'}.
-         *
-         *     Requires the corresponding pipeline to have been run first (results cached).
-         */
-        get: operations["export_excel_api_export_excel__analysis_type___ticker__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/report/pdf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Report Pdf
-         * @description Generate and return PDF equity research report from cached pipeline results.
-         */
-        get: operations["report_pdf_api_report_pdf_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
+  '/web/': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Index Page */
+    get: operations['index_page_web__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/web/reports': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Reports Page */
+    get: operations['reports_page_web_reports_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/web/report/{task_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Report View Page */
+    get: operations['report_view_page_web_report__task_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/web/run': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Run Pipeline */
+    post: operations['run_pipeline_api_web_run_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/web/status/{task_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Task Status */
+    get: operations['task_status_api_web_status__task_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/web/history': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Task History */
+    get: operations['task_history_api_web_history_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/compute/wacc': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Compute Wacc */
+    post: operations['compute_wacc_api_compute_wacc_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/compute/dcf': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Compute Dcf */
+    post: operations['compute_dcf_api_compute_dcf_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/compute/dcf-sensitivity': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Compute Dcf Sensitivity */
+    post: operations['compute_dcf_sensitivity_api_compute_dcf_sensitivity_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/compute/lbo': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Compute Lbo */
+    post: operations['compute_lbo_api_compute_lbo_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/compute/lbo-sensitivity': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Compute Lbo Sensitivity */
+    post: operations['compute_lbo_sensitivity_api_compute_lbo_sensitivity_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/compute/multiples': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Compute Multiples */
+    post: operations['compute_multiples_api_compute_multiples_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/compute/peer-stats': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Compute Peer Stats */
+    post: operations['compute_peer_stats_api_compute_peer_stats_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/data/{ticker}/financials': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Financials */
+    get: operations['get_financials_api_data__ticker__financials_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/data/{ticker}/price': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Price */
+    get: operations['get_price_api_data__ticker__price_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/export/excel/dcf': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Export Dcf Excel Interactive
+     * @description Generate DCF Excel from client-provided inputs/result (interactive mode).
+     */
+    post: operations['export_dcf_excel_interactive_api_export_excel_dcf_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/settings': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Settings Route */
+    get: operations['get_settings_route_api_settings_get']
+    /** Put Settings Route */
+    put: operations['put_settings_route_api_settings_put']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/settings/reset': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Reset Settings Route */
+    post: operations['reset_settings_route_api_settings_reset_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/runs': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Runs */
+    get: operations['list_runs_api_runs_get']
+    put?: never
+    /** Create Run */
+    post: operations['create_run_api_runs_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/runs/{run_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Run */
+    get: operations['get_run_api_runs__run_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/runs/{run_id}/events': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Stream Run Events */
+    get: operations['stream_run_events_api_runs__run_id__events_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/chat': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Chat */
+    post: operations['chat_chat_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/pipeline/stream/{pipeline_type}/{ticker}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Pipeline Stream
+     * @description Stream pipeline progress as Server-Sent Events.
+     *
+     *     Events emitted (one JSON object per SSE `data:` frame):
+     *       - step_start: {step, total, name}
+     *       - step_end:   {step, total, name, duration}
+     *       - step_retry: {step, name, attempt}
+     *       - complete:   {ticker, report_url}
+     *       - error:      {message}
+     */
+    get: operations['pipeline_stream_api_pipeline_stream__pipeline_type___ticker__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/health': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Health */
+    get: operations['health_health_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/report/html': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Report Html
+     * @description Generate and return HTML equity research report from cached pipeline results.
+     */
+    get: operations['report_html_api_report_html_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/export/excel/{analysis_type}/{ticker}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Export Excel
+     * @description Download .xlsx model for analysis_type in {'dcf', 'lbo', 'comps'}.
+     *
+     *     Requires the corresponding pipeline to have been run first (results cached).
+     */
+    get: operations['export_excel_api_export_excel__analysis_type___ticker__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/report/pdf': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Report Pdf
+     * @description Generate and return PDF equity research report from cached pipeline results.
+     */
+    get: operations['report_pdf_api_report_pdf_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
-export type webhooks = Record<string, never>;
+export type webhooks = Record<string, never>
 export interface components {
-    schemas: {
-        /**
-         * BalanceSheet
-         * @description Balance sheet metrics.
-         */
-        BalanceSheet: {
-            /**
-             * Total Debt
-             * @description Total debt in USD
-             * @default 0
-             */
-            total_debt: number;
-            /**
-             * Total Cash
-             * @description Total cash in USD
-             * @default 0
-             */
-            total_cash: number;
-        };
-        /**
-         * CompanyFinancials
-         * @description Financial data for one company in a peer set.
-         */
-        CompanyFinancials: {
-            /** Ticker */
-            ticker: string;
-            /** Name */
-            name?: string | null;
-            /** Revenue */
-            revenue: number;
-            /** Ebitda */
-            ebitda: number;
-            /** Net Income */
-            net_income: number;
-            /** Market Cap */
-            market_cap: number;
-            /**
-             * Total Debt
-             * @default 0
-             */
-            total_debt: number;
-            /**
-             * Total Cash
-             * @default 0
-             */
-            total_cash: number;
-            /** Enterprise Value */
-            enterprise_value?: number | null;
-            /** Gross Margin */
-            gross_margin: number;
-            /** Operating Margin */
-            operating_margin: number;
-            /** Pe Ratio */
-            pe_ratio?: number | null;
-            /** Ev Ebitda */
-            ev_ebitda?: number | null;
-            /** Ev Revenue */
-            ev_revenue?: number | null;
-        };
-        /** CreateRunRequest */
-        CreateRunRequest: {
-            /** Pipeline Type */
-            pipeline_type: string;
-            /** Ticker */
-            ticker: string;
-        };
-        /** CreateRunResponse */
-        CreateRunResponse: {
-            /** Run Id */
-            run_id: string;
-            /**
-             * Status
-             * @constant
-             */
-            status: "created";
-            /** Pipeline Type */
-            pipeline_type: string;
-            /** Ticker */
-            ticker: string;
-            /** Created At */
-            created_at: string;
-        };
-        /**
-         * DCFInputs
-         * @description Inputs for DCF calculation. LLM selects these, code computes the math.
-         *
-         *     Note on FCF formula (P1.5 simplification):
-         *     FCF = EBITDA × (1 - tax) - revenue × capex_pct - revenue × nwc_pct
-         *
-         *     The explicit expansion:
-         *     - projected_ebitda = projected_revenue × ebitda_margin
-         *     - after_tax_ebitda = projected_ebitda × (1 - tax_rate)
-         *     - capex = projected_revenue × capex_pct_revenue
-         *     - nwc_change = projected_revenue × nwc_pct_revenue
-         *     - fcf = after_tax_ebitda - capex - nwc_change
-         *
-         *     This over-taxes by not deducting D&A before tax. Acceptable because yfinance
-         *     doesn't provide D&A separately.
-         */
-        DCFInputs: {
-            /**
-             * Revenue Base
-             * @description Base year revenue in USD
-             */
-            revenue_base: number;
-            /**
-             * Revenue Growth Rates
-             * @description Projected annual growth rates as decimals
-             */
-            revenue_growth_rates: number[];
-            /**
-             * Ebitda Margin
-             * @description Projected EBITDA margin
-             */
-            ebitda_margin: number;
-            /**
-             * Capex Pct Revenue
-             * @description Capex as % of revenue
-             */
-            capex_pct_revenue: number;
-            /**
-             * Nwc Pct Revenue
-             * @description Net working capital change as % of revenue
-             */
-            nwc_pct_revenue: number;
-            /**
-             * Da Pct Revenue
-             * @description D&A as % of revenue. None = use simplified FCF formula (P1.5).
-             */
-            da_pct_revenue?: number | null;
-            /**
-             * Tax Rate
-             * @default 0.21
-             */
-            tax_rate: number;
-            /** Risk Free Rate */
-            risk_free_rate: number;
-            /** Beta */
-            beta: number;
-            /** Equity Risk Premium */
-            equity_risk_premium: number;
-            /** Cost Of Debt */
-            cost_of_debt: number;
-            /**
-             * Debt Ratio
-             * @description Debt / (Debt + Equity)
-             */
-            debt_ratio: number;
-            /**
-             * Terminal Growth Rate
-             * @description Long-term growth rate
-             */
-            terminal_growth_rate: number;
-            /** Shares Outstanding */
-            shares_outstanding: number;
-            /**
-             * Net Debt
-             * @description Total debt - cash. Negative if net cash.
-             */
-            net_debt: number;
-        };
-        /**
-         * DCFResult
-         * @description DCF valuation output. All numbers computed by code, not LLM.
-         */
-        DCFResult: {
-            /** Cost Of Equity */
-            cost_of_equity: number | null;
-            /** Wacc */
-            wacc: number;
-            /** Projection Years */
-            projection_years: number;
-            /** Projected Revenue */
-            projected_revenue: number[];
-            /** Projected Ebitda */
-            projected_ebitda: number[];
-            /** Projected Fcf */
-            projected_fcf: number[];
-            /** Terminal Value */
-            terminal_value: number;
-            /** Pv Terminal */
-            pv_terminal: number;
-            /** Pv Fcf Total */
-            pv_fcf_total: number;
-            /** Enterprise Value */
-            enterprise_value: number;
-            /** Equity Value */
-            equity_value: number;
-            /** Implied Price */
-            implied_price: number;
-            /** Sensitivity Table */
-            sensitivity_table?: {
-                [key: string]: unknown;
-            } | null;
-            inputs: components["schemas"]["DCFInputs"];
-        };
-        /** DcfExportRequest */
-        DcfExportRequest: {
-            /** Ticker */
-            ticker: string;
-            inputs: components["schemas"]["DCFInputs"];
-            result: components["schemas"]["DCFResult"];
-        };
-        /** DcfSensitivityRequest */
-        DcfSensitivityRequest: {
-            inputs: components["schemas"]["DCFInputs"];
-            /** Wacc Range */
-            wacc_range: number[];
-            /** Tg Range */
-            tg_range: number[];
-        };
-        /** DcfSensitivityResult */
-        DcfSensitivityResult: {
-            /** Wacc Values */
-            wacc_values: number[];
-            /** Tg Values */
-            tg_values: number[];
-            /** Implied Prices */
-            implied_prices: (number | null)[][];
-        };
-        /**
-         * FinancialData
-         * @description Structured financial data for a single company.
-         *
-         *     Access fields via sub-models:
-         *         fd.income.revenue, fd.balance.total_debt, fd.market.market_cap, etc.
-         */
-        FinancialData: {
-            /** Ticker */
-            ticker: string;
-            /**
-             * Company Name
-             * @default
-             */
-            company_name: string;
-            /**
-             * Timestamp
-             * Format: date-time
-             */
-            timestamp: string;
-            income: components["schemas"]["IncomeStatement"];
-            balance?: components["schemas"]["BalanceSheet"];
-            market: components["schemas"]["MarketData"];
-            valuation?: components["schemas"]["ValuationMetrics"];
-            /**
-             * Data Source
-             * @default yfinance
-             */
-            data_source: string;
-            /** Warnings */
-            warnings?: string[];
-        };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
-        };
-        /**
-         * IncomeStatement
-         * @description Income statement metrics.
-         */
-        IncomeStatement: {
-            /**
-             * Revenue
-             * @description Annual revenue in USD
-             */
-            revenue: number;
-            /**
-             * Ebitda
-             * @description EBITDA in USD
-             */
-            ebitda: number;
-            /**
-             * Net Income
-             * @description Net income in USD
-             */
-            net_income: number;
-            /**
-             * Gross Margin
-             * @description Gross margin as decimal
-             */
-            gross_margin: number;
-            /**
-             * Operating Margin
-             * @description Operating margin as decimal
-             */
-            operating_margin: number;
-            /** Depreciation Amortization */
-            depreciation_amortization?: number | null;
-            /** Rd Expense */
-            rd_expense?: number | null;
-            /** Sga Expense */
-            sga_expense?: number | null;
-            /** Interest Expense */
-            interest_expense?: number | null;
-        };
-        /**
-         * LBOInputs
-         * @description Assumptions driving the LBO model. LLM selects these, code computes math.
-         */
-        LBOInputs: {
-            /** Ticker */
-            ticker: string;
-            /**
-             * Ltm Ebitda
-             * @description LTM EBITDA at entry (USD)
-             */
-            ltm_ebitda: number;
-            /**
-             * Entry Ev Ebitda
-             * @description Entry EV/EBITDA multiple
-             */
-            entry_ev_ebitda: number;
-            /**
-             * Exit Ev Ebitda
-             * @description Exit EV/EBITDA multiple
-             */
-            exit_ev_ebitda: number;
-            /**
-             * Holding Period Years
-             * @default 5
-             */
-            holding_period_years: number;
-            /**
-             * Revenue Base
-             * @description LTM revenue at entry (USD)
-             */
-            revenue_base: number;
-            /**
-             * Revenue Growth Rate
-             * @description Annual revenue growth (constant)
-             */
-            revenue_growth_rate: number;
-            /**
-             * Ebitda Margin
-             * @description EBITDA/revenue (constant)
-             */
-            ebitda_margin: number;
-            /**
-             * Da Pct Revenue
-             * @default 0.04
-             */
-            da_pct_revenue: number;
-            /**
-             * Capex Pct Revenue
-             * @default 0.04
-             */
-            capex_pct_revenue: number;
-            /**
-             * Nwc Change Pct Revenue
-             * @default 0.01
-             */
-            nwc_change_pct_revenue: number;
-            /**
-             * Leverage Multiple
-             * @description Total debt / EBITDA at entry
-             * @default 5
-             */
-            leverage_multiple: number;
-            /**
-             * Interest Rate
-             * @description Blended debt rate
-             * @default 0.07
-             */
-            interest_rate: number;
-            /**
-             * Mandatory Amort Pct
-             * @description Mandatory amortization as % of entry debt per year
-             * @default 0.01
-             */
-            mandatory_amort_pct: number;
-            /**
-             * Cash Sweep
-             * @description Sweep all excess FCF to debt
-             * @default true
-             */
-            cash_sweep: boolean;
-            /**
-             * Tax Rate
-             * @default 0.25
-             */
-            tax_rate: number;
-        };
-        /**
-         * LBOResult
-         * @description Full LBO model output. All returns computed by code, not LLM.
-         */
-        LBOResult: {
-            /** Entry Ev */
-            entry_ev: number;
-            /** Entry Debt */
-            entry_debt: number;
-            /** Entry Equity */
-            entry_equity: number;
-            /** Schedule */
-            schedule: components["schemas"]["LBOYear"][];
-            /** Exit Ebitda */
-            exit_ebitda: number;
-            /** Exit Ev */
-            exit_ev: number;
-            /** Exit Equity */
-            exit_equity: number;
-            /** Moic */
-            moic: number;
-            /**
-             * Irr
-             * @description Annualized IRR (decimal). -1.0 = total loss.
-             */
-            irr: number;
-            /**
-             * Sensitivity
-             * @description entry_multiples, exit_multiples, irr_grid, moic_grid
-             */
-            sensitivity?: {
-                [key: string]: unknown;
-            };
-            /** Irr Formula Warning */
-            irr_formula_warning?: string | null;
-        };
-        /**
-         * LBOYear
-         * @description One year of LBO operations. All numbers deterministically computed.
-         */
-        LBOYear: {
-            /** Year */
-            year: number;
-            /** Revenue */
-            revenue: number;
-            /** Ebitda */
-            ebitda: number;
-            /** Da */
-            da: number;
-            /** Ebit */
-            ebit: number;
-            /** Interest Expense */
-            interest_expense: number;
-            /** Ebt */
-            ebt: number;
-            /** Taxes */
-            taxes: number;
-            /** Net Income */
-            net_income: number;
-            /** Capex */
-            capex: number;
-            /** Delta Nwc */
-            delta_nwc: number;
-            /** Fcf */
-            fcf: number;
-            /** Mandatory Amort */
-            mandatory_amort: number;
-            /** Cash Sweep Amount */
-            cash_sweep_amount: number;
-            /** Total Debt Paydown */
-            total_debt_paydown: number;
-            /** Ending Debt */
-            ending_debt: number;
-        };
-        /** LboSensitivityRequest */
-        LboSensitivityRequest: {
-            inputs: components["schemas"]["LBOInputs"];
-            /** Entry Range */
-            entry_range?: number[] | null;
-            /** Exit Range */
-            exit_range?: number[] | null;
-        };
-        /** LboSensitivityResult */
-        LboSensitivityResult: {
-            /** Entry Multiples */
-            entry_multiples: number[];
-            /** Exit Multiples */
-            exit_multiples: number[];
-            /** Irr Grid */
-            irr_grid: (number | null)[][];
-            /** Moic Grid */
-            moic_grid: (number | null)[][];
-        };
-        /**
-         * MarketData
-         * @description Market and price data.
-         */
-        MarketData: {
-            /**
-             * Market Cap
-             * @description Market cap in USD
-             */
-            market_cap: number;
-            /** Shares Outstanding */
-            shares_outstanding: number;
-            /** Current Price */
-            current_price: number;
-            /** Pe Ratio */
-            pe_ratio?: number | null;
-            /** Price 52W High */
-            price_52w_high?: number | null;
-            /** Price 52W Low */
-            price_52w_low?: number | null;
-        };
-        /**
-         * PeerComps
-         * @description Comparable company analysis result.
-         */
-        PeerComps: {
-            target: components["schemas"]["CompanyFinancials"];
-            /** Peers */
-            peers: components["schemas"]["CompanyFinancials"][];
-            /** Median Ev Ebitda */
-            median_ev_ebitda?: number | null;
-            /** Median Pe */
-            median_pe?: number | null;
-            /** Median Ev Revenue */
-            median_ev_revenue?: number | null;
-            /** Mean Ev Ebitda */
-            mean_ev_ebitda?: number | null;
-            /** Mean Pe */
-            mean_pe?: number | null;
-            /**
-             * Peer Justification
-             * @default
-             */
-            peer_justification: string;
-            /**
-             * Positioning Narrative
-             * @default
-             */
-            positioning_narrative: string;
-        };
-        /** RunDetail */
-        RunDetail: {
-            /** Run Id */
-            run_id: string;
-            /** Status */
-            status: string;
-            /** Pipeline Type */
-            pipeline_type: string;
-            /** Ticker */
-            ticker: string;
-            /** Created At */
-            created_at: string;
-            /** Completed At */
-            completed_at?: string | null;
-            /** Duration S */
-            duration_s?: number | null;
-            result?: components["schemas"]["RunResult"] | null;
-            /**
-             * Artifacts
-             * @default []
-             */
-            artifacts: {
-                [key: string]: unknown;
-            }[];
-            /**
-             * Warnings
-             * @default []
-             */
-            warnings: string[];
-            /**
-             * Failed Validations
-             * @default []
-             */
-            failed_validations: {
-                [key: string]: string;
-            }[];
-            /** Error */
-            error?: string | null;
-        };
-        /** RunListResponse */
-        RunListResponse: {
-            /** Runs */
-            runs: components["schemas"]["RunRecord"][];
-        };
-        /** RunRecord */
-        RunRecord: {
-            /** Run Id */
-            run_id: string;
-            /** Pipeline Type */
-            pipeline_type: string;
-            /** Ticker */
-            ticker: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "created" | "running" | "completed" | "failed";
-            /** Created At */
-            created_at: string;
-            /** Completed At */
-            completed_at?: string | null;
-            /** Duration S */
-            duration_s?: number | null;
-            /** Result Text */
-            result_text?: string | null;
-            /** Result Json */
-            result_json?: {
-                [key: string]: unknown;
-            } | null;
-            /** Error */
-            error?: string | null;
-        };
-        /** RunRequest */
-        RunRequest: {
-            /** Ticker */
-            ticker: string;
-            /** Pipeline Type */
-            pipeline_type: string;
-        };
-        /** RunResult */
-        RunResult: {
-            /** Text */
-            text?: string | null;
-            /** Structured */
-            structured?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /** SettingsResponse */
-        SettingsResponse: {
-            /** Model Name */
-            model_name: string;
-            /** Model Data */
-            model_data?: string | null;
-            /** Model Analysis */
-            model_analysis?: string | null;
-            /** Model Modeling */
-            model_modeling?: string | null;
-            /** Model Synthesis */
-            model_synthesis?: string | null;
-            /** Model Report */
-            model_report?: string | null;
-            /** Anthropic Api Key Set */
-            anthropic_api_key_set: boolean;
-            /** Deepseek Api Key Set */
-            deepseek_api_key_set: boolean;
-            /** Openai Api Key Set */
-            openai_api_key_set: boolean;
-            /** Fmp Api Key Set */
-            fmp_api_key_set: boolean;
-            /** Finnhub Api Key Set */
-            finnhub_api_key_set: boolean;
-            /** Alpha Vantage Api Key Set */
-            alpha_vantage_api_key_set: boolean;
-            /** Adanos Api Key Set */
-            adanos_api_key_set: boolean;
-            /** Sec User Agent */
-            sec_user_agent: string;
-            /** Log Level */
-            log_level: string;
-            /** Available Providers */
-            available_providers: string[];
-            /** Valid Model Providers */
-            valid_model_providers: ("anthropic" | "deepseek" | "openai")[];
-            /** Field Sources */
-            field_sources: {
-                [key: string]: "keychain" | "settings_json" | "env" | "default";
-            };
-            /** Startup Error */
-            startup_error?: string | null;
-        };
-        /** SettingsUpdate */
-        SettingsUpdate: {
-            /** Model Name */
-            model_name?: string | null;
-            /** Model Data */
-            model_data?: string | null;
-            /** Model Analysis */
-            model_analysis?: string | null;
-            /** Model Modeling */
-            model_modeling?: string | null;
-            /** Model Synthesis */
-            model_synthesis?: string | null;
-            /** Model Report */
-            model_report?: string | null;
-            /** Sec User Agent */
-            sec_user_agent?: string | null;
-            /** Log Level */
-            log_level?: string | null;
-            /** Anthropic Api Key */
-            anthropic_api_key?: string | null;
-            /** Deepseek Api Key */
-            deepseek_api_key?: string | null;
-            /** Openai Api Key */
-            openai_api_key?: string | null;
-            /** Fmp Api Key */
-            fmp_api_key?: string | null;
-            /** Finnhub Api Key */
-            finnhub_api_key?: string | null;
-            /** Alpha Vantage Api Key */
-            alpha_vantage_api_key?: string | null;
-            /** Adanos Api Key */
-            adanos_api_key?: string | null;
-            /** Feishu Webhook Url */
-            feishu_webhook_url?: string | null;
-            /** Telegram Chat Id */
-            telegram_chat_id?: string | null;
-            /** Discord Webhook Url */
-            discord_webhook_url?: string | null;
-            /** Email Smtp Host */
-            email_smtp_host?: string | null;
-            /** Email Smtp Port */
-            email_smtp_port?: number | null;
-            /** Email To */
-            email_to?: string | null;
-            /** Custom Webhook Url */
-            custom_webhook_url?: string | null;
-        };
-        /** SettingsResetRequest */
-        SettingsResetRequest: {
-            /** Fields */
-            fields?: string[];
-        };
-        /** ValidationError */
-        ValidationError: {
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
-        };
-        /**
-         * ValuationMetrics
-         * @description Derived valuation multiples. Computed by code, not LLM.
-         */
-        ValuationMetrics: {
-            /** Enterprise Value */
-            enterprise_value?: number | null;
-            /** Ev Ebitda */
-            ev_ebitda?: number | null;
-            /** Ev Revenue */
-            ev_revenue?: number | null;
-        };
-        /** WaccRequest */
-        WaccRequest: {
-            /** Risk Free Rate */
-            risk_free_rate: number;
-            /** Beta */
-            beta: number;
-            /** Equity Risk Premium */
-            equity_risk_premium: number;
-            /** Cost Of Debt */
-            cost_of_debt: number;
-            /** Tax Rate */
-            tax_rate: number;
-            /** Debt Ratio */
-            debt_ratio: number;
-        };
-        /** WaccResponse */
-        WaccResponse: {
-            /** Cost Of Equity */
-            cost_of_equity: number;
-            /** Wacc */
-            wacc: number;
-        };
-    };
-    responses: never;
-    parameters: never;
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+  schemas: {
+    /**
+     * BalanceSheet
+     * @description Balance sheet metrics.
+     */
+    BalanceSheet: {
+      /**
+       * Total Debt
+       * @description Total debt in USD
+       * @default 0
+       */
+      total_debt: number
+      /**
+       * Total Cash
+       * @description Total cash in USD
+       * @default 0
+       */
+      total_cash: number
+    }
+    /**
+     * CompanyFinancials
+     * @description Financial data for one company in a peer set.
+     */
+    CompanyFinancials: {
+      /** Ticker */
+      ticker: string
+      /** Name */
+      name?: string | null
+      /** Revenue */
+      revenue: number
+      /** Ebitda */
+      ebitda: number
+      /** Net Income */
+      net_income: number
+      /** Market Cap */
+      market_cap: number
+      /**
+       * Total Debt
+       * @default 0
+       */
+      total_debt: number
+      /**
+       * Total Cash
+       * @default 0
+       */
+      total_cash: number
+      /** Enterprise Value */
+      enterprise_value?: number | null
+      /** Gross Margin */
+      gross_margin: number
+      /** Operating Margin */
+      operating_margin: number
+      /** Pe Ratio */
+      pe_ratio?: number | null
+      /** Ev Ebitda */
+      ev_ebitda?: number | null
+      /** Ev Revenue */
+      ev_revenue?: number | null
+    }
+    /** CreateRunRequest */
+    CreateRunRequest: {
+      /** Pipeline Type */
+      pipeline_type: string
+      /** Ticker */
+      ticker: string
+    }
+    /** CreateRunResponse */
+    CreateRunResponse: {
+      /** Run Id */
+      run_id: string
+      /**
+       * Status
+       * @constant
+       */
+      status: 'created'
+      /** Pipeline Type */
+      pipeline_type: string
+      /** Ticker */
+      ticker: string
+      /** Created At */
+      created_at: string
+    }
+    /**
+     * DCFInputs
+     * @description Inputs for DCF calculation. LLM selects these, code computes the math.
+     *
+     *     Note on FCF formula (P1.5 simplification):
+     *     FCF = EBITDA × (1 - tax) - revenue × capex_pct - revenue × nwc_pct
+     *
+     *     The explicit expansion:
+     *     - projected_ebitda = projected_revenue × ebitda_margin
+     *     - after_tax_ebitda = projected_ebitda × (1 - tax_rate)
+     *     - capex = projected_revenue × capex_pct_revenue
+     *     - nwc_change = projected_revenue × nwc_pct_revenue
+     *     - fcf = after_tax_ebitda - capex - nwc_change
+     *
+     *     This over-taxes by not deducting D&A before tax. Acceptable because yfinance
+     *     doesn't provide D&A separately.
+     */
+    DCFInputs: {
+      /**
+       * Revenue Base
+       * @description Base year revenue in USD
+       */
+      revenue_base: number
+      /**
+       * Revenue Growth Rates
+       * @description Projected annual growth rates as decimals
+       */
+      revenue_growth_rates: number[]
+      /**
+       * Ebitda Margin
+       * @description Projected EBITDA margin
+       */
+      ebitda_margin: number
+      /**
+       * Capex Pct Revenue
+       * @description Capex as % of revenue
+       */
+      capex_pct_revenue: number
+      /**
+       * Nwc Pct Revenue
+       * @description Net working capital change as % of revenue
+       */
+      nwc_pct_revenue: number
+      /**
+       * Da Pct Revenue
+       * @description D&A as % of revenue. None = use simplified FCF formula (P1.5).
+       */
+      da_pct_revenue?: number | null
+      /**
+       * Tax Rate
+       * @default 0.21
+       */
+      tax_rate: number
+      /** Risk Free Rate */
+      risk_free_rate: number
+      /** Beta */
+      beta: number
+      /** Equity Risk Premium */
+      equity_risk_premium: number
+      /** Cost Of Debt */
+      cost_of_debt: number
+      /**
+       * Debt Ratio
+       * @description Debt / (Debt + Equity)
+       */
+      debt_ratio: number
+      /**
+       * Terminal Growth Rate
+       * @description Long-term growth rate
+       */
+      terminal_growth_rate: number
+      /** Shares Outstanding */
+      shares_outstanding: number
+      /**
+       * Net Debt
+       * @description Total debt - cash. Negative if net cash.
+       */
+      net_debt: number
+    }
+    /**
+     * DCFResult
+     * @description DCF valuation output. All numbers computed by code, not LLM.
+     */
+    DCFResult: {
+      /** Cost Of Equity */
+      cost_of_equity: number | null
+      /** Wacc */
+      wacc: number
+      /** Projection Years */
+      projection_years: number
+      /** Projected Revenue */
+      projected_revenue: number[]
+      /** Projected Ebitda */
+      projected_ebitda: number[]
+      /** Projected Fcf */
+      projected_fcf: number[]
+      /** Terminal Value */
+      terminal_value: number
+      /** Pv Terminal */
+      pv_terminal: number
+      /** Pv Fcf Total */
+      pv_fcf_total: number
+      /** Enterprise Value */
+      enterprise_value: number
+      /** Equity Value */
+      equity_value: number
+      /** Implied Price */
+      implied_price: number
+      /** Sensitivity Table */
+      sensitivity_table?: {
+        [key: string]: unknown
+      } | null
+      inputs: components['schemas']['DCFInputs']
+    }
+    /** DcfExportRequest */
+    DcfExportRequest: {
+      /** Ticker */
+      ticker: string
+      inputs: components['schemas']['DCFInputs']
+      result: components['schemas']['DCFResult']
+    }
+    /** DcfSensitivityRequest */
+    DcfSensitivityRequest: {
+      inputs: components['schemas']['DCFInputs']
+      /** Wacc Range */
+      wacc_range: number[]
+      /** Tg Range */
+      tg_range: number[]
+    }
+    /** DcfSensitivityResult */
+    DcfSensitivityResult: {
+      /** Wacc Values */
+      wacc_values: number[]
+      /** Tg Values */
+      tg_values: number[]
+      /** Implied Prices */
+      implied_prices: (number | null)[][]
+    }
+    /**
+     * FinancialData
+     * @description Structured financial data for a single company.
+     *
+     *     Access fields via sub-models:
+     *         fd.income.revenue, fd.balance.total_debt, fd.market.market_cap, etc.
+     */
+    FinancialData: {
+      /** Ticker */
+      ticker: string
+      /**
+       * Company Name
+       * @default
+       */
+      company_name: string
+      /**
+       * Timestamp
+       * Format: date-time
+       */
+      timestamp: string
+      income: components['schemas']['IncomeStatement']
+      balance?: components['schemas']['BalanceSheet']
+      market: components['schemas']['MarketData']
+      valuation?: components['schemas']['ValuationMetrics']
+      /**
+       * Data Source
+       * @default yfinance
+       */
+      data_source: string
+      /** Warnings */
+      warnings?: string[]
+    }
+    /** HTTPValidationError */
+    HTTPValidationError: {
+      /** Detail */
+      detail?: components['schemas']['ValidationError'][]
+    }
+    /**
+     * IncomeStatement
+     * @description Income statement metrics.
+     */
+    IncomeStatement: {
+      /**
+       * Revenue
+       * @description Annual revenue in USD
+       */
+      revenue: number
+      /**
+       * Ebitda
+       * @description EBITDA in USD
+       */
+      ebitda: number
+      /**
+       * Net Income
+       * @description Net income in USD
+       */
+      net_income: number
+      /**
+       * Gross Margin
+       * @description Gross margin as decimal
+       */
+      gross_margin: number
+      /**
+       * Operating Margin
+       * @description Operating margin as decimal
+       */
+      operating_margin: number
+      /** Depreciation Amortization */
+      depreciation_amortization?: number | null
+      /** Rd Expense */
+      rd_expense?: number | null
+      /** Sga Expense */
+      sga_expense?: number | null
+      /** Interest Expense */
+      interest_expense?: number | null
+    }
+    /**
+     * LBOInputs
+     * @description Assumptions driving the LBO model. LLM selects these, code computes math.
+     */
+    LBOInputs: {
+      /** Ticker */
+      ticker: string
+      /**
+       * Ltm Ebitda
+       * @description LTM EBITDA at entry (USD)
+       */
+      ltm_ebitda: number
+      /**
+       * Entry Ev Ebitda
+       * @description Entry EV/EBITDA multiple
+       */
+      entry_ev_ebitda: number
+      /**
+       * Exit Ev Ebitda
+       * @description Exit EV/EBITDA multiple
+       */
+      exit_ev_ebitda: number
+      /**
+       * Holding Period Years
+       * @default 5
+       */
+      holding_period_years: number
+      /**
+       * Revenue Base
+       * @description LTM revenue at entry (USD)
+       */
+      revenue_base: number
+      /**
+       * Revenue Growth Rate
+       * @description Annual revenue growth (constant)
+       */
+      revenue_growth_rate: number
+      /**
+       * Ebitda Margin
+       * @description EBITDA/revenue (constant)
+       */
+      ebitda_margin: number
+      /**
+       * Da Pct Revenue
+       * @default 0.04
+       */
+      da_pct_revenue: number
+      /**
+       * Capex Pct Revenue
+       * @default 0.04
+       */
+      capex_pct_revenue: number
+      /**
+       * Nwc Change Pct Revenue
+       * @default 0.01
+       */
+      nwc_change_pct_revenue: number
+      /**
+       * Leverage Multiple
+       * @description Total debt / EBITDA at entry
+       * @default 5
+       */
+      leverage_multiple: number
+      /**
+       * Interest Rate
+       * @description Blended debt rate
+       * @default 0.07
+       */
+      interest_rate: number
+      /**
+       * Mandatory Amort Pct
+       * @description Mandatory amortization as % of entry debt per year
+       * @default 0.01
+       */
+      mandatory_amort_pct: number
+      /**
+       * Cash Sweep
+       * @description Sweep all excess FCF to debt
+       * @default true
+       */
+      cash_sweep: boolean
+      /**
+       * Tax Rate
+       * @default 0.25
+       */
+      tax_rate: number
+    }
+    /**
+     * LBOResult
+     * @description Full LBO model output. All returns computed by code, not LLM.
+     */
+    LBOResult: {
+      /** Entry Ev */
+      entry_ev: number
+      /** Entry Debt */
+      entry_debt: number
+      /** Entry Equity */
+      entry_equity: number
+      /** Schedule */
+      schedule: components['schemas']['LBOYear'][]
+      /** Exit Ebitda */
+      exit_ebitda: number
+      /** Exit Ev */
+      exit_ev: number
+      /** Exit Equity */
+      exit_equity: number
+      /** Moic */
+      moic: number
+      /**
+       * Irr
+       * @description Annualized IRR (decimal). -1.0 = total loss.
+       */
+      irr: number
+      /**
+       * Sensitivity
+       * @description entry_multiples, exit_multiples, irr_grid, moic_grid
+       */
+      sensitivity?: {
+        [key: string]: unknown
+      }
+      /** Irr Formula Warning */
+      irr_formula_warning?: string | null
+    }
+    /**
+     * LBOYear
+     * @description One year of LBO operations. All numbers deterministically computed.
+     */
+    LBOYear: {
+      /** Year */
+      year: number
+      /** Revenue */
+      revenue: number
+      /** Ebitda */
+      ebitda: number
+      /** Da */
+      da: number
+      /** Ebit */
+      ebit: number
+      /** Interest Expense */
+      interest_expense: number
+      /** Ebt */
+      ebt: number
+      /** Taxes */
+      taxes: number
+      /** Net Income */
+      net_income: number
+      /** Capex */
+      capex: number
+      /** Delta Nwc */
+      delta_nwc: number
+      /** Fcf */
+      fcf: number
+      /** Mandatory Amort */
+      mandatory_amort: number
+      /** Cash Sweep Amount */
+      cash_sweep_amount: number
+      /** Total Debt Paydown */
+      total_debt_paydown: number
+      /** Ending Debt */
+      ending_debt: number
+    }
+    /** LboSensitivityRequest */
+    LboSensitivityRequest: {
+      inputs: components['schemas']['LBOInputs']
+      /** Entry Range */
+      entry_range?: number[] | null
+      /** Exit Range */
+      exit_range?: number[] | null
+    }
+    /** LboSensitivityResult */
+    LboSensitivityResult: {
+      /** Entry Multiples */
+      entry_multiples: number[]
+      /** Exit Multiples */
+      exit_multiples: number[]
+      /** Irr Grid */
+      irr_grid: (number | null)[][]
+      /** Moic Grid */
+      moic_grid: (number | null)[][]
+    }
+    /**
+     * MarketData
+     * @description Market and price data.
+     */
+    MarketData: {
+      /**
+       * Market Cap
+       * @description Market cap in USD
+       */
+      market_cap: number
+      /** Shares Outstanding */
+      shares_outstanding: number
+      /** Current Price */
+      current_price: number
+      /** Pe Ratio */
+      pe_ratio?: number | null
+      /** Price 52W High */
+      price_52w_high?: number | null
+      /** Price 52W Low */
+      price_52w_low?: number | null
+    }
+    /**
+     * PeerComps
+     * @description Comparable company analysis result.
+     */
+    PeerComps: {
+      target: components['schemas']['CompanyFinancials']
+      /** Peers */
+      peers: components['schemas']['CompanyFinancials'][]
+      /** Median Ev Ebitda */
+      median_ev_ebitda?: number | null
+      /** Median Pe */
+      median_pe?: number | null
+      /** Median Ev Revenue */
+      median_ev_revenue?: number | null
+      /** Mean Ev Ebitda */
+      mean_ev_ebitda?: number | null
+      /** Mean Pe */
+      mean_pe?: number | null
+      /**
+       * Peer Justification
+       * @default
+       */
+      peer_justification: string
+      /**
+       * Positioning Narrative
+       * @default
+       */
+      positioning_narrative: string
+    }
+    /** RunDetail */
+    RunDetail: {
+      /** Run Id */
+      run_id: string
+      /** Status */
+      status: string
+      /** Pipeline Type */
+      pipeline_type: string
+      /** Ticker */
+      ticker: string
+      /** Created At */
+      created_at: string
+      /** Completed At */
+      completed_at?: string | null
+      /** Duration S */
+      duration_s?: number | null
+      result?: components['schemas']['RunResult'] | null
+      /**
+       * Artifacts
+       * @default []
+       */
+      artifacts: {
+        [key: string]: unknown
+      }[]
+      /**
+       * Warnings
+       * @default []
+       */
+      warnings: string[]
+      /**
+       * Failed Validations
+       * @default []
+       */
+      failed_validations: {
+        [key: string]: string
+      }[]
+      /** Error */
+      error?: string | null
+    }
+    /** RunListResponse */
+    RunListResponse: {
+      /** Runs */
+      runs: components['schemas']['RunRecord'][]
+    }
+    /** RunRecord */
+    RunRecord: {
+      /** Run Id */
+      run_id: string
+      /** Pipeline Type */
+      pipeline_type: string
+      /** Ticker */
+      ticker: string
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'created' | 'running' | 'completed' | 'failed'
+      /** Created At */
+      created_at: string
+      /** Completed At */
+      completed_at?: string | null
+      /** Duration S */
+      duration_s?: number | null
+      /** Result Text */
+      result_text?: string | null
+      /** Result Json */
+      result_json?: {
+        [key: string]: unknown
+      } | null
+      /** Error */
+      error?: string | null
+    }
+    /** RunRequest */
+    RunRequest: {
+      /** Ticker */
+      ticker: string
+      /** Pipeline Type */
+      pipeline_type: string
+    }
+    /** RunResult */
+    RunResult: {
+      /** Text */
+      text?: string | null
+      /** Structured */
+      structured?: {
+        [key: string]: unknown
+      } | null
+    }
+    /** SettingsResponse */
+    SettingsResponse: {
+      /** Model Name */
+      model_name: string
+      /** Model Data */
+      model_data?: string | null
+      /** Model Analysis */
+      model_analysis?: string | null
+      /** Model Modeling */
+      model_modeling?: string | null
+      /** Model Synthesis */
+      model_synthesis?: string | null
+      /** Model Report */
+      model_report?: string | null
+      /** Anthropic Api Key Set */
+      anthropic_api_key_set: boolean
+      /** Deepseek Api Key Set */
+      deepseek_api_key_set: boolean
+      /** Openai Api Key Set */
+      openai_api_key_set: boolean
+      /** Fmp Api Key Set */
+      fmp_api_key_set: boolean
+      /** Finnhub Api Key Set */
+      finnhub_api_key_set: boolean
+      /** Alpha Vantage Api Key Set */
+      alpha_vantage_api_key_set: boolean
+      /** Adanos Api Key Set */
+      adanos_api_key_set: boolean
+      /** Sec User Agent */
+      sec_user_agent: string
+      /** Log Level */
+      log_level: string
+      /** Available Providers */
+      available_providers: string[]
+      /** Valid Model Providers */
+      valid_model_providers: ('anthropic' | 'deepseek' | 'openai')[]
+      /** Field Sources */
+      field_sources: {
+        [key: string]: 'keychain' | 'settings_json' | 'env' | 'default'
+      }
+      /** Startup Error */
+      startup_error?: string | null
+    }
+    /** SettingsUpdate */
+    SettingsUpdate: {
+      /** Model Name */
+      model_name?: string | null
+      /** Model Data */
+      model_data?: string | null
+      /** Model Analysis */
+      model_analysis?: string | null
+      /** Model Modeling */
+      model_modeling?: string | null
+      /** Model Synthesis */
+      model_synthesis?: string | null
+      /** Model Report */
+      model_report?: string | null
+      /** Sec User Agent */
+      sec_user_agent?: string | null
+      /** Log Level */
+      log_level?: string | null
+      /** Anthropic Api Key */
+      anthropic_api_key?: string | null
+      /** Deepseek Api Key */
+      deepseek_api_key?: string | null
+      /** Openai Api Key */
+      openai_api_key?: string | null
+      /** Fmp Api Key */
+      fmp_api_key?: string | null
+      /** Finnhub Api Key */
+      finnhub_api_key?: string | null
+      /** Alpha Vantage Api Key */
+      alpha_vantage_api_key?: string | null
+      /** Adanos Api Key */
+      adanos_api_key?: string | null
+      /** Feishu Webhook Url */
+      feishu_webhook_url?: string | null
+      /** Telegram Chat Id */
+      telegram_chat_id?: string | null
+      /** Discord Webhook Url */
+      discord_webhook_url?: string | null
+      /** Email Smtp Host */
+      email_smtp_host?: string | null
+      /** Email Smtp Port */
+      email_smtp_port?: number | null
+      /** Email To */
+      email_to?: string | null
+      /** Custom Webhook Url */
+      custom_webhook_url?: string | null
+    }
+    /** SettingsResetRequest */
+    SettingsResetRequest: {
+      /** Fields */
+      fields?: string[]
+    }
+    /** ValidationError */
+    ValidationError: {
+      /** Location */
+      loc: (string | number)[]
+      /** Message */
+      msg: string
+      /** Error Type */
+      type: string
+      /** Input */
+      input?: unknown
+      /** Context */
+      ctx?: Record<string, never>
+    }
+    /**
+     * ValuationMetrics
+     * @description Derived valuation multiples. Computed by code, not LLM.
+     */
+    ValuationMetrics: {
+      /** Enterprise Value */
+      enterprise_value?: number | null
+      /** Ev Ebitda */
+      ev_ebitda?: number | null
+      /** Ev Revenue */
+      ev_revenue?: number | null
+    }
+    /** WaccRequest */
+    WaccRequest: {
+      /** Risk Free Rate */
+      risk_free_rate: number
+      /** Beta */
+      beta: number
+      /** Equity Risk Premium */
+      equity_risk_premium: number
+      /** Cost Of Debt */
+      cost_of_debt: number
+      /** Tax Rate */
+      tax_rate: number
+      /** Debt Ratio */
+      debt_ratio: number
+    }
+    /** WaccResponse */
+    WaccResponse: {
+      /** Cost Of Equity */
+      cost_of_equity: number
+      /** Wacc */
+      wacc: number
+    }
+  }
+  responses: never
+  parameters: never
+  requestBodies: never
+  headers: never
+  pathItems: never
 }
-export type $defs = Record<string, never>;
+export type $defs = Record<string, never>
 export interface operations {
-    index_page_web__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/html": string;
-                };
-            };
-        };
-    };
-    reports_page_web_reports_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/html": string;
-                };
-            };
-        };
-    };
-    report_view_page_web_report__task_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                task_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/html": string;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    run_pipeline_api_web_run_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RunRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    task_status_api_web_status__task_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                task_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    task_history_api_web_history_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    compute_wacc_api_compute_wacc_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WaccRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WaccResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    compute_dcf_api_compute_dcf_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DCFInputs"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DCFResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    compute_dcf_sensitivity_api_compute_dcf_sensitivity_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DcfSensitivityRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DcfSensitivityResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    compute_lbo_api_compute_lbo_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LBOInputs"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LBOResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    compute_lbo_sensitivity_api_compute_lbo_sensitivity_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LboSensitivityRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LboSensitivityResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    compute_multiples_api_compute_multiples_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CompanyFinancials"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CompanyFinancials"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    compute_peer_stats_api_compute_peer_stats_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PeerComps"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PeerComps"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_financials_api_data__ticker__financials_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FinancialData"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_price_api_data__ticker__price_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    export_dcf_excel_interactive_api_export_excel_dcf_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DcfExportRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_settings_route_api_settings_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SettingsResponse"];
-                };
-            };
-        };
-    };
-    put_settings_route_api_settings_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SettingsUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SettingsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reset_settings_route_api_settings_reset_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SettingsResetRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SettingsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_runs_api_runs_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunListResponse"];
-                };
-            };
-        };
-    };
-    create_run_api_runs_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateRunRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CreateRunResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_run_api_runs__run_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    stream_run_events_api_runs__run_id__events_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chat_chat_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    pipeline_stream_api_pipeline_stream__pipeline_type___ticker__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                pipeline_type: string;
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    health_health_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
-                };
-            };
-        };
-    };
-    report_html_api_report_html_get: {
-        parameters: {
-            query: {
-                ticker: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    export_excel_api_export_excel__analysis_type___ticker__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                analysis_type: string;
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    report_pdf_api_report_pdf_get: {
-        parameters: {
-            query: {
-                ticker: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
+  index_page_web__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'text/html': string
+        }
+      }
+    }
+  }
+  reports_page_web_reports_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'text/html': string
+        }
+      }
+    }
+  }
+  report_view_page_web_report__task_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        task_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'text/html': string
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  run_pipeline_api_web_run_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RunRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  task_status_api_web_status__task_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        task_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  task_history_api_web_history_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+    }
+  }
+  compute_wacc_api_compute_wacc_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['WaccRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['WaccResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  compute_dcf_api_compute_dcf_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DCFInputs']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DCFResult']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  compute_dcf_sensitivity_api_compute_dcf_sensitivity_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DcfSensitivityRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DcfSensitivityResult']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  compute_lbo_api_compute_lbo_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['LBOInputs']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['LBOResult']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  compute_lbo_sensitivity_api_compute_lbo_sensitivity_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['LboSensitivityRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['LboSensitivityResult']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  compute_multiples_api_compute_multiples_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CompanyFinancials']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CompanyFinancials']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  compute_peer_stats_api_compute_peer_stats_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PeerComps']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['PeerComps']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_financials_api_data__ticker__financials_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        ticker: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['FinancialData']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_price_api_data__ticker__price_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        ticker: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            [key: string]: unknown
+          }
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  export_dcf_excel_interactive_api_export_excel_dcf_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DcfExportRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_settings_route_api_settings_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SettingsResponse']
+        }
+      }
+    }
+  }
+  put_settings_route_api_settings_put: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SettingsUpdate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SettingsResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  reset_settings_route_api_settings_reset_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SettingsResetRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SettingsResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_runs_api_runs_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RunListResponse']
+        }
+      }
+    }
+  }
+  create_run_api_runs_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateRunRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CreateRunResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_run_api_runs__run_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RunDetail']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  stream_run_events_api_runs__run_id__events_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  chat_chat_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+    }
+  }
+  pipeline_stream_api_pipeline_stream__pipeline_type___ticker__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        pipeline_type: string
+        ticker: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  health_health_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            [key: string]: string
+          }
+        }
+      }
+    }
+  }
+  report_html_api_report_html_get: {
+    parameters: {
+      query: {
+        ticker: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  export_excel_api_export_excel__analysis_type___ticker__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        analysis_type: string
+        ticker: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  report_pdf_api_report_pdf_get: {
+    parameters: {
+      query: {
+        ticker: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
 }

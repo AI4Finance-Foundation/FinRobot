@@ -53,10 +53,7 @@ declare module 'react' {
   }
 }
 
-export function SplineHero({
-  variant = 'hero',
-  showStatusChip,
-}: Props): React.ReactElement {
+export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.ReactElement {
   const containerRef = useRef<HTMLDivElement>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'failed'>('loading')
   const [visible, setVisible] = useState(true)
@@ -75,9 +72,15 @@ export function SplineHero({
   // the user switches away. Keeps the GPU idle in the background — the
   // single biggest factor in the laptop-fan complaint.
   useEffect(() => {
-    function onVis() { setPageActive(!document.hidden) }
-    function onBlur() { setPageActive(false) }
-    function onFocus() { setPageActive(!document.hidden) }
+    function onVis() {
+      setPageActive(!document.hidden)
+    }
+    function onBlur() {
+      setPageActive(false)
+    }
+    function onFocus() {
+      setPageActive(!document.hidden)
+    }
     document.addEventListener('visibilitychange', onVis)
     window.addEventListener('blur', onBlur)
     window.addEventListener('focus', onFocus)
@@ -97,7 +100,7 @@ export function SplineHero({
     if (!el) return
     const io = new IntersectionObserver(
       ([entry]) => setVisible(entry?.isIntersecting ?? true),
-      { rootMargin: '120px' },  // start rendering slightly before it enters
+      { rootMargin: '120px' }, // start rendering slightly before it enters
     )
     io.observe(el)
     return () => io.disconnect()
@@ -108,9 +111,7 @@ export function SplineHero({
     let cancelled = false
 
     // Inject the viewer module once. Re-renders attach to the existing tag.
-    const existing = document.querySelector<HTMLScriptElement>(
-      'script[data-spline-viewer="1"]'
-    )
+    const existing = document.querySelector<HTMLScriptElement>('script[data-spline-viewer="1"]')
 
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     function armTimeout() {
@@ -221,12 +222,14 @@ export function SplineHero({
         <spline-viewer
           url={SCENE_SRC}
           events-target="global"
-          style={{
-            width: '100%',
-            height: '100%',
-            opacity: status === 'ready' ? (isBackdrop ? 0.85 : 1) : 0,
-            transition: 'opacity 0.6s ease',
-          } as React.CSSProperties}
+          style={
+            {
+              width: '100%',
+              height: '100%',
+              opacity: status === 'ready' ? (isBackdrop ? 0.85 : 1) : 0,
+              transition: 'opacity 0.6s ease',
+            } as React.CSSProperties
+          }
         />
       )}
       {/* Belt-and-suspenders mask over the bottom-right Spline badge — the
@@ -241,8 +244,7 @@ export function SplineHero({
             right: 0,
             width: 168,
             height: 44,
-            background:
-              'linear-gradient(135deg, transparent 0%, var(--bg-void) 55%)',
+            background: 'linear-gradient(135deg, transparent 0%, var(--bg-void) 55%)',
             pointerEvents: 'none',
             zIndex: 3,
           }}
@@ -275,7 +277,10 @@ export function SplineHero({
             textTransform: 'uppercase',
           }}
         >
-          <span className="cosmic-pulse-dot" style={{ background: 'var(--accent-cyan)', boxShadow: 'var(--glow-cyan)' }} />
+          <span
+            className="cosmic-pulse-dot"
+            style={{ background: 'var(--accent-cyan)', boxShadow: 'var(--glow-cyan)' }}
+          />
           AI Analyst
         </div>
       )}
@@ -312,7 +317,8 @@ function FakeRobotRings(): React.ReactElement {
             position: 'absolute',
             inset: 18,
             borderRadius: '50%',
-            background: 'radial-gradient(circle at 30% 30%, rgba(34,211,238,0.6), rgba(15,15,34,0.95) 70%)',
+            background:
+              'radial-gradient(circle at 30% 30%, rgba(34,211,238,0.6), rgba(15,15,34,0.95) 70%)',
             boxShadow: 'inset 0 0 40px rgba(59,130,246,0.3), 0 0 60px rgba(139,92,246,0.25)',
           }}
         />

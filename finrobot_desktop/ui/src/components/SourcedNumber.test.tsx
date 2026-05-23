@@ -41,12 +41,7 @@ describe('SourcedNumber', () => {
   })
 
   it('applies custom format function', () => {
-    render(
-      <SourcedNumber
-        value={0.2142}
-        format={(v) => `${(v * 100).toFixed(1)}%`}
-      />,
-    )
+    render(<SourcedNumber value={0.2142} format={(v) => `${(v * 100).toFixed(1)}%`} />)
     expect(screen.getByText('21.4%')).toBeInTheDocument()
   })
 
@@ -103,25 +98,29 @@ describe('SourcedNumber', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
 
     // Advance 200ms — timer fires, state updates
-    act(() => { vi.advanceTimersByTime(250) })
+    act(() => {
+      vi.advanceTimersByTime(250)
+    })
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByText('yfinance')).toBeInTheDocument()
   })
 
   it('hides popover when mouse leaves after delay', () => {
-    render(
-      <SourcedNumber value={100} source={{ provider: 'FMP' }} />,
-    )
+    render(<SourcedNumber value={100} source={{ provider: 'FMP' }} />)
 
     const trigger = screen.getByRole('button')
     fireEvent.mouseEnter(trigger)
-    act(() => { vi.advanceTimersByTime(250) })
+    act(() => {
+      vi.advanceTimersByTime(250)
+    })
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
 
     fireEvent.mouseLeave(trigger)
-    act(() => { vi.advanceTimersByTime(250) })
+    act(() => {
+      vi.advanceTimersByTime(250)
+    })
 
     expect(screen.queryByRole('dialog')).toBeNull()
   })
@@ -132,7 +131,9 @@ describe('SourcedNumber', () => {
     render(<SourcedNumber value={50} source={{ provider: 'DCF engine' }} />)
     const trigger = screen.getByRole('button')
     fireEvent.mouseEnter(trigger)
-    act(() => { vi.advanceTimersByTime(250) })
+    act(() => {
+      vi.advanceTimersByTime(250)
+    })
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByText('DCF engine')).toBeInTheDocument()
@@ -150,7 +151,9 @@ describe('SourcedNumber', () => {
     )
     const trigger = screen.getByRole('button')
     fireEvent.mouseEnter(trigger)
-    act(() => { vi.advanceTimersByTime(250) })
+    act(() => {
+      vi.advanceTimersByTime(250)
+    })
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     const warning = screen.getByText('Simplified FCF formula — excludes D&A tax shield')
@@ -167,7 +170,9 @@ describe('SourcedNumber', () => {
     )
     const trigger = screen.getByRole('button')
     fireEvent.mouseEnter(trigger)
-    act(() => { vi.advanceTimersByTime(250) })
+    act(() => {
+      vi.advanceTimersByTime(250)
+    })
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     const link = screen.getByText(/打开完整研报/) as HTMLAnchorElement
@@ -181,7 +186,9 @@ describe('SourcedNumber', () => {
     render(<SourcedNumber value={100} source={{ provider: 'yfinance' }} />)
     const trigger = screen.getByRole('button')
 
-    act(() => { fireEvent.keyDown(trigger, { key: 'Enter' }) })
+    act(() => {
+      fireEvent.keyDown(trigger, { key: 'Enter' })
+    })
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
@@ -190,7 +197,9 @@ describe('SourcedNumber', () => {
     render(<SourcedNumber value={100} source={{ provider: 'yfinance' }} />)
     const trigger = screen.getByRole('button')
 
-    act(() => { fireEvent.keyDown(trigger, { key: ' ' }) })
+    act(() => {
+      fireEvent.keyDown(trigger, { key: ' ' })
+    })
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
@@ -199,10 +208,14 @@ describe('SourcedNumber', () => {
     render(<SourcedNumber value={100} source={{ provider: 'yfinance' }} />)
     const trigger = screen.getByRole('button')
 
-    act(() => { fireEvent.keyDown(trigger, { key: 'Enter' }) })
+    act(() => {
+      fireEvent.keyDown(trigger, { key: 'Enter' })
+    })
     expect(screen.getByRole('dialog')).toBeInTheDocument()
 
-    act(() => { fireEvent.keyDown(trigger, { key: 'Escape' }) })
+    act(() => {
+      fireEvent.keyDown(trigger, { key: 'Escape' })
+    })
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

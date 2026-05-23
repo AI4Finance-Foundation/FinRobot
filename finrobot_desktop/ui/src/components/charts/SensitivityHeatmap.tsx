@@ -26,9 +26,8 @@ interface GridCell {
 }
 
 export default function SensitivityHeatmap({ data, title }: ChartProps) {
-  if (!data || data.length === 0) return null
-
-  const { waccValues, tgValues, grid, minPrice, maxPrice } = useMemo(() => {
+  const memo = useMemo(() => {
+    if (!data || data.length === 0) return null
     const cells: GridCell[] = data.map((d) => ({
       wacc: Number(d.wacc),
       tg: Number(d.tg),
@@ -52,6 +51,9 @@ export default function SensitivityHeatmap({ data, title }: ChartProps) {
       maxPrice: Math.max(...prices),
     }
   }, [data])
+
+  if (!memo) return null
+  const { waccValues, tgValues, grid, minPrice, maxPrice } = memo
 
   const range = maxPrice - minPrice || 1
   // Find the "current" cell (middle row, middle col)
@@ -84,8 +86,7 @@ export default function SensitivityHeatmap({ data, title }: ChartProps) {
                   <th>{(wacc * 100).toFixed(1)}%</th>
                   {tgValues.map((tg) => {
                     const price = grid.get(`${wacc}_${tg}`)
-                    const normalised =
-                      price != null ? (price - minPrice) / range : 0.5
+                    const normalised = price != null ? (price - minPrice) / range : 0.5
                     const isCurrent = wacc === midWacc && tg === midTg
                     return (
                       <td

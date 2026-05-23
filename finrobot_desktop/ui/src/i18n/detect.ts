@@ -8,10 +8,10 @@
 // detectInitialLocale() is async because the Tauri call crosses the IPC bridge.
 // Call it once at app startup BEFORE the first React render; see main.tsx.
 
-import { locale as osLocale } from "@tauri-apps/plugin-os"
-import type { Locale } from "."
+import { locale as osLocale } from '@tauri-apps/plugin-os'
+import type { Locale } from '.'
 
-const STORAGE_KEY = "finagent-ui-prefs"
+const STORAGE_KEY = 'finagent-ui-prefs'
 
 export function hasStoredLocale(): boolean {
   try {
@@ -32,13 +32,13 @@ export async function detectInitialLocale(): Promise<Locale> {
   // is unavailable (e.g. browser preview without Tauri runtime).
   try {
     const sys = await osLocale() // e.g. 'zh-CN', 'en-US', 'ja-JP', or null
-    const lower = sys?.toLowerCase() ?? ""
-    if (lower.startsWith("zh")) return "zh"
-    if (lower.startsWith("en")) return "en"
+    const lower = sys?.toLowerCase() ?? ''
+    if (lower.startsWith('zh')) return 'zh'
+    if (lower.startsWith('en')) return 'en'
   } catch {
     // Tauri plugin-os not available — silently skip.
   }
 
   // Tier 3 — Chinese-first fallback (FinAgent product positioning).
-  return "zh"
+  return 'zh'
 }

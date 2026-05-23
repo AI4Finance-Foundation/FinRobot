@@ -37,10 +37,7 @@ export function useV5ArtifactTimeline(ticker: string) {
 }
 
 /** Latest artifact for a ticker filtered by type — convenience derivative. */
-export function useLatestArtifact(
-  ticker: string,
-  type: ArtifactSummaryV5['type'],
-) {
+export function useLatestArtifact(ticker: string, type: ArtifactSummaryV5['type']) {
   const query = useV5ArtifactTimeline(ticker)
   const latest = query.data?.find((a) => a.type === type) ?? null
   return { ...query, latest }

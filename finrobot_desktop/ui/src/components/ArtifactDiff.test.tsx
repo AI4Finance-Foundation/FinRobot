@@ -9,9 +9,24 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { ArtifactDiff } from './ArtifactDiff'
 
-const ART_A = { id: 'a1', created_at: '2026-05-12T10:00:00Z', headline: 'DCF v1 implied $178', type: 'dcf' }
-const ART_B = { id: 'a2', created_at: '2026-05-13T10:00:00Z', headline: 'DCF v2 implied $185', type: 'dcf' }
-const ART_LBO = { id: 'b1', created_at: '2026-05-13T10:00:00Z', headline: 'LBO IRR 18%', type: 'lbo' }
+const ART_A = {
+  id: 'a1',
+  created_at: '2026-05-12T10:00:00Z',
+  headline: 'DCF v1 implied $178',
+  type: 'dcf',
+}
+const ART_B = {
+  id: 'a2',
+  created_at: '2026-05-13T10:00:00Z',
+  headline: 'DCF v2 implied $185',
+  type: 'dcf',
+}
+const ART_LBO = {
+  id: 'b1',
+  created_at: '2026-05-13T10:00:00Z',
+  headline: 'LBO IRR 18%',
+  type: 'lbo',
+}
 
 const MOCK_DIFF = [
   {
@@ -41,11 +56,14 @@ const MOCK_DIFF = [
 ]
 
 function setupFetch(diffs: unknown[]) {
-  vi.stubGlobal('fetch', vi.fn(async () => ({
-    ok: true,
-    json: async () => diffs,
-    status: 200,
-  })))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({
+      ok: true,
+      json: async () => diffs,
+      status: 200,
+    })),
+  )
 }
 
 function renderDiff(artA: typeof ART_A, artB: typeof ART_A, onClose = vi.fn()) {
@@ -56,7 +74,7 @@ function renderDiff(artA: typeof ART_A, artB: typeof ART_A, onClose = vi.fn()) {
       <MemoryRouter>
         <ArtifactDiff artifactA={artA} artifactB={artB} onClose={onClose} />
       </MemoryRouter>
-    </QueryClientProvider>
+    </QueryClientProvider>,
   )
 }
 
@@ -121,7 +139,7 @@ describe('ArtifactDiff — identical result', () => {
         <MemoryRouter>
           <ArtifactDiff artifactA={ART_A} artifactB={ART_B} onClose={() => {}} />
         </MemoryRouter>
-      </QueryClientProvider>
+      </QueryClientProvider>,
     )
     expect(await screen.findByText(/两份研报完全一致/)).toBeInTheDocument()
   })
@@ -154,8 +172,8 @@ describe('ArtifactDiff — section collapsing', () => {
     // The section header "assumptions" is the td element in the table
     const allAssumptionEls = screen.getAllByText(/^assumptions$/i)
     // The table header is the one inside a td with colspan=4
-    const sectionHeader = allAssumptionEls.find((el) =>
-      el.closest('td') !== null && el.closest('td')?.getAttribute('colspan') === '4'
+    const sectionHeader = allAssumptionEls.find(
+      (el) => el.closest('td') !== null && el.closest('td')?.getAttribute('colspan') === '4',
     )
     const initialRows = screen.getAllByText(/wacc|terminal_growth/i)
     expect(initialRows.length).toBeGreaterThan(0)
@@ -196,14 +214,17 @@ describe('ArtifactDiff — close behavior', () => {
 
 describe('ArtifactDiff — error state', () => {
   it('AD16: shows error message on fetch failure', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })),
+    )
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={qc}>
         <MemoryRouter>
           <ArtifactDiff artifactA={ART_A} artifactB={ART_B} onClose={() => {}} />
         </MemoryRouter>
-      </QueryClientProvider>
+      </QueryClientProvider>,
     )
     expect(await screen.findByText(/加载差异失败/)).toBeInTheDocument()
   })
@@ -211,41 +232,45 @@ describe('ArtifactDiff — error state', () => {
 
 describe('ArtifactDiff — added/removed fields', () => {
   it('AD17: shows added field kind badge', async () => {
-    setupFetch([{
-      path: 'assumptions.parameters.new_param',
-      old: null,
-      new: 42,
-      kind: 'added',
-      abs_change: null,
-      pct_change: null,
-    }])
+    setupFetch([
+      {
+        path: 'assumptions.parameters.new_param',
+        old: null,
+        new: 42,
+        kind: 'added',
+        abs_change: null,
+        pct_change: null,
+      },
+    ])
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={qc}>
         <MemoryRouter>
           <ArtifactDiff artifactA={ART_A} artifactB={ART_B} onClose={() => {}} />
         </MemoryRouter>
-      </QueryClientProvider>
+      </QueryClientProvider>,
     )
     expect(await screen.findByText('added')).toBeInTheDocument()
   })
 
   it('AD18: shows removed field kind badge', async () => {
-    setupFetch([{
-      path: 'assumptions.parameters.old_param',
-      old: 99,
-      new: null,
-      kind: 'removed',
-      abs_change: null,
-      pct_change: null,
-    }])
+    setupFetch([
+      {
+        path: 'assumptions.parameters.old_param',
+        old: 99,
+        new: null,
+        kind: 'removed',
+        abs_change: null,
+        pct_change: null,
+      },
+    ])
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={qc}>
         <MemoryRouter>
           <ArtifactDiff artifactA={ART_A} artifactB={ART_B} onClose={() => {}} />
         </MemoryRouter>
-      </QueryClientProvider>
+      </QueryClientProvider>,
     )
     expect(await screen.findByText('removed')).toBeInTheDocument()
   })
@@ -254,21 +279,23 @@ describe('ArtifactDiff — added/removed fields', () => {
 describe('ArtifactDiff — long path truncation', () => {
   it('AD19: very long field path is rendered (truncated)', async () => {
     const longPath = 'assumptions.parameters.revenue_growth_rates[2].nested.very.deep.value'
-    setupFetch([{
-      path: longPath,
-      old: 0.08,
-      new: 0.09,
-      kind: 'changed',
-      abs_change: 0.01,
-      pct_change: 0.125,
-    }])
+    setupFetch([
+      {
+        path: longPath,
+        old: 0.08,
+        new: 0.09,
+        kind: 'changed',
+        abs_change: 0.01,
+        pct_change: 0.125,
+      },
+    ])
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={qc}>
         <MemoryRouter>
           <ArtifactDiff artifactA={ART_A} artifactB={ART_B} onClose={() => {}} />
         </MemoryRouter>
-      </QueryClientProvider>
+      </QueryClientProvider>,
     )
     // Wait for diff to render
     await screen.findByText(/1 field changed/)
@@ -280,21 +307,23 @@ describe('ArtifactDiff — long path truncation', () => {
 
 describe('ArtifactDiff — string diff', () => {
   it('AD20: shows old and new string values in the diff table', async () => {
-    setupFetch([{
-      path: 'compute_version.formula_id',
-      old: 'dcf_v1',
-      new: 'dcf_v2',
-      kind: 'changed',
-      abs_change: null,
-      pct_change: null,
-    }])
+    setupFetch([
+      {
+        path: 'compute_version.formula_id',
+        old: 'dcf_v1',
+        new: 'dcf_v2',
+        kind: 'changed',
+        abs_change: null,
+        pct_change: null,
+      },
+    ])
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={qc}>
         <MemoryRouter>
           <ArtifactDiff artifactA={ART_A} artifactB={ART_B} onClose={() => {}} />
         </MemoryRouter>
-      </QueryClientProvider>
+      </QueryClientProvider>,
     )
     await screen.findByText(/1 field changed/)
     // The StringDiff component renders old and new values in span elements

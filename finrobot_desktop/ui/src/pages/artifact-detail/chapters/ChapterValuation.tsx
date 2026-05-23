@@ -43,7 +43,11 @@ interface ChapterValuationProps {
   ticker: string
 }
 
-export function ChapterValuation({ dcf, thesis, ticker }: ChapterValuationProps): React.ReactElement {
+export function ChapterValuation({
+  dcf,
+  thesis,
+  ticker,
+}: ChapterValuationProps): React.ReactElement {
   const overview = thesis?.valuation_overview ?? null
   const wacc = dcf?.wacc ?? null
   const terminalGrowth = dcf?.inputs?.terminal_growth_rate ?? null
@@ -63,14 +67,23 @@ export function ChapterValuation({ dcf, thesis, ticker }: ChapterValuationProps)
 
   type Cell = { label: string; value: string; delta?: string; tone?: 'up' | 'down' }
   const cells: Cell[] = [
-    wacc !== null && ({ label: 'WACC', value: `${(wacc * 100).toFixed(2)}%`, delta: beta !== null ? `β ${beta.toFixed(2)}` : undefined } as Cell),
-    terminalGrowth !== null && ({ label: 'Terminal Growth', value: `${(terminalGrowth * 100).toFixed(2)}%` } as Cell),
+    wacc !== null &&
+      ({
+        label: 'WACC',
+        value: `${(wacc * 100).toFixed(2)}%`,
+        delta: beta !== null ? `β ${beta.toFixed(2)}` : undefined,
+      } as Cell),
+    terminalGrowth !== null &&
+      ({ label: 'Terminal Growth', value: `${(terminalGrowth * 100).toFixed(2)}%` } as Cell),
     taxRate !== null && ({ label: 'Tax Rate', value: `${(taxRate * 100).toFixed(0)}%` } as Cell),
-    implied !== null && ({
-      label: 'DCF Implied Price',
-      value: `$${implied.toFixed(2)}`,
-      tone: (thesis?.price_target && implied >= thesis.price_target ? 'up' : undefined) as 'up' | undefined,
-    } as Cell),
+    implied !== null &&
+      ({
+        label: 'DCF Implied Price',
+        value: `$${implied.toFixed(2)}`,
+        tone: (thesis?.price_target && implied >= thesis.price_target ? 'up' : undefined) as
+          | 'up'
+          | undefined,
+      } as Cell),
     ev !== null && ({ label: 'Enterprise Value', value: fmtTrillions(ev) } as Cell),
     eq !== null && ({ label: 'Equity Value', value: fmtTrillions(eq) } as Cell),
   ].filter((c): c is Cell => Boolean(c))

@@ -53,8 +53,7 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
   // expand the domain but flag the disconnect explicitly so the chart still
   // reads at a glance.
   const dataSpan = dataMax - dataMin || dataMid * 0.2
-  const isOffScale =
-    cp !== null && (cp < dataMin - dataSpan * 0.7 || cp > dataMax + dataSpan * 0.7)
+  const isOffScale = cp !== null && (cp < dataMin - dataSpan * 0.7 || cp > dataMax + dataSpan * 0.7)
 
   const axisMin = cp !== null ? Math.min(dataMin, cp) : dataMin
   const axisMax = cp !== null ? Math.max(dataMax, cp) : dataMax
@@ -111,7 +110,7 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
           }}
         >
           市价 {fmtPrice(cp)} 距模型估值中位 {fmtPrice(dataMid)} 偏离{' '}
-          <strong>{((cp - dataMid) / dataMid * 100).toFixed(0)}%</strong> ——
+          <strong>{(((cp - dataMid) / dataMid) * 100).toFixed(0)}%</strong> ——
           {cp > dataMid ? '模型隐含明显高估' : '模型隐含明显低估'}，请审计假设来源后再下结论。
         </div>
       )}

@@ -16,9 +16,10 @@ export function CursorCanvas(): null {
     if (!enabled) return
     if (typeof window === 'undefined') return
     // jsdom doesn't ship matchMedia; treat absence as "no reduce preference".
-    const mql = typeof window.matchMedia === 'function'
-      ? window.matchMedia('(prefers-reduced-motion: reduce)')
-      : null
+    const mql =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-reduced-motion: reduce)')
+        : null
     if (mql?.matches) return
 
     const handle = mountCursorTrail()

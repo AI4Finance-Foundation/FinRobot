@@ -51,8 +51,7 @@ export function mountCursorTrail(): CursorTrailHandle {
   const canvas = document.createElement('canvas')
   canvas.setAttribute('aria-hidden', 'true')
   canvas.dataset.cosmicCursor = '1'
-  canvas.style.cssText =
-    'position:fixed;inset:0;pointer-events:none;z-index:9999;'
+  canvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9999;'
   document.body.appendChild(canvas)
   document.body.classList.add('cursor-trail-on')
 
@@ -83,12 +82,12 @@ export function mountCursorTrail(): CursorTrailHandle {
   let head = { x: width / 2, y: height / 2 }
   let alive = true
   let rafId = 0
-  let phase = 0  // slow hue walk
+  let phase = 0 // slow hue walk
   let idleFrames = 0
-  let paused = false  // suspended by visibility / blur, not by stop()
+  let paused = false // suspended by visibility / blur, not by stop()
 
-  const IDLE_FRAMES_BEFORE_PAUSE = 24  // ~0.4s @ 60fps after convergence
-  const CONVERGENCE_PX = 0.4           // sub-pixel — spring at rest
+  const IDLE_FRAMES_BEFORE_PAUSE = 24 // ~0.4s @ 60fps after convergence
+  const CONVERGENCE_PX = 0.4 // sub-pixel — spring at rest
 
   function onMove(e: MouseEvent): void {
     target = { x: e.clientX, y: e.clientY }

@@ -13,11 +13,16 @@ import { IconDashboard, IconPipeline, IconFileText, IconStar } from '../../lib/i
 
 function ChipIcon({ kind }: { kind: ContextItem['kind'] }): React.ReactElement {
   switch (kind) {
-    case 'pipeline':  return <IconPipeline size={10} />
-    case 'report':    return <IconFileText size={10} />
-    case 'symbol':    return <IconStar size={10} />
-    case 'workspace': return <IconDashboard size={10} />
-    default:          return <IconDashboard size={10} />
+    case 'pipeline':
+      return <IconPipeline size={10} />
+    case 'report':
+      return <IconFileText size={10} />
+    case 'symbol':
+      return <IconStar size={10} />
+    case 'workspace':
+      return <IconDashboard size={10} />
+    default:
+      return <IconDashboard size={10} />
   }
 }
 
@@ -51,12 +56,7 @@ function PinnedChip({ item, onRemove }: PinnedChipProps): React.ReactElement {
         <ChipIcon kind={item.kind} />
       </span>
       {item.label}
-      <button
-        className="x"
-        title="移除"
-        onClick={() => onRemove(item.id)}
-        type="button"
-      >
+      <button className="x" title="移除" onClick={() => onRemove(item.id)} type="button">
         ×
       </button>
     </span>
@@ -130,11 +130,11 @@ function CtxPopover({ openTabs, onSelect, onClose }: PopoverProps): React.ReactE
 // ── ContextBar ────────────────────────────────────────────────────
 
 export function ContextBar(): React.ReactElement {
-  const activeTab   = useUiStore(selectActiveTab)
+  const activeTab = useUiStore(selectActiveTab)
   const workspacePath = useUiStore((s) => s.workspacePath)
-  const pinned      = useUiStore((s) => s.contextBundle.pinned)
-  const openTabs    = useUiStore((s) => s.openTabs)
-  const addPinned   = useUiStore((s) => s.addPinned)
+  const pinned = useUiStore((s) => s.contextBundle.pinned)
+  const openTabs = useUiStore((s) => s.openTabs)
+  const addPinned = useUiStore((s) => s.addPinned)
   const removePinned = useUiStore((s) => s.removePinned)
 
   const [popoverOpen, setPopoverOpen] = useState(false)
@@ -148,34 +148,18 @@ export function ContextBar(): React.ReactElement {
       <span className="ctx-label">上下文</span>
 
       {/* 自动挂载：当前激活 Tab */}
-      {activeTab && (
-        <FixedChip
-          label={activeTab.title}
-          icon={<IconFileText size={10} />}
-        />
-      )}
+      {activeTab && <FixedChip label={activeTab.title} icon={<IconFileText size={10} />} />}
 
       {/* 自动挂载：workspace_path */}
-      <FixedChip
-        label={wsLabel || 'workspace'}
-        icon={<IconDashboard size={10} />}
-      />
+      <FixedChip label={wsLabel || 'workspace'} icon={<IconDashboard size={10} />} />
 
       {/* 用户挂载的 pinned 项 */}
       {pinned.map((item) => (
-        <PinnedChip
-          key={`${item.kind}:${item.id}`}
-          item={item}
-          onRemove={removePinned}
-        />
+        <PinnedChip key={`${item.kind}:${item.id}`} item={item} onRemove={removePinned} />
       ))}
 
       {/* + 添加 按钮 */}
-      <button
-        className="ctx-add"
-        onClick={() => setPopoverOpen((v) => !v)}
-        type="button"
-      >
+      <button className="ctx-add" onClick={() => setPopoverOpen((v) => !v)} type="button">
         + 添加
       </button>
 

@@ -29,7 +29,7 @@ export type ToolName =
   | 'earnings'
   | 'ask-ai'
 
-const TICKER_RE = /^[A-Z0-9.\-]{1,12}$/
+const TICKER_RE = /^[A-Z0-9.-]{1,12}$/
 
 export function isValidTicker(ticker: string): boolean {
   return TICKER_RE.test(ticker.toUpperCase())
@@ -54,8 +54,7 @@ export const useStocksStore = create<StocksState>((set) => ({
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
-  startTool: (tool) =>
-    set((s) => ({ runningTools: new Set([...s.runningTools, tool]) })),
+  startTool: (tool) => set((s) => ({ runningTools: new Set([...s.runningTools, tool]) })),
 
   finishTool: (tool) =>
     set((s) => {

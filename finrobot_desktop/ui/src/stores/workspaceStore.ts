@@ -71,18 +71,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
       renameWorkspace: (id, name) => {
         set((s) => ({
-          workspaces: s.workspaces.map((w) =>
-            w.id === id ? { ...w, name: name.trim() } : w
-          ),
+          workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, name: name.trim() } : w)),
         }))
       },
 
       deleteWorkspace: (id) => {
         set((s) => ({
           workspaces: s.workspaces.filter((w) => w.id !== id),
-          batchJobs: Object.fromEntries(
-            Object.entries(s.batchJobs).filter(([k]) => k !== id)
-          ),
+          batchJobs: Object.fromEntries(Object.entries(s.batchJobs).filter(([k]) => k !== id)),
         }))
       },
 
@@ -92,7 +88,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           workspaces: s.workspaces.map((w) =>
             w.id === workspaceId && !w.tickers.includes(upper)
               ? { ...w, tickers: [...w.tickers, upper] }
-              : w
+              : w,
           ),
         }))
       },
@@ -101,9 +97,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         const upper = ticker.toUpperCase().trim()
         set((s) => ({
           workspaces: s.workspaces.map((w) =>
-            w.id === workspaceId
-              ? { ...w, tickers: w.tickers.filter((t) => t !== upper) }
-              : w
+            w.id === workspaceId ? { ...w, tickers: w.tickers.filter((t) => t !== upper) } : w,
           ),
         }))
       },
@@ -133,7 +127,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               [workspaceId]: {
                 ...job,
                 items: job.items.map((item) =>
-                  item.ticker === ticker ? { ...item, ...update } : item
+                  item.ticker === ticker ? { ...item, ...update } : item,
                 ),
               },
             },
@@ -152,6 +146,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     {
       name: 'finagent-workspaces',
       partialize: (s) => ({ workspaces: s.workspaces }),
-    }
-  )
+    },
+  ),
 )

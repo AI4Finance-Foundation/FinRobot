@@ -4,7 +4,7 @@ import MarginTrendChart from './MarginTrendChart'
 
 const SAMPLE_DATA = [
   { year: 2021, gross_margin: 0.45, ebitda_margin: 0.28, operating_margin: 0.22 },
-  { year: 2022, gross_margin: 0.47, ebitda_margin: 0.30, operating_margin: 0.24 },
+  { year: 2022, gross_margin: 0.47, ebitda_margin: 0.3, operating_margin: 0.24 },
   { year: 2023, gross_margin: 0.48, ebitda_margin: 0.31, operating_margin: 0.25 },
 ]
 
@@ -21,7 +21,10 @@ describe('MarginTrendChart', () => {
 
   it('returns null for undefined data', () => {
     const { container } = render(
-      <MarginTrendChart data={undefined as unknown as Record<string, number | string | boolean | null>[]} title="Null" />
+      <MarginTrendChart
+        data={undefined as unknown as Record<string, number | string | boolean | null>[]}
+        title="Null"
+      />,
     )
     expect(container.firstChild).toBeNull()
   })

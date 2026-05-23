@@ -39,10 +39,7 @@ export function useDashboardRecentResearch(limit = 5) {
   return useQuery<RecentResearchResponse>({
     queryKey: ['dashboard', 'recent-research', limit],
     queryFn: async ({ signal }) => {
-      const r = await fetch(
-        `${BASE_URL}/api/dashboard/recent-research?limit=${limit}`,
-        { signal },
-      )
+      const r = await fetch(`${BASE_URL}/api/dashboard/recent-research?limit=${limit}`, { signal })
       if (!r.ok) throw new FetchHttpError(r.status, r.statusText)
       return r.json() as Promise<RecentResearchResponse>
     },

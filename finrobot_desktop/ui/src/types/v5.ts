@@ -66,13 +66,7 @@ export interface HitRateStats {
 }
 
 /** Mirror of `engine.compute.valuation_aggregator.ValuationMethodRange` (PR2). */
-export type ValuationMethodName =
-  | 'dcf'
-  | 'comps_pe'
-  | 'lbo'
-  | 'ddm'
-  | 'ev_ebitda'
-  | 'p_fcf'
+export type ValuationMethodName = 'dcf' | 'comps_pe' | 'lbo' | 'ddm' | 'ev_ebitda' | 'p_fcf'
 
 export interface ValuationMethodRange {
   method: ValuationMethodName

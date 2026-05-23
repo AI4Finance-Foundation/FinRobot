@@ -14,7 +14,9 @@ export function usePerformanceData(peerTickers: string[]) {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['performance', allTickers],
     queryFn: async () => {
-      const resp = await fetch(`${BASE_URL}/api/data/performance?tickers=${allTickers}&benchmark=SPY&period=1y`)
+      const resp = await fetch(
+        `${BASE_URL}/api/data/performance?tickers=${allTickers}&benchmark=SPY&period=1y`,
+      )
       if (!resp.ok) {
         throw new Error(await extractErrorDetail(resp, '无法加载相对走势数据'))
       }
@@ -27,8 +29,12 @@ export function usePerformanceData(peerTickers: string[]) {
     refetchOnMount: false,
   })
 
-  useEffect(() => { setPerformanceLoading(isLoading) }, [isLoading, setPerformanceLoading])
-  useEffect(() => { if (data) setPerformanceData(data) }, [data, setPerformanceData])
+  useEffect(() => {
+    setPerformanceLoading(isLoading)
+  }, [isLoading, setPerformanceLoading])
+  useEffect(() => {
+    if (data) setPerformanceData(data)
+  }, [data, setPerformanceData])
 
   return { data, isLoading, isError, error }
 }

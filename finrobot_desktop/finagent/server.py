@@ -33,6 +33,7 @@ from finagent.routes.compute import router as compute_router
 from finagent.routes.dashboard import router as dashboard_router
 from finagent.routes.data import router as data_router
 from finagent.routes.export import router as export_router
+from finagent.routes.health import router as health_router
 from finagent.routes.runs import router as runs_router
 from finagent.routes.market import router as market_router
 from finagent.routes.journal import router as journal_router
@@ -177,6 +178,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         except (OSError, ValueError, TypeError, RuntimeError):
             logger.exception("Legacy artifact migration failed — non-fatal")
 
+    # Initialize warmup status so /api/health/quotes-warmed has a defined
+    # value before the background task fires (= False, "still warming").
+    app.state.quotes_warmed = False
+    app.state.quotes_warmed_ticker_count = 0
+
     # Warm the QuoteCache for every studied ticker so the first landing
     # page load doesn't pay the cold yfinance penalty (4-5s pre-fix). The
     # cache TTL is 60s; if the user touches the dashboard before warmup
@@ -188,12 +194,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # first boot after upgrading, the warmup sees the migrated tickers
     # instead of an empty SQLite. Without this await, an upgrading user
     # paid the cold yfinance cost on their first dashboard load.
+    #
+    # The `warmed` flag is set in a `finally` block so a yfinance outage
+    # or one-off exception cannot leave the frontend polling forever.
     async def _warm_quote_cache_background() -> None:
+        ticker_count = 0
         try:
             summaries = await artifact_store.list_by_ticker(
                 ticker=None, include_archived=False, limit=500
             )
             tickers = sorted({s.ticker for s in summaries if s.ticker})
+            ticker_count = len(tickers)
             if not tickers:
                 return
             from finagent.engine.data.quote_batch import fetch_quotes_batch_cached
@@ -202,6 +213,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             logger.info("Quote cache warmed for %d studied tickers", len(tickers))
         except (OSError, ValueError, TypeError, RuntimeError):
             logger.exception("Quote cache warmup failed — non-fatal")
+        finally:
+            app.state.quotes_warmed = True
+            app.state.quotes_warmed_ticker_count = ticker_count
 
     async def _migrate_then_warm_background() -> None:
         await _migrate_legacy_artifacts_background()
@@ -262,6 +276,7 @@ app.include_router(backtest_router)
 app.include_router(compute_router)
 app.include_router(data_router)
 app.include_router(export_router)
+app.include_router(health_router)
 app.include_router(settings_router)
 app.include_router(runs_router)
 app.include_router(artifacts_router)

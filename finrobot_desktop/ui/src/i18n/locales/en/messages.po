@@ -697,3 +697,7 @@ msgstr "Tickers"
 #. js-lingui-explicit-id
 msgid "landing.warmup.label"
 msgstr "Warming live quote cache ·"
+
+#. js-lingui-explicit-id
+msgid "report.toc.heading"
+msgstr "REPORT NAV"

@@ -697,3 +697,7 @@ msgstr "股票代码"
 #. js-lingui-explicit-id
 msgid "landing.warmup.label"
 msgstr "正在预热行情缓存 ·"
+
+#. js-lingui-explicit-id
+msgid "report.toc.heading"
+msgstr "研报章节"

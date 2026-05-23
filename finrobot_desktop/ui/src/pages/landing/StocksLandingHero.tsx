@@ -41,7 +41,7 @@ export function StocksLandingHero(): React.ReactElement {
   const dashboardReady = warmStatus?.warmed ?? false
 
   const handleInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9.\-]/g, '')
+    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9.-]/g, '')
     setInputValue(val)
     setInputError('')
   }, [])
@@ -111,7 +111,7 @@ export function StocksLandingHero(): React.ReactElement {
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
             color: 'transparent',
-            textShadow: '0 0 40px rgba(59,130,246,0.4)',
+            textShadow: 'var(--glow-blue)',
           }}
         >
           FINAGENT
@@ -126,7 +126,7 @@ export function StocksLandingHero(): React.ReactElement {
             fontSize: 14,
             letterSpacing: 1.8,
             color: 'var(--accent-cyan)',
-            textShadow: '0 0 12px rgba(34,211,238,0.5)',
+            textShadow: 'var(--glow-cyan)',
           }}
         >
           {TAGLINES.map((t, i) => (

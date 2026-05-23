@@ -15,8 +15,8 @@ interface ReportTOCProps {
 }
 
 export function ReportTOC({ entries }: ReportTOCProps): React.ReactElement {
-  const { locale } = useI18n()
-  const label = locale === 'en' ? 'REPORT NAV' : '研报章节'
+  const { t } = useI18n()
+  const label = t('report.toc.heading')
   const [activeId, setActiveId] = useState<string>(entries[0]?.id ?? '')
 
   useEffect(() => {

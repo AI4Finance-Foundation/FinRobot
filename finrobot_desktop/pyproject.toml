@@ -76,7 +76,6 @@ module = [
     "openpyxl.*",
     "aiosqlite.*",
     "backtrader.*",
-    "weasyprint.*",
 ]
 ignore_missing_imports = true
 

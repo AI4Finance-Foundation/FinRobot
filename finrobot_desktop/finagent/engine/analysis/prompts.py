@@ -20,12 +20,31 @@ from finagent.config import FinAgentSettings
 from finagent.engine.data.interface import DataResult
 from finagent.engine.data.layer import DataLayer
 from finagent.engine.data.types import DataType
-from finagent.engine.reports.html_renderer import (
-    _format_number as _fmt_num,
-    _format_percent as _fmt_pct,
-)
-
 logger = logging.getLogger(__name__)
+
+
+def _fmt_num(value: float | int | None, decimals: int = 1) -> str:
+    """Format a number with magnitude suffix (B/M/K) for prompt tables."""
+    if value is None:
+        return "N/A"
+    abs_val = abs(value)
+    sign = "-" if value < 0 else ""
+    if abs_val >= 1e12:
+        return f"{sign}${abs_val / 1e12:,.{decimals}f}T"
+    if abs_val >= 1e9:
+        return f"{sign}${abs_val / 1e9:,.{decimals}f}B"
+    if abs_val >= 1e6:
+        return f"{sign}${abs_val / 1e6:,.{decimals}f}M"
+    if abs_val >= 1e3:
+        return f"{sign}${abs_val / 1e3:,.{decimals}f}K"
+    return f"{sign}${abs_val:,.{decimals}f}"
+
+
+def _fmt_pct(value: float | None, decimals: int = 1) -> str:
+    """Format a decimal (0.25) as a percentage string (25.0%)."""
+    if value is None:
+        return "N/A"
+    return f"{value * 100:.{decimals}f}%"
 
 
 def _build_financials_table(data: dict[str, Any]) -> str:

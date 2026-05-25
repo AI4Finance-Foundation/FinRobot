@@ -61,7 +61,7 @@ class TestGenerateDCFExcel:
         result = calculate_dcf(inputs, wacc_override=0.10)
         xlsx_bytes = generate_dcf_excel(result, inputs)
 
-        wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes))
+        openpyxl.load_workbook(io.BytesIO(xlsx_bytes))
         assert isinstance(xlsx_bytes, bytes)
         assert len(xlsx_bytes) > 0
 

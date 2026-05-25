@@ -32,6 +32,16 @@ from pathlib import Path
 
 import pytest
 
+from finagent.engine.compute.lbo_seed import seed_lbo_inputs
+from finagent.engine.models.financial import (
+    BalanceSheet,
+    FinancialData,
+    HistoricalMetrics,
+    IncomeStatement,
+    MarketData,
+    ValuationMetrics,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 UI_SRC = REPO_ROOT / "ui" / "src"
 
@@ -194,17 +204,6 @@ def test_use_run_tool_does_not_ship_hardcoded_lbo_inputs():
 # ---------------------------------------------------------------------------
 # 3. seed_lbo_inputs must populate assumption_provenance for every field
 # ---------------------------------------------------------------------------
-
-
-from finagent.engine.compute.lbo_seed import seed_lbo_inputs
-from finagent.engine.models.financial import (
-    BalanceSheet,
-    FinancialData,
-    HistoricalMetrics,
-    IncomeStatement,
-    MarketData,
-    ValuationMetrics,
-)
 
 
 _REQUIRED_LBO_PROVENANCE_KEYS = {

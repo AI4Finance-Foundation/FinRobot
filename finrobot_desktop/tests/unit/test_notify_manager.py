@@ -13,12 +13,10 @@ The channel send() implementations themselves are tested separately.
 """
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
-import time
 
 import pytest
 
-from finagent.engine.notify.base import ChannelStatus, NotifyChannel, NotifyMessage
+from finagent.engine.notify.base import NotifyChannel, NotifyMessage
 from finagent.engine.notify.manager import NotifyManager
 
 

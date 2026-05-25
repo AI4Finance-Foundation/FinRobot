@@ -6,7 +6,6 @@ produce, plus edge cases. The forward formula itself is already covered by
 test_dcf.py and tests/audit/test_financial_sanity.py.
 """
 
-import pytest
 
 from finagent.engine.compute.dcf import (
     calculate_dcf,

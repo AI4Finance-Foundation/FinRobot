@@ -13,6 +13,8 @@ Coverage:
 
 from __future__ import annotations
 
+import pytest
+
 from finagent.artifact.diff import FieldDiff, diff_artifacts
 from finagent.artifact.models import Artifact
 
@@ -168,6 +170,3 @@ class TestNestedPath:
         diffs = diff_artifacts(sample_artifact, sample_artifact_v2)
         paths = [d.path for d in diffs]
         assert paths == sorted(paths)
-
-
-import pytest

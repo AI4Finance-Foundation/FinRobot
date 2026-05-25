@@ -23,9 +23,20 @@ production code.
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+
+from finagent.engine.compute.dcf_seed import seed_dcf_inputs
+from finagent.engine.models.financial import (
+    BalanceSheet,
+    FinancialData,
+    HistoricalMetrics,
+    IncomeStatement,
+    MarketData,
+    ValuationMetrics,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 UI_SRC = REPO_ROOT / "ui" / "src"
@@ -87,7 +98,6 @@ _RAW_DOLLAR_TICK_FMT = re.compile(
 # the chart will never render a trillion-scale value.
 _RAW_TICK_ALLOWLIST = {
     "CandlestickChart.tsx",  # stock OHLC, always $-hundreds
-    "PriceChart.tsx",        # share price line
     "MonteCarloChart.tsx",   # implied-price histogram, $-hundreds bins
     "EpsPeChart.tsx",        # EPS in $, single digits
     "EpsSurpriseChart.tsx",  # EPS surprise in $
@@ -124,18 +134,6 @@ def test_charts_dont_use_raw_dollar_tick_formatter_for_aggregates():
 # 3. Provenance coverage
 # ---------------------------------------------------------------------------
 
-
-from datetime import datetime, timezone
-
-from finagent.engine.compute.dcf_seed import seed_dcf_inputs
-from finagent.engine.models.financial import (
-    BalanceSheet,
-    FinancialData,
-    HistoricalMetrics,
-    IncomeStatement,
-    MarketData,
-    ValuationMetrics,
-)
 
 
 _REQUIRED_PROVENANCE_KEYS = {

@@ -16,7 +16,6 @@ expected value is derived from manual arithmetic shown inline.
 """
 from __future__ import annotations
 
-import math
 
 import pytest
 

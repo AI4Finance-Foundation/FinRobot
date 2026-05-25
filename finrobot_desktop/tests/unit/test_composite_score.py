@@ -19,10 +19,8 @@ the function under test — each is derived by hand and documented below.
 """
 from __future__ import annotations
 
-import pytest
 
 from finagent.engine.compute.composite_score import (
-    CompositeScore,
     ScoreRequest,
     calculate_composite_score,
 )

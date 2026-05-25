@@ -154,7 +154,7 @@ class TestProviderAbstraction:
                             f"  FIX: Use DataLayer.fetch() instead of calling {sdk} directly."
                         )
         assert not violations, (
-            f"Pipelines import provider SDKs directly:\n"
+            "Pipelines import provider SDKs directly:\n"
             + "\n".join(violations)
         )
 
@@ -182,7 +182,7 @@ class TestDependencyBlacklist:
                             f"Need exception? Write an ADR in docs/cc-pillars/adrs/."
                         )
         assert not violations, (
-            f"Banned dependencies found:\n" + "\n".join(violations)
+            "Banned dependencies found:\n" + "\n".join(violations)
         )
 
 
@@ -236,7 +236,7 @@ class TestNoPrint:
                     rel = py.relative_to(ROOT)
                     violations.append(f"  {rel}:{node.lineno}")
         assert not violations, (
-            f"print() calls found in finagent/ (use logging instead):\n"
+            "print() calls found in finagent/ (use logging instead):\n"
             + "\n".join(violations)
         )
 
@@ -267,5 +267,5 @@ class TestNoOsEnviron:
                     f"  FIX: Use FinAgentSettings (finagent/config.py) + dependency injection."
                 )
         assert not violations, (
-            f"os.environ used outside config.py:\n" + "\n".join(violations)
+            "os.environ used outside config.py:\n" + "\n".join(violations)
         )

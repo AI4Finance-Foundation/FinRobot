@@ -376,7 +376,7 @@ class TestJournalStoreCRUD:
             thesis="Ad rebound.",
         )
         entry = store.create(body)
-        updated = store.update(entry.id, {"current_price": 99999.0})
+        store.update(entry.id, {"current_price": 99999.0})
         # current_price is not in the allowed whitelist — stored value is None
         fetched = store.get(entry.id)
         assert fetched is not None

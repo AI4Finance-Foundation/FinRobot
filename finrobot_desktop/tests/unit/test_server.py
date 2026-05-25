@@ -48,166 +48,15 @@ class TestChatEndpoint:
         assert response.status_code != 405
 
 
-class TestReportEndpoints:
-    @staticmethod
-    def _setup_deps_with_cache(cache: dict | None = None):
-        from finagent.config import get_settings
-        from finagent.engine.deps import FinAgentDeps
+class TestArchitecturalRedLines:
+    """Static guards that survive the SSE endpoint reshuffle.
 
-        settings = get_settings(model_name="test")
-        app.state.deps = FinAgentDeps(
-            data_layer=None,  # type: ignore[arg-type]
-            settings=settings,
-            report_cache=cache or {},
-        )
-
-    @pytest.mark.asyncio
-    async def test_report_html_returns_404_without_cache(self):
-        self._setup_deps_with_cache()
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.get("/api/report/html?ticker=AAPL")
-        assert response.status_code == 404
-
-    @pytest.mark.asyncio
-    async def test_report_html_requires_ticker(self):
-        self._setup_deps_with_cache()
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.get("/api/report/html")
-        assert response.status_code == 422  # FastAPI validation error
-
-    @pytest.mark.asyncio
-    async def test_report_pdf_returns_404_without_cache(self):
-        self._setup_deps_with_cache()
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.get("/api/report/pdf?ticker=AAPL")
-        assert response.status_code == 404
-
-
-class TestPipelineStream:
-    @staticmethod
-    def _setup_test_deps():
-        """Install a FakeDeps into app.state so the SSE endpoint can run a
-        TestModel pipeline without real network or real sub-agents."""
-        from datetime import datetime, timezone
-
-        from finagent.config import get_settings
-        from finagent.engine.data.interface import DataResult
-        from finagent.engine.deps import FinAgentDeps
-
-        class FakeDataLayer:
-            async def fetch(self, data_type, ticker, **kwargs):
-                return DataResult(
-                    data={
-                        "revenue": 1e9,
-                        "ebitda": 2e8,
-                        "net_income": 1e8,
-                        "market_cap": 5e9,
-                        "shares_outstanding": 1e8,
-                        "current_price": 50.0,
-                        "gross_margin": 0.4,
-                        "operating_margin": 0.15,
-                        "price_history": [{"close": 50.0}],
-                    },
-                    provider="test",
-                    ticker=ticker,
-                    data_type=str(data_type),
-                    timestamp=datetime.now(tz=timezone.utc),
-                )
-
-        settings = get_settings(model_name="test")
-        app.state.deps = FinAgentDeps(
-            data_layer=FakeDataLayer(),  # type: ignore[arg-type]
-            settings=settings,
-            skill_runtime=None,
-        )
-
-        from finagent.engine.agents.factory import create_sub_agents
-
-        app.state.sub_agents = create_sub_agents(settings, skill_registry=None)
-
-    @pytest.mark.asyncio
-    async def test_invalid_pipeline_type_returns_400(self):
-        self._setup_test_deps()
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.get("/api/pipeline/stream/notapipeline/AAPL")
-        assert response.status_code == 400
-        assert "Invalid pipeline" in response.json()["error"]
-
-    @pytest.mark.asyncio
-    async def test_sse_stream_emits_step_events(self):
-        """Run the research pipeline against TestModel and verify SSE events.
-
-        We can't use streaming with ASGITransport easily, but we can read the
-        full body (it collects all emitted frames) and confirm the presence
-        of step_start / step_end / complete events.
-        """
-        self._setup_test_deps()
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.get("/api/pipeline/stream/research/TEST")
-        assert response.status_code == 200
-        assert response.headers["content-type"].startswith("text/event-stream")
-        body = response.text
-
-        # Each event is a JSON object on a `data: ...` line.
-        assert "step_start" in body
-        assert "step_end" in body
-        # Pipeline finished successfully → complete event present.
-        assert "complete" in body or "error" in body
-
-    @pytest.mark.asyncio
-    async def test_sse_complete_event_has_report_url_not_summary(self):
-        """I2: complete event must contain report_url, not summary."""
-        from unittest.mock import AsyncMock, MagicMock, patch
-
-        self._setup_test_deps()
-
-        # Mock the pipeline to succeed immediately with a fake result.
-        # format_summary is a sync method so use MagicMock, not AsyncMock.
-        fake_result = MagicMock()
-        fake_result.format_summary.return_value = "fake summary"
-
-        fake_pipeline = AsyncMock()
-        fake_pipeline.execute.return_value = fake_result
-
-        fake_factory = lambda sub_agents: fake_pipeline  # noqa: E731
-
-        with (
-            patch(
-                "finagent.server._get_pipeline_factories",
-                return_value={"research": fake_factory},
-            ),
-            patch(
-                "finagent.server.build_report_context",
-                return_value={"mocked": True},
-            ),
-        ):
-            async with httpx.AsyncClient(
-                transport=httpx.ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                response = await client.get("/api/pipeline/stream/research/TEST")
-        body = response.text
-        import json
-
-        for line in body.split("\n"):
-            if line.startswith("data: "):
-                event = json.loads(line[6:])
-                if event.get("event") == "complete":
-                    assert "report_url" in event, "complete event missing report_url"
-                    assert "summary" not in event, "complete event should not contain summary"
-                    assert event["ticker"] == "TEST"
-                    assert "/api/report/html" in event["report_url"]
-                    return
-        pytest.fail("No complete event found in SSE stream")
+    The legacy ``/api/pipeline/stream/*`` endpoint and the ``_get_pipeline_factories``
+    wrapper were removed when SSE runs were consolidated under ``/api/runs``
+    (RunStore-backed, see ``routes/runs.py``). The behavioural tests for that
+    endpoint were retired along with the code; the bare-except guard stays
+    because it covers the entire ``finagent/`` tree.
+    """
 
     def test_no_bare_except_exception_in_finagent(self):
         """Regression guard for P3 audit D1 / CLAUDE.md N2 discipline.
@@ -234,133 +83,6 @@ class TestPipelineStream:
             "Catch concrete exception types and re-raise CancelledError. "
             f"Found: {offenders}"
         )
-
-
-class TestExcelExportEndpoint:
-    """D3-root: LBO Excel export returns 404 when inputs/result missing,
-    and 200 with a valid spreadsheet when both are cached.
-    """
-
-    @staticmethod
-    def _setup_deps_with_cache(cache: dict | None = None):
-        from finagent.config import get_settings
-        from finagent.engine.deps import FinAgentDeps
-
-        settings = get_settings(model_name="test")
-        app.state.deps = FinAgentDeps(
-            data_layer=None,  # type: ignore[arg-type]
-            settings=settings,
-            report_cache=cache or {},
-        )
-
-    @pytest.mark.asyncio
-    async def test_lbo_excel_export_returns_404_without_inputs(self):
-        """When LBOInputs are missing from the cache, the endpoint must
-        return 404 with guidance to re-run the pipeline."""
-        from finagent.engine.models.financial import LBOResult, LBOYear
-
-        fake_year = LBOYear(
-            year=1,
-            revenue=500_000_000,
-            ebitda=100_000_000,
-            da=10_000_000,
-            ebit=90_000_000,
-            interest_expense=49_000_000,
-            ebt=41_000_000,
-            taxes=10_250_000,
-            net_income=30_750_000,
-            capex=20_000_000,
-            delta_nwc=5_000_000,
-            fcf=15_750_000,
-            mandatory_amort=7_000_000,
-            cash_sweep_amount=8_750_000,
-            total_debt_paydown=15_750_000,
-            ending_debt=684_250_000,
-        )
-        fake_result = LBOResult(
-            entry_ev=1_000_000_000,
-            entry_equity=300_000_000,
-            entry_debt=700_000_000,
-            schedule=[fake_year],
-            exit_ev=1_800_000_000,
-            exit_ebitda=250_000_000,
-            exit_equity=1_400_000_000,
-            irr=0.22,
-            moic=4.5,
-        )
-        self._setup_deps_with_cache({"TEST": {"lbo_result": fake_result}})
-
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.get("/api/export/excel/lbo/TEST")
-
-        assert response.status_code == 404
-        assert "re-run" in response.json()["detail"].lower()
-
-    @pytest.mark.asyncio
-    async def test_lbo_excel_export_returns_200_when_inputs_cached(self):
-        """When both LBOInputs and LBOResult are cached, the endpoint
-        must return a valid .xlsx spreadsheet."""
-        from finagent.engine.models.financial import LBOInputs, LBOResult, LBOYear
-
-        fake_year = LBOYear(
-            year=1,
-            revenue=500_000_000,
-            ebitda=100_000_000,
-            da=10_000_000,
-            ebit=90_000_000,
-            interest_expense=49_000_000,
-            ebt=41_000_000,
-            taxes=10_250_000,
-            net_income=30_750_000,
-            capex=20_000_000,
-            delta_nwc=5_000_000,
-            fcf=15_750_000,
-            mandatory_amort=7_000_000,
-            cash_sweep_amount=8_750_000,
-            total_debt_paydown=15_750_000,
-            ending_debt=684_250_000,
-        )
-        fake_result = LBOResult(
-            entry_ev=1_000_000_000,
-            entry_equity=300_000_000,
-            entry_debt=700_000_000,
-            schedule=[fake_year],
-            exit_ev=1_800_000_000,
-            exit_ebitda=250_000_000,
-            exit_equity=1_400_000_000,
-            irr=0.22,
-            moic=4.5,
-        )
-        fake_inputs = LBOInputs(
-            ticker="TEST",
-            ltm_ebitda=100_000_000,
-            entry_ev_ebitda=10.0,
-            exit_ev_ebitda=10.0,
-            revenue_base=500_000_000,
-            revenue_growth_rate=0.05,
-            ebitda_margin=0.2,
-        )
-        self._setup_deps_with_cache(
-            {"TEST": {"lbo_result": fake_result, "lbo_inputs": fake_inputs}}
-        )
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.get("/api/export/excel/lbo/TEST")
-        assert response.status_code == 200
-        assert "spreadsheetml" in response.headers["content-type"]
-
-    @pytest.mark.asyncio
-    async def test_invalid_analysis_type_still_400(self):
-        """The 400 branch for invalid analysis types must still work."""
-        self._setup_deps_with_cache()
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.get("/api/export/excel/bogus/TEST")
-        assert response.status_code == 400
 
 
 class TestInteractiveExport:
@@ -427,35 +149,19 @@ class TestSubAgentsCaching:
         assert isinstance(app.state.sub_agents, dict)
         assert len(app.state.sub_agents) > 0
 
-    @pytest.mark.asyncio
-    async def test_sse_uses_cached_sub_agents(self):
-        """SSE endpoint must use app.state.sub_agents, not call create_sub_agents."""
-        TestPipelineStream._setup_test_deps()
-
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.get("/api/pipeline/stream/research/TEST")
-        assert response.status_code == 200
-
-    @pytest.mark.asyncio
-    async def test_server_run_pipeline_no_create_sub_agents_import(self):
-        """The run_pipeline() function must NOT import create_sub_agents."""
+    def test_runs_route_no_create_sub_agents_import(self):
+        """routes/runs.py must use app.state.sub_agents, not re-create them."""
         import ast
         from pathlib import Path
 
-        server_path = Path(__file__).resolve().parents[2] / "finagent" / "server.py"
-        source = server_path.read_text()
-        tree = ast.parse(source)
-
+        runs_path = (
+            Path(__file__).resolve().parents[2] / "finagent" / "routes" / "runs.py"
+        )
+        tree = ast.parse(runs_path.read_text())
         for node in ast.walk(tree):
-            if isinstance(node, ast.AsyncFunctionDef) and node.name == "run_pipeline":
-                # Walk the body of run_pipeline looking for imports of
-                # create_sub_agents
-                for child in ast.walk(node):
-                    if isinstance(child, ast.ImportFrom):
-                        for alias in child.names:
-                            assert alias.name != "create_sub_agents", (
-                                "run_pipeline() still imports create_sub_agents — "
-                                "it should use request.app.state.sub_agents instead"
-                            )
+            if isinstance(node, ast.ImportFrom):
+                for alias in node.names:
+                    assert alias.name != "create_sub_agents", (
+                        "routes/runs.py still imports create_sub_agents — "
+                        "it should use request.app.state.sub_agents instead"
+                    )

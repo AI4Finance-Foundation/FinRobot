@@ -147,7 +147,6 @@ class FakeDeps:
     data_layer: FakeDataLayer = field(default_factory=FakeDataLayer)
     settings: FakeSettings = field(default_factory=FakeSettings)
     skill_runtime: Any = None
-    report_cache: dict[str, Any] = field(default_factory=dict)
     artifact_store: ArtifactStore | None = None
 
 

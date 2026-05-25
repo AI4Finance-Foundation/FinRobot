@@ -225,6 +225,39 @@ class TestChainFallback:
         # Message was 中文-ified for the desktop UI (was: "Data unavailable... all providers failed").
         assert any("不可用" in w or "失败" in w for w in result.warnings)
 
+    async def test_price_fallback_skips_yfinance_when_rate_limited(self, cache):
+        """yfinance 429 → FMP picks up PRICE without falling to stale cache.
+
+        This is the regression test for the 2026-05-25 production bug where a
+        NVDA pipeline run logged 'Provider yfinance failed ... Too Many
+        Requests' and then '正在显示 20 小时前的缓存数据' because no other
+        provider claimed DataType.PRICE in its capabilities.
+        """
+        # yfinance listed first (typical case: it's free + always-on, FMP only
+        # registered when api_key is set, so the production order has yfinance
+        # near the top of the chain). For PRICE the layer breaks out on the
+        # first success, so we just need FMP to be reachable.
+        p_yf = MockProvider(
+            "yfinance",
+            ["price"],
+            raises=ProviderError("Too Many Requests. Rate limited."),
+        )
+        fmp_result = DataResult(
+            data={"current_price": 175.0},
+            provider="fmp",
+            ticker="NVDA",
+            data_type="price",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        p_fmp = MockProvider("fmp", ["price"], result=fmp_result)
+        layer = DataLayer([p_yf, p_fmp], cache)
+        result = await layer.fetch("price", "NVDA")
+        assert result.provider == "fmp"
+        assert result.data["current_price"] == 175.0
+        # No "数据源全部失败" stale-cache fallback should fire here — proves
+        # the chain actually traversed both providers instead of erroring.
+        assert not any("数据源全部失败" in w for w in result.warnings)
+
 
 class TestCrossValidationIntegration:
     """P3 Track 3: DataLayer.fetch calls cross_validate for FINANCIALS."""

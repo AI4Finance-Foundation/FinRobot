@@ -185,6 +185,10 @@ class TestFMPProviderInterface:
     def test_capabilities(self, provider):
         caps = provider.capabilities()
         assert "financials" in caps
+        # price was added when yfinance rate-limit fallback became necessary
+        # — exercise here so a future trim of _SUPPORTED can't silently
+        # break the multi-provider PRICE fallback chain.
+        assert "price" in caps
 
 
 def _fmp_news_response(ticker="AAPL"):
@@ -289,6 +293,118 @@ class TestFMPEarnings:
         with patch.object(provider, "_get", AsyncMock(return_value=_mock_response(raw))):
             result = await provider.fetch("AAPL", "earnings")
         assert len(result.data["earnings_history"]) == 1
+
+
+def _fmp_quote_response(ticker: str = "AAPL", price: float = 175.0) -> list[dict]:
+    """Mock FMP /quote/{ticker} response."""
+    return [
+        {
+            "symbol": ticker,
+            "name": "Apple Inc.",
+            "price": price,
+            "exchange": "NASDAQ",
+            "exchangeShortName": "NASDAQ",
+            "marketCap": 2_620_000_000_000,
+            "volume": 54_000_000,
+        }
+    ]
+
+
+def _fmp_historical_price_response(days: int = 3) -> dict:
+    """Mock FMP /historical-price-full/{ticker} response.
+
+    FMP returns newest-first; the provider reverses to match yfinance's
+    oldest-first ordering. We hand back newest-first here to exercise that.
+    """
+    return {
+        "symbol": "AAPL",
+        "historical": [
+            {
+                "date": "2026-05-23",
+                "open": 174.0,
+                "high": 176.0,
+                "low": 173.5,
+                "close": 175.0,
+                "volume": 50_000_000,
+            },
+            {
+                "date": "2026-05-22",
+                "open": 172.0,
+                "high": 174.5,
+                "low": 171.0,
+                "close": 174.0,
+                "volume": 48_000_000,
+            },
+            {
+                "date": "2026-05-21",
+                "open": 170.0,
+                "high": 172.5,
+                "low": 169.5,
+                "close": 172.0,
+                "volume": 45_000_000,
+            },
+        ][:days],
+    }
+
+
+class TestFMPPrice:
+    """PRICE fallback path — exists so yfinance rate-limit failures hit FMP
+    next instead of falling straight through to the 20h-stale-cache warning
+    the user saw in production (2026-05-25)."""
+
+    @pytest.mark.asyncio
+    async def test_fetch_price_returns_yfinance_compatible_shape(self, provider):
+        responses = [
+            _mock_response(_fmp_quote_response("AAPL", price=175.5)),
+            _mock_response(_fmp_historical_price_response(days=3)),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "price")
+
+        assert isinstance(result, DataResult)
+        assert result.provider == "fmp"
+        assert result.ticker == "AAPL"
+        assert result.data_type == "price"
+        assert result.data["current_price"] == 175.5
+        assert result.data["exchange"] == "NASDAQ"
+        # Oldest first — extract_financial_data relies on this ordering when
+        # it pulls 52w high/low from the close column.
+        history = result.data["price_history"]
+        assert [p["date"] for p in history] == ["2026-05-21", "2026-05-22", "2026-05-23"]
+        assert history[0]["close"] == 172.0
+        assert history[-1]["close"] == 175.0
+
+    @pytest.mark.asyncio
+    async def test_fetch_price_empty_quote_raises(self, provider):
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(side_effect=[_mock_response([]), _mock_response({"historical": []})]),
+        ):
+            with pytest.raises(ProviderError, match="no data"):
+                await provider.fetch("DELISTED", "price")
+
+    @pytest.mark.asyncio
+    async def test_fetch_price_missing_price_field_raises(self, provider):
+        responses = [
+            _mock_response([{"symbol": "BAD", "exchange": "NASDAQ"}]),  # no price
+            _mock_response({"historical": []}),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            with pytest.raises(ProviderError, match="no price field"):
+                await provider.fetch("BAD", "price")
+
+    @pytest.mark.asyncio
+    async def test_fetch_price_handles_empty_history(self, provider):
+        """No history rows → empty price_history list, not a crash."""
+        responses = [
+            _mock_response(_fmp_quote_response("NEW", price=10.0)),
+            _mock_response({"symbol": "NEW", "historical": []}),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("NEW", "price")
+        assert result.data["current_price"] == 10.0
+        assert result.data["price_history"] == []
 
 
 class TestFMPNetworkErrors:

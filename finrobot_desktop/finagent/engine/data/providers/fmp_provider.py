@@ -13,7 +13,13 @@ from finagent.engine.data.interface import DataProvider, DataResult, ProviderErr
 from finagent.engine.data.types import DataType
 
 _BASE_URL = "https://financialmodelingprep.com/api/v3"
-_SUPPORTED = [DataType.FINANCIALS, DataType.NEWS, DataType.EARNINGS, DataType.EARNINGS_TRANSCRIPT]
+_SUPPORTED = [
+    DataType.FINANCIALS,
+    DataType.PRICE,
+    DataType.NEWS,
+    DataType.EARNINGS,
+    DataType.EARNINGS_TRANSCRIPT,
+]
 _TIMEOUT = 15.0
 _MIN_INTERVAL = 0.15  # 6 req/sec — stays within per-minute burst limits on all FMP tiers
 
@@ -65,6 +71,8 @@ class FMPProvider(DataProvider):
             raise ProviderError(
                 f"data_type '{data_type}' is not supported by FMP. Supported: {_SUPPORTED}"
             )
+        if data_type == DataType.PRICE:
+            return await self._fetch_price(ticker)
         if data_type == DataType.NEWS:
             return await self._fetch_news(ticker)
         if data_type == DataType.EARNINGS:
@@ -144,6 +152,65 @@ class FMPProvider(DataProvider):
             "industry": prof.get("industry"),
             "sector": prof.get("sector"),
         }
+
+    async def _fetch_price(self, ticker: str) -> DataResult:
+        """Fetch current price + 1y OHLCV history from FMP.
+
+        Returns the same shape as YFinanceProvider._fetch_price so downstream
+        consumers (extract_financial_data, MarketDataZone, technical_payload)
+        work without provider-specific branches. This is the fallback path
+        when yfinance gets rate-limited — without it, every ticker hitting a
+        yfinance 429 falls through to the 20h-stale-cache warning the user
+        sees in production.
+        """
+        with self._wrap_errors(ticker, "price fetch"):
+            quote_resp = (await self._get(f"/quote/{ticker}")).json()
+            hist_resp = (
+                await self._get(
+                    f"/historical-price-full/{ticker}",
+                    params={"serietype": "line", "timeseries": 365},
+                )
+            ).json()
+
+        if not isinstance(quote_resp, list) or not quote_resp:
+            raise ProviderError(
+                f"FMP /quote/{ticker} returned no data — ticker may be delisted"
+            )
+        quote = quote_resp[0]
+        current_price = quote.get("price")
+        if current_price is None:
+            raise ProviderError(f"FMP /quote/{ticker} returned no price field")
+        exchange = quote.get("exchange") or quote.get("exchangeShortName")
+
+        # FMP /historical-price-full returns newest-first under "historical";
+        # reverse so the price_history list matches yfinance's oldest-first
+        # ordering that the rest of the codebase already assumes.
+        raw_hist: list[dict[str, Any]] = []
+        if isinstance(hist_resp, dict):
+            raw_hist = list(reversed(hist_resp.get("historical", [])))
+        price_history = [
+            {
+                "date": p.get("date"),
+                "open": p.get("open"),
+                "high": p.get("high"),
+                "low": p.get("low"),
+                "close": p.get("close"),
+                "volume": p.get("volume"),
+            }
+            for p in raw_hist
+        ]
+
+        return DataResult(
+            data={
+                "current_price": float(current_price),
+                "price_history": price_history,
+                "exchange": exchange,
+            },
+            provider=self.name,
+            ticker=ticker,
+            data_type=DataType.PRICE,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
 
     async def _fetch_news(self, ticker: str) -> DataResult:
         """Fetch recent news articles for a ticker from FMP /stock_news endpoint."""

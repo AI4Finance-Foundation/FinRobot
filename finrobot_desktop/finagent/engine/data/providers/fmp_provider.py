@@ -29,6 +29,9 @@ class FMPProvider(DataProvider):
         self._api_key = api_key
         self._lock = asyncio.Lock()
         self._last_call: float = 0.0
+        # Reuse one AsyncClient across requests so TCP/TLS handshakes amortise
+        # across the entire FMP session instead of paying ~100 ms per call.
+        self._client = httpx.AsyncClient(timeout=_TIMEOUT)
 
     @property
     def name(self) -> str:
@@ -270,7 +273,10 @@ class FMPProvider(DataProvider):
             p: dict[str, Any] = {"apikey": self._api_key}
             if params:
                 p.update(params)
-            async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-                resp = await client.get(f"{_BASE_URL}{path}", params=p)
-                resp.raise_for_status()
-                return resp
+            resp = await self._client.get(f"{_BASE_URL}{path}", params=p)
+            resp.raise_for_status()
+            return resp
+
+    async def close(self) -> None:
+        """Release the shared httpx client. Called from DataLayer.close()."""
+        await self._client.aclose()

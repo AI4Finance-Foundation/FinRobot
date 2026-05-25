@@ -209,13 +209,11 @@ class TestAdanosRateLimiter:
 
         mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-        mock_client.get = AsyncMock(return_value=mock_resp)
+        # Provider now owns a long-lived httpx client (instantiated in __init__)
+        # so we monkeypatch the per-instance .get instead of httpx.AsyncClient.
+        provider._client.get = AsyncMock(return_value=mock_resp)
 
-        with patch("httpx.AsyncClient", return_value=mock_client):
-            await provider._get("/test")
+        await provider._get("/test")
 
         assert len(sleep_durations) == 1
         assert sleep_durations[0] <= _MIN_INTERVAL

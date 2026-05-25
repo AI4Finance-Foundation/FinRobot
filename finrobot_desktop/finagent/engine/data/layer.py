@@ -26,12 +26,23 @@ class DataLayer:
         return self._cache
 
     async def close(self) -> None:
-        """Close the underlying cache connection.
+        """Close the underlying cache and any provider-owned resources.
 
-        Safe to call multiple times. Exposed as a public method so SDK
-        consumers can release resources via ``DataLayer.close()`` instead
-        of reaching into ``_cache``.
+        Providers with shared httpx.AsyncClient instances expose a
+        ``close()`` coroutine — call it here so TCP/TLS sessions and
+        connection pools shut down cleanly during lifespan teardown.
+        Safe to call multiple times.
         """
+        for provider in self._providers:
+            close = getattr(provider, "close", None)
+            if callable(close):
+                try:
+                    await close()
+                except (OSError, RuntimeError) as exc:
+                    # Best-effort cleanup — connection-level errors during
+                    # shutdown shouldn't mask the more important cache close
+                    # below. Concrete types only (CLAUDE.md / P3 D1 red-line).
+                    logger.warning("Provider %s close() failed: %s", provider.name, exc)
         await self._cache.close()
 
     async def fetch(self, data_type: str | DataType, ticker: str, **kwargs: Any) -> DataResult:

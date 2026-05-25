@@ -27,6 +27,8 @@ class FinnhubProvider(DataProvider):
         self._api_key = api_key
         self._lock = asyncio.Lock()
         self._last_call: float = 0.0
+        # Reuse one AsyncClient across the session to amortise TLS handshakes.
+        self._client = httpx.AsyncClient(timeout=_TIMEOUT)
 
     @property
     def name(self) -> str:
@@ -205,7 +207,12 @@ class FinnhubProvider(DataProvider):
                 await asyncio.sleep(_MIN_INTERVAL - elapsed)
             self._last_call = time.monotonic()
             headers = {"X-Finnhub-Token": self._api_key}
-            async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-                resp = await client.get(f"{_BASE_URL}{path}", params=params or {}, headers=headers)
-                resp.raise_for_status()
-                return resp
+            resp = await self._client.get(
+                f"{_BASE_URL}{path}", params=params or {}, headers=headers
+            )
+            resp.raise_for_status()
+            return resp
+
+    async def close(self) -> None:
+        """Release the shared httpx client. Called from DataLayer.close()."""
+        await self._client.aclose()

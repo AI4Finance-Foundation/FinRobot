@@ -71,12 +71,17 @@ class YFinanceProvider(DataProvider):
 
         # Fetch and validate ticker info with retry on rate limiting.
         # info is passed to sub-methods to avoid a redundant second HTTP call.
-        info = None
-        t = None
+        # We use explicit if-raise instead of `assert` because Tauri builds
+        # may run Python under -O, which strips `assert` and would let a None
+        # leak into _fetch_* and surface as a generic AttributeError rather
+        # than the ProviderError the retry layer expects.
+        info: dict[str, Any] | None = None
+        t: yf.Ticker | None = None
         for attempt in range(_MAX_RETRIES + 1):
             try:
                 t = await asyncio.to_thread(_make_ticker, ticker)
-                assert t is not None
+                if t is None:
+                    raise ProviderError(f"yfinance returned no Ticker object for '{ticker}'")
                 _t: yf.Ticker = t  # capture for lambda — avoids mypy union-attr on closure
                 info = await asyncio.to_thread(lambda: _t.info)
                 if not info or (
@@ -96,8 +101,10 @@ class YFinanceProvider(DataProvider):
                     continue
                 raise ProviderError(f"Failed to fetch ticker '{ticker}': {e}") from e
 
-        assert t is not None, "Ticker object must be initialized after retry loop"
-        assert info is not None, "Ticker info must be initialized after retry loop"
+        if t is None or info is None:
+            raise ProviderError(
+                f"yfinance retry loop exited without populating ticker/info for '{ticker}'"
+            )
 
         if data_type == DataType.FINANCIALS:
             years_kwarg = kwargs.get("years")
@@ -111,6 +118,11 @@ class YFinanceProvider(DataProvider):
         elif data_type == DataType.NEWS:
             await asyncio.sleep(_CALL_DELAY)
             result = await self._fetch_news(ticker, t)
+        else:
+            raise ProviderError(
+                f"data_type '{data_type}' is in _SUPPORTED but no fetch branch handles it. "
+                "Add an elif above this guard when extending _SUPPORTED."
+            )
 
         return result
 

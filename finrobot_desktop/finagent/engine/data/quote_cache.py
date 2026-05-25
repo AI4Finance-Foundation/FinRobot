@@ -131,22 +131,27 @@ class QuoteCache:
                 fetched = dict.fromkeys(missing)
             now = time.time()
             conn = await self._conn_ready()
+            # Write to L2 first (IO-heavy) outside the L1 lock so concurrent
+            # readers touching unrelated symbols aren't blocked on aiosqlite
+            # round-trips. The L1 lock is reserved for the tiny dict update
+            # that follows.
+            for sym in missing:
+                await conn.execute(
+                    """
+                    INSERT INTO quotes_cache (ticker, last_price, fetched_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(ticker) DO UPDATE SET
+                        last_price = excluded.last_price,
+                        fetched_at = excluded.fetched_at
+                    """,
+                    (sym, fetched.get(sym), now),
+                )
+            await conn.commit()
             async with self._l1_lock:
                 for sym in missing:
                     price = fetched.get(sym)
                     self._l1[sym] = (price, now)
                     result[sym] = price
-                    await conn.execute(
-                        """
-                        INSERT INTO quotes_cache (ticker, last_price, fetched_at)
-                        VALUES (?, ?, ?)
-                        ON CONFLICT(ticker) DO UPDATE SET
-                            last_price = excluded.last_price,
-                            fetched_at = excluded.fetched_at
-                        """,
-                        (sym, price, now),
-                    )
-            await conn.commit()
 
         return result
 

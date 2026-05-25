@@ -13,7 +13,7 @@ Endpoints:
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -149,7 +149,7 @@ async def studied_tickers(
         limit=500,
     )
     if not summaries:
-        return StudiedTickersResponse(items=[], generated_at=datetime.now().astimezone())
+        return StudiedTickersResponse(items=[], generated_at=datetime.now(tz=timezone.utc))
 
     # Attach live signals so the table can show hit/watching/failed lamp.
     data_layer = _data_layer(request)
@@ -184,7 +184,7 @@ async def studied_tickers(
     items.sort(key=lambda x: x.latest_created_at, reverse=True)
     items = items[:limit]
 
-    return StudiedTickersResponse(items=items, generated_at=datetime.now().astimezone())
+    return StudiedTickersResponse(items=items, generated_at=datetime.now(tz=timezone.utc))
 
 
 @router.get("/{artifact_id}", response_model=Artifact)

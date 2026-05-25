@@ -159,7 +159,6 @@ class TestRunsRoutes:
         app.state.deps = FinAgentDeps(
             data_layer=FakeDataLayer(),  # type: ignore[arg-type]
             settings=settings,
-            report_cache={},
         )
         app.state.sub_agents = {}
         app.state.run_store = RunStore(tmp_path / "runs.db")
@@ -171,15 +170,9 @@ class TestRunsRoutes:
         # the local name pointing at the real registry, the real `dcf` pipeline
         # ran with empty sub_agents/data_layer, never reached completed/failed,
         # and the SSE stream's poll loop never broke out → test hung forever.
-        with (
-            patch(
-                "finagent.routes.runs.get_pipeline_factories",
-                return_value={"dcf": lambda sub_agents: FakePipeline()},
-            ),
-            patch(
-                "finagent.routes.runs.build_report_context",
-                return_value={"mocked": True},
-            ),
+        with patch(
+            "finagent.routes.runs.get_pipeline_factories",
+            return_value={"dcf": lambda sub_agents: FakePipeline()},
         ):
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app=app), base_url="http://test"

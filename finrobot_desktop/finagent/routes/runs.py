@@ -8,18 +8,15 @@ from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-logger = logging.getLogger(__name__)
-
+import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ValidationError
-import httpx
 from pydantic_ai import UnexpectedModelBehavior
 from pydantic_ai.exceptions import AgentRunError
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
 
 from finagent.engine.data.interface import ProviderError
-from finagent.engine.orchestrator import build_report_context
 from finagent.engine.pipelines.base import PipelineResult
 from finagent.engine.pipelines.registry import get_pipeline_factories
 from finagent.events import (
@@ -33,6 +30,8 @@ from finagent.events import (
     StepStarted,
 )
 from finagent.run_store import RunRecord, RunStore
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -254,26 +253,24 @@ async def _run_pipeline(run_id: str, request: Request) -> None:
             record.ticker,
             progress=RunProgress(),
         )
-        request.app.state.deps.report_cache[record.ticker] = build_report_context(
-            record.ticker, result
-        )
         duration_s = round(time.monotonic() - started, 1)
         result_json = _result_to_json(result)
-        await store.add_artifact(
-            run_id,
-            artifact_type="report",
-            format="html",
-            file_path=f"/api/report/html?ticker={record.ticker}",
-        )
-        await _append(
-            store,
-            ArtifactReady(
-                event="artifact.ready",
-                run_id=run_id,
-                artifact_type="report",
-                format="html",
-            ),
-        )
+        if result.artifact_id:
+            await store.add_artifact(
+                run_id,
+                artifact_type="artifact",
+                format="json",
+                file_path=f"/api/artifacts/{result.artifact_id}",
+            )
+            await _append(
+                store,
+                ArtifactReady(
+                    event="artifact.ready",
+                    run_id=run_id,
+                    artifact_type="artifact",
+                    format="json",
+                ),
+            )
         await store.update_run(
             run_id,
             status="completed",

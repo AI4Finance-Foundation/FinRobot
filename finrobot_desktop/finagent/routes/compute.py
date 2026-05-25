@@ -7,11 +7,6 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from starlette.requests import Request
 
-from finagent.engine.compute.compare import (
-    CompanyValuation,
-    ComparisonResult,
-    build_company_valuation,
-)
 from finagent.engine.compute.composite_score import (
     CompositeScore,
     ScoreRequest,
@@ -43,7 +38,6 @@ from finagent.engine.models.financial import (
     DCFResult,
     DDMInputs,
     DDMResult,
-    FinancialData,
     LBOInputs,
     LBOResult,
     PeerComps,
@@ -487,65 +481,6 @@ async def compute_monte_carlo(request: MonteCarloRequest) -> MonteCarloResult:
         terminal_growth_std=request.terminal_growth_std,
         mid_year=request.mid_year,
     )
-
-
-class CompareRequest(BaseModel):
-    """Request body for multi-company comparison."""
-
-    tickers: list[str] = Field(min_length=2, max_length=10)
-
-
-@router.post("/compare", response_model=ComparisonResult)
-async def compare_companies(request_body: CompareRequest, request: Request) -> ComparisonResult:
-    """Run DCF pipeline for each ticker and return side-by-side comparison.
-
-    Fetches financials and runs the DCF pipeline concurrently for all tickers.
-    Companies that fail (missing data, LLM error) are included with an error
-    field set rather than failing the entire request.
-    """
-    from finagent.engine.pipelines.dcf import create_dcf_pipeline
-
-    deps = request.app.state.deps
-    sub_agents = request.app.state.sub_agents
-
-    async def _run_one(ticker: str) -> CompanyValuation:
-        """Run DCF pipeline for a single ticker, returning a CompanyValuation."""
-        try:
-            pipeline = create_dcf_pipeline(sub_agents)
-            result = await pipeline.execute(deps, ticker)
-
-            # Single pass: pick up DCFResult and FinancialData (supplementary metrics)
-            dcf_result: DCFResult | None = None
-            financials: FinancialData | None = None
-            for value in result.structured_data.values():
-                if dcf_result is None and isinstance(value, DCFResult):
-                    dcf_result = value
-                elif financials is None and isinstance(value, FinancialData):
-                    financials = value
-                if dcf_result is not None and financials is not None:
-                    break
-
-            if dcf_result is None:
-                return CompanyValuation(
-                    ticker=ticker, error="DCF pipeline completed but no DCFResult found"
-                )
-
-            return build_company_valuation(
-                ticker=ticker,
-                company_name=financials.company_name if financials else "",
-                current_price=financials.market.current_price if financials else None,
-                dcf_result=dcf_result,
-                ev_ebitda=financials.valuation.ev_ebitda if financials else None,
-                pe_ratio=financials.market.pe_ratio if financials else None,
-                warnings=list(financials.warnings) if financials else [],
-            )
-        except (ValueError, RuntimeError, KeyError, TypeError) as e:
-            logger.warning("Compare: %s failed: %s", ticker, e)
-            return CompanyValuation(ticker=ticker, error=str(e)[:200])
-
-    tasks = [_run_one(t.upper()) for t in request_body.tickers]
-    companies = await asyncio.gather(*tasks)
-    return ComparisonResult(companies=list(companies))
 
 
 @router.post("/sniper", response_model=SniperPoints)

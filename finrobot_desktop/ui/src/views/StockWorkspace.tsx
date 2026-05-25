@@ -21,7 +21,6 @@ import { useLocation, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRunStreamStore, selectRunByTicker } from '../stores/runStreamStore'
 import { useToastStore } from '../stores/toastStore'
-import { useAppStore } from '../stores/appStore'
 import { useNavMemoryStore } from '../stores/navMemoryStore'
 import { TickerHero } from './TickerHero'
 import { MarketDataZone } from './workspace/MarketDataZone'
@@ -31,17 +30,6 @@ export function StockWorkspace(): React.ReactElement {
   const { ticker } = useParams<{ ticker: string }>()
   const symbol = (ticker || '').toUpperCase()
   const location = useLocation()
-
-  // Mirror URL ticker into appStore so legacy hooks (useHistoricalData /
-  // usePerformanceData / PriceChart) keep working when the user lands
-  // directly on /stocks/:ticker without going through ⌘K search.
-  const setStoreTicker = useAppStore((s) => s.setTicker)
-  const storeTicker = useAppStore((s) => s.ticker)
-  useEffect(() => {
-    if (symbol && storeTicker !== symbol) {
-      setStoreTicker(symbol)
-    }
-  }, [symbol, storeTicker, setStoreTicker])
 
   // Remember this path so the sidebar can restore context after the user
   // detours through /settings or any other top-level section.

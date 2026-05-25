@@ -423,6 +423,13 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
 
   // ── Debounced auto-save for standard settings ────────────────────────────
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // useMutation returns a new `mutate` reference on each render. Stash the
+  // latest mutation in a ref so the debounced callback can stay stable while
+  // still calling the freshest mutate (avoids a closure over a stale instance).
+  const settingsMutationRef = useRef(settingsMutation)
+  useEffect(() => {
+    settingsMutationRef.current = settingsMutation
+  }, [settingsMutation])
 
   const scheduleStandardSave = useCallback(
     (payload: Record<string, string | null>) => {
@@ -430,10 +437,9 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       if (debounceRef.current) clearTimeout(debounceRef.current)
       setSaveState('saving')
       debounceRef.current = setTimeout(() => {
-        settingsMutation.mutate(payload)
+        settingsMutationRef.current.mutate(payload)
       }, 500)
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   )
 

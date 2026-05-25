@@ -109,7 +109,7 @@ function ZoneHeader({
         gap: 12,
         marginBottom: 14,
         paddingBottom: 8,
-        borderBottom: '1px solid rgba(139, 92, 246, 0.3)',
+        borderBottom: '1px solid var(--secondary-edge)',
       }}
     >
       <span
@@ -118,7 +118,7 @@ function ZoneHeader({
           fontSize: 16,
           letterSpacing: '2px',
           color: 'var(--secondary)',
-          textShadow: '0 0 12px rgba(139, 92, 246, 0.4)',
+          textShadow: '0 0 12px var(--secondary-glow)',
         }}
       >
         🤖 AI 研报
@@ -159,8 +159,8 @@ function ColdState({
     <div
       data-testid="ai-zone-cold"
       style={{
-        background: 'rgba(15, 15, 34, 0.3)',
-        border: '1px dashed rgba(139, 92, 246, 0.2)',
+        background: 'var(--bg-card-faint)',
+        border: '1px dashed var(--border-soft)',
         borderRadius: 'var(--radius-md)',
         padding: '36px 24px',
         textAlign: 'center',
@@ -187,9 +187,9 @@ function ColdState({
           margin: '0 auto 18px',
         }}
       >
-        跑一次 <strong style={{ color: 'var(--accent-cyan)' }}>research</strong> pipeline 即生成 12
-        章节投行级研报： 投资论点 · 公司概览 · 财务分析 · 估值（DCF + Comps + DDM + LBO）· 新闻 ·
-        敏感度 · 催化剂 · 技术分析 · 同业对标 · 财务数据
+        生成一份 <strong style={{ color: 'var(--accent-cyan)' }}>12 章投行级研报</strong>：
+        投资论点 · 公司概览 · 财务分析 · 估值（DCF + 同业 + DDM + LBO）· 新闻 · 敏感度 · 催化剂 ·
+        技术分析 · 同业对标 · 财务数据
       </p>
       <button
         type="button"
@@ -208,7 +208,7 @@ function ColdState({
           letterSpacing: '0.04em',
           cursor: isRunning ? 'not-allowed' : 'pointer',
           opacity: isRunning ? 0.5 : 1,
-          boxShadow: '0 0 22px rgba(139, 92, 246, 0.4)',
+          boxShadow: '0 0 22px var(--secondary-glow)',
         }}
       >
         {isRunning ? '正在跑 …' : '▶ 立即跑 AI 研报（~60s）'}
@@ -221,7 +221,7 @@ function ColdState({
           marginTop: 14,
         }}
       >
-        artifact 一旦生成不可变 · 重跑追加新版本，不覆盖旧版
+        研报一旦生成即不可变 · 重新生成会追加新版本，不会覆盖旧版
       </p>
     </div>
   )
@@ -248,10 +248,10 @@ function HotState({
   const target = latest.target_price ?? null
   const verdictTone =
     verdict === 'BUY'
-      ? { bg: 'rgba(22, 163, 74, 0.18)', fg: 'var(--success)', glow: 'rgba(22, 163, 74, 0.3)' }
+      ? { bg: 'var(--success-soft)', fg: 'var(--success)', glow: 'var(--success-glow-soft)' }
       : verdict === 'SELL'
-        ? { bg: 'rgba(220, 38, 38, 0.18)', fg: 'var(--danger)', glow: 'rgba(220, 38, 38, 0.3)' }
-        : { bg: 'rgba(217, 119, 6, 0.18)', fg: 'var(--warning)', glow: 'rgba(217, 119, 6, 0.3)' }
+        ? { bg: 'var(--danger-soft)', fg: 'var(--danger)', glow: 'var(--danger-glow-soft)' }
+        : { bg: 'var(--warning-soft)', fg: 'var(--warning)', glow: 'var(--warning-glow)' }
 
   return (
     <>
@@ -259,8 +259,8 @@ function HotState({
       <div
         data-testid="ai-zone-latest"
         style={{
-          background: 'linear-gradient(160deg, rgba(139, 92, 246, 0.06), rgba(15, 15, 34, 0.4))',
-          border: '1px solid rgba(139, 92, 246, 0.28)',
+          background: 'var(--gradient-card-cosmic)',
+          border: '1px solid var(--secondary-strong)',
           borderRadius: 'var(--radius-md)',
           padding: '18px 20px',
           marginBottom: 14,
@@ -369,7 +369,7 @@ function HotState({
               fontStyle: 'italic',
               lineHeight: 1.55,
               marginBottom: 14,
-              textShadow: '0 0 10px rgba(34,211,238,0.2)',
+              textShadow: '0 0 10px var(--accent-cyan-glow-soft)',
             }}
           >
             "{latest.tagline}"
@@ -404,7 +404,7 @@ function HotState({
               fontWeight: 600,
               cursor: 'pointer',
               letterSpacing: '0.04em',
-              boxShadow: '0 0 16px rgba(139, 92, 246, 0.35)',
+              boxShadow: '0 0 16px var(--secondary-glow-soft)',
             }}
           >
             → 打开完整 12 章研报
@@ -419,8 +419,8 @@ function HotState({
       <div
         data-testid="ai-zone-chapters"
         style={{
-          background: 'linear-gradient(160deg, rgba(139, 92, 246, 0.06), rgba(15, 15, 34, 0.4))',
-          border: '1px solid rgba(139, 92, 246, 0.28)',
+          background: 'var(--gradient-card-cosmic)',
+          border: '1px solid var(--secondary-strong)',
           borderRadius: 'var(--radius-md)',
           padding: '14px 16px',
           marginBottom: 14,
@@ -448,7 +448,7 @@ function HotState({
               style={{
                 textAlign: 'left',
                 padding: 10,
-                background: 'rgba(15, 15, 34, 0.5)',
+                background: 'var(--bg-card-translucent)',
                 border: '1px solid var(--border-faint)',
                 borderRadius: 6,
                 cursor: 'pointer',
@@ -457,11 +457,11 @@ function HotState({
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = 'var(--secondary)'
-                e.currentTarget.style.background = 'rgba(139, 92, 246, 0.08)'
+                e.currentTarget.style.background = 'var(--secondary-hover)'
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.borderColor = 'var(--border-faint)'
-                e.currentTarget.style.background = 'rgba(15, 15, 34, 0.5)'
+                e.currentTarget.style.background = 'var(--bg-card-translucent)'
               }}
             >
               <div
@@ -494,8 +494,8 @@ function HotState({
         <div
           data-testid="ai-zone-timeline"
           style={{
-            background: 'linear-gradient(160deg, rgba(139, 92, 246, 0.06), rgba(15, 15, 34, 0.4))',
-            border: '1px solid rgba(139, 92, 246, 0.28)',
+            background: 'var(--gradient-card-cosmic)',
+            border: '1px solid var(--secondary-strong)',
             borderRadius: 'var(--radius-md)',
             padding: '14px 16px',
           }}
@@ -529,7 +529,7 @@ function HotState({
                     gap: 10,
                     alignItems: 'center',
                     padding: '8px 10px',
-                    background: current ? 'rgba(139, 92, 246, 0.08)' : 'rgba(15, 15, 34, 0.5)',
+                    background: current ? 'var(--secondary-hover)' : 'var(--bg-card-translucent)',
                     border: 'none',
                     borderLeft: `2px solid ${current ? 'var(--secondary)' : 'var(--border-soft)'}`,
                     borderRadius: '0 6px 6px 0',
@@ -571,9 +571,9 @@ function VerdictPill({
   children: React.ReactNode
 }): React.ReactElement {
   const colors = {
-    buy: { bg: 'rgba(22, 163, 74, 0.18)', fg: 'var(--success)' },
-    sell: { bg: 'rgba(220, 38, 38, 0.18)', fg: 'var(--danger)' },
-    hold: { bg: 'rgba(217, 119, 6, 0.18)', fg: 'var(--warning)' },
+    buy: { bg: 'var(--success-soft)', fg: 'var(--success)' },
+    sell: { bg: 'var(--danger-soft)', fg: 'var(--danger)' },
+    hold: { bg: 'var(--warning-soft)', fg: 'var(--warning)' },
   }
   const c = colors[tone]
   return (
@@ -618,7 +618,7 @@ function ageLabel(iso: string): string {
 function ghostBtn(disabled: boolean): React.CSSProperties {
   return {
     padding: '11px 18px',
-    background: 'rgba(15, 15, 34, 0.6)',
+    background: 'var(--bg-card-deep)',
     border: '1px solid var(--border-soft)',
     borderRadius: 8,
     color: 'var(--text-secondary)',

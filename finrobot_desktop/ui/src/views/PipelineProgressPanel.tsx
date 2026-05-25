@@ -91,7 +91,7 @@ export function PipelineProgressPanel({
               ? `${labelForPipeline(run.pipelineType)} · 完成`
               : run.status === 'failed'
                 ? `${labelForPipeline(run.pipelineType)} · 失败`
-                : `正在跑 ${labelForPipeline(run.pipelineType)}`}
+                : `正在生成 ${labelForPipeline(run.pipelineType)}`}
           </span>
           {run.status === 'running' && eta && (
             <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>· 还剩 ~{eta}s</span>
@@ -183,14 +183,14 @@ export function PipelineProgressPanel({
         })}
       </ol>
       <p style={{ marginTop: 12, fontSize: 11, color: 'var(--text-faint)' }}>
-        数字由代码算出，不是 LLM 编 · 任一 step 失败整体 pipeline 失败重跑
+        数字由代码算出，不是 LLM 编 · 任一步骤失败整份研报重新生成
       </p>
       {run.status === 'failed' && (
         <p
           data-testid="pipeline-failed"
           style={{ marginTop: 8, fontSize: 12, color: 'var(--danger)' }}
         >
-          ⚠️ Pipeline 失败 · {run.error ?? '查看日志'}
+          ⚠️ 研报生成失败 · {run.error ?? '请稍后重试'}
         </p>
       )}
     </div>

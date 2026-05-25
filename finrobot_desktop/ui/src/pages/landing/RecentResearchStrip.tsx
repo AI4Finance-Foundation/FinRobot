@@ -16,22 +16,21 @@ import {
 import { verdictLabel } from '../../utils/verdict'
 import { useI18n } from '../../i18n'
 
-// Pipeline key → human label. After the 2026-05-23 1-pipeline-only refactor
-// most rows show 「研报」; the other keys are kept for backwards compat with
-// historical artifacts users may have generated before the cleanup.
+// Pipeline key → human label. Keep this map aligned with the backend
+// `ArtifactType` Literal (finagent/artifact/models.py); SDK-only pipelines
+// (ic-memo / dcf / lbo / ddm / comps) still show up in old artifacts the
+// user generated before research became the sole UI-facing pipeline.
 const TYPE_SHORT: Record<string, string> = {
   research: '研报',
   equity_research: '研报',
   'ic-memo': '投委',
   ic_memo: '投委',
   earnings: '财报',
-  earnings_analysis: '财报',
   dcf: 'DCF',
   lbo: 'LBO',
   ddm: 'DDM',
   comps: '同业',
   peer_research: '同业',
-  playground_snapshot: '手调',
   ad_hoc: 'Ad hoc',
 }
 

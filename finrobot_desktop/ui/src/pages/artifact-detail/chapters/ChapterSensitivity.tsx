@@ -93,7 +93,7 @@ export function ChapterSensitivity({ dcf }: { dcf: DcfShape | null }): React.Rea
           <SensitivityHeatmap data={heatmapRows} title="WACC × Terminal Growth → Implied Price" />
         ) : (
           <p style={mutedNote}>
-            该 artifact 未保存 sensitivity_table——请重跑 research 以生成 WACC × 终值增长率热力网格。
+            该研报未生成敏感性分析 — 请重新生成研报以得到 WACC × 永续增长率热力网格。
           </p>
         )}
       </SubChapter>

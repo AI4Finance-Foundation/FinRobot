@@ -674,6 +674,10 @@ msgid "errors.unknown"
 msgstr "Failed to load. Please try again later."
 
 #. js-lingui-explicit-id
+msgid "errors.dataLoad.historical"
+msgstr "Failed to load multi-year financials"
+
+#. js-lingui-explicit-id
 msgid "report.timeline.current"
 msgstr "current"
 
@@ -701,3 +705,231 @@ msgstr "Warming live quote cache ·"
 #. js-lingui-explicit-id
 msgid "report.toc.heading"
 msgstr "REPORT NAV"
+
+#. js-lingui-explicit-id
+msgid "report.computeWarnings"
+msgstr "COMPUTE WARNINGS"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.kv.revenueBase"
+msgstr "Revenue (Base)"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.kv.netIncome"
+msgstr "Net Income"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.kv.fcfTtm"
+msgstr "FCF (TTM)"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.revenueEbitda"
+msgstr "Revenue & EBITDA Trajectory"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.marginTrend"
+msgstr "Margin Trend"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.cashFlow"
+msgstr "Cash Flow Composition"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.dcfForecast"
+msgstr "DCF Forecast (Code-Computed)"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.chart.title.revenueEbitda"
+msgstr "Historical + DCF Forecast"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.chart.title.margin"
+msgstr "Gross / EBITDA / Operating Margin"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.chart.title.cashFlow"
+msgstr "Operating / Investing / Financing"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.yearPlus"
+msgstr "Year +{n}"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.revenue"
+msgstr "Revenue"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.fcf"
+msgstr "Free Cash Flow"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.source"
+msgstr "Source: 10-K filings + compute/forward_estimates.py (deterministic)"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.empty"
+msgstr "No financial inputs saved in this report — re-run to populate."
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.terminalGrowth"
+msgstr "Terminal Growth"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.taxRate"
+msgstr "Tax Rate"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.dcfImplied"
+msgstr "DCF Implied Price"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.enterpriseValue"
+msgstr "Enterprise Value"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.equityValue"
+msgstr "Equity Value"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.empty"
+msgstr "No DCF output in this report — re-run to generate the full valuation model."
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.subheading.football"
+msgstr "Valuation Triangulation (Football Field)"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.football.title"
+msgstr "DCF / Comps / DDM / LBO Target-Price Range"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.target12m"
+msgstr "12-Month Target:"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.currentPrice"
+msgstr "Current Price"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.low52w"
+msgstr "52W Low"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.high52w"
+msgstr "52W High"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.position52w"
+msgstr "52W Position"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.beta5y"
+msgstr "Beta (5Y)"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.vsSpx"
+msgstr "vs SPX"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.position.nearHigh"
+msgstr "near high"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.position.nearLow"
+msgstr "near low"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.position.midRange"
+msgstr "mid-range"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.empty.price"
+msgstr "Price data unavailable — check ticker or retry later"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.empty.overlay"
+msgstr "Quant overlays not yet generated · re-run to see Monte Carlo / sniper levels / historical bands"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.subheading.monteCarlo"
+msgstr "Monte Carlo Distribution"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.subheading.sniper"
+msgstr "Support / Resistance Levels"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.subheading.historicalBands"
+msgstr "Historical EV/EBITDA Bands"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.mc.mean"
+msgstr "Mean"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.mc.std"
+msgstr "Std Dev"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.mc.currentPct"
+msgstr "Current Pct"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.mc.sims"
+msgstr "Sims"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.idealBuy"
+msgstr "Ideal Buy"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.safetyMargin"
+msgstr "safety {pct}%"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.secondaryBuy"
+msgstr "Secondary Buy"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.atSupport"
+msgstr "at support"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.stopLoss"
+msgstr "Stop Loss"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.takeProfit"
+msgstr "Take Profit"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.dcfTarget"
+msgstr "DCF target"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.support20d"
+msgstr "Support (20d)"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.resistance20d"
+msgstr "Resistance (20d)"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.rrRatio"
+msgstr "R / R Ratio"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.suggestedSize"
+msgstr "Suggested Size"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.ofPortfolio"
+msgstr "of portfolio"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.current"
+msgstr "Current"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.median"
+msgstr "Median"

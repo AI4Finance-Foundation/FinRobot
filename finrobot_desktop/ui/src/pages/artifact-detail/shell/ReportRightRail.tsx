@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { BASE_URL } from '../../../api/client'
@@ -144,28 +144,34 @@ function WhatIfEditor({
     mutationFn: postDcfSeed,
   })
 
+  // Capture latest mutation methods so the debounce effect can stay free of
+  // mutation refs (which churn on every render).
+  const mutationRef = useRef(mutation)
+  useEffect(() => {
+    mutationRef.current = mutation
+  }, [mutation])
+
   // Debounce slider changes so dragging doesn't fire 50 requests.
   useEffect(() => {
     const handle = setTimeout(() => {
       if (Math.abs(waccPct / 100 - baseWacc) < 1e-4 && Math.abs(tgPct / 100 - baseTg) < 1e-4) {
-        mutation.reset()
+        mutationRef.current.reset()
         return
       }
-      mutation.mutate({
+      mutationRef.current.mutate({
         ticker,
         wacc_override: waccPct / 100,
         tg_override: tgPct / 100,
       })
     }, 380)
     return () => clearTimeout(handle)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [waccPct, tgPct, ticker])
+  }, [waccPct, tgPct, ticker, baseWacc, baseTg])
 
   const handleReset = useCallback(() => {
     setWaccPct(baseWacc * 100)
     setTgPct(baseTg * 100)
-    mutation.reset()
-  }, [baseWacc, baseTg, mutation])
+    mutationRef.current.reset()
+  }, [baseWacc, baseTg])
 
   const newImplied = mutation.data?.result?.implied_price ?? null
   const dirty = Math.abs(waccPct / 100 - baseWacc) > 1e-4 || Math.abs(tgPct / 100 - baseTg) > 1e-4
@@ -184,7 +190,7 @@ function WhatIfEditor({
             type="button"
             onClick={handleReset}
             style={resetButtonStyle}
-            title="重置到 artifact 原始假设"
+            title="重置到研报原始假设"
           >
             重置
           </button>

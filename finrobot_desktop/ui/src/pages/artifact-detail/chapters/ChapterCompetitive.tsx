@@ -105,7 +105,7 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
           </tbody>
         </table>
       ) : (
-        <p style={mutedNote}>该 artifact 未保存 peer_analysis — 跑 research 后此处补齐</p>
+        <p style={mutedNote}>该研报未生成同业对标 — 重新生成研报后此处补齐</p>
       )}
 
       {(peers?.median_pe !== null && peers?.median_pe !== undefined) ||

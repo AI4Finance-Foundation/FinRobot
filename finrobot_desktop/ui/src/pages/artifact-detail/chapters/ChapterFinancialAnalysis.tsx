@@ -10,19 +10,23 @@ import {
 } from '../../../utils/chartAdapters'
 import type { DCFResult } from '../../../stores/appStore'
 import { useHistoricalData } from '../../../hooks/useHistoricalData'
+import { useI18n } from '../../../i18n'
 import { Chapter, KvGrid, SubChapter, tableStyle } from './ChapterBase'
 import type { DcfShape } from './types'
 
 interface ChapterFinancialAnalysisProps {
+  ticker: string
   dcf: DcfShape | null
   rawData: Record<string, unknown> | null
 }
 
 export function ChapterFinancialAnalysis({
+  ticker,
   dcf,
   rawData,
 }: ChapterFinancialAnalysisProps): React.ReactElement {
-  const { data: historical } = useHistoricalData()
+  const { t } = useI18n()
+  const { data: historical } = useHistoricalData(ticker)
   const baseRev = (rawData?.revenue as number | undefined) ?? dcf?.inputs?.revenue_base ?? null
   const baseEbitda = (rawData?.ebitda as number | undefined) ?? null
   const baseNet = (rawData?.net_income as number | undefined) ?? null
@@ -58,13 +62,19 @@ export function ChapterFinancialAnalysis({
 
   const cells = [
     baseRev !== null && {
-      label: 'Revenue (Base)',
+      label: t('chapter.financial.kv.revenueBase'),
       value: fmtBillions(baseRev),
       delta: rawData?.fiscal_year ? `FY${rawData.fiscal_year}` : undefined,
     },
     baseEbitda !== null && { label: 'EBITDA', value: fmtBillions(baseEbitda) },
-    baseNet !== null && { label: 'Net Income', value: fmtBillions(baseNet) },
-    fcfTtm !== null && { label: 'FCF TTM', value: fmtBillions(fcfTtm) },
+    baseNet !== null && {
+      label: t('chapter.financial.kv.netIncome'),
+      value: fmtBillions(baseNet),
+    },
+    fcfTtm !== null && {
+      label: t('chapter.financial.kv.fcfTtm'),
+      value: fmtBillions(fcfTtm),
+    },
   ].filter((c): c is { label: string; value: string; delta?: string } => c !== false)
 
   return (
@@ -72,32 +82,41 @@ export function ChapterFinancialAnalysis({
       {cells.length > 0 && <KvGrid cells={cells} columns={4} />}
 
       {revenueChartData.length > 0 && (
-        <SubChapter heading="Revenue & EBITDA Trajectory">
-          <RevenueEbitdaChart data={revenueChartData} title="Historical + DCF Forecast" />
+        <SubChapter heading={t('chapter.financial.subheading.revenueEbitda')}>
+          <RevenueEbitdaChart
+            data={revenueChartData}
+            title={t('chapter.financial.chart.title.revenueEbitda')}
+          />
         </SubChapter>
       )}
 
       {marginChartData.length > 0 && (
-        <SubChapter heading="Margin Trend">
-          <MarginTrendChart data={marginChartData} title="Gross / EBITDA / Operating Margin" />
+        <SubChapter heading={t('chapter.financial.subheading.marginTrend')}>
+          <MarginTrendChart
+            data={marginChartData}
+            title={t('chapter.financial.chart.title.margin')}
+          />
         </SubChapter>
       )}
 
       {cashFlowChartData.length > 0 && (
-        <SubChapter heading="Cash Flow Composition">
-          <CashFlowChart data={cashFlowChartData} title="Operating / Investing / Financing" />
+        <SubChapter heading={t('chapter.financial.subheading.cashFlow')}>
+          <CashFlowChart
+            data={cashFlowChartData}
+            title={t('chapter.financial.chart.title.cashFlow')}
+          />
         </SubChapter>
       )}
 
       {dcf?.projected_revenue && dcf.projected_revenue.length > 0 && (
-        <SubChapter heading="DCF Forecast (Code-Computed)">
+        <SubChapter heading={t('chapter.financial.subheading.dcfForecast')}>
           <table style={tableStyle}>
             <thead style={{ background: 'var(--bg-elevated)' }}>
               <tr>
                 <th style={thStyle}>$B</th>
                 {dcf.projected_revenue.map((_, i) => (
-                  <th key={i} style={thStyle}>
-                    Year +{i + 1}
+                  <th key={`year-${i}`} style={thStyle}>
+                    {t('chapter.financial.table.yearPlus', { n: i + 1 })}
                   </th>
                 ))}
               </tr>
@@ -105,10 +124,10 @@ export function ChapterFinancialAnalysis({
             <tbody>
               <tr>
                 <td style={{ ...tdStyle, color: 'var(--text-primary)', fontWeight: 500 }}>
-                  Revenue
+                  {t('chapter.financial.table.revenue')}
                 </td>
                 {dcf.projected_revenue.map((v, i) => (
-                  <td key={i} style={{ ...tdStyle, textAlign: 'right' }}>
+                  <td key={`rev-${i}`} style={{ ...tdStyle, textAlign: 'right' }}>
                     {fmtBillions(v)}
                   </td>
                 ))}
@@ -119,7 +138,7 @@ export function ChapterFinancialAnalysis({
                     EBITDA
                   </td>
                   {dcf.projected_ebitda.map((v, i) => (
-                    <td key={i} style={{ ...tdStyle, textAlign: 'right' }}>
+                    <td key={`ebitda-${i}`} style={{ ...tdStyle, textAlign: 'right' }}>
                       {fmtBillions(v)}
                     </td>
                   ))}
@@ -128,11 +147,11 @@ export function ChapterFinancialAnalysis({
               {dcf.projected_fcf && dcf.projected_fcf.length > 0 && (
                 <tr>
                   <td style={{ ...tdStyle, color: 'var(--text-primary)', fontWeight: 500 }}>
-                    Free Cash Flow
+                    {t('chapter.financial.table.fcf')}
                   </td>
                   {dcf.projected_fcf.map((v, i) => (
                     <td
-                      key={i}
+                      key={`fcf-${i}`}
                       style={{ ...tdStyle, textAlign: 'right', color: 'var(--accent-cyan)' }}
                     >
                       {fmtBillions(v)}
@@ -151,13 +170,13 @@ export function ChapterFinancialAnalysis({
               letterSpacing: '0.04em',
             }}
           >
-            Source: 10-K filings + compute/forward_estimates.py (deterministic)
+            {t('chapter.financial.table.source')}
           </p>
         </SubChapter>
       )}
 
       {cells.length === 0 && !dcf?.projected_revenue && (
-        <p style={emptyMsg}>该 artifact 未保存财务输入 — 重跑 research 后此处补齐。</p>
+        <p style={emptyMsg}>{t('chapter.financial.empty')}</p>
       )}
     </Chapter>
   )

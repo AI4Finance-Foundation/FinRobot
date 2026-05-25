@@ -24,18 +24,45 @@
   --primary:        #3B82F6;
   --primary-soft:   rgba(59, 130, 246, 0.14);
   --secondary:      #8B5CF6;
-  --secondary-soft: rgba(139, 92, 246, 0.16);
+  --secondary-soft:     rgba(139, 92, 246, 0.16);
+  --secondary-soft-alt: rgba(139, 92, 246, 0.06); /* gradient endpoint */
+  --secondary-hover:    rgba(139, 92, 246, 0.08); /* hover wash on inert surfaces */
+  --secondary-edge:     rgba(139, 92, 246, 0.30); /* dividers */
+  --secondary-strong:   rgba(139, 92, 246, 0.28); /* card borders */
+  --secondary-glow:     rgba(139, 92, 246, 0.40); /* text + box shadow tint */
+  --secondary-glow-soft: rgba(139, 92, 246, 0.35);
 
   /* ── Live / accent ───────────────────────────────────────────── */
-  --accent-cyan: #22D3EE;
+  --accent-cyan:           #22D3EE;
+  --accent-cyan-glow-soft: rgba(34, 211, 238, 0.20); /* tagline shadow */
   --accent-pink: #EC4899;
 
   /* ── US market semantic (green up / red down) ────────────────── */
-  --success:      #16A34A;
-  --success-glow: rgba(22, 163, 74, 0.45);
-  --warning:      #D97706;
-  --danger:       #DC2626;
-  --danger-glow:  rgba(220, 38, 38, 0.45);
+  --success:           #16A34A;
+  --success-soft:      rgba(22, 163, 74, 0.18); /* verdict BUY badge bg */
+  --success-glow:      rgba(22, 163, 74, 0.45);
+  --success-glow-soft: rgba(22, 163, 74, 0.30);
+  --warning:           #D97706;
+  --warning-soft:      rgba(217, 119, 6, 0.18); /* verdict HOLD badge bg */
+  --warning-glow:      rgba(217, 119, 6, 0.30);
+  --danger:            #DC2626;
+  --danger-soft:       rgba(220, 38, 38, 0.18); /* verdict SELL badge bg */
+  --danger-glow:       rgba(220, 38, 38, 0.45);
+  --danger-glow-soft:  rgba(220, 38, 38, 0.30);
+
+  /* ── Card translucency stack (inert surfaces over cosmic gradient).
+     Three discrete steps — 0.3 / 0.5 / 0.6 — chosen empirically to land
+     readably on the starfield background without bumping the next layer
+     up. Use the lowest step that still reads as a surface. */
+  --bg-card-faint:       rgba(15, 15, 34, 0.30);
+  --bg-card-overlay:     rgba(15, 15, 34, 0.40);
+  --bg-card-translucent: rgba(15, 15, 34, 0.50);
+  --bg-card-deep:        rgba(15, 15, 34, 0.60);
+
+  /* Reusable cosmic card gradient — wraps the secondary halo over a
+     translucent card surface. Used by AIZone/HotState cards so all three
+     siblings track one source of truth. */
+  --gradient-card-cosmic: linear-gradient(160deg, var(--secondary-soft-alt), var(--bg-card-overlay));
 
   /* ── Amber accent (HOLD verdict + market-data zone headers).
      Distinct from --warning (which is the deeper #D97706 used for actual

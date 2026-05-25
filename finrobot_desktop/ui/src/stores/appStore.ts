@@ -143,12 +143,7 @@ export interface CompanyValuation {
   error: string | null
 }
 
-export interface ComparisonResultData {
-  companies: CompanyValuation[]
-  generated_at: string
-}
-
-export type ActiveTab = 'overview' | 'financials' | 'valuation' | 'comps' | 'compare'
+export type ActiveTab = 'overview' | 'financials' | 'valuation' | 'comps'
 
 export interface HistoricalMetrics {
   years: number[]
@@ -344,10 +339,6 @@ interface WorkspaceState {
   monteCarloResult: MonteCarloResult | null
   monteCarloLoading: boolean
 
-  // Compare state
-  comparisonResult: ComparisonResultData | null
-  comparisonLoading: boolean
-
   // UI navigation
   view: ViewMode
   showSettings: boolean
@@ -360,14 +351,6 @@ interface WorkspaceState {
   // Catalyst data
   catalysts: CatalystEvent[] | null
   catalystsLoading: boolean
-
-  // Data caches (per-ticker, invalidated on ticker change)
-  historicalMetrics: HistoricalMetrics | null
-  quarterlyData: QuarterlyData | null
-  performanceData: PerformanceData | null
-  historicalLoading: boolean
-  quarterlyLoading: boolean
-  performanceLoading: boolean
 
   // Actions
   setTicker: (t: string) => void
@@ -393,8 +376,6 @@ interface WorkspaceState {
   setIcMemoResult: (result: ICMemoResult) => void
   setMonteCarloResult: (result: MonteCarloResult | null) => void
   setMonteCarloLoading: (loading: boolean) => void
-  setComparisonResult: (result: ComparisonResultData | null) => void
-  setComparisonLoading: (loading: boolean) => void
   setShowSettings: (show: boolean) => void
   setCmdPaletteOpen: (open: boolean) => void
   toggleCmdPalette: () => void
@@ -402,12 +383,6 @@ interface WorkspaceState {
   setActiveTab: (tab: ActiveTab) => void
   setCatalysts: (data: CatalystEvent[] | null) => void
   setCatalystsLoading: (loading: boolean) => void
-  setHistoricalMetrics: (data: HistoricalMetrics | null) => void
-  setQuarterlyData: (data: QuarterlyData | null) => void
-  setPerformanceData: (data: PerformanceData | null) => void
-  setHistoricalLoading: (loading: boolean) => void
-  setQuarterlyLoading: (loading: boolean) => void
-  setPerformanceLoading: (loading: boolean) => void
   setActiveScenario: (s: ScenarioKey) => void
   setScenarioInputs: (s: ScenarioKey, inputs: DCFInputs) => void
   setScenarioResult: (s: ScenarioKey, result: DCFResult) => void
@@ -444,8 +419,6 @@ const initialState = {
   icMemoResult: null,
   monteCarloResult: null,
   monteCarloLoading: false,
-  comparisonResult: null,
-  comparisonLoading: false,
   view: 'workspace' as ViewMode,
   showSettings: false,
   cmdPaletteOpen: false,
@@ -453,12 +426,6 @@ const initialState = {
   activeTab: 'overview' as ActiveTab,
   catalysts: null,
   catalystsLoading: false,
-  historicalMetrics: null,
-  quarterlyData: null,
-  performanceData: null,
-  historicalLoading: false,
-  quarterlyLoading: false,
-  performanceLoading: false,
 }
 
 /**
@@ -489,8 +456,6 @@ export const useAppStore = create<WorkspaceState>((set) => ({
       icMemoResult: null,
       monteCarloResult: null,
       monteCarloLoading: false,
-      comparisonResult: null,
-      comparisonLoading: false,
       dcfResult: null,
       dcfSource: null,
       dcfInputs: null,
@@ -510,12 +475,6 @@ export const useAppStore = create<WorkspaceState>((set) => ({
       activeTab: 'overview' as ActiveTab,
       catalysts: null,
       catalystsLoading: false,
-      historicalMetrics: null,
-      quarterlyData: null,
-      performanceData: null,
-      historicalLoading: false,
-      quarterlyLoading: false,
-      performanceLoading: false,
     }),
   setPhase: (phase) => set({ phase }),
   setPipelineType: (pipelineType) => set({ pipelineType }),
@@ -537,8 +496,6 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   setIcMemoResult: (icMemoResult) => set({ icMemoResult }),
   setMonteCarloResult: (monteCarloResult) => set({ monteCarloResult }),
   setMonteCarloLoading: (monteCarloLoading) => set({ monteCarloLoading }),
-  setComparisonResult: (comparisonResult) => set({ comparisonResult }),
-  setComparisonLoading: (comparisonLoading) => set({ comparisonLoading }),
   setShowSettings: (showSettings) => set({ showSettings }),
   setCmdPaletteOpen: (cmdPaletteOpen) => set({ cmdPaletteOpen }),
   toggleCmdPalette: () => set((s) => ({ cmdPaletteOpen: !s.cmdPaletteOpen })),
@@ -546,12 +503,6 @@ export const useAppStore = create<WorkspaceState>((set) => ({
   setActiveTab: (activeTab) => set({ activeTab }),
   setCatalysts: (catalysts) => set({ catalysts }),
   setCatalystsLoading: (catalystsLoading) => set({ catalystsLoading }),
-  setHistoricalMetrics: (historicalMetrics) => set({ historicalMetrics }),
-  setQuarterlyData: (quarterlyData) => set({ quarterlyData }),
-  setPerformanceData: (performanceData) => set({ performanceData }),
-  setHistoricalLoading: (historicalLoading) => set({ historicalLoading }),
-  setQuarterlyLoading: (quarterlyLoading) => set({ quarterlyLoading }),
-  setPerformanceLoading: (performanceLoading) => set({ performanceLoading }),
 
   setActiveScenario: (activeScenario) =>
     set((s) => {

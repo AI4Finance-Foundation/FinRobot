@@ -3,6 +3,9 @@
 // shape used by HistoryTab and friends). Once those legacy callers are
 // migrated to /stock/:ticker (PR15), we can fold this back in.
 
+// Keep this list in sync with `finagent.artifact.models.ArtifactType`
+// (Literal). Drift between frontend and backend silently breaks type-narrow
+// switches in chapter renderers.
 export type ArtifactType =
   | 'dcf'
   | 'lbo'
@@ -13,8 +16,6 @@ export type ArtifactType =
   | 'equity_research'
   | 'peer_research'
   | 'ad_hoc'
-  | 'earnings_analysis'
-  | 'playground_snapshot'
 
 export type Signal = 'hit' | 'watching' | 'failed'
 

@@ -109,7 +109,7 @@ export function ChapterThesis({ thesis }: { thesis: ThesisShape | null }): React
           >
             {takeaways.map((t, i) => (
               <li
-                key={i}
+                key={`takeaway-${i}-${t.slice(0, 24)}`}
                 style={{
                   position: 'relative',
                   paddingLeft: 28,

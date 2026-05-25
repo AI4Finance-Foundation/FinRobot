@@ -26,7 +26,6 @@ export type TabKind =
   | 'settings'
   | 'about'
   | 'backtest'
-  | 'compare'
 
 export interface Tab {
   /** Stable id; for kind=dashboard always "dashboard". For pipeline/report

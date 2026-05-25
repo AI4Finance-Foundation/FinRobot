@@ -4,14 +4,32 @@
 // developers can still verify the inputs without polluting the C-end surface.
 
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Chapter, KvGrid, SubChapter } from './ChapterBase'
 import { formatDate, formatCompactNumber, formatNumber, formatPercent } from '../../../utils/format'
 import { useI18n, type Locale } from '../../../i18n'
+import { BASE_URL } from '../../../api/client'
+import { extractErrorDetail } from '../../../api/errors'
 
 interface ChapterFinancialDataProps {
   rawData: Record<string, unknown> | null
   dataSource: string | null
   fetchedAt: string | null
+  ticker: string
+}
+
+interface EarningsCallTranscript {
+  ticker: string
+  quarter: number
+  year: number
+  date: string | null
+  content: string
+  summary: string | null
+}
+
+interface EarningsCallList {
+  ticker: string
+  transcripts: EarningsCallTranscript[]
 }
 
 interface IncomeShape {
@@ -196,6 +214,7 @@ export function ChapterFinancialData({
   rawData,
   dataSource,
   fetchedAt,
+  ticker,
 }: ChapterFinancialDataProps): React.ReactElement {
   const { locale } = useI18n()
   const [showRaw, setShowRaw] = useState(false)
@@ -262,6 +281,10 @@ export function ChapterFinancialData({
           <KvGrid cells={valuationCells} columns={4} />
         </SubChapter>
       )}
+
+      <SubChapter heading={tr('财报电话会逐字稿', 'Earnings Call Transcripts', locale)}>
+        <EarningsCallSection ticker={ticker} locale={locale} />
+      </SubChapter>
 
       {companyCells.length === 0 &&
         incomeCells.length === 0 &&
@@ -330,4 +353,123 @@ export function ChapterFinancialData({
       )}
     </Chapter>
   )
+}
+
+function EarningsCallSection({
+  ticker,
+  locale,
+}: {
+  ticker: string
+  locale: Locale
+}): React.ReactElement {
+  const [selectedIdx, setSelectedIdx] = useState(0)
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['earnings-calls', ticker],
+    queryFn: async () => {
+      const resp = await fetch(`${BASE_URL}/api/data/${ticker}/earnings-calls?limit=8`)
+      if (!resp.ok) {
+        throw new Error(
+          await extractErrorDetail(resp, tr('无法加载财报电话会逐字稿', 'Failed to load earnings call transcripts', locale)),
+        )
+      }
+      return resp.json() as Promise<EarningsCallList>
+    },
+    enabled: !!ticker,
+    retry: false,
+    staleTime: 60 * 60_000,
+    gcTime: 24 * 60 * 60_000,
+    refetchOnMount: false,
+  })
+
+  if (isError) {
+    return <p style={noteStyle}>{(error as Error)?.message ?? tr('加载失败', 'Failed to load', locale)}</p>
+  }
+  if (isLoading && !data) {
+    return <p style={noteStyle}>{tr('加载逐字稿中…', 'Loading transcripts…', locale)}</p>
+  }
+  const transcripts = data?.transcripts ?? []
+  if (transcripts.length === 0) {
+    return (
+      <p style={noteStyle}>
+        {tr(
+          `${ticker} 暂无可用的财报电话会逐字稿`,
+          `No earnings call transcripts available for ${ticker}`,
+          locale,
+        )}
+      </p>
+    )
+  }
+  const selected = transcripts[selectedIdx] ?? transcripts[0]
+
+  return (
+    <div>
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          flexWrap: 'wrap',
+          marginBottom: 10,
+        }}
+      >
+        {transcripts.map((tx, i) => {
+          const active = i === selectedIdx
+          return (
+            <button
+              key={`${tx.year}-Q${tx.quarter}`}
+              type="button"
+              onClick={() => setSelectedIdx(i)}
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                letterSpacing: '0.04em',
+                padding: '4px 10px',
+                borderRadius: 'var(--radius-sm)',
+                border: `1px solid ${active ? 'var(--accent-cyan)' : 'var(--border-soft)'}`,
+                background: active ? 'rgba(34, 211, 238, 0.12)' : 'transparent',
+                color: active ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Q{tx.quarter} {tx.year}
+            </button>
+          )
+        })}
+      </div>
+      {selected.date && (
+        <p style={{ ...noteStyle, marginBottom: 8 }}>
+          {formatDate(selected.date, locale, 'long')}
+        </p>
+      )}
+      <div
+        style={{
+          padding: 14,
+          maxHeight: 360,
+          overflowY: 'auto',
+          fontFamily: 'var(--font-body)',
+          fontSize: 12.5,
+          lineHeight: 1.7,
+          color: 'var(--text-primary)',
+          background: 'rgba(15, 15, 34, 0.4)',
+          border: '1px solid var(--border-soft)',
+          borderRadius: 'var(--radius-sm)',
+          whiteSpace: 'pre-wrap',
+        }}
+      >
+        {selected.content || tr('该季度逐字稿暂不可用。', 'Transcript content not available for this quarter.', locale)}
+      </div>
+    </div>
+  )
+}
+
+const noteStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11.5,
+  color: 'var(--text-muted)',
+  padding: '12px 16px',
+  background: 'rgba(15, 15, 34, 0.5)',
+  border: '1px dashed var(--border-soft)',
+  borderRadius: 'var(--radius-sm)',
+  margin: 0,
 }

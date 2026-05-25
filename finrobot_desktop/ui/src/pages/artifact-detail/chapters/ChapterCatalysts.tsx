@@ -101,7 +101,7 @@ function CatalystList({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {items.map((e, i) => (
         <div
-          key={i}
+          key={`${tone}-${e.category}-${i}-${e.headline.slice(0, 24)}`}
           style={{
             padding: '10px 14px',
             background: 'rgba(15, 15, 34, 0.5)',
@@ -147,7 +147,7 @@ function BulletList({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {items.map((t, i) => (
         <div
-          key={i}
+          key={`${tone}-${i}-${t.slice(0, 24)}`}
           style={{
             padding: '10px 14px',
             background: 'rgba(15, 15, 34, 0.5)',

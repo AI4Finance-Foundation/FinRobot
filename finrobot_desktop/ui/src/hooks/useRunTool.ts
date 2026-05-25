@@ -16,6 +16,7 @@
  * status briefly before invalidating the artifact list.
  */
 
+import { useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
 import { useStocksStore, type ToolName } from '../stores/stocksStore'
@@ -106,6 +107,16 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
   const setIcMemoResult = useAppStore((s) => s.setIcMemoResult)
   const { t } = useI18n()
 
+  // Tracks the AbortController for the currently in-flight tool run so we can
+  // cancel it on unmount or when a new tool dispatch supersedes the previous.
+  const abortRef = useRef<AbortController | null>(null)
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+      abortRef.current = null
+    }
+  }, [])
+
   return useMutation<RunResult, ToolRunError | Error, ToolName>({
     mutationFn: async (toolName: ToolName): Promise<RunResult> => {
       if (toolName === 'ask-ai') return { kind: 'noop' }
@@ -116,6 +127,12 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
       if (!tickerAtDispatch) {
         throw new Error('Ticker is required to run this tool')
       }
+
+      // Cancel any prior run so a fast click-through doesn't pile up zombie polls.
+      abortRef.current?.abort()
+      const controller = new AbortController()
+      abortRef.current = controller
+      const signal = controller.signal
 
       startTool(toolName)
 
@@ -132,6 +149,7 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
               ticker: tickerAtDispatch,
               include_reverse: true,
             }),
+            signal,
           })
           if (!resp.ok) {
             throw new ToolRunError('dcf', resp.status, await resp.text().catch(() => ''))
@@ -156,6 +174,7 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ticker: tickerAtDispatch }),
+            signal,
           })
           if (!resp.ok) {
             throw new ToolRunError('lbo', resp.status, await resp.text().catch(() => ''))
@@ -172,7 +191,9 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
         ) {
           // DDM pre-check: only suitable for bank/financial stocks
           if (toolName === 'ddm') {
-            const finCheck = await fetch(`${BASE_URL}/api/data/${tickerAtDispatch}/financials`)
+            const finCheck = await fetch(`${BASE_URL}/api/data/${tickerAtDispatch}/financials`, {
+              signal,
+            })
             if (finCheck.ok) {
               const finData = (await finCheck.json()) as Record<string, unknown>
               const market = (finData.market ?? {}) as Record<string, unknown>
@@ -203,16 +224,29 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ pipeline_type: pipeline, ticker: tickerAtDispatch }),
+            signal,
           })
           if (!resp.ok) {
             throw new ToolRunError(toolName, resp.status, await resp.text().catch(() => ''))
           }
           const { run_id } = (await resp.json()) as { run_id: string }
-          // Poll up to ~60s (12 × 5s).
+          // Poll up to ~60s (12 × 5s). Each tick honours the abort signal so a
+          // ticker switch / unmount stops the loop immediately instead of
+          // running phantom requests against an old context.
           let completed = false
           for (let i = 0; i < 12; i += 1) {
-            await new Promise((r) => setTimeout(r, 5000))
-            const statusResp = await fetch(`${BASE_URL}/api/runs/${run_id}`)
+            await new Promise<void>((resolve, reject) => {
+              const tid = setTimeout(resolve, 5000)
+              signal.addEventListener(
+                'abort',
+                () => {
+                  clearTimeout(tid)
+                  reject(new DOMException('Aborted', 'AbortError'))
+                },
+                { once: true },
+              )
+            })
+            const statusResp = await fetch(`${BASE_URL}/api/runs/${run_id}`, { signal })
             if (!statusResp.ok) continue
             const detail = (await statusResp.json()) as { status?: string }
             if (detail.status === 'completed' || detail.status === 'complete') {
@@ -226,7 +260,7 @@ export function useRunTool({ ticker, onSuccess }: UseRunToolOptions) {
           // Fetch the full result with structured data
           let detail: RunDetailPayload | null = null
           if (completed) {
-            const fullResp = await fetch(`${BASE_URL}/api/runs/${run_id}`)
+            const fullResp = await fetch(`${BASE_URL}/api/runs/${run_id}`, { signal })
             if (fullResp.ok) {
               detail = (await fullResp.json()) as RunDetailPayload
             }

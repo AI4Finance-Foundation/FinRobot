@@ -1,9 +1,6 @@
 /**
  * Pure deterministic technical indicator computations.
- *
- * These mirror the backend Python implementations in
- * finagent/engine/charts/technical_indicators.py but run client-side
- * so no additional API round-trip is needed.
+ * Run client-side to avoid an extra API round-trip per chart.
  */
 
 /** Simple Moving Average. Returns null for indices before the window is full. */

@@ -674,6 +674,10 @@ msgid "errors.unknown"
 msgstr "加载失败，请稍后重试"
 
 #. js-lingui-explicit-id
+msgid "errors.dataLoad.historical"
+msgstr "无法加载多年财务数据"
+
+#. js-lingui-explicit-id
 msgid "report.timeline.current"
 msgstr "当前"
 
@@ -701,3 +705,231 @@ msgstr "正在预热行情缓存 ·"
 #. js-lingui-explicit-id
 msgid "report.toc.heading"
 msgstr "研报章节"
+
+#. js-lingui-explicit-id
+msgid "report.computeWarnings"
+msgstr "计算警告"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.kv.revenueBase"
+msgstr "营收（基期）"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.kv.netIncome"
+msgstr "净利润"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.kv.fcfTtm"
+msgstr "自由现金流（TTM）"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.revenueEbitda"
+msgstr "营收 & EBITDA 走势"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.marginTrend"
+msgstr "利润率趋势"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.cashFlow"
+msgstr "现金流构成"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.dcfForecast"
+msgstr "DCF 预测（代码计算）"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.chart.title.revenueEbitda"
+msgstr "历史 + DCF 预测"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.chart.title.margin"
+msgstr "毛利 / EBITDA / 营业利润率"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.chart.title.cashFlow"
+msgstr "经营 / 投资 / 筹资"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.yearPlus"
+msgstr "第 {n} 年"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.revenue"
+msgstr "营收"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.fcf"
+msgstr "自由现金流"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.source"
+msgstr "来源：10-K 文件 + compute/forward_estimates.py（确定性）"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.empty"
+msgstr "该研报未保存财务输入 — 重新生成后此处补齐。"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.terminalGrowth"
+msgstr "永续增长率"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.taxRate"
+msgstr "税率"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.dcfImplied"
+msgstr "DCF 隐含价格"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.enterpriseValue"
+msgstr "企业价值"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.equityValue"
+msgstr "权益价值"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.empty"
+msgstr "该研报缺 DCF 输出 — 重新生成可得到完整估值模型。"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.subheading.football"
+msgstr "估值三角（足球场图）"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.football.title"
+msgstr "DCF / 同业 / DDM / LBO 目标价区间"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.target12m"
+msgstr "12 个月目标价："
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.currentPrice"
+msgstr "现价"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.low52w"
+msgstr "52 周低"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.high52w"
+msgstr "52 周高"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.position52w"
+msgstr "52 周分位"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.beta5y"
+msgstr "Beta（5 年）"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.vsSpx"
+msgstr "对比 SPX"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.position.nearHigh"
+msgstr "接近高位"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.position.nearLow"
+msgstr "接近低位"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.position.midRange"
+msgstr "区间中部"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.empty.price"
+msgstr "价格数据暂不可用，请检查代码是否有效或稍后重试"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.empty.overlay"
+msgstr "量化叠加层尚未生成 · 重新生成研报后将显示蒙特卡洛分布 / 狙击位 / 历史估值带"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.subheading.monteCarlo"
+msgstr "蒙特卡洛分布"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.subheading.sniper"
+msgstr "支撑 / 阻力位"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.subheading.historicalBands"
+msgstr "历史 EV/EBITDA 估值带"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.mc.mean"
+msgstr "均值"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.mc.std"
+msgstr "标准差"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.mc.currentPct"
+msgstr "现价分位"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.mc.sims"
+msgstr "模拟次数"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.idealBuy"
+msgstr "理想买点"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.safetyMargin"
+msgstr "安全边际 {pct}%"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.secondaryBuy"
+msgstr "二次买点"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.atSupport"
+msgstr "支撑位附近"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.stopLoss"
+msgstr "止损"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.takeProfit"
+msgstr "止盈"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.dcfTarget"
+msgstr "DCF 目标价"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.support20d"
+msgstr "支撑（20 日）"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.resistance20d"
+msgstr "阻力（20 日）"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.rrRatio"
+msgstr "风险收益比"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.suggestedSize"
+msgstr "建议仓位"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.ofPortfolio"
+msgstr "占总仓位"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.current"
+msgstr "当前"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.median"
+msgstr "中位"

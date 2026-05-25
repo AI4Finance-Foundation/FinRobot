@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import FootballField from '../../../components/charts/FootballField'
 import { BASE_URL } from '../../../api/client'
+import { useI18n } from '../../../i18n'
 import { Chapter, KvGrid, Narrative, SubChapter } from './ChapterBase'
 import type { DcfShape, ThesisShape } from './types'
 
@@ -48,6 +49,7 @@ export function ChapterValuation({
   thesis,
   ticker,
 }: ChapterValuationProps): React.ReactElement {
+  const { t } = useI18n()
   const overview = thesis?.valuation_overview ?? null
   const wacc = dcf?.wacc ?? null
   const terminalGrowth = dcf?.inputs?.terminal_growth_rate ?? null
@@ -74,18 +76,27 @@ export function ChapterValuation({
         delta: beta !== null ? `β ${beta.toFixed(2)}` : undefined,
       } as Cell),
     terminalGrowth !== null &&
-      ({ label: 'Terminal Growth', value: `${(terminalGrowth * 100).toFixed(2)}%` } as Cell),
-    taxRate !== null && ({ label: 'Tax Rate', value: `${(taxRate * 100).toFixed(0)}%` } as Cell),
+      ({
+        label: t('chapter.valuation.kv.terminalGrowth'),
+        value: `${(terminalGrowth * 100).toFixed(2)}%`,
+      } as Cell),
+    taxRate !== null &&
+      ({
+        label: t('chapter.valuation.kv.taxRate'),
+        value: `${(taxRate * 100).toFixed(0)}%`,
+      } as Cell),
     implied !== null &&
       ({
-        label: 'DCF Implied Price',
+        label: t('chapter.valuation.kv.dcfImplied'),
         value: `$${implied.toFixed(2)}`,
         tone: (thesis?.price_target && implied >= thesis.price_target ? 'up' : undefined) as
           | 'up'
           | undefined,
       } as Cell),
-    ev !== null && ({ label: 'Enterprise Value', value: fmtTrillions(ev) } as Cell),
-    eq !== null && ({ label: 'Equity Value', value: fmtTrillions(eq) } as Cell),
+    ev !== null &&
+      ({ label: t('chapter.valuation.kv.enterpriseValue'), value: fmtTrillions(ev) } as Cell),
+    eq !== null &&
+      ({ label: t('chapter.valuation.kv.equityValue'), value: fmtTrillions(eq) } as Cell),
   ].filter((c): c is Cell => Boolean(c))
 
   return (
@@ -110,15 +121,15 @@ export function ChapterValuation({
             borderRadius: 'var(--radius-sm)',
           }}
         >
-          该 artifact 缺 DCF 输出 — 跑 research pipeline 可生成完整估值模型。
+          {t('chapter.valuation.empty')}
         </p>
       )}
 
       {footballRows.length > 0 && (
-        <SubChapter heading="Valuation Triangulation (Football Field)">
+        <SubChapter heading={t('chapter.valuation.subheading.football')}>
           <FootballField
             data={footballRows}
-            title="DCF / Comps / DDM / LBO Target-Price Range"
+            title={t('chapter.valuation.football.title')}
             currentPrice={aggregate?.current_price ?? undefined}
           />
         </SubChapter>
@@ -133,7 +144,7 @@ export function ChapterValuation({
             marginTop: 12,
           }}
         >
-          <span style={{ color: 'var(--text-muted)' }}>12-Month Target:</span>{' '}
+          <span style={{ color: 'var(--text-muted)' }}>{t('chapter.valuation.target12m')}</span>{' '}
           <span style={{ color: 'var(--accent-cyan)', fontSize: 14 }}>
             ${thesis.price_target.toFixed(2)}
           </span>

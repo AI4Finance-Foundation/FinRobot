@@ -16,7 +16,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
 import { useArtifactDetail, useV5ArtifactTimeline } from '../hooks/useV5Artifacts'
-import { useAppStore } from '../stores/appStore'
 import { useNavMemoryStore } from '../stores/navMemoryStore'
 import { useToastStore } from '../stores/toastStore'
 import { ArtifactDiff } from '../components/ArtifactDiff'
@@ -85,7 +84,7 @@ export function ArtifactDetailPage(): React.ReactElement {
   const location = useLocation()
   const { data, isLoading, isError, error } = useArtifactDetail(artifactId)
   const { data: timeline } = useV5ArtifactTimeline(symbol)
-  const { locale } = useI18n()
+  const { locale, t } = useI18n()
   const [diffPartner, setDiffPartner] = useState<ArtifactSummaryV5 | null>(null)
   const addToast = useToastStore((s) => s.addToast)
 
@@ -105,17 +104,6 @@ export function ArtifactDetailPage(): React.ReactElement {
       }
     })
   }, [location.hash, isLoading])
-
-  // Mirror URL ticker into appStore so any hook that reads from there
-  // (useHistoricalData / useQuarterlyData / etc) works when the user
-  // lands directly on the report URL.
-  const setStoreTicker = useAppStore((s) => s.setTicker)
-  const storeTicker = useAppStore((s) => s.ticker)
-  useEffect(() => {
-    if (symbol && storeTicker !== symbol) {
-      setStoreTicker(symbol)
-    }
-  }, [symbol, storeTicker, setStoreTicker])
 
   // Sidebar restores this deep path when the user clicks 个股 after
   // detouring through /settings — see useNavMemoryStore.
@@ -188,7 +176,7 @@ export function ArtifactDetailPage(): React.ReactElement {
       addToast({
         type: 'info',
         title: '无可对比版本',
-        description: `${symbol} 只有一份 ${data.type} 研报 · 重跑 research 累积版本后即可 diff`,
+        description: `${symbol} 只有这一份研报 · 重新生成累积版本后即可对比`,
       })
       return
     }
@@ -242,7 +230,11 @@ export function ArtifactDetailPage(): React.ReactElement {
           />
           <ChapterThesis thesis={thesis} />
           <ChapterCompanyOverview thesis={thesis} />
-          <ChapterFinancialAnalysis dcf={dcf} rawData={inputs.raw_data ?? null} />
+          <ChapterFinancialAnalysis
+            ticker={symbol}
+            dcf={dcf}
+            rawData={inputs.raw_data ?? null}
+          />
           <ChapterValuation dcf={dcf} thesis={thesis} ticker={symbol} />
           <ChapterNews thesis={thesis} />
           <ChapterSensitivity dcf={dcf} />
@@ -253,6 +245,7 @@ export function ArtifactDetailPage(): React.ReactElement {
             rawData={inputs.raw_data ?? null}
             dataSource={inputs.data_source ?? null}
             fetchedAt={inputs.data_fetched_at ?? null}
+            ticker={symbol}
           />
           <ChapterDisclaimer
             artifactId={data.id}
@@ -282,7 +275,7 @@ export function ArtifactDetailPage(): React.ReactElement {
                   marginBottom: 6,
                 }}
               >
-                ⚠ COMPUTE WARNINGS
+                ⚠ {t('report.computeWarnings')}
               </div>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
                 {(outputs.warnings ?? []).map((w, i) => (

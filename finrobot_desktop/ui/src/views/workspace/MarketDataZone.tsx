@@ -85,7 +85,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
                   fontFamily: 'var(--font-mono)',
                   fontSize: 11.5,
                   padding: '7px 10px',
-                  background: 'rgba(15, 15, 34, 0.5)',
+                  background: 'var(--bg-card-50)',
                   borderRadius: 6,
                 }}
               >
@@ -135,7 +135,7 @@ function ZoneHeader(): React.ReactElement {
         gap: 12,
         marginBottom: 14,
         paddingBottom: 8,
-        borderBottom: '1px solid rgba(245, 158, 11, 0.25)',
+        borderBottom: '1px solid var(--border-amber-soft)',
       }}
     >
       <span
@@ -144,7 +144,7 @@ function ZoneHeader(): React.ReactElement {
           fontSize: 16,
           letterSpacing: '2px',
           color: 'var(--accent-amber)',
-          textShadow: '0 0 12px rgba(245, 158, 11, 0.35)',
+          textShadow: '0 0 12px var(--glow-amber-soft)',
         }}
       >
         📊 市场数据
@@ -215,7 +215,7 @@ function MktCard({
               fontSize: 9,
               color: 'var(--accent-cyan)',
               padding: '1px 6px',
-              border: '1px solid rgba(34, 211, 238, 0.3)',
+              border: '1px solid var(--border-cyan-soft)',
               borderRadius: 3,
               letterSpacing: '0.08em',
             }}

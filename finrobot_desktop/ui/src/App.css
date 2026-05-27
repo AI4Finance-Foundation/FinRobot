@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════════════
-   FINAGENT DESIGN SYSTEM · COSMIC DESKTOP
+   FINROBOT DESIGN SYSTEM · COSMIC DESKTOP
    Deep space dark + dual-rail neon (blue/purple) + cyan live signal
    See: project-memory/编码模式/UI-风格规范-cosmic桌面版.md (§2/§3)
    Light theme deferred to v2.1 — dark-only here.
@@ -70,6 +70,15 @@
      #F59E0B or used `var(--accent-amber, #F59E0B)` with a fallback that
      never resolved; this declaration makes the token real. */
   --accent-amber: #F59E0B;
+
+  /* ── Alpha derivatives of accent / surface tokens (cosmic spec §2:
+     "所有颜色来自 CSS Variables，没有硬编码 hex"). When a card / pill /
+     glow needs a tinted version of an existing accent, reference one
+     of these instead of inlining `rgba(...)`. */
+  --border-amber-soft: rgba(245, 158, 11, 0.25);  /* amber 0.25 — zone header divider */
+  --glow-amber-soft: rgba(245, 158, 11, 0.35);    /* amber 0.35 — zone title glow */
+  --border-cyan-soft: rgba(34, 211, 238, 0.3);    /* cyan 0.3 — live-data badge border */
+  --bg-card-50: rgba(15, 15, 34, 0.5);            /* bg-card at 50% — list-item / chip overlay */
 
   /* ── Translucent backgrounds for sticky bars (titlebar / report
      toolbar / status bar / overlays). Same hue as --bg-deep with the

@@ -1069,3 +1069,23 @@ msgstr "数据源：DEF 14A · 申报日 {date}"
 #. js-lingui-explicit-id
 msgid "chapter.ownership.provenance.tooltip"
 msgstr "{form} · accession {accession} · {date}"
+
+#. js-lingui-explicit-id
+msgid "landing.secBanner.title"
+msgstr "SEC 身份未配置 · 投行级数据受限"
+
+#. js-lingui-explicit-id
+msgid "landing.secBanner.body"
+msgstr "未配置 SEC EDGAR 身份标识，10-K 章节、XBRL 财务数据、Ownership & Governance 章节都将走降级态。SEC 公开要求每个数据请求带可识别 User-Agent。"
+
+#. js-lingui-explicit-id
+msgid "landing.secBanner.cta"
+msgstr "前往设置"
+
+#. js-lingui-explicit-id
+msgid "landing.secBanner.dismissTooltip"
+msgstr "暂时关闭（30 天后再次提示）"
+
+#. js-lingui-explicit-id
+msgid "landing.secBanner.dismissAria"
+msgstr "关闭提醒"

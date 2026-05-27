@@ -1069,3 +1069,23 @@ msgstr "Source: DEF 14A · filed {date}"
 #. js-lingui-explicit-id
 msgid "chapter.ownership.provenance.tooltip"
 msgstr "{form} · accession {accession} · {date}"
+
+#. js-lingui-explicit-id
+msgid "landing.secBanner.title"
+msgstr "SEC identity unconfigured — bank-grade depth limited"
+
+#. js-lingui-explicit-id
+msgid "landing.secBanner.body"
+msgstr "Without a SEC EDGAR User-Agent, 10-K sections, XBRL financial facts, and Ownership & Governance all run in degraded mode. SEC's terms require an identifiable User-Agent on every data request."
+
+#. js-lingui-explicit-id
+msgid "landing.secBanner.cta"
+msgstr "Open Settings"
+
+#. js-lingui-explicit-id
+msgid "landing.secBanner.dismissTooltip"
+msgstr "Dismiss for now (re-shown after 30 days)"
+
+#. js-lingui-explicit-id
+msgid "landing.secBanner.dismissAria"
+msgstr "Dismiss notification"

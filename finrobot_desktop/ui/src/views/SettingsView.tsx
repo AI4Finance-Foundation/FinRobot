@@ -81,6 +81,25 @@ const hintStyle: React.CSSProperties = {
   marginTop: '2px',
 }
 
+const hintInvalidStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '10px',
+  color: 'var(--danger)',
+  marginTop: '2px',
+  lineHeight: 1.5,
+}
+
+/** Mirrors finrobot.engine.data.providers.edgar_provider._is_valid_identity.
+ * SEC requires `Name email@domain` — we also reject the backend's placeholder
+ * default `FinRobot admin@example.com` so the user has to set a real one. */
+export function isValidSecIdentity(s: string | null | undefined): boolean {
+  if (!s) return false
+  const trimmed = s.trim()
+  if (!trimmed.includes('@') || !trimmed.includes(' ')) return false
+  if (trimmed === 'FinRobot admin@example.com') return false
+  return true
+}
+
 const requiredBadgeStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: '9px',
@@ -728,7 +747,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           <div style={fieldStyle}>
             <div style={labelStyle}>
               <span>SEC EDGAR User-Agent</span>
-              <span style={optionalBadgeStyle}>可选</span>
+              <span style={requiredBadgeStyle}>必填</span>
               <SourceBadge source={sourceOf('sec_user_agent')} />
               {sourceOf('sec_user_agent') === 'settings_json' && (
                 <button
@@ -744,9 +763,22 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               type="email"
               value={secUserAgent}
               onChange={(e) => handleSecAgentChange(e.target.value)}
-              placeholder="例如：公司名 admin@example.com"
+              placeholder="姓名 邮箱@example.com"
+              data-invalid={!isValidSecIdentity(secUserAgent) || undefined}
+              style={
+                !isValidSecIdentity(secUserAgent)
+                  ? {
+                      borderColor: 'var(--danger)',
+                      boxShadow: '0 0 0 1px rgba(220, 38, 38, 0.32)',
+                    }
+                  : undefined
+              }
             />
-            <p style={hintStyle}>启用：10-K 年报问答 — SEC EDGAR 条款要求</p>
+            <p style={!isValidSecIdentity(secUserAgent) ? hintInvalidStyle : hintStyle}>
+              {!isValidSecIdentity(secUserAgent)
+                ? '⚠ SEC 要求格式 "姓名 邮箱@example.com" — 未配置时 10-K 章节 / Ownership 章节 / XBRL 财务数据均不可用'
+                : '启用：10-K 章节 / Ownership 章节 / XBRL 财务数据（SEC EDGAR 条款要求）'}
+            </p>
           </div>
         </div>
       </section>

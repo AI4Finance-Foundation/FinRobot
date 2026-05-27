@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
-import SettingsView from '../views/SettingsView'
+import SettingsView, { isValidSecIdentity } from '../views/SettingsView'
 
 // Mock the API client module
 vi.mock('../api/client', () => ({
@@ -50,4 +50,31 @@ describe('SettingsView', () => {
   })
 
   // 外观 section removed in v5: theme toggle 推迟 v2.1 (spec §10.4)
+})
+
+describe('isValidSecIdentity', () => {
+  it('rejects empty / nullish input', () => {
+    expect(isValidSecIdentity('')).toBe(false)
+    expect(isValidSecIdentity(null)).toBe(false)
+    expect(isValidSecIdentity(undefined)).toBe(false)
+  })
+
+  it('rejects strings missing space or @', () => {
+    expect(isValidSecIdentity('just-a-string')).toBe(false)
+    expect(isValidSecIdentity('no@spacehere')).toBe(false)
+    expect(isValidSecIdentity('two words but no at sign')).toBe(false)
+  })
+
+  it('rejects the backend placeholder default', () => {
+    expect(isValidSecIdentity('FinRobot admin@example.com')).toBe(false)
+  })
+
+  it('accepts the SEC-canonical Name email format', () => {
+    expect(isValidSecIdentity('Jane Doe jane@example.com')).toBe(true)
+    expect(isValidSecIdentity('Acme Capital alpha@acme.com')).toBe(true)
+  })
+
+  it('trims whitespace before checking', () => {
+    expect(isValidSecIdentity('  Jane Doe jane@example.com  ')).toBe(true)
+  })
 })

@@ -17,6 +17,7 @@ import { HitRateBanner } from './HitRateBanner'
 import { RecentResearchStrip } from './RecentResearchStrip'
 import { HotTickerChips } from './HotTickerChips'
 import { DashboardSkeleton } from './DashboardSkeleton'
+import { SecIdentityBanner } from './SecIdentityBanner'
 import { SplineHero } from '../../components/SplineHero'
 import { useQuotesWarmed } from '../../hooks/useQuotesWarmed'
 
@@ -147,6 +148,10 @@ export function StocksLandingHero(): React.ReactElement {
           ))}
         </div>
       </div>
+
+      {/* SEC identity banner — sits between title and search so the user
+          sees it without it being the first thing they read. Dismissible. */}
+      <SecIdentityBanner />
 
       {/* Search box */}
       <form

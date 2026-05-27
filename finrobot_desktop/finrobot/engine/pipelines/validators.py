@@ -292,14 +292,26 @@ def validate_dcf_output(output: str) -> ValidationResult:
 
 
 _VALID_RECOMMENDATIONS = {
-    "Buy",
-    "Hold",
-    "Sell",
-    "Overweight",
-    "Underweight",
-    "Outperform",
-    "Underperform",
+    "BUY",
+    "HOLD",
+    "SELL",
+    "OVERWEIGHT",
+    "UNDERWEIGHT",
+    "OUTPERFORM",
+    "UNDERPERFORM",
 }
+"""Canonical investment-bank recommendations (uppercase per CLAUDE.md spec).
+
+`validate_thesis` normalizes incoming values via ``.upper()`` so historical
+artifacts using mixed case (`Buy`/`Hold`/`Sell`) still validate.
+"""
+
+
+_PEER_EV_EBITDA_MIN = 0.5
+_PEER_EV_EBITDA_MAX = 300.0
+"""Sanity range for peer EV/EBITDA — catches unit-mismatch (currency conversion
+artifacts surfacing as sub-1x) and division-near-zero garbage (>300x typically
+means EBITDA collapse already flagged as N/M elsewhere)."""
 
 
 def validate_financial_data(
@@ -330,21 +342,34 @@ def validate_financial_data(
 
 
 def validate_peer_comps(comps: PeerComps) -> ValidationResult:
-    """Validate peer analysis result."""
+    """Validate peer analysis result.
+
+    Collects ALL violations across the peer set (no short-circuit) so a single
+    bad ticker doesn't mask other data issues. EV/EBITDA range
+    ``[0.5, 300]`` is a garbage filter, not a "meaningfulness" filter — cyclical
+    trough multiples (100-300x) are real and should pass; sub-1x values nearly
+    always indicate currency/unit conversion bugs.
+    """
     if len(comps.peers) < 3:
         return ValidationResult(
             passed=False, error=f"Need at least 3 peers, got {len(comps.peers)}"
         )
+    violations: list[str] = []
     for peer in comps.peers:
         if peer.revenue <= 0:
-            return ValidationResult(
-                passed=False, error=f"Peer {peer.ticker} has non-positive revenue"
+            violations.append(f"{peer.ticker} has non-positive revenue")
+        if peer.ev_ebitda is not None and not (
+            _PEER_EV_EBITDA_MIN <= peer.ev_ebitda <= _PEER_EV_EBITDA_MAX
+        ):
+            violations.append(
+                f"{peer.ticker} EV/EBITDA {peer.ev_ebitda:.2f}x out of range "
+                f"{_PEER_EV_EBITDA_MIN}-{_PEER_EV_EBITDA_MAX}x"
             )
-        if peer.ev_ebitda is not None and not (1 <= peer.ev_ebitda <= 100):
-            return ValidationResult(
-                passed=False,
-                error=f"Peer {peer.ticker} EV/EBITDA {peer.ev_ebitda:.1f}x out of range 1-100x",
-            )
+    if violations:
+        return ValidationResult(
+            passed=False,
+            error="Peer comps failed sanity check: " + "; ".join(violations),
+        )
     if comps.median_ev_ebitda is None:
         return ValidationResult(passed=False, error="Median EV/EBITDA statistics not computed")
     return ValidationResult(passed=True)
@@ -369,11 +394,19 @@ def validate_dcf_result(result: DCFResult) -> ValidationResult:
 
 
 def validate_thesis(thesis: ThesisResult) -> ValidationResult:
-    """Validate thesis structure."""
-    if thesis.recommendation not in _VALID_RECOMMENDATIONS:
+    """Validate thesis structure.
+
+    Recommendation is normalized to uppercase before checking — agent prompts
+    follow CLAUDE.md's "BUY HOLD SELL（投行惯例）" convention but mixed-case
+    historical artifacts should still validate.
+    """
+    if thesis.recommendation.upper() not in _VALID_RECOMMENDATIONS:
         return ValidationResult(
             passed=False,
-            error=f"Recommendation '{thesis.recommendation}' must be one of {sorted(_VALID_RECOMMENDATIONS)}",
+            error=(
+                f"Recommendation '{thesis.recommendation}' must be one of "
+                f"{sorted(_VALID_RECOMMENDATIONS)} (case-insensitive)"
+            ),
         )
     if thesis.price_target <= 0:
         return ValidationResult(passed=False, error="Price target must be positive")

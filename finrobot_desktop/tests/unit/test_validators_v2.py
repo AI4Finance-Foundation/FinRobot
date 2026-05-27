@@ -177,6 +177,34 @@ def test_validate_peer_comps_ev_ebitda_out_of_range():
     assert not result.passed
 
 
+def test_validate_peer_comps_cyclical_trough_passes():
+    """AMD-style cyclical trough (112.8x) should validate — real signal, not garbage."""
+    comps = _make_peer_comps()
+    comps.peers[0].ev_ebitda = 112.8
+    result = validate_peer_comps(comps)
+    assert result.passed
+
+
+def test_validate_peer_comps_subunit_currency_artifact_fails():
+    """TSM-style 0.158x (currency/unit mismatch) must fail — caught as garbage."""
+    comps = _make_peer_comps()
+    comps.peers[0].ev_ebitda = 0.158
+    result = validate_peer_comps(comps)
+    assert not result.passed
+    assert "0.16x" in result.error or "0.5" in result.error
+
+
+def test_validate_peer_comps_collects_all_violations():
+    """Multiple bad peers should ALL surface in the error, not short-circuit on first."""
+    comps = _make_peer_comps(n_peers=4)
+    comps.peers[0].ev_ebitda = 0.1
+    comps.peers[2].ev_ebitda = 500.0
+    result = validate_peer_comps(comps)
+    assert not result.passed
+    assert comps.peers[0].ticker in result.error
+    assert comps.peers[2].ticker in result.error
+
+
 def test_validate_peer_comps_median_none_fails():
     comps = _make_peer_comps()
     comps.median_ev_ebitda = None
@@ -207,3 +235,33 @@ def test_validate_thesis_valid():
         narrative="bullish",
     )
     assert validate_thesis(t).passed
+
+
+def test_validate_thesis_uppercase_canonical_passes():
+    """CLAUDE.md spec: BUY/HOLD/SELL is the canonical IB form. Agent prompts emit
+    uppercase — validator must accept it (previously rejected, burning 3 retries)."""
+    for rec in ("BUY", "HOLD", "SELL", "OVERWEIGHT", "OUTPERFORM"):
+        t = ThesisResult(
+            recommendation=rec,
+            price_target=200.0,
+            price_target_basis="DCF",
+            catalysts=["AI growth"],
+            risks=["competition"],
+            narrative="bullish",
+        )
+        assert validate_thesis(t).passed, f"{rec} should pass"
+
+
+def test_validate_thesis_recommendation_preserves_case_in_artifact():
+    """Validation is case-insensitive but does not mutate the recommendation field —
+    storage / UI keeps whatever case the agent emitted."""
+    t = ThesisResult(
+        recommendation="BUY",
+        price_target=200.0,
+        price_target_basis="DCF",
+        catalysts=["AI growth"],
+        risks=["competition"],
+        narrative="bullish",
+    )
+    validate_thesis(t)
+    assert t.recommendation == "BUY"

@@ -30,7 +30,9 @@ from finrobot.engine.compute.catalyst import (
     summarize_catalyst_outlook,
 )
 from finrobot.engine.compute.extractor import extract_company_financials
+from finrobot.engine.compute.fx_normalize import normalize_company_to_usd
 from finrobot.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
+from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
 from finrobot.engine.compute.historical_extractor import extract_historical_from_yfinance
@@ -69,6 +71,27 @@ from finrobot.engine.pipelines.validators import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def _normalize_peer_to_usd(company: CompanyFinancials) -> CompanyFinancials:
+    """Convert a peer's IS/BS items (and market_cap if quoted in non-USD) to
+    canonical USD using today's spot FX. No-op fast path when both currency
+    tags are already USD — the common case for US peers."""
+    if company.reporting_currency == "USD" and company.quote_currency == "USD":
+        return company
+    reporting_rate = (
+        1.0
+        if company.reporting_currency == "USD"
+        else await fetch_fx_rate_to_usd(company.reporting_currency)
+    )
+    if company.quote_currency == "USD":
+        quote_rate = 1.0
+    elif company.quote_currency == company.reporting_currency:
+        # Local listing (e.g. 2330.TW): both tags equal, reuse the rate.
+        quote_rate = reporting_rate
+    else:
+        quote_rate = await fetch_fx_rate_to_usd(company.quote_currency)
+    return normalize_company_to_usd(company, reporting_rate, quote_rate)
 
 
 async def _fetch_optional_sec(
@@ -271,7 +294,16 @@ async def _execute_peer_analysis(
     async def _fetch_one_peer(peer_ticker: str) -> CompanyFinancials | None:
         try:
             fin_result = await deps.data_layer.fetch(DataType.FINANCIALS, peer_ticker)
-            company = calculate_multiples(extract_company_financials(fin_result))
+            company = extract_company_financials(fin_result)
+            # Normalize foreign-listed ADRs / local listings to canonical USD
+            # BEFORE multiples are computed — otherwise TSM (TWD financials,
+            # USD market_cap) collapses EV/EBITDA to 0.158x. ProviderError
+            # from a failed FX lookup falls through to the outer except and
+            # drops this peer from the comp set; that is the desired
+            # behavior — better to thin the peer set than to publish a
+            # multiple computed in mixed units.
+            company = await _normalize_peer_to_usd(company)
+            company = calculate_multiples(company)
             xbrl_result = await deps.data_layer.fetch(DataType.XBRL_FACTS, peer_ticker)
             return override_company_with_xbrl(company, xbrl_result.data)
         except (ProviderError, ValueError, KeyError, ArithmeticError) as e:

@@ -157,6 +157,21 @@ class YFinanceProvider(DataProvider):
             "forward_eps": info.get("forwardEps"),
             "forward_pe": info.get("forwardPE"),
             "trailing_eps": info.get("trailingEps"),
+            # ISO 4217 currency codes — yfinance carries two different ones
+            # and they DISAGREE for foreign-listed ADRs:
+            #
+            #   - "currency"          → quote currency: marketCap, price,
+            #                            shares × price are in this unit
+            #   - "financialCurrency" → IS/BS reporting currency: revenue,
+            #                            ebitda, net_income, debt, cash are
+            #                            in this unit
+            #
+            # For TSM (ADR): currency=USD, financialCurrency=TWD — the very
+            # mismatch that produces EV/EBITDA=0.158x without normalization.
+            # For 2330.TW (local listing): both = TWD.
+            # For most US issuers: both = USD.
+            "quote_currency": info.get("currency") or "USD",
+            "financial_currency": info.get("financialCurrency") or "USD",
         }
         return DataResult(
             data=data,

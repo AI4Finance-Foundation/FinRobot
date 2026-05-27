@@ -169,7 +169,13 @@ def extract_financial_data(
 
 
 def extract_company_financials(financials_result: DataResult) -> CompanyFinancials:
-    """Extract CompanyFinancials for use in peer comparisons."""
+    """Extract CompanyFinancials for use in peer comparisons.
+
+    ``reporting_currency`` carries the provider's stated currency code (ISO
+    4217) so downstream peer-comps normalization can collapse foreign-ADR
+    unit mismatches before EV/EBITDA is computed. Defaults to USD when the
+    provider omits the field (most US issuers).
+    """
     data = financials_result.data
     ticker = financials_result.ticker
     return CompanyFinancials(
@@ -183,6 +189,8 @@ def extract_company_financials(financials_result: DataResult) -> CompanyFinancia
         gross_margin=data.get("gross_margin") or 0,
         operating_margin=data.get("operating_margin") or 0,
         pe_ratio=data.get("pe_ratio"),
+        reporting_currency=(data.get("financial_currency") or "USD").upper(),
+        quote_currency=(data.get("quote_currency") or "USD").upper(),
     )
 
 

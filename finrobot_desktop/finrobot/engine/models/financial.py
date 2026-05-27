@@ -133,7 +133,22 @@ class PriceHistory(BaseModel):
 
 
 class CompanyFinancials(BaseModel):
-    """Financial data for one company in a peer set."""
+    """Financial data for one company in a peer set.
+
+    Two currency tags because yfinance carries them separately and they
+    DISAGREE for foreign-listed ADRs:
+
+    - ``reporting_currency`` (ISO 4217): currency of the income-statement
+      and balance-sheet line items — ``revenue, ebitda, net_income,
+      total_debt, total_cash``.
+    - ``quote_currency`` (ISO 4217): currency of the market quote —
+      ``market_cap`` (and any price-derived field).
+
+    For US issuers both are USD. For TSM ADR they are TWD and USD
+    respectively — that mismatch collapses EV/EBITDA to 0.158x without
+    normalization. See ``finrobot.engine.compute.fx_normalize`` for the
+    canonical-USD pipeline applied before EV/EBITDA is computed.
+    """
 
     model_config = ConfigDict(frozen=False)
 
@@ -151,6 +166,8 @@ class CompanyFinancials(BaseModel):
     pe_ratio: float | None = None
     ev_ebitda: float | None = None
     ev_revenue: float | None = None
+    reporting_currency: str = "USD"
+    quote_currency: str = "USD"
 
 
 class PeerComps(BaseModel):

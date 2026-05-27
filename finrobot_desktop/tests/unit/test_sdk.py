@@ -95,9 +95,9 @@ def test_init_bad_provider_fails_fast():
 
 def test_init_missing_api_key_fails_fast(monkeypatch):
     """Missing API key should raise during __init__, not at first call."""
-    monkeypatch.delenv("FINAGENT_DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.delenv("FINROBOT_DEEPSEEK_API_KEY", raising=False)
     # Pass an explicit empty key to bypass .env file resolution.
-    with pytest.raises(ValueError, match="FINAGENT_DEEPSEEK_API_KEY is not set"):
+    with pytest.raises(ValueError, match="FINROBOT_DEEPSEEK_API_KEY is not set"):
         FinRobot(model="deepseek:deepseek-chat", deepseek_api_key="")
 
 

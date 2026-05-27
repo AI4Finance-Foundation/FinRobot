@@ -18,6 +18,35 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 _ENV_FILE = _REPO_ROOT / ".env"
 
 
+def _migrate_legacy_env_prefix() -> None:
+    """One-time in-place migration of legacy FINAGENT_* keys in .env → FINROBOT_*.
+
+    The project renamed FinAgent → FinRobot; the env prefix moved with it. Users
+    who set up before the rename have a .env full of FINAGENT_* keys that
+    pydantic-settings now rejects (extra_forbidden) because the matching fields
+    don't exist. Rewrite the file in place — idempotent, lossless, no backup
+    needed since .env is git-ignored.
+    """
+    if not _ENV_FILE.exists():
+        return
+    try:
+        original = _ENV_FILE.read_text(encoding="utf-8")
+    except OSError:
+        return
+    if "FINAGENT_" not in original and "finagent_cache" not in original:
+        return
+    updated = original.replace("FINAGENT_", "FINROBOT_").replace(
+        "finagent_cache", "finrobot_cache"
+    )
+    try:
+        _ENV_FILE.write_text(updated, encoding="utf-8")
+    except OSError:
+        return
+
+
+_migrate_legacy_env_prefix()
+
+
 # Valid providers and the settings field holding their API key. A provider
 # listed here but absent from _PROVIDER_KEY_FIELD needs no key (e.g. "test").
 _VALID_PROVIDERS: frozenset[str] = frozenset({"deepseek", "anthropic", "openai", "test"})
@@ -38,7 +67,7 @@ class FinRobotSettings(BaseSettings):
 
     Resolution order (highest priority first):
     1. Constructor kwargs (code override)
-    2. Environment variables (FINAGENT_* prefix)
+    2. Environment variables (FINROBOT_* prefix)
     3. .env file in project root
     4. Defaults below
     """
@@ -97,7 +126,7 @@ class FinRobotSettings(BaseSettings):
     # Only affects LLM-generated text — deterministic calculations are unchanged.
     language: str = Field(default="en", pattern=r"^(en|zh)$")
 
-    model_config = {"env_prefix": "FINAGENT_", "env_file": str(_ENV_FILE)}
+    model_config = {"env_prefix": "FINROBOT_", "env_file": str(_ENV_FILE)}
 
     def model_post_init(self, __context: Any) -> None:
         """Resolve cache_db_path default after env/settings loading."""
@@ -136,7 +165,7 @@ class FinRobotSettings(BaseSettings):
             import warnings
 
             warnings.warn(
-                "FINAGENT_FMP_API_KEY not set — falling back to yfinance. "
+                "FINROBOT_FMP_API_KEY not set — falling back to yfinance. "
                 "DCF will use simplified D&A formula (10-20% deviation), and "
                 "earnings surprises + cross-validation are unavailable. "
                 "Register free at https://financialmodelingprep.com/ for better data.",
@@ -161,7 +190,7 @@ class FinRobotSettings(BaseSettings):
             if key_field is None:
                 continue  # "test" provider — no key required
             if not getattr(self, key_field, ""):
-                env_var = f"FINAGENT_{key_field.upper()}"
+                env_var = f"FINROBOT_{key_field.upper()}"
                 raise ValueError(
                     f"{env_var} is not set but model_name '{name}' needs it. "
                     f"Set it in .env or as an environment variable.\n"
@@ -219,7 +248,7 @@ def get_settings(**overrides: Any) -> FinRobotSettings:
 
 
 def is_field_from_environ(field: str) -> bool:
-    """True if FINAGENT_<FIELD> is set in the process environment.
+    """True if FINROBOT_<FIELD> is set in the process environment.
 
     Lives in config.py so the os.environ peek does not leak into route
     code (audit red-line: only config.py + secret_store.py may touch
@@ -231,4 +260,4 @@ def is_field_from_environ(field: str) -> bool:
     """
     import os
 
-    return bool(os.environ.get(f"FINAGENT_{field.upper()}"))
+    return bool(os.environ.get(f"FINROBOT_{field.upper()}"))

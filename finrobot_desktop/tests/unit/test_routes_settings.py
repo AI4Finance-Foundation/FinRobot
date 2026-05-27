@@ -208,11 +208,11 @@ async def test_get_settings_marks_keychain_source(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_get_settings_surfaces_startup_error(tmp_path: Path) -> None:
     """startup_error from app.state is included in the response."""
-    app = _make_app(tmp_path, startup_error="FINAGENT_OPENAI_API_KEY is not set")
+    app = _make_app(tmp_path, startup_error="FINROBOT_OPENAI_API_KEY is not set")
     async with _client(app) as c:
         resp = await c.get("/api/settings")
     body = resp.json()
-    assert body["startup_error"] == "FINAGENT_OPENAI_API_KEY is not set"
+    assert body["startup_error"] == "FINROBOT_OPENAI_API_KEY is not set"
 
 
 @pytest.mark.asyncio

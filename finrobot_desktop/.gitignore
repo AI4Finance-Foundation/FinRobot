@@ -26,14 +26,14 @@ Thumbs.db
 *.log
 
 # Database cache
-finagent_cache.db
-finagent_cache.db-shm
-finagent_cache.db-wal
+finrobot_cache.db
+finrobot_cache.db-shm
+finrobot_cache.db-wal
 *.db
 *.db-shm
 *.db-wal
 
-# Local data (root-only — must not shadow finagent/engine/data/)
+# Local data (root-only — must not shadow finrobot/engine/data/)
 /data/
 资料/
 

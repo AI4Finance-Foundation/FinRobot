@@ -212,28 +212,28 @@ class TestBuildDeps:
 
 class TestSkillCommands:
     def test_skill_list_prints_skills(self, monkeypatch):
-        monkeypatch.setenv("FINAGENT_SKILLS_DIR", str(FIXTURES_DIR))
+        monkeypatch.setenv("FINROBOT_SKILLS_DIR", str(FIXTURES_DIR))
         runner = CliRunner()
         result = runner.invoke(cli, ["skill", "list"])
         assert result.exit_code == 0, result.output
         assert "comps-analysis" in result.output
 
     def test_skill_search_finds_comps(self, monkeypatch):
-        monkeypatch.setenv("FINAGENT_SKILLS_DIR", str(FIXTURES_DIR))
+        monkeypatch.setenv("FINROBOT_SKILLS_DIR", str(FIXTURES_DIR))
         runner = CliRunner()
         result = runner.invoke(cli, ["skill", "search", "comps"])
         assert result.exit_code == 0, result.output
         assert "comps-analysis" in result.output
 
     def test_skill_search_no_match(self, monkeypatch):
-        monkeypatch.setenv("FINAGENT_SKILLS_DIR", str(FIXTURES_DIR))
+        monkeypatch.setenv("FINROBOT_SKILLS_DIR", str(FIXTURES_DIR))
         runner = CliRunner()
         result = runner.invoke(cli, ["skill", "search", "zzz_nonexistent"])
         assert result.exit_code == 0
         assert "No skills matching" in result.output
 
     def test_skill_list_no_skills_dir(self, monkeypatch, tmp_path):
-        monkeypatch.setenv("FINAGENT_SKILLS_DIR", str(tmp_path / "nonexistent"))
+        monkeypatch.setenv("FINROBOT_SKILLS_DIR", str(tmp_path / "nonexistent"))
         runner = CliRunner()
         result = runner.invoke(cli, ["skill", "list"])
         assert "No skills directory" in result.output

@@ -51,7 +51,7 @@ class FinRobot:
 
     Args:
         model: Model name override (e.g. ``"anthropic:claude-sonnet-4-6"``).
-            Falls back to ``FINAGENT_MODEL_NAME`` / config default when None.
+            Falls back to ``FINROBOT_MODEL_NAME`` / config default when None.
         **kwargs: Forwarded to :class:`FinRobotSettings` constructor, letting
             callers override any setting (API keys, cache path, etc.).
     """

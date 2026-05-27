@@ -156,7 +156,7 @@ def create_secret_store(dev_mode: bool | None = None) -> SecretStore:
 
     use_dev = dev_mode
     if use_dev is None:
-        use_dev = os.environ.get("FINAGENT_DEV_MODE") == "1"
+        use_dev = os.environ.get("FINROBOT_DEV_MODE") == "1"
     if use_dev:
         logger.info("Using FileSecretStore (dev mode)")
         return FileSecretStore()

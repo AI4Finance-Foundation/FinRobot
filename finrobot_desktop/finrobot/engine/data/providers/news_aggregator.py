@@ -2,7 +2,7 @@
 """Multi-source news aggregation provider.
 
 Fetches news from Yahoo Finance RSS (free, no key) and Alpha Vantage
-News Sentiment (free tier, requires FINAGENT_ALPHA_VANTAGE_API_KEY).
+News Sentiment (free tier, requires FINROBOT_ALPHA_VANTAGE_API_KEY).
 Deduplicates by headline prefix similarity and returns a unified
 news list with optional sentiment scores.
 

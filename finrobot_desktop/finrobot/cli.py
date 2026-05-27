@@ -361,7 +361,7 @@ def lbo(ticker: str, model: str | None, lang: str | None) -> None:
 def earnings(ticker: str, model: str | None, lang: str | None) -> None:
     """Run earnings quality analysis pipeline.
 
-    Requires FMP API key for earnings surprise data (set FINAGENT_FMP_API_KEY).
+    Requires FMP API key for earnings surprise data (set FINROBOT_FMP_API_KEY).
     """
     deps = _build_deps(model)
 

@@ -4,13 +4,13 @@
 
 set -euo pipefail
 
-HOST="${FINAGENT_HOST:-127.0.0.1}"
-PORT="${FINAGENT_PORT:-8321}"
+HOST="${FINROBOT_HOST:-127.0.0.1}"
+PORT="${FINROBOT_PORT:-8321}"
 
 case "${1:-help}" in
   start)
     echo "Starting FinRobot server on ${HOST}:${PORT}..."
-    echo "WARNING: To expose to network, set FINAGENT_HOST=0.0.0.0 (no authentication!)"
+    echo "WARNING: To expose to network, set FINROBOT_HOST=0.0.0.0 (no authentication!)"
     uv run finrobot serve --host "$HOST" --port "$PORT" &
     echo "PID: $!"
     ;;

@@ -198,7 +198,7 @@ async def reset_settings_route(
 ) -> SettingsResponse:
     """Remove the listed fields from ``~/.finrobot/settings.json``.
 
-    This re-empowers .env / FINAGENT_* environment variables as the source
+    This re-empowers .env / FINROBOT_* environment variables as the source
     of truth for those fields. Secret fields are routed to the keychain
     instead: ``reset`` deletes them from the keychain so .env values can
     take over on the next request cycle.
@@ -347,7 +347,7 @@ def _detect_non_secret_source(
 
     Priority mirrors pydantic-settings + our load order in server.lifespan:
       settings.json (highest, applied as constructor kwarg)
-        > FINAGENT_* env var
+        > FINROBOT_* env var
           > .env file
             > class default
 

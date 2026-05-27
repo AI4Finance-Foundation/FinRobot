@@ -37,7 +37,7 @@ const SEARCH_TIMEOUT_MS = 5_000
 // Types
 // ---------------------------------------------------------------------------
 
-type ResultKind = 'ticker' | 'slash_command' | 'artifact' | 'session'
+type ResultKind = 'ticker' | 'slash_command' | 'artifact'
 
 export interface SearchResult {
   kind: ResultKind
@@ -56,7 +56,6 @@ interface GroupedResults {
   ticker: SearchResult[]
   slash_command: SearchResult[]
   artifact: SearchResult[]
-  session: SearchResult[]
 }
 
 // ---------------------------------------------------------------------------
@@ -165,7 +164,6 @@ function KindIcon({ kind }: { kind: ResultKind }) {
     ticker: '📈',
     slash_command: '/',
     artifact: '📄',
-    session: '💬',
   }
   return (
     <span
@@ -375,7 +373,6 @@ export function CmdKOverlay() {
       ticker: [],
       slash_command: [],
       artifact: [],
-      session: [],
     }
     for (const r of searchData?.results ?? []) {
       if (r.kind in groups) groups[r.kind].push(r)
@@ -426,8 +423,7 @@ export function CmdKOverlay() {
   const hasResults =
     grouped.ticker.length > 0 ||
     grouped.slash_command.length > 0 ||
-    grouped.artifact.length > 0 ||
-    grouped.session.length > 0
+    grouped.artifact.length > 0
 
   const showEmpty = !isLoading && !isError && debouncedQuery.length > 0 && !hasResults
 
@@ -689,15 +685,6 @@ export function CmdKOverlay() {
           <Command.Group heading={t('cmdk.section.artifacts')} data-testid="artifact-group">
             {grouped.artifact.map((r) => (
               <ResultItem key={`artifact:${r.action}`} result={r} onSelect={handleSelectAction} />
-            ))}
-          </Command.Group>
-        )}
-
-        {/* Session results */}
-        {grouped.session.length > 0 && (
-          <Command.Group heading={t('cmdk.section.sessions')} data-testid="session-group">
-            {grouped.session.map((r) => (
-              <ResultItem key={`session:${r.action}`} result={r} onSelect={handleSelectAction} />
             ))}
           </Command.Group>
         )}

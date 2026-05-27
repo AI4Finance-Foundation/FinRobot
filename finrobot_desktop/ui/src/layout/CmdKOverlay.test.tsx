@@ -2,7 +2,7 @@
  * CmdKOverlay — 25+ tests covering:
  *   - Render and closed state
  *   - Three trigger paths (⌘K, TopBar toggle via store, finrobot:open-cmdk event)
- *   - Four result kind groups (ticker / slash_command / artifact / session)
+ *   - Three result kind groups (ticker / slash_command / artifact)
  *   - Keyboard nav (↑↓ Enter Esc)
  *   - Action execution → navigate + close
  *   - AI fallback display
@@ -22,7 +22,7 @@ import { useAppStore } from '../stores/appStore'
 // ---------------------------------------------------------------------------
 
 function makeSearchResult(
-  kind: 'ticker' | 'slash_command' | 'artifact' | 'session',
+  kind: 'ticker' | 'slash_command' | 'artifact',
   overrides: Partial<{
     title: string
     subtitle: string
@@ -49,13 +49,6 @@ function makeSearchResult(
       // v5 (spec §11.1.D): artifact suggestions now jump to /stock/{ticker}.
       action: 'navigate:/stocks/AAPL?artifact=art_001',
       score: 2,
-    },
-    session: {
-      title: 'AAPL FY2026 分析',
-      subtitle: '5 条消息 · deepseek:deepseek-chat',
-      // /library retired — session links land on /stocks landing for now.
-      action: 'navigate:/stocks?session=sess_001',
-      score: 1,
     },
   } as const
   return { kind, ...defaults[kind], ...overrides }
@@ -163,7 +156,7 @@ describe('CmdKOverlay — Esc closes', () => {
 })
 
 // ---------------------------------------------------------------------------
-// 4. Four result kind groups
+// 4. Three result kind groups
 // ---------------------------------------------------------------------------
 
 describe('CmdKOverlay — result groups', () => {
@@ -199,17 +192,7 @@ describe('CmdKOverlay — result groups', () => {
     await waitFor(() => expect(screen.getByTestId('artifact-group')).toBeInTheDocument())
   })
 
-  it('renders session group', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
-    mockFetch({
-      query: 'AAPL',
-      results: [makeSearchResult('session')],
-    })
-    renderOverlay()
-    await waitFor(() => expect(screen.getByTestId('session-group')).toBeInTheDocument())
-  })
-
-  it('renders all four groups simultaneously', async () => {
+  it('renders all three groups simultaneously', async () => {
     useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
     mockFetch({
       query: 'AAPL',
@@ -217,7 +200,6 @@ describe('CmdKOverlay — result groups', () => {
         makeSearchResult('ticker'),
         makeSearchResult('slash_command'),
         makeSearchResult('artifact'),
-        makeSearchResult('session'),
       ],
     })
     renderOverlay()
@@ -225,7 +207,6 @@ describe('CmdKOverlay — result groups', () => {
       expect(screen.getByTestId('ticker-group')).toBeInTheDocument()
       expect(screen.getByTestId('slash-group')).toBeInTheDocument()
       expect(screen.getByTestId('artifact-group')).toBeInTheDocument()
-      expect(screen.getByTestId('session-group')).toBeInTheDocument()
     })
   })
 })

@@ -124,6 +124,10 @@ async def get_price(ticker: str, request: Request, period: str = "1y") -> dict[s
     Cached for 15 minutes (TTL set in cache._TTL_SECONDS[DataType.PRICE]).
     The cache key includes ``period`` so /price?period=1y and /price?period=5d
     don't collide.
+
+    Error mapping:
+      - ValueError      → 422 (invalid ticker)
+      - ProviderError   → 502 (yfinance service down)
     """
     cache = request.app.state.deps.data_layer.cache
     ticker_upper = ticker.upper()
@@ -135,7 +139,7 @@ async def get_price(ticker: str, request: Request, period: str = "1y") -> dict[s
             lambda: fetch_price_history(ticker_upper, period),
             cache_key_suffix=f":{period}",
         )
-    except ValueError as e:
+    except (ValueError, ProviderError) as e:
         raise _data_http_error(e, ticker_upper) from e
 
 

@@ -26,7 +26,7 @@ export function WorkspaceBreadcrumb({ ticker }: Props): React.ReactElement {
       }}
     >
       <Link to="/stocks" style={linkStyle}>
-        FINAGENT
+        FINROBOT
       </Link>
       <span style={{ color: 'var(--text-dim)' }}>›</span>
       <Link to="/stocks" style={linkStyle}>

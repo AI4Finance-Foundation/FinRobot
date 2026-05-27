@@ -26,7 +26,7 @@ from finrobot.engine.compute.forward_estimates import (
 
 ROOT = Path(__file__).resolve().parents[2]
 LEAF_SRC = ROOT / "finrobot" / "engine" / "compute" / "forward_estimates.py"
-FINAGENT = ROOT / "finrobot"
+FINROBOT = ROOT / "finrobot"
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +100,7 @@ class TestSingleEntryPoint:
             re.compile(r"\bforward_revenue\s*="),
         )
         violations: list[str] = []
-        for py in FINAGENT.rglob("*.py"):
+        for py in FINROBOT.rglob("*.py"):
             rel = py.relative_to(ROOT)
             if rel in self._ALLOWED_FILES:
                 continue

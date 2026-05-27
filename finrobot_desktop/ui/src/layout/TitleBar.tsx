@@ -1,7 +1,7 @@
 // TitleBar — cosmic redesign (spec §5.1).
 //
 // Reserves 72px on the left for Tauri's native macOS traffic lights
-// (overlay titleBarStyle). Centre: FINAGENT brandmark with blue brand-dot
+// (overlay titleBarStyle). Centre: FINROBOT brandmark with blue brand-dot
 // and gradient logo word. Right: halo-input cmdK trigger + AI sparkle btn.
 
 import { useAppStore } from '../stores/appStore'
@@ -71,7 +71,7 @@ export function TitleBar(): React.ReactElement {
             color: 'transparent',
           }}
         >
-          FINAGENT
+          FINROBOT
         </span>
       </button>
 

@@ -364,7 +364,7 @@ export interface paths {
          * Reset Settings Route
          * @description Remove the listed fields from ``~/.finrobot/settings.json``.
          *
-         *     This re-empowers .env / FINAGENT_* environment variables as the source
+         *     This re-empowers .env / FINROBOT_* environment variables as the source
          *     of truth for those fields. Secret fields are routed to the keychain
          *     instead: ``reset`` deletes them from the keychain so .env values can
          *     take over on the next request cycle.

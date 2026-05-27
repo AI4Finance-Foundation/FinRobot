@@ -29,7 +29,7 @@ export default function StatusBar(): React.ReactElement {
             <span className="sb-sep">·</span>
           </>
         )}
-        <span className="sb-text">FINAGENT v0.1.0</span>
+        <span className="sb-text">FINROBOT v0.1.0</span>
       </div>
     </div>
   )

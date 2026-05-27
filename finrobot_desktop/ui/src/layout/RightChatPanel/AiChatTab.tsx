@@ -544,8 +544,8 @@ function MessageBubble({ message }: { message: UIMessage }): React.ReactElement 
             ? `USER · ${timeStr}`
             : 'USER'
           : timeStr
-            ? `● FINAGENT · ${timeStr}`
-            : '● FINAGENT'}
+            ? `● FINROBOT · ${timeStr}`
+            : '● FINROBOT'}
       </div>
       {isUser ? <UserBubble message={message} /> : <AssistantContent message={message} />}
     </div>
@@ -701,7 +701,7 @@ function ReasoningCollapsible({ text }: { text: string }): React.ReactElement {
 function ThinkingIndicator(): React.ReactElement {
   return (
     <div data-testid="thinking-indicator" className="msg agent">
-      <div className="msg-head">● FINAGENT</div>
+      <div className="msg-head">● FINROBOT</div>
       <div className="msg-body" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
         <span
           style={{

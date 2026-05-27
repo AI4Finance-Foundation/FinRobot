@@ -210,7 +210,7 @@ def build_system_prompt(
     )
 
 
-STATIC_BOUNDARY_MARKER = "<!-- FINAGENT_STATIC_BOUNDARY -->"
+STATIC_BOUNDARY_MARKER = "<!-- FINROBOT_STATIC_BOUNDARY -->"
 """不可见 HTML 注释。PydanticAIAdapter 切分依据。LLM 看到忽略即可。"""
 ```
 

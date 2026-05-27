@@ -161,10 +161,10 @@ Library
 Settings
 ─────────────────────────────────────────────────────────────
 账号 / API Keys
-  FINAGENT_OPENAI_KEY    ●●●●●●●●●sk-...abc  [编辑]
-  FINAGENT_ANTHROPIC_KEY ●●●●●●●●●sk-...xyz  [编辑]
-  FINAGENT_DEEPSEEK_KEY  未配置                [添加]
-  FINAGENT_FMP_KEY       ●●●●●●●●●xxx...      [编辑]
+  FINROBOT_OPENAI_KEY    ●●●●●●●●●sk-...abc  [编辑]
+  FINROBOT_ANTHROPIC_KEY ●●●●●●●●●sk-...xyz  [编辑]
+  FINROBOT_DEEPSEEK_KEY  未配置                [添加]
+  FINROBOT_FMP_KEY       ●●●●●●●●●xxx...      [编辑]
 
 默认模型
   ○ DeepSeek V3（本地/自部署，便宜）

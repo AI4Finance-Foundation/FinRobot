@@ -23,10 +23,10 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-FINAGENT = ROOT / "finrobot"
-COMPUTE = FINAGENT / "engine" / "compute"
-MODELS = FINAGENT / "engine" / "models"
-PIPELINES = FINAGENT / "engine" / "pipelines"
+FINROBOT = ROOT / "finrobot"
+COMPUTE = FINROBOT / "engine" / "compute"
+MODELS = FINROBOT / "engine" / "models"
+PIPELINES = FINROBOT / "engine" / "pipelines"
 
 
 def _py_files(directory: Path) -> list[Path]:
@@ -112,7 +112,7 @@ class TestPipelineEncapsulation:
     """Orchestrator tools must wrap whole pipelines, never individual steps."""
 
     def test_no_step_tools_in_orchestrator(self) -> None:
-        orch = FINAGENT / "engine" / "orchestrator.py"
+        orch = FINROBOT / "engine" / "orchestrator.py"
         if not orch.exists():
             pytest.skip("orchestrator.py not found")
         source = orch.read_text()
@@ -171,7 +171,7 @@ class TestDependencyBlacklist:
 
     def test_no_banned_imports(self) -> None:
         violations: list[str] = []
-        for py in _py_files(FINAGENT):
+        for py in _py_files(FINROBOT):
             for lineno, module in _all_imports(py):
                 for banned in BANNED_DEPS:
                     if module == banned or module.startswith(banned + "."):
@@ -200,7 +200,7 @@ class TestExceptionHygiene:
 
     def test_no_bare_except_exception(self) -> None:
         violations: list[str] = []
-        for py in _py_files(FINAGENT):
+        for py in _py_files(FINROBOT):
             text = py.read_text()
             for match in _BARE_EXCEPT_RE.finditer(text):
                 lineno = text[: match.start()].count("\n") + 1
@@ -225,7 +225,7 @@ class TestNoPrint:
 
     def test_no_print_in_finrobot(self) -> None:
         violations: list[str] = []
-        for py in _py_files(FINAGENT):
+        for py in _py_files(FINROBOT):
             tree = ast.parse(py.read_text(), filename=str(py))
             for node in ast.walk(tree):
                 if (
@@ -255,7 +255,7 @@ class TestNoOsEnviron:
         # config.py: settings source of truth; secret_store.py: bootstrap before config
         allowed = {"config.py", "secret_store.py"}
         violations: list[str] = []
-        for py in _py_files(FINAGENT):
+        for py in _py_files(FINROBOT):
             if py.name in allowed:
                 continue
             text = py.read_text()

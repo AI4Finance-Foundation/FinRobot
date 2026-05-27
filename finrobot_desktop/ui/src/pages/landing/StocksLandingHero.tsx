@@ -1,7 +1,7 @@
 // StocksLandingHero — search-first landing hero per spec §2.2.
 //
 // Replaces the bare-bones v5 landing. Layout (top to bottom):
-//   1. Cosmic title block (Audiowide FINAGENT + morph tagline)
+//   1. Cosmic title block (Audiowide FINROBOT + morph tagline)
 //   2. Halo-bordered ticker search input with quick chips
 //   3. Hit-rate banner (30d / 90d / all switcher)
 //   4. Recent-research strip (horizontal scroll)
@@ -114,7 +114,7 @@ export function StocksLandingHero(): React.ReactElement {
             textShadow: 'var(--glow-blue)',
           }}
         >
-          FINAGENT
+          FINROBOT
         </div>
         <div
           aria-hidden

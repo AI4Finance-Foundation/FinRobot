@@ -28,19 +28,19 @@ jobs:
         run: uv sync --all-extras
 
       - name: Lint
-        run: uv run ruff check finagent/
+        run: uv run ruff check finrobot/
 
       - name: Format check
-        run: uv run ruff format --check finagent/
+        run: uv run ruff format --check finrobot/
 
       - name: Type check
-        run: uv run mypy finagent/ --strict
+        run: uv run mypy finrobot/ --strict
 
       - name: Unit tests
         run: uv run pytest tests/unit/ -v
         env:
-          FINAGENT_MODEL_NAME: "test"
-          FINAGENT_DEEPSEEK_API_KEY: "test-key"
+          FINROBOT_MODEL_NAME: "test"
+          FINROBOT_DEEPSEEK_API_KEY: "test-key"
 
   desktop:
     runs-on: ubuntu-latest

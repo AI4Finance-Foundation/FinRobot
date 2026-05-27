@@ -79,7 +79,7 @@ export function ChapterCover({
         }}
       >
         <span style={{ fontFamily: 'var(--font-display)', letterSpacing: '0.3em' }}>
-          FINAGENT {locale === 'en' ? 'EQUITY RESEARCH' : '股票研报'}
+          FINROBOT {locale === 'en' ? 'EQUITY RESEARCH' : '股票研报'}
         </span>
         <span>{createdAt ? formatDate(createdAt, locale, 'datetime') : ''}</span>
       </div>

@@ -13,6 +13,8 @@
 
 import { useTickerPrice } from '../hooks/useTickerData'
 import { WorkspaceBreadcrumb } from './workspace/WorkspaceBreadcrumb'
+import { formatAge, freshnessColor, freshnessTier } from '../utils/format'
+import { tSync } from '../i18n'
 
 interface Props {
   ticker: string
@@ -25,6 +27,14 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
   const changePct = price?.change_pct
   const changeAbs = price?.change ?? undefined
   const isUp = typeof changePct === 'number' && changePct >= 0
+
+  const ageSeconds = price?.fetched_at
+    ? (Date.now() - new Date(price.fetched_at).getTime()) / 1000
+    : Infinity // 没有 fetched_at = 视为陈旧（不 fail-safe 回 fresh）
+  const tier = freshnessTier(ageSeconds)
+  const tierLabel = tSync(`marketdata.tier.${tier}`)
+  const ageText = formatAge(price?.fetched_at)
+  const pillDotColor = freshnessColor(ageSeconds)
 
   return (
     <header
@@ -71,8 +81,11 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
               letterSpacing: '0.06em',
             }}
           >
-            <span className="cosmic-pulse-dot" style={{ marginRight: 6 }} />
-            LIVE · {formatExchange(price?.exchange)}
+            <span
+              className="cosmic-pulse-dot"
+              style={{ marginRight: 6, background: pillDotColor }}
+            />
+            {tierLabel} · {ageText} · {formatExchange(price?.exchange)}
           </span>
 
           <span

@@ -1105,3 +1105,19 @@ msgstr "{n}min ago"
 #. js-lingui-explicit-id
 msgid "marketdata.age.hAgo"
 msgstr "{n}h ago"
+
+#. js-lingui-explicit-id
+msgid "marketdata.tier.fresh"
+msgstr "Live"
+
+#. js-lingui-explicit-id
+msgid "marketdata.tier.delayed"
+msgstr "Delayed"
+
+#. js-lingui-explicit-id
+msgid "marketdata.tier.stale"
+msgstr "Stale"
+
+#. js-lingui-explicit-id
+msgid "marketdata.zoneHeader"
+msgstr "MARKET DATA · Non-AI"

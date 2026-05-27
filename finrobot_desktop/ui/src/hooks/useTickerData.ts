@@ -26,11 +26,13 @@ export interface PriceData {
   change_pct: number | null
   market_cap: number | null
   company_name: string | null
-  /** Exchange pretty name ("NasdaqGS" / "NYQ" / "AMEX" / …) for the LIVE pill. */
+  /** Exchange pretty name ("NasdaqGS" / "NYQ" / "AMEX" / …) for the freshness pill. */
   exchange?: string | null
   /** Next earnings date ISO when yfinance carries it; null/undefined hides the badge. */
   next_earnings_date?: string | null
   history?: PricePoint[] // backend always returns this; typed optional for safety
+  /** ISO8601 timestamp of when yfinance last successfully fetched. Drives the freshness pill. */
+  fetched_at?: string | null
 }
 
 // Mirror of finrobot.engine.models.financial.FinancialData — backend nests

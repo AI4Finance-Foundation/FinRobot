@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from finrobot.routes.search import _looks_like_ticker, _matches, _parse_slash_command
+from finrobot.routes.search import _looks_like_ticker, _matches
 
 
 # ---------------------------------------------------------------------------
@@ -40,35 +40,6 @@ class TestLooksLikeTicker:
     def test_slash_command_not_ticker(self) -> None:
         assert _looks_like_ticker("/dcf AAPL") is False
 
-
-class TestParseSlashCommand:
-    def test_dcf_with_ticker(self) -> None:
-        results = _parse_slash_command("/dcf AAPL")
-        assert len(results) == 1
-        r = results[0]
-        assert r.kind == "slash_command"
-        assert "AAPL" in r.title
-        assert r.action == "run:dcf:AAPL"
-        assert r.score == 8.0
-
-    def test_lbo_with_ticker(self) -> None:
-        results = _parse_slash_command("/lbo MSFT")
-        assert results[0].action == "run:lbo:MSFT"
-
-    def test_ic_memo_with_ticker(self) -> None:
-        results = _parse_slash_command("/ic-memo TSLA")
-        assert results[0].action == "run:ic-memo:TSLA"
-
-    def test_unknown_command_returns_empty(self) -> None:
-        assert _parse_slash_command("/unknown AAPL") == []
-
-    def test_slash_only_returns_empty(self) -> None:
-        assert _parse_slash_command("/") == []
-
-    def test_no_ticker_shows_placeholder(self) -> None:
-        results = _parse_slash_command("/dcf")
-        assert "??" in results[0].title
-        assert results[0].action == "run:dcf:??"
 
 
 class TestMatches:
@@ -125,15 +96,6 @@ async def test_search_ticker_aapl(client: AsyncClient) -> None:
     assert results[0]["kind"] == "ticker"
     assert results[0]["action"] == "navigate:/stocks/AAPL"
 
-
-async def test_search_slash_dcf_msft(client: AsyncClient) -> None:
-    async with client as c:
-        resp = await c.get("/api/search?q=/dcf+MSFT")
-    assert resp.status_code == 200
-    data = resp.json()
-    slash_results = [r for r in data["results"] if r["kind"] == "slash_command"]
-    assert len(slash_results) == 1
-    assert slash_results[0]["action"] == "run:dcf:MSFT"
 
 
 async def test_search_natural_language_no_match(client: AsyncClient) -> None:
@@ -223,9 +185,3 @@ async def test_search_artifact_without_ticker_is_dropped() -> None:
     assert artifact_results == []
 
 
-async def test_search_no_session_results(client: AsyncClient) -> None:
-    """Session search results have been removed (dead route until SessionDetailPage lands)."""
-    async with client as c:
-        resp = await c.get("/api/search?q=anything")
-    session_results = [r for r in resp.json()["results"] if r["kind"] == "session"]
-    assert session_results == []

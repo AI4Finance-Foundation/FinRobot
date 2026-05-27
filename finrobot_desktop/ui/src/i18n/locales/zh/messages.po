@@ -154,10 +154,6 @@ msgid "cmdk.foot.select"
 msgstr "选择"
 
 #. js-lingui-explicit-id
-msgid "cmdk.foot.tipDcf"
-msgstr "输入 /dcf AAPL 直接跑工具"
-
-#. js-lingui-explicit-id
 msgid "cmdk.overlength"
 msgstr "查询过长，已截断（最多 {max} 字符）"
 
@@ -198,12 +194,12 @@ msgid "cmdk.section.artifacts"
 msgstr "历史分析"
 
 #. js-lingui-explicit-id
-msgid "cmdk.section.commands"
-msgstr "命令"
-
-#. js-lingui-explicit-id
 msgid "cmdk.section.recent"
 msgstr "最近搜索"
+
+#. js-lingui-explicit-id
+msgid "cmdk.section.tickers"
+msgstr "股票代码"
 
 #. js-lingui-explicit-id
 msgid "common.cancel"
@@ -689,10 +685,6 @@ msgstr "数据加载失败，请检查网络连接后重试"
 #. js-lingui-explicit-id
 msgid "landing.recentResearch.empty"
 msgstr "暂无历史研究，在上方搜索股票代码即可开始分析"
-
-#. js-lingui-explicit-id
-msgid "cmdk.section.tickers"
-msgstr "股票代码"
 
 #. js-lingui-explicit-id
 msgid "landing.warmup.label"

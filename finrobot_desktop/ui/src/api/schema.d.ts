@@ -2096,7 +2096,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "ticker" | "slash_command" | "artifact";
+            kind: "ticker" | "artifact";
             /** Title */
             title: string;
             /**

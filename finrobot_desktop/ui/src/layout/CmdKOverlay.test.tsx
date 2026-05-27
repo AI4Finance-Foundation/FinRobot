@@ -22,7 +22,7 @@ import { useAppStore } from '../stores/appStore'
 // ---------------------------------------------------------------------------
 
 function makeSearchResult(
-  kind: 'ticker' | 'slash_command' | 'artifact',
+  kind: 'ticker' | 'artifact',
   overrides: Partial<{
     title: string
     subtitle: string
@@ -37,17 +37,10 @@ function makeSearchResult(
       action: 'navigate:/stocks/AAPL',
       score: 10,
     },
-    slash_command: {
-      title: '跑 DCF 估值 AAPL',
-      subtitle: '将运行 run_dcf(AAPL)',
-      action: 'run:dcf:AAPL',
-      score: 8,
-    },
     artifact: {
       title: 'AAPL · DCF',
       subtitle: '2026-05-13',
-      // v5 (spec §11.1.D): artifact suggestions now jump to /stock/{ticker}.
-      action: 'navigate:/stocks/AAPL?artifact=art_001',
+      action: 'navigate:/stocks/AAPL/runs/art_001',
       score: 2,
     },
   } as const
@@ -172,16 +165,6 @@ describe('CmdKOverlay — result groups', () => {
     expect(screen.getByText('打开 Stocks 页')).toBeInTheDocument()
   })
 
-  it('renders slash_command group', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '/dcf AAPL' })
-    mockFetch({
-      query: '/dcf AAPL',
-      results: [makeSearchResult('slash_command')],
-    })
-    renderOverlay()
-    await waitFor(() => expect(screen.getByTestId('slash-group')).toBeInTheDocument())
-  })
-
   it('renders artifact group', async () => {
     useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
     mockFetch({
@@ -192,20 +175,18 @@ describe('CmdKOverlay — result groups', () => {
     await waitFor(() => expect(screen.getByTestId('artifact-group')).toBeInTheDocument())
   })
 
-  it('renders all three groups simultaneously', async () => {
+  it('renders both groups simultaneously', async () => {
     useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
     mockFetch({
       query: 'AAPL',
       results: [
         makeSearchResult('ticker'),
-        makeSearchResult('slash_command'),
         makeSearchResult('artifact'),
       ],
     })
     renderOverlay()
     await waitFor(() => {
       expect(screen.getByTestId('ticker-group')).toBeInTheDocument()
-      expect(screen.getByTestId('slash-group')).toBeInTheDocument()
       expect(screen.getByTestId('artifact-group')).toBeInTheDocument()
     })
   })
@@ -228,17 +209,6 @@ describe('CmdKOverlay — action execution and close', () => {
     await waitFor(() => expect(useAppStore.getState().cmdPaletteOpen).toBe(false))
   })
 
-  it('run action navigates with ?action= param and closes', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '/dcf AAPL' })
-    mockFetch({
-      query: '/dcf AAPL',
-      results: [makeSearchResult('slash_command')],
-    })
-    renderOverlay()
-    const item = await screen.findByTestId('cmdk-result-item')
-    fireEvent.click(item)
-    await waitFor(() => expect(useAppStore.getState().cmdPaletteOpen).toBe(false))
-  })
 })
 
 // ---------------------------------------------------------------------------

@@ -14,13 +14,12 @@ import { useEffect, useRef, useCallback, useMemo } from 'react'
 import { Command } from 'cmdk'
 import { useQuery } from '@tanstack/react-query'
 import { useDebounce } from 'use-debounce'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../stores/appStore'
 import { useToastStore } from '../stores/toastStore'
 import { useI18n, tSync } from '../i18n'
 import { FetchHttpError } from '../utils/errorMessage'
 import { BASE_URL } from '../api/client'
-import { STOCK_WORKSPACE_SECTIONS } from '../views/sectionDirectory'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -37,7 +36,7 @@ const SEARCH_TIMEOUT_MS = 5_000
 // Types
 // ---------------------------------------------------------------------------
 
-type ResultKind = 'ticker' | 'slash_command' | 'artifact'
+type ResultKind = 'ticker' | 'artifact'
 
 export interface SearchResult {
   kind: ResultKind
@@ -54,7 +53,6 @@ interface SearchResponse {
 
 interface GroupedResults {
   ticker: SearchResult[]
-  slash_command: SearchResult[]
   artifact: SearchResult[]
 }
 
@@ -113,33 +111,6 @@ export function buildActionExecutor(navigate: NavigateFn, close: () => void) {
         return
       }
 
-      if (kind === 'run') {
-        // rest: "dcf:AAPL" / "ic-memo:AAPL"
-        const firstColon = rest.indexOf(':')
-        if (firstColon === -1) {
-          useToastStore.getState().addToast({
-            type: 'error',
-            title: tSync('cmdk.error.tickerRequired'),
-            description: `run:${rest}:??`,
-          })
-          return
-        }
-        const tool = rest.slice(0, firstColon)
-        const ticker = rest.slice(firstColon + 1).toUpperCase()
-        if (!ticker || ticker === '??') {
-          useToastStore.getState().addToast({
-            type: 'error',
-            title: tSync('cmdk.error.tickerRequired'),
-            description: `/${tool} ??`,
-          })
-          return
-        }
-        navigate(`/stocks/${ticker}?action=run_${tool.replace(/-/g, '_')}`)
-        if (queryText) saveRecentSearch(queryText)
-        close()
-        return
-      }
-
       useToastStore.getState().addToast({
         type: 'error',
         title: tSync('cmdk.error.unknownAction'),
@@ -162,7 +133,6 @@ export function buildActionExecutor(navigate: NavigateFn, close: () => void) {
 function KindIcon({ kind }: { kind: ResultKind }) {
   const icons: Record<ResultKind, string> = {
     ticker: '📈',
-    slash_command: '/',
     artifact: '📄',
   }
   return (
@@ -171,8 +141,6 @@ function KindIcon({ kind }: { kind: ResultKind }) {
       style={{
         backgroundColor: 'var(--surface)',
         color: 'var(--text-secondary)',
-        fontFamily: kind === 'slash_command' ? 'var(--font-mono, monospace)' : undefined,
-        fontWeight: kind === 'slash_command' ? 700 : undefined,
       }}
       aria-hidden="true"
     >
@@ -244,15 +212,7 @@ export function CmdKOverlay() {
   const setCmdPaletteOpen = useAppStore((s) => s.setCmdPaletteOpen)
   const setCmdKQuery = useAppStore((s) => s.setCmdKQuery)
   const navigate = useNavigate()
-  const location = useLocation()
   const { t } = useI18n()
-
-  // Detect if we're on a ticker workspace — if so, surface the section
-  // navigator (replaces the v5 AnchorNav sticky bar per spec §8).
-  const onTickerWorkspace = useMemo(
-    () => /^\/stocks\/[A-Z0-9.-]{1,12}/.test(location.pathname),
-    [location.pathname],
-  )
 
   const abortRef = useRef<AbortController | null>(null)
 
@@ -371,7 +331,6 @@ export function CmdKOverlay() {
   const grouped = useMemo<GroupedResults>(() => {
     const groups: GroupedResults = {
       ticker: [],
-      slash_command: [],
       artifact: [],
     }
     for (const r of searchData?.results ?? []) {
@@ -422,7 +381,6 @@ export function CmdKOverlay() {
   // ---------------------------------------------------------------------------
   const hasResults =
     grouped.ticker.length > 0 ||
-    grouped.slash_command.length > 0 ||
     grouped.artifact.length > 0
 
   const showEmpty = !isLoading && !isError && debouncedQuery.length > 0 && !hasResults
@@ -569,57 +527,6 @@ export function CmdKOverlay() {
         style={{ maxHeight: '440px', overflowY: 'auto' }}
         aria-label={t('cmdk.results.aria')}
       >
-        {/* Section navigator — shows when on a ticker workspace and query
-            is empty. Replaces the v5 AnchorNav sticky horizontal bar
-            (spec §8). Clicking a row scrolls to the section. */}
-        {onTickerWorkspace && trimmedQuery.length === 0 && (
-          <>
-            {STOCK_WORKSPACE_SECTIONS.map((group) => (
-              <Command.Group
-                key={`section-group:${group.label}`}
-                heading={group.label}
-                data-testid={`section-group-${group.label}`}
-              >
-                {group.items.map((it) => (
-                  <Command.Item
-                    key={`section:${it.id}`}
-                    value={`section:${it.label}:${group.label}`}
-                    onSelect={() => {
-                      const el = document.getElementById(it.id)
-                      if (el) {
-                        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                      }
-                      handleClose()
-                    }}
-                    data-testid="section-jump-item"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '8px 12px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <span
-                      aria-hidden
-                      style={{
-                        width: 24,
-                        textAlign: 'center',
-                        fontSize: 13,
-                        color: 'var(--accent-cyan)',
-                        fontFamily: 'var(--font-mono)',
-                      }}
-                    >
-                      §
-                    </span>
-                    <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>{it.label}</span>
-                  </Command.Item>
-                ))}
-              </Command.Group>
-            ))}
-          </>
-        )}
-
         {/* Recent searches — shown when query is empty */}
         {showRecentSearches && (
           <Command.Group heading={t('cmdk.section.recent')} data-testid="recent-searches-group">
@@ -667,15 +574,6 @@ export function CmdKOverlay() {
           <Command.Group heading={t('cmdk.section.tickers')} data-testid="ticker-group">
             {grouped.ticker.map((r) => (
               <ResultItem key={`ticker:${r.action}`} result={r} onSelect={handleSelectAction} />
-            ))}
-          </Command.Group>
-        )}
-
-        {/* Slash command results */}
-        {grouped.slash_command.length > 0 && (
-          <Command.Group heading={t('cmdk.section.commands')} data-testid="slash-group">
-            {grouped.slash_command.map((r) => (
-              <ResultItem key={`slash:${r.action}`} result={r} onSelect={handleSelectAction} />
             ))}
           </Command.Group>
         )}
@@ -794,7 +692,6 @@ export function CmdKOverlay() {
           </kbd>{' '}
           {t('cmdk.foot.close')}
         </span>
-        <span style={{ opacity: 0.6 }}>{t('cmdk.foot.tipDcf')}</span>
       </div>
     </Command.Dialog>
   )

@@ -131,10 +131,137 @@ export interface TechnicalAnalysisShape {
   warnings?: string[]
 }
 
+// ---------------------------------------------------------------------------
+// SEC ownership & governance — Chapter 12 read model
+// Mirrors finrobot.engine.models.sec.* with read-only field subsets. Keep in
+// sync when models change. Provenance is required on every datum (matches
+// CLAUDE.md "数字溯源" contract).
+// ---------------------------------------------------------------------------
+
+export interface FilingProvenanceShape {
+  form: string // "10-K" / "10-Q" / "8-K" / "4" / "13F-HR" / "DEF 14A"
+  filing_date: string // ISO date
+  accession_no: string
+  period_of_report?: string | null
+  source_url?: string | null
+}
+
+export interface InsiderTransactionShape {
+  filing_date: string
+  accession_no: string
+  insider_name: string
+  insider_position?: string | null
+  transaction_type: string // "sale" / "purchase" / "exercise" / "other_disposition" / "grant" / "award"
+  code: string
+  shares: number
+  value: number
+  price_per_share?: number | null
+  security_type?: string
+  security_title?: string
+  footnote_ids?: string
+  footnotes_text?: string
+  provenance: FilingProvenanceShape
+}
+
+export interface InstitutionalHoldingShape {
+  holder_name: string
+  holder_cik?: string | null
+  cusip: string
+  name_of_issuer: string
+  title_of_class?: string
+  shares: number
+  value_usd: number
+  period_end: string
+  shares_change_pct?: number | null
+  provenance: FilingProvenanceShape
+}
+
+export interface ProxyCompensationShape {
+  filing_date: string
+  accession_no: string
+  ceo_name?: string | null
+  ceo_total_compensation?: number | null
+  ceo_yoy_change_pct?: number | null
+  ceo_pay_ratio?: number | null
+  top5_neo_total_compensation?: number | null
+  peer_percentile?: number | null
+  provenance: FilingProvenanceShape
+}
+
+export interface ScheduleThirteenAlertShape {
+  filer_name: string
+  filer_cik?: string | null
+  filing_date: string
+  accession_no: string
+  schedule_type: '13D' | '13G' | string
+  shares: number
+  pct_of_class?: number | null
+  transaction_summary?: string
+}
+
+export interface OwnershipGovernanceShape {
+  insider_transactions?: InsiderTransactionShape[]
+  institutional_holdings?: InstitutionalHoldingShape[]
+  proxy_compensation?: ProxyCompensationShape | null
+  schedule13_alerts?: ScheduleThirteenAlertShape[]
+  generated_at?: string
+  degraded_sections?: string[]
+  // ^ e.g. ["institutional_holdings"] when sec_holdings_cache is empty.
+  // UI reads this to render cold-state placeholders per sub-block instead
+  // of a misleading empty table.
+}
+
+// SEC filings + XBRL — read by other chapters (e.g. ChapterFinancialData
+// shows 10-K section linkbacks) but typed here so the artifact contract
+// lives in one place.
+
+export interface SecFilingSectionShape {
+  title: string
+  canonical_id: string
+  text: string
+  char_count: number
+  extracted_via?: 'edgartools_attribute' | 'filing_text_fallback' | string
+}
+
+export interface SecFilingShape {
+  form: string
+  filing_date: string
+  period_of_report?: string | null
+  accession_no: string
+  source_url?: string | null
+  sections?: SecFilingSectionShape[]
+  full_text_char_count?: number
+  is_amended?: boolean
+  sections_extraction_quality?: 'ok' | 'fallback_to_full_text' | 'amended_redirected' | string
+}
+
+export interface SecEvent8KShape {
+  filing_date: string
+  period_of_report?: string | null
+  accession_no: string
+  items?: string[]
+  items_with_description?: string[]
+  text?: string
+  source_url?: string | null
+}
+
+export interface SecFilingsShape {
+  '10k'?: SecFilingShape | null
+  '10q_history'?: SecFilingShape[]
+  '8k_events'?: SecEvent8KShape[]
+}
+
+// XBRL is a sparse bag keyed by us-gaap concept; chapters that need a
+// specific tag dig in by name.
+export type XbrlFactsSnapshotShape = Record<string, unknown>
+
 export interface ArtifactStructured {
   thesis?: ThesisShape
   financial_modeling?: DcfShape
   peer_analysis?: PeerCompsShape
   catalyst_analysis?: CatalystAnalysisShape
   technical_analysis?: TechnicalAnalysisShape
+  ownership_governance?: OwnershipGovernanceShape
+  sec_filings?: SecFilingsShape
+  xbrl_facts_snapshot?: XbrlFactsSnapshotShape
 }

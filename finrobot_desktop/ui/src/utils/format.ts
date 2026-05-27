@@ -13,6 +13,7 @@
 //   - Currency ⇒ Intl.NumberFormat handles symbol placement ($1.23 vs ￥1.23)
 
 import type { Locale } from '../i18n'
+import { tSync } from '../i18n'
 
 const NF_LOCALE: Record<Locale, string> = {
   zh: 'zh-CN',
@@ -146,6 +147,46 @@ export function formatDate(
     hour: 'numeric',
     minute: '2-digit',
   }).format(date)
+}
+
+/** Stale 阈值常量（秒）。> WARN 视为 delayed；> DANGER 视为 stale。 */
+export const FRESHNESS_WARN_SECONDS = 5 * 60       // 5min
+export const FRESHNESS_DANGER_SECONDS = 30 * 60    // 30min
+
+/**
+ * Format ISO8601 timestamp as relative age. Catalog-driven, no zh/en literals.
+ * Returns '—' on null / invalid / NaN input.
+ */
+export function formatAge(iso: string | null | undefined, now: Date = new Date()): string {
+  if (!iso) return '—'
+  const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return '—'
+  const seconds = Math.max(0, Math.floor((now.getTime() - t) / 1000))
+  if (seconds < 5) return tSync('marketdata.age.justNow')
+  if (seconds < 60) return tSync('marketdata.age.sAgo', { n: seconds })
+  if (seconds < 3600) return tSync('marketdata.age.minAgo', { n: Math.floor(seconds / 60) })
+  return tSync('marketdata.age.hAgo', { n: Math.floor(seconds / 3600) })
+}
+
+/**
+ * Severity color for the TickerHero pulse-dot. NOT applied to pill border /
+ * text to avoid double signal.
+ */
+export function freshnessColor(ageSeconds: number): string {
+  if (ageSeconds > FRESHNESS_DANGER_SECONDS) return 'var(--danger)'
+  if (ageSeconds > FRESHNESS_WARN_SECONDS) return 'var(--warning)'
+  return 'var(--text-muted)'
+}
+
+/**
+ * Freshness tier drives the pill LABEL so "近实时" never lies about > 5min data.
+ */
+export type FreshnessTier = 'fresh' | 'delayed' | 'stale'
+
+export function freshnessTier(ageSeconds: number): FreshnessTier {
+  if (ageSeconds > FRESHNESS_DANGER_SECONDS) return 'stale'
+  if (ageSeconds > FRESHNESS_WARN_SECONDS) return 'delayed'
+  return 'fresh'
 }
 
 /**

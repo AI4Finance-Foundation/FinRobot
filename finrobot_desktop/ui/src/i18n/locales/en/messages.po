@@ -1089,3 +1089,19 @@ msgstr "Dismiss for now (re-shown after 30 days)"
 #. js-lingui-explicit-id
 msgid "landing.secBanner.dismissAria"
 msgstr "Dismiss notification"
+
+#. js-lingui-explicit-id
+msgid "marketdata.age.justNow"
+msgstr "just now"
+
+#. js-lingui-explicit-id
+msgid "marketdata.age.sAgo"
+msgstr "{n}s ago"
+
+#. js-lingui-explicit-id
+msgid "marketdata.age.minAgo"
+msgstr "{n}min ago"
+
+#. js-lingui-explicit-id
+msgid "marketdata.age.hAgo"
+msgstr "{n}h ago"

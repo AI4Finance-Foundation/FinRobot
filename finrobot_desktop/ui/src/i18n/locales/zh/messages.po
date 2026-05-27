@@ -1089,3 +1089,19 @@ msgstr "暂时关闭（30 天后再次提示）"
 #. js-lingui-explicit-id
 msgid "landing.secBanner.dismissAria"
 msgstr "关闭提醒"
+
+#. js-lingui-explicit-id
+msgid "marketdata.age.justNow"
+msgstr "刚刚"
+
+#. js-lingui-explicit-id
+msgid "marketdata.age.sAgo"
+msgstr "{n}s 前"
+
+#. js-lingui-explicit-id
+msgid "marketdata.age.minAgo"
+msgstr "{n}min 前"
+
+#. js-lingui-explicit-id
+msgid "marketdata.age.hAgo"
+msgstr "{n}h 前"

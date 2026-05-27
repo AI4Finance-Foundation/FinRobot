@@ -52,9 +52,7 @@ describe('fetchJsonOrThrowHttp', () => {
   })
 
   it('error thrown is instanceof FetchHttpError', async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
-      new Response('{}', { status: 500 }),
-    )
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response('{}', { status: 500 }))
     try {
       await fetchJsonOrThrowHttp('http://test/api')
       throw new Error('should have thrown')
@@ -65,9 +63,7 @@ describe('fetchJsonOrThrowHttp', () => {
   })
 
   it('network error (fetch rejects) → re-throws original error', async () => {
-    vi.mocked(globalThis.fetch).mockRejectedValueOnce(
-      new TypeError('Failed to fetch'),
-    )
+    vi.mocked(globalThis.fetch).mockRejectedValueOnce(new TypeError('Failed to fetch'))
     await expect(fetchJsonOrThrowHttp('http://test/api')).rejects.toMatchObject({
       name: 'TypeError',
     })

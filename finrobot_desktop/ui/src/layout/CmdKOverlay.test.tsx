@@ -179,10 +179,7 @@ describe('CmdKOverlay — result groups', () => {
     useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
     mockFetch({
       query: 'AAPL',
-      results: [
-        makeSearchResult('ticker'),
-        makeSearchResult('artifact'),
-      ],
+      results: [makeSearchResult('ticker'), makeSearchResult('artifact')],
     })
     renderOverlay()
     await waitFor(() => {
@@ -208,7 +205,6 @@ describe('CmdKOverlay — action execution and close', () => {
     fireEvent.click(item.closest("[data-testid='cmdk-result-item']")!)
     await waitFor(() => expect(useAppStore.getState().cmdPaletteOpen).toBe(false))
   })
-
 })
 
 // ---------------------------------------------------------------------------

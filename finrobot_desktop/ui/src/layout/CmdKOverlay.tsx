@@ -379,9 +379,7 @@ export function CmdKOverlay() {
   // ---------------------------------------------------------------------------
   // Derived state
   // ---------------------------------------------------------------------------
-  const hasResults =
-    grouped.ticker.length > 0 ||
-    grouped.artifact.length > 0
+  const hasResults = grouped.ticker.length > 0 || grouped.artifact.length > 0
 
   const showEmpty = !isLoading && !isError && debouncedQuery.length > 0 && !hasResults
 

@@ -68,7 +68,9 @@ describe('ServiceDownView', () => {
         <ServiceDownView ticker="AAPL" onRetry={onRetry} />
       </MemoryRouter>,
     )
-    act(() => { vi.advanceTimersByTime(5000) })
+    act(() => {
+      vi.advanceTimersByTime(5000)
+    })
     expect(screen.getByText(/25s 后自动重试/)).toBeInTheDocument()
   })
 
@@ -83,7 +85,9 @@ describe('ServiceDownView', () => {
         <ServiceDownView ticker="AAPL" onRetry={onRetry} />
       </MemoryRouter>,
     )
-    act(() => { vi.advanceTimersByTime(30_000) })
+    act(() => {
+      vi.advanceTimersByTime(30_000)
+    })
     expect(onRetry).toHaveBeenCalledTimes(1)
   })
 
@@ -94,7 +98,9 @@ describe('ServiceDownView', () => {
         <ServiceDownView ticker="AAPL" onRetry={onRetry} />
       </MemoryRouter>,
     )
-    act(() => { vi.advanceTimersByTime(30_000) })
+    act(() => {
+      vi.advanceTimersByTime(30_000)
+    })
     expect(screen.getByText(/60s 后自动重试（第 2 次）/)).toBeInTheDocument()
   })
 
@@ -106,10 +112,18 @@ describe('ServiceDownView', () => {
       </MemoryRouter>,
     )
     // attempt 1 → 30s wait, attempt 2 → 60s, 3 → 120s, 4 → 240s, 5 → cap 300s
-    act(() => { vi.advanceTimersByTime(30_000) })
-    act(() => { vi.advanceTimersByTime(60_000) })
-    act(() => { vi.advanceTimersByTime(120_000) })
-    act(() => { vi.advanceTimersByTime(240_000) })
+    act(() => {
+      vi.advanceTimersByTime(30_000)
+    })
+    act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    act(() => {
+      vi.advanceTimersByTime(120_000)
+    })
+    act(() => {
+      vi.advanceTimersByTime(240_000)
+    })
     expect(screen.getByText(/300s 后自动重试（第 5 次）/)).toBeInTheDocument()
     expect(onRetry).toHaveBeenCalledTimes(4)
   })
@@ -121,7 +135,9 @@ describe('ServiceDownView', () => {
         <ServiceDownView ticker="AAPL" onRetry={onRetry} />
       </MemoryRouter>,
     )
-    act(() => { vi.advanceTimersByTime(30_000) })
+    act(() => {
+      vi.advanceTimersByTime(30_000)
+    })
     expect(onRetry).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByText(/立即重试/))
     expect(onRetry).toHaveBeenCalledTimes(2)

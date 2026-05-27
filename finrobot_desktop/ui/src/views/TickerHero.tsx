@@ -135,7 +135,6 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
   )
 }
 
-
 /**
  * yfinance returns "NasdaqGS" / "NYQ" / "AMEX" raw codes — pretty-print
  * them for the freshness pill. Falls back to a generic "美股" so non-US tickers

@@ -4,3632 +4,3668 @@
  */
 
 export interface paths {
-    "/api/compute/wacc": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Compute Wacc */
-        post: operations["compute_wacc_api_compute_wacc_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/compute/dcf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Compute Dcf */
-        post: operations["compute_dcf_api_compute_dcf_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/compute/dcf-seed": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Compute Dcf Seed
-         * @description One-shot DCF for a ticker — the front-end's single authoritative path.
-         *
-         *     Replaces the legacy front-end hardcoded DCFInputs payload (removed in D1):
-         *       1. fetch financials (LTM) + price + multi-year history
-         *       2. seed_dcf_inputs → DCFInputs (with assumption_provenance per field)
-         *       3. calculate_dcf + calculate_sensitivity
-         *       4. solve_for_implied_growth + solve_for_implied_wacc (when include_reverse)
-         *
-         *     Everything returned in a single bundled response so the UI doesn't need
-         *     follow-up calls to render the valuation card.
-         */
-        post: operations["compute_dcf_seed_api_compute_dcf_seed_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/compute/dcf-sensitivity": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Compute Dcf Sensitivity */
-        post: operations["compute_dcf_sensitivity_api_compute_dcf_sensitivity_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/compute/lbo": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Compute Lbo */
-        post: operations["compute_lbo_api_compute_lbo_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/compute/lbo-seed": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Compute Lbo Seed
-         * @description One-shot LBO for a ticker — the front-end's single authoritative path.
-         *
-         *     Replaces the legacy hardcoded LBO body shipped from the UI (14 parameters
-         *     identical for every company). Structurally mirrors /dcf-seed:
-         *       1. fetch financials (LTM) + price + multi-year history
-         *       2. seed_lbo_inputs → LBOInputs (with assumption_provenance per field)
-         *       3. calculate_lbo + calculate_lbo_sensitivity
-         *
-         *     Everything returned in a single bundled response so the UI doesn't need
-         *     follow-up calls to render the LBO panel.
-         */
-        post: operations["compute_lbo_seed_api_compute_lbo_seed_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/compute/monte-carlo": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Compute Monte Carlo
-         * @description Run Monte Carlo DCF simulation (CPU-bound, offloaded to thread).
-         */
-        post: operations["compute_monte_carlo_api_compute_monte_carlo_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/compute/sniper": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Compute Sniper
-         * @description Compute deterministic entry/exit price levels from DCF target + price history.
-         *
-         *     Returns ideal_buy, secondary_buy, stop_loss, take_profit, position_size_pct,
-         *     support/resistance levels, and risk/reward ratio. All numbers trace to typed
-         *     inputs — no LLM inference.
-         */
-        post: operations["compute_sniper_api_compute_sniper_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/compute/score": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Compute Score
-         * @description Compute a 0-100 composite score from fundamentals, valuation, catalysts, sentiment.
-         *
-         *     Weights: fundamental 30%, valuation 30%, catalyst 20%, sentiment 20%.
-         *     Signal: STRONG_BUY (>=80) / BUY (>=60) / HOLD (>=40) / SELL (>=20) / STRONG_SELL.
-         *     All thresholds are hardcoded — no LLM reasoning.
-         */
-        post: operations["compute_score_api_compute_score_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/data/{ticker}/catalysts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Catalysts
-         * @description Fetch news, classify via LLM, extract catalyst events, return sorted by impact.
-         *
-         *     Pipeline: fetch_news -> classify_news (LLM) -> extract_catalysts -> rank.
-         *
-         *     Args:
-         *         ticker: Stock ticker symbol.
-         *         min_importance: Minimum news importance to become a catalyst (1-5).
-         */
-        get: operations["get_catalysts_api_data__ticker__catalysts_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/data/{ticker}/financials": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Financials */
-        get: operations["get_financials_api_data__ticker__financials_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/data/{ticker}/price": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Price
-         * @description Price data with configurable time period.
-         *
-         *     Cached for 15 minutes (TTL set in cache._TTL_SECONDS[DataType.PRICE]).
-         *     The cache key includes ``period`` so /price?period=1y and /price?period=5d
-         *     don't collide.
-         *
-         *     Error mapping:
-         *       - ValueError      → 422 (invalid ticker)
-         *       - ProviderError   → 502 (yfinance service down)
-         */
-        get: operations["get_price_api_data__ticker__price_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/data/{ticker}/historical": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Historical
-         * @description Multi-year historical financial metrics including cash flows.
-         *
-         *     Cached for 24h — annual financials only refresh after each 10-K filing.
-         */
-        get: operations["get_historical_api_data__ticker__historical_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/data/{ticker}/earnings-calls": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Earnings Calls
-         * @description Fetch earnings call transcripts from FMP.
-         *
-         *     Requires an FMP API key. Returns up to ``limit`` most recent transcripts.
-         *     Optionally filter by specific quarter and year.
-         */
-        get: operations["get_earnings_calls_api_data__ticker__earnings_calls_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/health/quotes-warmed": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Quotes Warmed
-         * @description Return whether the lifespan QuoteCache warmup has finished.
-         *
-         *     The frontend landing page polls this at ~500ms intervals while
-         *     `warmed == False` to drive a skeleton-vs-content switch.
-         */
-        get: operations["quotes_warmed_api_health_quotes_warmed_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/settings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Settings Route */
-        get: operations["get_settings_route_api_settings_get"];
-        /** Put Settings Route */
-        put: operations["put_settings_route_api_settings_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/settings/reset": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reset Settings Route
-         * @description Remove the listed fields from ``~/.finrobot/settings.json``.
-         *
-         *     This re-empowers .env / FINROBOT_* environment variables as the source
-         *     of truth for those fields. Secret fields are routed to the keychain
-         *     instead: ``reset`` deletes them from the keychain so .env values can
-         *     take over on the next request cycle.
-         *
-         *     Reset semantics: clear-from-settings.json (and clear-from-keychain for
-         *     secret fields). It does NOT copy .env values back into settings.json.
-         */
-        post: operations["reset_settings_route_api_settings_reset_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Run */
-        post: operations["create_run_api_runs_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/runs/{run_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Run */
-        get: operations["get_run_api_runs__run_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/runs/{run_id}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Stream Run Events */
-        get: operations["stream_run_events_api_runs__run_id__events_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/artifacts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Artifacts
-         * @description List artifact summaries, optionally filtered by ticker and/or type.
-         *
-         *     Args:
-         *         ticker: Filter by ticker symbol (case-insensitive). Omit for all tickers.
-         *         type: Filter by analysis type (e.g. "dcf", "lbo"). Omit for all types.
-         *         archived: Include archived (stale) artifacts. Default False.
-         *         limit: Maximum results to return. Default 100.
-         *
-         *     Returns:
-         *         List of ArtifactSummary sorted by created_at descending.
-         */
-        get: operations["list_artifacts_api_artifacts_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/artifacts/by-ticker/{ticker}/timeline": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Ticker Timeline
-         * @description Return all artifacts for a ticker, newest first.
-         *
-         *     This endpoint exists as a convenience alias for
-         *     ``GET /api/artifacts?ticker=AAPL&include_archived=true``.
-         *     It shows the full history including archived entries so users can
-         *     compare across time.
-         *
-         *     Args:
-         *         ticker: The ticker symbol (e.g. "AAPL").
-         *         limit: Maximum results to return. Default 50.
-         *
-         *     Returns:
-         *         List of ArtifactSummary (all types) for the ticker, newest first.
-         */
-        get: operations["ticker_timeline_api_artifacts_by_ticker__ticker__timeline_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/artifacts/studied-tickers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Studied Tickers
-         * @description Return every ticker the user has ever run analysis on, with metadata.
-         *
-         *     Powers the /stocks landing's "我研究过的所有股票" table. Each row carries
-         *     the latest run's verdict, entry/target prices, and a list of all pipeline
-         *     types that have been run for that ticker (so the UI can show DCF / LBO /
-         *     research chips).
-         *
-         *     Sort: by latest_created_at descending — most recently touched on top.
-         */
-        get: operations["studied_tickers_api_artifacts_studied_tickers_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/artifacts/{artifact_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Artifact
-         * @description Return the full Artifact including inputs, assumptions, outputs, and meta.
-         *
-         *     Args:
-         *         artifact_id: The artifact id (e.g. "art_2026-05-13T14:32:18_AAPL_dcf").
-         *
-         *     Returns:
-         *         The full Artifact.
-         *
-         *     Raises:
-         *         404: If the artifact is not found.
-         */
-        get: operations["get_artifact_api_artifacts__artifact_id__get"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete Artifact
-         * @description Permanently delete an artifact and remove it from the index.
-         *
-         *     Args:
-         *         artifact_id: The artifact id to delete.
-         *
-         *     Returns:
-         *         ``{"status": "deleted", "id": artifact_id}``
-         *
-         *     Raises:
-         *         404: If the artifact is not found.
-         */
-        delete: operations["delete_artifact_api_artifacts__artifact_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/artifacts/{a_id}/diff/{b_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Diff Two
-         * @description Return field-level differences between two artifacts.
-         *
-         *     Diffs the assumptions, outputs, compute_version, and inputs (excluding
-         *     raw_data). Meta fields like id and created_at are skipped because they
-         *     always differ.
-         *
-         *     Numeric diffs include abs_change and pct_change for convenience.
-         *
-         *     Args:
-         *         a_id: The "before" artifact id.
-         *         b_id: The "after" artifact id.
-         *
-         *     Returns:
-         *         List of FieldDiff, sorted by path.
-         *
-         *     Raises:
-         *         404: If either artifact is not found.
-         */
-        get: operations["diff_two_api_artifacts__a_id__diff__b_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/artifacts/{artifact_id}/view": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Mark Viewed
-         * @description Record that this artifact was viewed now.
-         *
-         *     Updating the last_viewed_at timestamp prevents the artifact from being
-         *     automatically archived by the stale-archive background task.
-         *
-         *     Args:
-         *         artifact_id: The artifact id to mark as viewed.
-         *
-         *     Returns:
-         *         ``{"status": "ok", "id": artifact_id}``
-         *
-         *     Raises:
-         *         404: If the artifact is not found.
-         */
-        post: operations["mark_viewed_api_artifacts__artifact_id__view_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/dashboard/hit-rate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Hit Rate
-         * @description Cross-ticker hit-rate buckets for the /stocks landing banner.
-         *
-         *     `window`: "30d" | "90d" | "all" (default "all")
-         *
-         *     The endpoint never returns 500 for sparse data — empty buckets come back
-         *     as `hit_rate=null`. UI renders a "样本不足" hint in that case.
-         */
-        get: operations["hit_rate_api_dashboard_hit_rate_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/dashboard/recent-research": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Recent Research
-         * @description Top-N **tickers** for the /stocks landing strip (drawer cards).
-         *
-         *     For each top-N ticker, load up to MAX_RUNS_PER_TICKER artifacts so each
-         *     surfaced row carries its own verdict. Worst case = limit × 5 reads
-         *     (e.g. limit=5 → ≤25 reads), then 60s cached.
-         */
-        get: operations["recent_research_api_dashboard_recent_research_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/search": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Search
-         * @description Global cmd+K search.
-         *
-         *     Args:
-         *         q: Search query.
-         *         limit: Maximum number of results to return (1–100, default 20).
-         *
-         *     Returns:
-         *         ``SearchResponse`` with results sorted by descending score.
-         */
-        get: operations["search_api_search_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/valuation/aggregate/{ticker}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Aggregate For Ticker
-         * @description Build the Football Field payload for a ticker (v5 §6.4).
-         *
-         *     Pulls the latest equity_research / dcf / ddm / lbo / comps artifacts the
-         *     store has for the ticker and aggregates them via the pure aggregator.
-         *     Missing artifact types simply drop out of the response with a warning.
-         */
-        get: operations["aggregate_for_ticker_api_valuation_aggregate__ticker__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/valuation/historical-bands/{ticker}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Historical Bands
-         * @description Build EV/EBITDA or P/FCF time series + current vs P25/P75/P90 (v5 §6.6).
-         *
-         *     Cached 12h via DataType.HISTORICAL_BANDS so the price + financial fan-out
-         *     only runs once per half-day per ticker / metric combo.
-         */
-        get: operations["historical_bands_api_valuation_historical_bands__ticker__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/sentiment/{ticker}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Sentiment
-         * @description Aggregate Reddit / X.com / Polymarket sentiment for one ticker.
-         *
-         *     Falls back to ``available=False`` when the Adanos provider isn't loaded
-         *     (typically because the API key is missing) — the UI hides the section
-         *     and shows a "configure Adanos" link, per the v5 cold-start rules.
-         */
-        get: operations["get_sentiment_api_sentiment__ticker__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/notify/test/{channel}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Test Channel
-         * @description Send a test notification to a specific channel.
-         *
-         *     Returns 404 if the channel name is unknown. Returns ``{success: False}``
-         *     when the channel is unconfigured or the underlying send fails.
-         */
-        post: operations["test_channel_api_notify_test__channel__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/chat": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Chat
-         * @description Handle a Vercel AI SDK chat request with transcript side-logging.
-         *
-         *     The transcript hook intercepts native pydantic_ai stream events to write
-         *     user messages, assistant text, tool calls, and tool results to a per-session
-         *     JSONL file at ``~/.finrobot-desktop/sessions/<session_id>.jsonl``.
-         *
-         *     Transcript write failures are logged and never surface to the client —
-         *     the Vercel AI stream is unaffected by transcript I/O errors.
-         */
-        post: operations["chat_chat_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Health */
-        get: operations["health_health_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
+  '/api/compute/wacc': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Compute Wacc */
+    post: operations['compute_wacc_api_compute_wacc_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/compute/dcf': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Compute Dcf */
+    post: operations['compute_dcf_api_compute_dcf_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/compute/dcf-seed': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Compute Dcf Seed
+     * @description One-shot DCF for a ticker — the front-end's single authoritative path.
+     *
+     *     Replaces the legacy front-end hardcoded DCFInputs payload (removed in D1):
+     *       1. fetch financials (LTM) + price + multi-year history
+     *       2. seed_dcf_inputs → DCFInputs (with assumption_provenance per field)
+     *       3. calculate_dcf + calculate_sensitivity
+     *       4. solve_for_implied_growth + solve_for_implied_wacc (when include_reverse)
+     *
+     *     Everything returned in a single bundled response so the UI doesn't need
+     *     follow-up calls to render the valuation card.
+     */
+    post: operations['compute_dcf_seed_api_compute_dcf_seed_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/compute/dcf-sensitivity': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Compute Dcf Sensitivity */
+    post: operations['compute_dcf_sensitivity_api_compute_dcf_sensitivity_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/compute/lbo': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Compute Lbo */
+    post: operations['compute_lbo_api_compute_lbo_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/compute/lbo-seed': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Compute Lbo Seed
+     * @description One-shot LBO for a ticker — the front-end's single authoritative path.
+     *
+     *     Replaces the legacy hardcoded LBO body shipped from the UI (14 parameters
+     *     identical for every company). Structurally mirrors /dcf-seed:
+     *       1. fetch financials (LTM) + price + multi-year history
+     *       2. seed_lbo_inputs → LBOInputs (with assumption_provenance per field)
+     *       3. calculate_lbo + calculate_lbo_sensitivity
+     *
+     *     Everything returned in a single bundled response so the UI doesn't need
+     *     follow-up calls to render the LBO panel.
+     */
+    post: operations['compute_lbo_seed_api_compute_lbo_seed_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/compute/monte-carlo': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Compute Monte Carlo
+     * @description Run Monte Carlo DCF simulation (CPU-bound, offloaded to thread).
+     */
+    post: operations['compute_monte_carlo_api_compute_monte_carlo_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/compute/sniper': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Compute Sniper
+     * @description Compute deterministic entry/exit price levels from DCF target + price history.
+     *
+     *     Returns ideal_buy, secondary_buy, stop_loss, take_profit, position_size_pct,
+     *     support/resistance levels, and risk/reward ratio. All numbers trace to typed
+     *     inputs — no LLM inference.
+     */
+    post: operations['compute_sniper_api_compute_sniper_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/compute/score': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Compute Score
+     * @description Compute a 0-100 composite score from fundamentals, valuation, catalysts, sentiment.
+     *
+     *     Weights: fundamental 30%, valuation 30%, catalyst 20%, sentiment 20%.
+     *     Signal: STRONG_BUY (>=80) / BUY (>=60) / HOLD (>=40) / SELL (>=20) / STRONG_SELL.
+     *     All thresholds are hardcoded — no LLM reasoning.
+     */
+    post: operations['compute_score_api_compute_score_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/data/{ticker}/catalysts': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Catalysts
+     * @description Fetch news, classify via LLM, extract catalyst events, return sorted by impact.
+     *
+     *     Pipeline: fetch_news -> classify_news (LLM) -> extract_catalysts -> rank.
+     *
+     *     Args:
+     *         ticker: Stock ticker symbol.
+     *         min_importance: Minimum news importance to become a catalyst (1-5).
+     */
+    get: operations['get_catalysts_api_data__ticker__catalysts_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/data/{ticker}/financials': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Financials */
+    get: operations['get_financials_api_data__ticker__financials_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/data/{ticker}/price': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Price
+     * @description Price data with configurable time period.
+     *
+     *     Cached for 15 minutes (TTL set in cache._TTL_SECONDS[DataType.PRICE]).
+     *     The cache key includes ``period`` so /price?period=1y and /price?period=5d
+     *     don't collide.
+     *
+     *     Error mapping:
+     *       - ValueError      → 422 (invalid ticker)
+     *       - ProviderError   → 502 (yfinance service down)
+     */
+    get: operations['get_price_api_data__ticker__price_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/data/{ticker}/historical': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Historical
+     * @description Multi-year historical financial metrics including cash flows.
+     *
+     *     Cached for 24h — annual financials only refresh after each 10-K filing.
+     */
+    get: operations['get_historical_api_data__ticker__historical_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/data/{ticker}/earnings-calls': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Earnings Calls
+     * @description Fetch earnings call transcripts from FMP.
+     *
+     *     Requires an FMP API key. Returns up to ``limit`` most recent transcripts.
+     *     Optionally filter by specific quarter and year.
+     */
+    get: operations['get_earnings_calls_api_data__ticker__earnings_calls_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/health/quotes-warmed': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Quotes Warmed
+     * @description Return whether the lifespan QuoteCache warmup has finished.
+     *
+     *     The frontend landing page polls this at ~500ms intervals while
+     *     `warmed == False` to drive a skeleton-vs-content switch.
+     */
+    get: operations['quotes_warmed_api_health_quotes_warmed_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/settings': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Settings Route */
+    get: operations['get_settings_route_api_settings_get']
+    /** Put Settings Route */
+    put: operations['put_settings_route_api_settings_put']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/settings/reset': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Reset Settings Route
+     * @description Remove the listed fields from ``~/.finrobot/settings.json``.
+     *
+     *     This re-empowers .env / FINROBOT_* environment variables as the source
+     *     of truth for those fields. Secret fields are routed to the keychain
+     *     instead: ``reset`` deletes them from the keychain so .env values can
+     *     take over on the next request cycle.
+     *
+     *     Reset semantics: clear-from-settings.json (and clear-from-keychain for
+     *     secret fields). It does NOT copy .env values back into settings.json.
+     */
+    post: operations['reset_settings_route_api_settings_reset_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/runs': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Create Run */
+    post: operations['create_run_api_runs_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/runs/{run_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Run */
+    get: operations['get_run_api_runs__run_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/runs/{run_id}/events': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Stream Run Events */
+    get: operations['stream_run_events_api_runs__run_id__events_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/artifacts': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Artifacts
+     * @description List artifact summaries, optionally filtered by ticker and/or type.
+     *
+     *     Args:
+     *         ticker: Filter by ticker symbol (case-insensitive). Omit for all tickers.
+     *         type: Filter by analysis type (e.g. "dcf", "lbo"). Omit for all types.
+     *         archived: Include archived (stale) artifacts. Default False.
+     *         limit: Maximum results to return. Default 100.
+     *
+     *     Returns:
+     *         List of ArtifactSummary sorted by created_at descending.
+     */
+    get: operations['list_artifacts_api_artifacts_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/artifacts/by-ticker/{ticker}/timeline': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Ticker Timeline
+     * @description Return all artifacts for a ticker, newest first.
+     *
+     *     This endpoint exists as a convenience alias for
+     *     ``GET /api/artifacts?ticker=AAPL&include_archived=true``.
+     *     It shows the full history including archived entries so users can
+     *     compare across time.
+     *
+     *     Args:
+     *         ticker: The ticker symbol (e.g. "AAPL").
+     *         limit: Maximum results to return. Default 50.
+     *
+     *     Returns:
+     *         List of ArtifactSummary (all types) for the ticker, newest first.
+     */
+    get: operations['ticker_timeline_api_artifacts_by_ticker__ticker__timeline_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/artifacts/studied-tickers': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Studied Tickers
+     * @description Return every ticker the user has ever run analysis on, with metadata.
+     *
+     *     Powers the /stocks landing's "我研究过的所有股票" table. Each row carries
+     *     the latest run's verdict, entry/target prices, and a list of all pipeline
+     *     types that have been run for that ticker (so the UI can show DCF / LBO /
+     *     research chips).
+     *
+     *     Sort: by latest_created_at descending — most recently touched on top.
+     */
+    get: operations['studied_tickers_api_artifacts_studied_tickers_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/artifacts/{artifact_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Artifact
+     * @description Return the full Artifact including inputs, assumptions, outputs, and meta.
+     *
+     *     Args:
+     *         artifact_id: The artifact id (e.g. "art_2026-05-13T14:32:18_AAPL_dcf").
+     *
+     *     Returns:
+     *         The full Artifact.
+     *
+     *     Raises:
+     *         404: If the artifact is not found.
+     */
+    get: operations['get_artifact_api_artifacts__artifact_id__get']
+    put?: never
+    post?: never
+    /**
+     * Delete Artifact
+     * @description Permanently delete an artifact and remove it from the index.
+     *
+     *     Args:
+     *         artifact_id: The artifact id to delete.
+     *
+     *     Returns:
+     *         ``{"status": "deleted", "id": artifact_id}``
+     *
+     *     Raises:
+     *         404: If the artifact is not found.
+     */
+    delete: operations['delete_artifact_api_artifacts__artifact_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/artifacts/{a_id}/diff/{b_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Diff Two
+     * @description Return field-level differences between two artifacts.
+     *
+     *     Diffs the assumptions, outputs, compute_version, and inputs (excluding
+     *     raw_data). Meta fields like id and created_at are skipped because they
+     *     always differ.
+     *
+     *     Numeric diffs include abs_change and pct_change for convenience.
+     *
+     *     Args:
+     *         a_id: The "before" artifact id.
+     *         b_id: The "after" artifact id.
+     *
+     *     Returns:
+     *         List of FieldDiff, sorted by path.
+     *
+     *     Raises:
+     *         404: If either artifact is not found.
+     */
+    get: operations['diff_two_api_artifacts__a_id__diff__b_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/artifacts/{artifact_id}/view': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Mark Viewed
+     * @description Record that this artifact was viewed now.
+     *
+     *     Updating the last_viewed_at timestamp prevents the artifact from being
+     *     automatically archived by the stale-archive background task.
+     *
+     *     Args:
+     *         artifact_id: The artifact id to mark as viewed.
+     *
+     *     Returns:
+     *         ``{"status": "ok", "id": artifact_id}``
+     *
+     *     Raises:
+     *         404: If the artifact is not found.
+     */
+    post: operations['mark_viewed_api_artifacts__artifact_id__view_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/dashboard/hit-rate': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Hit Rate
+     * @description Cross-ticker hit-rate buckets for the /stocks landing banner.
+     *
+     *     `window`: "30d" | "90d" | "all" (default "all")
+     *
+     *     The endpoint never returns 500 for sparse data — empty buckets come back
+     *     as `hit_rate=null`. UI renders a "样本不足" hint in that case.
+     */
+    get: operations['hit_rate_api_dashboard_hit_rate_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/dashboard/recent-research': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Recent Research
+     * @description Top-N **tickers** for the /stocks landing strip (drawer cards).
+     *
+     *     For each top-N ticker, load up to MAX_RUNS_PER_TICKER artifacts so each
+     *     surfaced row carries its own verdict. Worst case = limit × 5 reads
+     *     (e.g. limit=5 → ≤25 reads), then 60s cached.
+     */
+    get: operations['recent_research_api_dashboard_recent_research_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/search': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Search
+     * @description Global cmd+K search.
+     *
+     *     Args:
+     *         q: Search query.
+     *         limit: Maximum number of results to return (1–100, default 20).
+     *
+     *     Returns:
+     *         ``SearchResponse`` with results sorted by descending score.
+     */
+    get: operations['search_api_search_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/valuation/aggregate/{ticker}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Aggregate For Ticker
+     * @description Build the Football Field payload for a ticker (v5 §6.4).
+     *
+     *     Pulls the latest equity_research / dcf / ddm / lbo / comps artifacts the
+     *     store has for the ticker and aggregates them via the pure aggregator.
+     *     Missing artifact types simply drop out of the response with a warning.
+     */
+    get: operations['aggregate_for_ticker_api_valuation_aggregate__ticker__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/valuation/historical-bands/{ticker}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Historical Bands
+     * @description Build EV/EBITDA or P/FCF time series + current vs P25/P75/P90 (v5 §6.6).
+     *
+     *     Cached 12h via DataType.HISTORICAL_BANDS so the price + financial fan-out
+     *     only runs once per half-day per ticker / metric combo.
+     */
+    get: operations['historical_bands_api_valuation_historical_bands__ticker__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/sentiment/{ticker}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Sentiment
+     * @description Aggregate Reddit / X.com / Polymarket sentiment for one ticker.
+     *
+     *     Falls back to ``available=False`` when the Adanos provider isn't loaded
+     *     (typically because the API key is missing) — the UI hides the section
+     *     and shows a "configure Adanos" link, per the v5 cold-start rules.
+     */
+    get: operations['get_sentiment_api_sentiment__ticker__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/notify/test/{channel}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Test Channel
+     * @description Send a test notification to a specific channel.
+     *
+     *     Returns 404 if the channel name is unknown. Returns ``{success: False}``
+     *     when the channel is unconfigured or the underlying send fails.
+     */
+    post: operations['test_channel_api_notify_test__channel__post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/chat': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Chat
+     * @description Handle a Vercel AI SDK chat request with transcript side-logging.
+     *
+     *     The transcript hook intercepts native pydantic_ai stream events to write
+     *     user messages, assistant text, tool calls, and tool results to a per-session
+     *     JSONL file at ``~/.finrobot-desktop/sessions/<session_id>.jsonl``.
+     *
+     *     Transcript write failures are logged and never surface to the client —
+     *     the Vercel AI stream is unaffected by transcript I/O errors.
+     */
+    post: operations['chat_chat_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/health': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Health */
+    get: operations['health_health_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
-export type webhooks = Record<string, never>;
+export type webhooks = Record<string, never>
 export interface components {
-    schemas: {
-        /**
-         * Artifact
-         * @description A single financial analysis snapshot.
-         */
-        Artifact: {
-            /** Id */
-            id: string;
-            /** Ticker */
-            ticker: string | null;
-            /**
-             * Cross Tickers
-             * @description Populated when ticker is None (e.g. peer comparison).
-             */
-            cross_tickers?: string[];
-            /**
-             * Type
-             * @enum {string}
-             */
-            type: "dcf" | "lbo" | "comps" | "ddm" | "earnings" | "ic_memo" | "equity_research" | "peer_research" | "ad_hoc";
-            inputs: components["schemas"]["ArtifactInputs"];
-            assumptions: components["schemas"]["ArtifactAssumptions"];
-            compute_version: components["schemas"]["ArtifactComputeVersion"];
-            outputs: components["schemas"]["ArtifactOutputs"];
-            meta: components["schemas"]["ArtifactMeta"];
-        };
-        /**
-         * ArtifactAssumptions
-         * @description All parameters fed into the deterministic compute layer.
-         */
-        ArtifactAssumptions: {
-            /**
-             * Parameters
-             * @description wacc / terminal_growth / tax_rate / revenue_growth_rates etc.
-             */
-            parameters: {
-                [key: string]: unknown;
-            };
-            /**
-             * User Overrides
-             * @description Subset of parameters the user explicitly overrode (vs LLM-selected via param_agent).
-             */
-            user_overrides?: {
-                [key: string]: unknown;
-            };
-        };
-        /**
-         * ArtifactComputeVersion
-         * @description Snapshot of the compute code that produced the result.
-         */
-        ArtifactComputeVersion: {
-            /**
-             * Package
-             * @default finrobot
-             */
-            package: string;
-            /** Version */
-            version: string;
-            /** Git Commit */
-            git_commit?: string | null;
-            /** Formula Id */
-            formula_id: string;
-            /** Formula Warnings */
-            formula_warnings?: string[];
-        };
-        /**
-         * ArtifactInputs
-         * @description Data snapshot at time of computation. Frozen so it can be replayed.
-         */
-        ArtifactInputs: {
-            /**
-             * Data Source
-             * @description yfinance|FMP|Finnhub|SEC|...
-             */
-            data_source: string;
-            /**
-             * Data Fetched At
-             * Format: date-time
-             */
-            data_fetched_at: string;
-            /**
-             * Raw Data
-             * @description Provider's raw return values, captured verbatim. Enables byte-equal replay even if external API drifts.
-             */
-            raw_data: {
-                [key: string]: unknown;
-            };
-        };
-        /**
-         * ArtifactMeta
-         * @description Provenance: when, by whom, via what flow.
-         */
-        ArtifactMeta: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Source
-             * @description 'conversation:<session_id>' | 'stocks_page_button' | 'workspace_batch:<batch_id>' | 'cli'
-             */
-            source: string;
-            /**
-             * User Id
-             * @default local
-             */
-            user_id: string;
-            /** Tags */
-            tags?: string[];
-            /**
-             * Parent Artifact Id
-             * @description If this artifact is a re-run / iteration of an earlier one.
-             */
-            parent_artifact_id?: string | null;
-            /**
-             * Last Viewed At
-             * @description Updated by mark_viewed(). Used for auto-archive logic.
-             */
-            last_viewed_at?: string | null;
-            /**
-             * Archived
-             * @description True when artifact has been unviewed for > archive_hours.
-             * @default false
-             */
-            archived: boolean;
-        };
-        /**
-         * ArtifactOutputs
-         * @description Computed results returned to the user.
-         */
-        ArtifactOutputs: {
-            /**
-             * Structured
-             * @description The model dump of e.g. DCFResult / LBOResult / PeerComps.
-             */
-            structured: {
-                [key: string]: unknown;
-            };
-            /**
-             * Summary Text
-             * @default
-             */
-            summary_text: string;
-            /** Warnings */
-            warnings?: string[];
-        };
-        /**
-         * ArtifactSummary
-         * @description Sidebar / Library view — strips heavy fields.
-         *
-         *     v5 (ADR-0001) adds four optional fields powering the "我的研究" section's
-         *     signal lamp + hit-rate banner. All default to None so legacy JSON
-         *     artifacts (written before v5) deserialize cleanly; the UI must treat None
-         *     as "no signal" and skip from hit-rate stats.
-         */
-        ArtifactSummary: {
-            /** Id */
-            id: string;
-            /** Ticker */
-            ticker: string | null;
-            /** Cross Tickers */
-            cross_tickers: string[];
-            /**
-             * Type
-             * @enum {string}
-             */
-            type: "dcf" | "lbo" | "comps" | "ddm" | "earnings" | "ic_memo" | "equity_research" | "peer_research" | "ad_hoc";
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Headline */
-            headline: string;
-            /** Source */
-            source: string;
-            /**
-             * Archived
-             * @default false
-             */
-            archived: boolean;
-            /**
-             * Entry Price
-             * @description Quote snapshot taken when the pipeline was triggered (USD/share). Mirrors journal.entry_price semantics. None for legacy artifacts or cross-ticker analyses without a single entry price.
-             */
-            entry_price?: number | null;
-            /**
-             * Target Price
-             * @description AI-given target price from the thesis step (USD/share). Mirrors journal.target_price semantics. None when the artifact type has no thesis (peer_research / ad_hoc) or for legacy data.
-             */
-            target_price?: number | null;
-            /**
-             * Target Date
-             * @description Deadline for the thesis (defaults to created_at + 365 days, set in the thesis step). None when target_price itself is None.
-             */
-            target_date?: string | null;
-            /**
-             * Signal
-             * @description Lazy-computed realised-vs-target signal (hit / watching / failed) — never persisted. Route handlers call finrobot.engine.compute.signal.compute_signal at list time using a fresh quote. None when any of entry_price / target_price / current_price are unavailable. DO NOT confuse with `verdict` — signal is the post-trade outcome, verdict is the LLM's pre-trade BUY/HOLD/SELL call.
-             */
-            signal?: ("hit" | "watching" | "failed") | null;
-            /**
-             * Verdict
-             * @description LLM-emitted BUY / HOLD / SELL recommendation from the thesis step. Populated by summary_extractor.extract_verdict at summary build time. None when the artifact has no thesis (peer_research / ad_hoc) or when the recommendation field is missing / malformed.
-             */
-            verdict?: string | null;
-            /**
-             * Tagline
-             * @description ≤ 60 char shareable conclusion written by the synthesis_agent (narrative slot). Populated by summary_extractor.extract_tagline; lets the workspace AI zone hot-state card show the real LLM call instead of the truncated pipeline.format_summary preview that gets stored in `headline`. None for legacy artifacts produced before the narrative bump.
-             */
-            tagline?: string | null;
-        };
-        /**
-         * BalanceSheet
-         * @description Balance sheet metrics.
-         */
-        BalanceSheet: {
-            /**
-             * Total Debt
-             * @description Total debt in USD
-             * @default 0
-             */
-            total_debt: number;
-            /**
-             * Total Cash
-             * @description Total cash in USD
-             * @default 0
-             */
-            total_cash: number;
-        };
-        /**
-         * CatalystEvent
-         * @description Single catalyst event extracted by LLM from news.
-         */
-        CatalystEvent: {
-            /**
-             * Category
-             * @enum {string}
-             */
-            category: "product_launch" | "earnings" | "regulatory" | "acquisition" | "management" | "market";
-            /** Headline */
-            headline: string;
-            /**
-             * Sentiment
-             * @enum {string}
-             */
-            sentiment: "positive" | "negative" | "neutral";
-            /** Impact Score */
-            impact_score: number;
-            /** Probability */
-            probability: number;
-            /** Reasoning */
-            reasoning: string;
-        };
-        /** CompositeScore */
-        CompositeScore: {
-            /** Total */
-            total: number;
-            /** Fundamental */
-            fundamental: number;
-            /** Valuation */
-            valuation: number;
-            /** Catalyst */
-            catalyst: number;
-            /** Sentiment */
-            sentiment: number;
-            /** Signal */
-            signal: string;
-            /** Breakdown */
-            breakdown: {
-                [key: string]: string;
-            };
-        };
-        /** CreateRunRequest */
-        CreateRunRequest: {
-            /** Pipeline Type */
-            pipeline_type: string;
-            /** Ticker */
-            ticker: string;
-        };
-        /** CreateRunResponse */
-        CreateRunResponse: {
-            /** Run Id */
-            run_id: string;
-            /**
-             * Status
-             * @constant
-             */
-            status: "created";
-            /** Pipeline Type */
-            pipeline_type: string;
-            /** Ticker */
-            ticker: string;
-            /** Created At */
-            created_at: string;
-        };
-        /**
-         * DCFInputs
-         * @description Inputs for DCF calculation. Built by ``seed_dcf_inputs`` from real
-         *     filings (3y historical medians) + Damodaran industry fallback. The LLM
-         *     never selects these numbers — it only interprets them in the output_gen
-         *     narrative step.
-         *
-         *     FCF formula (standard, always used):
-         *         FCF = EBIT(1-tax) + D&A - CapEx - ΔNWC
-         *             = (EBITDA - D&A)(1-tax) + D&A - revenue*capex_pct - revenue*nwc_pct
-         *
-         *     The simplified branch that dropped the D&A tax shield is removed:
-         *     ``da_pct_revenue`` is now required (non-None), guaranteed by seed_dcf_inputs.
-         */
-        DCFInputs: {
-            /**
-             * Revenue Base
-             * @description Base year revenue in USD
-             */
-            revenue_base: number;
-            /**
-             * Revenue Growth Rates
-             * @description Projected annual growth rates as decimals
-             */
-            revenue_growth_rates: number[];
-            /**
-             * Ebitda Margin
-             * @description Projected EBITDA margin
-             */
-            ebitda_margin: number;
-            /**
-             * Capex Pct Revenue
-             * @description Capex as % of revenue
-             */
-            capex_pct_revenue: number;
-            /**
-             * Nwc Pct Revenue
-             * @description Net working capital change as % of revenue
-             */
-            nwc_pct_revenue: number;
-            /**
-             * Da Pct Revenue
-             * @description D&A as % of revenue. Default 0.0 (no tax shield — equivalent to the legacy simplified-FCF arithmetic but routed through the standard EBIT(1-T)+D&A formula). seed_dcf_inputs always sets a non-zero value from 3y filings or Damodaran fallback; direct callers can omit it for legacy compatibility.
-             * @default 0
-             */
-            da_pct_revenue: number;
-            /**
-             * Tax Rate
-             * @default 0.21
-             */
-            tax_rate: number;
-            /** Risk Free Rate */
-            risk_free_rate: number;
-            /** Beta */
-            beta: number;
-            /** Equity Risk Premium */
-            equity_risk_premium: number;
-            /** Cost Of Debt */
-            cost_of_debt: number;
-            /**
-             * Debt Ratio
-             * @description Debt / (Debt + Equity)
-             */
-            debt_ratio: number;
-            /**
-             * Terminal Growth Rate
-             * @description Long-term growth rate
-             */
-            terminal_growth_rate: number;
-            /** Shares Outstanding */
-            shares_outstanding: number;
-            /**
-             * Net Debt
-             * @description Total debt - cash. Negative if net cash.
-             */
-            net_debt: number;
-            /**
-             * Assumption Provenance
-             * @description Maps assumption field names to their reasoning/source
-             */
-            assumption_provenance?: {
-                [key: string]: string;
-            };
-        };
-        /**
-         * DCFResult
-         * @description DCF valuation output. All numbers computed by code, not LLM.
-         */
-        DCFResult: {
-            /** Cost Of Equity */
-            cost_of_equity: number | null;
-            /** Wacc */
-            wacc: number;
-            /** Projection Years */
-            projection_years: number;
-            /** Projected Revenue */
-            projected_revenue: number[];
-            /** Projected Ebitda */
-            projected_ebitda: number[];
-            /** Projected Fcf */
-            projected_fcf: number[];
-            /** Terminal Value */
-            terminal_value: number;
-            /** Pv Terminal */
-            pv_terminal: number;
-            /** Pv Fcf Total */
-            pv_fcf_total: number;
-            /** Enterprise Value */
-            enterprise_value: number;
-            /** Equity Value */
-            equity_value: number;
-            /** Implied Price */
-            implied_price: number;
-            /** Sensitivity Table */
-            sensitivity_table?: {
-                [key: string]: unknown;
-            } | null;
-            inputs: components["schemas"]["DCFInputs"];
-        };
-        /** DcfReverseResult */
-        DcfReverseResult: {
-            /** Solve For */
-            solve_for: string;
-            /** Target Price */
-            target_price: number;
-            /** Implied Growth */
-            implied_growth?: number | null;
-            /** Implied Wacc */
-            implied_wacc?: number | null;
-            /** Computed Price */
-            computed_price?: number | null;
-            /** Wacc */
-            wacc?: number | null;
-            /** Terminal Growth */
-            terminal_growth: number;
-            /** Horizon Years */
-            horizon_years: number;
-            /** Bracket */
-            bracket: number[];
-            /** Price At Lo */
-            price_at_lo: number;
-            /** Price At Hi */
-            price_at_hi: number;
-            /** Iterations */
-            iterations: number;
-            /** Message */
-            message?: string | null;
-        };
-        /**
-         * DcfSeedRequest
-         * @description One-shot DCF seeded from a ticker — single authoritative entry point.
-         *
-         *     Backend fetches financials + historical, calls ``seed_dcf_inputs`` to
-         *     derive every assumption from real filings (or Damodaran industry fallback),
-         *     then runs calculate_dcf + sensitivity + reverse DCF in one shot.
-         */
-        DcfSeedRequest: {
-            /** Ticker */
-            ticker: string;
-            /** Wacc Override */
-            wacc_override?: number | null;
-            /** Tg Override */
-            tg_override?: number | null;
-            /**
-             * Growth Scale Override
-             * @description Multiplier applied uniformly to every seeded revenue_growth_rate. 0.1 → +10% to each year's growth, -0.2 → -20%, None → unchanged. Drives the What-if Editor's 'Revenue Growth Scale' slider.
-             */
-            growth_scale_override?: number | null;
-            /**
-             * Mid Year
-             * @default false
-             */
-            mid_year: boolean;
-            /**
-             * Include Reverse
-             * @default true
-             */
-            include_reverse: boolean;
-        };
-        /**
-         * DcfSeedResponse
-         * @description Bundled DCF output. inputs.assumption_provenance carries the per-field
-         *     sources for the UI's "展开专家详情" tooltip.
-         */
-        DcfSeedResponse: {
-            inputs: components["schemas"]["DCFInputs"];
-            result: components["schemas"]["DCFResult"];
-            /** Current Price */
-            current_price?: number | null;
-            reverse_growth?: components["schemas"]["DcfReverseResult"] | null;
-            reverse_wacc?: components["schemas"]["DcfReverseResult"] | null;
-        };
-        /** DcfSensitivityRequest */
-        DcfSensitivityRequest: {
-            inputs: components["schemas"]["DCFInputs"];
-            /** Wacc Range */
-            wacc_range: number[];
-            /** Tg Range */
-            tg_range: number[];
-        };
-        /** DcfSensitivityResult */
-        DcfSensitivityResult: {
-            /** Wacc Values */
-            wacc_values: number[];
-            /** Tg Values */
-            tg_values: number[];
-            /** Implied Prices */
-            implied_prices: (number | null)[][];
-        };
-        /**
-         * EarningsCallList
-         * @description Collection of transcripts for a ticker, ordered most-recent first.
-         */
-        EarningsCallList: {
-            /** Ticker */
-            ticker: string;
-            /** Transcripts */
-            transcripts: components["schemas"]["EarningsCallTranscript"][];
-        };
-        /**
-         * EarningsCallTranscript
-         * @description A single quarter's earnings call transcript.
-         */
-        EarningsCallTranscript: {
-            /** Ticker */
-            ticker: string;
-            /** Quarter */
-            quarter: number;
-            /** Year */
-            year: number;
-            /** Date */
-            date?: string | null;
-            /** Content */
-            content: string;
-            /** Summary */
-            summary?: string | null;
-        };
-        /**
-         * FieldDiff
-         * @description One field difference between two artifacts.
-         */
-        FieldDiff: {
-            /** Path */
-            path: string;
-            /** Old */
-            old: unknown;
-            /** New */
-            new: unknown;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "added" | "removed" | "changed";
-            /** Abs Change */
-            abs_change?: number | null;
-            /** Pct Change */
-            pct_change?: number | null;
-        };
-        /**
-         * FinancialData
-         * @description Structured financial data for a single company.
-         *
-         *     Access fields via sub-models:
-         *         fd.income.revenue, fd.balance.total_debt, fd.market.market_cap, etc.
-         */
-        FinancialData: {
-            /** Ticker */
-            ticker: string;
-            /**
-             * Company Name
-             * @default
-             */
-            company_name: string;
-            /**
-             * Timestamp
-             * Format: date-time
-             */
-            timestamp: string;
-            /** Fiscal Period End */
-            fiscal_period_end?: string | null;
-            income: components["schemas"]["IncomeStatement"];
-            balance?: components["schemas"]["BalanceSheet"];
-            market: components["schemas"]["MarketData"];
-            valuation?: components["schemas"]["ValuationMetrics"];
-            /**
-             * Data Source
-             * @default yfinance
-             */
-            data_source: string;
-            /** Warnings */
-            warnings?: string[];
-        };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
-        };
-        /**
-         * HistoricalBandResponse
-         * @description ``GET /api/valuation/historical-bands/{ticker}`` payload (v5 §6.6).
-         */
-        HistoricalBandResponse: {
-            /** Ticker */
-            ticker: string;
-            /**
-             * Metric
-             * @enum {string}
-             */
-            metric: "ev_ebitda" | "p_fcf";
-            /** Current */
-            current: number | null;
-            /** Median */
-            median: number | null;
-            /** P25 */
-            p25: number | null;
-            /** P75 */
-            p75: number | null;
-            /** P90 */
-            p90: number | null;
-            /** Timeline */
-            timeline: components["schemas"]["HistoricalBandTimelinePoint"][];
-            /** Sample Count */
-            sample_count: number;
-            /**
-             * Classification
-             * @description UI hint: current vs p75/p90 (spec §6.6)
-             * @enum {string}
-             */
-            classification: "expensive" | "fair" | "cheap" | "unknown";
-            /** Warnings */
-            warnings?: string[];
-        };
-        /** HistoricalBandTimelinePoint */
-        HistoricalBandTimelinePoint: {
-            /**
-             * Date
-             * Format: date
-             */
-            date: string;
-            /** Value */
-            value: number;
-        };
-        /**
-         * HistoricalMetrics
-         * @description Multi-year historical financial metrics extracted from provider data.
-         */
-        HistoricalMetrics: {
-            /** Years */
-            years: number[];
-            /** Revenue */
-            revenue: number[];
-            /** Revenue Growth Yoy */
-            revenue_growth_yoy: (number | null)[];
-            /** Cogs */
-            cogs: number[];
-            /** Gross Profit */
-            gross_profit: number[];
-            /** Gross Margin */
-            gross_margin: number[];
-            /** Sga */
-            sga: number[];
-            /** Sga Ratio */
-            sga_ratio: number[];
-            /** Ebitda */
-            ebitda: number[];
-            /** Ebitda Margin */
-            ebitda_margin: number[];
-            /** Operating Income */
-            operating_income: number[];
-            /** Operating Margin */
-            operating_margin: number[];
-            /** Net Income */
-            net_income: number[];
-            /** Eps */
-            eps: number[];
-            /** Pe Ratio */
-            pe_ratio: (number | null)[];
-            /** Cagr Revenue */
-            cagr_revenue: number | null;
-            /** Ticker */
-            ticker: string;
-            /**
-             * Price Data Available
-             * @default false
-             */
-            price_data_available: boolean;
-            /** Operating Cash Flow */
-            operating_cash_flow?: number[];
-            /** Investing Cash Flow */
-            investing_cash_flow?: number[];
-            /** Financing Cash Flow */
-            financing_cash_flow?: number[];
-            /** Depreciation Amortization */
-            depreciation_amortization?: number[];
-            /** Capital Expenditure */
-            capital_expenditure?: number[];
-            /** Change In Working Capital */
-            change_in_working_capital?: number[];
-        };
-        /**
-         * HitRateBucket
-         * @description One verdict-bucket (or overall) hit-rate snapshot.
-         */
-        HitRateBucket: {
-            /** N Total */
-            n_total: number;
-            /** N Closed */
-            n_closed: number;
-            /** N Hit */
-            n_hit: number;
-            /** Hit Rate */
-            hit_rate: number | null;
-        };
-        /**
-         * HitRateOverview
-         * @description Response for /api/dashboard/hit-rate.
-         */
-        HitRateOverview: {
-            /** Window */
-            window: string;
-            overall: components["schemas"]["HitRateBucket"];
-            /** By Verdict */
-            by_verdict: {
-                [key: string]: components["schemas"]["HitRateBucket"];
-            };
-            /**
-             * Generated At
-             * Format: date-time
-             */
-            generated_at: string;
-        };
-        /**
-         * IncomeStatement
-         * @description Income statement metrics.
-         */
-        IncomeStatement: {
-            /**
-             * Revenue
-             * @description Annual revenue in USD
-             */
-            revenue: number;
-            /**
-             * Ebitda
-             * @description EBITDA in USD
-             */
-            ebitda: number;
-            /**
-             * Net Income
-             * @description Net income in USD
-             */
-            net_income: number;
-            /**
-             * Gross Margin
-             * @description Gross margin as decimal
-             */
-            gross_margin: number;
-            /**
-             * Operating Margin
-             * @description Operating margin as decimal
-             */
-            operating_margin: number;
-            /** Depreciation Amortization */
-            depreciation_amortization?: number | null;
-            /** Rd Expense */
-            rd_expense?: number | null;
-            /** Sga Expense */
-            sga_expense?: number | null;
-            /** Interest Expense */
-            interest_expense?: number | null;
-        };
-        /**
-         * LBOInputs
-         * @description Assumptions driving the LBO model. LLM selects these, code computes math.
-         */
-        LBOInputs: {
-            /** Ticker */
-            ticker: string;
-            /**
-             * Ltm Ebitda
-             * @description LTM EBITDA at entry (USD)
-             */
-            ltm_ebitda: number;
-            /**
-             * Entry Ev Ebitda
-             * @description Entry EV/EBITDA multiple
-             */
-            entry_ev_ebitda: number;
-            /**
-             * Exit Ev Ebitda
-             * @description Exit EV/EBITDA multiple
-             */
-            exit_ev_ebitda: number;
-            /**
-             * Holding Period Years
-             * @default 5
-             */
-            holding_period_years: number;
-            /**
-             * Revenue Base
-             * @description LTM revenue at entry (USD)
-             */
-            revenue_base: number;
-            /**
-             * Revenue Growth Rate
-             * @description Annual revenue growth (constant)
-             */
-            revenue_growth_rate: number;
-            /**
-             * Ebitda Margin
-             * @description EBITDA/revenue (constant)
-             */
-            ebitda_margin: number;
-            /**
-             * Da Pct Revenue
-             * @default 0.04
-             */
-            da_pct_revenue: number;
-            /**
-             * Capex Pct Revenue
-             * @default 0.04
-             */
-            capex_pct_revenue: number;
-            /**
-             * Nwc Change Pct Revenue
-             * @default 0.01
-             */
-            nwc_change_pct_revenue: number;
-            /**
-             * Leverage Multiple
-             * @description Total debt / EBITDA at entry
-             * @default 5
-             */
-            leverage_multiple: number;
-            /**
-             * Interest Rate
-             * @description Blended debt rate
-             * @default 0.07
-             */
-            interest_rate: number;
-            /**
-             * Mandatory Amort Pct
-             * @description Mandatory amortization as % of entry debt per year
-             * @default 0.01
-             */
-            mandatory_amort_pct: number;
-            /**
-             * Cash Sweep
-             * @description Sweep all excess FCF to debt
-             * @default true
-             */
-            cash_sweep: boolean;
-            /**
-             * Tax Rate
-             * @default 0.25
-             */
-            tax_rate: number;
-            /**
-             * Assumption Provenance
-             * @description Maps assumption field names to their reasoning/source
-             */
-            assumption_provenance?: {
-                [key: string]: string;
-            };
-        };
-        /**
-         * LBOResult
-         * @description Full LBO model output. All returns computed by code, not LLM.
-         */
-        LBOResult: {
-            /** Entry Ev */
-            entry_ev: number;
-            /** Entry Debt */
-            entry_debt: number;
-            /** Entry Equity */
-            entry_equity: number;
-            /** Schedule */
-            schedule: components["schemas"]["LBOYear"][];
-            /** Exit Ebitda */
-            exit_ebitda: number;
-            /** Exit Ev */
-            exit_ev: number;
-            /** Exit Equity */
-            exit_equity: number;
-            /** Moic */
-            moic: number;
-            /**
-             * Irr
-             * @description Annualized IRR (decimal). -1.0 = total loss.
-             */
-            irr: number;
-            /**
-             * Sensitivity
-             * @description entry_multiples, exit_multiples, irr_grid, moic_grid
-             */
-            sensitivity?: {
-                [key: string]: unknown;
-            };
-            /** Irr Formula Warning */
-            irr_formula_warning?: string | null;
-        };
-        /**
-         * LBOYear
-         * @description One year of LBO operations. All numbers deterministically computed.
-         */
-        LBOYear: {
-            /** Year */
-            year: number;
-            /** Revenue */
-            revenue: number;
-            /** Ebitda */
-            ebitda: number;
-            /** Da */
-            da: number;
-            /** Ebit */
-            ebit: number;
-            /** Interest Expense */
-            interest_expense: number;
-            /** Ebt */
-            ebt: number;
-            /** Taxes */
-            taxes: number;
-            /** Net Income */
-            net_income: number;
-            /** Capex */
-            capex: number;
-            /** Delta Nwc */
-            delta_nwc: number;
-            /** Fcf */
-            fcf: number;
-            /** Mandatory Amort */
-            mandatory_amort: number;
-            /** Cash Sweep Amount */
-            cash_sweep_amount: number;
-            /** Total Debt Paydown */
-            total_debt_paydown: number;
-            /** Ending Debt */
-            ending_debt: number;
-        };
-        /**
-         * LboSeedRequest
-         * @description One-shot LBO seeded from a ticker — single authoritative entry point.
-         *
-         *     Backend fetches financials + historical, calls ``seed_lbo_inputs`` to
-         *     derive every assumption from real filings (or Damodaran industry fallback /
-         *     PE convention for deal-structure quantities), then runs calculate_lbo +
-         *     sensitivity in one shot. Replaces the legacy front-end path that shipped
-         *     14 hardcoded LBO parameters per ticker.
-         */
-        LboSeedRequest: {
-            /** Ticker */
-            ticker: string;
-            /** Holding Period Years */
-            holding_period_years?: number | null;
-            /** Entry Ev Ebitda */
-            entry_ev_ebitda?: number | null;
-            /** Exit Ev Ebitda */
-            exit_ev_ebitda?: number | null;
-            /** Leverage Multiple */
-            leverage_multiple?: number | null;
-        };
-        /**
-         * LboSeedResponse
-         * @description Bundled LBO output. inputs.assumption_provenance carries the per-field
-         *     sources for the UI's "展开专家详情" tooltip — mirrors DcfSeedResponse.
-         */
-        LboSeedResponse: {
-            inputs: components["schemas"]["LBOInputs"];
-            result: components["schemas"]["LBOResult"];
-            /** Current Price */
-            current_price?: number | null;
-        };
-        /**
-         * MarketData
-         * @description Market and price data.
-         */
-        MarketData: {
-            /**
-             * Market Cap
-             * @description Market cap in USD
-             */
-            market_cap: number;
-            /** Shares Outstanding */
-            shares_outstanding: number;
-            /** Current Price */
-            current_price: number;
-            /** Pe Ratio */
-            pe_ratio?: number | null;
-            /** Price 52W High */
-            price_52w_high?: number | null;
-            /** Price 52W Low */
-            price_52w_low?: number | null;
-            /** Industry */
-            industry?: string | null;
-            /** Sector */
-            sector?: string | null;
-            /** Beta */
-            beta?: number | null;
-        };
-        /**
-         * MonteCarloRequest
-         * @description Request body for Monte Carlo endpoint.
-         */
-        MonteCarloRequest: {
-            inputs: components["schemas"]["DCFInputs"];
-            /** Current Price */
-            current_price: number;
-            /**
-             * N Simulations
-             * @default 10000
-             */
-            n_simulations: number;
-            /**
-             * N Bins
-             * @default 50
-             */
-            n_bins: number;
-            /**
-             * Revenue Growth Std
-             * @default 0.02
-             */
-            revenue_growth_std: number;
-            /**
-             * Ebitda Margin Std
-             * @default 0.02
-             */
-            ebitda_margin_std: number;
-            /**
-             * Wacc Std
-             * @default 0.01
-             */
-            wacc_std: number;
-            /**
-             * Terminal Growth Std
-             * @default 0.005
-             */
-            terminal_growth_std: number;
-            /**
-             * Mid Year
-             * @default false
-             */
-            mid_year: boolean;
-        };
-        /**
-         * MonteCarloResult
-         * @description Result of Monte Carlo DCF simulation.
-         */
-        MonteCarloResult: {
-            /**
-             * Implied Prices
-             * @description All valid simulated prices, sorted
-             */
-            implied_prices: number[];
-            /**
-             * Percentiles
-             * @description Percentile -> price mapping, e.g. {'5': 165.2, '50': 198.0}
-             */
-            percentiles: {
-                [key: string]: number;
-            };
-            /** Mean */
-            mean: number;
-            /** Std */
-            std: number;
-            /**
-             * Current Price Percentile
-             * @description Where current price falls in distribution (0-100)
-             */
-            current_price_percentile: number;
-            /**
-             * Histogram Bins
-             * @description Bin edges for histogram
-             */
-            histogram_bins: number[];
-            /**
-             * Histogram Counts
-             * @description Counts per histogram bin
-             */
-            histogram_counts: number[];
-            /**
-             * Assumptions Used
-             * @description Distribution parameters used
-             */
-            assumptions_used: {
-                [key: string]: unknown;
-            };
-            /**
-             * N Valid
-             * @description Number of valid simulations (out of n_simulations)
-             */
-            n_valid: number;
-        };
-        /** QuotesWarmedStatus */
-        QuotesWarmedStatus: {
-            /** Warmed */
-            warmed: boolean;
-            /** Studied Ticker Count */
-            studied_ticker_count: number;
-        };
-        /** RecentResearchResponse */
-        RecentResearchResponse: {
-            /** Items */
-            items: components["schemas"]["RecentTickerItem"][];
-            /** Total In Store */
-            total_in_store: number;
-            /** Distinct Ticker Count */
-            distinct_ticker_count: number;
-            /**
-             * Generated At
-             * Format: date-time
-             */
-            generated_at: string;
-        };
-        /**
-         * RecentTickerItem
-         * @description One card in /api/dashboard/recent-research — ticker drawer.
-         *
-         *     2026-05-23 (v2): card now exposes the ticker's recent runs as discrete
-         *     rows. UI routes every row to `/stocks/:ticker/runs/:artifact_id` so each
-         *     individual report is one click away — the 1-ticker-to-N-reports
-         *     relationship is visible, not collapsed into chips.
-         *
-         *     `runs` is capped at MAX_RUNS_PER_TICKER (5); `run_count` is the true
-         *     total so the UI can render a "+ N 更多" footer pointing at the
-         *     workspace's full timeline.
-         */
-        RecentTickerItem: {
-            /** Ticker */
-            ticker: string;
-            /** Run Count */
-            run_count: number;
-            /** Runs */
-            runs: components["schemas"]["RecentTickerRun"][];
-            /** Latest Signal */
-            latest_signal: string | null;
-            /**
-             * Latest At
-             * Format: date-time
-             */
-            latest_at: string;
-        };
-        /**
-         * RecentTickerRun
-         * @description One clickable row inside a ticker card.
-         */
-        RecentTickerRun: {
-            /** Artifact Id */
-            artifact_id: string;
-            /** Type */
-            type: string;
-            /** Verdict */
-            verdict: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Age Label */
-            age_label: string;
-        };
-        /** RunDetail */
-        RunDetail: {
-            /** Run Id */
-            run_id: string;
-            /** Status */
-            status: string;
-            /** Pipeline Type */
-            pipeline_type: string;
-            /** Ticker */
-            ticker: string;
-            /** Created At */
-            created_at: string;
-            /** Completed At */
-            completed_at?: string | null;
-            /** Duration S */
-            duration_s?: number | null;
-            result?: components["schemas"]["RunResult"] | null;
-            /**
-             * Artifacts
-             * @default []
-             */
-            artifacts: {
-                [key: string]: unknown;
-            }[];
-            /**
-             * Warnings
-             * @default []
-             */
-            warnings: string[];
-            /**
-             * Failed Validations
-             * @default []
-             */
-            failed_validations: {
-                [key: string]: string;
-            }[];
-            /** Steps */
-            steps?: {
-                [key: string]: string;
-            } | null;
-            /** Error */
-            error?: string | null;
-        };
-        /** RunResult */
-        RunResult: {
-            /** Text */
-            text?: string | null;
-            /** Structured */
-            structured?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /** ScoreRequest */
-        ScoreRequest: {
-            /** Pe Ratio */
-            pe_ratio?: number | null;
-            /** Peg Ratio */
-            peg_ratio?: number | null;
-            /** Gross Margin */
-            gross_margin?: number | null;
-            /** Gross Margin Industry Median */
-            gross_margin_industry_median?: number | null;
-            /** Revenue Growth Yoy */
-            revenue_growth_yoy?: number | null;
-            /** Earnings Beat Rate */
-            earnings_beat_rate?: number | null;
-            /**
-             * Positive Catalysts
-             * @default 0
-             */
-            positive_catalysts: number;
-            /**
-             * Negative Catalysts
-             * @default 0
-             */
-            negative_catalysts: number;
-            /** News Sentiment */
-            news_sentiment?: number | null;
-            /** Dcf Upside Pct */
-            dcf_upside_pct?: number | null;
-        };
-        /** SearchResponse */
-        SearchResponse: {
-            /** Query */
-            query: string;
-            /** Results */
-            results: components["schemas"]["SearchResult"][];
-        };
-        /**
-         * SearchResult
-         * @description A single search suggestion item.
-         */
-        SearchResult: {
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "ticker" | "artifact";
-            /** Title */
-            title: string;
-            /**
-             * Subtitle
-             * @default
-             */
-            subtitle: string;
-            /** Action */
-            action: string;
-            /**
-             * Score
-             * @default 0
-             */
-            score: number;
-        };
-        /**
-         * SentimentSnapshot
-         * @description ``GET /api/sentiment/{ticker}`` payload (v5 §6.12).
-         */
-        SentimentSnapshot: {
-            /** Ticker */
-            ticker: string;
-            /** Days */
-            days: number;
-            /**
-             * Available
-             * @description False when the Adanos provider isn't configured (no API key) or all platform requests failed — UI shows '未配置 Adanos · [跳设置 →]'.
-             */
-            available: boolean;
-            /**
-             * Coverage
-             * @description N/3 platforms returned data, e.g. '2/3'
-             */
-            coverage?: string | null;
-            /** Bullish Pct */
-            bullish_pct?: number | null;
-            /** Bearish Pct */
-            bearish_pct?: number | null;
-            /** Average Buzz */
-            average_buzz?: number | null;
-            /**
-             * Source Alignment
-             * @description 'aligned' / 'split' / 'no_data' — how consistently the sources agree.
-             */
-            source_alignment?: string | null;
-            /** Sources */
-            sources?: components["schemas"]["SentimentSource"][];
-            /** Warnings */
-            warnings?: string[];
-        };
-        /**
-         * SentimentSource
-         * @description One platform's contribution to the aggregate sentiment view.
-         */
-        SentimentSource: {
-            /**
-             * Platform
-             * @description Reddit / X.com / Polymarket
-             */
-            platform: string;
-            /** Has Data */
-            has_data: boolean;
-            /** Bullish Pct */
-            bullish_pct?: number | null;
-            /**
-             * Activity Label
-             * @description 'Mentions' / 'Trades'
-             */
-            activity_label: string;
-            /** Activity Value */
-            activity_value?: number | null;
-        };
-        /**
-         * SettingsResetRequest
-         * @description Fields to clear from settings.json so .env / env-vars regain priority.
-         */
-        SettingsResetRequest: {
-            /** Fields */
-            fields?: string[];
-        };
-        /** SettingsResponse */
-        SettingsResponse: {
-            /** Model Name */
-            model_name: string;
-            /** Model Data */
-            model_data?: string | null;
-            /** Model Analysis */
-            model_analysis?: string | null;
-            /** Model Modeling */
-            model_modeling?: string | null;
-            /** Model Synthesis */
-            model_synthesis?: string | null;
-            /** Model Report */
-            model_report?: string | null;
-            /** Anthropic Api Key Set */
-            anthropic_api_key_set: boolean;
-            /** Deepseek Api Key Set */
-            deepseek_api_key_set: boolean;
-            /** Openai Api Key Set */
-            openai_api_key_set: boolean;
-            /** Fmp Api Key Set */
-            fmp_api_key_set: boolean;
-            /** Finnhub Api Key Set */
-            finnhub_api_key_set: boolean;
-            /** Alpha Vantage Api Key Set */
-            alpha_vantage_api_key_set: boolean;
-            /** Adanos Api Key Set */
-            adanos_api_key_set: boolean;
-            /** Sec User Agent */
-            sec_user_agent: string;
-            /** Sec Identity Dismissed At */
-            sec_identity_dismissed_at?: string | null;
-            /** Sec Holdings Auto Refresh */
-            sec_holdings_auto_refresh: boolean;
-            /** Log Level */
-            log_level: string;
-            /** Available Providers */
-            available_providers: string[];
-            /** Valid Model Providers */
-            valid_model_providers: ("anthropic" | "deepseek" | "openai")[];
-            /** Field Sources */
-            field_sources: {
-                [key: string]: "keychain" | "settings_json" | "env" | "default";
-            };
-            /** Startup Error */
-            startup_error?: string | null;
-        };
-        /** SettingsUpdate */
-        SettingsUpdate: {
-            /** Model Name */
-            model_name?: string | null;
-            /** Model Data */
-            model_data?: string | null;
-            /** Model Analysis */
-            model_analysis?: string | null;
-            /** Model Modeling */
-            model_modeling?: string | null;
-            /** Model Synthesis */
-            model_synthesis?: string | null;
-            /** Model Report */
-            model_report?: string | null;
-            /** Sec User Agent */
-            sec_user_agent?: string | null;
-            /** Sec Identity Dismissed At */
-            sec_identity_dismissed_at?: string | null;
-            /** Sec Holdings Auto Refresh */
-            sec_holdings_auto_refresh?: boolean | null;
-            /** Log Level */
-            log_level?: string | null;
-            /** Anthropic Api Key */
-            anthropic_api_key?: string | null;
-            /** Deepseek Api Key */
-            deepseek_api_key?: string | null;
-            /** Openai Api Key */
-            openai_api_key?: string | null;
-            /** Fmp Api Key */
-            fmp_api_key?: string | null;
-            /** Finnhub Api Key */
-            finnhub_api_key?: string | null;
-            /** Alpha Vantage Api Key */
-            alpha_vantage_api_key?: string | null;
-            /** Adanos Api Key */
-            adanos_api_key?: string | null;
-            /** Telegram Bot Token */
-            telegram_bot_token?: string | null;
-            /** Feishu Webhook Url */
-            feishu_webhook_url?: string | null;
-            /** Telegram Chat Id */
-            telegram_chat_id?: string | null;
-            /** Discord Webhook Url */
-            discord_webhook_url?: string | null;
-            /** Email Smtp Host */
-            email_smtp_host?: string | null;
-            /** Email Smtp Port */
-            email_smtp_port?: number | null;
-            /** Email To */
-            email_to?: string | null;
-            /** Custom Webhook Url */
-            custom_webhook_url?: string | null;
-        };
-        /** SniperPoints */
-        SniperPoints: {
-            /** Ideal Buy */
-            ideal_buy: number;
-            /** Secondary Buy */
-            secondary_buy: number;
-            /** Stop Loss */
-            stop_loss: number;
-            /** Take Profit */
-            take_profit: number;
-            /** Position Size Pct */
-            position_size_pct: number;
-            /** Safety Margin */
-            safety_margin: number;
-            /** Support Level */
-            support_level: number;
-            /** Resistance Level */
-            resistance_level: number;
-            /** Risk Reward Ratio */
-            risk_reward_ratio: number;
-        };
-        /** SniperRequest */
-        SniperRequest: {
-            /** Ticker */
-            ticker: string;
-            /** Current Price */
-            current_price: number;
-            /** Dcf Target */
-            dcf_target: number;
-            /** Historical Prices */
-            historical_prices: number[];
-            /** Volatility Annual */
-            volatility_annual?: number | null;
-        };
-        /**
-         * StudiedTicker
-         * @description One row in /api/artifacts/studied-tickers — a ticker the user has run analysis on.
-         */
-        StudiedTicker: {
-            /** Ticker */
-            ticker: string;
-            /** Run Count */
-            run_count: number;
-            /**
-             * Latest Created At
-             * Format: date-time
-             */
-            latest_created_at: string;
-            /** Latest Type */
-            latest_type: string;
-            /** Latest Artifact Id */
-            latest_artifact_id: string;
-            /** Latest Target Price */
-            latest_target_price: number | null;
-            /** Latest Entry Price */
-            latest_entry_price: number | null;
-            /** Latest Signal */
-            latest_signal: string | null;
-            /** Types */
-            types: string[];
-        };
-        /** StudiedTickersResponse */
-        StudiedTickersResponse: {
-            /** Items */
-            items: components["schemas"]["StudiedTicker"][];
-            /**
-             * Generated At
-             * Format: date-time
-             */
-            generated_at: string;
-        };
-        /** TestChannelResponse */
-        TestChannelResponse: {
-            /** Channel */
-            channel: string;
-            /** Success */
-            success: boolean;
-        };
-        /** ValidationError */
-        ValidationError: {
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
-        };
-        /**
-         * ValuationAggregate
-         * @description Response payload for ``GET /api/valuation/aggregate/{ticker}``.
-         *
-         *     Contains every method we could compute for the ticker at request time.
-         *     Missing methods are simply absent from `methods`; the UI shows what's
-         *     available and explains the gaps via `warnings`.
-         */
-        ValuationAggregate: {
-            /** Ticker */
-            ticker: string;
-            /** Current Price */
-            current_price: number | null;
-            /**
-             * As Of
-             * Format: date-time
-             */
-            as_of: string;
-            /** Methods */
-            methods: components["schemas"]["ValuationMethodRange"][];
-            /** Warnings */
-            warnings?: string[];
-        };
-        /**
-         * ValuationMethodRange
-         * @description One method's low / mid / high target-price band for the Football Field.
-         *
-         *     A leaner cousin of ValuationMethod tagged with `method_type` so the front
-         *     end can render valuation methods as solid bars and multiple-based reverse
-         *     ranges as dashed bars (v5 §6.4).
-         */
-        ValuationMethodRange: {
-            /**
-             * Method
-             * @enum {string}
-             */
-            method: "dcf" | "comps_pe" | "lbo" | "ddm" | "ev_ebitda" | "p_fcf";
-            /**
-             * Method Type
-             * @enum {string}
-             */
-            method_type: "valuation" | "multiple";
-            /** Low */
-            low: number;
-            /** Mid */
-            mid: number;
-            /** High */
-            high: number;
-            /** Confidence */
-            confidence: number;
-            /**
-             * Source
-             * @description Human-readable provenance, e.g. 'monte_carlo_p10_p90'
-             */
-            source: string;
-            /** Warnings */
-            warnings?: string[];
-        };
-        /**
-         * ValuationMetrics
-         * @description Derived valuation multiples. Computed by code, not LLM.
-         */
-        ValuationMetrics: {
-            /** Enterprise Value */
-            enterprise_value?: number | null;
-            /** Ev Ebitda */
-            ev_ebitda?: number | null;
-            /** Ev Revenue */
-            ev_revenue?: number | null;
-        };
-        /** WaccRequest */
-        WaccRequest: {
-            /** Risk Free Rate */
-            risk_free_rate: number;
-            /** Beta */
-            beta: number;
-            /** Equity Risk Premium */
-            equity_risk_premium: number;
-            /** Cost Of Debt */
-            cost_of_debt: number;
-            /** Tax Rate */
-            tax_rate: number;
-            /** Debt Ratio */
-            debt_ratio: number;
-        };
-        /** WaccResponse */
-        WaccResponse: {
-            /** Cost Of Equity */
-            cost_of_equity: number;
-            /** Wacc */
-            wacc: number;
-        };
-    };
-    responses: never;
-    parameters: never;
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+  schemas: {
+    /**
+     * Artifact
+     * @description A single financial analysis snapshot.
+     */
+    Artifact: {
+      /** Id */
+      id: string
+      /** Ticker */
+      ticker: string | null
+      /**
+       * Cross Tickers
+       * @description Populated when ticker is None (e.g. peer comparison).
+       */
+      cross_tickers?: string[]
+      /**
+       * Type
+       * @enum {string}
+       */
+      type:
+        | 'dcf'
+        | 'lbo'
+        | 'comps'
+        | 'ddm'
+        | 'earnings'
+        | 'ic_memo'
+        | 'equity_research'
+        | 'peer_research'
+        | 'ad_hoc'
+      inputs: components['schemas']['ArtifactInputs']
+      assumptions: components['schemas']['ArtifactAssumptions']
+      compute_version: components['schemas']['ArtifactComputeVersion']
+      outputs: components['schemas']['ArtifactOutputs']
+      meta: components['schemas']['ArtifactMeta']
+    }
+    /**
+     * ArtifactAssumptions
+     * @description All parameters fed into the deterministic compute layer.
+     */
+    ArtifactAssumptions: {
+      /**
+       * Parameters
+       * @description wacc / terminal_growth / tax_rate / revenue_growth_rates etc.
+       */
+      parameters: {
+        [key: string]: unknown
+      }
+      /**
+       * User Overrides
+       * @description Subset of parameters the user explicitly overrode (vs LLM-selected via param_agent).
+       */
+      user_overrides?: {
+        [key: string]: unknown
+      }
+    }
+    /**
+     * ArtifactComputeVersion
+     * @description Snapshot of the compute code that produced the result.
+     */
+    ArtifactComputeVersion: {
+      /**
+       * Package
+       * @default finrobot
+       */
+      package: string
+      /** Version */
+      version: string
+      /** Git Commit */
+      git_commit?: string | null
+      /** Formula Id */
+      formula_id: string
+      /** Formula Warnings */
+      formula_warnings?: string[]
+    }
+    /**
+     * ArtifactInputs
+     * @description Data snapshot at time of computation. Frozen so it can be replayed.
+     */
+    ArtifactInputs: {
+      /**
+       * Data Source
+       * @description yfinance|FMP|Finnhub|SEC|...
+       */
+      data_source: string
+      /**
+       * Data Fetched At
+       * Format: date-time
+       */
+      data_fetched_at: string
+      /**
+       * Raw Data
+       * @description Provider's raw return values, captured verbatim. Enables byte-equal replay even if external API drifts.
+       */
+      raw_data: {
+        [key: string]: unknown
+      }
+    }
+    /**
+     * ArtifactMeta
+     * @description Provenance: when, by whom, via what flow.
+     */
+    ArtifactMeta: {
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Source
+       * @description 'conversation:<session_id>' | 'stocks_page_button' | 'workspace_batch:<batch_id>' | 'cli'
+       */
+      source: string
+      /**
+       * User Id
+       * @default local
+       */
+      user_id: string
+      /** Tags */
+      tags?: string[]
+      /**
+       * Parent Artifact Id
+       * @description If this artifact is a re-run / iteration of an earlier one.
+       */
+      parent_artifact_id?: string | null
+      /**
+       * Last Viewed At
+       * @description Updated by mark_viewed(). Used for auto-archive logic.
+       */
+      last_viewed_at?: string | null
+      /**
+       * Archived
+       * @description True when artifact has been unviewed for > archive_hours.
+       * @default false
+       */
+      archived: boolean
+    }
+    /**
+     * ArtifactOutputs
+     * @description Computed results returned to the user.
+     */
+    ArtifactOutputs: {
+      /**
+       * Structured
+       * @description The model dump of e.g. DCFResult / LBOResult / PeerComps.
+       */
+      structured: {
+        [key: string]: unknown
+      }
+      /**
+       * Summary Text
+       * @default
+       */
+      summary_text: string
+      /** Warnings */
+      warnings?: string[]
+    }
+    /**
+     * ArtifactSummary
+     * @description Sidebar / Library view — strips heavy fields.
+     *
+     *     v5 (ADR-0001) adds four optional fields powering the "我的研究" section's
+     *     signal lamp + hit-rate banner. All default to None so legacy JSON
+     *     artifacts (written before v5) deserialize cleanly; the UI must treat None
+     *     as "no signal" and skip from hit-rate stats.
+     */
+    ArtifactSummary: {
+      /** Id */
+      id: string
+      /** Ticker */
+      ticker: string | null
+      /** Cross Tickers */
+      cross_tickers: string[]
+      /**
+       * Type
+       * @enum {string}
+       */
+      type:
+        | 'dcf'
+        | 'lbo'
+        | 'comps'
+        | 'ddm'
+        | 'earnings'
+        | 'ic_memo'
+        | 'equity_research'
+        | 'peer_research'
+        | 'ad_hoc'
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /** Headline */
+      headline: string
+      /** Source */
+      source: string
+      /**
+       * Archived
+       * @default false
+       */
+      archived: boolean
+      /**
+       * Entry Price
+       * @description Quote snapshot taken when the pipeline was triggered (USD/share). Mirrors journal.entry_price semantics. None for legacy artifacts or cross-ticker analyses without a single entry price.
+       */
+      entry_price?: number | null
+      /**
+       * Target Price
+       * @description AI-given target price from the thesis step (USD/share). Mirrors journal.target_price semantics. None when the artifact type has no thesis (peer_research / ad_hoc) or for legacy data.
+       */
+      target_price?: number | null
+      /**
+       * Target Date
+       * @description Deadline for the thesis (defaults to created_at + 365 days, set in the thesis step). None when target_price itself is None.
+       */
+      target_date?: string | null
+      /**
+       * Signal
+       * @description Lazy-computed realised-vs-target signal (hit / watching / failed) — never persisted. Route handlers call finrobot.engine.compute.signal.compute_signal at list time using a fresh quote. None when any of entry_price / target_price / current_price are unavailable. DO NOT confuse with `verdict` — signal is the post-trade outcome, verdict is the LLM's pre-trade BUY/HOLD/SELL call.
+       */
+      signal?: ('hit' | 'watching' | 'failed') | null
+      /**
+       * Verdict
+       * @description LLM-emitted BUY / HOLD / SELL recommendation from the thesis step. Populated by summary_extractor.extract_verdict at summary build time. None when the artifact has no thesis (peer_research / ad_hoc) or when the recommendation field is missing / malformed.
+       */
+      verdict?: string | null
+      /**
+       * Tagline
+       * @description ≤ 60 char shareable conclusion written by the synthesis_agent (narrative slot). Populated by summary_extractor.extract_tagline; lets the workspace AI zone hot-state card show the real LLM call instead of the truncated pipeline.format_summary preview that gets stored in `headline`. None for legacy artifacts produced before the narrative bump.
+       */
+      tagline?: string | null
+    }
+    /**
+     * BalanceSheet
+     * @description Balance sheet metrics.
+     */
+    BalanceSheet: {
+      /**
+       * Total Debt
+       * @description Total debt in USD
+       * @default 0
+       */
+      total_debt: number
+      /**
+       * Total Cash
+       * @description Total cash in USD
+       * @default 0
+       */
+      total_cash: number
+    }
+    /**
+     * CatalystEvent
+     * @description Single catalyst event extracted by LLM from news.
+     */
+    CatalystEvent: {
+      /**
+       * Category
+       * @enum {string}
+       */
+      category:
+        | 'product_launch'
+        | 'earnings'
+        | 'regulatory'
+        | 'acquisition'
+        | 'management'
+        | 'market'
+      /** Headline */
+      headline: string
+      /**
+       * Sentiment
+       * @enum {string}
+       */
+      sentiment: 'positive' | 'negative' | 'neutral'
+      /** Impact Score */
+      impact_score: number
+      /** Probability */
+      probability: number
+      /** Reasoning */
+      reasoning: string
+    }
+    /** CompositeScore */
+    CompositeScore: {
+      /** Total */
+      total: number
+      /** Fundamental */
+      fundamental: number
+      /** Valuation */
+      valuation: number
+      /** Catalyst */
+      catalyst: number
+      /** Sentiment */
+      sentiment: number
+      /** Signal */
+      signal: string
+      /** Breakdown */
+      breakdown: {
+        [key: string]: string
+      }
+    }
+    /** CreateRunRequest */
+    CreateRunRequest: {
+      /** Pipeline Type */
+      pipeline_type: string
+      /** Ticker */
+      ticker: string
+    }
+    /** CreateRunResponse */
+    CreateRunResponse: {
+      /** Run Id */
+      run_id: string
+      /**
+       * Status
+       * @constant
+       */
+      status: 'created'
+      /** Pipeline Type */
+      pipeline_type: string
+      /** Ticker */
+      ticker: string
+      /** Created At */
+      created_at: string
+    }
+    /**
+     * DCFInputs
+     * @description Inputs for DCF calculation. Built by ``seed_dcf_inputs`` from real
+     *     filings (3y historical medians) + Damodaran industry fallback. The LLM
+     *     never selects these numbers — it only interprets them in the output_gen
+     *     narrative step.
+     *
+     *     FCF formula (standard, always used):
+     *         FCF = EBIT(1-tax) + D&A - CapEx - ΔNWC
+     *             = (EBITDA - D&A)(1-tax) + D&A - revenue*capex_pct - revenue*nwc_pct
+     *
+     *     The simplified branch that dropped the D&A tax shield is removed:
+     *     ``da_pct_revenue`` is now required (non-None), guaranteed by seed_dcf_inputs.
+     */
+    DCFInputs: {
+      /**
+       * Revenue Base
+       * @description Base year revenue in USD
+       */
+      revenue_base: number
+      /**
+       * Revenue Growth Rates
+       * @description Projected annual growth rates as decimals
+       */
+      revenue_growth_rates: number[]
+      /**
+       * Ebitda Margin
+       * @description Projected EBITDA margin
+       */
+      ebitda_margin: number
+      /**
+       * Capex Pct Revenue
+       * @description Capex as % of revenue
+       */
+      capex_pct_revenue: number
+      /**
+       * Nwc Pct Revenue
+       * @description Net working capital change as % of revenue
+       */
+      nwc_pct_revenue: number
+      /**
+       * Da Pct Revenue
+       * @description D&A as % of revenue. Default 0.0 (no tax shield — equivalent to the legacy simplified-FCF arithmetic but routed through the standard EBIT(1-T)+D&A formula). seed_dcf_inputs always sets a non-zero value from 3y filings or Damodaran fallback; direct callers can omit it for legacy compatibility.
+       * @default 0
+       */
+      da_pct_revenue: number
+      /**
+       * Tax Rate
+       * @default 0.21
+       */
+      tax_rate: number
+      /** Risk Free Rate */
+      risk_free_rate: number
+      /** Beta */
+      beta: number
+      /** Equity Risk Premium */
+      equity_risk_premium: number
+      /** Cost Of Debt */
+      cost_of_debt: number
+      /**
+       * Debt Ratio
+       * @description Debt / (Debt + Equity)
+       */
+      debt_ratio: number
+      /**
+       * Terminal Growth Rate
+       * @description Long-term growth rate
+       */
+      terminal_growth_rate: number
+      /** Shares Outstanding */
+      shares_outstanding: number
+      /**
+       * Net Debt
+       * @description Total debt - cash. Negative if net cash.
+       */
+      net_debt: number
+      /**
+       * Assumption Provenance
+       * @description Maps assumption field names to their reasoning/source
+       */
+      assumption_provenance?: {
+        [key: string]: string
+      }
+    }
+    /**
+     * DCFResult
+     * @description DCF valuation output. All numbers computed by code, not LLM.
+     */
+    DCFResult: {
+      /** Cost Of Equity */
+      cost_of_equity: number | null
+      /** Wacc */
+      wacc: number
+      /** Projection Years */
+      projection_years: number
+      /** Projected Revenue */
+      projected_revenue: number[]
+      /** Projected Ebitda */
+      projected_ebitda: number[]
+      /** Projected Fcf */
+      projected_fcf: number[]
+      /** Terminal Value */
+      terminal_value: number
+      /** Pv Terminal */
+      pv_terminal: number
+      /** Pv Fcf Total */
+      pv_fcf_total: number
+      /** Enterprise Value */
+      enterprise_value: number
+      /** Equity Value */
+      equity_value: number
+      /** Implied Price */
+      implied_price: number
+      /** Sensitivity Table */
+      sensitivity_table?: {
+        [key: string]: unknown
+      } | null
+      inputs: components['schemas']['DCFInputs']
+    }
+    /** DcfReverseResult */
+    DcfReverseResult: {
+      /** Solve For */
+      solve_for: string
+      /** Target Price */
+      target_price: number
+      /** Implied Growth */
+      implied_growth?: number | null
+      /** Implied Wacc */
+      implied_wacc?: number | null
+      /** Computed Price */
+      computed_price?: number | null
+      /** Wacc */
+      wacc?: number | null
+      /** Terminal Growth */
+      terminal_growth: number
+      /** Horizon Years */
+      horizon_years: number
+      /** Bracket */
+      bracket: number[]
+      /** Price At Lo */
+      price_at_lo: number
+      /** Price At Hi */
+      price_at_hi: number
+      /** Iterations */
+      iterations: number
+      /** Message */
+      message?: string | null
+    }
+    /**
+     * DcfSeedRequest
+     * @description One-shot DCF seeded from a ticker — single authoritative entry point.
+     *
+     *     Backend fetches financials + historical, calls ``seed_dcf_inputs`` to
+     *     derive every assumption from real filings (or Damodaran industry fallback),
+     *     then runs calculate_dcf + sensitivity + reverse DCF in one shot.
+     */
+    DcfSeedRequest: {
+      /** Ticker */
+      ticker: string
+      /** Wacc Override */
+      wacc_override?: number | null
+      /** Tg Override */
+      tg_override?: number | null
+      /**
+       * Growth Scale Override
+       * @description Multiplier applied uniformly to every seeded revenue_growth_rate. 0.1 → +10% to each year's growth, -0.2 → -20%, None → unchanged. Drives the What-if Editor's 'Revenue Growth Scale' slider.
+       */
+      growth_scale_override?: number | null
+      /**
+       * Mid Year
+       * @default false
+       */
+      mid_year: boolean
+      /**
+       * Include Reverse
+       * @default true
+       */
+      include_reverse: boolean
+    }
+    /**
+     * DcfSeedResponse
+     * @description Bundled DCF output. inputs.assumption_provenance carries the per-field
+     *     sources for the UI's "展开专家详情" tooltip.
+     */
+    DcfSeedResponse: {
+      inputs: components['schemas']['DCFInputs']
+      result: components['schemas']['DCFResult']
+      /** Current Price */
+      current_price?: number | null
+      reverse_growth?: components['schemas']['DcfReverseResult'] | null
+      reverse_wacc?: components['schemas']['DcfReverseResult'] | null
+    }
+    /** DcfSensitivityRequest */
+    DcfSensitivityRequest: {
+      inputs: components['schemas']['DCFInputs']
+      /** Wacc Range */
+      wacc_range: number[]
+      /** Tg Range */
+      tg_range: number[]
+    }
+    /** DcfSensitivityResult */
+    DcfSensitivityResult: {
+      /** Wacc Values */
+      wacc_values: number[]
+      /** Tg Values */
+      tg_values: number[]
+      /** Implied Prices */
+      implied_prices: (number | null)[][]
+    }
+    /**
+     * EarningsCallList
+     * @description Collection of transcripts for a ticker, ordered most-recent first.
+     */
+    EarningsCallList: {
+      /** Ticker */
+      ticker: string
+      /** Transcripts */
+      transcripts: components['schemas']['EarningsCallTranscript'][]
+    }
+    /**
+     * EarningsCallTranscript
+     * @description A single quarter's earnings call transcript.
+     */
+    EarningsCallTranscript: {
+      /** Ticker */
+      ticker: string
+      /** Quarter */
+      quarter: number
+      /** Year */
+      year: number
+      /** Date */
+      date?: string | null
+      /** Content */
+      content: string
+      /** Summary */
+      summary?: string | null
+    }
+    /**
+     * FieldDiff
+     * @description One field difference between two artifacts.
+     */
+    FieldDiff: {
+      /** Path */
+      path: string
+      /** Old */
+      old: unknown
+      /** New */
+      new: unknown
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'added' | 'removed' | 'changed'
+      /** Abs Change */
+      abs_change?: number | null
+      /** Pct Change */
+      pct_change?: number | null
+    }
+    /**
+     * FinancialData
+     * @description Structured financial data for a single company.
+     *
+     *     Access fields via sub-models:
+     *         fd.income.revenue, fd.balance.total_debt, fd.market.market_cap, etc.
+     */
+    FinancialData: {
+      /** Ticker */
+      ticker: string
+      /**
+       * Company Name
+       * @default
+       */
+      company_name: string
+      /**
+       * Timestamp
+       * Format: date-time
+       */
+      timestamp: string
+      /** Fiscal Period End */
+      fiscal_period_end?: string | null
+      income: components['schemas']['IncomeStatement']
+      balance?: components['schemas']['BalanceSheet']
+      market: components['schemas']['MarketData']
+      valuation?: components['schemas']['ValuationMetrics']
+      /**
+       * Data Source
+       * @default yfinance
+       */
+      data_source: string
+      /** Warnings */
+      warnings?: string[]
+    }
+    /** HTTPValidationError */
+    HTTPValidationError: {
+      /** Detail */
+      detail?: components['schemas']['ValidationError'][]
+    }
+    /**
+     * HistoricalBandResponse
+     * @description ``GET /api/valuation/historical-bands/{ticker}`` payload (v5 §6.6).
+     */
+    HistoricalBandResponse: {
+      /** Ticker */
+      ticker: string
+      /**
+       * Metric
+       * @enum {string}
+       */
+      metric: 'ev_ebitda' | 'p_fcf'
+      /** Current */
+      current: number | null
+      /** Median */
+      median: number | null
+      /** P25 */
+      p25: number | null
+      /** P75 */
+      p75: number | null
+      /** P90 */
+      p90: number | null
+      /** Timeline */
+      timeline: components['schemas']['HistoricalBandTimelinePoint'][]
+      /** Sample Count */
+      sample_count: number
+      /**
+       * Classification
+       * @description UI hint: current vs p75/p90 (spec §6.6)
+       * @enum {string}
+       */
+      classification: 'expensive' | 'fair' | 'cheap' | 'unknown'
+      /** Warnings */
+      warnings?: string[]
+    }
+    /** HistoricalBandTimelinePoint */
+    HistoricalBandTimelinePoint: {
+      /**
+       * Date
+       * Format: date
+       */
+      date: string
+      /** Value */
+      value: number
+    }
+    /**
+     * HistoricalMetrics
+     * @description Multi-year historical financial metrics extracted from provider data.
+     */
+    HistoricalMetrics: {
+      /** Years */
+      years: number[]
+      /** Revenue */
+      revenue: number[]
+      /** Revenue Growth Yoy */
+      revenue_growth_yoy: (number | null)[]
+      /** Cogs */
+      cogs: number[]
+      /** Gross Profit */
+      gross_profit: number[]
+      /** Gross Margin */
+      gross_margin: number[]
+      /** Sga */
+      sga: number[]
+      /** Sga Ratio */
+      sga_ratio: number[]
+      /** Ebitda */
+      ebitda: number[]
+      /** Ebitda Margin */
+      ebitda_margin: number[]
+      /** Operating Income */
+      operating_income: number[]
+      /** Operating Margin */
+      operating_margin: number[]
+      /** Net Income */
+      net_income: number[]
+      /** Eps */
+      eps: number[]
+      /** Pe Ratio */
+      pe_ratio: (number | null)[]
+      /** Cagr Revenue */
+      cagr_revenue: number | null
+      /** Ticker */
+      ticker: string
+      /**
+       * Price Data Available
+       * @default false
+       */
+      price_data_available: boolean
+      /** Operating Cash Flow */
+      operating_cash_flow?: number[]
+      /** Investing Cash Flow */
+      investing_cash_flow?: number[]
+      /** Financing Cash Flow */
+      financing_cash_flow?: number[]
+      /** Depreciation Amortization */
+      depreciation_amortization?: number[]
+      /** Capital Expenditure */
+      capital_expenditure?: number[]
+      /** Change In Working Capital */
+      change_in_working_capital?: number[]
+    }
+    /**
+     * HitRateBucket
+     * @description One verdict-bucket (or overall) hit-rate snapshot.
+     */
+    HitRateBucket: {
+      /** N Total */
+      n_total: number
+      /** N Closed */
+      n_closed: number
+      /** N Hit */
+      n_hit: number
+      /** Hit Rate */
+      hit_rate: number | null
+    }
+    /**
+     * HitRateOverview
+     * @description Response for /api/dashboard/hit-rate.
+     */
+    HitRateOverview: {
+      /** Window */
+      window: string
+      overall: components['schemas']['HitRateBucket']
+      /** By Verdict */
+      by_verdict: {
+        [key: string]: components['schemas']['HitRateBucket']
+      }
+      /**
+       * Generated At
+       * Format: date-time
+       */
+      generated_at: string
+    }
+    /**
+     * IncomeStatement
+     * @description Income statement metrics.
+     */
+    IncomeStatement: {
+      /**
+       * Revenue
+       * @description Annual revenue in USD
+       */
+      revenue: number
+      /**
+       * Ebitda
+       * @description EBITDA in USD
+       */
+      ebitda: number
+      /**
+       * Net Income
+       * @description Net income in USD
+       */
+      net_income: number
+      /**
+       * Gross Margin
+       * @description Gross margin as decimal
+       */
+      gross_margin: number
+      /**
+       * Operating Margin
+       * @description Operating margin as decimal
+       */
+      operating_margin: number
+      /** Depreciation Amortization */
+      depreciation_amortization?: number | null
+      /** Rd Expense */
+      rd_expense?: number | null
+      /** Sga Expense */
+      sga_expense?: number | null
+      /** Interest Expense */
+      interest_expense?: number | null
+    }
+    /**
+     * LBOInputs
+     * @description Assumptions driving the LBO model. LLM selects these, code computes math.
+     */
+    LBOInputs: {
+      /** Ticker */
+      ticker: string
+      /**
+       * Ltm Ebitda
+       * @description LTM EBITDA at entry (USD)
+       */
+      ltm_ebitda: number
+      /**
+       * Entry Ev Ebitda
+       * @description Entry EV/EBITDA multiple
+       */
+      entry_ev_ebitda: number
+      /**
+       * Exit Ev Ebitda
+       * @description Exit EV/EBITDA multiple
+       */
+      exit_ev_ebitda: number
+      /**
+       * Holding Period Years
+       * @default 5
+       */
+      holding_period_years: number
+      /**
+       * Revenue Base
+       * @description LTM revenue at entry (USD)
+       */
+      revenue_base: number
+      /**
+       * Revenue Growth Rate
+       * @description Annual revenue growth (constant)
+       */
+      revenue_growth_rate: number
+      /**
+       * Ebitda Margin
+       * @description EBITDA/revenue (constant)
+       */
+      ebitda_margin: number
+      /**
+       * Da Pct Revenue
+       * @default 0.04
+       */
+      da_pct_revenue: number
+      /**
+       * Capex Pct Revenue
+       * @default 0.04
+       */
+      capex_pct_revenue: number
+      /**
+       * Nwc Change Pct Revenue
+       * @default 0.01
+       */
+      nwc_change_pct_revenue: number
+      /**
+       * Leverage Multiple
+       * @description Total debt / EBITDA at entry
+       * @default 5
+       */
+      leverage_multiple: number
+      /**
+       * Interest Rate
+       * @description Blended debt rate
+       * @default 0.07
+       */
+      interest_rate: number
+      /**
+       * Mandatory Amort Pct
+       * @description Mandatory amortization as % of entry debt per year
+       * @default 0.01
+       */
+      mandatory_amort_pct: number
+      /**
+       * Cash Sweep
+       * @description Sweep all excess FCF to debt
+       * @default true
+       */
+      cash_sweep: boolean
+      /**
+       * Tax Rate
+       * @default 0.25
+       */
+      tax_rate: number
+      /**
+       * Assumption Provenance
+       * @description Maps assumption field names to their reasoning/source
+       */
+      assumption_provenance?: {
+        [key: string]: string
+      }
+    }
+    /**
+     * LBOResult
+     * @description Full LBO model output. All returns computed by code, not LLM.
+     */
+    LBOResult: {
+      /** Entry Ev */
+      entry_ev: number
+      /** Entry Debt */
+      entry_debt: number
+      /** Entry Equity */
+      entry_equity: number
+      /** Schedule */
+      schedule: components['schemas']['LBOYear'][]
+      /** Exit Ebitda */
+      exit_ebitda: number
+      /** Exit Ev */
+      exit_ev: number
+      /** Exit Equity */
+      exit_equity: number
+      /** Moic */
+      moic: number
+      /**
+       * Irr
+       * @description Annualized IRR (decimal). -1.0 = total loss.
+       */
+      irr: number
+      /**
+       * Sensitivity
+       * @description entry_multiples, exit_multiples, irr_grid, moic_grid
+       */
+      sensitivity?: {
+        [key: string]: unknown
+      }
+      /** Irr Formula Warning */
+      irr_formula_warning?: string | null
+    }
+    /**
+     * LBOYear
+     * @description One year of LBO operations. All numbers deterministically computed.
+     */
+    LBOYear: {
+      /** Year */
+      year: number
+      /** Revenue */
+      revenue: number
+      /** Ebitda */
+      ebitda: number
+      /** Da */
+      da: number
+      /** Ebit */
+      ebit: number
+      /** Interest Expense */
+      interest_expense: number
+      /** Ebt */
+      ebt: number
+      /** Taxes */
+      taxes: number
+      /** Net Income */
+      net_income: number
+      /** Capex */
+      capex: number
+      /** Delta Nwc */
+      delta_nwc: number
+      /** Fcf */
+      fcf: number
+      /** Mandatory Amort */
+      mandatory_amort: number
+      /** Cash Sweep Amount */
+      cash_sweep_amount: number
+      /** Total Debt Paydown */
+      total_debt_paydown: number
+      /** Ending Debt */
+      ending_debt: number
+    }
+    /**
+     * LboSeedRequest
+     * @description One-shot LBO seeded from a ticker — single authoritative entry point.
+     *
+     *     Backend fetches financials + historical, calls ``seed_lbo_inputs`` to
+     *     derive every assumption from real filings (or Damodaran industry fallback /
+     *     PE convention for deal-structure quantities), then runs calculate_lbo +
+     *     sensitivity in one shot. Replaces the legacy front-end path that shipped
+     *     14 hardcoded LBO parameters per ticker.
+     */
+    LboSeedRequest: {
+      /** Ticker */
+      ticker: string
+      /** Holding Period Years */
+      holding_period_years?: number | null
+      /** Entry Ev Ebitda */
+      entry_ev_ebitda?: number | null
+      /** Exit Ev Ebitda */
+      exit_ev_ebitda?: number | null
+      /** Leverage Multiple */
+      leverage_multiple?: number | null
+    }
+    /**
+     * LboSeedResponse
+     * @description Bundled LBO output. inputs.assumption_provenance carries the per-field
+     *     sources for the UI's "展开专家详情" tooltip — mirrors DcfSeedResponse.
+     */
+    LboSeedResponse: {
+      inputs: components['schemas']['LBOInputs']
+      result: components['schemas']['LBOResult']
+      /** Current Price */
+      current_price?: number | null
+    }
+    /**
+     * MarketData
+     * @description Market and price data.
+     */
+    MarketData: {
+      /**
+       * Market Cap
+       * @description Market cap in USD
+       */
+      market_cap: number
+      /** Shares Outstanding */
+      shares_outstanding: number
+      /** Current Price */
+      current_price: number
+      /** Pe Ratio */
+      pe_ratio?: number | null
+      /** Price 52W High */
+      price_52w_high?: number | null
+      /** Price 52W Low */
+      price_52w_low?: number | null
+      /** Industry */
+      industry?: string | null
+      /** Sector */
+      sector?: string | null
+      /** Beta */
+      beta?: number | null
+    }
+    /**
+     * MonteCarloRequest
+     * @description Request body for Monte Carlo endpoint.
+     */
+    MonteCarloRequest: {
+      inputs: components['schemas']['DCFInputs']
+      /** Current Price */
+      current_price: number
+      /**
+       * N Simulations
+       * @default 10000
+       */
+      n_simulations: number
+      /**
+       * N Bins
+       * @default 50
+       */
+      n_bins: number
+      /**
+       * Revenue Growth Std
+       * @default 0.02
+       */
+      revenue_growth_std: number
+      /**
+       * Ebitda Margin Std
+       * @default 0.02
+       */
+      ebitda_margin_std: number
+      /**
+       * Wacc Std
+       * @default 0.01
+       */
+      wacc_std: number
+      /**
+       * Terminal Growth Std
+       * @default 0.005
+       */
+      terminal_growth_std: number
+      /**
+       * Mid Year
+       * @default false
+       */
+      mid_year: boolean
+    }
+    /**
+     * MonteCarloResult
+     * @description Result of Monte Carlo DCF simulation.
+     */
+    MonteCarloResult: {
+      /**
+       * Implied Prices
+       * @description All valid simulated prices, sorted
+       */
+      implied_prices: number[]
+      /**
+       * Percentiles
+       * @description Percentile -> price mapping, e.g. {'5': 165.2, '50': 198.0}
+       */
+      percentiles: {
+        [key: string]: number
+      }
+      /** Mean */
+      mean: number
+      /** Std */
+      std: number
+      /**
+       * Current Price Percentile
+       * @description Where current price falls in distribution (0-100)
+       */
+      current_price_percentile: number
+      /**
+       * Histogram Bins
+       * @description Bin edges for histogram
+       */
+      histogram_bins: number[]
+      /**
+       * Histogram Counts
+       * @description Counts per histogram bin
+       */
+      histogram_counts: number[]
+      /**
+       * Assumptions Used
+       * @description Distribution parameters used
+       */
+      assumptions_used: {
+        [key: string]: unknown
+      }
+      /**
+       * N Valid
+       * @description Number of valid simulations (out of n_simulations)
+       */
+      n_valid: number
+    }
+    /** QuotesWarmedStatus */
+    QuotesWarmedStatus: {
+      /** Warmed */
+      warmed: boolean
+      /** Studied Ticker Count */
+      studied_ticker_count: number
+    }
+    /** RecentResearchResponse */
+    RecentResearchResponse: {
+      /** Items */
+      items: components['schemas']['RecentTickerItem'][]
+      /** Total In Store */
+      total_in_store: number
+      /** Distinct Ticker Count */
+      distinct_ticker_count: number
+      /**
+       * Generated At
+       * Format: date-time
+       */
+      generated_at: string
+    }
+    /**
+     * RecentTickerItem
+     * @description One card in /api/dashboard/recent-research — ticker drawer.
+     *
+     *     2026-05-23 (v2): card now exposes the ticker's recent runs as discrete
+     *     rows. UI routes every row to `/stocks/:ticker/runs/:artifact_id` so each
+     *     individual report is one click away — the 1-ticker-to-N-reports
+     *     relationship is visible, not collapsed into chips.
+     *
+     *     `runs` is capped at MAX_RUNS_PER_TICKER (5); `run_count` is the true
+     *     total so the UI can render a "+ N 更多" footer pointing at the
+     *     workspace's full timeline.
+     */
+    RecentTickerItem: {
+      /** Ticker */
+      ticker: string
+      /** Run Count */
+      run_count: number
+      /** Runs */
+      runs: components['schemas']['RecentTickerRun'][]
+      /** Latest Signal */
+      latest_signal: string | null
+      /**
+       * Latest At
+       * Format: date-time
+       */
+      latest_at: string
+    }
+    /**
+     * RecentTickerRun
+     * @description One clickable row inside a ticker card.
+     */
+    RecentTickerRun: {
+      /** Artifact Id */
+      artifact_id: string
+      /** Type */
+      type: string
+      /** Verdict */
+      verdict: string | null
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /** Age Label */
+      age_label: string
+    }
+    /** RunDetail */
+    RunDetail: {
+      /** Run Id */
+      run_id: string
+      /** Status */
+      status: string
+      /** Pipeline Type */
+      pipeline_type: string
+      /** Ticker */
+      ticker: string
+      /** Created At */
+      created_at: string
+      /** Completed At */
+      completed_at?: string | null
+      /** Duration S */
+      duration_s?: number | null
+      result?: components['schemas']['RunResult'] | null
+      /**
+       * Artifacts
+       * @default []
+       */
+      artifacts: {
+        [key: string]: unknown
+      }[]
+      /**
+       * Warnings
+       * @default []
+       */
+      warnings: string[]
+      /**
+       * Failed Validations
+       * @default []
+       */
+      failed_validations: {
+        [key: string]: string
+      }[]
+      /** Steps */
+      steps?: {
+        [key: string]: string
+      } | null
+      /** Error */
+      error?: string | null
+    }
+    /** RunResult */
+    RunResult: {
+      /** Text */
+      text?: string | null
+      /** Structured */
+      structured?: {
+        [key: string]: unknown
+      } | null
+    }
+    /** ScoreRequest */
+    ScoreRequest: {
+      /** Pe Ratio */
+      pe_ratio?: number | null
+      /** Peg Ratio */
+      peg_ratio?: number | null
+      /** Gross Margin */
+      gross_margin?: number | null
+      /** Gross Margin Industry Median */
+      gross_margin_industry_median?: number | null
+      /** Revenue Growth Yoy */
+      revenue_growth_yoy?: number | null
+      /** Earnings Beat Rate */
+      earnings_beat_rate?: number | null
+      /**
+       * Positive Catalysts
+       * @default 0
+       */
+      positive_catalysts: number
+      /**
+       * Negative Catalysts
+       * @default 0
+       */
+      negative_catalysts: number
+      /** News Sentiment */
+      news_sentiment?: number | null
+      /** Dcf Upside Pct */
+      dcf_upside_pct?: number | null
+    }
+    /** SearchResponse */
+    SearchResponse: {
+      /** Query */
+      query: string
+      /** Results */
+      results: components['schemas']['SearchResult'][]
+    }
+    /**
+     * SearchResult
+     * @description A single search suggestion item.
+     */
+    SearchResult: {
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'ticker' | 'artifact'
+      /** Title */
+      title: string
+      /**
+       * Subtitle
+       * @default
+       */
+      subtitle: string
+      /** Action */
+      action: string
+      /**
+       * Score
+       * @default 0
+       */
+      score: number
+    }
+    /**
+     * SentimentSnapshot
+     * @description ``GET /api/sentiment/{ticker}`` payload (v5 §6.12).
+     */
+    SentimentSnapshot: {
+      /** Ticker */
+      ticker: string
+      /** Days */
+      days: number
+      /**
+       * Available
+       * @description False when the Adanos provider isn't configured (no API key) or all platform requests failed — UI shows '未配置 Adanos · [跳设置 →]'.
+       */
+      available: boolean
+      /**
+       * Coverage
+       * @description N/3 platforms returned data, e.g. '2/3'
+       */
+      coverage?: string | null
+      /** Bullish Pct */
+      bullish_pct?: number | null
+      /** Bearish Pct */
+      bearish_pct?: number | null
+      /** Average Buzz */
+      average_buzz?: number | null
+      /**
+       * Source Alignment
+       * @description 'aligned' / 'split' / 'no_data' — how consistently the sources agree.
+       */
+      source_alignment?: string | null
+      /** Sources */
+      sources?: components['schemas']['SentimentSource'][]
+      /** Warnings */
+      warnings?: string[]
+    }
+    /**
+     * SentimentSource
+     * @description One platform's contribution to the aggregate sentiment view.
+     */
+    SentimentSource: {
+      /**
+       * Platform
+       * @description Reddit / X.com / Polymarket
+       */
+      platform: string
+      /** Has Data */
+      has_data: boolean
+      /** Bullish Pct */
+      bullish_pct?: number | null
+      /**
+       * Activity Label
+       * @description 'Mentions' / 'Trades'
+       */
+      activity_label: string
+      /** Activity Value */
+      activity_value?: number | null
+    }
+    /**
+     * SettingsResetRequest
+     * @description Fields to clear from settings.json so .env / env-vars regain priority.
+     */
+    SettingsResetRequest: {
+      /** Fields */
+      fields?: string[]
+    }
+    /** SettingsResponse */
+    SettingsResponse: {
+      /** Model Name */
+      model_name: string
+      /** Model Data */
+      model_data?: string | null
+      /** Model Analysis */
+      model_analysis?: string | null
+      /** Model Modeling */
+      model_modeling?: string | null
+      /** Model Synthesis */
+      model_synthesis?: string | null
+      /** Model Report */
+      model_report?: string | null
+      /** Anthropic Api Key Set */
+      anthropic_api_key_set: boolean
+      /** Deepseek Api Key Set */
+      deepseek_api_key_set: boolean
+      /** Openai Api Key Set */
+      openai_api_key_set: boolean
+      /** Fmp Api Key Set */
+      fmp_api_key_set: boolean
+      /** Finnhub Api Key Set */
+      finnhub_api_key_set: boolean
+      /** Alpha Vantage Api Key Set */
+      alpha_vantage_api_key_set: boolean
+      /** Adanos Api Key Set */
+      adanos_api_key_set: boolean
+      /** Sec User Agent */
+      sec_user_agent: string
+      /** Sec Identity Dismissed At */
+      sec_identity_dismissed_at?: string | null
+      /** Sec Holdings Auto Refresh */
+      sec_holdings_auto_refresh: boolean
+      /** Log Level */
+      log_level: string
+      /** Available Providers */
+      available_providers: string[]
+      /** Valid Model Providers */
+      valid_model_providers: ('anthropic' | 'deepseek' | 'openai')[]
+      /** Field Sources */
+      field_sources: {
+        [key: string]: 'keychain' | 'settings_json' | 'env' | 'default'
+      }
+      /** Startup Error */
+      startup_error?: string | null
+    }
+    /** SettingsUpdate */
+    SettingsUpdate: {
+      /** Model Name */
+      model_name?: string | null
+      /** Model Data */
+      model_data?: string | null
+      /** Model Analysis */
+      model_analysis?: string | null
+      /** Model Modeling */
+      model_modeling?: string | null
+      /** Model Synthesis */
+      model_synthesis?: string | null
+      /** Model Report */
+      model_report?: string | null
+      /** Sec User Agent */
+      sec_user_agent?: string | null
+      /** Sec Identity Dismissed At */
+      sec_identity_dismissed_at?: string | null
+      /** Sec Holdings Auto Refresh */
+      sec_holdings_auto_refresh?: boolean | null
+      /** Log Level */
+      log_level?: string | null
+      /** Anthropic Api Key */
+      anthropic_api_key?: string | null
+      /** Deepseek Api Key */
+      deepseek_api_key?: string | null
+      /** Openai Api Key */
+      openai_api_key?: string | null
+      /** Fmp Api Key */
+      fmp_api_key?: string | null
+      /** Finnhub Api Key */
+      finnhub_api_key?: string | null
+      /** Alpha Vantage Api Key */
+      alpha_vantage_api_key?: string | null
+      /** Adanos Api Key */
+      adanos_api_key?: string | null
+      /** Telegram Bot Token */
+      telegram_bot_token?: string | null
+      /** Feishu Webhook Url */
+      feishu_webhook_url?: string | null
+      /** Telegram Chat Id */
+      telegram_chat_id?: string | null
+      /** Discord Webhook Url */
+      discord_webhook_url?: string | null
+      /** Email Smtp Host */
+      email_smtp_host?: string | null
+      /** Email Smtp Port */
+      email_smtp_port?: number | null
+      /** Email To */
+      email_to?: string | null
+      /** Custom Webhook Url */
+      custom_webhook_url?: string | null
+    }
+    /** SniperPoints */
+    SniperPoints: {
+      /** Ideal Buy */
+      ideal_buy: number
+      /** Secondary Buy */
+      secondary_buy: number
+      /** Stop Loss */
+      stop_loss: number
+      /** Take Profit */
+      take_profit: number
+      /** Position Size Pct */
+      position_size_pct: number
+      /** Safety Margin */
+      safety_margin: number
+      /** Support Level */
+      support_level: number
+      /** Resistance Level */
+      resistance_level: number
+      /** Risk Reward Ratio */
+      risk_reward_ratio: number
+    }
+    /** SniperRequest */
+    SniperRequest: {
+      /** Ticker */
+      ticker: string
+      /** Current Price */
+      current_price: number
+      /** Dcf Target */
+      dcf_target: number
+      /** Historical Prices */
+      historical_prices: number[]
+      /** Volatility Annual */
+      volatility_annual?: number | null
+    }
+    /**
+     * StudiedTicker
+     * @description One row in /api/artifacts/studied-tickers — a ticker the user has run analysis on.
+     */
+    StudiedTicker: {
+      /** Ticker */
+      ticker: string
+      /** Run Count */
+      run_count: number
+      /**
+       * Latest Created At
+       * Format: date-time
+       */
+      latest_created_at: string
+      /** Latest Type */
+      latest_type: string
+      /** Latest Artifact Id */
+      latest_artifact_id: string
+      /** Latest Target Price */
+      latest_target_price: number | null
+      /** Latest Entry Price */
+      latest_entry_price: number | null
+      /** Latest Signal */
+      latest_signal: string | null
+      /** Types */
+      types: string[]
+    }
+    /** StudiedTickersResponse */
+    StudiedTickersResponse: {
+      /** Items */
+      items: components['schemas']['StudiedTicker'][]
+      /**
+       * Generated At
+       * Format: date-time
+       */
+      generated_at: string
+    }
+    /** TestChannelResponse */
+    TestChannelResponse: {
+      /** Channel */
+      channel: string
+      /** Success */
+      success: boolean
+    }
+    /** ValidationError */
+    ValidationError: {
+      /** Location */
+      loc: (string | number)[]
+      /** Message */
+      msg: string
+      /** Error Type */
+      type: string
+      /** Input */
+      input?: unknown
+      /** Context */
+      ctx?: Record<string, never>
+    }
+    /**
+     * ValuationAggregate
+     * @description Response payload for ``GET /api/valuation/aggregate/{ticker}``.
+     *
+     *     Contains every method we could compute for the ticker at request time.
+     *     Missing methods are simply absent from `methods`; the UI shows what's
+     *     available and explains the gaps via `warnings`.
+     */
+    ValuationAggregate: {
+      /** Ticker */
+      ticker: string
+      /** Current Price */
+      current_price: number | null
+      /**
+       * As Of
+       * Format: date-time
+       */
+      as_of: string
+      /** Methods */
+      methods: components['schemas']['ValuationMethodRange'][]
+      /** Warnings */
+      warnings?: string[]
+    }
+    /**
+     * ValuationMethodRange
+     * @description One method's low / mid / high target-price band for the Football Field.
+     *
+     *     A leaner cousin of ValuationMethod tagged with `method_type` so the front
+     *     end can render valuation methods as solid bars and multiple-based reverse
+     *     ranges as dashed bars (v5 §6.4).
+     */
+    ValuationMethodRange: {
+      /**
+       * Method
+       * @enum {string}
+       */
+      method: 'dcf' | 'comps_pe' | 'lbo' | 'ddm' | 'ev_ebitda' | 'p_fcf'
+      /**
+       * Method Type
+       * @enum {string}
+       */
+      method_type: 'valuation' | 'multiple'
+      /** Low */
+      low: number
+      /** Mid */
+      mid: number
+      /** High */
+      high: number
+      /** Confidence */
+      confidence: number
+      /**
+       * Source
+       * @description Human-readable provenance, e.g. 'monte_carlo_p10_p90'
+       */
+      source: string
+      /** Warnings */
+      warnings?: string[]
+    }
+    /**
+     * ValuationMetrics
+     * @description Derived valuation multiples. Computed by code, not LLM.
+     */
+    ValuationMetrics: {
+      /** Enterprise Value */
+      enterprise_value?: number | null
+      /** Ev Ebitda */
+      ev_ebitda?: number | null
+      /** Ev Revenue */
+      ev_revenue?: number | null
+    }
+    /** WaccRequest */
+    WaccRequest: {
+      /** Risk Free Rate */
+      risk_free_rate: number
+      /** Beta */
+      beta: number
+      /** Equity Risk Premium */
+      equity_risk_premium: number
+      /** Cost Of Debt */
+      cost_of_debt: number
+      /** Tax Rate */
+      tax_rate: number
+      /** Debt Ratio */
+      debt_ratio: number
+    }
+    /** WaccResponse */
+    WaccResponse: {
+      /** Cost Of Equity */
+      cost_of_equity: number
+      /** Wacc */
+      wacc: number
+    }
+  }
+  responses: never
+  parameters: never
+  requestBodies: never
+  headers: never
+  pathItems: never
 }
-export type $defs = Record<string, never>;
+export type $defs = Record<string, never>
 export interface operations {
-    compute_wacc_api_compute_wacc_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WaccRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WaccResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    compute_dcf_api_compute_dcf_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DCFInputs"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DCFResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    compute_dcf_seed_api_compute_dcf_seed_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DcfSeedRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DcfSeedResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    compute_dcf_sensitivity_api_compute_dcf_sensitivity_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DcfSensitivityRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DcfSensitivityResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    compute_lbo_api_compute_lbo_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LBOInputs"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LBOResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    compute_lbo_seed_api_compute_lbo_seed_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LboSeedRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LboSeedResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    compute_monte_carlo_api_compute_monte_carlo_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MonteCarloRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MonteCarloResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    compute_sniper_api_compute_sniper_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SniperRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SniperPoints"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    compute_score_api_compute_score_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ScoreRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CompositeScore"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_catalysts_api_data__ticker__catalysts_get: {
-        parameters: {
-            query?: {
-                min_importance?: number;
-            };
-            header?: never;
-            path: {
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CatalystEvent"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_financials_api_data__ticker__financials_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FinancialData"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_price_api_data__ticker__price_get: {
-        parameters: {
-            query?: {
-                period?: string;
-            };
-            header?: never;
-            path: {
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_historical_api_data__ticker__historical_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HistoricalMetrics"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_earnings_calls_api_data__ticker__earnings_calls_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-                quarter?: number | null;
-                year?: number | null;
-            };
-            header?: never;
-            path: {
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EarningsCallList"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    quotes_warmed_api_health_quotes_warmed_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["QuotesWarmedStatus"];
-                };
-            };
-        };
-    };
-    get_settings_route_api_settings_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SettingsResponse"];
-                };
-            };
-        };
-    };
-    put_settings_route_api_settings_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SettingsUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SettingsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reset_settings_route_api_settings_reset_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SettingsResetRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SettingsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_run_api_runs_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateRunRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CreateRunResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_run_api_runs__run_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    stream_run_events_api_runs__run_id__events_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_artifacts_api_artifacts_get: {
-        parameters: {
-            query?: {
-                ticker?: string | null;
-                type?: ("dcf" | "lbo" | "comps" | "ddm" | "earnings" | "ic_memo" | "equity_research" | "peer_research" | "ad_hoc") | null;
-                archived?: boolean;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ArtifactSummary"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    ticker_timeline_api_artifacts_by_ticker__ticker__timeline_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ArtifactSummary"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    studied_tickers_api_artifacts_studied_tickers_get: {
-        parameters: {
-            query?: {
-                include_archived?: boolean;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StudiedTickersResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_artifact_api_artifacts__artifact_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                artifact_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Artifact"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_artifact_api_artifacts__artifact_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                artifact_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    diff_two_api_artifacts__a_id__diff__b_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                a_id: string;
-                b_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FieldDiff"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    mark_viewed_api_artifacts__artifact_id__view_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                artifact_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    hit_rate_api_dashboard_hit_rate_get: {
-        parameters: {
-            query?: {
-                window?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HitRateOverview"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    recent_research_api_dashboard_recent_research_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-                include_archived?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RecentResearchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    search_api_search_get: {
-        parameters: {
-            query: {
-                q: string;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    aggregate_for_ticker_api_valuation_aggregate__ticker__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ValuationAggregate"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    historical_bands_api_valuation_historical_bands__ticker__get: {
-        parameters: {
-            query?: {
-                metric?: "ev_ebitda" | "p_fcf";
-                years?: number;
-            };
-            header?: never;
-            path: {
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HistoricalBandResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_sentiment_api_sentiment__ticker__get: {
-        parameters: {
-            query?: {
-                days?: number;
-            };
-            header?: never;
-            path: {
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SentimentSnapshot"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    test_channel_api_notify_test__channel__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                channel: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TestChannelResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chat_chat_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    health_health_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
-                };
-            };
-        };
-    };
+  compute_wacc_api_compute_wacc_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['WaccRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['WaccResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  compute_dcf_api_compute_dcf_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DCFInputs']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DCFResult']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  compute_dcf_seed_api_compute_dcf_seed_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DcfSeedRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DcfSeedResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  compute_dcf_sensitivity_api_compute_dcf_sensitivity_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DcfSensitivityRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DcfSensitivityResult']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  compute_lbo_api_compute_lbo_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['LBOInputs']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['LBOResult']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  compute_lbo_seed_api_compute_lbo_seed_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['LboSeedRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['LboSeedResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  compute_monte_carlo_api_compute_monte_carlo_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MonteCarloRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MonteCarloResult']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  compute_sniper_api_compute_sniper_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SniperRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SniperPoints']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  compute_score_api_compute_score_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ScoreRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CompositeScore']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_catalysts_api_data__ticker__catalysts_get: {
+    parameters: {
+      query?: {
+        min_importance?: number
+      }
+      header?: never
+      path: {
+        ticker: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CatalystEvent'][]
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_financials_api_data__ticker__financials_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        ticker: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['FinancialData']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_price_api_data__ticker__price_get: {
+    parameters: {
+      query?: {
+        period?: string
+      }
+      header?: never
+      path: {
+        ticker: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            [key: string]: unknown
+          }
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_historical_api_data__ticker__historical_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        ticker: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HistoricalMetrics']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_earnings_calls_api_data__ticker__earnings_calls_get: {
+    parameters: {
+      query?: {
+        limit?: number
+        quarter?: number | null
+        year?: number | null
+      }
+      header?: never
+      path: {
+        ticker: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['EarningsCallList']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  quotes_warmed_api_health_quotes_warmed_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['QuotesWarmedStatus']
+        }
+      }
+    }
+  }
+  get_settings_route_api_settings_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SettingsResponse']
+        }
+      }
+    }
+  }
+  put_settings_route_api_settings_put: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SettingsUpdate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SettingsResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  reset_settings_route_api_settings_reset_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SettingsResetRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SettingsResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  create_run_api_runs_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateRunRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CreateRunResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_run_api_runs__run_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RunDetail']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  stream_run_events_api_runs__run_id__events_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_artifacts_api_artifacts_get: {
+    parameters: {
+      query?: {
+        ticker?: string | null
+        type?:
+          | (
+              | 'dcf'
+              | 'lbo'
+              | 'comps'
+              | 'ddm'
+              | 'earnings'
+              | 'ic_memo'
+              | 'equity_research'
+              | 'peer_research'
+              | 'ad_hoc'
+            )
+          | null
+        archived?: boolean
+        limit?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ArtifactSummary'][]
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  ticker_timeline_api_artifacts_by_ticker__ticker__timeline_get: {
+    parameters: {
+      query?: {
+        limit?: number
+      }
+      header?: never
+      path: {
+        ticker: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ArtifactSummary'][]
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  studied_tickers_api_artifacts_studied_tickers_get: {
+    parameters: {
+      query?: {
+        include_archived?: boolean
+        limit?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['StudiedTickersResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_artifact_api_artifacts__artifact_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        artifact_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Artifact']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  delete_artifact_api_artifacts__artifact_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        artifact_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            [key: string]: string
+          }
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  diff_two_api_artifacts__a_id__diff__b_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        a_id: string
+        b_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['FieldDiff'][]
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  mark_viewed_api_artifacts__artifact_id__view_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        artifact_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            [key: string]: string
+          }
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  hit_rate_api_dashboard_hit_rate_get: {
+    parameters: {
+      query?: {
+        window?: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HitRateOverview']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  recent_research_api_dashboard_recent_research_get: {
+    parameters: {
+      query?: {
+        limit?: number
+        include_archived?: boolean
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RecentResearchResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  search_api_search_get: {
+    parameters: {
+      query: {
+        q: string
+        limit?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SearchResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  aggregate_for_ticker_api_valuation_aggregate__ticker__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        ticker: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ValuationAggregate']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  historical_bands_api_valuation_historical_bands__ticker__get: {
+    parameters: {
+      query?: {
+        metric?: 'ev_ebitda' | 'p_fcf'
+        years?: number
+      }
+      header?: never
+      path: {
+        ticker: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HistoricalBandResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_sentiment_api_sentiment__ticker__get: {
+    parameters: {
+      query?: {
+        days?: number
+      }
+      header?: never
+      path: {
+        ticker: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SentimentSnapshot']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  test_channel_api_notify_test__channel__post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        channel: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TestChannelResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  chat_chat_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+    }
+  }
+  health_health_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            [key: string]: string
+          }
+        }
+      }
+    }
+  }
 }

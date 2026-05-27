@@ -102,10 +102,7 @@ export interface CatalystEventData {
  *
  * Exported for direct unit testing.
  */
-export async function fetchJsonOrThrowHttp<T>(
-  url: string,
-  signal?: AbortSignal,
-): Promise<T> {
+export async function fetchJsonOrThrowHttp<T>(url: string, signal?: AbortSignal): Promise<T> {
   const resp = await fetch(url, { signal })
   if (!resp.ok) {
     throw new FetchHttpError(resp.status, resp.statusText)
@@ -139,10 +136,7 @@ export function useTickerCatalysts(ticker: string) {
   return useQuery<CatalystEventData[], FetchHttpError>({
     queryKey: ['ticker-catalysts', ticker],
     queryFn: ({ signal }) =>
-      fetchJsonOrThrowHttp<CatalystEventData[]>(
-        `${BASE_URL}/api/data/${ticker}/catalysts`,
-        signal,
-      ),
+      fetchJsonOrThrowHttp<CatalystEventData[]>(`${BASE_URL}/api/data/${ticker}/catalysts`, signal),
     enabled: !!ticker,
     staleTime: 5 * 60_000,
     refetchOnMount: false,
@@ -157,10 +151,7 @@ export function useTickerFinancials(ticker: string) {
   return useQuery<FinancialsData, FetchHttpError>({
     queryKey: ['ticker-financials', ticker],
     queryFn: ({ signal }) =>
-      fetchJsonOrThrowHttp<FinancialsData>(
-        `${BASE_URL}/api/data/${ticker}/financials`,
-        signal,
-      ),
+      fetchJsonOrThrowHttp<FinancialsData>(`${BASE_URL}/api/data/${ticker}/financials`, signal),
     enabled: !!ticker,
     staleTime: 5 * 60_000,
     refetchOnMount: false,

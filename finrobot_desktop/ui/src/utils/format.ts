@@ -150,8 +150,8 @@ export function formatDate(
 }
 
 /** Stale 阈值常量（秒）。> WARN 视为 delayed；> DANGER 视为 stale。 */
-export const FRESHNESS_WARN_SECONDS = 5 * 60       // 5min
-export const FRESHNESS_DANGER_SECONDS = 30 * 60    // 30min
+export const FRESHNESS_WARN_SECONDS = 5 * 60 // 5min
+export const FRESHNESS_DANGER_SECONDS = 30 * 60 // 30min
 
 /**
  * Format ISO8601 timestamp as relative age. Catalog-driven, no zh/en literals.

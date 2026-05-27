@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
-import { formatAge, freshnessColor, freshnessTier, FRESHNESS_WARN_SECONDS, FRESHNESS_DANGER_SECONDS } from './format'
+import {
+  formatAge,
+  freshnessColor,
+  freshnessTier,
+  FRESHNESS_WARN_SECONDS,
+  FRESHNESS_DANGER_SECONDS,
+} from './format'
 
 // Mock tSync so unit test doesn't depend on full Lingui compile output.
 vi.mock('../i18n', async () => {

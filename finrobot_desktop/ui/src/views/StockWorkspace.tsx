@@ -114,8 +114,7 @@ export function StockWorkspace(): React.ReactElement {
   }
 
   if (priceQuery.isError) {
-    const status =
-      priceQuery.error instanceof FetchHttpError ? priceQuery.error.status : null
+    const status = priceQuery.error instanceof FetchHttpError ? priceQuery.error.status : null
     if (status === 422) return <TickerNotFoundView ticker={symbol} />
     return <ServiceDownView ticker={symbol} onRetry={() => priceQuery.refetch()} />
   }

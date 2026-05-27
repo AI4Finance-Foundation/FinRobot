@@ -155,11 +155,19 @@ async def fetch_quarterly_data(ticker: str) -> dict[str, Any]:
             t = yf.Ticker(ticker)
             income = t.quarterly_income_stmt
             cashflow = t.quarterly_cashflow
-        except (YFException, ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
+        except YFException as e:
+            if _is_yfinance_service_down(e):
+                raise ProviderError(
+                    f"yfinance service down for '{ticker}' (quarterly): {e}"
+                ) from e
+            # Non-service-down YFException → unknown / delisted ticker
+            raise ValueError(f"未知 ticker '{ticker}' (quarterly): {e}") from e
+        except (KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
             raise ProviderError(f"yfinance quarterly data failed for '{ticker}': {e}") from e
 
         if income is None or income.empty:
-            raise ProviderError(f"No quarterly data available for {ticker}")
+            # Quarterly completely absent → ticker not covered by yfinance
+            raise ValueError(f"未知 ticker 或无 quarterly 数据: '{ticker}'")
 
         quarters = []
         for col in income.columns[:8]:  # Last 8 quarters
@@ -220,10 +228,17 @@ async def fetch_performance_data(tickers: list[str], benchmark: str, period: str
     def _fetch() -> dict[str, Any]:
         try:
             df = yf.download(all_tickers, period=period, progress=False)
-        except (YFException, ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
+        except YFException as e:
+            if _is_yfinance_service_down(e):
+                raise ProviderError(
+                    f"yfinance service down for {all_tickers} (performance): {e}"
+                ) from e
+            # Non-service-down YFException → invalid ticker(s)
+            raise ValueError(f"未知 ticker {all_tickers} (performance): {e}") from e
+        except (KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
             raise ProviderError(f"yfinance download failed for {all_tickers}: {e}") from e
         if df.empty:
-            raise ProviderError(f"No price data for {all_tickers}")
+            raise ValueError(f"No price data for {all_tickers}: yfinance 返回空")
 
         close = (
             df["Close"]

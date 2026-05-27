@@ -188,15 +188,24 @@ async def test_fetch_price_history_yfexception_delisted_is_value_error():
 
 class TestFetchQuarterlyDataErrors:
     @pytest.mark.asyncio
-    async def test_yf_exception_raises_provider_error(self):
-        mock_ticker = MagicMock()
-        mock_ticker.quarterly_income_stmt = None
+    async def test_yf_exception_service_down_raises_provider_error(self):
+        """YFException with rate-limit keyword → ProviderError (502)."""
         with patch(
             "finrobot.engine.services.market_data.yf.Ticker",
             side_effect=YFException("rate limited"),
         ):
-            with pytest.raises(ProviderError, match="quarterly data failed"):
+            with pytest.raises(ProviderError, match="yfinance service down"):
                 await fetch_quarterly_data("AAPL")
+
+    @pytest.mark.asyncio
+    async def test_yf_exception_non_service_down_raises_value_error(self):
+        """YFException without service-down keyword → ValueError (422)."""
+        with patch(
+            "finrobot.engine.services.market_data.yf.Ticker",
+            side_effect=YFException("Symbol may be delisted"),
+        ):
+            with pytest.raises(ValueError, match="未知 ticker"):
+                await fetch_quarterly_data("DELISTED")
 
     @pytest.mark.asyncio
     async def test_attribute_error_raises_provider_error(self):
@@ -208,7 +217,8 @@ class TestFetchQuarterlyDataErrors:
                 await fetch_quarterly_data("AAPL")
 
     @pytest.mark.asyncio
-    async def test_empty_income_stmt_raises_provider_error(self):
+    async def test_empty_income_stmt_raises_value_error(self):
+        """Empty quarterly data → ValueError (422) — ticker not covered by yfinance."""
         mock_ticker = MagicMock()
         mock_ticker.quarterly_income_stmt = pd.DataFrame()
         mock_ticker.quarterly_cashflow = pd.DataFrame()
@@ -216,25 +226,47 @@ class TestFetchQuarterlyDataErrors:
             "finrobot.engine.services.market_data.yf.Ticker",
             return_value=mock_ticker,
         ):
-            with pytest.raises(ProviderError, match="No quarterly data available"):
-                await fetch_quarterly_data("AAPL")
+            with pytest.raises(ValueError, match="未知 ticker 或无 quarterly 数据"):
+                await fetch_quarterly_data("XYZINVALID")
 
 
 class TestFetchPerformanceDataErrors:
     @pytest.mark.asyncio
-    async def test_yf_exception_on_download_raises_provider_error(self):
+    async def test_yf_exception_service_down_raises_provider_error(self):
+        """YFException with rate-limit keyword on download → ProviderError (502)."""
         with patch(
             "finrobot.engine.services.market_data.yf.download",
-            side_effect=YFException("download failed"),
+            side_effect=YFException("rate limit exceeded"),
+        ):
+            with pytest.raises(ProviderError, match="yfinance service down"):
+                await fetch_performance_data(["AAPL"], "SPY", "1y")
+
+    @pytest.mark.asyncio
+    async def test_yf_exception_non_service_down_raises_value_error(self):
+        """YFException without service-down keyword on download → ValueError (422)."""
+        with patch(
+            "finrobot.engine.services.market_data.yf.download",
+            side_effect=YFException("No data found for symbol"),
+        ):
+            with pytest.raises(ValueError, match="未知 ticker"):
+                await fetch_performance_data(["XYZINVALID"], "SPY", "1y")
+
+    @pytest.mark.asyncio
+    async def test_attribute_error_raises_provider_error(self):
+        """Non-YFException infrastructure failure on download → ProviderError (502)."""
+        with patch(
+            "finrobot.engine.services.market_data.yf.download",
+            side_effect=AttributeError("unexpected attr error"),
         ):
             with pytest.raises(ProviderError, match="yfinance download failed"):
                 await fetch_performance_data(["AAPL"], "SPY", "1y")
 
     @pytest.mark.asyncio
-    async def test_empty_download_raises_provider_error(self):
+    async def test_empty_download_raises_value_error(self):
+        """yfinance returns empty df for all-invalid tickers → ValueError (422)."""
         with patch(
             "finrobot.engine.services.market_data.yf.download",
             return_value=pd.DataFrame(),
         ):
-            with pytest.raises(ProviderError, match="No price data"):
-                await fetch_performance_data(["AAPL"], "SPY", "1y")
+            with pytest.raises(ValueError, match="No price data"):
+                await fetch_performance_data(["XYZINVALID"], "SPY", "1y")

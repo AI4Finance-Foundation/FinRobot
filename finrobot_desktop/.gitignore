@@ -58,6 +58,9 @@ specs/
 # Claude Code config (local, not version-controlled)
 .claude/
 
+# Codex CLI config (local, not version-controlled)
+.codex/
+
 # AI development memory (local, not version-controlled)
 project-memory/
 

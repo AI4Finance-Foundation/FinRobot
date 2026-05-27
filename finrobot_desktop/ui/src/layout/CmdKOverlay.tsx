@@ -409,8 +409,8 @@ export function CmdKOverlay() {
     const text = trimmedQuery
     if (!text) return
     // v5 (spec §11.1.C): /library is retired. Free-text questions land on
-    // /stocks (search-first landing). The Ask AI fab in StockWorkspace picks
-    // up the same query via session storage when wired in PR8.
+    // /stocks (search-first landing). Ask AI in StockWorkspace picks up the
+    // query via session storage (finrobot.cmdk_ai_query).
     sessionStorage.setItem('finrobot.cmdk_ai_query', text)
     navigate('/stocks')
     saveRecentSearch(text)

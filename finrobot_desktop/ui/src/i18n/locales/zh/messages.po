@@ -206,10 +206,6 @@ msgid "cmdk.section.recent"
 msgstr "最近搜索"
 
 #. js-lingui-explicit-id
-msgid "cmdk.section.sessions"
-msgstr "对话历史"
-
-#. js-lingui-explicit-id
 msgid "common.cancel"
 msgstr "取消"
 

@@ -1121,3 +1121,31 @@ msgstr "陈旧"
 #. js-lingui-explicit-id
 msgid "marketdata.zoneHeader"
 msgstr "MARKET DATA · 非 AI"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.title"
+msgstr "未找到 {ticker}"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.description"
+msgstr "yfinance 无该代码的数据。请检查拼写。"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.backButton"
+msgstr "回搜索"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.hint1"
+msgstr "仅支持美股（NASDAQ / NYSE / AMEX）"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.hint2"
+msgstr "当前仅按代码搜索，不支持公司名"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.hint3"
+msgstr "港股 / A 股代码不支持"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.hint4"
+msgstr "如确认拼写无误，可能 yfinance 暂未收录该代码"

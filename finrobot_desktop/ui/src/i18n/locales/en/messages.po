@@ -1121,3 +1121,31 @@ msgstr "Stale"
 #. js-lingui-explicit-id
 msgid "marketdata.zoneHeader"
 msgstr "MARKET DATA · Non-AI"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.title"
+msgstr "Ticker {ticker} not found"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.description"
+msgstr "yfinance has no data for this symbol. Check the spelling."
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.backButton"
+msgstr "Back to search"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.hint1"
+msgstr "Only US markets are supported (NASDAQ / NYSE / AMEX)"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.hint2"
+msgstr "Search by ticker only — company name search is not supported"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.hint3"
+msgstr "HK / A-share tickers are not supported"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.hint4"
+msgstr "If the spelling is correct, yfinance may not list this ticker"

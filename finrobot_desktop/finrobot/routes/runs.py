@@ -29,7 +29,7 @@ from finrobot.events import (
     StepRetry,
     StepStarted,
 )
-from finrobot.run_store import RunRecord, RunStore
+from finrobot.run_store import RunStore
 
 logger = logging.getLogger(__name__)
 

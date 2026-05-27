@@ -21,7 +21,6 @@ for field-by-field derivation.
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any
 
 from pydantic import BaseModel, Field
 

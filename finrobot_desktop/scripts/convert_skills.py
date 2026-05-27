@@ -39,7 +39,7 @@ def parse_upstream_skill(content: str) -> tuple[str, str, str]:
         # Format A: H1 heading + description: text line
         lines = content.splitlines()
         name = lines[0].lstrip("# ").strip() if lines else "Unknown"
-        desc_line = next((l for l in lines if l.strip().startswith("description:")), "")
+        desc_line = next((line for line in lines if line.strip().startswith("description:")), "")
         description = desc_line.split("description:", 1)[-1].strip() if desc_line else ""
         body = content  # keep full body unchanged
         return name, description, body

@@ -1,5 +1,4 @@
 import pytest
-import httpx
 from httpx import ASGITransport, AsyncClient
 
 from finrobot.server import app

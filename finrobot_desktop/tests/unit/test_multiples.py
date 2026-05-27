@@ -57,13 +57,13 @@ def test_calculate_multiples_negative_ebitda():
     assert c.ev_ebitda is None
 
 
-def test_calculate_multiples_sub_unit_ev_ebitda_marked_not_meaningful():
+def test_calculate_multiples_sub_floor_ev_ebitda_marked_not_meaningful():
     """TSM-style yfinance USD/TWD unit mismatch produces EV/EBITDA = 0.158x.
     Pre-fix this would poison the peer median; we now return None so the
     statistic ignores it (validator still fails loudly downstream too).
 
     Setup: EV=$100B, EBITDA reported as $1T (TWD-into-USD mismatch) →
-    ratio 0.1x → below the meaningful floor."""
+    ratio 0.1x → below the sanity floor."""
     c = _make_company(
         "TSM", revenue=80e9, ebitda=1000e9, net_income=30e9, market_cap=100e9
     )
@@ -73,13 +73,33 @@ def test_calculate_multiples_sub_unit_ev_ebitda_marked_not_meaningful():
     assert c.ev_revenue is not None
 
 
-def test_calculate_multiples_just_above_floor_still_meaningful():
-    """Anything ≥ 1.0x is treated as a real cyclical / distressed signal,
-    not garbage. Guard the inclusive boundary."""
-    # EV = 100, EBITDA = 100 → ev_ebitda = 1.0x exactly
-    c = _make_company("BOUNDARY", revenue=200, ebitda=100, net_income=10, market_cap=100)
+def test_calculate_multiples_at_floor_boundary_inclusive():
+    """The sanity floor is 0.5x (aligned with validate_peer_comps). Guard the
+    inclusive boundary so legitimate distressed-quarter prints don't fall off."""
+    # EV = 50, EBITDA = 100 → ev_ebitda = 0.5x exactly
+    c = _make_company("BOUNDARY", revenue=200, ebitda=100, net_income=10, market_cap=50)
     c = calculate_multiples(c)
-    assert c.ev_ebitda == 1.0
+    assert c.ev_ebitda == 0.5
+
+
+def test_calculate_multiples_cyclical_trough_preserved():
+    """Real cyclical-trough multiples (shipping/steel/auto sectors at the
+    bottom of the cycle) print 0.6-3x. These are economically meaningful
+    signals, not unit-mismatch noise — they must NOT be silently dropped.
+    Pre-alignment (floor=1.0x) this case was incorrectly swallowed."""
+    # EV = 80, EBITDA = 100 → ev_ebitda = 0.8x (genuine cyclical trough)
+    c = _make_company("CYCLICAL", revenue=300, ebitda=100, net_income=20, market_cap=80)
+    c = calculate_multiples(c)
+    assert c.ev_ebitda == 0.8
+
+
+def test_calculate_multiples_above_ceiling_marked_not_meaningful():
+    """EBITDA-collapse cases producing >300x are garbage (post-write-down
+    survivors with near-zero EBITDA). Guard the upper bound too."""
+    # EV = 1000, EBITDA = 2 → ev_ebitda = 500x
+    c = _make_company("COLLAPSE", revenue=100, ebitda=2, net_income=1, market_cap=1000)
+    c = calculate_multiples(c)
+    assert c.ev_ebitda is None
 
 
 def test_calculate_peer_statistics_excludes_not_meaningful_ev_ebitda():

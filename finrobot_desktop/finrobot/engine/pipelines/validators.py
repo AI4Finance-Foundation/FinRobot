@@ -3,6 +3,10 @@ import re
 
 from pydantic import BaseModel
 
+from finrobot.engine.compute.multiples import (
+    PEER_EV_EBITDA_SANITY_MAX,
+    PEER_EV_EBITDA_SANITY_MIN,
+)
 from finrobot.engine.models.financial import (
     CatalystAnalysis,
     DDMInputs,
@@ -307,11 +311,10 @@ artifacts using mixed case (`Buy`/`Hold`/`Sell`) still validate.
 """
 
 
-_PEER_EV_EBITDA_MIN = 0.5
-_PEER_EV_EBITDA_MAX = 300.0
-"""Sanity range for peer EV/EBITDA — catches unit-mismatch (currency conversion
-artifacts surfacing as sub-1x) and division-near-zero garbage (>300x typically
-means EBITDA collapse already flagged as N/M elsewhere)."""
+# Peer EV/EBITDA sanity range is owned by the compute layer
+# (``finrobot.engine.compute.multiples``); both layers reference the same
+# constants so the silent floor and the loud validator can never drift out
+# of alignment.
 
 
 def validate_financial_data(
@@ -345,10 +348,9 @@ def validate_peer_comps(comps: PeerComps) -> ValidationResult:
     """Validate peer analysis result.
 
     Collects ALL violations across the peer set (no short-circuit) so a single
-    bad ticker doesn't mask other data issues. EV/EBITDA range
-    ``[0.5, 300]`` is a garbage filter, not a "meaningfulness" filter — cyclical
-    trough multiples (100-300x) are real and should pass; sub-1x values nearly
-    always indicate currency/unit conversion bugs.
+    bad ticker doesn't mask other data issues. The EV/EBITDA range is a
+    garbage filter, not a "meaningfulness" filter — see
+    ``finrobot.engine.compute.multiples`` for the cyclical-trough rationale.
     """
     if len(comps.peers) < 3:
         return ValidationResult(
@@ -359,11 +361,11 @@ def validate_peer_comps(comps: PeerComps) -> ValidationResult:
         if peer.revenue <= 0:
             violations.append(f"{peer.ticker} has non-positive revenue")
         if peer.ev_ebitda is not None and not (
-            _PEER_EV_EBITDA_MIN <= peer.ev_ebitda <= _PEER_EV_EBITDA_MAX
+            PEER_EV_EBITDA_SANITY_MIN <= peer.ev_ebitda <= PEER_EV_EBITDA_SANITY_MAX
         ):
             violations.append(
                 f"{peer.ticker} EV/EBITDA {peer.ev_ebitda:.2f}x out of range "
-                f"{_PEER_EV_EBITDA_MIN}-{_PEER_EV_EBITDA_MAX}x"
+                f"{PEER_EV_EBITDA_SANITY_MIN}-{PEER_EV_EBITDA_SANITY_MAX}x"
             )
     if violations:
         return ValidationResult(

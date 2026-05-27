@@ -37,7 +37,7 @@ class TestLooksLikeTicker:
     def test_natural_language_not_ticker(self) -> None:
         assert _looks_like_ticker("apple revenue growth") is False
 
-    def test_slash_command_not_ticker(self) -> None:
+    def test_slash_prefixed_not_ticker(self) -> None:
         assert _looks_like_ticker("/dcf AAPL") is False
 
 

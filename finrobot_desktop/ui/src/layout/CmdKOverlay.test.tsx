@@ -2,7 +2,7 @@
  * CmdKOverlay — 25+ tests covering:
  *   - Render and closed state
  *   - Three trigger paths (⌘K, TopBar toggle via store, finrobot:open-cmdk event)
- *   - Three result kind groups (ticker / slash_command / artifact)
+ *   - Two result kind groups (ticker / artifact)
  *   - Keyboard nav (↑↓ Enter Esc)
  *   - Action execution → navigate + close
  *   - AI fallback display

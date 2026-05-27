@@ -57,6 +57,49 @@ def test_calculate_multiples_negative_ebitda():
     assert c.ev_ebitda is None
 
 
+def test_calculate_multiples_sub_unit_ev_ebitda_marked_not_meaningful():
+    """TSM-style yfinance USD/TWD unit mismatch produces EV/EBITDA = 0.158x.
+    Pre-fix this would poison the peer median; we now return None so the
+    statistic ignores it (validator still fails loudly downstream too).
+
+    Setup: EV=$100B, EBITDA reported as $1T (TWD-into-USD mismatch) →
+    ratio 0.1x → below the meaningful floor."""
+    c = _make_company(
+        "TSM", revenue=80e9, ebitda=1000e9, net_income=30e9, market_cap=100e9
+    )
+    c = calculate_multiples(c)
+    assert c.ev_ebitda is None
+    # ev_revenue is still meaningful — only ev_ebitda hits the sanity floor.
+    assert c.ev_revenue is not None
+
+
+def test_calculate_multiples_just_above_floor_still_meaningful():
+    """Anything ≥ 1.0x is treated as a real cyclical / distressed signal,
+    not garbage. Guard the inclusive boundary."""
+    # EV = 100, EBITDA = 100 → ev_ebitda = 1.0x exactly
+    c = _make_company("BOUNDARY", revenue=200, ebitda=100, net_income=10, market_cap=100)
+    c = calculate_multiples(c)
+    assert c.ev_ebitda == 1.0
+
+
+def test_calculate_peer_statistics_excludes_not_meaningful_ev_ebitda():
+    """End-to-end: a foreign-ADR with NM ev_ebitda must not skew the median.
+    Without the sanity floor, TSM at 0.158x would drag median(18, 25, 30, 0.158)
+    down by ~10x. With the floor, TSM's ev_ebitda is None and the median
+    is computed over the three valid peers."""
+    peers = [
+        calculate_multiples(_make_company("A", revenue=100, ebitda=10, net_income=5, market_cap=180)),  # 18x
+        calculate_multiples(_make_company("B", revenue=100, ebitda=10, net_income=5, market_cap=250)),  # 25x
+        calculate_multiples(_make_company("C", revenue=100, ebitda=10, net_income=5, market_cap=300)),  # 30x
+        calculate_multiples(_make_company("TSM", revenue=80e9, ebitda=1000e9, net_income=30e9, market_cap=100e9)),  # NM
+    ]
+    target = calculate_multiples(_make_company("T", 100, 10, 5, 200))
+    comps = PeerComps(target=target, peers=peers)
+    result = calculate_peer_statistics(comps)
+    # Median of the three meaningful peers (18, 25, 30) = 25, not contaminated by TSM
+    assert result.median_ev_ebitda == 25.0
+
+
 def test_calculate_multiples_zero_debt_cash():
     c = _make_company("X", revenue=100, ebitda=35, net_income=10, market_cap=500)
     c = calculate_multiples(c)

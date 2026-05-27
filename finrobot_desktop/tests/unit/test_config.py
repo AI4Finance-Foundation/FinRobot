@@ -1,6 +1,6 @@
 import pytest
 
-from finrobot.config import FinRobotSettings, _migrate_legacy_env_prefix, get_settings
+from finrobot.config import FinRobotSettings, get_settings
 
 
 class TestDefaults:

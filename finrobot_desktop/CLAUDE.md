@@ -186,7 +186,7 @@ FinRobot 是面向金融分析师 / 量化研究员 / 主动投资者的桌面�
 - **SDK-only pipelines**（保留但 UI 永远不暴露）：`ic-memo / earnings / dcf / lbo / ddm / comps`。能力都已折进 research。这些 key 留给 `/api/runs` 编程接口 + 历史 artifact 反向兼容；如需调整某一估值的假设，走 `/api/compute/*` REST。
 - **注册位置**：`engine/pipelines/registry.py`，每个 pipeline 都有 `artifact_builder=...`，自动持久化完整 Artifact 到 `ArtifactStore`。
 - **路由按职责分文件**：`routes/{artifacts,compute,dashboard,data,health,notify,runs,search,sentiment,settings,valuation}.py`
-- **数据层** `engine/data/` — providers (yfinance / FMP / Finnhub / SEC EDGAR) + `DataCache` (aiosqlite, WAL) + `QuoteCache` (L1 内存 dict + L2 SQLite, 60s TTL) + WeakValueDictionary 防 stampede 不内存泄漏
+- **数据层** `engine/data/` — providers (yfinance / FMP / Finnhub / SEC EDGAR / Adanos / FX spot via `{FROM}USD=X`) + `DataCache` (aiosqlite, WAL) + `QuoteCache` (L1 内存 dict + L2 SQLite, 60s TTL) + WeakValueDictionary 防 stampede 不内存泄漏
 - **统一存储** 全部状态住在 `~/.finrobot/`（路径常量见 `finrobot/paths.py`）：
   - `artifacts.db` — `SqliteArtifactStore`，二级索引 `(ticker, created_at)` / `verdict` / `archived`；`ArtifactSummary.verdict` 在 save 时一次性 extract 写列，dashboard 聚合不再 N+1 读全 artifact
   - `quotes.db` — `QuoteCache` L2 持久化（跨进程存活）
@@ -200,7 +200,7 @@ FinRobot 是面向金融分析师 / 量化研究员 / 主动投资者的桌面�
 - **聚合层** `engine/aggregations/` — 叶层纯函数（hit_rate_overview / recent_research）
 - **compute 层** `engine/compute/`：
   - 估值：`dcf / ddm / lbo / comps / multiples / wacc / valuation_aggregator / valuation_synthesis`
-  - 财务：`forward_estimates / historical_extractor / historical_valuation / extractor / data_processor`
+  - 财务：`forward_estimates / historical_extractor / historical_valuation / extractor / data_processor / fx_normalize`
   - 主题：`catalyst / sentiment / news / rag / earnings / industry / market`
   - 桌面增强：`monte_carlo / sniper / composite_score / spreadsheet_gen / signal / compare`
 - **engine 其他子模块**（routes 不直接暴露但 pipeline / compute 内部依赖）：
@@ -278,8 +278,8 @@ surface 位置：`/stocks/:ticker/runs/:artifactId` 路由（ArtifactDetailPage�
 
 ## 测试金字塔
 
-- **1348 pytest pass** + 1 skipped + 10 deselected (`-m "not slow and not integration"`)（unit + routes + audit + artifact；`tests/unit/test_paths.py` 覆盖 paths 常量 + journal.db + sessions/ 迁移 / `test_sqlite_store.py` + `test_migrate.py` 覆盖 SQLite ArtifactStore + 文件系统→SQLite 迁移 / `test_quote_cache.py` 覆盖 L1+L2 quote cache / `test_quote_batch.py::test_cached_cold_path_fans_out_per_ticker_concurrently` 守护 yfinance per-ticker 并发不被回退到串行循环 / `test_equity_research_pipeline.py` 覆盖 pipeline 7 步骤结构 + step executor + catalyst 链路 / `test_notify_routes.py` 覆盖 8 个 channel test endpoint case / `test_growth_scale_override.py` 覆盖 What-if Editor revenue growth scaling）。实跑时间 `pytest -m "not slow and not integration" -q` ~10s。剩 5-10 个 aiosqlite teardown warning 是已知 race（见 `project-memory/踩坑记录/aiosqlite-test-teardown-2026-05-27.md`，非致命）。
-- **259 vitest pass** + 2 skipped（components + stores + hooks + i18n smoke + format helpers + errorMessage 映射 + `ChapterTechnical.test.tsx` + `useQuotesWarmed.test.tsx` + `WhatIfEditor.test.tsx` 守护 3 slider + side-by-side compare 行为）
+- **1420 pytest pass** + 1 skipped + 10 deselected (`-m "not slow and not integration"`)（unit + routes + audit + artifact；`tests/unit/test_paths.py` 覆盖 paths 常量 + journal.db + sessions/ 迁移 / `test_sqlite_store.py` + `test_migrate.py` 覆盖 SQLite ArtifactStore + 文件系统→SQLite 迁移 / `test_quote_cache.py` 覆盖 L1+L2 quote cache / `test_quote_batch.py::test_cached_cold_path_fans_out_per_ticker_concurrently` 守护 yfinance per-ticker 并发不被回退到串行循环 / `test_equity_research_pipeline.py` 覆盖 pipeline 7 步骤结构 + step executor + catalyst 链路 / `test_notify_routes.py` 覆盖 8 个 channel test endpoint case / `test_growth_scale_override.py` 覆盖 What-if Editor revenue growth scaling / `test_fx_normalize.py` + `test_fx_provider.py` 守护外国 ADR USD 归一（TSM/ASML/SAP/local-listing shape + rate validation + ProviderError on bad quote））。实跑时间 `pytest -m "not slow and not integration" -q` ~10s。剩 5-10 个 aiosqlite teardown warning 是已知 race（见 `project-memory/踩坑记录/aiosqlite-test-teardown-2026-05-27.md`，非致命）。
+- **311 vitest pass** + 2 skipped（components + stores + hooks + i18n smoke + format helpers + errorMessage 映射 + `ChapterTechnical.test.tsx` + `useQuotesWarmed.test.tsx` + `WhatIfEditor.test.tsx` 守护 3 slider + side-by-side compare 行为）
 - **Playwright e2e 待新建**：旧 2 个 spec (`v5-walkthrough` + `cosmic-research-flow`) 已删（依赖死 23-section 锚点 + StatBanner/HeroVerdict/FootballField testids）。新 e2e 应该覆盖 landing → workspace dual-zone (cold/running/hot) → ArtifactDetailPage 12-chapter (TOC scroll-spy + chapter mini-grid #anchor jump + Diff modal) 路径
 
 ## UI 设计规范强制（桌面 App）

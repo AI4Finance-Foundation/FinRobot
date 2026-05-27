@@ -347,6 +347,83 @@ def test_hit_rate_does_not_read_full_artifact_for_verdict(
     assert calls == [], f"hit-rate called store.get {len(calls)} times, expected 0"
 
 
+def test_hit_rate_does_not_500_when_quote_fetch_explodes(
+    client: TestClient,
+    store: ArtifactStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: a broken QuoteCache must not take the landing banner down.
+
+    Quotes are decorative for hit-rate (n_total still counts, only n_hit
+    needs the live price). Any exception from the batch call falls back
+    to None prices instead of a 500.
+    """
+    _stub_yfinance(monkeypatch, {"AAPL": 128.0})
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_AAPL",
+            ticker="AAPL",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=30,
+        ),
+    )
+
+    async def explode(_tickers):  # type: ignore[no-untyped-def]
+        raise RuntimeError("aiosqlite worker thread died")
+
+    # The route imports fetch_quotes_batch_cached *inside* the handler, so
+    # the only patch that lands is on the source module.
+    monkeypatch.setattr(
+        "finagent.engine.data.quote_batch.fetch_quotes_batch_cached", explode
+    )
+
+    resp = client.get("/api/dashboard/hit-rate")
+    # Key guarantee: no 500. Without live prices the aggregator can't
+    # classify any signal, so all buckets degrade to zeros + null hit-rate.
+    # UI already handles that branch ("样本不足" hint) — much better than a
+    # red error screen.
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["overall"]["hit_rate"] is None
+    assert set(data["by_verdict"].keys()) == {"BUY", "HOLD", "SELL"}
+
+
+def test_recent_research_does_not_500_when_quote_fetch_explodes(
+    client: TestClient,
+    store: ArtifactStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Same guarantee for the recent-research drawer endpoint."""
+    _stub_yfinance(monkeypatch, {"AAPL": 128.0})
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_AAPL",
+            ticker="AAPL",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=30,
+        ),
+    )
+
+    async def explode(_tickers):  # type: ignore[no-untyped-def]
+        raise RuntimeError("aiosqlite worker thread died")
+
+    monkeypatch.setattr(
+        "finagent.engine.data.quote_batch.fetch_quotes_batch_cached", explode
+    )
+
+    resp = client.get("/api/dashboard/recent-research?limit=5")
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["distinct_ticker_count"] == 1
+    assert len(data["items"]) == 1
+
+
 def test_recent_research_does_not_read_full_artifact_for_verdict(
     client: TestClient,
     store: ArtifactStore,

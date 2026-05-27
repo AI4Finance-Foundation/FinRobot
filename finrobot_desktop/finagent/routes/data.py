@@ -18,23 +18,16 @@ from finagent.engine.compute.extractor import extract_financial_data
 from finagent.engine.compute.historical_extractor import extract_historical_from_yfinance
 from finagent.engine.analysis.news_classifier import classify_news
 from finagent.engine.compute.news import fetch_news
-from finagent.engine.compute.sentiment import score_headline
 from finagent.engine.data.cache import cached_fetch
 from finagent.engine.data.interface import ProviderError
 from finagent.engine.data.types import DataType
 from finagent.engine.models.earnings_call import EarningsCallList, EarningsCallTranscript
 from finagent.engine.models.financial import (
-    AggregatedNewsFeed,
-    AggregatedNewsItem,
     CatalystEvent,
     FinancialData,
     HistoricalMetrics,
 )
-from finagent.engine.services.market_data import (
-    fetch_performance_data,
-    fetch_price_history,
-    fetch_quarterly_data,
-)
+from finagent.engine.services.market_data import fetch_price_history
 
 logger = logging.getLogger(__name__)
 
@@ -59,57 +52,6 @@ def _data_http_error(exc: Exception, ticker: str) -> HTTPException:
         status_code=422,
         detail=f"无法获取 {ticker} 的数据：{exc}",
     )
-
-
-@router.get("/sources/status")
-async def get_sources_status(request: Request) -> dict[str, list[dict[str, object]]]:
-    """Return all configured data providers with their enabled status and capabilities.
-
-    A provider is considered *enabled* when it has been instantiated in the current
-    data_layer (i.e. its required API key was present at startup).
-
-    Response shape::
-
-        {
-          "providers": [
-            {"name": "fmp", "enabled": true, "capabilities": ["financials", "price", ...]},
-            ...
-          ]
-        }
-    """
-    data_layer = request.app.state.deps.data_layer
-    providers = []
-    for provider in data_layer._providers:
-        capabilities = [
-            cap.value if hasattr(cap, "value") else str(cap) for cap in provider.capabilities()
-        ]
-        providers.append(
-            {
-                "name": provider.name,
-                "enabled": True,  # provider is in the list → it was successfully instantiated
-                "capabilities": capabilities,
-            }
-        )
-    return {"providers": providers}
-
-
-# MUST be before /{ticker}/ routes to avoid FastAPI matching ticker="performance"
-@router.get("/performance")
-async def get_performance(
-    tickers: str = "AAPL",
-    benchmark: str = "SPY",
-    period: str = "1y",
-) -> dict[str, Any]:
-    """Multi-ticker normalized price performance."""
-    try:
-        result = await fetch_performance_data(
-            tickers=tickers.split(","),
-            benchmark=benchmark,
-            period=period,
-        )
-    except ValueError as e:
-        raise _data_http_error(e, tickers) from e
-    return result
 
 
 @router.get("/{ticker}/catalysts", response_model=list[CatalystEvent])
@@ -157,57 +99,6 @@ async def get_catalysts(
     catalysts = compute_expected_impact(catalysts)
     catalysts = rank_catalysts(catalysts)
     return catalysts
-
-
-@router.get("/{ticker}/news", response_model=AggregatedNewsFeed)
-async def get_news(ticker: str, request: Request) -> AggregatedNewsFeed:
-    """Aggregated news from all configured sources with sentiment scores.
-
-    Fetches from Yahoo Finance RSS, Alpha Vantage (if key set), plus any
-    other news-capable provider (FMP, Finnhub, yfinance). Deduplicates
-    and scores each headline with keyword-based sentiment.
-    """
-    data_layer = request.app.state.deps.data_layer
-    try:
-        result = await data_layer.fetch(DataType.NEWS, ticker.upper())
-    except (ValueError, ProviderError) as e:
-        raise _data_http_error(e, ticker.upper()) from e
-
-    raw_items = result.data.get("news_items", [])
-    items: list[AggregatedNewsItem] = []
-    for raw in raw_items:
-        title = raw.get("title", "")
-        if not title:
-            continue
-        sentiment = raw.get("sentiment_score")
-        if sentiment is None:
-            sentiment = score_headline(title)
-        items.append(
-            AggregatedNewsItem(
-                title=title,
-                source=raw.get("source", ""),
-                url=raw.get("url", ""),
-                published_at=raw.get("published", raw.get("published_at", "")),
-                sentiment_score=sentiment,
-                category=raw.get("category"),
-            )
-        )
-
-    # Sort by published_at descending (most recent first)
-    items.sort(key=lambda x: x.published_at, reverse=True)
-
-    # Compute overall sentiment
-    scores = [i.sentiment_score for i in items if i.sentiment_score is not None]
-    overall = sum(scores) / len(scores) if scores else 0.0
-
-    return AggregatedNewsFeed(
-        ticker=ticker.upper(),
-        items=items,
-        sources_used=list({i.source for i in items if i.source}),
-        overall_sentiment=round(overall, 3),
-        fetched_at=result.timestamp,
-        warnings=list(result.warnings),
-    )
 
 
 @router.get("/{ticker}/financials", response_model=FinancialData)
@@ -269,25 +160,6 @@ async def get_historical(ticker: str, request: Request) -> HistoricalMetrics:
         raise _data_http_error(e, ticker_upper) from e
 
     return HistoricalMetrics.model_validate(payload)
-
-
-@router.get("/{ticker}/quarterly")
-async def get_quarterly(ticker: str, request: Request) -> dict[str, Any]:
-    """Quarterly income statement + cash flow data.
-
-    Cached for 24h — quarterly reports come out once per quarter.
-    """
-    cache = request.app.state.deps.data_layer.cache
-    ticker_upper = ticker.upper()
-    try:
-        return await cached_fetch(
-            cache,
-            DataType.QUARTERLY,
-            ticker_upper,
-            lambda: fetch_quarterly_data(ticker_upper),
-        )
-    except ValueError as e:
-        raise _data_http_error(e, ticker_upper) from e
 
 
 @router.get("/{ticker}/earnings-calls", response_model=EarningsCallList)

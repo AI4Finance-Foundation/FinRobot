@@ -23,20 +23,14 @@ from finagent.artifact.migrate import migrate_filesystem_to_sqlite
 from finagent.artifact.store import ArtifactStore
 from finagent.paths import SETTINGS_JSON, ensure_home, migrate_legacy_paths
 from finagent.audit.transcript import TranscriptWriter
-from finagent.routes.analyze import router as analyze_router
 from finagent.routes.artifacts import router as artifacts_router
-from finagent.routes.ask import router as ask_router
-from finagent.routes.backtest import router as backtest_router
 from finagent.routes.compute import router as compute_router
 from finagent.routes.dashboard import router as dashboard_router
 from finagent.routes.data import router as data_router
-from finagent.routes.export import router as export_router
 from finagent.routes.health import router as health_router
-from finagent.routes.runs import router as runs_router
-from finagent.routes.market import router as market_router
-from finagent.routes.journal import router as journal_router
-from finagent.routes.search import router as search_router
 from finagent.routes.notify import router as notify_router
+from finagent.routes.runs import router as runs_router
+from finagent.routes.search import router as search_router
 from finagent.routes.settings import load_non_secret_settings
 from finagent.routes.settings import router as settings_router
 from finagent.routes.sentiment import router as sentiment_router
@@ -143,10 +137,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.transcript_writers = transcript_writers
     app.state.sub_agents = sub_agents
 
-    # Background task: archive stale artifacts (unviewed for 24h)
+    # Background task: archive stale artifacts (unviewed for 30 days).
+    # Was 24h until 2026-05-27 — too aggressive for a desktop research
+    # tool. The user's workflow is "skim landing → drill into a stale
+    # ticker a week later", and a 24h cutoff was hiding everything from
+    # the recent-research drawer within a day. 30d matches both the
+    # analyst-research review cycle and the FinAgent dashboard's "all"
+    # window expectation; the user can still hard-archive a ticker
+    # explicitly from the UI when they want it gone.
     async def _archive_stale_background() -> None:
         try:
-            count = await artifact_store.archive_stale(hours=24)
+            count = await artifact_store.archive_stale(hours=24 * 30)
             if count:
                 logger.info("Startup artifact archive: %d artifacts archived", count)
         except (OSError, ValueError, TypeError, RuntimeError):
@@ -255,23 +256,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(analyze_router)
-app.include_router(ask_router)
-app.include_router(backtest_router)
 app.include_router(compute_router)
 app.include_router(data_router)
-app.include_router(export_router)
 app.include_router(health_router)
 app.include_router(settings_router)
 app.include_router(runs_router)
 app.include_router(artifacts_router)
-app.include_router(market_router)
 app.include_router(dashboard_router)
-app.include_router(journal_router)
 app.include_router(search_router, prefix="/api/search", tags=["search"])
-app.include_router(notify_router)
 app.include_router(valuation_router)
 app.include_router(sentiment_router)
+app.include_router(notify_router)
 
 
 def _extract_user_text(message: dict[str, Any]) -> str:

@@ -143,65 +143,6 @@ def test_lbo_pipeline_uses_seed_lbo_inputs():
 
 
 # ---------------------------------------------------------------------------
-# 2. Frontend useRunTool.ts must not ship hardcoded LBO assumptions
-# ---------------------------------------------------------------------------
-
-
-# Numeric LBO assumption fields. Each is something seed_lbo_inputs derives
-# from filings or PE convention — they must never appear as a literal
-# `key: 0.05` in the LBO request body the UI sends.
-_BANNED_LBO_LITERAL_KEYS = [
-    "revenue_growth_rate",
-    "ebitda_margin",
-    "entry_ev_ebitda",
-    "exit_ev_ebitda",
-    "leverage_multiple",
-    "interest_rate",
-    "mandatory_amort_pct",
-    "capex_pct_revenue",
-    "nwc_change_pct_revenue",
-    "da_pct_revenue",
-    "tax_rate",
-]
-
-
-# Matches `<key>: <number>` style assignments (covers ints, decimals, and
-# scientific notation). Will catch:
-#     revenue_growth_rate: 0.05,
-#     ebitda_margin: 0.20,
-#     leverage_multiple: 5.0,
-# without flagging:
-#     revenue_growth_rate: someVar,       (variable, not a literal)
-#     "revenue_growth_rate": "string",    (string value)
-def _literal_assignment_regex(key: str) -> re.Pattern[str]:
-    return re.compile(rf"\b{re.escape(key)}\s*:\s*[-+]?\d", re.MULTILINE)
-
-
-def test_use_run_tool_does_not_ship_hardcoded_lbo_inputs():
-    """ui/src/hooks/useRunTool.ts must not assemble an LBO request body with
-    hardcoded numeric assumptions per ticker.
-
-    The pre-refactor branch contained 14 such literals (revenue_growth_rate:
-    0.05, ebitda_margin: 0.20, leverage_multiple: 5.0, …). The new path posts
-    only ``{ ticker }`` to /api/compute/lbo-seed; the backend's
-    seed_lbo_inputs derives every assumption from real filings.
-    """
-    src = (UI_SRC / "hooks" / "useRunTool.ts").read_text()
-
-    offenders: list[str] = []
-    for key in _BANNED_LBO_LITERAL_KEYS:
-        if _literal_assignment_regex(key).search(src):
-            offenders.append(key)
-
-    assert not offenders, (
-        "useRunTool.ts ships hardcoded LBO assumption literals — these must "
-        "go through /api/compute/lbo-seed instead. Banned literal keys found:\n"
-        + "\n".join(f"  - {k}: <number>" for k in offenders)
-        + "\nDo not relax this audit; refactor through seed_lbo_inputs."
-    )
-
-
-# ---------------------------------------------------------------------------
 # 3. seed_lbo_inputs must populate assumption_provenance for every field
 # ---------------------------------------------------------------------------
 

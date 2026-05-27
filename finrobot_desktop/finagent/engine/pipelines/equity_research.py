@@ -21,6 +21,7 @@ from finagent.engine.models.financial import (
     PeerSelection,
     ThesisResult,
     StepOutput,
+    ValuationSynthesis,
 )
 from finagent.engine.compute.catalyst import (
     extract_catalysts_from_news,
@@ -384,6 +385,24 @@ async def _execute_technical_analysis(
     return StepOutput(text=" ".join(summary_parts), structured=payload)
 
 
+# Recommendation thresholds — applied to ValuationSynthesis.upside_downside.
+# Source: sell-side equity-research convention (±15% bands around fair value
+# are the standard separators between Buy / Hold / Sell on the Street). The
+# numbers travel into both the LLM prompt (so the narrative is consistent)
+# and the post-run override (so the contract holds even if the LLM drifts).
+_VERDICT_BUY_THRESHOLD = 0.15
+_VERDICT_SELL_THRESHOLD = -0.15
+
+
+def _verdict_from_upside(upside: float) -> str:
+    """Deterministic Buy/Hold/Sell from synthesis upside vs current price."""
+    if upside >= _VERDICT_BUY_THRESHOLD:
+        return "BUY"
+    if upside <= _VERDICT_SELL_THRESHOLD:
+        return "SELL"
+    return "HOLD"
+
+
 async def _execute_thesis(
     agent: Agent[Any, Any],
     deps: FinAgentDeps,
@@ -415,9 +434,56 @@ async def _execute_thesis(
             cat_lines.append(f"Category breakdown: {breakdown}")
         catalyst_section = "\n".join(cat_lines)
 
+    # CLAUDE.md core contract: "LLM 永远不产出无法追溯到函数调用的数字".
+    # The target price MUST trace to ``synthesize_valuations`` (deterministic
+    # confidence-weighted average across DCF / Comps / …). Before this fix
+    # the LLM picked the number freely — two consecutive 6-minute-apart TSLA
+    # runs returned $25.37 vs $57.96 because the model sometimes anchored on
+    # DCF, sometimes on Comps median, never on the actual weighted price.
+    # ``recommendation`` (Buy/Hold/Sell) had the identical asymmetry — fixed
+    # by classifying off ``upside_downside`` with documented thresholds.
+    # We now (a) inject canonical values into the prompt so the narrative
+    # is consistent and (b) force-override the fields after the run so even
+    # a non-cooperative LLM can't desync the contract.
+    vs = structured_context.get("valuation_synthesis")
+    canonical_target: float | None = None
+    canonical_basis: str | None = None
+    canonical_verdict: str | None = None
+    canonical_upside: float | None = None
+    if isinstance(vs, ValuationSynthesis):
+        canonical_target = round(vs.weighted_price, 2)
+        canonical_upside = vs.upside_downside
+        canonical_verdict = _verdict_from_upside(canonical_upside)
+        method_breakdown = ", ".join(
+            f"{m.name}=${m.mid:.2f}(c={m.confidence:.2f})" for m in vs.methods
+        )
+        canonical_basis = (
+            f"Confidence-weighted mean of {len(vs.methods)} methods: "
+            f"{method_breakdown} → ${canonical_target:.2f}"
+        )
+
     thesis_prompt = prompt
     if catalyst_section:
         thesis_prompt = f"{prompt}\n\nCatalyst Analysis:\n{catalyst_section}"
+    if canonical_target is not None:
+        upside_str = (
+            f"{canonical_upside:+.1%}" if canonical_upside is not None else "n/a"
+        )
+        thesis_prompt = (
+            f"{thesis_prompt}\n\n"
+            f"AUTHORITATIVE PRICE TARGET (do not deviate): "
+            f"${canonical_target:.2f}\n"
+            f"AUTHORITATIVE RECOMMENDATION (do not deviate): "
+            f"{canonical_verdict}\n"
+            f"Derivation: {canonical_basis}; implied upside vs current price = {upside_str}.\n"
+            f"Your `price_target` field MUST equal the authoritative number above. "
+            f"Your `recommendation` field MUST equal the authoritative verdict above "
+            f"(derived from upside thresholds: BUY ≥ +{int(_VERDICT_BUY_THRESHOLD * 100)}%, "
+            f"SELL ≤ {int(_VERDICT_SELL_THRESHOLD * 100)}%, else HOLD). "
+            f"Your `price_target_basis` MUST cite that this is the confidence-weighted "
+            f"synthesis of the listed methods. Your narrative is free to discuss why each "
+            f"method points where it does and why the verdict is consistent with the upside."
+        )
 
     synthesis_agent = Agent(
         deps.settings.create_model(),
@@ -428,6 +494,9 @@ async def _execute_thesis(
             "Reference specific catalysts from the catalyst analysis when discussing "
             "upside drivers and risks. "
             "Provide a recommendation (Buy/Hold/Sell), price target, catalysts, and risks. "
+            "When the prompt supplies an AUTHORITATIVE PRICE TARGET, copy it exactly into "
+            "the `price_target` field — that number is computed by deterministic code and "
+            "is the contract you are narrating, not negotiating."
             "\n\n"
             "ALSO produce the following analyst-grade narrative fields "
             "(investment-bank tone, no retail simplification; 中文 unless "
@@ -437,7 +506,7 @@ async def _execute_thesis(
             "  - key_takeaways:     3-5 bullet points the analyst reader should walk away "
             "with. NOT future events (those are `catalysts`) and NOT downsides (those are "
             "`risks`) — present-tense conclusions about why this is a Buy/Hold/Sell now.\n"
-            "  - company_overview:  200-300 字 Company Overview (FinRobot 第 8 agent parity). "
+            "  - company_overview:  200-300 字 Company Overview (第 8 synthesis slot). "
             "Cover (a) the core business model and what the firm sells, (b) the reportable "
             "segments with revenue mix percentages and YoY growth, (c) geographic exposure "
             "split, and (d) the durable competitive moat. Investment-bank tone — write as "
@@ -454,6 +523,33 @@ async def _execute_thesis(
         thesis = result.output
     except (AgentRunError, ValidationError, ValueError) as e:
         raise ValueError(f"LLM failed to produce valid thesis: {e}") from e
+
+    # Hard-enforce the deterministic target + verdict — same inputs always
+    # produce the same numbers. If the LLM ignored the prompt, log the
+    # drift so we can detect prompt-fidelity regressions in evals.
+    if canonical_target is not None and canonical_basis is not None:
+        if abs(thesis.price_target - canonical_target) > 0.01:
+            logger.warning(
+                "Thesis LLM price_target drift: llm=%s, canonical=%s — overriding",
+                thesis.price_target,
+                canonical_target,
+            )
+        if (
+            canonical_verdict is not None
+            and thesis.recommendation.strip().upper() != canonical_verdict
+        ):
+            logger.warning(
+                "Thesis LLM recommendation drift: llm=%s, canonical=%s — overriding",
+                thesis.recommendation,
+                canonical_verdict,
+            )
+        updates: dict[str, Any] = {
+            "price_target": canonical_target,
+            "price_target_basis": canonical_basis,
+        }
+        if canonical_verdict is not None:
+            updates["recommendation"] = canonical_verdict
+        thesis = thesis.model_copy(update=updates)
 
     narrative = (
         f"Recommendation: {thesis.recommendation}. "

@@ -81,10 +81,6 @@ class RunDetail(BaseModel):
     error: str | None = None
 
 
-class RunListResponse(BaseModel):
-    runs: list[RunRecord]
-
-
 @router.post("", response_model=CreateRunResponse)
 async def create_run(request_body: CreateRunRequest, request: Request) -> CreateRunResponse:
     factories = get_pipeline_factories()
@@ -111,12 +107,6 @@ async def create_run(request_body: CreateRunRequest, request: Request) -> Create
         ticker=record.ticker,
         created_at=record.created_at,
     )
-
-
-@router.get("", response_model=RunListResponse)
-async def list_runs(request: Request) -> RunListResponse:
-    store: RunStore = request.app.state.run_store
-    return RunListResponse(runs=await store.list_runs())
 
 
 @router.get("/{run_id}", response_model=RunDetail)

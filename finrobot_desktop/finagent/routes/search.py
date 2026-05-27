@@ -183,31 +183,3 @@ async def search(
     return SearchResponse(query=q_stripped, results=results[:limit])
 
 
-@router.get("/sessions", response_model=dict)
-async def list_user_sessions() -> dict[str, object]:
-    """List all sessions, newest first.
-
-    Returns:
-        Dict with ``sessions`` key containing a list of session summary dicts.
-    """
-    from finagent.audit.persistence import list_sessions
-
-    return {"sessions": [s.to_dict() for s in list_sessions()]}
-
-
-@router.get("/sessions/{session_id}/transcript", response_model=dict)
-async def get_transcript(session_id: str) -> dict[str, object]:
-    """Return the full JSONL event list for a single session.
-
-    Args:
-        session_id: The session identifier.
-
-    Returns:
-        Dict with ``session_id`` and ``events`` keys.
-    """
-    from finagent.audit.persistence import load_session_transcript
-
-    return {
-        "session_id": session_id,
-        "events": load_session_transcript(session_id),
-    }

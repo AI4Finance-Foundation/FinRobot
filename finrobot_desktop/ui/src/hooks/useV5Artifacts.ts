@@ -5,13 +5,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
 import { FetchHttpError } from '../utils/errorMessage'
-import type {
-  ArtifactSummaryV5,
-  HistoricalBandResponse,
-  HistoricalMetric,
-  SentimentSnapshot,
-  ValuationAggregate,
-} from '../types/v5'
+import type { ArtifactSummaryV5, ValuationAggregate } from '../types/v5'
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const resp = await fetch(url, { signal })
@@ -85,37 +79,6 @@ export function useValuationAggregate(ticker: string) {
       getJson<ValuationAggregate>(`${BASE_URL}/api/valuation/aggregate/${ticker}`, signal),
     enabled: !!ticker,
     staleTime: 60_000,
-    refetchOnMount: false,
-  })
-}
-
-/** Historical bands (PR3 endpoint). */
-export function useHistoricalBand(
-  ticker: string,
-  metric: HistoricalMetric = 'ev_ebitda',
-  years = 3,
-) {
-  return useQuery<HistoricalBandResponse, Error>({
-    queryKey: ['historical-band', ticker, metric, years],
-    queryFn: ({ signal }) =>
-      getJson<HistoricalBandResponse>(
-        `${BASE_URL}/api/valuation/historical-bands/${ticker}?metric=${metric}&years=${years}`,
-        signal,
-      ),
-    enabled: !!ticker,
-    staleTime: 12 * 60 * 60_000, // matches backend 12h cache (PR3)
-    refetchOnMount: false,
-  })
-}
-
-/** Retail sentiment (PR4b endpoint). */
-export function useSentimentSnapshot(ticker: string, days = 7) {
-  return useQuery<SentimentSnapshot, Error>({
-    queryKey: ['sentiment', ticker, days],
-    queryFn: ({ signal }) =>
-      getJson<SentimentSnapshot>(`${BASE_URL}/api/sentiment/${ticker}?days=${days}`, signal),
-    enabled: !!ticker,
-    staleTime: 30 * 60_000,
     refetchOnMount: false,
   })
 }

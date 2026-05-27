@@ -3696,7 +3696,11 @@ select.input-field {
    automatically via the alias block at the top of this file.
    ══════════════════════════════════════════════════════════════════ */
 
-/* ── Drift starfield (z:0 behind everything, drift animation) ── */
+/* ── Drift starfield (z:0 behind everything, drift animation) ──
+   2026-05-27 perf pass: pause both layers when the user backgrounds the
+   window (body.app-bg). Tauri runs the WebView even when the OS hides it,
+   so an "infinite" transform anim happily keeps the GPU compositor busy
+   on a screen no one is looking at. Also honour prefers-reduced-motion. */
 .cosmic-stars {
   position: fixed;
   inset: 0;
@@ -3718,6 +3722,16 @@ select.input-field {
     radial-gradient(1px 1px at 45% 20%, rgba(255, 255, 255, 0.4), transparent 60%);
   background-size: 480px 480px, 600px 600px, 520px 520px;
   animation: cosmic-drift-fast 120s linear infinite reverse;
+}
+body.app-bg .cosmic-stars,
+body.app-bg .cosmic-stars.cosmic-stars-fast {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cosmic-stars,
+  .cosmic-stars.cosmic-stars-fast {
+    animation: none;
+  }
 }
 
 /* ── Card primitive — neon top line via ::before ───────────────

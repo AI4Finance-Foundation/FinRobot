@@ -46,6 +46,30 @@ export function AppShell(): React.ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // 2026-05-27 perf: pause CSS animations (cosmic-stars × 2 layers,
+  // anywhere else gated by body.app-bg) when the Tauri window is hidden
+  // or backgrounded. WebKit does NOT auto-pause CSS animations on
+  // background WebViews the way browsers do for hidden tabs, so an
+  // infinite drift transform keeps the GPU compositor warm even when
+  // the user is looking at a different app. Negligible work; large win
+  // on laptop fan when the user CMD-tabs away.
+  useEffect(() => {
+    function apply() {
+      const hidden = typeof document !== 'undefined' && document.hidden
+      const focused = typeof document !== 'undefined' && document.hasFocus()
+      document.body.classList.toggle('app-bg', hidden || !focused)
+    }
+    apply()
+    document.addEventListener('visibilitychange', apply)
+    window.addEventListener('focus', apply)
+    window.addEventListener('blur', apply)
+    return () => {
+      document.removeEventListener('visibilitychange', apply)
+      window.removeEventListener('focus', apply)
+      window.removeEventListener('blur', apply)
+    }
+  }, [])
+
   return (
     <div className="app-shell">
       <TitleBar />

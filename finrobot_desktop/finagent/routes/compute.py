@@ -18,14 +18,12 @@ from finagent.engine.compute.dcf import (
     solve_for_implied_growth,
     solve_for_implied_wacc,
 )
-from finagent.engine.compute.ddm import calculate_ddm
-from finagent.engine.compute.lbo import calculate_lbo, calculate_lbo_sensitivity
+from finagent.engine.compute.lbo import calculate_lbo
 from finagent.engine.compute.monte_carlo import (
     MonteCarloRequest,
     MonteCarloResult,
     run_monte_carlo,
 )
-from finagent.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
 from finagent.engine.compute.sniper import (
     SniperPoints,
     SniperRequest,
@@ -33,19 +31,32 @@ from finagent.engine.compute.sniper import (
 )
 from finagent.engine.compute.wacc import calculate_wacc
 from finagent.engine.models.financial import (
-    CompanyFinancials,
     DCFInputs,
     DCFResult,
-    DDMInputs,
-    DDMResult,
     LBOInputs,
     LBOResult,
-    PeerComps,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/compute", tags=["compute"])
+
+
+def apply_growth_scale_override(inputs: DCFInputs, scale: float | None) -> DCFInputs:
+    """Scale all seeded revenue_growth_rates by ``1 + scale`` uniformly.
+
+    Used by /api/compute/dcf-seed when the What-if Editor's 'Revenue Growth
+    Scale' slider is dragged. ``scale=None`` is the identity (no change);
+    ``scale=0.1`` raises every year's growth by 10%; ``scale=-0.2`` cuts by
+    20%. The DCFInputs is returned via ``model_copy`` so the seeded provenance
+    dict is preserved unchanged.
+    """
+    if scale is None:
+        return inputs
+    factor = 1.0 + scale
+    return inputs.model_copy(
+        update={"revenue_growth_rates": [g * factor for g in inputs.revenue_growth_rates]}
+    )
 
 
 class WaccRequest(BaseModel):
@@ -85,6 +96,16 @@ class DcfSeedRequest(BaseModel):
     ticker: str = Field(min_length=1, max_length=10)
     wacc_override: float | None = Field(default=None, ge=0, le=0.50)
     tg_override: float | None = Field(default=None, ge=-0.05, le=0.10)
+    growth_scale_override: float | None = Field(
+        default=None,
+        ge=-0.5,
+        le=0.5,
+        description=(
+            "Multiplier applied uniformly to every seeded revenue_growth_rate. "
+            "0.1 → +10% to each year's growth, -0.2 → -20%, None → unchanged. "
+            "Drives the What-if Editor's 'Revenue Growth Scale' slider."
+        ),
+    )
     mid_year: bool = False
     include_reverse: bool = True
 
@@ -128,19 +149,6 @@ class DcfReverseResult(BaseModel):
     price_at_hi: float
     iterations: int
     message: str | None = None
-
-
-class LboSensitivityRequest(BaseModel):
-    inputs: LBOInputs
-    entry_range: list[float] | None = None
-    exit_range: list[float] | None = None
-
-
-class LboSensitivityResult(BaseModel):
-    entry_multiples: list[float]
-    exit_multiples: list[float]
-    irr_grid: list[list[float | None]]
-    moic_grid: list[list[float | None]]
 
 
 class LboSeedRequest(BaseModel):
@@ -191,7 +199,7 @@ async def compute_dcf(inputs: DCFInputs) -> DCFResult:
 async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedResponse:
     """One-shot DCF for a ticker — the front-end's single authoritative path.
 
-    Replaces the legacy hardcoded DEFAULT_COMPUTE_BODY shipped from the UI:
+    Replaces the legacy front-end hardcoded DCFInputs payload (removed in D1):
       1. fetch financials (LTM) + price + multi-year history
       2. seed_dcf_inputs → DCFInputs (with assumption_provenance per field)
       3. calculate_dcf + calculate_sensitivity
@@ -250,6 +258,7 @@ async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedRes
         )
 
     dcf_inputs = seed_dcf_inputs(financial_data, historical)
+    dcf_inputs = apply_growth_scale_override(dcf_inputs, body.growth_scale_override)
     result = calculate_dcf(
         dcf_inputs,
         wacc_override=body.wacc_override,
@@ -291,64 +300,6 @@ async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedRes
     )
 
 
-@router.post("/dcf-reverse", response_model=DcfReverseResult)
-async def compute_dcf_reverse(request: DcfReverseRequest) -> DcfReverseResult:
-    """Reverse DCF — given the current market price, solve for either the
-    implied revenue growth rate or the implied discount rate.
-
-    The standard DCF answers "is this stock fair?". Reverse DCF flips it:
-    "what is the market actually assuming?". A retail investor can then judge
-    whether those assumptions are plausible against history, sector base
-    rates, or management guidance.
-
-    Reference: Damodaran, "Investment Valuation", Ch. 13 — implied valuation.
-    """
-    if request.solve_for == "growth":
-        result = solve_for_implied_growth(
-            request.inputs,
-            target_price=request.target_price,
-            horizon_years=request.horizon_years,
-            wacc_override=request.wacc_override,
-            tg_override=request.tg_override,
-            mid_year=request.mid_year,
-        )
-        return DcfReverseResult(
-            solve_for="growth",
-            target_price=request.target_price,
-            implied_growth=result["implied_growth"],
-            computed_price=result["computed_price"],
-            wacc=result["wacc"],
-            terminal_growth=result["terminal_growth"],
-            horizon_years=result["horizon_years"],
-            bracket=list(result["bracket"]),
-            price_at_lo=result["price_at_lo"],
-            price_at_hi=result["price_at_hi"],
-            iterations=result["iterations"],
-            message=result.get("message"),
-        )
-
-    # solve_for == "wacc"
-    result = solve_for_implied_wacc(
-        request.inputs,
-        target_price=request.target_price,
-        tg_override=request.tg_override,
-        mid_year=request.mid_year,
-    )
-    return DcfReverseResult(
-        solve_for="wacc",
-        target_price=request.target_price,
-        implied_wacc=result["implied_wacc"],
-        computed_price=result["computed_price"],
-        terminal_growth=result["terminal_growth"],
-        horizon_years=result["horizon_years"],
-        bracket=list(result["bracket"]),
-        price_at_lo=result["price_at_lo"],
-        price_at_hi=result["price_at_hi"],
-        iterations=result["iterations"],
-        message=result.get("message"),
-    )
-
-
 @router.post("/dcf-sensitivity", response_model=DcfSensitivityResult)
 async def compute_dcf_sensitivity(
     request: DcfSensitivityRequest,
@@ -361,27 +312,9 @@ async def compute_dcf_sensitivity(
     return DcfSensitivityResult(**raw)
 
 
-@router.post("/ddm", response_model=DDMResult)
-async def compute_ddm(inputs: DDMInputs) -> DDMResult:
-    """Run DDM valuation for banks and dividend-paying stocks."""
-    return calculate_ddm(inputs)
-
-
 @router.post("/lbo", response_model=LBOResult)
 async def compute_lbo(inputs: LBOInputs) -> LBOResult:
     return calculate_lbo(inputs)
-
-
-@router.post("/lbo-sensitivity", response_model=LboSensitivityResult)
-async def compute_lbo_sensitivity(
-    request: LboSensitivityRequest,
-) -> LboSensitivityResult:
-    raw = calculate_lbo_sensitivity(
-        request.inputs,
-        entry_range=request.entry_range,
-        exit_range=request.exit_range,
-    )
-    return LboSensitivityResult(**raw)
 
 
 @router.post("/lbo-seed", response_model=LboSeedResponse)
@@ -454,16 +387,6 @@ async def compute_lbo_seed(body: LboSeedRequest, request: Request) -> LboSeedRes
         result=lbo_result,
         current_price=financial_data.market.current_price,
     )
-
-
-@router.post("/multiples", response_model=CompanyFinancials)
-async def compute_multiples(company: CompanyFinancials) -> CompanyFinancials:
-    return calculate_multiples(company)
-
-
-@router.post("/peer-stats", response_model=PeerComps)
-async def compute_peer_stats(comps: PeerComps) -> PeerComps:
-    return calculate_peer_statistics(comps)
 
 
 @router.post("/monte-carlo", response_model=MonteCarloResult)

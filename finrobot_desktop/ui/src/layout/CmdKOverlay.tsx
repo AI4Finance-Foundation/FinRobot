@@ -19,6 +19,7 @@ import { useAppStore } from '../stores/appStore'
 import { useToastStore } from '../stores/toastStore'
 import { useI18n, tSync } from '../i18n'
 import { FetchHttpError } from '../utils/errorMessage'
+import { BASE_URL } from '../api/client'
 import { STOCK_WORKSPACE_SECTIONS } from '../views/sectionDirectory'
 
 // ---------------------------------------------------------------------------
@@ -337,9 +338,10 @@ export function CmdKOverlay() {
       }
 
       try {
-        const resp = await fetch(`/api/search?q=${encodeURIComponent(debouncedQuery)}&limit=20`, {
-          signal: fetchSignal,
-        })
+        const resp = await fetch(
+          `${BASE_URL}/api/search?q=${encodeURIComponent(debouncedQuery)}&limit=20`,
+          { signal: fetchSignal },
+        )
         if (!resp.ok) {
           throw new FetchHttpError(resp.status, resp.statusText)
         }

@@ -694,6 +694,195 @@ async def test_thesis_includes_catalyst_context(mock_deps):
 
 
 @pytest.mark.asyncio
+async def test_thesis_overrides_llm_target_with_valuation_synthesis(mock_deps):
+    """Regression: same inputs MUST produce same target price across runs.
+
+    Before this guard the LLM was free to pick a number, so two consecutive
+    runs of the same TSLA pipeline returned $25.37 and $57.96 — DCF mid in
+    one, Comps mid in the other, never the actual confidence-weighted
+    synthesis. The thesis step now overrides whatever the LLM returned with
+    ``valuation_synthesis.weighted_price`` so the artifact's
+    ``thesis.price_target`` is traceable to a deterministic function call,
+    per the CLAUDE.md core contract.
+    """
+    from finagent.engine.pipelines.equity_research import _execute_thesis
+    from finagent.engine.models.financial import (
+        ThesisResult,
+        StepOutput,
+        ValuationMethod,
+        ValuationSynthesis,
+    )
+
+    # The LLM tries to invent a target. The code must overrule it.
+    rogue_thesis = ThesisResult(
+        recommendation="Sell",
+        price_target=57.96,  # Comps standalone — would be the buggy old output
+        price_target_basis="Comps median",
+        catalysts=["Catalyst A"],
+        risks=["Risk A"],
+        narrative="Some narrative.",
+    )
+    mock_thesis_result = MagicMock()
+    mock_thesis_result.output = rogue_thesis
+    mock_agent_instance = MagicMock()
+    mock_agent_instance.run = AsyncMock(return_value=mock_thesis_result)
+
+    # vs computed by code — the only legitimate source of truth.
+    vs = ValuationSynthesis(
+        methods=[
+            ValuationMethod(
+                name="DCF", low=20.0, mid=25.37, high=30.4,
+                confidence=0.7, source="DCF model",
+            ),
+            ValuationMethod(
+                name="EV/EBITDA Comps", low=49.3, mid=57.96, high=66.7,
+                confidence=0.5, source="Peer median",
+            ),
+        ],
+        weighted_price=(25.37 * 0.7 + 57.96 * 0.5) / 1.2,  # ≈ 38.95
+        current_price=426.01,
+        upside_downside=-0.91,
+    )
+
+    with patch(
+        "finagent.engine.pipelines.equity_research.Agent",
+        return_value=mock_agent_instance,
+    ):
+        output = await _execute_thesis(
+            mock_agent_instance,
+            mock_deps,
+            "base prompt",
+            {"valuation_synthesis": vs},
+            "TSLA",
+        )
+
+    assert isinstance(output, StepOutput)
+    assert isinstance(output.structured, ThesisResult)
+    # Target MUST be the weighted synthesis, not the LLM's rogue choice.
+    expected = round(vs.weighted_price, 2)
+    assert output.structured.price_target == expected, (
+        f"thesis.price_target={output.structured.price_target} differs from "
+        f"valuation_synthesis.weighted_price={expected} — LLM drift not caught"
+    )
+    # And the basis must cite the synthesis, not the rogue LLM justification.
+    assert "weighted" in output.structured.price_target_basis.lower()
+    assert "DCF" in output.structured.price_target_basis
+    assert "EV/EBITDA Comps" in output.structured.price_target_basis
+
+    # And the prompt should have carried the canonical number to the LLM.
+    actual_prompt = mock_agent_instance.run.call_args[0][0]
+    assert "AUTHORITATIVE PRICE TARGET" in actual_prompt
+    assert f"${expected:.2f}" in actual_prompt
+
+
+@pytest.mark.asyncio
+async def test_thesis_overrides_llm_recommendation_with_upside_thresholds(mock_deps):
+    """Recommendation MUST be a deterministic function of upside vs current.
+
+    Same asymmetry as ``price_target`` — without this guard a strong-SELL
+    synthesis (-91% upside) could come back from the LLM as Hold/Buy
+    depending on the model's mood, and two consecutive runs of the same
+    pipeline would disagree on the verdict. Thresholds (±15%) match
+    sell-side equity-research convention.
+    """
+    from finagent.engine.pipelines.equity_research import _execute_thesis
+    from finagent.engine.models.financial import (
+        ThesisResult,
+        StepOutput,
+        ValuationMethod,
+        ValuationSynthesis,
+    )
+
+    rogue_thesis = ThesisResult(
+        recommendation="Hold",  # rogue; -91% upside must classify as SELL
+        price_target=38.95,
+        price_target_basis="Whatever the LLM said",
+        catalysts=["X"],
+        risks=["Y"],
+        narrative="...",
+    )
+    mock_thesis_result = MagicMock()
+    mock_thesis_result.output = rogue_thesis
+    mock_agent_instance = MagicMock()
+    mock_agent_instance.run = AsyncMock(return_value=mock_thesis_result)
+
+    vs = ValuationSynthesis(
+        methods=[
+            ValuationMethod(
+                name="DCF", low=20.0, mid=25.37, high=30.4,
+                confidence=0.7, source="DCF",
+            ),
+        ],
+        weighted_price=38.95,
+        current_price=426.01,
+        upside_downside=-0.9086,  # < -15% → SELL
+    )
+
+    with patch(
+        "finagent.engine.pipelines.equity_research.Agent",
+        return_value=mock_agent_instance,
+    ):
+        output = await _execute_thesis(
+            mock_agent_instance, mock_deps, "p", {"valuation_synthesis": vs}, "TSLA"
+        )
+
+    assert isinstance(output, StepOutput)
+    assert isinstance(output.structured, ThesisResult)
+    assert output.structured.recommendation == "SELL", (
+        f"recommendation={output.structured.recommendation} — LLM drift not caught"
+    )
+    # And the prompt should have signalled SELL to the LLM.
+    actual_prompt = mock_agent_instance.run.call_args[0][0]
+    assert "AUTHORITATIVE RECOMMENDATION" in actual_prompt
+    assert "SELL" in actual_prompt
+
+
+@pytest.mark.asyncio
+async def test_thesis_recommendation_hold_band(mock_deps):
+    """Upside within ±15% must classify as HOLD even if LLM picks BUY/SELL."""
+    from finagent.engine.pipelines.equity_research import _execute_thesis
+    from finagent.engine.models.financial import (
+        ThesisResult,
+        StepOutput,
+        ValuationMethod,
+        ValuationSynthesis,
+    )
+
+    rogue_thesis = ThesisResult(
+        recommendation="Buy",
+        price_target=110.0,
+        price_target_basis="X",
+        catalysts=["A"],
+        risks=["B"],
+        narrative="...",
+    )
+    mock_thesis_result = MagicMock()
+    mock_thesis_result.output = rogue_thesis
+    mock_agent_instance = MagicMock()
+    mock_agent_instance.run = AsyncMock(return_value=mock_thesis_result)
+
+    vs = ValuationSynthesis(
+        methods=[ValuationMethod(
+            name="DCF", low=90, mid=110, high=130,
+            confidence=0.7, source="DCF",
+        )],
+        weighted_price=110.0,
+        current_price=100.0,
+        upside_downside=0.10,  # +10% → HOLD
+    )
+
+    with patch(
+        "finagent.engine.pipelines.equity_research.Agent",
+        return_value=mock_agent_instance,
+    ):
+        output = await _execute_thesis(
+            mock_agent_instance, mock_deps, "p", {"valuation_synthesis": vs}, "FOO"
+        )
+
+    assert output.structured.recommendation == "HOLD"
+
+
+@pytest.mark.asyncio
 async def test_thesis_works_without_catalyst_context(mock_deps):
     """_execute_thesis works fine when catalyst_analysis is not in structured_context."""
     from finagent.engine.pipelines.equity_research import _execute_thesis

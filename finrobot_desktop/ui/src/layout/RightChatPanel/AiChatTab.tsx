@@ -18,6 +18,7 @@ import { ToolCard } from '../../components/ToolCard'
 import type { ToolResult } from '../../components/ToolCard'
 import { MarkdownLite } from '../../components/MarkdownLite'
 import { useI18n } from '../../i18n'
+import { BASE_URL } from '../../api/client'
 import { ContextBar } from '../AIPanel/ContextBar'
 
 // ──────────────────────────────────────────────────────────────
@@ -136,11 +137,14 @@ export function AiChatTab({
     ? (storeModel as ModelValue)
     : 'deepseek'
 
-  // Transport — recreated when ticker/model changes
+  // Transport — recreated when ticker/model changes. Absolute URL is
+  // required in Tauri prod builds (asset loads from `file://` so a
+  // relative `/chat` resolves to a non-existent file scheme path and the
+  // entire AI panel falls silent). Dev keeps `''` so Vite proxies it.
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
-        api: '/chat',
+        api: `${BASE_URL}/chat`,
         body: { ticker: ticker ?? null, model: modelValue },
       }),
     [ticker, modelValue],

@@ -1,8 +1,5 @@
 /**
  * useTickerData — TanStack Query hooks for per-ticker server state.
- *
- * All hooks accept an optional AbortSignal so the caller can cancel inflight
- * requests when the ticker changes (AbortController pattern).
  */
 
 import { useQuery } from '@tanstack/react-query'
@@ -89,16 +86,6 @@ export interface CatalystEventData {
   reasoning?: string
 }
 
-export interface ArtifactSummary {
-  id: string
-  ticker: string
-  type: string
-  created_at: string
-  last_viewed_at: string | null
-  is_archived: boolean
-  title: string | null
-}
-
 // ── Fetcher helpers ───────────────────────────────────────────────────────────
 
 async function fetchJson<T>(
@@ -125,23 +112,6 @@ export function useTickerPrice(ticker: string) {
     staleTime: 60_000, // 1 min — price data is volatile
     refetchInterval: 60_000,
     retry: 2,
-  })
-}
-
-/** Fetch the artifact timeline for a ticker (history tab). */
-export function useTickerArtifacts(ticker: string) {
-  return useQuery<ArtifactSummary[], Error>({
-    queryKey: ['ticker-artifacts', ticker],
-    queryFn: ({ signal }) =>
-      fetchJson<ArtifactSummary[]>(
-        `${BASE_URL}/api/artifacts/by-ticker/${ticker}/timeline`,
-        signal,
-        '无法加载历史记录',
-      ),
-    enabled: !!ticker,
-    staleTime: 5 * 60_000,
-    refetchOnMount: false,
-    retry: 1,
   })
 }
 

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sqlite3
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -80,6 +81,25 @@ class QuoteCache:
                 self._conn = conn
         return self._conn
 
+    async def _drop_conn(self) -> None:
+        """Discard the cached aiosqlite connection so the next call rebuilds.
+
+        Long-running desktop sessions occasionally end up with a wedged
+        connection (event-loop swap, sqlite worker thread died, WAL race).
+        When SQL raises ``sqlite3.Error`` we close + null the handle so the
+        very next ``_conn_ready`` call opens a fresh one — without this the
+        singleton would refuse to serve any caller for the rest of the
+        process lifetime, taking the entire landing page down with it.
+        """
+        async with self._conn_lock:
+            conn = self._conn
+            self._conn = None
+        if conn is not None:
+            try:
+                await conn.close()
+            except (sqlite3.Error, OSError, RuntimeError):
+                logger.exception("QuoteCache stale-conn close failed (non-fatal)")
+
     async def get_batch(
         self,
         tickers: list[str],
@@ -102,25 +122,38 @@ class QuoteCache:
                 else:
                     missing.append(sym)
 
-        # L2
+        # L2 — sqlite3 errors here are *non-fatal*: drop the wedged
+        # connection so the next request rebuilds, then fall through to the
+        # origin fetcher as if L2 were cold. The whole landing page
+        # depends on this cache; a dead conn must not become a 30-hour
+        # 500 spree.
+        l2_fresh: dict[str, float | None] = {}
         if missing:
-            conn = await self._conn_ready()
-            placeholders = ",".join("?" * len(missing))
-            async with conn.execute(
-                f"SELECT ticker, last_price, fetched_at FROM quotes_cache "
-                f"WHERE ticker IN ({placeholders})",
-                missing,
-            ) as cur:
-                rows = await cur.fetchall()
-            l2_fresh: dict[str, float | None] = {}
-            for ticker, last_price, fetched_at in rows:
-                if now - float(fetched_at) < self._ttl:
-                    l2_fresh[ticker] = last_price
-            async with self._l1_lock:
-                for ticker, price in l2_fresh.items():
-                    self._l1[ticker] = (price, now)
-                    result[ticker] = price
-            missing = [m for m in missing if m not in l2_fresh]
+            try:
+                conn = await self._conn_ready()
+                placeholders = ",".join("?" * len(missing))
+                async with conn.execute(
+                    f"SELECT ticker, last_price, fetched_at FROM quotes_cache "
+                    f"WHERE ticker IN ({placeholders})",
+                    missing,
+                ) as cur:
+                    rows = await cur.fetchall()
+                for ticker, last_price, fetched_at in rows:
+                    if now - float(fetched_at) < self._ttl:
+                        l2_fresh[ticker] = last_price
+            except sqlite3.Error:
+                logger.exception(
+                    "QuoteCache L2 read failed for %s — dropping conn", missing
+                )
+                await self._drop_conn()
+                # l2_fresh stays empty; fetcher handles everything
+
+            if l2_fresh:
+                async with self._l1_lock:
+                    for ticker, price in l2_fresh.items():
+                        self._l1[ticker] = (price, now)
+                        result[ticker] = price
+                missing = [m for m in missing if m not in l2_fresh]
 
         # Origin
         if missing:
@@ -130,23 +163,27 @@ class QuoteCache:
                 logger.warning("Quote fetcher failed for %s: %s", missing, exc)
                 fetched = dict.fromkeys(missing)
             now = time.time()
-            conn = await self._conn_ready()
-            # Write to L2 first (IO-heavy) outside the L1 lock so concurrent
-            # readers touching unrelated symbols aren't blocked on aiosqlite
-            # round-trips. The L1 lock is reserved for the tiny dict update
-            # that follows.
-            for sym in missing:
-                await conn.execute(
-                    """
-                    INSERT INTO quotes_cache (ticker, last_price, fetched_at)
-                    VALUES (?, ?, ?)
-                    ON CONFLICT(ticker) DO UPDATE SET
-                        last_price = excluded.last_price,
-                        fetched_at = excluded.fetched_at
-                    """,
-                    (sym, fetched.get(sym), now),
+            # L2 write is best-effort. Same reasoning as the L2 read: a
+            # broken conn must not poison L1 promotion or the response.
+            try:
+                conn = await self._conn_ready()
+                for sym in missing:
+                    await conn.execute(
+                        """
+                        INSERT INTO quotes_cache (ticker, last_price, fetched_at)
+                        VALUES (?, ?, ?)
+                        ON CONFLICT(ticker) DO UPDATE SET
+                            last_price = excluded.last_price,
+                            fetched_at = excluded.fetched_at
+                        """,
+                        (sym, fetched.get(sym), now),
+                    )
+                await conn.commit()
+            except sqlite3.Error:
+                logger.exception(
+                    "QuoteCache L2 write failed for %s — dropping conn", missing
                 )
-            await conn.commit()
+                await self._drop_conn()
             async with self._l1_lock:
                 for sym in missing:
                     price = fetched.get(sym)

@@ -140,3 +140,42 @@ async def test_empty_input_returns_empty(tmp_path: Path) -> None:
     result = await cache.get_batch([], fetcher=fail_if_called)
     assert result == {}
     await cache.close()
+
+
+@pytest.mark.asyncio
+async def test_l2_read_error_self_heals_and_falls_back_to_fetcher(
+    tmp_path: Path,
+) -> None:
+    """Regression: a wedged aiosqlite conn must NOT take the route down.
+
+    Before this fix the landing page would 500 the moment QuoteCache's
+    long-lived sqlite handle stopped working — the live ~30h dev session
+    hit exactly this. ``get_batch`` now drops the bad conn so the request
+    is served from the origin fetcher and the singleton recovers in-flight.
+    """
+    import sqlite3
+
+    cache = QuoteCache(db_path=tmp_path / "q.db", ttl_seconds=60)
+    # Force the *next* L2 read to explode the way a dead aiosqlite conn does.
+    await cache._conn_ready()
+    broken_conn = cache._conn
+    assert broken_conn is not None
+
+    def boom(*_a: object, **_kw: object) -> object:
+        raise sqlite3.OperationalError("database is locked")
+
+    broken_conn.execute = boom  # type: ignore[method-assign]
+
+    async def fetcher(missing: list[str]) -> dict[str, float | None]:
+        return {t: 99.0 for t in missing}
+
+    result = await cache.get_batch(["AAPL"], fetcher=fetcher)
+    assert result == {"AAPL": 99.0}  # served by fetcher, not 500
+
+    # Wedged conn was dropped + replaced (in-flight L2 write rebuilds it).
+    assert cache._conn is not broken_conn
+
+    # Next call works — fresh conn isn't carrying the booby trap.
+    result2 = await cache.get_batch(["MSFT"], fetcher=fetcher)
+    assert result2 == {"MSFT": 99.0}
+    await cache.close()

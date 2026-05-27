@@ -383,11 +383,16 @@ def build_equity_research_artifact(
     if isinstance(dcf, DCFResult):
         assumptions_params = _safe_dump(dcf.inputs)
 
-    # Collect all meaningful structured outputs for the combined report
+    # Collect all meaningful structured outputs for the combined report.
+    # ``valuation_synthesis`` MUST persist alongside ``thesis``: it is the
+    # deterministic source of ``thesis.price_target`` (see _execute_thesis).
+    # Without persisting it the artifact loses the audit trail and the UI
+    # can't render the per-method breakdown that justifies the target.
     structured_out: dict[str, Any] = {}
     for key in (
         "financial_modeling",
         "peer_analysis",
+        "valuation_synthesis",
         "thesis",
         "catalyst_analysis",
         "technical_analysis",

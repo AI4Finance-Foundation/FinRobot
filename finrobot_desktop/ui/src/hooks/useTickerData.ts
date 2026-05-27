@@ -4,7 +4,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
-import { extractErrorDetail } from '../api/errors'
+import { FetchHttpError } from '../utils/errorMessage'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -90,14 +90,25 @@ export interface CatalystEventData {
 
 // ── Fetcher helpers ───────────────────────────────────────────────────────────
 
-async function fetchJson<T>(
+/**
+ * Fetch wrapper used by the per-ticker query hooks below.
+ *
+ * Throws FetchHttpError(status, statusText) on non-2xx responses so
+ * StockWorkspace's gate can branch on status (422 → TickerNotFoundView,
+ * everything else → ServiceDownView). Plain Error / TypeError / DOMException
+ * (network failures, CORS, AbortError) propagate untouched — the gate
+ * already routes those into ServiceDownView via the "not instanceof
+ * FetchHttpError" branch.
+ *
+ * Exported for direct unit testing.
+ */
+export async function fetchJsonOrThrowHttp<T>(
   url: string,
   signal?: AbortSignal,
-  errorFallback = '请求失败',
 ): Promise<T> {
   const resp = await fetch(url, { signal })
   if (!resp.ok) {
-    throw new Error(await extractErrorDetail(resp, errorFallback))
+    throw new FetchHttpError(resp.status, resp.statusText)
   }
   return resp.json() as Promise<T>
 }
@@ -106,47 +117,57 @@ async function fetchJson<T>(
 
 /** Fetch price + change for a ticker. */
 export function useTickerPrice(ticker: string) {
-  return useQuery<PriceData, Error>({
+  return useQuery<PriceData, FetchHttpError>({
     queryKey: ['ticker-price', ticker],
     queryFn: ({ signal }) =>
-      fetchJson<PriceData>(`${BASE_URL}/api/data/${ticker}/price`, signal, '无法加载行情'),
+      fetchJsonOrThrowHttp<PriceData>(`${BASE_URL}/api/data/${ticker}/price`, signal),
     enabled: !!ticker,
     staleTime: 60_000, // 1 min — price data is volatile
     refetchInterval: 60_000,
-    retry: 2,
+    // 422 = invalid ticker → retrying has no value. Other errors keep default (2 retries).
+    retry: (failureCount, error) => {
+      if (error instanceof FetchHttpError && error.status === 422) return false
+      return failureCount < 2
+    },
   })
 }
 
 /** Fetch catalysts for a ticker. */
 export function useTickerCatalysts(ticker: string) {
-  return useQuery<CatalystEventData[], Error>({
+  return useQuery<CatalystEventData[], FetchHttpError>({
     queryKey: ['ticker-catalysts', ticker],
     queryFn: ({ signal }) =>
-      fetchJson<CatalystEventData[]>(
+      fetchJsonOrThrowHttp<CatalystEventData[]>(
         `${BASE_URL}/api/data/${ticker}/catalysts`,
         signal,
-        '无法加载催化剂事件',
       ),
     enabled: !!ticker,
     staleTime: 5 * 60_000,
     refetchOnMount: false,
-    retry: 1,
+    // 422 = invalid ticker → retrying has no value.
+    retry: (failureCount, error) => {
+      if (error instanceof FetchHttpError && error.status === 422) return false
+      return failureCount < 1
+    },
   })
 }
 
 /** Fetch financial data for a ticker. */
 export function useTickerFinancials(ticker: string) {
-  return useQuery<FinancialsData, Error>({
+  return useQuery<FinancialsData, FetchHttpError>({
     queryKey: ['ticker-financials', ticker],
     queryFn: ({ signal }) =>
-      fetchJson<FinancialsData>(
+      fetchJsonOrThrowHttp<FinancialsData>(
         `${BASE_URL}/api/data/${ticker}/financials`,
         signal,
-        '无法加载基本面数据',
       ),
     enabled: !!ticker,
     staleTime: 5 * 60_000,
     refetchOnMount: false,
-    retry: 1,
+    // 422 = invalid ticker → retrying has no value.
+    retry: (failureCount, error) => {
+      if (error instanceof FetchHttpError && error.status === 422) return false
+      return failureCount < 1
+    },
   })
 }

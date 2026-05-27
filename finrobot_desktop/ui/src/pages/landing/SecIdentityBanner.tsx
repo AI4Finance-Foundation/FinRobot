@@ -57,8 +57,7 @@ export function SecIdentityBanner(): React.ReactElement | null {
       style={{
         position: 'relative',
         zIndex: 2,
-        background:
-          'linear-gradient(135deg, rgba(217, 119, 6, 0.10), rgba(217, 119, 6, 0.04))',
+        background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.10), rgba(217, 119, 6, 0.04))',
         border: '1px solid rgba(217, 119, 6, 0.32)',
         borderRadius: 'var(--radius-md)',
         padding: '14px 20px',

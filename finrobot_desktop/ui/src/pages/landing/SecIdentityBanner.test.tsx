@@ -76,9 +76,7 @@ describe('SecIdentityBanner', () => {
   it('hides the banner after dismiss + persists in localStorage', async () => {
     setIdentity('')
     renderBanner()
-    await waitFor(() =>
-      expect(screen.getByTestId('sec-identity-banner')).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByTestId('sec-identity-banner')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /Dismiss notification/i }))
     expect(screen.queryByTestId('sec-identity-banner')).not.toBeInTheDocument()
     expect(localStorage.getItem(DISMISS_KEY)).not.toBeNull()
@@ -96,8 +94,6 @@ describe('SecIdentityBanner', () => {
     setIdentity('')
     localStorage.setItem(DISMISS_KEY, String(Date.now() - 40 * 24 * 60 * 60 * 1000))
     renderBanner()
-    await waitFor(() =>
-      expect(screen.getByTestId('sec-identity-banner')).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByTestId('sec-identity-banner')).toBeInTheDocument())
   })
 })

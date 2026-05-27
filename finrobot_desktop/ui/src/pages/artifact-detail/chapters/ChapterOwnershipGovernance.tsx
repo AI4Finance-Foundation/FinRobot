@@ -280,15 +280,17 @@ function CompensationGrid({
     },
     {
       label: t('chapter.ownership.kv.payRatio'),
-      value: comp.ceo_pay_ratio !== null && comp.ceo_pay_ratio !== undefined
-        ? `${comp.ceo_pay_ratio}:1`
-        : '—',
+      value:
+        comp.ceo_pay_ratio !== null && comp.ceo_pay_ratio !== undefined
+          ? `${comp.ceo_pay_ratio}:1`
+          : '—',
     },
     {
       label: t('chapter.ownership.kv.peerPercentile'),
-      value: comp.peer_percentile !== null && comp.peer_percentile !== undefined
-        ? `${comp.peer_percentile}th`
-        : '—',
+      value:
+        comp.peer_percentile !== null && comp.peer_percentile !== undefined
+          ? `${comp.peer_percentile}th`
+          : '—',
     },
   ]
   return (
@@ -349,9 +351,7 @@ function AlertList({
                   fontSize: 10,
                   padding: '2px 6px',
                   borderRadius: 999,
-                  background: isActivist
-                    ? 'rgba(217, 119, 6, 0.18)'
-                    : 'rgba(34, 211, 238, 0.18)',
+                  background: isActivist ? 'rgba(217, 119, 6, 0.18)' : 'rgba(34, 211, 238, 0.18)',
                   color: isActivist ? 'var(--warning)' : 'var(--accent-cyan)',
                   letterSpacing: '0.08em',
                 }}

@@ -81,6 +81,44 @@ class TestFetchPriceHistoryErrors:
         assert result["company_name"] == "Apple Inc."
 
 
+@pytest.mark.asyncio
+async def test_fetch_price_history_returns_fetched_at():
+    """fetch_price_history must inject ISO8601 fetched_at into the return dict."""
+    from datetime import datetime, timezone
+
+    fake_hist = pd.DataFrame(
+        {
+            "Open": [100.0, 101.0],
+            "High": [102.0, 103.0],
+            "Low": [99.0, 100.5],
+            "Close": [101.5, 102.5],
+            "Volume": [1_000_000, 1_100_000],
+        },
+        index=pd.to_datetime(["2026-05-26", "2026-05-27"]),
+    )
+    fake_info = {
+        "currentPrice": 102.5,
+        "marketCap": 3_000_000_000,
+        "longName": "Test Corp",
+        "fullExchangeName": "NasdaqGS",
+    }
+
+    mock_ticker = MagicMock()
+    mock_ticker.history.return_value = fake_hist
+    mock_ticker.info = fake_info
+
+    with patch(
+        "finrobot.engine.services.market_data.yf.Ticker", return_value=mock_ticker
+    ):
+        result = await fetch_price_history("TEST", "1y")
+
+    assert "fetched_at" in result
+    fetched = datetime.fromisoformat(result["fetched_at"])
+    assert fetched.tzinfo is not None  # ISO8601 with tz
+    # Within 5 seconds of "now"
+    assert (datetime.now(tz=timezone.utc) - fetched).total_seconds() < 5
+
+
 class TestFetchQuarterlyDataErrors:
     @pytest.mark.asyncio
     async def test_yf_exception_raises_provider_error(self):

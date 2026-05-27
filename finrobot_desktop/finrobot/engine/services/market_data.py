@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 import pandas as pd
@@ -86,6 +87,7 @@ async def fetch_price_history(ticker: str, period: str = "1y") -> dict[str, Any]
             # rather than stamping "待披露" everywhere (DataSnapshot bug).
             "next_earnings_date": _format_next_earnings(info),
             "history": history,
+            "fetched_at": datetime.now(tz=timezone.utc).isoformat(),
             "data_source": "yfinance",
             "warnings": [],
         }
@@ -220,8 +222,6 @@ def _format_next_earnings(info: dict[str, Any]) -> str | None:
         if isinstance(raw, list) and raw:
             raw = raw[0]
         if isinstance(raw, (int, float)):
-            from datetime import datetime, timezone
-
             return datetime.fromtimestamp(int(raw), tz=timezone.utc).strftime("%Y-%m-%d")
         if isinstance(raw, str):
             return raw[:10]  # yfinance sometimes returns ISO timestamp string

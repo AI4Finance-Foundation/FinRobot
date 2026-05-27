@@ -78,7 +78,7 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
               color: 'var(--text-muted)',
               padding: '3px 8px',
               border: '1px solid var(--border-soft)',
-              borderRadius: 999,
+              borderRadius: 'var(--radius-pill)',
               letterSpacing: '0.06em',
             }}
           >

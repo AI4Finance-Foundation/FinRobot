@@ -94,6 +94,7 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 24px;
+  --radius-pill: 999px;  /* 标签 / freshness pill / chip 药丸圆角 */
 
   /* ── Spacing ladder (4/8/12/16/24/32/48) ─────────────────────── */
   --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;

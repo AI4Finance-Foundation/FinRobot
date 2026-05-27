@@ -160,7 +160,7 @@ async def get_historical(ticker: str, request: Request) -> HistoricalMetrics:
         payload = await cached_fetch(
             cache, DataType.HISTORICAL, ticker_upper, _fetch_as_dict
         )
-    except ValueError as e:
+    except (ValueError, ProviderError) as e:
         raise _data_http_error(e, ticker_upper) from e
 
     return HistoricalMetrics.model_validate(payload)

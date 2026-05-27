@@ -166,19 +166,18 @@ async def test_search_limit_respected(client: AsyncClient) -> None:
     assert len(resp.json()["results"]) <= 1
 
 
-async def test_search_artifact_seeded(tmp_path: Path) -> None:
-    """Artifacts matching the query appear in search results."""
+async def test_search_artifact_emits_runs_path_with_verdict(tmp_path: Path) -> None:
+    """Artifacts with a ticker emit /stocks/{ticker}/runs/{id} nav path + verdict in subtitle."""
     from fastapi import FastAPI
-    from unittest.mock import AsyncMock
 
     from finrobot.routes.search import router as search_router
 
-    # Build a stub ArtifactSummary
     mock_summary = MagicMock()
     mock_summary.ticker = "AAPL"
     mock_summary.type = "dcf"
     mock_summary.headline = "Apple DCF valuation 2026"
     mock_summary.id = "art_001"
+    mock_summary.verdict = "BUY"
 
     mock_store = AsyncMock()
     mock_store.list_by_ticker = AsyncMock(return_value=[mock_summary])
@@ -189,7 +188,44 @@ async def test_search_artifact_seeded(tmp_path: Path) -> None:
 
     async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as c:
         resp = await c.get("/api/search?q=apple+dcf")
+
     assert resp.status_code == 200
     artifact_results = [r for r in resp.json()["results"] if r["kind"] == "artifact"]
     assert len(artifact_results) == 1
-    assert "art_001" in artifact_results[0]["action"]
+    assert artifact_results[0]["action"] == "navigate:/stocks/AAPL/runs/art_001"
+    assert "BUY" in artifact_results[0]["subtitle"]
+    assert "Apple DCF valuation 2026" in artifact_results[0]["subtitle"]
+
+
+async def test_search_artifact_without_ticker_is_dropped() -> None:
+    """ArtifactSummary with ticker=None must NOT appear in search results."""
+    from fastapi import FastAPI
+
+    from finrobot.routes.search import router as search_router
+
+    mock_summary = MagicMock()
+    mock_summary.ticker = None
+    mock_summary.type = "skill"
+    mock_summary.headline = "Generic skill artifact"
+    mock_summary.id = "art_002"
+    mock_summary.verdict = None
+
+    mock_store = AsyncMock()
+    mock_store.list_by_ticker = AsyncMock(return_value=[mock_summary])
+
+    test_app = FastAPI()
+    test_app.state.artifact_store = mock_store
+    test_app.include_router(search_router, prefix="/api/search")
+
+    async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as c:
+        resp = await c.get("/api/search?q=generic")
+    artifact_results = [r for r in resp.json()["results"] if r["kind"] == "artifact"]
+    assert artifact_results == []
+
+
+async def test_search_no_session_results(client: AsyncClient) -> None:
+    """Session search results have been removed (dead route until SessionDetailPage lands)."""
+    async with client as c:
+        resp = await c.get("/api/search?q=anything")
+    session_results = [r for r in resp.json()["results"] if r["kind"] == "session"]
+    assert session_results == []

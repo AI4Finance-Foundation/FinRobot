@@ -2,18 +2,12 @@
 
 Routes:
   GET /api/search?q=<query>&limit=<int>
-      → SearchResponse with typed results (ticker / slash_command / artifact / session)
-
-  GET /api/search/sessions
-      → list all sessions (newest first)
-
-  GET /api/search/sessions/{session_id}/transcript
-      → full JSONL event list for a single session
+      → SearchResponse with typed results (ticker / slash_command / artifact)
 
 Routing logic for ``q``:
   - Looks like a ticker (``^[A-Z0-9.\\-]{1,10}$``) → emit ticker navigation suggestion
   - Starts with ``/``                               → parse as slash command (e.g. /dcf AAPL)
-  - Otherwise                                        → substring search across artifacts + sessions
+  - Otherwise                                        → substring search across artifacts
 """
 
 from __future__ import annotations
@@ -46,15 +40,14 @@ _SLASH_COMMANDS: dict[str, tuple[str, str]] = {
 class SearchResult(BaseModel):
     """A single search suggestion item."""
 
-    kind: Literal["ticker", "slash_command", "artifact", "session"]
+    kind: Literal["ticker", "slash_command", "artifact"]
     title: str
     subtitle: str = ""
     action: str
     """Frontend action string:
       - ``navigate:/stocks/AAPL``
       - ``run:dcf:AAPL``
-      - ``navigate:/library/AAPL?artifact=art_xxx``
-      - ``navigate:/library?session=xxx``
+      - ``navigate:/stocks/AAPL/runs/art_xxx``
     """
     score: float = 0.0
 
@@ -116,7 +109,7 @@ async def search(
     """Global cmd+K search.
 
     Args:
-        q: Search query.  Routing is based on shape of ``q`` (see module docstring).
+        q: Search query.
         limit: Maximum number of results to return (1–100, default 20).
 
     Returns:
@@ -141,45 +134,35 @@ async def search(
     if q_stripped.startswith("/"):
         results.extend(_parse_slash_command(q_stripped))
 
-    # Branch 3: free-text → artifacts + sessions
+    # Branch 3: free-text → artifact substring match (ticker required)
     artifact_store = getattr(request.app.state, "artifact_store", None)
     if artifact_store is not None:
         artifact_summaries = await artifact_store.list_by_ticker(
             ticker=None, limit=200, include_archived=False
         )
         for s in artifact_summaries:
-            if _matches(q_stripped, s.ticker or "", str(s.type), s.headline):
-                nav = (
-                    f"navigate:/library/{s.ticker}?artifact={s.id}"
-                    if s.ticker
-                    else f"navigate:/library?artifact={s.id}"
+            if not s.ticker:
+                # Skip artifacts without a ticker — they have no destination
+                # route. Pipeline always requires ticker, so this is a defensive
+                # guard for edge-case stored artifacts.
+                continue
+            if _matches(q_stripped, s.ticker, str(s.type), s.headline):
+                verdict_chip = s.verdict if s.verdict else ""
+                subtitle = (
+                    f"{verdict_chip} · {s.headline}" if verdict_chip else s.headline
                 )
                 results.append(
                     SearchResult(
                         kind="artifact",
-                        title=f"{s.ticker or '跨ticker'} · {str(s.type).upper()}",
-                        subtitle=s.headline,
-                        action=nav,
+                        title=f"{s.ticker} · {str(s.type).upper()}",
+                        subtitle=subtitle,
+                        action=f"navigate:/stocks/{s.ticker}/runs/{s.id}",
                         score=2.0,
                     )
                 )
 
-    from finrobot.audit.persistence import list_sessions
-
-    sessions = list_sessions()
-    for ss in sessions:
-        if _matches(q_stripped, ss.title):
-            results.append(
-                SearchResult(
-                    kind="session",
-                    title=ss.title,
-                    subtitle=f"{ss.turn_count} 条消息 · {ss.model}",
-                    action=f"navigate:/library?session={ss.session_id}",
-                    score=1.0,
-                )
-            )
+    # Session search removed — no SessionDetailPage route exists. If session
+    # replay lands, that spec will reintroduce both the route and this branch.
 
     results.sort(key=lambda r: r.score, reverse=True)
     return SearchResponse(query=q_stripped, results=results[:limit])
-
-

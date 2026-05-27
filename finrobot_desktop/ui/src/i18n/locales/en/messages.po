@@ -134,10 +134,6 @@ msgid "cmdk.error.invalidAction"
 msgstr "Invalid action"
 
 #. js-lingui-explicit-id
-msgid "cmdk.error.tickerRequired"
-msgstr "A ticker is required to run that tool"
-
-#. js-lingui-explicit-id
 msgid "cmdk.error.unknownAction"
 msgstr "Unknown action"
 

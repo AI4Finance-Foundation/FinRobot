@@ -134,10 +134,6 @@ msgid "cmdk.error.invalidAction"
 msgstr "操作格式无效"
 
 #. js-lingui-explicit-id
-msgid "cmdk.error.tickerRequired"
-msgstr "运行工具需要指定股票代码"
-
-#. js-lingui-explicit-id
 msgid "cmdk.error.unknownAction"
 msgstr "未知操作类型"
 

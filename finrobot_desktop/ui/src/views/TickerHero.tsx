@@ -1,6 +1,6 @@
 // TickerHero — identity strip at the top of the workspace.
 //
-// Job: breadcrumb back to landing + ticker glyph + LIVE pill + morph
+// Job: breadcrumb back to landing + ticker glyph + freshness pill + morph
 // tagline + current price / day-change.
 //
 // What it does NOT do: anything related to running research. The "run"

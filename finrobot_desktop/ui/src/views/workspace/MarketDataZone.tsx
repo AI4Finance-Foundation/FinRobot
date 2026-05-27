@@ -7,6 +7,7 @@
 // research pipeline on this ticker.
 
 import { useTickerPrice, useTickerFinancials, useTickerCatalysts } from '../../hooks/useTickerData'
+import { tSync } from '../../i18n'
 
 interface MarketDataZoneProps {
   ticker: string
@@ -23,7 +24,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
       <p style={zoneDesc}>来源 yfinance / SEC EDGAR / FMP · 实时拉，跟 AI 研报互不依赖。</p>
 
       {/* 行情快照 */}
-      <MktCard title="📊 行情快照" liveTag="LIVE">
+      <MktCard title="📊 行情快照" liveTag="yfinance">
         <Kv4
           cells={[
             { label: '市值', value: fmtMc(fin?.market?.market_cap) },
@@ -43,7 +44,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
       </MktCard>
 
       {/* Price chart */}
-      <MktCard title="📈 价格趋势" liveTag="LIVE">
+      <MktCard title="📈 价格趋势" liveTag="yfinance">
         <PriceSparkline points={price?.history ?? null} />
       </MktCard>
 
@@ -156,7 +157,7 @@ function ZoneHeader(): React.ReactElement {
           letterSpacing: '0.08em',
         }}
       >
-        LIVE · 不依赖 AI
+        {tSync('marketdata.zoneHeader')}
       </span>
     </div>
   )

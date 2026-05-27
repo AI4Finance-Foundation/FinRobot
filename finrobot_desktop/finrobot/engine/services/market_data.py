@@ -20,6 +20,29 @@ from finrobot.engine.data.interface import ProviderError
 
 logger = logging.getLogger(__name__)
 
+# yfinance error message keyword list — case-insensitive substring match.
+# A YFException whose message contains ANY of these keywords is classified
+# as upstream service down (raises ProviderError → 502). Otherwise it's
+# treated as invalid ticker (raises ValueError → 422).
+#
+# Locked by tests/audit/test_yfinance_error_mapping.py — removing a keyword
+# requires an audit-reviewer-acknowledged commit.
+_YFINANCE_SERVICE_DOWN_KEYWORDS: tuple[str, ...] = (
+    '429',
+    'rate limit',
+    'connection',
+    'timeout',
+    'http error 5',
+    'too many requests',
+)
+
+
+def _is_yfinance_service_down(exc: Exception) -> bool:
+    """Return True iff exception message indicates upstream yfinance failure
+    (rate limit, timeout, 5xx) rather than an invalid ticker."""
+    msg = str(exc).lower()
+    return any(kw in msg for kw in _YFINANCE_SERVICE_DOWN_KEYWORDS)
+
 
 async def fetch_price_history(ticker: str, period: str = "1y") -> dict[str, Any]:
     """Fetch historical OHLCV price data + header metadata from yfinance.
@@ -41,8 +64,18 @@ async def fetch_price_history(ticker: str, period: str = "1y") -> dict[str, Any]
             t = yf.Ticker(ticker)
             hist = t.history(period=period)
             info = t.info or {}
-        except (YFException, ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
+        except YFException as e:
+            if _is_yfinance_service_down(e):
+                raise ProviderError(f"yfinance service down for '{ticker}': {e}") from e
+            # Other YFException → invalid ticker (delisted / unknown symbol / etc.)
+            raise ValueError(f"未知 ticker '{ticker}': {e}") from e
+        except (KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
             raise ProviderError(f"yfinance price history failed for '{ticker}': {e}") from e
+
+        # Empty hist + empty info → ticker does not exist
+        if hist.empty and not info:
+            raise ValueError(f"未知 ticker '{ticker}': yfinance 返回空数据")
+
         history = []
         for date, row in hist.iterrows():
             history.append(

@@ -41,11 +41,12 @@ def _make_hist_df() -> pd.DataFrame:
 class TestFetchPriceHistoryErrors:
     @pytest.mark.asyncio
     async def test_yf_exception_raises_provider_error(self):
+        # "rate limited" contains "rate limit" keyword → service-down → ProviderError
         with patch(
             "finrobot.engine.services.market_data.yf.Ticker",
             side_effect=YFException("rate limited"),
         ):
-            with pytest.raises(ProviderError, match="price history failed"):
+            with pytest.raises(ProviderError, match="yfinance service down"):
                 await fetch_price_history("AAPL")
 
     @pytest.mark.asyncio
@@ -117,6 +118,52 @@ async def test_fetch_price_history_returns_fetched_at():
     assert fetched.tzinfo is not None  # ISO8601 with tz
     # Within 5 seconds of "now"
     assert (datetime.now(tz=timezone.utc) - fetched).total_seconds() < 5
+
+
+@pytest.mark.asyncio
+async def test_fetch_price_history_rate_limit_raises_provider_error():
+    """yfinance 429 / rate limit → ProviderError (502)."""
+    from finrobot.engine.services.market_data import fetch_price_history
+
+    mock_ticker = MagicMock()
+    mock_ticker.history.side_effect = YFException("HTTP Error 429: Too Many Requests")
+
+    with patch(
+        "finrobot.engine.services.market_data.yf.Ticker", return_value=mock_ticker
+    ):
+        with pytest.raises(ProviderError):
+            await fetch_price_history("AAPL", "1y")
+
+
+@pytest.mark.asyncio
+async def test_fetch_price_history_invalid_ticker_raises_value_error():
+    """yfinance returns empty data for unknown ticker → ValueError (422)."""
+    from finrobot.engine.services.market_data import fetch_price_history
+
+    mock_ticker = MagicMock()
+    mock_ticker.history.return_value = pd.DataFrame()  # empty
+    mock_ticker.info = {}  # empty
+
+    with patch(
+        "finrobot.engine.services.market_data.yf.Ticker", return_value=mock_ticker
+    ):
+        with pytest.raises(ValueError):
+            await fetch_price_history("XYZINVALID", "1y")
+
+
+@pytest.mark.asyncio
+async def test_fetch_price_history_yfexception_delisted_is_value_error():
+    """YFException with 'delisted' message → ValueError (invalid ticker, not service down)."""
+    from finrobot.engine.services.market_data import fetch_price_history
+
+    mock_ticker = MagicMock()
+    mock_ticker.history.side_effect = YFException("Symbol may be delisted")
+
+    with patch(
+        "finrobot.engine.services.market_data.yf.Ticker", return_value=mock_ticker
+    ):
+        with pytest.raises(ValueError):
+            await fetch_price_history("DELISTED", "1y")
 
 
 class TestFetchQuarterlyDataErrors:

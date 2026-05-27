@@ -6,6 +6,7 @@
 // yfinance / SEC / FMP regardless of whether the user has ever run a
 // research pipeline on this ticker.
 
+import { useState } from 'react'
 import { useTickerPrice, useTickerFinancials, useTickerCatalysts } from '../../hooks/useTickerData'
 import { tSync } from '../../i18n'
 
@@ -180,14 +181,19 @@ function MktCard({
   liveTag?: string
   children: React.ReactNode
 }): React.ReactElement {
+  const [hover, setHover] = useState(false)
   return (
     <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
         background: 'var(--bg-card)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
+        border: hover ? '1px solid var(--border-glow)' : '1px solid var(--border-faint)',
         borderRadius: 'var(--radius-md)',
         padding: '14px 16px',
         marginBottom: 12,
+        boxShadow: hover ? '0 8px 32px rgba(59,130,246,0.12)' : 'none',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
@@ -230,7 +236,7 @@ function Kv4({ cells }: { cells: { label: string; value: string }[] }): React.Re
         display: 'grid',
         gridTemplateColumns: 'repeat(2, 1fr)',
         gap: 1,
-        background: 'rgba(255, 255, 255, 0.08)',
+        background: 'var(--border-faint)',
         borderRadius: 6,
         overflow: 'hidden',
       }}

@@ -72,8 +72,17 @@ async def fetch_price_history(ticker: str, period: str = "1y") -> dict[str, Any]
         except (KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
             raise ProviderError(f"yfinance price history failed for '{ticker}': {e}") from e
 
-        # Empty hist + empty info → ticker does not exist
-        if hist.empty and not info:
+        # Invalid ticker detection: yfinance does NOT raise for unknown symbols.
+        # It returns hist.empty=True AND info={'trailingPegRatio': None} or similar
+        # — info dict is non-empty but holds no real price signal. Empty-dict check
+        # alone misses this case. Verify by looking for actual identity/price fields.
+        has_price_signal = bool(
+            info.get("symbol")
+            or info.get("currentPrice")
+            or info.get("regularMarketPrice")
+            or info.get("marketCap")
+        )
+        if hist.empty and not has_price_signal:
             raise ValueError(f"未知 ticker '{ticker}': yfinance 返回空数据")
 
         history = []

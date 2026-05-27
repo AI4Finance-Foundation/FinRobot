@@ -152,6 +152,26 @@ async def test_fetch_price_history_invalid_ticker_raises_value_error():
 
 
 @pytest.mark.asyncio
+async def test_fetch_price_history_invalid_ticker_with_yfinance_fluff_info():
+    """Real yfinance behavior for invalid tickers: returns info dict with only
+    irrelevant fluff keys (e.g. {'trailingPegRatio': None}) — non-empty but
+    holds no price signal. Empty-dict check alone misses this. Verified live
+    against yfinance for XYZINVALID symbol."""
+    from finrobot.engine.services.market_data import fetch_price_history
+
+    mock_ticker = MagicMock()
+    mock_ticker.history.return_value = pd.DataFrame()  # empty
+    # yfinance's actual response for invalid ticker — non-empty info but no price.
+    mock_ticker.info = {"trailingPegRatio": None}
+
+    with patch(
+        "finrobot.engine.services.market_data.yf.Ticker", return_value=mock_ticker
+    ):
+        with pytest.raises(ValueError):
+            await fetch_price_history("XYZINVALID", "1y")
+
+
+@pytest.mark.asyncio
 async def test_fetch_price_history_yfexception_delisted_is_value_error():
     """YFException with 'delisted' message → ValueError (invalid ticker, not service down)."""
     from finrobot.engine.services.market_data import fetch_price_history

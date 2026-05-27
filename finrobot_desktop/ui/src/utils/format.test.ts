@@ -57,9 +57,9 @@ describe('formatAge', () => {
 })
 
 describe('freshnessColor', () => {
-  it('fresh (<= WARN) returns text-muted', () => {
-    expect(freshnessColor(0)).toBe('var(--text-muted)')
-    expect(freshnessColor(FRESHNESS_WARN_SECONDS)).toBe('var(--text-muted)')
+  it('fresh (<= WARN) returns accent-cyan (live signal)', () => {
+    expect(freshnessColor(0)).toBe('var(--accent-cyan)')
+    expect(freshnessColor(FRESHNESS_WARN_SECONDS)).toBe('var(--accent-cyan)')
   })
 
   it('delayed (> WARN, <= DANGER) returns warning', () => {

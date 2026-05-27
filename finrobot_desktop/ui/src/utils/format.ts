@@ -169,13 +169,17 @@ export function formatAge(iso: string | null | undefined, now: Date = new Date()
 }
 
 /**
- * Severity color for the TickerHero pulse-dot. NOT applied to pill border /
- * text to avoid double signal.
+ * Severity color for the TickerHero pulse-dot. Cosmic-spec aligned:
+ *   - fresh (≤ 5min):     var(--accent-cyan)  ← live 信号专用色
+ *   - delayed (≤ 30min):  var(--warning)
+ *   - stale (> 30min):    var(--danger)
+ *
+ * NOT applied to pill border / text to avoid double signal.
  */
 export function freshnessColor(ageSeconds: number): string {
   if (ageSeconds > FRESHNESS_DANGER_SECONDS) return 'var(--danger)'
   if (ageSeconds > FRESHNESS_WARN_SECONDS) return 'var(--warning)'
-  return 'var(--text-muted)'
+  return 'var(--accent-cyan)'
 }
 
 /**

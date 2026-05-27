@@ -22,6 +22,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useRunStreamStore, selectRunByTicker } from '../stores/runStreamStore'
 import { useToastStore } from '../stores/toastStore'
 import { useNavMemoryStore } from '../stores/navMemoryStore'
+import { useTickerPrice } from '../hooks/useTickerData'
+import { FetchHttpError } from '../utils/errorMessage'
+import { TickerNotFoundView } from './workspace/TickerNotFoundView'
+import { ServiceDownView } from './workspace/ServiceDownView'
 import { TickerHero } from './TickerHero'
 import { MarketDataZone } from './workspace/MarketDataZone'
 import { AIZone } from './workspace/AIZone'
@@ -84,12 +88,36 @@ export function StockWorkspace(): React.ReactElement {
     }
   }, [runState?.runId, runState?.status, runState?.error, symbol, addToast, queryClient])
 
+  // Gate: validate ticker via useTickerPrice before rendering the workspace
+  // shell. Status code is the protocol; UI never matches on Chinese detail.
+  //
+  //   FetchHttpError 422 → TickerNotFoundView (invalid ticker, no retry value)
+  //   anything else (FetchHttpError 5xx, TypeError, DOMException, plain Error)
+  //   → ServiceDownView with exponential-backoff auto-retry.
+  //
+  // Called unconditionally (Rules of Hooks) — enabled: !!symbol suppresses
+  // the fetch when the URL param is absent (same guard as TickerHero /
+  // MarketDataZone). React Query deduplicates the three callers (this hook
+  // + TickerHero + MarketDataZone) to a single network request.
+  //
+  // isLoading is intentionally NOT intercepted: TickerHero and MarketDataZone
+  // render their own skeleton states, so a gate-level loading guard would
+  // produce a double spinner.
+  const priceQuery = useTickerPrice(symbol)
+
   if (!symbol) {
     return (
       <div style={{ padding: 48, color: 'var(--text-faint)' }}>
         缺少股票代码，请通过搜索或自选股进入。
       </div>
     )
+  }
+
+  if (priceQuery.isError) {
+    const status =
+      priceQuery.error instanceof FetchHttpError ? priceQuery.error.status : null
+    if (status === 422) return <TickerNotFoundView ticker={symbol} />
+    return <ServiceDownView ticker={symbol} onRetry={() => priceQuery.refetch()} />
   }
 
   return (

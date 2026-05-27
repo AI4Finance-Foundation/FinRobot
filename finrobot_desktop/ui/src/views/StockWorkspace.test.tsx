@@ -308,3 +308,93 @@ describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
     expect(screen.getByTestId('open-latest-report')).toBeInTheDocument()
   })
 })
+
+// ── Gate tests (P0 事实层根治 Task 13) ────────────────────────────────────────
+//
+// These tests exercise the error-gate added to StockWorkspace: when
+// useTickerPrice errors, the workspace renders a full-page gate view instead
+// of three blank cards.
+//
+// Protocol:
+//   - FetchHttpError(422) → TickerNotFoundView (data-testid="ticker-not-found")
+//   - anything else → ServiceDownView (data-testid="service-down")
+//
+// The mock replaces the global fetch so that calls to /api/data/*/price get
+// the desired failure, while all other endpoints return {} so react-query
+// doesn't pile up unrelated errors that could mask the gate signal.
+//
+// Note: we do NOT construct FetchHttpError directly in the test — the fetcher
+// inside useTickerData reads Response.ok and throws FetchHttpError itself.
+// TypeError / plain Error tests reject the promise to simulate network-layer
+// failures.
+
+function mockPriceFetchError(err: Error | Response) {
+  vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+    const url = typeof input === 'string' ? input : (input as Request).url
+    if (url.includes('/api/data/') && url.includes('/price')) {
+      if (err instanceof Response) {
+        return Promise.resolve(err)
+      }
+      return Promise.reject(err)
+    }
+    // All other endpoints return 200 {} so no unrelated query errors mask the gate.
+    return jsonResponse({})
+  })
+}
+
+describe('workspace gate (P0 事实层根治 Task 13)', () => {
+  it('422 from /price → renders TickerNotFoundView', async () => {
+    mockPriceFetchError(
+      new Response('{"detail":"未知 ticker"}', {
+        status: 422,
+        statusText: 'Unprocessable Entity',
+      }),
+    )
+    renderWorkspace()
+    expect(await screen.findByTestId('ticker-not-found')).toBeInTheDocument()
+    expect(screen.queryByTestId('market-data-zone')).not.toBeInTheDocument()
+  })
+
+  it('502 from /price → renders ServiceDownView', async () => {
+    mockPriceFetchError(
+      new Response('{"detail":"数据源暂不可用"}', { status: 502, statusText: 'Bad Gateway' }),
+    )
+    renderWorkspace()
+    expect(await screen.findByTestId('service-down')).toBeInTheDocument()
+    expect(screen.queryByTestId('market-data-zone')).not.toBeInTheDocument()
+  })
+
+  it('503 from /price → renders ServiceDownView', async () => {
+    mockPriceFetchError(
+      new Response('{"detail":"capability disabled"}', {
+        status: 503,
+        statusText: 'Service Unavailable',
+      }),
+    )
+    renderWorkspace()
+    expect(await screen.findByTestId('service-down')).toBeInTheDocument()
+  })
+
+  it('500 from /price → renders ServiceDownView (catch-all)', async () => {
+    mockPriceFetchError(
+      new Response('{"detail":"unexpected"}', {
+        status: 500,
+        statusText: 'Internal Server Error',
+      }),
+    )
+    renderWorkspace()
+    expect(await screen.findByTestId('service-down')).toBeInTheDocument()
+  })
+
+  it('network error (TypeError) → renders ServiceDownView', async () => {
+    mockPriceFetchError(new TypeError('Failed to fetch'))
+    renderWorkspace()
+    expect(await screen.findByTestId('service-down')).toBeInTheDocument()
+  })
+
+  it('plain Error → renders ServiceDownView', async () => {
+    mockPriceFetchError(new Error('Network request failed'))
+    renderWorkspace()
+    expect(await screen.findByTestId('service-down')).toBeInTheDocument()
+  })
+})

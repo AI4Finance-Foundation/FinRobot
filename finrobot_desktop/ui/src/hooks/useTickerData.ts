@@ -124,11 +124,13 @@ export function useTickerPrice(ticker: string) {
     enabled: !!ticker,
     staleTime: 60_000, // 1 min — price data is volatile
     refetchInterval: 60_000,
-    // 422 = invalid ticker → retrying has no value. Other errors keep default (2 retries).
-    retry: (failureCount, error) => {
-      if (error instanceof FetchHttpError && error.status === 422) return false
-      return failureCount < 2
-    },
+    // No automatic react-query retries. StockWorkspace's gate shows
+    // ServiceDownView whose exponential-backoff countdown calls
+    // priceQuery.refetch() — that IS the user-visible retry loop.
+    // Having react-query silently retry in the background while ServiceDownView
+    // is showing would be invisible noise and conflicts with the gate's
+    // controlled retry UX. For 422 (invalid ticker) retrying has zero value.
+    retry: false,
   })
 }
 
@@ -144,11 +146,9 @@ export function useTickerCatalysts(ticker: string) {
     enabled: !!ticker,
     staleTime: 5 * 60_000,
     refetchOnMount: false,
-    // 422 = invalid ticker → retrying has no value.
-    retry: (failureCount, error) => {
-      if (error instanceof FetchHttpError && error.status === 422) return false
-      return failureCount < 1
-    },
+    // Delegate retry policy to QueryClient defaults (production: 1 retry).
+    // Gate-level error handling in StockWorkspace supersedes per-hook retry
+    // for the price query; catalysts / financials use the client default.
   })
 }
 
@@ -164,10 +164,6 @@ export function useTickerFinancials(ticker: string) {
     enabled: !!ticker,
     staleTime: 5 * 60_000,
     refetchOnMount: false,
-    // 422 = invalid ticker → retrying has no value.
-    retry: (failureCount, error) => {
-      if (error instanceof FetchHttpError && error.status === 422) return false
-      return failureCount < 1
-    },
+    // Delegate retry policy to QueryClient defaults (production: 1 retry).
   })
 }

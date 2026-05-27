@@ -1149,3 +1149,19 @@ msgstr "港股 / A 股代码不支持"
 #. js-lingui-explicit-id
 msgid "ticker.notFound.hint4"
 msgstr "如确认拼写无误，可能 yfinance 暂未收录该代码"
+
+#. js-lingui-explicit-id
+msgid "service.down.title"
+msgstr "数据源暂不可用"
+
+#. js-lingui-explicit-id
+msgid "service.down.description"
+msgstr "{ticker} · yfinance 返回错误，等待恢复中"
+
+#. js-lingui-explicit-id
+msgid "service.down.countdown"
+msgstr "{n}s 后自动重试（第 {attempt} 次）"
+
+#. js-lingui-explicit-id
+msgid "service.down.retryNow"
+msgstr "立即重试"

@@ -1149,3 +1149,19 @@ msgstr "HK / A-share tickers are not supported"
 #. js-lingui-explicit-id
 msgid "ticker.notFound.hint4"
 msgstr "If the spelling is correct, yfinance may not list this ticker"
+
+#. js-lingui-explicit-id
+msgid "service.down.title"
+msgstr "Data source unavailable"
+
+#. js-lingui-explicit-id
+msgid "service.down.description"
+msgstr "{ticker} · yfinance returned an error, awaiting recovery"
+
+#. js-lingui-explicit-id
+msgid "service.down.countdown"
+msgstr "Auto-retry in {n}s (attempt {attempt})"
+
+#. js-lingui-explicit-id
+msgid "service.down.retryNow"
+msgstr "Retry now"

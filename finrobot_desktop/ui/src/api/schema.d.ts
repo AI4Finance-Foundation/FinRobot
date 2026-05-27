@@ -255,6 +255,10 @@ export interface paths {
          *     Cached for 15 minutes (TTL set in cache._TTL_SECONDS[DataType.PRICE]).
          *     The cache key includes ``period`` so /price?period=1y and /price?period=5d
          *     don't collide.
+         *
+         *     Error mapping:
+         *       - ValueError      → 422 (invalid ticker)
+         *       - ProviderError   → 502 (yfinance service down)
          */
         get: operations["get_price_api_data__ticker__price_get"];
         put?: never;
@@ -1420,6 +1424,8 @@ export interface components {
              * Format: date-time
              */
             timestamp: string;
+            /** Fiscal Period End */
+            fiscal_period_end?: string | null;
             income: components["schemas"]["IncomeStatement"];
             balance?: components["schemas"]["BalanceSheet"];
             market: components["schemas"]["MarketData"];

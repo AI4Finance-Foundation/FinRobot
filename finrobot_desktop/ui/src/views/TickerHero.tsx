@@ -11,9 +11,8 @@
 // (data-testid="run-analysis-trigger" moved with them so tests still pin
 // on the canonical trigger).
 
-import { Link } from 'react-router-dom'
 import { useTickerPrice } from '../hooks/useTickerData'
-import { useI18n } from '../i18n'
+import { WorkspaceBreadcrumb } from './workspace/WorkspaceBreadcrumb'
 
 interface Props {
   ticker: string
@@ -21,7 +20,6 @@ interface Props {
 
 export function TickerHero({ ticker }: Props): React.ReactElement {
   const { data: price } = useTickerPrice(ticker)
-  const { locale } = useI18n()
 
   const current = price?.current_price
   const changePct = price?.change_pct
@@ -39,7 +37,7 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
       }}
     >
       <div style={{ maxWidth: 1280, margin: '0 auto', minWidth: 0 }}>
-        <Breadcrumb ticker={ticker} locale={locale} />
+        <WorkspaceBreadcrumb ticker={ticker} />
 
         <div
           style={{
@@ -123,41 +121,6 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
   )
 }
 
-// ── Breadcrumb ─────────────────────────────────────────────────────────────
-function Breadcrumb({
-  ticker,
-  locale,
-}: {
-  ticker: string
-  locale: 'zh' | 'en'
-}): React.ReactElement {
-  const linkStyle: React.CSSProperties = { color: 'inherit', textDecoration: 'none' }
-  const stocksLabel = locale === 'en' ? 'Stocks' : '股票'
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        fontFamily: 'var(--font-mono)',
-        fontSize: 10.5,
-        color: 'var(--text-muted)',
-        letterSpacing: '0.06em',
-        textTransform: 'uppercase',
-      }}
-    >
-      <Link to="/stocks" style={linkStyle}>
-        FINAGENT
-      </Link>
-      <span style={{ color: 'var(--text-dim)' }}>›</span>
-      <Link to="/stocks" style={linkStyle}>
-        {stocksLabel}
-      </Link>
-      <span style={{ color: 'var(--text-dim)' }}>›</span>
-      <span style={{ color: 'var(--accent-cyan)' }}>{ticker}</span>
-    </div>
-  )
-}
 
 /**
  * yfinance returns "NasdaqGS" / "NYQ" / "AMEX" raw codes — pretty-print

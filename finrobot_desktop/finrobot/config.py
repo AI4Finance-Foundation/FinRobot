@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -7,6 +8,9 @@ from typing import Any
 from pydantic import Field
 from pydantic_ai.models import Model
 from pydantic_settings import BaseSettings
+
+
+logger = logging.getLogger(__name__)
 
 
 # Locate the .env relative to the source tree, not the process cwd. Tauri
@@ -21,17 +25,23 @@ _ENV_FILE = _REPO_ROOT / ".env"
 def _migrate_legacy_env_prefix() -> None:
     """One-time in-place migration of legacy FINAGENT_* keys in .env → FINROBOT_*.
 
-    The project renamed FinAgent → FinRobot; the env prefix moved with it. Users
-    who set up before the rename have a .env full of FINAGENT_* keys that
-    pydantic-settings now rejects (extra_forbidden) because the matching fields
-    don't exist. Rewrite the file in place — idempotent, lossless, no backup
-    needed since .env is git-ignored.
+    The project renamed FinAgent → FinRobot; the env prefix moved with it.
+    Users who set up pre-rename have a .env full of FINAGENT_* keys that
+    pydantic-settings now rejects because the matching fields don't exist.
+    Rewrite the file in place — idempotent, lossless, no backup needed since
+    .env is git-ignored.
+
+    Called from ``get_settings()`` before constructing ``FinRobotSettings``;
+    NOT a module-import side effect (a pollutted CI .env would otherwise
+    silently mutate every test process). I/O failures are logged as warnings
+    rather than swallowed — disk-full / permission errors must be visible.
     """
     if not _ENV_FILE.exists():
         return
     try:
         original = _ENV_FILE.read_text(encoding="utf-8")
-    except OSError:
+    except OSError as exc:
+        logger.warning("Could not read %s for legacy-prefix migration: %s", _ENV_FILE, exc)
         return
     if "FINAGENT_" not in original and "finagent_cache" not in original:
         return
@@ -40,11 +50,10 @@ def _migrate_legacy_env_prefix() -> None:
     )
     try:
         _ENV_FILE.write_text(updated, encoding="utf-8")
-    except OSError:
+    except OSError as exc:
+        logger.warning("Could not write %s during legacy-prefix migration: %s", _ENV_FILE, exc)
         return
-
-
-_migrate_legacy_env_prefix()
+    logger.info("Migrated legacy FINAGENT_* → FINROBOT_* keys in %s", _ENV_FILE)
 
 
 # Valid providers and the settings field holding their API key. A provider
@@ -243,7 +252,15 @@ class FinRobotSettings(BaseSettings):
 
 
 def get_settings(**overrides: Any) -> FinRobotSettings:
-    """Get settings. Pass overrides for testing."""
+    """Get settings. Pass overrides for testing.
+
+    Triggers the legacy ``FINAGENT_*`` → ``FINROBOT_*`` .env migration before
+    constructing the settings model — pydantic-settings would otherwise read
+    a pre-rename .env and reject every legacy key. Migration is idempotent,
+    so the per-call overhead is a single ``Path.exists()`` (and at most one
+    small file read) once the rewrite has occurred.
+    """
+    _migrate_legacy_env_prefix()
     return FinRobotSettings(**overrides)
 
 

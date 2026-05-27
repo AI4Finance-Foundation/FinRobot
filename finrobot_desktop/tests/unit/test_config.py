@@ -141,7 +141,9 @@ class TestValidateRuntimeConfig:
 class TestLegacyEnvMigration:
     """Users who set up pre-rename have FINAGENT_* keys in .env that
     pydantic-settings now rejects. _migrate_legacy_env_prefix rewrites the
-    file in place on import — verify it's idempotent + lossless."""
+    file in place when ``get_settings()`` is called — verify it's idempotent,
+    lossless, fail-safe on OSError, and that ``get_settings()`` actually
+    drives the migration (not a module-import side effect)."""
 
     def test_migrates_finagent_prefix_in_place(self, tmp_path, monkeypatch):
         from finrobot import config as config_module
@@ -183,3 +185,82 @@ class TestLegacyEnvMigration:
         # Must not raise; absence of .env is a valid state (CI, fresh clone).
         config_module._migrate_legacy_env_prefix()
         assert not env_file.exists()
+
+    def test_read_oserror_logs_warning_not_silent(self, tmp_path, monkeypatch, caplog):
+        """Disk-full / permission errors during the read step must surface as a
+        warning rather than be swallowed. Pre-fix, OSError was caught and
+        returned None, masking real failures from operators."""
+        from finrobot import config as config_module
+
+        env_file = tmp_path / ".env"
+        env_file.write_text("FINAGENT_OPENAI_API_KEY=sk\n", encoding="utf-8")
+        monkeypatch.setattr(config_module, "_ENV_FILE", env_file)
+
+        def _explode(*_args, **_kwargs):
+            raise OSError("simulated permission denied")
+
+        monkeypatch.setattr(type(env_file), "read_text", _explode)
+        with caplog.at_level("WARNING", logger="finrobot.config"):
+            config_module._migrate_legacy_env_prefix()  # must not raise
+        assert any("Could not read" in rec.message for rec in caplog.records)
+
+    def test_write_oserror_logs_warning_not_silent(self, tmp_path, monkeypatch, caplog):
+        """OSError during the write step must surface as a warning too — and
+        the file must be left in its original state (no partial overwrite)."""
+        from finrobot import config as config_module
+
+        env_file = tmp_path / ".env"
+        original = "FINAGENT_OPENAI_API_KEY=sk\n"
+        env_file.write_text(original, encoding="utf-8")
+        monkeypatch.setattr(config_module, "_ENV_FILE", env_file)
+
+        def _explode(self, *_args, **_kwargs):
+            raise OSError("simulated disk full")
+
+        monkeypatch.setattr(type(env_file), "write_text", _explode)
+        with caplog.at_level("WARNING", logger="finrobot.config"):
+            config_module._migrate_legacy_env_prefix()
+        assert any("Could not write" in rec.message for rec in caplog.records)
+        assert env_file.read_text(encoding="utf-8") == original
+
+    def test_get_settings_drives_migration(self, tmp_path, monkeypatch):
+        """get_settings() must trigger the migration before constructing the
+        pydantic model — module-import alone no longer does it. Guards against
+        anyone deleting the call from get_settings() and quietly regressing."""
+        from finrobot import config as config_module
+
+        env_file = tmp_path / ".env"
+        env_file.write_text("FINAGENT_OPENAI_API_KEY=sk-real\n", encoding="utf-8")
+        monkeypatch.setattr(config_module, "_ENV_FILE", env_file)
+        # Ensure the override is honored by FinRobotSettings too — otherwise
+        # pydantic-settings would re-read the original repo-root .env.
+        config_module.get_settings(_env_file=str(env_file))
+        content = env_file.read_text(encoding="utf-8")
+        assert "FINAGENT_" not in content
+        assert "FINROBOT_OPENAI_API_KEY=sk-real" in content
+
+    def test_module_body_has_no_top_level_migration_call(self):
+        """Importing finrobot.config must NOT trigger I/O. Previously the
+        migration ran at module import (a polluted CI .env would mutate on
+        every test process startup → unreproducible results). Static check
+        of the module AST: no top-level statement may call
+        ``_migrate_legacy_env_prefix``."""
+        import ast
+        from pathlib import Path as _Path
+
+        from finrobot import config as config_module
+
+        source = _Path(config_module.__file__).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        top_level_calls = [
+            node
+            for node in tree.body
+            if isinstance(node, ast.Expr)
+            and isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Name)
+            and node.value.func.id == "_migrate_legacy_env_prefix"
+        ]
+        assert top_level_calls == [], (
+            "_migrate_legacy_env_prefix() must not be called at module top level — "
+            "this is a regression of the import-time side-effect removal."
+        )

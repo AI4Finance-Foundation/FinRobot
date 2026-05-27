@@ -1,0 +1,13 @@
+{
+  "reverse_api_available": false,
+  "reverse_api_attempted": [],
+  "local_index_feasible": true,
+  "decision": "local_index_required",
+  "forward_sample": {
+    "filer_cik": "1513703",
+    "filing_date": "2026-05-26",
+    "obj_class": "ThirteenF",
+    "holdings_class": "DataFrame",
+    "holdings_rows_in_one_filing": 386
+  }
+}

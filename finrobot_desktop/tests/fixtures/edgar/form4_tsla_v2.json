@@ -1,0 +1,62 @@
+[
+  {
+    "filing_date": "2026-05-15",
+    "accession_no": "0001104659-26-062860",
+    "insider_name": "Vaibhav Taneja",
+    "issuer": "Issuer(cik='0001318605', name=Tesla, Inc., ticker=TSLA)",
+    "reporting_owners": "╭───────────────────────── 👨‍💼 Reporting Owner ─────────────────────────╮\n│                                                                      │\n│   Owner            Position                  Cik   ",
+    "position": "Chief Financial Officer",
+    "common_stock_sales_attr_type": "DataFrame",
+    "common_stock_purchases_attr_type": "DataFrame",
+    "ownership_summary": "TransactionSummary(reporting_date='2026-05-13', issuer_name='Tesla, Inc.', issuer_ticker='TSLA', insider_name='Vaibhav Taneja', position='Chief Financial Officer', form_type='4', remarks='', transactions=[TransactionActivity(transaction_type='sale', code='S', shares=3000, value=1350000.0, price_per_share=450.0, description='', security_type='non-derivative', security_title='Common Stock', underlying_security='', exercise_date=None, expiration_date=None, footnote_ids='F1', footnotes_text='The tra",
+    "transaction_activities": "[TransactionActivity(transaction_type='sale', code='S', shares=3000, value=1350000.0, price_per_share=450.0, description='', security_type='non-derivative', security_title='Common Stock', underlying_security='', exercise_date=None, expiration_date=None, footnote_ids='F1', footnotes_text='The transactions reported on this Form 4 were effected pursuant to a Rule 10b5-1 trading plan adopted by the reporting person on November 17, 2025.'), TransactionActivity(transaction_type='exercise', code='M', s"
+  },
+  {
+    "filing_date": "2026-05-04",
+    "accession_no": "0001104659-26-055079",
+    "insider_name": "Kathleen Wilson-Thompson",
+    "issuer": "Issuer(cik='0001318605', name=Tesla, Inc., ticker=TSLA)",
+    "reporting_owners": "╭────────────────────── 👨‍💼 Reporting Owner ───────────────────────╮\n│                                                                 │\n│   Owner                      Position   Cik          Location",
+    "position": "Director",
+    "common_stock_sales_attr_type": "DataFrame",
+    "common_stock_purchases_attr_type": "DataFrame",
+    "ownership_summary": "TransactionSummary(reporting_date='2026-04-30', issuer_name='Tesla, Inc.', issuer_ticker='TSLA', insider_name='Kathleen Wilson-Thompson', position='Director', form_type='4', remarks='', transactions=[TransactionActivity(transaction_type='sale', code='S', shares=840, value=309968.39999999997, price_per_share=369.01, description='', security_type='non-derivative', security_title='Common Stock', underlying_security='', exercise_date=None, expiration_date=None, footnote_ids='F1', footnotes_text='The",
+    "transaction_activities": "[TransactionActivity(transaction_type='sale', code='S', shares=840, value=309968.39999999997, price_per_share=369.01, description='', security_type='non-derivative', security_title='Common Stock', underlying_security='', exercise_date=None, expiration_date=None, footnote_ids='F1', footnotes_text='The transactions reported on this Form 4 were effected pursuant to a Rule 10b5-1 trading plan adopted by the reporting person on November 26, 2025.'), TransactionActivity(transaction_type='sale', code='"
+  },
+  {
+    "filing_date": "2026-04-23",
+    "accession_no": "0001104659-26-047678",
+    "insider_name": "Musk Elon",
+    "issuer": "Issuer(cik='0001318605', name=Tesla, Inc., ticker=TSLA)",
+    "reporting_owners": "╭─────────────── 👨‍💼 Reporting Owner ───────────────╮\n│                                                  │\n│   Owner       Position   Cik          Location   │\n│  ─────────────────────────────────────",
+    "position": "CEO",
+    "common_stock_sales_attr_type": "DataFrame",
+    "common_stock_purchases_attr_type": "DataFrame",
+    "ownership_summary": "TransactionSummary(reporting_date='2026-04-21', issuer_name='Tesla, Inc.', issuer_ticker='TSLA', insider_name='Musk Elon', position='CEO', form_type='4', remarks='', transactions=[TransactionActivity(transaction_type='other_disposition', code='D', shares=96000000, value=0, price_per_share=0.0, description='', security_type='non-derivative', security_title='Common Stock', underlying_security='', exercise_date=None, expiration_date=None, footnote_ids='F1', footnotes_text=\"Represents a forfeiture o",
+    "transaction_activities": "[TransactionActivity(transaction_type='other_disposition', code='D', shares=96000000, value=0, price_per_share=0.0, description='', security_type='non-derivative', security_title='Common Stock', underlying_security='', exercise_date=None, expiration_date=None, footnote_ids='F1', footnotes_text=\"Represents a forfeiture of the restricted stock award granted pursuant to Tesla, Inc.'s 2019 Equity Incentive Plan on August 3, 2025, as a result of a Tornetta Decision Event (as defined in such restricte"
+  },
+  {
+    "filing_date": "2026-04-02",
+    "accession_no": "0001972928-26-000002",
+    "insider_name": "Xiaotong Zhu",
+    "issuer": "Issuer(cik='0001318605', name=Tesla, Inc., ticker=TSLA)",
+    "reporting_owners": "╭──────────────── 👨‍💼 Reporting Owner ─────────────────╮\n│                                                     │\n│   Owner          Position   Cik          Location   │\n│  ────────────────────────────",
+    "position": "SVP",
+    "common_stock_sales_attr_type": "DataFrame",
+    "common_stock_purchases_attr_type": "DataFrame",
+    "ownership_summary": "TransactionSummary(reporting_date='2026-03-31', issuer_name='Tesla, Inc.', issuer_ticker='TSLA', insider_name='Xiaotong Zhu', position='SVP', form_type='4', remarks='', transactions=[TransactionActivity(transaction_type='exercise', code='M', shares=20000, value=411400.0, price_per_share=20.57, description='', security_type='non-derivative', security_title='Common Stock', underlying_security='', exercise_date=None, expiration_date=None, footnote_ids='', footnotes_text=''), TransactionActivity(tra",
+    "transaction_activities": "[TransactionActivity(transaction_type='exercise', code='M', shares=20000, value=411400.0, price_per_share=20.57, description='', security_type='non-derivative', security_title='Common Stock', underlying_security='', exercise_date=None, expiration_date=None, footnote_ids='', footnotes_text=''), TransactionActivity(transaction_type='derivative_sale', code='M', shares=20000, value=0, price_per_share=20.57, description='', security_type='derivative', security_title='Non-Qualified Stock Option (right"
+  },
+  {
+    "filing_date": "2026-04-01",
+    "accession_no": "0001104659-26-038682",
+    "insider_name": "Kathleen Wilson-Thompson",
+    "issuer": "Issuer(cik='0001318605', name=Tesla, Inc., ticker=TSLA)",
+    "reporting_owners": "╭────────────────────── 👨‍💼 Reporting Owner ───────────────────────╮\n│                                                                 │\n│   Owner                      Position   Cik          Location",
+    "position": "Director",
+    "common_stock_sales_attr_type": "DataFrame",
+    "common_stock_purchases_attr_type": "DataFrame",
+    "ownership_summary": "TransactionSummary(reporting_date='2026-03-30', issuer_name='Tesla, Inc.', issuer_ticker='TSLA', insider_name='Kathleen Wilson-Thompson', position='Director', form_type='4', remarks='', transactions=[TransactionActivity(transaction_type='sale', code='S', shares=2000, value=705666.0, price_per_share=352.833, description='', security_type='non-derivative', security_title='Common Stock', underlying_security='', exercise_date=None, expiration_date=None, footnote_ids='F1', footnotes_text='The transac",
+    "transaction_activities": "[TransactionActivity(transaction_type='sale', code='S', shares=2000, value=705666.0, price_per_share=352.833, description='', security_type='non-derivative', security_title='Common Stock', underlying_security='', exercise_date=None, expiration_date=None, footnote_ids='F1', footnotes_text='The transactions reported on this Form 4 were effected pursuant to a Rule 10b5-1 trading plan adopted by the reporting person on November 26, 2025.'), TransactionActivity(transaction_type='sale', code='S', shar"
+  }
+]

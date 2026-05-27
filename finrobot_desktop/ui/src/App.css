@@ -185,6 +185,8 @@
   --r-sm: var(--radius-sm);
   --r-md: var(--radius-md);
   --r-lg: var(--radius-lg);
+  --r-xl: var(--radius-xl);
+  --r-pill: var(--radius-pill);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

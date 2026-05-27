@@ -936,11 +936,11 @@ msgstr "5% 以上股东事件（13D / 13G）"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.empty.title"
-msgstr "需要配置 SEC 身份标识"
+msgstr "需要配置 SEC EDGAR 身份"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.empty.body"
-msgstr "SEC EDGAR 要求每个数据请求带可识别的身份标识。配置后将自动拉取 Form 4 内部人交易、13F 机构持仓、DEF 14A 高管薪酬等数据。"
+msgstr "SEC EDGAR 要求每个数据请求携带可识别的 User-Agent。配置后将自动拉取 Form 4 内部人交易、13F 机构持仓、DEF 14A 高管薪酬等数据。"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.empty.cta"
@@ -1072,11 +1072,11 @@ msgstr "{form} · accession {accession} · {date}"
 
 #. js-lingui-explicit-id
 msgid "landing.secBanner.title"
-msgstr "SEC 身份未配置 · 投行级数据受限"
+msgstr "SEC EDGAR 身份未配置 · 投行级数据受限"
 
 #. js-lingui-explicit-id
 msgid "landing.secBanner.body"
-msgstr "未配置 SEC EDGAR 身份标识，10-K 章节、XBRL 财务数据、Ownership & Governance 章节都将走降级态。SEC 公开要求每个数据请求带可识别 User-Agent。"
+msgstr "未配置 SEC EDGAR 身份，10-K 章节、XBRL 财务数据、Ownership & Governance 章节都将走降级态。SEC EDGAR 要求每个数据请求携带可识别的 User-Agent。"
 
 #. js-lingui-explicit-id
 msgid "landing.secBanner.cta"

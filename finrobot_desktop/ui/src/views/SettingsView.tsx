@@ -746,7 +746,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           {/* SEC EDGAR */}
           <div style={fieldStyle}>
             <div style={labelStyle}>
-              <span>SEC EDGAR User-Agent</span>
+              <span>SEC EDGAR 身份 (User-Agent)</span>
               <span style={requiredBadgeStyle}>必填</span>
               <SourceBadge source={sourceOf('sec_user_agent')} />
               {sourceOf('sec_user_agent') === 'settings_json' && (
@@ -776,7 +776,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
             />
             <p style={!isValidSecIdentity(secUserAgent) ? hintInvalidStyle : hintStyle}>
               {!isValidSecIdentity(secUserAgent)
-                ? '⚠ SEC 要求格式 "姓名 邮箱@example.com" — 未配置时 10-K 章节 / Ownership 章节 / XBRL 财务数据均不可用'
+                ? '⚠ SEC EDGAR 要求 User-Agent 格式 "姓名 邮箱@example.com" — 未配置时 10-K 章节 / Ownership 章节 / XBRL 财务数据均不可用'
                 : '启用：10-K 章节 / Ownership 章节 / XBRL 财务数据（SEC EDGAR 条款要求）'}
             </p>
           </div>

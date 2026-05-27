@@ -146,12 +146,24 @@ export interface FilingProvenanceShape {
   source_url?: string | null
 }
 
+/** Canonical insider transaction types (matches Form 4 transaction codes in
+ * finrobot/engine/models/sec.py — keep these two in lockstep). Anything
+ * outside this union signals a backend mapping miss and surfaces as the raw
+ * value in the UI (the `transactionLabel` fallback). */
+export type InsiderTransactionType =
+  | 'sale'
+  | 'purchase'
+  | 'exercise'
+  | 'other_disposition'
+  | 'grant'
+  | 'award'
+
 export interface InsiderTransactionShape {
   filing_date: string
   accession_no: string
   insider_name: string
   insider_position?: string | null
-  transaction_type: string // "sale" / "purchase" / "exercise" / "other_disposition" / "grant" / "award"
+  transaction_type: InsiderTransactionType | string
   code: string
   shares: number
   value: number

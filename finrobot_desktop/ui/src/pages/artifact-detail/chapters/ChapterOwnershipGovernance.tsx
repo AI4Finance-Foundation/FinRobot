@@ -20,6 +20,7 @@ import { Chapter, KvGrid, SubChapter, tableStyle } from './ChapterBase'
 import type {
   FilingProvenanceShape,
   InsiderTransactionShape,
+  InsiderTransactionType,
   InstitutionalHoldingShape,
   OwnershipGovernanceShape,
   ProxyCompensationShape,
@@ -169,11 +170,23 @@ function InsiderTable({
   )
 }
 
+/** Maps Form 4 transaction_type → i18n key. The exhaustive `Record<...>` type
+ * means TypeScript fails the build if backend adds a new enum variant without
+ * a matching catalog entry — no silent fallthrough. Unknown variants (string
+ * outside the union) hit the runtime fallback returning the raw value. */
+const TX_LABEL_KEY: Record<InsiderTransactionType, string> = {
+  sale: 'chapter.ownership.tx.sale',
+  purchase: 'chapter.ownership.tx.purchase',
+  exercise: 'chapter.ownership.tx.exercise',
+  other_disposition: 'chapter.ownership.tx.other_disposition',
+  grant: 'chapter.ownership.tx.grant',
+  award: 'chapter.ownership.tx.award',
+}
+
 function transactionLabel(typ: string, t: Translator): string {
-  const key = `chapter.ownership.tx.${typ}`
-  const translated = t(key)
-  // Fallback to raw value if i18n key not found (Lingui returns key unchanged on miss)
-  return translated === key ? typ : translated
+  const key = (TX_LABEL_KEY as Record<string, string | undefined>)[typ]
+  if (!key) return typ // backend emitted an unknown variant — show raw
+  return t(key)
 }
 
 // ---------------------------------------------------------------------------
@@ -231,7 +244,7 @@ function InstitutionTable({
             >
               {r.shares_change_pct === null || r.shares_change_pct === undefined
                 ? '—'
-                : `${r.shares_change_pct > 0 ? '+' : ''}${formatPercent(r.shares_change_pct / 100, locale, 1)}`}
+                : `${r.shares_change_pct > 0 ? '+' : ''}${formatPercent(r.shares_change_pct, locale, 1, true)}`}
             </td>
             <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>
               {formatDate(r.period_end, locale)}
@@ -269,7 +282,7 @@ function CompensationGrid({
           : '—',
       delta:
         comp.ceo_yoy_change_pct !== null && comp.ceo_yoy_change_pct !== undefined
-          ? `${comp.ceo_yoy_change_pct > 0 ? '+' : ''}${formatPercent(comp.ceo_yoy_change_pct / 100, locale, 1)} YoY`
+          ? `${comp.ceo_yoy_change_pct > 0 ? '+' : ''}${formatPercent(comp.ceo_yoy_change_pct, locale, 1, true)} YoY`
           : undefined,
       tone:
         comp.ceo_yoy_change_pct !== null && comp.ceo_yoy_change_pct !== undefined
@@ -379,7 +392,7 @@ function AlertList({
             >
               {formatCompactNumber(r.shares, locale)} {t('chapter.ownership.alert.shares')}
               {r.pct_of_class !== null && r.pct_of_class !== undefined
-                ? ` · ${formatPercent(r.pct_of_class / 100, locale, 2)} ${t('chapter.ownership.alert.ofClass')}`
+                ? ` · ${formatPercent(r.pct_of_class, locale, 2, true)} ${t('chapter.ownership.alert.ofClass')}`
                 : ''}
             </div>
             {r.transaction_summary && (

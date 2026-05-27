@@ -936,11 +936,11 @@ msgstr "5%+ Shareholder Events (13D / 13G)"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.empty.title"
-msgstr "SEC identity required"
+msgstr "SEC EDGAR identity required"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.empty.body"
-msgstr "SEC EDGAR requires every data request to carry an identifiable user agent. Once configured, FinRobot pulls insider transactions, 13F institutional holdings, and proxy compensation automatically."
+msgstr "SEC EDGAR requires every data request to carry an identifiable User-Agent. Once configured, FinRobot pulls insider transactions, 13F institutional holdings, and proxy compensation automatically."
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.empty.cta"
@@ -1072,11 +1072,11 @@ msgstr "{form} · accession {accession} · {date}"
 
 #. js-lingui-explicit-id
 msgid "landing.secBanner.title"
-msgstr "SEC identity unconfigured — bank-grade depth limited"
+msgstr "SEC EDGAR identity unconfigured — bank-grade depth limited"
 
 #. js-lingui-explicit-id
 msgid "landing.secBanner.body"
-msgstr "Without a SEC EDGAR User-Agent, 10-K sections, XBRL financial facts, and Ownership & Governance all run in degraded mode. SEC's terms require an identifiable User-Agent on every data request."
+msgstr "Without a SEC EDGAR identity, 10-K sections, XBRL financial facts, and Ownership & Governance all run in degraded mode. SEC EDGAR requires an identifiable User-Agent on every data request."
 
 #. js-lingui-explicit-id
 msgid "landing.secBanner.cta"

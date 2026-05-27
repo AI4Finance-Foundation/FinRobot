@@ -31,7 +31,7 @@ const baseProv = (form: string): FilingProvenanceShape => ({
 describe('ChapterOwnershipGovernance', () => {
   it('renders settings CTA when ownership_governance is absent', () => {
     render(wrap(<ChapterOwnershipGovernance ownership={null} />))
-    expect(screen.getByText(/SEC identity required/i)).toBeInTheDocument()
+    expect(screen.getByText(/SEC EDGAR identity required/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Open Settings/i })).toHaveAttribute(
       'href',
       '/settings',

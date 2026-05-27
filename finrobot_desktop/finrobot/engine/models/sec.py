@@ -234,6 +234,9 @@ class InstitutionalHolding(BaseModel):
     shares: int
     value_usd: float  # 13F reports in thousands of USD; cache normalises to dollars
     period_end: date
+    # Percentage units (4.2 means 4.2%, not 0.042), mirroring the convention
+    # in finrobot/engine/compute/market.py. UI calls formatPercent with
+    # `alreadyPercent=true` so the visual layer never has to guess.
     shares_change_pct: float | None = None  # computed by FinRobot vs prior quarter
     provenance: FilingProvenance
 
@@ -254,7 +257,7 @@ class ProxyCompensation(BaseModel):
     accession_no: str
     ceo_name: str | None = None
     ceo_total_compensation: float | None = None  # USD
-    ceo_yoy_change_pct: float | None = None
+    ceo_yoy_change_pct: float | None = None  # percentage units (e.g. 18.4 → 18.4%)
     ceo_pay_ratio: int | None = None  # CEO total / median employee total
     top5_neo_total_compensation: float | None = None  # sum of top-5 NEO comp
     peer_percentile: int | None = None  # 1..100

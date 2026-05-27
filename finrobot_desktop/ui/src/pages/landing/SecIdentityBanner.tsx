@@ -4,7 +4,7 @@
 // We show a dismissible banner so the user can either fix it or
 // acknowledge the limitation and keep working.
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
@@ -19,13 +19,10 @@ const REPROMPT_AFTER_MS = 30 * 24 * 60 * 60 * 1000
 
 export function SecIdentityBanner(): React.ReactElement | null {
   const { t } = useI18n()
+  // Lazy useState initializer reads localStorage once at mount — sufficient
+  // since the banner is only rendered on /stocks landing and remounts on
+  // navigation, which is exactly the cadence we want for re-reading dismiss.
   const [hidden, setHidden] = useState<boolean>(() => isDismissedRecently())
-
-  // Re-check dismiss state on mount (defensive — page-internal nav doesn't
-  // remount, but mounting the banner across sessions should pick up changes).
-  useEffect(() => {
-    setHidden(isDismissedRecently())
-  }, [])
 
   const { data } = useQuery({
     queryKey: ['settings', 'sec_user_agent'],

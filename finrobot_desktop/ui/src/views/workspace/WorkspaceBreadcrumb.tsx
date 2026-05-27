@@ -10,9 +10,8 @@ interface Props {
 }
 
 export function WorkspaceBreadcrumb({ ticker }: Props): React.ReactElement {
-  const { locale } = useI18n()
+  const { t } = useI18n()
   const linkStyle: React.CSSProperties = { color: 'inherit', textDecoration: 'none' }
-  const stocksLabel = locale === 'en' ? 'Stocks' : '股票'
   return (
     <div
       style={{
@@ -31,7 +30,7 @@ export function WorkspaceBreadcrumb({ ticker }: Props): React.ReactElement {
       </Link>
       <span style={{ color: 'var(--text-dim)' }}>›</span>
       <Link to="/stocks" style={linkStyle}>
-        {stocksLabel}
+        {t('nav.stocks')}
       </Link>
       <span style={{ color: 'var(--text-dim)' }}>›</span>
       <span style={{ color: 'var(--accent-cyan)' }}>{ticker}</span>

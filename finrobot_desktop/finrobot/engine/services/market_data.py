@@ -162,7 +162,7 @@ async def fetch_quarterly_data(ticker: str) -> dict[str, Any]:
                 ) from e
             # Non-service-down YFException → unknown / delisted ticker
             raise ValueError(f"未知 ticker '{ticker}' (quarterly): {e}") from e
-        except (KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
+        except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
             raise ProviderError(f"yfinance quarterly data failed for '{ticker}': {e}") from e
 
         if income is None or income.empty:
@@ -235,7 +235,7 @@ async def fetch_performance_data(tickers: list[str], benchmark: str, period: str
                 ) from e
             # Non-service-down YFException → invalid ticker(s)
             raise ValueError(f"未知 ticker {all_tickers} (performance): {e}") from e
-        except (KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
+        except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as e:
             raise ProviderError(f"yfinance download failed for {all_tickers}: {e}") from e
         if df.empty:
             raise ValueError(f"No price data for {all_tickers}: yfinance 返回空")

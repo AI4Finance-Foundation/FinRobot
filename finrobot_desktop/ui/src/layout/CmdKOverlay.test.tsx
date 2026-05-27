@@ -1,7 +1,7 @@
 /**
  * CmdKOverlay — 25+ tests covering:
  *   - Render and closed state
- *   - Three trigger paths (⌘K, TopBar toggle via store, finagent:open-cmdk event)
+ *   - Three trigger paths (⌘K, TopBar toggle via store, finrobot:open-cmdk event)
  *   - Four result kind groups (ticker / slash_command / artifact / session)
  *   - Keyboard nav (↑↓ Enter Esc)
  *   - Action execution → navigate + close
@@ -140,9 +140,9 @@ describe('CmdKOverlay — trigger paths', () => {
     await waitFor(() => expect(screen.getByTestId('cmdk-input')).toBeInTheDocument())
   })
 
-  it('trigger 3: finagent:open-cmdk event opens overlay', async () => {
+  it('trigger 3: finrobot:open-cmdk event opens overlay', async () => {
     renderOverlay()
-    act(() => window.dispatchEvent(new Event('finagent:open-cmdk')))
+    act(() => window.dispatchEvent(new Event('finrobot:open-cmdk')))
     await waitFor(() => expect(screen.getByTestId('cmdk-input')).toBeInTheDocument())
   })
 })

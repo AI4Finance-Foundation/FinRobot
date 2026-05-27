@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from finagent.engine.data.industry_defaults import (
+from finrobot.engine.data.industry_defaults import (
     IndustryDefault,
     get_industry_default,
     list_known_industries,

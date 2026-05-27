@@ -1,6 +1,6 @@
 //! Python sidecar lifecycle manager.
 //!
-//! Spawns the bundled `finagent-server` binary via `tauri-plugin-shell`,
+//! Spawns the bundled `finrobot-server` binary via `tauri-plugin-shell`,
 //! waits up to 30 seconds for `/health` to return 200, and returns the
 //! `CommandChild` handle so the caller can kill it on exit.
 
@@ -15,10 +15,10 @@ use tauri_plugin_shell::{process::CommandEvent, ShellExt};
 /// post-mortem reporting when the sidecar fails to become ready.
 const STDERR_RING_CAPACITY: usize = 50;
 
-/// Spawn the bundled `finagent-server` sidecar and block until it is ready.
+/// Spawn the bundled `finrobot-server` sidecar and block until it is ready.
 ///
 /// The sidecar is resolved by Tauri's platform-triple matcher, e.g.
-/// `finagent-server-aarch64-apple-darwin` on Apple Silicon.
+/// `finrobot-server-aarch64-apple-darwin` on Apple Silicon.
 ///
 /// Stdout/stderr from the sidecar are forwarded to the host process's stderr
 /// so they appear in the terminal during `cargo tauri dev`.
@@ -41,7 +41,7 @@ pub fn spawn_and_wait_for_ready(
 ) -> Result<tauri_plugin_shell::process::CommandChild, String> {
     let (mut rx, child) = app
         .shell()
-        .sidecar("finagent-server")
+        .sidecar("finrobot-server")
         .map_err(|e| format!("sidecar not found: {e}"))?
         .args(["--host", "127.0.0.1", "--port", "8321"])
         .spawn()

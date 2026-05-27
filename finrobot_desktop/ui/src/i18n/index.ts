@@ -1,4 +1,4 @@
-// FinAgent i18n module — Lingui-backed, zustand-persisted.
+// FinRobot i18n module — Lingui-backed, zustand-persisted.
 //
 // Public surface (kept stable so existing call sites don't change):
 //   useI18n()         → { locale, setLocale, t(key, params?) }
@@ -50,7 +50,7 @@ export const useUiPrefs = create<UiPrefsState>()(
       },
     }),
     {
-      name: 'finagent-ui-prefs',
+      name: 'finrobot-ui-prefs',
       storage: createJSONStorage(() => localStorage),
       onRehydrateStorage: () => (state) => {
         // After zustand rehydrates from localStorage, activate Lingui with the persisted locale.

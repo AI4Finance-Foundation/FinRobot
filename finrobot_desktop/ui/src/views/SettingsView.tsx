@@ -431,17 +431,14 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     settingsMutationRef.current = settingsMutation
   }, [settingsMutation])
 
-  const scheduleStandardSave = useCallback(
-    (payload: Record<string, string | null>) => {
-      if (!initializedRef.current) return
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-      setSaveState('saving')
-      debounceRef.current = setTimeout(() => {
-        settingsMutationRef.current.mutate(payload)
-      }, 500)
-    },
-    [],
-  )
+  const scheduleStandardSave = useCallback((payload: Record<string, string | null>) => {
+    if (!initializedRef.current) return
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    setSaveState('saving')
+    debounceRef.current = setTimeout(() => {
+      settingsMutationRef.current.mutate(payload)
+    }, 500)
+  }, [])
 
   // ── Notify field save (direct fetch, no schema constraint) ───────────────
   const notifyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)

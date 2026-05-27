@@ -1,6 +1,6 @@
 import pytest
-from finagent.engine.models.financial import DCFInputs
-from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
+from finrobot.engine.models.financial import DCFInputs
+from finrobot.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 
 
 def _make_inputs(**overrides):

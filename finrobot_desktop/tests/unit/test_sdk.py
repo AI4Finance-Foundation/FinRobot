@@ -1,4 +1,4 @@
-"""Tests for finagent.sdk.FinAgent (Track 2 Tasks 5-7).
+"""Tests for finrobot.sdk.FinRobot (Track 2 Tasks 5-7).
 
 Covers:
 - Lazy deps construction
@@ -16,10 +16,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from finagent import FinAgent, PipelineResult
-from finagent.engine.data.interface import DataResult
-from finagent.engine.pipelines.base import Pipeline, PipelineStep
-from finagent.engine.pipelines.validators import validate_is_non_empty
+from finrobot import FinRobot, PipelineResult
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.pipelines.base import Pipeline, PipelineStep
+from finrobot.engine.pipelines.validators import validate_is_non_empty
 
 
 def _fake_result() -> DataResult:
@@ -42,16 +42,16 @@ def _fake_result() -> DataResult:
     )
 
 
-def _inject_mock_deps(agent: FinAgent):
+def _inject_mock_deps(agent: FinRobot):
     """Replace agent's deps/sub_agents so no real IO happens."""
-    from finagent.engine.agents.factory import create_sub_agents
-    from finagent.engine.deps import FinAgentDeps
+    from finrobot.engine.agents.factory import create_sub_agents
+    from finrobot.engine.deps import FinRobotDeps
 
     mock_layer = MagicMock()
     mock_layer.fetch = AsyncMock(return_value=_fake_result())
     mock_layer.close = AsyncMock()
 
-    agent._deps = FinAgentDeps(
+    agent._deps = FinRobotDeps(
         data_layer=mock_layer,
         settings=agent._settings,
         skill_runtime=None,
@@ -70,7 +70,7 @@ def _trivial_pipeline(*args, **kwargs) -> Pipeline:
     async def fn(agent, deps, prompt, structured_context, ticker):
         return f"trivial result for {ticker}"
 
-    from finagent.engine.pipelines.base import TextValidator
+    from finrobot.engine.pipelines.base import TextValidator
 
     step = PipelineStep(
         name="trivial",
@@ -82,7 +82,7 @@ def _trivial_pipeline(*args, **kwargs) -> Pipeline:
 
 
 def test_init_with_model_override():
-    agent = FinAgent(model="test")
+    agent = FinRobot(model="test")
     assert agent._settings.model_name == "test"
 
 
@@ -90,7 +90,7 @@ def test_init_bad_provider_fails_fast():
     """P3 audit D2: SDK must fail fast on bad model config instead of
     waiting for the first LLM call to blow up 60 seconds later."""
     with pytest.raises(ValueError, match="Unknown provider"):
-        FinAgent(model="bogus:model-x")
+        FinRobot(model="bogus:model-x")
 
 
 def test_init_missing_api_key_fails_fast(monkeypatch):
@@ -98,18 +98,18 @@ def test_init_missing_api_key_fails_fast(monkeypatch):
     monkeypatch.delenv("FINAGENT_DEEPSEEK_API_KEY", raising=False)
     # Pass an explicit empty key to bypass .env file resolution.
     with pytest.raises(ValueError, match="FINAGENT_DEEPSEEK_API_KEY is not set"):
-        FinAgent(model="deepseek:deepseek-chat", deepseek_api_key="")
+        FinRobot(model="deepseek:deepseek-chat", deepseek_api_key="")
 
 
 def test_init_default_model_is_not_empty():
-    agent = FinAgent()
+    agent = FinRobot()
     assert isinstance(agent._settings.model_name, str)
     assert len(agent._settings.model_name) > 0
 
 
 def test_lazy_deps_not_built_on_init():
     """__init__ must not construct providers or cache."""
-    agent = FinAgent(model="test")
+    agent = FinRobot(model="test")
     assert agent._deps is None
     assert agent._sub_agents is None
 
@@ -117,7 +117,7 @@ def test_lazy_deps_not_built_on_init():
 async def test_sync_method_in_async_context_raises():
     """Sync methods must detect an already-running loop and raise a clear
     error instead of crashing or silently creating orphaned coroutines."""
-    agent = FinAgent(model="test")
+    agent = FinRobot(model="test")
     with pytest.raises(RuntimeError, match="async context"):
         agent.research("TEST")
 
@@ -125,11 +125,11 @@ async def test_sync_method_in_async_context_raises():
 async def test_aresearch_returns_pipeline_result(monkeypatch):
     """SDK plumbing test — monkeypatch the pipeline factory so we exercise
     dep injection + return type, not equity_research's DCF math."""
-    import finagent.engine.pipelines.equity_research as er
+    import finrobot.engine.pipelines.equity_research as er
 
     monkeypatch.setattr(er, "create_equity_research_pipeline", _trivial_pipeline)
 
-    agent = FinAgent(model="test")
+    agent = FinRobot(model="test")
     _inject_mock_deps(agent)
 
     result = await agent.aresearch("TEST")
@@ -139,11 +139,11 @@ async def test_aresearch_returns_pipeline_result(monkeypatch):
 
 
 async def test_context_manager_closes_data_layer(monkeypatch):
-    import finagent.engine.pipelines.equity_research as er
+    import finrobot.engine.pipelines.equity_research as er
 
     monkeypatch.setattr(er, "create_equity_research_pipeline", _trivial_pipeline)
 
-    async with FinAgent(model="test") as agent:
+    async with FinRobot(model="test") as agent:
         mock_layer = _inject_mock_deps(agent)
         result = await agent.aresearch("TEST")
         assert isinstance(result, PipelineResult)
@@ -153,16 +153,16 @@ async def test_context_manager_closes_data_layer(monkeypatch):
 
 async def test_close_safe_without_deps():
     """close() is a no-op if the agent never built deps."""
-    agent = FinAgent(model="test")
+    agent = FinRobot(model="test")
     await agent.close()  # must not raise
 
 
 async def test_close_safe_called_twice(monkeypatch):
-    import finagent.engine.pipelines.equity_research as er
+    import finrobot.engine.pipelines.equity_research as er
 
     monkeypatch.setattr(er, "create_equity_research_pipeline", _trivial_pipeline)
 
-    agent = FinAgent(model="test")
+    agent = FinRobot(model="test")
     mock_layer = _inject_mock_deps(agent)
     _ = await agent.aresearch("TEST")
     await agent.close()
@@ -174,14 +174,14 @@ async def test_close_safe_called_twice(monkeypatch):
 
 async def test_aanalyze_returns_string(monkeypatch):
     """SDK analyze method returns LLM analysis text."""
-    import finagent.engine.analysis.prompts as ap
+    import finrobot.engine.analysis.prompts as ap
 
     async def mock_run_analysis(data_layer, settings, ticker, analysis_type):
         return f"## {analysis_type.title()} Analysis for {ticker}"
 
     monkeypatch.setattr(ap, "run_analysis", mock_run_analysis)
 
-    agent = FinAgent(model="test")
+    agent = FinRobot(model="test")
     _inject_mock_deps(agent)
 
     result = await agent.aanalyze("AAPL", "income")
@@ -192,14 +192,14 @@ async def test_aanalyze_returns_string(monkeypatch):
 
 async def test_aask_returns_string(monkeypatch):
     """SDK ask method returns RAG-based answer text."""
-    import finagent.engine.analysis.qa as qa
+    import finrobot.engine.analysis.qa as qa
 
     async def mock_run_qa(data_layer, settings, ticker, question, top_k=5):
         return f"Based on [Item 1A], {ticker} faces regulatory risks."
 
     monkeypatch.setattr(qa, "run_qa", mock_run_qa)
 
-    agent = FinAgent(model="test")
+    agent = FinRobot(model="test")
     _inject_mock_deps(agent)
 
     result = await agent.aask("AAPL", "What are the risk factors?")
@@ -210,8 +210,8 @@ async def test_aask_returns_string(monkeypatch):
 
 async def test_abacktest_returns_result(monkeypatch):
     """SDK backtest method returns BacktestResult."""
-    from finagent.engine.backtest.engine import BacktestConfig, BacktestResult
-    import finagent.engine.backtest.backtrader_adapter as bta
+    from finrobot.engine.backtest.engine import BacktestConfig, BacktestResult
+    import finrobot.engine.backtest.backtrader_adapter as bta
 
     async def mock_run(self, config):
         return BacktestResult(
@@ -226,7 +226,7 @@ async def test_abacktest_returns_result(monkeypatch):
 
     monkeypatch.setattr(bta.BackTraderAdapter, "run", mock_run)
 
-    agent = FinAgent(model="test")
+    agent = FinRobot(model="test")
     _inject_mock_deps(agent)
 
     config = BacktestConfig(
@@ -242,14 +242,14 @@ async def test_abacktest_returns_result(monkeypatch):
 
 async def test_aanalyze_all_types(monkeypatch):
     """All 6 analysis types work through the SDK."""
-    import finagent.engine.analysis.prompts as ap
+    import finrobot.engine.analysis.prompts as ap
 
     async def mock_run_analysis(data_layer, settings, ticker, analysis_type):
         return f"Result: {analysis_type}"
 
     monkeypatch.setattr(ap, "run_analysis", mock_run_analysis)
 
-    agent = FinAgent(model="test")
+    agent = FinRobot(model="test")
     _inject_mock_deps(agent)
 
     for atype in ("income", "balance", "cashflow", "risk", "competitors", "overview"):
@@ -267,7 +267,7 @@ async def test_close_does_not_emit_event_loop_closed_warning():
     import asyncio
     import warnings
 
-    agent = FinAgent(model="test")
+    agent = FinRobot(model="test")
     # Simulate the persistent sync loop that _run_sync creates.
     agent._loop = asyncio.new_event_loop()
 

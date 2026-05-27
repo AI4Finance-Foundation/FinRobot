@@ -2,8 +2,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from finagent.engine.data.cache import DataCache
-from finagent.engine.data.interface import DataResult
+from finrobot.engine.data.cache import DataCache
+from finrobot.engine.data.interface import DataResult
 
 
 def _result(ticker: str = "AAPL", data_type: str = "financials") -> DataResult:

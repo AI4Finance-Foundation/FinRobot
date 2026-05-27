@@ -1,4 +1,4 @@
-"""Tests for finagent.audit.transcript and finagent.audit.persistence."""
+"""Tests for finrobot.audit.transcript and finrobot.audit.persistence."""
 
 from __future__ import annotations
 
@@ -10,12 +10,12 @@ from pathlib import Path
 
 import pytest
 
-from finagent.audit.persistence import (
+from finrobot.audit.persistence import (
     _summarize_session_file,
     list_sessions,
     load_session_transcript,
 )
-from finagent.audit.transcript import TranscriptWriter
+from finrobot.audit.transcript import TranscriptWriter
 
 
 # ---------------------------------------------------------------------------

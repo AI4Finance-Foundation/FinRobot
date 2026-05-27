@@ -24,8 +24,8 @@ Excel verification:
   Median P/E (peers only, sorted): 25.00, 29.17, 35.23 → median = 29.17
 """
 
-from finagent.engine.models.financial import CompanyFinancials, PeerComps
-from finagent.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
+from finrobot.engine.models.financial import CompanyFinancials, PeerComps
+from finrobot.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
 
 
 def _make(ticker, rev, ebitda, ni, mcap, debt, cash):

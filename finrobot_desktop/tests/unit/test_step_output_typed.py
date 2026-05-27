@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from finagent.engine.models.financial import StepOutput
+from finrobot.engine.models.financial import StepOutput
 
 
 class _FakeModel(BaseModel):

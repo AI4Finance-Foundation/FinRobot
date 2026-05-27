@@ -26,7 +26,7 @@ async def test_price_endpoint_accepts_period_param(app_with_deps):
         "warnings": [],
     }
     with patch(
-        "finagent.routes.data.fetch_price_history",
+        "finrobot.routes.data.fetch_price_history",
         new=AsyncMock(return_value=mock_payload),
     ) as mock_fetch:
         transport = ASGITransport(app=app)
@@ -49,7 +49,7 @@ async def test_price_endpoint_uses_cache_on_second_call(app_with_deps):
         "warnings": [],
     }
     with patch(
-        "finagent.routes.data.fetch_price_history",
+        "finrobot.routes.data.fetch_price_history",
         new=AsyncMock(return_value=mock_payload),
     ) as mock_fetch:
         transport = ASGITransport(app=app)
@@ -69,7 +69,7 @@ async def test_price_endpoint_different_periods_dont_share_cache(app_with_deps):
     app = app_with_deps
 
     with patch(
-        "finagent.routes.data.fetch_price_history",
+        "finrobot.routes.data.fetch_price_history",
         new=AsyncMock(return_value={"current_price": 1.0, "history": [], "data_source": "yfinance", "warnings": []}),
     ) as mock_fetch:
         transport = ASGITransport(app=app)

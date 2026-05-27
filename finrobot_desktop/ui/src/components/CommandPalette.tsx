@@ -39,7 +39,7 @@ const SECTION_ORDER: Record<string, number> = {
   navigate: 3,
 }
 
-const RECENT_KEY = 'finagent:cmd-recent'
+const RECENT_KEY = 'finrobot:cmd-recent'
 const MAX_RECENT = 5
 
 /* ── Fuzzy scoring ──────────────────────────────── */

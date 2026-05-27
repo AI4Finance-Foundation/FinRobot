@@ -9,14 +9,47 @@
 // on mount.
 
 import { createBrowserRouter, Navigate, useNavigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { AppShell } from './layout/AppShell'
 import { StocksPage } from './pages/StocksPage'
-import { SettingsPage } from './pages/SettingsPage'
-import { ArtifactDetailPage } from './pages/ArtifactDetailPage'
 import { StockWorkspace } from './views/StockWorkspace'
 
-export const REDIRECT_TOAST_KEY = 'finagent.redirect_toast'
+// Lazy-routed: ArtifactDetailPage pulls 12 chapter components + the 4-panel
+// chrome, and Settings imports the full provider/channel matrix. Loading them
+// only when the user navigates keeps the initial bundle under the
+// chunk-size warning threshold and shaves cold-start time on the workspace
+// landing — analysts hit `/stocks/:ticker` before any artifact detail.
+const ArtifactDetailPage = lazy(() =>
+  import('./pages/ArtifactDetailPage').then((m) => ({ default: m.ArtifactDetailPage })),
+)
+const SettingsPage = lazy(() =>
+  import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+)
+
+function RouteSuspense({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense
+      fallback={
+        <div
+          data-testid="route-suspense"
+          style={{
+            padding: '64px 24px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            color: 'var(--text-muted)',
+            letterSpacing: '0.08em',
+          }}
+        >
+          loading…
+        </div>
+      }
+    >
+      {children}
+    </Suspense>
+  )
+}
+
+export const REDIRECT_TOAST_KEY = 'finrobot.redirect_toast'
 
 interface RedirectWithToastProps {
   to: string
@@ -59,8 +92,22 @@ export const router = createBrowserRouter([
       // hit renders the v5 single-page StockWorkspace.
       { path: 'stocks', element: <StocksPage /> },
       { path: 'stocks/:ticker', element: <StockWorkspace /> },
-      { path: 'stocks/:ticker/runs/:artifactId', element: <ArtifactDetailPage /> },
-      { path: 'settings', element: <SettingsPage /> },
+      {
+        path: 'stocks/:ticker/runs/:artifactId',
+        element: (
+          <RouteSuspense>
+            <ArtifactDetailPage />
+          </RouteSuspense>
+        ),
+      },
+      {
+        path: 'settings',
+        element: (
+          <RouteSuspense>
+            <SettingsPage />
+          </RouteSuspense>
+        ),
+      },
 
       // v5 deprecation redirects (one release window) — spec §11.4
       {

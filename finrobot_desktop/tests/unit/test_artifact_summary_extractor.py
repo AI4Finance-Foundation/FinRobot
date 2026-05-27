@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from finagent.artifact.models import (
+from finrobot.artifact.models import (
     Artifact,
     ArtifactAssumptions,
     ArtifactComputeVersion,
@@ -12,8 +12,8 @@ from finagent.artifact.models import (
     ArtifactMeta,
     ArtifactOutputs,
 )
-from finagent.artifact.store import _summary_from_artifact
-from finagent.artifact.summary_extractor import (
+from finrobot.artifact.store import _summary_from_artifact
+from finrobot.artifact.summary_extractor import (
     extract_entry_price,
     extract_tagline,
     extract_target_date,
@@ -170,7 +170,7 @@ def test_tagline_strips_whitespace_and_treats_empty_as_none() -> None:
 
 
 def test_tagline_none_for_legacy_artifact_without_field() -> None:
-    # Legacy artifacts (pre FinRobot narrative bump) have no tagline slot.
+    # Legacy artifacts (pre narrative bump) have no tagline slot.
     art = _artifact(structured={"thesis": {"recommendation": "BUY", "price_target": 100.0}})
     assert extract_tagline(art) is None
 

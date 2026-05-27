@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from finagent.engine.data.interface import DataResult, ProviderError
-from finagent.engine.data.providers.finnhub_provider import FinnhubProvider
+from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.providers.finnhub_provider import FinnhubProvider
 
 
 @pytest.fixture
@@ -257,7 +257,7 @@ class TestFinnhubRateLimiter:
         """Second call within MIN_INTERVAL must trigger asyncio.sleep."""
         import asyncio
         import time
-        from finagent.engine.data.providers.finnhub_provider import _MIN_INTERVAL
+        from finrobot.engine.data.providers.finnhub_provider import _MIN_INTERVAL
 
         sleep_durations: list[float] = []
 

@@ -22,9 +22,9 @@ import pytest
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
-from finagent.artifact.store import ArtifactStore
-from finagent.engine.data.interface import DataResult
-from finagent.engine.models.financial import (
+from finrobot.artifact.store import ArtifactStore
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.models.financial import (
     BalanceSheet,
     DCFInputs,
     DCFResult,
@@ -34,13 +34,13 @@ from finagent.engine.models.financial import (
     StepOutput,
     ValuationMetrics,
 )
-from finagent.engine.pipelines.base import (
+from finrobot.engine.pipelines.base import (
     Pipeline,
     PipelineStep,
     StructuredValidator,
     TextValidator,
 )
-from finagent.engine.pipelines.validators import ValidationResult, validate_is_non_empty
+from finrobot.engine.pipelines.validators import ValidationResult, validate_is_non_empty
 
 
 UTC = timezone.utc
@@ -179,7 +179,7 @@ class TestDCFPipelineArtifact:
         async def exec_output_gen(agent, deps, prompt, sc, ticker):
             return "DCF analysis complete."
 
-        from finagent.artifact.builders import build_dcf_artifact
+        from finrobot.artifact.builders import build_dcf_artifact
 
         pipeline = Pipeline(
             artifact_builder=build_dcf_artifact,
@@ -327,7 +327,7 @@ class TestPipelineWithBuilderNoStore:
 
     @pytest.mark.asyncio
     async def test_no_store_does_not_crash(self) -> None:
-        from finagent.artifact.builders import build_dcf_artifact
+        from finrobot.artifact.builders import build_dcf_artifact
 
         pipeline = Pipeline(
             artifact_builder=build_dcf_artifact,

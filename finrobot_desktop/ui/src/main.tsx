@@ -20,7 +20,7 @@ import { detectInitialLocale, hasStoredLocale } from './i18n/detect'
 import './App.css'
 import './styles/tabs.css'
 
-// FinAgent positions Chinese-first. We do NOT probe OS locale on first run —
+// FinRobot positions Chinese-first. We do NOT probe OS locale on first run —
 // English macOS users were getting an English UI by default which contradicts
 // the product positioning. Default is always zh; English users can switch via
 // Settings → 外观 → 语言. The detect.ts helper is kept for future opt-in use

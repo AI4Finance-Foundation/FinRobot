@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from finagent.engine.models.financial import CatalystEvent
-from finagent.engine.compute.catalyst import (
+from finrobot.engine.models.financial import CatalystEvent
+from finrobot.engine.compute.catalyst import (
     rank_catalysts,
     filter_by_impact,
     classify_catalyst_type,
@@ -9,7 +9,7 @@ from finagent.engine.compute.catalyst import (
     compute_expected_impact,
     summarize_catalyst_outlook,
 )
-from finagent.engine.compute.news import NewsItem
+from finrobot.engine.compute.news import NewsItem
 
 
 def _make_events() -> list[CatalystEvent]:
@@ -83,7 +83,7 @@ class TestFilterByImpact:
 
 class TestCatalystAnalysisNewFields:
     def test_catalyst_analysis_new_fields_defaulted(self):
-        from finagent.engine.models.financial import CatalystAnalysis
+        from finrobot.engine.models.financial import CatalystAnalysis
 
         ca = CatalystAnalysis(events=[], overall_sentiment="neutral", key_catalysts=[])
         assert ca.net_sentiment == 0.0

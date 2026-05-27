@@ -1,4 +1,4 @@
-"""Unit tests for finagent.engine.compute.market — deterministic helpers.
+"""Unit tests for finrobot.engine.compute.market — deterministic helpers.
 
 Only the pure, synchronous helpers are tested here:
 - _build_market_index_list: converts raw price tuples → MarketIndex objects
@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from finagent.engine.compute.market import (
+from finrobot.engine.compute.market import (
     _build_market_index_list,
     MarketIndex,
 )
@@ -126,7 +126,7 @@ async def test_fetch_earnings_calendar_no_key_returns_empty():
     Source: market.py docstring — 'Returns an empty list (not an error)
     when no key is provided'.
     """
-    from finagent.engine.compute.market import fetch_earnings_calendar
+    from finrobot.engine.compute.market import fetch_earnings_calendar
 
     result = await fetch_earnings_calendar(fmp_api_key=None)
     assert result == []
@@ -135,7 +135,7 @@ async def test_fetch_earnings_calendar_no_key_returns_empty():
 @pytest.mark.asyncio
 async def test_fetch_earnings_calendar_empty_string_key_returns_empty():
     """Empty string is falsy — treated same as None."""
-    from finagent.engine.compute.market import fetch_earnings_calendar
+    from finrobot.engine.compute.market import fetch_earnings_calendar
 
     result = await fetch_earnings_calendar(fmp_api_key="")
     assert result == []

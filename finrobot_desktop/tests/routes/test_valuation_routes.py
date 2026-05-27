@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel, ConfigDict
 
-from finagent.artifact.models import (
+from finrobot.artifact.models import (
     Artifact,
     ArtifactAssumptions,
     ArtifactComputeVersion,
@@ -18,17 +18,17 @@ from finagent.artifact.models import (
     ArtifactMeta,
     ArtifactOutputs,
 )
-from finagent.artifact.store import ArtifactStore
-from finagent.engine.data.interface import DataResult
-from finagent.engine.data.types import DataType
-from finagent.engine.models.financial import (
+from finrobot.artifact.store import ArtifactStore
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.types import DataType
+from finrobot.engine.models.financial import (
     DCFInputs,
     DCFResult,
     LBOInputs,
     LBOResult,
     LBOYear,
 )
-from finagent.routes.valuation import router
+from finrobot.routes.valuation import router
 
 UTC = timezone.utc
 NOW = datetime(2026, 5, 21, tzinfo=UTC)
@@ -46,7 +46,7 @@ class _StubDataLayer:
 
 
 class _StubDeps(BaseModel):
-    """Mimics FinAgentDeps just enough that routes/valuation can read .data_layer."""
+    """Mimics FinRobotDeps just enough that routes/valuation can read .data_layer."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

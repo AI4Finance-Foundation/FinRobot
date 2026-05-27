@@ -4,7 +4,7 @@ Fix 4.6: ANALYSIS_TYPES derived from _PROMPTS
 Fix 4.7: run_strategy_selection exposed in CLI/SDK
 
 (Fix 4.3 task-eviction-cancellation and 4.4 circular-import tests removed
-along with the legacy ``finagent/web`` router and the in-memory
+along with the legacy ``finrobot/web`` router and the in-memory
 ``_tasks`` registry — the SSE runner now lives in routes/runs.py with
 RunStore persistence, so those code paths simply don't exist anymore.)
 """
@@ -13,12 +13,12 @@ from __future__ import annotations
 
 import asyncio
 
-from finagent.engine.analysis.prompts import ANALYSIS_TYPES, _PROMPTS
+from finrobot.engine.analysis.prompts import ANALYSIS_TYPES, _PROMPTS
 
 
 class TestRegistryImportable:
     def test_registry_importable(self) -> None:
-        from finagent.engine.pipelines.registry import get_pipeline_factories
+        from finrobot.engine.pipelines.registry import get_pipeline_factories
 
         factories = get_pipeline_factories()
         assert "research" in factories
@@ -54,7 +54,7 @@ class TestAutoBacktestCLI:
     def test_backtest_command_has_auto_flag(self) -> None:
         from click.testing import CliRunner
 
-        from finagent.cli import backtest
+        from finrobot.cli import backtest
 
         # --help should mention --auto
         runner = CliRunner()
@@ -65,9 +65,9 @@ class TestAutoBacktestCLI:
 
 class TestAutoBacktestSDK:
     def test_sdk_has_auto_backtest_methods(self) -> None:
-        from finagent.sdk import FinAgent
+        from finrobot.sdk import FinRobot
 
-        assert hasattr(FinAgent, "auto_backtest")
-        assert hasattr(FinAgent, "aauto_backtest")
-        assert callable(getattr(FinAgent, "auto_backtest"))
-        assert asyncio.iscoroutinefunction(getattr(FinAgent, "aauto_backtest"))
+        assert hasattr(FinRobot, "auto_backtest")
+        assert hasattr(FinRobot, "aauto_backtest")
+        assert callable(getattr(FinRobot, "auto_backtest"))
+        assert asyncio.iscoroutinefunction(getattr(FinRobot, "aauto_backtest"))

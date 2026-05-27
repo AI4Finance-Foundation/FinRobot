@@ -23,11 +23,14 @@ interface DcfSeedResponse {
   current_price: number | null
 }
 
-async function postDcfSeed(body: {
+interface PostDcfSeedBody {
   ticker: string
   wacc_override: number
   tg_override: number
-}): Promise<DcfSeedResponse> {
+  growth_scale_override: number | null
+}
+
+async function postDcfSeed(body: PostDcfSeedBody): Promise<DcfSeedResponse> {
   const resp = await fetch(`${BASE_URL}/api/compute/dcf-seed`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -123,7 +126,7 @@ export function ReportRightRail({
   )
 }
 
-function WhatIfEditor({
+export function WhatIfEditor({
   ticker,
   initialWacc,
   initialTg,
@@ -139,6 +142,9 @@ function WhatIfEditor({
 
   const [waccPct, setWaccPct] = useState<number>(baseWacc * 100)
   const [tgPct, setTgPct] = useState<number>(baseTg * 100)
+  // Revenue growth scale: 0 = seeded growth schedule untouched.
+  // Slider is in percent (-50 .. +50) → backend gets it as fraction (-0.5 .. +0.5).
+  const [growthScalePct, setGrowthScalePct] = useState<number>(0)
 
   const mutation = useMutation({
     mutationFn: postDcfSeed,
@@ -154,7 +160,10 @@ function WhatIfEditor({
   // Debounce slider changes so dragging doesn't fire 50 requests.
   useEffect(() => {
     const handle = setTimeout(() => {
-      if (Math.abs(waccPct / 100 - baseWacc) < 1e-4 && Math.abs(tgPct / 100 - baseTg) < 1e-4) {
+      const waccDirty = Math.abs(waccPct / 100 - baseWacc) > 1e-4
+      const tgDirty = Math.abs(tgPct / 100 - baseTg) > 1e-4
+      const growthDirty = Math.abs(growthScalePct) > 0.1
+      if (!waccDirty && !tgDirty && !growthDirty) {
         mutationRef.current.reset()
         return
       }
@@ -162,19 +171,24 @@ function WhatIfEditor({
         ticker,
         wacc_override: waccPct / 100,
         tg_override: tgPct / 100,
+        growth_scale_override: growthDirty ? growthScalePct / 100 : null,
       })
     }, 380)
     return () => clearTimeout(handle)
-  }, [waccPct, tgPct, ticker, baseWacc, baseTg])
+  }, [waccPct, tgPct, growthScalePct, ticker, baseWacc, baseTg])
 
   const handleReset = useCallback(() => {
     setWaccPct(baseWacc * 100)
     setTgPct(baseTg * 100)
+    setGrowthScalePct(0)
     mutationRef.current.reset()
   }, [baseWacc, baseTg])
 
   const newImplied = mutation.data?.result?.implied_price ?? null
-  const dirty = Math.abs(waccPct / 100 - baseWacc) > 1e-4 || Math.abs(tgPct / 100 - baseTg) > 1e-4
+  const dirty =
+    Math.abs(waccPct / 100 - baseWacc) > 1e-4 ||
+    Math.abs(tgPct / 100 - baseTg) > 1e-4 ||
+    Math.abs(growthScalePct) > 0.1
   const delta =
     newImplied !== null && originalImpliedPrice !== null
       ? ((newImplied - originalImpliedPrice) / originalImpliedPrice) * 100
@@ -191,6 +205,7 @@ function WhatIfEditor({
             onClick={handleReset}
             style={resetButtonStyle}
             title="重置到研报原始假设"
+            data-testid="whatif-reset"
           >
             重置
           </button>
@@ -205,6 +220,7 @@ function WhatIfEditor({
         step={0.1}
         value={waccPct}
         onChange={setWaccPct}
+        testid="whatif-slider-wacc"
       />
       <SliderRow
         label="Terminal Growth"
@@ -214,77 +230,168 @@ function WhatIfEditor({
         step={0.1}
         value={tgPct}
         onChange={setTgPct}
+        testid="whatif-slider-tg"
+      />
+      <SliderRow
+        label="Revenue Growth Scale"
+        valueLabel={`${growthScalePct >= 0 ? '+' : ''}${growthScalePct.toFixed(0)}%`}
+        min={-50}
+        max={50}
+        step={5}
+        value={growthScalePct}
+        onChange={setGrowthScalePct}
+        testid="whatif-slider-growth"
       />
 
-      <div
+      <ComparePanel
+        original={originalImpliedPrice}
+        newImplied={newImplied}
+        delta={delta}
+        deltaUp={deltaUp}
+        isPending={mutation.isPending}
+        isError={mutation.isError}
+      />
+    </RailPanel>
+  )
+}
+
+function ComparePanel({
+  original,
+  newImplied,
+  delta,
+  deltaUp,
+  isPending,
+  isError,
+}: {
+  original: number | null
+  newImplied: number | null
+  delta: number | null
+  deltaUp: boolean
+  isPending: boolean
+  isError: boolean
+}): React.ReactElement {
+  return (
+    <div
+      data-testid="whatif-compare"
+      style={{
+        marginTop: 12,
+        padding: '10px 12px',
+        background: 'rgba(15, 15, 34, 0.6)',
+        border: '1px solid var(--border-soft)',
+        borderRadius: 'var(--radius-sm)',
+        fontFamily: 'var(--font-mono)',
+        display: 'grid',
+        gridTemplateColumns: '1fr auto 1fr',
+        alignItems: 'center',
+        gap: 10,
+      }}
+    >
+      <ComparePrice
+        label="BASE"
+        price={original}
+        accent="var(--text-secondary)"
+        testid="whatif-base-price"
+      />
+
+      <span
+        aria-hidden
         style={{
-          marginTop: 10,
-          padding: '10px 12px',
-          background: 'rgba(15, 15, 34, 0.6)',
-          border: '1px solid var(--border-soft)',
-          borderRadius: 'var(--radius-sm)',
-          fontFamily: 'var(--font-mono)',
+          color: 'var(--text-dim)',
+          fontSize: 16,
+          padding: '0 4px',
+          letterSpacing: '-0.05em',
         }}
       >
+        →
+      </span>
+
+      {isError ? (
         <div
-          style={{
-            fontSize: 9.5,
-            color: 'var(--text-muted)',
-            letterSpacing: '0.1em',
-            marginBottom: 4,
-          }}
+          style={{ fontSize: 10.5, color: 'var(--danger)', textAlign: 'right' }}
+          data-testid="whatif-error"
         >
-          IMPLIED PRICE
+          重算失败 · 检查参数范围
         </div>
-        {mutation.isPending ? (
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>computing…</div>
-        ) : mutation.isError ? (
-          <div style={{ fontSize: 11, color: 'var(--danger)' }}>重算失败 · 检查参数范围或重试</div>
-        ) : newImplied !== null ? (
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span
+      ) : (
+        <div style={{ textAlign: 'right' }}>
+          <div
+            style={{
+              fontSize: 9.5,
+              color: 'var(--text-muted)',
+              letterSpacing: '0.1em',
+              marginBottom: 2,
+            }}
+          >
+            NEW
+          </div>
+          <div
+            data-testid="whatif-new-price"
+            style={{
+              fontSize: 18,
+              color: isPending
+                ? 'var(--text-muted)'
+                : newImplied !== null
+                  ? 'var(--accent-cyan)'
+                  : 'var(--text-dim)',
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {isPending ? 'computing…' : newImplied !== null ? `$${newImplied.toFixed(2)}` : '—'}
+          </div>
+          {!isPending && delta !== null && (
+            <div
+              data-testid="whatif-delta"
               style={{
-                fontSize: 18,
-                color: 'var(--accent-cyan)',
+                fontSize: 10.5,
+                color: deltaUp ? 'var(--success)' : 'var(--danger)',
                 fontVariantNumeric: 'tabular-nums',
+                marginTop: 2,
               }}
             >
-              ${newImplied.toFixed(2)}
-            </span>
-            {delta !== null && (
-              <span
-                style={{
-                  fontSize: 11,
-                  color: deltaUp ? 'var(--success)' : 'var(--danger)',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                {deltaUp ? '+' : ''}
-                {delta.toFixed(1)}% vs base
-              </span>
-            )}
-          </div>
-        ) : (
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            拖动滑块以重算 implied price
-          </div>
-        )}
-      </div>
-
-      {originalImpliedPrice !== null && (
-        <p
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9.5,
-            color: 'var(--text-dim)',
-            marginTop: 8,
-            letterSpacing: '0.04em',
-          }}
-        >
-          基准 ${originalImpliedPrice.toFixed(2)}
-        </p>
+              {deltaUp ? '+' : ''}
+              {delta.toFixed(1)}%
+            </div>
+          )}
+        </div>
       )}
-    </RailPanel>
+    </div>
+  )
+}
+
+function ComparePrice({
+  label,
+  price,
+  accent,
+  testid,
+}: {
+  label: string
+  price: number | null
+  accent: string
+  testid?: string
+}): React.ReactElement {
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 9.5,
+          color: 'var(--text-muted)',
+          letterSpacing: '0.1em',
+          marginBottom: 2,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        data-testid={testid}
+        style={{
+          fontSize: 18,
+          color: accent,
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {price !== null ? `$${price.toFixed(2)}` : '—'}
+      </div>
+    </div>
   )
 }
 
@@ -296,6 +403,7 @@ function SliderRow({
   step,
   value,
   onChange,
+  testid,
 }: {
   label: string
   valueLabel: string
@@ -304,6 +412,7 @@ function SliderRow({
   step: number
   value: number
   onChange: (v: number) => void
+  testid?: string
 }): React.ReactElement {
   return (
     <div style={{ marginBottom: 10 }}>
@@ -328,6 +437,7 @@ function SliderRow({
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         style={{ width: '100%', accentColor: 'var(--secondary)' }}
+        data-testid={testid}
       />
     </div>
   )

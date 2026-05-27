@@ -268,7 +268,7 @@ export const useUiStore = create<UiStoreState>()(
         })),
     }),
     {
-      name: 'finagent-ui-shell',
+      name: 'finrobot-ui-shell',
       storage: createJSONStorage(() => localStorage),
       // Persist only stable chrome prefs; tabs / context reset each session.
       partialize: (s) => ({
@@ -291,7 +291,7 @@ export const useUiStore = create<UiStoreState>()(
               ? window.matchMedia('(prefers-reduced-motion: reduce)')
               : null
           if (mql?.matches) {
-            const stored = localStorage.getItem('finagent-ui-shell')
+            const stored = localStorage.getItem('finrobot-ui-shell')
             // Only auto-disable if the user has no persisted choice — i.e.,
             // they never used Settings to flip these on. Once they manually
             // turn on the cosmic decorations we respect that.

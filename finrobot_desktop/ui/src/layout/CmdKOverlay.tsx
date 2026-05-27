@@ -4,7 +4,7 @@
  * Trigger paths:
  *   1. ⌘K / Ctrl+K  (global keydown listener)
  *   2. TopBar button dispatches `toggleCmdPalette()` via appStore
- *   3. `window.dispatchEvent(new Event("finagent:open-cmdk"))`
+ *   3. `window.dispatchEvent(new Event("finrobot:open-cmdk"))`
  *   4. `useAppStore.getState().toggleCmdPalette()`  (programmatic)
  *
  * All four paths share the single `cmdPaletteOpen` flag in appStore.
@@ -27,7 +27,7 @@ import { STOCK_WORKSPACE_SECTIONS } from '../views/sectionDirectory'
 // ---------------------------------------------------------------------------
 
 const MAX_QUERY_LENGTH = 200
-const RECENT_SEARCHES_KEY = 'finagent:recent-searches'
+const RECENT_SEARCHES_KEY = 'finrobot:recent-searches'
 const MAX_RECENT_SEARCHES = 10
 const SEARCH_DEBOUNCE_MS = 200
 const SEARCH_STALE_TIME_MS = 30_000
@@ -267,7 +267,7 @@ export function CmdKOverlay() {
   }, [setCmdPaletteOpen, setCmdKQuery])
 
   // ---------------------------------------------------------------------------
-  // Trigger 1: ⌘K / Ctrl+K global keydown  +  finagent:open-cmdk event
+  // Trigger 1: ⌘K / Ctrl+K global keydown  +  finrobot:open-cmdk event
   // Note: App.tsx already handles ⌘K → toggleCmdPalette(). We register here
   // too so CmdKOverlay works standalone (e.g. AppShell without App.tsx).
   // Both handlers are idempotent via toggle/set.
@@ -295,10 +295,10 @@ export function CmdKOverlay() {
       useAppStore.getState().setCmdPaletteOpen(true)
     }
     window.addEventListener('keydown', onKeyDown, true /* capture, beats inputs */)
-    window.addEventListener('finagent:open-cmdk', onOpenEvent)
+    window.addEventListener('finrobot:open-cmdk', onOpenEvent)
     return () => {
       window.removeEventListener('keydown', onKeyDown, true)
-      window.removeEventListener('finagent:open-cmdk', onOpenEvent)
+      window.removeEventListener('finrobot:open-cmdk', onOpenEvent)
     }
   }, [handleClose])
 
@@ -414,7 +414,7 @@ export function CmdKOverlay() {
     // v5 (spec §11.1.C): /library is retired. Free-text questions land on
     // /stocks (search-first landing). The Ask AI fab in StockWorkspace picks
     // up the same query via session storage when wired in PR8.
-    sessionStorage.setItem('finagent.cmdk_ai_query', text)
+    sessionStorage.setItem('finrobot.cmdk_ai_query', text)
     navigate('/stocks')
     saveRecentSearch(text)
     handleClose()

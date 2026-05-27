@@ -1,7 +1,7 @@
 from pydantic_ai import Agent
 
-from finagent.config import get_settings
-from finagent.engine.agents.factory import create_sub_agents
+from finrobot.config import get_settings
+from finrobot.engine.agents.factory import create_sub_agents
 
 
 def _settings():

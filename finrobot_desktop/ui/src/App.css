@@ -2576,7 +2576,7 @@ select.input-field {
 
 /* ═══════════════════════════════════════════════
    REFACTOR v2 — IDE Shell Layout
-   Phase 1: static 5-zone skeleton matching finagent.html prototype.
+   Phase 1: static 5-zone skeleton matching finrobot.html prototype.
    All colours use --bg-X / --text-X / --accent / --line tokens (set in :root above).
    DO NOT add hex values here.
    ═══════════════════════════════════════════════ */
@@ -3015,7 +3015,7 @@ select.input-field {
 
 /* ═══════════════════════════════════════════
    DASHBOARD — Phase 2
-   Source: finagent.html §222-368 (CSS) + §752-912 (HTML)
+   Source: finrobot.html §222-368 (CSS) + §752-912 (HTML)
    All colours use Phase 0 tokens; no hardcoded hex.
    ═══════════════════════════════════════════ */
 
@@ -3174,7 +3174,7 @@ select.input-field {
 
 /* ═══════════════════════════════════════════════
    AI PANEL — Phase 4 (琥珀风格, 420px)
-   All classes 1:1 from finagent.html prototype.
+   All classes 1:1 from finrobot.html prototype.
    ═══════════════════════════════════════════════ */
 
 .ai-panel {

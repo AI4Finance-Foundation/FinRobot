@@ -3,12 +3,10 @@
 // Single-row, Finder-style (Spacedrive-inspired): one ← back arrow as the
 // canonical return path, a 3-segment breadcrumb whose tail doubles as a
 // version dropdown, a quote strip with live price / change / distance to
-// target, and a primary Re-run action plus a small ⋯ overflow for the
-// less-frequent surfaces (What-if hint / PDF). The chrome lives in one
-// 48px row so the chapter content gets the screen height; secondary
-// actions hide behind ⋯ rather than crowding the bar.
+// target, and primary Re-run + Diff actions. The chrome lives in one
+// 48px row so the chapter content gets the screen height. What-if
+// assumption editing lives in the right rail panel, not here.
 
-import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTickerPrice } from '../../../hooks/useTickerData'
 import { useRunStreamStore } from '../../../stores/runStreamStore'
@@ -42,19 +40,6 @@ export function ReportToolbar({
   const startRun = useRunStreamStore((s) => s.startRun)
   const addToast = useToastStore((s) => s.addToast)
   const { locale, t } = useI18n()
-  const [overflowOpen, setOverflowOpen] = useState(false)
-  const overflowRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!overflowOpen) return
-    function onDoc(e: MouseEvent): void {
-      if (!overflowRef.current?.contains(e.target as Node)) {
-        setOverflowOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [overflowOpen])
 
   const livePrice = priceData?.current_price ?? null
   const changePct = priceData?.change_pct ?? null
@@ -211,28 +196,6 @@ export function ReportToolbar({
         ↻ Re-run
       </ToolbarButton>
       <ToolbarButton onClick={onOpenDiff}>↹ Diff</ToolbarButton>
-
-      {/* Overflow menu — What-if hint + PDF (both disabled-ish today) hide
-          here so the bar stays calm. ⋯ click opens a small floating menu. */}
-      <div ref={overflowRef} style={{ position: 'relative' }}>
-        <ToolbarButton onClick={() => setOverflowOpen((v) => !v)} title="更多操作">
-          ⋯
-        </ToolbarButton>
-        {overflowOpen && (
-          <div style={overflowMenuStyle}>
-            <OverflowItem
-              disabled
-              hint="可编辑假设重算 · 即将上线"
-              onClick={() => setOverflowOpen(false)}
-            >
-              ✏️ What-if
-            </OverflowItem>
-            <OverflowItem disabled hint="PDF 导出即将上线" onClick={() => setOverflowOpen(false)}>
-              📤 PDF
-            </OverflowItem>
-          </div>
-        )}
-      </div>
     </div>
   )
 }
@@ -317,54 +280,6 @@ function ToolbarButton({
   )
 }
 
-function OverflowItem({
-  children,
-  hint,
-  disabled,
-  onClick,
-}: {
-  children: React.ReactNode
-  hint?: string
-  disabled?: boolean
-  onClick: () => void
-}): React.ReactElement {
-  return (
-    <button
-      type="button"
-      onClick={disabled ? undefined : onClick}
-      disabled={disabled}
-      title={hint}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        width: '100%',
-        gap: 16,
-        padding: '8px 12px',
-        background: 'transparent',
-        border: 'none',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 11,
-        color: disabled ? 'var(--text-dim)' : 'var(--text-secondary)',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        letterSpacing: '0.04em',
-        textAlign: 'left',
-      }}
-      onMouseEnter={(e) => {
-        if (!disabled) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent'
-      }}
-    >
-      <span>{children}</span>
-      {hint && disabled && (
-        <span style={{ fontSize: 9.5, color: 'var(--text-dim)', opacity: 0.8 }}>即将上线</span>
-      )}
-    </button>
-  )
-}
-
 const backBtnStyle: React.CSSProperties = {
   width: 30,
   height: 30,
@@ -438,19 +353,4 @@ const quoteChipStyle: React.CSSProperties = {
   padding: '2px 7px',
   borderRadius: 5,
   fontVariantNumeric: 'tabular-nums',
-}
-
-const overflowMenuStyle: React.CSSProperties = {
-  position: 'absolute',
-  top: 'calc(100% + 6px)',
-  right: 0,
-  minWidth: 180,
-  background: 'var(--bg-elevated)',
-  border: '1px solid var(--border-soft)',
-  borderRadius: 8,
-  boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
-  padding: 4,
-  zIndex: 40,
-  display: 'flex',
-  flexDirection: 'column',
 }

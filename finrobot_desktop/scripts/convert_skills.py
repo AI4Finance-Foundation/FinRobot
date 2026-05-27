@@ -1,4 +1,4 @@
-"""Convert Anthropic financial-services-plugins to FinAgent native skill format.
+"""Convert Anthropic financial-services-plugins to FinRobot native skill format.
 
 Usage:
     python scripts/convert_skills.py --source ~/Desktop/code/Fin/financial-services-plugins/ --output skills/
@@ -110,7 +110,7 @@ def infer_domain(source_path: Path) -> str:
 
 
 def convert_skill(source_path: Path, source_root: Path, output_dir: Path) -> str:
-    """Convert a single upstream skill to FinAgent native format.
+    """Convert a single upstream skill to FinRobot native format.
     Returns the format type used ("A" or "B").
     """
     content = source_path.read_text(encoding="utf-8")
@@ -127,7 +127,7 @@ def convert_skill(source_path: Path, source_root: Path, output_dir: Path) -> str
     if len(short_desc) > 300:
         short_desc = short_desc[:297] + "..."
 
-    # Build FinAgent native frontmatter
+    # Build FinRobot native frontmatter
     frontmatter = {
         "id": skill_id,
         "name": name,
@@ -154,7 +154,7 @@ def convert_skill(source_path: Path, source_root: Path, output_dir: Path) -> str
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Convert Anthropic skills to FinAgent format")
+    parser = argparse.ArgumentParser(description="Convert Anthropic skills to FinRobot format")
     parser.add_argument("--source", required=True, help="Path to financial-services-plugins/")
     parser.add_argument("--output", default="skills/", help="Output directory")
     args = parser.parse_args()

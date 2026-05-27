@@ -30,7 +30,7 @@ vi.mock('../lib/tauri', () => ({
   pickDirectory: vi.fn().mockResolvedValue(null),
   isTauri: vi.fn().mockReturnValue(false),
   openExternal: vi.fn().mockResolvedValue(undefined),
-  DEFAULT_WORKSPACE_PATH: '~/finagent',
+  DEFAULT_WORKSPACE_PATH: '~/finrobot',
 }))
 
 // Mock runStreamStore so we can drive states without a live SSE source.
@@ -260,7 +260,7 @@ describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
   it('Step 2: 运行完整分析 fires research; no alt-pipeline UI surface exists', async () => {
     renderWorkspace()
     // 1 ticker = 1 run = 1 equity_research artifact carrying the full
-    // FinRobot 12-chapter payload.
+    // 12-chapter payload.
     fireEvent.click(screen.getByTestId('run-analysis-trigger'))
     expect(startRunMock).toHaveBeenCalledWith('research', 'NVDA')
     // No chevron / dropdown / alt-pipeline menu — single canonical entry.

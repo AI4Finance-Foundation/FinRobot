@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from finagent.engine.data.interface import DataResult
-from finagent.engine.data.types import DataType
-from finagent.engine.pipelines._helpers import execute_financial_data_step
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.types import DataType
+from finrobot.engine.pipelines._helpers import execute_financial_data_step
 
 
 def _financials_result(warnings: list[str] | None = None) -> DataResult:
@@ -128,7 +128,7 @@ async def test_historical_metrics_injected_into_structured_context():
     assert (
         "historical_metrics" in structured_context
     ), f"Missing historical_metrics. Keys: {list(structured_context.keys())}"
-    from finagent.engine.models.financial import HistoricalMetrics, ForecastResult
+    from finrobot.engine.models.financial import HistoricalMetrics, ForecastResult
 
     hm = structured_context["historical_metrics"]
     assert isinstance(hm, HistoricalMetrics)

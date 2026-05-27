@@ -36,7 +36,7 @@ export function ChapterDisclaimer({
           <>
             <p>
               <strong style={{ color: 'var(--text-secondary)' }}>
-                FinAgent equity research reports are AI-generated combinations of deterministic
+                FinRobot equity research reports are AI-generated combinations of deterministic
                 financial computations and large-language-model narrative synthesis.
               </strong>{' '}
               All financial data is sourced from regulatory filings (SEC 10-K / 10-Q), market data
@@ -53,7 +53,7 @@ export function ChapterDisclaimer({
               making investment decisions.
             </p>
             <p style={{ marginTop: 12 }}>
-              FinAgent and its contributors disclaim any liability for losses arising from reliance
+              FinRobot and its contributors disclaim any liability for losses arising from reliance
               on this report. Apache-2.0 licensed open-source software, provided "as is" without
               warranty.
             </p>
@@ -62,7 +62,7 @@ export function ChapterDisclaimer({
           <>
             <p>
               <strong style={{ color: 'var(--text-secondary)' }}>
-                FinAgent 股票研报由确定性金融计算与大语言模型叙事合成共同生成。
+                FinRobot 股票研报由确定性金融计算与大语言模型叙事合成共同生成。
               </strong>{' '}
               全部财务数据来自监管文件（SEC 10-K / 10-Q）、行情数据源（yfinance、FMP、Finnhub）以及
               公开新闻。预测均为模型输出，不构成结果预测。研报中的评级（买入 / 持有 / 卖出）与目标价
@@ -73,7 +73,7 @@ export function ChapterDisclaimer({
               过往业绩不代表未来表现。读者应在投资前自行尽职调查，并咨询有执业资格的金融顾问。
             </p>
             <p style={{ marginTop: 12 }}>
-              FinAgent 及其贡献者对任何因依赖本研报而产生的损失不承担任何责任。本软件以 Apache-2.0
+              FinRobot 及其贡献者对任何因依赖本研报而产生的损失不承担任何责任。本软件以 Apache-2.0
               开源协议发布，按"现状"提供，不附带任何明示或暗示的担保。
             </p>
           </>

@@ -14,9 +14,9 @@ from pydantic_ai import Agent
 from pydantic_ai.exceptions import AgentRunError
 from pydantic_ai.models.test import TestModel
 
-from finagent.engine.data.interface import DataResult, ProviderError
-from finagent.engine.models.financial import StepOutput
-from finagent.engine.pipelines.base import (
+from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.models.financial import StepOutput
+from finrobot.engine.pipelines.base import (
     Pipeline,
     PipelineResult,
     PipelineStep,
@@ -24,7 +24,7 @@ from finagent.engine.pipelines.base import (
     TextValidator,
     _is_recoverable_exception,
 )
-from finagent.engine.pipelines.validators import ValidationResult, validate_is_non_empty
+from finrobot.engine.pipelines.validators import ValidationResult, validate_is_non_empty
 
 
 # ---------------------------------------------------------------------------
@@ -453,7 +453,7 @@ async def test_pipeline_logs_structured_data_type(caplog):
     mock_deps = MagicMock()
     mock_deps.skill_runtime = None
 
-    with caplog.at_level(logging.INFO, logger="finagent.engine.pipelines.base"):
+    with caplog.at_level(logging.INFO, logger="finrobot.engine.pipelines.base"):
         await pipeline.execute(mock_deps, "AAPL")
 
     log_messages = " ".join(caplog.messages)

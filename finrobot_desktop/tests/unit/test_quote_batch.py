@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from finagent.engine.data import quote_batch
+from finrobot.engine.data import quote_batch
 
 
 def _make_yf_stub(quotes: dict[str, float | None]) -> types.ModuleType:
@@ -148,7 +148,7 @@ def test_logger_warns_on_yfinance_missing(
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr("builtins.__import__", fake_import)
-    caplog.set_level("WARNING", logger="finagent.engine.data.quote_batch")
+    caplog.set_level("WARNING", logger="finrobot.engine.data.quote_batch")
     quote_batch.fetch_quotes_batch(["AAPL"])
     assert any("yfinance unavailable" in r.message for r in caplog.records)
 

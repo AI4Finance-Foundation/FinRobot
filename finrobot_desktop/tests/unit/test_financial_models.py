@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, timezone
 from pydantic import ValidationError
-from finagent.engine.models.financial import (
+from finrobot.engine.models.financial import (
     BalanceSheet,
     FinancialData,
     IncomeStatement,
@@ -259,7 +259,7 @@ def test_thesis_requires_catalyst_and_risk():
 
 
 def test_thesis_narrative_slots_optional_for_backward_compat():
-    """FinRobot parity narrative fields (incl. company_overview) must be
+    """narrative fields (incl. company_overview) must be
     optional so legacy artifacts persisted before the schema bump still
     deserialize cleanly. New runs populate them; old runs read None.
     """
@@ -279,9 +279,9 @@ def test_thesis_narrative_slots_optional_for_backward_compat():
     assert minimal.news_summary is None
 
 
-def test_thesis_accepts_full_finrobot_parity_narrative():
+def test_thesis_accepts_full_narrative_payload():
     """All 6 narrative slots can be populated together — represents the
-    target shape once company_overview agent ships (P3.1 FinRobot parity).
+    target shape once company_overview agent ships (P3.1 narrative).
     """
     full = ThesisResult(
         recommendation="Buy",

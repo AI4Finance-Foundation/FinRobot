@@ -3,7 +3,7 @@
 //   1. localStorage (user already changed it before) — handled by zustand persist
 //      so we only run when the storage key is absent.
 //   2. OS locale via Tauri plugin-os (BCP-47 like "zh-CN" / "en-US").
-//   3. Chinese fallback — FinAgent positions Chinese-first.
+//   3. Chinese fallback — FinRobot positions Chinese-first.
 //
 // detectInitialLocale() is async because the Tauri call crosses the IPC bridge.
 // Call it once at app startup BEFORE the first React render; see main.tsx.
@@ -11,7 +11,7 @@
 import { locale as osLocale } from '@tauri-apps/plugin-os'
 import type { Locale } from '.'
 
-const STORAGE_KEY = 'finagent-ui-prefs'
+const STORAGE_KEY = 'finrobot-ui-prefs'
 
 export function hasStoredLocale(): boolean {
   try {
@@ -39,6 +39,6 @@ export async function detectInitialLocale(): Promise<Locale> {
     // Tauri plugin-os not available — silently skip.
   }
 
-  // Tier 3 — Chinese-first fallback (FinAgent product positioning).
+  // Tier 3 — Chinese-first fallback (FinRobot product positioning).
   return 'zh'
 }

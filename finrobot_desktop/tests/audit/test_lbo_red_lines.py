@@ -4,7 +4,7 @@ These tests scan the source tree for patterns that, if reintroduced, would
 walk back CLAUDE.md architecture red-line #5 for the LBO path. They mirror
 ``test_dcf_red_lines.py`` and enforce:
 
-  1. The pipeline ``lbo_parameters`` step in ``finagent/engine/pipelines/lbo.py``
+  1. The pipeline ``lbo_parameters`` step in ``finrobot/engine/pipelines/lbo.py``
      must build LBOInputs via ``seed_lbo_inputs`` — no ``param_agent``,
      no ``output_type=LBOInputs``.
 
@@ -32,8 +32,8 @@ from pathlib import Path
 
 import pytest
 
-from finagent.engine.compute.lbo_seed import seed_lbo_inputs
-from finagent.engine.models.financial import (
+from finrobot.engine.compute.lbo_seed import seed_lbo_inputs
+from finrobot.engine.models.financial import (
     BalanceSheet,
     FinancialData,
     HistoricalMetrics,
@@ -57,7 +57,7 @@ def test_ic_memo_financials_step_uses_seed_lbo_inputs():
 
     Mirror of the DCF guard for the same step (see test_dcf_red_lines.py).
     """
-    src = (REPO_ROOT / "finagent" / "engine" / "pipelines" / "ic_memo.py").read_text()
+    src = (REPO_ROOT / "finrobot" / "engine" / "pipelines" / "ic_memo.py").read_text()
 
     func_marker = "async def _execute_ic_financials("
     assert func_marker in src, (
@@ -97,7 +97,7 @@ def test_lbo_pipeline_uses_seed_lbo_inputs():
     """The lbo_parameters step in pipelines/lbo.py must construct LBOInputs
     exclusively via ``seed_lbo_inputs``. No LLM agent picks LBO assumptions.
     """
-    src = (REPO_ROOT / "finagent" / "engine" / "pipelines" / "lbo.py").read_text()
+    src = (REPO_ROOT / "finrobot" / "engine" / "pipelines" / "lbo.py").read_text()
 
     func_marker = "async def _execute_lbo_params("
     assert func_marker in src, (

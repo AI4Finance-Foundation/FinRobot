@@ -4,9 +4,9 @@ from datetime import datetime, timezone
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
-from finagent.engine.data.interface import DataResult
-from finagent.engine.deps import FinAgentDeps
-from finagent.engine.pipelines.comps import create_comps_pipeline
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.deps import FinRobotDeps
+from finrobot.engine.pipelines.comps import create_comps_pipeline
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ def _make_test_agents(output: str = "analysis output") -> dict[str, Agent]:
     agents = {}
     for role in ["data", "analysis", "modeling", "synthesis", "report"]:
         agents[role] = Agent(
-            TestModel(custom_output_text=output), deps_type=FinAgentDeps, defer_model_check=True
+            TestModel(custom_output_text=output), deps_type=FinRobotDeps, defer_model_check=True
         )
     return agents
 
@@ -130,8 +130,8 @@ class TestCompsPipelineExecution:
 
 
 def test_comps_pipeline_has_structured_validator_on_target_data():
-    from finagent.engine.pipelines.comps import create_comps_pipeline
-    from finagent.engine.pipelines.base import DefaultAgentExecutor, StructuredValidator
+    from finrobot.engine.pipelines.comps import create_comps_pipeline
+    from finrobot.engine.pipelines.base import DefaultAgentExecutor, StructuredValidator
     from unittest.mock import MagicMock
 
     agents = {k: MagicMock() for k in ["data", "analysis", "modeling", "report"]}

@@ -1,4 +1,4 @@
-from finagent.engine.skills.spec import Skill
+from finrobot.engine.skills.spec import Skill
 
 
 class TestSkillModel:

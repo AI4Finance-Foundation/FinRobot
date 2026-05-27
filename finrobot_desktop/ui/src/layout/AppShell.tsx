@@ -13,7 +13,7 @@ import { CursorCanvas } from '../components/CursorCanvas'
 import { useUiStore } from '../stores/uiStore'
 import { registerShortcut, pickDirectory, isTauri, DEFAULT_WORKSPACE_PATH } from '../lib/tauri'
 
-const WELCOME_SHOWN_KEY = 'finagent-welcome-shown'
+const WELCOME_SHOWN_KEY = 'finrobot-welcome-shown'
 
 export function AppShell(): React.ReactElement {
   const workspacePath = useUiStore((s) => s.workspacePath)

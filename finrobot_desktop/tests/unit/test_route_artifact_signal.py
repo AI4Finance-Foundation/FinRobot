@@ -6,10 +6,10 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from finagent.artifact.models import ArtifactSummary
-from finagent.engine.data.interface import DataResult, ProviderError
-from finagent.engine.data.types import DataType
-from finagent.routes._artifact_signal import attach_signals
+from finrobot.artifact.models import ArtifactSummary
+from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.types import DataType
+from finrobot.routes._artifact_signal import attach_signals
 
 UTC = timezone.utc
 ENTRY = datetime(2026, 4, 1, tzinfo=UTC)

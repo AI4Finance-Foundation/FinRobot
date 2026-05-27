@@ -1,8 +1,8 @@
 [package]
-name = "finagent-desktop"
+name = "finrobot-desktop"
 version = "0.1.0"
-description = "FinAgent Desktop — Tauri shell wrapping the FastAPI server"
-authors = ["FinAgent Contributors"]
+description = "FinRobot Desktop — Tauri shell wrapping the FastAPI server"
+authors = ["FinRobot Contributors"]
 license = "Apache-2.0"
 repository = ""
 edition = "2021"

@@ -33,7 +33,7 @@ export interface PriceData {
   history?: PricePoint[] // backend always returns this; typed optional for safety
 }
 
-// Mirror of finagent.engine.models.financial.FinancialData — backend nests
+// Mirror of finrobot.engine.models.financial.FinancialData — backend nests
 // values under income / balance / market / valuation buckets. Tile readers
 // must traverse the nested path; e.g. market cap lives at
 // `financials.market.market_cap`, NOT at the root.
@@ -72,7 +72,7 @@ export interface FinancialsData {
   warnings?: string[]
 }
 
-// Mirror of finagent.engine.compute.catalyst output. Backend fields:
+// Mirror of finrobot.engine.compute.catalyst output. Backend fields:
 //   category, headline, sentiment (positive/negative/neutral),
 //   impact_score (1..5 integer), probability (0..1), reasoning.
 // `title`/`date`/`impact_direction`/`impact_magnitude` are UI-derived from

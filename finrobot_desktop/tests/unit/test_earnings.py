@@ -9,8 +9,8 @@ Test cases:
 """
 
 import pytest
-from finagent.engine.models.financial import EarningsSurprise
-from finagent.engine.compute.earnings import (
+from finrobot.engine.models.financial import EarningsSurprise
+from finrobot.engine.compute.earnings import (
     calculate_earnings_surprises,
     _classify_surprise,
     _count_consecutive_beats,

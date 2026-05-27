@@ -1,5 +1,5 @@
 // Chapter 02 — Company Overview. Consumes the company_overview narrative
-// field (FinRobot's 8th agent parity, populated by synthesis_agent as of
+// field (the 8th synthesis slot, populated by synthesis_agent as of
 // 2026-05-23). When absent, prompts the user to re-run research with the
 // updated prompt — no fake placeholder copy.
 

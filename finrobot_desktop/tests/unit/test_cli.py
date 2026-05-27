@@ -7,9 +7,9 @@ import pytest
 from click.testing import CliRunner
 from pydantic_ai.models.test import TestModel
 
-from finagent.cli import cli
-from finagent.engine.data.interface import DataResult
-from finagent.engine.deps import FinAgentDeps
+from finrobot.cli import cli
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.deps import FinRobotDeps
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "skills"
 
@@ -51,20 +51,20 @@ class FakeDataLayer:
 
 def _fake_deps():
     """Create fake deps for testing."""
-    from finagent.config import get_settings
+    from finrobot.config import get_settings
 
     settings = get_settings(model_name="test")
-    return FinAgentDeps(data_layer=FakeDataLayer(), settings=settings)
+    return FinRobotDeps(data_layer=FakeDataLayer(), settings=settings)
 
 
 def _patch_build_runtime(monkeypatch, call_tools=None):
     """Patch _build_runtime to return a TestModel agent + fake deps."""
-    from finagent.config import get_settings
-    from finagent.engine.orchestrator import create_lead_agent
+    from finrobot.config import get_settings
+    from finrobot.engine.orchestrator import create_lead_agent
 
     settings = get_settings(model_name="test")
     agent = create_lead_agent(settings)
-    fake_deps = FinAgentDeps(data_layer=FakeDataLayer(), settings=settings)
+    fake_deps = FinRobotDeps(data_layer=FakeDataLayer(), settings=settings)
 
     # Override the agent model to TestModel
     test_model = TestModel(
@@ -75,7 +75,7 @@ def _patch_build_runtime(monkeypatch, call_tools=None):
     def mock_build_runtime(model=None):
         return agent, fake_deps
 
-    monkeypatch.setattr("finagent.cli._build_runtime", mock_build_runtime)
+    monkeypatch.setattr("finrobot.cli._build_runtime", mock_build_runtime)
     return agent, test_model
 
 
@@ -86,7 +86,7 @@ def _patch_build_deps(monkeypatch):
     def mock_build_deps(model=None):
         return fake_deps
 
-    monkeypatch.setattr("finagent.cli._build_deps", mock_build_deps)
+    monkeypatch.setattr("finrobot.cli._build_deps", mock_build_deps)
     return fake_deps
 
 
@@ -111,7 +111,7 @@ class TestRunCommand:
 class TestResearchCommand:
     def test_research_doesnt_crash_with_test_model(self, monkeypatch):
         _patch_build_deps(monkeypatch)
-        from finagent.engine.pipelines.base import PipelineResult
+        from finrobot.engine.pipelines.base import PipelineResult
 
         async def mock_execute(self, deps, ticker, **kwargs):
             return PipelineResult(
@@ -126,7 +126,7 @@ class TestResearchCommand:
             )
 
         monkeypatch.setattr(
-            "finagent.engine.pipelines.base.Pipeline.execute",
+            "finrobot.engine.pipelines.base.Pipeline.execute",
             mock_execute,
         )
         runner = CliRunner()
@@ -151,7 +151,7 @@ class TestCompsCommand:
 class TestDcfCommand:
     def test_dcf_doesnt_crash_with_test_model(self, monkeypatch):
         _patch_build_deps(monkeypatch)
-        from finagent.engine.pipelines.base import PipelineResult
+        from finrobot.engine.pipelines.base import PipelineResult
 
         async def mock_execute(self, deps, ticker, **kwargs):
             return PipelineResult(
@@ -163,7 +163,7 @@ class TestDcfCommand:
             )
 
         monkeypatch.setattr(
-            "finagent.engine.pipelines.base.Pipeline.execute",
+            "finrobot.engine.pipelines.base.Pipeline.execute",
             mock_execute,
         )
         runner = CliRunner()
@@ -172,7 +172,7 @@ class TestDcfCommand:
 
     def test_dcf_with_model_option(self, monkeypatch):
         _patch_build_deps(monkeypatch)
-        from finagent.engine.pipelines.base import PipelineResult
+        from finrobot.engine.pipelines.base import PipelineResult
 
         async def mock_execute(self, deps, ticker, **kwargs):
             return PipelineResult(
@@ -184,7 +184,7 @@ class TestDcfCommand:
             )
 
         monkeypatch.setattr(
-            "finagent.engine.pipelines.base.Pipeline.execute",
+            "finrobot.engine.pipelines.base.Pipeline.execute",
             mock_execute,
         )
         runner = CliRunner()
@@ -194,16 +194,16 @@ class TestDcfCommand:
 
 class TestBuildDeps:
     def test_build_deps_returns_deps_with_settings(self):
-        from finagent.cli import _build_deps
+        from finrobot.cli import _build_deps
 
-        # This will try to build with real settings — just verify it returns FinAgentDeps
+        # This will try to build with real settings — just verify it returns FinRobotDeps
         deps = _build_deps()
         assert hasattr(deps, "settings")
         assert hasattr(deps, "data_layer")
         assert hasattr(deps, "skill_runtime")
 
     def test_build_runtime_returns_agent_and_deps(self):
-        from finagent.cli import _build_runtime
+        from finrobot.cli import _build_runtime
 
         agent, deps = _build_runtime()
         assert agent is not None
@@ -243,7 +243,7 @@ class TestCliProgress:
     @pytest.mark.asyncio
     async def test_cli_progress_retry_reprints_step_label(self, capsys):
         """I3: after retry, step label must be reprinted so 'done' has context."""
-        from finagent.cli import CliProgress
+        from finrobot.cli import CliProgress
 
         progress = CliProgress()
         await progress.on_step_start(1, 3, "data_collection")
@@ -259,7 +259,7 @@ class TestCliProgress:
 
 class TestBacktestCommand:
     def test_backtest_basic(self, monkeypatch):
-        from finagent.engine.backtest.engine import BacktestResult
+        from finrobot.engine.backtest.engine import BacktestResult
 
         async def mock_run(self, config):
             return BacktestResult(
@@ -274,7 +274,7 @@ class TestBacktestCommand:
             )
 
         monkeypatch.setattr(
-            "finagent.engine.backtest.backtrader_adapter.BackTraderAdapter.run",
+            "finrobot.engine.backtest.backtrader_adapter.BackTraderAdapter.run",
             mock_run,
         )
         runner = CliRunner()
@@ -294,7 +294,7 @@ class TestBacktestCommand:
         assert "10.00%" in result.output
 
     def test_backtest_with_params(self, monkeypatch):
-        from finagent.engine.backtest.engine import BacktestResult
+        from finrobot.engine.backtest.engine import BacktestResult
 
         captured_configs = []
 
@@ -307,7 +307,7 @@ class TestBacktestCommand:
             )
 
         monkeypatch.setattr(
-            "finagent.engine.backtest.backtrader_adapter.BackTraderAdapter.run",
+            "finrobot.engine.backtest.backtrader_adapter.BackTraderAdapter.run",
             mock_run,
         )
         runner = CliRunner()
@@ -359,7 +359,7 @@ class TestAskCommand:
             return f"Based on [Item 1A], {ticker} faces regulatory risks."
 
         monkeypatch.setattr(
-            "finagent.engine.analysis.qa.run_qa",
+            "finrobot.engine.analysis.qa.run_qa",
             mock_run_qa,
         )
         runner = CliRunner()
@@ -377,7 +377,7 @@ class TestAskCommand:
             return "Answer"
 
         monkeypatch.setattr(
-            "finagent.engine.analysis.qa.run_qa",
+            "finrobot.engine.analysis.qa.run_qa",
             mock_run_qa,
         )
         runner = CliRunner()
@@ -394,7 +394,7 @@ class TestAnalyzeCommand:
             return f"## Income Analysis for {ticker}\n\nRevenue is $385B."
 
         monkeypatch.setattr(
-            "finagent.engine.analysis.prompts.run_analysis",
+            "finrobot.engine.analysis.prompts.run_analysis",
             mock_run_analysis,
         )
         runner = CliRunner()
@@ -410,7 +410,7 @@ class TestAnalyzeCommand:
             return f"Analysis: {analysis_type}"
 
         monkeypatch.setattr(
-            "finagent.engine.analysis.prompts.run_analysis",
+            "finrobot.engine.analysis.prompts.run_analysis",
             mock_run_analysis,
         )
         runner = CliRunner()

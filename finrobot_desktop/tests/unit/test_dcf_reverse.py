@@ -7,12 +7,12 @@ test_dcf.py and tests/audit/test_financial_sanity.py.
 """
 
 
-from finagent.engine.compute.dcf import (
+from finrobot.engine.compute.dcf import (
     calculate_dcf,
     solve_for_implied_growth,
     solve_for_implied_wacc,
 )
-from finagent.engine.models.financial import DCFInputs
+from finrobot.engine.models.financial import DCFInputs
 
 
 def _make_inputs(**overrides):

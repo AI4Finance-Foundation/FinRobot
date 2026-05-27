@@ -1,4 +1,4 @@
-"""Tests for finagent.artifact.diff.diff_artifacts.
+"""Tests for finrobot.artifact.diff.diff_artifacts.
 
 Coverage:
 - Identical artifacts → empty diff
@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import pytest
 
-from finagent.artifact.diff import FieldDiff, diff_artifacts
-from finagent.artifact.models import Artifact
+from finrobot.artifact.diff import FieldDiff, diff_artifacts
+from finrobot.artifact.models import Artifact
 
 
 def _diff_dict(diffs: list[FieldDiff]) -> dict[str, FieldDiff]:

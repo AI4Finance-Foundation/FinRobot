@@ -22,7 +22,7 @@ export const PIPELINES: readonly Pipeline[] = [
     id: 'PL-001',
     name: '个股深度分析',
     desc: '财报 · 估值 · 情绪',
-    source: 'FinRobot',
+    source: '12 章研报',
     time: '~ 42s',
     runs: 128,
     category: 'stock',

@@ -1,4 +1,4 @@
-// Chapter 07 — Key Catalysts. Three groups mirroring FinRobot's
+// Chapter 07 — Key Catalysts. Three groups mirroring the standard
 // Positive / Risks / Events-to-Monitor split. Pulls structured catalyst
 // events from the catalyst_analysis pipeline step.
 

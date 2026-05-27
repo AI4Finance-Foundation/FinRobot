@@ -12,7 +12,7 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 from unittest.mock import patch, AsyncMock
 
-from finagent.engine.models.financial import HistoricalMetrics
+from finrobot.engine.models.financial import HistoricalMetrics
 
 
 @pytest.mark.asyncio
@@ -45,7 +45,7 @@ async def test_historical_endpoint_returns_metrics(app_with_deps):
     )
 
     with patch(
-        "finagent.routes.data.extract_historical_from_yfinance",
+        "finrobot.routes.data.extract_historical_from_yfinance",
         new=AsyncMock(return_value=mock_metrics),
     ) as mock_fn:
         transport = ASGITransport(app=app)

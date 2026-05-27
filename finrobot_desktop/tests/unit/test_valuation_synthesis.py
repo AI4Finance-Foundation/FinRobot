@@ -1,8 +1,8 @@
 """Tests for valuation synthesis with confidence-weighted averaging."""
 
 import pytest
-from finagent.engine.models.financial import ValuationMethod
-from finagent.engine.compute.valuation_synthesis import synthesize_valuations
+from finrobot.engine.models.financial import ValuationMethod
+from finrobot.engine.compute.valuation_synthesis import synthesize_valuations
 
 
 class TestSynthesizeValuations:

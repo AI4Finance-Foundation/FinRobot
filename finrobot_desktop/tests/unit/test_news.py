@@ -3,14 +3,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from finagent.engine.data.interface import DataResult
-from finagent.engine.compute.news import (
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.compute.news import (
     NewsItem,
     RawNewsItem,
     fetch_news,
     parse_raw_news,
 )
-from finagent.engine.analysis.news_classifier import (
+from finrobot.engine.analysis.news_classifier import (
     ClassifiedNewsBatch,
     classify_news,
 )
@@ -193,7 +193,7 @@ class TestClassifyNews:
         mock_deps = MagicMock()
         mock_deps.settings.model_name = "test-model"
 
-        with patch("finagent.engine.analysis.news_classifier.PydanticAgent") as MockAgent:
+        with patch("finrobot.engine.analysis.news_classifier.PydanticAgent") as MockAgent:
             mock_agent_instance = AsyncMock()
             mock_agent_instance.run.return_value = mock_output
             MockAgent.return_value = mock_agent_instance
@@ -228,7 +228,7 @@ class TestClassifyNews:
         mock_deps = MagicMock()
         mock_deps.settings.model_name = "test-model"
 
-        with patch("finagent.engine.analysis.news_classifier.PydanticAgent") as MockAgent:
+        with patch("finrobot.engine.analysis.news_classifier.PydanticAgent") as MockAgent:
             mock_agent_instance = AsyncMock()
             mock_agent_instance.run.side_effect = AgentRunError("LLM failed")
             MockAgent.return_value = mock_agent_instance

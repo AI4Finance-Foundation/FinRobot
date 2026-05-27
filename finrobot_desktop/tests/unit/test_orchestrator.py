@@ -5,11 +5,11 @@ from pathlib import Path
 
 from pydantic_ai.models.test import TestModel
 
-from finagent.config import get_settings
-from finagent.engine.data.interface import DataResult
-from finagent.engine.deps import FinAgentDeps
-from finagent.engine.orchestrator import create_lead_agent
-from finagent.engine.skills.registry import SkillRegistry
+from finrobot.config import get_settings
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.deps import FinRobotDeps
+from finrobot.engine.orchestrator import create_lead_agent
+from finrobot.engine.skills.registry import SkillRegistry
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "skills"
 
@@ -38,8 +38,8 @@ def _agent(skill_registry=None):
     return create_lead_agent(_settings(), skill_registry=skill_registry)
 
 
-def _deps(skill_runtime=None) -> FinAgentDeps:
-    return FinAgentDeps(
+def _deps(skill_runtime=None) -> FinRobotDeps:
+    return FinRobotDeps(
         data_layer=FakeDataLayer(), settings=_settings(), skill_runtime=skill_runtime
     )
 

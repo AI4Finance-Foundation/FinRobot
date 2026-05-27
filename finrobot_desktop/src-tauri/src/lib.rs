@@ -1,4 +1,4 @@
-//! FinAgent Desktop — Tauri application entry point.
+//! FinRobot Desktop — Tauri application entry point.
 //!
 //! Architecture:
 //!   1. Tauri Rust shell (this process) — owns the window and menu bar.

@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from finagent.engine.models.financial import HistoricalMetrics
+from finrobot.engine.models.financial import HistoricalMetrics
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +137,7 @@ class TestGetRow:
     """Unit tests for the _get_row helper in historical_extractor."""
 
     def setup_method(self):
-        from finagent.engine.compute.historical_extractor import _get_row
+        from finrobot.engine.compute.historical_extractor import _get_row
 
         self._get_row = _get_row
 
@@ -253,7 +253,7 @@ class TestExtractHistoricalFromYfinance:
             yield mock_ticker
 
     def test_returns_historical_metrics_instance(self):
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -261,7 +261,7 @@ class TestExtractHistoricalFromYfinance:
         assert isinstance(result, HistoricalMetrics)
 
     def test_ticker_is_set_correctly(self):
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -269,7 +269,7 @@ class TestExtractHistoricalFromYfinance:
         assert result.ticker == "AAPL"
 
     def test_years_are_sorted_oldest_first(self):
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -277,7 +277,7 @@ class TestExtractHistoricalFromYfinance:
         assert result.years == sorted(result.years)
 
     def test_revenue_list_has_correct_length(self):
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -286,7 +286,7 @@ class TestExtractHistoricalFromYfinance:
 
     def test_revenue_oldest_first_matches_data(self):
         """Revenue for oldest year should be smallest (260B in mock)."""
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -296,7 +296,7 @@ class TestExtractHistoricalFromYfinance:
         assert result.revenue[-1] == pytest.approx(400e9, rel=0.01)
 
     def test_operating_cash_flow_populated(self):
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -307,7 +307,7 @@ class TestExtractHistoricalFromYfinance:
         assert result.operating_cash_flow[-1] == pytest.approx(122e9, rel=0.01)
 
     def test_investing_cash_flow_populated_with_negatives(self):
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -316,7 +316,7 @@ class TestExtractHistoricalFromYfinance:
         assert result.investing_cash_flow[0] < 0  # investing is typically negative
 
     def test_financing_cash_flow_populated(self):
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -324,7 +324,7 @@ class TestExtractHistoricalFromYfinance:
         assert len(result.financing_cash_flow) == len(result.years)
 
     def test_revenue_growth_yoy_first_is_none(self):
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -333,7 +333,7 @@ class TestExtractHistoricalFromYfinance:
 
     def test_revenue_growth_yoy_second_year_correct(self):
         """2019→2020: (274-260)/260 = 0.05385."""
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -341,7 +341,7 @@ class TestExtractHistoricalFromYfinance:
         assert result.revenue_growth_yoy[1] == pytest.approx(0.05385, abs=0.001)
 
     def test_cagr_revenue_is_set(self):
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -351,7 +351,7 @@ class TestExtractHistoricalFromYfinance:
         assert result.cagr_revenue == pytest.approx(0.1543, abs=0.01)
 
     def test_gross_margin_is_ratio_between_0_and_1(self):
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -360,7 +360,7 @@ class TestExtractHistoricalFromYfinance:
             assert 0.0 <= gm <= 1.0, f"gross_margin out of range: {gm}"
 
     def test_ebitda_margin_is_ratio(self):
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -369,7 +369,7 @@ class TestExtractHistoricalFromYfinance:
             assert 0.0 <= em <= 1.0, f"ebitda_margin out of range: {em}"
 
     def test_eps_is_populated(self):
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -379,7 +379,7 @@ class TestExtractHistoricalFromYfinance:
 
     def test_depreciation_amortization_populated(self):
         """D&A is reported positive in cash flow stmt — pass through unchanged."""
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -392,7 +392,7 @@ class TestExtractHistoricalFromYfinance:
     def test_capital_expenditure_sign_flipped_to_positive(self):
         """CapEx is negative in raw yfinance (cash outflow) but stored as positive
         magnitude so dcf_seed can compute capex/revenue ratios directly."""
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -406,7 +406,7 @@ class TestExtractHistoricalFromYfinance:
 
     def test_change_in_working_capital_can_be_negative(self):
         """ΔWC can be positive (WC decreased, cash released) or negative (WC built up)."""
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -445,7 +445,7 @@ class TestExtractHistoricalFromYfinanceFallbackNames:
             yield mock_ticker
 
     def test_fallback_cashflow_names_are_used(self):
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -456,7 +456,7 @@ class TestExtractHistoricalFromYfinanceFallbackNames:
         assert len(result.financing_cash_flow) > 0
 
     def test_all_cash_flow_lists_same_length_as_years(self):
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 
@@ -485,7 +485,7 @@ class TestExtractHistoricalFromYfinanceMissingData:
             yield mock_ticker
 
     def test_empty_cashflow_returns_zero_filled_lists(self):
-        from finagent.engine.compute.historical_extractor import (
+        from finrobot.engine.compute.historical_extractor import (
             extract_historical_from_yfinance,
         )
 

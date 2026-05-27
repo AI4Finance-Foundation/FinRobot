@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from finagent.server import _extract_user_text
+from finrobot.server import _extract_user_text
 
 
 @pytest.fixture()
@@ -24,7 +24,7 @@ def _reset_transcript_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pa
     """Redirect TranscriptWriter to a temp directory for isolation."""
     sess_dir = tmp_path / "sessions"
     monkeypatch.setattr(
-        "finagent.audit.transcript._DEFAULT_DIR",
+        "finrobot.audit.transcript._DEFAULT_DIR",
         sess_dir,
     )
     return sess_dir
@@ -45,15 +45,15 @@ def _read_user_msg(sess_dir: Path, session_id: str) -> dict[str, object]:
 
 async def _post_chat(payload: dict[str, object]) -> None:
     """POST /chat without caring about the streaming response (which needs an LLM)."""
-    from finagent.config import get_settings
-    from finagent.engine.deps import FinAgentDeps
-    from finagent.engine.orchestrator import create_lead_agent
-    from finagent.server import app
+    from finrobot.config import get_settings
+    from finrobot.engine.deps import FinRobotDeps
+    from finrobot.engine.orchestrator import create_lead_agent
+    from finrobot.server import app
 
     settings = get_settings(model_name="test")
     agent = create_lead_agent(settings)
     app.state.agent = agent
-    app.state.deps = FinAgentDeps(data_layer=None, settings=settings)  # type: ignore[arg-type]
+    app.state.deps = FinRobotDeps(data_layer=None, settings=settings)  # type: ignore[arg-type]
     app.state.transcript_writers = {}
     app.state.artifact_store = None
 

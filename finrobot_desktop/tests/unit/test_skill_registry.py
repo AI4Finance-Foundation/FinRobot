@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from finagent.engine.skills.registry import SkillRegistry
+from finrobot.engine.skills.registry import SkillRegistry
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "skills"
 

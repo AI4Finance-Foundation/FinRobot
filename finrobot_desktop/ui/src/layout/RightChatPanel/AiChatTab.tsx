@@ -54,7 +54,7 @@ const ROUTE_CHIP_PATTERNS: Array<{ test: (path: string) => boolean; chips: strin
   // /stocks landing
   {
     test: (p) => p === '/stocks',
-    chips: ['搜一个新股票', '解释 DCF / LBO / Comps', 'FinAgent 怎么用'],
+    chips: ['搜一个新股票', '解释 DCF / LBO / Comps', 'FinRobot 怎么用'],
   },
   // /settings
   {
@@ -382,7 +382,7 @@ function AiPanelHeader({
     <div className="ai-header" data-testid="panel-header">
       {/* Logo mark */}
       <div className="ai-icon">F</div>
-      <div className="ai-title">FinAgent</div>
+      <div className="ai-title">FinRobot</div>
       {/* ticker or '探索' label — both used by tests */}
       <span
         style={{
@@ -839,7 +839,7 @@ function AiInputArea({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="向 FinAgent 提问 · ↵ 发送 · ⇧↵ 换行"
+          placeholder="向 FinRobot 提问 · ↵ 发送 · ⇧↵ 换行"
           rows={2}
           disabled={isLoading}
           aria-label={t('chat.input.placeholder')}

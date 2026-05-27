@@ -16,8 +16,8 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from finagent.artifact.migrate import migrate_filesystem_to_sqlite
-from finagent.artifact.sqlite_store import SqliteArtifactStore
+from finrobot.artifact.migrate import migrate_filesystem_to_sqlite
+from finrobot.artifact.sqlite_store import SqliteArtifactStore
 from tests.artifact.conftest import _make_artifact
 
 

@@ -141,8 +141,14 @@ function MonteCarloPanel({
   return (
     <div>
       <div style={statRow}>
-        <Stat label={t('chapter.technical.mc.mean')} value={mean !== undefined ? `$${mean.toFixed(2)}` : '—'} />
-        <Stat label={t('chapter.technical.mc.std')} value={std !== undefined ? `$${std.toFixed(2)}` : '—'} />
+        <Stat
+          label={t('chapter.technical.mc.mean')}
+          value={mean !== undefined ? `$${mean.toFixed(2)}` : '—'}
+        />
+        <Stat
+          label={t('chapter.technical.mc.std')}
+          value={std !== undefined ? `$${std.toFixed(2)}` : '—'}
+        />
         <Stat
           label="P5"
           value={percentiles['5'] !== undefined ? `$${percentiles['5'].toFixed(2)}` : '—'}
@@ -159,7 +165,10 @@ function MonteCarloPanel({
           label={t('chapter.technical.mc.currentPct')}
           value={pctCurrent !== undefined ? `${pctCurrent.toFixed(0)}th` : '—'}
         />
-        <Stat label={t('chapter.technical.mc.sims')} value={n !== undefined ? n.toLocaleString() : '—'} />
+        <Stat
+          label={t('chapter.technical.mc.sims')}
+          value={n !== undefined ? n.toLocaleString() : '—'}
+        />
       </div>
 
       {bins.length > 1 && counts.length > 0 && (

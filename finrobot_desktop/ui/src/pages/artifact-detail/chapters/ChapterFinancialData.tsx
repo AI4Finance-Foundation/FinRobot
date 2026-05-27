@@ -370,7 +370,10 @@ function EarningsCallSection({
       const resp = await fetch(`${BASE_URL}/api/data/${ticker}/earnings-calls?limit=8`)
       if (!resp.ok) {
         throw new Error(
-          await extractErrorDetail(resp, tr('无法加载财报电话会逐字稿', 'Failed to load earnings call transcripts', locale)),
+          await extractErrorDetail(
+            resp,
+            tr('无法加载财报电话会逐字稿', 'Failed to load earnings call transcripts', locale),
+          ),
         )
       }
       return resp.json() as Promise<EarningsCallList>
@@ -383,7 +386,11 @@ function EarningsCallSection({
   })
 
   if (isError) {
-    return <p style={noteStyle}>{(error as Error)?.message ?? tr('加载失败', 'Failed to load', locale)}</p>
+    return (
+      <p style={noteStyle}>
+        {(error as Error)?.message ?? tr('加载失败', 'Failed to load', locale)}
+      </p>
+    )
   }
   if (isLoading && !data) {
     return <p style={noteStyle}>{tr('加载逐字稿中…', 'Loading transcripts…', locale)}</p>
@@ -438,9 +445,7 @@ function EarningsCallSection({
         })}
       </div>
       {selected.date && (
-        <p style={{ ...noteStyle, marginBottom: 8 }}>
-          {formatDate(selected.date, locale, 'long')}
-        </p>
+        <p style={{ ...noteStyle, marginBottom: 8 }}>{formatDate(selected.date, locale, 'long')}</p>
       )}
       <div
         style={{
@@ -457,7 +462,12 @@ function EarningsCallSection({
           whiteSpace: 'pre-wrap',
         }}
       >
-        {selected.content || tr('该季度逐字稿暂不可用。', 'Transcript content not available for this quarter.', locale)}
+        {selected.content ||
+          tr(
+            '该季度逐字稿暂不可用。',
+            'Transcript content not available for this quarter.',
+            locale,
+          )}
       </div>
     </div>
   )

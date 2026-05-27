@@ -17,9 +17,9 @@ import pytest
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
 
-from finagent.artifact.models import Artifact
-from finagent.artifact.store import ArtifactStore
-from finagent.routes.artifacts import router as artifacts_router
+from finrobot.artifact.models import Artifact
+from finrobot.artifact.store import ArtifactStore
+from finrobot.routes.artifacts import router as artifacts_router
 from tests.artifact.conftest import _make_artifact
 
 

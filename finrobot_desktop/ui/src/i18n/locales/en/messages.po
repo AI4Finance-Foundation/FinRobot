@@ -7,7 +7,7 @@ msgstr ""
 
 #. js-lingui-explicit-id
 msgid "app.name"
-msgstr "FinAgent"
+msgstr "FinRobot"
 
 #. js-lingui-explicit-id
 msgid "app.tagline"
@@ -71,7 +71,7 @@ msgstr "History"
 
 #. js-lingui-explicit-id
 msgid "chat.input.placeholder"
-msgstr "Message FinAgent… (Enter to send, Shift+Enter for newline)"
+msgstr "Message FinRobot… (Enter to send, Shift+Enter for newline)"
 
 #. js-lingui-explicit-id
 msgid "chat.model.tooltip"

@@ -1,4 +1,4 @@
-from finagent.engine.pipelines.validators import (
+from finrobot.engine.pipelines.validators import (
     validate_has_fields,
     validate_is_non_empty,
     validate_has_peers,

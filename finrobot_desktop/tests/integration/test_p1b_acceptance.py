@@ -2,16 +2,16 @@ import os
 import pytest
 from pathlib import Path
 
-from finagent.config import get_settings
-from finagent.engine.skills.registry import SkillRegistry
-from finagent.engine.agents.factory import create_sub_agents
-from finagent.engine.pipelines.equity_research import create_equity_research_pipeline
-from finagent.engine.pipelines.comps import create_comps_pipeline
-from finagent.engine.pipelines.dcf import create_dcf_pipeline
-from finagent.engine.deps import FinAgentDeps
-from finagent.engine.data.layer import DataLayer
-from finagent.engine.data.cache import DataCache
-from finagent.engine.data.providers.yfinance_provider import YFinanceProvider
+from finrobot.config import get_settings
+from finrobot.engine.skills.registry import SkillRegistry
+from finrobot.engine.agents.factory import create_sub_agents
+from finrobot.engine.pipelines.equity_research import create_equity_research_pipeline
+from finrobot.engine.pipelines.comps import create_comps_pipeline
+from finrobot.engine.pipelines.dcf import create_dcf_pipeline
+from finrobot.engine.deps import FinRobotDeps
+from finrobot.engine.data.layer import DataLayer
+from finrobot.engine.data.cache import DataCache
+from finrobot.engine.data.providers.yfinance_provider import YFinanceProvider
 
 SKILLS_DIR = Path(get_settings().skills_dir)
 
@@ -22,7 +22,7 @@ def _build_test_env():
     sub_agents = create_sub_agents(settings, skill_registry=registry)
     cache = DataCache(":memory:")
     data_layer = DataLayer(providers=[YFinanceProvider()], cache=cache)
-    deps = FinAgentDeps(data_layer=data_layer, settings=settings, skill_runtime=registry)
+    deps = FinRobotDeps(data_layer=data_layer, settings=settings, skill_runtime=registry)
     return sub_agents, deps
 
 
@@ -125,14 +125,14 @@ class TestP1bAcceptance:
         settings = get_settings()
         single_agent = Agent(
             settings.model_name,
-            deps_type=FinAgentDeps,
+            deps_type=FinRobotDeps,
             instructions="You are a financial analyst. Use real data from tools. Never fabricate numbers.",
             defer_model_check=True,
         )
 
         @single_agent.tool
         async def query_financial_data(
-            ctx: RunContext[FinAgentDeps], ticker: str, data_type: str
+            ctx: RunContext[FinRobotDeps], ticker: str, data_type: str
         ) -> str:
             result = await ctx.deps.data_layer.fetch(data_type, ticker)
             return result.to_context_string()

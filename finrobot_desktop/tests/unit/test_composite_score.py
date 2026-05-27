@@ -1,4 +1,4 @@
-"""Unit tests for finagent.engine.compute.composite_score.calculate_composite_score.
+"""Unit tests for finrobot.engine.compute.composite_score.calculate_composite_score.
 
 External sources for expected values / thresholds:
 - PEG ratio thresholds (< 1 = undervalued, > 2.5 = expensive):
@@ -20,7 +20,7 @@ the function under test — each is derived by hand and documented below.
 from __future__ import annotations
 
 
-from finagent.engine.compute.composite_score import (
+from finrobot.engine.compute.composite_score import (
     ScoreRequest,
     calculate_composite_score,
 )

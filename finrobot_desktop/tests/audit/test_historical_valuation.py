@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from finagent.engine.compute.historical_valuation import (
+from finrobot.engine.compute.historical_valuation import (
     PricePoint,
     YearlyFinancials,
     compute_historical_band,
@@ -32,7 +32,7 @@ from finagent.engine.compute.historical_valuation import (
 
 SRC = (
     Path(__file__).resolve().parents[2]
-    / "finagent"
+    / "finrobot"
     / "engine"
     / "compute"
     / "historical_valuation.py"
@@ -48,11 +48,11 @@ class TestLeafIsolation:
     def test_no_forbidden_imports(self) -> None:
         src = SRC.read_text()
         forbidden = (
-            "from finagent.engine.pipelines",
-            "from finagent.engine.agents",
-            "from finagent.engine.orchestrator",
-            "from finagent.engine.data",
-            "from finagent.artifact",
+            "from finrobot.engine.pipelines",
+            "from finrobot.engine.agents",
+            "from finrobot.engine.orchestrator",
+            "from finrobot.engine.data",
+            "from finrobot.artifact",
             "import pydantic_ai",
             "from pydantic_ai",
             "import openai",

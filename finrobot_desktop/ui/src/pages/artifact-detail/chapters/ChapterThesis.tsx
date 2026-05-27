@@ -1,5 +1,5 @@
 // Chapter 01 — Investment Thesis. Surfaces recommendation + price target
-// rationale + key_takeaways. Maps FinRobot's investment_overview_agent +
+// rationale + key_takeaways. Maps —'s investment_overview_agent +
 // major_takeaways_agent output.
 
 import { Chapter, Narrative } from './ChapterBase'

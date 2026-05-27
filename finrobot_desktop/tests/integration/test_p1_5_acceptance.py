@@ -2,11 +2,11 @@
 """P1.5 acceptance gate — verifies code does real deterministic computation.
 No LLM involved. Same inputs always produce same outputs."""
 
-from finagent.engine.models.financial import DCFInputs
-from finagent.engine.compute.dcf import calculate_dcf
-from finagent.engine.compute.wacc import calculate_wacc
-from finagent.engine.compute.multiples import calculate_ev, calculate_multiples
-from finagent.engine.models.financial import CompanyFinancials
+from finrobot.engine.models.financial import DCFInputs
+from finrobot.engine.compute.dcf import calculate_dcf
+from finrobot.engine.compute.wacc import calculate_wacc
+from finrobot.engine.compute.multiples import calculate_ev, calculate_multiples
+from finrobot.engine.models.financial import CompanyFinancials
 
 
 class TestDeterminism:

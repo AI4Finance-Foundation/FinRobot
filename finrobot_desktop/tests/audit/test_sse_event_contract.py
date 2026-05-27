@@ -19,7 +19,7 @@ import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-BACKEND_SRC = REPO_ROOT / "finagent" / "routes" / "runs.py"
+BACKEND_SRC = REPO_ROOT / "finrobot" / "routes" / "runs.py"
 FRONTEND_SRC = REPO_ROOT / "ui" / "src" / "stores" / "runStreamStore.ts"
 
 # The six events both sides must agree on. Adding to this list requires both

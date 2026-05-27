@@ -3,14 +3,14 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "finagent"
+name = "finrobot"
 version = "0.1.0"
 description = "A financial AI agent platform with extensible skill ecosystem"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
 authors = [
-    { name = "FinAgent Contributors" },
+    { name = "FinRobot Contributors" },
 ]
 keywords = ["finance", "ai", "agent", "llm", "pydantic"]
 classifiers = [
@@ -38,6 +38,7 @@ dependencies = [
     "openpyxl>=3.1",
     "rank-bm25>=0.2.2",
     "keyring>=25.0",
+    "edgartools>=5.31.5",
 ]
 
 [project.optional-dependencies]
@@ -51,7 +52,7 @@ dev = [
 ]
 
 [project.scripts]
-finagent = "finagent.cli:cli"
+finrobot = "finrobot.cli:cli"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -76,13 +77,15 @@ module = [
     "openpyxl.*",
     "aiosqlite.*",
     "backtrader.*",
+    "edgar.*",        # edgartools 5.31 ships without py.typed
+    "nest_asyncio",   # transitive via edgartools
 ]
 ignore_missing_imports = true
 
 # backtrader exposes Strategy as Any, so any subclass triggers
 # "Class cannot subclass Strategy (has type Any)" in --strict.
 [[tool.mypy.overrides]]
-module = "finagent.engine.backtest.backtrader_adapter"
+module = "finrobot.engine.backtest.backtrader_adapter"
 disallow_subclassing_any = false
 
 [dependency-groups]

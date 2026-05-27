@@ -24,16 +24,16 @@ import asyncio
 import logging
 from typing import Any
 
-from finagent.artifact.store import ArtifactStore
-from finagent.engine.compute.valuation_synthesis import synthesize_valuations
-from finagent.engine.models.financial import (
+from finrobot.artifact.store import ArtifactStore
+from finrobot.engine.compute.valuation_synthesis import synthesize_valuations
+from finrobot.engine.models.financial import (
     DCFResult,
     PeerComps,
     ThesisResult,
     ValuationMethod,
     ValuationSynthesis,
 )
-from finagent.engine.pipelines.equity_research import _verdict_from_upside
+from finrobot.engine.pipelines.equity_research import _verdict_from_upside
 
 logger = logging.getLogger("backfill_thesis_deterministic")
 logging.basicConfig(level=logging.INFO, format="%(message)s")

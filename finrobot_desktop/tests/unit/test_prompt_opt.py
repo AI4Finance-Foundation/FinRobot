@@ -6,7 +6,7 @@ for 5+ step pipelines while preserving enough context for common downstream
 patterns (step N often reads from step N-1 and N-2).
 """
 
-from finagent.engine.pipelines.base import Pipeline
+from finrobot.engine.pipelines.base import Pipeline
 
 
 async def test_gather_data_last_two_steps():

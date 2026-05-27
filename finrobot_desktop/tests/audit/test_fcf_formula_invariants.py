@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import pytest
 
-from finagent.engine.compute.dcf import calculate_dcf
-from finagent.engine.models.financial import DCFInputs, DCFResult
+from finrobot.engine.compute.dcf import calculate_dcf
+from finrobot.engine.models.financial import DCFInputs, DCFResult
 
 
 def _base_inputs(**overrides) -> DCFInputs:

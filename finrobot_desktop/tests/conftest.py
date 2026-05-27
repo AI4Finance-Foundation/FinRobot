@@ -1,4 +1,4 @@
-"""Shared test fixtures for FinAgent test suite."""
+"""Shared test fixtures for FinRobot test suite."""
 
 import asyncio
 from datetime import datetime, timezone
@@ -7,7 +7,25 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from finagent.engine.data.cache import DataCache
+from finrobot.engine.data.cache import DataCache
+
+
+@pytest.fixture(autouse=True)
+async def _close_quote_cache_singleton_between_tests():
+    """Close the process-wide QuoteCache after every test.
+
+    Without this, any async test that touches ``fetch_quotes_batch_cached``
+    leaves the singleton alive past its event loop's teardown. The aiosqlite
+    worker thread keeps a reference to that dead loop and tries to signal it
+    on the next operation, producing ``RuntimeError: Event loop is closed``
+    PytestUnhandledThreadExceptionWarning (red-line per AGENTS.md L200).
+    Resetting + closing the connection inside the test's still-live loop
+    makes the worker thread exit cleanly.
+    """
+    yield
+    from finrobot.engine.data import quote_batch
+
+    await quote_batch.close_quote_cache_singleton()
 
 
 @pytest.fixture
@@ -20,7 +38,7 @@ def app_with_deps(tmp_path):
     This fixture installs an isolated DataCache backed by a per-test SQLite
     file under ``tmp_path`` so tests can exercise the cache wrapper end-to-end.
     """
-    from finagent.server import app
+    from finrobot.server import app
 
     cache = DataCache(str(tmp_path / "test_cache.db"))
     saved_deps = getattr(app.state, "deps", None)

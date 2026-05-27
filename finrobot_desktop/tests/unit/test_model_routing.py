@@ -7,7 +7,7 @@ Verifies:
 - factory.create_sub_agents wires per-role models via get_model_for_role
 """
 
-from finagent.config import get_settings
+from finrobot.config import get_settings
 
 
 class TestGetModelForRole:
@@ -58,7 +58,7 @@ class TestCreateModelWithOverride:
 class TestFactoryUsesRoleOverrides:
     def test_factory_creates_all_five_agents(self):
         """Regression: factory still returns all 5 role agents."""
-        from finagent.engine.agents.factory import create_sub_agents
+        from finrobot.engine.agents.factory import create_sub_agents
 
         settings = get_settings(model_name="test:test")
         agents = create_sub_agents(settings)
@@ -73,17 +73,17 @@ class TestFactoryUsesRoleOverrides:
     def test_factory_uses_per_role_model_when_set(self, monkeypatch):
         """When a role override is set, factory.create_sub_agents should call
         get_model_for_role (which returns the override) for that role."""
-        from finagent.engine.agents import factory
+        from finrobot.engine.agents import factory
 
         seen: list[str] = []
 
-        original_create = factory.FinAgentSettings.create_model
+        original_create = factory.FinRobotSettings.create_model
 
         def spy_create(self, model_name=None):
             seen.append(model_name or self.model_name)
             return original_create(self, model_name=model_name)
 
-        monkeypatch.setattr(factory.FinAgentSettings, "create_model", spy_create)
+        monkeypatch.setattr(factory.FinRobotSettings, "create_model", spy_create)
 
         settings = get_settings(
             model_name="test:global",

@@ -1,12 +1,12 @@
 // ArtifactDetailPage — single artifact deep-dive route, mounted at
 // `/stocks/:ticker/runs/:artifactId`.
 //
-// Renders the artifact as a FinRobot-parity 12-chapter long-scroll
+// Renders the artifact as a 12-chapter investment-bank-grade long-scroll
 // research report in a three-column desktop layout:
-//   - sticky top toolbar  (price overlay · version switcher · diff · pdf · re-run)
+//   - sticky top toolbar  (price overlay · version switcher · diff · re-run)
 //   - left sticky TOC     (12 chapters with scroll-spy active highlight)
 //   - center scroll area  (chapters 00–11, each a structured Section)
-//   - right sticky rail   (Version Timeline + What-if Editor placeholders)
+//   - right sticky rail   (Version Timeline + live DCF What-if Editor)
 //
 // The 12 chapters are split into per-file components under
 // pages/artifact-detail/chapters/. They consume artifact.outputs.structured
@@ -230,11 +230,7 @@ export function ArtifactDetailPage(): React.ReactElement {
           />
           <ChapterThesis thesis={thesis} />
           <ChapterCompanyOverview thesis={thesis} />
-          <ChapterFinancialAnalysis
-            ticker={symbol}
-            dcf={dcf}
-            rawData={inputs.raw_data ?? null}
-          />
+          <ChapterFinancialAnalysis ticker={symbol} dcf={dcf} rawData={inputs.raw_data ?? null} />
           <ChapterValuation dcf={dcf} thesis={thesis} ticker={symbol} />
           <ChapterNews thesis={thesis} />
           <ChapterSensitivity dcf={dcf} />

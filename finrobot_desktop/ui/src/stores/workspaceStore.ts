@@ -144,7 +144,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       },
     }),
     {
-      name: 'finagent-workspaces',
+      name: 'finrobot-workspaces',
       partialize: (s) => ({ workspaces: s.workspaces }),
     },
   ),

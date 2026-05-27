@@ -2,7 +2,7 @@ import pytest
 import httpx
 from httpx import ASGITransport, AsyncClient
 
-from finagent.server import app
+from finrobot.server import app
 
 
 @pytest.fixture
@@ -29,14 +29,14 @@ class TestChatEndpoint:
         """Verify route exists by manually setting app.state before request.
         ASGITransport doesn't trigger lifespan events."""
 
-        from finagent.config import get_settings
-        from finagent.engine.deps import FinAgentDeps
-        from finagent.engine.orchestrator import create_lead_agent
+        from finrobot.config import get_settings
+        from finrobot.engine.deps import FinRobotDeps
+        from finrobot.engine.orchestrator import create_lead_agent
 
         settings = get_settings(model_name="test")
         agent = create_lead_agent(settings)
         app.state.agent = agent
-        app.state.deps = FinAgentDeps(
+        app.state.deps = FinRobotDeps(
             data_layer=None,
             settings=settings,  # type: ignore[arg-type]
         )
@@ -55,21 +55,21 @@ class TestArchitecturalRedLines:
     wrapper were removed when SSE runs were consolidated under ``/api/runs``
     (RunStore-backed, see ``routes/runs.py``). The behavioural tests for that
     endpoint were retired along with the code; the bare-except guard stays
-    because it covers the entire ``finagent/`` tree.
+    because it covers the entire ``finrobot/`` tree.
     """
 
-    def test_no_bare_except_exception_in_finagent(self):
+    def test_no_bare_except_exception_in_finrobot(self):
         """Regression guard for P3 audit D1 / CLAUDE.md N2 discipline.
 
         The SSE endpoint previously used `except Exception as e:` which
         swallowed BaseException subclasses (KeyboardInterrupt, SystemExit,
         MemoryError) and, worse, CancelledError — breaking client-disconnect
         cleanup. This test fails the moment someone reintroduces a bare
-        `except Exception` anywhere under finagent/.
+        `except Exception` anywhere under finrobot/.
         """
         import pathlib
 
-        root = pathlib.Path(__file__).resolve().parents[2] / "finagent"
+        root = pathlib.Path(__file__).resolve().parents[2] / "finrobot"
         offenders: list[str] = []
         for py in root.rglob("*.py"):
             for lineno, line in enumerate(py.read_text().splitlines(), start=1):
@@ -79,7 +79,7 @@ class TestArchitecturalRedLines:
                 if "except Exception" in stripped and "BaseException" not in stripped:
                     offenders.append(f"{py.relative_to(root.parent)}:{lineno}: {stripped}")
         assert offenders == [], (
-            "`except Exception` is banned in finagent/ (P3 audit D1). "
+            "`except Exception` is banned in finrobot/ (P3 audit D1). "
             "Catch concrete exception types and re-raise CancelledError. "
             f"Found: {offenders}"
         )
@@ -90,8 +90,8 @@ class TestSubAgentsCaching:
 
     @pytest.mark.asyncio
     async def test_app_state_has_sub_agents_after_setup(self):
-        from finagent.config import get_settings
-        from finagent.engine.agents.factory import create_sub_agents
+        from finrobot.config import get_settings
+        from finrobot.engine.agents.factory import create_sub_agents
 
         settings = get_settings(model_name="test")
         sub_agents = create_sub_agents(settings, skill_registry=None)
@@ -106,7 +106,7 @@ class TestSubAgentsCaching:
         from pathlib import Path
 
         runs_path = (
-            Path(__file__).resolve().parents[2] / "finagent" / "routes" / "runs.py"
+            Path(__file__).resolve().parents[2] / "finrobot" / "routes" / "runs.py"
         )
         tree = ast.parse(runs_path.read_text())
         for node in ast.walk(tree):

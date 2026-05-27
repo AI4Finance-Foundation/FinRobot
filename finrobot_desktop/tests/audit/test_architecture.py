@@ -9,8 +9,8 @@ Red lines tested:
   2. Pipeline steps not exposed as individual orchestrator tools
   3. Pipelines don't directly import provider SDKs
   4. Dependency blacklist (no LangChain/AutoGen/LiteLLM)
-  5. No bare `except Exception:` in finagent/
-  6. No `print(` in finagent/ (use logging)
+  5. No bare `except Exception:` in finrobot/
+  6. No `print(` in finrobot/ (use logging)
   7. No `os.environ` outside config.py (use dependency injection)
 """
 
@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-FINAGENT = ROOT / "finagent"
+FINAGENT = ROOT / "finrobot"
 COMPUTE = FINAGENT / "engine" / "compute"
 MODELS = FINAGENT / "engine" / "models"
 PIPELINES = FINAGENT / "engine" / "pipelines"
@@ -51,9 +51,9 @@ def _all_imports(filepath: Path) -> list[tuple[int, str]]:
 # ---------------------------------------------------------------------------
 
 FORBIDDEN_UPWARD = [
-    "finagent.engine.pipelines",
-    "finagent.engine.agents",
-    "finagent.engine.orchestrator",
+    "finrobot.engine.pipelines",
+    "finrobot.engine.agents",
+    "finrobot.engine.orchestrator",
 ]
 
 FORBIDDEN_LLM = [
@@ -167,7 +167,7 @@ BANNED_DEPS = ["langchain", "langgraph", "autogen", "litellm"]
 
 
 class TestDependencyBlacklist:
-    """Banned frameworks must not appear anywhere in finagent/."""
+    """Banned frameworks must not appear anywhere in finrobot/."""
 
     def test_no_banned_imports(self) -> None:
         violations: list[str] = []
@@ -217,13 +217,13 @@ class TestExceptionHygiene:
 
 
 # ---------------------------------------------------------------------------
-# Coding discipline: no print() in finagent/
+# Coding discipline: no print() in finrobot/
 # ---------------------------------------------------------------------------
 
 class TestNoPrint:
-    """finagent/ must use logging, not print(). Docstring examples are OK."""
+    """finrobot/ must use logging, not print(). Docstring examples are OK."""
 
-    def test_no_print_in_finagent(self) -> None:
+    def test_no_print_in_finrobot(self) -> None:
         violations: list[str] = []
         for py in _py_files(FINAGENT):
             tree = ast.parse(py.read_text(), filename=str(py))
@@ -236,7 +236,7 @@ class TestNoPrint:
                     rel = py.relative_to(ROOT)
                     violations.append(f"  {rel}:{node.lineno}")
         assert not violations, (
-            "print() calls found in finagent/ (use logging instead):\n"
+            "print() calls found in finrobot/ (use logging instead):\n"
             + "\n".join(violations)
         )
 
@@ -264,7 +264,7 @@ class TestNoOsEnviron:
                 rel = py.relative_to(ROOT)
                 violations.append(
                     f"  {rel}:{lineno} — os.environ usage\n"
-                    f"  FIX: Use FinAgentSettings (finagent/config.py) + dependency injection."
+                    f"  FIX: Use FinRobotSettings (finrobot/config.py) + dependency injection."
                 )
         assert not violations, (
             "os.environ used outside config.py:\n" + "\n".join(violations)

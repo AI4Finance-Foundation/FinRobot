@@ -1,5 +1,5 @@
 // Chapter 00 — Cover page. Single hero block with verdict / target /
-// tagline / artifact metadata. FinRobot has a similar header surface;
+// tagline / artifact metadata. See layout invariants;
 // we render it as the entry section so PDF exports get a proper cover.
 
 import type { ThesisShape } from './types'

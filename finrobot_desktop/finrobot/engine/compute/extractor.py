@@ -1,0 +1,173 @@
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.keys import NormalizedFinancialKeys
+from finrobot.engine.models.financial import (
+    FinancialData,
+    IncomeStatement,
+    BalanceSheet,
+    MarketData,
+    ValuationMetrics,
+    PriceHistory,
+    CompanyFinancials,
+)
+from finrobot.engine.compute.multiples import calculate_ev
+
+
+def extract_financial_data(
+    financials_result: DataResult,
+    price_result: DataResult,
+) -> FinancialData:
+    """Extract structured FinancialData from raw DataResults.
+
+    Raises ValueError for missing critical fields (revenue, market_cap).
+    Non-critical missing fields (debt, cash, D&A) are defaulted and recorded in
+    FinancialData.warnings so the caller can surface them to the user.
+    """
+    data: NormalizedFinancialKeys = financials_result.data  # type: ignore[assignment]
+    ticker = financials_result.ticker
+
+    # Batch-check required fields
+    _REQUIRED = {"revenue", "market_cap"}
+    missing = _REQUIRED - set(data.keys())
+    if missing:
+        raise ValueError(
+            f"Provider {financials_result.provider} missing required fields for {ticker}: {missing}"
+        )
+
+    revenue = data.get("revenue")
+    ebitda = data.get("ebitda")
+    market_cap = data.get("market_cap")
+
+    if not revenue:
+        raise ValueError(f"Missing or zero revenue for {ticker}")
+    if not market_cap:
+        raise ValueError(f"Missing or zero market_cap for {ticker}")
+
+    warnings: list[str] = []
+
+    raw_debt = data.get("total_debt")
+    raw_cash = data.get("total_cash")
+    total_debt = raw_debt if raw_debt is not None else 0
+    total_cash = raw_cash if raw_cash is not None else 0
+
+    # --- N15: consistent EV handling ---
+    # Only compute EV when both total_debt and total_cash are available.
+    # Matches prompts.py behavior: no defaulting missing components to 0.
+    ev: float | None = None
+    ev_ebitda: float | None = None
+    ev_revenue: float | None = None
+
+    if raw_debt is not None and raw_cash is not None:
+        ev = calculate_ev(market_cap, total_debt, total_cash)
+        ev_ebitda = ev / ebitda if (ebitda and ebitda > 0) else None
+        ev_revenue = ev / revenue if revenue > 0 else None
+    else:
+        missing_ev_parts = []
+        if raw_debt is None:
+            missing_ev_parts.append("total_debt")
+        if raw_cash is None:
+            missing_ev_parts.append("total_cash")
+        warnings.append(
+            f"{', '.join(missing_ev_parts)} not available from provider — "
+            "EV and EV-based multiples (EV/EBITDA, EV/Revenue) cannot be computed"
+        )
+
+    # D&A is no longer required upstream — dcf_seed falls back to Damodaran
+    # industry median when this is missing, with provenance noted on each field.
+    da = data.get("depreciation_amortization")
+
+    price_data = price_result.data
+    price_history = price_data.get("price_history", [])
+    closes = [p["close"] for p in price_history if "close" in p]
+    high_52w = max(closes) if closes else None
+    low_52w = min(closes) if closes else None
+
+    current_price = price_data.get("current_price") or data.get("current_price")
+    if not current_price or current_price <= 0:
+        raise ValueError(
+            f"Could not determine current_price for {ticker}. "
+            "Ensure the price provider is configured and returning data."
+        )
+
+    # --- shares_outstanding: refuse silent fallback to 1 ---
+    shares = data.get("shares_outstanding")
+    if shares is None or shares <= 0:
+        shares = market_cap / current_price
+        warnings.append(
+            f"shares_outstanding missing or invalid from {financials_result.provider} "
+            f"for {ticker} — derived as market_cap/price ({shares:,.0f}). "
+            "Per-share metrics (EPS, P/E) may be approximate."
+        )
+
+    return FinancialData(
+        ticker=ticker,
+        company_name=str(data.get("company_name") or ""),
+        timestamp=financials_result.timestamp,
+        income=IncomeStatement(
+            revenue=revenue,
+            ebitda=ebitda or 0,
+            net_income=data.get("net_income") or 0,
+            gross_margin=data.get("gross_margin") or 0,
+            operating_margin=data.get("operating_margin") or 0,
+            depreciation_amortization=da,
+            rd_expense=data.get("rd_expense"),
+            sga_expense=data.get("sga_expense"),
+            interest_expense=data.get("interest_expense"),
+        ),
+        balance=BalanceSheet(
+            total_debt=total_debt,
+            total_cash=total_cash,
+        ),
+        market=MarketData(
+            market_cap=market_cap,
+            shares_outstanding=shares,
+            current_price=current_price,
+            pe_ratio=data.get("pe_ratio"),
+            price_52w_high=high_52w,
+            price_52w_low=low_52w,
+            industry=data.get("industry"),
+            sector=data.get("sector"),
+            beta=data.get("beta"),
+        ),
+        valuation=ValuationMetrics(
+            enterprise_value=ev,
+            ev_ebitda=ev_ebitda,
+            ev_revenue=ev_revenue,
+        ),
+        data_source=financials_result.provider,
+        warnings=warnings,
+    )
+
+
+def extract_company_financials(financials_result: DataResult) -> CompanyFinancials:
+    """Extract CompanyFinancials for use in peer comparisons."""
+    data = financials_result.data
+    ticker = financials_result.ticker
+    return CompanyFinancials(
+        ticker=ticker,
+        revenue=data.get("revenue") or 0,
+        ebitda=data.get("ebitda") or 0,
+        net_income=data.get("net_income") or 0,
+        market_cap=data.get("market_cap") or 0,
+        total_debt=data.get("total_debt") or 0,
+        total_cash=data.get("total_cash") or 0,
+        gross_margin=data.get("gross_margin") or 0,
+        operating_margin=data.get("operating_margin") or 0,
+        pe_ratio=data.get("pe_ratio"),
+    )
+
+
+def extract_price_history(price_result: DataResult) -> PriceHistory:
+    """Extract structured PriceHistory from raw yfinance price DataResult."""
+    data = price_result.data
+    history = data.get("price_history", [])
+    closes = [p["close"] for p in history if "close" in p]
+    avg = sum(closes) / len(closes) if closes else 0.0
+    return PriceHistory(
+        ticker=price_result.ticker,
+        period="1y",
+        data_points=len(closes),
+        current_price=data.get("current_price") or 0,
+        high_52w=max(closes) if closes else 0.0,
+        low_52w=min(closes) if closes else 0.0,
+        avg_price=avg,
+    )

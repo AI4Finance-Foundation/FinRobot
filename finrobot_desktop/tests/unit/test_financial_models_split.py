@@ -12,7 +12,7 @@ import pytest
 from datetime import datetime, timezone
 from pydantic import ValidationError
 
-from finagent.engine.models.financial import (
+from finrobot.engine.models.financial import (
     BalanceSheet,
     FinancialData,
     IncomeStatement,

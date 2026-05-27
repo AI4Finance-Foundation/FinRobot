@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, timezone
-from finagent.engine.data.interface import DataResult
-from finagent.engine.compute.extractor import (
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.compute.extractor import (
     extract_financial_data,
     extract_company_financials,
     extract_price_history,

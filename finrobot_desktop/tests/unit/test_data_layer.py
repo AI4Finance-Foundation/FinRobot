@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from finagent.engine.data.cache import DataCache
-from finagent.engine.data.interface import DataProvider, DataResult, ProviderError
-from finagent.engine.data.layer import DataLayer
+from finrobot.engine.data.cache import DataCache
+from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
+from finrobot.engine.data.layer import DataLayer
 
 
 # ---------------------------------------------------------------------------

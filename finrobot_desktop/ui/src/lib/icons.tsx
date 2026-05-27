@@ -1,4 +1,4 @@
-// Lucide-style icon set, paths copied 1:1 from finagent.html prototype.
+// Lucide-style icon set, paths copied 1:1 from finrobot.html prototype.
 // All icons share the same outer <svg> wrapper (stroke=currentColor, stroke-width=1.6).
 // Usage:
 //   <IconDashboard size={18} />

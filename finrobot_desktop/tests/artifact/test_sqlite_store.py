@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from finagent.artifact.sqlite_store import SqliteArtifactStore
+from finrobot.artifact.sqlite_store import SqliteArtifactStore
 from tests.artifact.conftest import _make_artifact
 
 UTC = timezone.utc

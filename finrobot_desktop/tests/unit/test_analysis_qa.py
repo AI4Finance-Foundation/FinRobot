@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from finagent.engine.analysis.qa import run_qa
-from finagent.engine.data.interface import DataResult
+from finrobot.engine.analysis.qa import run_qa
+from finrobot.engine.data.interface import DataResult
 
 
 @dataclass
@@ -132,7 +132,7 @@ class TestRunQA:
         mock_agent_instance.run = AsyncMock(return_value=mock_run_result)
 
         mock_agent_cls = MagicMock(return_value=mock_agent_instance)
-        monkeypatch.setattr("finagent.engine.analysis.qa.Agent", mock_agent_cls)
+        monkeypatch.setattr("finrobot.engine.analysis.qa.Agent", mock_agent_cls)
 
         result = await run_qa(layer, _make_settings(), "AAPL", "What are the risks?")
         assert "regulatory risk" in result

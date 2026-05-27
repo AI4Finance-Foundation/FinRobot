@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from finagent.engine.models.financial import (
+from finrobot.engine.models.financial import (
     FinancialData,
     IncomeStatement,
     MarketData,
@@ -9,7 +9,7 @@ from finagent.engine.models.financial import (
     DCFResult,
     ThesisResult,
 )
-from finagent.engine.pipelines.validators import (
+from finrobot.engine.pipelines.validators import (
     validate_financial_data,
     validate_peer_comps,
     validate_dcf_result,

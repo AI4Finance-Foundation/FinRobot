@@ -24,8 +24,8 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from finagent.engine.compute.valuation_aggregator import aggregate_valuation
-from finagent.engine.models.financial import (
+from finrobot.engine.compute.valuation_aggregator import aggregate_valuation
+from finrobot.engine.models.financial import (
     CompanyFinancials,
     DCFInputs,
     DCFResult,
@@ -38,7 +38,7 @@ from finagent.engine.models.financial import (
 
 AGG_SRC = (
     Path(__file__).resolve().parents[2]
-    / "finagent"
+    / "finrobot"
     / "engine"
     / "compute"
     / "valuation_aggregator.py"
@@ -58,10 +58,10 @@ class TestAggregatorLeafIsolation:
     def test_no_forbidden_imports_in_aggregator_source(self) -> None:
         src = AGG_SRC.read_text()
         forbidden = (
-            "from finagent.engine.pipelines",
-            "from finagent.engine.agents",
-            "from finagent.engine.orchestrator",
-            "from finagent.engine.data",
+            "from finrobot.engine.pipelines",
+            "from finrobot.engine.agents",
+            "from finrobot.engine.orchestrator",
+            "from finrobot.engine.data",
             "import pydantic_ai",
             "from pydantic_ai",
             "import openai",
@@ -79,8 +79,8 @@ class TestAggregatorLeafIsolation:
         # Check for actual import or call sites — not docstring mentions of the rule.
         src = AGG_SRC.read_text()
         forbidden_call_patterns = (
-            re.compile(r"^\s*from\s+finagent\.engine\.compute\.lbo\s+import", re.MULTILINE),
-            re.compile(r"^\s*import\s+finagent\.engine\.compute\.lbo", re.MULTILINE),
+            re.compile(r"^\s*from\s+finrobot\.engine\.compute\.lbo\s+import", re.MULTILINE),
+            re.compile(r"^\s*import\s+finrobot\.engine\.compute\.lbo", re.MULTILINE),
             re.compile(r"\bcalculate_lbo\s*\("),
             re.compile(r"\bcalculate_lbo_sensitivity\s*\("),
         )

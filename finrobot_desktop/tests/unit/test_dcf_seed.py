@@ -19,14 +19,14 @@ from datetime import datetime, timezone
 
 import pytest
 
-from finagent.engine.compute.dcf_seed import (
+from finrobot.engine.compute.dcf_seed import (
     _cost_of_debt,
     _decay_growth_schedule,
     _median_ratio,
     _median_recent,
     seed_dcf_inputs,
 )
-from finagent.engine.models.financial import (
+from finrobot.engine.models.financial import (
     BalanceSheet,
     FinancialData,
     HistoricalMetrics,

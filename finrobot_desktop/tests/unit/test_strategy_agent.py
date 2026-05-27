@@ -10,9 +10,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from finagent.config import FinAgentSettings
-from finagent.engine.backtest.engine import BacktestConfig, BacktestResult
-from finagent.engine.backtest.strategy_agent import (
+from finrobot.config import FinRobotSettings
+from finrobot.engine.backtest.engine import BacktestConfig, BacktestResult
+from finrobot.engine.backtest.strategy_agent import (
     MAX_ITERATIONS,
     _AdjustmentDecision,
     run_strategy_selection,
@@ -60,7 +60,7 @@ class TestRunStrategySelection:
     @pytest.mark.asyncio
     async def test_single_iteration_early_stop(self) -> None:
         """LLM says should_continue=False after first run -> 1 backtest."""
-        settings = FinAgentSettings(model_name="test:test")
+        settings = FinRobotSettings(model_name="test:test")
 
         config = _make_config()
         bt_result = _make_result(0.15)
@@ -71,8 +71,8 @@ class TestRunStrategySelection:
         mock_engine_run = AsyncMock(return_value=bt_result)
 
         with (
-            patch("finagent.engine.backtest.strategy_agent.Agent") as mock_agent_cls,
-            patch("finagent.engine.backtest.strategy_agent.BackTraderAdapter") as mock_adapter_cls,
+            patch("finrobot.engine.backtest.strategy_agent.Agent") as mock_agent_cls,
+            patch("finrobot.engine.backtest.strategy_agent.BackTraderAdapter") as mock_adapter_cls,
         ):
             # First Agent() call -> config agent, second -> adjustment agent
             agent_instances = [MagicMock(), MagicMock()]
@@ -91,7 +91,7 @@ class TestRunStrategySelection:
     @pytest.mark.asyncio
     async def test_full_three_iterations(self) -> None:
         """LLM keeps adjusting for all 3 iterations."""
-        settings = FinAgentSettings(model_name="test:test")
+        settings = FinRobotSettings(model_name="test:test")
 
         configs = [
             _make_config(strategy_params={"fast": 10, "slow": 30}),
@@ -122,8 +122,8 @@ class TestRunStrategySelection:
         adjust_agent_mock.run = AsyncMock(side_effect=decision_results)
 
         with (
-            patch("finagent.engine.backtest.strategy_agent.Agent") as mock_agent_cls,
-            patch("finagent.engine.backtest.strategy_agent.BackTraderAdapter") as mock_adapter_cls,
+            patch("finrobot.engine.backtest.strategy_agent.Agent") as mock_agent_cls,
+            patch("finrobot.engine.backtest.strategy_agent.BackTraderAdapter") as mock_adapter_cls,
         ):
             mock_agent_cls.side_effect = [
                 config_agent_mock,
@@ -140,7 +140,7 @@ class TestRunStrategySelection:
     @pytest.mark.asyncio
     async def test_returns_best_across_iterations(self) -> None:
         """Best result is from iteration 1, not the last one."""
-        settings = FinAgentSettings(model_name="test:test")
+        settings = FinRobotSettings(model_name="test:test")
 
         configs = [
             _make_config(strategy_params={"fast": 10, "slow": 30}),
@@ -169,8 +169,8 @@ class TestRunStrategySelection:
         mock_engine_run = AsyncMock(side_effect=results)
 
         with (
-            patch("finagent.engine.backtest.strategy_agent.Agent") as mock_agent_cls,
-            patch("finagent.engine.backtest.strategy_agent.BackTraderAdapter") as mock_adapter_cls,
+            patch("finrobot.engine.backtest.strategy_agent.Agent") as mock_agent_cls,
+            patch("finrobot.engine.backtest.strategy_agent.BackTraderAdapter") as mock_adapter_cls,
         ):
             mock_agent_cls.side_effect = [
                 config_agent_mock,
@@ -186,7 +186,7 @@ class TestRunStrategySelection:
     @pytest.mark.asyncio
     async def test_immutable_fields_enforced(self) -> None:
         """LLM cannot override ticker/dates/cash — they are forced back."""
-        settings = FinAgentSettings(model_name="test:test")
+        settings = FinRobotSettings(model_name="test:test")
 
         # LLM tries to change the ticker and dates
         bad_config = BacktestConfig(
@@ -210,8 +210,8 @@ class TestRunStrategySelection:
         mock_engine_run = AsyncMock(return_value=bt_result)
 
         with (
-            patch("finagent.engine.backtest.strategy_agent.Agent") as mock_agent_cls,
-            patch("finagent.engine.backtest.strategy_agent.BackTraderAdapter") as mock_adapter_cls,
+            patch("finrobot.engine.backtest.strategy_agent.Agent") as mock_agent_cls,
+            patch("finrobot.engine.backtest.strategy_agent.BackTraderAdapter") as mock_adapter_cls,
         ):
             mock_agent_cls.side_effect = [config_agent_mock, adjust_agent_mock]
             mock_adapter_cls.return_value.run = mock_engine_run

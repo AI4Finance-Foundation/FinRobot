@@ -17,7 +17,7 @@ import { verdictLabel } from '../../utils/verdict'
 import { useI18n } from '../../i18n'
 
 // Pipeline key → human label. Keep this map aligned with the backend
-// `ArtifactType` Literal (finagent/artifact/models.py); SDK-only pipelines
+// `ArtifactType` Literal (finrobot/artifact/models.py); SDK-only pipelines
 // (ic-memo / dcf / lbo / ddm / comps) still show up in old artifacts the
 // user generated before research became the sole UI-facing pipeline.
 const TYPE_SHORT: Record<string, string> = {

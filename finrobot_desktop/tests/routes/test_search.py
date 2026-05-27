@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from finagent.routes.search import _looks_like_ticker, _matches, _parse_slash_command
+from finrobot.routes.search import _looks_like_ticker, _matches, _parse_slash_command
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +96,7 @@ def mock_app():
     """Minimal FastAPI app with /api/search mounted and a stub artifact_store."""
     from fastapi import FastAPI
 
-    from finagent.routes.search import router as search_router
+    from finrobot.routes.search import router as search_router
 
     test_app = FastAPI()
 
@@ -166,70 +166,12 @@ async def test_search_limit_respected(client: AsyncClient) -> None:
     assert len(resp.json()["results"]) <= 1
 
 
-async def test_sessions_list_endpoint(mock_app: Any, tmp_path: Path) -> None:
-    """GET /api/search/sessions returns sessions from disk."""
-    import finagent.audit.persistence as persistence
-
-    # Seed a session file
-    sess_dir = tmp_path / "sessions"
-    sess_dir.mkdir()
-    (sess_dir / "test-session.jsonl").write_text(
-        '{"timestamp":"2026-01-01T00:00:00+00:00","session_id":"test-session","event":"session_start","data":{"user_id":"local","model":"test"}}\n'
-        '{"timestamp":"2026-01-01T00:01:00+00:00","session_id":"test-session","event":"user_msg","data":{"text":"hello"}}\n',
-        encoding="utf-8",
-    )
-
-    original_default = persistence._DEFAULT_DIR
-    persistence._DEFAULT_DIR = sess_dir
-    try:
-        async with AsyncClient(transport=ASGITransport(app=mock_app), base_url="http://test") as c:
-            resp = await c.get("/api/search/sessions")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "sessions" in data
-        assert any(s["session_id"] == "test-session" for s in data["sessions"])
-    finally:
-        persistence._DEFAULT_DIR = original_default
-
-
-async def test_transcript_endpoint(mock_app: Any, tmp_path: Path) -> None:
-    """GET /api/search/sessions/{id}/transcript returns JSONL events."""
-    import finagent.audit.persistence as persistence
-
-    sess_dir = tmp_path / "sessions"
-    sess_dir.mkdir()
-    (sess_dir / "my-sess.jsonl").write_text(
-        '{"timestamp":"2026-01-01T00:00:00+00:00","session_id":"my-sess","event":"session_start","data":{"user_id":"local","model":"x"}}\n',
-        encoding="utf-8",
-    )
-
-    original_default = persistence._DEFAULT_DIR
-    persistence._DEFAULT_DIR = sess_dir
-    try:
-        async with AsyncClient(transport=ASGITransport(app=mock_app), base_url="http://test") as c:
-            resp = await c.get("/api/search/sessions/my-sess/transcript")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["session_id"] == "my-sess"
-        assert len(data["events"]) == 1
-        assert data["events"][0]["event"] == "session_start"
-    finally:
-        persistence._DEFAULT_DIR = original_default
-
-
-async def test_transcript_missing_session_returns_empty(mock_app: Any) -> None:
-    async with AsyncClient(transport=ASGITransport(app=mock_app), base_url="http://test") as c:
-        resp = await c.get("/api/search/sessions/nonexistent/transcript")
-    assert resp.status_code == 200
-    assert resp.json()["events"] == []
-
-
 async def test_search_artifact_seeded(tmp_path: Path) -> None:
     """Artifacts matching the query appear in search results."""
     from fastapi import FastAPI
     from unittest.mock import AsyncMock
 
-    from finagent.routes.search import router as search_router
+    from finrobot.routes.search import router as search_router
 
     # Build a stub ArtifactSummary
     mock_summary = MagicMock()

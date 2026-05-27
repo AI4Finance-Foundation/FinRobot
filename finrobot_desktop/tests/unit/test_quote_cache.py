@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from finagent.engine.data.quote_cache import QuoteCache
+from finrobot.engine.data.quote_cache import QuoteCache
 
 
 @pytest.mark.asyncio

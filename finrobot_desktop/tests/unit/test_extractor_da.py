@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
-from finagent.engine.data.interface import DataResult
-from finagent.engine.compute.extractor import extract_financial_data
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.compute.extractor import extract_financial_data
 
 
 def _make_financials_result(**overrides) -> DataResult:

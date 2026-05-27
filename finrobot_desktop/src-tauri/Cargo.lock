@@ -893,7 +893,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "finagent-desktop"
+name = "finrobot-desktop"
 version = "0.1.0"
 dependencies = [
  "log",

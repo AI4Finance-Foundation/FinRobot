@@ -14,11 +14,11 @@ from __future__ import annotations
 
 import pytest
 
-from finagent.engine.compute.wacc import calculate_wacc
-from finagent.engine.compute.dcf import calculate_dcf, calculate_sensitivity
-from finagent.engine.compute.lbo import calculate_lbo
-from finagent.engine.compute.multiples import calculate_ev
-from finagent.engine.models.financial import DCFInputs, LBOInputs
+from finrobot.engine.compute.wacc import calculate_wacc
+from finrobot.engine.compute.dcf import calculate_dcf, calculate_sensitivity
+from finrobot.engine.compute.lbo import calculate_lbo
+from finrobot.engine.compute.multiples import calculate_ev
+from finrobot.engine.models.financial import DCFInputs, LBOInputs
 
 
 # ---------------------------------------------------------------------------

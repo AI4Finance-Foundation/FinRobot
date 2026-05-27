@@ -1,5 +1,5 @@
-from finagent.engine.models.financial import CompanyFinancials, PeerComps
-from finagent.engine.compute.multiples import (
+from finrobot.engine.models.financial import CompanyFinancials, PeerComps
+from finrobot.engine.compute.multiples import (
     calculate_ev,
     calculate_multiples,
     calculate_peer_statistics,

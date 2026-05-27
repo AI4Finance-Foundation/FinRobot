@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from finagent.engine.data.interface import DataResult, ProviderError
-from finagent.engine.data.providers.adanos_provider import (
+from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.providers.adanos_provider import (
     AdanosProvider,
     _compute_alignment,
 )
@@ -195,7 +195,7 @@ class TestAdanosRateLimiter:
         import asyncio
         import time
 
-        from finagent.engine.data.providers.adanos_provider import _MIN_INTERVAL
+        from finrobot.engine.data.providers.adanos_provider import _MIN_INTERVAL
 
         sleep_durations: list[float] = []
 

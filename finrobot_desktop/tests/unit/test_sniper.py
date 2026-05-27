@@ -1,4 +1,4 @@
-"""Unit tests for finagent.engine.compute.sniper.calculate_sniper_points.
+"""Unit tests for finrobot.engine.compute.sniper.calculate_sniper_points.
 
 External sources for expected values:
 - Safety margin thresholds (15%/10%/5%) are hardcoded in sniper.py — we test
@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import pytest
 
-from finagent.engine.compute.sniper import SniperPoints, SniperRequest, calculate_sniper_points
+from finrobot.engine.compute.sniper import SniperPoints, SniperRequest, calculate_sniper_points
 
 
 # ---------------------------------------------------------------------------

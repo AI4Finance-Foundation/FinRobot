@@ -208,7 +208,7 @@ export function TermTip({ term, children }: Props): React.ReactElement {
               }}
               type="button"
             >
-              让 FinAgent 详细讲讲 →
+              让 FinRobot 详细讲讲 →
             </button>
           </div>,
           document.body,

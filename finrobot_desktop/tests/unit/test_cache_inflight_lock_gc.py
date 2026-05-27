@@ -1,6 +1,6 @@
 """Regression for the cache-stampede lock leak.
 
-`finagent.engine.data.cache._INFLIGHT_LOCKS` switched from a plain dict to
+`finrobot.engine.data.cache._INFLIGHT_LOCKS` switched from a plain dict to
 a WeakValueDictionary so each lock garbage-collects as soon as no
 `async with` block still references it. Without this, the module would
 accumulate one lock per (data_type, ticker) for the lifetime of the
@@ -19,8 +19,8 @@ from pathlib import Path
 
 import pytest
 
-from finagent.engine.data.cache import DataCache, _INFLIGHT_LOCKS, cached_fetch
-from finagent.engine.data.types import DataType
+from finrobot.engine.data.cache import DataCache, _INFLIGHT_LOCKS, cached_fetch
+from finrobot.engine.data.types import DataType
 
 
 @pytest.mark.asyncio

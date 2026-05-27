@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "FinAgent",
+  "productName": "FinRobot",
   "version": "0.1.0",
-  "identifier": "com.finagent.desktop",
+  "identifier": "com.finrobot.desktop",
   "build": {
     "frontendDist": "../ui/dist",
     "devUrl": "http://localhost:5173",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "FinAgent",
+        "title": "FinRobot",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
@@ -40,7 +40,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/finagent-server"]
+    "externalBin": ["binaries/finrobot-server"]
   },
   "plugins": {}
 }

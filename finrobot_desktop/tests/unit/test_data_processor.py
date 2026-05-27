@@ -1,4 +1,4 @@
-"""Tests for finagent.engine.compute.data_processor.
+"""Tests for finrobot.engine.compute.data_processor.
 
 Hand-calculated verification for all deterministic financial computations.
 """
@@ -9,12 +9,12 @@ from datetime import datetime
 
 import pytest
 
-from finagent.engine.compute.data_processor import (
+from finrobot.engine.compute.data_processor import (
     calculate_cagr,
     extract_historical_metrics,
     forecast_financials,
 )
-from finagent.engine.models.financial import (
+from finrobot.engine.models.financial import (
     FinancialData,
     ForecastResult,
     HistoricalMetrics,

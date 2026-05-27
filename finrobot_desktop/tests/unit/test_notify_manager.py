@@ -1,4 +1,4 @@
-"""Unit tests for finagent.engine.notify.manager.NotifyManager.
+"""Unit tests for finrobot.engine.notify.manager.NotifyManager.
 
 Coverage:
 - get_status: reflects channel configured state
@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import pytest
 
-from finagent.engine.notify.base import NotifyChannel, NotifyMessage
-from finagent.engine.notify.manager import NotifyManager
+from finrobot.engine.notify.base import NotifyChannel, NotifyMessage
+from finrobot.engine.notify.manager import NotifyManager
 
 
 # ---------------------------------------------------------------------------
@@ -237,7 +237,7 @@ async def test_test_channel_configured_sends_test_message():
     result = await manager.test_channel("discord")
     assert result is True
     assert len(ch.sent_messages) == 1
-    assert ch.sent_messages[0].title == "FinAgent Test Notification"
+    assert ch.sent_messages[0].title == "FinRobot Test Notification"
     assert ch.sent_messages[0].type == "system"
 
 

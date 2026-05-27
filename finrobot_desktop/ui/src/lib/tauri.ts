@@ -117,4 +117,4 @@ export async function readTextFile(path: string): Promise<string> {
 
 // ─── Workspace path (P1 default; Phase 5 T5.6 wires real dialog) ──
 
-export const DEFAULT_WORKSPACE_PATH = '~/finagent'
+export const DEFAULT_WORKSPACE_PATH = '~/finrobot'

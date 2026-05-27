@@ -10,13 +10,13 @@ from datetime import datetime, timezone
 
 import pytest
 
-from finagent.engine.compute.technical_payload import (
+from finrobot.engine.compute.technical_payload import (
     HistoricalBandSnapshot,
     TechnicalAnalysis,
     build_technical_analysis,
 )
-from finagent.engine.data.interface import DataResult
-from finagent.engine.models.financial import DCFInputs
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.models.financial import DCFInputs
 
 
 def _dcf_inputs() -> DCFInputs:

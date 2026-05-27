@@ -10,7 +10,7 @@ vi.mock('../lib/tauri', () => ({
   pickDirectory: vi.fn().mockResolvedValue(null),
   isTauri: vi.fn().mockReturnValue(false),
   openExternal: vi.fn().mockResolvedValue(undefined),
-  DEFAULT_WORKSPACE_PATH: '~/finagent',
+  DEFAULT_WORKSPACE_PATH: '~/finrobot',
 }))
 
 function renderWithProviders(initialPath = '/') {

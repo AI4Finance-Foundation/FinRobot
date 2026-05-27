@@ -17,7 +17,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from finagent.artifact.models import (
+from finrobot.artifact.models import (
     Artifact,
     ArtifactAssumptions,
     ArtifactComputeVersion,
@@ -25,12 +25,12 @@ from finagent.artifact.models import (
     ArtifactMeta,
     ArtifactOutputs,
 )
-from finagent.artifact.store import ArtifactStore
-from finagent.routes.dashboard import router as dashboard_router
+from finrobot.artifact.store import ArtifactStore
+from finrobot.routes.dashboard import router as dashboard_router
 
 # Clear module-level caches between tests; otherwise the first run's 60s
 # TTL bleeds into subsequent runs and they see stale data.
-from finagent.routes import dashboard as dashboard_mod
+from finrobot.routes import dashboard as dashboard_mod
 
 UTC = timezone.utc
 NOW = datetime(2026, 5, 22, 12, 0, 0, tzinfo=UTC)
@@ -122,8 +122,8 @@ def _clear_caches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     dashboard_mod._RECENT_CACHE.clear()
     # Isolate the QuoteCache L1/L2 per-test so the singleton does not bleed
     # quotes from previous tests' fixtures into the next assertion.
-    from finagent import paths
-    from finagent.engine.data import quote_batch
+    from finrobot import paths
+    from finrobot.engine.data import quote_batch
 
     monkeypatch.setattr(paths, "QUOTES_DB", tmp_path / "quotes.db")
     quote_batch.reset_quote_cache_singleton()
@@ -377,7 +377,7 @@ def test_hit_rate_does_not_500_when_quote_fetch_explodes(
     # The route imports fetch_quotes_batch_cached *inside* the handler, so
     # the only patch that lands is on the source module.
     monkeypatch.setattr(
-        "finagent.engine.data.quote_batch.fetch_quotes_batch_cached", explode
+        "finrobot.engine.data.quote_batch.fetch_quotes_batch_cached", explode
     )
 
     resp = client.get("/api/dashboard/hit-rate")
@@ -414,7 +414,7 @@ def test_recent_research_does_not_500_when_quote_fetch_explodes(
         raise RuntimeError("aiosqlite worker thread died")
 
     monkeypatch.setattr(
-        "finagent.engine.data.quote_batch.fetch_quotes_batch_cached", explode
+        "finrobot.engine.data.quote_batch.fetch_quotes_batch_cached", explode
     )
 
     resp = client.get("/api/dashboard/recent-research?limit=5")

@@ -6,9 +6,9 @@ import pytest
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
-from finagent.engine.data.interface import DataResult
-from finagent.engine.deps import FinAgentDeps
-from finagent.engine.pipelines.equity_research import create_equity_research_pipeline
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.deps import FinRobotDeps
+from finrobot.engine.pipelines.equity_research import create_equity_research_pipeline
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +73,7 @@ def _make_test_agents(output: str = "analysis output") -> dict[str, Agent]:
     agents = {}
     for role in ["data", "analysis", "modeling", "synthesis", "report"]:
         agents[role] = Agent(
-            TestModel(custom_output_text=output), deps_type=FinAgentDeps, defer_model_check=True
+            TestModel(custom_output_text=output), deps_type=FinRobotDeps, defer_model_check=True
         )
     return agents
 
@@ -84,9 +84,9 @@ def _make_test_agents(output: str = "analysis output") -> dict[str, Agent]:
 
 
 class TestPipelineStructure:
-    def test_has_exactly_7_steps(self):
+    def test_has_exactly_8_steps(self):
         pipeline = create_equity_research_pipeline(_make_test_agents())
-        assert len(pipeline.steps) == 7
+        assert len(pipeline.steps) == 8
 
     def test_step_names_correct(self):
         pipeline = create_equity_research_pipeline(_make_test_agents())
@@ -96,6 +96,7 @@ class TestPipelineStructure:
             "catalyst_analysis",
             "peer_analysis",
             "financial_modeling",
+            "ownership_governance_analysis",
             "technical_analysis",
             "thesis",
             "report",
@@ -108,6 +109,7 @@ class TestPipelineStructure:
         assert step_map["catalyst_analysis"] is None
         assert step_map["peer_analysis"] == "comps-analysis"
         assert step_map["financial_modeling"] == "dcf-model"
+        assert step_map["ownership_governance_analysis"] is None
         assert step_map["technical_analysis"] is None
         assert step_map["thesis"] == "initiating-coverage"
         assert step_map["report"] is None
@@ -118,12 +120,44 @@ class TestPipelineStructure:
         assert "financials" in step1.required_data
         assert "price" in step1.required_data
         assert "news" in step1.required_data
-        assert "filings" not in step1.required_data
+        assert "filings_10k" in step1.required_data
+        assert "filings_10q" in step1.required_data
+        assert "filings_8k" in step1.required_data
+        assert "xbrl_facts" in step1.required_data
 
-    def test_steps_2_to_7_required_data_empty(self):
+    def test_steps_2_to_8_required_data_empty(self):
         pipeline = create_equity_research_pipeline(_make_test_agents())
         for step in pipeline.steps[1:]:
             assert step.required_data == []
+
+    def test_ownership_step_accepts_structured_model(self):
+        from datetime import datetime, timezone
+
+        from finrobot.engine.models.sec import OwnershipGovernanceAnalysis
+
+        pipeline = create_equity_research_pipeline(_make_test_agents())
+        step = next(s for s in pipeline.steps if s.name == "ownership_governance_analysis")
+        result = step.validator(
+            OwnershipGovernanceAnalysis(
+                generated_at=datetime.now(tz=timezone.utc),
+                degraded_sections=["institutional_holdings"],
+            )
+        )
+        assert result.passed is True
+
+    def test_ownership_step_rejects_empty_structured_model(self):
+        from datetime import datetime, timezone
+
+        from finrobot.engine.models.sec import OwnershipGovernanceAnalysis
+
+        pipeline = create_equity_research_pipeline(_make_test_agents())
+        step = next(s for s in pipeline.steps if s.name == "ownership_governance_analysis")
+        result = step.validator(
+            OwnershipGovernanceAnalysis(generated_at=datetime.now(tz=timezone.utc))
+        )
+        assert result.passed is False
+        assert result.error is not None
+        assert "no data" in result.error
 
     def test_step_agents_are_different_instances(self):
         agents = _make_test_agents()
@@ -156,7 +190,7 @@ class TestPipelineStructure:
 
 def _make_stub_execute_fn(step_name: str):
     """Return an async stub execute_fn that returns a minimal valid StepOutput."""
-    from finagent.engine.models.financial import StepOutput
+    from finrobot.engine.models.financial import StepOutput
 
     async def _stub(agent, deps, prompt, structured_context, ticker):
         return StepOutput(
@@ -167,14 +201,14 @@ def _make_stub_execute_fn(step_name: str):
 
 
 class TestPipelineExecution:
-    async def test_execute_produces_result_with_all_7_step_keys(self, capsys):
-        """Pipeline orchestration routes through all 7 steps and collects their outputs."""
+    async def test_execute_produces_result_with_all_8_step_keys(self, capsys):
+        """Pipeline orchestration routes through all 8 steps and collects their outputs."""
         pipeline = create_equity_research_pipeline(
             _make_test_agents("revenue 385B ebitda 130B price_history available")
         )
         # Stub executor to avoid real compute in unit test of orchestration
-        from finagent.engine.pipelines.base import TextValidator
-        from finagent.engine.pipelines.validators import validate_is_non_empty
+        from finrobot.engine.pipelines.base import TextValidator
+        from finrobot.engine.pipelines.validators import validate_is_non_empty
 
         for step in pipeline.steps:
             step.executor = _make_stub_execute_fn(step.name)
@@ -185,12 +219,13 @@ class TestPipelineExecution:
             "catalyst_analysis",
             "peer_analysis",
             "financial_modeling",
+            "ownership_governance_analysis",
             "technical_analysis",
             "thesis",
             "report",
         }
 
-    async def test_execute_logs_7_progress_messages(self, caplog):
+    async def test_execute_logs_8_progress_messages(self, caplog):
         import logging
 
         with caplog.at_level(logging.INFO):
@@ -198,16 +233,16 @@ class TestPipelineExecution:
                 _make_test_agents("revenue 385B ebitda 130B price_history available")
             )
             # Stub executor to avoid real compute in unit test of orchestration
-            from finagent.engine.pipelines.base import TextValidator
-            from finagent.engine.pipelines.validators import validate_is_non_empty
+            from finrobot.engine.pipelines.base import TextValidator
+            from finrobot.engine.pipelines.validators import validate_is_non_empty
 
             for step in pipeline.steps:
                 step.executor = _make_stub_execute_fn(step.name)
                 step.validator = TextValidator(validate_is_non_empty)
             await pipeline.execute(FakeDeps(), "AAPL")
         messages = " ".join(r.message for r in caplog.records)
-        for i in range(1, 8):
-            assert f"Step {i}/7" in messages
+        for i in range(1, 9):
+            assert f"Step {i}/8" in messages
 
 
 # ---------------------------------------------------------------------------
@@ -233,8 +268,8 @@ def mock_deps():
 @pytest.mark.asyncio
 async def test_step1_produces_financial_data(mock_deps):
     """Step 1 data_collection execute_fn returns StepOutput with FinancialData."""
-    from finagent.engine.pipelines._helpers import execute_financial_data_step
-    from finagent.engine.models.financial import FinancialData, StepOutput
+    from finrobot.engine.pipelines._helpers import execute_financial_data_step
+    from finrobot.engine.models.financial import FinancialData, StepOutput
 
     fin_result = DataResult(
         data=dict(
@@ -295,7 +330,7 @@ async def test_step3_dcf_deterministic(mock_deps):
     """
     from datetime import datetime, timezone
 
-    from finagent.engine.models.financial import (
+    from finrobot.engine.models.financial import (
         BalanceSheet,
         DCFResult,
         FinancialData,
@@ -304,7 +339,7 @@ async def test_step3_dcf_deterministic(mock_deps):
         MarketData,
         ValuationMetrics,
     )
-    from finagent.engine.pipelines.equity_research import _execute_financial_modeling
+    from finrobot.engine.pipelines.equity_research import _execute_financial_modeling
 
     fd = FinancialData(
         ticker="AAPL",
@@ -360,8 +395,8 @@ async def test_step3_dcf_deterministic(mock_deps):
 @pytest.mark.asyncio
 async def test_peer_analysis_raises_when_data_collection_missing(mock_deps):
     """_execute_peer_analysis raises ValueError when data_collection not in structured_context."""
-    from finagent.engine.pipelines.equity_research import _execute_peer_analysis
-    from finagent.engine.models.financial import PeerSelection
+    from finrobot.engine.pipelines.equity_research import _execute_peer_analysis
+    from finrobot.engine.models.financial import PeerSelection
 
     mock_peer_result = MagicMock()
     mock_peer_result.output = PeerSelection(
@@ -394,14 +429,14 @@ async def test_peer_analysis_raises_when_data_collection_missing(mock_deps):
 
     mock_agent = MagicMock()
 
-    with patch("finagent.engine.pipelines.equity_research.Agent", return_value=mock_agent_instance):
+    with patch("finrobot.engine.pipelines.equity_research.Agent", return_value=mock_agent_instance):
         with pytest.raises(ValueError, match="data_collection"):
             await _execute_peer_analysis(mock_agent, mock_deps, "prompt", {}, "AAPL")
 
 
 def test_build_sensitivity_ranges_returns_valid_ranges():
     """build_sensitivity_ranges returns non-empty tg_range that stays below min(rate_range)."""
-    from finagent.engine.pipelines._helpers import build_sensitivity_ranges
+    from finrobot.engine.pipelines._helpers import build_sensitivity_ranges
 
     wacc_range, tg_range = build_sensitivity_ranges(0.09, 0.025)
 
@@ -421,9 +456,9 @@ def test_build_sensitivity_ranges_returns_valid_ranges():
 @pytest.mark.asyncio
 async def test_catalyst_analysis_produces_catalyst_analysis_output(mock_deps):
     """_execute_catalyst_analysis returns StepOutput with CatalystAnalysis."""
-    from finagent.engine.pipelines.equity_research import _execute_catalyst_analysis
-    from finagent.engine.models.financial import CatalystAnalysis, StepOutput
-    from finagent.engine.compute.news import NewsItem
+    from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
+    from finrobot.engine.models.financial import CatalystAnalysis, StepOutput
+    from finrobot.engine.compute.news import NewsItem
 
     news_result = DataResult(
         data={
@@ -493,7 +528,7 @@ async def test_catalyst_analysis_produces_catalyst_analysis_output(mock_deps):
 
     mock_agent = MagicMock()
     with patch(
-        "finagent.engine.pipelines.equity_research.classify_news",
+        "finrobot.engine.pipelines.equity_research.classify_news",
         return_value=classified,
     ):
         output = await _execute_catalyst_analysis(mock_agent, mock_deps, "prompt", {}, "AAPL")
@@ -515,8 +550,8 @@ async def test_catalyst_analysis_produces_catalyst_analysis_output(mock_deps):
 @pytest.mark.asyncio
 async def test_catalyst_analysis_empty_news(mock_deps):
     """_execute_catalyst_analysis handles no news gracefully."""
-    from finagent.engine.pipelines.equity_research import _execute_catalyst_analysis
-    from finagent.engine.models.financial import CatalystAnalysis, StepOutput
+    from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
+    from finrobot.engine.models.financial import CatalystAnalysis, StepOutput
 
     empty_news_result = DataResult(
         data={"news_items": []},
@@ -529,7 +564,7 @@ async def test_catalyst_analysis_empty_news(mock_deps):
 
     mock_agent = MagicMock()
     with patch(
-        "finagent.engine.pipelines.equity_research.classify_news",
+        "finrobot.engine.pipelines.equity_research.classify_news",
         return_value=[],
     ):
         output = await _execute_catalyst_analysis(mock_agent, mock_deps, "prompt", {}, "AAPL")
@@ -544,8 +579,8 @@ async def test_catalyst_analysis_empty_news(mock_deps):
 @pytest.mark.asyncio
 async def test_catalyst_analysis_net_sentiment_bullish(mock_deps):
     """Net sentiment > 0.5 maps to bullish overall_sentiment."""
-    from finagent.engine.pipelines.equity_research import _execute_catalyst_analysis
-    from finagent.engine.compute.news import NewsItem
+    from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
+    from finrobot.engine.compute.news import NewsItem
 
     classified = [
         NewsItem(
@@ -570,7 +605,7 @@ async def test_catalyst_analysis_net_sentiment_bullish(mock_deps):
 
     mock_agent = MagicMock()
     with patch(
-        "finagent.engine.pipelines.equity_research.classify_news",
+        "finrobot.engine.pipelines.equity_research.classify_news",
         return_value=classified,
     ):
         output = await _execute_catalyst_analysis(mock_agent, mock_deps, "prompt", {}, "AAPL")
@@ -583,8 +618,8 @@ async def test_catalyst_analysis_net_sentiment_bullish(mock_deps):
 @pytest.mark.asyncio
 async def test_catalyst_analysis_net_sentiment_bearish(mock_deps):
     """Net sentiment < -0.5 maps to bearish overall_sentiment."""
-    from finagent.engine.pipelines.equity_research import _execute_catalyst_analysis
-    from finagent.engine.compute.news import NewsItem
+    from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
+    from finrobot.engine.compute.news import NewsItem
 
     classified = [
         NewsItem(
@@ -609,7 +644,7 @@ async def test_catalyst_analysis_net_sentiment_bearish(mock_deps):
 
     mock_agent = MagicMock()
     with patch(
-        "finagent.engine.pipelines.equity_research.classify_news",
+        "finrobot.engine.pipelines.equity_research.classify_news",
         return_value=classified,
     ):
         output = await _execute_catalyst_analysis(mock_agent, mock_deps, "prompt", {}, "AAPL")
@@ -622,8 +657,8 @@ async def test_catalyst_analysis_net_sentiment_bearish(mock_deps):
 @pytest.mark.asyncio
 async def test_thesis_includes_catalyst_context(mock_deps):
     """_execute_thesis injects catalyst analysis into prompt when available."""
-    from finagent.engine.pipelines.equity_research import _execute_thesis
-    from finagent.engine.models.financial import (
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
+    from finrobot.engine.models.financial import (
         CatalystAnalysis,
         CatalystEvent,
         ThesisResult,
@@ -676,7 +711,7 @@ async def test_thesis_includes_catalyst_context(mock_deps):
     mock_agent = MagicMock()
 
     with patch(
-        "finagent.engine.pipelines.equity_research.Agent",
+        "finrobot.engine.pipelines.equity_research.Agent",
         return_value=mock_agent_instance,
     ):
         output = await _execute_thesis(
@@ -705,8 +740,8 @@ async def test_thesis_overrides_llm_target_with_valuation_synthesis(mock_deps):
     ``thesis.price_target`` is traceable to a deterministic function call,
     per the CLAUDE.md core contract.
     """
-    from finagent.engine.pipelines.equity_research import _execute_thesis
-    from finagent.engine.models.financial import (
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
+    from finrobot.engine.models.financial import (
         ThesisResult,
         StepOutput,
         ValuationMethod,
@@ -745,7 +780,7 @@ async def test_thesis_overrides_llm_target_with_valuation_synthesis(mock_deps):
     )
 
     with patch(
-        "finagent.engine.pipelines.equity_research.Agent",
+        "finrobot.engine.pipelines.equity_research.Agent",
         return_value=mock_agent_instance,
     ):
         output = await _execute_thesis(
@@ -785,8 +820,8 @@ async def test_thesis_overrides_llm_recommendation_with_upside_thresholds(mock_d
     pipeline would disagree on the verdict. Thresholds (±15%) match
     sell-side equity-research convention.
     """
-    from finagent.engine.pipelines.equity_research import _execute_thesis
-    from finagent.engine.models.financial import (
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
+    from finrobot.engine.models.financial import (
         ThesisResult,
         StepOutput,
         ValuationMethod,
@@ -819,7 +854,7 @@ async def test_thesis_overrides_llm_recommendation_with_upside_thresholds(mock_d
     )
 
     with patch(
-        "finagent.engine.pipelines.equity_research.Agent",
+        "finrobot.engine.pipelines.equity_research.Agent",
         return_value=mock_agent_instance,
     ):
         output = await _execute_thesis(
@@ -840,10 +875,9 @@ async def test_thesis_overrides_llm_recommendation_with_upside_thresholds(mock_d
 @pytest.mark.asyncio
 async def test_thesis_recommendation_hold_band(mock_deps):
     """Upside within ±15% must classify as HOLD even if LLM picks BUY/SELL."""
-    from finagent.engine.pipelines.equity_research import _execute_thesis
-    from finagent.engine.models.financial import (
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
+    from finrobot.engine.models.financial import (
         ThesisResult,
-        StepOutput,
         ValuationMethod,
         ValuationSynthesis,
     )
@@ -872,7 +906,7 @@ async def test_thesis_recommendation_hold_band(mock_deps):
     )
 
     with patch(
-        "finagent.engine.pipelines.equity_research.Agent",
+        "finrobot.engine.pipelines.equity_research.Agent",
         return_value=mock_agent_instance,
     ):
         output = await _execute_thesis(
@@ -885,8 +919,8 @@ async def test_thesis_recommendation_hold_band(mock_deps):
 @pytest.mark.asyncio
 async def test_thesis_works_without_catalyst_context(mock_deps):
     """_execute_thesis works fine when catalyst_analysis is not in structured_context."""
-    from finagent.engine.pipelines.equity_research import _execute_thesis
-    from finagent.engine.models.financial import ThesisResult, StepOutput
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
+    from finrobot.engine.models.financial import ThesisResult, StepOutput
 
     thesis_output = ThesisResult(
         recommendation="Hold",
@@ -904,7 +938,7 @@ async def test_thesis_works_without_catalyst_context(mock_deps):
     mock_agent = MagicMock()
 
     with patch(
-        "finagent.engine.pipelines.equity_research.Agent",
+        "finrobot.engine.pipelines.equity_research.Agent",
         return_value=mock_agent_instance,
     ):
         output = await _execute_thesis(mock_agent, mock_deps, "base prompt", {}, "AAPL")
@@ -924,8 +958,8 @@ async def test_thesis_works_without_catalyst_context(mock_deps):
 
 def test_validate_catalyst_analysis_passes_valid():
     """validate_catalyst_analysis passes for valid analysis."""
-    from finagent.engine.pipelines.validators import validate_catalyst_analysis
-    from finagent.engine.models.financial import CatalystAnalysis, CatalystEvent
+    from finrobot.engine.pipelines.validators import validate_catalyst_analysis
+    from finrobot.engine.models.financial import CatalystAnalysis, CatalystEvent
 
     analysis = CatalystAnalysis(
         events=[
@@ -951,8 +985,8 @@ def test_validate_catalyst_analysis_passes_valid():
 
 def test_validate_catalyst_analysis_fails_empty_events():
     """validate_catalyst_analysis fails when events list is empty."""
-    from finagent.engine.pipelines.validators import validate_catalyst_analysis
-    from finagent.engine.models.financial import CatalystAnalysis
+    from finrobot.engine.pipelines.validators import validate_catalyst_analysis
+    from finrobot.engine.models.financial import CatalystAnalysis
 
     analysis = CatalystAnalysis(
         events=[],

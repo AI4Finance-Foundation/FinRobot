@@ -3,7 +3,7 @@
 // shape used by HistoryTab and friends). Once those legacy callers are
 // migrated to /stock/:ticker (PR15), we can fold this back in.
 
-// Keep this list in sync with `finagent.artifact.models.ArtifactType`
+// Keep this list in sync with `finrobot.artifact.models.ArtifactType`
 // (Literal). Drift between frontend and backend silently breaks type-narrow
 // switches in chapter renderers.
 export type ArtifactType =
@@ -19,7 +19,7 @@ export type ArtifactType =
 
 export type Signal = 'hit' | 'watching' | 'failed'
 
-/** Mirror of `finagent.artifact.models.ArtifactSummary` (PR1 ADR-0001). */
+/** Mirror of `finrobot.artifact.models.ArtifactSummary` (PR1 ADR-0001). */
 export interface ArtifactSummaryV5 {
   id: string
   ticker: string | null
@@ -50,7 +50,7 @@ export interface ArtifactSummaryV5 {
   verdict?: string | null
   /**
    * ≤ 60 char shareable conclusion written by the synthesis_agent
-   * (FinRobot parity narrative slot). Use this on dashboard entry cards
+   * (narrative slot). Use this on dashboard entry cards
    * instead of `headline` (which is just pipeline.format_summary preview).
    * None for legacy artifacts produced before the narrative bump.
    */

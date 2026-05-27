@@ -2,7 +2,7 @@
  * Centralised HTTP error parsing for fetch-based hooks.
  *
  * The backend returns Chinese, user-facing detail strings on errors (see
- * finagent/routes/data.py _data_http_error). This helper pulls that detail out
+ * finrobot/routes/data.py _data_http_error). This helper pulls that detail out
  * of the FastAPI error envelope `{detail: string|object}` and falls back to a
  * caller-supplied 中文 default if the body is empty or unparseable.
  *

@@ -10,12 +10,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from finagent.engine.backtest.backtrader_adapter import (
+from finrobot.engine.backtest.backtrader_adapter import (
     BackTraderAdapter,
     _check_backtrader,
     _get_sma_crossover,
 )
-from finagent.engine.backtest.engine import BacktestConfig
+from finrobot.engine.backtest.engine import BacktestConfig
 
 
 class TestCheckBacktrader:
@@ -33,7 +33,7 @@ class TestCheckBacktrader:
             return real_import(name, *args, **kwargs)
 
         monkeypatch.setattr(builtins, "__import__", mock_import)
-        with pytest.raises(ImportError, match="finagent\\[backtest\\]"):
+        with pytest.raises(ImportError, match="finrobot\\[backtest\\]"):
             _check_backtrader()
 
 

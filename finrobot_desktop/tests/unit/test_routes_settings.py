@@ -23,8 +23,8 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from finagent.config import FinAgentSettings
-from finagent.routes.settings import (
+from finrobot.config import FinRobotSettings
+from finrobot.routes.settings import (
     _merge_non_secret_settings,
     _write_non_secret_settings,
     router as settings_router,
@@ -43,7 +43,7 @@ class _FakeSkillRuntime:
 def _make_app(
     tmp_path: Path,
     *,
-    settings: FinAgentSettings | None = None,
+    settings: FinRobotSettings | None = None,
     secret_store: AsyncMock | None = None,
     startup_error: str | None = None,
 ) -> FastAPI:
@@ -52,7 +52,7 @@ def _make_app(
     app.include_router(settings_router)
 
     if settings is None:
-        settings = FinAgentSettings(
+        settings = FinRobotSettings(
             model_name="deepseek:deepseek-chat",
             deepseek_api_key="dev-key",
         )
@@ -137,7 +137,7 @@ def test_merge_ignores_unknown_fields(tmp_path: Path) -> None:
 
 def test_deprecated_write_non_secret_raises(tmp_path: Path) -> None:
     """Regression guard: the old "write every field" function refuses to run."""
-    settings = FinAgentSettings(model_name="deepseek:deepseek-chat", deepseek_api_key="x")
+    settings = FinRobotSettings(model_name="deepseek:deepseek-chat", deepseek_api_key="x")
     with pytest.raises(RuntimeError, match="deprecated"):
         _write_non_secret_settings(tmp_path / "settings.json", settings)
 
@@ -150,7 +150,7 @@ def test_deprecated_write_non_secret_raises(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_get_settings_includes_field_sources(tmp_path: Path) -> None:
     """field_sources maps every known field to its origin."""
-    settings = FinAgentSettings(
+    settings = FinRobotSettings(
         model_name="deepseek:deepseek-chat",
         deepseek_api_key="env-key",
     )
@@ -172,7 +172,7 @@ async def test_get_settings_marks_settings_json_source(tmp_path: Path) -> None:
     """A field present in settings.json wins source attribution."""
     settings_path = tmp_path / "settings.json"
     settings_path.write_text(json.dumps({"model_name": "openai:gpt-4o"}))
-    settings = FinAgentSettings(
+    settings = FinRobotSettings(
         model_name="openai:gpt-4o",
         openai_api_key="x",
     )
@@ -194,7 +194,7 @@ async def test_get_settings_marks_keychain_source(tmp_path: Path) -> None:
     secret_store.has = AsyncMock(side_effect=_has)
     secret_store.get = AsyncMock(return_value=None)
 
-    settings = FinAgentSettings(
+    settings = FinRobotSettings(
         model_name="anthropic:claude-sonnet-4-6",
         anthropic_api_key="hydrated",
     )
@@ -218,7 +218,7 @@ async def test_get_settings_surfaces_startup_error(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_get_settings_reports_adanos_key_set(tmp_path: Path) -> None:
     """adanos_api_key_set is now part of the response."""
-    settings = FinAgentSettings(
+    settings = FinRobotSettings(
         model_name="deepseek:deepseek-chat",
         deepseek_api_key="x",
         adanos_api_key="from-env",
@@ -246,7 +246,7 @@ async def test_reset_strips_field_from_settings_json(
         json.dumps({"model_name": "openai:gpt-4o", "sec_user_agent": "X"})
     )
 
-    settings = FinAgentSettings(
+    settings = FinRobotSettings(
         model_name="openai:gpt-4o",
         openai_api_key="x",
     )
@@ -255,11 +255,11 @@ async def test_reset_strips_field_from_settings_json(
     # Patch the runtime-replacement helpers so reset doesn't try to spin up
     # real PydanticAI agents.
     monkeypatch.setattr(
-        "finagent.routes.settings._replace_runtime_settings",
+        "finrobot.routes.settings._replace_runtime_settings",
         AsyncMock(),
     )
     monkeypatch.setattr(
-        "finagent.server.hydrate_settings_from_secrets",
+        "finrobot.server.hydrate_settings_from_secrets",
         AsyncMock(side_effect=lambda s, _store: s),
     )
 
@@ -285,16 +285,16 @@ async def test_reset_deletes_keychain_for_secrets(
     secret_store.get = AsyncMock(return_value="keychain-value")
     secret_store.delete = AsyncMock()
 
-    settings = FinAgentSettings(
+    settings = FinRobotSettings(
         model_name="anthropic:claude-sonnet-4-6",
         anthropic_api_key="keychain-value",
     )
     app = _make_app(tmp_path, settings=settings, secret_store=secret_store)
     monkeypatch.setattr(
-        "finagent.routes.settings._replace_runtime_settings", AsyncMock()
+        "finrobot.routes.settings._replace_runtime_settings", AsyncMock()
     )
     monkeypatch.setattr(
-        "finagent.server.hydrate_settings_from_secrets",
+        "finrobot.server.hydrate_settings_from_secrets",
         AsyncMock(side_effect=lambda s, _store: s),
     )
 
@@ -335,14 +335,14 @@ async def test_put_settings_does_not_pin_unchanged_fields(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
     """Submitting only model_name must not also write sec_user_agent etc."""
-    settings = FinAgentSettings(
+    settings = FinRobotSettings(
         model_name="deepseek:deepseek-chat",
         deepseek_api_key="x",
         sec_user_agent="FromDotEnv me@example.com",
     )
     app = _make_app(tmp_path, settings=settings)
     monkeypatch.setattr(
-        "finagent.routes.settings._replace_runtime_settings", AsyncMock()
+        "finrobot.routes.settings._replace_runtime_settings", AsyncMock()
     )
 
     async with _client(app) as c:
@@ -368,14 +368,14 @@ async def test_put_persists_only_changed_keys(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
     """Successful PUT writes ONLY the field the user changed."""
-    settings = FinAgentSettings(
+    settings = FinRobotSettings(
         model_name="deepseek:deepseek-chat",
         deepseek_api_key="dev-key",
         sec_user_agent="FromDotEnv me@example.com",
     )
     app = _make_app(tmp_path, settings=settings)
     monkeypatch.setattr(
-        "finagent.routes.settings._replace_runtime_settings", AsyncMock()
+        "finrobot.routes.settings._replace_runtime_settings", AsyncMock()
     )
 
     async with _client(app) as c:
@@ -387,3 +387,97 @@ async def test_put_persists_only_changed_keys(
     # sec_user_agent stays in .env / pydantic settings; must NOT be pinned.
     assert "sec_user_agent" not in content
     assert "model_name" not in content
+
+
+# ---------------------------------------------------------------------------
+# 2026-05-27 EdgarTools migration: sec_identity_dismissed_at field
+# ---------------------------------------------------------------------------
+#
+# Why this trio of tests: ``sec_identity_dismissed_at`` is the first
+# datetime-typed field in FinRobotSettings. json.dumps can't serialize
+# datetime by default; _merge_non_secret_settings now passes default=str so
+# the ISO-formatted timestamp persists, and pydantic-settings coerces the
+# string back into a datetime on next boot. These tests seal that round
+# trip end-to-end.
+
+
+@pytest.mark.asyncio
+async def test_get_settings_returns_sec_identity_dismissed_at_null(
+    tmp_path: Path,
+) -> None:
+    """Default value is None — banner has never been dismissed."""
+    app = _make_app(tmp_path)
+    async with _client(app) as c:
+        resp = await c.get("/api/settings")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    # Field present in the response payload (renders the landing banner state)
+    assert "sec_identity_dismissed_at" in body
+    assert body["sec_identity_dismissed_at"] is None
+    assert body["sec_holdings_auto_refresh"] is True
+
+
+@pytest.mark.asyncio
+async def test_put_persists_sec_identity_dismissed_at(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """PUT writes the timestamp to settings.json (ISO string, json-serializable)."""
+    app = _make_app(tmp_path)
+    monkeypatch.setattr(
+        "finrobot.routes.settings._replace_runtime_settings", AsyncMock()
+    )
+
+    iso = "2026-05-27T15:30:00+00:00"
+    async with _client(app) as c:
+        resp = await c.put(
+            "/api/settings", json={"sec_identity_dismissed_at": iso},
+        )
+    assert resp.status_code == 200, resp.text
+
+    # settings.json on disk contains the ISO string (json-safe via default=str).
+    # ``_replace_runtime_settings`` is mocked so the GET-side runtime
+    # settings don't reflect the PUT — coverage of the boot-time coerce
+    # is in ``test_load_non_secret_settings_coerces_dismissed_at`` below.
+    content = json.loads((tmp_path / "settings.json").read_text())
+    assert "sec_identity_dismissed_at" in content
+    assert "2026-05-27" in str(content["sec_identity_dismissed_at"])
+
+
+@pytest.mark.asyncio
+async def test_load_non_secret_settings_coerces_dismissed_at(
+    tmp_path: Path,
+) -> None:
+    """Reboot path: ISO string in settings.json → datetime on FinRobotSettings."""
+    from finrobot.routes.settings import load_non_secret_settings
+
+    iso_str = "2026-05-27T15:30:00+00:00"
+    (tmp_path / "settings.json").write_text(
+        json.dumps({"sec_identity_dismissed_at": iso_str})
+    )
+    raw = load_non_secret_settings(tmp_path / "settings.json")
+    # raw dict carries the ISO string; pydantic-settings coerces on
+    # FinRobotSettings(**raw)
+    settings = FinRobotSettings(
+        model_name="deepseek:deepseek-chat",
+        deepseek_api_key="dev-key",
+        **raw,
+    )
+    assert settings.sec_identity_dismissed_at is not None
+    assert settings.sec_identity_dismissed_at.year == 2026
+    assert settings.sec_identity_dismissed_at.month == 5
+    assert settings.sec_identity_dismissed_at.day == 27
+
+
+@pytest.mark.asyncio
+async def test_put_persists_sec_holdings_auto_refresh(tmp_path: Path, monkeypatch: Any) -> None:
+    app = _make_app(tmp_path)
+    monkeypatch.setattr(
+        "finrobot.routes.settings._replace_runtime_settings", AsyncMock()
+    )
+
+    async with _client(app) as c:
+        resp = await c.put("/api/settings", json={"sec_holdings_auto_refresh": False})
+
+    assert resp.status_code == 200, resp.text
+    content = json.loads((tmp_path / "settings.json").read_text())
+    assert content["sec_holdings_auto_refresh"] is False

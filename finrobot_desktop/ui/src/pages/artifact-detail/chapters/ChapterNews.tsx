@@ -28,8 +28,8 @@ export function ChapterNews({ thesis }: { thesis: ThesisShape | null }): React.R
             lineHeight: 1.7,
           }}
         >
-          该研报未生成新闻情绪段 — 重新生成研报即在此章产出近 30
-          天关键事件的整体情绪与论点支撑 / 挑战分析。
+          该研报未生成新闻情绪段 — 重新生成研报即在此章产出近 30 天关键事件的整体情绪与论点支撑 /
+          挑战分析。
         </p>
       )}
       <p

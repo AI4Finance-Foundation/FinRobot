@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from finagent.engine.aggregations.recent_research import (
+from finrobot.engine.aggregations.recent_research import (
     MAX_RUNS_PER_TICKER,
     RecentResearchInput,
     assemble_recent_tickers,

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from finagent.engine.backtest.engine import BacktestConfig, BacktestResult
+from finrobot.engine.backtest.engine import BacktestConfig, BacktestResult
 
 
 class TestBacktestConfig:

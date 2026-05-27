@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from finagent.engine.data.interface import DataProvider, DataResult, ProviderError
+from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
 
 
 def make_result(**kwargs) -> DataResult:

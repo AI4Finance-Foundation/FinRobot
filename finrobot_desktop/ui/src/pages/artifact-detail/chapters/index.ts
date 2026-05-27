@@ -1,4 +1,4 @@
-// Barrel export for the 12 FinRobot-parity chapters.
+// Barrel export for the 12 12 chapters.
 
 export { ChapterCover } from './ChapterCover'
 export { ChapterThesis } from './ChapterThesis'

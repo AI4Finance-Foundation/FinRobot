@@ -6,8 +6,8 @@ warning strings and thresholds rather than just "non-empty list".
 
 from datetime import datetime, timezone
 
-from finagent.engine.data.interface import DataResult
-from finagent.engine.data.validator import cross_validate
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.validator import cross_validate
 
 
 def _result(provider: str, data: dict) -> DataResult:

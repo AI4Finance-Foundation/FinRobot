@@ -13,19 +13,19 @@ import time
 
 import pytest
 
-from finagent.config import get_settings
-from finagent.engine.agents.factory import create_sub_agents
-from finagent.engine.data.cache import DataCache
-from finagent.engine.data.layer import DataLayer
-from finagent.engine.data.providers.yfinance_provider import YFinanceProvider
-from finagent.engine.deps import FinAgentDeps
-from finagent.engine.orchestrator import create_lead_agent
-from finagent.engine.pipelines.equity_research import create_equity_research_pipeline
+from finrobot.config import get_settings
+from finrobot.engine.agents.factory import create_sub_agents
+from finrobot.engine.data.cache import DataCache
+from finrobot.engine.data.layer import DataLayer
+from finrobot.engine.data.providers.yfinance_provider import YFinanceProvider
+from finrobot.engine.deps import FinRobotDeps
+from finrobot.engine.orchestrator import create_lead_agent
+from finrobot.engine.pipelines.equity_research import create_equity_research_pipeline
 
 
 def _build_runtime():
     settings = get_settings()
-    deps = FinAgentDeps(
+    deps = FinRobotDeps(
         data_layer=DataLayer(
             providers=[YFinanceProvider()], cache=DataCache(settings.cache_db_path)
         ),
@@ -38,7 +38,7 @@ def _build_runtime():
 @pytest.mark.integration
 @pytest.mark.slow
 async def test_mode_a_quick_query():
-    """P0 acceptance: finagent run 'What is AAPL's PE ratio?'
+    """P0 acceptance: finrobot run 'What is AAPL's PE ratio?'
     Must return real data in < 10 seconds."""
     agent, deps = _build_runtime()
     start = time.time()
@@ -54,7 +54,7 @@ async def test_mode_a_quick_query():
 @pytest.mark.integration
 @pytest.mark.slow
 async def test_mode_b_equity_research():
-    """P0 acceptance: finagent research AAPL
+    """P0 acceptance: finrobot research AAPL
     Must produce a Markdown report with real data in < 60 seconds,
     all 5 pipeline steps logged."""
     agent, deps = _build_runtime()

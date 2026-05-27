@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from finagent.engine.data.interface import DataResult, ProviderError
-from finagent.engine.data.providers.yfinance_provider import YFinanceProvider
+from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.providers.yfinance_provider import YFinanceProvider
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +78,7 @@ class TestFetchFinancials:
         provider = YFinanceProvider()
         mock_ticker = _make_mock_ticker(VALID_INFO)
         with patch(
-            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
         ):
             result = await provider.fetch("AAPL", "financials")
         assert isinstance(result, DataResult)
@@ -96,7 +96,7 @@ class TestFetchFinancials:
         # Empty-ish info → invalid ticker
         mock_ticker.info = {}
         with patch(
-            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
         ):
             with pytest.raises(ProviderError):
                 await provider.fetch("INVALID_TICKER_XYZ", "financials")
@@ -108,7 +108,7 @@ class TestFetchPrice:
         provider = YFinanceProvider()
         mock_ticker = _make_mock_ticker(VALID_INFO)
         with patch(
-            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
         ):
             result = await provider.fetch("AAPL", "price")
         assert isinstance(result, DataResult)
@@ -141,7 +141,7 @@ class TestFetchNews:
         ]
         mock_ticker = _make_mock_ticker(VALID_INFO, news=raw_news)
         with patch(
-            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
         ):
             result = await provider.fetch("AAPL", "news")
         assert isinstance(result, DataResult)
@@ -157,7 +157,7 @@ class TestFetchNews:
         provider = YFinanceProvider()
         mock_ticker = _make_mock_ticker(VALID_INFO, news=[])
         with patch(
-            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
         ):
             result = await provider.fetch("AAPL", "news")
         assert result.data["news_items"] == []
@@ -165,7 +165,7 @@ class TestFetchNews:
     @pytest.mark.asyncio
     async def test_news_items_compatible_with_parse_raw_news(self):
         """Verify yfinance news format is parseable by parse_raw_news."""
-        from finagent.engine.compute.news import RawNewsItem, parse_raw_news
+        from finrobot.engine.compute.news import RawNewsItem, parse_raw_news
 
         provider = YFinanceProvider()
         raw_news = [
@@ -188,7 +188,7 @@ class TestFetchNews:
         ]
         mock_ticker = _make_mock_ticker(VALID_INFO, news=raw_news)
         with patch(
-            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
         ):
             result = await provider.fetch("AAPL", "news")
         items = parse_raw_news(result)
@@ -211,7 +211,7 @@ class TestFetchNews:
         ]
         mock_ticker = _make_mock_ticker(VALID_INFO, news=raw_news)
         with patch(
-            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
         ):
             result = await provider.fetch("AAPL", "news")
         items = result.data["news_items"]
@@ -238,7 +238,7 @@ class TestNonUSTickerFormat:
         for ticker in ("600519.SS", "000858.SZ", "0700.HK"):
             received_symbols.clear()
             with patch(
-                "finagent.engine.data.providers.yfinance_provider.yf.Ticker",
+                "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
                 side_effect=tracking_ticker,
             ):
                 result = await provider.fetch(ticker, "financials")
@@ -255,7 +255,7 @@ class TestUnsupportedDataType:
         provider = YFinanceProvider()
         mock_ticker = _make_mock_ticker(VALID_INFO)
         with patch(
-            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
         ):
             with pytest.raises(ProviderError, match="not supported"):
                 await provider.fetch("AAPL", "filings")
@@ -265,7 +265,7 @@ class TestUnsupportedDataType:
         provider = YFinanceProvider()
         mock_ticker = _make_mock_ticker(VALID_INFO)
         with patch(
-            "finagent.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
         ):
             with pytest.raises(ProviderError):
                 await provider.fetch("AAPL", "unknown_type")
@@ -301,7 +301,7 @@ class TestFetchHistoricalFinancials:
         mock_ticker = _make_mock_ticker(VALID_INFO, income_stmt=income_stmt)
         provider = YFinanceProvider()
         with patch(
-            "finagent.engine.data.providers.yfinance_provider.yf.Ticker",
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
             return_value=mock_ticker,
         ):
             result = await provider.fetch("AAPL", "financials", years=3)
@@ -321,7 +321,7 @@ class TestFetchHistoricalFinancials:
         mock_ticker = _make_mock_ticker(VALID_INFO, income_stmt=income_stmt)
         provider = YFinanceProvider()
         with patch(
-            "finagent.engine.data.providers.yfinance_provider.yf.Ticker",
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
             return_value=mock_ticker,
         ):
             result = await provider.fetch("AAPL", "financials", years=2)
@@ -340,7 +340,7 @@ class TestFetchHistoricalFinancials:
         mock_ticker = _make_mock_ticker(VALID_INFO, income_stmt=income_stmt)
         provider = YFinanceProvider()
         with patch(
-            "finagent.engine.data.providers.yfinance_provider.yf.Ticker",
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
             return_value=mock_ticker,
         ):
             result = await provider.fetch("AAPL", "financials", years=2)
@@ -355,7 +355,7 @@ class TestFetchHistoricalFinancials:
         mock_ticker = _make_mock_ticker(VALID_INFO, income_stmt=income_stmt)
         provider = YFinanceProvider()
         with patch(
-            "finagent.engine.data.providers.yfinance_provider.yf.Ticker",
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
             return_value=mock_ticker,
         ):
             result = await provider.fetch("AAPL", "financials", years=5)
@@ -367,7 +367,7 @@ class TestFetchHistoricalFinancials:
         mock_ticker = _make_mock_ticker(VALID_INFO, income_stmt=pd.DataFrame())
         provider = YFinanceProvider()
         with patch(
-            "finagent.engine.data.providers.yfinance_provider.yf.Ticker",
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
             return_value=mock_ticker,
         ):
             result = await provider.fetch("AAPL", "financials", years=3)
@@ -381,7 +381,7 @@ class TestFetchHistoricalFinancials:
         mock_ticker = _make_mock_ticker(VALID_INFO)
         provider = YFinanceProvider()
         with patch(
-            "finagent.engine.data.providers.yfinance_provider.yf.Ticker",
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
             return_value=mock_ticker,
         ):
             result = await provider.fetch("AAPL", "financials", years=1)
@@ -394,7 +394,7 @@ class TestFetchHistoricalFinancials:
         mock_ticker = _make_mock_ticker(VALID_INFO)
         provider = YFinanceProvider()
         with patch(
-            "finagent.engine.data.providers.yfinance_provider.yf.Ticker",
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
             return_value=mock_ticker,
         ):
             result = await provider.fetch("AAPL", "financials")

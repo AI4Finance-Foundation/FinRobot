@@ -187,9 +187,9 @@ function ColdState({
           margin: '0 auto 18px',
         }}
       >
-        生成一份 <strong style={{ color: 'var(--accent-cyan)' }}>12 章投行级研报</strong>：
-        投资论点 · 公司概览 · 财务分析 · 估值（DCF + 同业 + DDM + LBO）· 新闻 · 敏感度 · 催化剂 ·
-        技术分析 · 同业对标 · 财务数据
+        生成一份 <strong style={{ color: 'var(--accent-cyan)' }}>12 章投行级研报</strong>： 投资论点
+        · 公司概览 · 财务分析 · 估值（DCF + 同业 + DDM + LBO）· 新闻 · 敏感度 · 催化剂 · 技术分析 ·
+        同业对标 · 财务数据
       </p>
       <button
         type="button"

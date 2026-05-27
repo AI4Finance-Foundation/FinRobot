@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 
-from finagent.artifact.models import ArtifactSummary
+from finrobot.artifact.models import ArtifactSummary
 
 
 def test_legacy_summary_missing_v5_fields_loads_with_none() -> None:

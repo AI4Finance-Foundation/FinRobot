@@ -10,10 +10,10 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel, ConfigDict
 
-from finagent.engine.data.cache import DataCache
-from finagent.engine.data.interface import DataResult
-from finagent.engine.data.types import DataType
-from finagent.routes.valuation import router
+from finrobot.engine.data.cache import DataCache
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.types import DataType
+from finrobot.routes.valuation import router
 
 UTC = timezone.utc
 NOW = datetime(2026, 5, 21, tzinfo=UTC)

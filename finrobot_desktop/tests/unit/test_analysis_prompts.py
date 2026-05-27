@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from finagent.engine.analysis.prompts import (
+from finrobot.engine.analysis.prompts import (
     ANALYSIS_TYPES,
     build_analysis_prompt,
     _build_financials_table,
@@ -20,7 +20,7 @@ from finagent.engine.analysis.prompts import (
     _fmt_num,
     _fmt_pct,
 )
-from finagent.engine.data.interface import DataResult
+from finrobot.engine.data.interface import DataResult
 
 
 # ------------------------------------------------------------------ #

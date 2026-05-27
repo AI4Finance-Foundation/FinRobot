@@ -1,12 +1,12 @@
 import pytest
 
-from finagent.config import FinAgentSettings, get_settings
+from finrobot.config import FinRobotSettings, get_settings
 
 
 class TestDefaults:
     def test_default_model_name(self, monkeypatch):
         monkeypatch.delenv("FINAGENT_MODEL_NAME", raising=False)
-        s = FinAgentSettings(_env_file=None)
+        s = FinRobotSettings(_env_file=None)
         assert s.model_name == "deepseek:deepseek-chat"
 
     def test_default_api_keys_empty(self, monkeypatch):
@@ -17,18 +17,18 @@ class TestDefaults:
             "FINAGENT_OPENAI_API_KEY",
         ]:
             monkeypatch.delenv(key, raising=False)
-        s = FinAgentSettings(_env_file=None)
+        s = FinRobotSettings(_env_file=None)
         assert s.anthropic_api_key == ""
         assert s.deepseek_api_key == ""
         assert s.openai_api_key == ""
 
     def test_default_cache_db_path(self):
         s = get_settings()
-        # Resolved at runtime: legacy cwd ``finagent_cache.db`` if present,
-        # else unified ``~/.finagent/data_cache.db`` from paths.py.
+        # Resolved at runtime: legacy cwd ``finrobot_cache.db`` if present,
+        # else unified ``~/.finrobot/data_cache.db`` from paths.py.
         assert s.cache_db_path  # non-empty after model_post_init
         assert s.cache_db_path.endswith("data_cache.db") or s.cache_db_path.endswith(
-            "finagent_cache.db"
+            "finrobot_cache.db"
         )
 
     def test_default_skills_dir(self):
@@ -106,7 +106,7 @@ class TestValidateRuntimeConfig:
 
     def test_missing_llm_api_key_raises_value_error(self, monkeypatch):
         monkeypatch.delenv("FINAGENT_DEEPSEEK_API_KEY", raising=False)
-        s = FinAgentSettings(
+        s = FinRobotSettings(
             _env_file=None,
             model_name="deepseek:deepseek-chat",
             fmp_api_key="fmp-test-key",
@@ -119,7 +119,7 @@ class TestValidateRuntimeConfig:
         import warnings
 
         monkeypatch.delenv("FINAGENT_FMP_API_KEY", raising=False)
-        s = FinAgentSettings(_env_file=None, model_name="test")
+        s = FinRobotSettings(_env_file=None, model_name="test")
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             s.validate_runtime_config()

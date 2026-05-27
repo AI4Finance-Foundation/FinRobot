@@ -917,3 +917,155 @@ msgstr "Current"
 #. js-lingui-explicit-id
 msgid "chapter.technical.band.median"
 msgstr "Median"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.heading.insiders"
+msgstr "Insider Transactions (Form 4)"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.heading.institutions"
+msgstr "Institutional Holdings (13F-HR)"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.heading.compensation"
+msgstr "Executive Compensation (DEF 14A)"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.heading.alerts"
+msgstr "5%+ Shareholder Events (13D / 13G)"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.title"
+msgstr "SEC identity required"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.body"
+msgstr "SEC EDGAR requires every data request to carry an identifiable user agent. Once configured, FinRobot pulls insider transactions, 13F institutional holdings, and proxy compensation automatically."
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.cta"
+msgstr "Open Settings"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.insiders"
+msgstr "No recent insider transactions"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.institutions"
+msgstr "No 13F institutional holdings yet"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.compensation"
+msgstr "No recent DEF 14A proxy data"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.alerts"
+msgstr "No 5%+ shareholder events"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.insiders"
+msgstr "Form 4 data unavailable — re-run analysis or verify SEC identity"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.institutions"
+msgstr "13F holdings cache empty — first background sync takes 1-2 hours"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.compensation"
+msgstr "DEF 14A parse failed — company may not have filed a recent proxy"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.alerts"
+msgstr "Schedule 13 data unavailable"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.date"
+msgstr "Filed"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.role"
+msgstr "Role"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.transaction"
+msgstr "Type"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.shares"
+msgstr "Shares"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.value"
+msgstr "Value"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.holder"
+msgstr "Holder"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.changePct"
+msgstr "QoQ Δ"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.periodEnd"
+msgstr "Period End"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.kv.ceoName"
+msgstr "CEO"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.kv.ceoComp"
+msgstr "CEO Total Comp"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.kv.payRatio"
+msgstr "CEO Pay Ratio"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.kv.peerPercentile"
+msgstr "Peer Percentile"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.sale"
+msgstr "Sale"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.purchase"
+msgstr "Purchase"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.exercise"
+msgstr "Exercise"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.other_disposition"
+msgstr "Other Disposition"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.grant"
+msgstr "Grant"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.award"
+msgstr "Award"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.alert.shares"
+msgstr "shares"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.alert.ofClass"
+msgstr "of class"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.source.def14a"
+msgstr "Source: DEF 14A · filed {date}"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.provenance.tooltip"
+msgstr "{form} · accession {accession} · {date}"

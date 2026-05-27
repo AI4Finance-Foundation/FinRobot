@@ -40,12 +40,14 @@ import {
   ChapterTechnical,
   ChapterCompetitive,
   ChapterFinancialData,
+  ChapterOwnershipGovernance,
   ChapterDisclaimer,
 } from './artifact-detail/chapters'
 import type {
   ArtifactStructured,
   CatalystAnalysisShape,
   DcfShape,
+  OwnershipGovernanceShape,
   PeerCompsShape,
   TechnicalAnalysisShape,
   ThesisShape,
@@ -148,6 +150,8 @@ export function ArtifactDetailPage(): React.ReactElement {
     (structured.catalyst_analysis as CatalystAnalysisShape | undefined) ?? null
   const technical: TechnicalAnalysisShape | null =
     (structured.technical_analysis as TechnicalAnalysisShape | undefined) ?? null
+  const ownership: OwnershipGovernanceShape | null =
+    (structured.ownership_governance as OwnershipGovernanceShape | undefined) ?? null
 
   const createdAt = meta.created_at ?? null
   const computeVersionStr = compute_version?.version ?? null
@@ -243,6 +247,7 @@ export function ArtifactDetailPage(): React.ReactElement {
             fetchedAt={inputs.data_fetched_at ?? null}
             ticker={symbol}
           />
+          <ChapterOwnershipGovernance ownership={ownership} />
           <ChapterDisclaimer
             artifactId={data.id}
             createdAt={createdAt}

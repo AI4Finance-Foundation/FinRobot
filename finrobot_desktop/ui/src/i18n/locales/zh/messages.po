@@ -917,3 +917,155 @@ msgstr "当前"
 #. js-lingui-explicit-id
 msgid "chapter.technical.band.median"
 msgstr "中位"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.heading.insiders"
+msgstr "内部人交易（Form 4）"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.heading.institutions"
+msgstr "机构持仓（13F-HR）"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.heading.compensation"
+msgstr "高管薪酬（DEF 14A）"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.heading.alerts"
+msgstr "5% 以上股东事件（13D / 13G）"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.title"
+msgstr "需要配置 SEC 身份标识"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.body"
+msgstr "SEC EDGAR 要求每个数据请求带可识别的身份标识。配置后将自动拉取 Form 4 内部人交易、13F 机构持仓、DEF 14A 高管薪酬等数据。"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.cta"
+msgstr "前往设置"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.insiders"
+msgstr "近期无内部人交易记录"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.institutions"
+msgstr "尚无 13F 机构持仓数据"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.compensation"
+msgstr "尚无最近 DEF 14A 代理声明数据"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.alerts"
+msgstr "无 5% 以上股东事件"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.insiders"
+msgstr "Form 4 数据不可用 · 重跑分析或检查 SEC 身份配置"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.institutions"
+msgstr "13F 机构持仓缓存为空 · 后台首次同步需 1-2 小时"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.compensation"
+msgstr "DEF 14A 解析失败 · 该公司可能未发布最近代理声明"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.alerts"
+msgstr "Schedule 13 数据不可用"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.date"
+msgstr "申报日"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.name"
+msgstr "姓名"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.role"
+msgstr "职位"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.transaction"
+msgstr "交易类型"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.shares"
+msgstr "股数"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.value"
+msgstr "金额"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.holder"
+msgstr "持有机构"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.changePct"
+msgstr "环比变化"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.periodEnd"
+msgstr "期末"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.kv.ceoName"
+msgstr "CEO"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.kv.ceoComp"
+msgstr "CEO 总薪酬"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.kv.payRatio"
+msgstr "CEO/员工薪酬比"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.kv.peerPercentile"
+msgstr "同业分位"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.sale"
+msgstr "卖出"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.purchase"
+msgstr "买入"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.exercise"
+msgstr "期权行使"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.other_disposition"
+msgstr "其他处置"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.grant"
+msgstr "授予"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.award"
+msgstr "奖励"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.alert.shares"
+msgstr "股"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.alert.ofClass"
+msgstr "占流通股"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.source.def14a"
+msgstr "数据源：DEF 14A · 申报日 {date}"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.provenance.tooltip"
+msgstr "{form} · accession {accession} · {date}"

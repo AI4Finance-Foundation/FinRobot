@@ -8,7 +8,7 @@
 import type { Locale } from '../../../i18n'
 
 export interface ChapterLabel {
-  /** Two-digit display number, e.g. "01". User-visible — must read 1-12, not 0-11. */
+  /** Two-digit display number, e.g. "01". User-visible — must read 1-13, not 0-12. */
   num: string
   title: string
   sub: string
@@ -26,6 +26,7 @@ export const CHAPTER_ORDER = [
   'technical',
   'competitive',
   'data',
+  'ownership',
   'disclaimer',
 ] as const
 
@@ -43,6 +44,7 @@ const ZH: Record<ChapterId, Omit<ChapterLabel, 'num'>> = {
   technical: { title: '技术与高阶分析', sub: '蒙特卡洛 · 狙击位 · 价格走势' },
   competitive: { title: '竞争格局', sub: '同业三视图' },
   data: { title: '财务数据', sub: '原始数据 · 来源 · 审计轨迹' },
+  ownership: { title: '股权与治理', sub: '内部人交易 · 机构持仓 · 高管薪酬' },
   disclaimer: { title: '免责声明', sub: '投资建议提示' },
 }
 
@@ -58,12 +60,13 @@ const EN: Record<ChapterId, Omit<ChapterLabel, 'num'>> = {
   technical: { title: 'Technical & Advanced', sub: 'Monte Carlo · Sniper · Price' },
   competitive: { title: 'Competitive Landscape', sub: 'Peers — 3 views' },
   data: { title: 'Financial Data', sub: 'Raw · Source · Audit Trail' },
+  ownership: { title: 'Ownership & Governance', sub: 'Insiders · Institutions · Compensation' },
   disclaimer: { title: 'Disclaimer', sub: 'Investment Advice Notice' },
 }
 
 export function chapterNum(id: ChapterId): string {
   const idx = CHAPTER_ORDER.indexOf(id)
-  // Display 01-12 (1-indexed); 0-based is a developer convention not appropriate for users.
+  // Display 01-13 (1-indexed); 0-based is a developer convention not appropriate for users.
   return String(idx + 1).padStart(2, '0')
 }
 

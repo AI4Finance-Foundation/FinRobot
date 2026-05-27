@@ -1,4 +1,4 @@
-// Barrel export for the 12 12 chapters.
+// Barrel export for the 13 chapters.
 
 export { ChapterCover } from './ChapterCover'
 export { ChapterThesis } from './ChapterThesis'
@@ -11,6 +11,7 @@ export { ChapterCatalysts } from './ChapterCatalysts'
 export { ChapterTechnical } from './ChapterTechnical'
 export { ChapterCompetitive } from './ChapterCompetitive'
 export { ChapterFinancialData } from './ChapterFinancialData'
+export { ChapterOwnershipGovernance } from './ChapterOwnershipGovernance'
 export { ChapterDisclaimer } from './ChapterDisclaimer'
 
 export type {
@@ -25,4 +26,14 @@ export type {
   SniperShape,
   HistoricalBandShape,
   TechnicalAnalysisShape,
+  OwnershipGovernanceShape,
+  InsiderTransactionShape,
+  InstitutionalHoldingShape,
+  ProxyCompensationShape,
+  ScheduleThirteenAlertShape,
+  FilingProvenanceShape,
+  SecFilingsShape,
+  SecFilingShape,
+  SecEvent8KShape,
+  XbrlFactsSnapshotShape,
 } from './types'

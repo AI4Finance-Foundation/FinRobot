@@ -14,7 +14,7 @@
 import { useTickerPrice } from '../hooks/useTickerData'
 import { WorkspaceBreadcrumb } from './workspace/WorkspaceBreadcrumb'
 import { formatAge, freshnessColor, freshnessTier } from '../utils/format'
-import { tSync } from '../i18n'
+import { useI18n } from '../i18n'
 
 interface Props {
   ticker: string
@@ -22,6 +22,7 @@ interface Props {
 
 export function TickerHero({ ticker }: Props): React.ReactElement {
   const { data: price } = useTickerPrice(ticker)
+  const { t } = useI18n()
 
   const current = price?.current_price
   const changePct = price?.change_pct
@@ -32,7 +33,7 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
     ? (Date.now() - new Date(price.fetched_at).getTime()) / 1000
     : Infinity // 没有 fetched_at = 视为陈旧（不 fail-safe 回 fresh）
   const tier = freshnessTier(ageSeconds)
-  const tierLabel = tSync(`marketdata.tier.${tier}`)
+  const tierLabel = t(`marketdata.tier.${tier}`)
   const ageText = formatAge(price?.fetched_at)
   const pillDotColor = freshnessColor(ageSeconds)
 
@@ -137,7 +138,7 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
 
 /**
  * yfinance returns "NasdaqGS" / "NYQ" / "AMEX" raw codes — pretty-print
- * them for the LIVE pill. Falls back to a generic "美股" so non-US tickers
+ * them for the freshness pill. Falls back to a generic "美股" so non-US tickers
  * (which we don't really support yet) don't show a confusing code.
  */
 function formatExchange(raw: string | null | undefined): string {

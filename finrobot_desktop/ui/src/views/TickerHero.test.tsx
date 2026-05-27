@@ -23,7 +23,22 @@ vi.mock('../i18n', async () => {
       }
       return map[key] ?? key
     },
-    useI18n: () => ({ locale: 'zh', t: (k: string) => k }),
+    useI18n: () => ({
+      locale: 'zh',
+      t: (key: string, params?: Record<string, unknown>) => {
+        const n = params?.n ?? ''
+        const map: Record<string, string> = {
+          'marketdata.age.justNow': '刚刚',
+          'marketdata.age.sAgo': `${n}s 前`,
+          'marketdata.age.minAgo': `${n}min 前`,
+          'marketdata.age.hAgo': `${n}h 前`,
+          'marketdata.tier.fresh': '近实时',
+          'marketdata.tier.delayed': '延迟',
+          'marketdata.tier.stale': '陈旧',
+        }
+        return map[key] ?? key
+      },
+    }),
   }
 })
 

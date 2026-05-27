@@ -38,14 +38,25 @@ def extract_historical_metrics(
 ) -> HistoricalMetrics:
     """Extract multi-year historical metrics from FinancialData list.
 
-    Sorts data oldest-first. Computes: YoY revenue growth, margins (gross,
-    EBITDA, operating), SGA ratio, EPS, PE ratio (if price_data), and CAGR.
+    Sorts data oldest-first by ``fiscal_period_end`` (the canonical fiscal
+    period the snapshot represents), falling back to ``timestamp`` when the
+    provider didn't surface a fiscal date. Computes: YoY revenue growth,
+    margins (gross, EBITDA, operating), SGA ratio, EPS, PE ratio (if
+    price_data), and CAGR.
 
     COGS is derived as revenue * (1 - gross_margin).
     Operating income is derived as revenue * operating_margin.
     """
-    # Sort oldest-first by timestamp
-    sorted_data = sorted(financial_data, key=lambda d: d.timestamp)
+
+    def _sort_key(d: FinancialData) -> tuple[int, int, int]:
+        # Prefer fiscal_period_end so 5-year history sorts/labels by fiscal year,
+        # not by the fetch wall-clock. Encoding as a (year, month, day) tuple
+        # lets timestamp-only entries (no fiscal date) still order coherently.
+        if d.fiscal_period_end is not None:
+            return (d.fiscal_period_end.year, d.fiscal_period_end.month, d.fiscal_period_end.day)
+        return (d.timestamp.year, d.timestamp.month, d.timestamp.day)
+
+    sorted_data = sorted(financial_data, key=_sort_key)
 
     # Limit to requested number of years (take most recent N)
     if len(sorted_data) > years:
@@ -68,7 +79,12 @@ def extract_historical_metrics(
     pe_ratio_list: list[float | None] = []
 
     for i, fd in enumerate(sorted_data):
-        year_list.append(fd.timestamp.year)
+        # Use fiscal_period_end.year when the provider surfaced it; the fall-
+        # back to timestamp.year exists for legacy single-year fetches but in
+        # the multi-year historical path this guarantees distinct fiscal years.
+        year_list.append(
+            fd.fiscal_period_end.year if fd.fiscal_period_end is not None else fd.timestamp.year
+        )
         revenue_list.append(fd.income.revenue)
 
         # YoY revenue growth: None for first year

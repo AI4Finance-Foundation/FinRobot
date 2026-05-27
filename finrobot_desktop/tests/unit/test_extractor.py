@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.compute.extractor import (
     extract_financial_data,
@@ -53,6 +53,39 @@ def test_extract_financial_data_valid():
     assert fd.income.revenue == 100e9
     assert fd.income.ebitda == 35e9
     assert fd.income.gross_margin == 0.47
+
+
+def test_extract_financial_data_no_fiscal_period_when_provider_omits_it():
+    """TTM single-year fetches don't carry fiscal_year — field stays None,
+    downstream falls back to timestamp.year."""
+    fd = extract_financial_data(_make_financials_result(), _make_price_result())
+    assert fd.fiscal_period_end is None
+
+
+def test_extract_financial_data_reads_fiscal_year_iso_string():
+    """yfinance historical-fetch shape: fiscal_year='2024-09-30' → parsed date."""
+    fd = extract_financial_data(
+        _make_financials_result(fiscal_year="2024-09-30"), _make_price_result()
+    )
+    assert fd.fiscal_period_end == date(2024, 9, 30)
+
+
+def test_extract_financial_data_reads_date_iso_string():
+    """FMP historical-fetch shape: date='2023-12-31' → parsed date.
+    Live NVDA bug was that this never got read; assert the contract."""
+    fd = extract_financial_data(
+        _make_financials_result(date="2023-12-31"), _make_price_result()
+    )
+    assert fd.fiscal_period_end == date(2023, 12, 31)
+
+
+def test_extract_financial_data_unparseable_fiscal_year_returns_none():
+    """Garbage fiscal_year string shouldn't crash extraction — just skip the
+    field so downstream falls back to timestamp."""
+    fd = extract_financial_data(
+        _make_financials_result(fiscal_year="not-a-date"), _make_price_result()
+    )
+    assert fd.fiscal_period_end is None
 
 
 def test_extract_financial_data_missing_revenue_raises():

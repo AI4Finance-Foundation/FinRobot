@@ -1,3 +1,6 @@
+from datetime import date, datetime
+from typing import Any
+
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.keys import NormalizedFinancialKeys
 from finrobot.engine.models.financial import (
@@ -10,6 +13,28 @@ from finrobot.engine.models.financial import (
     CompanyFinancials,
 )
 from finrobot.engine.compute.multiples import calculate_ev
+
+
+def _parse_fiscal_period_end(raw: Any) -> date | None:
+    """Parse provider-supplied fiscal-period-end date.
+
+    Historical yfinance fetches stamp each year with ``fiscal_year`` (ISO date
+    string like "2024-09-30"); FMP uses ``date`` in the same form. Single-year
+    TTM fetches omit both — for those callers the field stays None and downstream
+    consumers fall back to ``timestamp.year``.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, date) and not isinstance(raw, datetime):
+        return raw
+    if isinstance(raw, datetime):
+        return raw.date()
+    if isinstance(raw, str) and raw:
+        try:
+            return date.fromisoformat(raw[:10])
+        except ValueError:
+            return None
+    return None
 
 
 def extract_financial_data(
@@ -98,10 +123,15 @@ def extract_financial_data(
             "Per-share metrics (EPS, P/E) may be approximate."
         )
 
+    fiscal_period_end = _parse_fiscal_period_end(
+        data.get("fiscal_year") or data.get("date")
+    )
+
     return FinancialData(
         ticker=ticker,
         company_name=str(data.get("company_name") or ""),
         timestamp=financials_result.timestamp,
+        fiscal_period_end=fiscal_period_end,
         income=IncomeStatement(
             revenue=revenue,
             ebitda=ebitda or 0,

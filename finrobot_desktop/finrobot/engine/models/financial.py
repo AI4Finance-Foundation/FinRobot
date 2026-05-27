@@ -1,6 +1,6 @@
 from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
-from datetime import datetime
+from datetime import date, datetime
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +67,14 @@ class FinancialData(BaseModel):
 
     ticker: str
     company_name: str = ""
-    timestamp: datetime
+    timestamp: datetime  # when this data was fetched — not the fiscal period end
+
+    # Fiscal period this snapshot represents. Set by extract_financial_data when
+    # the provider supplies `fiscal_year` or `date` (historical fetches do, the
+    # single-year TTM fetch doesn't). Downstream consumers (extract_historical_
+    # metrics, chart year labels) prefer this over `timestamp.year` so a
+    # five-year history doesn't collapse to today's year five times.
+    fiscal_period_end: date | None = None
 
     income: IncomeStatement
     balance: BalanceSheet = Field(default_factory=BalanceSheet)

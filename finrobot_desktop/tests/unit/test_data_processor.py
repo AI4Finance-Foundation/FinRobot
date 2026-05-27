@@ -5,7 +5,7 @@ Hand-calculated verification for all deterministic financial computations.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -164,6 +164,48 @@ class TestExtractHistoricalMetrics:
     def test_years_sorted_oldest_first(self, three_year_data: list[FinancialData]):
         result = extract_historical_metrics(three_year_data)
         assert result.years == [2022, 2023, 2024]
+
+    def test_years_use_fiscal_period_when_timestamps_collide(self):
+        """Regression: live NVDA run produced [2026,2026,2026,2026,2026] because
+        every yearly FinancialData carried timestamp=now (fetch time). Fix reads
+        fiscal_period_end first — verify five same-timestamp snapshots yield
+        five distinct years when fiscal dates differ.
+        """
+        now = datetime(2026, 5, 27, tzinfo=timezone.utc)
+        snapshots: list[FinancialData] = []
+        for fiscal_year in (2021, 2022, 2023, 2024, 2025):
+            fd = _make_financial_data(
+                "NVDA",
+                fiscal_year,
+                revenue=1e10 * (fiscal_year - 2020),
+                ebitda=3e9 * (fiscal_year - 2020),
+                net_income=2e9 * (fiscal_year - 2020),
+                gross_margin=0.6,
+                operating_margin=0.3,
+                market_cap=1e12,
+                shares_outstanding=25e8,
+                current_price=400.0,
+            )
+            # Simulate the live-bug shape: timestamp is fetch time (now), not
+            # the fiscal period. fiscal_period_end carries the real fiscal year.
+            fd.timestamp = now
+            fd.fiscal_period_end = date(fiscal_year, 12, 31)
+            snapshots.append(fd)
+
+        result = extract_historical_metrics(snapshots)
+        assert result.years == [2021, 2022, 2023, 2024, 2025]
+
+    def test_years_fall_back_to_timestamp_when_no_fiscal_period(self):
+        """Legacy single-year fetches don't set fiscal_period_end — make sure
+        the fallback to timestamp.year still works (3-year fixture above
+        depends on this, but spell it out explicitly)."""
+        fd_a = _make_financial_data(
+            "AAPL", 2022, 300e9, 100e9, 70e9, 0.43, 0.30,
+            market_cap=2400e9, shares_outstanding=15e9, current_price=160.0,
+        )
+        assert fd_a.fiscal_period_end is None
+        result = extract_historical_metrics([fd_a])
+        assert result.years == [2022]
 
     def test_revenue_values(self, three_year_data: list[FinancialData]):
         result = extract_historical_metrics(three_year_data)

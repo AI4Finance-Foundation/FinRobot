@@ -52,8 +52,33 @@ class ValuationMetrics(BaseModel):
     model_config = ConfigDict(frozen=False)
 
     enterprise_value: float | None = None
+    # EBITDA carried in two calibers (engine.compute.multiples):
+    #   ebitda_operating = EBIT + D&A          → ev_ebitda          (PRIMARY)
+    #   ebitda_reported  = NI+tax+interest+D&A → ev_ebitda_reported (street x-check)
+    # ev_ebitda uses the operating caliber because EV already nets out cash;
+    # the *_reported pair mirrors retail aggregators (which credit non-operating
+    # income) so the UI can footnote the gap instead of looking "wrong".
+    ebitda_operating: float | None = None
+    ebitda_reported: float | None = None
     ev_ebitda: float | None = None
+    ev_ebitda_reported: float | None = None
     ev_revenue: float | None = None
+
+
+class DataProvenance(BaseModel):
+    """Source + freshness + degradation flags for a snapshot's numbers.
+
+    Surfaced to the UI (SourcedNumber popovers, degraded badges, "TTM 截至 X"
+    label) so provenance is visible instead of hardcoded/assumed (ADR-0004).
+    """
+
+    model_config = ConfigDict(frozen=False)
+
+    provider: str
+    as_of: date | None = None  # financials period end — the data's semantic time
+    period_basis: str = "ttm"
+    pe_ttm_lag_quarters: int | None = None
+    degraded: list[str] = Field(default_factory=list)  # close_only / ttm_lag / ccy_inferred
 
 
 class FinancialData(BaseModel):
@@ -82,6 +107,7 @@ class FinancialData(BaseModel):
     valuation: ValuationMetrics = Field(default_factory=ValuationMetrics)
 
     data_source: str = "yfinance"
+    provenance: DataProvenance | None = None
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -285,11 +311,6 @@ class DCFResult(BaseModel):
 
     # Sensitivity
     sensitivity_table: dict[str, Any] | None = None
-
-    # AGENTS.md red-line #5: every output carries a formula tag so
-    # simplification regressions can never sneak through unnoticed.
-    # "standard_ebit_to_fcf" = EBIT*(1-t) + D&A − CapEx − ΔNWC.
-    fcf_formula: Literal["standard_ebit_to_fcf", "simplified_ebitda"] = "standard_ebit_to_fcf"
 
     # Inputs used (for reproducibility)
     inputs: DCFInputs

@@ -55,6 +55,40 @@ def test_extract_financial_data_valid():
     assert fd.income.gross_margin == 0.47
 
 
+def test_extract_financial_data_dual_ebitda_caliber():
+    """EBITDA is recomputed from absolute line items in two calibers; the
+    opaque provider ebitda field (here deliberate garbage) is ignored.
+
+    External baseline — TSLA TTM Q2'25–Q1'26 (FMP quarterly statements,
+    D&A from cash flow): operating EBITDA 11.188B → EV/EBITDA 147x;
+    reported EBITDA 12.017B → EV/EBITDA 137x. EV = 1.6465T."""
+    fd = extract_financial_data(
+        _make_financials_result(
+            revenue=97.879e9,
+            ebitda=999e9,  # garbage provider field — must NOT leak through
+            net_income=3.876e9,
+            operating_income=4.897e9,
+            income_tax_expense=1.511e9,
+            interest_expense=0.339e9,
+            depreciation_amortization=6.291e9,
+            market_cap=1_653_868_859_200,
+            total_debt=9.229e9,
+            total_cash=16.603e9,
+        ),
+        _make_price_result(),
+    )
+    # Operating caliber (EBIT + D&A) is primary and what the financials card shows.
+    assert fd.income.ebitda == pytest.approx(11.188e9)
+    assert fd.valuation.ebitda_operating == pytest.approx(11.188e9)
+    assert fd.valuation.ebitda_reported == pytest.approx(12.017e9)
+    assert fd.valuation.ev_ebitda == pytest.approx(147.2, abs=0.5)
+    assert fd.valuation.ev_ebitda_reported == pytest.approx(137.0, abs=0.5)
+    # Reported caliber sits above operating (TSLA interest income), and the
+    # garbage 999B provider field never reaches the multiple.
+    assert fd.valuation.ev_ebitda > fd.valuation.ev_ebitda_reported
+    assert fd.valuation.ev_ebitda > 100
+
+
 def test_extract_financial_data_no_fiscal_period_when_provider_omits_it():
     """TTM single-year fetches don't carry fiscal_year — field stays None,
     downstream falls back to timestamp.year."""
@@ -176,6 +210,58 @@ def test_extract_price_history_valid():
     assert ph.high_52w == 220.0
     assert ph.low_52w == 180.0
     assert abs(ph.avg_price - (180.0 + 220.0 + 200.0) / 3) < 1e-6
+
+
+def _make_price_result_from(bars: list[dict]) -> DataResult:
+    last = bars[-1].get("close")
+    return DataResult(
+        data={"current_price": last, "price_history": bars},
+        provider="fmp",
+        ticker="TSLA",
+        data_type="price",
+        timestamp=datetime.now(tz=timezone.utc),
+    )
+
+
+def test_52w_excludes_prices_outside_trailing_year():
+    """Regression: FMP's timeseries=365 returns 365 *trading* days (~17 months).
+    The early-2025 low must NOT count toward the 52-week low. Window is anchored
+    on the most recent bar (2026-05-27), so cutoff is 2025-05-27.
+    """
+    bars = [
+        {"date": "2024-12-10", "close": 221.86},  # ~17mo ago — OUTSIDE 52wk
+        {"date": "2025-03-01", "close": 250.00},  # OUTSIDE 52wk
+        {"date": "2025-06-01", "close": 300.00},  # inside (lowest in-window)
+        {"date": "2025-12-16", "close": 489.88},  # inside (highest in-window)
+        {"date": "2026-05-27", "close": 440.36},  # last bar / anchor
+    ]
+    fd = extract_financial_data(_make_financials_result(), _make_price_result_from(bars))
+    assert fd.market.price_52w_low == 300.00, "out-of-window 221.86 leaked into 52w low"
+    assert fd.market.price_52w_high == 489.88
+
+
+def test_52w_uses_intraday_high_low_not_close():
+    """52-week high/low should use intraday high/low (what brokers show), not the
+    max/min of closing prices. serietype=line stripped these, capping the high.
+    """
+    bars = [
+        {"date": "2025-06-01", "close": 400.0, "high": 405.0, "low": 395.0},
+        {"date": "2026-05-27", "close": 440.0, "high": 450.0, "low": 430.0},
+    ]
+    fd = extract_financial_data(_make_financials_result(), _make_price_result_from(bars))
+    assert fd.market.price_52w_high == 450.0, "should be intraday high, not max close 440"
+    assert fd.market.price_52w_low == 395.0, "should be intraday low, not min close 400"
+
+
+def test_52w_falls_back_to_close_when_intraday_missing():
+    """Close-only providers (or legacy cache rows) must still yield 52w from close."""
+    bars = [
+        {"date": "2025-06-01", "close": 300.0},
+        {"date": "2026-05-27", "close": 440.0},
+    ]
+    fd = extract_financial_data(_make_financials_result(), _make_price_result_from(bars))
+    assert fd.market.price_52w_high == 440.0
+    assert fd.market.price_52w_low == 300.0
 
 
 class TestExtractCompanyFinancialsCurrencyOverride:

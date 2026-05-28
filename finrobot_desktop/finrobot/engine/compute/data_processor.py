@@ -9,6 +9,8 @@ arithmetic every time.
 
 from __future__ import annotations
 
+import math
+
 from finrobot.engine.models.financial import (
     FinancialData,
     ForecastAssumptions,
@@ -24,8 +26,12 @@ def calculate_cagr(start: float, end: float, years: int) -> float | None:
 
     CAGR = (end / start) ^ (1 / years) - 1
 
-    Returns None if start <= 0 or years <= 0 (formula undefined).
+    Returns None if:
+    - start <= 0 or years <= 0 (formula undefined)
+    - start or end is NaN (upstream NaN-polluted data; caller should log and fall back)
     """
+    if math.isnan(start) or math.isnan(end):
+        return None
     if start <= 0 or years <= 0:
         return None
     return float((end / start) ** (1 / years) - 1)

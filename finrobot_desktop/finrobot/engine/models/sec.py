@@ -21,6 +21,7 @@ for field-by-field derivation.
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -294,3 +295,14 @@ class OwnershipGovernanceAnalysis(BaseModel):
     # placeholder instead of a misleading empty table.
     degraded_sections: list[str] = Field(default_factory=list)
     # ^ e.g. ["institutional_holdings"] when sec_holdings_cache is empty
+
+    # Per-section reason codes for fine-grained UI messaging.
+    # Keys match entries in degraded_sections; values map to i18n keys:
+    #   identity_missing   → chapter.ownership.degraded.insiders.identity_missing
+    #   no_recent_filings  → chapter.ownership.degraded.insiders.no_recent_filings
+    #   fetch_error        → chapter.ownership.degraded.insiders.fetch_error
+    #   parse_failed       → chapter.ownership.degraded.proxy.parse_failed
+    degraded_reasons: dict[
+        str,
+        Literal["identity_missing", "no_recent_filings", "fetch_error", "parse_failed"],
+    ] = Field(default_factory=dict)

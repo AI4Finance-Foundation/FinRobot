@@ -14,6 +14,7 @@ What this code does that raw LLM cannot:
 from __future__ import annotations
 
 import asyncio
+import math
 from typing import Any, Sequence, cast
 
 import pandas as pd
@@ -100,12 +101,19 @@ def _get_row(df: pd.DataFrame, names: Sequence[str]) -> pd.Series | None:
     return None
 
 
-def _safe_float(value: object) -> float:
-    """Convert a scalar to float; return 0.0 on any error."""
+def _safe_float(value: object) -> float | None:
+    """Convert a scalar to float; return None on any error or NaN.
+
+    NaN is treated as missing — not as a legitimate 0 — so downstream code
+    can distinguish "the row existed but was empty" from "the cell was zero".
+    """
     try:
-        return float(value)  # type: ignore[arg-type]
+        result = float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
-        return 0.0
+        return None
+    if math.isnan(result):
+        return None
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -174,11 +182,25 @@ def _build_historical_metrics(
             ticker=ticker,
         )
 
-    # ---- Sort columns oldest-first ----
+    # ---- Sort columns oldest-first, drop revenue-NaN columns ----
     # yfinance returns columns as Timestamps, most-recent first. pandas-stubs
     # types Index elements as Hashable, so we narrow back to Timestamp for
     # downstream .year access and _cell() calls.
-    sorted_cols = cast(list[pd.Timestamp], sorted(income_stmt.columns))
+    #
+    # The oldest year often has NaN for the revenue row specifically (AAPL FY21
+    # pattern). We filter columns where the primary revenue row is NaN *before*
+    # windowing so the 4 real years are preserved and NaN doesn't poison CAGR.
+    # Resolve the revenue row name first for the column filter.
+    all_cols = cast(list[pd.Timestamp], sorted(income_stmt.columns))
+    rev_row_for_filter = _get_row(income_stmt, _REVENUE_NAMES)
+    if rev_row_for_filter is not None:
+        sorted_cols = [
+            c for c in all_cols
+            if not pd.isna(rev_row_for_filter.get(c))
+        ]
+    else:
+        # No revenue row at all — fall back to dropping fully-NaN columns.
+        sorted_cols = [c for c in all_cols if not income_stmt[c].isna().all()]
     if len(sorted_cols) > max_years:
         sorted_cols = sorted_cols[-max_years:]
 
@@ -227,15 +249,29 @@ def _build_historical_metrics(
     # Income-statement rows are guaranteed to have every sorted_cols entry
     # (those columns came from income_stmt itself), but cashflow rows may be
     # ordered differently and can lack a date. One helper, used uniformly.
-    def _cell(row: pd.Series | None, col: pd.Timestamp) -> float:
+    #
+    # Returns None when: row is None, column is absent, or value is NaN.
+    # Callers decide whether None means 0 (balance/ratios) or should propagate
+    # to avoid polluting aggregations like CAGR or median ratios.
+    def _cell(row: pd.Series | None, col: pd.Timestamp) -> float | None:
         if row is None:
-            return 0.0
+            return None
         try:
             return _safe_float(row[col])
         except (KeyError, IndexError):
-            return 0.0
+            return None
 
     # ---- Build parallel lists ----
+    # Income-statement floats: NaN-free (all-NaN cols were dropped above).
+    # Derived ratios (margin, cogs) default to 0.0 when the cell is None —
+    # these are proportional, so 0 is safe. The raw revenue/ebitda/ni/eps lists
+    # carry 0.0 as a sentinel so downstream code that does `revenue[-1]` never
+    # gets a None type error.
+    #
+    # Cash-flow floats: optional — a missing CF row stays as 0.0 (a row that
+    # never appeared in the cashflow statement is structurally absent, not NaN).
+    # For the DCF-seed ratio path (_median_ratio), all-zero cashflow rows are
+    # already guarded with "continue" logic, so 0.0 is the correct fill.
     years_list: list[int] = []
     revenue_list: list[float] = []
     gp_list: list[float] = []
@@ -257,13 +293,15 @@ def _build_historical_metrics(
     nwc_change_list: list[float] = []
 
     for col in sorted_cols:
-        rev = _cell(rev_row, col)
-        gp = _cell(gp_row, col)
-        ebitda = _cell(ebitda_row, col)
-        oi = _cell(oi_row, col)
-        ni = _cell(ni_row, col)
-        eps = _cell(eps_row, col)
-        sga = _cell(sga_row, col)
+        # _cell returns float | None; None means NaN or absent — treat as 0.0
+        # for income-statement scalars (ratio arithmetic uses the coerced value).
+        rev = _cell(rev_row, col) or 0.0
+        gp = _cell(gp_row, col) or 0.0
+        ebitda = _cell(ebitda_row, col) or 0.0
+        oi = _cell(oi_row, col) or 0.0
+        ni = _cell(ni_row, col) or 0.0
+        eps = _cell(eps_row, col) or 0.0
+        sga = _cell(sga_row, col) or 0.0
 
         rev_positive = rev > 0
         gross_margin = gp / rev if rev_positive else 0.0
@@ -285,15 +323,17 @@ def _build_historical_metrics(
         eps_list.append(eps)
         sga_list.append(sga)
         sga_ratio_list.append(sga_ratio)
-        ocf_list.append(_cell(ocf_row, col))
-        icf_list.append(_cell(icf_row, col))
-        fcf_list.append(_cell(fcf_row, col))
+        ocf_list.append(_cell(ocf_row, col) or 0.0)
+        icf_list.append(_cell(icf_row, col) or 0.0)
+        fcf_list.append(_cell(fcf_row, col) or 0.0)
         # D&A is reported positive; CapEx is reported negative (cash outflow)
         # — flip sign so downstream code treats both as positive magnitudes
         # consistent with the FCF formula's "+ D&A - CapEx" convention.
-        da_list.append(_cell(da_row, col))
-        capex_list.append(abs(_cell(capex_row, col)))
-        nwc_change_list.append(_cell(nwc_row, col))
+        da_raw = _cell(da_row, col)
+        da_list.append(da_raw if da_raw is not None else 0.0)
+        capex_raw = _cell(capex_row, col)
+        capex_list.append(abs(capex_raw) if capex_raw is not None else 0.0)
+        nwc_change_list.append(_cell(nwc_row, col) or 0.0)
 
     # ---- YoY revenue growth (None for oldest year) ----
     revenue_growth: list[float | None] = []
@@ -302,12 +342,15 @@ def _build_historical_metrics(
             revenue_growth.append(None)
         else:
             prev = revenue_list[i - 1]
-            if prev != 0:
+            # Guard against 0-fill that originated from a NaN cell (the column
+            # passed the all-NaN filter but this specific row was NaN).
+            if prev > 0 and rev > 0:
                 revenue_growth.append((rev - prev) / prev)
             else:
                 revenue_growth.append(None)
 
     # ---- CAGR ----
+    # calculate_cagr guards start <= 0 / years <= 0; no extra check needed here.
     n = len(years_list)
     cagr = calculate_cagr(revenue_list[0], revenue_list[-1], n - 1) if n >= 2 else None
 

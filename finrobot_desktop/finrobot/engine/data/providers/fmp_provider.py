@@ -180,17 +180,37 @@ class FMPProvider(DataProvider):
             "revenue": revenue,
             "ebitda": inc.get("ebitda"),
             "net_income": net_income,
+            # Absolute income-statement line items — the HistoricalMetrics
+            # consumer derives cogs = revenue - gross_profit and recomputes
+            # margins itself, so it needs the absolutes, not just the ratios.
+            "gross_profit": gross_profit,
+            "operating_income": operating_income,
             "gross_margin": gross_profit / revenue if gross_profit and revenue else None,
             "operating_margin": (
                 operating_income / revenue if operating_income and revenue else None
             ),
+            # Basic EPS — feeds the per-year EpsPeChart and data_processor's
+            # net_income/eps share-count derivation. FMP `eps` is basic.
+            "eps": inc.get("eps"),
             "depreciation_amortization": inc.get("depreciationAndAmortization"),
             "rd_expense": inc.get("researchAndDevelopmentExpenses"),
             "sga_expense": inc.get("sellingGeneralAndAdministrative"),
             "interest_expense": inc.get("interestExpense"),
-            # FCF trio from the cash-flow statement (None when cf row missing).
+            # Full cash-flow statement. FCF trio (OCF/CapEx/ΔNWC) feeds DCF;
+            # investing/financing complete the HistoricalMetrics cash-flow
+            # contract. capex is abs()'d above; investing/financing keep their
+            # native sign (typically negative). FMP misspells the investing
+            # field as "Activites" — fall back to the correct spelling too.
             "operating_cash_flow": (
                 cf.get("operatingCashFlow") or cf.get("netCashProvidedByOperatingActivities")
+            ),
+            "investing_cash_flow": cf.get(
+                "netCashUsedForInvestingActivites",
+                cf.get("netCashUsedForInvestingActivities"),
+            ),
+            "financing_cash_flow": cf.get(
+                "netCashUsedProvidedByFinancingActivities",
+                cf.get("netCashProvidedByUsedForFinancingActivities"),
             ),
             "capital_expenditure": capex,
             "change_in_working_capital": cf.get("changeInWorkingCapital"),

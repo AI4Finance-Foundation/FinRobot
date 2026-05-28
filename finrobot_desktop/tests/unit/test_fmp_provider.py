@@ -161,6 +161,8 @@ def _fmp_multi_year_income(ticker="AAPL", years=3):
             "netIncome": 97_000_000_000 - i * 3_000_000_000,
             "grossProfit": 181_000_000_000 - i * 4_000_000_000,
             "operatingIncome": 119_000_000_000 - i * 3_000_000_000,
+            "eps": 6.15 - i * 0.4,
+            "epsdiluted": 6.10 - i * 0.4,
             "depreciationAndAmortization": 11_000_000_000,
             "researchAndDevelopmentExpenses": 30_000_000_000,
             "sellingGeneralAndAdministrative": 25_000_000_000,
@@ -181,6 +183,11 @@ def _fmp_multi_year_cashflow(ticker="AAPL", years=3):
             # FMP reports capex as a negative (cash outflow); provider must abs() it.
             "capitalExpenditure": -(10_000_000_000 + i * 500_000_000),
             "changeInWorkingCapital": -2_000_000_000 + i * 300_000_000,
+            # Investing/financing are reported as signed totals (typically negative).
+            # FMP's actual field name misspells "Activities" as "Activites".
+            "netCashUsedForInvestingActivites": -(8_000_000_000 + i * 400_000_000),
+            "netCashUsedProvidedByFinancingActivities": -(95_000_000_000 - i * 3_000_000_000),
+            "depreciationAndAmortization": 11_000_000_000,
         }
         for i in range(years)
     ]
@@ -215,6 +222,31 @@ class TestFMPFetchHistorical:
             assert entry.get("fiscal_year") is not None, (
                 f"yearly entry missing fiscal_year: {entry}"
             )
+
+    @pytest.mark.asyncio
+    async def test_yearly_data_carries_full_historical_schema(self, provider):
+        """门一 Step 2: historical yearly_data must carry every field the
+        HistoricalMetrics consumer needs (eps, absolute gross_profit /
+        operating_income, and investing/financing cash flow) — not just the
+        FCF trio. Otherwise switching historical_extractor onto the DataLayer
+        drops EPS history and the income-statement absolutes."""
+        responses = [
+            _mock_response(_fmp_multi_year_income("AAPL", 3)),
+            _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_multi_year_cashflow("AAPL", 3)),
+            _mock_response(_fmp_profile_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials", years=3)
+        y0 = result.data["yearly_data"][0]
+        # Income-statement absolutes (consumer derives cogs = revenue - gross_profit)
+        assert y0["gross_profit"] == 181_000_000_000
+        assert y0["operating_income"] == 119_000_000_000
+        # Basic EPS — feeds data_processor share derivation + EpsPeChart
+        assert y0["eps"] == pytest.approx(6.15)
+        # Full cash-flow statement (investing/financing signed, not abs)
+        assert y0["investing_cash_flow"] == -8_000_000_000
+        assert y0["financing_cash_flow"] == -95_000_000_000
 
     @pytest.mark.asyncio
     async def test_missing_cashflow_row_yields_none_not_crash(self, provider):

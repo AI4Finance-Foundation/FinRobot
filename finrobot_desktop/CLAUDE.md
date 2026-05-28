@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 FinRobot — 开源金融分析平台。确定性金融计算 + LLM 叙事。后端 PydanticAI + FastAPI；桌面端 Tauri + React 19；CLI + Python SDK。Apache-2.0。
 
@@ -71,7 +71,7 @@ FinRobot 处于从零打磨的建设期，不是维护期。这个事实改变�
 1. **核心改动**：我要求的功能/修复已实现并跑通
 2. **周边清理**：这块代码周围的烂摊子已经一起处理（命名、抽象、死代码）
 3. **测试**：相关测试已补充或更新，实跑通过（不是"应该能过"）
-4. **一致性**：`config.py`、`CLAUDE.md`、`project-memory/` 相关 `.md` 文档已同步更新
+4. **一致性**：`config.py`、`AGENTS.md`、`project-memory/` 相关 `.md` 文档已同步更新
 5. **对称性**：Mode A 改了的地方，Mode B 是否需要对称处理已确认
 6. **上下游**：Pipeline 上下游节点的契约是否受影响已确认
 7. **无 TODO 残留**：没有"以后再处理"的事项藏在代码里
@@ -82,6 +82,20 @@ FinRobot 处于从零打磨的建设期，不是维护期。这个事实改变�
 
 ### 五、强制工作流（每个非琐碎任务必走）
 
+**阶段 0：诊断（找 bug 时强制先做这步）—— "Codex 范式"**
+
+我看到 Codex 找 bug 的做法是这样的，你必须照做：
+
+1. **先对照外部事实源** — 当前价 / 财务比率 / 行情有没有错，去外部对一遍（雅虎财经 / Bloomberg / 公司 IR / 10-K）。**未对外部就提出的 bug 都是空中楼阁。**
+2. **形成具体假设** — 不是"这块可能有问题"，而是"NVDA P/E 返回 43.34 但外部口径 32.36，说明 PE 分母不是 TTM"。具体到字段、具体到数值、具体到口径。
+3. **明确告诉我假设** — 在动任何代码前，**用一句话**告诉我："我推测根因是 X，证据是 Y"。让我看到你的判断、有机会反驳。
+4. **追到根因再下手** — 沿数据流逆向追，找到第一个出错的位置（不是症状位置）。
+5. **然后才改一个文件** — 一次只做一个 commit，commit message 解释根因 + 修法。
+
+**反例（我之前犯的错）**：看到 chapter 12 显示 $416 亿就直接派 6 个 agent 并行修 30 个 bug，没先对外部验证、没形成具体假设、没告诉用户根因。结果加了一堆 plausibility floor 守卫，但守卫让 NVDA P/E=43.34 这种"在范围内但口径错"的真 bug 安静通过。Codex 同时间在另一边对外部一对就拍出 TTM 口径错乱的根因。
+
+**禁止**：跳过阶段 0 直接派多个 agent 并行修。**派 agent = 并行执行，不是并行诊断。** 诊断必须串行，必须由你主导，必须在派 agent 之前完成。
+
 **阶段 1：探索（动手前）**
 用 grep / glob / read 把相关代码摸清楚。产出：
 - 涉及文件清单
@@ -91,7 +105,7 @@ FinRobot 处于从零打磨的建设期，不是维护期。这个事实改变�
 **阶段 2：规划**
 基于探索产出：
 - 改动方案（如果有多条路，对比 + **明确推荐一条**）
-- 影响面：Pipeline / `config.py` / `CLAUDE.md` / `project-memory/` / 测试 / Mode A / Mode B
+- 影响面：Pipeline / `config.py` / `CLAUDE.md` / `AGENTS.md` / `project-memory/` / 测试 / Mode A / Mode B
 - 周边清理项（你打算顺手做的事）
 
 **阶段 3：执行**
@@ -121,8 +135,6 @@ FinRobot 处于从零打磨的建设期，不是维护期。这个事实改变�
 > **我的判断**：倾向于[现在做 / 以后做]，因为 [具体理由]
 
 让我看到完整的 trade-off。**绝对禁止只说"建议后续优化"然后不给信息让我决策。** 你不给信息，我就没法判断，事情就会真的烂在"以后"。
-
-**确实推到"以后"的 bug 必须落清单**：如果按 trade-off 我同意你推迟，把它追加到 `project-memory/已知bug-待修清单.md`（严重度 / 现象 / 根因 / 推荐修法 / 估时 / 证据 commit 或 log path / 日期 / 状态 待修）。我会定期新开会话扫这个清单做 sweep 修复。**不写进清单 = 那个 bug 不存在 = 你撒谎说推到以后。** 每次会话开始前都先扫一眼这个清单，看是否有跟当前任务相关的可以顺手修。
 
 ---
 
@@ -169,40 +181,43 @@ FinRobot 是面向金融分析师 / 量化研究员 / 主动投资者的桌面�
 
 **开源流量项目，KPI = GitHub Stars。** 目标用户：**金融分析师 / 量化研究员 / 主动投资者**。
 
-**核心价值：投行级 12 章 equity 研报 + 桌面 app 工作流（artifact diff / What-if / Monte Carlo / 财报电话会逐字稿 / Spline 3D / ⌘K 命令面板）。** 阶段策略：
+**核心价值：投行级 equity 研报 + 桌面 app 工作流（artifact diff / What-if / Monte Carlo / SEC Ownership & Governance / 财报电话会逐字稿 / Spline 3D / ⌘K 命令面板）。** 阶段策略：
 
-- **阶段 1 · 12 章研报闭环（当前）** — 一键产出 12 章节投行级研报，章节命名 / 文案 / 排版全部按投行术语
+- **阶段 1 · SEC-backed 研报闭环（当前）** — 一键产出投行级研报，后端 artifact 已写入 SEC filings / XBRL facts / Ownership & Governance，UI 阅读页当前呈现 12 章
 - **阶段 2 · 桌面 app 独占** — 研报版本 diff / 可编辑假设重算（What-if Editor）/ 财报电话会逐字稿内嵌（ChapterFinancialData 第 11 章） / Spline 3D / Cursor 拖尾 / ⌘K 全局命令面板。**未实现承诺已删除**：实时行情 overlay、多 ticker 并排（compare tab / endpoint）。
 - **阶段 3 · Open Ecosystem** — MCP / Skills / Agent 三栈扩展，吸引贡献者
 
 | 受众 | 要什么 | 给什么 |
 |---|---|---|
-| 分析师 | 投行级研报深度 + 桌面工作流 | 12 章完整研报 + DCF What-if 可编辑假设 + artifact 版本对比 |
+| 分析师 | 投行级研报深度 + 桌面工作流 | SEC-backed 完整研报 + DCF What-if 可编辑假设 + artifact 版本对比 |
 | 开发者 | 新技术、干净架构 | MCP/Skills/Agent 三栈、工程纪律 |
 
 ## 后端架构（FastAPI + PydanticAI 1.7x）
 
-- **唯一 UI-facing pipeline：`research`** — 一键产出 12 章全量 artifact（投资论点 / 公司概览 / 财务 / 估值 / 新闻 / 敏感性 / 催化剂 / Technical（蒙特卡洛 + 狙击位 + 历史估值带）/ Peers 3 视图 / 财报会逐字稿 / 免责声明）。**1 ticker = 1 跑 = 1 份 artifact，不再有"分类型报告"。**
+- **唯一 UI-facing pipeline：`research`** — 一键产出全量 artifact（投资论点 / 公司概览 / 财务 / 估值 / 新闻 / 敏感性 / 催化剂 / Technical（蒙特卡洛 + 狙击位 + 历史估值带）/ Peers 3 视图 / SEC filings / XBRL facts / Ownership & Governance / 财报会逐字稿 / 免责声明）。**1 ticker = 1 跑 = 1 份 artifact，不再有"分类型报告"。**
 - **SDK-only pipelines**（保留但 UI 永远不暴露）：`ic-memo / earnings / dcf / lbo / ddm / comps`。能力都已折进 research。这些 key 留给 `/api/runs` 编程接口 + 历史 artifact 反向兼容；如需调整某一估值的假设，走 `/api/compute/*` REST。
 - **注册位置**：`engine/pipelines/registry.py`，每个 pipeline 都有 `artifact_builder=...`，自动持久化完整 Artifact 到 `ArtifactStore`。
 - **路由按职责分文件**：`routes/{artifacts,compute,dashboard,data,health,notify,runs,search,sentiment,settings,valuation}.py`
-- **数据层** `engine/data/` — providers (yfinance / FMP / Finnhub / SEC EDGAR / Adanos / FX spot via `{FROM}USD=X`) + `DataCache` (aiosqlite, WAL) + `QuoteCache` (L1 内存 dict + L2 SQLite, 60s TTL) + WeakValueDictionary 防 stampede 不内存泄漏
+- **数据层** `engine/data/` — providers (yfinance / FMP / Finnhub / EdgarTools SEC EDGAR) + `DataCache` (aiosqlite, WAL) + `QuoteCache` (L1 内存 dict + L2 SQLite, 60s TTL) + `sec_holdings_cache.db` 13F 本地反向索引 + WeakValueDictionary 防 stampede 不内存泄漏
 - **统一存储** 全部状态住在 `~/.finrobot/`（路径常量见 `finrobot/paths.py`）：
-  - `artifacts.db` — `SqliteArtifactStore`，二级索引 `(ticker, created_at)` / `verdict` / `archived`；`ArtifactSummary.verdict` 在 save 时一次性 extract 写列，dashboard 聚合不再 N+1 读全 artifact
+  - `artifacts.db` — `SqliteArtifactStore`，二级索引 `(ticker, created_at)` / `(ticker, type, created_at)` / `(archived, created_at)` / `verdict` / `archived`；`ArtifactSummary.verdict` 在 save 时一次性 extract 写列，dashboard 聚合不再 N+1 读全 artifact
   - `quotes.db` — `QuoteCache` L2 持久化（跨进程存活）
-  - `data_cache.db` — provider 响应缓存
+  - `data_cache.db` — provider 响应缓存；`/api/data/{ticker}/price?period=1y` 的 route cache key 为 `price:{ticker}:1y`，provider/pipeline price key 为 `price:{ticker}`，route cache miss 时默认 1y 视图复用 provider cache，yfinance 限流时返回带 warning 的旧缓存而不是空白页面
   - `runs.db` — pipeline SSE 事件流 + run 元数据
   - `journal.db` — trade-journal（performance review）
   - `sessions/*.jsonl` — chat transcript
   - `settings.json` — 用户配置
+  - `sec_holdings_cache.db` — 13F 机构持仓本地反向索引；runtime 查 ticker / issuer name，不临场扫季度全集
 - **lifespan 关停顺序** cancel run_tasks → close data_layer → close run_store → close artifact_store → close quote_cache singleton → flush transcript writers，每个 aiosqlite store 都显式 `close()`，避免 WAL 不 checkpoint + asyncio loop teardown race 出 `Event loop is closed` 警告
 - **landing 性能** lifespan 后台 `_warm_quote_cache_background` 预填 distinct studied tickers 报价；`fetch_quotes_batch_cached` 内部 cold 路径用 `asyncio.gather` + `asyncio.to_thread` 把 yfinance fast_info 并发 fan-out（N 个 ticker 同时拉，不再串行循环 1.5s/ticker）。冷启动 hit-rate **4.80s → 0.007s**（warmup 后），warmup 自身 4 ticker ≈ 1.5-2s（旧串行 ~6s）
+- **SEC 后台刷新** `_refresh_sec_holdings_background` 是显式 opt-in：`sec_holdings_auto_refresh` 默认关。用户开启后，lifespan 在 SEC identity 有效且 13F cache 超过 60 天时刷新最近完整季度；刷新以独立 `python -m scripts.refresh_sec_holdings` 子进程运行，不占 FastAPI event loop，shutdown 会终止刷新子进程；默认 identity 被 `_is_valid_identity` 拒绝时 app 正常启动但不注册 EdgarToolsProvider
 - **聚合层** `engine/aggregations/` — 叶层纯函数（hit_rate_overview / recent_research）
 - **compute 层** `engine/compute/`：
   - 估值：`dcf / ddm / lbo / comps / multiples / wacc / valuation_aggregator / valuation_synthesis`
-  - 财务：`forward_estimates / historical_extractor / historical_valuation / extractor / data_processor / fx_normalize`
+  - 财务：`forward_estimates / historical_extractor / historical_valuation / extractor / data_processor`
   - 主题：`catalyst / sentiment / news / rag / earnings / industry / market`
   - 桌面增强：`monte_carlo / sniper / composite_score / spreadsheet_gen / signal / compare`
+  - SEC：`ownership / xbrl_aligned_comps` 纯函数承接 Form 4 / 13F / DEF 14A / XBRL-aligned peer comps，所有 SEC 行保留 `FilingProvenance`
 - **engine 其他子模块**（routes 不直接暴露但 pipeline / compute 内部依赖）：
   - `agents/` — pydantic-ai agent 工厂 + tool 定义
   - `analysis/` — pipeline 共用的 prompt 模板（`prompts.py`）+ 输出 schema
@@ -224,7 +239,6 @@ FinRobot 是面向金融分析师 / 量化研究员 / 主动投资者的桌面�
 - `POST /api/compute/{dcf,ddm,lbo,monte-carlo,sniper,score,multiples,peer-stats,wacc,…}` — 确定性计算独立调用
 - `GET /api/valuation/aggregate/{ticker}` + `/historical-bands/{ticker}` — Football Field + EV/EBITDA 历史带
 - `GET /api/sentiment/{ticker}` — Adanos 散户情绪
-- `GET /api/search` — Cmd+K 全局搜索：ticker / artifact 两分支；artifact 命中 `navigate:/stocks/{ticker}/runs/{id}`；slash command + session results + 无 ticker artifact 已退役（Task 1 commit a43fde6 + c398720 落地）
 
 ## 前端架构（React 19 + Tauri）
 
@@ -253,7 +267,6 @@ FinRobot 是面向金融分析师 / 量化研究员 / 主动投资者的桌面�
 - 三轨字体：`--font-display` (Audiowide) + `--font-mono` (JetBrains Mono) + `--font-body` (Inter)
 - 合法动效 keyframes：核心 cosmic-* 7 种（`cosmic-pull-up / morph / shimmer / halo / pulse-dot / pulse-ring / drift-slow + drift-fast`）+ 12 个功能动效（`progress-slide / fadeUp / skeleton-pulse / statusbar-pulse / toast-in / pipeline-done-pulse / check-pop / done-bar-in / ask-bounce / status-pulse / msgIn / blink`）。新加任何 @keyframes 前先 grep `App.css`，重复或类似就用现有的
 - 工具类：`.cosmic-card` / `.cosmic-badge.cosmic-badge-{buy,hold,sell}` / `.btn-shimmer` / `.halo-input` / `.cosmic-group-header` / `.ai-icon-btn`
-- 数据新鲜度三档：fresh = `var(--accent-cyan)` (≤ 5min · live 信号) · delayed = `var(--warning)` (5-30min) · stale = `var(--danger)` (> 30min)。`--radius-pill: 999px` 标签药丸圆角。
 
 ### LLM 叙事字段（ThesisResult）
 
@@ -265,6 +278,10 @@ FinRobot 是面向金融分析师 / 量化研究员 / 主动投资者的桌面�
 - `recommendation` — BUY / HOLD / SELL
 - `catalysts` / `risks` — 数组
 - `company_overview` — 200-300 字 Company Overview（business / segments / geography / moat 投行口吻）
+
+artifact 路径：
+- `outputs.llm_narrative.*` — 顶层 LLM 叙事镜像（`ArtifactOutputs.llm_narrative` 字段，由 equity_research builder 从 `structured.thesis` mirror-write）
+- `outputs.structured.thesis.*` — 计算审计链源头，UI 当前读此路径，保持不变
 
 surface 位置：`/stocks/:ticker/runs/:artifactId` 路由（ArtifactDetailPage）的 12 章节按字段映射渲染：
 - `tagline` → 00 Cover 顶部 italic 引文
@@ -278,8 +295,8 @@ surface 位置：`/stocks/:ticker/runs/:artifactId` 路由（ArtifactDetailPage�
 
 ## 测试金字塔
 
-- **1420 pytest pass** + 1 skipped + 10 deselected (`-m "not slow and not integration"`)（unit + routes + audit + artifact；`tests/unit/test_paths.py` 覆盖 paths 常量 + journal.db + sessions/ 迁移 / `test_sqlite_store.py` + `test_migrate.py` 覆盖 SQLite ArtifactStore + 文件系统→SQLite 迁移 / `test_quote_cache.py` 覆盖 L1+L2 quote cache / `test_quote_batch.py::test_cached_cold_path_fans_out_per_ticker_concurrently` 守护 yfinance per-ticker 并发不被回退到串行循环 / `test_equity_research_pipeline.py` 覆盖 pipeline 7 步骤结构 + step executor + catalyst 链路 / `test_notify_routes.py` 覆盖 8 个 channel test endpoint case / `test_growth_scale_override.py` 覆盖 What-if Editor revenue growth scaling / `test_fx_normalize.py` + `test_fx_provider.py` 守护外国 ADR USD 归一（TSM/ASML/SAP/local-listing shape + rate validation + ProviderError on bad quote））。实跑时间 `pytest -m "not slow and not integration" -q` ~10s。剩 5-10 个 aiosqlite teardown warning 是已知 race（见 `project-memory/踩坑记录/aiosqlite-test-teardown-2026-05-27.md`，非致命）。
-- **311 vitest pass** + 2 skipped（components + stores + hooks + i18n smoke + format helpers + errorMessage 映射 + `ChapterTechnical.test.tsx` + `useQuotesWarmed.test.tsx` + `WhatIfEditor.test.tsx` 守护 3 slider + side-by-side compare 行为）
+- **1527 pytest pass** + 1 skipped + 10 deselected (`-m "not slow and not integration"`)（unit + routes + audit + artifact；`tests/unit/test_paths.py` 覆盖 paths 常量 + journal.db + sessions/ 迁移 / `test_sqlite_store.py` + `test_migrate.py` 覆盖 SQLite ArtifactStore + 文件系统→SQLite 迁移 / `test_quote_cache.py` 覆盖 L1+L2 quote cache / `test_quote_batch.py::test_cached_cold_path_fans_out_per_ticker_concurrently` 守护 yfinance per-ticker 并发不被回退到串行循环，`test_yfinance_rate_limit_is_isolated` 守护 YFRateLimit 不把 dashboard 打成 500 / `test_equity_research_pipeline.py` 覆盖 pipeline 8 步骤结构 + step executor + SEC required data + ownership_governance_analysis 链路 / `test_edgar_provider.py` 覆盖中文 SEC identity 到 ASCII header 的运行时转换 / `test_server.py::test_sec_holdings_refresh_not_inline_in_lifespan` 守护 13F refresh 不阻塞 sidecar readiness / `test_refresh_sec_holdings.py` 守护 13F schema drift 聚合 warning / `test_sec_holdings_cache.py` 覆盖 13F ticker 与 issuer name fallback / `test_ownership_compute.py` 覆盖 Form 4、13F、DEF 14A deterministic 解析 / `test_xbrl_aligned_comps.py` 覆盖 XBRL-aligned peer comps + NetIncomeLoss :annual/:ttm 双 key 不碰撞 / `tests/audit/test_sec_provenance.py` 覆盖 artifact SEC provenance contract + llm_narrative mirror-write / `test_notify_routes.py` 覆盖 8 个 channel test endpoint case / `test_growth_scale_override.py` 覆盖 What-if Editor revenue growth scaling）。实跑时间 `pytest -m "not slow and not integration" -q` ~10s。剩余 aiosqlite teardown warning 是已知 race（见 `project-memory/踩坑记录/aiosqlite-test-teardown-2026-05-27.md`，非致命）。
+- **309 vitest pass** + 2 skipped（components + stores + hooks + i18n smoke + format helpers + errorMessage 映射 + API fetch timeout + `ChapterTechnical.test.tsx` + `useQuotesWarmed.test.tsx` + `WhatIfEditor.test.tsx` 守护 3 slider + side-by-side compare 行为；`StockWorkspace.test.tsx` 守护 422 才进入 ticker-not-found，yfinance 502/网络错误保持 workspace shell 可用，AI run 启动失败必须 toast 反馈）
 - **Playwright e2e 待新建**：旧 2 个 spec (`v5-walkthrough` + `cosmic-research-flow`) 已删（依赖死 23-section 锚点 + StatBanner/HeroVerdict/FootballField testids）。新 e2e 应该覆盖 landing → workspace dual-zone (cold/running/hot) → ArtifactDetailPage 12-chapter (TOC scroll-spy + chapter mini-grid #anchor jump + Diff modal) 路径
 
 ## UI 设计规范强制（桌面 App）
@@ -341,5 +358,4 @@ surface 位置：`/stocks/:ticker/runs/:artifactId` 路由（ArtifactDetailPage�
 - **pydantic-ai 1.7x API 写前必查** https://ai.pydantic.dev/（`feedback_pydantic_ai_api`）
 - **UI 文案 i18n** — 用户可见字符串走 `useI18n().t('key')` 或 catalog；不在 JSX 硬编码英文；不暴露 `backend / server / sidecar / HTTP / artifact / run_id` 等内部术语
 - **不要 band-aid 修法 / 不留 dead code / 不留假按钮 / 不写死 fallback**
-- **CLAUDE.md 是当下 state 文档** — 写"是什么"，不写"曾经是什么 / 改自什么"。退役内容直接删，commit 记录就是历史
-- **报价 pill tier-label** — 任何报价 pill / freshness 指示器必须按 fetched_at 分档（fresh ≤ 5min / delayed ≤ 30min / stale > 30min），不允许恒为 LIVE 字样。fetched_at 缺失视为 stale，不 fail-safe 回 fresh。颜色映射：fresh=`var(--accent-cyan)` / delayed=`var(--warning)` / stale=`var(--danger)`。常量 `FRESHNESS_WARN_SECONDS=300` / `FRESHNESS_DANGER_SECONDS=1800` 在 `ui/src/utils/format.ts`，helper `freshnessTier` / `freshnessColor` / `formatAge`。
+- **AGENTS.md 是当下 state 文档** — 写"是什么"，不写"曾经是什么 / 改自什么"。退役内容直接删，commit 记录就是历史

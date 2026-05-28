@@ -105,7 +105,7 @@ FinRobot 处于从零打磨的建设期，不是维护期。这个事实改变�
 **阶段 2：规划**
 基于探索产出：
 - 改动方案（如果有多条路，对比 + **明确推荐一条**）
-- 影响面：Pipeline / `config.py` / `AGENTS.md` / `project-memory/` / 测试 / Mode A / Mode B
+- 影响面：Pipeline / `config.py` / `CLAUDE.md` / `AGENTS.md` / `project-memory/` / 测试 / Mode A / Mode B
 - 周边清理项（你打算顺手做的事）
 
 **阶段 3：执行**

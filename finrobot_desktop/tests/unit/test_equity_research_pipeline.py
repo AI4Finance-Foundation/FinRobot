@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, AsyncMock, patch
 
 import pytest
@@ -460,25 +460,26 @@ async def test_catalyst_analysis_produces_catalyst_analysis_output(mock_deps):
     from finrobot.engine.models.financial import CatalystAnalysis, StepOutput
     from finrobot.engine.compute.news import NewsItem
 
+    _now = datetime.now(tz=timezone.utc)
     news_result = DataResult(
         data={
             "news_items": [
                 {
                     "title": "AAPL beats earnings estimates",
                     "source": "Reuters",
-                    "published": "2024-06-01T10:00:00Z",
+                    "published": (_now - timedelta(days=1)).isoformat(),
                     "url": "https://example.com/1",
                 },
                 {
                     "title": "New iPhone launch drives revenue growth",
                     "source": "Bloomberg",
-                    "published": "2024-06-02T12:00:00Z",
+                    "published": (_now - timedelta(days=2)).isoformat(),
                     "url": "https://example.com/2",
                 },
                 {
                     "title": "AAPL faces regulatory probe in EU",
                     "source": "FT",
-                    "published": "2024-06-03T08:00:00Z",
+                    "published": (_now - timedelta(days=3)).isoformat(),
                     "url": "https://example.com/3",
                 },
             ]
@@ -486,7 +487,7 @@ async def test_catalyst_analysis_produces_catalyst_analysis_output(mock_deps):
         provider="fake",
         ticker="AAPL",
         data_type="news",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=_now,
     )
 
     # Mock fetch_news to return raw news from our DataResult
@@ -497,7 +498,7 @@ async def test_catalyst_analysis_produces_catalyst_analysis_output(mock_deps):
         NewsItem(
             title="AAPL beats earnings estimates",
             source="Reuters",
-            published=datetime(2024, 6, 1, 10, 0, tzinfo=timezone.utc),
+            published=_now - timedelta(days=1),
             url="https://example.com/1",
             category="earnings",
             sentiment="positive",
@@ -507,7 +508,7 @@ async def test_catalyst_analysis_produces_catalyst_analysis_output(mock_deps):
         NewsItem(
             title="New iPhone launch drives revenue growth",
             source="Bloomberg",
-            published=datetime(2024, 6, 2, 12, 0, tzinfo=timezone.utc),
+            published=_now - timedelta(days=2),
             url="https://example.com/2",
             category="product",
             sentiment="positive",
@@ -517,7 +518,7 @@ async def test_catalyst_analysis_produces_catalyst_analysis_output(mock_deps):
         NewsItem(
             title="AAPL faces regulatory probe in EU",
             source="FT",
-            published=datetime(2024, 6, 3, 8, 0, tzinfo=timezone.utc),
+            published=_now - timedelta(days=3),
             url="https://example.com/3",
             category="regulatory",
             sentiment="negative",
@@ -582,11 +583,12 @@ async def test_catalyst_analysis_net_sentiment_bullish(mock_deps):
     from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
     from finrobot.engine.compute.news import NewsItem
 
+    _now = datetime.now(tz=timezone.utc)
     classified = [
         NewsItem(
             title="Massive earnings beat",
             source="Reuters",
-            published=datetime(2024, 6, 1, tzinfo=timezone.utc),
+            published=_now - timedelta(days=1),
             url="https://example.com/1",
             category="earnings",
             sentiment="positive",
@@ -599,7 +601,7 @@ async def test_catalyst_analysis_net_sentiment_bullish(mock_deps):
         provider="fake",
         ticker="AAPL",
         data_type="news",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=_now,
     )
     mock_deps.data_layer.fetch = AsyncMock(return_value=empty_news_result)
 
@@ -621,11 +623,12 @@ async def test_catalyst_analysis_net_sentiment_bearish(mock_deps):
     from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
     from finrobot.engine.compute.news import NewsItem
 
+    _now = datetime.now(tz=timezone.utc)
     classified = [
         NewsItem(
             title="Company faces massive lawsuit",
             source="Reuters",
-            published=datetime(2024, 6, 1, tzinfo=timezone.utc),
+            published=_now - timedelta(days=1),
             url="https://example.com/1",
             category="regulatory",
             sentiment="negative",
@@ -638,7 +641,7 @@ async def test_catalyst_analysis_net_sentiment_bearish(mock_deps):
         provider="fake",
         ticker="AAPL",
         data_type="news",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=_now,
     )
     mock_deps.data_layer.fetch = AsyncMock(return_value=empty_news_result)
 

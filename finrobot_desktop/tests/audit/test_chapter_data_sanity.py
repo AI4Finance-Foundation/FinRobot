@@ -175,12 +175,14 @@ def test_chapter_5_synthesis_flags_30pct_outlier_method():
 # ---------------------------------------------------------------------------
 
 
-def test_chapter_9_sniper_take_profit_never_below_ideal_buy():
-    """Math invariant. A LONG that exits below entry has zero financial
-    meaning. AAPL produced this exact shape (tp=$85.92 < ideal_buy=$81.62
-    feels close but stop=$264 above ideal_buy proves the structure was
-    incoherent). Sniper MUST switch to sell_mode anchors or raise."""
-    # SELL-mode scenario: DCF target ($85) far below current ($310)
+def test_chapter_9_sniper_levels_are_direction_coherent():
+    """Math invariant, direction-aware (Bug-6, 2026-05-28):
+      LONG  : stop_loss <  ideal_buy <  take_profit  (exit above entry)
+      SHORT : take_profit <  ideal_buy <  stop_loss  (cover below entry)
+    A SELL-rated stock must produce a coherent SHORT — the pre-fix code
+    emitted a LONG-flavoured 'buy $372.80 / stop $484.40 / R/R 0.11' that
+    had no financial meaning against a SELL verdict."""
+    # SELL-mode scenario: DCF target ($85) far below current ($310).
     req = SniperRequest(
         ticker="AAPL",
         current_price=310.0,
@@ -188,10 +190,14 @@ def test_chapter_9_sniper_take_profit_never_below_ideal_buy():
         historical_prices=[300.0] * 15 + [308.0, 305.0, 309.0, 310.0, 310.0],
     )
     result = calculate_sniper_points(req)
-    assert result.take_profit >= result.ideal_buy
-    if not result.sell_mode:
-        # LONG mode must also satisfy: stop_loss < ideal_buy
-        assert result.stop_loss < result.ideal_buy
+    if result.sell_mode:
+        assert result.direction == "SHORT"
+        # SHORT: cover below entry, stop above entry.
+        assert result.take_profit < result.ideal_buy < result.stop_loss
+    else:
+        assert result.direction == "LONG"
+        # LONG: stop below entry, target above entry.
+        assert result.stop_loss < result.ideal_buy <= result.take_profit
 
 
 def test_chapter_9_sniper_sell_mode_activates_when_target_below_current():

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date
@@ -181,6 +182,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     #
     # The `warmed` flag is set in a `finally` block so a yfinance outage
     # or one-off exception cannot leave the frontend polling forever.
+    #
+    # Hard cap (_WARMUP_BUDGET_SECONDS): if yfinance is rate-limited or
+    # otherwise slow, warmup must not delay the rest of boot. After the
+    # cap we surrender and mark warmed=True so the UI stops polling; the
+    # first dashboard request will lazy-fetch any tickers we didn't get.
+    _WARMUP_BUDGET_SECONDS = 8.0
+
     async def _warm_quote_cache_background() -> None:
         ticker_count = 0
         try:
@@ -193,8 +201,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 return
             from finrobot.engine.data.quote_batch import fetch_quotes_batch_cached
 
-            await fetch_quotes_batch_cached(tickers)
-            logger.info("Quote cache warmed for %d studied tickers", len(tickers))
+            try:
+                await asyncio.wait_for(
+                    fetch_quotes_batch_cached(tickers),
+                    timeout=_WARMUP_BUDGET_SECONDS,
+                )
+                logger.info("Quote cache warmed for %d studied tickers", len(tickers))
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Quote cache warmup exceeded %.1fs budget for %d tickers — "
+                    "lazy fetch will fill the gap",
+                    _WARMUP_BUDGET_SECONDS,
+                    len(tickers),
+                )
         except (OSError, ValueError, TypeError, RuntimeError):
             logger.exception("Quote cache warmup failed — non-fatal")
         finally:
@@ -208,20 +227,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async def _refresh_sec_holdings_background() -> None:
         if not settings.sec_holdings_auto_refresh:
             return
-        from finrobot.engine.data.providers.edgar_provider import _is_valid_identity
+        from finrobot.engine.data.providers.edgar_provider import (
+            _is_valid_identity,
+            _sec_header_identity,
+        )
+        from finrobot.engine.data.sec_holdings_cache import cache_status
+        from scripts.refresh_sec_holdings import _latest_completed_quarter_end
 
         if not _is_valid_identity(settings.sec_user_agent):
             logger.info("SEC 13F holdings refresh skipped: SEC identity not configured")
             return
+        header_identity = _sec_header_identity(settings.sec_user_agent)
+        if header_identity is None:
+            logger.info("SEC 13F holdings refresh skipped: SEC identity not configured")
+            return
         try:
-            from edgar import set_identity
-            from finrobot.engine.data.sec_holdings_cache import cache_status
-            from scripts.refresh_sec_holdings import (
-                _latest_completed_quarter_end,
-                _refresh_quarter,
-            )
-
-            set_identity(settings.sec_user_agent)
             status = await cache_status()
             latest_raw = status.get("latest_period_end")
             if latest_raw:
@@ -233,8 +253,30 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     )
                     return
             period = _latest_completed_quarter_end()
-            summary = await _refresh_quarter(period)
-            logger.info("SEC 13F holdings refresh complete: %s", summary)
+            repo_root = Path(__file__).resolve().parent.parent
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-m",
+                "scripts.refresh_sec_holdings",
+                "--period",
+                period.isoformat(),
+                "--identity",
+                header_identity,
+                cwd=str(repo_root),
+            )
+            logger.info(
+                "SEC 13F holdings refresh spawned: pid=%s period_end=%s",
+                proc.pid,
+                period.isoformat(),
+            )
+            return_code = await proc.wait()
+            if return_code == 0:
+                logger.info("SEC 13F holdings refresh complete")
+            else:
+                logger.warning(
+                    "SEC 13F holdings refresh exited with code %s",
+                    return_code,
+                )
         except (ImportError, OSError, RuntimeError, ValueError, TypeError, AttributeError):
             logger.exception("SEC 13F holdings refresh failed — non-fatal")
 

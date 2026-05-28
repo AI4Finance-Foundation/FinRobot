@@ -588,3 +588,61 @@ class TestFetchHistorical:
         results = await layer.fetch_historical("financials", "AAPL", years=5)
 
         assert results == []
+
+
+# ---------------------------------------------------------------------------
+# 门一 Step 3/4: fetch_quote + fetch_price PROPAGATE provider failure
+# (unlike fetch(), which swallows it into a generic error DataResult).
+# ---------------------------------------------------------------------------
+
+
+class TestFetchQuoteRaises:
+    async def test_returns_first_success(self, cache):
+        p = MockProvider("fmp", ["quote"], result=_make_result(data_type="quote", provider="fmp"))
+        layer = DataLayer([p], cache)
+        result = await layer.fetch_quote("AAPL")
+        assert result.provider == "fmp"
+
+    async def test_falls_through_on_provider_error(self, cache):
+        p1 = MockProvider("fmp", ["quote"], raises=ProviderError("fmp down"))
+        p2 = MockProvider("yfinance", ["quote"], result=_make_result(data_type="quote", provider="yfinance"))
+        layer = DataLayer([p1, p2], cache)
+        result = await layer.fetch_quote("AAPL")
+        assert result.provider == "yfinance"
+
+    async def test_raises_last_error_when_all_fail(self, cache):
+        p1 = MockProvider("fmp", ["quote"], raises=ProviderError("fmp down"))
+        p2 = MockProvider("yfinance", ["quote"], raises=ProviderError("429 Too Many Requests"))
+        layer = DataLayer([p1, p2], cache)
+        with pytest.raises(ProviderError, match="429"):
+            await layer.fetch_quote("AAPL")
+
+    async def test_raises_when_no_quote_capable_provider(self, cache):
+        p = MockProvider("x", ["financials"])
+        layer = DataLayer([p], cache)
+        with pytest.raises(ProviderError, match="No QUOTE"):
+            await layer.fetch_quote("AAPL")
+
+
+class TestFetchPriceRaises:
+    async def test_caches_success_and_returns(self, cache):
+        p = MockProvider("yfinance", ["price"], result=_make_result(data_type="price", provider="yfinance"))
+        layer = DataLayer([p], cache)
+        r1 = await layer.fetch_price("AAPL")
+        assert r1.provider == "yfinance"
+        assert p.fetch_called == 1
+        # Second call is a fresh-cache hit — provider not re-invoked.
+        await layer.fetch_price("AAPL")
+        assert p.fetch_called == 1
+
+    async def test_raises_last_error_when_all_fail_no_cache(self, cache):
+        p = MockProvider("yfinance", ["price"], raises=ProviderError("Symbol delisted"))
+        layer = DataLayer([p], cache)
+        with pytest.raises(ProviderError, match="delisted"):
+            await layer.fetch_price("AAPL")
+
+    async def test_raises_when_no_price_capable_provider(self, cache):
+        p = MockProvider("x", ["financials"])
+        layer = DataLayer([p], cache)
+        with pytest.raises(ProviderError, match="No PRICE"):
+            await layer.fetch_price("AAPL")

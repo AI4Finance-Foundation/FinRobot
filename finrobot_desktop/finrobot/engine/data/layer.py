@@ -220,6 +220,38 @@ class DataLayer:
             raise last_error
         raise ProviderError(f"No QUOTE-capable provider available for {ticker}")
 
+    async def fetch_price(self, ticker: str) -> DataResult:
+        """Fetch PRICE (current price + ~1y OHLC), caching success and RAISING
+        the last provider error on total failure.
+
+        Unlike :meth:`fetch`, which swallows ``ProviderError`` into a generic
+        error DataResult, this propagates the originating provider error so the
+        /price route can classify bad-ticker (→422) vs upstream-down (→502) via
+        ``_is_yfinance_service_down``. Fresh cache is served first; if all
+        providers fail but a stale row exists, the stale row is returned (the
+        route surfaces its own stale warning) rather than raising.
+        """
+        cached = await self._cache.get(DataType.PRICE, ticker)
+        if cached is not None and not cached.is_stale:
+            return cached.data
+        last_error: ProviderError | None = None
+        for provider in self._providers:
+            if DataType.PRICE not in provider.capabilities():
+                continue
+            try:
+                result = await provider.fetch(ticker, DataType.PRICE)
+            except ProviderError as e:
+                logger.warning(f"Provider '{provider.name}' PRICE failed for {ticker}: {e}")
+                last_error = e
+                continue
+            await self._cache.set(DataType.PRICE, ticker, result)
+            return result
+        if cached is not None:
+            return cached.data  # stale beats nothing; route adds its own warning
+        if last_error is not None:
+            raise last_error
+        raise ProviderError(f"No PRICE-capable provider available for {ticker}")
+
     @staticmethod
     def _split_yearly(result: DataResult) -> list[DataResult]:
         """Split a DataResult with yearly_data into list[DataResult].

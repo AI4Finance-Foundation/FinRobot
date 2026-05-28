@@ -129,7 +129,8 @@ async def get_price(ticker: str, request: Request, period: str = "1y") -> dict[s
       - ValueError      → 422 (invalid ticker)
       - ProviderError   → 502 (yfinance service down)
     """
-    cache = request.app.state.deps.data_layer.cache
+    data_layer = request.app.state.deps.data_layer
+    cache = data_layer.cache
     ticker_upper = ticker.upper()
     route_cache_key = f"{ticker_upper}:{period}"
     cached = await cache.get(DataType.PRICE, route_cache_key)
@@ -147,7 +148,7 @@ async def get_price(ticker: str, request: Request, period: str = "1y") -> dict[s
             cache,
             DataType.PRICE,
             ticker_upper,
-            lambda: fetch_price_history(ticker_upper, period),
+            lambda: fetch_price_history(data_layer, ticker_upper),
             cache_key_suffix=f":{period}",
         )
         return await _enrich_price_payload_from_financial_cache(cache, ticker_upper, payload)

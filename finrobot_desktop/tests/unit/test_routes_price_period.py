@@ -21,7 +21,12 @@ from finrobot.engine.data.types import DataType
 
 @pytest.mark.asyncio
 async def test_price_endpoint_accepts_period_param(app_with_deps):
-    """GET /api/data/{ticker}/price?period=3mo forwards period to the fetcher."""
+    """GET /api/data/{ticker}/price?period=3mo invokes the DataLayer-backed fetcher.
+
+    After 门一 Step 4, ``period`` scopes only the route cache key — the fetcher
+    pulls the provider's ~1y PRICE window (DataLayer.fetch_price), so it's called
+    with (data_layer, ticker), not the period string.
+    """
     app = app_with_deps
 
     mock_payload = {
@@ -40,7 +45,7 @@ async def test_price_endpoint_accepts_period_param(app_with_deps):
             resp = await client.get("/api/data/AAPL/price?period=3mo")
 
     assert resp.status_code == 200
-    mock_fetch.assert_called_once_with("AAPL", "3mo")
+    mock_fetch.assert_called_once_with(app.state.deps.data_layer, "AAPL")
 
 
 @pytest.mark.asyncio

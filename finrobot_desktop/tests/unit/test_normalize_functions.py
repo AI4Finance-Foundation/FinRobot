@@ -107,3 +107,24 @@ def test_financials_exposes_ttm_lag_and_period_end():
     assert fin.pe_ttm_lag_quarters >= 2
     assert DEGRADED_TTM_LAG in fin.provenance.degraded
     assert fin.as_of.date().isoformat() == "2025-09-30"
+
+
+def test_financials_carries_ebitda_components():
+    # operating_income + income_tax_expense must survive normalization so the
+    # extractor can recompute both EBITDA calibers (TSLA TTM values).
+    fin = normalize_financials(
+        _fin_result(
+            revenue=97.879e9,
+            market_cap=1.65e12,
+            net_income=3.876e9,
+            operating_income=4.897e9,
+            income_tax_expense=1.511e9,
+            interest_expense=0.339e9,
+            depreciation_amortization=6.291e9,
+            date="2026-03-31",
+        )
+    )
+    assert fin.operating_income == 4.897e9
+    assert fin.income_tax_expense == 1.511e9
+    assert fin.interest_expense == 0.339e9
+    assert fin.depreciation_amortization == 6.291e9

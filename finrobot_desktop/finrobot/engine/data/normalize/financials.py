@@ -94,6 +94,8 @@ def normalize_financials(result: DataResult) -> NormalizedFinancials:
         net_income=_f(data.get("net_income")),
         gross_margin=_f(data.get("gross_margin")),
         operating_margin=_f(data.get("operating_margin")),
+        operating_income=_f(data.get("operating_income")),
+        income_tax_expense=_f(data.get("income_tax_expense")),
         market_cap=_f(data.get("market_cap")) or 0.0,
         shares_outstanding=_f(data.get("shares_outstanding")),
         current_price=_f(data.get("current_price")),

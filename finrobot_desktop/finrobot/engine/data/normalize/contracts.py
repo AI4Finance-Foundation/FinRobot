@@ -134,6 +134,12 @@ class NormalizedFinancials(BaseModel):
     net_income: float | None = None
     gross_margin: float | None = None
     operating_margin: float | None = None
+    # Absolute income-statement line items feeding the two EBITDA calibers
+    # (engine.compute.multiples). Carried alongside the margins because the
+    # operating EBITDA = operating_income + D&A and the reported EBITDA =
+    # net_income + income_tax_expense + interest_expense + D&A.
+    operating_income: float | None = None
+    income_tax_expense: float | None = None
     market_cap: float
     shares_outstanding: float | None = None
     current_price: float | None = None

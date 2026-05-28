@@ -109,6 +109,11 @@ export interface SniperShape {
   support_level?: number
   resistance_level?: number
   risk_reward_ratio?: number
+  // "LONG" | "SHORT" — drives entry/exit labels. SHORT (SELL-rated) flips
+  // ideal_buy → short entry, take_profit → cover target (below entry),
+  // stop_loss → above entry. Absent on legacy artifacts (treat as LONG).
+  direction?: string
+  sell_mode?: boolean
 }
 
 export interface HistoricalBandShape {
@@ -157,6 +162,23 @@ export type InsiderTransactionType =
   | 'other_disposition'
   | 'grant'
   | 'award'
+  // SEC Form 4 §8 canonical codes — mirrors ownership._FORM4_CODE_TO_TYPE.
+  | 'tax_withholding' // F — withhold shares for exercise price / tax
+  | 'conversion' // C — conversion of derivative
+  | 'exercise_otm' // O — exercise of out-of-money derivative
+  | 'exercise_itm_atm' // X — exercise of in/at-money derivative
+  | 'disposition_to_issuer' // D — disposition back to issuer
+  | 'discretionary' // I — discretionary 16b-3(f) transaction
+  | 'equity_swap' // K — equity swap or similar
+  | 'tender' // U — tender in change-of-control
+  | 'voluntary_report' // V — voluntary early report
+  | 'estate' // W — acquisition/disposition by will/descent
+  | 'voting_trust' // Z — deposit/withdrawal from voting trust
+  | 'small_acquisition' // L — small acquisition under 16a-6
+  | 'gift' // G — bona fide gift
+  | 'expiration_short' // E — expiration of short derivative position
+  | 'expiration_long' // H — expiration of long derivative position
+  | 'other' // J — other (free-text described)
 
 export interface InsiderTransactionShape {
   filing_date: string

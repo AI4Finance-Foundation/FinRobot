@@ -289,13 +289,20 @@ function SniperPanel({
   type Cell = { label: string; value: string; delta?: string; tone?: 'up' | 'down' }
   const cells: Cell[] = []
 
+  // SHORT (SELL-rated) flips the trade structure: ideal_buy/secondary_buy are
+  // SHORT entries, take_profit is the cover target BELOW entry, stop_loss is
+  // ABOVE entry. Labels switch so a SELL report never reads as a long.
+  const isShort = sniper.direction === 'SHORT' || sniper.sell_mode === true
+
   if (sniper.ideal_buy !== undefined) {
     cells.push({
-      label: t('chapter.technical.sniper.idealBuy'),
+      label: isShort
+        ? t('chapter.technical.sniper.idealShort')
+        : t('chapter.technical.sniper.idealBuy'),
       value: `$${sniper.ideal_buy.toFixed(2)}`,
-      tone: 'up',
+      tone: isShort ? undefined : 'up',
       delta:
-        sniper.safety_margin !== undefined
+        !isShort && sniper.safety_margin !== undefined
           ? t('chapter.technical.sniper.safetyMargin', {
               pct: (sniper.safety_margin * 100).toFixed(0),
             })
@@ -304,9 +311,13 @@ function SniperPanel({
   }
   if (sniper.secondary_buy !== undefined) {
     cells.push({
-      label: t('chapter.technical.sniper.secondaryBuy'),
+      label: isShort
+        ? t('chapter.technical.sniper.secondaryShort')
+        : t('chapter.technical.sniper.secondaryBuy'),
       value: `$${sniper.secondary_buy.toFixed(2)}`,
-      delta: t('chapter.technical.sniper.atSupport'),
+      delta: isShort
+        ? t('chapter.technical.sniper.atResistance')
+        : t('chapter.technical.sniper.atSupport'),
     })
   }
   if (sniper.stop_loss !== undefined) {
@@ -318,10 +329,14 @@ function SniperPanel({
   }
   if (sniper.take_profit !== undefined) {
     cells.push({
-      label: t('chapter.technical.sniper.takeProfit'),
+      label: isShort
+        ? t('chapter.technical.sniper.coverTarget')
+        : t('chapter.technical.sniper.takeProfit'),
       value: `$${sniper.take_profit.toFixed(2)}`,
       tone: 'up',
-      delta: t('chapter.technical.sniper.dcfTarget'),
+      delta: isShort
+        ? t('chapter.technical.sniper.dcfCover')
+        : t('chapter.technical.sniper.dcfTarget'),
     })
   }
   if (sniper.support_level !== undefined) {

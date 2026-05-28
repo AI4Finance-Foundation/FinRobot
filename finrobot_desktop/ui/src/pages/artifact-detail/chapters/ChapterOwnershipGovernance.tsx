@@ -57,7 +57,9 @@ export function ChapterOwnershipGovernance({ ownership }: Props): React.ReactEle
   const reasons = ownership.degraded_reasons ?? {}
   const insiders = ownership.insider_transactions ?? []
   const holdings = ownership.institutional_holdings ?? []
-  const compensation = ownership.proxy_compensation ?? null
+  const compensationRaw = ownership.proxy_compensation ?? null
+  const compensation = sanitizeProxyCompensation(compensationRaw)
+  const compensationInvalid = compensationRaw !== null && compensation === null
   const alerts = ownership.schedule13_alerts ?? []
 
   const insidersReason = degradedReasonKey(
@@ -99,7 +101,7 @@ export function ChapterOwnershipGovernance({ ownership }: Props): React.ReactEle
       </SubChapter>
 
       <SubChapter heading={t('chapter.ownership.heading.compensation')}>
-        {degraded.has('proxy_compensation') ? (
+        {degraded.has('proxy_compensation') || compensationInvalid ? (
           <DegradedPlaceholder reason={t(compensationReason)} />
         ) : compensation ? (
           <CompensationGrid comp={compensation} locale={locale} t={t} />
@@ -131,9 +133,7 @@ function degradedReasonKey(
 ): string {
   if (!reason) return fallback
   if (section === 'proxy') {
-    return reason === 'parse_failed'
-      ? 'chapter.ownership.degraded.proxy.parse_failed'
-      : fallback
+    return reason === 'parse_failed' ? 'chapter.ownership.degraded.proxy.parse_failed' : fallback
   }
   const reasonKeys: Record<OwnershipDegradedReason, string | null> = {
     identity_missing: `chapter.ownership.degraded.${section}.identity_missing`,
@@ -142,6 +142,46 @@ function degradedReasonKey(
     parse_failed: null,
   }
   return reasonKeys[reason] ?? fallback
+}
+
+const CEO_COMP_MIN = 1_000_000
+const CEO_COMP_MAX = 500_000_000
+const CEO_TITLE_ONLY = new Set([
+  'chief executive officer',
+  'ceo',
+  'ceo chief executive officer',
+  'chief executive officer ceo',
+])
+
+function sanitizeProxyCompensation(
+  comp: ProxyCompensationShape | null,
+): ProxyCompensationShape | null {
+  if (!comp) return null
+  const ceoName = sanitizeCeoName(comp.ceo_name)
+  const ceoTotalCompensation = sanitizeCeoTotalCompensation(comp.ceo_total_compensation)
+  const hasUsefulPayRatio = comp.ceo_pay_ratio !== null && comp.ceo_pay_ratio !== undefined
+  if (ceoName === null && ceoTotalCompensation === null && !hasUsefulPayRatio) {
+    return null
+  }
+  return {
+    ...comp,
+    ceo_name: ceoName,
+    ceo_total_compensation: ceoTotalCompensation,
+  }
+}
+
+function sanitizeCeoName(value: string | null | undefined): string | null {
+  if (!value) return null
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  if (!normalized) return null
+  if (CEO_TITLE_ONLY.has(normalized.toLowerCase())) return null
+  return normalized
+}
+
+function sanitizeCeoTotalCompensation(value: number | null | undefined): number | null {
+  if (value === null || value === undefined || !Number.isFinite(value)) return null
+  if (value < CEO_COMP_MIN || value > CEO_COMP_MAX) return null
+  return value
 }
 
 // ---------------------------------------------------------------------------
@@ -222,6 +262,22 @@ const TX_LABEL_KEY: Record<InsiderTransactionType, string> = {
   other_disposition: 'chapter.ownership.tx.other_disposition',
   grant: 'chapter.ownership.tx.grant',
   award: 'chapter.ownership.tx.award',
+  tax_withholding: 'chapter.ownership.tx.tax_withholding',
+  conversion: 'chapter.ownership.tx.conversion',
+  exercise_otm: 'chapter.ownership.tx.exercise_otm',
+  exercise_itm_atm: 'chapter.ownership.tx.exercise_itm_atm',
+  disposition_to_issuer: 'chapter.ownership.tx.disposition_to_issuer',
+  discretionary: 'chapter.ownership.tx.discretionary',
+  equity_swap: 'chapter.ownership.tx.equity_swap',
+  tender: 'chapter.ownership.tx.tender',
+  voluntary_report: 'chapter.ownership.tx.voluntary_report',
+  estate: 'chapter.ownership.tx.estate',
+  voting_trust: 'chapter.ownership.tx.voting_trust',
+  small_acquisition: 'chapter.ownership.tx.small_acquisition',
+  gift: 'chapter.ownership.tx.gift',
+  expiration_short: 'chapter.ownership.tx.expiration_short',
+  expiration_long: 'chapter.ownership.tx.expiration_long',
+  other: 'chapter.ownership.tx.other',
 }
 
 function transactionLabel(typ: string, t: Translator): string {

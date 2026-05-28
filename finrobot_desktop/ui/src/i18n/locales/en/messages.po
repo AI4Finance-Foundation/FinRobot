@@ -634,6 +634,10 @@ msgid "verdict.hold"
 msgstr "HOLD"
 
 #. js-lingui-explicit-id
+msgid "verdict.review"
+msgstr "REVIEW"
+
+#. js-lingui-explicit-id
 msgid "verdict.sell"
 msgstr "SELL"
 
@@ -891,6 +895,26 @@ msgid "chapter.technical.sniper.dcfTarget"
 msgstr "DCF target"
 
 #. js-lingui-explicit-id
+msgid "chapter.technical.sniper.idealShort"
+msgstr "Ideal short"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.secondaryShort"
+msgstr "Add on bounce"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.atResistance"
+msgstr "Near resistance"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.coverTarget"
+msgstr "Cover target"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.dcfCover"
+msgstr "DCF cover"
+
+#. js-lingui-explicit-id
 msgid "chapter.technical.sniper.support20d"
 msgstr "Support (20d)"
 
@@ -964,7 +988,7 @@ msgstr "No 5%+ shareholder events"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.insiders"
-msgstr "Form 4 data unavailable — re-run analysis or verify SEC identity"
+msgstr "Form 4 data unavailable — this older report has no specific reason; re-run analysis for the latest SEC status"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.institutions"
@@ -980,7 +1004,7 @@ msgstr "Schedule 13 data unavailable"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.insiders.identity_missing"
-msgstr "Form 4 unavailable — SEC entity not found; check identity configuration"
+msgstr "Form 4 unavailable — SEC identity is not active; enter \"name or organization + email\" in Settings, then re-run analysis"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.insiders.no_recent_filings"
@@ -1069,6 +1093,70 @@ msgstr "Grant"
 #. js-lingui-explicit-id
 msgid "chapter.ownership.tx.award"
 msgstr "Award"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.tax_withholding"
+msgstr "Tax withholding"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.conversion"
+msgstr "Conversion"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.exercise_otm"
+msgstr "Exercise (OTM)"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.exercise_itm_atm"
+msgstr "Exercise (ITM/ATM)"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.disposition_to_issuer"
+msgstr "Disposition to issuer"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.discretionary"
+msgstr "Discretionary"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.equity_swap"
+msgstr "Equity swap"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.tender"
+msgstr "Tender"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.voluntary_report"
+msgstr "Voluntary report"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.estate"
+msgstr "Estate transfer"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.voting_trust"
+msgstr "Voting trust"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.small_acquisition"
+msgstr "Small acquisition"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.gift"
+msgstr "Gift"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.expiration_short"
+msgstr "Short expiration"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.expiration_long"
+msgstr "Long expiration"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.other"
+msgstr "Other"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.alert.shares"

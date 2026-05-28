@@ -7,7 +7,11 @@
 
 import { tSync, type Locale } from '../i18n'
 
-export type Verdict = 'BUY' | 'HOLD' | 'SELL'
+// REVIEW is the data-health-gate verdict: the valuation methods failed
+// cross-checks (spread > 50%), so no defensible directional call exists.
+// It carries no price target and must NOT render in 涨绿跌红 — it's a
+// neutral "withheld pending review" state.
+export type Verdict = 'BUY' | 'HOLD' | 'SELL' | 'REVIEW'
 
 /**
  * Translate a verdict for display. Pass an explicit locale to avoid hook usage
@@ -15,6 +19,7 @@ export type Verdict = 'BUY' | 'HOLD' | 'SELL'
  *
  *   verdictLabel('BUY')           → '买入' (when locale=zh) or 'BUY' (en)
  *   verdictLabel('HOLD', 'en')    → 'HOLD'
+ *   verdictLabel('REVIEW')        → '待复核' (zh) or 'REVIEW' (en)
  *   verdictLabel(null)            → '—'
  */
 export function verdictLabel(
@@ -23,14 +28,21 @@ export function verdictLabel(
 ): string {
   if (!verdict) return '—'
   const upper = verdict.toUpperCase()
-  if (upper !== 'BUY' && upper !== 'HOLD' && upper !== 'SELL') return upper
+  if (upper !== 'BUY' && upper !== 'HOLD' && upper !== 'SELL' && upper !== 'REVIEW') return upper
 
   // Both locales go through the catalog:
-  //   zh → '买入' / '持有' / '卖出' (中国券商 standard)
-  //   en → 'BUY' / 'HOLD' / 'SELL' (investment-bank uppercase convention)
+  //   zh → '买入' / '持有' / '卖出' / '待复核' (中国券商 standard)
+  //   en → 'BUY' / 'HOLD' / 'SELL' / 'REVIEW' (investment-bank uppercase convention)
   // The `locale` parameter is reserved for callers who explicitly need a
   // non-default locale; current store snapshot is used by default.
   void locale
-  const key = upper === 'BUY' ? 'verdict.buy' : upper === 'HOLD' ? 'verdict.hold' : 'verdict.sell'
+  const key =
+    upper === 'BUY'
+      ? 'verdict.buy'
+      : upper === 'HOLD'
+        ? 'verdict.hold'
+        : upper === 'SELL'
+          ? 'verdict.sell'
+          : 'verdict.review'
   return tSync(key)
 }

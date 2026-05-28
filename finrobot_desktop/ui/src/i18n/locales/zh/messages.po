@@ -634,6 +634,10 @@ msgid "verdict.hold"
 msgstr "持有"
 
 #. js-lingui-explicit-id
+msgid "verdict.review"
+msgstr "待复核"
+
+#. js-lingui-explicit-id
 msgid "verdict.sell"
 msgstr "卖出"
 
@@ -891,6 +895,26 @@ msgid "chapter.technical.sniper.dcfTarget"
 msgstr "DCF 目标价"
 
 #. js-lingui-explicit-id
+msgid "chapter.technical.sniper.idealShort"
+msgstr "理想开空"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.secondaryShort"
+msgstr "二次开空"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.atResistance"
+msgstr "阻力位附近"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.coverTarget"
+msgstr "平仓目标"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.dcfCover"
+msgstr "DCF 平仓价"
+
+#. js-lingui-explicit-id
 msgid "chapter.technical.sniper.support20d"
 msgstr "支撑（20 日）"
 
@@ -964,7 +988,7 @@ msgstr "无 5% 以上股东事件"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.insiders"
-msgstr "Form 4 数据不可用 · 重跑分析或检查 SEC 身份配置"
+msgstr "Form 4 数据不可用 · 旧报告缺少具体原因，请重跑分析获取最新 SEC 状态"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.institutions"
@@ -980,7 +1004,7 @@ msgstr "Schedule 13 数据不可用"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.insiders.identity_missing"
-msgstr "Form 4 数据不可用 · 未能匹配到 SEC 实体，请检查 SEC 身份配置"
+msgstr "Form 4 数据不可用 · SEC 身份未启用，请在设置页填入“姓名或机构 + 邮箱”后重跑分析"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.insiders.no_recent_filings"
@@ -1069,6 +1093,70 @@ msgstr "授予"
 #. js-lingui-explicit-id
 msgid "chapter.ownership.tx.award"
 msgstr "奖励"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.tax_withholding"
+msgstr "纳税扣股"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.conversion"
+msgstr "衍生品转换"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.exercise_otm"
+msgstr "价外行权"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.exercise_itm_atm"
+msgstr "价内/平价行权"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.disposition_to_issuer"
+msgstr "向发行人处置"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.discretionary"
+msgstr "自主交易"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.equity_swap"
+msgstr "股权互换"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.tender"
+msgstr "要约出售"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.voluntary_report"
+msgstr "自愿申报"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.estate"
+msgstr "继承处置"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.voting_trust"
+msgstr "表决权信托"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.small_acquisition"
+msgstr "小额收购"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.gift"
+msgstr "赠与"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.expiration_short"
+msgstr "空头到期"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.expiration_long"
+msgstr "多头到期"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.other"
+msgstr "其他"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.alert.shares"

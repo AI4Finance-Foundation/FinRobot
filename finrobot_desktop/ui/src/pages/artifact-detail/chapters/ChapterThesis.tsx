@@ -4,6 +4,7 @@
 
 import { Chapter, Narrative } from './ChapterBase'
 import type { ThesisShape } from './types'
+import { verdictLabel } from '../../../utils/verdict'
 
 export function ChapterThesis({ thesis }: { thesis: ThesisShape | null }): React.ReactElement {
   if (!thesis) {
@@ -48,10 +49,10 @@ export function ChapterThesis({ thesis }: { thesis: ThesisShape | null }): React
                 border: '1px solid var(--secondary)',
               }}
             >
-              {verdict}
+              {verdictLabel(verdict)}
             </span>
           )}
-          {target !== null && (
+          {target !== null ? (
             <span
               style={{
                 fontSize: 22,
@@ -61,6 +62,12 @@ export function ChapterThesis({ thesis }: { thesis: ThesisShape | null }): React
             >
               目标 ${target.toFixed(2)}
             </span>
+          ) : (
+            verdict === 'REVIEW' && (
+              <span style={{ fontSize: 18, color: 'var(--text-secondary)' }}>
+                目标 N/A · 待复核
+              </span>
+            )
           )}
           {thesis.price_target_basis && (
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>

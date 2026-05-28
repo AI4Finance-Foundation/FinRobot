@@ -1,11 +1,11 @@
 // Right column of the workspace dashboard. Surfaces the AI research
 // state for a ticker — either cold (no equity_research artifact yet,
-// big CTA to run one) or hot (most-recent verdict card + 12-chapter
+// big CTA to run one) or hot (most-recent verdict card + 13-chapter
 // preview grid + version timeline).
 //
 // Does NOT render the chapter contents themselves — clicking a chapter
 // or "Open full report" navigates to /stocks/:ticker/runs/:artifactId
-// which is where the 12-chapter long-scroll lives.
+// which is where the 13-chapter long-scroll lives.
 
 import { useNavigate } from 'react-router-dom'
 import { useLatestArtifact, useV5ArtifactTimeline } from '../../hooks/useV5Artifacts'
@@ -187,7 +187,7 @@ function ColdState({
           margin: '0 auto 18px',
         }}
       >
-        生成一份 <strong style={{ color: 'var(--accent-cyan)' }}>12 章投行级研报</strong>： 投资论点
+        生成一份 <strong style={{ color: 'var(--accent-cyan)' }}>13 章投行级研报</strong>： 投资论点
         · 公司概览 · 财务分析 · 估值（DCF + 同业 + DDM + LBO）· 新闻 · 敏感度 · 催化剂 · 技术分析 ·
         同业对标 · 财务数据
       </p>
@@ -251,7 +251,10 @@ function HotState({
       ? { bg: 'var(--success-soft)', fg: 'var(--success)', glow: 'var(--success-glow-soft)' }
       : verdict === 'SELL'
         ? { bg: 'var(--danger-soft)', fg: 'var(--danger)', glow: 'var(--danger-glow-soft)' }
-        : { bg: 'var(--warning-soft)', fg: 'var(--warning)', glow: 'var(--warning-glow)' }
+        : verdict === 'REVIEW'
+          ? // Data-health-gate verdict — neutral slate, not 涨绿跌红.
+            { bg: 'var(--bg-soft)', fg: 'var(--text-secondary)', glow: 'transparent' }
+          : { bg: 'var(--warning-soft)', fg: 'var(--warning)', glow: 'var(--warning-glow)' }
 
   return (
     <>
@@ -407,7 +410,7 @@ function HotState({
               boxShadow: '0 0 16px var(--secondary-glow-soft)',
             }}
           >
-            → 打开完整 12 章研报
+            → 打开完整 13 章研报
           </button>
           <button type="button" onClick={onRerun} disabled={isRunning} style={ghostBtn(isRunning)}>
             {isRunning ? '正在跑 …' : '↻ 重跑'}
@@ -436,7 +439,7 @@ function HotState({
               textTransform: 'uppercase',
             }}
           >
-            📑 12 章节快速跳转
+            📑 13 章节快速跳转
           </span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
@@ -592,16 +595,19 @@ function VerdictPill({
   )
 }
 
-function readVerdict(a: { verdict?: string | null } | null): 'BUY' | 'HOLD' | 'SELL' | null {
+function readVerdict(
+  a: { verdict?: string | null } | null,
+): 'BUY' | 'HOLD' | 'SELL' | 'REVIEW' | null {
   // Backend populates `verdict` from summary_extractor.extract_verdict
-  // which pulls thesis.recommendation and normalises to BUY/HOLD/SELL.
-  // None for artifacts without a thesis (peer_research / ad_hoc) — caller
-  // should fall back to showing "—" rather than fabricating a verdict.
+  // which pulls thesis.recommendation and normalises to BUY/HOLD/SELL/REVIEW.
+  // REVIEW is the data-health-gate verdict (target withheld). None for
+  // artifacts without a thesis (peer_research / ad_hoc) — caller should
+  // fall back to showing "—" rather than fabricating a verdict.
   // DO NOT read `signal` here — that's the realised-vs-target outcome
   // (hit / watching / failed), which is a different concept entirely.
   if (!a?.verdict) return null
   const v = a.verdict.toUpperCase()
-  return v === 'BUY' || v === 'HOLD' || v === 'SELL' ? v : null
+  return v === 'BUY' || v === 'HOLD' || v === 'SELL' || v === 'REVIEW' ? v : null
 }
 
 function ageLabel(iso: string): string {

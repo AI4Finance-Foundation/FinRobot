@@ -34,6 +34,14 @@ const VERDICT_TONE: Record<string, { bg: string; fg: string; border: string }> =
     fg: 'var(--danger)',
     border: 'rgba(220, 38, 38, 0.55)',
   },
+  // Data-health-gate verdict — neutral slate, deliberately NOT 涨绿跌红:
+  // REVIEW makes no directional call, so colouring it like a buy/sell would
+  // misrepresent the (withheld) conclusion.
+  REVIEW: {
+    bg: 'rgba(100, 116, 139, 0.18)',
+    fg: 'var(--text-secondary)',
+    border: 'rgba(100, 116, 139, 0.55)',
+  },
 }
 
 export function ChapterCover({
@@ -123,7 +131,7 @@ export function ChapterCover({
           </span>
         )}
 
-        {target !== null && (
+        {target !== null ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <span
               style={{
@@ -148,6 +156,32 @@ export function ChapterCover({
               ${target.toFixed(2)}
             </span>
           </div>
+        ) : (
+          verdict === 'REVIEW' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10,
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.08em',
+                }}
+              >
+                {locale === 'en' ? '12-MONTH TARGET' : '12 个月目标价'}
+              </span>
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 18,
+                  fontWeight: 500,
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.1,
+                }}
+              >
+                {locale === 'en' ? 'N/A · withheld' : 'N/A · 待复核'}
+              </span>
+            </div>
+          )
         )}
       </div>
 

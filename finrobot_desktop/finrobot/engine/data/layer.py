@@ -64,7 +64,11 @@ class DataLayer:
 
         # 1. Fresh cache hit
         cached = await self._cache.get(data_type, ticker)
-        if cached is not None and not cached.is_stale:
+        if (
+            cached is not None
+            and not cached.is_stale
+            and _is_cache_contract_current(data_type, cached.data)
+        ):
             return cached.data
 
         # 2. Try each provider in order
@@ -211,3 +215,10 @@ class DataLayer:
             )
             for year_data in yearly
         ]
+
+
+def _is_cache_contract_current(data_type: DataType, result: DataResult) -> bool:
+    """Return whether a cached result matches today's read contract."""
+    if data_type == DataType.FINANCIALS and result.provider == "fmp":
+        return result.data.get("period_basis") == "ttm"
+    return True

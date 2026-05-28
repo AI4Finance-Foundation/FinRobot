@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
@@ -87,7 +88,40 @@ def _is_valid_identity(s: str | None) -> bool:
         return False
     if s == "FinRobot admin@example.com":  # our config.py placeholder
         return False
+    if _sec_header_identity(s) is None:
+        return False
     return True
+
+
+def _sec_header_identity(s: str | None) -> str | None:
+    """Return an ASCII-only User-Agent value accepted by HTTP clients.
+
+    Settings keep the user's display identity exactly as entered. HTTP headers
+    cannot carry non-ASCII bytes in httpx/edgartools, so a Chinese display name
+    such as ``郭嘉祺 17696026747@163.com`` is converted at the transport edge to
+    ``FinRobot 17696026747@163.com`` while preserving the contact email SEC
+    needs for abuse/rate-limit attribution.
+    """
+    if not s or not isinstance(s, str):
+        return None
+    raw = s.strip()
+    if raw == "FinRobot admin@example.com":
+        return None
+    match = re.search(r"[\w.!#$%&'*+/=?^`{|}~-]+@[\w.-]+\.[A-Za-z]{2,}", raw)
+    if match is None:
+        return None
+    email = match.group(0)
+    name = raw[: match.start()].strip() or raw[match.end() :].strip()
+    ascii_name = "".join(ch if ord(ch) < 128 else " " for ch in name)
+    ascii_name = " ".join(ascii_name.split())
+    if not ascii_name:
+        ascii_name = "FinRobot"
+    header = f"{ascii_name} {email}"
+    try:
+        header.encode("ascii")
+    except UnicodeEncodeError:
+        return None
+    return header
 
 
 # ---------------------------------------------------------------------------
@@ -145,8 +179,12 @@ class EdgarToolsProvider(DataProvider):
                 "edgartools is not installed but EdgarToolsProvider was "
                 "constructed. Check pyproject.toml + uv sync."
             )
-        set_identity(user_agent)
+        header_identity = _sec_header_identity(user_agent)
+        if header_identity is None:
+            raise ValueError("SEC EDGAR identity must include a contact email")
+        set_identity(header_identity)
         self._user_agent = user_agent
+        self._header_identity = header_identity
 
     @property
     def name(self) -> str:
@@ -483,10 +521,17 @@ class EdgarToolsProvider(DataProvider):
                 m = getter()
                 if m is None:
                     return None
+                periods_list: list[Any] = getattr(m, "periods", []) or []
+                typed_periods: list[dict[str, Any]] = []
+                for p in periods_list:
+                    if isinstance(p, tuple) and len(p) == 2:
+                        typed_periods.append({"year": int(p[0]), "quarter": str(p[1])})
+                    else:
+                        typed_periods.append({"raw": str(p)})
                 return {
                     "concept": getattr(m, "concept", ""),
                     "value": float(getattr(m, "value", 0) or 0),
-                    "periods": [str(p) for p in (getattr(m, "periods", []) or [])],
+                    "periods": typed_periods,
                 }
             except _ADAPTER_CATCH:
                 return None

@@ -151,7 +151,9 @@ async def test_rate_limit_preserves_stale_l2_value(tmp_path: Path) -> None:
     for the full TTL, taking the landing dashboard cold even after Yahoo
     recovered. Now QuoteFetchRateLimited returns the stale row instead.
     """
-    cache = QuoteCache(db_path=tmp_path / "q.db", ttl_seconds=0)
+    # cooldown=0 isolates the stale-preservation invariant from the cooldown
+    # feature (exercised separately below).
+    cache = QuoteCache(db_path=tmp_path / "q.db", ttl_seconds=0, rate_limit_cooldown_seconds=0)
 
     async def first(missing: list[str]) -> dict[str, float | None]:
         return {t: 150.0 for t in missing}
@@ -188,7 +190,8 @@ async def test_rate_limit_without_stale_returns_none(tmp_path: Path) -> None:
     invariant here is that the next request after upstream recovery still
     invokes the fetcher (cache must not have learned a False answer).
     """
-    cache = QuoteCache(db_path=tmp_path / "q.db", ttl_seconds=60)
+    # cooldown=0 isolates the no-tombstone invariant from the cooldown feature.
+    cache = QuoteCache(db_path=tmp_path / "q.db", ttl_seconds=60, rate_limit_cooldown_seconds=0)
 
     async def rate_limited(missing: list[str]) -> dict[str, float | None]:
         raise QuoteFetchRateLimited("Yahoo 429")
@@ -263,4 +266,93 @@ async def test_l2_read_error_self_heals_and_falls_back_to_fetcher(
     # Next call works — fresh conn isn't carrying the booby trap.
     result2 = await cache.get_batch(["MSFT"], fetcher=fetcher)
     assert result2 == {"MSFT": 99.0}
+    await cache.close()
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_opens_cooldown_skips_fetcher(tmp_path: Path) -> None:
+    """After a 429, a batch within the cooldown window must NOT call the
+    fetcher again — it serves stale. This is the heat fix: a Yahoo 429 storm
+    must not turn every dashboard refresh into another doomed round-trip."""
+    cache = QuoteCache(
+        db_path=tmp_path / "q.db", ttl_seconds=0, rate_limit_cooldown_seconds=30
+    )
+
+    async def first(missing: list[str]) -> dict[str, float | None]:
+        return {t: 150.0 for t in missing}
+
+    await cache.get_batch(["AAPL"], fetcher=first)
+    await asyncio.sleep(0.01)  # TTL expired
+
+    async def rate_limited(missing: list[str]) -> dict[str, float | None]:
+        raise QuoteFetchRateLimited("Yahoo 429")
+
+    await cache.get_batch(["AAPL"], fetcher=rate_limited)  # opens cooldown
+
+    calls: list[str] = []
+
+    async def should_not_be_called(missing: list[str]) -> dict[str, float | None]:
+        calls.extend(missing)
+        return {t: 999.0 for t in missing}
+
+    result = await cache.get_batch(["AAPL"], fetcher=should_not_be_called)
+    assert result == {"AAPL": 150.0}, "cooldown must serve stale, not refetch"
+    assert calls == [], "cooldown must skip the fetcher entirely"
+    await cache.close()
+
+
+@pytest.mark.asyncio
+async def test_cooldown_expires_allows_refetch(tmp_path: Path) -> None:
+    """Once the cooldown window elapses, the next batch re-hits the fetcher."""
+    cache = QuoteCache(
+        db_path=tmp_path / "q.db", ttl_seconds=0, rate_limit_cooldown_seconds=0.05
+    )
+
+    async def first(missing: list[str]) -> dict[str, float | None]:
+        return {t: 150.0 for t in missing}
+
+    await cache.get_batch(["AAPL"], fetcher=first)
+    await asyncio.sleep(0.01)
+
+    async def rate_limited(missing: list[str]) -> dict[str, float | None]:
+        raise QuoteFetchRateLimited("Yahoo 429")
+
+    await cache.get_batch(["AAPL"], fetcher=rate_limited)  # opens 50ms cooldown
+    await asyncio.sleep(0.06)  # cooldown elapsed
+
+    calls: list[str] = []
+
+    async def fresh(missing: list[str]) -> dict[str, float | None]:
+        calls.extend(missing)
+        return {t: 222.0 for t in missing}
+
+    result = await cache.get_batch(["AAPL"], fetcher=fresh)
+    assert result == {"AAPL": 222.0}
+    assert calls == ["AAPL"], "cooldown expired → fetcher must run again"
+    await cache.close()
+
+
+@pytest.mark.asyncio
+async def test_cooldown_blocks_new_cold_ticker(tmp_path: Path) -> None:
+    """Cooldown is per-provider (the upstream is throttled), not per-ticker:
+    a brand-new ticker requested during the window returns None without a
+    fetch — we don't ask a throttled source for anything."""
+    cache = QuoteCache(
+        db_path=tmp_path / "q.db", ttl_seconds=60, rate_limit_cooldown_seconds=30
+    )
+
+    async def rate_limited(missing: list[str]) -> dict[str, float | None]:
+        raise QuoteFetchRateLimited("Yahoo 429")
+
+    await cache.get_batch(["AAPL"], fetcher=rate_limited)  # opens cooldown
+
+    calls: list[str] = []
+
+    async def should_not_be_called(missing: list[str]) -> dict[str, float | None]:
+        calls.extend(missing)
+        return {t: 999.0 for t in missing}
+
+    result = await cache.get_batch(["TSLA"], fetcher=should_not_be_called)
+    assert result == {"TSLA": None}
+    assert calls == [], "throttled upstream → don't fetch even a new ticker"
     await cache.close()

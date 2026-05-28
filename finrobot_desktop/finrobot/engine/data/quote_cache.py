@@ -24,6 +24,17 @@ TTL-expired) is returned as-is and NO write happens. Without this
 distinction a Yahoo 429 burst overwrote every studied ticker with
 ``None`` for the full TTL, taking the landing dashboard cold for
 60 seconds even after the upstream recovered.
+
+On top of that, a rate-limit opens a short *cooldown* window
+(``rate_limit_cooldown_seconds``): while it's active, ``get_batch``
+serves stale rows WITHOUT calling the fetcher again. This is what stops
+a throttled Yahoo from turning every dashboard refresh into another
+doomed round-trip (the "laptop runs hot / fan spins" symptom). It is
+orthogonal to stale-preservation: that decides WHAT price to show, the
+cooldown decides whether to bother ASKING the upstream at all. Because
+this cache's only fetcher is the yfinance batch path, the cooldown is
+effectively per-provider ("yfinance is throttled"), not per-ticker — it
+never blocks a different provider from serving a real price.
 """
 
 from __future__ import annotations
@@ -72,12 +83,17 @@ class QuoteCache:
         self,
         db_path: str | Path | None = None,
         ttl_seconds: float = 60.0,
+        rate_limit_cooldown_seconds: float = 30.0,
     ) -> None:
         if db_path is None:
             _paths.ensure_home()
             db_path = _paths.QUOTES_DB
         self._db_path = str(db_path)
         self._ttl = float(ttl_seconds)
+        self._rate_limit_cooldown = float(rate_limit_cooldown_seconds)
+        # monotonic deadline; while time.monotonic() < this, the upstream is
+        # considered throttled and get_batch serves stale rows without fetching.
+        self._rate_limit_until = 0.0
         self._l1: dict[str, tuple[float | None, float]] = {}
         self._l1_lock = asyncio.Lock()
         self._conn: aiosqlite.Connection | None = None
@@ -119,6 +135,35 @@ class QuoteCache:
                 await conn.close()
             except (sqlite3.Error, OSError, RuntimeError):
                 logger.exception("QuoteCache stale-conn close failed (non-fatal)")
+
+    async def _fill_from_stale(
+        self, missing: list[str], result: dict[str, float | None]
+    ) -> None:
+        """Populate ``result`` from L2 rows ignoring TTL.
+
+        Used when the upstream is rate-limited or in cooldown: we serve the
+        last known price rather than re-hitting a throttled source. Tickers
+        with no row anywhere land as ``None`` so callers treat them like any
+        cold miss. A wedged sqlite conn is dropped (non-fatal) — the caller
+        still gets None rather than an exception.
+        """
+        if not missing:
+            return
+        try:
+            conn = await self._conn_ready()
+            placeholders = ",".join("?" * len(missing))
+            async with conn.execute(
+                f"SELECT ticker, last_price FROM quotes_cache WHERE ticker IN ({placeholders})",
+                missing,
+            ) as cur:
+                stale_rows = await cur.fetchall()
+            for ticker, last_price in stale_rows:
+                result[ticker] = last_price
+        except sqlite3.Error:
+            logger.exception("QuoteCache stale read failed for %s — dropping conn", missing)
+            await self._drop_conn()
+        for sym in missing:
+            result.setdefault(sym, None)
 
     async def get_batch(
         self,
@@ -175,6 +220,14 @@ class QuoteCache:
                         result[ticker] = price
                 missing = [m for m in missing if m not in l2_fresh]
 
+        # Cooldown gate: the upstream was rate-limited within the last
+        # _rate_limit_cooldown seconds. Don't re-hit it — serve stale rows
+        # only. This is the heat fix: without it every dashboard refresh
+        # during a Yahoo 429 storm fires another doomed round-trip.
+        if missing and time.monotonic() < self._rate_limit_until:
+            await self._fill_from_stale(missing, result)
+            return result
+
         # Origin
         if missing:
             rate_limited = False
@@ -199,29 +252,12 @@ class QuoteCache:
                 fetched = dict.fromkeys(missing)
             now = time.time()
             if rate_limited:
-                # Don't touch L2/L1. Fall back to whatever stale row L2
-                # holds, even if past TTL. If L2 has nothing either, the
-                # ticker is simply absent from the result — caller deals
-                # with None like any cold miss.
-                try:
-                    conn = await self._conn_ready()
-                    placeholders = ",".join("?" * len(missing))
-                    async with conn.execute(
-                        f"SELECT ticker, last_price FROM quotes_cache "
-                        f"WHERE ticker IN ({placeholders})",
-                        missing,
-                    ) as cur:
-                        stale_rows = await cur.fetchall()
-                    for ticker, last_price in stale_rows:
-                        result[ticker] = last_price
-                except sqlite3.Error:
-                    logger.exception(
-                        "QuoteCache stale read after rate-limit failed for %s",
-                        missing,
-                    )
-                    await self._drop_conn()
-                for sym in missing:
-                    result.setdefault(sym, None)
+                # Open the cooldown window so subsequent batches skip the
+                # fetcher entirely (see the cooldown gate above). Then don't
+                # touch L2/L1 — serve whatever stale row L2 holds, even past
+                # TTL; tickers with nothing land as None like any cold miss.
+                self._rate_limit_until = time.monotonic() + self._rate_limit_cooldown
+                await self._fill_from_stale(missing, result)
                 return result
 
             # L2 write is best-effort. Same reasoning as the L2 read: a

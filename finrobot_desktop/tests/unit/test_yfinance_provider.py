@@ -3,6 +3,8 @@ Unit tests use mocked yfinance.
 Integration tests (marked @pytest.mark.integration) hit real yfinance.
 """
 
+import asyncio
+import time
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -247,6 +249,68 @@ class TestNonUSTickerFormat:
             ], f"Ticker '{ticker}' was not passed through to yfinance"
             assert isinstance(result, DataResult)
             assert result.ticker == ticker
+
+
+class TestRateLimitBehavior:
+    """Provider must surface 429 immediately so DataLayer falls back fast.
+
+    The in-provider retry loop (3 attempts × [2,5,10]s sleep = up to 17s
+    per call) was removed because:
+      1. DataLayer already iterates providers in priority order on
+         ProviderError, so retry-inside-provider blocked the fallback
+         to FMP/Finnhub by ~17s.
+      2. Sleeping inside the rate-limit window burns the same Yahoo quota
+         on retry that already failed — counterproductive.
+    """
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_raises_provider_error_within_1s(self):
+        """Yahoo 429 must raise ProviderError in <1s, not sleep 17s.
+
+        Guards against re-introducing the in-provider retry loop.
+        """
+        from yfinance.exceptions import YFRateLimitError
+
+        # Mock t.info to raise YFRateLimitError so the error path fires.
+        # We use PropertyMock so the access pattern (t.info inside the
+        # asyncio.to_thread lambda) matches production.
+        provider = YFinanceProvider()
+        mock_ticker = MagicMock()
+        type(mock_ticker).info = property(
+            lambda self: (_ for _ in ()).throw(YFRateLimitError("Too Many Requests"))
+        )
+
+        start = time.monotonic()
+        with patch(
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            with pytest.raises(ProviderError, match="Failed to fetch ticker"):
+                await provider.fetch("AAPL", "financials")
+        elapsed = time.monotonic() - start
+        assert elapsed < 1.0, (
+            f"Provider took {elapsed:.2f}s — retry loop must stay deleted. "
+            "DataLayer.fetch() already iterates providers on ProviderError; "
+            "retry-inside-provider blocks fallback to FMP/Finnhub."
+        )
+
+    @pytest.mark.asyncio
+    async def test_no_retry_constants_exposed(self):
+        """The retry constants must not be re-introduced as module symbols.
+
+        Guards against partial-revert: if a future commit re-adds
+        ``_MAX_RETRIES`` / ``_RETRY_DELAYS`` even without wiring them
+        into ``fetch``, the next reviewer should be forced to defend it.
+        """
+        from finrobot.engine.data.providers import yfinance_provider
+
+        assert not hasattr(yfinance_provider, "_MAX_RETRIES"), (
+            "_MAX_RETRIES re-introduced — retry-inside-provider conflicts "
+            "with DataLayer fallback. See yfinance_provider.py docstring."
+        )
+        assert not hasattr(yfinance_provider, "_RETRY_DELAYS"), (
+            "_RETRY_DELAYS re-introduced — see _MAX_RETRIES rationale."
+        )
 
 
 class TestUnsupportedDataType:

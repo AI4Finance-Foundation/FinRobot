@@ -19,18 +19,11 @@ except (AttributeError, OSError, TypeError):
 
 _SUPPORTED = [DataType.FINANCIALS, DataType.PRICE, DataType.NEWS]
 _CALL_DELAY = 1.0  # seconds between the info fetch and subsequent calls
-_MAX_RETRIES = 3  # retry attempts on rate-limit errors
-_RETRY_DELAYS = [2, 5, 10]  # seconds to wait before each retry
 
 
 def _make_ticker(symbol: str) -> yf.Ticker:
     """Create a Ticker. Let yfinance use its internal curl_cffi session."""
     return yf.Ticker(symbol)
-
-
-def _is_rate_limit_error(e: Exception) -> bool:
-    msg = str(e).lower()
-    return "too many requests" in msg or "rate limit" in msg or "429" in msg
 
 
 class YFinanceProvider(DataProvider):
@@ -69,41 +62,41 @@ class YFinanceProvider(DataProvider):
                 f"data_type '{data_type}' is not supported by yfinance. Supported: {_SUPPORTED}"
             )
 
-        # Fetch and validate ticker info with retry on rate limiting.
-        # info is passed to sub-methods to avoid a redundant second HTTP call.
-        # We use explicit if-raise instead of `assert` because Tauri builds
-        # may run Python under -O, which strips `assert` and would let a None
-        # leak into _fetch_* and surface as a generic AttributeError rather
-        # than the ProviderError the retry layer expects.
+        # Fetch and validate ticker info. info is passed to sub-methods
+        # to avoid a redundant second HTTP call. We use explicit
+        # if-raise instead of `assert` because Tauri builds may run
+        # Python under -O, which strips `assert` and would let a None
+        # leak into _fetch_* and surface as a generic AttributeError.
+        #
+        # No in-provider retry/backoff: the DataLayer already iterates
+        # providers in priority order (FMP → Finnhub → yfinance → ...)
+        # on ProviderError, so retrying inside yfinance both blocked
+        # fallback for ~17s per call (3 × [2,5,10] sleep) and double-
+        # counted toward Yahoo's rate-limit budget. Surfacing the 429
+        # immediately lets the layer hop to the next provider in <1s.
         info: dict[str, Any] | None = None
         t: yf.Ticker | None = None
-        for attempt in range(_MAX_RETRIES + 1):
-            try:
-                t = await asyncio.to_thread(_make_ticker, ticker)
-                if t is None:
-                    raise ProviderError(f"yfinance returned no Ticker object for '{ticker}'")
-                _t: yf.Ticker = t  # capture for lambda — avoids mypy union-attr on closure
-                info = await asyncio.to_thread(lambda: _t.info)
-                if not info or (
-                    info.get("regularMarketPrice") is None
-                    and info.get("currentPrice") is None
-                    and info.get("marketCap") is None
-                ):
-                    if info is not None and len(info) <= 1:
-                        raise ProviderError(f"Ticker '{ticker}' not found or returned no data")
-                break  # success
-            except ProviderError:
-                raise
-            except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError, YFException) as e:
-                if _is_rate_limit_error(e) and attempt < _MAX_RETRIES:
-                    wait = _RETRY_DELAYS[attempt]
-                    await asyncio.sleep(wait)
-                    continue
-                raise ProviderError(f"Failed to fetch ticker '{ticker}': {e}") from e
+        try:
+            t = await asyncio.to_thread(_make_ticker, ticker)
+            if t is None:
+                raise ProviderError(f"yfinance returned no Ticker object for '{ticker}'")
+            _t: yf.Ticker = t  # capture for lambda — avoids mypy union-attr on closure
+            info = await asyncio.to_thread(lambda: _t.info)
+            if not info or (
+                info.get("regularMarketPrice") is None
+                and info.get("currentPrice") is None
+                and info.get("marketCap") is None
+            ):
+                if info is not None and len(info) <= 1:
+                    raise ProviderError(f"Ticker '{ticker}' not found or returned no data")
+        except ProviderError:
+            raise
+        except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError, YFException) as e:
+            raise ProviderError(f"Failed to fetch ticker '{ticker}': {e}") from e
 
         if t is None or info is None:
             raise ProviderError(
-                f"yfinance retry loop exited without populating ticker/info for '{ticker}'"
+                f"yfinance fetch exited without populating ticker/info for '{ticker}'"
             )
 
         if data_type == DataType.FINANCIALS:

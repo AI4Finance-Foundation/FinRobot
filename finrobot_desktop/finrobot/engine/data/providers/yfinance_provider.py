@@ -1,8 +1,11 @@
 import asyncio
 import logging
+import math
+from collections.abc import Sequence
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
+import pandas as pd
 import yfinance as yf
 from yfinance.exceptions import YFException
 
@@ -20,10 +23,163 @@ except (AttributeError, OSError, TypeError):
 _SUPPORTED = [DataType.FINANCIALS, DataType.PRICE, DataType.NEWS]
 _CALL_DELAY = 1.0  # seconds between the info fetch and subsequent calls
 
+# ---------------------------------------------------------------------------
+# yfinance row-name lookup tables for the historical (multi-year) financials.
+# yfinance uses different row labels by ticker/region/version — each list is
+# tried in order, first match wins. These live here (not in the compute layer)
+# because they encode yfinance-specific schema variance; the compute consumer
+# (historical_extractor) reads the normalized per-year dict this provider emits.
+# ---------------------------------------------------------------------------
+_REVENUE_NAMES = ["Total Revenue", "Revenue", "Net Revenue"]
+_GROSS_PROFIT_NAMES = ["Gross Profit"]
+_EBITDA_NAMES = ["EBITDA", "Normalized EBITDA"]
+_OPERATING_INCOME_NAMES = ["Operating Income", "Total Operating Profit Loss"]
+_NET_INCOME_NAMES = [
+    "Net Income",
+    "Net Income Common Stockholders",
+    "Net Income From Continuing And Discontinued Operation",
+]
+_EPS_NAMES = ["Basic EPS", "Diluted EPS", "EPS"]
+_SGA_NAMES = [
+    "Selling General Administrative",
+    "Selling General And Administration",
+    "General And Administrative Expense",
+]
+_OPERATING_CF_NAMES = [
+    "Operating Cash Flow",
+    "Cash Flow From Continuing Operating Activities",
+    "Net Cash Provided By Operating Activities",
+]
+_INVESTING_CF_NAMES = [
+    "Investing Cash Flow",
+    "Cash Flow From Continuing Investing Activities",
+    "Net Cash Used For Investing Activities",
+    "Net Cash Provided By Investing Activities",
+]
+_FINANCING_CF_NAMES = [
+    "Financing Cash Flow",
+    "Cash Flow From Continuing Financing Activities",
+    "Net Cash Used Provided By Financing Activities",
+    "Net Cash Provided By Financing Activities",
+]
+_DA_NAMES = [
+    "Depreciation And Amortization",
+    "Depreciation Amortization Depletion",
+    "Reconciled Depreciation",
+    "Depreciation",
+]
+_CAPEX_NAMES = [
+    "Capital Expenditure",
+    "Capital Expenditures",
+    "Purchase Of Ppe",
+    "Net Ppe Purchase And Sale",
+]
+_NWC_CHANGE_NAMES = [
+    "Change In Working Capital",
+    "Changes In Working Capital",
+]
+
 
 def _make_ticker(symbol: str) -> yf.Ticker:
     """Create a Ticker. Let yfinance use its internal curl_cffi session."""
     return yf.Ticker(symbol)
+
+
+def _get_row(df: pd.DataFrame | None, names: Sequence[str]) -> pd.Series | None:
+    """Return the first matching row from *df* by trying *names* in order.
+
+    Returns None if *df* is empty, *names* is empty, or no name matches.
+    This is the single point of yfinance row-name variance handling.
+    """
+    if df is None or df.empty or not names:
+        return None
+    for name in names:
+        if name in df.index:
+            return cast(pd.Series, df.loc[name])
+    return None
+
+
+def _safe_float(value: object) -> float | None:
+    """Convert a scalar to float; return None on any error or NaN.
+
+    NaN is treated as missing (not a legitimate 0) so the downstream consumer
+    can distinguish "row existed but empty" from "cell was zero".
+    """
+    try:
+        result = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(result):
+        return None
+    return result
+
+
+def _cell(row: pd.Series | None, col: Any) -> float | None:
+    """Read one cell from a row Series, tolerating a missing row/column/NaN."""
+    if row is None:
+        return None
+    try:
+        return _safe_float(row[col])
+    except (KeyError, IndexError):
+        return None
+
+
+def _build_yearly_financials(
+    income_stmt: pd.DataFrame, cashflow: pd.DataFrame | None, max_years: int
+) -> list[dict[str, Any]]:
+    """Transform yfinance income_stmt + cashflow DataFrames into the canonical
+    per-year normalized dict (same schema FMP emits), newest-first.
+
+    Emits None (not 0.0) for missing cells — the historical_extractor consumer
+    owns the None→0.0 fill and the revenue-NaN year filtering, so this stays a
+    pure provider-shape→normalized-dict translation. CapEx is sign-flipped to a
+    positive magnitude (FCF formula convention); D&A is reported positive.
+    """
+    cols = list(income_stmt.columns[:max_years])
+    has_cf = cashflow is not None and not cashflow.empty
+
+    rev_row = _get_row(income_stmt, _REVENUE_NAMES)
+    gp_row = _get_row(income_stmt, _GROSS_PROFIT_NAMES)
+    ebitda_row = _get_row(income_stmt, _EBITDA_NAMES)
+    oi_row = _get_row(income_stmt, _OPERATING_INCOME_NAMES)
+    ni_row = _get_row(income_stmt, _NET_INCOME_NAMES)
+    eps_row = _get_row(income_stmt, _EPS_NAMES)
+    sga_row = _get_row(income_stmt, _SGA_NAMES)
+
+    ocf_row = _get_row(cashflow, _OPERATING_CF_NAMES) if has_cf else None
+    icf_row = _get_row(cashflow, _INVESTING_CF_NAMES) if has_cf else None
+    fcf_row = _get_row(cashflow, _FINANCING_CF_NAMES) if has_cf else None
+    da_row = _get_row(cashflow, _DA_NAMES) if has_cf else None
+    capex_row = _get_row(cashflow, _CAPEX_NAMES) if has_cf else None
+    nwc_row = _get_row(cashflow, _NWC_CHANGE_NAMES) if has_cf else None
+
+    yearly: list[dict[str, Any]] = []
+    for col in cols:
+        rev = _cell(rev_row, col)
+        gp = _cell(gp_row, col)
+        oi = _cell(oi_row, col)
+        capex_raw = _cell(capex_row, col)
+        yearly.append(
+            {
+                "fiscal_year": str(col.date()) if hasattr(col, "date") else str(col),
+                "revenue": rev,
+                "gross_profit": gp,
+                "operating_income": oi,
+                "ebitda": _cell(ebitda_row, col),
+                "net_income": _cell(ni_row, col),
+                "eps": _cell(eps_row, col),
+                "sga_expense": _cell(sga_row, col),
+                "gross_margin": gp / rev if (gp is not None and rev) else None,
+                "operating_margin": oi / rev if (oi is not None and rev) else None,
+                "operating_cash_flow": _cell(ocf_row, col),
+                "investing_cash_flow": _cell(icf_row, col),
+                "financing_cash_flow": _cell(fcf_row, col),
+                "depreciation_amortization": _cell(da_row, col),
+                "capital_expenditure": abs(capex_raw) if capex_raw is not None else None,
+                "change_in_working_capital": _cell(nwc_row, col),
+            }
+        )
+    return yearly
 
 
 class YFinanceProvider(DataProvider):
@@ -182,12 +338,17 @@ class YFinanceProvider(DataProvider):
     async def _fetch_historical_financials(
         self, ticker: str, info: dict[str, Any], t: yf.Ticker, years: int
     ) -> DataResult:
-        """Fetch multi-year financials from income_stmt DataFrame.
+        """Fetch multi-year financials from the income_stmt + cashflow DataFrames.
 
-        Falls back to single-year (_fetch_financials) if income_stmt is empty.
+        Emits the canonical per-year normalized dict (the same schema FMP emits)
+        so the provider-agnostic historical_extractor can build a complete
+        HistoricalMetrics — including the DCF cash-flow trio (OCF/CapEx/ΔNWC),
+        D&A, EPS and SGA — when yfinance is the active source. Falls back to
+        single-year (_fetch_financials) if income_stmt is empty.
         """
         try:
             income_stmt = await asyncio.to_thread(lambda: t.income_stmt)
+            cashflow = await asyncio.to_thread(lambda: t.cashflow)
         except (AttributeError, KeyError, ValueError, TypeError) as e:
             logger.warning(
                 f"Historical data extraction failed for {ticker}, "
@@ -198,27 +359,7 @@ class YFinanceProvider(DataProvider):
         if income_stmt is None or income_stmt.empty:
             return self._fetch_financials(ticker, info)
 
-        # Columns are fiscal-year-end dates, most recent first.
-        cols = income_stmt.columns[:years]
-        yearly_data = []
-        for col in cols:
-            series = income_stmt[col]
-            revenue = series.get("Total Revenue")
-            gross_profit = series.get("Gross Profit")
-            operating_income = series.get("Operating Income")
-            entry = {
-                "fiscal_year": str(col.date()) if hasattr(col, "date") else str(col),
-                "revenue": revenue,
-                "ebitda": series.get("EBITDA"),
-                "net_income": series.get("Net Income"),
-                "gross_profit": gross_profit,
-                "operating_income": operating_income,
-                "gross_margin": (gross_profit / revenue if revenue and gross_profit else None),
-                "operating_margin": (
-                    operating_income / revenue if revenue and operating_income else None
-                ),
-            }
-            yearly_data.append(entry)
+        yearly_data = _build_yearly_financials(income_stmt, cashflow, years)
 
         return DataResult(
             data={"yearly_data": yearly_data},

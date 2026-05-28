@@ -3,7 +3,6 @@ Unit tests use mocked yfinance.
 Integration tests (marked @pytest.mark.integration) hit real yfinance.
 """
 
-import asyncio
 import time
 from unittest.mock import MagicMock, patch
 
@@ -24,6 +23,7 @@ def _make_mock_ticker(
     news: list | None = None,
     history: pd.DataFrame | None = None,
     income_stmt: pd.DataFrame | None = None,
+    cashflow: pd.DataFrame | None = None,
 ):
     mock = MagicMock()
     mock.info = info
@@ -40,10 +40,13 @@ def _make_mock_ticker(
             index=pd.to_datetime(["2024-01-01"]),
         )
     mock.history.return_value = history
-    # income_stmt defaults to empty DataFrame (no historical data)
+    # income_stmt / cashflow default to empty DataFrames (no historical data)
     if income_stmt is None:
         income_stmt = pd.DataFrame()
     mock.income_stmt = income_stmt
+    if cashflow is None:
+        cashflow = pd.DataFrame()
+    mock.cashflow = cashflow
     return mock
 
 
@@ -353,6 +356,26 @@ class TestFetchHistoricalFinancials:
                 "Net Income": (95 - i * 3) * 1e9,
                 "Gross Profit": (170 - i * 4) * 1e9,
                 "Operating Income": (120 - i * 5) * 1e9,
+                "Basic EPS": 6.15 - i * 0.4,
+                "Selling General Administrative": (25 - i) * 1e9,
+            }
+            for i, col in enumerate(columns)
+        }
+        return pd.DataFrame(data)
+
+    @staticmethod
+    def _build_cashflow(years: int = 3) -> pd.DataFrame:
+        """Build a mock cashflow DataFrame aligned by fiscal-year-end date to
+        ``_build_income_stmt``. CapEx is negative (yfinance convention)."""
+        columns = pd.to_datetime([f"{2024 - i}-09-30" for i in range(years)])
+        data = {
+            col: {
+                "Operating Cash Flow": (110 - i * 5) * 1e9,
+                "Investing Cash Flow": -(8 + i * 0.4) * 1e9,
+                "Financing Cash Flow": -(95 - i * 3) * 1e9,
+                "Depreciation And Amortization": (11 - i * 0.1) * 1e9,
+                "Capital Expenditure": -(10 + i * 0.5) * 1e9,
+                "Change In Working Capital": (-2 + i * 0.3) * 1e9,
             }
             for i, col in enumerate(columns)
         }
@@ -464,6 +487,70 @@ class TestFetchHistoricalFinancials:
             result = await provider.fetch("AAPL", "financials")
         assert "revenue" in result.data
         assert "yearly_data" not in result.data
+
+
+class TestFetchHistoricalFinancialsFullSchema:
+    """门一 Step 2: yfinance historical yearly_data must carry the SAME rich
+    per-year schema as FMP (cash-flow trio + D&A + EPS + SGA + absolutes), so
+    that when historical_extractor routes through DataLayer and FMP is down,
+    the yfinance fallback still yields a complete HistoricalMetrics instead of
+    silently degrading DCF to industry medians."""
+
+    def _build_ticker(self, years: int = 3):
+        income = TestFetchHistoricalFinancials._build_income_stmt(years)
+        cashflow = TestFetchHistoricalFinancials._build_cashflow(years)
+        return _make_mock_ticker(VALID_INFO, income_stmt=income, cashflow=cashflow)
+
+    async def _fetch_yearly(self, years: int = 3):
+        provider = YFinanceProvider()
+        with patch(
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
+            return_value=self._build_ticker(years),
+        ):
+            result = await provider.fetch("AAPL", "financials", years=years)
+        return result.data["yearly_data"]
+
+    @pytest.mark.asyncio
+    async def test_income_statement_absolutes_and_eps_sga(self):
+        y = await self._fetch_yearly(3)
+        assert y[0]["gross_profit"] == 170e9
+        assert y[0]["operating_income"] == 120e9
+        assert y[0]["eps"] == pytest.approx(6.15)
+        assert y[0]["sga_expense"] == 25e9
+
+    @pytest.mark.asyncio
+    async def test_cash_flow_statement_populated(self):
+        y = await self._fetch_yearly(3)
+        assert y[0]["operating_cash_flow"] == 110e9
+        assert y[0]["investing_cash_flow"] == -8e9
+        assert y[0]["financing_cash_flow"] == -95e9
+        assert y[0]["depreciation_amortization"] == pytest.approx(11e9)
+        assert y[0]["change_in_working_capital"] == pytest.approx(-2e9)
+
+    @pytest.mark.asyncio
+    async def test_capex_sign_normalized_to_positive(self):
+        """CapEx is negative in raw yfinance (outflow); provider stores it as a
+        positive magnitude so DCF capex/revenue ratios compute directly."""
+        y = await self._fetch_yearly(3)
+        assert y[0]["capital_expenditure"] == 10e9
+        assert all(yr["capital_expenditure"] >= 0 for yr in y)
+
+    @pytest.mark.asyncio
+    async def test_empty_cashflow_yields_none_cf_fields_not_crash(self):
+        """Missing cash-flow statement → CF fields are None (consumer zero-fills),
+        income-statement fields still populate."""
+        income = TestFetchHistoricalFinancials._build_income_stmt(2)
+        mock_ticker = _make_mock_ticker(VALID_INFO, income_stmt=income, cashflow=pd.DataFrame())
+        provider = YFinanceProvider()
+        with patch(
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            result = await provider.fetch("AAPL", "financials", years=2)
+        y = result.data["yearly_data"]
+        assert y[0]["revenue"] == 400e9
+        assert y[0]["operating_cash_flow"] is None
+        assert y[0]["capital_expenditure"] is None
 
 
 # ---------------------------------------------------------------------------

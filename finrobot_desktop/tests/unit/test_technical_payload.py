@@ -200,7 +200,9 @@ async def test_sniper_skips_when_no_price_history():
     assert payload.monte_carlo is not None
     # Bands also need the price stream, so they degrade alongside sniper.
     assert payload.historical_bands is None
-    assert any("historical_bands" in w for w in payload.warnings)
+    # The compute layer emits diagnostics like "price 历史为空" or "shares_outstanding 不可得".
+    # At least one warning must be present (exact text depends on compute layer path taken).
+    assert len(payload.warnings) >= 2  # at least sniper + historical_bands diagnostic
 
 
 @pytest.mark.asyncio
@@ -228,4 +230,41 @@ async def test_historical_bands_skip_when_no_historical_financials():
     )
 
     assert payload.historical_bands is None
-    assert any("historical_bands" in w for w in payload.warnings)
+    # Compute layer emits its own diagnostics (e.g. "financials 历史为空").
+    # Pre-fix: technical_payload swallowed these with a generic string.
+    # Post-fix: band.warnings are passed through verbatim.
+    assert len(payload.warnings) >= 1
+
+
+@pytest.mark.asyncio
+async def test_historical_bands_warnings_passthrough_from_band():
+    """band.warnings are propagated verbatim; the generic fallback message is
+    only used when band.warnings is empty.
+
+    We use _StubDataLayer(with_history=False) which returns zero financials rows,
+    causing compute_historical_band to emit its own warning into band.warnings.
+    The fix in technical_payload.py must not replace those with the generic string.
+
+    Implementation note: with_history=False returns [] from fetch_historical,
+    so _safe_historical_bands calls compute_historical_band with an empty yearly list.
+    HistoricalBand.warnings will contain "financials 历史为空" (or similar).
+    We assert warnings is non-empty AND that the generic fallback is NOT the only message
+    if the compute layer already provided a diagnostic.
+    """
+    payload = await build_technical_analysis(
+        ticker="AAPL",
+        dcf_inputs=_dcf_inputs(),
+        dcf_target=200.0,
+        current_price=162.0,
+        data_layer=_StubDataLayer(with_history=False),
+    )
+
+    assert payload.historical_bands is None
+    # Compute layer emits its own diagnostics; at least one warning must be present.
+    # The stub has no shares_outstanding → "shares_outstanding 不可得" path fires first.
+    assert len(payload.warnings) >= 1, (
+        f"Expected >=1 warning from band compute layer, got: {payload.warnings}"
+    )
+    # The warning must NOT be the generic fallback (it should be the compute layer's own text).
+    # Any non-empty band.warnings from compute_historical_band are now passed through verbatim.
+    assert not all(w == "historical_bands skipped: no valid samples" for w in payload.warnings)

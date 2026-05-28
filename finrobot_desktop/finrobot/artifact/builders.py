@@ -406,6 +406,26 @@ def build_equity_research_artifact(
     if ownership is not None:
         structured_out["ownership_governance"] = _safe_dump(ownership)
 
+    # Mirror the LLM-authored narrative fields into outputs.llm_narrative so
+    # that AGENTS.md consumers can read from a semantically named top-level key
+    # instead of drilling into structured.thesis.*.  structured.thesis remains
+    # the audit-trail source; llm_narrative is a read convenience copy.
+    _LLM_NARRATIVE_KEYS = (
+        "tagline",
+        "key_takeaways",
+        "company_overview",
+        "valuation_overview",
+        "news_summary",
+        "competitor_analysis",
+        "recommendation",
+        "catalysts",
+        "risks",
+    )
+    thesis_dict = structured_out.get("thesis") or {}
+    llm_narrative: dict[str, Any] = {
+        k: thesis_dict[k] for k in _LLM_NARRATIVE_KEYS if k in thesis_dict
+    }
+
     return Artifact(
         id=_make_artifact_id(ticker, "equity_research"),
         ticker=ticker.upper(),
@@ -424,6 +444,7 @@ def build_equity_research_artifact(
         ),
         outputs=ArtifactOutputs(
             structured=structured_out,
+            llm_narrative=llm_narrative,
             summary_text=result.format_summary()[:2000],
             warnings=_collect_warnings(result),
         ),

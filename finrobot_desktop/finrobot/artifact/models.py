@@ -71,6 +71,16 @@ class ArtifactOutputs(BaseModel):
     structured: dict[str, Any] = Field(
         description="The model dump of e.g. DCFResult / LBOResult / PeerComps."
     )
+    llm_narrative: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "LLM-authored narrative fields extracted from the thesis for direct consumption. "
+            "Keys: tagline / key_takeaways / company_overview / valuation_overview / "
+            "news_summary / competitor_analysis / recommendation / catalysts / risks. "
+            "This is a mirror of structured.thesis.* fields for semantic clarity; "
+            "structured.thesis remains the source of truth for the compute audit trail."
+        ),
+    )
     summary_text: str = ""
     warnings: list[str] = Field(default_factory=list)
 

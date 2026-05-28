@@ -45,9 +45,24 @@ def _fmp_quarterly_income_response(ticker: str = "AAPL") -> list[dict]:
             "depreciationAndAmortization": 3_000_000_000,
             "grossProfit": 45_000_000_000,
             "operatingIncome": 25_000_000_000,
+            "incomeTaxExpense": 2_000_000_000,
             "researchAndDevelopmentExpenses": 7_000_000_000,
             "sellingGeneralAndAdministrative": 6_000_000_000,
             "interestExpense": 1_000_000_000,
+        }
+        for quarter in range(4)
+    ]
+
+
+def _fmp_quarterly_cashflow_response(ticker: str = "AAPL", da: int = 3_000_000_000) -> list[dict]:
+    """Mock FMP quarterly cash-flow rows — the authoritative D&A source for the
+    TTM snapshot (the income statement leaves the freshest quarter's D&A at 0)."""
+    return [
+        {
+            "date": f"2026-0{quarter + 1}-28",
+            "symbol": ticker,
+            "depreciationAndAmortization": da,
+            "operatingCashFlow": 28_000_000_000,
         }
         for quarter in range(4)
     ]
@@ -100,6 +115,7 @@ class TestFMPFetch:
         responses = [
             _mock_response(_fmp_quarterly_income_response()),
             _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_quarterly_cashflow_response()),
             _mock_response(_fmp_profile_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
@@ -111,7 +127,11 @@ class TestFMPFetch:
         # Key normalization checks
         assert result.data["period_basis"] == "ttm"
         assert result.data["revenue"] == 400_000_000_000
-        assert result.data["ebitda"] == 120_000_000_000
+        # EBITDA is the operating caliber: OI 100B + D&A 12B = 112B, NOT FMP's
+        # raw ebitda field sum (120B).
+        assert result.data["ebitda"] == 112_000_000_000
+        assert result.data["operating_income"] == 100_000_000_000
+        assert result.data["income_tax_expense"] == 8_000_000_000
         assert result.data["depreciation_amortization"] == 12_000_000_000
         assert result.data["rd_expense"] == 28_000_000_000
         assert result.data["sga_expense"] == 24_000_000_000
@@ -272,6 +292,7 @@ class TestFMPFetchHistorical:
         responses = [
             _mock_response(_fmp_quarterly_income_response()),
             _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_quarterly_cashflow_response()),
             _mock_response(_fmp_profile_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
@@ -281,6 +302,48 @@ class TestFMPFetchHistorical:
         assert result.data["revenue"] == 400_000_000_000
         # Single-year flat result must also carry fiscal_year
         assert result.data.get("fiscal_year") is not None
+
+    @pytest.mark.asyncio
+    async def test_ttm_da_sourced_from_cashflow_not_income(self, provider):
+        """Reproduces the TSLA caliber bug: FMP's income statement drops D&A to
+        0 for the freshest quarter while the cash-flow statement carries it. TTM
+        D&A and the recomputed EBITDA must come from cash flow, not the income
+        sum, otherwise EV/EBITDA reads inflated."""
+        income = _fmp_quarterly_income_response()
+        income[0]["depreciationAndAmortization"] = 0  # freshest quarter dropped
+        responses = [
+            _mock_response(income),
+            _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_quarterly_cashflow_response(da=3_000_000_000)),
+            _mock_response(_fmp_profile_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials")
+        # Income-statement D&A sum would be 9B (3 quarters); cash flow gives 12B.
+        assert result.data["depreciation_amortization"] == 12_000_000_000
+        # Operating EBITDA = OI 100B + cash-flow D&A 12B = 112B (not 109B).
+        assert result.data["ebitda"] == 112_000_000_000
+
+
+class TestFMPQuote:
+    """门一 Step 3: lightweight QUOTE path via /quote/{ticker} (no OHLC pull)."""
+
+    def test_quote_in_capabilities(self, provider):
+        assert "quote" in provider.capabilities()
+
+    @pytest.mark.asyncio
+    async def test_quote_returns_price(self, provider):
+        resp = _mock_response([{"symbol": "AAPL", "price": 187.5, "exchange": "NASDAQ"}])
+        with patch.object(provider, "_get", AsyncMock(return_value=resp)):
+            result = await provider.fetch("AAPL", "quote")
+        assert result.data == {"price": 187.5}
+        assert result.data_type == "quote"
+
+    @pytest.mark.asyncio
+    async def test_quote_empty_response_raises(self, provider):
+        with patch.object(provider, "_get", AsyncMock(return_value=_mock_response([]))):
+            with pytest.raises(ProviderError):
+                await provider.fetch("AAPL", "quote")
 
 
 class TestFMPProviderInterface:

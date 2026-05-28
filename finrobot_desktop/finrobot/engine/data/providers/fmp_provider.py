@@ -9,6 +9,7 @@ from typing import Any
 
 import httpx
 
+from finrobot.engine.compute.multiples import calculate_ebitda_operating
 from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
 from finrobot.engine.data.types import DataType
 
@@ -16,6 +17,7 @@ _BASE_URL = "https://financialmodelingprep.com/api/v3"
 _SUPPORTED = [
     DataType.FINANCIALS,
     DataType.PRICE,
+    DataType.QUOTE,
     DataType.NEWS,
     DataType.EARNINGS,
     DataType.EARNINGS_TRANSCRIPT,
@@ -77,6 +79,8 @@ class FMPProvider(DataProvider):
             )
         if data_type == DataType.PRICE:
             return await self._fetch_price(ticker)
+        if data_type == DataType.QUOTE:
+            return await self._fetch_quote(ticker)
         if data_type == DataType.NEWS:
             return await self._fetch_news(ticker)
         if data_type == DataType.EARNINGS:
@@ -119,6 +123,18 @@ class FMPProvider(DataProvider):
                         params={"period": "quarter", "limit": 1},
                     )
                 ).json()
+                # D&A on FMP's income statement is unreliable for the freshest
+                # quarter (it arrives 0 until FMP backfills), which silently
+                # understates TTM EBITDA. The cash-flow statement carries the
+                # real per-quarter D&A — fetch the matching 4 quarters and let
+                # _build_ttm_data prefer it. (Same call order as the years>1
+                # branch: income → balance → cash-flow → profile.)
+                cashflow = (
+                    await self._get(
+                        f"/cash-flow-statement/{ticker}",
+                        params={"period": "quarter", "limit": 4},
+                    )
+                ).json()
                 if len(income) < 4:
                     warnings.append(
                         f"FMP returned only {len(income)} quarterly income rows for {ticker}; "
@@ -142,7 +158,7 @@ class FMPProvider(DataProvider):
                 ],
             }
         else:
-            data = self._build_ttm_data(income, bal, prof)
+            data = self._build_ttm_data(income, bal, prof, cashflow)
 
         return DataResult(
             data=data,
@@ -235,24 +251,42 @@ class FMPProvider(DataProvider):
         income_rows: list[dict[str, Any]],
         bal: dict[str, Any],
         prof: dict[str, Any],
+        cashflow_rows: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Build a current snapshot from the latest four quarterly rows."""
         if not income_rows:
             return cls._build_single_year_data({}, bal, prof)
 
-        def total(key: str) -> float | None:
-            values: list[float] = []
-            for row in income_rows:
-                raw = row.get(key)
-                if isinstance(raw, int | float):
-                    values.append(float(raw))
+        def _sum(rows: list[dict[str, Any]], key: str) -> float | None:
+            values = [float(r[key]) for r in rows if isinstance(r.get(key), int | float)]
             return sum(values) if values else None
+
+        def total(key: str) -> float | None:
+            return _sum(income_rows, key)
 
         latest = income_rows[0]
         revenue = total("revenue")
         gross_profit = total("grossProfit")
         operating_income = total("operatingIncome")
         net_income = total("netIncome")
+        income_tax_expense = total("incomeTaxExpense")
+        # D&A: prefer the cash-flow statement (authoritative; carries the
+        # freshest quarter that the income statement leaves at 0), fall back to
+        # the income statement only if cash flow is unavailable.
+        da = (
+            _sum(cashflow_rows, "depreciationAndAmortization")
+            if cashflow_rows
+            else None
+        )
+        if da is None:
+            da = total("depreciationAndAmortization")
+        # EBITDA recomputed on the operating caliber (EBIT + D&A) rather than
+        # trusting FMP's `ebitda` field, which inherits the same dropped-D&A
+        # contamination for the latest quarter. Fall back to FMP's field only
+        # when the components are missing. See multiples.calculate_ebitda_operating.
+        ebitda = calculate_ebitda_operating(operating_income, da)
+        if ebitda is None:
+            ebitda = total("ebitda")
         mkt_cap = prof.get("mktCap")
         price = prof.get("price")
         shares = int(mkt_cap / price) if mkt_cap and price else None
@@ -266,13 +300,15 @@ class FMPProvider(DataProvider):
         )
         return {
             "revenue": revenue,
-            "ebitda": total("ebitda"),
+            "ebitda": ebitda,
             "net_income": net_income,
+            "operating_income": operating_income,
+            "income_tax_expense": income_tax_expense,
             "gross_margin": gross_profit / revenue if gross_profit and revenue else None,
             "operating_margin": (
                 operating_income / revenue if operating_income and revenue else None
             ),
-            "depreciation_amortization": total("depreciationAndAmortization"),
+            "depreciation_amortization": da,
             "rd_expense": total("researchAndDevelopmentExpenses"),
             "sga_expense": total("sellingGeneralAndAdministrative"),
             "interest_expense": total("interestExpense"),
@@ -352,6 +388,27 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.PRICE,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+    async def _fetch_quote(self, ticker: str) -> DataResult:
+        """Lightweight current price via /quote/{ticker} — no OHLC history pull.
+
+        The full ``_fetch_price`` also fetches a year of historical bars; QUOTE
+        skips that so high-fan-out dashboard quotes stay one cheap call.
+        """
+        with self._wrap_errors(ticker, "quote fetch"):
+            resp = (await self._get(f"/quote/{ticker}")).json()
+        if not isinstance(resp, list) or not resp:
+            raise ProviderError(f"FMP /quote/{ticker} returned no data — ticker may be delisted")
+        price = resp[0].get("price")
+        if price is None:
+            raise ProviderError(f"FMP /quote/{ticker} returned no price field")
+        return DataResult(
+            data={"price": float(price)},
+            provider=self.name,
+            ticker=ticker,
+            data_type=DataType.QUOTE,
             timestamp=datetime.now(tz=timezone.utc),
         )
 

@@ -4,6 +4,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
+import { fetchWithTimeout } from '../api/fetch'
 import { FetchHttpError } from '../utils/errorMessage'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -31,8 +32,14 @@ export interface PriceData {
   /** Next earnings date ISO when yfinance carries it; null/undefined hides the badge. */
   next_earnings_date?: string | null
   history?: PricePoint[] // backend always returns this; typed optional for safety
-  /** ISO8601 timestamp of when yfinance last successfully fetched. Drives the freshness pill. */
+  /** ISO8601 timestamp of when the provider last successfully fetched (wall-clock). */
   fetched_at?: string | null
+  /** ISO date (YYYY-MM-DD) of the latest price bar — the session current_price represents.
+   *  The freshness pill binds to THIS, not fetched_at, so a closed-market view can't
+   *  claim "near-real-time" over a prior session's closing price. */
+  as_of?: string | null
+  /** Which provider actually served this payload ("fmp" / "yfinance" / "<provider>:provider-cache"). */
+  data_source?: string | null
 }
 
 // Mirror of finrobot.engine.models.financial.FinancialData — backend nests
@@ -43,6 +50,16 @@ export interface FinancialsData {
   ticker?: string
   company_name?: string | null
   timestamp?: string
+  /** TTM period end (the data's semantic date), e.g. "2026-03-31". */
+  fiscal_period_end?: string | null
+  /** Source + freshness + degradation flags (ADR-0004). */
+  provenance?: {
+    provider?: string
+    as_of?: string | null
+    period_basis?: string
+    pe_ttm_lag_quarters?: number | null
+    degraded?: string[]
+  } | null
   income?: {
     revenue?: number | null
     ebitda?: number | null
@@ -67,7 +84,14 @@ export interface FinancialsData {
   }
   valuation?: {
     enterprise_value?: number | null
+    /** EBITDA, operating caliber (EBIT + D&A) — the primary number shown. */
+    ebitda_operating?: number | null
+    /** EBITDA, street/reported caliber (NI + tax + interest + D&A). */
+    ebitda_reported?: number | null
+    /** EV/EBITDA on the operating caliber (primary). */
     ev_ebitda?: number | null
+    /** EV/EBITDA on the reported caliber (footnote cross-check). */
+    ev_ebitda_reported?: number | null
     ev_revenue?: number | null
   }
   data_source?: string
@@ -94,16 +118,14 @@ export interface CatalystEventData {
  * Fetch wrapper used by the per-ticker query hooks below.
  *
  * Throws FetchHttpError(status, statusText) on non-2xx responses so
- * StockWorkspace's gate can branch on status (422 → TickerNotFoundView,
- * everything else → ServiceDownView). Plain Error / TypeError / DOMException
- * (network failures, CORS, AbortError) propagate untouched — the gate
- * already routes those into ServiceDownView via the "not instanceof
- * FetchHttpError" branch.
+ * StockWorkspace's gate can branch on status. 422 means an invalid ticker and
+ * stops at TickerNotFoundView; upstream failures are handled inside market
+ * data widgets so the AI run/timeline column stays usable.
  *
  * Exported for direct unit testing.
  */
 export async function fetchJsonOrThrowHttp<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const resp = await fetch(url, { signal })
+  const resp = await fetchWithTimeout(url, { signal })
   if (!resp.ok) {
     throw new FetchHttpError(resp.status, resp.statusText)
   }
@@ -121,12 +143,9 @@ export function useTickerPrice(ticker: string) {
     enabled: !!ticker,
     staleTime: 60_000, // 1 min — price data is volatile
     refetchInterval: 60_000,
-    // No automatic react-query retries. StockWorkspace's gate shows
-    // ServiceDownView whose exponential-backoff countdown calls
-    // priceQuery.refetch() — that IS the user-visible retry loop.
-    // Having react-query silently retry in the background while ServiceDownView
-    // is showing would be invisible noise and conflicts with the gate's
-    // controlled retry UX. For 422 (invalid ticker) retrying has zero value.
+    // No automatic react-query retries. For 422 (invalid ticker) retrying has
+    // zero value, and for provider outages the workspace should render with
+    // local degraded states instead of a hidden background retry loop.
     retry: false,
   })
 }

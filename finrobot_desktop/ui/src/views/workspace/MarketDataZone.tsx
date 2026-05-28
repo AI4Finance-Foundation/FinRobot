@@ -7,7 +7,12 @@
 // research pipeline on this ticker.
 
 import { useState } from 'react'
-import { useTickerPrice, useTickerFinancials, useTickerCatalysts } from '../../hooks/useTickerData'
+import {
+  useTickerPrice,
+  useTickerFinancials,
+  useTickerCatalysts,
+  type FinancialsData,
+} from '../../hooks/useTickerData'
 import { tSync } from '../../i18n'
 
 interface MarketDataZoneProps {
@@ -25,7 +30,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
       <p style={zoneDesc}>来源 yfinance / SEC EDGAR / FMP · 实时拉，跟 AI 研报互不依赖。</p>
 
       {/* 行情快照 */}
-      <MktCard title="📊 行情快照" liveTag="yfinance">
+      <MktCard title="📊 行情快照" liveTag={providerTag(fin?.data_source)}>
         <Kv4
           cells={[
             { label: '市值', value: fmtMc(fin?.market?.market_cap) },
@@ -33,6 +38,13 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
             {
               label: 'EV/EBITDA',
               value: fmt(fin?.valuation?.ev_ebitda, 1),
+              sub:
+                typeof fin?.valuation?.ev_ebitda_reported === 'number'
+                  ? `街口径 ${fin.valuation.ev_ebitda_reported.toFixed(1)}`
+                  : undefined,
+              subTitle:
+                '主显=营业口径 EV/EBITDA（EBITDA=EBIT+D&A）。EV 已扣现金，故不计利息收入。' +
+                '街口径=净利+税+利息+D&A，含利息收入，多数零售源用这个。',
             },
             {
               label: 'Beta (5Y)',
@@ -42,19 +54,29 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
             { label: '52W High', value: fmtPrice(fin?.market?.price_52w_high) },
           ]}
         />
+        <ProvenanceFootnote provenance={fin?.provenance} />
       </MktCard>
 
       {/* Price chart */}
-      <MktCard title="📈 价格趋势" liveTag="yfinance">
+      <MktCard title="📈 价格趋势" liveTag={providerTag(price?.data_source)}>
         <PriceSparkline points={price?.history ?? null} />
       </MktCard>
 
       {/* Financial TTM */}
-      <MktCard title="💰 财务指标 · TTM" liveTag="SEC 10-K">
+      <MktCard title="💰 财务指标 · TTM" liveTag={providerTag(fin?.data_source)}>
         <Kv4
           cells={[
             { label: '营收 TTM', value: fmtMc(fin?.income?.revenue) },
-            { label: 'EBITDA', value: fmtMc(fin?.income?.ebitda) },
+            {
+              label: 'EBITDA',
+              value: fmtMc(fin?.income?.ebitda),
+              sub:
+                typeof fin?.valuation?.ebitda_reported === 'number'
+                  ? `街口径 ${fmtMc(fin.valuation.ebitda_reported)}`
+                  : undefined,
+              subTitle:
+                '主显=营业口径 EBITDA（EBIT+D&A）。街口径=净利+税+利息+D&A，含利息收入。',
+            },
             {
               label: 'Net Income',
               value: fmtMc(fin?.income?.net_income),
@@ -68,6 +90,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
             },
           ]}
         />
+        <ProvenanceFootnote provenance={fin?.provenance} showPeriodEnd />
       </MktCard>
 
       {/* Catalyst calendar */}
@@ -229,7 +252,16 @@ function MktCard({
   )
 }
 
-function Kv4({ cells }: { cells: { label: string; value: string }[] }): React.ReactElement {
+interface KvCell {
+  label: string
+  value: string
+  /** Secondary caliber line shown muted under the value (e.g. street EV/EBITDA). */
+  sub?: string
+  /** Hover explanation for the sub line — the caliber definition. */
+  subTitle?: string
+}
+
+function Kv4({ cells }: { cells: KvCell[] }): React.ReactElement {
   return (
     <div
       style={{
@@ -265,6 +297,21 @@ function Kv4({ cells }: { cells: { label: string; value: string }[] }): React.Re
           >
             {c.value}
           </div>
+          {c.sub && (
+            <div
+              title={c.subTitle}
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 9.5,
+                color: 'var(--text-muted)',
+                letterSpacing: '0.02em',
+                marginTop: 2,
+                cursor: c.subTitle ? 'help' : 'default',
+              }}
+            >
+              {c.sub}
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -296,9 +343,22 @@ function PriceSparkline({
       return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
     })
     .join(' ')
-  const first = closes[0]
+  // 1-year return must anchor to the close ~365 calendar days before the last
+  // bar, not points[0]. Providers can hand back more than a year (FMP's
+  // historical window carries a cushion), and using points[0] then measured
+  // from ~17 months ago — TSLA read +9.8% instead of the real ~+21%.
+  const lastDate = new Date(points[points.length - 1].date)
+  const cutoff = new Date(lastDate)
+  cutoff.setDate(cutoff.getDate() - 365)
+  const baseIdx = Math.max(
+    0,
+    points.findIndex((p) => new Date(p.date) >= cutoff),
+  )
+  const first = closes[baseIdx]
   const last = closes[closes.length - 1]
   const pct = ((last - first) / first) * 100
+  const spanDays = Math.round((lastDate.getTime() - new Date(points[baseIdx].date).getTime()) / 86_400_000)
+  const spanLabel = spanDays >= 350 ? '1Y' : `${spanDays}D`
 
   return (
     <div>
@@ -326,7 +386,7 @@ function PriceSparkline({
           marginTop: 4,
         }}
       >
-        <span>{points.length}D 走势</span>
+        <span>{spanLabel} 走势</span>
         <span style={{ color: pct >= 0 ? 'var(--success)' : 'var(--danger)' }}>
           {pct >= 0 ? '+' : ''}
           {pct.toFixed(1)}%
@@ -348,6 +408,72 @@ function Empty({ children }: { children: React.ReactNode }): React.ReactElement 
     >
       {children}
     </p>
+  )
+}
+
+// Honest provenance: show the provider that actually served the payload.
+// The chain is FMP → Finnhub → yfinance, so this card is usually "fmp" even
+// though it was hardcoded "yfinance" before. Strips the ":provider-cache"
+// suffix; returns undefined while loading so no stale tag flashes.
+function providerTag(src: string | null | undefined): string | undefined {
+  if (!src) return undefined
+  return src.split(':')[0]
+}
+
+// Degradation flags from the backend normalization layer (ADR-0004). Surfaced
+// so a fallback (close-only history, stale TTM, inferred currency) is visible.
+const DEGRADED_LABELS: Record<string, string> = {
+  close_only: '仅收盘价 · 52周高低用收盘价',
+  ttm_lag: 'TTM 落后 · 分母非最新季',
+  ccy_inferred: '币种推断 · 非财报直接标注',
+}
+
+function ProvenanceFootnote({
+  provenance,
+  showPeriodEnd,
+}: {
+  provenance?: FinancialsData['provenance']
+  showPeriodEnd?: boolean
+}): React.ReactElement | null {
+  if (!provenance) return null
+  const provider = provenance.provider
+  const periodEnd = provenance.as_of
+  const degraded = provenance.degraded ?? []
+  const parts: string[] = []
+  if (provider) parts.push(`来源 ${provider}`)
+  if (showPeriodEnd && periodEnd) parts.push(`TTM 截至 ${periodEnd}`)
+  if (parts.length === 0 && degraded.length === 0) return null
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 6,
+        fontFamily: 'var(--font-mono)',
+        fontSize: 10,
+        color: 'var(--text-muted)',
+        letterSpacing: '0.04em',
+      }}
+    >
+      {parts.length > 0 && <span>{parts.join(' · ')}</span>}
+      {degraded.map((d) => (
+        <span
+          key={d}
+          title={DEGRADED_LABELS[d] ?? d}
+          style={{
+            color: 'var(--accent-amber)',
+            border: '1px solid var(--border-amber-soft)',
+            borderRadius: 3,
+            padding: '1px 5px',
+            fontSize: 9,
+          }}
+        >
+          ⚠ {DEGRADED_LABELS[d] ?? d}
+        </span>
+      ))}
+    </div>
   )
 }
 

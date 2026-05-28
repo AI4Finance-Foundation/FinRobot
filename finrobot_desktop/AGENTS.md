@@ -82,6 +82,20 @@ FinRobot 处于从零打磨的建设期，不是维护期。这个事实改变�
 
 ### 五、强制工作流（每个非琐碎任务必走）
 
+**阶段 0：诊断（找 bug 时强制先做这步）—— "Codex 范式"**
+
+我看到 Codex 找 bug 的做法是这样的，你必须照做：
+
+1. **先对照外部事实源** — 当前价 / 财务比率 / 行情有没有错，去外部对一遍（雅虎财经 / Bloomberg / 公司 IR / 10-K）。**未对外部就提出的 bug 都是空中楼阁。**
+2. **形成具体假设** — 不是"这块可能有问题"，而是"NVDA P/E 返回 43.34 但外部口径 32.36，说明 PE 分母不是 TTM"。具体到字段、具体到数值、具体到口径。
+3. **明确告诉我假设** — 在动任何代码前，**用一句话**告诉我："我推测根因是 X，证据是 Y"。让我看到你的判断、有机会反驳。
+4. **追到根因再下手** — 沿数据流逆向追，找到第一个出错的位置（不是症状位置）。
+5. **然后才改一个文件** — 一次只做一个 commit，commit message 解释根因 + 修法。
+
+**反例（我之前犯的错）**：看到 chapter 12 显示 $416 亿就直接派 6 个 agent 并行修 30 个 bug，没先对外部验证、没形成具体假设、没告诉用户根因。结果加了一堆 plausibility floor 守卫，但守卫让 NVDA P/E=43.34 这种"在范围内但口径错"的真 bug 安静通过。Codex 同时间在另一边对外部一对就拍出 TTM 口径错乱的根因。
+
+**禁止**：跳过阶段 0 直接派多个 agent 并行修。**派 agent = 并行执行，不是并行诊断。** 诊断必须串行，必须由你主导，必须在派 agent 之前完成。
+
 **阶段 1：探索（动手前）**
 用 grep / glob / read 把相关代码摸清楚。产出：
 - 涉及文件清单
@@ -281,7 +295,7 @@ surface 位置：`/stocks/:ticker/runs/:artifactId` 路由（ArtifactDetailPage�
 
 ## 测试金字塔
 
-- **1511 pytest pass** + 1 skipped + 10 deselected (`-m "not slow and not integration"`)（unit + routes + audit + artifact；`tests/unit/test_paths.py` 覆盖 paths 常量 + journal.db + sessions/ 迁移 / `test_sqlite_store.py` + `test_migrate.py` 覆盖 SQLite ArtifactStore + 文件系统→SQLite 迁移 / `test_quote_cache.py` 覆盖 L1+L2 quote cache / `test_quote_batch.py::test_cached_cold_path_fans_out_per_ticker_concurrently` 守护 yfinance per-ticker 并发不被回退到串行循环，`test_yfinance_rate_limit_is_isolated` 守护 YFRateLimit 不把 dashboard 打成 500 / `test_equity_research_pipeline.py` 覆盖 pipeline 8 步骤结构 + step executor + SEC required data + ownership_governance_analysis 链路 / `test_edgar_provider.py` 覆盖中文 SEC identity 到 ASCII header 的运行时转换 / `test_server.py::test_sec_holdings_refresh_not_inline_in_lifespan` 守护 13F refresh 不阻塞 sidecar readiness / `test_refresh_sec_holdings.py` 守护 13F schema drift 聚合 warning / `test_sec_holdings_cache.py` 覆盖 13F ticker 与 issuer name fallback / `test_ownership_compute.py` 覆盖 Form 4、13F、DEF 14A deterministic 解析 / `test_xbrl_aligned_comps.py` 覆盖 XBRL-aligned peer comps + NetIncomeLoss :annual/:ttm 双 key 不碰撞 / `tests/audit/test_sec_provenance.py` 覆盖 artifact SEC provenance contract + llm_narrative mirror-write / `test_notify_routes.py` 覆盖 8 个 channel test endpoint case / `test_growth_scale_override.py` 覆盖 What-if Editor revenue growth scaling）。实跑时间 `pytest -m "not slow and not integration" -q` ~10s。剩余 aiosqlite teardown warning 是已知 race（见 `project-memory/踩坑记录/aiosqlite-test-teardown-2026-05-27.md`，非致命）。
+- **1527 pytest pass** + 1 skipped + 10 deselected (`-m "not slow and not integration"`)（unit + routes + audit + artifact；`tests/unit/test_paths.py` 覆盖 paths 常量 + journal.db + sessions/ 迁移 / `test_sqlite_store.py` + `test_migrate.py` 覆盖 SQLite ArtifactStore + 文件系统→SQLite 迁移 / `test_quote_cache.py` 覆盖 L1+L2 quote cache / `test_quote_batch.py::test_cached_cold_path_fans_out_per_ticker_concurrently` 守护 yfinance per-ticker 并发不被回退到串行循环，`test_yfinance_rate_limit_is_isolated` 守护 YFRateLimit 不把 dashboard 打成 500 / `test_equity_research_pipeline.py` 覆盖 pipeline 8 步骤结构 + step executor + SEC required data + ownership_governance_analysis 链路 / `test_edgar_provider.py` 覆盖中文 SEC identity 到 ASCII header 的运行时转换 / `test_server.py::test_sec_holdings_refresh_not_inline_in_lifespan` 守护 13F refresh 不阻塞 sidecar readiness / `test_refresh_sec_holdings.py` 守护 13F schema drift 聚合 warning / `test_sec_holdings_cache.py` 覆盖 13F ticker 与 issuer name fallback / `test_ownership_compute.py` 覆盖 Form 4、13F、DEF 14A deterministic 解析 / `test_xbrl_aligned_comps.py` 覆盖 XBRL-aligned peer comps + NetIncomeLoss :annual/:ttm 双 key 不碰撞 / `tests/audit/test_sec_provenance.py` 覆盖 artifact SEC provenance contract + llm_narrative mirror-write / `test_notify_routes.py` 覆盖 8 个 channel test endpoint case / `test_growth_scale_override.py` 覆盖 What-if Editor revenue growth scaling）。实跑时间 `pytest -m "not slow and not integration" -q` ~10s。剩余 aiosqlite teardown warning 是已知 race（见 `project-memory/踩坑记录/aiosqlite-test-teardown-2026-05-27.md`，非致命）。
 - **309 vitest pass** + 2 skipped（components + stores + hooks + i18n smoke + format helpers + errorMessage 映射 + API fetch timeout + `ChapterTechnical.test.tsx` + `useQuotesWarmed.test.tsx` + `WhatIfEditor.test.tsx` 守护 3 slider + side-by-side compare 行为；`StockWorkspace.test.tsx` 守护 422 才进入 ticker-not-found，yfinance 502/网络错误保持 workspace shell 可用，AI run 启动失败必须 toast 反馈）
 - **Playwright e2e 待新建**：旧 2 个 spec (`v5-walkthrough` + `cosmic-research-flow`) 已删（依赖死 23-section 锚点 + StatBanner/HeroVerdict/FootballField testids）。新 e2e 应该覆盖 landing → workspace dual-zone (cold/running/hot) → ArtifactDetailPage 12-chapter (TOC scroll-spy + chapter mini-grid #anchor jump + Diff modal) 路径
 

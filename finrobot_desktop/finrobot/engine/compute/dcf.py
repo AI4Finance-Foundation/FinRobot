@@ -79,6 +79,7 @@ def calculate_dcf(
         enterprise_value=enterprise_value,
         equity_value=equity_value,
         implied_price=implied_price,
+        fcf_formula="standard_ebit_to_fcf",
         inputs=inputs,
     )
 

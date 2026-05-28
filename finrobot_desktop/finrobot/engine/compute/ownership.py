@@ -33,7 +33,14 @@ def _parse_date(value: Any) -> date:
 def _maybe_parse_date(value: Any) -> date | None:
     if value in (None, ""):
         return None
-    return _parse_date(value)
+    try:
+        return _parse_date(value)
+    except ValueError:
+        # Defense-in-depth: SEC Form 4 footnote stand-ins like "[F4]" or
+        # filer free-text in date fields must collapse to None at the last
+        # parse layer too — providers normalise upstream, but cached
+        # payloads from earlier code versions can still carry garbage.
+        return None
 
 
 def _provenance(
@@ -53,6 +60,55 @@ def _provenance(
     )
 
 
+# SEC Form 4 General Instructions, Section 8 — Table II/IV transaction codes.
+# Canonical code → human transaction_type mapping. The edgar-python library
+# emits the wrong label for code ``M`` on the derivative side of an option
+# exercise (it tags the disposed-of option as "derivative_sale", which to a
+# reader reads as an open-market sale of derivatives — but code M IS the
+# exercise itself). Mapping locally guarantees both sides of the exercise
+# carry the same "exercise" label, with ``security_type`` left to distinguish
+# which side of the transaction each row reflects.
+_FORM4_CODE_TO_TYPE: dict[str, str] = {
+    "P": "purchase",
+    "S": "sale",
+    "V": "voluntary_report",
+    "A": "grant",
+    "D": "disposition_to_issuer",
+    "F": "tax_withholding",
+    "I": "discretionary",
+    "M": "exercise",
+    "C": "conversion",
+    "E": "expiration_short",
+    "H": "expiration_long",
+    "O": "exercise_otm",
+    "X": "exercise_itm_atm",
+    "G": "gift",
+    "L": "small_acquisition",
+    "W": "estate",
+    "Z": "voting_trust",
+    "J": "other",
+    "K": "equity_swap",
+    "U": "tender",
+}
+
+
+def _canonical_transaction_type(code: Any, fallback: Any) -> str:
+    """Resolve Form 4 transaction code → canonical type, ignoring upstream label.
+
+    edgar-python sometimes returns derivative-side variants of the same code
+    with different labels (``M`` → ``derivative_sale`` on the option leg,
+    ``exercise`` on the stock leg). Canonicalize on ``code`` so the UI never
+    has to second-guess the SEC's two-row exercise representation. Unknown
+    codes fall through to the upstream label, then to an empty string —
+    never raise, since Form 4 footnote-only filings sometimes ship without
+    a code at all.
+    """
+    code_str = str(code or "").strip().upper()
+    if code_str in _FORM4_CODE_TO_TYPE:
+        return _FORM4_CODE_TO_TYPE[code_str]
+    return str(fallback or "")
+
+
 def _money_from_text(text: str) -> float | None:
     """Extract a dollar amount from proxy prose/table text."""
     if not text:
@@ -69,6 +125,49 @@ def _money_from_text(text: str) -> float | None:
     return value
 
 
+def _normalise_proxy_text(text: str) -> str:
+    return " ".join(text.replace("\xa0", " ").split())
+
+
+def _summary_table_ceo_comp_from_text(text: str) -> tuple[str | None, float | None]:
+    """Extract actual CEO total compensation from the Summary Compensation Table.
+
+    DEF 14A prose often contains "target CEO compensation" before the required
+    SEC Summary Compensation Table. Target pay is an intended package, while
+    the UI field is actual SCT total compensation, so this table is the first
+    source to trust.
+    """
+    if not text:
+        return None, None
+
+    compact = _normalise_proxy_text(text)
+    table_heading = re.compile(r"Summary Compensation Table", re.I)
+    row_pattern = re.compile(
+        r"(?P<name>[A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3})\s+"
+        r"(?P<role>.{0,140}?(?:Chief Executive Officer|CEO).{0,80}?)\s+"
+        r"(?P<year>20\d{2})\s+"
+        r"(?P<salary>[0-9][0-9,]*)\s+"
+        r"(?P<stock>[0-9][0-9,]*)\s+"
+        r"(?P<incentive>[0-9][0-9,]*)\s+"
+        r"(?P<other>[0-9][0-9,]*)(?:\s*\([^)]*\))*\s+"
+        r"(?P<total>[0-9][0-9,]*)",
+        re.I,
+    )
+
+    for heading in table_heading.finditer(compact):
+        window = compact[heading.start() : heading.start() + 12_000]
+        header = re.search(r"Name and Principal Position.*?Total", window, re.I)
+        search_window = window[header.end() :] if header else window
+        for match in row_pattern.finditer(search_window):
+            name = match.group("name").strip()
+            total = float(match.group("total").replace(",", ""))
+            if _is_blacklisted_name(name):
+                continue
+            if _CEO_COMP_MIN <= total <= _CEO_COMP_MAX:
+                return name, total
+    return None, None
+
+
 def _ceo_comp_from_text(text: str) -> float | None:
     """Extract CEO total compensation anchored near a CEO pay keyword.
 
@@ -83,11 +182,12 @@ def _ceo_comp_from_text(text: str) -> float | None:
         r"CEO\s+(?:total\s+)?(?:compensation|pay)",
         re.I,
     )
-    match = anchor_pattern.search(text)
-    if not match:
-        return None
-    window = text[match.start() : match.start() + 200]
-    return _money_from_text(window)
+    for match in anchor_pattern.finditer(text):
+        context = text[max(0, match.start() - 80) : match.start() + 200]
+        if re.search(r"\btarget\b", context, re.I):
+            continue
+        return _money_from_text(context)
+    return None
 
 
 # Words that look like a proper-noun name regex match but are actually titles/roles.
@@ -112,6 +212,33 @@ _CEO_NAME_BLACKLIST: frozenset[str] = frozenset(
     }
 )
 
+# Function words that never appear inside a real personal name. Used as a
+# secondary reject in _is_blacklisted_name to catch garbage candidates
+# that regex over-capture stitches together across paragraph breaks —
+# e.g. TSLA DEF 14A heading "...Better Future for Us All\n\nTesla does
+# not currently have a long-term CEO performance award..." was matched
+# as candidate name "Us All Tesla" because the title-only blacklist let
+# "Tesla" through. Compared case-insensitively against each token.
+_CEO_NAME_STOPWORDS: frozenset[str] = frozenset(
+    {
+        # pronouns
+        "i", "we", "us", "our", "ours", "you", "your", "he", "his",
+        "she", "her", "they", "their", "it", "its",
+        # articles / determiners / quantifiers
+        "the", "a", "an", "this", "that", "these", "those", "all",
+        "some", "any", "each", "every", "other", "another", "such",
+        # conjunctions
+        "and", "or", "but", "so", "yet", "nor", "for", "as",
+        # common prepositions
+        "of", "in", "on", "at", "to", "by", "with", "from", "about",
+        "into", "onto", "upon", "over", "under", "between", "through",
+        # auxiliaries
+        "is", "are", "was", "were", "has", "have", "had", "do",
+        "does", "did", "be", "been", "being", "will", "would",
+        "should", "could", "can", "may", "might", "must",
+    }
+)
+
 # Plausibility gate: CEO comp must be between $1M and $500M.
 _CEO_COMP_MIN: float = 1_000_000.0
 _CEO_COMP_MAX: float = 500_000_000.0
@@ -128,37 +255,73 @@ def _extract_ceo_pay_ratio(text: str) -> int | None:
     match = re.search(r"([0-9][0-9,]*)\s*(?:to|:)\s*1[^.\n]{0,80}CEO\s+pay\s+ratio", text, re.I)
     if match:
         return int(match.group(1).replace(",", ""))
+    match = re.search(
+        r"annual\s+total\s+compensation\s+of\s+our\s+CEO"
+        r".{0,500}?ratio\s+of\s+these\s+amounts\s+is\s+"
+        r"([0-9][0-9,]*)\s*(?:to|:)\s*1",
+        _normalise_proxy_text(text),
+        re.I,
+    )
+    if match:
+        return int(match.group(1).replace(",", ""))
     return None
 
 
 def _is_blacklisted_name(candidate: str) -> bool:
-    """Return True when every token in candidate is a blacklisted title/role word."""
+    """Return True when the candidate is not a plausible personal name.
+
+    Two reject paths:
+      (a) every token is a title/role word ("Chief Executive Officer") —
+          the regex matched a job description rather than a name; or
+      (b) any token is an English function word ("Us", "All", "The") —
+          a regex with `\\s+` between tokens stitched a sentence fragment
+          across a paragraph break into a fake multi-token name. Real
+          personal names never contain pronouns/articles/conjunctions.
+    """
     tokens = candidate.split()
-    return all(
+    if not tokens:
+        return True
+    if all(
         t.title() in _CEO_NAME_BLACKLIST
         or t.upper() in _CEO_NAME_BLACKLIST
         or t.lower() in {w.lower() for w in _CEO_NAME_BLACKLIST}
         for t in tokens
-    )
+    ):
+        return True
+    if any(t.lower() in _CEO_NAME_STOPWORDS for t in tokens):
+        return True
+    return False
 
 
 def _extract_ceo_name(text: str) -> str | None:
     """Extract CEO name from proxy text, rejecting title/role tokens.
 
-    Strategy (in priority order):
-    1. Look for "Firstname Lastname, ... Chief Executive Officer/CEO" pattern —
-       name appears before the title on the same line (most SCT table formats).
-    2. Look for "Mr./Ms./Dr. Firstname Lastname" near a CEO anchor.
-    3. Look for a capitalized proper-noun sequence in the post-CEO window that
-       is not entirely composed of blacklisted title words.
+    Strategy (in priority order — highest-confidence signal first):
+    0. "Firstname Lastname\\nCEO ..." (table layout — name on line above title).
+    1. "Mr./Ms./Dr. Firstname Lastname" within 300 chars of a CEO anchor —
+       the honorific is a strong signal that what follows is a personal name.
+    2. "Firstname Lastname, Chief Executive Officer" with explicit comma /
+       dash / colon connector — only the canonical full title, not bare
+       "CEO" which appears inside compound nouns ("2025 CEO Performance
+       Award", "CEO Pay Ratio").
+    3. Post-CEO-anchor scan with strict blacklist filtering.
 
     The window search deliberately excludes the article "The" (a common false
     positive when "The CEO" appears as a subject noun phrase).
     """
     # Strategy 0: name on the line immediately before "CEO ..." line (table format).
     # e.g. "Sundar Pichai\nCEO Total Compensation $74M"
+    # Inter-token connector is `[ \t\xa0]+` (not `\s+`) so a multi-token
+    # name cannot span paragraph breaks — a real personal name fits on
+    # one line. TSLA bug 2026-05-28: `\s+` stitched "Us All\n\nTesla"
+    # (heading + paragraph start) into a fake 3-token name candidate.
+    # Quantifier `{1,3}` (not `{0,3}`) requires at least 2 name tokens —
+    # CEO entries in SCT tables are always "Firstname Lastname", never a
+    # bare single word, and the single-word form let section headings
+    # ("Compensation Discussion and Analysis\n\nCEO …") leak through as
+    # a fake one-token name "Analysis" (NVDA proxy 2026-05-28).
     prev_line_pattern = re.compile(
-        r"([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,3})"
+        r"([A-Z][A-Za-z.'-]+(?:[ \t\xa0]+[A-Z][A-Za-z.'-]+){1,3})"
         r"\s*\n\s*CEO\b",
     )
     for m in prev_line_pattern.finditer(text):
@@ -166,24 +329,17 @@ def _extract_ceo_name(text: str) -> str | None:
         if not _is_blacklisted_name(candidate):
             return candidate
 
-    # Strategy 1: name precedes title on the same line/sentence.
-    # Pattern: "Tim Cook, ... Chief Executive Officer" or "Tim Cook (CEO)"
-    # IMPORTANT: do NOT use re.I here — the name group uses [A-Z] to enforce
-    # uppercase-first, and re.I would make [A-Z] match lowercase too.
-    pre_title_pattern = re.compile(
-        r"([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3})"
-        r"[^A-Z\n]{0,80}"  # gap must not contain caps (to stop at title word start)
-        r"(?:Chief Executive Officer|CEO)\b",
-    )
-    for m in pre_title_pattern.finditer(text):
-        candidate = m.group(1).strip()
-        if not _is_blacklisted_name(candidate):
-            return candidate
-
-    # Strategy 2: Mr./Ms./Dr. + name near CEO anchor.
+    # Strategy 1 (was 2): Mr./Ms./Dr. + name near CEO anchor.
+    # The honorific is a strong, low-false-positive signal — promoted ahead
+    # of the punctuation heuristic so a "Mr. Musk ... CEO Interim Award"
+    # mention wins before a section-heading false positive can fire.
+    # NO re.I — the name group must enforce real uppercase-first tokens;
+    # `re.I` made [A-Z] case-insensitive, gluing "Mr. Musk as Chief
+    # Executive" into a 4-token candidate that the stopword filter then
+    # rejected. SEC filings capitalize honorifics by convention.
     honorific_pattern = re.compile(
-        r"(?:Mr\.|Ms\.|Mrs\.|Dr\.)\s+([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,3})",
-        re.I,
+        r"(?:Mr\.|Ms\.|Mrs\.|Dr\.)[ \t\xa0]+"
+        r"([A-Z][A-Za-z.'-]+(?:[ \t\xa0]+[A-Z][A-Za-z.'-]+){0,3})",
     )
     ceo_positions = [m.start() for m in re.finditer(r"(?:Chief Executive Officer|CEO)\b", text, re.I)]
     for m in honorific_pattern.finditer(text):
@@ -192,6 +348,30 @@ def _extract_ceo_name(text: str) -> str | None:
             continue
         # Must be within 300 chars of a CEO anchor.
         if any(abs(m.start() - pos) <= 300 for pos in ceo_positions):
+            return candidate
+
+    # Strategy 2 (was 1): "Name, Chief Executive Officer" with explicit
+    # comma / dash / colon connector. Two important narrowings vs. the
+    # original Strategy 1 that produced TSLA false positives:
+    #   - require the FULL title "Chief Executive Officer" (no bare "CEO"),
+    #     because bare CEO appears inside compound nouns like
+    #     "CEO Performance Award" which the regex couldn't distinguish
+    #     from a real title mention;
+    #   - drop `(` from the connector class — parenthetical asides
+    #     ("Equity Incentive Plan (as defined below) and the 2025 CEO …")
+    #     produced too many false positives despite passing the stopword
+    #     filter.
+    # IMPORTANT: do NOT use re.I here — the name group uses [A-Z] to enforce
+    # uppercase-first, and re.I would make [A-Z] match lowercase too.
+    pre_title_pattern = re.compile(
+        r"([A-Z][A-Za-z.'-]+(?:[ \t\xa0]+[A-Z][A-Za-z.'-]+){1,3})"
+        r"[ \t\xa0]*[,\-:–—]"
+        r"[^A-Z\n]{0,80}"
+        r"Chief Executive Officer\b",
+    )
+    for m in pre_title_pattern.finditer(text):
+        candidate = m.group(1).strip()
+        if not _is_blacklisted_name(candidate):
             return candidate
 
     # Strategy 3: post-anchor scan with strict blacklist filtering.
@@ -239,9 +419,10 @@ def build_proxy_compensation(raw_proxy: dict[str, Any]) -> ProxyCompensation | N
 
     text = str(raw_proxy.get("text") or "")
 
-    ceo_name = _extract_ceo_name(text)
+    summary_name, summary_comp = _summary_table_ceo_comp_from_text(text)
+    ceo_name = summary_name or _extract_ceo_name(text)
 
-    raw_comp = _ceo_comp_from_text(text)
+    raw_comp = summary_comp if summary_comp is not None else _ceo_comp_from_text(text)
     ceo_total_compensation: float | None = None
     if raw_comp is not None and _CEO_COMP_MIN <= raw_comp <= _CEO_COMP_MAX:
         ceo_total_compensation = raw_comp
@@ -278,7 +459,9 @@ def build_insider_transactions(raw_insider: dict[str, Any]) -> list[InsiderTrans
                 accession_no=provenance.accession_no,
                 insider_name=str(tx.get("insider_name") or ""),
                 insider_position=tx.get("insider_position"),
-                transaction_type=str(tx.get("transaction_type") or ""),
+                transaction_type=_canonical_transaction_type(
+                    tx.get("code"), tx.get("transaction_type")
+                ),
                 code=str(tx.get("code") or ""),
                 shares=float(tx.get("shares") or 0),
                 value=float(tx.get("value") or 0),

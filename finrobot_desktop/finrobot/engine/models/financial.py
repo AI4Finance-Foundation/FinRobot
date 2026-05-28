@@ -286,6 +286,11 @@ class DCFResult(BaseModel):
     # Sensitivity
     sensitivity_table: dict[str, Any] | None = None
 
+    # FCF formula tag — enables auditors to trace which branch of FCF logic ran.
+    # "standard_ebit_to_fcf": EBIT(1-t) + D&A - CapEx - ΔNWC (current branch)
+    # "simplified_ebitda":    EBITDA(1-t) - CapEx - ΔNWC (deprecated, removed)
+    fcf_formula: Literal["standard_ebit_to_fcf", "simplified_ebitda"] = "standard_ebit_to_fcf"
+
     # Inputs used (for reproducibility)
     inputs: DCFInputs
 
@@ -488,6 +493,17 @@ class ValuationSynthesis(BaseModel):
     current_price: float
     upside_downside: float | None
     """None when weighted_price is None (no valid cross-check available)."""
+    outlier_methods: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Method names whose mid deviates > 30% from the cross-method median. "
+            "Populated by synthesize_valuations; empty when fewer than 2 methods."
+        ),
+    )
+    warnings: list[str] = Field(
+        default_factory=list,
+        description="Human-readable warnings produced during synthesis (e.g. spread alerts).",
+    )
 
 
 # ---------------------------------------------------------------------------

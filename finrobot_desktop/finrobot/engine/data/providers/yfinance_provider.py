@@ -165,6 +165,11 @@ class YFinanceProvider(DataProvider):
             # For most US issuers: both = USD.
             "quote_currency": info.get("currency") or "USD",
             "financial_currency": info.get("financialCurrency") or "USD",
+            # Country of incorporation — used by extractor to cross-check
+            # financialCurrency when the provider tag is unreliable (e.g. TSM
+            # ADR where yfinance returns financialCurrency="USD" despite IS/BS
+            # being reported in TWD).
+            "country": info.get("country"),
         }
         return DataResult(
             data=data,

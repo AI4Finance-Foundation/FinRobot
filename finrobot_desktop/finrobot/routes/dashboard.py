@@ -138,7 +138,7 @@ async def hit_rate(
         raise HTTPException(status_code=503, detail="Backend deps not initialized")
     store = deps.artifact_store
 
-    inputs = await _collect_signal_inputs(store)
+    inputs = await _collect_signal_inputs(store, deps.data_layer)
     from finrobot.engine.aggregations.hit_rate_overview import compute_hit_rate_overview
 
     stats = compute_hit_rate_overview(
@@ -231,7 +231,7 @@ async def recent_research(
     from finrobot.engine.data.quote_batch import fetch_quotes_batch_cached
 
     try:
-        quotes = await fetch_quotes_batch_cached(top_tickers)
+        quotes = await fetch_quotes_batch_cached(top_tickers, deps.data_layer)
     except _QUOTE_BATCH_DEGRADABLE:
         # Live quotes are decorative for this endpoint — the page is fully
         # readable without them. Any failure (network / sqlite worker died /
@@ -309,7 +309,7 @@ async def recent_research(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-async def _collect_signal_inputs(store: Any) -> list[Any]:
+async def _collect_signal_inputs(store: Any, data_layer: Any) -> list[Any]:
     """Walk artifact summaries → ArtifactSignalInput list (with live prices).
 
     Uses ``ArtifactSummary.verdict`` directly — does NOT reload the full
@@ -329,7 +329,7 @@ async def _collect_signal_inputs(store: Any) -> list[Any]:
 
     tickers = sorted({s.ticker for s in summaries if s.ticker})
     try:
-        quotes = await fetch_quotes_batch_cached(tickers)
+        quotes = await fetch_quotes_batch_cached(tickers, data_layer)
     except _QUOTE_BATCH_DEGRADABLE:
         # Without live prices the aggregator can't classify signals so
         # buckets degrade to null hit-rate — UI shows "样本不足" which is

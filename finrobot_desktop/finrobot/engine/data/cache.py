@@ -44,6 +44,7 @@ def _normalize_data_type(data_type: str | DataType) -> str:
 
 _TTL_SECONDS: dict[str, int] = {
     DataType.PRICE: 900,  # 15 minutes
+    DataType.QUOTE: 60,  # 1 minute — aligns with the QuoteCache batch TTL
     DataType.NEWS: 1800,  # 30 minutes
     DataType.FINANCIALS: 86400,  # 24 hours
     DataType.EARNINGS: 86400,  # 24 hours (quarterly data)

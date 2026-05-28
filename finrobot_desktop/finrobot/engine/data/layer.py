@@ -194,6 +194,32 @@ class DataLayer:
         logger.error(msg)
         return []
 
+    async def fetch_quote(self, ticker: str) -> DataResult:
+        """Lightweight current-price fetch that PROPAGATES provider failure.
+
+        Unlike :meth:`fetch`, which swallows ``ProviderError`` and returns a
+        stale/error DataResult, ``fetch_quote`` raises the last provider error
+        when every QUOTE-capable provider fails. The quote-batch layer relies on
+        that to distinguish an upstream rate-limit (→ preserve stale + open the
+        cooldown window) from a delisted ticker (→ None tombstone) — a
+        distinction the swallowing path destroys. Quotes are cached by
+        ``QuoteCache`` (60s + cooldown), so this deliberately bypasses the
+        DataLayer cache and just walks the provider chain (FMP → yfinance).
+        """
+        last_error: ProviderError | None = None
+        for provider in self._providers:
+            if DataType.QUOTE not in provider.capabilities():
+                continue
+            try:
+                return await provider.fetch(ticker, DataType.QUOTE)
+            except ProviderError as e:
+                logger.warning(f"Provider '{provider.name}' QUOTE failed for {ticker}: {e}")
+                last_error = e
+                continue
+        if last_error is not None:
+            raise last_error
+        raise ProviderError(f"No QUOTE-capable provider available for {ticker}")
+
     @staticmethod
     def _split_yearly(result: DataResult) -> list[DataResult]:
         """Split a DataResult with yearly_data into list[DataResult].

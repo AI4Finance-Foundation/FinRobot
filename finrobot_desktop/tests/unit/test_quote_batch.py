@@ -1,352 +1,165 @@
-"""Unit tests for fetch_quotes_batch — yfinance mocked, no network."""
+"""Unit tests for fetch_quotes_batch_cached — DataLayer mocked, no network.
+
+门一 Step 3: quotes now resolve through ``DataLayer.fetch_quote`` (provider
+chain FMP → yfinance) instead of direct yfinance. The batch layer's job is the
+two-layer cache + the rate-limit → cooldown mapping; these tests pin that
+behavior with a fake DataLayer.
+"""
 
 from __future__ import annotations
 
-import sys
-import types
+import asyncio
+from datetime import datetime, timezone
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
 from finrobot.engine.data import quote_batch
+from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.types import DataType
 
 
-def _make_yf_stub(quotes: dict[str, float | None]) -> types.ModuleType:
-    """Build a fake yfinance module returning the given last_price per symbol."""
-    fake = types.ModuleType("yfinance")
+class _FakeDataLayer:
+    """Stand-in exposing only ``fetch_quote`` (what the batch layer calls)."""
 
-    class _FastInfo:
-        def __init__(self, price: float | None) -> None:
-            self.last_price = price
+    def __init__(
+        self,
+        prices: dict[str, float] | None = None,
+        *,
+        rate_limited: set[str] | None = None,
+        failed: set[str] | None = None,
+    ) -> None:
+        self._prices = prices or {}
+        self._rate_limited = rate_limited or set()
+        self._failed = failed or set()
+        self.calls: list[str] = []
 
-    class _Ticker:
-        def __init__(self, symbol: str) -> None:
-            self.fast_info = _FastInfo(quotes.get(symbol.upper()))
-
-    class _Tickers:
-        def __init__(self, joined: str) -> None:
-            self.tickers = {s.upper(): _Ticker(s) for s in joined.split()}
-
-    fake.Ticker = _Ticker  # type: ignore[attr-defined]
-    fake.Tickers = _Tickers  # type: ignore[attr-defined]
-    return fake
+    async def fetch_quote(self, ticker: str) -> DataResult:
+        self.calls.append(ticker)
+        if ticker in self._rate_limited:
+            raise ProviderError(f"HTTP 429 Too Many Requests for {ticker}")
+        if ticker in self._failed or ticker not in self._prices:
+            raise ProviderError(f"no quote for {ticker} — delisted")
+        return DataResult(
+            data={"price": self._prices[ticker]},
+            provider="fake",
+            ticker=ticker,
+            data_type=DataType.QUOTE,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
 
 
 @pytest.fixture(autouse=True)
-def _restore_yfinance(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make sure other tests don't leak our stubbed yfinance."""
-    monkeypatch.delitem(sys.modules, "yfinance", raising=False)
+def _fresh_singleton(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Isolate the QuoteCache singleton + its SQLite file per test.
+
+    QUOTES_DB is an import-time path constant, so point it at a per-test tmp
+    file directly (monkeypatching HOME alone wouldn't relocate it)."""
+    import finrobot.paths as _paths
+
+    monkeypatch.setattr(_paths, "QUOTES_DB", tmp_path / "quotes_cache.db")
+    quote_batch.reset_quote_cache_singleton()
+    yield
+    quote_batch.reset_quote_cache_singleton()
 
 
-def test_empty_input_returns_empty_dict() -> None:
-    assert quote_batch.fetch_quotes_batch([]) == {}
-    assert quote_batch.fetch_quotes_batch(["", "  "]) == {}
+@pytest.mark.asyncio
+async def test_empty_input_returns_empty_dict() -> None:
+    layer = _FakeDataLayer()
+    assert await quote_batch.fetch_quotes_batch_cached([], layer) == {}
+    assert await quote_batch.fetch_quotes_batch_cached(["", "  "], layer) == {}
+    assert layer.calls == []
 
 
-def test_happy_path_three_tickers(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setitem(
-        sys.modules,
-        "yfinance",
-        _make_yf_stub({"AAPL": 187.32, "MSFT": 412.10, "NVDA": 905.5}),
-    )
-    out = quote_batch.fetch_quotes_batch(["AAPL", "MSFT", "NVDA"])
+@pytest.mark.asyncio
+async def test_happy_path_three_tickers() -> None:
+    layer = _FakeDataLayer({"AAPL": 187.32, "MSFT": 412.10, "NVDA": 905.5})
+    out = await quote_batch.fetch_quotes_batch_cached(["AAPL", "MSFT", "NVDA"], layer)
     assert out == {"AAPL": 187.32, "MSFT": 412.10, "NVDA": 905.5}
 
 
-def test_missing_ticker_returns_none_for_that_one(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setitem(
-        sys.modules,
-        "yfinance",
-        _make_yf_stub({"AAPL": 187.32, "ZZZZ": None}),
-    )
-    out = quote_batch.fetch_quotes_batch(["AAPL", "ZZZZ"])
+@pytest.mark.asyncio
+async def test_missing_ticker_returns_none() -> None:
+    layer = _FakeDataLayer({"AAPL": 187.32}, failed={"ZZZZ"})
+    out = await quote_batch.fetch_quotes_batch_cached(["AAPL", "ZZZZ"], layer)
     assert out["AAPL"] == 187.32
     assert out["ZZZZ"] is None
 
 
-def test_case_normalised_input(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setitem(sys.modules, "yfinance", _make_yf_stub({"AAPL": 187.32}))
-    out = quote_batch.fetch_quotes_batch(["aapl"])
+@pytest.mark.asyncio
+async def test_case_normalised_input() -> None:
+    layer = _FakeDataLayer({"AAPL": 187.32})
+    out = await quote_batch.fetch_quotes_batch_cached(["aapl"], layer)
     assert out == {"AAPL": 187.32}
 
 
-def test_yfinance_missing_returns_all_none(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Force ImportError on `import yfinance` inside the helper.
-    real_import = __builtins__["__import__"] if isinstance(__builtins__, dict) else __builtins__.__import__  # type: ignore[index]
-
-    def fake_import(name: str, *args: Any, **kwargs: Any) -> Any:
-        if name == "yfinance":
-            raise ImportError("missing")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr("builtins.__import__", fake_import)
-    out = quote_batch.fetch_quotes_batch(["AAPL", "MSFT"])
-    assert out == {"AAPL": None, "MSFT": None}
-
-
-def test_batch_init_failure_falls_back_to_per_ticker(monkeypatch: pytest.MonkeyPatch) -> None:
-    """If yf.Tickers raises, fallback to single-ticker path per symbol."""
-
-    fake = types.ModuleType("yfinance")
-
-    class _FastInfo:
-        def __init__(self, price: float | None) -> None:
-            self.last_price = price
-
-    class _Ticker:
-        def __init__(self, sym: str) -> None:
-            self.fast_info = _FastInfo({"AAPL": 100.0, "MSFT": 200.0}.get(sym.upper()))
-
-    def _bad_tickers(_joined: str) -> Any:
-        raise OSError("network down")
-
-    fake.Ticker = _Ticker  # type: ignore[attr-defined]
-    fake.Tickers = _bad_tickers  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "yfinance", fake)
-
-    out = quote_batch.fetch_quotes_batch(["AAPL", "MSFT"])
-    assert out == {"AAPL": 100.0, "MSFT": 200.0}
-
-
-def test_attribute_error_on_one_ticker_is_isolated(monkeypatch: pytest.MonkeyPatch) -> None:
-    """One bad ticker shouldn't poison the others."""
-    fake = types.ModuleType("yfinance")
-
-    class _FastInfoBad:
-        @property
-        def last_price(self) -> float:
-            raise AttributeError("kaboom")
-
-    class _FastInfoGood:
-        last_price = 50.0
-
-    class _Ticker:
-        def __init__(self, sym: str) -> None:
-            self.fast_info = _FastInfoBad() if sym.upper() == "BAD" else _FastInfoGood()
-
-    class _Tickers:
-        def __init__(self, joined: str) -> None:
-            self.tickers = {s.upper(): _Ticker(s) for s in joined.split()}
-
-    fake.Ticker = _Ticker  # type: ignore[attr-defined]
-    fake.Tickers = _Tickers  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "yfinance", fake)
-
-    out = quote_batch.fetch_quotes_batch(["GOOD", "BAD"])
-    assert out == {"GOOD": 50.0, "BAD": None}
-
-
-def test_yfinance_rate_limit_propagates_as_QuoteFetchRateLimited(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Yahoo 429 must NOT be silently mapped to None.
-
-    Before this guard a single rate-limit error inside the batch loop
-    was caught and the ticker's slot filled with ``None``. The async
-    cache then wrote that None across L1+L2 for the full TTL, taking
-    the landing dashboard cold even after the upstream recovered.
-    Now the batch raises ``QuoteFetchRateLimited`` so the cache layer
-    preserves stale values instead.
-    """
-    fake = types.ModuleType("yfinance")
-    fake_exceptions = types.ModuleType("yfinance.exceptions")
-
-    class YFException(Exception):
-        pass
-
-    class YFRateLimitError(YFException):
-        pass
-
-    class _FastInfoGood:
-        last_price = 50.0
-
-    class _FastInfoLimited:
-        @property
-        def last_price(self) -> float:
-            raise YFRateLimitError("Too Many Requests")
-
-    class _Ticker:
-        def __init__(self, sym: str) -> None:
-            self.fast_info = _FastInfoLimited() if sym.upper() == "LIMIT" else _FastInfoGood()
-
-    class _Tickers:
-        def __init__(self, joined: str) -> None:
-            self.tickers = {s.upper(): _Ticker(s) for s in joined.split()}
-
-    fake.Ticker = _Ticker  # type: ignore[attr-defined]
-    fake.Tickers = _Tickers  # type: ignore[attr-defined]
-    fake_exceptions.YFException = YFException  # type: ignore[attr-defined]
-    fake_exceptions.YFRateLimitError = YFRateLimitError  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "yfinance", fake)
-    monkeypatch.setitem(sys.modules, "yfinance.exceptions", fake_exceptions)
-
-    with pytest.raises(quote_batch.QuoteFetchRateLimited):
-        quote_batch.fetch_quotes_batch(["GOOD", "LIMIT"])
-
-
-def test_fetch_one_rate_limit_raises_QuoteFetchRateLimited(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The single-ticker fallback path also has to raise on 429.
-
-    The async cached entry point fans out to ``_fetch_one`` per ticker;
-    if it swallowed the rate limit the cache would still write None.
-    """
-    fake = types.ModuleType("yfinance")
-    fake_exceptions = types.ModuleType("yfinance.exceptions")
-
-    class YFException(Exception):
-        pass
-
-    class YFRateLimitError(YFException):
-        pass
-
-    class _FastInfoLimited:
-        @property
-        def last_price(self) -> float:
-            raise YFRateLimitError("HTTP 429 Too Many Requests")
-
-    class _Ticker:
-        def __init__(self, _sym: str) -> None:
-            self.fast_info = _FastInfoLimited()
-
-    fake.Ticker = _Ticker  # type: ignore[attr-defined]
-    fake_exceptions.YFException = YFException  # type: ignore[attr-defined]
-    fake_exceptions.YFRateLimitError = YFRateLimitError  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "yfinance", fake)
-    monkeypatch.setitem(sys.modules, "yfinance.exceptions", fake_exceptions)
-
-    with pytest.raises(quote_batch.QuoteFetchRateLimited):
-        quote_batch._fetch_one("AAPL")
-
-
-def test_fetch_one_message_only_rate_limit_still_raises(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """When yfinance surfaces 429 as bare RuntimeError/YFException without
-    the typed subclass, message-sniffing must still catch it.
-
-    Real-world repro: ``yfinance.data._make_request`` historically threw
-    ``Exception('HTTP Error 429')`` on some code paths before yfinance
-    added the typed ``YFRateLimitError`` class. The fix must handle both.
-    """
-    fake = types.ModuleType("yfinance")
-
-    class _FastInfoLimited:
-        @property
-        def last_price(self) -> float:
-            raise RuntimeError("Too Many Requests. Rate limited.")
-
-    class _Ticker:
-        def __init__(self, _sym: str) -> None:
-            self.fast_info = _FastInfoLimited()
-
-    fake.Ticker = _Ticker  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "yfinance", fake)
-    monkeypatch.delitem(sys.modules, "yfinance.exceptions", raising=False)
-
-    with pytest.raises(quote_batch.QuoteFetchRateLimited):
-        quote_batch._fetch_one("AAPL")
-
-
-def test_logger_warns_on_yfinance_missing(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    real_import = __builtins__["__import__"] if isinstance(__builtins__, dict) else __builtins__.__import__  # type: ignore[index]
-
-    def fake_import(name: str, *args: Any, **kwargs: Any) -> Any:
-        if name == "yfinance":
-            raise ImportError("missing")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr("builtins.__import__", fake_import)
-    caplog.set_level("WARNING", logger="finrobot.engine.data.quote_batch")
-    quote_batch.fetch_quotes_batch(["AAPL"])
-    assert any("yfinance unavailable" in r.message for r in caplog.records)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Async cached entry point
-# ─────────────────────────────────────────────────────────────────────────────
-
-
 @pytest.mark.asyncio
-async def test_cached_warm_hit_skips_yfinance(
-    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Second call within TTL must return from cache without invoking the
-    underlying yfinance helper. Eliminates the 7-second fan-out from the
-    dashboard hit-rate + recent-research endpoints."""
-    monkeypatch.setenv("HOME", str(tmp_path))
-    quote_batch.reset_quote_cache_singleton()
-
-    yf_calls: list[str] = []
-
-    def fake_one(symbol: str) -> float | None:
-        yf_calls.append(symbol)
-        return 200.0
-
-    monkeypatch.setattr(quote_batch, "_fetch_one", fake_one)
-
-    out1 = await quote_batch.fetch_quotes_batch_cached(["AAPL", "MSFT"])
+async def test_warm_hit_skips_fetch() -> None:
+    """Second call within TTL returns from cache without re-hitting the layer."""
+    layer = _FakeDataLayer({"AAPL": 200.0, "MSFT": 200.0})
+    out1 = await quote_batch.fetch_quotes_batch_cached(["AAPL", "MSFT"], layer)
     assert out1 == {"AAPL": 200.0, "MSFT": 200.0}
-    assert sorted(yf_calls) == ["AAPL", "MSFT"]
+    assert sorted(layer.calls) == ["AAPL", "MSFT"]
 
-    out2 = await quote_batch.fetch_quotes_batch_cached(["AAPL"])
+    out2 = await quote_batch.fetch_quotes_batch_cached(["AAPL"], layer)
     assert out2 == {"AAPL": 200.0}
-    assert sorted(yf_calls) == ["AAPL", "MSFT"]  # no extra fetch — L1 hit
-
-    quote_batch.reset_quote_cache_singleton()
+    assert sorted(layer.calls) == ["AAPL", "MSFT"]  # no extra fetch — L1 hit
 
 
 @pytest.mark.asyncio
-async def test_cached_empty_batch_is_noop(
-    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
-    quote_batch.reset_quote_cache_singleton()
-    out = await quote_batch.fetch_quotes_batch_cached([])
-    assert out == {}
-    quote_batch.reset_quote_cache_singleton()
+async def test_cold_fan_out_is_concurrent() -> None:
+    """The cold path fans out per ticker concurrently (asyncio.gather), not serially.
 
-
-@pytest.mark.asyncio
-async def test_cached_cold_path_fans_out_per_ticker_concurrently(
-    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """4 ticker cold fetch must run concurrently, not in a serial loop.
-
-    Uses ``threading.Barrier(4)`` rather than a wall-time threshold so the
-    assertion is timing-independent — slow CI runners won't flake. A
-    concurrent fan-out has 4 threads sitting at ``barrier.wait()``
-    simultaneously and clears it in one step; a serial loop would have
-    only 1 thread inside ``_fetch_one`` at any moment and deadlock the
-    barrier until its timeout, raising ``BrokenBarrierError``.
-
-    Without per-ticker concurrency the lifespan warmup blocks ~6s on
-    sequential yfinance HTTPS round-trips — see
-    docs/superpowers/plans/2026-05-23-storage-overhaul-and-landing-perf.md.
+    Each fetch_quote blocks on a 4-party barrier; a serial loop would leave one
+    coroutine waiting alone and time out, a concurrent gather clears it at once.
     """
-    import threading
+    barrier = asyncio.Barrier(4)
 
-    monkeypatch.setenv("HOME", str(tmp_path))
-    quote_batch.reset_quote_cache_singleton()
+    class _BarrierLayer:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
 
-    barrier = threading.Barrier(parties=4, timeout=2.0)
+        async def fetch_quote(self, ticker: str) -> DataResult:
+            self.calls.append(ticker)
+            await asyncio.wait_for(barrier.wait(), timeout=2.0)
+            return DataResult(
+                data={"price": 100.0},
+                provider="fake",
+                ticker=ticker,
+                data_type=DataType.QUOTE,
+                timestamp=datetime.now(tz=timezone.utc),
+            )
 
-    def gated(symbol: str) -> float | None:
-        barrier.wait()  # blocks until 4 concurrent threads arrive
-        return 100.0
-
-    monkeypatch.setattr(quote_batch, "_fetch_one", gated)
-
-    out = await quote_batch.fetch_quotes_batch_cached(["A", "B", "C", "D"])
+    out = await quote_batch.fetch_quotes_batch_cached(["A", "B", "C", "D"], _BarrierLayer())
     assert out == {"A": 100.0, "B": 100.0, "C": 100.0, "D": 100.0}
-    assert barrier.n_waiting == 0  # all 4 cleared the barrier cleanly
-
-    quote_batch.reset_quote_cache_singleton()
 
 
-# Marker so unused-import detection passes cleanly.
-_unused = MagicMock
+@pytest.mark.asyncio
+async def test_rate_limit_opens_cache_wide_cooldown() -> None:
+    """A 429 from the provider chain maps to QuoteFetchRateLimited, which opens
+    QuoteCache's cooldown — proving the rate-limit signal survived (it was NOT
+    silently written as a None tombstone). During cooldown, even a fresh ticker
+    is served stale-only (no fetch)."""
+    layer = _FakeDataLayer({"OTHER": 50.0}, rate_limited={"LIMIT"})
+
+    out = await quote_batch.fetch_quotes_batch_cached(["LIMIT"], layer)
+    assert out == {"LIMIT": None}  # no stale row → None, but no crash
+    calls_after_limit = len(layer.calls)
+
+    # Cooldown is provider-wide: the fetcher is skipped for OTHER too.
+    out2 = await quote_batch.fetch_quotes_batch_cached(["OTHER"], layer)
+    assert out2 == {"OTHER": None}
+    assert len(layer.calls) == calls_after_limit  # fetch_quote NOT called for OTHER
+
+
+@pytest.mark.asyncio
+async def test_generic_failure_does_not_open_cooldown() -> None:
+    """A non-rate-limit failure tombstones None WITHOUT opening the cooldown —
+    a different ticker still fetches normally."""
+    layer = _FakeDataLayer({"OTHER": 50.0}, failed={"DEAD"})
+
+    out = await quote_batch.fetch_quotes_batch_cached(["DEAD"], layer)
+    assert out == {"DEAD": None}
+
+    out2 = await quote_batch.fetch_quotes_batch_cached(["OTHER"], layer)
+    assert out2 == {"OTHER": 50.0}  # no cooldown → OTHER fetched

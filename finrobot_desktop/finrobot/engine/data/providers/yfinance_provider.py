@@ -20,7 +20,7 @@ try:
 except (AttributeError, OSError, TypeError):
     pass  # non-critical, ignore if not supported by this yfinance version
 
-_SUPPORTED = [DataType.FINANCIALS, DataType.PRICE, DataType.NEWS]
+_SUPPORTED = [DataType.FINANCIALS, DataType.PRICE, DataType.QUOTE, DataType.NEWS]
 _CALL_DELAY = 1.0  # seconds between the info fetch and subsequent calls
 
 # ---------------------------------------------------------------------------
@@ -218,6 +218,12 @@ class YFinanceProvider(DataProvider):
                 f"data_type '{data_type}' is not supported by yfinance. Supported: {_SUPPORTED}"
             )
 
+        # QUOTE is the lightweight current-price path: fast_info.last_price only,
+        # NO heavy .info round-trip. Handled before the validation block below so
+        # high-fan-out dashboard quotes stay cheap (the whole point of QUOTE vs PRICE).
+        if data_type == DataType.QUOTE:
+            return await self._fetch_quote(ticker)
+
         # Fetch and validate ticker info. info is passed to sub-methods
         # to avoid a redundant second HTTP call. We use explicit
         # if-raise instead of `assert` because Tauri builds may run
@@ -274,6 +280,44 @@ class YFinanceProvider(DataProvider):
             )
 
         return result
+
+    async def _fetch_quote(self, ticker: str) -> DataResult:
+        """Lightweight current price via ``fast_info`` — no ``.info`` round-trip.
+
+        Raises ProviderError on any failure (including Yahoo 429, which arrives
+        as a YFException subclass and is wrapped here); the message carries the
+        rate-limit signal so callers can classify it via ``is_rate_limit_error``.
+        """
+
+        def _blocking() -> float | None:
+            t = _make_ticker(ticker)
+            info = t.fast_info
+            price = getattr(info, "last_price", None)
+            if price is None:
+                price = getattr(info, "lastPrice", None)
+            return float(price) if price is not None else None
+
+        try:
+            price = await asyncio.to_thread(_blocking)
+        except (
+            ValueError,
+            KeyError,
+            TypeError,
+            AttributeError,
+            RuntimeError,
+            OSError,
+            YFException,
+        ) as e:
+            raise ProviderError(f"Failed to fetch quote for '{ticker}': {e}") from e
+        if price is None:
+            raise ProviderError(f"yfinance returned no quote for '{ticker}'")
+        return DataResult(
+            data={"price": price},
+            provider=self.name,
+            ticker=ticker,
+            data_type=DataType.QUOTE,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
 
     def _fetch_financials(self, ticker: str, info: dict[str, Any]) -> DataResult:
         # dict.get() never raises; no try/except needed here

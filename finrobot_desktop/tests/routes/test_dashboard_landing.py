@@ -1,14 +1,12 @@
 """Integration tests for /api/dashboard/hit-rate + /api/dashboard/recent-research.
 
-yfinance is monkey-patched so the tests don't hit the network. ArtifactStore
-runs against a real on-disk temp dir so we exercise the actual summary
-indexing path.
+Quotes resolve through a fake ``deps.data_layer.fetch_quote`` (门一 Step 3) so
+the tests don't hit the network. ArtifactStore runs against a real on-disk temp
+dir so we exercise the actual summary indexing path.
 """
 
 from __future__ import annotations
 
-import sys
-import types
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -26,6 +24,8 @@ from finrobot.artifact.models import (
     ArtifactOutputs,
 )
 from finrobot.artifact.store import ArtifactStore
+from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.types import DataType
 from finrobot.routes.dashboard import router as dashboard_router
 
 # Clear module-level caches between tests; otherwise the first run's 60s
@@ -35,25 +35,31 @@ from finrobot.routes import dashboard as dashboard_mod
 UTC = timezone.utc
 NOW = datetime(2026, 5, 22, 12, 0, 0, tzinfo=UTC)
 
+# Per-test quote prices the fake DataLayer serves; set via _set_quotes, cleared
+# by the autouse _clear_caches fixture.
+_QUOTE_PRICES: dict[str, float] = {}
 
-def _stub_yfinance(monkeypatch: pytest.MonkeyPatch, prices: dict[str, float]) -> None:
-    fake = types.ModuleType("yfinance")
 
-    class _Info:
-        def __init__(self, p: float | None) -> None:
-            self.last_price = p
+def _set_quotes(prices: dict[str, float]) -> None:
+    """Set the prices the fake ``DataLayer.fetch_quote`` returns this test."""
+    _QUOTE_PRICES.clear()
+    _QUOTE_PRICES.update({k.upper(): v for k, v in prices.items()})
 
-    class _Ticker:
-        def __init__(self, sym: str) -> None:
-            self.fast_info = _Info(prices.get(sym.upper()))
 
-    class _Tickers:
-        def __init__(self, joined: str) -> None:
-            self.tickers = {s.upper(): _Ticker(s) for s in joined.split()}
+class _FakeQuoteLayer:
+    """Minimal DataLayer stand-in exposing only ``fetch_quote``."""
 
-    fake.Ticker = _Ticker  # type: ignore[attr-defined]
-    fake.Tickers = _Tickers  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "yfinance", fake)
+    async def fetch_quote(self, ticker: str) -> DataResult:
+        price = _QUOTE_PRICES.get(ticker.upper())
+        if price is None:
+            raise ProviderError(f"no quote for {ticker}")
+        return DataResult(
+            data={"price": price},
+            provider="fake",
+            ticker=ticker,
+            data_type=DataType.QUOTE,
+            timestamp=datetime.now(tz=UTC),
+        )
 
 
 def _make_artifact(
@@ -102,7 +108,7 @@ def app(tmp_path: Path) -> FastAPI:
     app = FastAPI()
     app.include_router(dashboard_router)
     store = ArtifactStore(base_dir=tmp_path / "artifacts")
-    app.state.deps = SimpleNamespace(artifact_store=store)
+    app.state.deps = SimpleNamespace(artifact_store=store, data_layer=_FakeQuoteLayer())
     return app
 
 
@@ -120,6 +126,7 @@ def store(app: FastAPI) -> ArtifactStore:
 def _clear_caches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     dashboard_mod._HIT_RATE_CACHE.clear()
     dashboard_mod._RECENT_CACHE.clear()
+    _QUOTE_PRICES.clear()
     # Isolate the QuoteCache L1/L2 per-test so the singleton does not bleed
     # quotes from previous tests' fixtures into the next assertion.
     from finrobot import paths
@@ -165,7 +172,7 @@ def test_hit_rate_aggregates_real_artifacts(
     store: ArtifactStore,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _stub_yfinance(monkeypatch, {"AAPL": 128.0, "MSFT": 60.0})
+    _set_quotes({"AAPL": 128.0, "MSFT": 60.0})
     _save(
         store,
         _make_artifact(
@@ -219,7 +226,7 @@ def test_recent_research_rolls_up_same_ticker_into_one_card(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Three AAPL artifacts collapse into one card with 3 runs newest-first."""
-    _stub_yfinance(monkeypatch, {"AAPL": 115.0})
+    _set_quotes({"AAPL": 115.0})
     for i, days in enumerate([1, 5, 10]):
         _save(
             store,
@@ -256,7 +263,7 @@ def test_recent_research_caps_runs_per_card_and_reports_overflow(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """7 runs for one ticker → 5 rows surfaced, run_count=7 for overflow footer."""
-    _stub_yfinance(monkeypatch, {"AAPL": 115.0})
+    _set_quotes({"AAPL": 115.0})
     for i in range(7):
         _save(
             store,
@@ -285,7 +292,7 @@ def test_recent_research_top_n_distinct_tickers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Three different tickers, limit=2 returns two most recently touched."""
-    _stub_yfinance(monkeypatch, {"AAPL": 115.0, "MSFT": 115.0, "NVDA": 115.0})
+    _set_quotes({"AAPL": 115.0, "MSFT": 115.0, "NVDA": 115.0})
     _save(store, _make_artifact(
         artifact_id="art_AAPL", ticker="AAPL",
         entry_price=100.0, target_price=130.0, verdict="BUY", days_ago=15,
@@ -320,7 +327,7 @@ def test_hit_rate_does_not_read_full_artifact_for_verdict(
     artifact JSON. Pre-2026-05-23 the route fanned out ``store.get(s.id)``
     per summary — that was the dominant chunk of landing cold-start.
     """
-    _stub_yfinance(monkeypatch, {"AAPL": 128.0, "MSFT": 60.0})
+    _set_quotes({"AAPL": 128.0, "MSFT": 60.0})
     for tkr in ("AAPL", "MSFT"):
         _save(
             store,
@@ -358,7 +365,7 @@ def test_hit_rate_does_not_500_when_quote_fetch_explodes(
     needs the live price). Any exception from the batch call falls back
     to None prices instead of a 500.
     """
-    _stub_yfinance(monkeypatch, {"AAPL": 128.0})
+    _set_quotes({"AAPL": 128.0})
     _save(
         store,
         _make_artifact(
@@ -371,7 +378,7 @@ def test_hit_rate_does_not_500_when_quote_fetch_explodes(
         ),
     )
 
-    async def explode(_tickers):  # type: ignore[no-untyped-def]
+    async def explode(_tickers, _data_layer):  # type: ignore[no-untyped-def]
         raise RuntimeError("aiosqlite worker thread died")
 
     # The route imports fetch_quotes_batch_cached *inside* the handler, so
@@ -397,7 +404,7 @@ def test_recent_research_does_not_500_when_quote_fetch_explodes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Same guarantee for the recent-research drawer endpoint."""
-    _stub_yfinance(monkeypatch, {"AAPL": 128.0})
+    _set_quotes({"AAPL": 128.0})
     _save(
         store,
         _make_artifact(
@@ -410,7 +417,7 @@ def test_recent_research_does_not_500_when_quote_fetch_explodes(
         ),
     )
 
-    async def explode(_tickers):  # type: ignore[no-untyped-def]
+    async def explode(_tickers, _data_layer):  # type: ignore[no-untyped-def]
         raise RuntimeError("aiosqlite worker thread died")
 
     monkeypatch.setattr(
@@ -430,7 +437,7 @@ def test_recent_research_does_not_read_full_artifact_for_verdict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Same guarantee for the recent-research drawer endpoint."""
-    _stub_yfinance(monkeypatch, {"AAPL": 115.0})
+    _set_quotes({"AAPL": 115.0})
     for i in range(3):
         _save(
             store,

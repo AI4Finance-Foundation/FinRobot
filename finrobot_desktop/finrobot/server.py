@@ -203,7 +203,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
             try:
                 await asyncio.wait_for(
-                    fetch_quotes_batch_cached(tickers),
+                    fetch_quotes_batch_cached(tickers, data_layer),
                     timeout=_WARMUP_BUDGET_SECONDS,
                 )
                 logger.info("Quote cache warmed for %d studied tickers", len(tickers))
@@ -241,6 +241,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if header_identity is None:
             logger.info("SEC 13F holdings refresh skipped: SEC identity not configured")
             return
+        proc: asyncio.subprocess.Process | None = None
         try:
             status = await cache_status()
             latest_raw = status.get("latest_period_end")
@@ -277,6 +278,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     "SEC 13F holdings refresh exited with code %s",
                     return_code,
                 )
+        except asyncio.CancelledError:
+            if proc is not None and proc.returncode is None:
+                try:
+                    proc.terminate()
+                except ProcessLookupError:
+                    pass
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=5)
+                except asyncio.TimeoutError:
+                    try:
+                        proc.kill()
+                    except ProcessLookupError:
+                        pass
+                    await proc.wait()
+            raise
         except (ImportError, OSError, RuntimeError, ValueError, TypeError, AttributeError):
             logger.exception("SEC 13F holdings refresh failed — non-fatal")
 

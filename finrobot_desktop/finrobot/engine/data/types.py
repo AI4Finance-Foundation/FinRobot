@@ -12,6 +12,11 @@ class DataType(StrEnum):
 
     FINANCIALS = "financials"
     PRICE = "price"
+    # Lightweight current-price-only quote (dashboard tiles, batched warmup).
+    # Distinct from PRICE — PRICE pulls a full ~1y OHLC history per ticker,
+    # which is a perf regression for high-fan-out dashboard quotes. QUOTE maps
+    # to yfinance fast_info.last_price / FMP /quote and returns just {"price"}.
+    QUOTE = "quote"
     NEWS = "news"
     EARNINGS = "earnings"
     # FILINGS retained as alias to FILINGS_10K (2026-05 EdgarTools migration).

@@ -57,3 +57,27 @@ class DataProvider(ABC):
 
 class ProviderError(Exception):
     """Raised when a provider fails to fetch data."""
+
+
+# Substrings that mark a provider failure as upstream rate-limiting (HTTP 429)
+# rather than a bad ticker. Providers wrap the upstream error into ProviderError,
+# so message-sniffing is the reliable cross-provider signal.
+_RATE_LIMIT_MARKERS: tuple[str, ...] = (
+    "429",
+    "too many requests",
+    "rate limit",
+    "rate-limit",
+)
+
+
+def is_rate_limit_error(exc: BaseException) -> bool:
+    """True iff ``exc`` looks like an upstream rate-limit (HTTP 429).
+
+    Shared across the data layer: the quote-batch fetcher maps it to
+    ``QuoteFetchRateLimited`` (preserve stale, open cooldown), and 批3's
+    ProviderHealth circuit-breaker will use the same classifier to decide when
+    to trip a provider. Message-based so it works on a wrapped ``ProviderError``
+    regardless of the originating provider/library.
+    """
+    msg = str(exc).lower()
+    return any(marker in msg for marker in _RATE_LIMIT_MARKERS)

@@ -74,7 +74,7 @@ class TestYFinanceProviderMeta:
 
     def test_capabilities(self):
         caps = YFinanceProvider().capabilities()
-        assert set(caps) == {"financials", "price", "news"}
+        assert set(caps) == {"financials", "price", "quote", "news"}
 
 
 class TestFetchFinancials:
@@ -105,6 +105,40 @@ class TestFetchFinancials:
         ):
             with pytest.raises(ProviderError):
                 await provider.fetch("INVALID_TICKER_XYZ", "financials")
+
+
+class TestFetchQuote:
+    """门一 Step 3: lightweight QUOTE path via fast_info.last_price (no .info)."""
+
+    class _FastInfo:
+        def __init__(self, price: float | None) -> None:
+            self.last_price = price
+
+    def test_quote_in_capabilities(self):
+        assert "quote" in YFinanceProvider().capabilities()
+
+    @pytest.mark.asyncio
+    async def test_quote_returns_price_from_fast_info(self):
+        provider = YFinanceProvider()
+        mock_ticker = MagicMock()
+        mock_ticker.fast_info = self._FastInfo(187.5)
+        with patch(
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
+            result = await provider.fetch("AAPL", "quote")
+        assert result.data == {"price": 187.5}
+        assert result.data_type == "quote"
+
+    @pytest.mark.asyncio
+    async def test_quote_none_price_raises_provider_error(self):
+        provider = YFinanceProvider()
+        mock_ticker = MagicMock()
+        mock_ticker.fast_info = self._FastInfo(None)
+        with patch(
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
+            with pytest.raises(ProviderError):
+                await provider.fetch("AAPL", "quote")
 
 
 class TestFetchPrice:

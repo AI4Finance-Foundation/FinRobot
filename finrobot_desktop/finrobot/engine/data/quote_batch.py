@@ -1,26 +1,21 @@
-"""Batched live-quote helpers.
+"""Batched live-quote helper.
 
-Two entry points:
-  fetch_quotes_batch(tickers)        — synchronous, NO cache, direct yfinance.
-                                        Kept for legacy callers wrapped in
-                                        asyncio.to_thread; do not introduce new
-                                        usage.
-  fetch_quotes_batch_cached(tickers) — async, two-layer cached (in-memory +
-                                        SQLite). Preferred entry point for
-                                        routes and pipelines.
+Single entry point:
+  fetch_quotes_batch_cached(tickers, data_layer) — async, two-layer cached
+  (in-memory L1 + SQLite L2 via :class:`QuoteCache`). Routes and the lifespan
+  warmup call it with the shared ``DataLayer``.
 
-The async path consults a process-wide :class:`QuoteCache` singleton with a
-60s TTL. Per-ticker terminal failures (delisted, fast_info miss) cache as
-``None`` so we don't beat yfinance on every refresh for a dead symbol.
+The cold path fans out per missing ticker through ``DataLayer.fetch_quote``
+(provider chain FMP → yfinance) concurrently via ``asyncio.gather``. A
+rate-limit ``ProviderError`` (Yahoo 429 — only reached when FMP is unavailable)
+maps to :class:`QuoteFetchRateLimited` so ``QuoteCache`` preserves the previous
+(stale) value and opens its cooldown window rather than tomb-stoning every
+ticker with ``None`` for the TTL. Other per-ticker failures (delisted,
+not-found) surface as ``None`` (delisting tombstone).
 
-Rate-limit errors (Yahoo 429) are NOT terminal and never write None: they
-re-raise as :class:`QuoteFetchRateLimited` so :meth:`QuoteCache.get_batch`
-can preserve the previous (stale) value rather than poisoning the cache
-for 60 seconds. Without this distinction a single 429 burst put every
-studied ticker into a None tombstone, taking the landing dashboard cold
-for the full TTL.
-
-Leaf-layer rules: no imports from routes / pipelines / agents.
+All yfinance access for quotes now goes through the DataLayer (门一) — this
+module owns no provider/yfinance knowledge. Leaf-layer rules: no imports from
+routes / pipelines / agents.
 """
 
 from __future__ import annotations
@@ -28,13 +23,17 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
+from finrobot.engine.data.interface import ProviderError, is_rate_limit_error
 from finrobot.engine.data.quote_cache import QuoteCache, QuoteFetchRateLimited
+
+if TYPE_CHECKING:
+    from finrobot.engine.data.layer import DataLayer
 
 __all__ = [
     "QuoteFetchRateLimited",  # re-exported so callers can still import from here
     "close_quote_cache_singleton",
-    "fetch_quotes_batch",
     "fetch_quotes_batch_cached",
     "reset_quote_cache_singleton",
 ]
@@ -42,51 +41,7 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
-try:
-    from yfinance.exceptions import YFRateLimitError as _YFRateLimitError
-except ImportError:  # pragma: no cover — yfinance always installed in this app
-    class _YFRateLimitError(Exception):  # type: ignore[no-redef]
-        """Stand-in when yfinance is unavailable; matches nothing real."""
-
-
 _GLOBAL_QUOTE_CACHE: QuoteCache | None = None
-
-
-def _is_rate_limited(exc: BaseException) -> bool:
-    """True iff ``exc`` looks like a Yahoo rate-limit error.
-
-    Checks the typed exception first, then falls back to message
-    sniffing because yfinance occasionally surfaces 429s as a generic
-    ``YFException`` or ``RuntimeError`` depending on the call path.
-    """
-    if isinstance(exc, _YFRateLimitError):
-        return True
-    msg = str(exc).lower()
-    return "too many requests" in msg or "rate limit" in msg or "429" in msg
-
-
-def _quote_fetch_exceptions() -> tuple[type[BaseException], ...]:
-    """Concrete failures that make one yfinance quote unavailable.
-
-    Note: ``YFRateLimitError`` is a subclass of ``YFException``, so a
-    bare ``except _quote_fetch_exceptions()`` would swallow rate-limit
-    errors. Callers MUST check ``_is_rate_limited`` first and re-raise
-    as :class:`QuoteFetchRateLimited` before falling into this catch.
-    """
-    catch: list[type[BaseException]] = [
-        ImportError,
-        AttributeError,
-        ValueError,
-        TypeError,
-        OSError,
-        RuntimeError,
-    ]
-    try:
-        from yfinance.exceptions import YFException
-    except ImportError:
-        return tuple(catch)
-    catch.append(YFException)
-    return tuple(catch)
 
 
 def reset_quote_cache_singleton() -> None:
@@ -122,111 +77,51 @@ def _get_singleton() -> QuoteCache:
     return _GLOBAL_QUOTE_CACHE
 
 
-def _fetch_via_yfinance(tickers: list[str]) -> dict[str, float | None]:
-    """Synchronous yfinance call — wrap in :func:`asyncio.to_thread` from async.
-
-    Raises :class:`QuoteFetchRateLimited` on Yahoo 429 so the cache layer
-    preserves stale values. Other per-ticker failures still surface as
-    ``None`` entries (delisting tombstone).
-    """
-    if not tickers:
-        return {}
+def _coerce_price(value: object) -> float | None:
     try:
-        import yfinance as yf
-    except ImportError:
-        logger.warning("yfinance unavailable — returning all-None quote batch")
-        return dict.fromkeys(tickers)
-
-    try:
-        container = yf.Tickers(" ".join(tickers))
-    except (ValueError, OSError) as exc:
-        if _is_rate_limited(exc):
-            raise QuoteFetchRateLimited("yf.Tickers init rate-limited") from exc
-        logger.warning("yf.Tickers init failed (%s) — falling back to per-ticker", exc)
-        return {sym: _fetch_one(sym) for sym in tickers}
-
-    out: dict[str, float | None] = {}
-    for sym in tickers:
-        try:
-            t = container.tickers.get(sym) or container.tickers.get(sym.upper())
-            if t is None:
-                out[sym] = None
-                continue
-            info = t.fast_info
-            price = getattr(info, "last_price", None)
-            if price is None:
-                price = getattr(info, "lastPrice", None)
-            out[sym] = float(price) if price is not None else None
-        except _quote_fetch_exceptions() as exc:
-            if _is_rate_limited(exc):
-                raise QuoteFetchRateLimited(
-                    f"yfinance rate-limited while fetching {sym}"
-                ) from exc
-            logger.exception("Quote fetch failed for %s", sym)
-            out[sym] = None
-    return out
-
-
-def _fetch_one(symbol: str) -> float | None:
-    """Single-ticker fallback used when the batch init itself errors.
-
-    Raises :class:`QuoteFetchRateLimited` on Yahoo 429 — callers must let
-    it propagate so :class:`QuoteCache` keeps the previous value instead
-    of writing a None tombstone for 60s.
-    """
-    try:
-        import yfinance as yf
-
-        info = yf.Ticker(symbol).fast_info
-        price = getattr(info, "last_price", None)
-        if price is None:
-            price = getattr(info, "lastPrice", None)
-        return float(price) if price is not None else None
-    except _quote_fetch_exceptions() as exc:
-        if _is_rate_limited(exc):
-            raise QuoteFetchRateLimited(
-                f"yfinance rate-limited while fetching {symbol}"
-            ) from exc
-        logger.exception("Single-ticker fallback failed for %s", symbol)
+        return float(value) if value is not None else None  # type: ignore[arg-type]
+    except (TypeError, ValueError):
         return None
-
-
-def fetch_quotes_batch(tickers: Iterable[str]) -> dict[str, float | None]:
-    """Synchronous, no-cache. Direct yfinance.
-
-    Kept for backwards compatibility with legacy callers that wrap this in
-    ``asyncio.to_thread``. New code should prefer
-    :func:`fetch_quotes_batch_cached`.
-    """
-    return _fetch_via_yfinance([t.strip().upper() for t in tickers if t and t.strip()])
 
 
 async def fetch_quotes_batch_cached(
     tickers: Iterable[str],
+    data_layer: DataLayer,
 ) -> dict[str, float | None]:
-    """Async, two-layer cached. Preferred entry point for routes + pipelines.
+    """Async, two-layer cached batch quotes via the DataLayer QUOTE path.
 
     L1 hit ⇒ pure dict lookup, sub-millisecond.
     L2 hit ⇒ single SELECT against indexed PK, ~1ms.
-    Cold ⇒ one fan-out fetch shared across all callers within the 60s TTL.
+    Cold ⇒ one fan-out (per-ticker ``DataLayer.fetch_quote`` concurrently)
+    shared across all callers within the 60s TTL.
 
-    The cold path runs ``_fetch_one`` per ticker concurrently via
-    ``asyncio.gather`` + ``asyncio.to_thread``. yfinance's ``fast_info`` is
-    a blocking HTTPS round-trip per ticker; the legacy ``yf.Tickers(...)``
-    batch container loops sequentially over them at ~1.5s/ticker, which
-    dominated landing cold-start. Per-ticker concurrency drops a 4-ticker
-    warmup from ~6s to ~2s (network-bound, not thread-overhead-bound).
+    A rate-limit ``ProviderError`` from the provider chain maps to
+    ``QuoteFetchRateLimited`` so ``QuoteCache`` keeps the previous value and
+    opens its cooldown — one Yahoo 429 burst no longer takes the dashboard cold
+    for the full TTL. With an FMP key configured, quotes resolve from FMP and
+    yfinance (and its 429s) are never reached.
     """
     syms = [t.strip().upper() for t in tickers if t and t.strip()]
     if not syms:
         return {}
     cache = _get_singleton()
 
-    async def yf_async(missing: list[str]) -> dict[str, float | None]:
-        results = await asyncio.gather(
-            *(asyncio.to_thread(_fetch_one, sym) for sym in missing),
-            return_exceptions=False,
-        )
+    async def fetcher(missing: list[str]) -> dict[str, float | None]:
+        async def one(sym: str) -> float | None:
+            try:
+                result = await data_layer.fetch_quote(sym)
+            except ProviderError as exc:
+                if is_rate_limit_error(exc):
+                    # Propagate so QuoteCache preserves stale + opens cooldown.
+                    raise QuoteFetchRateLimited(
+                        f"DataLayer QUOTE rate-limited for {sym}"
+                    ) from exc
+                logger.info("Quote fetch failed for %s: %s", sym, exc)
+                return None
+            data = result.data if isinstance(result.data, dict) else {}
+            return _coerce_price(data.get("price"))
+
+        results = await asyncio.gather(*(one(sym) for sym in missing))
         return dict(zip(missing, results, strict=True))
 
-    return await cache.get_batch(syms, fetcher=yf_async)
+    return await cache.get_batch(syms, fetcher=fetcher)

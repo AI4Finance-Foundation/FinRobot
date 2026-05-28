@@ -115,6 +115,19 @@ def test_zero_capex_zero_nwc():
     assert abs(result.projected_fcf[0] - expected_fcf0) < 1
 
 
+def test_dcf_result_fcf_formula_field():
+    """DCFResult.fcf_formula must be non-empty and equal 'standard_ebit_to_fcf'.
+
+    This field is required by AGENTS.md red-line 5 so auditors can trace which
+    FCF branch ran without reading the source.  The simplified_ebitda branch was
+    removed; the field is kept as a forward-compatible enum tag.
+    """
+    inputs = _make_inputs()
+    result = calculate_dcf(inputs, wacc_override=0.10)
+    assert result.fcf_formula  # non-empty / non-None
+    assert result.fcf_formula == "standard_ebit_to_fcf"
+
+
 def test_fcf_formula_explicit():
     """FCF = EBIT(1-tax) + D&A - revenue*capex_pct - revenue*nwc_pct.
 

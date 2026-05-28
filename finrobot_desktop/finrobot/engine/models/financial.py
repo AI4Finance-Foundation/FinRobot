@@ -189,6 +189,9 @@ class PeerComps(BaseModel):
     peer_justification: str = ""
     positioning_narrative: str = ""
 
+    # Data-quality warnings produced by calculate_peer_statistics / validators
+    warnings: list[str] = Field(default_factory=list)
+
 
 class PeerSelection(BaseModel):
     """LLM structured output for peer selection step."""
@@ -447,6 +450,8 @@ class CatalystEvent(BaseModel):
     impact_score: int = Field(ge=1, le=5)
     probability: float = Field(ge=0, le=1)
     reasoning: str
+    published: datetime | None = None
+    url: str | None = None
 
 
 class CatalystAnalysis(BaseModel):
@@ -477,9 +482,12 @@ class ValuationSynthesis(BaseModel):
     """Multi-method valuation synthesis. Football field data derives from methods."""
 
     methods: list[ValuationMethod]
-    weighted_price: float
+    weighted_price: float | None
+    """None when fewer than 2 methods are available — single-method "averages"
+    are meaningless cross-checks and MUST NOT be presented as weighted targets."""
     current_price: float
-    upside_downside: float
+    upside_downside: float | None
+    """None when weighted_price is None (no valid cross-check available)."""
 
 
 # ---------------------------------------------------------------------------

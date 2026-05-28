@@ -27,7 +27,7 @@ from pydantic_ai import Agent
 from finrobot.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
 from finrobot.engine.compute.historical_extractor import (
-    extract_historical_metrics,
+    fetch_historical_metrics,
 )
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
@@ -76,7 +76,7 @@ async def _execute_dcf_calc(
         )
 
     # Multi-year history powers the 3y-median assumption derivation.
-    historical = await extract_historical_metrics(deps.data_layer, ticker)
+    historical = await fetch_historical_metrics(deps.data_layer, ticker)
     dcf_inputs = seed_dcf_inputs(financial_data, historical)
 
     dcf_result = calculate_dcf(dcf_inputs)

@@ -2,7 +2,7 @@
 
 Verifies:
 - 200 response with correct HistoricalMetrics JSON structure
-- extract_historical_metrics is called exactly once with the uppercased ticker
+- fetch_historical_metrics is called exactly once with the uppercased ticker
 - Key fields (ticker, years, operating_cash_flow) are present in response
 - ValueError → 422 (invalid ticker / no data)
 - ProviderError → 502 (upstream service down), not default 500
@@ -47,7 +47,7 @@ async def test_historical_endpoint_returns_metrics(app_with_deps):
     )
 
     with patch(
-        "finrobot.routes.data.extract_historical_metrics",
+        "finrobot.routes.data.fetch_historical_metrics",
         new=AsyncMock(return_value=mock_metrics),
     ) as mock_fn:
         transport = ASGITransport(app=app)
@@ -65,11 +65,11 @@ async def test_historical_endpoint_returns_metrics(app_with_deps):
 
 @pytest.mark.asyncio
 async def test_historical_endpoint_invalid_ticker_returns_422(app_with_deps):
-    """extract_historical_metrics raises ValueError → /historical returns 422."""
+    """fetch_historical_metrics raises ValueError → /historical returns 422."""
     app = app_with_deps
 
     with patch(
-        "finrobot.routes.data.extract_historical_metrics",
+        "finrobot.routes.data.fetch_historical_metrics",
         new=AsyncMock(side_effect=ValueError("未知 ticker 'INVALID'")),
     ):
         transport = ASGITransport(app=app)
@@ -82,13 +82,13 @@ async def test_historical_endpoint_invalid_ticker_returns_422(app_with_deps):
 
 @pytest.mark.asyncio
 async def test_historical_endpoint_provider_error_returns_502(app_with_deps):
-    """extract_historical_metrics raises ProviderError → /historical returns 502 (not 500)."""
+    """fetch_historical_metrics raises ProviderError → /historical returns 502 (not 500)."""
     from finrobot.engine.data.interface import ProviderError
 
     app = app_with_deps
 
     with patch(
-        "finrobot.routes.data.extract_historical_metrics",
+        "finrobot.routes.data.fetch_historical_metrics",
         new=AsyncMock(side_effect=ProviderError("yfinance service down: 429")),
     ):
         transport = ASGITransport(app=app)

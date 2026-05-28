@@ -15,7 +15,7 @@ from finrobot.engine.compute.catalyst import (
     rank_catalysts,
 )
 from finrobot.engine.compute.extractor import extract_financial_data
-from finrobot.engine.compute.historical_extractor import extract_historical_metrics
+from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
 from finrobot.engine.analysis.news_classifier import classify_news
 from finrobot.engine.compute.news import fetch_news
 from finrobot.engine.data.cache import cached_fetch
@@ -182,7 +182,7 @@ async def get_historical(ticker: str, request: Request) -> HistoricalMetrics:
     ticker_upper = ticker.upper()
 
     async def _fetch_as_dict() -> dict[str, Any]:
-        metrics = await extract_historical_metrics(data_layer, ticker_upper)
+        metrics = await fetch_historical_metrics(data_layer, ticker_upper)
         return metrics.model_dump(mode="json")
 
     try:

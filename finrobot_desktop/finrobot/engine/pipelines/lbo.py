@@ -17,7 +17,7 @@ from typing import Any
 
 from pydantic_ai import Agent
 
-from finrobot.engine.compute.historical_extractor import extract_historical_metrics
+from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
 from finrobot.engine.compute.lbo import calculate_lbo
 from finrobot.engine.compute.lbo_seed import seed_lbo_inputs
 from finrobot.engine.data.types import DataType
@@ -77,7 +77,7 @@ async def _execute_lbo_params(
     historical = structured_context.get("historical_metrics")
     if not isinstance(historical, HistoricalMetrics):
         try:
-            historical = await extract_historical_metrics(deps.data_layer, ticker)
+            historical = await fetch_historical_metrics(deps.data_layer, ticker)
         except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as exc:
             logger.warning(
                 "Historical extraction failed for %s: %s — falling back to "

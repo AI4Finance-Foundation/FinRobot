@@ -26,7 +26,7 @@ from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import HistoricalMetrics
 
 
-async def extract_historical_metrics(
+async def fetch_historical_metrics(
     data_layer: DataLayer, ticker: str, years: int = 5
 ) -> HistoricalMetrics:
     """Fetch multi-year financials via the DataLayer and build HistoricalMetrics.

@@ -3,7 +3,7 @@ historical_extractor (门一 Step 2).
 
 What these tests verify beyond "code runs":
 - HistoricalMetrics accepts the cash-flow / DCF line-item fields with correct types.
-- extract_historical_metrics consumes DataLayer.fetch_historical (normalized
+- fetch_historical_metrics consumes DataLayer.fetch_historical (normalized
   per-year dicts) and builds a complete HistoricalMetrics with derived
   ratios/CAGR, sorted oldest-first, with the None→0.0 fill dcf_seed expects.
 - The build is source-agnostic: identical normalized input → identical output
@@ -18,7 +18,7 @@ from typing import Any
 
 import pytest
 
-from finrobot.engine.compute.historical_extractor import extract_historical_metrics
+from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
 from finrobot.engine.data.interface import DataResult, ProviderError
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import HistoricalMetrics
@@ -213,7 +213,7 @@ def _run(coro):
 def _extract(layer: FakeDataLayer, ticker: str = "AAPL") -> HistoricalMetrics:
     # FakeDataLayer is a structural stand-in; the extractor only calls
     # fetch_historical + fetch, both implemented above.
-    return _run(extract_historical_metrics(layer, ticker))  # type: ignore[arg-type]
+    return _run(fetch_historical_metrics(layer, ticker))  # type: ignore[arg-type]
 
 
 class TestExtractHistoricalMetrics:

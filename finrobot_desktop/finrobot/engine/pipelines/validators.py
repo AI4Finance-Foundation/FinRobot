@@ -1,11 +1,16 @@
 import math as _math
 import re
+from statistics import median as _median
 
 from pydantic import BaseModel
 
 from finrobot.engine.compute.multiples import (
     PEER_EV_EBITDA_SANITY_MAX,
     PEER_EV_EBITDA_SANITY_MIN,
+    PEER_EV_REVENUE_SANITY_MAX,
+    PEER_EV_REVENUE_SANITY_MIN,
+    PEER_PE_SANITY_MAX,
+    PEER_PE_SANITY_MIN,
 )
 from finrobot.engine.models.financial import (
     CatalystAnalysis,
@@ -344,13 +349,63 @@ def validate_financial_data(
     return ValidationResult(passed=True)
 
 
+def _outlier_warnings(comps: PeerComps) -> list[str]:
+    """Return warnings for any peer multiple that deviates > 5x from the peer median.
+
+    The 5x threshold is deliberately generous — it targets pathological FX /
+    unit-mismatch artifacts (TSM PE=1.85 vs median ~30x → 16x deviation) while
+    leaving room for genuine outliers in cyclical/distressed sectors (e.g. a
+    steel company at 0.8x EV/EBITDA vs sector median 5x is only a 6x ratio but
+    is economically interpretable).
+
+    This is a warning, not a hard failure — the comps result is still usable
+    with the outlier peer present (it will have been excluded from the median by
+    the sanity floor in ``calculate_multiples``). The warning surfaces the
+    situation so the analyst can investigate.
+    """
+    warnings: list[str] = []
+
+    def _check(
+        label: str,
+        vals: list[tuple[str, float]],
+    ) -> None:
+        if len(vals) < 2:
+            return
+        med = _median(v for _, v in vals)
+        if med == 0:
+            return
+        for ticker, v in vals:
+            ratio = max(v, med) / min(v, med)
+            if ratio > 5:
+                warnings.append(
+                    f"{ticker} {label} {v:.2f}x deviates >{ratio:.0f}x from peer median {med:.2f}x"
+                )
+
+    ev_ebitda_vals = [
+        (p.ticker, p.ev_ebitda) for p in comps.peers if p.ev_ebitda is not None
+    ]
+    _check("EV/EBITDA", ev_ebitda_vals)
+
+    pe_vals = [(p.ticker, p.pe_ratio) for p in comps.peers if p.pe_ratio is not None]
+    _check("P/E", pe_vals)
+
+    ev_rev_vals = [(p.ticker, p.ev_revenue) for p in comps.peers if p.ev_revenue is not None]
+    _check("EV/Revenue", ev_rev_vals)
+
+    return warnings
+
+
 def validate_peer_comps(comps: PeerComps) -> ValidationResult:
     """Validate peer analysis result.
 
-    Collects ALL violations across the peer set (no short-circuit) so a single
-    bad ticker doesn't mask other data issues. The EV/EBITDA range is a
+    Collects ALL range violations across the peer set (no short-circuit) so a
+    single bad ticker doesn't mask other data issues. The EV/EBITDA range is a
     garbage filter, not a "meaningfulness" filter — see
     ``finrobot.engine.compute.multiples`` for the cyclical-trough rationale.
+
+    Additionally emits non-fatal outlier warnings (> 5x from peer median) via
+    ``comps.warnings`` so downstream consumers can surface data quality issues
+    without blocking the pipeline.
     """
     if len(comps.peers) < 3:
         return ValidationResult(
@@ -367,6 +422,20 @@ def validate_peer_comps(comps: PeerComps) -> ValidationResult:
                 f"{peer.ticker} EV/EBITDA {peer.ev_ebitda:.2f}x out of range "
                 f"{PEER_EV_EBITDA_SANITY_MIN}-{PEER_EV_EBITDA_SANITY_MAX}x"
             )
+        if peer.ev_revenue is not None and not (
+            PEER_EV_REVENUE_SANITY_MIN <= peer.ev_revenue <= PEER_EV_REVENUE_SANITY_MAX
+        ):
+            violations.append(
+                f"{peer.ticker} EV/Revenue {peer.ev_revenue:.2f}x out of range "
+                f"{PEER_EV_REVENUE_SANITY_MIN}-{PEER_EV_REVENUE_SANITY_MAX}x"
+            )
+        if peer.pe_ratio is not None and not (
+            PEER_PE_SANITY_MIN <= peer.pe_ratio <= PEER_PE_SANITY_MAX
+        ):
+            violations.append(
+                f"{peer.ticker} P/E {peer.pe_ratio:.2f}x out of range "
+                f"{PEER_PE_SANITY_MIN}-{PEER_PE_SANITY_MAX}x"
+            )
     if violations:
         return ValidationResult(
             passed=False,
@@ -374,6 +443,12 @@ def validate_peer_comps(comps: PeerComps) -> ValidationResult:
         )
     if comps.median_ev_ebitda is None:
         return ValidationResult(passed=False, error="Median EV/EBITDA statistics not computed")
+
+    # Non-fatal outlier warnings — append to comps.warnings (caller may mutate).
+    outlier_warnings = _outlier_warnings(comps)
+    if outlier_warnings:
+        comps.warnings.extend(outlier_warnings)
+
     return ValidationResult(passed=True)
 
 

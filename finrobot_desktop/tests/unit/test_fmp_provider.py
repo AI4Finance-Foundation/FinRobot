@@ -163,6 +163,13 @@ class TestFMPFetchHistorical:
         assert "yearly_data" in result.data
         assert len(result.data["yearly_data"]) == 3
         assert result.data["yearly_data"][0]["revenue"] == 394_328_000_000
+        # fiscal_year must be present and non-None in every yearly entry;
+        # historical_loaders.py line 55 does `data.get("fiscal_year") or data.get("date")`
+        # — a missing fiscal_year causes all years to be skipped → band.sample_count == 0.
+        for entry in result.data["yearly_data"]:
+            assert entry.get("fiscal_year") is not None, (
+                f"yearly entry missing fiscal_year: {entry}"
+            )
 
     @pytest.mark.asyncio
     async def test_fetch_without_years_returns_flat(self, provider):
@@ -176,6 +183,8 @@ class TestFMPFetchHistorical:
         assert isinstance(result, DataResult)
         assert "yearly_data" not in result.data
         assert result.data["revenue"] == 394_328_000_000
+        # Single-year flat result must also carry fiscal_year
+        assert result.data.get("fiscal_year") is not None
 
 
 class TestFMPProviderInterface:

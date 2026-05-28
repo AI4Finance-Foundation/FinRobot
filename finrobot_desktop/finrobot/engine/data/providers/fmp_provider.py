@@ -85,14 +85,33 @@ class FMPProvider(DataProvider):
                 ticker, quarter=quarter, year=year, limit=limit
             )
         years: int | None = kwargs.get("years")
-        limit = years if years and years > 1 else 1
+        warnings: list[str] = []
         with self._wrap_errors(ticker, "fetch"):
-            income = (
-                await self._get(f"/income-statement/{ticker}", params={"limit": limit})
-            ).json()
-            balance = (
-                await self._get(f"/balance-sheet-statement/{ticker}", params={"limit": 1})
-            ).json()
+            if years and years > 1:
+                income = (
+                    await self._get(f"/income-statement/{ticker}", params={"limit": years})
+                ).json()
+                balance = (
+                    await self._get(f"/balance-sheet-statement/{ticker}", params={"limit": 1})
+                ).json()
+            else:
+                income = (
+                    await self._get(
+                        f"/income-statement/{ticker}",
+                        params={"period": "quarter", "limit": 4},
+                    )
+                ).json()
+                balance = (
+                    await self._get(
+                        f"/balance-sheet-statement/{ticker}",
+                        params={"period": "quarter", "limit": 1},
+                    )
+                ).json()
+                if len(income) < 4:
+                    warnings.append(
+                        f"FMP returned only {len(income)} quarterly income rows for {ticker}; "
+                        "TTM metrics use the available rows."
+                    )
             profile = (await self._get(f"/profile/{ticker}")).json()
 
         bal = balance[0] if balance else {}
@@ -103,8 +122,7 @@ class FMPProvider(DataProvider):
                 "yearly_data": [self._build_single_year_data(inc_i, bal, prof) for inc_i in income],
             }
         else:
-            inc = income[0] if income else {}
-            data = self._build_single_year_data(inc, bal, prof)
+            data = self._build_ttm_data(income, bal, prof)
 
         return DataResult(
             data=data,
@@ -112,6 +130,7 @@ class FMPProvider(DataProvider):
             ticker=ticker,
             data_type=data_type,
             timestamp=datetime.now(tz=timezone.utc),
+            warnings=warnings,
         )
 
     @staticmethod
@@ -154,6 +173,67 @@ class FMPProvider(DataProvider):
             # fiscal_year is required by historical_loaders.py for band computation;
             # "date" is fiscal-year-end (YYYY-MM-DD), more precise than calendarYear.
             "fiscal_year": inc.get("date") or inc.get("calendarYear"),
+        }
+
+    @classmethod
+    def _build_ttm_data(
+        cls,
+        income_rows: list[dict[str, Any]],
+        bal: dict[str, Any],
+        prof: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Build a current snapshot from the latest four quarterly rows."""
+        if not income_rows:
+            return cls._build_single_year_data({}, bal, prof)
+
+        def total(key: str) -> float | None:
+            values: list[float] = []
+            for row in income_rows:
+                raw = row.get(key)
+                if isinstance(raw, int | float):
+                    values.append(float(raw))
+            return sum(values) if values else None
+
+        latest = income_rows[0]
+        revenue = total("revenue")
+        gross_profit = total("grossProfit")
+        operating_income = total("operatingIncome")
+        net_income = total("netIncome")
+        mkt_cap = prof.get("mktCap")
+        price = prof.get("price")
+        shares = int(mkt_cap / price) if mkt_cap and price else None
+        profile_pe = prof.get("pe")
+        pe_ratio = (
+            profile_pe
+            if profile_pe
+            else mkt_cap / net_income
+            if mkt_cap and net_income and net_income > 0
+            else None
+        )
+        return {
+            "revenue": revenue,
+            "ebitda": total("ebitda"),
+            "net_income": net_income,
+            "gross_margin": gross_profit / revenue if gross_profit and revenue else None,
+            "operating_margin": (
+                operating_income / revenue if operating_income and revenue else None
+            ),
+            "depreciation_amortization": total("depreciationAndAmortization"),
+            "rd_expense": total("researchAndDevelopmentExpenses"),
+            "sga_expense": total("sellingGeneralAndAdministrative"),
+            "interest_expense": total("interestExpense"),
+            "total_debt": bal.get("totalDebt", 0),
+            "total_cash": bal.get("cashAndCashEquivalents", 0),
+            "market_cap": mkt_cap,
+            "shares_outstanding": shares,
+            "pe_ratio": pe_ratio,
+            "beta": prof.get("beta"),
+            "current_price": price,
+            "company_name": prof.get("companyName"),
+            "industry": prof.get("industry"),
+            "sector": prof.get("sector"),
+            "fiscal_year": latest.get("date") or latest.get("calendarYear"),
+            "period_basis": "ttm",
         }
 
     async def _fetch_price(self, ticker: str) -> DataResult:

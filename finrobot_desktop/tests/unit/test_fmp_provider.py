@@ -33,6 +33,26 @@ def _fmp_income_response(ticker: str = "AAPL") -> list[dict]:
     ]
 
 
+def _fmp_quarterly_income_response(ticker: str = "AAPL") -> list[dict]:
+    """Mock FMP quarterly income rows used for current TTM financials."""
+    return [
+        {
+            "date": f"2026-0{quarter + 1}-28",
+            "symbol": ticker,
+            "revenue": 100_000_000_000,
+            "ebitda": 30_000_000_000,
+            "netIncome": 20_000_000_000,
+            "depreciationAndAmortization": 3_000_000_000,
+            "grossProfit": 45_000_000_000,
+            "operatingIncome": 25_000_000_000,
+            "researchAndDevelopmentExpenses": 7_000_000_000,
+            "sellingGeneralAndAdministrative": 6_000_000_000,
+            "interestExpense": 1_000_000_000,
+        }
+        for quarter in range(4)
+    ]
+
+
 def _fmp_balance_response(ticker: str = "AAPL") -> list[dict]:
     return [
         {
@@ -78,7 +98,7 @@ class TestFMPFetch:
     async def test_fetch_financials_returns_normalized_keys(self, provider):
         """FMP-specific keys are normalized to common format."""
         responses = [
-            _mock_response(_fmp_income_response()),
+            _mock_response(_fmp_quarterly_income_response()),
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_profile_response()),
         ]
@@ -89,12 +109,13 @@ class TestFMPFetch:
         assert result.ticker == "AAPL"
         assert result.data_type == "financials"
         # Key normalization checks
-        assert result.data["revenue"] == 394_328_000_000
-        assert result.data["ebitda"] == 137_352_000_000
-        assert result.data["depreciation_amortization"] == 11_519_000_000
-        assert result.data["rd_expense"] == 29_915_000_000
-        assert result.data["sga_expense"] == 27_552_000_000
-        assert result.data["interest_expense"] == 3_933_000_000
+        assert result.data["period_basis"] == "ttm"
+        assert result.data["revenue"] == 400_000_000_000
+        assert result.data["ebitda"] == 120_000_000_000
+        assert result.data["depreciation_amortization"] == 12_000_000_000
+        assert result.data["rd_expense"] == 28_000_000_000
+        assert result.data["sga_expense"] == 24_000_000_000
+        assert result.data["interest_expense"] == 4_000_000_000
         assert result.data["total_debt"] == 111_088_000_000
         assert result.data["total_cash"] == 29_965_000_000
         assert result.data["market_cap"] == 2_620_000_000_000
@@ -174,7 +195,7 @@ class TestFMPFetchHistorical:
     @pytest.mark.asyncio
     async def test_fetch_without_years_returns_flat(self, provider):
         responses = [
-            _mock_response(_fmp_income_response()),
+            _mock_response(_fmp_quarterly_income_response()),
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_profile_response()),
         ]
@@ -182,7 +203,7 @@ class TestFMPFetchHistorical:
             result = await provider.fetch("AAPL", "financials")
         assert isinstance(result, DataResult)
         assert "yearly_data" not in result.data
-        assert result.data["revenue"] == 394_328_000_000
+        assert result.data["revenue"] == 400_000_000_000
         # Single-year flat result must also carry fiscal_year
         assert result.data.get("fiscal_year") is not None
 

@@ -324,6 +324,73 @@ class TestFMPFetchHistorical:
         # Operating EBITDA = OI 100B + cash-flow D&A 12B = 112B (not 109B).
         assert result.data["ebitda"] == 112_000_000_000
 
+    @pytest.mark.asyncio
+    async def test_ttm_tsla_real_world_caliber(self, provider):
+        """External-source anchor (FMP API pulled 2026-05-28): TSLA Q1 2026
+        income-statement D&A is 0 (provider quirk for the freshest quarter),
+        while cash-flow D&A is intact. Verifies the recomputed EBITDA matches
+        the externally-verified ground truth, not the contaminated IS-derived
+        value the artifact-as-shipped exposed in the 2026-05-28 audit."""
+        # TSLA actual quarterly cash-flow D&A (FMP /cash-flow-statement, $B):
+        # Q1 2026 1.590, Q4 2025 1.643, Q3 2025 1.625, Q2 2025 1.433 → 6.291B
+        cf_da_tsla = [1_590_000_000, 1_643_000_000, 1_625_000_000, 1_433_000_000]
+        # Operating income (FMP /income-statement, $B):
+        # Q1 2026 0.941, Q4 2025 1.409, Q3 2025 1.624, Q2 2025 0.923 → 4.897B
+        op_inc_tsla = [941_000_000, 1_409_000_000, 1_624_000_000, 923_000_000]
+        # FMP's IS-ebitda field per quarter ($B): 0.840, 2.909, 3.660, 3.068
+        # → sums to 10.477B (the WRONG value the 2026-05-28 artifact displayed).
+        is_ebitda_tsla = [840_000_000, 2_909_000_000, 3_660_000_000, 3_068_000_000]
+        # FMP's IS-D&A per quarter ($B): 0.000, 1.643, 1.625, 1.433 → 4.701B
+        is_da_tsla = [0, 1_643_000_000, 1_625_000_000, 1_433_000_000]
+
+        income = [
+            {
+                "date": f"2026-0{4 - i}-30",
+                "symbol": "TSLA",
+                "revenue": 24_000_000_000,
+                "ebitda": is_ebitda_tsla[i],
+                "netIncome": 1_000_000_000,
+                "grossProfit": 4_500_000_000,
+                "operatingIncome": op_inc_tsla[i],
+                "depreciationAndAmortization": is_da_tsla[i],
+                "incomeTaxExpense": 100_000_000,
+                "researchAndDevelopmentExpenses": 1_000_000_000,
+                "sellingGeneralAndAdministrative": 1_300_000_000,
+                "interestExpense": 0,
+            }
+            for i in range(4)
+        ]
+        cashflow = [
+            {
+                "date": f"2026-0{4 - i}-30",
+                "symbol": "TSLA",
+                "depreciationAndAmortization": cf_da_tsla[i],
+                "operatingCashFlow": 4_000_000_000,
+            }
+            for i in range(4)
+        ]
+        responses = [
+            _mock_response(income),
+            _mock_response(_fmp_balance_response("TSLA")),
+            _mock_response(cashflow),
+            _mock_response(_fmp_profile_response("TSLA")),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("TSLA", "financials")
+
+        # External truth from FMP API pull on 2026-05-28:
+        #   TTM cash-flow D&A = $6.291B (Q1 1.590 + Q4 1.643 + Q3 1.625 + Q2 1.433)
+        #   TTM operating income = $4.897B
+        #   Operating EBITDA = OI + D&A = $11.188B
+        # Pre-fix artifact (art_2026-05-28T12:17:33) shipped EBITDA = $10.477B
+        # (FMP raw IS-ebitda field sum) and D&A = $4.701B (IS sum, Q1 missing).
+        assert result.data["depreciation_amortization"] == 6_291_000_000
+        assert result.data["operating_income"] == 4_897_000_000
+        assert result.data["ebitda"] == 11_188_000_000
+        # The wrong values the audit caught — make sure we never re-display these.
+        assert result.data["ebitda"] != 10_477_000_000
+        assert result.data["depreciation_amortization"] != 4_701_000_000
+
 
 class TestFMPQuote:
     """门一 Step 3: lightweight QUOTE path via /quote/{ticker} (no OHLC pull)."""

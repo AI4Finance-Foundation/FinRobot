@@ -170,12 +170,30 @@ def _fmp_multi_year_income(ticker="AAPL", years=3):
     ]
 
 
+def _fmp_multi_year_cashflow(ticker="AAPL", years=3):
+    """Cash-flow rows aligned by fiscal-year date to _fmp_multi_year_income."""
+    return [
+        {
+            "date": f"{2024 - i}-09-30",
+            "symbol": ticker,
+            "operatingCashFlow": 110_000_000_000 - i * 5_000_000_000,
+            "netCashProvidedByOperatingActivities": 110_000_000_000 - i * 5_000_000_000,
+            # FMP reports capex as a negative (cash outflow); provider must abs() it.
+            "capitalExpenditure": -(10_000_000_000 + i * 500_000_000),
+            "changeInWorkingCapital": -2_000_000_000 + i * 300_000_000,
+        }
+        for i in range(years)
+    ]
+
+
 class TestFMPFetchHistorical:
     @pytest.mark.asyncio
     async def test_fetch_with_years_packs_yearly_data(self, provider):
+        # Call order for years>1: income, balance, cash-flow, profile.
         responses = [
             _mock_response(_fmp_multi_year_income("AAPL", 3)),
             _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_multi_year_cashflow("AAPL", 3)),
             _mock_response(_fmp_profile_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
@@ -184,6 +202,12 @@ class TestFMPFetchHistorical:
         assert "yearly_data" in result.data
         assert len(result.data["yearly_data"]) == 3
         assert result.data["yearly_data"][0]["revenue"] == 394_328_000_000
+        # FCF trio must be populated from the cash-flow statement, with capex
+        # sign-normalized to a positive magnitude (DCF FCF = OCF − CapEx − ΔNWC).
+        y0 = result.data["yearly_data"][0]
+        assert y0["operating_cash_flow"] == 110_000_000_000
+        assert y0["capital_expenditure"] == 10_000_000_000
+        assert y0["change_in_working_capital"] == -2_000_000_000
         # fiscal_year must be present and non-None in every yearly entry;
         # historical_loaders.py line 55 does `data.get("fiscal_year") or data.get("date")`
         # — a missing fiscal_year causes all years to be skipped → band.sample_count == 0.
@@ -191,6 +215,25 @@ class TestFMPFetchHistorical:
             assert entry.get("fiscal_year") is not None, (
                 f"yearly entry missing fiscal_year: {entry}"
             )
+
+    @pytest.mark.asyncio
+    async def test_missing_cashflow_row_yields_none_not_crash(self, provider):
+        """If the cash-flow statement is short a year, that year's FCF fields
+        are None rather than crashing the whole historical fetch."""
+        responses = [
+            _mock_response(_fmp_multi_year_income("AAPL", 3)),
+            _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_multi_year_cashflow("AAPL", 1)),  # only newest year
+            _mock_response(_fmp_profile_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials", years=3)
+        years = result.data["yearly_data"]
+        assert years[0]["operating_cash_flow"] == 110_000_000_000
+        # Years 2 and 3 have no matching cash-flow row → None, not a KeyError.
+        assert years[1]["operating_cash_flow"] is None
+        assert years[1]["capital_expenditure"] is None
+        assert years[2]["change_in_working_capital"] is None
 
     @pytest.mark.asyncio
     async def test_fetch_without_years_returns_flat(self, provider):
@@ -403,6 +446,33 @@ class TestFMPPrice:
         assert [p["date"] for p in history] == ["2026-05-21", "2026-05-22", "2026-05-23"]
         assert history[0]["close"] == 172.0
         assert history[-1]["close"] == 175.0
+
+    @pytest.mark.asyncio
+    async def test_fetch_price_requests_calendar_year_ohlc(self, provider):
+        """Regression: timeseries=365 counts *trading* days (~17 months), which
+        let early-2025 lows leak into the 52-week range. Must request a ~1yr
+        calendar date range, and must NOT pass serietype=line (which strips the
+        intraday high/low the 52-week high/low depend on)."""
+        from datetime import date as _date
+
+        get_mock = AsyncMock(
+            side_effect=[
+                _mock_response(_fmp_quote_response("AAPL", price=175.5)),
+                _mock_response(_fmp_historical_price_response(days=3)),
+            ]
+        )
+        with patch.object(provider, "_get", get_mock):
+            await provider.fetch("AAPL", "price")
+
+        hist_call = next(
+            c for c in get_mock.call_args_list if "historical-price-full" in c.args[0]
+        )
+        params = hist_call.kwargs.get("params", {})
+        assert "serietype" not in params, "serietype=line strips intraday high/low"
+        assert "timeseries" not in params, "trading-day count ≠ calendar year"
+        assert "from" in params and "to" in params, "must request a calendar-day range"
+        span = (_date.fromisoformat(params["to"]) - _date.fromisoformat(params["from"])).days
+        assert 360 <= span <= 372, f"expected ~1yr window, got {span}d"
 
     @pytest.mark.asyncio
     async def test_fetch_price_empty_quote_raises(self, provider):

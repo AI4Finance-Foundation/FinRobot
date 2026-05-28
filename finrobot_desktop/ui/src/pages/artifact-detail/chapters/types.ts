@@ -211,6 +211,12 @@ export interface ScheduleThirteenAlertShape {
   transaction_summary?: string
 }
 
+export type OwnershipDegradedReason =
+  | 'identity_missing'
+  | 'no_recent_filings'
+  | 'fetch_error'
+  | 'parse_failed'
+
 export interface OwnershipGovernanceShape {
   insider_transactions?: InsiderTransactionShape[]
   institutional_holdings?: InstitutionalHoldingShape[]
@@ -219,8 +225,9 @@ export interface OwnershipGovernanceShape {
   generated_at?: string
   degraded_sections?: string[]
   // ^ e.g. ["institutional_holdings"] when sec_holdings_cache is empty.
-  // UI reads this to render cold-state placeholders per sub-block instead
-  // of a misleading empty table.
+  degraded_reasons?: Partial<Record<string, OwnershipDegradedReason>>
+  // ^ section key (matches degraded_sections entries) → reason code.
+  // UI maps reason → i18n key for accurate messaging instead of one-size-fits-all.
 }
 
 // SEC filings + XBRL — read by other chapters (e.g. ChapterFinancialData

@@ -127,6 +127,34 @@ describe('ChapterOwnershipGovernance', () => {
     expect(screen.getByText('92th')).toBeInTheDocument()
   })
 
+  it('uses reason-specific message when backend supplies degraded_reasons', () => {
+    // Backend emits `no_recent_filings` when SEC identity is configured but the
+    // ticker simply has no Form 4 in the last 90 days (small caps, post-grant
+    // quiet periods, etc). UI must NOT show "check SEC identity" — that blames
+    // the user for a perfectly valid backend state.
+    const ownership: OwnershipGovernanceShape = {
+      insider_transactions: [],
+      generated_at: '2026-05-27T09:00:00Z',
+      degraded_sections: ['insider_transactions'],
+      degraded_reasons: { insider_transactions: 'no_recent_filings' },
+    }
+    render(wrap(<ChapterOwnershipGovernance ownership={ownership} />))
+    expect(
+      screen.getByText(/no insider transactions filed in the past 90 days/i),
+    ).toBeInTheDocument()
+  })
+
+  it('falls back to generic degraded message when reason is missing', () => {
+    const ownership: OwnershipGovernanceShape = {
+      insider_transactions: [],
+      generated_at: '2026-05-27T09:00:00Z',
+      degraded_sections: ['insider_transactions'],
+      // No degraded_reasons supplied → fallback to generic message
+    }
+    render(wrap(<ChapterOwnershipGovernance ownership={ownership} />))
+    expect(screen.getByText(/Form 4 data unavailable/i)).toBeInTheDocument()
+  })
+
   it('renders Schedule 13D as activist with warning tone', () => {
     const alert: ScheduleThirteenAlertShape = {
       filer_name: 'Pershing Square',

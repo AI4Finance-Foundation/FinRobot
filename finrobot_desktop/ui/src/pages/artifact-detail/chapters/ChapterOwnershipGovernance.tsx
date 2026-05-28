@@ -22,6 +22,7 @@ import type {
   InsiderTransactionShape,
   InsiderTransactionType,
   InstitutionalHoldingShape,
+  OwnershipDegradedReason,
   OwnershipGovernanceShape,
   ProxyCompensationShape,
   ScheduleThirteenAlertShape,
@@ -53,16 +54,33 @@ export function ChapterOwnershipGovernance({ ownership }: Props): React.ReactEle
   }
 
   const degraded = new Set(ownership.degraded_sections ?? [])
+  const reasons = ownership.degraded_reasons ?? {}
   const insiders = ownership.insider_transactions ?? []
   const holdings = ownership.institutional_holdings ?? []
   const compensation = ownership.proxy_compensation ?? null
   const alerts = ownership.schedule13_alerts ?? []
 
+  const insidersReason = degradedReasonKey(
+    'insiders',
+    reasons['insider_transactions'],
+    'chapter.ownership.degraded.insiders',
+  )
+  const institutionsReason = degradedReasonKey(
+    'institutions',
+    reasons['institutional_holdings'],
+    'chapter.ownership.degraded.institutions',
+  )
+  const compensationReason = degradedReasonKey(
+    'proxy',
+    reasons['proxy_compensation'],
+    'chapter.ownership.degraded.compensation',
+  )
+
   return (
     <Chapter id="ownership">
       <SubChapter heading={t('chapter.ownership.heading.insiders')}>
         {degraded.has('insider_transactions') ? (
-          <DegradedPlaceholder reason={t('chapter.ownership.degraded.insiders')} />
+          <DegradedPlaceholder reason={t(insidersReason)} />
         ) : insiders.length > 0 ? (
           <InsiderTable rows={insiders} locale={locale} t={t} />
         ) : (
@@ -72,7 +90,7 @@ export function ChapterOwnershipGovernance({ ownership }: Props): React.ReactEle
 
       <SubChapter heading={t('chapter.ownership.heading.institutions')}>
         {degraded.has('institutional_holdings') ? (
-          <DegradedPlaceholder reason={t('chapter.ownership.degraded.institutions')} />
+          <DegradedPlaceholder reason={t(institutionsReason)} />
         ) : holdings.length > 0 ? (
           <InstitutionTable rows={holdings} locale={locale} t={t} />
         ) : (
@@ -82,7 +100,7 @@ export function ChapterOwnershipGovernance({ ownership }: Props): React.ReactEle
 
       <SubChapter heading={t('chapter.ownership.heading.compensation')}>
         {degraded.has('proxy_compensation') ? (
-          <DegradedPlaceholder reason={t('chapter.ownership.degraded.compensation')} />
+          <DegradedPlaceholder reason={t(compensationReason)} />
         ) : compensation ? (
           <CompensationGrid comp={compensation} locale={locale} t={t} />
         ) : (
@@ -101,6 +119,29 @@ export function ChapterOwnershipGovernance({ ownership }: Props): React.ReactEle
       </SubChapter>
     </Chapter>
   )
+}
+
+// Maps backend reason code → reason-specific i18n key.
+// Falls back to the section-generic key when reason is missing/unknown so
+// the message remains accurate when backend can't pinpoint why data is gone.
+function degradedReasonKey(
+  section: 'insiders' | 'institutions' | 'proxy',
+  reason: OwnershipDegradedReason | undefined,
+  fallback: string,
+): string {
+  if (!reason) return fallback
+  if (section === 'proxy') {
+    return reason === 'parse_failed'
+      ? 'chapter.ownership.degraded.proxy.parse_failed'
+      : fallback
+  }
+  const reasonKeys: Record<OwnershipDegradedReason, string | null> = {
+    identity_missing: `chapter.ownership.degraded.${section}.identity_missing`,
+    no_recent_filings: `chapter.ownership.degraded.${section}.no_recent_filings`,
+    fetch_error: `chapter.ownership.degraded.${section}.fetch_error`,
+    parse_failed: null,
+  }
+  return reasonKeys[reason] ?? fallback
 }
 
 // ---------------------------------------------------------------------------

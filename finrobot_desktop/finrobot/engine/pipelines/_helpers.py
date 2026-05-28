@@ -181,7 +181,7 @@ def build_sensitivity_ranges(
 def build_valuation_synthesis(
     structured_context: dict[str, object],
     current_price: float,
-    ticker: str = "",
+    ticker: str,
 ) -> ValuationSynthesis | None:
     """Build ValuationSynthesis from pipeline structured_context via aggregate_valuation.
 
@@ -211,7 +211,7 @@ def build_valuation_synthesis(
         shares = dcf.inputs.shares_outstanding
 
     agg = aggregate_valuation(
-        ticker=ticker or "UNKNOWN",
+        ticker=ticker,
         current_price=current_price,
         dcf=dcf if isinstance(dcf, DCFResult) else None,
         peer_comps=peers if isinstance(peers, PeerComps) else None,

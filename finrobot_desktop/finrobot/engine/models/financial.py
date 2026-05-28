@@ -286,9 +286,9 @@ class DCFResult(BaseModel):
     # Sensitivity
     sensitivity_table: dict[str, Any] | None = None
 
-    # FCF formula tag — enables auditors to trace which branch of FCF logic ran.
-    # "standard_ebit_to_fcf": EBIT(1-t) + D&A - CapEx - ΔNWC (current branch)
-    # "simplified_ebitda":    EBITDA(1-t) - CapEx - ΔNWC (deprecated, removed)
+    # AGENTS.md red-line #5: every output carries a formula tag so
+    # simplification regressions can never sneak through unnoticed.
+    # "standard_ebit_to_fcf" = EBIT*(1-t) + D&A − CapEx − ΔNWC.
     fcf_formula: Literal["standard_ebit_to_fcf", "simplified_ebitda"] = "standard_ebit_to_fcf"
 
     # Inputs used (for reproducibility)

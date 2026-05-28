@@ -1,5 +1,5 @@
 import pytest
-from finrobot.engine.models.financial import DCFInputs
+from finrobot.engine.models.financial import DCFInputs, DCFResult
 from finrobot.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 
 
@@ -115,16 +115,16 @@ def test_zero_capex_zero_nwc():
     assert abs(result.projected_fcf[0] - expected_fcf0) < 1
 
 
-def test_dcf_result_fcf_formula_field():
-    """DCFResult.fcf_formula must be non-empty and equal 'standard_ebit_to_fcf'.
-
-    This field is required by AGENTS.md red-line 5 so auditors can trace which
-    FCF branch ran without reading the source.  The simplified_ebitda branch was
-    removed; the field is kept as a forward-compatible enum tag.
-    """
+def test_dcf_result_carries_fcf_formula_tag():
+    """AGENTS.md red-line #5: every DCFResult MUST carry the formula tag so
+    simplification regressions can't sneak past UI consumers. The tag becomes
+    part of the artifact contract — any future simplified branch must actively
+    flip it to ``simplified_ebitda``."""
     inputs = _make_inputs()
     result = calculate_dcf(inputs, wacc_override=0.10)
-    assert result.fcf_formula  # non-empty / non-None
+    dumped = result.model_dump()
+    assert "fcf_formula" in DCFResult.model_fields
+    assert dumped["fcf_formula"] == "standard_ebit_to_fcf"
     assert result.fcf_formula == "standard_ebit_to_fcf"
 
 

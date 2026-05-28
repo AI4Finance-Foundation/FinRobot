@@ -10,6 +10,7 @@ What this code does that raw LLM cannot:
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, cast
 
 from finrobot.engine.compute.news import NewsItem
@@ -139,9 +140,33 @@ def extract_catalysts_from_news(
                 impact_score=item.importance,
                 probability=0.7,  # default; pipeline can override via LLM
                 reasoning=item.summary,
+                published=item.published,
+                url=item.url or None,
             )
         )
     return events
+
+
+def filter_fresh_news(
+    news_items: list[NewsItem],
+    max_age_days: int = 30,
+) -> tuple[list[NewsItem], int]:
+    """Drop news items older than max_age_days.
+
+    Returns:
+        (fresh_items, stale_count) where stale_count is the number dropped.
+
+    Items with timezone-naive published are normalized to UTC before comparison.
+    """
+    now = datetime.now(tz=timezone.utc)
+    fresh: list[NewsItem] = []
+    for item in news_items:
+        pub = item.published
+        if pub.tzinfo is None:
+            pub = pub.replace(tzinfo=timezone.utc)
+        if (now - pub).days <= max_age_days:
+            fresh.append(item)
+    return fresh, len(news_items) - len(fresh)
 
 
 def compute_expected_impact(events: list[CatalystEvent]) -> list[CatalystEvent]:
@@ -166,28 +191,34 @@ def summarize_catalyst_outlook(events: list[CatalystEvent]) -> dict[str, Any]:
 
     Returns dict with:
         total_catalysts: int -- number of events.
-        net_sentiment: float -- sum of expected impacts, clamped to [-5, 5].
+        net_sentiment: float -- mean expected impact per event, in [-5, 5].
         top_positive: list[CatalystEvent] -- top 3 positive events by impact.
         top_negative: list[CatalystEvent] -- top 3 negative events by impact.
         category_breakdown: dict[str, int] -- count per category.
 
+    net_sentiment uses mean (not sum) so a large news day with 30+ events
+    doesn't collapse to a clamp ceiling and lose discriminative power.
+    Natural range of mean(impact_score * prob * sign) with max impact_score=5
+    and prob<=1 stays within [-5, 5] already; clamp kept as safety rail.
+
     Args:
         events: Catalyst events to summarize.
     """
-    net = 0.0
     breakdown: dict[str, int] = {}
     positives: list[CatalystEvent] = []
     negatives: list[CatalystEvent] = []
+    impact_sum = 0.0
 
     for e in events:
-        net += _expected_impact(e)
+        impact_sum += _expected_impact(e)
         breakdown[e.category] = breakdown.get(e.category, 0) + 1
         if e.sentiment == "positive":
             positives.append(e)
         elif e.sentiment == "negative":
             negatives.append(e)
 
-    net = max(-5.0, min(5.0, net))
+    mean_sentiment = impact_sum / max(len(events), 1)
+    net = max(-5.0, min(5.0, mean_sentiment))
     top_pos = rank_catalysts(positives, top_n=3)
     top_neg = rank_catalysts(negatives, top_n=3)
 

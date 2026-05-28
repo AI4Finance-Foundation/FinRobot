@@ -979,6 +979,22 @@ msgid "chapter.ownership.degraded.alerts"
 msgstr "Schedule 13 data unavailable"
 
 #. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.insiders.identity_missing"
+msgstr "Form 4 unavailable — SEC entity not found; check identity configuration"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.insiders.no_recent_filings"
+msgstr "Form 4 unavailable — no insider transactions filed in the past 90 days"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.insiders.fetch_error"
+msgstr "Form 4 unavailable — SEC fetch error; re-run to retry"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.proxy.parse_failed"
+msgstr "DEF 14A parse failed — no valid compensation data extracted from proxy statement"
+
+#. js-lingui-explicit-id
 msgid "chapter.ownership.col.date"
 msgstr "Filed"
 
@@ -1149,19 +1165,3 @@ msgstr "HK / A-share tickers are not supported"
 #. js-lingui-explicit-id
 msgid "ticker.notFound.hint4"
 msgstr "If the spelling is correct, yfinance may not list this ticker"
-
-#. js-lingui-explicit-id
-msgid "service.down.title"
-msgstr "Data source unavailable"
-
-#. js-lingui-explicit-id
-msgid "service.down.description"
-msgstr "{ticker} · yfinance returned an error, awaiting recovery"
-
-#. js-lingui-explicit-id
-msgid "service.down.countdown"
-msgstr "Auto-retry in {n}s (attempt {attempt})"
-
-#. js-lingui-explicit-id
-msgid "service.down.retryNow"
-msgstr "Retry now"

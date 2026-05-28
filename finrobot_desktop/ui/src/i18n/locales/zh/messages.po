@@ -979,6 +979,22 @@ msgid "chapter.ownership.degraded.alerts"
 msgstr "Schedule 13 数据不可用"
 
 #. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.insiders.identity_missing"
+msgstr "Form 4 数据不可用 · 未能匹配到 SEC 实体，请检查 SEC 身份配置"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.insiders.no_recent_filings"
+msgstr "Form 4 数据不可用 · 该公司近 90 天内无内部人交易申报"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.insiders.fetch_error"
+msgstr "Form 4 数据不可用 · 获取 SEC 数据时出错，请稍后重跑"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.proxy.parse_failed"
+msgstr "DEF 14A 解析失败 · 代理声明中未能提取有效薪酬数据"
+
+#. js-lingui-explicit-id
 msgid "chapter.ownership.col.date"
 msgstr "申报日"
 
@@ -1149,19 +1165,3 @@ msgstr "港股 / A 股代码不支持"
 #. js-lingui-explicit-id
 msgid "ticker.notFound.hint4"
 msgstr "如确认拼写无误，可能 yfinance 暂未收录该代码"
-
-#. js-lingui-explicit-id
-msgid "service.down.title"
-msgstr "数据源暂不可用"
-
-#. js-lingui-explicit-id
-msgid "service.down.description"
-msgstr "{ticker} · yfinance 返回错误，等待恢复中"
-
-#. js-lingui-explicit-id
-msgid "service.down.countdown"
-msgstr "{n}s 后自动重试（第 {attempt} 次）"
-
-#. js-lingui-explicit-id
-msgid "service.down.retryNow"
-msgstr "立即重试"

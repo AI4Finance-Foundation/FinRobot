@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from finrobot.engine.models.financial import CatalystEvent
 from finrobot.engine.compute.catalyst import (
@@ -6,6 +6,7 @@ from finrobot.engine.compute.catalyst import (
     filter_by_impact,
     classify_catalyst_type,
     extract_catalysts_from_news,
+    filter_fresh_news,
     compute_expected_impact,
     summarize_catalyst_outlook,
 )
@@ -110,7 +111,7 @@ class TestExtractCatalystsFromNews:
             NewsItem(
                 title="Big Earnings",
                 source="WSJ",
-                published=datetime.now(),
+                published=datetime.now(tz=timezone.utc),
                 url="http://x",
                 category="earnings",
                 sentiment="positive",
@@ -120,7 +121,7 @@ class TestExtractCatalystsFromNews:
             NewsItem(
                 title="Minor Update",
                 source="Blog",
-                published=datetime.now(),
+                published=datetime.now(tz=timezone.utc),
                 url="http://y",
                 category="other",
                 sentiment="neutral",
@@ -142,7 +143,7 @@ class TestExtractCatalystsFromNews:
             NewsItem(
                 title="Low",
                 source="Blog",
-                published=datetime.now(),
+                published=datetime.now(tz=timezone.utc),
                 url="http://z",
                 category="other",
                 sentiment="neutral",
@@ -151,6 +152,24 @@ class TestExtractCatalystsFromNews:
             ),
         ]
         assert extract_catalysts_from_news(items, min_importance=3) == []
+
+    def test_extract_preserves_published_and_url(self):
+        """CatalystEvent must carry published + url from NewsItem (traceability)."""
+        pub = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+        item = NewsItem(
+            title="AAPL Earnings Beat",
+            source="Reuters",
+            published=pub,
+            url="https://reuters.com/aapl-q1",
+            category="earnings",
+            sentiment="positive",
+            importance=5,
+            summary="Record quarter",
+        )
+        events = extract_catalysts_from_news([item], min_importance=3)
+        assert len(events) == 1
+        assert events[0].published == pub
+        assert events[0].url == "https://reuters.com/aapl-q1"
 
 
 class TestComputeExpectedImpact:
@@ -252,11 +271,11 @@ class TestSummarizeCatalystOutlook:
             ),
         ]
         summary = summarize_catalyst_outlook(events)
-        # net = 4*0.8*1.0 + 3*0.6*(-1.0) = 3.2 - 1.8 = 1.4
-        assert summary["net_sentiment"] == 1.4
+        # mean = (4*0.8*1.0 + 3*0.6*(-1.0)) / 2 = (3.2 - 1.8) / 2 = 0.7
+        assert summary["net_sentiment"] == 0.7
 
-    def test_net_sentiment_clamped(self):
-        """Net sentiment is clamped to [-5, 5]."""
+    def test_net_sentiment_natural_ceiling(self):
+        """27 all-bullish events: mean stays ~5.0, not collapsed to clamp ceiling."""
         events = [
             CatalystEvent(
                 category="earnings",
@@ -266,11 +285,15 @@ class TestSummarizeCatalystOutlook:
                 probability=1.0,
                 reasoning="Huge",
             )
-            for i in range(5)
+            for i in range(27)
         ]
         summary = summarize_catalyst_outlook(events)
-        # Raw net = 5*5*1.0 = 25, clamped to 5.0
-        assert summary["net_sentiment"] == 5.0
+        # mean per event = 5*1.0*1.0 = 5.0 → net = 5.0 (natural, not force-clamped)
+        # Must be in meaningful range and NOT simply 5.0 by clamp trick
+        net = summary["net_sentiment"]
+        assert 3.0 < net <= 5.0, f"Expected net in (3, 5], got {net}"
+        # With mean formula, 27 events all at 5.0 → mean = 5.0 (no information loss)
+        assert net == 5.0
 
     def test_empty_events(self):
         summary = summarize_catalyst_outlook([])
@@ -296,3 +319,60 @@ class TestSummarizeCatalystOutlook:
         summary = summarize_catalyst_outlook(events)
         assert len(summary["top_positive"]) == 3
         assert len(summary["top_negative"]) == 0
+
+
+def _make_news_item(
+    title: str,
+    days_ago: int,
+    importance: int = 4,
+    sentiment: str = "positive",
+) -> NewsItem:
+    pub = datetime.now(tz=timezone.utc) - timedelta(days=days_ago)
+    return NewsItem(
+        title=title,
+        source="Test",
+        published=pub,
+        url=f"http://test/{title.lower().replace(' ', '-')}",
+        category="earnings",
+        sentiment=sentiment,  # type: ignore[arg-type]  # narrow Literal in test helper
+        importance=importance,
+        summary=title,
+    )
+
+
+class TestFilterFreshNews:
+    def test_drops_stale_items_beyond_30_days(self):
+        fresh_item = _make_news_item("Fresh", days_ago=5)
+        stale_item = _make_news_item("Stale", days_ago=90)
+        result, stale_count = filter_fresh_news([fresh_item, stale_item], max_age_days=30)
+        assert len(result) == 1
+        assert result[0].title == "Fresh"
+        assert stale_count == 1
+
+    def test_keeps_all_within_window(self):
+        items = [_make_news_item(f"News{i}", days_ago=i) for i in range(30)]
+        result, stale_count = filter_fresh_news(items, max_age_days=30)
+        assert len(result) == 30
+        assert stale_count == 0
+
+    def test_empty_input(self):
+        result, stale_count = filter_fresh_news([], max_age_days=30)
+        assert result == []
+        assert stale_count == 0
+
+    def test_naive_datetime_treated_as_utc(self):
+        """Timezone-naive published should not raise; treated as UTC."""
+        naive_pub = datetime.now() - timedelta(days=5)  # no tzinfo
+        item = NewsItem(
+            title="Naive DT",
+            source="Test",
+            published=naive_pub,
+            url="http://test",
+            category="earnings",
+            sentiment="positive",
+            importance=4,
+            summary="Test",
+        )
+        result, stale_count = filter_fresh_news([item], max_age_days=30)
+        assert len(result) == 1
+        assert stale_count == 0

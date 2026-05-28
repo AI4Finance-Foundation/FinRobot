@@ -163,6 +163,84 @@ _ADAPTER_CATCH = (
 _MIN_VALID_SECTION_CHARS = 1000
 
 
+# SEC Form 4 XML lets date fields (exerciseDate / expirationDate on
+# derivative rows) be replaced by a footnote reference like "[F4]" — the
+# date is described in footnote F4 rather than given as a literal date
+# (typical for option grants with conditional vesting). edgartools'
+# value_with_footnotes() surfaces these as strings in five real shapes:
+#   1. plain ISO date     "2025-04-15"
+#   2. footnote only      "[F4]"        — single or multi:  "[F1,F2]"
+#   3. date + footnote    "2025-04-15 [F4]"
+#   4. empty              ""
+#   5. free-form filer text e.g. "See footnote", "N/A"
+# Only shape 1 is a real date; everything else collapses to None at the
+# provider boundary. The footnote semantics are already preserved on
+# the same row in footnote_ids / footnotes_text, so dropping the date
+# stand-in loses no information.
+# DEF 14A proxies are long (TSLA 2025 = ~500k chars across 200+ pages).
+# A flat head-cap leaves the Summary Compensation Table — which lives
+# after the governance overview and TOC — out of reach of ownership.py
+# extractors. We keep the governance overview window (intro + risk
+# disclosures) and splice in a second window anchored on the SCT
+# heading; both are needed for the proxy compensation panel. Total
+# payload is bounded at ~90k per ticker.
+_PROXY_INTRO_CHARS = 50_000
+_PROXY_SCT_WINDOW_CHARS = 40_000
+_PROXY_INTRO_SCT_GAP_MARKER = "\n\n--- [SCT WINDOW] ---\n\n"
+
+
+def _slice_proxy_text(full_text: str) -> str:
+    """Return up-to-90k window: first 50k (governance) + 40k around SCT.
+
+    Compensation regex extractors (Summary Compensation Table parser,
+    CEO pay ratio extractor) need the SCT section, which for TSLA-class
+    issuers sits 100k+ chars into the full filing. Naïvely capping at
+    50k loses the entire compensation discussion.
+    """
+    if not full_text:
+        return ""
+    intro = full_text[:_PROXY_INTRO_CHARS]
+    if len(full_text) <= _PROXY_INTRO_CHARS:
+        return intro
+
+    # Find the FIRST "Summary Compensation Table" heading past the intro
+    # window — earlier matches are nearly always TOC entries, not the
+    # real table.
+    matches = list(
+        re.finditer(r"Summary Compensation Table", full_text, re.I)
+    )
+    sct_pos: int | None = None
+    for m in matches:
+        if m.start() >= _PROXY_INTRO_CHARS:
+            sct_pos = m.start()
+            break
+
+    if sct_pos is None:
+        # Heading not found past the intro window — return the intro
+        # only. Avoids dragging along a useless tail.
+        return intro
+
+    sct_window = full_text[sct_pos : sct_pos + _PROXY_SCT_WINDOW_CHARS]
+    return intro + _PROXY_INTRO_SCT_GAP_MARKER + sct_window
+
+
+def _coerce_form4_date(value: Any) -> str | None:
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    # Strip a trailing "[F...]" footnote suffix (shape 3) before validating.
+    head = re.sub(r"\s*\[F[\dF,\s]+\]\s*$", "", s).strip()
+    if not head:
+        return None
+    try:
+        date.fromisoformat(head[:10])
+    except ValueError:
+        return None
+    return head[:10]
+
+
 class EdgarToolsProvider(DataProvider):
     """SEC EDGAR data provider backed by edgartools 5.31.
 
@@ -491,13 +569,11 @@ class EdgarToolsProvider(DataProvider):
                     "underlying_security": (
                         getattr(act, "underlying_security", "") or ""
                     ),
-                    "exercise_date": (
-                        str(getattr(act, "exercise_date", None))
-                        if getattr(act, "exercise_date", None) else None
+                    "exercise_date": _coerce_form4_date(
+                        getattr(act, "exercise_date", None)
                     ),
-                    "expiration_date": (
-                        str(getattr(act, "expiration_date", None))
-                        if getattr(act, "expiration_date", None) else None
+                    "expiration_date": _coerce_form4_date(
+                        getattr(act, "expiration_date", None)
                     ),
                     "footnote_ids": getattr(act, "footnote_ids", "") or "",
                     "footnotes_text": getattr(act, "footnotes_text", "") or "",
@@ -536,27 +612,39 @@ class EdgarToolsProvider(DataProvider):
             except _ADAPTER_CATCH:
                 return None
 
-        def _float(getter_name: str) -> float | None:
+        def _float(getter_name: str, **kwargs: Any) -> float | None:
             getter = getattr(facts, getter_name, None)
             if not callable(getter):
                 return None
             try:
-                v = getter()
+                v = getter(**kwargs)
                 return float(v) if v is not None else None
             except _ADAPTER_CATCH:
                 return None
 
+        # Balance-sheet items are point-in-time, so "latest" must mean the
+        # most recent reporting period — not the latest *annual* point.
+        # ``annual=True`` (the edgar-python default on every standardized
+        # getter) prefers the 10-K fiscal-year value and silently lags by
+        # one quarter once a 10-Q is filed: on 2026-05-28 TSLA shipped a
+        # 10-Q for Q1 2026 (filed 2026-04-23) carrying assets $143.724B,
+        # but the artifact showed $137.806B — the FY2025 10-K snapshot.
+        # ``annual=False`` falls back to the most recent point regardless
+        # of form type, so 10-Q overrides 10-K once it lands.
         return {
             "facts_available": True,
             "ttm_revenue":    _ttm("get_ttm_revenue"),
             "ttm_net_income": _ttm("get_ttm_net_income"),
+            # P&L: "latest" remains the latest annual point — TTM is the
+            # current-period caliber and lives in ``ttm_*`` above.
             "latest_revenue":             _float("get_revenue"),
             "latest_net_income":          _float("get_net_income"),
             "latest_gross_profit":        _float("get_gross_profit"),
             "latest_operating_income":    _float("get_operating_income"),
-            "latest_total_assets":        _float("get_total_assets"),
-            "latest_total_liabilities":   _float("get_total_liabilities"),
-            "latest_shareholders_equity": _float("get_shareholders_equity"),
+            # Balance sheet: include 10-Q in the "most recent" calculus.
+            "latest_total_assets":        _float("get_total_assets", annual=False),
+            "latest_total_liabilities":   _float("get_total_liabilities", annual=False),
+            "latest_shareholders_equity": _float("get_shareholders_equity", annual=False),
         }, []
 
     # ------------------------------------------------------------------
@@ -624,6 +712,6 @@ class EdgarToolsProvider(DataProvider):
         return {
             "filing_date": str(proxy_filing.filing_date),
             "accession_no": proxy_filing.accession_no,
-            "text": text[:50_000],  # cap to keep payload size sane
+            "text": _slice_proxy_text(text),
             "source_url": getattr(proxy_filing, "homepage_url", None),
         }, []

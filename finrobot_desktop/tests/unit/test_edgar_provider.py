@@ -402,6 +402,145 @@ async def test_fetch_insider_drops_filings_outside_window() -> None:
     stale.obj.assert_not_called()
 
 
+@pytest.mark.asyncio
+async def test_fetch_insider_coerces_footnote_ref_dates_to_none() -> None:
+    """Form 4 derivative rows often footnote exerciseDate/expirationDate (e.g.
+    option grants with conditional vesting). edgartools surfaces those as
+    strings like "[F4]" — they must be coerced to None at the provider
+    boundary so downstream date parsing doesn't crash with
+    ``Invalid isoformat string: '[F4]'``.
+    """
+    p = EdgarToolsProvider("Jane Doe jane@example.com")
+    act = MagicMock()
+    act.transaction_type = "grant"
+    act.code = "A"
+    act.shares = 10_000
+    act.value = 0
+    act.price_per_share = 0
+    act.security_type = "derivative"
+    act.security_title = "Non-Qualified Stock Option"
+    act.underlying_security = "Common Stock"
+    act.exercise_date = "[F4]"
+    act.expiration_date = "[F2]"
+    act.footnote_ids = "F2,F4"
+    act.footnotes_text = "Vests in equal annual installments per F4 schedule."
+
+    form4 = MagicMock()
+    form4.insider_name = "Jane Insider"
+    form4.position = "Director"
+    form4.get_transaction_activities.return_value = [act]
+
+    f = MagicMock()
+    f.filing_date = date.today() - timedelta(days=10)
+    f.accession_no = "0000000000-26-000001"
+    f.obj.return_value = form4
+    filings = MagicMock()
+    filings.latest.return_value = [f]
+    c = MagicMock()
+    c.get_filings.return_value = filings
+
+    data, _ = p._fetch_insider(c, days=90)
+    assert len(data["transactions"]) == 1
+    tx = data["transactions"][0]
+    assert tx["exercise_date"] is None
+    assert tx["expiration_date"] is None
+    # Footnote semantics are preserved — only the date stand-in is dropped
+    assert tx["footnote_ids"] == "F2,F4"
+    assert "F4 schedule" in tx["footnotes_text"]
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        # Shape 1: plain ISO date — passes through
+        ("2025-04-15", "2025-04-15"),
+        # Shape 2a: single footnote ref — canonical form
+        ("[F4]", None),
+        # Shape 2b: multi-digit footnote ref (TSLA Tornetta filings cite F17/F18)
+        ("[F17]", None),
+        # Shape 2c: comma-separated multi-footnote ref
+        ("[F1,F2]", None),
+        # Shape 3: date with trailing footnote suffix — strip the suffix,
+        # keep the date
+        ("2025-04-15 [F4]", "2025-04-15"),
+        ("2025-04-15 [F1,F2]", "2025-04-15"),
+        # Shape 4: empty string — collapse to None
+        ("", None),
+        ("   ", None),
+        # Shape 5: filer free-text — collapse to None
+        ("See footnote", None),
+        ("N/A", None),
+        # None passthrough
+        (None, None),
+    ],
+)
+def test_coerce_form4_date_handles_all_edgartools_shapes(
+    raw: str | None, expected: str | None
+) -> None:
+    """edgartools' value_with_footnotes() produces five real shapes for Form 4
+    date fields. The provider boundary collapses non-date shapes to None so
+    downstream ``date.fromisoformat`` never sees garbage.
+    """
+    from finrobot.engine.data.providers.edgar_provider import _coerce_form4_date
+
+    assert _coerce_form4_date(raw) == expected
+
+
+def test_slice_proxy_text_splices_sct_window_past_intro() -> None:
+    """TSLA-class proxies are 500k+ chars; the Summary Compensation Table
+    sits 100k+ chars deep, well past the 50k governance-intro head cap.
+    The slicer must keep the intro AND splice in a 40k window anchored
+    on the first SCT heading found past the intro cut so the SCT row
+    extractor has something to parse.
+    """
+    from finrobot.engine.data.providers.edgar_provider import _slice_proxy_text
+
+    # Build a 50k intro that includes a TOC line near char 30k — the TOC
+    # mention must NOT be treated as the real SCT anchor.
+    toc_line = "Summary Compensation Table .... 143\n"
+    filler_a = "x" * 30_000
+    filler_b = "y" * (50_000 - len(filler_a) - len(toc_line))
+    intro = "INTRO " + filler_a + toc_line + filler_b
+    intro = intro[:50_000]  # ensure exact 50k
+    assert len(intro) == 50_000
+
+    body_gap = "z" * 60_000  # 60k chars between intro and real SCT
+    # SCT body must exceed the 40k window so the tail beyond it is
+    # actually excluded from the sliced window.
+    sct = (
+        "Summary Compensation Table\n"
+        "Name and Principal Position    Year   Salary    Total\n"
+        "Elon Musk Chief Executive Officer 2024 0 100,000,000\n"
+    ) + ("w" * 50_000)
+    tail = "TAIL_BEYOND_SCT_WINDOW" * 5_000
+
+    full = intro + body_gap + sct + tail
+    sliced = _slice_proxy_text(full)
+
+    # Intro is preserved verbatim
+    assert sliced.startswith("INTRO ")
+    # The SCT window is present
+    assert "Elon Musk Chief Executive Officer" in sliced
+    # Bounded: intro + gap marker + SCT window — well under full text size
+    assert len(sliced) < 100_000
+    # Tail beyond the SCT window is dropped
+    assert "TAIL_BEYOND_SCT_WINDOW" not in sliced
+
+
+def test_slice_proxy_text_returns_intro_only_when_no_sct_found() -> None:
+    """If a proxy is short or doesn't contain an SCT heading past the
+    intro window, return just the intro — don't drag along useless tail
+    bytes."""
+    from finrobot.engine.data.providers.edgar_provider import _slice_proxy_text
+
+    short = "GOV intro " * 1_000  # well under 50k
+    assert _slice_proxy_text(short) == short
+
+    long_no_sct = "x" * 200_000
+    sliced = _slice_proxy_text(long_no_sct)
+    assert len(sliced) == 50_000
+
+
 # ---------------------------------------------------------------------------
 # _fetch_xbrl (typed getters)
 # ---------------------------------------------------------------------------
@@ -436,6 +575,49 @@ async def test_fetch_xbrl_uses_typed_getters() -> None:
     # Plain strings fall through to {"raw": ...} fallback shape
     assert all("raw" in p for p in data["ttm_revenue"]["periods"])
     assert data["ttm_net_income"] is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_xbrl_balance_sheet_prefers_latest_period_over_latest_annual() -> None:
+    """Reproduces the 2026-05-28 TSLA balance-sheet staleness bug: when the
+    issuer has both a FY 10-K and a more recent 10-Q on file, the artifact
+    must surface the 10-Q values. ``edgar-python``'s standardized getters
+    default to ``annual=True`` (FY only). The provider passes ``annual=False``
+    for assets/liabilities/equity so the most recent point wins regardless
+    of form type — verified by mocking distinct annual vs non-annual
+    return values."""
+    p = EdgarToolsProvider("Jane Doe jane@example.com")
+    facts = MagicMock()
+    facts.get_ttm_revenue.return_value = None
+    facts.get_ttm_net_income.return_value = None
+    facts.get_revenue.return_value = None
+    facts.get_net_income.return_value = None
+    facts.get_gross_profit.return_value = None
+    facts.get_operating_income.return_value = None
+
+    # FY 10-K value vs. Q1 10-Q value — must pick the Q1 (annual=False) one.
+    # Numbers anchor to TSLA on 2026-05-28: 10-K $137.806B vs 10-Q $143.724B.
+    def _assets(annual: bool = True) -> float:
+        return 137_806_000_000 if annual else 143_724_000_000
+
+    def _liab(annual: bool = True) -> float:
+        return 54_941_000_000 if annual else 58_922_000_000
+
+    def _equity(annual: bool = True) -> float:
+        return 82_137_000_000 if annual else 84_116_000_000
+
+    facts.get_total_assets.side_effect = _assets
+    facts.get_total_liabilities.side_effect = _liab
+    facts.get_shareholders_equity.side_effect = _equity
+
+    c = MagicMock()
+    c.get_facts.return_value = facts
+    data, _ = p._fetch_xbrl(c)
+
+    # Must surface the Q1 10-Q values, not the FY 10-K.
+    assert data["latest_total_assets"] == 143_724_000_000
+    assert data["latest_total_liabilities"] == 58_922_000_000
+    assert data["latest_shareholders_equity"] == 84_116_000_000
 
 
 @pytest.mark.asyncio

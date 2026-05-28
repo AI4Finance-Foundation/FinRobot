@@ -315,7 +315,15 @@ async def _enrich_price_payload_from_financial_cache(
     ticker: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Fill display metadata from financials cache without adding network work."""
+    """Fill display metadata from financials cache without adding network work.
+
+    Also stamps ``as_of`` — the date of the latest price bar, i.e. the session
+    ``current_price`` belongs to. The freshness pill binds to this, not to
+    ``fetched_at`` (the fetch wall-clock), so a closed-market view can't claim
+    "near-real-time" over a prior session's closing price (ADR-0004 audit A/B).
+    Every /price return path flows through here, so this is the one place to set it.
+    """
+    _stamp_as_of(payload)
     if payload.get("market_cap") is not None and payload.get("company_name") is not None:
         return payload
 
@@ -335,6 +343,21 @@ async def _enrich_price_payload_from_financial_cache(
     if payload.get("company_name") is None:
         payload["company_name"] = raw.get("company_name")
     return payload
+
+
+def _stamp_as_of(payload: dict[str, Any]) -> None:
+    """Set ``payload['as_of']`` to the latest price bar's date when absent.
+
+    This is the semantic time of the data (the session the price represents),
+    which the freshness pill reads — distinct from ``fetched_at`` (fetch time).
+    """
+    if payload.get("as_of"):
+        return
+    hist = payload.get("history") or payload.get("price_history")
+    if isinstance(hist, list) and hist and isinstance(hist[-1], dict):
+        last_date = hist[-1].get("date")
+        if last_date:
+            payload["as_of"] = last_date
 
 
 def _price_change_from_history(history: list[Any]) -> tuple[float | None, float | None]:

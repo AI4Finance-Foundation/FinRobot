@@ -7,10 +7,15 @@ average across valuation methods. Same inputs always produce same result.
 from __future__ import annotations
 
 import logging
+import statistics
 
 from finrobot.engine.models.financial import ValuationMethod, ValuationSynthesis
 
 logger = logging.getLogger(__name__)
+
+# Any method whose mid deviates from the cross-method median by more than this
+# fraction is flagged in outlier_methods and a warning is appended.
+_OUTLIER_THRESHOLD = 0.30
 
 
 def synthesize_valuations(
@@ -24,6 +29,10 @@ def synthesize_valuations(
     When fewer than 2 methods are present, ``weighted_price`` and
     ``upside_downside`` are set to ``None`` — a single-method result has no
     cross-check and MUST NOT be surfaced as a meaningful weighted average.
+
+    Cross-method spread check (≥2 methods): any method whose mid deviates from
+    the median of all mids by > 30% is added to ``outlier_methods`` and a
+    human-readable entry is appended to ``warnings``.
 
     Args:
         methods: List of valuation method results, each with a confidence weight.
@@ -56,9 +65,37 @@ def synthesize_valuations(
 
     weighted_price = sum(m.mid * m.confidence for m in methods) / total_confidence
     upside_downside = (weighted_price - current_price) / current_price
+
+    # --- Cross-method spread check ---
+    mids = [m.mid for m in methods]
+    median_mid = statistics.median(mids)
+
+    outlier_methods: list[str] = []
+    synthesis_warnings: list[str] = []
+
+    if median_mid != 0:
+        for m in methods:
+            deviation = abs(m.mid - median_mid) / abs(median_mid)
+            if deviation > _OUTLIER_THRESHOLD:
+                outlier_methods.append(m.name)
+                synthesis_warnings.append(
+                    f"Method spread warning: {m.name} mid ${m.mid:.2f} deviates "
+                    f"{deviation:.0%} from median ${median_mid:.2f}"
+                )
+                logger.warning(
+                    "synthesize_valuations: %s mid $%.2f deviates %.0f%% from "
+                    "cross-method median $%.2f — flagged as outlier",
+                    m.name,
+                    m.mid,
+                    deviation * 100,
+                    median_mid,
+                )
+
     return ValuationSynthesis(
         methods=methods,
         weighted_price=weighted_price,
         current_price=current_price,
         upside_downside=upside_downside,
+        outlier_methods=outlier_methods,
+        warnings=synthesis_warnings,
     )

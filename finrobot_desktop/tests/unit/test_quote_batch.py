@@ -137,6 +137,119 @@ def test_attribute_error_on_one_ticker_is_isolated(monkeypatch: pytest.MonkeyPat
     assert out == {"GOOD": 50.0, "BAD": None}
 
 
+def test_yfinance_rate_limit_propagates_as_QuoteFetchRateLimited(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Yahoo 429 must NOT be silently mapped to None.
+
+    Before this guard a single rate-limit error inside the batch loop
+    was caught and the ticker's slot filled with ``None``. The async
+    cache then wrote that None across L1+L2 for the full TTL, taking
+    the landing dashboard cold even after the upstream recovered.
+    Now the batch raises ``QuoteFetchRateLimited`` so the cache layer
+    preserves stale values instead.
+    """
+    fake = types.ModuleType("yfinance")
+    fake_exceptions = types.ModuleType("yfinance.exceptions")
+
+    class YFException(Exception):
+        pass
+
+    class YFRateLimitError(YFException):
+        pass
+
+    class _FastInfoGood:
+        last_price = 50.0
+
+    class _FastInfoLimited:
+        @property
+        def last_price(self) -> float:
+            raise YFRateLimitError("Too Many Requests")
+
+    class _Ticker:
+        def __init__(self, sym: str) -> None:
+            self.fast_info = _FastInfoLimited() if sym.upper() == "LIMIT" else _FastInfoGood()
+
+    class _Tickers:
+        def __init__(self, joined: str) -> None:
+            self.tickers = {s.upper(): _Ticker(s) for s in joined.split()}
+
+    fake.Ticker = _Ticker  # type: ignore[attr-defined]
+    fake.Tickers = _Tickers  # type: ignore[attr-defined]
+    fake_exceptions.YFException = YFException  # type: ignore[attr-defined]
+    fake_exceptions.YFRateLimitError = YFRateLimitError  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "yfinance", fake)
+    monkeypatch.setitem(sys.modules, "yfinance.exceptions", fake_exceptions)
+
+    with pytest.raises(quote_batch.QuoteFetchRateLimited):
+        quote_batch.fetch_quotes_batch(["GOOD", "LIMIT"])
+
+
+def test_fetch_one_rate_limit_raises_QuoteFetchRateLimited(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The single-ticker fallback path also has to raise on 429.
+
+    The async cached entry point fans out to ``_fetch_one`` per ticker;
+    if it swallowed the rate limit the cache would still write None.
+    """
+    fake = types.ModuleType("yfinance")
+    fake_exceptions = types.ModuleType("yfinance.exceptions")
+
+    class YFException(Exception):
+        pass
+
+    class YFRateLimitError(YFException):
+        pass
+
+    class _FastInfoLimited:
+        @property
+        def last_price(self) -> float:
+            raise YFRateLimitError("HTTP 429 Too Many Requests")
+
+    class _Ticker:
+        def __init__(self, _sym: str) -> None:
+            self.fast_info = _FastInfoLimited()
+
+    fake.Ticker = _Ticker  # type: ignore[attr-defined]
+    fake_exceptions.YFException = YFException  # type: ignore[attr-defined]
+    fake_exceptions.YFRateLimitError = YFRateLimitError  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "yfinance", fake)
+    monkeypatch.setitem(sys.modules, "yfinance.exceptions", fake_exceptions)
+
+    with pytest.raises(quote_batch.QuoteFetchRateLimited):
+        quote_batch._fetch_one("AAPL")
+
+
+def test_fetch_one_message_only_rate_limit_still_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When yfinance surfaces 429 as bare RuntimeError/YFException without
+    the typed subclass, message-sniffing must still catch it.
+
+    Real-world repro: ``yfinance.data._make_request`` historically threw
+    ``Exception('HTTP Error 429')`` on some code paths before yfinance
+    added the typed ``YFRateLimitError`` class. The fix must handle both.
+    """
+    fake = types.ModuleType("yfinance")
+
+    class _FastInfoLimited:
+        @property
+        def last_price(self) -> float:
+            raise RuntimeError("Too Many Requests. Rate limited.")
+
+    class _Ticker:
+        def __init__(self, _sym: str) -> None:
+            self.fast_info = _FastInfoLimited()
+
+    fake.Ticker = _Ticker  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "yfinance", fake)
+    monkeypatch.delitem(sys.modules, "yfinance.exceptions", raising=False)
+
+    with pytest.raises(quote_batch.QuoteFetchRateLimited):
+        quote_batch._fetch_one("AAPL")
+
+
 def test_logger_warns_on_yfinance_missing(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:

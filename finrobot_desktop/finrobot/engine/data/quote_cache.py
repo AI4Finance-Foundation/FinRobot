@@ -14,8 +14,16 @@ Lookup flow for ``get_batch(tickers, fetcher)``:
   3. For remaining (still missing or stale), call ``fetcher(missing)``
      ONCE, write results into both L1 and L2
 
-Failures land as ``None`` in both layers — same TTL applies, so we don't
-loop-hammer yfinance for a delisted symbol.
+Terminal failures (delisted, ticker-not-found, network reset) land as
+``None`` in both layers — same TTL applies, so we don't loop-hammer
+yfinance for a dead symbol.
+
+Rate-limit failures take a different path. When the fetcher raises
+:class:`QuoteFetchRateLimited`, every previously cached value (even
+TTL-expired) is returned as-is and NO write happens. Without this
+distinction a Yahoo 429 burst overwrote every studied ticker with
+``None`` for the full TTL, taking the landing dashboard cold for
+60 seconds even after the upstream recovered.
 """
 
 from __future__ import annotations
@@ -32,6 +40,18 @@ import aiosqlite
 from finrobot import paths as _paths
 
 logger = logging.getLogger(__name__)
+
+
+class QuoteFetchRateLimited(RuntimeError):
+    """Fetcher signalled the upstream quote source rate-limited us.
+
+    The cache layer treats this distinctly from generic fetcher
+    failures: existing rows are preserved (even past TTL) and no
+    ``None`` tombstone is written. Other failure modes (delisted
+    ticker, network reset) still tomb-stone for the full TTL so we
+    don't loop-hammer yfinance for a dead symbol.
+    """
+
 
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS quotes_cache (
@@ -157,12 +177,53 @@ class QuoteCache:
 
         # Origin
         if missing:
+            rate_limited = False
             try:
                 fetched = await fetcher(missing)
+            except QuoteFetchRateLimited as exc:
+                # Upstream 429: keep whatever stale price the cache has
+                # rather than tomb-stoning the ticker with None for 60s.
+                # The freshness pill will already classify these as
+                # stale/delayed by their fetched_at age (>5min cyan,
+                # >30min red), so the user sees the truth without losing
+                # the price entirely.
+                logger.warning(
+                    "Quote fetcher rate-limited for %s — preserving stale cache: %s",
+                    missing,
+                    exc,
+                )
+                rate_limited = True
+                fetched = {}
             except (OSError, ValueError, TypeError, RuntimeError) as exc:
                 logger.warning("Quote fetcher failed for %s: %s", missing, exc)
                 fetched = dict.fromkeys(missing)
             now = time.time()
+            if rate_limited:
+                # Don't touch L2/L1. Fall back to whatever stale row L2
+                # holds, even if past TTL. If L2 has nothing either, the
+                # ticker is simply absent from the result — caller deals
+                # with None like any cold miss.
+                try:
+                    conn = await self._conn_ready()
+                    placeholders = ",".join("?" * len(missing))
+                    async with conn.execute(
+                        f"SELECT ticker, last_price FROM quotes_cache "
+                        f"WHERE ticker IN ({placeholders})",
+                        missing,
+                    ) as cur:
+                        stale_rows = await cur.fetchall()
+                    for ticker, last_price in stale_rows:
+                        result[ticker] = last_price
+                except sqlite3.Error:
+                    logger.exception(
+                        "QuoteCache stale read after rate-limit failed for %s",
+                        missing,
+                    )
+                    await self._drop_conn()
+                for sym in missing:
+                    result.setdefault(sym, None)
+                return result
+
             # L2 write is best-effort. Same reasoning as the L2 read: a
             # broken conn must not poison L1 promotion or the response.
             try:

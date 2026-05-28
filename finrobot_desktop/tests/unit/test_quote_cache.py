@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from finrobot.engine.data.quote_cache import QuoteCache
+from finrobot.engine.data.quote_cache import QuoteCache, QuoteFetchRateLimited
 
 
 @pytest.mark.asyncio
@@ -139,6 +139,91 @@ async def test_empty_input_returns_empty(tmp_path: Path) -> None:
 
     result = await cache.get_batch([], fetcher=fail_if_called)
     assert result == {}
+    await cache.close()
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_preserves_stale_l2_value(tmp_path: Path) -> None:
+    """Upstream 429 must NOT overwrite a previously cached quote with None.
+
+    Repro of the live yfinance rate-limit bug: warm cache → TTL expires
+    → next fetch hits 429 → previously the cache wrote None across L1/L2
+    for the full TTL, taking the landing dashboard cold even after Yahoo
+    recovered. Now QuoteFetchRateLimited returns the stale row instead.
+    """
+    cache = QuoteCache(db_path=tmp_path / "q.db", ttl_seconds=0)
+
+    async def first(missing: list[str]) -> dict[str, float | None]:
+        return {t: 150.0 for t in missing}
+
+    # Warm L2 with a value.
+    await cache.get_batch(["AAPL"], fetcher=first)
+    await asyncio.sleep(0.01)  # TTL expired
+
+    async def rate_limited(missing: list[str]) -> dict[str, float | None]:
+        raise QuoteFetchRateLimited("Yahoo 429")
+
+    result = await cache.get_batch(["AAPL"], fetcher=rate_limited)
+    assert result == {"AAPL": 150.0}, "must return stale L2 value, not None"
+
+    # Verify L1 still holds nothing fresh-but-None — next call after upstream
+    # recovers should fetch, not serve a tombstone.
+    fresh_calls: list[str] = []
+
+    async def fresh(missing: list[str]) -> dict[str, float | None]:
+        fresh_calls.extend(missing)
+        return {t: 200.0 for t in missing}
+
+    result2 = await cache.get_batch(["AAPL"], fetcher=fresh)
+    assert result2 == {"AAPL": 200.0}, "post-recovery fetch must overwrite"
+    assert fresh_calls == ["AAPL"], "rate-limit must not have written None to L1"
+    await cache.close()
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_without_stale_returns_none(tmp_path: Path) -> None:
+    """First-ever fetch hits 429 → result has None but no tombstone written.
+
+    The dashboard already renders ``None`` as a "no quote yet" state; the
+    invariant here is that the next request after upstream recovery still
+    invokes the fetcher (cache must not have learned a False answer).
+    """
+    cache = QuoteCache(db_path=tmp_path / "q.db", ttl_seconds=60)
+
+    async def rate_limited(missing: list[str]) -> dict[str, float | None]:
+        raise QuoteFetchRateLimited("Yahoo 429")
+
+    result = await cache.get_batch(["NEW"], fetcher=rate_limited)
+    assert result == {"NEW": None}
+
+    fresh_calls: list[str] = []
+
+    async def fresh(missing: list[str]) -> dict[str, float | None]:
+        fresh_calls.extend(missing)
+        return {t: 50.0 for t in missing}
+
+    result2 = await cache.get_batch(["NEW"], fetcher=fresh)
+    assert result2 == {"NEW": 50.0}
+    assert fresh_calls == ["NEW"], "no tombstone — fetcher must be invoked"
+    await cache.close()
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_partial_batch_preserves_only_stale(tmp_path: Path) -> None:
+    """Mixed batch: 1 ticker has stale L2, 1 doesn't → preserve stale + None for cold."""
+    cache = QuoteCache(db_path=tmp_path / "q.db", ttl_seconds=0)
+
+    async def first(missing: list[str]) -> dict[str, float | None]:
+        return {t: 150.0 for t in missing}
+
+    await cache.get_batch(["AAPL"], fetcher=first)
+    await asyncio.sleep(0.01)
+
+    async def rate_limited(missing: list[str]) -> dict[str, float | None]:
+        raise QuoteFetchRateLimited("Yahoo 429")
+
+    result = await cache.get_batch(["AAPL", "COLD"], fetcher=rate_limited)
+    assert result == {"AAPL": 150.0, "COLD": None}
     await cache.close()
 
 

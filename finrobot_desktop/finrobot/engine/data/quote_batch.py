@@ -10,8 +10,15 @@ Two entry points:
                                         routes and pipelines.
 
 The async path consults a process-wide :class:`QuoteCache` singleton with a
-60s TTL. Per-ticker failures (delisted, fast_info miss) get cached as
+60s TTL. Per-ticker terminal failures (delisted, fast_info miss) cache as
 ``None`` so we don't beat yfinance on every refresh for a dead symbol.
+
+Rate-limit errors (Yahoo 429) are NOT terminal and never write None: they
+re-raise as :class:`QuoteFetchRateLimited` so :meth:`QuoteCache.get_batch`
+can preserve the previous (stale) value rather than poisoning the cache
+for 60 seconds. Without this distinction a single 429 burst put every
+studied ticker into a None tombstone, taking the landing dashboard cold
+for the full TTL.
 
 Leaf-layer rules: no imports from routes / pipelines / agents.
 """
@@ -22,12 +29,64 @@ import asyncio
 import logging
 from collections.abc import Iterable
 
-from finrobot.engine.data.quote_cache import QuoteCache
+from finrobot.engine.data.quote_cache import QuoteCache, QuoteFetchRateLimited
+
+__all__ = [
+    "QuoteFetchRateLimited",  # re-exported so callers can still import from here
+    "close_quote_cache_singleton",
+    "fetch_quotes_batch",
+    "fetch_quotes_batch_cached",
+    "reset_quote_cache_singleton",
+]
 
 logger = logging.getLogger(__name__)
 
 
+try:
+    from yfinance.exceptions import YFRateLimitError as _YFRateLimitError
+except ImportError:  # pragma: no cover — yfinance always installed in this app
+    class _YFRateLimitError(Exception):  # type: ignore[no-redef]
+        """Stand-in when yfinance is unavailable; matches nothing real."""
+
+
 _GLOBAL_QUOTE_CACHE: QuoteCache | None = None
+
+
+def _is_rate_limited(exc: BaseException) -> bool:
+    """True iff ``exc`` looks like a Yahoo rate-limit error.
+
+    Checks the typed exception first, then falls back to message
+    sniffing because yfinance occasionally surfaces 429s as a generic
+    ``YFException`` or ``RuntimeError`` depending on the call path.
+    """
+    if isinstance(exc, _YFRateLimitError):
+        return True
+    msg = str(exc).lower()
+    return "too many requests" in msg or "rate limit" in msg or "429" in msg
+
+
+def _quote_fetch_exceptions() -> tuple[type[BaseException], ...]:
+    """Concrete failures that make one yfinance quote unavailable.
+
+    Note: ``YFRateLimitError`` is a subclass of ``YFException``, so a
+    bare ``except _quote_fetch_exceptions()`` would swallow rate-limit
+    errors. Callers MUST check ``_is_rate_limited`` first and re-raise
+    as :class:`QuoteFetchRateLimited` before falling into this catch.
+    """
+    catch: list[type[BaseException]] = [
+        ImportError,
+        AttributeError,
+        ValueError,
+        TypeError,
+        OSError,
+        RuntimeError,
+    ]
+    try:
+        from yfinance.exceptions import YFException
+    except ImportError:
+        return tuple(catch)
+    catch.append(YFException)
+    return tuple(catch)
 
 
 def reset_quote_cache_singleton() -> None:
@@ -64,7 +123,12 @@ def _get_singleton() -> QuoteCache:
 
 
 def _fetch_via_yfinance(tickers: list[str]) -> dict[str, float | None]:
-    """Synchronous yfinance call — wrap in :func:`asyncio.to_thread` from async."""
+    """Synchronous yfinance call — wrap in :func:`asyncio.to_thread` from async.
+
+    Raises :class:`QuoteFetchRateLimited` on Yahoo 429 so the cache layer
+    preserves stale values. Other per-ticker failures still surface as
+    ``None`` entries (delisting tombstone).
+    """
     if not tickers:
         return {}
     try:
@@ -76,6 +140,8 @@ def _fetch_via_yfinance(tickers: list[str]) -> dict[str, float | None]:
     try:
         container = yf.Tickers(" ".join(tickers))
     except (ValueError, OSError) as exc:
+        if _is_rate_limited(exc):
+            raise QuoteFetchRateLimited("yf.Tickers init rate-limited") from exc
         logger.warning("yf.Tickers init failed (%s) — falling back to per-ticker", exc)
         return {sym: _fetch_one(sym) for sym in tickers}
 
@@ -91,14 +157,23 @@ def _fetch_via_yfinance(tickers: list[str]) -> dict[str, float | None]:
             if price is None:
                 price = getattr(info, "lastPrice", None)
             out[sym] = float(price) if price is not None else None
-        except (AttributeError, ValueError, TypeError, OSError):
+        except _quote_fetch_exceptions() as exc:
+            if _is_rate_limited(exc):
+                raise QuoteFetchRateLimited(
+                    f"yfinance rate-limited while fetching {sym}"
+                ) from exc
             logger.exception("Quote fetch failed for %s", sym)
             out[sym] = None
     return out
 
 
 def _fetch_one(symbol: str) -> float | None:
-    """Single-ticker fallback used when the batch init itself errors."""
+    """Single-ticker fallback used when the batch init itself errors.
+
+    Raises :class:`QuoteFetchRateLimited` on Yahoo 429 — callers must let
+    it propagate so :class:`QuoteCache` keeps the previous value instead
+    of writing a None tombstone for 60s.
+    """
     try:
         import yfinance as yf
 
@@ -107,7 +182,11 @@ def _fetch_one(symbol: str) -> float | None:
         if price is None:
             price = getattr(info, "lastPrice", None)
         return float(price) if price is not None else None
-    except (ImportError, AttributeError, ValueError, TypeError, OSError):
+    except _quote_fetch_exceptions() as exc:
+        if _is_rate_limited(exc):
+            raise QuoteFetchRateLimited(
+                f"yfinance rate-limited while fetching {symbol}"
+            ) from exc
         logger.exception("Single-ticker fallback failed for %s", symbol)
         return None
 

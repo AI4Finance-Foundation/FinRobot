@@ -21,6 +21,23 @@ def _num(value: Any) -> float | None:
         return None
 
 
+def _ttm_value(field: Any) -> float | None:
+    """Extract the numeric value from an XBRL TTM concept dict.
+
+    ``edgar_provider._fetch_xbrl`` returns ``ttm_revenue`` / ``ttm_net_income``
+    as ``{"concept": ..., "value": ..., "periods": [...]}``. The downstream
+    overriders need the bare float. Returns None when the field is absent or
+    malformed — callers must then **skip** the override rather than fall
+    through to ``latest_*``, which is the latest annual snapshot (10-K) and
+    on most issuers lags the TTM caliber by 1-2 quarters; mixing FY-annual
+    into a peer table built on TTM is the very bug this helper exists to
+    prevent.
+    """
+    if not isinstance(field, dict):
+        return None
+    return _num(field.get("value"))
+
+
 def xbrl_concept_snapshot(raw_xbrl: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     """Return artifact-ready fact lists keyed by us-gaap concept.
 
@@ -75,10 +92,23 @@ def build_xbrl_aligned_company(
     financial_data: FinancialData,
     xbrl_data: dict[str, Any] | None,
 ) -> CompanyFinancials:
-    """Create CompanyFinancials with SEC XBRL overriding core line items."""
+    """Create CompanyFinancials with SEC XBRL overriding core line items.
+
+    XBRL preference order: ``ttm_*`` (rolling 4-quarter, caliber matches
+    the FMP TTM that drives the rest of the report) → fall back to the FMP
+    snapshot in ``financial_data``. ``latest_*`` (the latest 10-K annual
+    point) is deliberately NOT consulted — surfacing FY-annual revenue/NI
+    next to TTM EBITDA / TTM EV-multiples is what caused the 2026-05-28
+    Ford peer-row P/E hallucination (artifact wrote FY2024 NI $5.879B
+    instead of TTM NI -$6.105B and rendered a phantom P/E of 10.6x).
+    """
     xbrl_data = xbrl_data or {}
-    revenue = _num(xbrl_data.get("latest_revenue")) or financial_data.income.revenue
-    net_income = _num(xbrl_data.get("latest_net_income")) or financial_data.income.net_income
+    ttm_rev = _ttm_value(xbrl_data.get("ttm_revenue"))
+    ttm_ni = _ttm_value(xbrl_data.get("ttm_net_income"))
+    # Use ``is not None`` (not ``or``) so a genuinely-negative TTM NI such as
+    # Ford's -$6.1B doesn't fall through to a stale annual fallback.
+    revenue = ttm_rev if ttm_rev is not None else financial_data.income.revenue
+    net_income = ttm_ni if ttm_ni is not None else financial_data.income.net_income
     ebitda = financial_data.income.ebitda
     gross_margin = financial_data.income.gross_margin
     operating_margin = financial_data.income.operating_margin
@@ -101,11 +131,19 @@ def override_company_with_xbrl(
     company: CompanyFinancials,
     xbrl_data: dict[str, Any] | None,
 ) -> CompanyFinancials:
-    """Return CompanyFinancials with SEC XBRL revenue/net income when present."""
+    """Override CompanyFinancials with SEC XBRL TTM revenue / net income.
+
+    Peers carry FMP TTM at entry; only ``ttm_*`` XBRL facts replace those
+    values. ``latest_*`` (10-K annual) is intentionally NOT consulted: it
+    lags the TTM caliber and silently re-introduces FY-annual numbers
+    into a TTM peer table — the exact path that surfaced Ford's phantom
+    P/E of 10.6x in the 2026-05-28 TSLA artifact (FY2024 NI $5.879B
+    overrode the real TTM NI of -$6.105B).
+    """
     xbrl_data = xbrl_data or {}
     updates: dict[str, float] = {}
-    revenue = _num(xbrl_data.get("latest_revenue"))
-    net_income = _num(xbrl_data.get("latest_net_income"))
+    revenue = _ttm_value(xbrl_data.get("ttm_revenue"))
+    net_income = _ttm_value(xbrl_data.get("ttm_net_income"))
     if revenue is not None:
         updates["revenue"] = revenue
     if net_income is not None:

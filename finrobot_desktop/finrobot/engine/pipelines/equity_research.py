@@ -310,7 +310,12 @@ async def _execute_peer_analysis(
         instructions=(
             "Select 3-5 comparable publicly traded companies for peer analysis. "
             "Choose companies in the same sector with similar business models and market cap. "
-            "Return valid ticker symbols only (e.g. MSFT, GOOGL, not 'Microsoft')."
+            "Return valid ticker symbols only (e.g. MSFT, GOOGL, not 'Microsoft').\n\n"
+            "**Peer 选择硬约束**：\n"
+            "所有 peer 必须与 target 的 yfinance industry 字段完全一致（不是 sector，是 industry）。\n"
+            "例：AAPL industry='Consumer Electronics' → peer 必须也是 Consumer Electronics。\n"
+            "不允许跨 industry 选 peer（即使同 sector）。\n"
+            "如果合规 peer 不足 5 个，宁可 3-4 个也不要补凑跨 industry 的。"
         ),
         defer_model_check=True,
     )
@@ -709,6 +714,83 @@ async def _execute_thesis(
             f"method points where it does and why the verdict is consistent with the upside."
         )
 
+    # ── Numeric discipline whitelist ──────────────────────────────────────────
+    # Append AFTER any canonical-target block so it always lands last and is
+    # the most prominent constraint in the prompt window.
+    vs_for_prompt = structured_context.get("valuation_synthesis")
+    pa_for_prompt = structured_context.get("peer_analysis")
+    fm_for_prompt = structured_context.get("financial_modeling")
+    xbrl_snap = structured_context.get("xbrl_facts_snapshot") or {}
+
+    # Build whitelist summary from the actual artifact fields the LLM may cite.
+    _whitelist_parts: list[str] = [
+        "\n\n**严格数字纪律（违反即任务失败）：**",
+        "你只能引用以下字段的数字。引用任何其他数字（包括你训练数据里'记得的' P/E、市值、"
+        "增长率）都属于违规，必须被 prompt-fidelity 评估标记为 hallucination：",
+    ]
+    if isinstance(vs_for_prompt, ValuationSynthesis):
+        for m in vs_for_prompt.methods:
+            _whitelist_parts.append(
+                f"  - valuation_synthesis.methods['{m.name}']: "
+                f"low=${m.low:.2f}, mid=${m.mid:.2f}, high=${m.high:.2f}"
+            )
+        if vs_for_prompt.weighted_price is not None:
+            _whitelist_parts.append(
+                f"  - valuation_synthesis.weighted_price: ${vs_for_prompt.weighted_price:.2f}"
+            )
+    if isinstance(pa_for_prompt, PeerComps):
+        _whitelist_parts.append(
+            f"  - peer_analysis.median_ev_ebitda: {pa_for_prompt.median_ev_ebitda}"
+        )
+        _whitelist_parts.append(
+            f"  - peer_analysis.median_pe: {pa_for_prompt.median_pe}"
+        )
+        _whitelist_parts.append(
+            f"  - peer_analysis.median_ev_revenue: {pa_for_prompt.median_ev_revenue}"
+        )
+        for p in pa_for_prompt.peers[:8]:
+            _whitelist_parts.append(
+                f"  - peer_analysis.peers['{p.ticker}']: "
+                f"ev_ebitda={p.ev_ebitda}, pe_ratio={p.pe_ratio}, "
+                f"market_cap={p.market_cap}"
+            )
+    if isinstance(fm_for_prompt, DCFResult):
+        _whitelist_parts.append(
+            f"  - financial_modeling.implied_price: ${fm_for_prompt.implied_price:.2f}"
+        )
+        _whitelist_parts.append(
+            f"  - financial_modeling.wacc: {fm_for_prompt.wacc:.4f}"
+        )
+        _whitelist_parts.append(
+            f"  - financial_modeling.terminal_growth_rate: "
+            f"{fm_for_prompt.inputs.terminal_growth_rate:.4f}"
+        )
+    if xbrl_snap:
+        _whitelist_parts.append("  - xbrl_facts_snapshot.*: (injected above in structured data)")
+    _whitelist_parts += [
+        "禁止使用：你'记得'的任何 P/E、PEG、PB、yield、市值、增长率——这些必须来自上方字段。",
+        "违反检查：narrative 和所有 LLM narrative 字段里出现的每个数字必须能从上述字段精确"
+        "提取或派生（如 % change）。若上方字段不含某数字，用定性描述而非编造数值。",
+    ]
+    thesis_prompt = thesis_prompt + "\n".join(_whitelist_parts)
+
+    # ── Company Overview: segment / geography grounding ───────────────────────
+    # edgartools EntityFacts does not expose a segment getter (verified 2026-05-28).
+    # We cannot inject XBRL-sourced segment splits. Prompt discipline is the only
+    # guard: prohibit fabrication and require the LLM to label absence explicitly.
+    _co_context = (
+        "\n\n**公司分部 / 地理营收（SEC XBRL 核查）：**\n"
+        "SEC XBRL 当前不提供按分部或地理区域拆分的结构化营收数据。\n"
+        "因此：\n"
+        "  1. 不要引用任何具体的分部占比数字（如'产品占80%'）或地区拆分数字"
+        "（如'大中华区占20%'），除非这些数字出现在上方注入的 xbrl_facts_snapshot 里。\n"
+        "  2. 如果 xbrl_facts_snapshot 里没有分部数据，在 company_overview 里明确写：\n"
+        "     '分部营收拆分信息未在 SEC XBRL 结构化数据中获取，具体比例请参阅最新年报。'\n"
+        "  3. 可以定性描述业务线（如'以消费电子设备和服务生态为核心'），但不能给出"
+        "无数据支撑的百分比。\n"
+    )
+    thesis_prompt = thesis_prompt + _co_context
+
     synthesis_agent = Agent(
         deps.settings.create_model(),
         output_type=ThesisResult,
@@ -732,12 +814,17 @@ async def _execute_thesis(
             "`risks`) — present-tense conclusions about why this is a Buy/Hold/Sell now.\n"
             "  - company_overview:  200-300 字 Company Overview (第 8 synthesis slot). "
             "Cover (a) the core business model and what the firm sells, (b) the reportable "
-            "segments with revenue mix percentages and YoY growth, (c) geographic exposure "
-            "split, and (d) the durable competitive moat. Investment-bank tone — write as "
-            "if introducing the issuer in an initiating-coverage report.\n"
+            "segments — but ONLY cite segment revenue percentages that appear in the injected "
+            "xbrl_facts_snapshot; if absent, state explicitly that segment data is "
+            "unavailable in XBRL and do NOT fabricate figures, (c) geographic exposure — "
+            "same rule: cite only data present in xbrl_facts_snapshot or state it is "
+            "unavailable, and (d) the durable competitive moat. Investment-bank tone — write "
+            "as if introducing the issuer in an initiating-coverage report.\n"
             "  - valuation_overview: 150-200 字解读 — why DCF vs Comps vs DDM give the "
-            "implied prices they do, and how the weighted target was reached.\n"
-            "  - competitor_analysis: 3-4 句话讲清楚 vs 同业的市占 / 增速 / 估值倍数差异。\n"
+            "implied prices they do, and how the weighted target was reached. "
+            "Only cite numbers present in the whitelist injected in the prompt.\n"
+            "  - competitor_analysis: 3-4 句话讲清楚 vs 同业的市占 / 增速 / 估值倍数差异。"
+            "Only cite peer multiples from peer_analysis fields listed in the whitelist.\n"
             "  - news_summary:      3-5 句话总结近 30 天关键新闻的整体情绪与对论点的支撑/挑战。"
         ),
         defer_model_check=True,

@@ -586,10 +586,20 @@ async def _execute_technical_analysis(
         )
     if payload.sniper is not None:
         sn = payload.sniper
-        summary_parts.append(
-            f"Sniper levels: buy ${sn.ideal_buy:.2f}, stop ${sn.stop_loss:.2f}, "
-            f"target ${sn.take_profit:.2f} (R/R {sn.risk_reward_ratio:.1f})."
-        )
+        # Label entry / target side per trade direction. SHORT trades cover
+        # below entry; rendering them as "buy / target" reads as a long.
+        if sn.direction == "SHORT":
+            summary_parts.append(
+                f"Sniper SHORT levels: short ${sn.ideal_buy:.2f}, "
+                f"stop ${sn.stop_loss:.2f}, cover ${sn.take_profit:.2f} "
+                f"(R/R {sn.risk_reward_ratio:.1f})."
+            )
+        else:
+            summary_parts.append(
+                f"Sniper levels: buy ${sn.ideal_buy:.2f}, "
+                f"stop ${sn.stop_loss:.2f}, target ${sn.take_profit:.2f} "
+                f"(R/R {sn.risk_reward_ratio:.1f})."
+            )
     if payload.historical_bands is not None:
         hb = payload.historical_bands
         cur = f"{hb.current:.1f}x" if hb.current is not None else "n/a"

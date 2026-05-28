@@ -32,6 +32,9 @@ class SniperRequest(BaseModel):
 
 
 class SniperPoints(BaseModel):
+    # ``ideal_buy`` / ``secondary_buy`` are entries; in SHORT mode they are
+    # the *short-entry* levels (open the short here / add here on bounce).
+    # Always interpret these together with ``direction`` — never assume LONG.
     ideal_buy: float
     secondary_buy: float
     stop_loss: float
@@ -40,8 +43,15 @@ class SniperPoints(BaseModel):
     safety_margin: float  # the discount applied to DCF target
     support_level: float  # detected support (20-day rolling min)
     resistance_level: float  # detected resistance (20-day rolling max)
-    risk_reward_ratio: float  # (take_profit - current) / (current - stop_loss)
+    risk_reward_ratio: float  # |take_profit - current| / |stop_loss - current|
     sell_mode: bool = False  # True when DCF intrinsic < current price
+    # "LONG" | "SHORT" — drives the rendering layer's labels and the
+    # invariant gate. SELL-rated artifacts used to ship LONG-flavoured
+    # field semantics with ``stop_loss`` ($484.40) sitting ABOVE the
+    # ``ideal_buy`` ($372.80), giving a risk/reward of 0.11 that read
+    # as a nonsensical long trade. Direction makes the SHORT semantics
+    # explicit and lets the UI swap labels (开空 / 止盈下方 / 止损上方).
+    direction: str = "LONG"
     invariant_warnings: list[str] = Field(default_factory=list)
 
 
@@ -95,34 +105,48 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
 
     if sell_mode:
         # ------------------------------------------------------------------ #
-        # SELL / overvalued mode                                              #
-        # DCF says the stock is too expensive.  We cannot anchor ideal_buy   #
-        # above current price (that's not a buy level — that's a short).     #
-        # Instead we use technical levels so a long trader knows where it     #
-        # would become attractive again.                                      #
+        # SHORT mode                                                          #
+        # DCF intrinsic is below current → the trade thesis is a short.       #
+        # Field semantics flip: ideal_buy / secondary_buy are SHORT entries,  #
+        # take_profit sits BELOW current (cover at DCF or at support),        #
+        # stop_loss sits ABOVE current (trend-reversal stop). Invariant:      #
+        # take_profit < ideal_buy <= stop_loss. The pre-fix code anchored     #
+        # all three levels around technical bounces of a hypothetical long,   #
+        # producing displays like ``buy 372.80 / stop 484.40 / R/R 0.11`` —   #
+        # incoherent against a SELL rating (sniper.py L94-120, audit          #
+        # 2026-05-28).                                                        #
         # ------------------------------------------------------------------ #
-        ideal_buy = support  # entry only if it pulls back to support
-        secondary_buy = support  # same anchor — no separate level is valid
-        take_profit = resistance  # short-term mean-reversion bounce target
-        stop_loss = current * 1.10  # long stop above current (trend-reversal)
-        safety_margin = 0.0  # not applicable in sell mode
+        direction = "SHORT"
+        # Short entry: current price (open now) and resistance (add on bounce).
+        ideal_buy = current
+        secondary_buy = max(resistance, current)
+        # Cover target: prefer DCF (the thesis) over technical support so we
+        # capture the full bear case; never go below support (avoids
+        # over-projection past validated demand).
+        take_profit = max(target, support)
+        # Trend-reversal stop ABOVE current: take whichever is higher of
+        # resistance and a 10% cushion so the stop never sits inside the
+        # 20-day range.
+        stop_loss = max(resistance, current * 1.10)
+        safety_margin = 0.0  # not applicable on a short
 
-        upside_abs = take_profit - current  # likely negative (resistance < current)
+        upside_abs = current - take_profit  # positive when target < current
         downside = stop_loss - current  # positive by construction
         risk_reward = upside_abs / downside if downside > 0 else 0.0
 
-        position_size = 1.0  # minimum sizing — no edge case in overvalued stock
+        position_size = 1.0  # minimum sizing — high uncertainty trade
 
         invariant_warnings.append(
-            f"DCF intrinsic ${target:.2f} < current ${current:.2f}: "
-            "switched to short-term technical anchors. "
-            "ideal_buy=support, take_profit=resistance, stop_loss=current*1.10."
+            f"DCF intrinsic ${target:.2f} < current ${current:.2f}: SHORT trade. "
+            f"entry=${ideal_buy:.2f}, cover=${take_profit:.2f}, "
+            f"stop=${stop_loss:.2f}, R/R={risk_reward:.2f}."
         )
 
     else:
         # ------------------------------------------------------------------ #
         # LONG / undervalued mode                                             #
         # ------------------------------------------------------------------ #
+        direction = "LONG"
         upside_pct = (target - current) / current  # positive
 
         if upside_pct > 0.30:
@@ -149,15 +173,33 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
         upside_abs = take_profit - current
         risk_reward = upside_abs / downside if downside > 0 else 0.0
 
-    # --- Invariant guards (any mode) -----------------------------------------
-    if take_profit < ideal_buy:
-        raise ValueError(
-            f"sniper invariant violated: take_profit {take_profit:.2f} < ideal_buy {ideal_buy:.2f}"
-        )
-    if not sell_mode and stop_loss >= ideal_buy:
-        raise ValueError(
-            f"sniper invariant violated (LONG): stop_loss {stop_loss:.2f} >= ideal_buy {ideal_buy:.2f}"
-        )
+    # --- Invariant guards ---------------------------------------------------
+    # LONG  : stop_loss <  ideal_buy <  take_profit  (stop below, target above)
+    # SHORT : take_profit <  ideal_buy <  stop_loss  (target below, stop above)
+    # Anything else is incoherent and we refuse to ship the artifact rather
+    # than let the UI render a phantom "buy at X / stop at Y where Y > X" row.
+    if sell_mode:
+        if take_profit > ideal_buy:
+            raise ValueError(
+                f"sniper invariant violated (SHORT): take_profit {take_profit:.2f} "
+                f"> ideal_buy {ideal_buy:.2f}"
+            )
+        if stop_loss <= ideal_buy:
+            raise ValueError(
+                f"sniper invariant violated (SHORT): stop_loss {stop_loss:.2f} "
+                f"<= ideal_buy {ideal_buy:.2f}"
+            )
+    else:
+        if take_profit < ideal_buy:
+            raise ValueError(
+                f"sniper invariant violated (LONG): take_profit {take_profit:.2f} "
+                f"< ideal_buy {ideal_buy:.2f}"
+            )
+        if stop_loss >= ideal_buy:
+            raise ValueError(
+                f"sniper invariant violated (LONG): stop_loss {stop_loss:.2f} "
+                f">= ideal_buy {ideal_buy:.2f}"
+            )
 
     return SniperPoints(
         ideal_buy=round(ideal_buy, 2),
@@ -170,5 +212,6 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
         resistance_level=round(resistance, 2),
         risk_reward_ratio=round(risk_reward, 2),
         sell_mode=sell_mode,
+        direction=direction,
         invariant_warnings=invariant_warnings,
     )

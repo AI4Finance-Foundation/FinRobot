@@ -85,52 +85,94 @@ def test_sniper_secondary_buy_equals_support():
 
 
 # ---------------------------------------------------------------------------
-# 2. Sell mode: DCF target < current price → sell_mode=True + technical anchors
-#    current=200, target=150 → sell_mode activated
-#    default prices: min=140, max=160
-#    ideal_buy = support = 140
-#    take_profit = resistance = 160
-#    stop_loss = 200 * 1.10 = 220
+# 2. SHORT mode: DCF target < current → coherent short trade
+#    current=200, target=150 → SHORT
+#    default prices: support=140, resistance=160
+#    Expected:
+#      direction="SHORT"
+#      ideal_buy   = current = 200.0          (open the short)
+#      take_profit = max(target, support) = max(150, 140) = 150.0   (cover)
+#      stop_loss   = max(resistance, current*1.10) = max(160, 220) = 220.0
+#    Invariant: take_profit (150) <  ideal_buy (200) <  stop_loss (220) ✓
+#    R/R         = (200 - 150) / (220 - 200) = 50 / 20 = 2.50
 # ---------------------------------------------------------------------------
 
-def test_sniper_sell_mode_when_target_below_current():
-    """sell_mode=True when DCF intrinsic < current; anchors switch to technicals.
-
-    Manual:
-    - ideal_buy = support = min(prices) = 140.0
-    - take_profit = resistance = max(prices) = 160.0
-    - stop_loss = current * 1.10 = 200 * 1.10 = 220.0
-    - invariant: take_profit (160) >= ideal_buy (140) ✓
-    """
+def test_sniper_short_mode_when_target_below_current():
+    """Reproduces the 2026-05-28 TSLA-class bug post-fix: SELL rating now
+    yields a coherent SHORT trade where take_profit sits BELOW current and
+    stop_loss sits ABOVE — not the pre-fix arrangement of
+    buy=$372.80 / stop=$484.40 / R/R=0.11 that read as a phantom long."""
     result = calculate_sniper_points(
         _req(current_price=200.0, dcf_target=150.0)
     )
     assert result.sell_mode is True
-    assert result.ideal_buy == pytest.approx(140.0, abs=0.01)  # support level
-    assert result.take_profit == pytest.approx(160.0, abs=0.01)  # resistance level
-    assert result.stop_loss == pytest.approx(220.0, abs=0.01)  # current * 1.10
-    assert result.take_profit >= result.ideal_buy  # core invariant
-    assert len(result.invariant_warnings) == 1
-    assert "DCF intrinsic" in result.invariant_warnings[0]
-    assert "switched to short-term technical anchors" in result.invariant_warnings[0]
+    assert result.direction == "SHORT"
+    assert result.ideal_buy == pytest.approx(200.0, abs=0.01)
+    assert result.take_profit == pytest.approx(150.0, abs=0.01)
+    assert result.stop_loss == pytest.approx(220.0, abs=0.01)
+    # SHORT invariant: target < entry < stop
+    assert result.take_profit < result.ideal_buy < result.stop_loss
+    # R/R = (current - cover) / (stop - current) = 50 / 20 = 2.50
+    assert result.risk_reward_ratio == pytest.approx(2.50, abs=0.01)
+    assert "SHORT trade" in result.invariant_warnings[0]
 
 
-def test_sniper_sell_mode_position_size_minimum():
-    """Sell mode always uses minimum 1% position sizing."""
+def test_sniper_short_mode_position_size_minimum():
+    """SHORT mode caps position at 1% — short trades are higher uncertainty."""
     result = calculate_sniper_points(
         _req(current_price=200.0, dcf_target=150.0)
     )
     assert result.sell_mode is True
+    assert result.direction == "SHORT"
     assert result.position_size_pct == pytest.approx(1.0, abs=0.1)
 
 
-def test_sniper_sell_mode_safety_margin_zero():
-    """Sell mode sets safety_margin=0 (not applicable to technical anchors)."""
+def test_sniper_short_mode_safety_margin_zero():
+    """``safety_margin`` is a LONG concept — undefined for a short."""
     result = calculate_sniper_points(
         _req(current_price=200.0, dcf_target=150.0)
     )
     assert result.sell_mode is True
+    assert result.direction == "SHORT"
     assert result.safety_margin == 0.0
+
+
+def test_sniper_long_mode_carries_direction_field() -> None:
+    """LONG mode emits ``direction="LONG"`` so the UI can label entry/stop
+    without inferring from sell_mode (which is the SELL flag, not the
+    direction). Both fields stay populated for backward compat."""
+    result = calculate_sniper_points(_req())
+    assert result.sell_mode is False
+    assert result.direction == "LONG"
+
+
+def test_sniper_short_mode_tsla_2026_05_28_anchor() -> None:
+    """External-source anchor: TSLA 2026-05-28 had current=$440.36 and
+    DCF target=$5.88 (the artifact's intrinsic value). The pre-fix code
+    produced buy=$372.80 / stop=$484.40 / take=$445.27 / R/R=0.11. Post-
+    fix the SHORT trade reads coherently with target<<entry<<stop. The
+    R/R isn't pinned to a single value (depends on the 20-day window's
+    support/resistance) but must lie in a sane range and the ordering
+    must be SHORT-correct."""
+    # Synthetic 20-day window centered on $440 with realistic dispersion.
+    prices = [
+        420.0, 425.0, 430.0, 435.0, 440.0, 445.0, 450.0, 455.0, 460.0, 465.0,
+        455.0, 450.0, 445.0, 440.0, 435.0, 430.0, 425.0, 420.0, 425.0, 430.0,
+    ]
+    result = calculate_sniper_points(
+        _req(current_price=440.36, dcf_target=5.88, historical_prices=prices)
+    )
+    assert result.sell_mode is True
+    assert result.direction == "SHORT"
+    # SHORT invariant must hold, no exceptions.
+    assert result.take_profit < result.ideal_buy < result.stop_loss
+    # Cover at DCF target (or higher of target/support — never below support).
+    assert result.take_profit == max(5.88, min(prices))
+    # The pre-fix pathological R/R 0.11 (with take_profit ABOVE current)
+    # is impossible post-fix because take_profit < current < stop_loss now;
+    # exact R/R depends on the 20-day window, but always strictly higher
+    # than the pre-fix value.
+    assert result.risk_reward_ratio > 0.20
 
 
 # ---------------------------------------------------------------------------
@@ -318,7 +360,11 @@ def test_sniper_stop_loss_never_below_fifteen_pct():
 
 
 # ---------------------------------------------------------------------------
-# 11. Invariant: take_profit >= ideal_buy in sell mode (fuzz 5 combinations)
+# 11. SHORT invariant: take_profit < ideal_buy < stop_loss (fuzz 5 combinations)
+#     Post-Bug-6: SELL mode produces a coherent short trade where the cover
+#     target sits BELOW the entry and the stop sits ABOVE. The pre-fix code
+#     enforced the opposite (take_profit >= ideal_buy where both were
+#     LONG-flavoured support/resistance anchors).
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize(
@@ -331,14 +377,14 @@ def test_sniper_stop_loss_never_below_fifteen_pct():
         (1000.0, 400.0, 850.0, 1050.0),
     ],
 )
-def test_sniper_invariant_take_profit_above_ideal_buy(
+def test_sniper_short_invariant_target_below_entry_below_stop(
     current: float, target: float, low: float, high: float
 ) -> None:
-    """In sell mode, take_profit (resistance) must be >= ideal_buy (support).
+    """Five overvalued scenarios — SHORT trade structure must hold.
 
-    Five diverse overvalued scenarios; all must satisfy the core invariant
-    without raising. If take_profit < ideal_buy the function raises ValueError,
-    so absence of exception plus the assertion is a double check.
+    Invariant (SHORT): take_profit (cover) < ideal_buy (entry) < stop_loss.
+    The function raises ValueError on violation, so the absence of an
+    exception plus the explicit ordering assertion is a double check.
     """
     prices = [low + (high - low) * i / 19 for i in range(20)]
     result = calculate_sniper_points(
@@ -350,8 +396,11 @@ def test_sniper_invariant_take_profit_above_ideal_buy(
         )
     )
     assert result.sell_mode is True
-    assert result.take_profit >= result.ideal_buy, (
-        f"invariant violated: take_profit={result.take_profit} < ideal_buy={result.ideal_buy}"
+    assert result.direction == "SHORT"
+    assert result.take_profit < result.ideal_buy < result.stop_loss, (
+        f"SHORT invariant violated: "
+        f"take_profit={result.take_profit}, ideal_buy={result.ideal_buy}, "
+        f"stop_loss={result.stop_loss}"
     )
 
 

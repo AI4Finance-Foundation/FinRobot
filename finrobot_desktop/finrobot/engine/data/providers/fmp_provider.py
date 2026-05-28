@@ -151,6 +151,9 @@ class FMPProvider(DataProvider):
             "company_name": prof.get("companyName"),
             "industry": prof.get("industry"),
             "sector": prof.get("sector"),
+            # fiscal_year is required by historical_loaders.py for band computation;
+            # "date" is fiscal-year-end (YYYY-MM-DD), more precise than calendarYear.
+            "fiscal_year": inc.get("date") or inc.get("calendarYear"),
         }
 
     async def _fetch_price(self, ticker: str) -> DataResult:

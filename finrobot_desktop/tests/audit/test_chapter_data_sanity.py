@@ -61,6 +61,56 @@ def _baseline_dcf_inputs() -> DCFInputs:
     )
 
 
+def test_chapter_11_fmp_financials_default_path_returns_ttm_not_annual():
+    """Real bug found 2026-05-28: FMPProvider was fetching /income-statement?limit=1
+    (single annual row) for the current snapshot and computing P/E as
+    market_cap / annual_NI. NVDA showed PE=43 (stale annual) vs true LTM=32.
+    Lock the contract: when years kwarg is absent, FMP MUST return summed
+    4-quarter TTM data tagged period_basis='ttm', with net_income equal to
+    the SUM of the four quarterly netIncome rows. Plausibility floors don't
+    catch this — both 43x and 32x pass the [1, 300] gate but only one is
+    the right number for the analyst."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from finrobot.engine.data.providers.fmp_provider import FMPProvider
+    from finrobot.engine.data.types import DataType
+
+    quarterly = [
+        {"date": f"2026-0{q + 1}-30", "symbol": "NVDA", "revenue": 30e9,
+         "ebitda": 18e9, "netIncome": 27e9, "grossProfit": 22e9,
+         "operatingIncome": 19e9, "depreciationAndAmortization": 1e9,
+         "researchAndDevelopmentExpenses": 3e9,
+         "sellingGeneralAndAdministrative": 1e9, "interestExpense": 0}
+        for q in range(4)
+    ]
+    balance = [{"date": "2026-04-30", "symbol": "NVDA", "totalDebt": 10e9,
+                "cashAndCashEquivalents": 30e9}]
+    profile = [{"symbol": "NVDA", "mktCap": 3500e9, "price": 212.6,
+                "companyName": "NVIDIA", "industry": "Semiconductors",
+                "sector": "Technology", "beta": 1.7, "pe": None}]
+
+    async def fake_get(path: str, params: dict | None = None):
+        resp = MagicMock()
+        if "income-statement" in path:
+            resp.json = MagicMock(return_value=quarterly)
+        elif "balance-sheet" in path:
+            resp.json = MagicMock(return_value=balance)
+        else:
+            resp.json = MagicMock(return_value=profile)
+        return resp
+
+    provider = FMPProvider(api_key="test")
+    with patch.object(provider, "_get", side_effect=fake_get):
+        import asyncio
+        result = asyncio.run(provider.fetch("NVDA", DataType.FINANCIALS))
+
+    assert result.data["period_basis"] == "ttm"
+    # TTM net_income = 4 * 27e9 = 108e9, NOT a single annual row
+    assert result.data["net_income"] == pytest.approx(108e9)
+    # TTM PE = 3500e9 / 108e9 ≈ 32.4x — matches external sources, NOT
+    # the stale-annual 43x bug that motivated this gate.
+    assert result.data["pe_ratio"] == pytest.approx(3500e9 / 108e9, rel=1e-6)
+
+
 def test_chapter_4_dcf_uses_standard_fcf_formula_with_da_tax_shield():
     """AGENTS.md red-line #5 — the formula contract lives in code + tests, not
     a serialized tag (see tests/unit/test_dcf.py). The contract: FCF must

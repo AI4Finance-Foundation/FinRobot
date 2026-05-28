@@ -17,6 +17,7 @@ Routes / pipelines / SDK should call ``seed_dcf_inputs``; the legacy
 
 from __future__ import annotations
 
+import math
 import statistics
 from typing import Final
 
@@ -73,6 +74,10 @@ def _median_ratio(
     dens = denominator[-min_samples:]
     ratios: list[float] = []
     for num, den in zip(nums, dens):
+        # Skip NaN in either operand — they come from partially-NaN cashflow rows
+        # that survived the income-statement column filter.
+        if math.isnan(num) or math.isnan(den):
+            continue
         if den == 0:
             return None
         if num == 0 and den != 0:
@@ -175,8 +180,13 @@ def seed_dcf_inputs(
     prov["revenue_base"] = f"最新年报营收 ${revenue_base / 1e9:.1f}B"
 
     # ----- revenue_growth_rates ---------------------------------------------
-    if historical.cagr_revenue is not None and historical.cagr_revenue > 0:
-        base_growth = max(min(historical.cagr_revenue, 0.40), 0.0)
+    # cagr_revenue is None when: fewer than 2 data points, start revenue ≤ 0,
+    # or NaN pollution from yfinance. math.isfinite guards the NaN/Inf case.
+    cagr = historical.cagr_revenue
+    has_real_cagr = cagr is not None and math.isfinite(cagr)
+    if has_real_cagr:
+        assert cagr is not None  # narrowing for mypy
+        base_growth = max(min(cagr, 0.40), 0.0)
         growth_schedule = _decay_growth_schedule(
             base_growth, terminal_growth_rate, projection_years
         )
@@ -186,14 +196,16 @@ def seed_dcf_inputs(
             f"未来 {projection_years} 年线性衰减到永续 {terminal_growth_rate:.1%}"
         )
     else:
-        # No historical CAGR — start at industry-implied "median company growth"
-        # (approximated as 2× terminal growth) and decay.
+        # No reliable historical CAGR (data absent or NaN-polluted).
+        # Start at industry-implied "median company growth" (2× terminal growth)
+        # and decay to terminal; provenance is honest about the reason.
         base_growth = max(terminal_growth_rate * 2, 0.05)
         growth_schedule = _decay_growth_schedule(
             base_growth, terminal_growth_rate, projection_years
         )
+        nan_note = "历史数据含 NaN 缺口，" if cagr is not None else "历史数据不足，"
         prov["revenue_growth_rates"] = (
-            f"历史增长率不可得，使用 {base_growth:.1%} 起点衰减到永续 {terminal_growth_rate:.1%}"
+            f"{nan_note}使用通用 {base_growth:.1%} 起点衰减到永续 {terminal_growth_rate:.1%}"
         )
 
     # ----- ebitda_margin ----------------------------------------------------
@@ -322,10 +334,10 @@ def seed_dcf_inputs(
 
 
 def _median_recent(values: list[float], min_samples: int = _MIN_HISTORY_SAMPLES) -> float | None:
-    """Median of the most recent *min_samples* non-zero entries."""
+    """Median of the most recent *min_samples* non-zero, non-NaN entries."""
     if len(values) < min_samples:
         return None
-    recent = [v for v in values[-min_samples:] if v != 0]
+    recent = [v for v in values[-min_samples:] if v != 0 and not math.isnan(v)]
     if not recent:
         return None
     return statistics.median(recent)

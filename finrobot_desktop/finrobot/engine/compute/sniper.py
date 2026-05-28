@@ -41,12 +41,14 @@ class SniperPoints(BaseModel):
     support_level: float  # detected support (20-day rolling min)
     resistance_level: float  # detected resistance (20-day rolling max)
     risk_reward_ratio: float  # (take_profit - current) / (current - stop_loss)
+    sell_mode: bool = False  # True when DCF intrinsic < current price
+    invariant_warnings: list[str] = Field(default_factory=list)
 
 
 def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
     """Calculate entry/exit price levels from DCF target + historical prices.
 
-    Logic (all deterministic, no LLM):
+    LONG mode (target >= current):
     1. ideal_buy = dcf_target * (1 - safety_margin)
        safety_margin: 15% if upside > 30%, 10% if upside > 15%, 5% otherwise
     2. secondary_buy = support_level (min of trailing 20-day window)
@@ -57,6 +59,14 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
     6. support = min of last 20 prices
     7. resistance = max of last 20 prices
     8. risk_reward = (take_profit - current) / (current - stop_loss)
+
+    SELL mode (target < current — stock is overvalued vs DCF):
+    - Anchors flip to technical levels rather than DCF intrinsic.
+    - ideal_buy = support_level ("if it drops to support, consider entry")
+    - take_profit = resistance_level (short-term bounce target from a long entry)
+    - stop_loss = current * 1.10 (multi-trend stop above current for a long)
+    - risk_reward = (take_profit - current) / (stop_loss - current)
+    - invariant_warnings carries the diagnostic explaining the mode switch.
     """
     prices = req.historical_prices
     current = req.current_price
@@ -74,43 +84,80 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
 
     daily_vol = annual_vol / (252**0.5)
 
-    # --- Upside & safety margin ----------------------------------------------
-    upside_pct = (target - current) / current  # can be negative (downside)
-
-    if upside_pct > 0.30:
-        safety_margin = 0.15
-    elif upside_pct > 0.15:
-        safety_margin = 0.10
-    else:
-        safety_margin = 0.05
-
-    ideal_buy = target * (1 - safety_margin)
-
     # --- Support / resistance (20-day rolling window) -----------------------
     window = min(20, len(prices))
     recent = prices[-window:]
     support = min(recent)
     resistance = max(recent)
 
-    secondary_buy = support
+    invariant_warnings: list[str] = []
+    sell_mode = target < current
 
-    # --- Stop loss -----------------------------------------------------------
-    # 10-day expected downside move: daily_vol * sqrt(10) * current_price
-    vol_buffer = daily_vol * (10**0.5) * current
-    # Floor at 15% below current to prevent absurdly tight stops
-    stop_loss = max(support - vol_buffer, current * 0.85)
+    if sell_mode:
+        # ------------------------------------------------------------------ #
+        # SELL / overvalued mode                                              #
+        # DCF says the stock is too expensive.  We cannot anchor ideal_buy   #
+        # above current price (that's not a buy level — that's a short).     #
+        # Instead we use technical levels so a long trader knows where it     #
+        # would become attractive again.                                      #
+        # ------------------------------------------------------------------ #
+        ideal_buy = support  # entry only if it pulls back to support
+        secondary_buy = support  # same anchor — no separate level is valid
+        take_profit = resistance  # short-term mean-reversion bounce target
+        stop_loss = current * 1.10  # long stop above current (trend-reversal)
+        safety_margin = 0.0  # not applicable in sell mode
 
-    # --- Take profit ---------------------------------------------------------
-    take_profit = target
+        upside_abs = take_profit - current  # likely negative (resistance < current)
+        downside = stop_loss - current  # positive by construction
+        risk_reward = upside_abs / downside if downside > 0 else 0.0
 
-    # --- Position sizing (1-5% of portfolio) ---------------------------------
-    upside_ratio = max(0.0, upside_pct)
-    position_size = min(5.0, max(1.0, 2.0 * upside_ratio * 100 / 20))
+        position_size = 1.0  # minimum sizing — no edge case in overvalued stock
 
-    # --- Risk / reward -------------------------------------------------------
-    downside = current - stop_loss
-    upside_abs = take_profit - current
-    risk_reward = upside_abs / downside if downside > 0 else 0.0
+        invariant_warnings.append(
+            f"DCF intrinsic ${target:.2f} < current ${current:.2f}: "
+            "switched to short-term technical anchors. "
+            "ideal_buy=support, take_profit=resistance, stop_loss=current*1.10."
+        )
+
+    else:
+        # ------------------------------------------------------------------ #
+        # LONG / undervalued mode                                             #
+        # ------------------------------------------------------------------ #
+        upside_pct = (target - current) / current  # positive
+
+        if upside_pct > 0.30:
+            safety_margin = 0.15
+        elif upside_pct > 0.15:
+            safety_margin = 0.10
+        else:
+            safety_margin = 0.05
+
+        ideal_buy = target * (1 - safety_margin)
+        secondary_buy = support
+
+        # 10-day expected downside move: daily_vol * sqrt(10) * current_price
+        vol_buffer = daily_vol * (10**0.5) * current
+        # Floor at 15% below current to prevent absurdly tight stops
+        stop_loss = max(support - vol_buffer, current * 0.85)
+
+        take_profit = target
+
+        upside_ratio = max(0.0, upside_pct)
+        position_size = min(5.0, max(1.0, 2.0 * upside_ratio * 100 / 20))
+
+        downside = current - stop_loss
+        upside_abs = take_profit - current
+        risk_reward = upside_abs / downside if downside > 0 else 0.0
+
+    # --- Invariant guards (any mode) -----------------------------------------
+    if take_profit < ideal_buy:
+        raise ValueError(
+            f"sniper invariant violated: take_profit {take_profit:.2f} < ideal_buy {ideal_buy:.2f}"
+        )
+    if not sell_mode and stop_loss >= ideal_buy:
+        raise ValueError(
+            f"sniper invariant violated (LONG): stop_loss {stop_loss:.2f} >= ideal_buy {ideal_buy:.2f}"
+        )
 
     return SniperPoints(
         ideal_buy=round(ideal_buy, 2),
@@ -122,4 +169,6 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
         support_level=round(support, 2),
         resistance_level=round(resistance, 2),
         risk_reward_ratio=round(risk_reward, 2),
+        sell_mode=sell_mode,
+        invariant_warnings=invariant_warnings,
     )

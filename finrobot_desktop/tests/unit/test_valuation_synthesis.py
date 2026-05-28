@@ -47,3 +47,70 @@ class TestSynthesizeValuations:
         assert result.weighted_price is not None
         assert result.upside_downside is not None
         assert result.upside_downside < 0
+
+    def test_no_outlier_when_spread_within_threshold(self):
+        """Methods within 30% of each other: outlier_methods empty, warnings empty."""
+        methods = [
+            ValuationMethod(name="DCF", low=200, mid=245, high=290, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="EV/EBITDA", low=220, mid=250, high=280, confidence=0.3, source="Comps"
+            ),
+        ]
+        # median = 247.5; DCF deviation = |245-247.5|/247.5 = 1.0% < 30%
+        result = synthesize_valuations(methods, current_price=230.0)
+        assert result.outlier_methods == []
+        assert result.warnings == []
+
+    def test_outlier_flagged_aapl_spread(self):
+        """DCF $86 vs Comps $221 — AAPL-like 157% spread.
+
+        median = ($86 + $221) / 2 = $153.50
+        DCF deviation  = |86  - 153.5| / 153.5 = 43.98% > 30% → outlier
+        Comps deviation = |221 - 153.5| / 153.5 = 43.98% > 30% → outlier
+        Both methods should be flagged.
+        """
+        methods = [
+            ValuationMethod(name="DCF", low=70, mid=86, high=100, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="Comps", low=190, mid=221, high=260, confidence=0.5, source="Comps"
+            ),
+        ]
+        result = synthesize_valuations(methods, current_price=180.0)
+        assert "DCF" in result.outlier_methods
+        assert "Comps" in result.outlier_methods
+        assert len(result.warnings) == 2
+        # Both warning strings must mention the method name and dollar figure
+        assert any("DCF" in w and "$86.00" in w for w in result.warnings)
+        assert any("Comps" in w and "$221.00" in w for w in result.warnings)
+
+    def test_outlier_flagged_dcf_only(self):
+        """When only one method is the outlier, only that one appears in outlier_methods.
+
+        Three methods: $100, $120, $200.
+        median = $120
+        $100 deviation = 16.7% < 30% → clean
+        $120 deviation = 0%   < 30% → clean
+        $200 deviation = 66.7% > 30% → outlier
+        """
+        methods = [
+            ValuationMethod(name="DDM", low=85, mid=100, high=115, confidence=0.3, source="DDM"),
+            ValuationMethod(
+                name="Comps", low=110, mid=120, high=130, confidence=0.4, source="Comps"
+            ),
+            ValuationMethod(
+                name="LBO", low=175, mid=200, high=225, confidence=0.3, source="LBO"
+            ),
+        ]
+        result = synthesize_valuations(methods, current_price=150.0)
+        assert result.outlier_methods == ["LBO"]
+        assert len(result.warnings) == 1
+        assert "LBO" in result.warnings[0]
+
+    def test_single_method_no_outlier_check(self):
+        """Single-method synthesis skips outlier logic; outlier_methods/warnings empty."""
+        methods = [
+            ValuationMethod(name="DCF", low=200, mid=250, high=300, confidence=1.0, source="DCF")
+        ]
+        result = synthesize_valuations(methods, current_price=200.0)
+        assert result.outlier_methods == []
+        assert result.warnings == []

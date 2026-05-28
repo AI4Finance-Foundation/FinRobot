@@ -1,3 +1,4 @@
+import pytest
 from finrobot.engine.models.financial import CompanyFinancials, PeerComps
 from finrobot.engine.compute.multiples import (
     calculate_ev,
@@ -174,3 +175,97 @@ def test_single_peer_median_equals_mean():
     comps = PeerComps(target=target, peers=[c])
     comps = calculate_peer_statistics(comps)
     assert comps.median_ev_ebitda == comps.mean_ev_ebitda
+
+
+class TestSanityFloorSymmetry:
+    """All three multiples have a floor; verify each independently."""
+
+    def test_pe_below_floor_returns_none(self) -> None:
+        """PE < 1.0x signals FX/unit mismatch (net_income inflated by wrong currency).
+
+        TSM artifact bug: yfinance mis-tagged financialCurrency=USD, causing net_income
+        in TWD (large) vs market_cap in USD, collapsing PE to sub-1x. After FX override
+        is applied net_income is correct TWD; this test guards the compute floor.
+
+        Setup: market_cap=50, net_income=100 → raw PE=0.5x (below 1.0 floor).
+        """
+        c = _make_company("TSM", revenue=100, ebitda=30, net_income=100, market_cap=50)
+        c = calculate_multiples(c)
+        assert c.pe_ratio is None, f"Expected None for PE=0.5x, got {c.pe_ratio}"
+
+    def test_pe_at_floor_boundary_included(self) -> None:
+        """PE=1.0x exactly is the boundary — must be included, not dropped."""
+        c = _make_company("X", revenue=100, ebitda=30, net_income=500, market_cap=500)
+        c = calculate_multiples(c)
+        assert c.pe_ratio == pytest.approx(1.0)
+
+    def test_pe_above_ceiling_returns_none(self) -> None:
+        """PE > 300x is garbage (e.g. write-down survivors). Must return None."""
+        c = _make_company("X", revenue=100, ebitda=30, net_income=1, market_cap=500)
+        c = calculate_multiples(c)
+        assert c.pe_ratio is None
+
+    def test_ev_revenue_below_floor_returns_none(self) -> None:
+        """EV/Revenue < 0.1x signals FX mismatch. Must return None."""
+        # EV = 1 (market_cap=1, debt=0, cash=0), revenue=100 → 0.01x
+        c = _make_company("X", revenue=100, ebitda=5, net_income=3, market_cap=1)
+        c = calculate_multiples(c)
+        assert c.ev_revenue is None
+
+    def test_ev_revenue_normal_range_preserved(self) -> None:
+        """EV/Revenue within [0.1x, 100x] must not be dropped."""
+        # EV=500, revenue=100 → 5x
+        c = _make_company("X", revenue=100, ebitda=30, net_income=10, market_cap=500)
+        c = calculate_multiples(c)
+        assert c.ev_revenue is not None
+        assert c.ev_revenue == pytest.approx(5.0)
+
+
+class TestPeerStatisticsSampleSizeWarnings:
+    """Sample-size warnings are emitted when peers are excluded from statistics."""
+
+    def _comps_with_one_nm_evebitda(self) -> PeerComps:
+        peers = [
+            calculate_multiples(_make_company("A", 100, 10, 5, 180)),  # EV/EBITDA=18x
+            calculate_multiples(_make_company("B", 100, 10, 5, 250)),  # 25x
+            calculate_multiples(_make_company("C", 100, 10, 5, 300)),  # 30x
+            calculate_multiples(_make_company("TSM", 80e9, 1000e9, 30e9, 100e9)),  # NM
+        ]
+        target = calculate_multiples(_make_company("T", 100, 10, 5, 200))
+        return PeerComps(target=target, peers=peers)
+
+    def test_warning_emitted_when_peer_dropped_from_ev_ebitda(self) -> None:
+        """5 peers, 1 NM EV/EBITDA → warning says 'n=3 of 4'."""
+        comps = calculate_peer_statistics(self._comps_with_one_nm_evebitda())
+        ev_ebitda_warnings = [w for w in comps.warnings if "EV/EBITDA" in w]
+        assert ev_ebitda_warnings, f"Expected EV/EBITDA sample-size warning, got: {comps.warnings}"
+        assert "n=3 of 4" in ev_ebitda_warnings[0]
+
+    def test_no_warning_when_all_peers_have_valid_ev_ebitda(self) -> None:
+        """All peers have valid EV/EBITDA → no sample-size warning."""
+        peers = [
+            calculate_multiples(_make_company("A", 100, 10, 5, 180)),
+            calculate_multiples(_make_company("B", 100, 10, 5, 250)),
+            calculate_multiples(_make_company("C", 100, 10, 5, 300)),
+        ]
+        target = calculate_multiples(_make_company("T", 100, 10, 5, 200))
+        comps = PeerComps(target=target, peers=peers)
+        result = calculate_peer_statistics(comps)
+        ev_ebitda_warnings = [w for w in result.warnings if "EV/EBITDA" in w]
+        assert not ev_ebitda_warnings
+
+    def test_warning_five_peers_one_dropped(self) -> None:
+        """Explicit 5-peer, 1-drop scenario from the task spec."""
+        peers = [
+            calculate_multiples(_make_company("A", 100, 10, 5, 180)),
+            calculate_multiples(_make_company("B", 100, 10, 5, 250)),
+            calculate_multiples(_make_company("C", 100, 10, 5, 300)),
+            calculate_multiples(_make_company("D", 100, 10, 5, 220)),
+            calculate_multiples(_make_company("BAD", 80e9, 1000e9, 30e9, 100e9)),  # NM
+        ]
+        target = calculate_multiples(_make_company("T", 100, 10, 5, 200))
+        comps = PeerComps(target=target, peers=peers)
+        result = calculate_peer_statistics(comps)
+        ev_ebitda_warnings = [w for w in result.warnings if "EV/EBITDA" in w]
+        assert ev_ebitda_warnings
+        assert "n=4 of 5" in ev_ebitda_warnings[0]

@@ -176,3 +176,80 @@ def test_extract_price_history_valid():
     assert ph.high_52w == 220.0
     assert ph.low_52w == 180.0
     assert abs(ph.avg_price - (180.0 + 220.0 + 200.0) / 3) < 1e-6
+
+
+class TestExtractCompanyFinancialsCurrencyOverride:
+    """ADR currency-override: when yfinance mis-tags financialCurrency=USD for
+    a foreign issuer, the country field must correct it so FX normalization runs."""
+
+    def _make_peer_result(self, ticker: str, **overrides: object) -> DataResult:
+        from datetime import datetime, timezone
+
+        data: dict[str, object] = {
+            "revenue": 2_500_000e6,
+            "ebitda": 800_000e6,
+            "net_income": 600_000e6,
+            "gross_margin": 0.55,
+            "operating_margin": 0.35,
+            "pe_ratio": 20.0,
+            "market_cap": 650e9,
+            "total_debt": 320_000e6,
+            "total_cash": 1_700_000e6,
+            "financial_currency": "USD",  # provider mis-tag
+            "quote_currency": "USD",
+        }
+        data.update(overrides)  # type: ignore[arg-type]
+        return DataResult(
+            data=data,
+            provider="yfinance",
+            ticker=ticker,
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+    def test_tsm_adr_country_taiwan_overrides_usd_to_twd(self) -> None:
+        """TSM (no '.' suffix) with country=Taiwan: financial_currency="USD" is
+        overridden to "TWD" so FX normalization will convert IS/BS items."""
+        result = extract_company_financials(
+            self._make_peer_result("TSM", country="Taiwan")
+        )
+        assert result.reporting_currency == "TWD", (
+            f"Expected TWD, got {result.reporting_currency} — FX override not applied"
+        )
+        assert result.quote_currency == "USD"
+
+    def test_asml_adr_country_netherlands_overrides_usd_to_eur(self) -> None:
+        """ASML (no '.' suffix) with country=Netherlands: USD → EUR."""
+        result = extract_company_financials(
+            self._make_peer_result("ASML", country="Netherlands")
+        )
+        assert result.reporting_currency == "EUR"
+
+    def test_us_issuer_no_override(self) -> None:
+        """AAPL: country=None → USD tag is trusted as-is."""
+        result = extract_company_financials(
+            self._make_peer_result("AAPL", country=None)
+        )
+        assert result.reporting_currency == "USD"
+
+    def test_local_listing_no_override(self) -> None:
+        """2330.TW: ticker has '.', provider already returns TWD correctly —
+        the override must NOT apply (we trust the provider for local listings)."""
+        result = extract_company_financials(
+            self._make_peer_result("2330.TW", country="Taiwan", financial_currency="TWD")
+        )
+        assert result.reporting_currency == "TWD"
+
+    def test_adr_with_correct_non_usd_tag_not_overridden(self) -> None:
+        """If provider correctly tags TSM as TWD, the override must not clobber it."""
+        result = extract_company_financials(
+            self._make_peer_result("TSM", country="Taiwan", financial_currency="TWD")
+        )
+        assert result.reporting_currency == "TWD"
+
+    def test_unknown_country_trusts_provider_tag(self) -> None:
+        """Country not in the mapping: fall back to provider tag (USD)."""
+        result = extract_company_financials(
+            self._make_peer_result("XYZ", country="Narnia")
+        )
+        assert result.reporting_currency == "USD"

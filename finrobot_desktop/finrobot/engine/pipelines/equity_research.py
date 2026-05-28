@@ -755,15 +755,16 @@ async def _execute_thesis(
                 f"market_cap={p.market_cap}"
             )
     if isinstance(fm_for_prompt, DCFResult):
+        dcf_for_prompt: DCFResult = fm_for_prompt
         _whitelist_parts.append(
-            f"  - financial_modeling.implied_price: ${fm_for_prompt.implied_price:.2f}"
+            f"  - financial_modeling.implied_price: ${dcf_for_prompt.implied_price:.2f}"
         )
         _whitelist_parts.append(
-            f"  - financial_modeling.wacc: {fm_for_prompt.wacc:.4f}"
+            f"  - financial_modeling.wacc: {dcf_for_prompt.wacc:.4f}"
         )
         _whitelist_parts.append(
             f"  - financial_modeling.terminal_growth_rate: "
-            f"{fm_for_prompt.inputs.terminal_growth_rate:.4f}"
+            f"{dcf_for_prompt.inputs.terminal_growth_rate:.4f}"
         )
     if xbrl_snap:
         _whitelist_parts.append("  - xbrl_facts_snapshot.*: (injected above in structured data)")

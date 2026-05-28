@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, HTTPException
 from starlette.requests import Request
@@ -131,15 +131,43 @@ async def get_price(ticker: str, request: Request, period: str = "1y") -> dict[s
     """
     cache = request.app.state.deps.data_layer.cache
     ticker_upper = ticker.upper()
+    route_cache_key = f"{ticker_upper}:{period}"
+    cached = await cache.get(DataType.PRICE, route_cache_key)
+    if cached is not None and not cached.is_stale:
+        cached_payload = dict(cast(dict[str, Any], cached.data.data))
+        return await _enrich_price_payload_from_financial_cache(cache, ticker_upper, cached_payload)
+
+    if period == "1y":
+        provider_cached = await _provider_price_cache_payload(cache, ticker_upper)
+        if provider_cached is not None:
+            return provider_cached
+
     try:
-        return await cached_fetch(
+        payload = await cached_fetch(
             cache,
             DataType.PRICE,
             ticker_upper,
             lambda: fetch_price_history(ticker_upper, period),
             cache_key_suffix=f":{period}",
         )
+        return await _enrich_price_payload_from_financial_cache(cache, ticker_upper, payload)
     except (ValueError, ProviderError) as e:
+        if cached is not None:
+            stale_payload = dict(cached.data.data)
+            raw_warnings = stale_payload.get("warnings", [])
+            warnings = list(raw_warnings) if isinstance(raw_warnings, list) else []
+            warnings.insert(0, f"数据源请求失败，正在显示缓存行情（{ticker_upper} / {period}）。")
+            stale_payload["warnings"] = _dedupe(warnings)
+            return await _enrich_price_payload_from_financial_cache(cache, ticker_upper, stale_payload)
+        if period == "1y":
+            stale_provider = await _provider_price_cache_payload(
+                cache,
+                ticker_upper,
+                include_stale=True,
+                warning=f"数据源请求失败，正在显示缓存行情（{ticker_upper} / provider）。",
+            )
+            if stale_provider is not None:
+                return stale_provider
         raise _data_http_error(e, ticker_upper) from e
 
 
@@ -236,3 +264,96 @@ def _dedupe(items: list[str]) -> list[str]:
         seen.add(item)
         out.append(item)
     return out
+
+
+async def _provider_price_cache_payload(
+    cache: Any,
+    ticker: str,
+    *,
+    include_stale: bool = False,
+    warning: str | None = None,
+) -> dict[str, Any] | None:
+    """Reuse provider-layer 1y price cache when the route cache is empty.
+
+    Provider-backed pipelines cache ``DataType.PRICE`` under ``ticker`` while
+    this route caches richer chart payloads under ``ticker:period``. For the
+    default 1y view the provider cache already carries current price and
+    one-year price history, so returning it avoids a duplicate yfinance call.
+    """
+    cached = await cache.get(DataType.PRICE, ticker)
+    if cached is None or (cached.is_stale and not include_stale):
+        return None
+    raw = cached.data.data
+    if not isinstance(raw, dict):
+        return None
+    history_raw = raw.get("history") or raw.get("price_history") or []
+    history = history_raw if isinstance(history_raw, list) else []
+    change, change_pct = _price_change_from_history(history)
+    warnings_raw = raw.get("warnings", [])
+    warnings = list(warnings_raw) if isinstance(warnings_raw, list) else []
+    if warning is not None:
+        warnings.insert(0, warning)
+    payload = {
+        "ticker": ticker,
+        "current_price": raw.get("current_price"),
+        "change": change,
+        "change_pct": change_pct,
+        "market_cap": raw.get("market_cap"),
+        "company_name": raw.get("company_name"),
+        "exchange": raw.get("exchange"),
+        "next_earnings_date": raw.get("next_earnings_date"),
+        "history": history,
+        "fetched_at": cached.data.timestamp.isoformat(),
+        "data_source": f"{cached.data.provider}:provider-cache",
+        "warnings": warnings,
+    }
+    return await _enrich_price_payload_from_financial_cache(cache, ticker, payload)
+
+
+async def _enrich_price_payload_from_financial_cache(
+    cache: Any,
+    ticker: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Fill display metadata from financials cache without adding network work."""
+    if payload.get("market_cap") is not None and payload.get("company_name") is not None:
+        return payload
+
+    cached_financials = await cache.get(DataType.FINANCIALS, ticker)
+    if cached_financials is None:
+        return payload
+
+    raw = cached_financials.data.data
+    if not isinstance(raw, dict):
+        return payload
+
+    market = raw.get("market")
+    market_data = market if isinstance(market, dict) else raw
+
+    if payload.get("market_cap") is None:
+        payload["market_cap"] = market_data.get("market_cap")
+    if payload.get("company_name") is None:
+        payload["company_name"] = raw.get("company_name")
+    return payload
+
+
+def _price_change_from_history(history: list[Any]) -> tuple[float | None, float | None]:
+    closes: list[float] = []
+    for item in history:
+        if not isinstance(item, dict):
+            continue
+        raw_close = item.get("close")
+        if not isinstance(raw_close, int | float | str):
+            continue
+        try:
+            close = float(raw_close)
+        except (TypeError, ValueError):
+            continue
+        closes.append(close)
+    if len(closes) < 2:
+        return None, None
+    prev_close = closes[-2]
+    if prev_close == 0:
+        return None, None
+    change = closes[-1] - prev_close
+    return change, change / prev_close * 100

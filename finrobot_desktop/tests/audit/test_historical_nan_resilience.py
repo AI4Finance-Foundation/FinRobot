@@ -17,48 +17,52 @@ Scenarios covered:
 from __future__ import annotations
 
 import math
+from datetime import datetime, timezone
 from typing import Any
-from unittest.mock import patch
 
-import pandas as pd
 import pytest
 
 from finrobot.engine.compute.data_processor import calculate_cagr
 from finrobot.engine.compute.dcf_seed import _median_ratio, seed_dcf_inputs
-from finrobot.engine.compute.historical_extractor import _build_historical_metrics
+from finrobot.engine.compute.historical_extractor import _build_from_yearly
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.types import DataType
 
 
 # ---------------------------------------------------------------------------
-# Helpers — build DataFrames the way yfinance returns them
+# Helpers — build the normalized per-year DataResults a provider emits
 # ---------------------------------------------------------------------------
 
 
-def _make_income_stmt(
+def _yearly_results(
     years: list[int],
     revenues: list[float | None],
-) -> pd.DataFrame:
-    """Build a minimal income_stmt DataFrame with one revenue row.
+) -> list[DataResult]:
+    """Build the canonical per-year DataResults the provider chain emits.
 
-    ``revenues`` entries are float or None (simulating NaN).
-    Columns are pd.Timestamps like yfinance returns (most-recent first in input
-    order, but _build_historical_metrics sorts them anyway).
+    A ``None`` revenue simulates the NaN cell the yfinance provider maps to
+    None (that DataFrame→None translation is covered in test_yfinance_provider);
+    here we guard that the consumer drops such years so they can't poison CAGR.
+    EBITDA tracks revenue so the row isn't entirely empty.
     """
-    cols = [pd.Timestamp(f"{y}-09-30") for y in years]
-    rev_row = [float("nan") if v is None else v for v in revenues]
-    # Give EBITDA a non-NaN value so the column isn't entirely NaN
-    ebitda_row = [float("nan") if v is None else v * 0.30 for v in revenues]
-    df = pd.DataFrame(
-        {col: {"Total Revenue": rev, "EBITDA": ebit} for col, rev, ebit in zip(cols, rev_row, ebitda_row)}
-    )
-    return df
-
-
-def _make_cashflow(years: list[int]) -> pd.DataFrame:
-    """Minimal cashflow DataFrame — all rows zero (safe for NaN-filter tests)."""
-    cols = [pd.Timestamp(f"{y}-09-30") for y in years]
-    return pd.DataFrame(
-        {col: {"Operating Cash Flow": 0.0} for col in cols}
-    )
+    out: list[DataResult] = []
+    for y, rev in zip(years, revenues):
+        out.append(
+            DataResult(
+                data={
+                    "fiscal_year": f"{y}-09-30",
+                    "revenue": rev,
+                    "ebitda": rev * 0.30 if rev is not None else None,
+                    "operating_cash_flow": 0.0,
+                },
+                provider="test",
+                ticker="TEST",
+                data_type=DataType.FINANCIALS,
+                timestamp=datetime.now(tz=timezone.utc),
+                warnings=[],
+            )
+        )
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -70,12 +74,11 @@ class TestOldestColumnNanRevenue:
     """Simulates AAPL FY21-FY25 where FY21 revenue is NaN."""
 
     def setup_method(self) -> None:
-        income = _make_income_stmt(
+        results = _yearly_results(
             years=[2021, 2022, 2023, 2024, 2025],
             revenues=[None, 394_328e6, 383_285e6, 391_035e6, 416_161e6],
         )
-        cashflow = _make_cashflow([2021, 2022, 2023, 2024, 2025])
-        self.result = _build_historical_metrics("AAPL", income, cashflow, {}, max_years=5)
+        self.result = _build_from_yearly("AAPL", results, max_years=5, trailing_pe=None)
 
     def test_nan_year_excluded(self) -> None:
         """FY21 (NaN revenue) must be dropped from the year list."""
@@ -110,12 +113,11 @@ class TestAllColumnsNanRevenue:
     """When every column has NaN revenue, extractor should return empty but valid model."""
 
     def setup_method(self) -> None:
-        income = _make_income_stmt(
+        results = _yearly_results(
             years=[2022, 2023, 2024],
             revenues=[None, None, None],
         )
-        cashflow = _make_cashflow([2022, 2023, 2024])
-        self.result = _build_historical_metrics("TEST", income, cashflow, {}, max_years=5)
+        self.result = _build_from_yearly("TEST", results, max_years=5, trailing_pe=None)
 
     def test_years_empty(self) -> None:
         assert self.result.years == []
@@ -134,12 +136,11 @@ class TestAllColumnsNanRevenue:
 
 class TestMixedNanRevenue:
     def setup_method(self) -> None:
-        income = _make_income_stmt(
+        results = _yearly_results(
             years=[2022, 2023, 2024],
             revenues=[None, 383_285e6, 391_035e6],
         )
-        cashflow = _make_cashflow([2022, 2023, 2024])
-        self.result = _build_historical_metrics("TEST", income, cashflow, {}, max_years=5)
+        self.result = _build_from_yearly("TEST", results, max_years=5, trailing_pe=None)
 
     def test_two_years_retained(self) -> None:
         assert self.result.years == [2023, 2024]

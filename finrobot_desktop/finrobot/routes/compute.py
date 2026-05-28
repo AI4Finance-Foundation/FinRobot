@@ -210,7 +210,7 @@ async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedRes
     """
     from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
     from finrobot.engine.compute.extractor import extract_financial_data
-    from finrobot.engine.compute.historical_extractor import extract_historical_from_yfinance
+    from finrobot.engine.compute.historical_extractor import extract_historical_metrics
     from finrobot.engine.data.types import DataType
     from finrobot.engine.pipelines._helpers import build_sensitivity_ranges
 
@@ -222,7 +222,7 @@ async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedRes
     financial_data = extract_financial_data(fin_result, price_result)
 
     try:
-        historical = await extract_historical_from_yfinance(ticker)
+        historical = await extract_historical_metrics(deps.data_layer, ticker)
     except (
         ValueError,
         KeyError,
@@ -331,7 +331,7 @@ async def compute_lbo_seed(body: LboSeedRequest, request: Request) -> LboSeedRes
     follow-up calls to render the LBO panel.
     """
     from finrobot.engine.compute.extractor import extract_financial_data
-    from finrobot.engine.compute.historical_extractor import extract_historical_from_yfinance
+    from finrobot.engine.compute.historical_extractor import extract_historical_metrics
     from finrobot.engine.compute.lbo_seed import seed_lbo_inputs
     from finrobot.engine.data.types import DataType
     from finrobot.engine.models.financial import HistoricalMetrics
@@ -344,7 +344,7 @@ async def compute_lbo_seed(body: LboSeedRequest, request: Request) -> LboSeedRes
     financial_data = extract_financial_data(fin_result, price_result)
 
     try:
-        historical = await extract_historical_from_yfinance(ticker)
+        historical = await extract_historical_metrics(deps.data_layer, ticker)
     except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as exc:
         logger.warning("Historical extraction failed for %s: %s", ticker, exc)
         historical = HistoricalMetrics(

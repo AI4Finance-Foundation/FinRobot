@@ -37,7 +37,7 @@ from finrobot.engine.compute.multiples import calculate_multiples, calculate_pee
 from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
-from finrobot.engine.compute.historical_extractor import extract_historical_from_yfinance
+from finrobot.engine.compute.historical_extractor import extract_historical_metrics
 from finrobot.engine.compute.ownership import compute_ownership_governance
 from finrobot.engine.compute.technical_payload import build_technical_analysis
 from finrobot.engine.compute.xbrl_aligned_comps import (
@@ -468,7 +468,7 @@ async def _execute_financial_modeling(
     historical = structured_context.get("historical_metrics")
     if not isinstance(historical, HistoricalMetrics):
         try:
-            historical = await extract_historical_from_yfinance(ticker)
+            historical = await extract_historical_metrics(deps.data_layer, ticker)
         except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as exc:
             logger.warning(
                 "Historical extraction failed for %s: %s — falling back to "

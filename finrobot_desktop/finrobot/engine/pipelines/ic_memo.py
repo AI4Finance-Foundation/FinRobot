@@ -26,7 +26,7 @@ from pydantic_ai import Agent
 from finrobot.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
 from finrobot.engine.compute.extractor import extract_financial_data
-from finrobot.engine.compute.historical_extractor import extract_historical_from_yfinance
+from finrobot.engine.compute.historical_extractor import extract_historical_metrics
 from finrobot.engine.compute.lbo import calculate_lbo
 from finrobot.engine.compute.lbo_seed import seed_lbo_inputs
 from finrobot.engine.data.types import DataType
@@ -78,7 +78,7 @@ async def _execute_ic_financials(
     # back to an empty HistoricalMetrics on extraction failure so the seed
     # functions degrade gracefully to Damodaran industry medians.
     try:
-        historical = await extract_historical_from_yfinance(ticker)
+        historical = await extract_historical_metrics(deps.data_layer, ticker)
     except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as exc:
         logger.warning(
             "Historical extraction failed for %s: %s — falling back to industry medians.",

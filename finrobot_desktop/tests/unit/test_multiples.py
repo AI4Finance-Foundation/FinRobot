@@ -1,10 +1,72 @@
 import pytest
 from finrobot.engine.models.financial import CompanyFinancials, PeerComps
 from finrobot.engine.compute.multiples import (
+    calculate_ebitda_operating,
+    calculate_ebitda_reported,
     calculate_ev,
     calculate_multiples,
     calculate_peer_statistics,
 )
+
+
+# External baseline: TSLA TTM Q2'25–Q1'26, raw FMP quarterly statements
+# (income statement summed; D&A from the cash-flow statement, which carries the
+# 2026-03-31 quarter's 1.59B that the income statement dropped to 0). Net income
+# cross-checked against SEC XBRL us-gaap:NetIncomeLoss (3.862B, within 0.4%).
+_TSLA_OPERATING_INCOME = 4_897_000_000.0
+_TSLA_DA_CASHFLOW = 6_291_000_000.0
+_TSLA_NET_INCOME = 3_876_000_000.0
+_TSLA_INCOME_TAX = 1_511_000_000.0
+_TSLA_INTEREST_EXPENSE = 339_000_000.0
+
+
+def test_ebitda_operating_is_ebit_plus_da():
+    # 4.897B EBIT + 6.291B D&A = 11.188B (Damodaran operating caliber).
+    assert (
+        calculate_ebitda_operating(_TSLA_OPERATING_INCOME, _TSLA_DA_CASHFLOW)
+        == 11_188_000_000.0
+    )
+
+
+def test_ebitda_reported_is_bottom_up_sum():
+    # NI 3.876B + tax 1.511B + interest 0.339B + D&A 6.291B = 12.017B (street caliber).
+    assert (
+        calculate_ebitda_reported(
+            _TSLA_NET_INCOME,
+            _TSLA_INCOME_TAX,
+            _TSLA_INTEREST_EXPENSE,
+            _TSLA_DA_CASHFLOW,
+        )
+        == 12_017_000_000.0
+    )
+
+
+def test_ebitda_reported_exceeds_operating_for_cash_rich_issuer():
+    """TSLA's large interest income lands in net income, so the bottom-up
+    caliber sits above operating EBITDA — the gap is the non-operating income
+    EV/EBITDA should not credit."""
+    operating = calculate_ebitda_operating(_TSLA_OPERATING_INCOME, _TSLA_DA_CASHFLOW)
+    reported = calculate_ebitda_reported(
+        _TSLA_NET_INCOME, _TSLA_INCOME_TAX, _TSLA_INTEREST_EXPENSE, _TSLA_DA_CASHFLOW
+    )
+    assert operating is not None and reported is not None
+    assert reported > operating
+
+
+@pytest.mark.parametrize(
+    "func,args",
+    [
+        (calculate_ebitda_operating, (None, 6.291e9)),
+        (calculate_ebitda_operating, (4.897e9, None)),
+        (calculate_ebitda_reported, (None, 1.5e9, 0.3e9, 6.3e9)),
+        (calculate_ebitda_reported, (3.8e9, None, 0.3e9, 6.3e9)),
+        (calculate_ebitda_reported, (3.8e9, 1.5e9, None, 6.3e9)),
+        (calculate_ebitda_reported, (3.8e9, 1.5e9, 0.3e9, None)),
+    ],
+)
+def test_ebitda_returns_none_when_component_missing(func, args):
+    """Never fabricate EBITDA from a partial set of components."""
+    assert func(*args) is None
 
 
 def _make_company(

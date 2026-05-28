@@ -4,7 +4,7 @@ import asyncio
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -22,6 +22,10 @@ _SUPPORTED = [
 ]
 _TIMEOUT = 15.0
 _MIN_INTERVAL = 0.15  # 6 req/sec — stays within per-minute burst limits on all FMP tiers
+# Trailing calendar window for the price-history fetch. 52 weeks + cushion so
+# the downstream 52-week high/low window (366 calendar days) is fully covered
+# even across weekend/holiday gaps at the boundary.
+_PRICE_HISTORY_DAYS = 372
 
 
 class FMPProvider(DataProvider):
@@ -86,6 +90,7 @@ class FMPProvider(DataProvider):
             )
         years: int | None = kwargs.get("years")
         warnings: list[str] = []
+        cashflow: list[dict[str, Any]] = []
         with self._wrap_errors(ticker, "fetch"):
             if years and years > 1:
                 income = (
@@ -93,6 +98,13 @@ class FMPProvider(DataProvider):
                 ).json()
                 balance = (
                     await self._get(f"/balance-sheet-statement/{ticker}", params={"limit": 1})
+                ).json()
+                # DCF's FCF = OCF − CapEx − ΔNWC. The income statement carries
+                # none of those; without this cash-flow pull FMP-sourced history
+                # silently drops every cash-flow input and DCF degrades to
+                # industry-median assumptions (see 门一 baseline spec).
+                cashflow = (
+                    await self._get(f"/cash-flow-statement/{ticker}", params={"limit": years})
                 ).json()
             else:
                 income = (
@@ -118,8 +130,16 @@ class FMPProvider(DataProvider):
         prof = profile[0] if profile else {}
 
         if years and years > 1 and len(income) > 1:
+            # Align cash-flow rows to income rows by fiscal-year-end date so
+            # each year's OCF/CapEx/ΔNWC come from the matching period.
+            cf_by_date = {cf.get("date"): cf for cf in cashflow if isinstance(cf, dict)}
             data: dict[str, Any] = {
-                "yearly_data": [self._build_single_year_data(inc_i, bal, prof) for inc_i in income],
+                "yearly_data": [
+                    self._build_single_year_data(
+                        inc_i, bal, prof, cf_by_date.get(inc_i.get("date"))
+                    )
+                    for inc_i in income
+                ],
             }
         else:
             data = self._build_ttm_data(income, bal, prof)
@@ -135,7 +155,10 @@ class FMPProvider(DataProvider):
 
     @staticmethod
     def _build_single_year_data(
-        inc: dict[str, Any], bal: dict[str, Any], prof: dict[str, Any]
+        inc: dict[str, Any],
+        bal: dict[str, Any],
+        prof: dict[str, Any],
+        cf: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Extract a flat dict of normalized financial fields for one year."""
         revenue = inc.get("revenue")
@@ -145,6 +168,11 @@ class FMPProvider(DataProvider):
         mkt_cap = prof.get("mktCap")
         price = prof.get("price")
         shares = int(mkt_cap / price) if mkt_cap and price else None
+        cf = cf or {}
+        # FMP reports capitalExpenditure as a negative (cash outflow); the rest
+        # of the codebase + the DCF FCF formula expect a positive magnitude.
+        capex_raw = cf.get("capitalExpenditure")
+        capex = abs(capex_raw) if isinstance(capex_raw, int | float) else None
         # PE = market_cap / net_income (algebraically equivalent to
         # price / EPS where EPS = net_income / shares = net_income * price / mkt_cap).
         pe_ratio = mkt_cap / net_income if mkt_cap and net_income and net_income > 0 else None
@@ -160,6 +188,12 @@ class FMPProvider(DataProvider):
             "rd_expense": inc.get("researchAndDevelopmentExpenses"),
             "sga_expense": inc.get("sellingGeneralAndAdministrative"),
             "interest_expense": inc.get("interestExpense"),
+            # FCF trio from the cash-flow statement (None when cf row missing).
+            "operating_cash_flow": (
+                cf.get("operatingCashFlow") or cf.get("netCashProvidedByOperatingActivities")
+            ),
+            "capital_expenditure": capex,
+            "change_in_working_capital": cf.get("changeInWorkingCapital"),
             "total_debt": bal.get("totalDebt", 0),
             "total_cash": bal.get("cashAndCashEquivalents", 0),
             "market_cap": mkt_cap,
@@ -246,12 +280,18 @@ class FMPProvider(DataProvider):
         yfinance 429 falls through to the 20h-stale-cache warning the user
         sees in production.
         """
+        # Request a trailing-1-year *calendar* range (not timeseries=N, which
+        # counts trading days: 365 trading days ≈ 17 months and dragged
+        # early-2025 lows into the 52-week low). No serietype=line — that strips
+        # OHLC down to close only, and the 52-week high/low need intraday high/low.
+        today = datetime.now(tz=timezone.utc).date()
+        start = today - timedelta(days=_PRICE_HISTORY_DAYS)
         with self._wrap_errors(ticker, "price fetch"):
             quote_resp = (await self._get(f"/quote/{ticker}")).json()
             hist_resp = (
                 await self._get(
                     f"/historical-price-full/{ticker}",
-                    params={"serietype": "line", "timeseries": 365},
+                    params={"from": start.isoformat(), "to": today.isoformat()},
                 )
             ).json()
 

@@ -168,16 +168,101 @@ def extract_financial_data(
     )
 
 
+# Map of country names (as returned by yfinance info["country"]) to the
+# canonical IS/BS reporting currency (ISO 4217). Covers countries likely to
+# appear as ADR peers in US-market equity research.
+#
+# Rationale: yfinance `financialCurrency` is unreliable for ADRs — it often
+# returns "USD" for TSM (Taiwan), ASML (Netherlands), SAP (Germany) etc. when
+# the actual IS/BS figures are in the local currency. We use the country field
+# (which is correctly populated) as a reliable override signal.
+#
+# Only override when the provider says "USD" but country implies a different
+# home currency — we never override a non-USD provider tag, because that
+# would mask legitimate multi-currency structures (e.g. a Bermuda-domiciled
+# holding co that genuinely reports in USD).
+_COUNTRY_TO_REPORTING_CURRENCY: dict[str, str] = {
+    "Taiwan": "TWD",
+    "Japan": "JPY",
+    "South Korea": "KRW",
+    "China": "CNY",
+    "Hong Kong": "HKD",
+    "Germany": "EUR",
+    "Netherlands": "EUR",
+    "France": "EUR",
+    "Italy": "EUR",
+    "Spain": "EUR",
+    "Switzerland": "CHF",
+    "Sweden": "SEK",
+    "Denmark": "DKK",
+    "Norway": "NOK",
+    "United Kingdom": "GBP",
+    "Australia": "AUD",
+    "Canada": "CAD",
+    "India": "INR",
+    "Brazil": "BRL",
+    "Mexico": "MXN",
+    "Singapore": "SGD",
+    "Israel": "ILS",
+}
+
+
+def _resolve_reporting_currency(
+    provider_tag: str,
+    ticker: str,
+    country: str | None,
+) -> str:
+    """Return the reliable reporting currency for an issuer.
+
+    If the provider says "USD" but the country mapping implies a different
+    home currency AND the ticker has no '.' suffix (i.e. it is listed as an
+    ADR on a US exchange, not a local listing already priced in local ccy),
+    we override the provider tag. Local listings (e.g. 2330.TW) already have
+    the correct non-USD tag from yfinance and are never overridden here.
+
+    Args:
+        provider_tag: The raw ``financialCurrency`` value from the provider.
+        ticker: The ticker symbol (e.g. "TSM", "2330.TW").
+        country: The ``country`` field from the provider, or None.
+
+    Returns:
+        ISO 4217 currency code (uppercase).
+    """
+    normalised = (provider_tag or "USD").upper()
+
+    # Only apply the heuristic when the provider claims USD and a country
+    # mapping exists. If provider already says non-USD, trust it.
+    if normalised != "USD" or country is None:
+        return normalised
+
+    home_ccy = _COUNTRY_TO_REPORTING_CURRENCY.get(country)
+    if home_ccy is None:
+        return normalised  # US or unknown country — trust USD tag
+
+    # ADR: traded on US exchange (no '.' in ticker) but incorporated abroad.
+    # The IS/BS are in the home currency; only market_cap/price come in USD.
+    if "." not in ticker:
+        return home_ccy
+
+    # Local listing (e.g. 2330.TW): yfinance already returns the correct
+    # local currency for financialCurrency — no override needed.
+    return normalised
+
+
 def extract_company_financials(financials_result: DataResult) -> CompanyFinancials:
     """Extract CompanyFinancials for use in peer comparisons.
 
-    ``reporting_currency`` carries the provider's stated currency code (ISO
-    4217) so downstream peer-comps normalization can collapse foreign-ADR
-    unit mismatches before EV/EBITDA is computed. Defaults to USD when the
-    provider omits the field (most US issuers).
+    ``reporting_currency`` carries the resolved IS/BS currency (ISO 4217).
+    For ADRs where yfinance mis-tags ``financialCurrency`` as "USD", the
+    country-based override in ``_resolve_reporting_currency`` corrects it so
+    the downstream FX normalization step applies the proper conversion before
+    EV/EBITDA is computed. Defaults to USD when country is unknown (US issuers).
     """
     data = financials_result.data
     ticker = financials_result.ticker
+    provider_ccy = data.get("financial_currency") or "USD"
+    country: str | None = data.get("country")
+    reporting_currency = _resolve_reporting_currency(provider_ccy, ticker, country)
     return CompanyFinancials(
         ticker=ticker,
         revenue=data.get("revenue") or 0,
@@ -189,7 +274,7 @@ def extract_company_financials(financials_result: DataResult) -> CompanyFinancia
         gross_margin=data.get("gross_margin") or 0,
         operating_margin=data.get("operating_margin") or 0,
         pe_ratio=data.get("pe_ratio"),
-        reporting_currency=(data.get("financial_currency") or "USD").upper(),
+        reporting_currency=reporting_currency,
         quote_currency=(data.get("quote_currency") or "USD").upper(),
     )
 

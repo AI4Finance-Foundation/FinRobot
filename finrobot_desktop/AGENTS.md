@@ -186,9 +186,9 @@ FinRobot 是面向金融分析师 / 量化研究员 / 主动投资者的桌面�
 - **路由按职责分文件**：`routes/{artifacts,compute,dashboard,data,health,notify,runs,search,sentiment,settings,valuation}.py`
 - **数据层** `engine/data/` — providers (yfinance / FMP / Finnhub / EdgarTools SEC EDGAR) + `DataCache` (aiosqlite, WAL) + `QuoteCache` (L1 内存 dict + L2 SQLite, 60s TTL) + `sec_holdings_cache.db` 13F 本地反向索引 + WeakValueDictionary 防 stampede 不内存泄漏
 - **统一存储** 全部状态住在 `~/.finrobot/`（路径常量见 `finrobot/paths.py`）：
-  - `artifacts.db` — `SqliteArtifactStore`，二级索引 `(ticker, created_at)` / `verdict` / `archived`；`ArtifactSummary.verdict` 在 save 时一次性 extract 写列，dashboard 聚合不再 N+1 读全 artifact
+  - `artifacts.db` — `SqliteArtifactStore`，二级索引 `(ticker, created_at)` / `(ticker, type, created_at)` / `(archived, created_at)` / `verdict` / `archived`；`ArtifactSummary.verdict` 在 save 时一次性 extract 写列，dashboard 聚合不再 N+1 读全 artifact
   - `quotes.db` — `QuoteCache` L2 持久化（跨进程存活）
-  - `data_cache.db` — provider 响应缓存
+  - `data_cache.db` — provider 响应缓存；`/api/data/{ticker}/price?period=1y` 的 route cache key 为 `price:{ticker}:1y`，provider/pipeline price key 为 `price:{ticker}`，route cache miss 时默认 1y 视图复用 provider cache，yfinance 限流时返回带 warning 的旧缓存而不是空白页面
   - `runs.db` — pipeline SSE 事件流 + run 元数据
   - `journal.db` — trade-journal（performance review）
   - `sessions/*.jsonl` — chat transcript
@@ -196,7 +196,7 @@ FinRobot 是面向金融分析师 / 量化研究员 / 主动投资者的桌面�
   - `sec_holdings_cache.db` — 13F 机构持仓本地反向索引；runtime 查 ticker / issuer name，不临场扫季度全集
 - **lifespan 关停顺序** cancel run_tasks → close data_layer → close run_store → close artifact_store → close quote_cache singleton → flush transcript writers，每个 aiosqlite store 都显式 `close()`，避免 WAL 不 checkpoint + asyncio loop teardown race 出 `Event loop is closed` 警告
 - **landing 性能** lifespan 后台 `_warm_quote_cache_background` 预填 distinct studied tickers 报价；`fetch_quotes_batch_cached` 内部 cold 路径用 `asyncio.gather` + `asyncio.to_thread` 把 yfinance fast_info 并发 fan-out（N 个 ticker 同时拉，不再串行循环 1.5s/ticker）。冷启动 hit-rate **4.80s → 0.007s**（warmup 后），warmup 自身 4 ticker ≈ 1.5-2s（旧串行 ~6s）
-- **SEC 后台刷新** lifespan 后台 `_refresh_sec_holdings_background` 在 SEC identity 有效且 13F cache 超过 60 天时刷新最近完整季度；`sec_holdings_auto_refresh` 默认开，默认 identity 被 `_is_valid_identity` 拒绝时 app 正常启动但不注册 EdgarToolsProvider
+- **SEC 后台刷新** `_refresh_sec_holdings_background` 是显式 opt-in：`sec_holdings_auto_refresh` 默认关。用户开启后，lifespan 在 SEC identity 有效且 13F cache 超过 60 天时刷新最近完整季度；刷新以独立 `python -m scripts.refresh_sec_holdings` 子进程运行，不占 FastAPI event loop，shutdown 会终止刷新子进程；默认 identity 被 `_is_valid_identity` 拒绝时 app 正常启动但不注册 EdgarToolsProvider
 - **聚合层** `engine/aggregations/` — 叶层纯函数（hit_rate_overview / recent_research）
 - **compute 层** `engine/compute/`：
   - 估值：`dcf / ddm / lbo / comps / multiples / wacc / valuation_aggregator / valuation_synthesis`
@@ -265,6 +265,10 @@ FinRobot 是面向金融分析师 / 量化研究员 / 主动投资者的桌面�
 - `catalysts` / `risks` — 数组
 - `company_overview` — 200-300 字 Company Overview（business / segments / geography / moat 投行口吻）
 
+artifact 路径：
+- `outputs.llm_narrative.*` — 顶层 LLM 叙事镜像（`ArtifactOutputs.llm_narrative` 字段，由 equity_research builder 从 `structured.thesis` mirror-write）
+- `outputs.structured.thesis.*` — 计算审计链源头，UI 当前读此路径，保持不变
+
 surface 位置：`/stocks/:ticker/runs/:artifactId` 路由（ArtifactDetailPage）的 12 章节按字段映射渲染：
 - `tagline` → 00 Cover 顶部 italic 引文
 - `key_takeaways` + `recommendation` → 01 Investment Thesis takeaways list + verdict badge
@@ -277,8 +281,8 @@ surface 位置：`/stocks/:ticker/runs/:artifactId` 路由（ArtifactDetailPage�
 
 ## 测试金字塔
 
-- **1363 pytest pass** + 1 skipped + 10 deselected (`-m "not slow and not integration"`)（unit + routes + audit + artifact；`tests/unit/test_paths.py` 覆盖 paths 常量 + journal.db + sessions/ 迁移 / `test_sqlite_store.py` + `test_migrate.py` 覆盖 SQLite ArtifactStore + 文件系统→SQLite 迁移 / `test_quote_cache.py` 覆盖 L1+L2 quote cache / `test_quote_batch.py::test_cached_cold_path_fans_out_per_ticker_concurrently` 守护 yfinance per-ticker 并发不被回退到串行循环 / `test_equity_research_pipeline.py` 覆盖 pipeline 8 步骤结构 + step executor + SEC required data + ownership_governance_analysis 链路 / `test_sec_holdings_cache.py` 覆盖 13F ticker 与 issuer name fallback / `test_ownership_compute.py` 覆盖 Form 4、13F、DEF 14A deterministic 解析 / `test_xbrl_aligned_comps.py` 覆盖 XBRL-aligned peer comps / `tests/audit/test_sec_provenance.py` 覆盖 artifact SEC provenance contract / `test_notify_routes.py` 覆盖 8 个 channel test endpoint case / `test_growth_scale_override.py` 覆盖 What-if Editor revenue growth scaling）。实跑时间 `pytest -m "not slow and not integration" -q` ~10s。剩余 aiosqlite teardown warning 是已知 race（见 `project-memory/踩坑记录/aiosqlite-test-teardown-2026-05-27.md`，非致命）。
-- **259 vitest pass** + 2 skipped（components + stores + hooks + i18n smoke + format helpers + errorMessage 映射 + `ChapterTechnical.test.tsx` + `useQuotesWarmed.test.tsx` + `WhatIfEditor.test.tsx` 守护 3 slider + side-by-side compare 行为）
+- **1511 pytest pass** + 1 skipped + 10 deselected (`-m "not slow and not integration"`)（unit + routes + audit + artifact；`tests/unit/test_paths.py` 覆盖 paths 常量 + journal.db + sessions/ 迁移 / `test_sqlite_store.py` + `test_migrate.py` 覆盖 SQLite ArtifactStore + 文件系统→SQLite 迁移 / `test_quote_cache.py` 覆盖 L1+L2 quote cache / `test_quote_batch.py::test_cached_cold_path_fans_out_per_ticker_concurrently` 守护 yfinance per-ticker 并发不被回退到串行循环，`test_yfinance_rate_limit_is_isolated` 守护 YFRateLimit 不把 dashboard 打成 500 / `test_equity_research_pipeline.py` 覆盖 pipeline 8 步骤结构 + step executor + SEC required data + ownership_governance_analysis 链路 / `test_edgar_provider.py` 覆盖中文 SEC identity 到 ASCII header 的运行时转换 / `test_server.py::test_sec_holdings_refresh_not_inline_in_lifespan` 守护 13F refresh 不阻塞 sidecar readiness / `test_refresh_sec_holdings.py` 守护 13F schema drift 聚合 warning / `test_sec_holdings_cache.py` 覆盖 13F ticker 与 issuer name fallback / `test_ownership_compute.py` 覆盖 Form 4、13F、DEF 14A deterministic 解析 / `test_xbrl_aligned_comps.py` 覆盖 XBRL-aligned peer comps + NetIncomeLoss :annual/:ttm 双 key 不碰撞 / `tests/audit/test_sec_provenance.py` 覆盖 artifact SEC provenance contract + llm_narrative mirror-write / `test_notify_routes.py` 覆盖 8 个 channel test endpoint case / `test_growth_scale_override.py` 覆盖 What-if Editor revenue growth scaling）。实跑时间 `pytest -m "not slow and not integration" -q` ~10s。剩余 aiosqlite teardown warning 是已知 race（见 `project-memory/踩坑记录/aiosqlite-test-teardown-2026-05-27.md`，非致命）。
+- **309 vitest pass** + 2 skipped（components + stores + hooks + i18n smoke + format helpers + errorMessage 映射 + API fetch timeout + `ChapterTechnical.test.tsx` + `useQuotesWarmed.test.tsx` + `WhatIfEditor.test.tsx` 守护 3 slider + side-by-side compare 行为；`StockWorkspace.test.tsx` 守护 422 才进入 ticker-not-found，yfinance 502/网络错误保持 workspace shell 可用，AI run 启动失败必须 toast 反馈）
 - **Playwright e2e 待新建**：旧 2 个 spec (`v5-walkthrough` + `cosmic-research-flow`) 已删（依赖死 23-section 锚点 + StatBanner/HeroVerdict/FootballField testids）。新 e2e 应该覆盖 landing → workspace dual-zone (cold/running/hot) → ArtifactDetailPage 12-chapter (TOC scroll-spy + chapter mini-grid #anchor jump + Diff modal) 路径
 
 ## UI 设计规范强制（桌面 App）

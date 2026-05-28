@@ -265,3 +265,50 @@ def test_validate_thesis_recommendation_preserves_case_in_artifact():
     )
     validate_thesis(t)
     assert t.recommendation == "BUY"
+
+
+def test_validate_thesis_review_verdict_requires_null_target():
+    """Data-health-gate verdict: REVIEW must carry price_target=None — the
+    whole point is the system refusing to publish a target it can't defend."""
+    t = ThesisResult(
+        recommendation="REVIEW",
+        price_target=None,
+        price_target_basis="Data-health gate: methods deviate >50%, target withheld.",
+        catalysts=["pending data reconciliation"],
+        risks=["valuation methods do not corroborate"],
+        narrative="No defensible target until inputs reconciled.",
+    )
+    assert validate_thesis(t).passed
+
+
+def test_validate_thesis_review_with_target_rejected():
+    """A REVIEW verdict that still carries a number is contradictory — reject
+    it so a half-gated artifact can never ship a phantom target under the
+    'under review' banner."""
+    t = ThesisResult(
+        recommendation="REVIEW",
+        price_target=11.25,
+        price_target_basis="should not happen",
+        catalysts=["x"],
+        risks=["y"],
+        narrative="z",
+    )
+    result = validate_thesis(t)
+    assert not result.passed
+    assert "REVIEW" in (result.error or "")
+
+
+def test_validate_thesis_non_review_requires_positive_target():
+    """A directional verdict (BUY/HOLD/SELL) with a null target is invalid —
+    only REVIEW may omit the number."""
+    t = ThesisResult(
+        recommendation="SELL",
+        price_target=None,
+        price_target_basis="missing",
+        catalysts=["x"],
+        risks=["y"],
+        narrative="z",
+    )
+    result = validate_thesis(t)
+    assert not result.passed
+    assert "positive" in (result.error or "").lower()

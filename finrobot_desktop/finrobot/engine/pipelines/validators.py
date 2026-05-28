@@ -308,6 +308,10 @@ _VALID_RECOMMENDATIONS = {
     "UNDERWEIGHT",
     "OUTPERFORM",
     "UNDERPERFORM",
+    # Data-health gate verdict: the valuation methods failed cross-checks
+    # (spread > 50%) or required inputs were untrustworthy, so no defensible
+    # target/verdict can be stated. price_target is None in this state.
+    "REVIEW",
 }
 """Canonical investment-bank recommendations (uppercase per CLAUDE.md spec).
 
@@ -477,7 +481,8 @@ def validate_thesis(thesis: ThesisResult) -> ValidationResult:
     follow CLAUDE.md's "BUY HOLD SELL（投行惯例）" convention but mixed-case
     historical artifacts should still validate.
     """
-    if thesis.recommendation.upper() not in _VALID_RECOMMENDATIONS:
+    recommendation = thesis.recommendation.upper()
+    if recommendation not in _VALID_RECOMMENDATIONS:
         return ValidationResult(
             passed=False,
             error=(
@@ -485,7 +490,15 @@ def validate_thesis(thesis: ThesisResult) -> ValidationResult:
                 f"{sorted(_VALID_RECOMMENDATIONS)} (case-insensitive)"
             ),
         )
-    if thesis.price_target <= 0:
+    # REVIEW is the data-health-gate verdict: target is intentionally withheld.
+    # Every other verdict must carry a positive, defensible target.
+    if recommendation == "REVIEW":
+        if thesis.price_target is not None:
+            return ValidationResult(
+                passed=False,
+                error="REVIEW verdict must have price_target=None (target withheld)",
+            )
+    elif thesis.price_target is None or thesis.price_target <= 0:
         return ValidationResult(passed=False, error="Price target must be positive")
     if len(thesis.catalysts) < 1:
         return ValidationResult(passed=False, error="At least 1 catalyst required")

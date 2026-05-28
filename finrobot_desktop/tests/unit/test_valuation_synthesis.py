@@ -90,7 +90,7 @@ class TestSynthesizeValuations:
         median = $120
         $100 deviation = 16.7% < 30% → clean
         $120 deviation = 0%   < 30% → clean
-        $200 deviation = 66.7% > 30% → outlier
+        $200 deviation = 66.7% > 30% → outlier (and > 50% → trips reliability gate)
         """
         methods = [
             ValuationMethod(name="DDM", low=85, mid=100, high=115, confidence=0.3, source="DDM"),
@@ -103,8 +103,13 @@ class TestSynthesizeValuations:
         ]
         result = synthesize_valuations(methods, current_price=150.0)
         assert result.outlier_methods == ["LBO"]
-        assert len(result.warnings) == 1
-        assert "LBO" in result.warnings[0]
+        # LBO's 66.7% deviation exceeds the 50% reliability gate too, so the
+        # synthesis flags itself unreliable and appends the UNRELIABLE banner
+        # on top of the per-method spread warning.
+        assert result.reliable is False
+        assert len(result.warnings) == 2
+        assert any("LBO" in w and "deviates" in w for w in result.warnings)
+        assert any("UNRELIABLE" in w for w in result.warnings)
 
     def test_single_method_no_outlier_check(self):
         """Single-method synthesis skips outlier logic; outlier_methods/warnings empty."""
@@ -114,3 +119,44 @@ class TestSynthesizeValuations:
         result = synthesize_valuations(methods, current_price=200.0)
         assert result.outlier_methods == []
         assert result.warnings == []
+
+    def test_reliable_true_when_spread_under_50pct(self):
+        """43.98% spread (AAPL-like) is an outlier but still RELIABLE — the
+        soft 30% band flags it, the hard 50% gate does not trip."""
+        methods = [
+            ValuationMethod(name="DCF", low=70, mid=86, high=100, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="Comps", low=190, mid=221, high=260, confidence=0.5, source="Comps"
+            ),
+        ]
+        result = synthesize_valuations(methods, current_price=180.0)
+        assert result.reliable is True
+        # Only the two soft outlier warnings — no unreliable banner.
+        assert len(result.warnings) == 2
+
+    def test_reliable_false_tsla_dcf_comps_54pct_spread(self):
+        """Reproduces the 2026-05-28 TSLA gate failure: DCF $5.88 vs Comps
+        $19.54 → median $12.71, both deviate 54% > 50%. The synthesis must
+        flag itself UNRELIABLE so the pipeline withholds the headline
+        target/verdict instead of shipping SELL @ $11.25."""
+        methods = [
+            ValuationMethod(name="DCF", low=4.0, mid=5.88, high=8.0, confidence=0.85, source="DCF"),
+            ValuationMethod(
+                name="Comps", low=15.0, mid=19.54, high=24.0, confidence=0.55, source="Comps"
+            ),
+        ]
+        result = synthesize_valuations(methods, current_price=440.36)
+        assert result.reliable is False
+        # weighted_price is still computed (audit trail) but must not be
+        # presented as a headline target — that's the pipeline's job.
+        assert result.weighted_price is not None
+        assert any("UNRELIABLE" in w for w in result.warnings)
+
+    def test_single_method_is_reliable_by_default(self):
+        """A lone method has no cross-check to fail — reliable stays True
+        (the weighted_price=None path already withholds a target)."""
+        methods = [
+            ValuationMethod(name="DCF", low=200, mid=250, high=300, confidence=1.0, source="DCF")
+        ]
+        result = synthesize_valuations(methods, current_price=200.0)
+        assert result.reliable is True

@@ -79,7 +79,10 @@ def extract_verdict(artifact: "Artifact") -> str | None:
     if not isinstance(raw, str):
         return None
     normalised = raw.strip().upper()
-    if normalised in ("BUY", "HOLD", "SELL"):
+    # REVIEW is the data-health-gate verdict (target withheld) — surface it so
+    # the landing hit-rate strip and the cover badge can render a neutral
+    # "under review" state instead of silently dropping the artifact.
+    if normalised in ("BUY", "HOLD", "SELL", "REVIEW"):
         return normalised
     return None
 

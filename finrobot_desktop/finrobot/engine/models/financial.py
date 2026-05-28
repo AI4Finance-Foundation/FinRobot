@@ -328,8 +328,16 @@ class ThesisResult(BaseModel):
     major_takeaways maps to key_takeaways, risks maps to risks list.
     """
 
-    recommendation: str = Field(description="Buy/Hold/Sell")
-    price_target: float = Field(gt=0)
+    recommendation: str = Field(description="Buy/Hold/Sell/REVIEW")
+    price_target: float | None = Field(
+        default=None,
+        description=(
+            "12-month price target. None when the valuation methods fail the "
+            "data-health gate (recommendation='REVIEW') — the system refuses to "
+            "publish a target it cannot defend rather than averaging "
+            "non-corroborating methods into a phantom number."
+        ),
+    )
     price_target_basis: str
     catalysts: list[str] = Field(min_length=1)
     risks: list[str] = Field(min_length=1)
@@ -524,6 +532,15 @@ class ValuationSynthesis(BaseModel):
     warnings: list[str] = Field(
         default_factory=list,
         description="Human-readable warnings produced during synthesis (e.g. spread alerts).",
+    )
+    reliable: bool = Field(
+        default=True,
+        description=(
+            "False when at least one method deviates > 50% from the cross-method "
+            "median — the weighted target is then the midpoint of estimates that "
+            "don't corroborate and MUST NOT be published as a headline "
+            "target/verdict. Drives the equity-research data-health gate."
+        ),
     )
 
 

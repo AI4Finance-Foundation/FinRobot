@@ -679,7 +679,26 @@ async def _execute_thesis(
     canonical_basis: str | None = None
     canonical_verdict: str | None = None
     canonical_upside: float | None = None
-    if isinstance(vs, ValuationSynthesis) and vs.weighted_price is not None:
+    # Data-health gate: when the synthesis flags itself unreliable (methods
+    # deviate > 50% from each other), we publish NO headline target/verdict.
+    # Averaging non-corroborating methods into a confident SELL @ $11.25 —
+    # while the audit trail screams "DCF deviates 54% from median" — is the
+    # exact failure the 2026-05-28 TSLA artifact shipped. REVIEW is the
+    # honest verdict; the narrative LLM is told to explain the data-health
+    # gap instead of inventing conviction.
+    gate_failed = isinstance(vs, ValuationSynthesis) and not vs.reliable
+    if gate_failed:
+        canonical_verdict = "REVIEW"
+        canonical_target = None
+        assert isinstance(vs, ValuationSynthesis)
+        spread_detail = "; ".join(vs.warnings) if vs.warnings else "method spread exceeded gate"
+        canonical_basis = f"DATA-HEALTH GATE: target withheld. {spread_detail}"
+        logger.warning(
+            "Equity-research data-health gate TRIPPED — verdict forced to REVIEW, "
+            "target withheld. Detail: %s",
+            spread_detail,
+        )
+    elif isinstance(vs, ValuationSynthesis) and vs.weighted_price is not None:
         # Only inject an authoritative target when ≥2 methods converge.
         # Single-method synthesis has weighted_price=None (no cross-check).
         canonical_target = round(vs.weighted_price, 2)
@@ -704,7 +723,20 @@ async def _execute_thesis(
     thesis_prompt = prompt
     if catalyst_section:
         thesis_prompt = f"{prompt}\n\nCatalyst Analysis:\n{catalyst_section}"
-    if canonical_target is not None:
+    if gate_failed:
+        thesis_prompt = (
+            f"{thesis_prompt}\n\n"
+            f"DATA-HEALTH GATE TRIPPED — DO NOT STATE A PRICE TARGET OR DIRECTIONAL VERDICT.\n"
+            f"{canonical_basis}\n"
+            f"Your `recommendation` field MUST be exactly 'REVIEW'. "
+            f"Your `price_target` field MUST be null/omitted. "
+            f"Your `price_target_basis` MUST state that the valuation methods do not "
+            f"corroborate (cite the spread) and a defensible target cannot be published "
+            f"until the underlying data is reconciled. The narrative MUST explain to the "
+            f"reader, in plain language, why no target is given — this is a feature "
+            f"(refusing to fabricate a number), not a failure. Do NOT pick a midpoint."
+        )
+    elif canonical_target is not None:
         upside_str = (
             f"{canonical_upside:+.1%}" if canonical_upside is not None else "n/a"
         )
@@ -849,8 +881,26 @@ async def _execute_thesis(
     # Hard-enforce the deterministic target + verdict — same inputs always
     # produce the same numbers. If the LLM ignored the prompt, log the
     # drift so we can detect prompt-fidelity regressions in evals.
-    if canonical_target is not None and canonical_basis is not None:
-        if abs(thesis.price_target - canonical_target) > 0.01:
+    if gate_failed:
+        # Data-health gate: force REVIEW / no-target regardless of what the
+        # LLM produced. This is the non-negotiable safety override — a
+        # cooperative LLM already emitted REVIEW, an uncooperative one is
+        # corrected here so the contract holds.
+        if thesis.recommendation.strip().upper() != "REVIEW" or thesis.price_target is not None:
+            logger.warning(
+                "Thesis LLM ignored data-health gate (rec=%s, target=%s) — forcing REVIEW",
+                thesis.recommendation,
+                thesis.price_target,
+            )
+        thesis = thesis.model_copy(
+            update={
+                "recommendation": "REVIEW",
+                "price_target": None,
+                "price_target_basis": canonical_basis or "Data-health gate: target withheld.",
+            }
+        )
+    elif canonical_target is not None and canonical_basis is not None:
+        if thesis.price_target is None or abs(thesis.price_target - canonical_target) > 0.01:
             logger.warning(
                 "Thesis LLM price_target drift: llm=%s, canonical=%s — overriding",
                 thesis.price_target,
@@ -873,9 +923,12 @@ async def _execute_thesis(
             updates["recommendation"] = canonical_verdict
         thesis = thesis.model_copy(update=updates)
 
+    target_str = (
+        f"${thesis.price_target:.2f}" if thesis.price_target is not None else "N/A (under review)"
+    )
     narrative = (
         f"Recommendation: {thesis.recommendation}. "
-        f"Price target: ${thesis.price_target:.2f} ({thesis.price_target_basis}). "
+        f"Price target: {target_str} ({thesis.price_target_basis}). "
         f"Catalysts: {', '.join(thesis.catalysts[:2])}. "
         f"Risks: {', '.join(thesis.risks[:2])}."
     )

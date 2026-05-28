@@ -27,6 +27,7 @@ from finrobot.engine.models.financial import (
 )
 from finrobot.engine.compute.catalyst import (
     extract_catalysts_from_news,
+    filter_fresh_news,
     compute_expected_impact,
     summarize_catalyst_outlook,
 )
@@ -227,12 +228,7 @@ async def _execute_catalyst_analysis(
     news_items = await classify_news(raw_news, deps)
 
     # Drop stale news (> 30 days old) before catalyst extraction
-    now_utc = datetime.now(tz=timezone.utc)
-    fresh_news = [
-        n for n in news_items
-        if (now_utc - n.published.replace(tzinfo=timezone.utc) if n.published.tzinfo is None else now_utc - n.published).days <= 30
-    ]
-    stale_count = len(news_items) - len(fresh_news)
+    fresh_news, stale_count = filter_fresh_news(news_items, max_age_days=30)
     if stale_count > 0:
         logger.debug("Dropped %d stale news items (>30 days) for %s", stale_count, ticker)
 

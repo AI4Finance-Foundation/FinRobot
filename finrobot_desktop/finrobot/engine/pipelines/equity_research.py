@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 from pydantic import ValidationError
@@ -171,6 +172,26 @@ def _sec_8k_to_catalyst(event: dict[str, Any]) -> CatalystEvent:
         category = "management"
     elif any(i.startswith("Item 1.01") or i.startswith("Item 2.01") for i in items):
         category = "acquisition"
+
+    # Inject filing date and SEC URL for traceability
+    raw_date = event.get("filing_date") or event.get("filed_at")
+    published: datetime | None = None
+    if raw_date:
+        try:
+            dt = datetime.fromisoformat(str(raw_date).replace("Z", "+00:00"))
+            published = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        except (ValueError, AttributeError):
+            published = None
+
+    source_url: str | None = event.get("source_url") or None
+    if source_url is None:
+        accession_no = event.get("accession_no")
+        if accession_no:
+            source_url = (
+                f"https://www.sec.gov/cgi-bin/browse-edgar"
+                f"?action=getcompany&accession-number={accession_no}"
+            )
+
     return CatalystEvent(
         category=category,
         headline=f"SEC 8-K filed: {item_text}",
@@ -181,6 +202,8 @@ def _sec_8k_to_catalyst(event: dict[str, Any]) -> CatalystEvent:
             "Source is a company-filed SEC 8-K current report; treated as "
             "primary-source catalyst context."
         ),
+        published=published,
+        url=source_url,
     )
 
 
@@ -203,8 +226,18 @@ async def _execute_catalyst_analysis(
     raw_news = await fetch_news(deps.data_layer, ticker)
     news_items = await classify_news(raw_news, deps)
 
+    # Drop stale news (> 30 days old) before catalyst extraction
+    now_utc = datetime.now(tz=timezone.utc)
+    fresh_news = [
+        n for n in news_items
+        if (now_utc - n.published.replace(tzinfo=timezone.utc) if n.published.tzinfo is None else now_utc - n.published).days <= 30
+    ]
+    stale_count = len(news_items) - len(fresh_news)
+    if stale_count > 0:
+        logger.debug("Dropped %d stale news items (>30 days) for %s", stale_count, ticker)
+
     # Extract catalysts from high-importance news
-    catalysts = extract_catalysts_from_news(news_items)
+    catalysts = extract_catalysts_from_news(fresh_news)
     sec_filings = structured_context.get("sec_filings")
     if isinstance(sec_filings, dict):
         for event in sec_filings.get("8k_events", [])[:10]:
@@ -370,6 +403,27 @@ async def _execute_ownership_governance_analysis(
         institutional_data=holdings,
         proxy_data=proxy,
     )
+
+    # Populate degraded_reasons based on what _fetch_optional_sec returned.
+    # "available": False means the provider returned an error payload.
+    # Empty list/None after a successful fetch means no recent filings exist.
+    if "insider_transactions" in analysis.degraded_sections:
+        if insider.get("available") is False:
+            error_str = str(insider.get("error", "")).lower()
+            if "identity" in error_str or "cik" in error_str or "not found" in error_str:
+                analysis.degraded_reasons["insider_transactions"] = "identity_missing"
+            else:
+                analysis.degraded_reasons["insider_transactions"] = "fetch_error"
+        else:
+            analysis.degraded_reasons["insider_transactions"] = "no_recent_filings"
+
+    if "proxy_compensation" in analysis.degraded_sections:
+        if proxy.get("available") is False:
+            analysis.degraded_reasons["proxy_compensation"] = "fetch_error"
+        else:
+            # Either no filing returned or fields parsed to None (garbage in).
+            analysis.degraded_reasons["proxy_compensation"] = "parse_failed"
+
     narrative = (
         f"Ownership & Governance: {len(analysis.insider_transactions)} insider "
         f"transactions, {len(analysis.institutional_holdings)} institutional holders, "
@@ -463,14 +517,20 @@ async def _execute_financial_modeling(
         f"Sensitivity range: {price_range}."
     )
 
-    # Build ValuationSynthesis from DCF + peer comps for football field chart.
+    # Bug A fix: write DCFResult into structured_context BEFORE calling
+    # build_valuation_synthesis so aggregate_valuation can find it. Previously
+    # this write happened via _store_output AFTER the executor returned, so
+    # isinstance(dcf, DCFResult) was always False and DCF was silently dropped.
+    structured_context["financial_modeling"] = dcf_result
+
+    # Build ValuationSynthesis from all available methods for the football field chart.
     current_price = (
         financial_data.market.current_price if hasattr(financial_data, "market") else 0
     )
     if current_price > 0:
         from finrobot.engine.pipelines._helpers import build_valuation_synthesis
 
-        vs = build_valuation_synthesis(structured_context, current_price)
+        vs = build_valuation_synthesis(structured_context, current_price, ticker=ticker)
         if vs is not None:
             structured_context["valuation_synthesis"] = vs
 
@@ -608,16 +668,26 @@ async def _execute_thesis(
     canonical_basis: str | None = None
     canonical_verdict: str | None = None
     canonical_upside: float | None = None
-    if isinstance(vs, ValuationSynthesis):
+    if isinstance(vs, ValuationSynthesis) and vs.weighted_price is not None:
+        # Only inject an authoritative target when ≥2 methods converge.
+        # Single-method synthesis has weighted_price=None (no cross-check).
         canonical_target = round(vs.weighted_price, 2)
         canonical_upside = vs.upside_downside
-        canonical_verdict = _verdict_from_upside(canonical_upside)
+        canonical_verdict = (
+            _verdict_from_upside(canonical_upside) if canonical_upside is not None else None
+        )
         method_breakdown = ", ".join(
             f"{m.name}=${m.mid:.2f}(c={m.confidence:.2f})" for m in vs.methods
         )
         canonical_basis = (
             f"Confidence-weighted mean of {len(vs.methods)} methods: "
             f"{method_breakdown} → ${canonical_target:.2f}"
+        )
+    elif isinstance(vs, ValuationSynthesis):
+        logger.warning(
+            "ValuationSynthesis has only %d method(s) — no authoritative price target injected "
+            "(single-method synthesis, no cross-check available)",
+            len(vs.methods),
         )
 
     thesis_prompt = prompt

@@ -13,15 +13,18 @@ from finrobot.engine.compute.data_processor import (
     forecast_financials,
 )
 from finrobot.engine.compute.extractor import extract_financial_data
+from finrobot.engine.compute.valuation_aggregator import aggregate_valuation
 from finrobot.engine.compute.valuation_synthesis import synthesize_valuations
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import (
     DCFResult,
+    DDMResult,
     FinancialData,
     ForecastResult,
     HistoricalMetrics,
+    LBOResult,
     MarginAssumptions,
     PeerComps,
     StepOutput,
@@ -178,50 +181,66 @@ def build_sensitivity_ranges(
 def build_valuation_synthesis(
     structured_context: dict[str, object],
     current_price: float,
+    ticker: str = "",
 ) -> ValuationSynthesis | None:
-    """Build ValuationSynthesis from DCFResult + PeerComps in structured_context."""
-    methods: list[ValuationMethod] = []
+    """Build ValuationSynthesis from pipeline structured_context via aggregate_valuation.
 
+    Replaces the old 2-method (DCF + EV/EBITDA) hand-rolled logic with the
+    canonical 6-method ``aggregate_valuation`` function used by the REST endpoint.
+    Adapts ``ValuationAggregate`` → ``ValuationSynthesis`` so the thesis step
+    contract (``ValuationSynthesis``) stays intact.
+
+    When only one method resolves, ``weighted_price`` will be None and the
+    thesis step will NOT inject an authoritative price target — the LLM narrates
+    without a forced number rather than surfacing a spurious single-method "average".
+    """
     dcf = structured_context.get("financial_modeling")
-    if isinstance(dcf, DCFResult):
-        # DCF method: ±20% range around implied price
-        methods.append(
-            ValuationMethod(
-                name="DCF",
-                low=dcf.implied_price * 0.8,
-                mid=dcf.implied_price,
-                high=dcf.implied_price * 1.2,
-                confidence=0.7,
-                source="Discounted Cash Flow model",
-            )
-        )
-
     peers = structured_context.get("peer_analysis")
-    if isinstance(peers, PeerComps) and peers.median_ev_ebitda:
-        # EV/EBITDA comps: apply peer median to target's EBITDA
-        target = peers.target
-        if target.ebitda > 0 and target.market_cap > 0:
-            shares = target.market_cap / current_price if current_price > 0 else 1
-            ev_from_peers = peers.median_ev_ebitda * target.ebitda
-            equity_from_peers = ev_from_peers - (target.total_debt - target.total_cash)
-            implied = equity_from_peers / shares if shares > 0 else 0
-            if implied > 0:
-                methods.append(
-                    ValuationMethod(
-                        name="EV/EBITDA Comps",
-                        low=implied * 0.85,
-                        mid=implied,
-                        high=implied * 1.15,
-                        confidence=0.5,
-                        source=f"Peer median EV/EBITDA {peers.median_ev_ebitda:.1f}x",
-                    )
-                )
+    ddm = structured_context.get("ddm_calc")
+    lbo = structured_context.get("lbo_calc")
 
-    if not methods:
+    financial_data = structured_context.get("data_collection")
+    shares: float | None = None
+    if isinstance(financial_data, FinancialData):
+        shares = financial_data.market.shares_outstanding
+    # Fall back to DCFInputs.shares_outstanding when FinancialData is absent.
+    # DCF seed always carries this value from the data-collection step, so this
+    # keeps comps_pe functional in the common case where dcf resolved but
+    # data_collection is not re-stored in the same dict slice.
+    if shares is None and isinstance(dcf, DCFResult):
+        shares = dcf.inputs.shares_outstanding
+
+    agg = aggregate_valuation(
+        ticker=ticker or "UNKNOWN",
+        current_price=current_price,
+        dcf=dcf if isinstance(dcf, DCFResult) else None,
+        peer_comps=peers if isinstance(peers, PeerComps) else None,
+        ddm=ddm if isinstance(ddm, DDMResult) else None,
+        lbo=lbo if isinstance(lbo, LBOResult) else None,
+        shares_outstanding=shares,
+    )
+
+    if not agg.methods:
         return None
 
+    for w in agg.warnings:
+        logger.debug("valuation_synthesis: %s", w)
+
+    # Convert ValuationMethodRange → ValuationMethod for the thesis contract.
+    vm_list: list[ValuationMethod] = [
+        ValuationMethod(
+            name=r.method,
+            low=r.low,
+            mid=r.mid,
+            high=r.high,
+            confidence=r.confidence,
+            source=r.source,
+        )
+        for r in agg.methods
+    ]
+
     try:
-        return synthesize_valuations(methods, current_price)
+        return synthesize_valuations(vm_list, current_price)
     except ValueError as e:
         logger.warning("Failed to build ValuationSynthesis: %s", e)
         return None

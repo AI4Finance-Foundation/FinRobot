@@ -77,3 +77,39 @@ def test_equity_research_artifact_persists_sec_top_level_keys() -> None:
     assert ownership_dump["insider_transactions"][0]["provenance"]["form"] == "4"
     assert ownership_dump["institutional_holdings"][0]["provenance"]["form"] == "13F-HR"
     assert ownership_dump["proxy_compensation"]["provenance"]["form"] == "DEF 14A"
+
+
+def test_equity_research_artifact_llm_narrative_mirrors_thesis() -> None:
+    """outputs.llm_narrative must mirror thesis LLM fields so AGENTS.md path is live."""
+    result = PipelineResult(
+        steps={"thesis": "done"},
+        structured_data={
+            "thesis": {
+                "tagline": "AI infrastructure play with 40% upside",
+                "key_takeaways": ["Revenue accelerating", "Margin expansion"],
+                "company_overview": "NVIDIA designs GPUs...",
+                "valuation_overview": "DCF implies $1,100 base case...",
+                "news_summary": "Positive sentiment driven by Blackwell ramp...",
+                "competitor_analysis": "AMD trails in datacenter...",
+                "recommendation": "BUY",
+                "catalysts": ["Blackwell revenue ramp"],
+                "risks": ["Export controls"],
+            }
+        },
+    )
+
+    artifact = build_equity_research_artifact(result, "NVDA", deps=object())  # type: ignore[arg-type]
+
+    narrative = artifact.outputs.llm_narrative
+    # All 9 LLM narrative keys must be populated from the thesis
+    assert narrative.get("tagline") == "AI infrastructure play with 40% upside"
+    assert narrative.get("key_takeaways") == ["Revenue accelerating", "Margin expansion"]
+    assert narrative.get("company_overview", "").startswith("NVIDIA designs")
+    assert narrative.get("valuation_overview", "").startswith("DCF implies")
+    assert narrative.get("news_summary", "").startswith("Positive sentiment")
+    assert narrative.get("competitor_analysis", "").startswith("AMD trails")
+    assert narrative.get("recommendation") == "BUY"
+    assert narrative.get("catalysts") == ["Blackwell revenue ramp"]
+    assert narrative.get("risks") == ["Export controls"]
+    # structured.thesis must still exist (audit trail not removed)
+    assert artifact.outputs.structured.get("thesis", {}).get("recommendation") == "BUY"

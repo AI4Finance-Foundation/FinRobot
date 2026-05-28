@@ -77,4 +77,8 @@ def test_xbrl_concept_snapshot_groups_ttm_and_latest_facts() -> None:
     )
 
     assert "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax" in snapshot
-    assert snapshot["us-gaap:NetIncomeLoss"][0]["value"] == 97.0
+    # Annual net income now lives under the disambiguated :annual key
+    assert "us-gaap:NetIncomeLoss" not in snapshot, (
+        "bare NetIncomeLoss key must not exist; use :annual/:ttm suffixes"
+    )
+    assert snapshot["us-gaap:NetIncomeLoss:annual"][0]["value"] == 97.0

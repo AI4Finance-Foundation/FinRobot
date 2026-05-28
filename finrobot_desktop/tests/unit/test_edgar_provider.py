@@ -26,6 +26,7 @@ from finrobot.engine.data.providers.edgar_provider import (
     EdgarToolsProvider,
     _MIN_VALID_SECTION_CHARS,
     _is_valid_identity,
+    _sec_header_identity,
 )
 from finrobot.engine.data.types import DataType
 
@@ -61,6 +62,11 @@ class TestIsValidIdentity:
     def test_strips_whitespace(self) -> None:
         assert _is_valid_identity("  John j@x.io  ") is True
 
+    def test_chinese_identity_gets_ascii_header(self) -> None:
+        assert _sec_header_identity("郭嘉祺 17696026747@163.com") == (
+            "FinRobot 17696026747@163.com"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Provider construction
@@ -78,6 +84,18 @@ class TestEdgarToolsProviderConstruction:
         )
         p = EdgarToolsProvider("Jane Doe jane@example.com")
         assert calls == ["Jane Doe jane@example.com"]
+        assert p.name == "edgar_tools"
+
+    def test_init_sanitizes_unicode_identity_for_http_header(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[str] = []
+        monkeypatch.setattr(
+            "finrobot.engine.data.providers.edgar_provider.set_identity",
+            lambda s: calls.append(s),
+        )
+        p = EdgarToolsProvider("郭嘉祺 17696026747@163.com")
+        assert calls == ["FinRobot 17696026747@163.com"]
         assert p.name == "edgar_tools"
 
     def test_capabilities_includes_legacy_aliases(self) -> None:
@@ -396,6 +414,7 @@ async def test_fetch_xbrl_uses_typed_getters() -> None:
     ttm = MagicMock()
     ttm.concept = "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax"
     ttm.value = 451_442_000_000
+    # Plain strings → fallback {"raw": ...} typed dict shape
     ttm.periods = ["Q3 2025", "Q4 2025", "Q1 2026", "Q2 2026"]
     facts.get_ttm_revenue.return_value = ttm
     facts.get_ttm_net_income.return_value = None  # nullable
@@ -414,8 +433,73 @@ async def test_fetch_xbrl_uses_typed_getters() -> None:
     assert data["latest_revenue"] == 416_161_000_000
     assert data["ttm_revenue"]["concept"].startswith("us-gaap:Revenue")
     assert data["ttm_revenue"]["value"] == 451_442_000_000
-    assert data["ttm_revenue"]["periods"] == ["Q3 2025", "Q4 2025", "Q1 2026", "Q2 2026"]
+    # Plain strings fall through to {"raw": ...} fallback shape
+    assert all("raw" in p for p in data["ttm_revenue"]["periods"])
     assert data["ttm_net_income"] is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_xbrl_periods_tuple_produces_typed_dict() -> None:
+    """Tuple periods → {"year": int, "quarter": str} typed dict — not repr string."""
+    p = EdgarToolsProvider("Jane Doe jane@example.com")
+    facts = MagicMock()
+    ttm = MagicMock()
+    ttm.concept = "us-gaap:NetIncomeLoss"
+    ttm.value = 96_995_000_000
+    ttm.periods = [(2025, "Q3"), (2025, "Q4")]
+    facts.get_ttm_revenue.return_value = None
+    facts.get_ttm_net_income.return_value = ttm
+    facts.get_revenue.return_value = None
+    facts.get_net_income.return_value = 96_995_000_000
+    facts.get_gross_profit.return_value = None
+    facts.get_operating_income.return_value = None
+    facts.get_total_assets.return_value = None
+    facts.get_total_liabilities.return_value = None
+    facts.get_shareholders_equity.return_value = None
+
+    c = MagicMock()
+    c.get_facts.return_value = facts
+    data, _ = p._fetch_xbrl(c)
+
+    ni_ttm = data["ttm_net_income"]
+    assert ni_ttm is not None
+    assert ni_ttm["periods"] == [{"year": 2025, "quarter": "Q3"}, {"year": 2025, "quarter": "Q4"}]
+    # Must NOT be Python repr string
+    for period_entry in ni_ttm["periods"]:
+        assert "(" not in str(period_entry), "period must not be a Python repr tuple string"
+
+
+@pytest.mark.asyncio
+async def test_xbrl_concept_snapshot_net_income_dual_key() -> None:
+    """xbrl_concept_snapshot splits NetIncomeLoss into :annual and :ttm keys."""
+    from finrobot.engine.compute.xbrl_aligned_comps import xbrl_concept_snapshot
+
+    raw_xbrl = {
+        "ttm_net_income": {
+            "concept": "us-gaap:NetIncomeLoss",
+            "value": 100_000_000,
+            "periods": [{"year": 2025, "quarter": "Q3"}, {"year": 2025, "quarter": "Q4"}],
+        },
+        "latest_net_income": 90_000_000,
+    }
+    snapshot = xbrl_concept_snapshot(raw_xbrl)
+
+    # No bare us-gaap:NetIncomeLoss key — both records are disambiguated
+    assert "us-gaap:NetIncomeLoss" not in snapshot, (
+        "bare NetIncomeLoss key must not exist; use :annual/:ttm suffixes"
+    )
+    assert "us-gaap:NetIncomeLoss:ttm" in snapshot
+    assert "us-gaap:NetIncomeLoss:annual" in snapshot
+
+    ttm_entries = snapshot["us-gaap:NetIncomeLoss:ttm"]
+    assert len(ttm_entries) == 1
+    assert ttm_entries[0]["value"] == 100_000_000
+    assert ttm_entries[0]["concept"] == "us-gaap:NetIncomeLoss:ttm"
+
+    annual_entries = snapshot["us-gaap:NetIncomeLoss:annual"]
+    assert len(annual_entries) == 1
+    assert annual_entries[0]["value"] == 90_000_000
+    assert annual_entries[0]["concept"] == "us-gaap:NetIncomeLoss:annual"
 
 
 @pytest.mark.asyncio

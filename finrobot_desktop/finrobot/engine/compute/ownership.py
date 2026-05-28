@@ -69,6 +69,54 @@ def _money_from_text(text: str) -> float | None:
     return value
 
 
+def _ceo_comp_from_text(text: str) -> float | None:
+    """Extract CEO total compensation anchored near a CEO pay keyword.
+
+    Must find a dollar amount within 200 characters after one of:
+      - "CEO total compensation"
+      - "CEO compensation"
+      - "CEO total pay"
+      - "CEO pay"
+    Avoids grabbing the first $ in the document (which is often market cap or revenue).
+    """
+    anchor_pattern = re.compile(
+        r"CEO\s+(?:total\s+)?(?:compensation|pay)",
+        re.I,
+    )
+    match = anchor_pattern.search(text)
+    if not match:
+        return None
+    window = text[match.start() : match.start() + 200]
+    return _money_from_text(window)
+
+
+# Words that look like a proper-noun name regex match but are actually titles/roles.
+_CEO_NAME_BLACKLIST: frozenset[str] = frozenset(
+    {
+        "Chief Executive Officer",
+        "Chief",
+        "Executive",
+        "Officer",
+        "Chairman",
+        "President",
+        "Board",
+        "Director",
+        "CEO",
+        "CFO",
+        "COO",
+        "CTO",
+        "Vice",
+        "Senior",
+        "Named",
+        "Named Executive",
+    }
+)
+
+# Plausibility gate: CEO comp must be between $1M and $500M.
+_CEO_COMP_MIN: float = 1_000_000.0
+_CEO_COMP_MAX: float = 500_000_000.0
+
+
 def _extract_ceo_pay_ratio(text: str) -> int | None:
     match = re.search(
         r"CEO\s+pay\s+ratio[^0-9]{0,80}([0-9][0-9,]*)\s*(?:to|:)\s*1",
@@ -83,12 +131,106 @@ def _extract_ceo_pay_ratio(text: str) -> int | None:
     return None
 
 
+def _is_blacklisted_name(candidate: str) -> bool:
+    """Return True when every token in candidate is a blacklisted title/role word."""
+    tokens = candidate.split()
+    return all(
+        t.title() in _CEO_NAME_BLACKLIST
+        or t.upper() in _CEO_NAME_BLACKLIST
+        or t.lower() in {w.lower() for w in _CEO_NAME_BLACKLIST}
+        for t in tokens
+    )
+
+
+def _extract_ceo_name(text: str) -> str | None:
+    """Extract CEO name from proxy text, rejecting title/role tokens.
+
+    Strategy (in priority order):
+    1. Look for "Firstname Lastname, ... Chief Executive Officer/CEO" pattern —
+       name appears before the title on the same line (most SCT table formats).
+    2. Look for "Mr./Ms./Dr. Firstname Lastname" near a CEO anchor.
+    3. Look for a capitalized proper-noun sequence in the post-CEO window that
+       is not entirely composed of blacklisted title words.
+
+    The window search deliberately excludes the article "The" (a common false
+    positive when "The CEO" appears as a subject noun phrase).
+    """
+    # Strategy 0: name on the line immediately before "CEO ..." line (table format).
+    # e.g. "Sundar Pichai\nCEO Total Compensation $74M"
+    prev_line_pattern = re.compile(
+        r"([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,3})"
+        r"\s*\n\s*CEO\b",
+    )
+    for m in prev_line_pattern.finditer(text):
+        candidate = m.group(1).strip()
+        if not _is_blacklisted_name(candidate):
+            return candidate
+
+    # Strategy 1: name precedes title on the same line/sentence.
+    # Pattern: "Tim Cook, ... Chief Executive Officer" or "Tim Cook (CEO)"
+    # IMPORTANT: do NOT use re.I here — the name group uses [A-Z] to enforce
+    # uppercase-first, and re.I would make [A-Z] match lowercase too.
+    pre_title_pattern = re.compile(
+        r"([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3})"
+        r"[^A-Z\n]{0,80}"  # gap must not contain caps (to stop at title word start)
+        r"(?:Chief Executive Officer|CEO)\b",
+    )
+    for m in pre_title_pattern.finditer(text):
+        candidate = m.group(1).strip()
+        if not _is_blacklisted_name(candidate):
+            return candidate
+
+    # Strategy 2: Mr./Ms./Dr. + name near CEO anchor.
+    honorific_pattern = re.compile(
+        r"(?:Mr\.|Ms\.|Mrs\.|Dr\.)\s+([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,3})",
+        re.I,
+    )
+    ceo_positions = [m.start() for m in re.finditer(r"(?:Chief Executive Officer|CEO)\b", text, re.I)]
+    for m in honorific_pattern.finditer(text):
+        candidate = m.group(1).strip()
+        if _is_blacklisted_name(candidate):
+            continue
+        # Must be within 300 chars of a CEO anchor.
+        if any(abs(m.start() - pos) <= 300 for pos in ceo_positions):
+            return candidate
+
+    # Strategy 3: post-anchor scan with strict blacklist filtering.
+    ceo_match = re.search(r"(?:Chief Executive Officer|CEO)\b[^\n]{0,120}", text, re.I)
+    if not ceo_match:
+        return None
+    window = ceo_match.group(0)
+    for candidate_match in re.finditer(
+        r"\b([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){1,3})\b",
+        window,
+    ):
+        candidate = candidate_match.group(1).strip()
+        # Skip single-char initials-only matches.
+        if len(candidate.replace(" ", "")) <= 3:
+            continue
+        if _is_blacklisted_name(candidate):
+            continue
+        # Skip the article "The" as a leading word.
+        if candidate.lower().startswith("the "):
+            continue
+        return candidate
+    return None
+
+
 def build_proxy_compensation(raw_proxy: dict[str, Any]) -> ProxyCompensation | None:
     """Extract a compact DEF 14A compensation summary.
 
     The exact DEF 14A table layout varies by issuer. We persist provenance
     even when only the filing metadata is extractable, and opportunistically
     parse common CEO pay ratio / dollar amount prose for UI cards.
+
+    Plausibility gates applied before returning:
+    - ceo_name: rejected if composed entirely of blacklisted title words.
+    - ceo_total_compensation: must be in [1M, 500M]; outside range → None.
+    - ceo_total_compensation: extracted only from within 200 chars of a
+      "CEO total compensation/pay" keyword anchor (not first $ in document).
+    - When all three main fields (name, comp, ratio) are None, appends
+      "proxy_compensation" to degraded_sections is handled upstream in
+      compute_ownership_governance.
     """
     if not raw_proxy or (raw_proxy.get("proxy") is None and "text" not in raw_proxy):
         return None
@@ -96,19 +238,22 @@ def build_proxy_compensation(raw_proxy: dict[str, Any]) -> ProxyCompensation | N
         return None
 
     text = str(raw_proxy.get("text") or "")
-    ceo_name: str | None = None
-    ceo_match = re.search(r"(?:Chief Executive Officer|CEO)[^\n]{0,120}", text, re.I)
-    if ceo_match:
-        name_match = re.search(r"([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3})", ceo_match.group(0))
-        if name_match:
-            ceo_name = name_match.group(1)
+
+    ceo_name = _extract_ceo_name(text)
+
+    raw_comp = _ceo_comp_from_text(text)
+    ceo_total_compensation: float | None = None
+    if raw_comp is not None and _CEO_COMP_MIN <= raw_comp <= _CEO_COMP_MAX:
+        ceo_total_compensation = raw_comp
+
+    ceo_pay_ratio = _extract_ceo_pay_ratio(text)
 
     return ProxyCompensation(
         filing_date=_parse_date(raw_proxy["filing_date"]),
         accession_no=str(raw_proxy["accession_no"]),
         ceo_name=ceo_name,
-        ceo_total_compensation=_money_from_text(text),
-        ceo_pay_ratio=_extract_ceo_pay_ratio(text),
+        ceo_total_compensation=ceo_total_compensation,
+        ceo_pay_ratio=ceo_pay_ratio,
         provenance=_provenance(
             form="DEF 14A",
             filing_date=raw_proxy["filing_date"],
@@ -205,6 +350,16 @@ def compute_ownership_governance(
     proxy = build_proxy_compensation(proxy_data or {})
     if proxy is None:
         degraded_sections.append("proxy_compensation")
+    elif (
+        proxy.ceo_name is None
+        and proxy.ceo_total_compensation is None
+        and proxy.ceo_pay_ratio is None
+    ):
+        # ProxyCompensation object exists (filing metadata present) but all
+        # substantive NEO fields parsed to None — nothing useful to display.
+        # Treat as degraded so UI renders a placeholder instead of an empty card.
+        degraded_sections.append("proxy_compensation")
+        proxy = None
 
     return OwnershipGovernanceAnalysis(
         insider_transactions=insiders,

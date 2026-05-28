@@ -187,7 +187,10 @@ async def _safe_historical_bands(
         warnings.append(f"historical_bands failed: {exc}")
         return None
     if band.sample_count == 0:
-        warnings.append("historical_bands skipped: no valid samples")
+        if band.warnings:
+            warnings.extend(band.warnings)
+        else:
+            warnings.append("historical_bands skipped: no valid samples")
         return None
     return _snapshot_from_band(band)
 

@@ -120,6 +120,95 @@ class TestDDMBasic:
         assert result.equity_value_per_share == pytest.approx(44.55, abs=0.1)
 
 
+class TestDDMTerminalPayout:
+    """Terminal payout normalization (consistent two-stage DDM).
+
+    A firm whose growth has slowed to the perpetuity rate can pay out far more
+    than its trailing payout. Holding a low trailing payout into perpetuity (the
+    naive Gordon terminal) understates value for low-payout, high-ROE compounders
+    like banks. ``terminal_payout_ratio`` corrects the terminal dividend.
+    """
+
+    def test_none_is_naive_gordon(self) -> None:
+        """Default (None) reproduces the constant-payout terminal exactly."""
+        inputs = _make_inputs()  # no terminal_payout_ratio
+        result = calculate_ddm(inputs)
+        d5 = result.projected_dividends[-1]
+        # Naive terminal dividend = D5 * (1 + tg), no step-up.
+        assert result.terminal_dividend == pytest.approx(d5 * 1.025, abs=0.001)
+
+    def test_terminal_payout_steps_up_terminal_dividend(self) -> None:
+        """Terminal dividend = D5 * (1+tg) * (terminal_payout / trailing_payout).
+
+        trailing payout 0.25, terminal payout 0.75 ⇒ 3× step-up.
+        """
+        inputs = _make_inputs(payout_ratio=0.25, terminal_payout_ratio=0.75)
+        result = calculate_ddm(inputs)
+        d5 = result.projected_dividends[-1]
+        expected = d5 * 1.025 * (0.75 / 0.25)
+        assert result.terminal_dividend == pytest.approx(expected, abs=0.001)
+
+    def test_stage1_dividends_unaffected_by_terminal_payout(self) -> None:
+        """The step-up touches only the terminal phase, not explicit dividends."""
+        naive = calculate_ddm(_make_inputs(payout_ratio=0.25))
+        normalized = calculate_ddm(_make_inputs(payout_ratio=0.25, terminal_payout_ratio=0.75))
+        assert normalized.projected_dividends == naive.projected_dividends
+        assert normalized.pv_dividends_total == pytest.approx(naive.pv_dividends_total, abs=0.001)
+
+    def test_higher_terminal_payout_higher_value(self) -> None:
+        """A higher sustainable terminal payout lifts the equity value."""
+        low = calculate_ddm(_make_inputs(payout_ratio=0.25, terminal_payout_ratio=0.30))
+        high = calculate_ddm(_make_inputs(payout_ratio=0.25, terminal_payout_ratio=0.85))
+        assert high.equity_value_per_share > low.equity_value_per_share
+
+    def test_sensitivity_applies_same_stepup(self) -> None:
+        """Sensitivity grid uses the same terminal-payout normalization."""
+        inputs = _make_inputs(payout_ratio=0.25, terminal_payout_ratio=0.75)
+        coe = inputs.risk_free_rate + inputs.beta * inputs.equity_risk_premium
+        table = calculate_ddm_sensitivity(inputs, [coe], [inputs.terminal_growth_rate])
+        cell = table["implied_prices"][0][0]
+        headline = calculate_ddm(inputs).equity_value_per_share
+        assert cell is not None
+        assert cell == pytest.approx(headline, rel=0.001)
+
+    def test_jpm_consistent_two_stage(self) -> None:
+        """End-to-end JPM baseline (yfinance 2026-05-29).
+
+        DPS=$6.00, payout=28.24%, ROE=16.465%, beta=1.023, rf=4.3%, ERP=5.5%,
+        tg=2.5%, 5y decay from sustainable g=ROE×(1−payout)=11.82% → 2.5%,
+        terminal payout = 1 − tg/ROE = 84.82%.
+
+        The naive constant-payout DDM yields ~$102 (a −66% "strong sell" on a
+        bank trading at 14× P/E — indefensible). The consistent two-stage value
+        lands ~$243 (−18%), cross-checking the residual-income model (~$241).
+        """
+        g = 0.16465 * (1 - 0.2824)  # 0.118152
+        years = 5
+        step = (g - 0.025) / (years - 1)
+        schedule = [g - step * i for i in range(years)]
+        term_payout = 1 - 0.025 / 0.16465  # 0.84818
+        inputs = _make_inputs(
+            dividend_per_share=6.00,
+            dividend_growth_rates=schedule,
+            payout_ratio=0.2824,
+            terminal_payout_ratio=term_payout,
+            risk_free_rate=0.043,
+            beta=1.023,
+            equity_risk_premium=0.055,
+            terminal_growth_rate=0.025,
+            shares_outstanding=2_679_511_418,
+            current_price=296.225,
+            return_on_equity=0.16465,
+            book_value_per_share=128.379,
+        )
+        result = calculate_ddm(inputs)
+        # CoE = 0.043 + 1.023*0.055 = 0.099265
+        assert result.cost_of_equity == pytest.approx(0.099265, abs=1e-5)
+        # Defensible: same order of magnitude as price, not a 0.3× crash.
+        assert 220.0 < result.equity_value_per_share < 270.0
+        assert -0.30 < result.upside < -0.05
+
+
 class TestDDMEdgeCases:
     """Edge cases and error handling."""
 

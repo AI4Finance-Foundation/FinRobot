@@ -184,8 +184,14 @@ class CompanyFinancials(BaseModel):
     ebitda: float
     net_income: float
     market_cap: float
-    total_debt: float = 0
-    total_cash: float = 0
+    # None ≠ 0: None means the provider did not report the figure, so EV (and
+    # the EV-based multiples) MUST be withheld rather than computed against an
+    # assumed-zero net-debt — that fabrication silently poisoned the peer median
+    # (a cash-rich peer reported as debt=cash=0 → EV=market_cap). Mirrors the
+    # target path in extract_financial_data, which already refuses EV when debt
+    # or cash is missing.
+    total_debt: float | None = None
+    total_cash: float | None = None
     enterprise_value: float | None = None
     gross_margin: float
     operating_margin: float
@@ -370,9 +376,7 @@ class ThesisResult(BaseModel):
     )
     valuation_overview: str | None = Field(
         default=None,
-        description=(
-            "150-200 字解读 DCF / Comps / DDM 之间为什么有差距、加权之后的目标价怎么来。"
-        ),
+        description=("150-200 字解读 DCF / Comps / DDM 之间为什么有差距、加权之后的目标价怎么来。"),
     )
     competitor_analysis: str | None = Field(
         default=None,
@@ -708,6 +712,19 @@ class DDMInputs(BaseModel):
     equity_risk_premium: float = Field(ge=0, le=0.15)
 
     terminal_growth_rate: float = Field(ge=0, le=0.05)
+    terminal_payout_ratio: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description=(
+            "Payout ratio applied in the Gordon-perpetuity terminal phase. When "
+            "set, the terminal dividend is normalized to the payout a mature firm "
+            "can sustain at its ROE and terminal growth (≈ 1 − g/ROE), correcting "
+            "the naive DDM error of holding a low trailing payout into perpetuity. "
+            "seed_ddm_inputs derives this; when None calculate_ddm falls back to "
+            "the constant-payout (naive Gordon) terminal."
+        ),
+    )
     shares_outstanding: float = Field(gt=0)
     current_price: float = Field(gt=0)
 

@@ -70,8 +70,26 @@ def calculate_ddm(inputs: DDMInputs) -> DDMResult:
     pv_dividends_total = sum(pv_dividends)
 
     # 4. Terminal value (Gordon Growth on last projected dividend)
+    #
+    # Terminal payout normalization: a firm whose growth has slowed to the
+    # perpetuity rate no longer needs to retain earnings at its trailing rate.
+    # When ``terminal_payout_ratio`` is supplied (seed_ddm_inputs sets it to the
+    # payout consistent with terminal growth at the firm's ROE, ≈ 1 − g/ROE), the
+    # terminal dividend is stepped up by ``terminal_payout / trailing_payout``.
+    # Since EPS and DPS grow together while payout is constant in the explicit
+    # window, EPS_n = D_n / trailing_payout, so the normalized terminal dividend
+    # is D_n × (1 + tg) × (terminal_payout / trailing_payout). This corrects the
+    # naive DDM error of discounting a low trailing payout into perpetuity — the
+    # error that values a 28%-payout, 16% ROE bank like JPM at a third of price.
+    # When ``terminal_payout_ratio`` is None, the factor is 1.0 (naive Gordon).
     n = len(projected_dividends)
-    terminal_dividend = projected_dividends[-1] * (1 + inputs.terminal_growth_rate)
+    if inputs.terminal_payout_ratio is not None and inputs.payout_ratio > 0:
+        terminal_payout_stepup = inputs.terminal_payout_ratio / inputs.payout_ratio
+    else:
+        terminal_payout_stepup = 1.0
+    terminal_dividend = (
+        projected_dividends[-1] * (1 + inputs.terminal_growth_rate) * terminal_payout_stepup
+    )
     terminal_value = terminal_dividend / (cost_of_equity - inputs.terminal_growth_rate)
     pv_terminal = terminal_value / (1 + cost_of_equity) ** n
 
@@ -111,6 +129,13 @@ def calculate_ddm_sensitivity(
     n = len(projected_dividends)
     last_dividend = projected_dividends[-1]
 
+    # Same terminal-payout normalization as calculate_ddm — keep the grid
+    # consistent with the headline value (see calculate_ddm step 4).
+    if inputs.terminal_payout_ratio is not None and inputs.payout_ratio > 0:
+        terminal_payout_stepup = inputs.terminal_payout_ratio / inputs.payout_ratio
+    else:
+        terminal_payout_stepup = 1.0
+
     # --- Discount at each (CoE, TG) pair ---
     implied_prices: list[list[float | None]] = []
     for coe in coe_range:
@@ -120,7 +145,7 @@ def calculate_ddm_sensitivity(
                 row.append(None)
             else:
                 pv_divs = sum(d / (1 + coe) ** (i + 1) for i, d in enumerate(projected_dividends))
-                tv = last_dividend * (1 + tg) / (coe - tg)
+                tv = last_dividend * (1 + tg) * terminal_payout_stepup / (coe - tg)
                 pv_tv = tv / (1 + coe) ** n
                 row.append(pv_divs + pv_tv)
         implied_prices.append(row)

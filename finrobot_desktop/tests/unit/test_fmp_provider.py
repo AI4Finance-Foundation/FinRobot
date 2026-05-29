@@ -33,12 +33,15 @@ def _fmp_income_response(ticker: str = "AAPL") -> list[dict]:
     ]
 
 
-def _fmp_quarterly_income_response(ticker: str = "AAPL") -> list[dict]:
+def _fmp_quarterly_income_response(
+    ticker: str = "AAPL", reported_currency: str = "USD"
+) -> list[dict]:
     """Mock FMP quarterly income rows used for current TTM financials."""
     return [
         {
             "date": f"2026-0{quarter + 1}-28",
             "symbol": ticker,
+            "reportedCurrency": reported_currency,
             "revenue": 100_000_000_000,
             "ebitda": 30_000_000_000,
             "netIncome": 20_000_000_000,
@@ -80,7 +83,9 @@ def _fmp_balance_response(ticker: str = "AAPL") -> list[dict]:
     ]
 
 
-def _fmp_profile_response(ticker: str = "AAPL") -> list[dict]:
+def _fmp_profile_response(
+    ticker: str = "AAPL", currency: str = "USD", country: str = "US"
+) -> list[dict]:
     return [
         {
             "symbol": ticker,
@@ -92,6 +97,8 @@ def _fmp_profile_response(ticker: str = "AAPL") -> list[dict]:
             "industry": "Consumer Electronics",
             "sector": "Technology",
             "exchange": "NASDAQ",
+            "currency": currency,
+            "country": country,
         }
     ]
 
@@ -139,6 +146,39 @@ class TestFMPFetch:
         assert result.data["total_debt"] == 111_088_000_000
         assert result.data["total_cash"] == 29_965_000_000
         assert result.data["market_cap"] == 2_620_000_000_000
+        # Currency tags must be emitted for cross-border FX normalization.
+        assert result.data["financial_currency"] == "USD"
+        assert result.data["quote_currency"] == "USD"
+        assert result.data["country"] == "US"
+
+    @pytest.mark.asyncio
+    async def test_fetch_financials_tags_foreign_adr_currency(self, provider):
+        """ADR regression (verified against ~/.finrobot cache 2026-05-29): FMP
+        reports a foreign issuer's income statement in its home currency
+        (reportedCurrency=TWD for TSM) while the ADR quote is USD. The provider
+        MUST surface both so extract_company_financials + fx_normalize convert
+        before EV/EBITDA — otherwise a TWD EBITDA divides a USD market cap and
+        produces the sub-1x garbage the sanity floor only partly catches."""
+        responses = [
+            _mock_response(_fmp_quarterly_income_response("TSM", reported_currency="TWD")),
+            _mock_response(_fmp_balance_response("TSM")),
+            _mock_response(_fmp_quarterly_cashflow_response("TSM")),
+            _mock_response(_fmp_profile_response("TSM", currency="USD", country="TW")),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("TSM", "financials")
+
+        assert result.data["financial_currency"] == "TWD"
+        assert result.data["quote_currency"] == "USD"
+        assert result.data["country"] == "TW"
+
+        # End-to-end: extract_company_financials must resolve reporting_currency
+        # from the provider dict (the gap this fix closes — it used to default USD).
+        from finrobot.engine.compute.extractor import extract_company_financials
+
+        company = extract_company_financials(result)
+        assert company.reporting_currency == "TWD"
+        assert company.quote_currency == "USD"
 
     @pytest.mark.asyncio
     async def test_fetch_unsupported_data_type_raises(self, provider):
@@ -626,9 +666,7 @@ class TestFMPPrice:
         with patch.object(provider, "_get", get_mock):
             await provider.fetch("AAPL", "price")
 
-        hist_call = next(
-            c for c in get_mock.call_args_list if "historical-price-full" in c.args[0]
-        )
+        hist_call = next(c for c in get_mock.call_args_list if "historical-price-full" in c.args[0])
         params = hist_call.kwargs.get("params", {})
         assert "serietype" not in params, "serietype=line strips intraday high/low"
         assert "timeseries" not in params, "trading-day count ≠ calendar year"

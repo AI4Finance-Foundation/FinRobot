@@ -243,6 +243,10 @@ class FMPProvider(DataProvider):
             # fiscal_year is required by historical_loaders.py for band computation;
             # "date" is fiscal-year-end (YYYY-MM-DD), more precise than calendarYear.
             "fiscal_year": inc.get("date") or inc.get("calendarYear"),
+            # Currency tags for cross-border FX normalization — see _build_ttm_data.
+            "financial_currency": inc.get("reportedCurrency"),
+            "quote_currency": prof.get("currency"),
+            "country": prof.get("country"),
         }
 
     @classmethod
@@ -273,11 +277,7 @@ class FMPProvider(DataProvider):
         # D&A: prefer the cash-flow statement (authoritative; carries the
         # freshest quarter that the income statement leaves at 0), fall back to
         # the income statement only if cash flow is unavailable.
-        da = (
-            _sum(cashflow_rows, "depreciationAndAmortization")
-            if cashflow_rows
-            else None
-        )
+        da = _sum(cashflow_rows, "depreciationAndAmortization") if cashflow_rows else None
         if da is None:
             da = total("depreciationAndAmortization")
         # EBITDA recomputed on the operating caliber (EBIT + D&A) rather than
@@ -324,6 +324,15 @@ class FMPProvider(DataProvider):
             "sector": prof.get("sector"),
             "fiscal_year": latest.get("date") or latest.get("calendarYear"),
             "period_basis": "ttm",
+            # Currency tags drive cross-border peer FX normalization
+            # (fx_normalize). Income-statement items are in reportedCurrency
+            # (TWD for TSM, JPY for Toyota); the ADR quote is in profile.currency
+            # (USD). Without these, extract_company_financials defaults both to
+            # USD and the EV/EBITDA mixes a USD market cap with a local-currency
+            # EBITDA — the sub-1x garbage the sanity floor only partly catches.
+            "financial_currency": latest.get("reportedCurrency"),
+            "quote_currency": prof.get("currency"),
+            "country": prof.get("country"),
         }
 
     async def _fetch_price(self, ticker: str) -> DataResult:
@@ -352,9 +361,7 @@ class FMPProvider(DataProvider):
             ).json()
 
         if not isinstance(quote_resp, list) or not quote_resp:
-            raise ProviderError(
-                f"FMP /quote/{ticker} returned no data — ticker may be delisted"
-            )
+            raise ProviderError(f"FMP /quote/{ticker} returned no data — ticker may be delisted")
         quote = quote_resp[0]
         current_price = quote.get("price")
         if current_price is None:

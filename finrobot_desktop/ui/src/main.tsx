@@ -1,17 +1,20 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
-import '@fontsource/dm-sans/400.css'
-import '@fontsource/dm-sans/500.css'
-import '@fontsource/dm-sans/600.css'
-import '@fontsource/dm-sans/700.css'
+// Fonts are bundled (not CDN-loaded) so the desktop app renders its cosmic
+// identity offline — Audiowide (--font-display), Inter (--font-body),
+// JetBrains Mono (--font-mono). These mirror the App.css design tokens; the
+// old DM Sans / Fraunces imports were pre-cosmic leftovers wired to no token.
+import '@fontsource/audiowide/400.css'
+import '@fontsource/inter/300.css'
+import '@fontsource/inter/400.css'
+import '@fontsource/inter/500.css'
+import '@fontsource/inter/600.css'
+import '@fontsource/inter/700.css'
 import '@fontsource/jetbrains-mono/400.css'
 import '@fontsource/jetbrains-mono/500.css'
 import '@fontsource/jetbrains-mono/600.css'
 import '@fontsource/jetbrains-mono/700.css'
-import '@fontsource/fraunces/400.css'
-import '@fontsource/fraunces/500.css'
-import '@fontsource/fraunces/600.css'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './api/queryClient'
 import { router } from './router'
@@ -29,7 +32,12 @@ void detectInitialLocale
 void hasStoredLocale
 void useUiPrefs
 
-createRoot(document.getElementById('root')!).render(
+const root = document.getElementById('root')
+if (!(root instanceof HTMLElement)) {
+  throw new Error('FinRobot root element #root was not found')
+}
+
+createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />

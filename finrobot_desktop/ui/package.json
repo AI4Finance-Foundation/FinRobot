@@ -20,8 +20,8 @@
   "dependencies": {
     "@ai-sdk/react": "^3.0.182",
     "@ai-sdk/ui-utils": "^1.2.11",
-    "@fontsource/dm-sans": "^5.2.8",
-    "@fontsource/fraunces": "^5.2.9",
+    "@fontsource/audiowide": "^5.2.7",
+    "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@lingui/core": "^6.1.0",
     "@lingui/react": "^6.1.0",

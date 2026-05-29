@@ -2,12 +2,19 @@
 
 4 steps:
   1. historical_data    — fetch financials/price, produce FinancialData
-  2. ddm_params         — LLM selects DDMInputs (dividend growth, terminal growth, CAPM)
+  2. ddm_params         — deterministic: seed_ddm_inputs derives DDMInputs from
+                          provider dividend/payout/ROE/beta (no LLM parameter pick)
   3. ddm_calc           — deterministic calculate_ddm() + sensitivity
   4. ddm_narrative      — LLM generates narrative with valuation thesis
 
 Banks don't have meaningful free cash flow, so FCF-DCF produces misleading results.
 DDM values the company based on projected dividends discounted at cost of equity.
+
+Previously ``ddm_params`` used a pydantic-ai agent typed to emit DDMInputs that
+let the LLM hand-pick dividend growth ("typically 3-8%"), payout, beta, and
+terminal growth from a prompt — the same source-less, unstable path DCF/LBO
+already removed. Numbers now trace to the company's own filings (or Damodaran
+industry medians) via ``seed_ddm_inputs``; the LLM only narrates them.
 """
 
 from __future__ import annotations
@@ -15,14 +22,14 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import ValidationError
 from pydantic_ai import Agent
-from pydantic_ai.exceptions import AgentRunError
 
 from finrobot.engine.compute.ddm import calculate_ddm, calculate_ddm_sensitivity
+from finrobot.engine.compute.ddm_seed import seed_ddm_inputs
+from finrobot.engine.data.normalize.financials import normalize_financials
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
-from finrobot.engine.models.financial import DDMInputs, StepOutput
+from finrobot.engine.models.financial import DDMInputs, FinancialData, StepOutput
 from finrobot.engine.pipelines.base import (
     Pipeline,
     PipelineStep,
@@ -45,69 +52,36 @@ from finrobot.engine.pipelines.validators import (
 logger = logging.getLogger(__name__)
 
 
-async def _execute_ddm_params(
-    agent: Agent[Any, Any],
+async def _execute_ddm_seed(
+    agent: Agent[Any, Any],  # noqa: ARG001 — kept for executor signature; unused
     deps: FinRobotDeps,
-    prompt: str,
+    prompt: str,  # noqa: ARG001 — kept for executor signature; unused
     structured_context: dict[str, object],
     ticker: str,
 ) -> StepOutput:
-    """LLM selects DDMInputs assumptions from financial data.
+    """Deterministic DDMInputs: seed every assumption from real provider data.
 
-    Extracts dividend data from FinancialData if available and provides it
-    as context to the LLM for more grounded parameter selection.
+    No LLM call. Dividend, payout, ROE and beta come from the provider snapshot;
+    dividend growth is the textbook sustainable rate g = ROE×(1−payout) decayed
+    to perpetuity, and the terminal payout is normalized to 1 − tg/ROE. See
+    ``seed_ddm_inputs`` for the full precedence ladder; ``assumption_provenance``
+    carries a Chinese explanation per field for the UI.
+
+    FinancialData (from the historical_data step) supplies the validated market
+    fields; the dividend-specific fields (DPS/payout/ROE/BVPS) are read from the
+    same financials DataResult via ``normalize_financials`` — they aren't carried
+    on FinancialData. The fetch is cache-served, so this re-fetch is free.
     """
-    # Extract dividend context from financial data
-    dividend_instruction = ""
-    financial_data = structured_context.get("financial_data")
-    if financial_data and hasattr(financial_data, "market"):
-        market = financial_data.market
-        current_price = getattr(market, "current_price", None)
-        if current_price:
-            dividend_instruction += f"\n\nCurrent price: ${current_price:.2f}."
+    financial_data = structured_context.get("historical_data")
+    if not isinstance(financial_data, FinancialData):
+        raise ValueError(
+            "ddm_params requires FinancialData from the historical_data step "
+            "but received: " + type(financial_data).__name__
+        )
 
-    # Check for raw dividend data passed through DataResult
-    raw_data = structured_context.get("_raw_financials_data")
-    if isinstance(raw_data, dict):
-        dps = raw_data.get("dividend_per_share")
-        payout = raw_data.get("payout_ratio")
-        bvps = raw_data.get("book_value_per_share")
-        roe = raw_data.get("return_on_equity")
-        if dps:
-            dividend_instruction += f"\nActual dividend per share: ${dps:.2f}."
-        if payout:
-            dividend_instruction += f"\nPayout ratio: {payout:.1%}."
-        if bvps:
-            dividend_instruction += f"\nBook value per share: ${bvps:.2f}."
-        if roe:
-            dividend_instruction += f"\nReturn on equity: {roe:.1%}."
-
-    param_agent = Agent(
-        deps.settings.create_model(),
-        output_type=DDMInputs,
-        instructions=(
-            "Select DDM (Dividend Discount Model) valuation parameters for this bank "
-            "or dividend-paying stock. This company is being valued using DDM because "
-            "banks do not have traditional free cash flow.\n\n"
-            "Key guidelines:\n"
-            "- dividend_per_share: Use the actual current annual DPS if available\n"
-            "- dividend_growth_rates: Project 3-5 years of growth, typically 3-8% for "
-            "mature banks, tapering toward terminal growth\n"
-            "- terminal_growth_rate: Long-run nominal GDP growth, typically 2-3%\n"
-            "- payout_ratio: Current payout ratio if available, typically 30-60% for banks\n"
-            "- beta: Banks typically 0.8-1.3\n"
-            "- If book_value_per_share and return_on_equity are available, include them "
-            "for P/B-based cross-check\n\n"
-            "For each assumption you select, provide a brief justification in the "
-            "assumption_provenance dict." + dividend_instruction
-        ),
-        defer_model_check=True,
-    )
-    try:
-        result = await param_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
-        ddm_inputs = result.output
-    except (AgentRunError, ValidationError, ValueError) as e:
-        raise ValueError(f"LLM failed to produce valid DDM parameters: {e}") from e
+    financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
+    normalized = normalize_financials(financials_result)
+    ddm_inputs = seed_ddm_inputs(financial_data, normalized)
 
     return StepOutput(text=ddm_inputs.model_dump_json(), structured=ddm_inputs)
 
@@ -182,7 +156,7 @@ def create_ddm_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 agent=agents["modeling"],
                 required_data=[],
                 validator=StructuredValidator(validate_ddm_inputs, validate_is_non_empty),
-                executor=_execute_ddm_params,
+                executor=_execute_ddm_seed,
             ),
             PipelineStep(
                 name="ddm_calc",

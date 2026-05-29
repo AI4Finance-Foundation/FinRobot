@@ -9,6 +9,7 @@ import { Chapter, KvGrid, SubChapter } from './ChapterBase'
 import { formatDate, formatCompactNumber, formatNumber, formatPercent } from '../../../utils/format'
 import { useI18n, type Locale } from '../../../i18n'
 import { BASE_URL } from '../../../api/client'
+import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../../../api/fetch'
 import { extractErrorDetail } from '../../../api/errors'
 
 interface ChapterFinancialDataProps {
@@ -367,7 +368,11 @@ function EarningsCallSection({
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['earnings-calls', ticker],
     queryFn: async () => {
-      const resp = await fetch(`${BASE_URL}/api/data/${ticker}/earnings-calls?limit=8`)
+      const resp = await fetchWithTimeout(
+        `${BASE_URL}/api/data/${ticker}/earnings-calls?limit=8`,
+        {},
+        HEAVY_API_TIMEOUT_MS,
+      )
       if (!resp.ok) {
         throw new Error(
           await extractErrorDetail(

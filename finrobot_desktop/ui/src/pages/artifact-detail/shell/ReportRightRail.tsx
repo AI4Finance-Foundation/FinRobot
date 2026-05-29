@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { BASE_URL } from '../../../api/client'
+import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../../../api/fetch'
 import type { ArtifactSummaryV5 } from '../../../types/v5'
 import { useI18n } from '../../../i18n'
 import { formatDate } from '../../../utils/format'
@@ -31,11 +32,15 @@ interface PostDcfSeedBody {
 }
 
 async function postDcfSeed(body: PostDcfSeedBody): Promise<DcfSeedResponse> {
-  const resp = await fetch(`${BASE_URL}/api/compute/dcf-seed`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...body, mid_year: false, include_reverse: false }),
-  })
+  const resp = await fetchWithTimeout(
+    `${BASE_URL}/api/compute/dcf-seed`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, mid_year: false, include_reverse: false }),
+    },
+    HEAVY_API_TIMEOUT_MS,
+  )
   if (!resp.ok) {
     const detail = await resp.text().catch(() => '')
     throw new Error(`${resp.status} ${detail.slice(0, 160)}`)
@@ -299,7 +304,7 @@ function ComparePanel({
           color: 'var(--text-dim)',
           fontSize: 16,
           padding: '0 4px',
-          letterSpacing: '-0.05em',
+          letterSpacing: 0,
         }}
       >
         →

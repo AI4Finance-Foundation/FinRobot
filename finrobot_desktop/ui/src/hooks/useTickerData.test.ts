@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { fetchJsonOrThrowHttp } from './useTickerData'
 import { FetchHttpError } from '../utils/errorMessage'
+import { RequestTimeoutError } from '../api/fetch'
 
 describe('fetchJsonOrThrowHttp', () => {
   beforeEach(() => {
@@ -67,5 +68,24 @@ describe('fetchJsonOrThrowHttp', () => {
     await expect(fetchJsonOrThrowHttp('http://test/api')).rejects.toMatchObject({
       name: 'TypeError',
     })
+  })
+
+  it('hung request → throws RequestTimeoutError', async () => {
+    vi.useFakeTimers()
+    vi.mocked(globalThis.fetch).mockImplementationOnce(
+      (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError')),
+          )
+        }),
+    )
+
+    const pending = expect(fetchJsonOrThrowHttp('http://test/api')).rejects.toBeInstanceOf(
+      RequestTimeoutError,
+    )
+    await vi.advanceTimersByTimeAsync(8_000)
+    await pending
+    vi.useRealTimers()
   })
 })

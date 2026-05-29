@@ -9,6 +9,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
+import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../api/fetch'
 import { useI18n } from '../i18n'
 import { formatDate } from '../utils/format'
 import { FetchHttpError } from '../utils/errorMessage'
@@ -251,7 +252,11 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
   const { data, isLoading, error } = useQuery<FieldDiff[]>({
     queryKey: ['artifact-diff', artifactA.id, artifactB.id],
     queryFn: async () => {
-      const resp = await fetch(`${BASE_URL}/api/artifacts/${artifactA.id}/diff/${artifactB.id}`)
+      const resp = await fetchWithTimeout(
+        `${BASE_URL}/api/artifacts/${artifactA.id}/diff/${artifactB.id}`,
+        {},
+        HEAVY_API_TIMEOUT_MS,
+      )
       if (!resp.ok) throw new FetchHttpError(resp.status, resp.statusText)
       return resp.json() as Promise<FieldDiff[]>
     },

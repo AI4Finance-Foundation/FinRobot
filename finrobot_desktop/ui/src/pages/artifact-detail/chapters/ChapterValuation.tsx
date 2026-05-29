@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import FootballField from '../../../components/charts/FootballField'
 import { BASE_URL } from '../../../api/client'
+import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../../../api/fetch'
 import { useI18n } from '../../../i18n'
 import { Chapter, KvGrid, Narrative, SubChapter } from './ChapterBase'
 import type { DcfShape, ThesisShape } from './types'
@@ -27,7 +28,11 @@ function useValuationAggregate(ticker: string | null | undefined) {
   return useQuery<ValuationAggregate, Error>({
     queryKey: ['valuation-aggregate', ticker],
     queryFn: async () => {
-      const resp = await fetch(`${BASE_URL}/api/valuation/aggregate/${ticker}`)
+      const resp = await fetchWithTimeout(
+        `${BASE_URL}/api/valuation/aggregate/${ticker}`,
+        {},
+        HEAVY_API_TIMEOUT_MS,
+      )
       if (!resp.ok) throw new Error(`${resp.status}`)
       return (await resp.json()) as ValuationAggregate
     },

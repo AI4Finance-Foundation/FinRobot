@@ -144,9 +144,7 @@ async def _execute_data_collection_with_sec(
     structured_context["xbrl_facts_snapshot"] = xbrl_concept_snapshot(xbrl)
 
     sec_warnings = [
-        warning
-        for payload in (tenk, tenq, eightk, xbrl)
-        for warning in payload.get("warnings", [])
+        warning for payload in (tenk, tenq, eightk, xbrl) for warning in payload.get("warnings", [])
     ]
     if isinstance(financial_output.structured, FinancialData):
         for warning in sec_warnings:
@@ -525,9 +523,7 @@ async def _execute_financial_modeling(
     structured_context["financial_modeling"] = dcf_result
 
     # Build ValuationSynthesis from all available methods for the football field chart.
-    current_price = (
-        financial_data.market.current_price if hasattr(financial_data, "market") else 0
-    )
+    current_price = financial_data.market.current_price if hasattr(financial_data, "market") else 0
     if current_price > 0:
         from finrobot.engine.pipelines._helpers import build_valuation_synthesis
 
@@ -734,12 +730,14 @@ async def _execute_thesis(
             f"corroborate (cite the spread) and a defensible target cannot be published "
             f"until the underlying data is reconciled. The narrative MUST explain to the "
             f"reader, in plain language, why no target is given — this is a feature "
-            f"(refusing to fabricate a number), not a failure. Do NOT pick a midpoint."
+            f"(refusing to fabricate a number), not a failure. Do NOT pick a midpoint.\n"
+            f"Your `valuation_overview` narrative MUST NOT state any single fair-value "
+            f"or target number (no weighted average, no midpoint, no '约 $X') — instead "
+            f"explain WHY the methods diverge (cite the per-method spread) and that a "
+            f"defensible target is withheld pending data reconciliation."
         )
     elif canonical_target is not None:
-        upside_str = (
-            f"{canonical_upside:+.1%}" if canonical_upside is not None else "n/a"
-        )
+        upside_str = f"{canonical_upside:+.1%}" if canonical_upside is not None else "n/a"
         thesis_prompt = (
             f"{thesis_prompt}\n\n"
             f"AUTHORITATIVE PRICE TARGET (do not deviate): "
@@ -776,7 +774,14 @@ async def _execute_thesis(
                 f"  - valuation_synthesis.methods['{m.name}']: "
                 f"low=${m.low:.2f}, mid=${m.mid:.2f}, high=${m.high:.2f}"
             )
-        if vs_for_prompt.weighted_price is not None:
+        # When the data-health gate has tripped, weighted_price IS the withheld
+        # headline target. Whitelisting it lets the narrative fields
+        # (valuation_overview etc.) "legally" quote the very number the gate
+        # exists to suppress — the structured price_target is force-nulled
+        # post-run, but free prose isn't. So drop it from the citable set on
+        # gate failure. The per-method mids stay whitelisted: "DCF says $5.88,
+        # comps say $19.54, they disagree" is exactly the honest narrative.
+        if not gate_failed and vs_for_prompt.weighted_price is not None:
             _whitelist_parts.append(
                 f"  - valuation_synthesis.weighted_price: ${vs_for_prompt.weighted_price:.2f}"
             )
@@ -784,9 +789,7 @@ async def _execute_thesis(
         _whitelist_parts.append(
             f"  - peer_analysis.median_ev_ebitda: {pa_for_prompt.median_ev_ebitda}"
         )
-        _whitelist_parts.append(
-            f"  - peer_analysis.median_pe: {pa_for_prompt.median_pe}"
-        )
+        _whitelist_parts.append(f"  - peer_analysis.median_pe: {pa_for_prompt.median_pe}")
         _whitelist_parts.append(
             f"  - peer_analysis.median_ev_revenue: {pa_for_prompt.median_ev_revenue}"
         )
@@ -801,9 +804,7 @@ async def _execute_thesis(
         _whitelist_parts.append(
             f"  - financial_modeling.implied_price: ${dcf_for_prompt.implied_price:.2f}"
         )
-        _whitelist_parts.append(
-            f"  - financial_modeling.wacc: {dcf_for_prompt.wacc:.4f}"
-        )
+        _whitelist_parts.append(f"  - financial_modeling.wacc: {dcf_for_prompt.wacc:.4f}")
         _whitelist_parts.append(
             f"  - financial_modeling.terminal_growth_rate: "
             f"{dcf_for_prompt.inputs.terminal_growth_rate:.4f}"

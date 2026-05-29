@@ -9,11 +9,11 @@ Red-line guards:
 4. Whitelist injects only values traceable to the structured_context fields that
    were actually passed in — no phantom numbers.
 """
+
 from __future__ import annotations
 
-import re
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -63,7 +63,6 @@ _DCF_RESULT = DCFResult(
     equity_value=690e9,
     implied_price=174.23,
     inputs=_DCF_INPUTS,
-    fcf_formula="standard_ebit_to_fcf",
 )
 
 _PEER_AAPL = CompanyFinancials(
@@ -104,8 +103,17 @@ _PEER_COMPS = PeerComps(
 
 _VALUATION_SYNTHESIS = ValuationSynthesis(
     methods=[
-        ValuationMethod(name="DCF", low=160.0, mid=174.23, high=195.0, confidence=0.55, source="finrobot"),
-        ValuationMethod(name="EV/EBITDA Comps", low=168.0, mid=181.0, high=198.0, confidence=0.45, source="finrobot"),
+        ValuationMethod(
+            name="DCF", low=160.0, mid=174.23, high=195.0, confidence=0.55, source="finrobot"
+        ),
+        ValuationMethod(
+            name="EV/EBITDA Comps",
+            low=168.0,
+            mid=181.0,
+            high=198.0,
+            confidence=0.45,
+            source="finrobot",
+        ),
     ],
     weighted_price=177.12,
     current_price=172.50,
@@ -128,6 +136,7 @@ def _make_structured_context(**overrides: Any) -> dict[str, object]:
 # Extract the thesis_prompt as built inside _execute_thesis — without running
 # the LLM. We do this by patching Agent to capture the prompt.
 # ---------------------------------------------------------------------------
+
 
 async def _capture_thesis_prompt(structured_context: dict[str, object]) -> str:
     """Run _execute_thesis up to the Agent.run call and capture the full prompt."""
@@ -172,6 +181,7 @@ async def _capture_thesis_prompt(structured_context: dict[str, object]) -> str:
     fake_deps.skill_runtime = None
 
     import finrobot.engine.pipelines.equity_research as _mod
+
     original_agent = _mod.Agent
 
     _mod.Agent = _CapturingAgent  # type: ignore[assignment]
@@ -251,6 +261,53 @@ async def test_whitelist_contains_valuation_synthesis_weighted_price() -> None:
         "ValuationSynthesis.weighted_price (177.12) not in whitelist. "
         "LLM cannot reference the synthesis price without this."
     )
+
+
+@pytest.mark.asyncio
+async def test_data_health_gate_withholds_weighted_price_from_whitelist() -> None:
+    """When the data-health gate trips (reliable=False) the withheld weighted_price
+    must NOT be whitelisted — otherwise the LLM narrative fields (valuation_overview
+    etc.) can "legally" quote the very target the gate exists to suppress. This is
+    the 2026-05-28 TSLA leak: structured price_target is force-nulled post-run, but
+    free prose can still print "$12.71" if the number is in the citable set.
+    """
+    gated = ValuationSynthesis(
+        methods=[
+            ValuationMethod(
+                name="DCF", low=4.0, mid=5.88, high=7.0, confidence=0.85, source="finrobot"
+            ),
+            ValuationMethod(
+                name="EV/EBITDA Comps",
+                low=17.0,
+                mid=19.54,
+                high=22.0,
+                confidence=0.72,
+                source="finrobot",
+            ),
+        ],
+        weighted_price=12.71,
+        current_price=11.25,
+        upside_downside=0.13,
+        outlier_methods=["DCF", "EV/EBITDA Comps"],
+        warnings=["DCF deviates 54% from median; methods do not corroborate"],
+        reliable=False,
+    )
+    ctx = _make_structured_context(valuation_synthesis=gated)
+    prompt = await _capture_thesis_prompt(ctx)
+
+    discipline_section = prompt[prompt.find("严格数字纪律") :]
+    # The withheld headline target must NOT be a citable number.
+    assert "12.71" not in discipline_section, (
+        "Data-health gate tripped but weighted_price 12.71 is still whitelisted — "
+        "the narrative can leak the withheld target (TSLA 2026-05-28 regression)."
+    )
+    # Per-method mids stay citable — "DCF says $5.88, comps say $19.54, they disagree"
+    # is exactly the honest narrative the gate wants.
+    assert "5.88" in discipline_section
+    assert "19.54" in discipline_section
+    # The gate must explicitly forbid valuation_overview from stating a target.
+    assert "DATA-HEALTH GATE TRIPPED" in prompt
+    assert "valuation_overview" in prompt
 
 
 @pytest.mark.asyncio

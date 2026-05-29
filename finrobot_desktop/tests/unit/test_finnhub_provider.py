@@ -33,6 +33,8 @@ def _finnhub_financials_reported_response() -> dict:
             {
                 "year": 2025,
                 "quarter": 0,
+                "endDate": "2025-09-27 00:00:00",
+                "filedDate": "2025-11-01 00:00:00",
                 "report": {
                     "ic": [
                         {"concept": "Revenues", "value": 394_328_000_000},
@@ -80,6 +82,28 @@ class TestFinnhubFetch:
         assert result.data["revenue"] == 394_328_000_000
         assert result.data["depreciation_amortization"] == 11_519_000_000
         assert result.data["market_cap"] == 2_620_000_000_000  # converted from millions
+        # freq=annual SEC filings must be tagged so normalize doesn't mislabel a
+        # stale 10-K as a fresh TTM snapshot stamped to the fetch wall-clock.
+        assert result.data["period_basis"] == "annual"
+        assert result.data["fiscal_year"] == "2025-09-27 00:00:00"
+
+    @pytest.mark.asyncio
+    async def test_annual_filing_normalizes_to_period_end_not_fetch_time(self, provider):
+        """End-to-end: the annual filing's as_of must be the fiscal-period end
+        (2025-09-27), NOT the fetch wall-clock, and period_basis must be annual."""
+        from finrobot.engine.data.normalize.financials import normalize_financials
+
+        responses = [
+            _mock_response(_finnhub_profile_response()),
+            _mock_response(_finnhub_financials_reported_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials")
+        norm = normalize_financials(result)
+        assert norm.period_basis == "annual"
+        assert norm.as_of.date().isoformat() == "2025-09-27"
+        # as_of must be the period end, not "now" (the fetch timestamp).
+        assert norm.as_of.date() != result.timestamp.date()
 
     @pytest.mark.asyncio
     async def test_fetch_profile(self, provider):

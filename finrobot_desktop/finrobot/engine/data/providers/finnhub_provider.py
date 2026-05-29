@@ -153,6 +153,13 @@ class FinnhubProvider(DataProvider):
             "current_price": None,
             "company_name": profile.get("name"),
             "industry": profile.get("finnhubIndustry"),
+            # This source pulls freq=annual SEC filings — tag it so normalize
+            # doesn't default period_basis to "ttm" and stamp as_of to the fetch
+            # wall-clock. Without these a 12-month-old 10-K is mislabeled a fresh
+            # TTM snapshot. ``endDate`` is the fiscal-period end (the semantic
+            # date the freshness pill / ttm-lag read).
+            "period_basis": "annual",
+            "fiscal_year": filing.get("endDate") or filing.get("filedDate"),
         }
 
     async def _fetch_profile(self, ticker: str) -> dict[str, Any]:

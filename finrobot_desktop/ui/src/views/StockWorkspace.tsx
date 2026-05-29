@@ -1,7 +1,7 @@
 // StockWorkspace — single-ticker dashboard at /stocks/:ticker.
 //
 // Job per CLAUDE.md: "保持 dashboard 形态：实时行情 + 跑 AI 入口 +
-// artifact timeline 跳转，不承担研报阅读". The 12-chapter research
+// artifact timeline 跳转，不承担研报阅读". The 13-chapter research
 // reading lives at /stocks/:ticker/runs/:artifactId (ArtifactDetailPage).
 //
 // Layout:
@@ -9,7 +9,7 @@
 //   - PipelineProgress — in-progress streaming run status (when running)
 //   - 2-column grid    — left MarketDataZone (live, always present),
 //                        right AIZone (cold = big CTA / hot = artifact
-//                        summary + 12-chapter mini-grid + version timeline)
+//                        summary + 13-chapter mini-grid + version timeline)
 //
 // Section contents that constituted the actual research (HeroVerdict /
 // FootballField / Sensitivity / Peers / Risks / etc) now live as
@@ -25,7 +25,6 @@ import { useNavMemoryStore } from '../stores/navMemoryStore'
 import { useTickerPrice } from '../hooks/useTickerData'
 import { FetchHttpError } from '../utils/errorMessage'
 import { TickerNotFoundView } from './workspace/TickerNotFoundView'
-import { ServiceDownView } from './workspace/ServiceDownView'
 import { TickerHero } from './TickerHero'
 import { MarketDataZone } from './workspace/MarketDataZone'
 import { AIZone } from './workspace/AIZone'
@@ -76,7 +75,7 @@ export function StockWorkspace(): React.ReactElement {
       addToast({
         type: 'success',
         title: `${symbol} 研报完成`,
-        description: '完整 12 章研报已生成，点击右侧 AI 区"打开完整研报"查看',
+        description: '完整 13 章研报已生成，点击右侧 AI 区"打开完整研报"查看',
       })
     } else if (runState.status === 'failed') {
       lastNotifiedRunIdRef.current = runId
@@ -92,8 +91,9 @@ export function StockWorkspace(): React.ReactElement {
   // shell. Status code is the protocol; UI never matches on Chinese detail.
   //
   //   FetchHttpError 422 → TickerNotFoundView (invalid ticker, no retry value)
-  //   anything else (FetchHttpError 5xx, TypeError, DOMException, plain Error)
-  //   → ServiceDownView with exponential-backoff auto-retry.
+  //   anything else → render the workspace shell and let market-data widgets
+  //   show their local degraded state. A yfinance outage must not hide the
+  //   AI run/timeline column while a pipeline is still progressing.
   //
   // Called unconditionally (Rules of Hooks) — enabled: !!symbol suppresses
   // the fetch when the URL param is absent (same guard as TickerHero /
@@ -113,11 +113,11 @@ export function StockWorkspace(): React.ReactElement {
     )
   }
 
-  if (priceQuery.isError) {
-    const status = priceQuery.error instanceof FetchHttpError ? priceQuery.error.status : null
-    if (status === 422) return <TickerNotFoundView ticker={symbol} />
-    return <ServiceDownView ticker={symbol} onRetry={() => priceQuery.refetch()} />
-  }
+  const priceErrorStatus =
+    priceQuery.isError && priceQuery.error instanceof FetchHttpError
+      ? priceQuery.error.status
+      : null
+  if (priceErrorStatus === 422) return <TickerNotFoundView ticker={symbol} />
 
   return (
     <div

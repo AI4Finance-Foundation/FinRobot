@@ -35,7 +35,20 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
   const tier = freshnessTier(ageSeconds)
   const tierLabel = t(`marketdata.tier.${tier}`)
   const ageText = formatAge(price?.fetched_at)
-  const pillDotColor = freshnessColor(ageSeconds)
+
+  // Whether current_price is a live intraday quote or a session CLOSE is the
+  // backend's call (session_state), computed in the EXCHANGE's timezone — never
+  // re-derived here. The client's "today" is the viewer's local date, which
+  // runs ahead of US market time; deriving session state from it mislabels a
+  // live US quote as a prior-day close whenever the session runs past the
+  // viewer's local midnight (e.g. China 00:00–04:00 = ET 12:00–16:00). When
+  // closed, current_price is the close of the `as_of` session → say
+  // "收盘 · MM-DD" instead of a fetch-time "near-real-time" claim (audit B).
+  const asOf = price?.as_of ?? null
+  const isClosed = price?.session_state === 'closed'
+  const pillDotColor = isClosed ? 'var(--warning)' : freshnessColor(ageSeconds)
+  // slice(5, 10) bounds to MM-DD even if as_of ever carries a time component.
+  const pillLabel = isClosed && asOf ? `收盘 · ${asOf.slice(5, 10)}` : `${tierLabel} · ${ageText}`
 
   return (
     <header
@@ -86,7 +99,7 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
               className="cosmic-pulse-dot"
               style={{ marginRight: 6, background: pillDotColor }}
             />
-            {tierLabel} · {ageText} · {formatExchange(price?.exchange)}
+            {pillLabel} · {formatExchange(price?.exchange)}
           </span>
 
           <span
@@ -94,7 +107,7 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
               fontFamily: 'var(--font-mono)',
               fontSize: 26,
               fontWeight: 500,
-              letterSpacing: '-0.5px',
+              letterSpacing: 0,
               color: 'var(--text-primary)',
               fontVariantNumeric: 'tabular-nums',
               marginLeft: 12,

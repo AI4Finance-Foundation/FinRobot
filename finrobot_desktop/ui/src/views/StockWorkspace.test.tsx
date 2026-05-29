@@ -1,25 +1,20 @@
-// v5 golden-path regression test (spec §15 condition 5).
+// Workspace golden-path regression test.
 //
-// This is the closest we can run to "tauri dev + Playwright MCP 散户走查"
-// in a JSDOM-only environment. It exercises the user-visible checkpoints
-// listed in spec §15:
+// This is the closest we can run to a desktop walk-through in JSDOM. It
+// exercises the user-visible checkpoints of the current workspace contract:
 //
-//   1. 冷启动 workspace 搜索进 NVDA  → StockWorkspace mounts with sticky hero
-//      + anchor nav over 14 sections.
-//   2. 点「+ 跑分析 ▾」选 AI 完整研报 → dropdown trigger opens menu of 6 items
-//      and clicking "research" calls runStreamStore.startRun.
+//   1. 冷启动 workspace 搜索进 NVDA → StockWorkspace mounts with sticky hero
+//      + market/AI dual zones.
+//   2. 点「立即跑 AI 研报」→ calls runStreamStore.startRun("research", ticker).
 //   3. 等 SSE pipeline 6 step 进度面板走完 → PipelineProgressPanel renders one
 //      row per step from the mocked run state.
-//   4. 滚动到「我的研究」section 看 artifact 卡片 → MyResearchFeed surfaces
-//      both the StatBanner numbers and per-artifact cards.
+//   4. 有 artifact 时 → AI zone surfaces latest card, chapter mini-grid, timeline.
 //
-// What this test does NOT cover that real Playwright would: actual paint /
-// visual diff, native OS download flow, font rendering. Those need a GUI
-// session. Anything below that line is documented in
-// docs/v5-delivery-report.md §7 exit condition 5.
+// Real paint, font rendering, and native shell behavior are covered by
+// Playwright/browser checks.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -35,6 +30,7 @@ vi.mock('../lib/tauri', () => ({
 
 // Mock runStreamStore so we can drive states without a live SSE source.
 const startRunMock = vi.fn().mockResolvedValue('run-stub-1')
+const addToastMock = vi.fn()
 let mockRunState: ReturnType<typeof makeRunState> | undefined
 
 function makeRunState(overrides: Record<string, unknown> = {}) {
@@ -74,7 +70,7 @@ vi.mock('../stores/runStreamStore', () => ({
 vi.mock('../stores/toastStore', () => ({
   useToastStore: <T,>(selector: (s: unknown) => T) =>
     selector({
-      addToast: vi.fn(),
+      addToast: addToastMock,
       removeToast: vi.fn(),
       toasts: [],
     }),
@@ -220,6 +216,7 @@ afterEach(() => {
   vi.restoreAllMocks()
   mockRunState = undefined
   startRunMock.mockClear()
+  addToastMock.mockClear()
 })
 
 function jsonResponse(body: unknown, status = 200): Promise<Response> {
@@ -260,7 +257,7 @@ describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
   it('Step 2: 运行完整分析 fires research; no alt-pipeline UI surface exists', async () => {
     renderWorkspace()
     // 1 ticker = 1 run = 1 equity_research artifact carrying the full
-    // 12-chapter payload.
+    // 13-chapter payload.
     fireEvent.click(screen.getByTestId('run-analysis-trigger'))
     expect(startRunMock).toHaveBeenCalledWith('research', 'NVDA')
     // No chevron / dropdown / alt-pipeline menu — single canonical entry.
@@ -277,6 +274,21 @@ describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
     ]) {
       expect(screen.queryByTestId(id)).not.toBeInTheDocument()
     }
+  })
+
+  it('Step 2b: run start failure surfaces a toast instead of leaving the CTA hanging', async () => {
+    startRunMock.mockRejectedValueOnce(new Error('网络连接失败，请检查网络'))
+    renderWorkspace()
+    fireEvent.click(screen.getByTestId('run-analysis-trigger'))
+    await waitFor(() =>
+      expect(addToastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'error',
+          title: '启动研报失败',
+          description: '网络连接失败，请检查网络',
+        }),
+      ),
+    )
   })
 
   it('Step 3: pipeline progress panel renders 6 step rows from SSE-driven state', async () => {
@@ -311,13 +323,13 @@ describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
 
 // ── Gate tests (P0 事实层根治 Task 13) ────────────────────────────────────────
 //
-// These tests exercise the error-gate added to StockWorkspace: when
-// useTickerPrice errors, the workspace renders a full-page gate view instead
-// of three blank cards.
+// These tests exercise the StockWorkspace price gate. Invalid tickers still
+// stop at the gate; upstream price outages render the workspace shell so the
+// AI run/timeline column remains usable while market data degrades locally.
 //
 // Protocol:
 //   - FetchHttpError(422) → TickerNotFoundView (data-testid="ticker-not-found")
-//   - anything else → ServiceDownView (data-testid="service-down")
+//   - anything else → workspace shell (data-testid="stock-workspace")
 //
 // The mock replaces the global fetch so that calls to /api/data/*/price get
 // the desired failure, while all other endpoints return {} so react-query
@@ -355,16 +367,16 @@ describe('workspace gate (P0 事实层根治 Task 13)', () => {
     expect(screen.queryByTestId('market-data-zone')).not.toBeInTheDocument()
   })
 
-  it('502 from /price → renders ServiceDownView', async () => {
+  it('502 from /price → still renders workspace shell', async () => {
     mockPriceFetchError(
       new Response('{"detail":"数据源暂不可用"}', { status: 502, statusText: 'Bad Gateway' }),
     )
     renderWorkspace()
-    expect(await screen.findByTestId('service-down')).toBeInTheDocument()
-    expect(screen.queryByTestId('market-data-zone')).not.toBeInTheDocument()
+    expect(await screen.findByTestId('stock-workspace')).toBeInTheDocument()
+    expect(screen.getByTestId('market-data-zone')).toBeInTheDocument()
   })
 
-  it('503 from /price → renders ServiceDownView', async () => {
+  it('503 from /price → still renders workspace shell', async () => {
     mockPriceFetchError(
       new Response('{"detail":"capability disabled"}', {
         status: 503,
@@ -372,10 +384,10 @@ describe('workspace gate (P0 事实层根治 Task 13)', () => {
       }),
     )
     renderWorkspace()
-    expect(await screen.findByTestId('service-down')).toBeInTheDocument()
+    expect(await screen.findByTestId('stock-workspace')).toBeInTheDocument()
   })
 
-  it('500 from /price → renders ServiceDownView (catch-all)', async () => {
+  it('500 from /price → still renders workspace shell', async () => {
     mockPriceFetchError(
       new Response('{"detail":"unexpected"}', {
         status: 500,
@@ -383,18 +395,18 @@ describe('workspace gate (P0 事实层根治 Task 13)', () => {
       }),
     )
     renderWorkspace()
-    expect(await screen.findByTestId('service-down')).toBeInTheDocument()
+    expect(await screen.findByTestId('stock-workspace')).toBeInTheDocument()
   })
 
-  it('network error (TypeError) → renders ServiceDownView', async () => {
+  it('network error (TypeError) → still renders workspace shell', async () => {
     mockPriceFetchError(new TypeError('Failed to fetch'))
     renderWorkspace()
-    expect(await screen.findByTestId('service-down')).toBeInTheDocument()
+    expect(await screen.findByTestId('stock-workspace')).toBeInTheDocument()
   })
 
-  it('plain Error → renders ServiceDownView', async () => {
+  it('plain Error → still renders workspace shell', async () => {
     mockPriceFetchError(new Error('Network request failed'))
     renderWorkspace()
-    expect(await screen.findByTestId('service-down')).toBeInTheDocument()
+    expect(await screen.findByTestId('stock-workspace')).toBeInTheDocument()
   })
 })

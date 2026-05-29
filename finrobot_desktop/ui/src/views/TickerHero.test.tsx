@@ -131,4 +131,50 @@ describe('TickerHero freshness pill', () => {
     expect(await screen.findByText(/陈旧/)).toBeInTheDocument()
     expect(screen.queryByText(/近实时/)).not.toBeInTheDocument()
   })
+
+  it('session_state closed → pill 显示 收盘 · MM-DD (绑后端判定，不看本地日期)', async () => {
+    setupFetch({
+      current_price: 200,
+      change_pct: 0.5,
+      change: 1.0,
+      exchange: 'NasdaqGS',
+      fetched_at: '2026-05-27T11:59:58Z',
+      as_of: '2026-05-26',
+      session_state: 'closed',
+    })
+    renderHero('AAPL')
+    expect(await screen.findByText(/收盘 · 05-26/)).toBeInTheDocument()
+    expect(screen.queryByText(/近实时/)).not.toBeInTheDocument()
+  })
+
+  it('session_state live → 走 tier 标签，绝不标 收盘（即便本地已跨过午夜）', async () => {
+    setupFetch({
+      current_price: 200,
+      change_pct: 0.5,
+      change: 1.0,
+      exchange: 'NasdaqGS',
+      fetched_at: '2026-05-27T11:59:58Z',
+      // as_of "昨天" + live：旧实现会按本地日期误标收盘，新实现读 session_state。
+      as_of: '2026-05-26',
+      session_state: 'live',
+    })
+    renderHero('AAPL')
+    expect(await screen.findByText(/近实时/)).toBeInTheDocument()
+    expect(screen.queryByText(/收盘/)).not.toBeInTheDocument()
+  })
+
+  it('as_of carries a time component → 收盘 仍只显示 MM-DD（不吐时间戳）', async () => {
+    setupFetch({
+      current_price: 200,
+      change_pct: 0.5,
+      change: 1.0,
+      exchange: 'NasdaqGS',
+      fetched_at: '2026-05-27T11:59:58Z',
+      as_of: '2026-05-26T20:00:00Z',
+      session_state: 'closed',
+    })
+    renderHero('AAPL')
+    expect(await screen.findByText(/收盘 · 05-26/)).toBeInTheDocument()
+    expect(screen.queryByText(/T20:00/)).not.toBeInTheDocument()
+  })
 })

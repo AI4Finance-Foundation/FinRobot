@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException
 from starlette.requests import Request
@@ -111,9 +112,7 @@ async def get_financials(ticker: str, request: Request) -> FinancialData:
         raise _data_http_error(e, ticker.upper()) from e
     extracted = extract_financial_data(financials, price)
     if financials.warnings or price.warnings:
-        extracted.warnings = _dedupe(
-            [*extracted.warnings, *financials.warnings, *price.warnings]
-        )
+        extracted.warnings = _dedupe([*extracted.warnings, *financials.warnings, *price.warnings])
     return extracted
 
 
@@ -159,7 +158,9 @@ async def get_price(ticker: str, request: Request, period: str = "1y") -> dict[s
             warnings = list(raw_warnings) if isinstance(raw_warnings, list) else []
             warnings.insert(0, f"数据源请求失败，正在显示缓存行情（{ticker_upper} / {period}）。")
             stale_payload["warnings"] = _dedupe(warnings)
-            return await _enrich_price_payload_from_financial_cache(cache, ticker_upper, stale_payload)
+            return await _enrich_price_payload_from_financial_cache(
+                cache, ticker_upper, stale_payload
+            )
         if period == "1y":
             stale_provider = await _provider_price_cache_payload(
                 cache,
@@ -187,9 +188,7 @@ async def get_historical(ticker: str, request: Request) -> HistoricalMetrics:
         return metrics.model_dump(mode="json")
 
     try:
-        payload = await cached_fetch(
-            cache, DataType.HISTORICAL, ticker_upper, _fetch_as_dict
-        )
+        payload = await cached_fetch(cache, DataType.HISTORICAL, ticker_upper, _fetch_as_dict)
     except (ValueError, ProviderError) as e:
         raise _data_http_error(e, ticker_upper) from e
 
@@ -320,12 +319,14 @@ async def _enrich_price_payload_from_financial_cache(
     """Fill display metadata from financials cache without adding network work.
 
     Also stamps ``as_of`` — the date of the latest price bar, i.e. the session
-    ``current_price`` belongs to. The freshness pill binds to this, not to
-    ``fetched_at`` (the fetch wall-clock), so a closed-market view can't claim
-    "near-real-time" over a prior session's closing price (ADR-0004 audit A/B).
-    Every /price return path flows through here, so this is the one place to set it.
+    ``current_price`` belongs to — and ``session_state`` (live vs closed). The
+    freshness pill binds to these, not to ``fetched_at`` (the fetch wall-clock),
+    so a closed-market view can't claim "near-real-time" over a prior session's
+    closing price (ADR-0004 audit A/B). Every /price return path flows through
+    here, so this is the one place to set them.
     """
     _stamp_as_of(payload)
+    payload["session_state"] = _compute_session_state(payload.get("as_of"))
     if payload.get("market_cap") is not None and payload.get("company_name") is not None:
         return payload
 
@@ -360,6 +361,42 @@ def _stamp_as_of(payload: dict[str, Any]) -> None:
         last_date = hist[-1].get("date")
         if last_date:
             payload["as_of"] = last_date
+
+
+_MARKET_TZ = ZoneInfo("America/New_York")
+_MARKET_OPEN = time(9, 30)
+_MARKET_CLOSE = time(16, 0)
+
+
+def _compute_session_state(as_of: str | None, *, now_et: datetime | None = None) -> str:
+    """Classify ``current_price`` as a live intraday quote or a session close.
+
+    Returns ``"live"`` only when the US regular session is in progress AND
+    today's bar is present; otherwise ``"closed"``.
+
+    Computed in the exchange's timezone (America/New_York) on purpose: the
+    client cannot derive session state from ``as_of`` alone, because its
+    notion of "today" is the viewer's local date. A viewer east of ET (e.g.
+    China, UTC+8) crosses local midnight while the US session is still live
+    (ET 12:00–16:00 = CN 00:00–04:00); a date-string comparison there would
+    mislabel a live quote as a prior-day close.
+
+    Holidays need no calendar: on a market holiday there is no bar for today,
+    so ``as_of < today_et`` → ``"closed"``. Not modeled: half-day early closes
+    (~13:00 ET, ~9 days/year) read ``"live"`` until 16:00 ET. Pre/post-market
+    quotes are reported ``"closed"`` (we only treat the regular session as live).
+    """
+    if not as_of:
+        return "closed"
+    try:
+        as_of_date = date.fromisoformat(as_of[:10])
+    except ValueError:
+        return "closed"
+    now = now_et or datetime.now(tz=_MARKET_TZ)
+    in_regular_session = now.weekday() < 5 and _MARKET_OPEN <= now.time() < _MARKET_CLOSE
+    if in_regular_session and as_of_date >= now.date():
+        return "live"
+    return "closed"
 
 
 def _price_change_from_history(history: list[Any]) -> tuple[float | None, float | None]:

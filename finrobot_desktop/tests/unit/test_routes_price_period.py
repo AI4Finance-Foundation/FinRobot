@@ -10,6 +10,7 @@ DataCache fixture in conftest.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 from httpx import AsyncClient, ASGITransport
@@ -17,6 +18,7 @@ from unittest.mock import patch, AsyncMock
 
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.types import DataType
+from finrobot.routes.data import _compute_session_state
 
 
 @pytest.mark.asyncio
@@ -229,7 +231,15 @@ async def test_price_endpoint_different_periods_dont_share_cache(app_with_deps):
 
     with patch(
         "finrobot.routes.data.fetch_price_history",
-        new=AsyncMock(return_value={"current_price": 1.0, "history": [], "fetched_at": "2026-05-27T12:00:00+00:00", "data_source": "yfinance", "warnings": []}),
+        new=AsyncMock(
+            return_value={
+                "current_price": 1.0,
+                "history": [],
+                "fetched_at": "2026-05-27T12:00:00+00:00",
+                "data_source": "yfinance",
+                "warnings": [],
+            }
+        ),
     ) as mock_fetch:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -298,3 +308,67 @@ async def test_price_endpoint_returns_fetched_at(app_with_deps):
 
     assert resp.status_code == 200
     assert resp.json()["fetched_at"] == "2026-05-27T12:00:00+00:00"
+
+
+# ── Session-state classification ───────────────────────────────────────────
+#
+# Regression for the cross-timezone freshness bug: the pill must NOT derive
+# session state from the viewer's local date. _compute_session_state decides
+# live-vs-closed in America/New_York so a viewer east of ET (e.g. China, UTC+8)
+# can't see a live US quote mislabeled "收盘" once the session runs past their
+# local midnight (ET 12:00–16:00 = CN 00:00–04:00).
+
+_ET = ZoneInfo("America/New_York")
+
+
+def test_session_live_during_regular_hours_with_today_bar():
+    # Wed 2026-05-27 13:00 ET — regular session, today's bar present.
+    now = datetime(2026, 5, 27, 13, 0, tzinfo=_ET)
+    assert _compute_session_state("2026-05-27", now_et=now) == "live"
+
+
+def test_session_live_at_china_midnight_window_is_not_mislabeled_closed():
+    # The exact bug: ET 13:00 Wed == CN 01:00 Thu. Viewer-local date is already
+    # "tomorrow" but the US session is live → backend must say live.
+    now = datetime(2026, 5, 27, 13, 0, tzinfo=_ET)
+    assert _compute_session_state("2026-05-27", now_et=now) == "live"
+
+
+def test_session_closed_before_open():
+    now = datetime(2026, 5, 27, 9, 0, tzinfo=_ET)
+    assert _compute_session_state("2026-05-26", now_et=now) == "closed"
+
+
+def test_session_closed_after_close():
+    now = datetime(2026, 5, 27, 16, 30, tzinfo=_ET)
+    assert _compute_session_state("2026-05-27", now_et=now) == "closed"
+
+
+def test_session_closed_on_weekend():
+    # Sat 2026-05-30 13:00 ET — within clock window but not a trading day.
+    now = datetime(2026, 5, 30, 13, 0, tzinfo=_ET)
+    assert _compute_session_state("2026-05-29", now_et=now) == "closed"
+
+
+def test_session_closed_on_holiday_via_missing_today_bar():
+    # Clock is inside regular hours, but no bar for today (holiday) → as_of is a
+    # prior day → closed. No holiday calendar needed.
+    now = datetime(2026, 5, 27, 13, 0, tzinfo=_ET)
+    assert _compute_session_state("2026-05-25", now_et=now) == "closed"
+
+
+def test_session_closed_at_exact_close_boundary():
+    now = datetime(2026, 5, 27, 16, 0, tzinfo=_ET)
+    assert _compute_session_state("2026-05-27", now_et=now) == "closed"
+
+
+def test_session_closed_when_as_of_missing_or_garbage():
+    now = datetime(2026, 5, 27, 13, 0, tzinfo=_ET)
+    assert _compute_session_state(None, now_et=now) == "closed"
+    assert _compute_session_state("not-a-date", now_et=now) == "closed"
+
+
+def test_session_state_accepts_timestamp_as_of():
+    # Defensive: if as_of ever carries a time component, only the date counts.
+    now = datetime(2026, 5, 27, 13, 0, tzinfo=_ET)
+    assert _compute_session_state("2026-05-27T00:00:00Z", now_et=now) == "live"

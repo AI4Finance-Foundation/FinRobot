@@ -38,6 +38,12 @@ export interface PriceData {
    *  The freshness pill binds to THIS, not fetched_at, so a closed-market view can't
    *  claim "near-real-time" over a prior session's closing price. */
   as_of?: string | null
+  /** Backend's session classification, computed in the exchange's timezone:
+   *  'live' = US regular session in progress (current_price is intraday);
+   *  'closed' = market closed (current_price is the close of the as_of session).
+   *  The pill reads THIS instead of comparing as_of to the viewer's local date,
+   *  which would mislabel a live quote as a close across timezone boundaries. */
+  session_state?: 'live' | 'closed' | null
   /** Which provider actually served this payload ("fmp" / "yfinance" / "<provider>:provider-cache"). */
   data_source?: string | null
 }

@@ -393,9 +393,10 @@ async def test_step3_dcf_deterministic(mock_deps):
 
 
 @pytest.mark.asyncio
-async def test_peer_analysis_raises_when_data_collection_missing(mock_deps):
-    """_execute_peer_analysis raises ValueError when data_collection not in structured_context."""
-    from finrobot.engine.pipelines.equity_research import _execute_peer_analysis
+async def test_peer_analysis_raises_when_target_financials_missing(mock_deps):
+    """execute_peer_analysis (shared, in _helpers) raises ValueError when no
+    target FinancialData is present in structured_context (any step key)."""
+    from finrobot.engine.pipelines._helpers import execute_peer_analysis
     from finrobot.engine.models.financial import PeerSelection
 
     mock_peer_result = MagicMock()
@@ -429,9 +430,9 @@ async def test_peer_analysis_raises_when_data_collection_missing(mock_deps):
 
     mock_agent = MagicMock()
 
-    with patch("finrobot.engine.pipelines.equity_research.Agent", return_value=mock_agent_instance):
-        with pytest.raises(ValueError, match="data_collection"):
-            await _execute_peer_analysis(mock_agent, mock_deps, "prompt", {}, "AAPL")
+    with patch("finrobot.engine.pipelines._helpers.Agent", return_value=mock_agent_instance):
+        with pytest.raises(ValueError, match="target FinancialData"):
+            await execute_peer_analysis(mock_agent, mock_deps, "prompt", {}, "AAPL")
 
 
 def test_build_sensitivity_ranges_returns_valid_ranges():
@@ -443,9 +444,9 @@ def test_build_sensitivity_ranges_returns_valid_ranges():
     assert len(wacc_range) == 5
     assert len(tg_range) >= 1
     min_wacc = min(wacc_range)
-    assert all(
-        g < min_wacc for g in tg_range
-    ), f"All tg values must be < min_wacc {min_wacc}, got {tg_range}"
+    assert all(g < min_wacc for g in tg_range), (
+        f"All tg values must be < min_wacc {min_wacc}, got {tg_range}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -769,12 +770,20 @@ async def test_thesis_overrides_llm_target_with_valuation_synthesis(mock_deps):
     vs = ValuationSynthesis(
         methods=[
             ValuationMethod(
-                name="DCF", low=20.0, mid=25.37, high=30.4,
-                confidence=0.7, source="DCF model",
+                name="DCF",
+                low=20.0,
+                mid=25.37,
+                high=30.4,
+                confidence=0.7,
+                source="DCF model",
             ),
             ValuationMethod(
-                name="EV/EBITDA Comps", low=49.3, mid=57.96, high=66.7,
-                confidence=0.5, source="Peer median",
+                name="EV/EBITDA Comps",
+                low=49.3,
+                mid=57.96,
+                high=66.7,
+                confidence=0.5,
+                source="Peer median",
             ),
         ],
         weighted_price=(25.37 * 0.7 + 57.96 * 0.5) / 1.2,  # ≈ 38.95
@@ -847,8 +856,12 @@ async def test_thesis_overrides_llm_recommendation_with_upside_thresholds(mock_d
     vs = ValuationSynthesis(
         methods=[
             ValuationMethod(
-                name="DCF", low=20.0, mid=25.37, high=30.4,
-                confidence=0.7, source="DCF",
+                name="DCF",
+                low=20.0,
+                mid=25.37,
+                high=30.4,
+                confidence=0.7,
+                source="DCF",
             ),
         ],
         weighted_price=38.95,
@@ -899,10 +912,16 @@ async def test_thesis_recommendation_hold_band(mock_deps):
     mock_agent_instance.run = AsyncMock(return_value=mock_thesis_result)
 
     vs = ValuationSynthesis(
-        methods=[ValuationMethod(
-            name="DCF", low=90, mid=110, high=130,
-            confidence=0.7, source="DCF",
-        )],
+        methods=[
+            ValuationMethod(
+                name="DCF",
+                low=90,
+                mid=110,
+                high=130,
+                confidence=0.7,
+                source="DCF",
+            )
+        ],
         weighted_price=110.0,
         current_price=100.0,
         upside_downside=0.10,  # +10% → HOLD

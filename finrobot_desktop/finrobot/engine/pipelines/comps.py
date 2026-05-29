@@ -11,10 +11,12 @@ from finrobot.engine.pipelines.base import (
     StructuredValidator,
     TextValidator,
 )
-from finrobot.engine.pipelines._helpers import execute_financial_data_step
+from finrobot.engine.pipelines._helpers import (
+    execute_financial_data_step,
+    execute_peer_analysis,
+)
 from finrobot.engine.pipelines.validators import (
     validate_has_fields,
-    validate_has_peers,
     validate_is_non_empty,
     validate_has_comps_table,
     validate_financial_data,
@@ -42,34 +44,21 @@ def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 ),
                 executor=execute_financial_data_step,
             ),
-            PipelineStep(
-                name="peer_selection",
-                skill_section="comps-analysis",
-                agent=agents["analysis"],
-                required_data=[],
-                validator=TextValidator(lambda out: validate_has_peers(out, min_peers=3)),
-            ),
-            PipelineStep(
-                name="peer_data",
-                skill_section=None,
-                agent=agents["data"],
-                required_data=[],
-                validator=TextValidator(
-                    lambda out: validate_has_fields(out, ["revenue", "ebitda"])
-                ),
-            ),
-            PipelineStep(
-                name="multiples_calc",
-                skill_section="comps-analysis",
-                agent=agents["modeling"],
-                required_data=[],
-                validator=TextValidator(validate_is_non_empty),
-            ),
+            # Deterministic peer analysis: the LLM only SELECTS peer tickers
+            # (judgment); code fetches each peer's financials, FX-normalizes to
+            # USD, and computes multiples + medians via calculate_multiples /
+            # calculate_peer_statistics. Shared with equity_research so the
+            # standalone comps pipeline can no longer emit LLM-fabricated,
+            # provenance-free multiples in free text (the old peer_data /
+            # multiples_calc / statistical_bench LLM steps). The step keeps the
+            # name "statistical_bench" so build_comps_artifact reads the
+            # structured PeerComps from the same key.
             PipelineStep(
                 name="statistical_bench",
-                skill_section="comps-analysis",
+                skill_section=None,
                 agent=agents["analysis"],
                 required_data=[],
+                executor=execute_peer_analysis,
                 validator=StructuredValidator(
                     validate_peer_comps,
                     validate_is_non_empty,

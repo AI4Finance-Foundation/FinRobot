@@ -42,6 +42,7 @@ class TestP1bAcceptance:
             "peer_analysis",
             "financial_modeling",
             "technical_analysis",
+            "ownership_governance_analysis",
             "thesis",
             "report",
         }
@@ -61,11 +62,11 @@ class TestP1bAcceptance:
         pipeline = create_comps_pipeline(sub_agents)
         result = await pipeline.execute(deps, "AAPL")
 
+        # Collapsed from 6 LLM steps to 3: peer multiples now come from the
+        # deterministic shared execute_peer_analysis (statistical_bench), not
+        # the old LLM free-text peer_data / multiples_calc steps.
         assert set(result.steps.keys()) == {
             "target_data",
-            "peer_selection",
-            "peer_data",
-            "multiples_calc",
             "statistical_bench",
             "output_gen",
         }

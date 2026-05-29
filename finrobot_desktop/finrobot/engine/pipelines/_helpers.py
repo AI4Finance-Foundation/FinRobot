@@ -2,23 +2,34 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any
 
 from pydantic_ai import Agent
+from pydantic_ai.exceptions import AgentRunError
+from pydantic import ValidationError
 
 from finrobot.engine.compute.data_processor import (
     extract_historical_metrics,
     forecast_financials,
 )
-from finrobot.engine.compute.extractor import extract_financial_data
+from finrobot.engine.compute.extractor import extract_financial_data, extract_company_financials
+from finrobot.engine.compute.fx_normalize import normalize_company_to_usd
+from finrobot.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
 from finrobot.engine.compute.valuation_aggregator import aggregate_valuation
 from finrobot.engine.compute.valuation_synthesis import synthesize_valuations
-from finrobot.engine.data.interface import DataResult
+from finrobot.engine.compute.xbrl_aligned_comps import (
+    build_xbrl_aligned_company,
+    override_company_with_xbrl,
+)
+from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import (
+    CompanyFinancials,
     DCFResult,
     DDMResult,
     FinancialData,
@@ -27,12 +38,138 @@ from finrobot.engine.models.financial import (
     LBOResult,
     MarginAssumptions,
     PeerComps,
+    PeerSelection,
     StepOutput,
     ValuationMethod,
     ValuationSynthesis,
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def normalize_peer_to_usd(company: CompanyFinancials) -> CompanyFinancials:
+    """Convert a peer's IS/BS items (and market_cap if quoted in non-USD) to
+    canonical USD using today's spot FX. No-op fast path when both currency
+    tags are already USD — the common case for US peers."""
+    if company.reporting_currency == "USD" and company.quote_currency == "USD":
+        return company
+    reporting_rate = (
+        1.0
+        if company.reporting_currency == "USD"
+        else await fetch_fx_rate_to_usd(company.reporting_currency)
+    )
+    if company.quote_currency == "USD":
+        quote_rate = 1.0
+    elif company.quote_currency == company.reporting_currency:
+        # Local listing (e.g. 2330.TW): both tags equal, reuse the rate.
+        quote_rate = reporting_rate
+    else:
+        quote_rate = await fetch_fx_rate_to_usd(company.quote_currency)
+    return normalize_company_to_usd(company, reporting_rate, quote_rate)
+
+
+def _find_target_financial_data(structured_context: dict[str, object]) -> FinancialData | None:
+    """Locate the target's FinancialData regardless of which step produced it.
+
+    equity_research names the data step ``data_collection``; comps names it
+    ``target_data``. Search by type so the shared peer-analysis executor works
+    in both pipelines without hard-coding a step key.
+    """
+    direct = structured_context.get("data_collection")
+    if isinstance(direct, FinancialData):
+        return direct
+    for value in structured_context.values():
+        if isinstance(value, FinancialData):
+            return value
+    return None
+
+
+async def execute_peer_analysis(
+    agent: Agent[Any, Any],
+    deps: FinRobotDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+) -> StepOutput:
+    """LLM selects peer tickers (structured output); code fetches and computes
+    multiples. Shared by equity_research and the standalone comps pipeline so
+    BOTH produce deterministic, traceable multiples instead of LLM free text."""
+    peer_agent = Agent(
+        deps.settings.create_model(),
+        output_type=PeerSelection,
+        instructions=(
+            "Select 3-5 comparable publicly traded companies for peer analysis. "
+            "Choose companies in the same sector with similar business models and market cap. "
+            "Return valid ticker symbols only (e.g. MSFT, GOOGL, not 'Microsoft').\n\n"
+            "**Peer 选择硬约束**：\n"
+            "所有 peer 必须与 target 的 yfinance industry 字段完全一致（不是 sector，是 industry）。\n"
+            "例：AAPL industry='Consumer Electronics' → peer 必须也是 Consumer Electronics。\n"
+            "不允许跨 industry 选 peer（即使同 sector）。\n"
+            "如果合规 peer 不足 5 个，宁可 3-4 个也不要补凑跨 industry 的。"
+        ),
+        defer_model_check=True,
+    )
+    try:
+        peer_result = await peer_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
+        selection = peer_result.output
+    except (AgentRunError, ValidationError, ValueError) as e:
+        raise ValueError(f"Failed to select peer companies: {e}") from e
+
+    async def _fetch_one_peer(peer_ticker: str) -> CompanyFinancials | None:
+        try:
+            fin_result = await deps.data_layer.fetch(DataType.FINANCIALS, peer_ticker)
+            company = extract_company_financials(fin_result)
+            # Normalize foreign-listed ADRs / local listings to canonical USD
+            # BEFORE multiples are computed — otherwise TSM (TWD financials,
+            # USD market_cap) collapses EV/EBITDA to 0.158x. A failed FX lookup
+            # falls through to the outer except and drops this peer; thinning
+            # the set beats publishing a mixed-unit multiple.
+            company = await normalize_peer_to_usd(company)
+            company = calculate_multiples(company)
+            xbrl_result = await deps.data_layer.fetch(DataType.XBRL_FACTS, peer_ticker)
+            return override_company_with_xbrl(company, xbrl_result.data)
+        except (ProviderError, ValueError, KeyError, ArithmeticError) as e:
+            logger.warning(f"Skipping peer {peer_ticker}: {e}")
+            return None
+
+    peer_results = await asyncio.gather(*[_fetch_one_peer(t) for t in selection.tickers])
+    peers: list[CompanyFinancials] = [p for p in peer_results if p is not None]
+
+    if len(peers) < 3:
+        raise ValueError(
+            f"Only {len(peers)} peers fetched successfully (need >=3). "
+            f"Attempted: {selection.tickers}."
+        )
+
+    target_fin = _find_target_financial_data(structured_context)
+    if target_fin is None:
+        raise ValueError("target FinancialData not available in context; cannot build peer target.")
+    raw_target_xbrl = structured_context.get("xbrl_facts_raw")
+    target_xbrl = raw_target_xbrl if isinstance(raw_target_xbrl, dict) else None
+    target = build_xbrl_aligned_company(
+        ticker=ticker,
+        financial_data=target_fin,
+        xbrl_data=target_xbrl,
+    )
+
+    peer_comps = PeerComps(
+        target=target,
+        peers=peers,
+        peer_justification=selection.rationale,
+    )
+    peer_comps = calculate_peer_statistics(peer_comps)
+
+    ev_ebitda_str = (
+        f"{peer_comps.median_ev_ebitda:.1f}x" if peer_comps.median_ev_ebitda is not None else "N/A"
+    )
+    pe_str = f"{peer_comps.median_pe:.1f}x" if peer_comps.median_pe is not None else "N/A"
+    narrative = (
+        f"Peer set ({len(peers)} companies): {', '.join(p.ticker for p in peers)}. "
+        f"Median EV/EBITDA: {ev_ebitda_str}. "
+        f"Median P/E: {pe_str}. "
+        f"{selection.rationale}"
+    )
+    return StepOutput(text=narrative, structured=peer_comps)
 
 
 async def execute_financial_data_step(

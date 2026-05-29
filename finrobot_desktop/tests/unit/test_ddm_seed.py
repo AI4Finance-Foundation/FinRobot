@@ -1,0 +1,237 @@
+"""Tests for seed_ddm_inputs — deterministic DDMInputs builder.
+
+Expected values are anchored to the JPM acceptance baseline pulled from live
+yfinance on 2026-05-29 (written before the implementation):
+
+    DPS=$6.00, payout=28.24%, ROE=16.465%, BVPS=$128.38, beta=1.023,
+    shares=2.68B, price=$296.23, net income=$57.5B, industry "Banks - Diversified".
+
+The seeded inputs, run through calculate_ddm, must land near the residual-income
+cross-check (~$241), NOT the naive constant-payout DDM (~$102 / -66%).
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+import pytest
+
+from finrobot.engine.compute.dcf_seed import (
+    DEFAULT_EQUITY_RISK_PREMIUM,
+    DEFAULT_RISK_FREE_RATE,
+    DEFAULT_TERMINAL_GROWTH,
+)
+from finrobot.engine.compute.ddm import calculate_ddm
+from finrobot.engine.compute.ddm_seed import seed_ddm_inputs
+from finrobot.engine.data.normalize.contracts import NormalizedFinancials, Provenance
+from finrobot.engine.models.financial import (
+    BalanceSheet,
+    FinancialData,
+    IncomeStatement,
+    MarketData,
+    ValuationMetrics,
+)
+
+# --- JPM baseline (yfinance 2026-05-29) ------------------------------------
+JPM_DPS = 6.00
+JPM_PAYOUT = 0.2824
+JPM_ROE = 0.16465
+JPM_BVPS = 128.379
+JPM_BETA = 1.023
+JPM_SHARES = 2_679_511_418
+JPM_PRICE = 296.225
+JPM_NET_INCOME = 57_512_001_536.0
+
+
+def _financials(
+    *,
+    beta: float | None = JPM_BETA,
+    net_income: float = JPM_NET_INCOME,
+    shares: float = JPM_SHARES,
+    price: float = JPM_PRICE,
+    industry: str | None = "Banks - Diversified",
+) -> FinancialData:
+    return FinancialData(
+        ticker="JPM",
+        company_name="JPMorgan Chase & Co.",
+        timestamp=datetime.now(tz=timezone.utc),
+        income=IncomeStatement(
+            revenue=1.6e11,
+            ebitda=1.0e11,
+            net_income=net_income,
+            gross_margin=0.0,
+            operating_margin=0.4,
+        ),
+        balance=BalanceSheet(),
+        market=MarketData(
+            market_cap=price * shares,
+            shares_outstanding=shares,
+            current_price=price,
+            industry=industry,
+            sector="Financial Services",
+            beta=beta,
+        ),
+        valuation=ValuationMetrics(),
+    )
+
+
+def _normalized(
+    *,
+    dividend_per_share: float | None = JPM_DPS,
+    payout_ratio: float | None = JPM_PAYOUT,
+    return_on_equity: float | None = JPM_ROE,
+    book_value_per_share: float | None = JPM_BVPS,
+    beta: float | None = JPM_BETA,
+) -> NormalizedFinancials:
+    now = datetime.now(tz=timezone.utc)
+    return NormalizedFinancials(
+        ticker="JPM",
+        revenue=1.6e11,
+        market_cap=JPM_PRICE * JPM_SHARES,
+        as_of=now,
+        net_income=JPM_NET_INCOME,
+        shares_outstanding=JPM_SHARES,
+        current_price=JPM_PRICE,
+        dividend_per_share=dividend_per_share,
+        payout_ratio=payout_ratio,
+        return_on_equity=return_on_equity,
+        book_value_per_share=book_value_per_share,
+        beta=beta,
+        industry="Banks - Diversified",
+        sector="Financial Services",
+        provenance=Provenance(provider="yfinance", as_of=now, fetched_at=now),
+    )
+
+
+class TestSeedHappyPath:
+    """JPM baseline — the headline acceptance test."""
+
+    def test_dividend_and_payout_from_provider(self) -> None:
+        inputs = seed_ddm_inputs(_financials(), _normalized())
+        assert inputs.dividend_per_share == pytest.approx(JPM_DPS)
+        assert inputs.payout_ratio == pytest.approx(JPM_PAYOUT)
+
+    def test_sustainable_growth_formula(self) -> None:
+        """g = ROE × (1 − payout) = 16.465% × (1 − 28.24%) = 11.82%, year-1 of schedule."""
+        inputs = seed_ddm_inputs(_financials(), _normalized())
+        expected_g = JPM_ROE * (1 - JPM_PAYOUT)
+        assert inputs.dividend_growth_rates[0] == pytest.approx(expected_g, abs=1e-6)
+
+    def test_growth_decays_to_terminal(self) -> None:
+        inputs = seed_ddm_inputs(_financials(), _normalized())
+        rates = inputs.dividend_growth_rates
+        assert rates == sorted(rates, reverse=True)  # monotone decreasing
+        assert rates[-1] == pytest.approx(DEFAULT_TERMINAL_GROWTH, abs=1e-6)
+
+    def test_terminal_payout_normalized(self) -> None:
+        """terminal payout = 1 − tg/ROE = 1 − 2.5%/16.465% = 84.82%."""
+        inputs = seed_ddm_inputs(_financials(), _normalized())
+        expected = 1 - DEFAULT_TERMINAL_GROWTH / JPM_ROE
+        assert inputs.terminal_payout_ratio == pytest.approx(expected, abs=1e-6)
+
+    def test_beta_from_provider(self) -> None:
+        inputs = seed_ddm_inputs(_financials(), _normalized())
+        assert inputs.beta == pytest.approx(JPM_BETA)
+
+    def test_macro_defaults(self) -> None:
+        inputs = seed_ddm_inputs(_financials(), _normalized())
+        assert inputs.risk_free_rate == pytest.approx(DEFAULT_RISK_FREE_RATE)
+        assert inputs.equity_risk_premium == pytest.approx(DEFAULT_EQUITY_RISK_PREMIUM)
+        assert inputs.terminal_growth_rate == pytest.approx(DEFAULT_TERMINAL_GROWTH)
+
+    def test_end_to_end_value_is_defensible(self) -> None:
+        """The whole point: seeded JPM lands ~$247 (-16.5%), not naive ~$102 (-66%)."""
+        inputs = seed_ddm_inputs(_financials(), _normalized())
+        result = calculate_ddm(inputs)
+        assert 220.0 < result.equity_value_per_share < 270.0
+        assert -0.30 < result.upside < -0.05
+
+
+class TestSeedFallbacks:
+    def test_dps_derived_from_payout_when_missing(self) -> None:
+        """No provider DPS ⇒ payout × net_income / shares."""
+        inputs = seed_ddm_inputs(_financials(), _normalized(dividend_per_share=None))
+        expected_dps = JPM_PAYOUT * JPM_NET_INCOME / JPM_SHARES
+        assert inputs.dividend_per_share == pytest.approx(expected_dps)
+        assert "派息率" in inputs.assumption_provenance["dividend_per_share"]
+
+    def test_no_dividend_raises(self) -> None:
+        """No DPS and no payout ⇒ DDM is inapplicable."""
+        with pytest.raises(ValueError, match="positive dividend"):
+            seed_ddm_inputs(
+                _financials(),
+                _normalized(dividend_per_share=None, payout_ratio=None),
+            )
+
+    def test_payout_derived_from_dps_eps(self) -> None:
+        """No provider payout ⇒ DPS / EPS, EPS = net_income / shares."""
+        inputs = seed_ddm_inputs(_financials(), _normalized(payout_ratio=None))
+        eps = JPM_NET_INCOME / JPM_SHARES
+        assert inputs.payout_ratio == pytest.approx(JPM_DPS / eps)
+        assert "每股收益" in inputs.assumption_provenance["payout_ratio"]
+
+    def test_roe_missing_uses_generic_growth(self) -> None:
+        inputs = seed_ddm_inputs(_financials(), _normalized(return_on_equity=None))
+        # Generic start = max(tg*2, 5%) = 5%, decaying to terminal.
+        assert inputs.dividend_growth_rates[0] == pytest.approx(0.05, abs=1e-6)
+        assert inputs.terminal_payout_ratio is None
+        assert "ROE 不可得" in inputs.assumption_provenance["terminal_payout_ratio"]
+
+    def test_beta_falls_back_to_industry(self) -> None:
+        """Provider beta missing ⇒ Damodaran bank levered beta (≠ default 1.0)."""
+        inputs = seed_ddm_inputs(_financials(beta=None), _normalized(beta=None))
+        assert 0.3 <= inputs.beta <= 2.5
+        assert "行业" in inputs.assumption_provenance["beta"]
+
+
+class TestSeedClamps:
+    def test_growth_clamped_at_ceiling(self) -> None:
+        """A 90% ROE with low payout would imply g far above the 40% ceiling."""
+        inputs = seed_ddm_inputs(
+            _financials(),
+            _normalized(return_on_equity=0.90, payout_ratio=0.10),
+        )
+        assert inputs.dividend_growth_rates[0] == pytest.approx(0.40)
+
+    def test_beta_clamped(self) -> None:
+        inputs = seed_ddm_inputs(_financials(beta=4.5), _normalized(beta=4.5))
+        assert inputs.beta == pytest.approx(2.5)
+
+    def test_terminal_payout_floored_at_trailing(self) -> None:
+        """Terminal payout never drops below the trailing payout."""
+        # ROE low enough that 1 − tg/ROE < trailing payout ⇒ floor at trailing.
+        inputs = seed_ddm_inputs(
+            _financials(),
+            _normalized(return_on_equity=0.05, payout_ratio=0.80),
+        )
+        assert inputs.terminal_payout_ratio is not None
+        assert inputs.terminal_payout_ratio >= 0.80
+
+
+class TestSeedProvenance:
+    _REQUIRED_KEYS = {
+        "dividend_per_share",
+        "dividend_growth_rates",
+        "payout_ratio",
+        "terminal_payout_ratio",
+        "beta",
+        "risk_free_rate",
+        "equity_risk_premium",
+        "terminal_growth_rate",
+        "shares_outstanding",
+        "current_price",
+    }
+
+    def test_covers_every_required_field(self) -> None:
+        inputs = seed_ddm_inputs(_financials(), _normalized())
+        missing = self._REQUIRED_KEYS - set(inputs.assumption_provenance.keys())
+        assert not missing, f"Missing provenance for: {sorted(missing)}"
+
+    def test_messages_are_chinese(self) -> None:
+        inputs = seed_ddm_inputs(_financials(), _normalized())
+        offenders = [
+            f"{k}: {msg}"
+            for k, msg in inputs.assumption_provenance.items()
+            if not any("一" <= ch <= "鿿" for ch in msg)
+        ]
+        assert not offenders, "Provenance must be Chinese:\n" + "\n".join(offenders)

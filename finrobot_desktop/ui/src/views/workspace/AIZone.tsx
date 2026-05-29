@@ -24,14 +24,36 @@ interface AIZoneProps {
 
 export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
   const navigate = useNavigate()
-  const { latest } = useLatestArtifact(ticker, 'equity_research')
-  const { data: timeline } = useV5ArtifactTimeline(ticker)
+  const {
+    latest,
+    isLoading: artifactLoading,
+    isError: artifactError,
+    error: artifactErr,
+    refetch: artifactRefetch,
+  } = useLatestArtifact(ticker, 'equity_research')
+  const {
+    data: timeline,
+    isLoading: timelineLoading,
+    isError: timelineError,
+    refetch: timelineRefetch,
+  } = useV5ArtifactTimeline(ticker)
   const startRun = useRunStreamStore((s) => s.startRun)
   const runState = useRunStreamStore(selectRunByTicker(ticker))
   const addToast = useToastStore((s) => s.addToast)
 
   const sameTypeTimeline = (timeline ?? []).filter((a) => a.type === 'equity_research')
   const isRunning = runState?.status === 'running'
+
+  // Show error state only when both queries failed AND the run is not active
+  // (a running pipeline masks stale query errors — user knows data is being
+  // fetched). Loading while !latest falls naturally into ColdState below so
+  // run-analysis-trigger remains visible immediately on first render.
+  const isError = (artifactError || timelineError) && !isRunning
+
+  function handleRetry(): void {
+    void artifactRefetch()
+    void timelineRefetch()
+  }
 
   async function launchResearch(): Promise<void> {
     if (isRunning) {
@@ -58,21 +80,80 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
     }
   }
 
-  // Three states share this column:
+  // Four states for the AI column:
+  //   error    → backend 5xx / network down — show actionable error + retry
   //   running  → progress panel only (cold/hot would be misleading)
   //   has artifact → hot card stack
-  //   neither  → cold CTA
+  //   neither (including initial loading) → cold CTA
+  //     loading: query still in-flight → ColdState with subtle indicator
+  //     cold: genuinely no artifact yet → full ColdState with run trigger
   // After the run completes, PipelineProgressPanel keeps showing its
-  // "完成 · 总耗时 Xs" header (with → 打开研报 / ✕ dismiss buttons) UNTIL
-  // the user dismisses it; the hot card renders below it in the meantime
-  // so the analyst sees the new verdict immediately.
+  // "完成 · 总耗时 Xs" header (→ 打开研报 / ✕ dismiss) until dismissed.
   const showProgress = !!runState && !runState.dismissed
+  const isQuerying = (artifactLoading || timelineLoading) && !isRunning
+
+  if (isError) {
+    return (
+      <section data-testid="ai-zone">
+        <ZoneHeader hasArtifact={false} versionsCount={0} />
+        <div
+          data-testid="ai-zone-error"
+          style={{
+            background: 'rgba(220,38,38,0.06)',
+            border: '1px solid rgba(220,38,38,0.22)',
+            borderRadius: 'var(--radius-md)',
+            padding: '24px 20px',
+            textAlign: 'center',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+              color: 'var(--danger)',
+              marginBottom: 8,
+            }}
+          >
+            加载失败 — 后端服务不可达或返回错误
+          </div>
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10.5,
+              color: 'var(--text-dim)',
+              marginBottom: 14,
+            }}
+          >
+            {artifactErr instanceof Error ? artifactErr.message : '请检查后端服务是否正常运行'}
+          </div>
+          <button
+            type="button"
+            data-testid="ai-zone-retry"
+            onClick={handleRetry}
+            style={{
+              padding: '8px 18px',
+              background: 'rgba(220,38,38,0.12)',
+              border: '1px solid var(--danger)',
+              borderRadius: 6,
+              color: 'var(--danger)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              cursor: 'pointer',
+              letterSpacing: '0.04em',
+            }}
+          >
+            ↻ 重试
+          </button>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section data-testid="ai-zone">
       <ZoneHeader hasArtifact={!!latest} versionsCount={sameTypeTimeline.length} />
       <p style={zoneDesc}>
-        AI 投研报告 · 投资论点、估值分析（DCF / 同业 / DDM）、风险催化剂等 12
+        AI 投研报告 · 投资论点、估值分析（DCF / 同业 / DDM）、风险催化剂等 13
         章节，数字由代码算出，判断由 LLM 给出。
       </p>
 
@@ -88,7 +169,12 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
           onOpen={(id) => navigate(`/stocks/${ticker}/runs/${id}`)}
         />
       ) : !isRunning && !latest ? (
-        <ColdState ticker={ticker} isRunning={isRunning} onLaunch={launchResearch} />
+        <ColdState
+          ticker={ticker}
+          isRunning={isRunning}
+          isQuerying={isQuerying}
+          onLaunch={launchResearch}
+        />
       ) : null}
     </section>
   )
@@ -149,10 +235,12 @@ const zoneDesc: React.CSSProperties = {
 function ColdState({
   ticker,
   isRunning,
+  isQuerying,
   onLaunch,
 }: {
   ticker: string
   isRunning: boolean
+  isQuerying: boolean
   onLaunch: () => void
 }): React.ReactElement {
   return (
@@ -167,6 +255,20 @@ function ColdState({
       }}
     >
       <div style={{ fontSize: 40, opacity: 0.5, marginBottom: 12 }}>🤖</div>
+      {isQuerying && (
+        <div
+          data-testid="ai-zone-loading"
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10.5,
+            color: 'var(--text-dim)',
+            marginBottom: 10,
+            letterSpacing: '0.04em',
+          }}
+        >
+          检查研报历史中…
+        </div>
+      )}
       <div
         style={{
           fontFamily: 'var(--font-display)',
@@ -188,8 +290,8 @@ function ColdState({
         }}
       >
         生成一份 <strong style={{ color: 'var(--accent-cyan)' }}>13 章投行级研报</strong>： 投资论点
-        · 公司概览 · 财务分析 · 估值（DCF + 同业 + DDM + LBO）· 新闻 · 敏感度 · 催化剂 · 技术分析 ·
-        同业对标 · 财务数据
+        · 公司概览 · 财务分析 · 估值（DCF + 同业 + DDM）· 新闻事件 · 敏感性 · 催化剂 · 技术分析 ·
+        竞争格局 · 财务数据 · 股权与治理（含封面与免责声明）
       </p>
       <button
         type="button"

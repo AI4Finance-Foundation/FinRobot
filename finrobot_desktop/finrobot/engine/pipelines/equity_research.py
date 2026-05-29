@@ -97,7 +97,10 @@ async def _fetch_optional_sec(
         msg = f"SEC {data_type.name} 拉取超过 {_SEC_FETCH_TIMEOUT_S:.0f}s — SEC 慢/不可达，已跳过"
         logger.warning("%s (%s)", msg, ticker)
         return {"available": False, "error": msg, "warnings": [msg]}
-    except Exception as exc:  # provider/network error on optional data — non-fatal
+    except (ProviderError, OSError, ValueError, KeyError, TypeError, RuntimeError) as exc:
+        # provider/network error on optional SEC data — non-fatal. Concrete types
+        # only: a bare `except Exception` would swallow CancelledError and break
+        # client-disconnect cleanup (test_no_bare_except_exception_in_finrobot).
         msg = f"SEC {data_type.name} 拉取失败：{type(exc).__name__}"
         logger.warning("%s for %s: %s", msg, ticker, exc)
         return {"available": False, "error": msg, "warnings": [msg]}

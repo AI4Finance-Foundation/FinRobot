@@ -320,3 +320,38 @@ class TestSeedDcfInputsUnknownIndustry:
         # Should still produce a valid DCFInputs — Total Market fallback
         assert inputs.da_pct_revenue > 0
         assert 0.3 <= inputs.beta <= 2.5
+
+
+class TestDecliningFirmGrowth:
+    """Negative revenue CAGR must flow through — not be clamped to a flat 0%.
+
+    The old floor of 0.0 forced every structurally-declining firm to a 0%
+    explicit schedule, overstating fair value for exactly the over-valued
+    names the SELL/short path relies on (DCF must be able to land below price).
+    """
+
+    def test_negative_cagr_not_clamped_to_zero(self):
+        fin = _aapl_financials()
+        hist = _aapl_historical().model_copy(update={"cagr_revenue": -0.10})
+        inputs = seed_dcf_inputs(fin, hist)
+        # Base growth reflects the decline, not 0%.
+        assert inputs.revenue_growth_rates[0] == pytest.approx(-0.10)
+        # base ≤ terminal → held flat across the explicit window.
+        assert all(r == pytest.approx(-0.10) for r in inputs.revenue_growth_rates)
+        # Provenance must not falsely claim a "衰减" that doesn't happen.
+        assert "持平" in inputs.assumption_provenance["revenue_growth_rates"]
+
+    def test_severe_decline_floored_at_minus_20pct(self):
+        fin = _aapl_financials()
+        hist = _aapl_historical().model_copy(update={"cagr_revenue": -0.50})
+        inputs = seed_dcf_inputs(fin, hist)
+        assert inputs.revenue_growth_rates[0] == pytest.approx(-0.20)
+
+    def test_high_growth_still_decays_to_terminal(self):
+        # Regression: the positive-growth decay path must be unchanged.
+        fin = _aapl_financials()
+        hist = _aapl_historical().model_copy(update={"cagr_revenue": 0.30})
+        inputs = seed_dcf_inputs(fin, hist)
+        assert inputs.revenue_growth_rates[0] == pytest.approx(0.30)
+        assert inputs.revenue_growth_rates[-1] == pytest.approx(0.025)
+        assert "衰减" in inputs.assumption_provenance["revenue_growth_rates"]

@@ -186,15 +186,30 @@ def seed_dcf_inputs(
     has_real_cagr = cagr is not None and math.isfinite(cagr)
     if has_real_cagr:
         assert cagr is not None  # narrowing for mypy
-        base_growth = max(min(cagr, 0.40), 0.0)
+        # Floor at -20%/yr (severe-but-bounded decline), cap at +40%. The old
+        # floor of 0.0 silently FORCED every structurally-declining firm to a
+        # flat 0% explicit schedule — overstating fair value for exactly the
+        # over-valued names the SELL/short path depends on. A negative base is
+        # held flat across the explicit window by _decay_growth_schedule (it
+        # only decays a base ABOVE terminal); the Gordon perpetuity handles the
+        # eventual convergence to terminal_growth.
+        base_growth = max(min(cagr, 0.40), -0.20)
         growth_schedule = _decay_growth_schedule(
             base_growth, terminal_growth_rate, projection_years
         )
         n_years = len(historical.years)
-        prov["revenue_growth_rates"] = (
-            f"过去 {n_years} 年营收 CAGR {base_growth:.1%}，"
-            f"未来 {projection_years} 年线性衰减到永续 {terminal_growth_rate:.1%}"
-        )
+        if base_growth > terminal_growth_rate:
+            prov["revenue_growth_rates"] = (
+                f"过去 {n_years} 年营收 CAGR {base_growth:.1%}，"
+                f"未来 {projection_years} 年线性衰减到永续 {terminal_growth_rate:.1%}"
+            )
+        else:
+            # base ≤ terminal (mature or declining): held flat across the
+            # explicit window — don't claim a decay that doesn't happen.
+            prov["revenue_growth_rates"] = (
+                f"过去 {n_years} 年营收 CAGR {base_growth:.1%}，"
+                f"未来 {projection_years} 年按此持平（永续 {terminal_growth_rate:.1%}）"
+            )
     else:
         # No reliable historical CAGR (data absent or NaN-polluted).
         # Start at industry-implied "median company growth" (2× terminal growth)

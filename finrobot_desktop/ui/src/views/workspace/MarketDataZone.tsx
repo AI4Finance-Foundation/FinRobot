@@ -74,8 +74,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
                 typeof fin?.valuation?.ebitda_reported === 'number'
                   ? `街口径 ${fmtMc(fin.valuation.ebitda_reported)}`
                   : undefined,
-              subTitle:
-                '主显=营业口径 EBITDA（EBIT+D&A）。街口径=净利+税+利息+D&A，含利息收入。',
+              subTitle: '主显=营业口径 EBITDA（EBIT+D&A）。街口径=净利+税+利息+D&A，含利息收入。',
             },
             {
               label: 'Net Income',
@@ -357,7 +356,9 @@ function PriceSparkline({
   const first = closes[baseIdx]
   const last = closes[closes.length - 1]
   const pct = ((last - first) / first) * 100
-  const spanDays = Math.round((lastDate.getTime() - new Date(points[baseIdx].date).getTime()) / 86_400_000)
+  const spanDays = Math.round(
+    (lastDate.getTime() - new Date(points[baseIdx].date).getTime()) / 86_400_000,
+  )
   const spanLabel = spanDays >= 350 ? '1Y' : `${spanDays}D`
 
   return (

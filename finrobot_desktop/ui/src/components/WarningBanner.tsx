@@ -102,12 +102,15 @@ export function WarningBanner({
   )
 }
 
-const TONE_STYLES: Record<'warn' | 'danger', {
-  bg: string
-  border: string
-  accent: string
-  text: string
-}> = {
+const TONE_STYLES: Record<
+  'warn' | 'danger',
+  {
+    bg: string
+    border: string
+    accent: string
+    text: string
+  }
+> = {
   warn: {
     bg: 'rgba(217, 119, 6, 0.06)',
     border: 'rgba(217, 119, 6, 0.32)',

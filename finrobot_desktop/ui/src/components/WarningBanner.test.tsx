@@ -1,6 +1,6 @@
 // Vitest coverage for WarningBanner — backend `warnings` array MUST be
 // surfaced visibly; this gate prevents future regressions where it gets
-// rendered to ​innerHTML​ but with display:none or zero-contrast styling.
+// rendered to innerHTML but with display:none or zero-contrast styling.
 
 import { describe, expect, it } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'

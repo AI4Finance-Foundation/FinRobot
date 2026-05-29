@@ -91,7 +91,7 @@ def test_sniper_secondary_buy_equals_support():
 #    Expected:
 #      direction="SHORT"
 #      ideal_buy   = current = 200.0          (open the short)
-#      take_profit = max(target, support) = max(150, 140) = 150.0   (cover)
+#      take_profit = target = 150.0           (cover at the DCF thesis)
 #      stop_loss   = max(resistance, current*1.10) = max(160, 220) = 220.0
 #    Invariant: take_profit (150) <  ideal_buy (200) <  stop_loss (220) ✓
 #    R/R         = (200 - 150) / (220 - 200) = 50 / 20 = 2.50
@@ -166,8 +166,9 @@ def test_sniper_short_mode_tsla_2026_05_28_anchor() -> None:
     assert result.direction == "SHORT"
     # SHORT invariant must hold, no exceptions.
     assert result.take_profit < result.ideal_buy < result.stop_loss
-    # Cover at DCF target (or higher of target/support — never below support).
-    assert result.take_profit == max(5.88, min(prices))
+    # Cover at the DCF thesis (target), NOT clamped up to 20-day support
+    # (decision 2026-05-29: max(target, support) throttled the short).
+    assert result.take_profit == pytest.approx(5.88, abs=0.01)
     # The pre-fix pathological R/R 0.11 (with take_profit ABOVE current)
     # is impossible post-fix because take_profit < current < stop_loss now;
     # exact R/R depends on the 20-day window, but always strictly higher
@@ -437,3 +438,18 @@ def test_sniper_invariant_raises_on_violation() -> None:
                 volatility_annual=0.0,
             )
         )
+
+
+def test_sniper_short_cover_is_dcf_target_not_throttled_to_support() -> None:
+    """Regression (decision 2026-05-29): a downtrending SELL pinned to its 20-day
+    low (support == current). The old ``max(target, support)`` collapsed the
+    cover to current → degenerate "open short $X / cover $X, R/R 0". Cover must
+    now be the DCF target, yielding a coherent positive-edge short."""
+    prices = [100.0] * 20  # support == resistance == current
+    result = calculate_sniper_points(
+        _req(current_price=100.0, dcf_target=70.0, historical_prices=prices)
+    )
+    assert result.direction == "SHORT"
+    assert result.take_profit == pytest.approx(70.0, abs=0.01)  # the DCF thesis
+    assert result.take_profit < result.ideal_buy  # not the degenerate cover==entry
+    assert result.risk_reward_ratio > 0.0  # was exactly 0.0 pre-fix

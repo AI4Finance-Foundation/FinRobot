@@ -120,10 +120,16 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
         # Short entry: current price (open now) and resistance (add on bounce).
         ideal_buy = current
         secondary_buy = max(resistance, current)
-        # Cover target: prefer DCF (the thesis) over technical support so we
-        # capture the full bear case; never go below support (avoids
-        # over-projection past validated demand).
-        take_profit = max(target, support)
+        # Cover target = the DCF intrinsic value (the thesis). This is the whole
+        # reason we're short — fair value sits at ``target`` below the price, so
+        # that's where the bear case plays out. We deliberately do NOT clamp the
+        # cover up to the 20-day support: doing so (the old ``max(target,
+        # support)``) throttled the short to the nearest technical floor,
+        # understating R/R and — when the stock was already pinned to its 20-day
+        # low (support ≈ current, common for downtrending SELLs) — collapsed to a
+        # degenerate "cover == entry, R/R 0" trade. ``support`` stays available
+        # as ``support_level`` for display context. (Decision 2026-05-29.)
+        take_profit = target
         # Trend-reversal stop ABOVE current: take whichever is higher of
         # resistance and a 10% cushion so the stop never sits inside the
         # 20-day range.

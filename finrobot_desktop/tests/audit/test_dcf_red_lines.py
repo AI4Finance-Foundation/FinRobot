@@ -102,6 +102,7 @@ _RAW_TICK_ALLOWLIST = {
     "EpsPeChart.tsx",        # EPS in $, single digits
     "EpsSurpriseChart.tsx",  # EPS surprise in $
     "FootballField.tsx",     # valuation range in $ per share
+    "PriceTrendChart.tsx",   # 1Y share-price line, Y-axis = close prices ($-hundreds)
 }
 
 

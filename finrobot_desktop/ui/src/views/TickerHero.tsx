@@ -55,12 +55,15 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
       data-testid="ticker-hero"
       style={{
         position: 'relative',
-        padding: '16px 32px 14px',
-        background: 'linear-gradient(180deg, rgba(15,15,34,0.4) 0%, transparent 100%)',
+        // Horizontal padding lives on the inner box (matching <main> below)
+        // so the ticker glyph's left edge aligns with the MarketDataZone
+        // card edge; the full-width strip keeps its gradient + border.
+        padding: '16px 0 14px',
+        background: 'var(--gradient-hero-strip)',
         borderBottom: '1px solid var(--border-faint)',
       }}
     >
-      <div style={{ maxWidth: 1280, margin: '0 auto', minWidth: 0 }}>
+      <div style={{ maxWidth: 1480, margin: '0 auto', padding: '0 32px', minWidth: 0 }}>
         <WorkspaceBreadcrumb ticker={ticker} />
 
         <div
@@ -79,7 +82,7 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
               letterSpacing: 3,
               color: 'var(--text-primary)',
               lineHeight: 1,
-              textShadow: '0 0 18px rgba(59,130,246,0.3)',
+              textShadow: 'var(--glow-blue-soft)',
             }}
           >
             {ticker}
@@ -125,8 +128,8 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
                 fontSize: 13,
                 color: isUp ? 'var(--success)' : 'var(--danger)',
                 padding: '3px 9px',
-                background: isUp ? 'rgba(22,163,74,0.12)' : 'rgba(220,38,38,0.12)',
-                border: `1px solid ${isUp ? 'rgba(22,163,74,0.32)' : 'rgba(220,38,38,0.32)'}`,
+                background: isUp ? 'var(--success-soft)' : 'var(--danger-soft)',
+                border: `1px solid ${isUp ? 'var(--success-glow-soft)' : 'var(--danger-glow-soft)'}`,
                 borderRadius: 6,
                 fontVariantNumeric: 'tabular-nums',
               }}

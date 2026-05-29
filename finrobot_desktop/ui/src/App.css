@@ -67,6 +67,8 @@
     var(--secondary-soft-alt),
     var(--bg-card-overlay)
   );
+  /* Top fade strip behind the ticker hero header — bg-card → transparent. */
+  --gradient-hero-strip: linear-gradient(180deg, rgba(15, 15, 34, 0.4) 0%, transparent 100%);
 
   /* ── Amber accent (HOLD verdict + market-data zone headers).
      Distinct from --warning (which is the deeper #D97706 used for actual
@@ -101,6 +103,7 @@
   --glow-blue: 0 0 24px rgba(59, 130, 246, 0.5), 0 0 60px rgba(59, 130, 246, 0.18);
   --glow-purple: 0 0 24px rgba(139, 92, 246, 0.5), 0 0 60px rgba(139, 92, 246, 0.18);
   --glow-cyan: 0 0 20px rgba(34, 211, 238, 0.5);
+  --glow-blue-soft: 0 0 18px rgba(59, 130, 246, 0.3); /* subtle ticker glyph glow */
 
   /* ── Radius four-step ────────────────────────────────────────── */
   --radius-sm: 8px;
@@ -224,7 +227,7 @@ body {
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  letter-spacing: -0.006em;
+  letter-spacing: 0;
 }
 html,
 body {
@@ -355,7 +358,7 @@ body {
   font-weight: 500;
   text-align: right;
   color: var(--text-primary);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 .fin-table .fin-value.highlight {
   color: var(--accent);
@@ -739,7 +742,7 @@ input[type='range']::-moz-range-thumb {
   font-size: 2.8rem;
   font-weight: 700;
   color: var(--text-primary);
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   line-height: 1;
   margin-bottom: var(--sp-1);
   font-variant-numeric: tabular-nums;
@@ -1679,7 +1682,7 @@ select.input-field {
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-primary);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 .kpi-row {
   display: flex;
@@ -3723,7 +3726,7 @@ select.input-field {
   font-weight: 500;
   font-size: 36px;
   line-height: 1.1;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   color: var(--text-0);
 }
 .dash-title .em {
@@ -3975,7 +3978,7 @@ select.input-field {
   color: var(--text-0);
   font-weight: 500;
   margin-bottom: 6px;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 .rpt-snip {
   font-size: 11px;
@@ -4623,14 +4626,14 @@ select.input-field {
   font-size: 2.4rem;
   font-weight: 600;
   color: var(--accent);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .about-tagline {
   font-size: 1rem;
   font-weight: 600;
   color: var(--text-0);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .about-desc {

@@ -27,10 +27,16 @@ export function ChapterFinancialAnalysis({
 }: ChapterFinancialAnalysisProps): React.ReactElement {
   const { t } = useI18n()
   const { data: historical } = useHistoricalData(ticker)
-  const baseRev = (rawData?.revenue as number | undefined) ?? dcf?.inputs?.revenue_base ?? null
-  const baseEbitda = (rawData?.ebitda as number | undefined) ?? null
-  const baseNet = (rawData?.net_income as number | undefined) ?? null
-  const fcfTtm = (rawData?.fcf_ttm as number | undefined) ?? null
+  // raw_data is FinancialData.model_dump() — the money line items live under
+  // `income.*`, NOT at the top level (the sibling ChapterFinancialData reads
+  // `data['income']` the same way). Reading the top level silently blanked the
+  // EBITDA / net-income / FCF cards and degraded the revenue card to the DCF
+  // base-year fallback instead of the real TTM income statement.
+  const income = rawData?.income as Record<string, unknown> | undefined
+  const baseRev = (income?.revenue as number | undefined) ?? dcf?.inputs?.revenue_base ?? null
+  const baseEbitda = (income?.ebitda as number | undefined) ?? null
+  const baseNet = (income?.net_income as number | undefined) ?? null
+  const fcfTtm = (income?.fcf_ttm as number | undefined) ?? null
 
   const hasDcfForecast =
     dcf?.projected_revenue != null &&
@@ -64,7 +70,9 @@ export function ChapterFinancialAnalysis({
     baseRev !== null && {
       label: t('chapter.financial.kv.revenueBase'),
       value: fmtBillions(baseRev),
-      delta: rawData?.fiscal_year ? `FY${rawData.fiscal_year}` : undefined,
+      delta: rawData?.fiscal_period_end
+        ? `FY${String(rawData.fiscal_period_end).slice(0, 4)}`
+        : undefined,
     },
     baseEbitda !== null && { label: 'EBITDA', value: fmtBillions(baseEbitda) },
     baseNet !== null && {

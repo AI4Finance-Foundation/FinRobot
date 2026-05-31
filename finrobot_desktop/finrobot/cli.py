@@ -214,10 +214,7 @@ def research(ticker: str, model: str | None, lang: str | None) -> None:
     help="Output language (en=English, zh=Chinese)",
 )
 def comps(ticker: str, model: str | None, lang: str | None) -> None:
-    """Run comparable company analysis pipeline.
-
-    # TODO(P2c): add --peers option when Pipeline.execute() supports kwargs forwarding
-    """
+    """Run comparable company analysis pipeline."""
     deps = _build_deps(model)
 
     from finrobot.engine.agents.factory import create_sub_agents

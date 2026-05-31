@@ -44,6 +44,18 @@ class TestTechnicalPayload:
         assert out["low_52w"] == 0.0
         assert out["range_position"] == pytest.approx(0.5)
 
+    def test_52w_range_uses_intraday_high_low_when_present(self) -> None:
+        # Closes never exceed 100, but an intraday spike to 120 and dip to 80 are
+        # the real 52-week extremes (Yahoo/Bloomberg convention). The snapshot
+        # must use them, not the close-only range.
+        bars: list[dict[str, float]] = [{"close": 100.0, "high": 100.0, "low": 100.0}] * 19
+        bars.append({"close": 100.0, "high": 120.0, "low": 80.0})
+        out = technical_payload(bars)
+        assert out["high_52w"] == 120.0
+        assert out["low_52w"] == 80.0
+        # current 100 in [80, 120] → halfway.
+        assert out["range_position"] == pytest.approx(0.5)
+
 
 class _FakeLayer:
     def __init__(self, price: NormalizedPrice | None = None, exc: Exception | None = None) -> None:

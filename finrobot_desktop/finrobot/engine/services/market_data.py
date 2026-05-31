@@ -95,8 +95,11 @@ async def fetch_price_history(data_layer: DataLayer, ticker: str) -> dict[str, A
 
     # Trend snapshot computed from the bars we already hold (no refetch). The
     # close series is the same one the frontend chart renders, so SMA/trend/
-    # 52w-range stay consistent with the line on screen.
-    technicals = technical_payload([{"close": b.close} for b in price.bars])
+    # 52w-range stay consistent with the line on screen; intraday high/low feed
+    # the 52-week extremes (matches the high/low the route's _market_status uses).
+    technicals = technical_payload(
+        [{"close": b.close, "high": b.high, "low": b.low} for b in price.bars]
+    )
 
     fetched_at = price.provenance.fetched_at.isoformat()
     return {

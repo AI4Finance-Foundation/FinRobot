@@ -89,26 +89,49 @@ def _classify_trend(
     return "sideways"
 
 
-def technical_payload(history: Sequence[Mapping[str, float]]) -> dict[str, Any]:
-    """Pure trend snapshot from a close series (oldest → newest).
+def technical_payload(history: Sequence[Mapping[str, float | None]]) -> dict[str, Any]:
+    """Pure trend snapshot from a bar series (oldest → newest).
 
-    ``history`` is a list of bar-like mappings each carrying a ``close``. Returns
-    ``{"available": False, "reason": ...}`` when the series is too short to
-    classify, otherwise a snapshot with SMA 20/50/200, trend, current price, and
-    52-week high/low/range-position. No provider access — callers pass closes in.
+    ``history`` is a list of bar-like mappings each carrying a ``close`` and,
+    when available, intraday ``high`` / ``low``. Returns ``{"available": False,
+    "reason": ...}`` when the series is too short to classify, otherwise a
+    snapshot with SMA 20/50/200, trend, current price, and 52-week
+    high/low/range-position. No provider access — callers pass bars in.
+
+    The SMA stack and current price use closing prices (the convention for a
+    moving-average trend). The 52-week high/low use intraday high/low when the
+    bars carry them — that is what Yahoo / Bloomberg report; a close-only range
+    understates the high and skews range_position (verified live on AAPL: 315.00
+    intraday vs 312.51 close, range_position 0.975 vs 0.996). Bars without
+    intraday extremes fall back to close, so a close-only series still works.
     """
-    closes = [float(b["close"]) for b in history if b.get("close") is not None]
-    if len(closes) < _MIN_HISTORY:
+    bars: list[tuple[float, float, float]] = []
+    for b in history:
+        close = b.get("close")
+        if close is None:
+            continue
+        close = float(close)
+        high = b.get("high")
+        low = b.get("low")
+        bars.append(
+            (
+                close,
+                float(high) if high is not None else close,
+                float(low) if low is not None else close,
+            )
+        )
+    if len(bars) < _MIN_HISTORY:
         return {"available": False, "reason": "insufficient_history"}
 
+    closes = [c for c, _, _ in bars]
     current = closes[-1]
     sma20 = _sma(closes, 20)
     sma50 = _sma(closes, 50)
     sma200 = _sma(closes, 200)
 
-    window = closes[-_WINDOW_52W:]
-    high_52w = max(window)
-    low_52w = min(window)
+    window = bars[-_WINDOW_52W:]
+    high_52w = max(h for _, h, _ in window)
+    low_52w = min(lo for _, _, lo in window)
     span = high_52w - low_52w
     range_position = (current - low_52w) / span if span > 0 else None
 
@@ -141,7 +164,9 @@ async def get_technicals(ticker: str, layer: DataLayer) -> dict[str, Any]:
         return {"available": False, "reason": "no_data"}
     if not isinstance(price, NormalizedPrice) or not price.bars:
         return {"available": False, "reason": "no_data"}
-    return technical_payload([{"close": bar.close} for bar in price.bars])
+    return technical_payload(
+        [{"close": bar.close, "high": bar.high, "low": bar.low} for bar in price.bars]
+    )
 
 
 # ---------------------------------------------------------------------------

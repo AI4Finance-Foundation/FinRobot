@@ -45,6 +45,7 @@ async def _execute_earnings_data(
     prompt: str,
     structured_context: dict[str, object],
     ticker: str,
+    **_kwargs: object,
 ) -> StepOutput:
     """Fetch earnings history and compute surprise statistics."""
     try:

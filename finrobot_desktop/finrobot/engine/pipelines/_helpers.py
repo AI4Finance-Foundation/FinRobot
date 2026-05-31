@@ -94,16 +94,31 @@ def _find_target_financial_data(structured_context: dict[str, object]) -> Financ
     return None
 
 
-async def execute_peer_analysis(
-    agent: Agent[Any, Any],
-    deps: FinRobotDeps,
-    prompt: str,
-    structured_context: dict[str, object],
-    ticker: str,
-) -> StepOutput:
-    """LLM selects peer tickers (structured output); code fetches and computes
-    multiples. Shared by equity_research and the standalone comps pipeline so
-    BOTH produce deterministic, traceable multiples instead of LLM free text."""
+def _peer_override(raw: object) -> list[str] | None:
+    """Validated custom peer tickers from the ``peers`` run kwarg, or None to
+    fall back to LLM selection.
+
+    Accepts a list/tuple of tickers or a comma-separated string; upper-cases,
+    strips, dedupes (order-preserving), and drops blanks. Returns None for an
+    absent/empty/unrecognized value so the caller runs the normal LLM path.
+    """
+    if isinstance(raw, str):
+        items: list[str] = raw.split(",")
+    elif isinstance(raw, (list, tuple)):
+        items = [str(x) for x in raw]
+    else:
+        return None
+    deduped: dict[str, None] = {}
+    for item in items:
+        sym = item.strip().upper()
+        if sym:
+            deduped.setdefault(sym, None)
+    return list(deduped) or None
+
+
+async def _llm_select_peers(deps: FinRobotDeps, prompt: str) -> PeerSelection:
+    """LLM peer selection (ranked, same-industry judgment). Raises ValueError
+    if the model fails to produce a valid selection."""
     peer_agent = Agent(
         deps.settings.create_model(),
         output_type=PeerSelection,
@@ -128,9 +143,38 @@ async def execute_peer_analysis(
     )
     try:
         peer_result = await peer_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
-        selection = peer_result.output
+        return peer_result.output  # type: ignore[no-any-return]
     except (AgentRunError, ValidationError, ValueError) as e:
         raise ValueError(f"Failed to select peer companies: {e}") from e
+
+
+async def execute_peer_analysis(
+    agent: Agent[Any, Any],
+    deps: FinRobotDeps,
+    prompt: str,
+    structured_context: dict[str, object],
+    ticker: str,
+    **kwargs: object,
+) -> StepOutput:
+    """Select peer tickers, then fetch + compute multiples deterministically.
+
+    Peers come from the LLM (ranked, same-industry judgment) UNLESS the caller
+    passes ``peers=[...]`` (e.g. ``finrobot comps --peers AAPL,MSFT``), in which
+    case the LLM selection is skipped and the user's set is used verbatim. Either
+    path runs the identical fetch / FX-normalize / multiples / median math, so a
+    custom peer set yields the same traceable multiples — only membership changes.
+    Shared by equity_research and the standalone comps pipeline so BOTH emit
+    deterministic, traceable multiples instead of LLM free text."""
+    override = _peer_override(kwargs.get("peers"))
+    if override is not None:
+        if not _PEER_COMP_SET_MIN <= len(override) <= 10:
+            raise ValueError(
+                f"--peers needs {_PEER_COMP_SET_MIN}-10 tickers, got {len(override)}: {override}"
+            )
+        logger.info("Peer analysis using caller-supplied peers: %s", override)
+        selection = PeerSelection(tickers=override, rationale="Caller-supplied peer set (--peers).")
+    else:
+        selection = await _llm_select_peers(deps, prompt)
 
     async def _fetch_one_peer(peer_ticker: str) -> CompanyFinancials | None:
         try:
@@ -206,6 +250,7 @@ async def execute_financial_data_step(
     prompt: str,
     structured_context: dict[str, object],
     ticker: str,
+    **_kwargs: object,
 ) -> StepOutput:
     """Standard data-collection step: run agent + fetch financials/price + extract.
 

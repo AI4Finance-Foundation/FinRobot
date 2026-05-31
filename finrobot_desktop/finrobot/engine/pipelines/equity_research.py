@@ -115,6 +115,7 @@ async def _execute_data_collection_with_sec(
     prompt: str,
     structured_context: dict[str, object],
     ticker: str,
+    **_kwargs: object,
 ) -> StepOutput:
     """Collect standard financials plus SEC filing/XBRL context."""
     financial_output = await execute_financial_data_step(
@@ -213,6 +214,7 @@ async def _execute_catalyst_analysis(
     prompt: str,
     structured_context: dict[str, object],
     ticker: str,
+    **_kwargs: object,
 ) -> StepOutput:
     """Fetch news, classify, extract catalysts, compute impact, summarize.
 
@@ -301,6 +303,7 @@ async def _execute_ownership_governance_analysis(
     prompt: str,  # noqa: ARG001
     structured_context: dict[str, object],
     ticker: str,
+    **_kwargs: object,
 ) -> StepOutput:
     insider_task = _fetch_optional_sec(deps, ticker, DataType.INSIDER_TRADES, days=90)
     holdings_task = _fetch_optional_sec(deps, ticker, DataType.INSTITUTIONAL_HOLDINGS)
@@ -349,6 +352,7 @@ async def _execute_financial_modeling(
     prompt: str,  # noqa: ARG001 — kept for executor signature; unused
     structured_context: dict[str, object],
     ticker: str,
+    **_kwargs: object,
 ) -> StepOutput:
     """Deterministic DCF: seed inputs from real filings, compute, sensitivity.
 
@@ -450,6 +454,7 @@ async def _execute_technical_analysis(
     prompt: str,  # noqa: ARG001 — kept for executor signature; unused
     structured_context: dict[str, object],
     ticker: str,
+    **_kwargs: object,
 ) -> StepOutput:
     """Run Monte Carlo + Sniper + Historical Bands → chapter 09 payload.
 
@@ -544,6 +549,7 @@ async def _execute_thesis(
     prompt: str,
     structured_context: dict[str, object],
     ticker: str,
+    **_kwargs: object,
 ) -> StepOutput:
     """synthesis_agent writes thesis with structured output."""
     # Inject catalyst context into the thesis prompt if available

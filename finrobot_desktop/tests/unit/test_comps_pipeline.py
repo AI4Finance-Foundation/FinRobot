@@ -1,7 +1,14 @@
+import asyncio
+from types import SimpleNamespace
+
+import pytest
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
+from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.deps import FinRobotDeps
+from finrobot.engine.pipelines import _helpers
+from finrobot.engine.pipelines._helpers import _peer_override, execute_peer_analysis
 from finrobot.engine.pipelines.comps import create_comps_pipeline
 
 
@@ -74,3 +81,68 @@ def test_comps_pipeline_has_structured_validator_on_target_data():
     step = next(s for s in pipeline.steps if s.name == "target_data")
     assert not isinstance(step.executor, DefaultAgentExecutor)
     assert isinstance(step.validator, StructuredValidator)
+
+
+# ---------------------------------------------------------------------------
+# Custom peer override (--peers) — _peer_override parsing + execute_peer_analysis
+# ---------------------------------------------------------------------------
+
+
+class TestPeerOverrideParsing:
+    def test_none_falls_back_to_llm(self):
+        # The default path passes no `peers` kwarg → None → LLM selection.
+        assert _peer_override(None) is None
+
+    def test_empty_and_blank_yield_none(self):
+        assert _peer_override("") is None
+        assert _peer_override("  , ,") is None
+        assert _peer_override([]) is None
+
+    def test_comma_string_is_parsed_upper_stripped(self):
+        assert _peer_override(" aapl, msft , googl ") == ["AAPL", "MSFT", "GOOGL"]
+
+    def test_list_is_normalized(self):
+        assert _peer_override(["aapl", "MSFT"]) == ["AAPL", "MSFT"]
+
+    def test_dedupe_preserves_order(self):
+        assert _peer_override("AAPL,MSFT,aapl,MSFT,GOOGL") == ["AAPL", "MSFT", "GOOGL"]
+
+    def test_unrecognized_type_is_none(self):
+        assert _peer_override(123) is None
+
+
+def _deps_with_failing_layer() -> SimpleNamespace:
+    async def _raise(*_a, **_k):
+        raise ProviderError("forced drop")
+
+    return SimpleNamespace(data_layer=SimpleNamespace(fetch_canonical=_raise, fetch=_raise))
+
+
+class TestExecutePeerAnalysisOverride:
+    def test_override_below_min_raises_clear_error(self):
+        with pytest.raises(ValueError, match="needs 3-10 tickers"):
+            asyncio.run(
+                execute_peer_analysis(
+                    None, _deps_with_failing_layer(), "", {}, "AAPL", peers=["AAPL", "MSFT"]
+                )
+            )
+
+    def test_override_skips_llm_and_uses_given_tickers(self, monkeypatch):
+        # If the override path leaked into LLM selection this would raise a
+        # different error; instead the candidates in the failure are exactly the
+        # supplied set, proving the LLM was bypassed.
+        async def _boom(*_a, **_k):
+            raise AssertionError("LLM peer selection must not run when --peers is given")
+
+        monkeypatch.setattr(_helpers, "_llm_select_peers", _boom)
+        with pytest.raises(ValueError, match="QCOM"):
+            asyncio.run(
+                execute_peer_analysis(
+                    None,
+                    _deps_with_failing_layer(),
+                    "",
+                    {},
+                    "AAPL",
+                    peers=["NVDA", "AMD", "QCOM"],
+                )
+            )

@@ -213,7 +213,13 @@ def research(ticker: str, model: str | None, lang: str | None) -> None:
     type=click.Choice(["en", "zh"]),
     help="Output language (en=English, zh=Chinese)",
 )
-def comps(ticker: str, model: str | None, lang: str | None) -> None:
+@click.option(
+    "--peers",
+    default=None,
+    help="Comma-separated peer tickers (3-10), e.g. AAPL,MSFT,GOOGL. "
+    "Overrides automatic LLM peer selection with your own comparable set.",
+)
+def comps(ticker: str, model: str | None, lang: str | None, peers: str | None) -> None:
     """Run comparable company analysis pipeline."""
     deps = _build_deps(model)
 
@@ -223,7 +229,13 @@ def comps(ticker: str, model: str | None, lang: str | None) -> None:
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
     pipeline = create_comps_pipeline(sub_agents)
 
-    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
+    # Only forward `peers` when supplied, so the default path passes no run
+    # kwargs and behaves byte-identically to before the override existed.
+    extra: dict[str, object] = {}
+    if peers:
+        extra["peers"] = [p.strip().upper() for p in peers.split(",") if p.strip()]
+
+    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang, **extra))
     click.echo(result.format_summary())
 
 

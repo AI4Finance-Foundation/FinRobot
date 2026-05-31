@@ -53,6 +53,7 @@ async def _execute_lbo_params(
     prompt: str,  # noqa: ARG001 — kept for executor signature; unused
     structured_context: dict[str, object],
     ticker: str,
+    **_kwargs: object,
 ) -> StepOutput:
     """Deterministic LBO seed: builds LBOInputs from real filings.
 
@@ -115,6 +116,7 @@ async def _execute_lbo_calc(
     prompt: str,
     structured_context: dict[str, object],
     ticker: str,
+    **_kwargs: object,
 ) -> StepOutput:
     """Deterministic LBO calculation from LBOInputs."""
     inputs = structured_context.get("lbo_parameters")

@@ -60,6 +60,7 @@ async def _execute_ic_financials(
     prompt: str,  # noqa: ARG001 — kept for executor signature; unused
     structured_context: dict[str, object],  # noqa: ARG001 — unused after refactor
     ticker: str,
+    **_kwargs: object,
 ) -> StepOutput:
     """Run DCF + LBO deterministically; return combined ICFinancials.
 
@@ -142,6 +143,7 @@ async def _execute_recommendation(
     prompt: str,
     structured_context: dict[str, object],
     ticker: str,
+    **_kwargs: object,
 ) -> StepOutput:
     """LLM writes IC recommendation; code enforces IRR hurdle gate.
 

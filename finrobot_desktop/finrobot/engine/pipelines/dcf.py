@@ -59,6 +59,7 @@ async def _execute_dcf_calc(
     prompt: str,  # noqa: ARG001 — kept for executor signature; unused
     structured_context: dict[str, object],
     ticker: str,
+    **_kwargs: object,
 ) -> StepOutput:
     """Deterministic DCF: seed inputs from real filings, compute, sensitivity.
 

@@ -175,7 +175,13 @@ class ProgressCallback(Protocol):
 
 
 class StepExecutor(Protocol):
-    """How a pipeline step produces its output."""
+    """How a pipeline step produces its output.
+
+    ``**kwargs`` carries per-run overrides forwarded verbatim from
+    ``Pipeline.execute(**kwargs)`` (e.g. ``peers=[...]`` for comps). Every
+    executor accepts them so the call site stays uniform; executors that don't
+    need an override simply ignore the extras.
+    """
 
     async def __call__(
         self,
@@ -184,6 +190,7 @@ class StepExecutor(Protocol):
         prompt: str,
         structured_context: dict[str, object],
         ticker: str,
+        **kwargs: object,
     ) -> "StepOutput | str": ...
 
 
@@ -203,6 +210,7 @@ class DefaultAgentExecutor:
         prompt: str,
         structured_context: dict[str, object],
         ticker: str,
+        **_kwargs: object,
     ) -> str:
         result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
         return result.output  # type: ignore[no-any-return]
@@ -363,6 +371,7 @@ class Pipeline:
                 structured_results,
                 step_index=i,
                 progress=progress,
+                step_kwargs=kwargs,
             )
             elapsed = time.monotonic() - t0
             if validation_error:
@@ -414,13 +423,17 @@ class Pipeline:
         ticker: str,
         results: dict[str, str],
         structured_results: dict[str, object],
+        step_kwargs: dict[str, object] | None = None,
     ) -> ValidationResult:
         """Run executor + store output + validate. Returns the validation result.
 
         Used by both the first attempt and each retry inside _run_step, so the
         execute → store → validate triple lives in exactly one place.
+        ``step_kwargs`` are the per-run overrides forwarded to the executor.
         """
-        output = await step.executor(step.agent, deps, prompt, structured_results, ticker)
+        output = await step.executor(
+            step.agent, deps, prompt, structured_results, ticker, **(step_kwargs or {})
+        )
         self._store_output(step.name, output, results, structured_results)
         return self._validate_step(step, step.name, results, structured_results)
 
@@ -466,6 +479,7 @@ class Pipeline:
         structured_results: dict[str, object],
         step_index: int = 0,
         progress: ProgressCallback | None = None,
+        step_kwargs: dict[str, object] | None = None,
     ) -> str | None:
         """Execute a single pipeline step with retry logic.
 
@@ -499,7 +513,7 @@ class Pipeline:
             """
             try:
                 val = await self._attempt(
-                    step, deps, current_prompt, ticker, results, structured_results
+                    step, deps, current_prompt, ticker, results, structured_results, step_kwargs
                 )
                 return val, None, budget
             except BaseException as exc:

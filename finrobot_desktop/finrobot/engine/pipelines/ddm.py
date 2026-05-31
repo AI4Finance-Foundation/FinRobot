@@ -58,6 +58,7 @@ async def _execute_ddm_seed(
     prompt: str,  # noqa: ARG001 — kept for executor signature; unused
     structured_context: dict[str, object],
     ticker: str,
+    **_kwargs: object,
 ) -> StepOutput:
     """Deterministic DDMInputs: seed every assumption from real provider data.
 
@@ -92,6 +93,7 @@ async def _execute_ddm_calc(
     prompt: str,
     structured_context: dict[str, object],
     ticker: str,
+    **_kwargs: object,
 ) -> StepOutput:
     """Deterministic DDM calculation from DDMInputs + sensitivity table."""
     inputs = structured_context.get("ddm_params")

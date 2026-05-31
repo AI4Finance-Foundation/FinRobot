@@ -38,18 +38,21 @@ describe('ToolCard — state display', () => {
     expect(screen.getByText('数据获取失败')).toBeInTheDocument()
   })
 
-  // TODO: pre-existing failure, see git log — retry button uses i18n key 'toolcard.retry'
-  // which returns 'Retry' in en locale but test expects zh '重试'.
-  it.skip('shows retry button on error when onRetry provided', () => {
+  // The retry label comes from i18n (toolcard.retry → "Retry" in the test's en
+  // locale, "重试" in zh), so query the button by role with a locale-agnostic
+  // accessible-name match instead of a hardcoded string.
+  const RETRY_NAME = /retry|重试/i
+
+  it('shows retry button on error when onRetry provided', () => {
     const onRetry = vi.fn()
     renderCard({ state: 'error', onRetry })
-    fireEvent.click(screen.getByText('重试'))
+    fireEvent.click(screen.getByRole('button', { name: RETRY_NAME }))
     expect(onRetry).toHaveBeenCalledOnce()
   })
 
   it('does not show retry button when onRetry not provided', () => {
     renderCard({ state: 'error' })
-    expect(screen.queryByText('重试')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: RETRY_NAME })).not.toBeInTheDocument()
   })
 })
 

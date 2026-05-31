@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.normalize.contracts import NormalizedPrice
+from finrobot.engine.data.normalize.window import bar_extreme
 from finrobot.engine.data.types import DataType
 
 if TYPE_CHECKING:
@@ -78,27 +79,24 @@ def technical_payload(history: Sequence[Mapping[str, float | None]]) -> dict[str
     high/low/range-position. No provider access — callers pass bars in.
 
     The SMA stack and current price use closing prices (the convention for a
-    moving-average trend). The 52-week high/low use intraday high/low when the
-    bars carry them — that is what Yahoo / Bloomberg report; a close-only range
-    understates the high and skews range_position (verified live on AAPL: 315.00
-    intraday vs 312.51 close, range_position 0.975 vs 0.996). Bars without
-    intraday extremes fall back to close, so a close-only series still works.
+    moving-average trend). The 52-week high/low use intraday high/low via the
+    canonical ``bar_extreme`` (the same high-or-close fallback as
+    ``NormalizedPrice.fifty_two_week_high``, so this snapshot agrees with the
+    financials 52W tiles) — that is what Yahoo / Bloomberg report; a close-only
+    range understates the high and skews range_position (verified live on AAPL:
+    315.00 intraday vs 312.51 close, range_position 0.975 vs 0.996).
     """
     bars: list[tuple[float, float, float]] = []
     for b in history:
-        close = b.get("close")
+        close = bar_extreme(b, "close")
         if close is None:
             continue
-        close = float(close)
-        high = b.get("high")
-        low = b.get("low")
-        bars.append(
-            (
-                close,
-                float(high) if high is not None else close,
-                float(low) if low is not None else close,
-            )
-        )
+        # high/low fall back to close inside bar_extreme, so they are never None
+        # once close is present.
+        high = bar_extreme(b, "high")
+        low = bar_extreme(b, "low")
+        assert high is not None and low is not None  # close present ⇒ both resolve
+        bars.append((close, high, low))
     if len(bars) < _MIN_HISTORY:
         return {"available": False, "reason": "insufficient_history"}
 

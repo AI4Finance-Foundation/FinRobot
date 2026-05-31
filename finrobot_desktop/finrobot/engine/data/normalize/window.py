@@ -14,6 +14,7 @@ cached/replayed history stays correct.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -51,7 +52,7 @@ def trim_to_trailing_window(
     return [b for d, b in dated if d >= cutoff]
 
 
-def bar_extreme(bar: dict[str, Any], field: str) -> float | None:
+def bar_extreme(bar: Mapping[str, Any], field: str) -> float | None:
     """Intraday ``high``/``low`` when present, else the close.
 
     Close-only feeds (legacy FMP serietype=line, cached rows) keep working;

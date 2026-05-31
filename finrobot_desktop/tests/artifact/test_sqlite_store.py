@@ -13,6 +13,7 @@ Schema notes (covered by these tests):
 
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -54,6 +55,30 @@ async def test_save_then_get_roundtrip(store: SqliteArtifactStore) -> None:
     assert loaded.type == "dcf"
     assert loaded.outputs.structured["implied_price"] == pytest.approx(185.0)
     assert loaded.assumptions.parameters["wacc"] == pytest.approx(0.082)
+
+
+@pytest.mark.asyncio
+async def test_global_unarchived_list_uses_archived_created_index(
+    store: SqliteArtifactStore,
+) -> None:
+    await store.save(_make_artifact(id="art_a", ticker="AAPL"))
+
+    with sqlite3.connect(store._db_path) as conn:
+        plan = conn.execute(
+            """
+            EXPLAIN QUERY PLAN
+            SELECT id, ticker, cross_tickers, type, verdict, created_at, archived,
+                   entry_price, target_price, target_date, source, headline, tagline
+            FROM artifacts
+            WHERE archived = 0
+            ORDER BY created_at DESC
+            LIMIT 500
+            """
+        ).fetchall()
+
+    rendered = "\n".join(str(row) for row in plan)
+    assert "idx_artifacts_archived_created" in rendered
+    assert "USE TEMP B-TREE" not in rendered
 
 
 @pytest.mark.asyncio

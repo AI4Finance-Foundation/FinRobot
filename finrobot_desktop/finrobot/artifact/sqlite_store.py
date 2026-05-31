@@ -75,7 +75,9 @@ CREATE TABLE IF NOT EXISTS artifacts (
 
 _CREATE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_artifacts_ticker_created ON artifacts(ticker, created_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_artifacts_ticker_type_created ON artifacts(ticker, type, created_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_artifacts_created ON artifacts(created_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_artifacts_archived_created ON artifacts(archived, created_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_artifacts_verdict ON artifacts(verdict) WHERE verdict IS NOT NULL",
     "CREATE INDEX IF NOT EXISTS idx_artifacts_archived ON artifacts(archived)",
 ]

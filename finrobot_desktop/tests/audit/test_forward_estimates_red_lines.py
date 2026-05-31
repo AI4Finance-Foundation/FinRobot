@@ -17,12 +17,16 @@ Three contracts pinned:
 from __future__ import annotations
 
 import re
+from datetime import date
 from pathlib import Path
 
 from finrobot.engine.compute.forward_estimates import (
     ForwardFinancials,
     get_forward_financials,
 )
+
+# Fixed as_of so forward-period selection is deterministic across calendar time.
+AS_OF = date(2026, 6, 1)
 
 ROOT = Path(__file__).resolve().parents[2]
 LEAF_SRC = ROOT / "finrobot" / "engine" / "compute" / "forward_estimates.py"
@@ -168,12 +172,38 @@ class TestDegradation:
                     }
                 ]
             },
+            as_of=AS_OF,
         )
         assert out.forward_eps == 13.0
         assert out.forward_ebitda == 4.5e10
         assert out.forward_fcf == 3.0e10
         assert out.confidence == "high"
         assert "FMP" in out.source
+        assert out.fiscal_period == "2026-12-31"
+
+    def test_fmp_real_shape_no_fcf_is_high_when_ebitda_present(self) -> None:
+        # Real FMP /analyst-estimates shape: it never returns FCF, but DOES
+        # return EBITDA. confidence must not be gated on the (永远缺席的) FCF,
+        # else 'high' is unreachable in production. (Live AAPL FY2026 row.)
+        out = get_forward_financials(
+            ticker="AAPL",
+            yf_info=None,
+            fmp_analyst_estimates={
+                "rows": [
+                    {
+                        "date": "2026-09-27",
+                        "estimatedEpsAvg": 8.74725,
+                        "estimatedRevenueAvg": 477166486632,
+                        "estimatedEbitdaAvg": 172226064656,
+                        # no estimatedFreeCashFlowAvg — FMP omits it
+                    }
+                ]
+            },
+            as_of=AS_OF,
+        )
+        assert out.forward_ebitda == 172226064656
+        assert out.forward_fcf is None
+        assert out.confidence == "high"
 
     def test_fmp_with_only_eps_revenue_is_medium_confidence(self) -> None:
         out = get_forward_financials(
@@ -187,6 +217,7 @@ class TestDegradation:
                     }
                 ]
             },
+            as_of=AS_OF,
         )
         assert out.confidence == "medium"
 
@@ -195,8 +226,59 @@ class TestDegradation:
             ticker="NVDA",
             yf_info=None,
             fmp_analyst_estimates={"rows": []},
+            as_of=AS_OF,
         )
         assert out.confidence == "unavailable"
+
+
+class TestForwardPeriodSelection:
+    """FMP returns many fiscal years; the leaf must pick FY1 (nearest upcoming
+    fiscal-year-end), not whatever happens to sit at rows[0]. Using a 4-years-out
+    estimate as the 'forward' P/E numerator would be a wrong number."""
+
+    _MULTI_YEAR = {
+        "rows": [
+            # FMP returns newest/farthest-future first — rows[0] is FY+3.
+            {"date": "2029-09-30", "estimatedEpsAvg": 12.0, "estimatedRevenueAvg": 5.5e11},
+            {"date": "2028-09-30", "estimatedEpsAvg": 11.0, "estimatedRevenueAvg": 5.2e11},
+            {"date": "2027-09-30", "estimatedEpsAvg": 10.0, "estimatedRevenueAvg": 4.9e11},
+            {"date": "2026-09-30", "estimatedEpsAvg": 8.6, "estimatedRevenueAvg": 4.65e11},
+            {"date": "2025-09-30", "estimatedEpsAvg": 7.4, "estimatedRevenueAvg": 4.0e11},
+        ]
+    }
+
+    def test_picks_nearest_upcoming_fiscal_year_not_first_row(self) -> None:
+        out = get_forward_financials(
+            ticker="AAPL", yf_info=None, fmp_analyst_estimates=self._MULTI_YEAR, as_of=AS_OF
+        )
+        # FY1 relative to 2026-06-01 is the 2026-09-30 row, EPS 8.6 — matches the
+        # external AAPL FY2026 consensus (~$8.5–8.8), NOT the 2029 row's 12.0.
+        assert out.forward_eps == 8.6
+        assert out.forward_revenue == 4.65e11
+        assert out.fiscal_period == "2026-09-30"
+
+    def test_rolls_to_next_fy_after_current_fy_end_passes(self) -> None:
+        # Once we're past 2026-09-30, FY1 becomes 2027-09-30.
+        out = get_forward_financials(
+            ticker="AAPL",
+            yf_info=None,
+            fmp_analyst_estimates=self._MULTI_YEAR,
+            as_of=date(2026, 10, 1),
+        )
+        assert out.forward_eps == 10.0
+        assert out.fiscal_period == "2027-09-30"
+
+    def test_all_estimates_in_past_flags_stale(self) -> None:
+        out = get_forward_financials(
+            ticker="AAPL",
+            yf_info=None,
+            fmp_analyst_estimates=self._MULTI_YEAR,
+            as_of=date(2030, 1, 1),
+        )
+        # No future FY left — fall back to the most recent and warn rather than
+        # silently serve a stale "forward" number.
+        assert out.fiscal_period == "2029-09-30"
+        assert any("过期" in w for w in out.warnings)
 
     def test_non_numeric_eps_treated_as_missing(self) -> None:
         out = get_forward_financials(

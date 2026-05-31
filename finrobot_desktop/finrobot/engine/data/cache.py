@@ -8,6 +8,7 @@ import aiosqlite
 from pydantic import BaseModel
 
 from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.normalize.contracts import CANONICAL_CONTRACT_VERSION
 from finrobot.engine.data.types import DataType
 
 _CREATE_TABLE = """
@@ -42,6 +43,18 @@ def _normalize_data_type(data_type: str | DataType) -> str:
     return _DATA_TYPE_ALIASES.get(raw, raw)
 
 
+def canonical_key(data_type: str | DataType) -> str:
+    """Cache slot for a normalized (canonical) payload.
+
+    Isolated from the raw provider slot (same table, different ``data_type``
+    key) so raw and canonical entries for one ticker never collide, and
+    version-tagged so a ``CANONICAL_CONTRACT_VERSION`` bump auto-invalidates
+    stale canonical entries with no migration (ADR-0006 decision C1). Defined
+    here, once — callers must never hand-assemble the suffix.
+    """
+    return f"{_normalize_data_type(data_type)}:canonical:v{CANONICAL_CONTRACT_VERSION}"
+
+
 _TTL_SECONDS: dict[str, int] = {
     DataType.PRICE: 900,  # 15 minutes
     DataType.QUOTE: 60,  # 1 minute — aligns with the QuoteCache batch TTL
@@ -72,6 +85,9 @@ _TTL_SECONDS: dict[str, int] = {
     # (price + financial fan-out) but underlying numbers move ≤ daily, so a
     # 12h TTL hits the sweet spot between freshness and load.
     DataType.HISTORICAL_BANDS: 43200,
+    # Analyst consensus estimates revise over days/weeks, not intraday — 24h
+    # matches FINANCIALS and keeps the forward-multiple fetch cheap.
+    DataType.FORWARD_ESTIMATES: 86400,
 }
 _DEFAULT_TTL_SECONDS: int = 3600  # 1 hour
 
@@ -84,6 +100,16 @@ def _get_ttl_seconds(data_type: str | DataType) -> int:  # noqa: D401
 
 class CachedResult(BaseModel):
     data: DataResult
+    is_stale: bool
+    cached_at: datetime
+
+
+class CachedCanonical(BaseModel):
+    """A canonical-slot cache hit. ``payload_json`` is the raw
+    ``Normalized*.model_dump_json()`` string — the DataLayer validates it into
+    the right model, keeping the cache layer model-agnostic."""
+
+    payload_json: str
     is_stale: bool
     cached_at: datetime
 
@@ -117,50 +143,40 @@ class DataCache:
                 await self._conn.commit()
         return self._conn
 
-    async def get(
+    async def _get_slot(
         self,
-        data_type: str | DataType,
+        slot_key: str,
         ticker: str,
-        max_age_hours: int | None = None,
-    ) -> CachedResult | None:
-        """Retrieve cached data, marking it stale if older than the TTL.
+        ttl_data_type: str | DataType,
+        max_age_hours: int | None,
+    ) -> tuple[str, datetime, bool] | None:
+        """Fetch one cache row by exact slot key; compute staleness.
 
-        TTL is determined automatically from the data_type (see ``_TTL_SECONDS``).
-        The ``max_age_hours`` parameter is kept for backwards compatibility and
-        test convenience: when provided it overrides the data-type TTL.
+        ``slot_key`` is the literal ``data_type`` column value (raw or
+        canonical). ``ttl_data_type`` is the base type used for the TTL lookup
+        (a canonical slot still ages on its base type's freshness budget).
+        Returns ``(payload_json, cached_at, is_stale)`` or None on miss.
         """
-        data_type_key = _normalize_data_type(data_type)  # FILINGS → FILINGS_10K
         conn = await self._ensure_connection()
         async with conn.execute(
             "SELECT data, cached_at FROM cache WHERE data_type = ? AND ticker = ?",
-            (data_type_key, ticker),
+            (slot_key, ticker),
         ) as cursor:
             row = await cursor.fetchone()
-
         if row is None:
             return None
-
-        raw_data, cached_at_str = row
+        payload_json, cached_at_str = row
         cached_at = datetime.fromisoformat(cached_at_str)
         if cached_at.tzinfo is None:
             cached_at = cached_at.replace(tzinfo=timezone.utc)
-
-        now = datetime.now(tz=timezone.utc)
-        age_seconds = (now - cached_at).total_seconds()
-
+        age_seconds = (datetime.now(tz=timezone.utc) - cached_at).total_seconds()
         if max_age_hours is not None:
-            # Explicit override — convert hours to seconds for comparison
             is_stale = age_seconds > max_age_hours * 3600
         else:
-            # Use per-data-type TTL
-            ttl = _get_ttl_seconds(data_type)
-            is_stale = age_seconds > ttl
+            is_stale = age_seconds > _get_ttl_seconds(ttl_data_type)
+        return payload_json, cached_at, is_stale
 
-        result = DataResult.model_validate_json(raw_data)
-        return CachedResult(data=result, is_stale=is_stale, cached_at=cached_at)
-
-    async def set(self, data_type: str | DataType, ticker: str, result: DataResult) -> None:
-        data_type_key = _normalize_data_type(data_type)  # FILINGS → FILINGS_10K
+    async def _set_slot(self, slot_key: str, ticker: str, payload_json: str) -> None:
         cached_at = datetime.now(tz=timezone.utc).isoformat()
         conn = await self._ensure_connection()
         await conn.execute(
@@ -171,9 +187,61 @@ class DataCache:
                 data = excluded.data,
                 cached_at = excluded.cached_at
             """,
-            (data_type_key, ticker, result.model_dump_json(), cached_at),
+            (slot_key, ticker, payload_json, cached_at),
         )
         await conn.commit()
+
+    async def get(
+        self,
+        data_type: str | DataType,
+        ticker: str,
+        max_age_hours: int | None = None,
+    ) -> CachedResult | None:
+        """Retrieve cached RAW provider data, marking it stale past the TTL.
+
+        TTL is determined automatically from the data_type (see ``_TTL_SECONDS``).
+        The ``max_age_hours`` parameter is kept for backwards compatibility and
+        test convenience: when provided it overrides the data-type TTL.
+        """
+        slot = await self._get_slot(
+            _normalize_data_type(data_type), ticker, data_type, max_age_hours
+        )
+        if slot is None:
+            return None
+        payload_json, cached_at, is_stale = slot
+        return CachedResult(
+            data=DataResult.model_validate_json(payload_json),
+            is_stale=is_stale,
+            cached_at=cached_at,
+        )
+
+    async def set(self, data_type: str | DataType, ticker: str, result: DataResult) -> None:
+        await self._set_slot(_normalize_data_type(data_type), ticker, result.model_dump_json())
+
+    async def get_canonical(
+        self,
+        data_type: str | DataType,
+        ticker: str,
+        max_age_hours: int | None = None,
+    ) -> CachedCanonical | None:
+        """Retrieve a normalized payload from the versioned canonical slot.
+
+        Staleness uses the BASE data_type's TTL (the canonical key itself isn't
+        in ``_TTL_SECONDS``). Returns the JSON string; the DataLayer validates
+        it into ``NormalizedPrice`` / ``NormalizedFinancials``.
+        """
+        slot = await self._get_slot(canonical_key(data_type), ticker, data_type, max_age_hours)
+        if slot is None:
+            return None
+        payload_json, cached_at, is_stale = slot
+        return CachedCanonical(payload_json=payload_json, is_stale=is_stale, cached_at=cached_at)
+
+    async def set_canonical(
+        self, data_type: str | DataType, ticker: str, payload_json: str
+    ) -> None:
+        """Store a normalized payload (``Normalized*.model_dump_json()``) in the
+        versioned canonical slot, isolated from the raw slot."""
+        await self._set_slot(canonical_key(data_type), ticker, payload_json)
 
     async def clear(self, ticker: str | None = None) -> None:
         conn = await self._ensure_connection()

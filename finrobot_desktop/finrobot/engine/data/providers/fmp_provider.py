@@ -21,6 +21,7 @@ _SUPPORTED = [
     DataType.NEWS,
     DataType.EARNINGS,
     DataType.EARNINGS_TRANSCRIPT,
+    DataType.FORWARD_ESTIMATES,
 ]
 _TIMEOUT = 15.0
 _MIN_INTERVAL = 0.15  # 6 req/sec — stays within per-minute burst limits on all FMP tiers
@@ -92,6 +93,8 @@ class FMPProvider(DataProvider):
             return await self._fetch_earnings_transcript(
                 ticker, quarter=quarter, year=year, limit=limit
             )
+        if data_type == DataType.FORWARD_ESTIMATES:
+            return await self._fetch_forward_estimates(ticker)
         years: int | None = kwargs.get("years")
         warnings: list[str] = []
         cashflow: list[dict[str, Any]] = []
@@ -507,6 +510,26 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.EARNINGS_TRANSCRIPT,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+    async def _fetch_forward_estimates(self, ticker: str) -> DataResult:
+        """Fetch annual analyst consensus estimates from FMP /analyst-estimates.
+
+        Ships the raw rows (farthest-future first, as FMP orders them) under
+        ``rows``. FY1 selection and forward-EPS/EBITDA/FCF口径 belong to the
+        red-line leaf ``compute.forward_estimates.get_forward_financials`` — this
+        provider never derives a forward number itself (spec §6.4.1).
+        """
+        with self._wrap_errors(ticker, "analyst-estimates fetch"):
+            resp = await self._get(f"/analyst-estimates/{ticker}", params={"period": "annual"})
+        raw: Any = resp.json()
+        rows = raw if isinstance(raw, list) else []
+        return DataResult(
+            data={"rows": rows},
+            provider=self.name,
+            ticker=ticker,
+            data_type=DataType.FORWARD_ESTIMATES,
             timestamp=datetime.now(tz=timezone.utc),
         )
 

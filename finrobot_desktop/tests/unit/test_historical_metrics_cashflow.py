@@ -182,7 +182,11 @@ def _normalized_yearly() -> list[dict[str, Any]]:
 
 
 class FakeDataLayer:
-    """Minimal DataLayer stand-in for the extractor's two calls."""
+    """Minimal DataLayer stand-in for the extractor's two calls.
+
+    ADR-0006 Step 5: _fetch_trailing_pe now calls fetch_canonical(FINANCIALS)
+    instead of fetch(FINANCIALS). fetch_canonical returns NormalizedFinancials.
+    """
 
     def __init__(
         self,
@@ -204,6 +208,14 @@ class FakeDataLayer:
         if self._snapshot_raises:
             raise ProviderError("snapshot unavailable")
         return _dr(self._snapshot)
+
+    async def fetch_canonical(self, data_type: Any, ticker: str, **kwargs: Any):
+        """Return NormalizedFinancials built from the snapshot dict."""
+        from finrobot.engine.data.normalize.financials import normalize_financials
+
+        if self._snapshot_raises:
+            raise ProviderError("snapshot unavailable")
+        return normalize_financials(_dr(self._snapshot))
 
 
 def _run(coro):

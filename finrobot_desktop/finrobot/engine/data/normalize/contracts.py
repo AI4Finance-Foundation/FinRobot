@@ -18,6 +18,12 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# Canonical contract version. Bump whenever a Normalized* model changes shape
+# in a way that makes an old cached payload unsafe to deserialize/trust. The
+# cache encodes this in the canonical slot key (``…:canonical:v<N>``) so a bump
+# auto-invalidates stale entries with no migration script (ADR-0006 decision C1).
+CANONICAL_CONTRACT_VERSION = 1
+
 # Degradation markers carried in ``Provenance.degraded``. Surfaced to the UI so
 # a fallback is visible rather than silent.
 DEGRADED_CLOSE_ONLY = "close_only"  # no intraday OHLC; 52w high/low fall back to close
@@ -73,6 +79,10 @@ class NormalizedPrice(BaseModel):
     is_ohlc_complete: bool = True
     exchange: str | None = None
     provenance: Provenance
+    # Free-text warnings carried from the raw fetch (e.g. cross-provider
+    # discrepancies, stale-cache notices). Distinct from provenance.degraded,
+    # which is an enum of structured fallback markers.
+    warnings: list[str] = Field(default_factory=list)
 
     def fifty_two_week_high(self) -> float | None:
         if not self.bars:
@@ -165,3 +175,7 @@ class NormalizedFinancials(BaseModel):
     beta: float | None = None
 
     provenance: Provenance
+    # Free-text warnings carried from the raw fetch (e.g. cross-provider
+    # discrepancies surfaced by cross_validate). Distinct from
+    # provenance.degraded, which is an enum of structured fallback markers.
+    warnings: list[str] = Field(default_factory=list)

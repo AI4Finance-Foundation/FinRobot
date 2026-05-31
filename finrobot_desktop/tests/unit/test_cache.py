@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from finrobot.engine.data.cache import DataCache
+from finrobot.engine.data.cache import CANONICAL_CONTRACT_VERSION, DataCache, canonical_key
 from finrobot.engine.data.interface import DataResult
 
 
@@ -123,3 +123,46 @@ class TestClear:
         await cache.clear()
         assert await cache.get("financials", "AAPL") is None
         assert await cache.get("price", "TSLA") is None
+
+
+class TestCanonicalSlot:
+    """ADR-0006: canonical (normalized) payloads live in a separate, versioned
+    cache slot so they never collide with the raw provider payload for the
+    same (data_type, ticker)."""
+
+    def test_canonical_key_embeds_base_type_and_version(self):
+        key = canonical_key("financials")
+        assert key == f"financials:canonical:v{CANONICAL_CONTRACT_VERSION}"
+        # Alias normalization still applies (FILINGS → FILINGS_10K).
+        assert canonical_key("filings").startswith("filings_10k:canonical:v")
+
+    async def test_canonical_roundtrip(self, cache):
+        await cache.set_canonical("financials", "AAPL", '{"revenue": 385000000000}')
+        got = await cache.get_canonical("financials", "AAPL")
+        assert got is not None
+        assert got.payload_json == '{"revenue": 385000000000}'
+        assert got.is_stale is False
+
+    async def test_raw_and_canonical_do_not_collide(self, cache):
+        # Same (data_type, ticker) in both slots — must be independent rows.
+        await cache.set("financials", "AAPL", _result("AAPL"))
+        await cache.set_canonical("financials", "AAPL", '{"canonical": true}')
+        raw = await cache.get("financials", "AAPL")
+        canon = await cache.get_canonical("financials", "AAPL")
+        assert raw is not None and raw.data.data["revenue"] == 385_000_000_000
+        assert canon is not None and canon.payload_json == '{"canonical": true}'
+
+    async def test_version_bump_misses_old_canonical_entry(self, cache):
+        # Simulate a pre-bump entry by writing directly at an older-version key;
+        # get_canonical (current version) must not see it.
+        old_key = "financials:canonical:v0"
+        await cache._set_slot(old_key, "AAPL", '{"stale": true}')
+        assert await cache.get_canonical("financials", "AAPL") is None
+
+    async def test_canonical_staleness_uses_base_type_ttl(self, cache):
+        # PRICE TTL is 900s; a 1-hour-old canonical PRICE entry is stale.
+        await cache.set_canonical("price", "AAPL", "{}")
+        fresh = await cache.get_canonical("price", "AAPL")
+        assert fresh is not None and fresh.is_stale is False
+        stale = await cache.get_canonical("price", "AAPL", max_age_hours=0)
+        assert stale is not None and stale.is_stale is True

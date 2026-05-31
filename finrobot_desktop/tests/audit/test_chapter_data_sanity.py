@@ -70,7 +70,7 @@ def test_chapter_11_fmp_financials_default_path_returns_ttm_not_annual():
     the SUM of the four quarterly netIncome rows. Plausibility floors don't
     catch this — both 43x and 32x pass the [1, 300] gate but only one is
     the right number for the analyst."""
-    from unittest.mock import AsyncMock, MagicMock, patch
+    from unittest.mock import MagicMock, patch
     from finrobot.engine.data.providers.fmp_provider import FMPProvider
     from finrobot.engine.data.types import DataType
 

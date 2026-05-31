@@ -107,6 +107,32 @@ def test_reverse_growth_converges_in_few_iterations():
     assert out["iterations"] < 30
 
 
+def test_reverse_growth_flags_convergence():
+    """A normal solve reports converged=True and carries no non-convergence
+    message — the caller can trust the implied_growth value."""
+    inputs = _make_inputs()
+    out = solve_for_implied_growth(inputs, target_price=300.0, wacc_override=0.10)
+    assert out["converged"] is True
+
+
+def test_reverse_growth_marks_non_convergence_when_iterations_capped():
+    """When max_iterations is too small for the bracket to collapse below
+    tolerance, the result is flagged converged=False with an approximate-value
+    warning — never presented as an exact solve (D6)."""
+    inputs = _make_inputs()
+    out = solve_for_implied_growth(
+        inputs,
+        target_price=300.0,
+        wacc_override=0.10,
+        tolerance=1e-9,
+        max_iterations=3,
+    )
+    assert out["implied_growth"] is not None  # still returns the best estimate
+    assert out["converged"] is False
+    assert out["iterations"] == 3
+    assert "未收敛" in out["message"]
+
+
 # ───────────────────────────────────────────────────────────────────
 # solve_for_implied_wacc — round-trip and edge cases
 # ───────────────────────────────────────────────────────────────────

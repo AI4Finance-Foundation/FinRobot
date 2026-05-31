@@ -79,7 +79,6 @@ def calculate_dcf(
         enterprise_value=enterprise_value,
         equity_value=equity_value,
         implied_price=implied_price,
-        fcf_formula="standard_ebit_to_fcf",
         inputs=inputs,
     )
 
@@ -139,7 +138,9 @@ def _project_full(
         growth_rates_override: When provided, replaces inputs.revenue_growth_rates.
             Used by reverse-DCF to project under a hypothetical constant rate.
     """
-    rates = growth_rates_override if growth_rates_override is not None else inputs.revenue_growth_rates
+    rates = (
+        growth_rates_override if growth_rates_override is not None else inputs.revenue_growth_rates
+    )
     revenue: list[float] = []
     ebitda_list: list[float] = []
     fcfs: list[float] = []
@@ -184,9 +185,7 @@ def _price_for(
         ValueError: when terminal_growth >= wacc (Gordon Growth Model undefined).
     """
     if terminal_growth >= wacc:
-        raise ValueError(
-            f"Terminal growth {terminal_growth} must be less than WACC {wacc}"
-        )
+        raise ValueError(f"Terminal growth {terminal_growth} must be less than WACC {wacc}")
     _, _, fcfs = _project_full(inputs, [growth_rate] * horizon_years)
     offset = 0.5 if mid_year else 0.0
     n = horizon_years
@@ -281,12 +280,24 @@ def solve_for_implied_growth(
         else:
             hi = mid
 
-    return {
+    # converged ⇔ the bracket actually collapsed below tolerance. If we exited
+    # because we hit max_iterations on a wide/flat bracket, `mid` is only a
+    # coarse approximation — flag it instead of presenting it as a solved value.
+    converged = (hi - lo) < tolerance
+    result = {
         **base,
         "implied_growth": mid,
         "computed_price": p_mid,
         "iterations": iterations,
+        "converged": converged,
     }
+    if not converged:
+        result["message"] = (
+            f"反推增长率在 {iterations} 次迭代后未收敛（区间宽度 {hi - lo:.2e} > "
+            f"容差 {tolerance:.0e}）。${target_price:.2f} 对应的隐含增长率约为 {mid:.2%}，"
+            "为近似值，请勿当作精确解。"
+        )
+    return result
 
 
 def solve_for_implied_wacc(
@@ -367,9 +378,20 @@ def solve_for_implied_wacc(
         else:
             hi = mid  # need a lower wacc to push price up
 
-    return {
+    # See solve_for_implied_growth: distinguish a collapsed bracket from a
+    # max-iterations bail-out so the caller never treats a coarse mid as exact.
+    converged = (hi - lo) < tolerance
+    result = {
         **base,
         "implied_wacc": mid,
         "computed_price": p_mid,
         "iterations": iterations,
+        "converged": converged,
     }
+    if not converged:
+        result["message"] = (
+            f"反推 WACC 在 {iterations} 次迭代后未收敛（区间宽度 {hi - lo:.2e} > "
+            f"容差 {tolerance:.0e}）。${target_price:.2f} 对应的隐含 WACC 约为 {mid:.2%}，"
+            "为近似值，请勿当作精确解。"
+        )
+    return result

@@ -211,15 +211,18 @@ async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedRes
     from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
     from finrobot.engine.compute.extractor import extract_financial_data
     from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
+    from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
     from finrobot.engine.data.types import DataType
     from finrobot.engine.pipelines._helpers import build_sensitivity_ranges
 
     deps = request.app.state.deps
     ticker = body.ticker.upper()
 
-    fin_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
-    price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
-    financial_data = extract_financial_data(fin_result, price_result)
+    _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+    _price = await deps.data_layer.fetch_canonical(DataType.PRICE, ticker)
+    assert isinstance(_fin, NormalizedFinancials)  # FINANCIALS always returns this type
+    assert isinstance(_price, NormalizedPrice)  # PRICE always returns this type
+    financial_data = extract_financial_data(_fin, _price)
 
     try:
         historical = await fetch_historical_metrics(deps.data_layer, ticker)
@@ -265,9 +268,7 @@ async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedRes
         tg_override=body.tg_override,
         mid_year=body.mid_year,
     )
-    wacc_range, tg_range = build_sensitivity_ranges(
-        result.wacc, result.inputs.terminal_growth_rate
-    )
+    wacc_range, tg_range = build_sensitivity_ranges(result.wacc, result.inputs.terminal_growth_rate)
     sensitivity = calculate_sensitivity(dcf_inputs, wacc_range, tg_range)
     result = result.model_copy(update={"sensitivity_table": sensitivity})
 
@@ -333,15 +334,18 @@ async def compute_lbo_seed(body: LboSeedRequest, request: Request) -> LboSeedRes
     from finrobot.engine.compute.extractor import extract_financial_data
     from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
     from finrobot.engine.compute.lbo_seed import seed_lbo_inputs
+    from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
     from finrobot.engine.data.types import DataType
     from finrobot.engine.models.financial import HistoricalMetrics
 
     deps = request.app.state.deps
     ticker = body.ticker.upper()
 
-    fin_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
-    price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
-    financial_data = extract_financial_data(fin_result, price_result)
+    _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+    _price = await deps.data_layer.fetch_canonical(DataType.PRICE, ticker)
+    assert isinstance(_fin, NormalizedFinancials)  # FINANCIALS always returns this type
+    assert isinstance(_price, NormalizedPrice)  # PRICE always returns this type
+    financial_data = extract_financial_data(_fin, _price)
 
     try:
         historical = await fetch_historical_metrics(deps.data_layer, ticker)

@@ -43,6 +43,9 @@ def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
                     lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
                 ),
                 executor=execute_financial_data_step,
+                # statistical_bench reads this FinancialData as the peer target —
+                # abort if it fails rather than crash there.
+                critical=True,
             ),
             # Deterministic peer analysis: the LLM only SELECTS peer tickers
             # (judgment); code fetches each peer's financials, FX-normalizes to

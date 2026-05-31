@@ -1,8 +1,14 @@
 """Market-data service — price-history payload for the /price route.
 
+ADR-0006 Step 5: price data now flows through ``DataLayer.fetch_canonical(PRICE)``
+and day-over-day change is computed from ``NormalizedPrice.latest_session_change()``
+instead of a manual raw-dict parse. The raw ``price_history`` list is still
+forwarded to the route response (the frontend chart consumes it) — only the
+change/change_pct computation has moved to the canonical method.
+
 收口 to the DataLayer (门一): this no longer touches yfinance directly. It
 fetches ``DataType.PRICE`` through the provider chain (FMP → yfinance) via
-``DataLayer.fetch_price`` and shapes the route payload. The error-classification
+``DataLayer.fetch_canonical`` and shapes the route payload. The error-classification
 keywords below stay here (locked by tests/audit/test_yfinance_error_mapping.py)
 because the route still maps an invalid ticker → 422 vs upstream-down → 502.
 """
@@ -10,10 +16,11 @@ because the route still maps an invalid ticker → 422 vs upstream-down → 502.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from finrobot.engine.compute.market import technical_payload
 from finrobot.engine.data.interface import ProviderError
+from finrobot.engine.data.normalize.contracts import NormalizedPrice
 
 if TYPE_CHECKING:
     from finrobot.engine.data.layer import DataLayer
@@ -28,12 +35,12 @@ logger = logging.getLogger(__name__)
 # Locked by tests/audit/test_yfinance_error_mapping.py — removing a keyword
 # requires an audit-reviewer-acknowledged commit.
 _YFINANCE_SERVICE_DOWN_KEYWORDS: tuple[str, ...] = (
-    '429',
-    'rate limit',
-    'connection',
-    'timeout',
-    'http error 5',
-    'too many requests',
+    "429",
+    "rate limit",
+    "connection",
+    "timeout",
+    "http error 5",
+    "too many requests",
 )
 
 
@@ -44,73 +51,69 @@ def _is_yfinance_service_down(exc: Exception) -> bool:
     return any(kw in msg for kw in _YFINANCE_SERVICE_DOWN_KEYWORDS)
 
 
-def _change_from_history(history: list[Any]) -> tuple[float | None, float | None]:
-    """Day-over-day change + pct from the last two closes in a price history."""
-    closes: list[float] = []
-    for row in history:
-        if not isinstance(row, dict):
-            continue
-        raw = row.get("close")
-        try:
-            closes.append(float(raw))  # type: ignore[arg-type]
-        except (TypeError, ValueError):
-            continue
-    if len(closes) < 2:
-        return None, None
-    prev_close = closes[-2]
-    if prev_close == 0:
-        return None, None
-    change = closes[-1] - prev_close
-    return change, (change / prev_close) * 100
-
-
 async def fetch_price_history(data_layer: DataLayer, ticker: str) -> dict[str, Any]:
-    """Fetch current price + ~1y OHLC history via the DataLayer PRICE chain.
+    """Fetch current price + ~1y OHLC history via the DataLayer canonical PRICE chain.
 
     Returns the route payload (current_price, change/change_pct computed from
-    history, exchange, history, fetched_at, data_source, warnings). market_cap
-    and company_name are left None here and filled by the route from the
-    financials cache (``_enrich_price_payload_from_financial_cache``).
+    NormalizedPrice.latest_session_change(), a technicals trend snapshot,
+    exchange, history, fetched_at, data_source, warnings). market_cap and
+    company_name are left None here and filled by the route from the financials
+    cache.
 
     Raises:
         ValueError: invalid / unknown ticker → 422.
         ProviderError: upstream data source down (rate limit / timeout / 5xx) → 502.
     """
     try:
-        result = await data_layer.fetch_price(ticker)
+        price = await data_layer.fetch_canonical("price", ticker)
     except ProviderError as e:
         if _is_yfinance_service_down(e):
             raise
         # Non-service-down provider error → treat as invalid / unknown ticker.
         raise ValueError(f"未知 ticker '{ticker}': {e}") from e
 
-    raw = result.data if isinstance(result.data, dict) else {}
-    current_price = raw.get("current_price")
-    history_raw = raw.get("price_history") or raw.get("history") or []
-    history = history_raw if isinstance(history_raw, list) else []
-    if current_price is None and not history:
+    assert isinstance(price, NormalizedPrice)  # PRICE always returns NormalizedPrice
+
+    if not price.bars and not price.current_price:
         raise ValueError(f"未知 ticker '{ticker}': 无价格数据")
 
-    change, change_pct = _change_from_history(history)
-    fetched_at = (
-        result.timestamp.isoformat()
-        if result.timestamp
-        else datetime.now(tz=timezone.utc).isoformat()
-    )
+    change, change_pct = price.latest_session_change()
+
+    # Reconstruct the raw history list the frontend chart still expects.
+    # Bars are already trimmed to trailing 52 weeks and sorted ascending.
+    history = [
+        {
+            "date": b.date.isoformat(),
+            "close": b.close,
+            **({"open": b.open} if b.open is not None else {}),
+            **({"high": b.high} if b.high is not None else {}),
+            **({"low": b.low} if b.low is not None else {}),
+            **({"volume": b.volume} if b.volume is not None else {}),
+        }
+        for b in price.bars
+    ]
+
+    # Trend snapshot computed from the bars we already hold (no refetch). The
+    # close series is the same one the frontend chart renders, so SMA/trend/
+    # 52w-range stay consistent with the line on screen.
+    technicals = technical_payload([{"close": b.close} for b in price.bars])
+
+    fetched_at = price.provenance.fetched_at.isoformat()
     return {
-        "current_price": current_price,
+        "current_price": price.current_price,
         "change": change,
         "change_pct": change_pct,
+        "technicals": technicals,
         # market_cap / company_name are enriched by the route from the
-        # financials cache; the PRICE DataResult doesn't carry them.
+        # financials cache; the PRICE canonical doesn't carry them.
         "market_cap": None,
         "company_name": None,
-        "exchange": raw.get("exchange"),
+        "exchange": price.exchange,
         # next_earnings_date isn't in the PRICE result; the UI hides the callout
         # when null (same as the route's provider-cache fast path).
         "next_earnings_date": None,
         "history": history,
         "fetched_at": fetched_at,
-        "data_source": result.provider,
-        "warnings": list(result.warnings),
+        "data_source": price.provenance.provider,
+        "warnings": list(price.warnings),
     }

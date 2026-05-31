@@ -22,11 +22,13 @@ from finrobot.artifact.store import ArtifactStore
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import (
+    CompanyFinancials,
     DCFInputs,
     DCFResult,
     LBOInputs,
     LBOResult,
     LBOYear,
+    PeerComps,
 )
 from finrobot.routes.valuation import router
 
@@ -35,7 +37,21 @@ NOW = datetime(2026, 5, 21, tzinfo=UTC)
 
 
 class _StubDataLayer:
+    """Returns a PRICE-shaped payload for everything except FORWARD_ESTIMATES,
+    which returns the injected analyst-estimate rows (or empty when None)."""
+
+    def __init__(self, forward_rows: list[dict] | None = None) -> None:
+        self._forward_rows = forward_rows
+
     async def fetch(self, data_type: DataType | str, ticker: str, **_: object) -> DataResult:
+        if DataType(data_type) == DataType.FORWARD_ESTIMATES:
+            return DataResult(
+                data={"rows": self._forward_rows or []},
+                provider="stub",
+                ticker=ticker,
+                data_type=DataType.FORWARD_ESTIMATES,
+                timestamp=NOW,
+            )
         return DataResult(
             data={"current_price": 876.42, "price_history": []},
             provider="stub",
@@ -163,14 +179,51 @@ def _lbo_artifact() -> Artifact:
     )
 
 
-async def _app_with_artifacts(tmp_dir: Path, *artifacts: Artifact) -> FastAPI:
+def _comps_artifact() -> Artifact:
+    """A comps artifact whose peer_analysis carries a median P/E, so the
+    aggregator's comps_pe row activates and consumes forward EPS when present."""
+    target = CompanyFinancials(
+        ticker="NVDA",
+        revenue=60e9,
+        ebitda=37e9,
+        net_income=30e9,
+        market_cap=2.1e12,
+        gross_margin=0.75,
+        operating_margin=0.62,
+    )
+    peer = CompanyFinancials(
+        ticker="AMD",
+        revenue=23e9,
+        ebitda=5e9,
+        net_income=1e9,
+        market_cap=2.5e11,
+        gross_margin=0.50,
+        operating_margin=0.20,
+    )
+    comps = PeerComps(target=target, peers=[peer], median_pe=20.0, warnings=[])
+    return Artifact(
+        id="art_2026-05-18T00:00:00_NVDA_comps",
+        ticker="NVDA",
+        cross_tickers=[],
+        type="comps",
+        inputs=ArtifactInputs(data_source="yfinance", data_fetched_at=NOW, raw_data={}),
+        assumptions=ArtifactAssumptions(parameters={}),
+        compute_version=ArtifactComputeVersion(version="0.1.0", formula_id="comps"),
+        outputs=ArtifactOutputs(structured={"peer_analysis": comps.model_dump(mode="json")}),
+        meta=ArtifactMeta(created_at=NOW, source="pipeline:comps"),
+    )
+
+
+async def _app_with_artifacts(
+    tmp_dir: Path, *artifacts: Artifact, forward_rows: list[dict] | None = None
+) -> FastAPI:
     store = ArtifactStore(base_dir=tmp_dir)
     for art in artifacts:
         await store.save(art)
     app = FastAPI()
     app.include_router(router)
     app.state.artifact_store = store
-    app.state.deps = _StubDeps(data_layer=_StubDataLayer())
+    app.state.deps = _StubDeps(data_layer=_StubDataLayer(forward_rows))
     return app
 
 
@@ -202,6 +255,48 @@ async def test_aggregate_endpoint_with_no_artifacts_returns_warnings_only(
     body = r.json()
     assert body["methods"] == []
     assert len(body["warnings"]) >= 4
+
+
+@pytest.mark.asyncio
+async def test_aggregate_endpoint_uses_forward_eps_when_estimates_available(
+    tmp_path: Path,
+) -> None:
+    # FMP-style rows: farthest-future first. The route must pick FY1 (nearest
+    # upcoming FYE = 2030-09-30, EPS 8.6), NOT rows[0] (2031, EPS 9.5).
+    forward_rows = [
+        {"date": "2031-09-30", "estimatedEpsAvg": 9.5},
+        {"date": "2030-09-30", "estimatedEpsAvg": 8.6},
+    ]
+    app = await _app_with_artifacts(tmp_path, _comps_artifact(), forward_rows=forward_rows)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/valuation/aggregate/NVDA")
+    assert r.status_code == 200
+    body = r.json()
+    comps = next(m for m in body["methods"] if m["method"] == "comps_pe")
+    # Forward EPS flowed through — source proves it, and 20 × 8.6 = 172 proves
+    # FY1 selection (20 × 9.5 = 190 would mean the farthest row leaked in).
+    assert comps["source"] == "peer_median_pe × forward_eps"
+    assert abs(comps["mid"] - 172.0) < 0.01
+
+
+@pytest.mark.asyncio
+async def test_aggregate_endpoint_degrades_to_trailing_without_estimates(
+    tmp_path: Path,
+) -> None:
+    # No forward rows (e.g. no FMP key) → comps_pe falls back to trailing EPS
+    # with a warning, never invents a forward number. DCF artifact supplies the
+    # shares the trailing EPS = net_income / shares path needs.
+    app = await _app_with_artifacts(tmp_path, _comps_artifact(), _dcf_artifact())
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/valuation/aggregate/NVDA")
+    assert r.status_code == 200
+    body = r.json()
+    comps = next(m for m in body["methods"] if m["method"] == "comps_pe")
+    # comps_pe is labeled trailing (not a forward multiple passed off as valid),
+    # and the forward EV/EBITDA + P/FCF rows drop out with explicit warnings.
+    assert "trailing" in comps["source"]
+    assert "forward 不可得" in comps["source"]
+    assert any("forward EBITDA" in w for w in body["warnings"])
 
 
 @pytest.mark.asyncio

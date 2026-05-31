@@ -857,20 +857,31 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 name="data_collection",
                 skill_section=None,
                 agent=agents["data"],
+                # Only FINANCIALS + PRICE feed the narrative prompt. The SEC
+                # filings (10-K/10-Q/8-K/XBRL) are fetched separately by the
+                # executor (_execute_data_collection_with_sec, bounded + degraded
+                # into structured_context) — listing them here ALSO dumped their
+                # full raw text into the LLM prompt via _gather_data. A single
+                # 10-K carries Business + Risk Factors + MD&A tripled across
+                # items/sections/mdna_text; for META that pushed the prompt to
+                # 146,840 tokens > gpt-4o's 128k ceiling, failing every retry of
+                # step 1 and crashing peer_analysis with "target FinancialData
+                # not available". The LLM does not compute these numbers
+                # (extract_financial_data is deterministic), so the raw text was
+                # pure overhead. NEWS is dropped too — it is the catalyst_analysis
+                # step's job and was redundant here.
                 required_data=[
                     DataType.FINANCIALS,
                     DataType.PRICE,
-                    DataType.NEWS,
-                    DataType.FILINGS_10K,
-                    DataType.FILINGS_10Q,
-                    DataType.FILINGS_8K,
-                    DataType.XBRL_FACTS,
                 ],
                 validator=StructuredValidator(
                     validate_financial_data,
                     lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
                 ),
                 executor=_execute_data_collection_with_sec,
+                # Every downstream step reads this FinancialData — abort if it
+                # fails rather than crash later (e.g. peer_analysis).
+                critical=True,
             ),
             PipelineStep(
                 name="catalyst_analysis",

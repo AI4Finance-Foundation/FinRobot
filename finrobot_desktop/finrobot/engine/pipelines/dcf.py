@@ -121,6 +121,8 @@ def create_dcf_pipeline(agents: dict[str, Agent]) -> Pipeline:
                     lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
                 ),
                 executor=execute_financial_data_step,
+                # dcf_calc reads this FinancialData — abort if it fails.
+                critical=True,
             ),
             PipelineStep(
                 name="dcf_calc",

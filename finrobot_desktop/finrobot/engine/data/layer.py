@@ -4,6 +4,12 @@ from typing import Any
 
 from finrobot.engine.data.cache import DataCache
 from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
+from finrobot.engine.data.normalize import (
+    NormalizedFinancials,
+    NormalizedPrice,
+    normalize_financials,
+    normalize_price,
+)
 from finrobot.engine.data.types import DataType
 from finrobot.engine.data.validator import cross_validate
 
@@ -62,13 +68,12 @@ class DataLayer:
         # cache keys use the canonical enum value, not a raw string literal.
         data_type = DataType(data_type)
 
-        # 1. Fresh cache hit
+        # 1. Fresh cache hit — raw slot; staleness is by TTL only.
+        # PRICE/FINANCIALS contract-shape validation was previously handled by
+        # the now-deleted _is_cache_contract_current; canonical slots have
+        # version-tagged keys (ADR-0006 C1) that auto-invalidate on schema bumps.
         cached = await self._cache.get(data_type, ticker)
-        if (
-            cached is not None
-            and not cached.is_stale
-            and _is_cache_contract_current(data_type, cached.data)
-        ):
+        if cached is not None and not cached.is_stale:
             return cached.data
 
         # 2. Try each provider in order
@@ -118,9 +123,7 @@ class DataLayer:
                 for w in discrepancies:
                     logger.warning(w)
                 merged = list(
-                    dict.fromkeys(
-                        [*primary_result.warnings, *result.warnings, *discrepancies]
-                    )
+                    dict.fromkeys([*primary_result.warnings, *result.warnings, *discrepancies])
                 )
                 if merged != list(primary_result.warnings):
                     primary_result = primary_result.model_copy(update={"warnings": merged})
@@ -147,9 +150,7 @@ class DataLayer:
             return stale.model_copy(update={"warnings": [stale_warning] + stale.warnings})
 
         # 4. No data anywhere
-        msg = (
-            f"数据暂不可用（{ticker} / {data_type}）：所有数据源失败且无缓存。"
-        )
+        msg = f"数据暂不可用（{ticker} / {data_type}）：所有数据源失败且无缓存。"
         logger.error(msg)
         return DataResult(
             data={"error": msg},
@@ -159,6 +160,60 @@ class DataLayer:
             timestamp=datetime.now(tz=timezone.utc),
             warnings=[msg],
         )
+
+    async def fetch_canonical(
+        self, data_type: str | DataType, ticker: str, **kwargs: Any
+    ) -> NormalizedPrice | NormalizedFinancials:
+        """Return the normalized (canonical) PRICE / FINANCIALS for a ticker.
+
+        The one true normalization关卡 (ADR-0006): versioned canonical cache →
+        on miss, raw provider fetch (FINANCIALS runs its double-provider
+        ``cross_validate`` inside ``fetch()``) → ``normalize_*`` AFTER validation
+        (so the validator still sees raw cross-provider口径 divergence) → cache.
+        Consumers get a typed, provenance-stamped contract instead of a raw
+        provider dict. Only PRICE / FINANCIALS have canonical contracts; other
+        data_types must use raw ``fetch()``.
+        """
+        data_type = DataType(data_type)
+        if data_type not in (DataType.PRICE, DataType.FINANCIALS):
+            raise ValueError(
+                f"fetch_canonical supports only PRICE / FINANCIALS, got {data_type}. "
+                "Other types have no canonical contract — use fetch()."
+            )
+
+        cached = await self._cache.get_canonical(data_type, ticker)
+        if cached is not None and not cached.is_stale:
+            return self._deserialize_canonical(data_type, cached.payload_json, from_cache=True)
+
+        raw = await self.fetch(data_type, ticker, **kwargs)
+        if raw.provider == "none":
+            # All providers failed and no cache — never normalize+cache an
+            # all-zero fabrication (报错一个数字砸招牌). Surface like fetch_price.
+            raise ProviderError(
+                f"无法获取 {ticker} 的 {data_type} canonical 数据：所有 provider 失败且无缓存"
+            )
+
+        normalized: NormalizedPrice | NormalizedFinancials = (
+            normalize_price(raw) if data_type == DataType.PRICE else normalize_financials(raw)
+        )
+        # Carry the raw fetch's warnings (incl. cross_validate discrepancies)
+        # onto the canonical object so they survive the normalization boundary.
+        if raw.warnings:
+            normalized.warnings = list(raw.warnings)
+        await self._cache.set_canonical(data_type, ticker, normalized.model_dump_json())
+        return normalized
+
+    @staticmethod
+    def _deserialize_canonical(
+        data_type: DataType, payload_json: str, *, from_cache: bool
+    ) -> NormalizedPrice | NormalizedFinancials:
+        obj: NormalizedPrice | NormalizedFinancials = (
+            NormalizedPrice.model_validate_json(payload_json)
+            if data_type == DataType.PRICE
+            else NormalizedFinancials.model_validate_json(payload_json)
+        )
+        obj.provenance.from_cache = from_cache
+        return obj
 
     async def fetch_historical(
         self, data_type: str | DataType, ticker: str, years: int = 5, **kwargs: Any
@@ -273,10 +328,3 @@ class DataLayer:
             )
             for year_data in yearly
         ]
-
-
-def _is_cache_contract_current(data_type: DataType, result: DataResult) -> bool:
-    """Return whether a cached result matches today's read contract."""
-    if data_type == DataType.FINANCIALS and result.provider == "fmp":
-        return result.data.get("period_basis") == "ttm"
-    return True

@@ -1,4 +1,9 @@
-"""Tests for pipeline _helpers — execute_financial_data_step."""
+"""Tests for pipeline _helpers — execute_financial_data_step.
+
+ADR-0006 Step 4: execute_financial_data_step now calls fetch_canonical
+(returns NormalizedFinancials/NormalizedPrice) instead of fetch (raw DataResult).
+Mocks provide fetch_canonical and fetch_historical where needed.
+"""
 
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
@@ -6,11 +11,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.normalize.financials import normalize_financials
+from finrobot.engine.data.normalize.price import normalize_price
 from finrobot.engine.data.types import DataType
 from finrobot.engine.pipelines._helpers import execute_financial_data_step
 
 
-def _financials_result(warnings: list[str] | None = None) -> DataResult:
+def _financials_raw(warnings: list[str] | None = None) -> DataResult:
     return DataResult(
         data={
             "revenue": 1e9,
@@ -30,7 +37,7 @@ def _financials_result(warnings: list[str] | None = None) -> DataResult:
     )
 
 
-def _price_result() -> DataResult:
+def _price_raw() -> DataResult:
     return DataResult(
         data={"price_history": [{"close": 50.0}]},
         provider="fmp",
@@ -38,37 +45,6 @@ def _price_result() -> DataResult:
         data_type="price",
         timestamp=datetime.now(tz=timezone.utc),
     )
-
-
-@pytest.mark.asyncio
-async def test_cross_validation_warnings_merged_into_financial_data():
-    """DataResult.warnings (cross-validation) must appear in FinancialData.warnings."""
-    cross_warnings = [
-        "Data discrepancy: revenue differs by 33% (fmp: 1,000,000,000 vs yfinance: 750,000,000).",
-        "Data discrepancy: ebitda differs by 17% (fmp: 200,000,000 vs yfinance: 170,000,000).",
-    ]
-    financials = _financials_result(warnings=cross_warnings)
-    price = _price_result()
-
-    mock_agent = MagicMock()
-    mock_agent_result = MagicMock()
-    mock_agent_result.output = "Agent analysis text"
-    mock_agent.run = AsyncMock(return_value=mock_agent_result)
-
-    mock_data_layer = MagicMock()
-    mock_data_layer.fetch = AsyncMock(
-        side_effect=lambda dt, ticker, **kw: financials if dt == DataType.FINANCIALS else price
-    )
-
-    mock_deps = MagicMock()
-    mock_deps.data_layer = mock_data_layer
-
-    step_output = await execute_financial_data_step(mock_agent, mock_deps, "prompt", {}, "TEST")
-
-    fd = step_output.structured
-    assert hasattr(fd, "warnings")
-    for w in cross_warnings:
-        assert w in fd.warnings, f"Cross-validation warning missing: {w}"
 
 
 def _yearly_result(year: int, revenue: float = 1e9) -> DataResult:
@@ -92,10 +68,47 @@ def _yearly_result(year: int, revenue: float = 1e9) -> DataResult:
 
 
 @pytest.mark.asyncio
+async def test_cross_validation_warnings_merged_into_financial_data():
+    """Cross-validation warnings (set on NormalizedFinancials.warnings) must appear
+    in FinancialData.warnings after extract_financial_data."""
+    cross_warnings = [
+        "Data discrepancy: revenue differs by 33% (fmp: 1,000,000,000 vs yfinance: 750,000,000).",
+        "Data discrepancy: ebitda differs by 17% (fmp: 200,000,000 vs yfinance: 170,000,000).",
+    ]
+    # Simulate fetch_canonical returning NormalizedFinancials with cross-validate warnings
+    norm_fin = normalize_financials(_financials_raw())
+    norm_fin.warnings = list(cross_warnings)
+    norm_price = normalize_price(_price_raw())
+
+    mock_agent = MagicMock()
+    mock_agent_result = MagicMock()
+    mock_agent_result.output = "Agent analysis text"
+    mock_agent.run = AsyncMock(return_value=mock_agent_result)
+
+    mock_data_layer = MagicMock()
+    mock_data_layer.fetch_canonical = AsyncMock(
+        side_effect=lambda dt, ticker, **kw: (
+            norm_fin if DataType(dt) == DataType.FINANCIALS else norm_price
+        )
+    )
+    mock_data_layer.fetch_historical = AsyncMock(return_value=[])
+
+    mock_deps = MagicMock()
+    mock_deps.data_layer = mock_data_layer
+
+    step_output = await execute_financial_data_step(mock_agent, mock_deps, "prompt", {}, "TEST")
+
+    fd = step_output.structured
+    assert hasattr(fd, "warnings")
+    for w in cross_warnings:
+        assert w in fd.warnings, f"Cross-validation warning missing: {w}"
+
+
+@pytest.mark.asyncio
 async def test_historical_metrics_injected_into_structured_context():
     """execute_financial_data_step must populate historical_metrics and forecast."""
-    financials = _financials_result()
-    price = _price_result()
+    norm_fin = normalize_financials(_financials_raw())
+    norm_price = normalize_price(_price_raw())
     yearly = [
         _yearly_result(y, r)
         for y, r in [
@@ -113,8 +126,10 @@ async def test_historical_metrics_injected_into_structured_context():
     mock_agent.run = AsyncMock(return_value=mock_agent_result)
 
     mock_data_layer = MagicMock()
-    mock_data_layer.fetch = AsyncMock(
-        side_effect=lambda dt, ticker, **kw: financials if dt == DataType.FINANCIALS else price
+    mock_data_layer.fetch_canonical = AsyncMock(
+        side_effect=lambda dt, ticker, **kw: (
+            norm_fin if DataType(dt) == DataType.FINANCIALS else norm_price
+        )
     )
     mock_data_layer.fetch_historical = AsyncMock(return_value=yearly)
 
@@ -144,12 +159,18 @@ async def test_historical_metrics_injected_into_structured_context():
 
 @pytest.mark.asyncio
 async def test_no_duplicate_warnings_when_extractor_and_provider_share():
-    """If extractor and provider both produce the same warning, no duplicates."""
-    shared_warning = "total_debt not available from provider — defaulted to 0; EV-based multiples (EV/EBITDA, EV/Revenue) may be understated"
-    financials = _financials_result(warnings=[shared_warning])
-    # Remove total_debt so extractor also generates this warning
-    financials.data.pop("total_debt", None)
-    price = _price_result()
+    """Warnings from canonical object and extractor must not be duplicated."""
+    shared_warning = (
+        "total_debt not available from provider — "
+        "EV and EV-based multiples (EV/EBITDA, EV/Revenue) cannot be computed"
+    )
+    # Build NormalizedFinancials with total_debt=None so extractor also warns
+    fin_raw = _financials_raw()
+    fin_raw.data.pop("total_debt", None)
+    norm_fin = normalize_financials(fin_raw)
+    # Pre-attach the same warning so it arrives on the canonical object
+    norm_fin.warnings = [shared_warning]
+    norm_price = normalize_price(_price_raw())
 
     mock_agent = MagicMock()
     mock_agent_result = MagicMock()
@@ -157,9 +178,12 @@ async def test_no_duplicate_warnings_when_extractor_and_provider_share():
     mock_agent.run = AsyncMock(return_value=mock_agent_result)
 
     mock_data_layer = MagicMock()
-    mock_data_layer.fetch = AsyncMock(
-        side_effect=lambda dt, ticker, **kw: financials if dt == DataType.FINANCIALS else price
+    mock_data_layer.fetch_canonical = AsyncMock(
+        side_effect=lambda dt, ticker, **kw: (
+            norm_fin if DataType(dt) == DataType.FINANCIALS else norm_price
+        )
     )
+    mock_data_layer.fetch_historical = AsyncMock(return_value=[])
 
     mock_deps = MagicMock()
     mock_deps.data_layer = mock_data_layer

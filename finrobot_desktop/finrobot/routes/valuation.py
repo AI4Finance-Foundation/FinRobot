@@ -12,6 +12,10 @@ from starlette.requests import Request
 
 from finrobot.artifact.models import Artifact
 from finrobot.artifact.store import ArtifactStore
+from finrobot.engine.compute.forward_estimates import (
+    ForwardFinancials,
+    get_forward_financials,
+)
 from finrobot.engine.compute.historical_valuation import HistoricalMetricName
 from finrobot.engine.compute.valuation_aggregator import aggregate_valuation
 from finrobot.engine.data.cache import cached_fetch
@@ -51,6 +55,7 @@ async def aggregate_for_ticker(ticker: str, request: Request) -> ValuationAggreg
 
     dcf, peer_comps, ddm, lbo = await _gather_latest_results(store, ticker)
     shares = _shares_outstanding(dcf, lbo)
+    forward = await _forward_financials(ticker, data_layer)
     as_of = datetime.now(tz=timezone.utc)
 
     return aggregate_valuation(
@@ -61,13 +66,47 @@ async def aggregate_for_ticker(ticker: str, request: Request) -> ValuationAggreg
         ddm=ddm,
         lbo=lbo,
         shares_outstanding=shares,
-        forward_eps=None,
-        forward_ebitda=None,
-        forward_fcf=None,
+        forward_eps=forward.forward_eps,
+        forward_ebitda=forward.forward_ebitda,
+        forward_fcf=forward.forward_fcf,
         historical_ev_ebitda_band=None,
         historical_p_fcf_band=None,
         as_of=as_of,
     )
+
+
+async def _forward_financials(ticker: str, data_layer: DataLayer | None) -> ForwardFinancials:
+    """Resolve FY1 forward consensus via DataLayer → the red-line leaf.
+
+    Fetches DataType.FORWARD_ESTIMATES (FMP /analyst-estimates) and hands the
+    payload to ``get_forward_financials``, which owns FY1 selection and口径.
+    When no FMP-capable provider is configured the fetch returns an error
+    payload (no ``rows``); the leaf then degrades to ``unavailable`` (all None)
+    so the aggregator hides the forward-multiple rows with a warning instead of
+    inventing a number — matches the BACKLOG P0 acceptance criterion.
+    """
+    payload: dict[str, Any] | None = None
+    if data_layer is not None:
+        try:
+            result = await data_layer.fetch(DataType.FORWARD_ESTIMATES, ticker)
+        except (ProviderError, ValueError, KeyError) as exc:
+            logger.info("forward estimates fetch failed for %s: %s", ticker, exc)
+        else:
+            if isinstance(result.data, dict) and "rows" in result.data:
+                payload = result.data
+
+    forward = get_forward_financials(ticker=ticker, yf_info=None, fmp_analyst_estimates=payload)
+    if forward.fiscal_period is not None:
+        logger.info(
+            "forward estimates %s: FY-end %s eps=%s ebitda=%s fcf=%s (confidence=%s)",
+            ticker,
+            forward.fiscal_period,
+            forward.forward_eps,
+            forward.forward_ebitda,
+            forward.forward_fcf,
+            forward.confidence,
+        )
+    return forward
 
 
 def _store(request: Request) -> ArtifactStore:
@@ -265,5 +304,3 @@ async def historical_bands(
         cache_key_suffix=f":{metric}:{years}",
     )
     return HistoricalBandResponse.model_validate(raw)
-
-

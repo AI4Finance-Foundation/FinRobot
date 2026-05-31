@@ -45,6 +45,20 @@ class FakeDataLayer:
             timestamp=datetime.now(tz=timezone.utc),
         )
 
+    async def fetch_canonical(self, data_type, ticker, **kwargs):
+        """Return NormalizedFinancials / NormalizedPrice (ADR-0006 canonical contract)."""
+        from finrobot.engine.data.normalize.financials import normalize_financials
+        from finrobot.engine.data.normalize.price import normalize_price
+        from finrobot.engine.data.types import DataType
+
+        raw = await self.fetch(str(data_type), ticker, **kwargs)
+        if DataType(data_type) == DataType.PRICE:
+            return normalize_price(raw)
+        return normalize_financials(raw)
+
+    async def fetch_historical(self, data_type: str, ticker: str, years: int = 5, **kwargs):
+        return []
+
 
 @dataclass
 class FakeSettings:
@@ -115,15 +129,20 @@ class TestPipelineStructure:
         assert step_map["report"] is None
 
     def test_step1_required_data(self):
+        # Only FINANCIALS + PRICE feed the narrative prompt. SEC filings are
+        # fetched by the executor into structured_context, NOT dumped raw into
+        # the prompt (a 10-K's tripled section text overflowed gpt-4o's 128k
+        # window and crashed the run). NEWS belongs to catalyst_analysis.
         pipeline = create_equity_research_pipeline(_make_test_agents())
         step1 = pipeline.steps[0]
         assert "financials" in step1.required_data
         assert "price" in step1.required_data
-        assert "news" in step1.required_data
-        assert "filings_10k" in step1.required_data
-        assert "filings_10q" in step1.required_data
-        assert "filings_8k" in step1.required_data
-        assert "xbrl_facts" in step1.required_data
+        # Heavyweight / redundant types must NOT be in the prompt-feeding list.
+        assert "news" not in step1.required_data
+        assert "filings_10k" not in step1.required_data
+        assert "filings_10q" not in step1.required_data
+        assert "filings_8k" not in step1.required_data
+        assert "xbrl_facts" not in step1.required_data
 
     def test_steps_2_to_8_required_data_empty(self):
         pipeline = create_equity_research_pipeline(_make_test_agents())
@@ -267,11 +286,17 @@ def mock_deps():
 
 @pytest.mark.asyncio
 async def test_step1_produces_financial_data(mock_deps):
-    """Step 1 data_collection execute_fn returns StepOutput with FinancialData."""
+    """Step 1 data_collection execute_fn returns StepOutput with FinancialData.
+
+    ADR-0006 Step 4: execute_financial_data_step calls fetch_canonical, so the
+    mock returns NormalizedFinancials / NormalizedPrice (wrapped via normalize_*).
+    """
+    from finrobot.engine.data.normalize.financials import normalize_financials
+    from finrobot.engine.data.normalize.price import normalize_price
     from finrobot.engine.pipelines._helpers import execute_financial_data_step
     from finrobot.engine.models.financial import FinancialData, StepOutput
 
-    fin_result = DataResult(
+    fin_raw = DataResult(
         data=dict(
             revenue=100e9,
             ebitda=35e9,
@@ -290,7 +315,7 @@ async def test_step1_produces_financial_data(mock_deps):
         data_type="financials",
         timestamp=datetime.now(tz=timezone.utc),
     )
-    price_result = DataResult(
+    price_raw = DataResult(
         data={
             "current_price": 200.0,
             "price_history": [
@@ -303,15 +328,22 @@ async def test_step1_produces_financial_data(mock_deps):
         data_type="price",
         timestamp=datetime.now(tz=timezone.utc),
     )
+    norm_fin = normalize_financials(fin_raw)
+    norm_price = normalize_price(price_raw)
+
     mock_agent = MagicMock()
     mock_result = MagicMock()
     mock_result.output = "Analysis text"
     mock_agent.run = AsyncMock(return_value=mock_result)
 
-    async def mock_fetch(data_type, ticker):
-        return fin_result if data_type == "financials" else price_result
+    from finrobot.engine.data.types import DataType
 
-    mock_deps.data_layer.fetch = mock_fetch
+    async def mock_fetch_canonical(data_type, ticker):
+        return norm_fin if DataType(data_type) == DataType.FINANCIALS else norm_price
+
+    mock_deps.data_layer.fetch_canonical = mock_fetch_canonical
+    # fetch_historical is still raw; return empty to skip HistoricalMetrics build.
+    mock_deps.data_layer.fetch_historical = AsyncMock(return_value=[])
 
     output = await execute_financial_data_step(mock_agent, mock_deps, "prompt", {}, "AAPL")
     assert isinstance(output, StepOutput)
@@ -407,7 +439,13 @@ async def test_peer_analysis_raises_when_target_financials_missing(mock_deps):
     mock_agent_instance = MagicMock()
     mock_agent_instance.run = AsyncMock(return_value=mock_peer_result)
 
-    fin_result = DataResult(
+    # fetch_canonical returns NormalizedFinancials so _fetch_one_peer succeeds
+    # for all 3 tickers; the test expects that the code then raises "target
+    # FinancialData" because structured_context is empty (no prior data step).
+    from finrobot.engine.data.interface import DataResult
+    from finrobot.engine.data.normalize.financials import normalize_financials
+
+    fin_raw = DataResult(
         data=dict(
             revenue=50e9,
             ebitda=15e9,
@@ -426,7 +464,15 @@ async def test_peer_analysis_raises_when_target_financials_missing(mock_deps):
         data_type="financials",
         timestamp=datetime.now(tz=timezone.utc),
     )
-    mock_deps.data_layer.fetch = AsyncMock(return_value=fin_result)
+    norm_fin = normalize_financials(fin_raw)
+    mock_deps.data_layer.fetch_canonical = AsyncMock(return_value=norm_fin)
+    # XBRL is still a raw fetch
+    mock_deps.data_layer.fetch = AsyncMock(
+        return_value=DataResult(
+            data={}, provider="fake", ticker="MSFT",
+            data_type="xbrl_facts", timestamp=datetime.now(tz=timezone.utc),
+        )
+    )
 
     mock_agent = MagicMock()
 

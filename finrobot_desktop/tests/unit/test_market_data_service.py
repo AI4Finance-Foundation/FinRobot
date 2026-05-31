@@ -1,9 +1,11 @@
-"""Unit tests for finrobot/engine/services/market_data.py (门一 Step 4).
+"""Unit tests for finrobot/engine/services/market_data.py (ADR-0006 Step 5).
 
-fetch_price_history now fetches through DataLayer.fetch_price (provider chain)
-instead of direct yfinance. These tests mock the DataLayer and verify the
-payload shape + the bad-ticker(→422 ValueError) vs upstream-down(→502
-ProviderError) classification the /price route depends on.
+fetch_price_history now fetches through DataLayer.fetch_canonical(PRICE) and
+computes day-over-day change via NormalizedPrice.latest_session_change() instead
+of the removed _change_from_history raw-dict helper.
+
+The _FakeLayer provides fetch_canonical returning a NormalizedPrice built from
+a raw DataResult fixture so the test data shape is unchanged.
 """
 
 from __future__ import annotations
@@ -14,30 +16,13 @@ from typing import Any
 import pytest
 
 from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.normalize.contracts import NormalizedPrice
+from finrobot.engine.data.normalize.price import normalize_price
 from finrobot.engine.data.types import DataType
-from finrobot.engine.services.market_data import (
-    _change_from_history,
-    fetch_price_history,
-)
+from finrobot.engine.services.market_data import fetch_price_history
 
 
-class _FakeLayer:
-    """DataLayer stand-in exposing only fetch_price."""
-
-    def __init__(
-        self, *, result: DataResult | None = None, raises: Exception | None = None
-    ) -> None:
-        self._result = result
-        self._raises = raises
-
-    async def fetch_price(self, ticker: str) -> DataResult:
-        if self._raises is not None:
-            raise self._raises
-        assert self._result is not None
-        return self._result
-
-
-def _price_result(
+def _price_raw(
     *,
     current_price: float | None = 152.0,
     history: list[dict[str, Any]] | None = None,
@@ -62,6 +47,22 @@ def _price_result(
     )
 
 
+class _FakeLayer:
+    """DataLayer stand-in exposing fetch_canonical(PRICE) → NormalizedPrice."""
+
+    def __init__(
+        self, *, result: DataResult | None = None, raises: Exception | None = None
+    ) -> None:
+        self._result = result
+        self._raises = raises
+
+    async def fetch_canonical(self, data_type: Any, ticker: str) -> NormalizedPrice:
+        if self._raises is not None:
+            raise self._raises
+        assert self._result is not None
+        return normalize_price(self._result)
+
+
 async def _fetch(layer: _FakeLayer, ticker: str = "AAPL") -> dict[str, Any]:
     return await fetch_price_history(layer, ticker)  # type: ignore[arg-type]
 
@@ -69,8 +70,9 @@ async def _fetch(layer: _FakeLayer, ticker: str = "AAPL") -> dict[str, Any]:
 class TestFetchPriceHistorySuccess:
     @pytest.mark.asyncio
     async def test_returns_payload_shape(self):
-        result = await _fetch(_FakeLayer(result=_price_result()))
-        assert result["current_price"] == 152.0
+        result = await _fetch(_FakeLayer(result=_price_raw()))
+        # current_price comes from the raw dict field (152.0 in _price_raw default)
+        assert result["current_price"] == pytest.approx(152.0)
         assert len(result["history"]) == 2
         assert result["exchange"] == "NasdaqGS"
         assert result["data_source"] == "yfinance"
@@ -80,14 +82,38 @@ class TestFetchPriceHistorySuccess:
 
     @pytest.mark.asyncio
     async def test_change_computed_from_history(self):
-        result = await _fetch(_FakeLayer(result=_price_result()))
+        result = await _fetch(_FakeLayer(result=_price_raw()))
         # 101.5 → 102.5: +1.0, +0.985%
         assert result["change"] == pytest.approx(1.0)
         assert result["change_pct"] == pytest.approx(0.985, abs=0.01)
 
     @pytest.mark.asyncio
+    async def test_technicals_insufficient_history_with_two_bars(self):
+        # The 2-bar default is too short for a trend snapshot.
+        result = await _fetch(_FakeLayer(result=_price_raw()))
+        assert result["technicals"] == {
+            "available": False,
+            "reason": "insufficient_history",
+        }
+
+    @pytest.mark.asyncio
+    async def test_technicals_uptrend_from_rising_series(self):
+        # A monotonically rising 1-year series → stacked SMAs → uptrend, and the
+        # snapshot is computed from the same bars the chart renders.
+        history = [
+            {"date": f"2025-{(i // 28) + 1:02d}-{(i % 28) + 1:02d}", "close": float(i)}
+            for i in range(1, 221)
+        ]
+        result = await _fetch(_FakeLayer(result=_price_raw(history=history)))
+        tech = result["technicals"]
+        assert tech["available"] is True
+        assert tech["trend"] == "uptrend"
+        assert tech["sma20"] > tech["sma50"] > tech["sma200"]
+        assert tech["range_position"] == pytest.approx(1.0)
+
+    @pytest.mark.asyncio
     async def test_fetched_at_is_iso8601_tz_aware(self):
-        result = await _fetch(_FakeLayer(result=_price_result()))
+        result = await _fetch(_FakeLayer(result=_price_raw()))
         fetched = datetime.fromisoformat(result["fetched_at"])
         assert fetched.tzinfo is not None
 
@@ -115,28 +141,44 @@ class TestFetchPriceHistoryErrorMapping:
 
     @pytest.mark.asyncio
     async def test_empty_data_raises_value_error_422(self):
-        """No current_price and no history → invalid ticker → ValueError."""
-        layer = _FakeLayer(result=_price_result(current_price=None, history=[]))
+        """No bars and no current_price → invalid ticker → ValueError."""
+        layer = _FakeLayer(result=_price_raw(current_price=None, history=[]))
         with pytest.raises(ValueError):
             await _fetch(layer, "XYZINVALID")
 
 
-class TestChangeFromHistory:
-    def test_two_closes(self):
-        change, pct = _change_from_history(
-            [{"close": 100.0}, {"close": 110.0}]
+class TestLatestSessionChange:
+    """NormalizedPrice.latest_session_change() replaces the removed _change_from_history.
+
+    These tests verify the canonical method's contract (which the service now uses).
+    """
+
+    def _price(self, bars: list[dict[str, Any]]) -> NormalizedPrice:
+        raw = DataResult(
+            data={"current_price": bars[-1]["close"], "price_history": bars},
+            provider="test",
+            ticker="TEST",
+            data_type=DataType.PRICE,
+            timestamp=datetime.now(tz=timezone.utc),
         )
+        return normalize_price(raw)
+
+    def test_two_closes(self):
+        price = self._price([
+            {"date": "2026-05-26", "close": 100.0},
+            {"date": "2026-05-27", "close": 110.0},
+        ])
+        change, pct = price.latest_session_change()
         assert change == pytest.approx(10.0)
         assert pct == pytest.approx(10.0)
 
-    def test_single_close_returns_none(self):
-        assert _change_from_history([{"close": 100.0}]) == (None, None)
+    def test_single_bar_returns_none(self):
+        price = self._price([{"date": "2026-05-27", "close": 100.0}])
+        assert price.latest_session_change() == (None, None)
 
     def test_zero_prev_close_returns_none(self):
-        assert _change_from_history([{"close": 0.0}, {"close": 5.0}]) == (None, None)
-
-    def test_ignores_non_numeric_rows(self):
-        change, pct = _change_from_history(
-            [{"close": "bad"}, {"close": 100.0}, {"close": 105.0}]
-        )
-        assert change == pytest.approx(5.0)
+        price = self._price([
+            {"date": "2026-05-26", "close": 0.0},
+            {"date": "2026-05-27", "close": 5.0},
+        ])
+        assert price.latest_session_change() == (None, None)

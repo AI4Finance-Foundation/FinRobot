@@ -28,15 +28,52 @@ _RETRY_DELAYS = [2, 5, 10]
 # All comparisons are lower-cased.
 _RECOVERABLE_SUBSTRINGS = ("429", "rate limit", "too many requests", "timeout")
 
-# Substrings that mark an exception as a non-recoverable billing / auth error.
-# These must NOT be retried.
-_FATAL_SUBSTRINGS = ("insufficient balance",)
+# Substrings that mark an exception as a non-recoverable error that must NOT be
+# retried. Two classes:
+#   - billing / auth ("insufficient balance"): retrying can never succeed.
+#   - context-length overflow: the prompt deterministically exceeds the model's
+#     window, so re-sending the identical prompt fails identically. Without this,
+#     an oversized data_collection prompt burned 3 retries (~65s), then the
+#     "best-effort continue" policy let the run proceed with NO FinancialData —
+#     surfacing as a green ✓ on step 1 and a confusing crash at peer_analysis
+#     ("target FinancialData not available"). Failing fast here aborts the run
+#     with the real context-length message instead.
+_FATAL_SUBSTRINGS = (
+    "insufficient balance",
+    "maximum context length",
+    "context_length_exceeded",
+    "reduce the length of the messages",
+)
 
 _PROMPT_MAX_STRING_CHARS = 1200
 _PROMPT_MAX_LIST_ITEMS = 8
 _PROMPT_MAX_DICT_KEYS = 30
 _PROMPT_MAX_DEPTH = 6
 _PROMPT_MAX_STRUCTURED_CHARS = 16_000
+
+# Per-item cap for raw ``required_data`` text dumped into a step prompt by
+# _gather_data. Structured context already had a 16k/item cap; required_data did
+# NOT, which let a 10-K's full section text (tripled across items/sections/
+# mdna_text) flood the data_collection prompt to 146k tokens and 400 gpt-4o.
+# FINANCIALS/PRICE renders are a few KB, so legit data is never truncated; this
+# only fires on pathological payloads, and always leaves a visible marker so no
+# number is ever silently dropped.
+_PROMPT_MAX_STEP_DATA_CHARS = 12_000
+
+# Soft ceiling for the WHOLE assembled prompt. Crossing it is not fatal (the
+# per-item caps above already bound inputs, and a true model overflow fails fast
+# via _FATAL_SUBSTRINGS) — it is a loud regression signal that some new section
+# is bloating prompts. Char-based on purpose: model-agnostic and free, unlike a
+# per-model token window that would rot as models change.
+_PROMPT_WARN_TOTAL_CHARS = 200_000
+
+
+def _truncate_for_prompt(text: str, cap: int) -> str:
+    """Cap *text* at *cap* chars, appending a visible truncation marker so a
+    shortened payload can never be mistaken for the complete one."""
+    if len(text) <= cap:
+        return text
+    return f"{text[:cap]}\n... [truncated {len(text) - cap} chars to fit prompt budget]"
 
 
 def _is_recoverable_exception(exc: BaseException) -> bool:
@@ -54,6 +91,7 @@ def _is_recoverable_exception(exc: BaseException) -> bool:
     if isinstance(exc, (AgentRunError, ProviderError, httpx.TimeoutException, httpx.ConnectError)):
         return True
     return any(s in msg for s in _RECOVERABLE_SUBSTRINGS)
+
 
 logger = logging.getLogger(__name__)
 
@@ -86,9 +124,7 @@ def _compact_for_prompt(value: object, depth: int = 0) -> object:
         return out
 
     if isinstance(value, (list, tuple)):
-        list_out = [
-            _compact_for_prompt(item, depth + 1) for item in value[:_PROMPT_MAX_LIST_ITEMS]
-        ]
+        list_out = [_compact_for_prompt(item, depth + 1) for item in value[:_PROMPT_MAX_LIST_ITEMS]]
         if len(value) > _PROMPT_MAX_LIST_ITEMS:
             list_out.append({"_omitted_items": len(value) - _PROMPT_MAX_LIST_ITEMS})
         return list_out
@@ -199,6 +235,20 @@ class StructuredValidator:
         return self._text_fn(output)
 
 
+class PipelineStepError(RuntimeError):
+    """A critical pipeline step failed after exhausting retries.
+
+    Raised by Pipeline.execute() to ABORT the run instead of continuing
+    best-effort. Subclasses RuntimeError so the runs.py handler already catches
+    it and transitions the run to ``failed`` with this message.
+    """
+
+    def __init__(self, step_name: str, error: str) -> None:
+        self.step_name = step_name
+        self.error = error
+        super().__init__(f"Critical step '{step_name}' failed: {error}")
+
+
 @dataclass
 class PipelineStep:
     """A single enforced step in a financial analysis pipeline."""
@@ -209,6 +259,13 @@ class PipelineStep:
     executor: StepExecutor = field(default_factory=DefaultAgentExecutor)
     required_data: list[str | DataType] = field(default_factory=list)
     skill_section: str | None = None
+    critical: bool = False
+    """When True, a failure after all retries ABORTS the pipeline (raises
+    PipelineStepError) rather than appending to failed_validations and
+    continuing. Set on hard-prerequisite steps (the data-collection step that
+    produces the FinancialData every downstream step reads) — continuing past
+    them only yields a confusing crash several steps later (e.g. peer_analysis:
+    "target FinancialData not available")."""
 
 
 class ArtifactBuilder(Protocol):
@@ -310,6 +367,19 @@ class Pipeline:
             elapsed = time.monotonic() - t0
             if validation_error:
                 failed_validations.append({"step": step.name, "error": validation_error})
+                # A critical step is a hard prerequisite \u2014 continuing past its
+                # failure only produces a confusing crash several steps later
+                # (and, worse, a green \u2713 on this step because on_step_end fires
+                # regardless). Abort now with a clear message naming THIS step.
+                # We raise BEFORE on_step_end so no misleading "completed" event
+                # is emitted for the step that actually failed.
+                if step.critical:
+                    logger.error(
+                        "Critical step '%s' failed after retries \u2014 aborting run: %s",
+                        step.name,
+                        validation_error,
+                    )
+                    raise PipelineStepError(step.name, validation_error)
 
             if progress is not None:
                 await progress.on_step_end(i, total, step.name, elapsed)
@@ -415,9 +485,9 @@ class Pipeline:
         """
         # ── helpers ────────────────────────────────────────────────────────────
 
-        async def _attempt_with_exc_retry(current_prompt: str, budget: int) -> tuple[
-            "ValidationResult | None", str | None, int
-        ]:
+        async def _attempt_with_exc_retry(
+            current_prompt: str, budget: int
+        ) -> tuple["ValidationResult | None", str | None, int]:
             """Run _attempt, catching recoverable exceptions as retry signals.
 
             Returns (validation_result, exc_error_str, remaining_budget).
@@ -547,7 +617,9 @@ class Pipeline:
         for data_type in required_data:
             try:
                 result = await deps.data_layer.fetch(data_type, ticker)
-                parts.append(result.to_context_string())
+                parts.append(
+                    _truncate_for_prompt(result.to_context_string(), _PROMPT_MAX_STEP_DATA_CHARS)
+                )
             except (ProviderError, ValueError, KeyError) as e:
                 logger.warning(f"Failed to fetch {data_type} for {ticker}: {e}")
                 parts.append(f"[{data_type}: data unavailable \u2014 {e}]")
@@ -589,7 +661,17 @@ class Pipeline:
                 "Tables and section headers should be in Chinese."
             )
 
-        return "\n\n".join(parts)
+        prompt = "\n\n".join(parts)
+        if len(prompt) > _PROMPT_WARN_TOTAL_CHARS:
+            logger.warning(
+                "Step '%s' prompt is %d chars (> %d soft ceiling) — a section is "
+                "bloating the prompt and may approach the model's context window. "
+                "Check what this step injects into required_data / structured_context.",
+                step.name,
+                len(prompt),
+                _PROMPT_WARN_TOTAL_CHARS,
+            )
+        return prompt
 
 
 class PipelineResult(BaseModel):

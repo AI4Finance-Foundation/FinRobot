@@ -1,8 +1,18 @@
-from finrobot.engine.data.interface import DataResult
-from finrobot.engine.data.normalize.currency import resolve_reporting_currency
-from finrobot.engine.data.normalize.financials import normalize_financials
-from finrobot.engine.data.normalize.price import normalize_price
-from finrobot.engine.data.normalize.window import trailing_52w_high_low
+"""Typed projections from normalized canonical data to engine models.
+
+ADR-0006 Step 4: functions here accept *already-normalized* typed inputs
+(``NormalizedFinancials``, ``NormalizedPrice``) instead of raw ``DataResult``
+dicts. The normalization关卡 lives exclusively in ``DataLayer.fetch_canonical``
+— extractor is the projection layer (typed → FinancialData / CompanyFinancials
+/ PriceHistory) that carries EBITDA caliber logic, EV handling, shares fallback,
+and provenance merging. It must not re-normalize.
+
+Historical per-year callers (``_helpers._build_historical_metrics``) that still
+receive raw ``DataResult`` slices from ``fetch_historical`` wrap them with
+``normalize_financials / normalize_price`` at the call site before passing here.
+"""
+
+from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
 from finrobot.engine.models.financial import (
     DataProvenance,
     FinancialData,
@@ -21,23 +31,27 @@ from finrobot.engine.compute.multiples import (
 
 
 def extract_financial_data(
-    financials_result: DataResult,
-    price_result: DataResult,
+    fin: NormalizedFinancials,
+    price: NormalizedPrice,
 ) -> FinancialData:
-    """Extract structured FinancialData from raw DataResults.
+    """Project NormalizedFinancials + NormalizedPrice into FinancialData.
 
-    The raw provider dicts are first pressed through the normalization contract
-    (``normalize_financials`` / ``normalize_price``) so every field below reads
-    a typed canonical value instead of an unspecified provider-specific dict
-    (ADR-0004). 52-week high/low come from the windowed, intraday-aware
-    canonical series; ``provenance`` carries source/as_of/degraded to the UI.
+    Normalization has already happened upstream (ADR-0006): ``fin`` and
+    ``price`` are typed, currency-resolved, provenance-stamped objects from
+    ``DataLayer.fetch_canonical``.  This function only computes derived
+    fields (EBITDA calibers, EV, shares fallback, 52w high/low) and assembles
+    the engine model.
+
+    Two EBITDA calibers are recomputed from absolute line items so neither
+    rides on a provider's opaque (and, for the latest quarter, sometimes
+    D&A-less) ebitda field. Operating is the primary EV/EBITDA numerator;
+    reported is the street cross-check. Falls back to the provider-supplied
+    ebitda only when components are absent (e.g. yfinance-sourced snapshots).
 
     Raises ValueError for missing critical fields (revenue, market_cap).
-    Non-critical missing fields (debt, cash, D&A) are defaulted and recorded in
-    FinancialData.warnings so the caller can surface them to the user.
+    Non-critical missing fields (debt, cash, D&A) are defaulted and recorded
+    in FinancialData.warnings so the caller can surface them to the user.
     """
-    fin = normalize_financials(financials_result)
-    price = normalize_price(price_result)
     ticker = fin.ticker
 
     revenue = fin.revenue
@@ -121,10 +135,19 @@ def extract_financial_data(
             "Per-share metrics (EPS, P/E) may be approximate."
         )
 
+    # Carry any warnings that arrived on the canonical objects (e.g. cross-validate
+    # discrepancies forwarded from raw fetch).
+    for w in fin.warnings:
+        if w not in warnings:
+            warnings.append(w)
+    for w in price.warnings:
+        if w not in warnings:
+            warnings.append(w)
+
     return FinancialData(
         ticker=ticker,
         company_name=fin.company_name or "",
-        timestamp=financials_result.timestamp,
+        timestamp=fin.provenance.fetched_at,
         fiscal_period_end=fin.period_end,
         income=IncomeStatement(
             revenue=revenue,
@@ -169,56 +192,86 @@ def extract_financial_data(
             # Combine financials degraded flags (ttm_lag, ccy_inferred) with the
             # price feed's (close_only) since the snapshot shows both 52w (price)
             # and P/E (financials) numbers.
-            degraded=list(
-                dict.fromkeys([*fin.provenance.degraded, *price.provenance.degraded])
-            ),
+            degraded=list(dict.fromkeys([*fin.provenance.degraded, *price.provenance.degraded])),
         ),
         warnings=warnings,
     )
 
 
-def extract_company_financials(financials_result: DataResult) -> CompanyFinancials:
-    """Extract CompanyFinancials for use in peer comparisons.
+def extract_company_financials(fin: NormalizedFinancials) -> CompanyFinancials:
+    """Project NormalizedFinancials into CompanyFinancials for a peer comps row.
 
-    ``reporting_currency`` carries the resolved IS/BS currency (ISO 4217).
-    For ADRs where yfinance mis-tags ``financialCurrency`` as "USD", the
-    country-based override in ``_resolve_reporting_currency`` corrects it so
-    the downstream FX normalization step applies the proper conversion before
-    EV/EBITDA is computed. Defaults to USD when country is unknown (US issuers).
+    Runs the SAME EBITDA-caliber logic as the target path
+    (``extract_financial_data``) so the peer EV/EBITDA numerator matches the
+    target's instead of mixing calibers:
+
+    - **EBITDA = operating caliber (EBIT + D&A)** recomputed from line items,
+      falling back to the provider's reported ``ebitda`` only when operating
+      components are absent. Previously the peer used the raw provider
+      ``ebitda`` (reported caliber: NI+tax+interest+D&A) while the target used
+      operating — for cash-rich peers the two differ materially and the table
+      compared apples to oranges.
+    - **total_debt / total_cash stay None when the provider omits them** so
+      ``calculate_multiples`` withholds EV instead of fabricating EV=market_cap
+      and poisoning the median. Previously ``or 0`` silently assumed zero net debt.
+
+    ``reporting_currency`` carries the resolved IS/BS currency (ISO 4217); the
+    country-based override corrects yfinance ADR mis-tags so the downstream FX
+    step converts before EV/EBITDA is computed. Raises ValueError for missing
+    revenue/market_cap so the caller drops the peer rather than comparing zeros.
     """
-    data = financials_result.data
-    ticker = financials_result.ticker
-    provider_ccy = data.get("financial_currency") or "USD"
-    country: str | None = data.get("country")
-    reporting_currency = resolve_reporting_currency(provider_ccy, ticker, country)
+    ticker = fin.ticker
+
+    revenue = fin.revenue
+    market_cap = fin.market_cap
+    if not revenue:
+        raise ValueError(f"Missing or zero revenue for peer {ticker}")
+    if not market_cap:
+        raise ValueError(f"Missing or zero market_cap for peer {ticker}")
+
+    # Operating EBITDA (EBIT + D&A) is the canonical EV/EBITDA numerator since
+    # EV already nets out cash. Reported fallback only when components missing —
+    # identical treatment to the target so neither side fabricates a caliber.
+    ebitda_operating = calculate_ebitda_operating(
+        fin.operating_income, fin.depreciation_amortization
+    )
+    if ebitda_operating is None:
+        ebitda_operating = fin.ebitda
+
     return CompanyFinancials(
         ticker=ticker,
-        revenue=data.get("revenue") or 0,
-        ebitda=data.get("ebitda") or 0,
-        net_income=data.get("net_income") or 0,
-        market_cap=data.get("market_cap") or 0,
-        total_debt=data.get("total_debt") or 0,
-        total_cash=data.get("total_cash") or 0,
-        gross_margin=data.get("gross_margin") or 0,
-        operating_margin=data.get("operating_margin") or 0,
-        pe_ratio=data.get("pe_ratio"),
-        reporting_currency=reporting_currency,
-        quote_currency=(data.get("quote_currency") or "USD").upper(),
+        name=fin.company_name,
+        revenue=revenue,
+        ebitda=ebitda_operating or 0,
+        net_income=fin.net_income or 0,
+        market_cap=market_cap,
+        total_debt=fin.total_debt,
+        total_cash=fin.total_cash,
+        gross_margin=fin.gross_margin or 0,
+        operating_margin=fin.operating_margin or 0,
+        pe_ratio=fin.pe_ratio,
+        reporting_currency=fin.reporting_currency,
+        quote_currency=fin.quote_currency,
     )
 
 
-def extract_price_history(price_result: DataResult) -> PriceHistory:
-    """Extract structured PriceHistory from raw yfinance price DataResult."""
-    data = price_result.data
-    history = data.get("price_history", [])
-    closes = [p["close"] for p in history if "close" in p]
+def extract_price_history(price: NormalizedPrice) -> PriceHistory:
+    """Project NormalizedPrice into PriceHistory.
+
+    Reads typed bars (``price.bars``) instead of raw dict ``data.get()``.
+    avg_price = mean of bar closes; data_points = number of bars;
+    52w high/low from the canonical derived methods (intraday high/low
+    with close fallback, window already trimmed to trailing 52 weeks).
+    """
+    closes = [b.close for b in price.bars]
     avg = sum(closes) / len(closes) if closes else 0.0
-    high_52w, low_52w = trailing_52w_high_low(history)
+    high_52w = price.fifty_two_week_high()
+    low_52w = price.fifty_two_week_low()
     return PriceHistory(
-        ticker=price_result.ticker,
+        ticker=price.ticker,
         period="1y",
-        data_points=len(closes),
-        current_price=data.get("current_price") or 0,
+        data_points=len(price.bars),
+        current_price=price.current_price,
         high_52w=high_52w if high_52w is not None else 0.0,
         low_52w=low_52w if low_52w is not None else 0.0,
         avg_price=avg,

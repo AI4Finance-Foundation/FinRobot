@@ -109,9 +109,20 @@ def build_xbrl_aligned_company(
     # Ford's -$6.1B doesn't fall through to a stale annual fallback.
     revenue = ttm_rev if ttm_rev is not None else financial_data.income.revenue
     net_income = ttm_ni if ttm_ni is not None else financial_data.income.net_income
+    # income.ebitda is already the operating caliber (extract_financial_data),
+    # matching the peer numerator now produced by extract_company_financials.
     ebitda = financial_data.income.ebitda
     gross_margin = financial_data.income.gross_margin
     operating_margin = financial_data.income.operating_margin
+
+    # Preserve the "debt/cash not reported" signal: extract_financial_data leaves
+    # valuation.enterprise_value None precisely when a net-debt component was
+    # missing (and zero-filled balance.total_debt/total_cash). Passing None here
+    # makes the target row withhold EV just like a peer would, instead of
+    # comparing an EV=market_cap artifact against debt-aware peers.
+    debt_cash_reported = financial_data.valuation.enterprise_value is not None
+    total_debt = financial_data.balance.total_debt if debt_cash_reported else None
+    total_cash = financial_data.balance.total_cash if debt_cash_reported else None
 
     company = CompanyFinancials(
         ticker=ticker.upper(),
@@ -119,8 +130,8 @@ def build_xbrl_aligned_company(
         ebitda=ebitda,
         net_income=net_income,
         market_cap=financial_data.market.market_cap,
-        total_debt=financial_data.balance.total_debt,
-        total_cash=financial_data.balance.total_cash,
+        total_debt=total_debt,
+        total_cash=total_cash,
         gross_margin=gross_margin,
         operating_margin=operating_margin,
     )

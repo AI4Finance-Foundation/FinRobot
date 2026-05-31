@@ -2,7 +2,7 @@
 
 Removing any keyword from the set changes how invalid-ticker vs service-down
 errors are classified, which propagates to 422 vs 502 HTTP responses, which
-drives TickerNotFoundView vs ServiceDownView in the UI. This audit forces a
+drives TickerNotFoundView vs workspace-shell degradation in the UI. This audit forces a
 reviewer to explicitly acknowledge that classification change.
 """
 

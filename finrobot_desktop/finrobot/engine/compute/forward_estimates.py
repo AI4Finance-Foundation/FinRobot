@@ -6,30 +6,32 @@ rows (EV/EBITDA and P/FCF reverse-engineering, spec §6.4) read from here;
 the audit test below grep-pins that no other call site shells out an analyst
 consensus number on its own.
 
-Today's behaviour (degraded path — FMP /v3/analyst-estimates not yet wired):
+Two resolution paths:
 
-  * forward_eps: from yfinance ``info["forwardEps"]`` when present.
-  * forward_revenue: derive from ``forward_eps × shares_outstanding /
-    profit_margin`` is a stretch, so we leave it None until FMP lands. This
-    is acceptable per spec §6.4.1 — without forward_revenue we drop forward
-    EBITDA / FCF to None too and let the aggregator hide those rows.
-  * forward_ebitda / forward_fcf: derived from ``forward_revenue × TTM
-    margin`` once forward_revenue is available. Until then they're None.
-  * confidence: ``low`` whenever any derived (non-consensus) number is used
-    or when TTM margin volatility > 20%, ``medium`` when forward_eps came
-    straight from analyst data with stable margins, ``high`` reserved for
-    when FMP consensus EBITDA / FCF lands (PR4c.2).
+  * FMP consensus (preferred) — when ``fmp_analyst_estimates`` is supplied
+    (DataType.FORWARD_ESTIMATES via DataLayer), the FY1 row (nearest
+    fiscal-year-end ≥ as_of) fills forward EPS / revenue / EBITDA from analyst
+    consensus. FMP's analyst-estimates endpoint does NOT carry free cash flow,
+    so forward_fcf stays None and the P/FCF reverse row stays hidden.
+    confidence = ``high`` when consensus EBITDA is present (forward P/E AND
+    EV/EBITDA both consensus-driven), else ``medium``. ``fiscal_period`` records
+    the exact FYE used so the forward P/E denominator is auditable.
+  * yfinance degraded path — when no FMP payload is available, forward_eps
+    comes from yfinance ``info["forwardEps"]`` only; forward revenue / EBITDA
+    / FCF stay None (no back-fill, per spec §6.4.1) and the aggregator hides
+    those rows. confidence = ``low`` (or down-rated on >20% TTM-margin
+    volatility), ``unavailable`` when even forward_eps is missing.
 
-Open spike for PR4c.2: wire FMP ``/v3/analyst-estimates/{ticker}`` to fill
-``forward_revenue`` / ``forward_ebitda`` / ``forward_fcf`` directly. Audit
-test ``test_forward_estimates_is_only_entry`` keeps the gate in place so
-new code can't bypass this leaf.
+Spec §6.4.1 keeps this a red-line leaf: nothing else may compute or guess a
+forward EPS / EBITDA / FCF number. The audit tests in
+``tests/audit/test_forward_estimates_red_lines.py`` grep-pin that gate.
 """
 
 from __future__ import annotations
 
 import statistics
 from dataclasses import dataclass
+from datetime import date
 from typing import Any, Literal
 
 ConfidenceLevel = Literal["high", "medium", "low", "unavailable"]
@@ -41,7 +43,10 @@ class ForwardFinancials:
 
     ``source`` describes provenance so downstream banners can render an
     accurate "this came from analyst consensus" / "this is derived from
-    TTM × forecast revenue" label (散户友好, no opaque numbers).
+    TTM × forecast revenue" label — every number stays traceable to its口径.
+    ``fiscal_period`` records WHICH forecast fiscal-year-end these numbers
+    belong to (e.g. "2026-09-30") so the forward P/E denominator is auditable
+    and comps PE / EV-EBITDA / FCF-yield all share one fiscal-year口径.
     """
 
     ticker: str
@@ -52,6 +57,7 @@ class ForwardFinancials:
     confidence: ConfidenceLevel
     source: str
     warnings: list[str]
+    fiscal_period: str | None = None
 
 
 _TTM_VOLATILITY_THRESHOLD = 0.20
@@ -65,6 +71,7 @@ def get_forward_financials(
     historical_ebitda_margins: list[float] | None = None,
     historical_fcf_margins: list[float] | None = None,
     fmp_analyst_estimates: dict[str, Any] | None = None,
+    as_of: date | None = None,
 ) -> ForwardFinancials:
     """Resolve every forward financial number for one ticker.
 
@@ -76,9 +83,11 @@ def get_forward_financials(
             assessment and EBITDA derivation. Empty / None drops EBITDA
             confidence to 'low'.
         historical_fcf_margins: 3-year FCF-margin list (same role).
-        fmp_analyst_estimates: PR4c.2 hook — when wired, prefer FMP's
-            consensus forward EBITDA / FCF / revenue over yfinance forward_eps
-            derivations. None today.
+        fmp_analyst_estimates: FMP /v3/analyst-estimates payload, shape
+            ``{"rows": [...]}`` (newest/farthest-future first). When present,
+            FMP consensus is preferred over the yfinance forward_eps fallback.
+        as_of: Reference date for forward-period selection. The leaf picks the
+            nearest fiscal-year-end ≥ as_of (FY1). Defaults to today.
 
     Returns:
         ForwardFinancials with whatever could be filled and a Chinese-language
@@ -87,7 +96,7 @@ def get_forward_financials(
     warnings: list[str] = []
 
     if fmp_analyst_estimates:
-        return _from_fmp(ticker, fmp_analyst_estimates, warnings)
+        return _from_fmp(ticker, fmp_analyst_estimates, warnings, as_of or date.today())
 
     if not yf_info:
         return _unavailable(ticker, "无 yfinance info — forward 全部不可得")
@@ -137,37 +146,52 @@ def get_forward_financials(
 # ---------------------------------------------------------------------------
 
 
-def _from_fmp(ticker: str, fmp: dict[str, Any], warnings: list[str]) -> ForwardFinancials:
+def _from_fmp(
+    ticker: str, fmp: dict[str, Any], warnings: list[str], as_of: date
+) -> ForwardFinancials:
     """Parse FMP /v3/analyst-estimates response shape.
 
-    Expected shape (FMP returns a list, most-recent first):
+    Expected shape (FMP returns a list of fiscal years, farthest-future first):
       [{
-        "date": "2026-12-31",
-        "estimatedRevenueAvg": 1.2e11,
-        "estimatedEbitdaAvg": 4.5e10,
-        "estimatedEpsAvg": 12.5,
+        "date": "2026-09-30",          # fiscal-year-end
+        "estimatedRevenueAvg": 1.2e11,  # absolute, reporting currency
+        "estimatedEbitdaAvg": 4.5e10,   # absolute, reporting currency
+        "estimatedEpsAvg": 12.5,        # per-share, reporting currency
         ...
       }, ...]
+
+    The "forward" period is FY1 — the nearest fiscal-year-end ≥ ``as_of`` —
+    NOT ``rows[0]`` (which is the farthest-future year FMP returns). Using a
+    FY+3 estimate as the forward P/E numerator would be a wrong number.
     """
     rows = fmp.get("rows") if isinstance(fmp, dict) else fmp
     if not isinstance(rows, list) or not rows:
         return _unavailable(ticker, "FMP analyst-estimates 返回空 — 降级到 yfinance forward EPS")
 
-    latest = rows[0] if isinstance(rows[0], dict) else None
-    if latest is None:
+    chosen, period_warning = _select_forward_row(rows, as_of)
+    if chosen is None:
         return _unavailable(ticker, "FMP analyst-estimates 行格式异常")
+    if period_warning is not None:
+        warnings.append(period_warning)
 
-    forward_eps = _coerce_positive_float(latest.get("estimatedEpsAvg"))
-    forward_revenue = _coerce_positive_float(latest.get("estimatedRevenueAvg"))
-    forward_ebitda = _coerce_positive_float(latest.get("estimatedEbitdaAvg"))
-    forward_fcf = _coerce_positive_float(latest.get("estimatedFreeCashFlowAvg"))
+    forward_eps = _coerce_positive_float(chosen.get("estimatedEpsAvg"))
+    forward_revenue = _coerce_positive_float(chosen.get("estimatedRevenueAvg"))
+    forward_ebitda = _coerce_positive_float(chosen.get("estimatedEbitdaAvg"))
+    forward_fcf = _coerce_positive_float(chosen.get("estimatedFreeCashFlowAvg"))
 
     if forward_eps is None and forward_revenue is None:
         return _unavailable(ticker, "FMP 行缺关键字段 (eps/revenue)")
 
-    confidence: ConfidenceLevel = (
-        "high" if forward_ebitda is not None and forward_fcf is not None else "medium"
-    )
+    # FMP /v3/analyst-estimates supplies consensus EPS / revenue / EBITDA but
+    # NOT free cash flow (estimatedFreeCashFlowAvg is absent → forward_fcf stays
+    # None, so the P/FCF reverse row stays hidden). Don't gate 'high' on FCF or
+    # it's unreachable: 'high' = consensus EPS + EBITDA (forward P/E AND forward
+    # EV/EBITDA both consensus-driven); 'medium' = EPS / revenue only.
+    if forward_eps is None:
+        warnings.append("FMP 行无 estimatedEpsAvg — forward P/E 不可得")
+    confidence: ConfidenceLevel = "high" if forward_ebitda is not None else "medium"
+
+    fiscal_period = chosen.get("date") if isinstance(chosen.get("date"), str) else None
 
     return ForwardFinancials(
         ticker=ticker.upper(),
@@ -178,7 +202,52 @@ def _from_fmp(ticker: str, fmp: dict[str, Any], warnings: list[str]) -> ForwardF
         confidence=confidence,
         source="FMP /v3/analyst-estimates consensus",
         warnings=warnings,
+        fiscal_period=fiscal_period,
     )
+
+
+def _select_forward_row(rows: list[Any], as_of: date) -> tuple[dict[str, Any] | None, str | None]:
+    """Pick the FY1 estimate row: nearest fiscal-year-end ≥ as_of.
+
+    Falls back to the most-recent past row (with a staleness warning) when no
+    future fiscal year remains, and to the first usable row when no row carries
+    a parseable date at all. Returns (row, warning_or_None).
+    """
+    dated: list[tuple[date, dict[str, Any]]] = []
+    undated_first: dict[str, Any] | None = None
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        parsed = _parse_iso_date(row.get("date"))
+        if parsed is not None:
+            dated.append((parsed, row))
+        elif undated_first is None:
+            undated_first = row
+
+    future = sorted((d for d in dated if d[0] >= as_of), key=lambda dr: dr[0])
+    if future:
+        return future[0][1], None
+
+    if dated:
+        latest = max(dated, key=lambda dr: dr[0])
+        return latest[1], (
+            f"FMP analyst-estimates 最新预测期 {latest[0].isoformat()} 早于 "
+            f"{as_of.isoformat()} — forward 数据可能过期"
+        )
+
+    if undated_first is not None:
+        return undated_first, "FMP analyst-estimates 行缺 date — 无法确认 forward 财年口径"
+
+    return None, None
+
+
+def _parse_iso_date(value: Any) -> date | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return date.fromisoformat(value[:10])
+    except ValueError:
+        return None
 
 
 # ---------------------------------------------------------------------------

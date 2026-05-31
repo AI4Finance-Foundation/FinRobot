@@ -25,6 +25,9 @@ from finrobot.engine.compute.xbrl_aligned_comps import (
     override_company_with_xbrl,
 )
 from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
+from finrobot.engine.data.normalize.financials import normalize_financials
+from finrobot.engine.data.normalize.price import normalize_price
 from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
@@ -45,6 +48,13 @@ from finrobot.engine.models.financial import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Peer comp-set sizing. The LLM over-selects (6-8 ranked candidates) so that
+# transient drops (a rate-limited financials fetch, a missing FX quote for a
+# foreign ADR) thin the set instead of failing the whole report. MIN is the
+# floor for a defensible median; MAX caps the published comp set.
+_PEER_COMP_SET_MIN = 3
+_PEER_COMP_SET_MAX = 6
 
 
 async def normalize_peer_to_usd(company: CompanyFinancials) -> CompanyFinancials:
@@ -98,14 +108,21 @@ async def execute_peer_analysis(
         deps.settings.create_model(),
         output_type=PeerSelection,
         instructions=(
-            "Select 3-5 comparable publicly traded companies for peer analysis. "
+            "Select 6-8 comparable publicly traded companies for peer analysis, "
+            "RANKED most-comparable first. "
             "Choose companies in the same sector with similar business models and market cap. "
             "Return valid ticker symbols only (e.g. MSFT, GOOGL, not 'Microsoft').\n\n"
+            "**为什么要 6-8 个（不是 3-5）**：下游只保留前几个能成功取到财报的，"
+            "多出来的是冗余保险——任一 peer 的数据源被限流 / 取不到 FX 汇率时直接丢弃，"
+            "靠排名靠后的候补补位，避免'少一个就整份研报失败'。所以宁多勿少。\n\n"
+            "**优先美股上市 peer**：外国 ADR（如 BIDU/TSM）需要把本币财报按即期汇率"
+            "归一到 USD，汇率源限流时该 peer 会被丢弃。同 industry 下优先选美股本币(USD)公司，"
+            "外国 peer 可以放进列表但排在靠后位置当候补。\n\n"
             "**Peer 选择硬约束**：\n"
             "所有 peer 必须与 target 的 yfinance industry 字段完全一致（不是 sector，是 industry）。\n"
             "例：AAPL industry='Consumer Electronics' → peer 必须也是 Consumer Electronics。\n"
             "不允许跨 industry 选 peer（即使同 sector）。\n"
-            "如果合规 peer 不足 5 个，宁可 3-4 个也不要补凑跨 industry 的。"
+            "如果合规 peer 不足 6 个，按实际数量给（最少 3 个），不要补凑跨 industry 的。"
         ),
         defer_model_check=True,
     )
@@ -117,8 +134,9 @@ async def execute_peer_analysis(
 
     async def _fetch_one_peer(peer_ticker: str) -> CompanyFinancials | None:
         try:
-            fin_result = await deps.data_layer.fetch(DataType.FINANCIALS, peer_ticker)
-            company = extract_company_financials(fin_result)
+            _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, peer_ticker)
+            assert isinstance(_fin, NormalizedFinancials)  # FINANCIALS always returns this type
+            company = extract_company_financials(_fin)
             # Normalize foreign-listed ADRs / local listings to canonical USD
             # BEFORE multiples are computed — otherwise TSM (TWD financials,
             # USD market_cap) collapses EV/EBITDA to 0.158x. A failed FX lookup
@@ -132,13 +150,23 @@ async def execute_peer_analysis(
             logger.warning(f"Skipping peer {peer_ticker}: {e}")
             return None
 
+    # The LLM over-selects (6-8 ranked candidates); we fetch all concurrently and
+    # keep the survivors in rank order, capped at PEER_COMP_SET_MAX. Extra
+    # candidates are drop-insurance: a rate-limited financials fetch or a missing
+    # FX quote drops that one peer instead of failing the whole report. gather +
+    # the order-preserving comprehension keep best-first ranking, so the slice
+    # retains the most-comparable survivors.
     peer_results = await asyncio.gather(*[_fetch_one_peer(t) for t in selection.tickers])
-    peers: list[CompanyFinancials] = [p for p in peer_results if p is not None]
+    survivors: list[CompanyFinancials] = [p for p in peer_results if p is not None]
+    peers: list[CompanyFinancials] = survivors[:_PEER_COMP_SET_MAX]
 
-    if len(peers) < 3:
+    if len(peers) < _PEER_COMP_SET_MIN:
         raise ValueError(
-            f"Only {len(peers)} peers fetched successfully (need >=3). "
-            f"Attempted: {selection.tickers}."
+            f"Only {len(survivors)} of {len(selection.tickers)} candidate peers "
+            f"returned usable financials (need >={_PEER_COMP_SET_MIN}). "
+            f"Candidates: {selection.tickers}. This is almost always transient "
+            f"data-provider rate-limiting (yfinance 429 / FX quote unavailable) — "
+            f"retry shortly."
         )
 
     target_fin = _find_target_financial_data(structured_context)
@@ -188,14 +216,14 @@ async def execute_financial_data_step(
     and injects them into structured_context for chart generation.
     """
     step_result = await agent.run(prompt, deps=deps)
-    financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
-    price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
-    financial_data = extract_financial_data(financials_result, price_result)
-    # Merge cross-validation warnings from DataResult into FinancialData so
-    # they reach PipelineResult and the final report.
-    for w in financials_result.warnings:
-        if w not in financial_data.warnings:
-            financial_data.warnings.append(w)
+    _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+    _price = await deps.data_layer.fetch_canonical(DataType.PRICE, ticker)
+    assert isinstance(_fin, NormalizedFinancials)  # FINANCIALS always returns this type
+    assert isinstance(_price, NormalizedPrice)  # PRICE always returns this type
+    financial_data = extract_financial_data(_fin, _price)
+    # Cross-validation warnings are already carried on the canonical objects and
+    # merged into FinancialData.warnings inside extract_financial_data — no
+    # further merging needed here.
 
     # Build multi-year historical metrics + forecast for chart generation.
     # These are deterministic — no LLM call needed.
@@ -242,19 +270,26 @@ async def _build_historical_metrics(
             )
             return None
 
-        # Convert each yearly DataResult to FinancialData
-        # Use a dummy price result (historical price not critical for metrics)
-        dummy_price = DataResult(
+        # Convert each yearly DataResult to FinancialData.
+        # Historical slices come from fetch_historical (list[DataResult]), which has
+        # no canonical cache slot.  Normalize inline here (the one allowed per-year
+        # use of normalize_* outside fetch_canonical — see ADR-0006 §7 comment).
+        # The dummy price carries only the single current close used for fallback;
+        # the 52w window will collapse to a single bar, which is acceptable for
+        # historical year-over-year metrics that don't use 52w high/low.
+        dummy_price_raw = DataResult(
             data={"price_history": [{"close": current_fd.market.current_price}]},
             provider="derived",
             ticker=ticker,
             data_type="price",
             timestamp=datetime.now(tz=timezone.utc),
         )
+        dummy_price_norm = normalize_price(dummy_price_raw)
         fd_list: list[FinancialData] = []
         for yr in yearly_results:
             try:
-                fd = extract_financial_data(yr, dummy_price)
+                yr_norm = normalize_financials(yr)
+                fd = extract_financial_data(yr_norm, dummy_price_norm)
                 fd_list.append(fd)
             except (ValueError, KeyError) as e:
                 logger.debug("Skipping year for %s: %s", ticker, e)

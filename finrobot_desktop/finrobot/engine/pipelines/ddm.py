@@ -26,7 +26,7 @@ from pydantic_ai import Agent
 
 from finrobot.engine.compute.ddm import calculate_ddm, calculate_ddm_sensitivity
 from finrobot.engine.compute.ddm_seed import seed_ddm_inputs
-from finrobot.engine.data.normalize.financials import normalize_financials
+from finrobot.engine.data.normalize.contracts import NormalizedFinancials
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import DDMInputs, FinancialData, StepOutput
@@ -79,9 +79,9 @@ async def _execute_ddm_seed(
             "but received: " + type(financial_data).__name__
         )
 
-    financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
-    normalized = normalize_financials(financials_result)
-    ddm_inputs = seed_ddm_inputs(financial_data, normalized)
+    _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+    assert isinstance(_fin, NormalizedFinancials)  # FINANCIALS always returns this type
+    ddm_inputs = seed_ddm_inputs(financial_data, _fin)
 
     return StepOutput(text=ddm_inputs.model_dump_json(), structured=ddm_inputs)
 
@@ -149,6 +149,8 @@ def create_ddm_pipeline(agents: dict[str, Agent]) -> Pipeline:
                     lambda out: validate_has_fields(out, ["revenue"]),
                 ),
                 executor=execute_financial_data_step,
+                # ddm_params/ddm_calc read this FinancialData — abort if it fails.
+                critical=True,
             ),
             PipelineStep(
                 name="ddm_params",

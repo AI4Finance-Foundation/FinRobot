@@ -13,9 +13,11 @@ would 25× the cost of the endpoint with zero accuracy benefit.
 
 EV/EBITDA and P/FCF rows are *multiple* methods — they reverse-engineer a
 band from the company's own 3-year multiple distribution (P25/P75) times a
-forward profit number. Both inputs land later (PR3 historical-bands and PR4c
-FMP analyst estimates); until then the multiple rows are omitted with a
-warning so the UI can surface "降级显示 4 行 valuation, 2 行 multiple 未就绪".
+forward profit number. Forward profit now comes from FMP analyst estimates
+(compute/forward_estimates.py); the historical-band input (PR3) is still
+unwired at the aggregate route, so the multiple rows stay omitted with a
+warning until that lands — the UI surfaces "降级显示 4 行 valuation, 2 行
+multiple 未就绪".
 """
 
 from __future__ import annotations
@@ -84,7 +86,7 @@ def aggregate_valuation(
         warnings.append("comps_pe: 无 peer_analysis artifact — 跑 AI 完整研报后此行展示")
     elif forward_eps is None:
         warnings.append(
-            "comps_pe: forward EPS 不可得（PR4c 待集成 FMP analyst-estimates）— "
+            "comps_pe: forward EPS 不可得（无 FMP analyst-estimates 数据 / 未配置 FMP key）— "
             "降级使用 trailing EPS"
         )
 
@@ -102,13 +104,13 @@ def aggregate_valuation(
         methods.append(m)
     else:
         warnings.append(
-            "ev_ebitda: PR3 历史估值带 + PR4c forward EBITDA 未就绪 — multiple 行降级隐藏"
+            "ev_ebitda: 历史估值带(PR3 未接) 或 forward EBITDA 不可得 — multiple 行降级隐藏"
         )
 
     if (m := _p_fcf_method(forward_fcf, historical_p_fcf_band, shares_outstanding)) is not None:
         methods.append(m)
     else:
-        warnings.append("p_fcf: PR3 历史估值带 + PR4c forward FCF 未就绪 — multiple 行降级隐藏")
+        warnings.append("p_fcf: 历史估值带(PR3 未接) 或 forward FCF 不可得 — multiple 行降级隐藏")
 
     return ValuationAggregate(
         ticker=ticker.upper(),
@@ -158,7 +160,7 @@ def _comps_pe_method(
     if peer_comps is None or peer_comps.median_pe is None or peer_comps.median_pe <= 0:
         return None
 
-    # Prefer forward EPS once PR4c lands; fall back to trailing EPS (net_income / shares).
+    # Prefer forward EPS (FMP analyst-estimates); fall back to trailing EPS (net_income / shares).
     eps = forward_eps if forward_eps is not None and forward_eps > 0 else None
     if eps is None and shares_outstanding is not None and shares_outstanding > 0:
         net_income = peer_comps.target.net_income
@@ -173,7 +175,7 @@ def _comps_pe_method(
     source = (
         "peer_median_pe × forward_eps"
         if used_forward
-        else "peer_median_pe × trailing_eps (forward 不可得 · 待 PR4c)"
+        else "peer_median_pe × trailing_eps (forward 不可得)"
     )
     confidence = 0.78 if used_forward else 0.55
     return ValuationMethodRange(

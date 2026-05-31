@@ -41,10 +41,14 @@ class DataType(StrEnum):
     # SEC EDGAR primary data layer (added 2026-05-27 / EdgarTools 5.31).
     # See specs/research/EdgarTools5集成评估-2026-05-27.md §4 门 2.
     # ────────────────────────────────────────────────────────────────
-    FILINGS_10K = "filings_10k"          # 10-K annual report (replaces legacy FILINGS)
-    FILINGS_10Q = "filings_10q"           # 10-Q quarterly report
-    FILINGS_8K = "filings_8k"             # 8-K material event (CurrentReport in edgartools)
-    XBRL_FACTS = "xbrl_facts"             # standardized us-gaap concepts (cross-company aligned)
-    INSIDER_TRADES = "insider_trades"     # Form 4 — insider transactions
+    FILINGS_10K = "filings_10k"  # 10-K annual report (replaces legacy FILINGS)
+    FILINGS_10Q = "filings_10q"  # 10-Q quarterly report
+    FILINGS_8K = "filings_8k"  # 8-K material event (CurrentReport in edgartools)
+    XBRL_FACTS = "xbrl_facts"  # standardized us-gaap concepts (cross-company aligned)
+    INSIDER_TRADES = "insider_trades"  # Form 4 — insider transactions
     INSTITUTIONAL_HOLDINGS = "institutional_holdings"  # 13F — via local cache (no reverse API)
-    PROXY_STATEMENT = "proxy_statement"   # DEF 14A — executive compensation / governance
+    PROXY_STATEMENT = "proxy_statement"  # DEF 14A — executive compensation / governance
+    # Analyst consensus forward estimates (FMP /v3/analyst-estimates). Feeds the
+    # one-true forward EPS / EBITDA / FCF leaf (compute/forward_estimates.py) so
+    # the Football Field forward-multiple rows stop degrading to trailing.
+    FORWARD_ESTIMATES = "forward_estimates"

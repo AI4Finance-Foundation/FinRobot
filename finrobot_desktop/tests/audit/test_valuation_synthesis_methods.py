@@ -17,7 +17,6 @@ from finrobot.engine.models.financial import (
     DCFResult,
     PeerComps,
     ValuationMethod,
-    ValuationSynthesis,
 )
 from finrobot.engine.pipelines._helpers import build_valuation_synthesis
 

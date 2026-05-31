@@ -20,8 +20,10 @@ from finrobot.engine.pipelines.base import (
     Pipeline,
     PipelineResult,
     PipelineStep,
+    PipelineStepError,
     StructuredValidator,
     TextValidator,
+    _PROMPT_MAX_STEP_DATA_CHARS,
     _is_recoverable_exception,
 )
 from finrobot.engine.pipelines.validators import ValidationResult, validate_is_non_empty
@@ -573,6 +575,20 @@ class TestIsRecoverableException:
     def test_generic_value_error_is_not_recoverable(self):
         assert not _is_recoverable_exception(ValueError("bad input schema"))
 
+    def test_context_length_overflow_is_not_recoverable(self):
+        """A 400 context-length overflow is deterministic — re-sending the same
+        oversized prompt fails identically, so it must abort, not retry."""
+        msg = (
+            "status_code: 400, model_name: gpt-4o, body: {'message': \"This "
+            "model's maximum context length is 128000 tokens. However, your "
+            "messages resulted in 146840 tokens. Please reduce the length of "
+            "the messages or functions.\", 'type': 'invalid_request_error'}"
+        )
+        assert not _is_recoverable_exception(AgentRunError(msg))
+
+    def test_context_length_exceeded_type_is_not_recoverable(self):
+        assert not _is_recoverable_exception(RuntimeError("context_length_exceeded"))
+
 
 @pytest.mark.asyncio
 async def test_executor_agent_run_error_retries_then_succeeds():
@@ -665,3 +681,109 @@ async def test_executor_provider_error_rate_limit_retries():
     assert len(call_count) == 2
     assert result.steps["data_step"] == "data fetched successfully"
     assert result.failed_validations == []
+
+
+# ---------------------------------------------------------------------------
+# Critical-step abort: a hard-prerequisite failure must stop the run, not
+# continue best-effort into a confusing downstream crash.
+# ---------------------------------------------------------------------------
+
+
+def _always_fail_validator(output) -> ValidationResult:
+    return ValidationResult(passed=False, error="boom")
+
+
+@pytest.mark.asyncio
+async def test_critical_step_failure_aborts_pipeline():
+    """A critical step that exhausts retries raises PipelineStepError and the
+    downstream steps never run (no silent best-effort continue)."""
+    downstream_ran: list[str] = []
+
+    async def downstream_executor(agent, deps, prompt, structured_context, ticker):
+        downstream_ran.append(ticker)
+        return "should never run"
+
+    critical = PipelineStep(
+        name="data_collection",
+        agent=_make_agent("data"),
+        validator=TextValidator(_always_fail_validator),
+        critical=True,
+    )
+    downstream = PipelineStep(
+        name="peer_analysis",
+        agent=_make_agent("peers"),
+        validator=TextValidator(validate_is_non_empty),
+        executor=downstream_executor,
+    )
+    pipeline = Pipeline(steps=[critical, downstream], max_retries=1)
+
+    with pytest.raises(PipelineStepError) as exc:
+        await _run_pipeline(pipeline)
+
+    assert exc.value.step_name == "data_collection"
+    assert "boom" in str(exc.value)
+    assert downstream_ran == []  # aborted before reaching downstream
+
+
+@pytest.mark.asyncio
+async def test_noncritical_step_failure_continues():
+    """A non-critical step that fails validation is recorded but the pipeline
+    continues — the existing best-effort behavior is preserved."""
+    steps = [
+        PipelineStep(
+            name="soft_step",
+            agent=_make_agent("out"),
+            validator=TextValidator(_always_fail_validator),
+            # critical defaults to False
+        ),
+        _make_step("next_step"),
+    ]
+    pipeline = Pipeline(steps=steps, max_retries=1)
+    result = await _run_pipeline(pipeline)
+
+    assert "next_step" in result.steps
+    assert any(f["step"] == "soft_step" for f in result.failed_validations)
+
+
+# ---------------------------------------------------------------------------
+# Prompt-size guard: required_data text is bounded so a pathological provider
+# payload (e.g. a full 10-K) can never flood the prompt past the context window.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_step_data_is_truncated_to_cap():
+    """An oversized to_context_string is capped with a visible marker before it
+    reaches the prompt."""
+
+    class HugeDataLayer:
+        async def fetch(self, data_type, ticker, **kwargs) -> DataResult:
+            return DataResult(
+                data={"giant": "x" * (_PROMPT_MAX_STEP_DATA_CHARS * 3)},
+                provider="fake",
+                ticker=ticker,
+                data_type=data_type,
+                timestamp=datetime.now(tz=timezone.utc),
+            )
+
+    captured: list[str] = []
+
+    async def capture_executor(agent, deps, prompt, structured_context, ticker):
+        captured.append(prompt)
+        return "ok"
+
+    step = PipelineStep(
+        name="data_step",
+        agent=_make_agent("ok"),
+        required_data=["financials"],
+        validator=TextValidator(validate_is_non_empty),
+        executor=capture_executor,
+    )
+    pipeline = Pipeline(steps=[step])
+    await pipeline.execute(FakeDeps(data_layer=HugeDataLayer()), "AAPL")
+
+    assert len(captured) == 1
+    prompt = captured[0]
+    assert "truncated" in prompt
+    # The raw payload was 3x the cap; the prompt must be far smaller than that.
+    assert len(prompt) < _PROMPT_MAX_STEP_DATA_CHARS * 2

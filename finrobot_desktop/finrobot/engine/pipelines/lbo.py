@@ -156,6 +156,9 @@ def create_lbo_pipeline(agents: dict[str, Agent]) -> Pipeline:
                     lambda out: validate_has_fields(out, ["revenue", "ebitda"]),
                 ),
                 executor=execute_financial_data_step,
+                # lbo_parameters/lbo_calculation read this FinancialData — abort
+                # if it fails.
+                critical=True,
             ),
             PipelineStep(
                 name="lbo_parameters",

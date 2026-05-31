@@ -119,15 +119,32 @@ def calculate_multiples(company: CompanyFinancials) -> CompanyFinancials:
     than silently producing a thinner peer set.
     """
     result = company.model_copy(deep=True)
-    ev = calculate_ev(result.market_cap, result.total_debt, result.total_cash)
-    result.enterprise_value = ev
 
-    raw_ev_ebitda = ev / result.ebitda if result.ebitda > 0 else None
-    result.ev_ebitda = _sanity(raw_ev_ebitda, PEER_EV_EBITDA_SANITY_MIN, PEER_EV_EBITDA_SANITY_MAX)
+    # EV (and the EV-based multiples) only when BOTH net-debt components are
+    # reported. A missing total_debt/total_cash leaves EV undefined rather than
+    # assuming zero — mirrors extract_financial_data's target path and keeps a
+    # debt/cash-less peer out of the EV/EBITDA and EV/Revenue medians instead of
+    # contributing an EV=market_cap artifact.
+    if result.total_debt is not None and result.total_cash is not None:
+        ev = calculate_ev(result.market_cap, result.total_debt, result.total_cash)
+        result.enterprise_value = ev
 
-    raw_ev_revenue = ev / result.revenue if result.revenue > 0 else None
-    result.ev_revenue = _sanity(raw_ev_revenue, PEER_EV_REVENUE_SANITY_MIN, PEER_EV_REVENUE_SANITY_MAX)
+        raw_ev_ebitda = ev / result.ebitda if result.ebitda > 0 else None
+        result.ev_ebitda = _sanity(
+            raw_ev_ebitda, PEER_EV_EBITDA_SANITY_MIN, PEER_EV_EBITDA_SANITY_MAX
+        )
 
+        raw_ev_revenue = ev / result.revenue if result.revenue > 0 else None
+        result.ev_revenue = _sanity(
+            raw_ev_revenue, PEER_EV_REVENUE_SANITY_MIN, PEER_EV_REVENUE_SANITY_MAX
+        )
+    else:
+        result.enterprise_value = None
+        result.ev_ebitda = None
+        result.ev_revenue = None
+
+    # P/E is equity-only and independent of net debt, so it survives a missing
+    # balance sheet.
     raw_pe = result.market_cap / result.net_income if result.net_income > 0 else None
     result.pe_ratio = _sanity(raw_pe, PEER_PE_SANITY_MIN, PEER_PE_SANITY_MAX)
 

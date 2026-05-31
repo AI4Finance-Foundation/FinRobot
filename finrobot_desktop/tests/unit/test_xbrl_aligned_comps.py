@@ -13,6 +13,7 @@ from finrobot.engine.models.financial import (
     FinancialData,
     IncomeStatement,
     MarketData,
+    ValuationMetrics,
 )
 
 
@@ -28,6 +29,10 @@ def _financial_data() -> FinancialData:
         ),
         balance=BalanceSheet(total_debt=30.0, total_cash=5.0),
         market=MarketData(current_price=10.0, shares_outstanding=10.0, market_cap=100.0),
+        # enterprise_value present ⇔ debt/cash were reported (extract_financial_data
+        # invariant). build_xbrl_aligned_company keys the target's debt/cash
+        # passthrough off this, so the fixture must populate it like real data.
+        valuation=ValuationMetrics(enterprise_value=100.0 + 30.0 - 5.0),
         data_source="test",
         timestamp=datetime.now(tz=timezone.utc),
     )

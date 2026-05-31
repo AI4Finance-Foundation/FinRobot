@@ -50,13 +50,17 @@ async def fetch_historical_metrics(
 
 
 async def _fetch_trailing_pe(data_layer: DataLayer, ticker: str) -> float | None:
-    """Best-effort current trailing P/E from the snapshot FINANCIALS payload."""
+    """Best-effort current trailing P/E from the snapshot FINANCIALS canonical payload."""
     try:
-        snapshot = await data_layer.fetch(DataType.FINANCIALS, ticker)
+        fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+        # NormalizedFinancials carries pe_ratio as a typed optional float.
+        from finrobot.engine.data.normalize.contracts import NormalizedFinancials
+
+        if isinstance(fin, NormalizedFinancials):
+            return fin.pe_ratio
+        return None
     except (ProviderError, ValueError, KeyError):
         return None
-    data = snapshot.data if isinstance(snapshot.data, dict) else {}
-    return _safe_float(data.get("pe_ratio"))
 
 
 def _build_from_yearly(

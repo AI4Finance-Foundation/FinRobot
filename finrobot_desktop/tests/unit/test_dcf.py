@@ -115,17 +115,13 @@ def test_zero_capex_zero_nwc():
     assert abs(result.projected_fcf[0] - expected_fcf0) < 1
 
 
-def test_dcf_result_carries_fcf_formula_tag():
-    """AGENTS.md red-line #5: every DCFResult MUST carry the formula tag so
-    simplification regressions can't sneak past UI consumers. The tag becomes
-    part of the artifact contract — any future simplified branch must actively
-    flip it to ``simplified_ebitda``."""
+def test_dcf_result_has_no_removed_fcf_formula_field():
+    """DCFResult keeps the FCF contract in code and tests, not serialized output."""
     inputs = _make_inputs()
     result = calculate_dcf(inputs, wacc_override=0.10)
     dumped = result.model_dump()
-    assert "fcf_formula" in DCFResult.model_fields
-    assert dumped["fcf_formula"] == "standard_ebit_to_fcf"
-    assert result.fcf_formula == "standard_ebit_to_fcf"
+    assert "fcf_formula" not in DCFResult.model_fields
+    assert "fcf_formula" not in dumped
 
 
 def test_fcf_formula_explicit():

@@ -1,38 +1,47 @@
-"""Market overview data — indices, sector ETFs, earnings calendar.
+"""Deterministic per-ticker market-data helpers.
 
 What this code does that raw LLM cannot:
-- Deterministically fetches live market prices from yfinance via batch download
-  so every index/sector price is traceable to a provider call, never hallucinated.
-- Computes price change and change_pct from two-day history arithmetic — an LLM
-  would produce plausible but unrepeatable numbers.
-- Optionally hits FMP /v3/earning_calendar for forward-looking events with typed
-  output; LLM cannot produce a correctly dated forward earnings calendar.
+- Computes a price-trend snapshot (SMA 20/50/200 stack, trend classification,
+  52-week range position) from a close series with repeatable arithmetic — an
+  LLM would produce plausible but unrepeatable numbers.
+- Hits FMP /v3/earning_calendar for forward-looking events with typed output;
+  an LLM cannot produce a correctly dated forward earnings calendar.
+
+门一收口 (ADR-0006 / tests/audit/test_no_direct_yfinance.py): the price series
+for technicals is pulled via ``DataLayer.fetch_canonical(PRICE)`` — the provider
+chain (FMP → yfinance) and the circuit-breaker cover it, and provenance stays
+honest. This module never touches yfinance directly.
 
 Leaf-layer rules: no imports from agents/pipelines/orchestrator/pydantic_ai/openai.
+It may depend on the data layer (it is a 取数协调器, not a pure operator — ADR-0005).
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
+from collections.abc import Mapping, Sequence
 from datetime import date, timedelta
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from pydantic import BaseModel
 
+from finrobot.engine.data.interface import ProviderError
+from finrobot.engine.data.normalize.contracts import NormalizedPrice
+from finrobot.engine.data.types import DataType
+
+if TYPE_CHECKING:
+    from finrobot.engine.data.layer import DataLayer
+
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Data models
-# ---------------------------------------------------------------------------
+_FMP_TIMEOUT = 10.0  # seconds
 
-
-class MarketIndex(BaseModel):
-    symbol: str
-    name: str
-    price: float
-    change: float
-    change_pct: float
+# A trend snapshot needs at least the SMA20 window to mean anything; below this
+# the series is too short to classify (returns insufficient_history).
+_MIN_HISTORY = 20
+# 52-week window in trading days (~252). Shorter series use whatever they have.
+_WINDOW_52W = 252
 
 
 class EarningsEvent(BaseModel):
@@ -44,145 +53,100 @@ class EarningsEvent(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Symbol registries
+# Technical snapshot (pure) + canonical entry point
 # ---------------------------------------------------------------------------
 
-INDICES: dict[str, str] = {
-    "^GSPC": "S&P 500",
-    "^IXIC": "NASDAQ",
-    "^DJI": "DOW 30",
-    "^VIX": "VIX",
-    "^TNX": "10Y UST",
-    "^RUT": "RUSSELL 2000",
-}
 
-SECTOR_ETFS: dict[str, str] = {
-    "XLK": "Tech",
-    "XLF": "Financials",
-    "XLE": "Energy",
-    "XLV": "Healthcare",
-    "XLY": "Consumer Disc",
-    "XLP": "Consumer Staples",
-    "XLI": "Industrials",
-    "XLB": "Materials",
-    "XLRE": "Real Estate",
-    "XLU": "Utilities",
-    "XLC": "Communication",
-}
-
-# ---------------------------------------------------------------------------
-# Internal: sync batch download (wrapped in asyncio.to_thread by callers)
-# ---------------------------------------------------------------------------
-
-_FMP_TIMEOUT = 10.0  # seconds
+def _sma(closes: Sequence[float], window: int) -> float | None:
+    """Simple moving average over the last ``window`` closes, or None if the
+    series is shorter than the window (the average would be misleading)."""
+    if len(closes) < window:
+        return None
+    return sum(closes[-window:]) / window
 
 
-def _batch_download(symbols: list[str]) -> dict[str, tuple[float, float]]:
-    """Synchronous yfinance batch download.
+def _classify_trend(
+    current: float, sma20: float | None, sma50: float | None, sma200: float | None
+) -> str:
+    """Classify trend from the SMA stack (short→long).
 
-    Returns mapping of symbol -> (latest_close, previous_close).
-    Missing or errored symbols are omitted from the result — callers skip them.
+    Fully stacked rising MAs (SMA20 > SMA50 > SMA200) → uptrend; fully stacked
+    falling → downtrend; otherwise sideways. With fewer than two MAs available
+    (short series) fall back to price-vs-SMA20.
     """
-    import yfinance as yf
+    mas = [m for m in (sma20, sma50, sma200) if m is not None]
+    if len(mas) >= 2:
+        if all(a > b for a, b in zip(mas, mas[1:], strict=False)):
+            return "uptrend"
+        if all(a < b for a, b in zip(mas, mas[1:], strict=False)):
+            return "downtrend"
+        return "sideways"
+    ref = mas[0] if mas else current
+    if current > ref:
+        return "uptrend"
+    if current < ref:
+        return "downtrend"
+    return "sideways"
 
+
+def technical_payload(history: Sequence[Mapping[str, float]]) -> dict[str, Any]:
+    """Pure trend snapshot from a close series (oldest → newest).
+
+    ``history`` is a list of bar-like mappings each carrying a ``close``. Returns
+    ``{"available": False, "reason": ...}`` when the series is too short to
+    classify, otherwise a snapshot with SMA 20/50/200, trend, current price, and
+    52-week high/low/range-position. No provider access — callers pass closes in.
+    """
+    closes = [float(b["close"]) for b in history if b.get("close") is not None]
+    if len(closes) < _MIN_HISTORY:
+        return {"available": False, "reason": "insufficient_history"}
+
+    current = closes[-1]
+    sma20 = _sma(closes, 20)
+    sma50 = _sma(closes, 50)
+    sma200 = _sma(closes, 200)
+
+    window = closes[-_WINDOW_52W:]
+    high_52w = max(window)
+    low_52w = min(window)
+    span = high_52w - low_52w
+    range_position = (current - low_52w) / span if span > 0 else None
+
+    return {
+        "available": True,
+        "trend": _classify_trend(current, sma20, sma50, sma200),
+        "current_price": current,
+        "sma20": sma20,
+        "sma50": sma50,
+        "sma200": sma200,
+        "high_52w": high_52w,
+        "low_52w": low_52w,
+        "range_position": range_position,
+    }
+
+
+async def get_technicals(ticker: str, layer: DataLayer) -> dict[str, Any]:
+    """Trend snapshot for ``ticker``, pulling the close series via the canonical
+    PRICE chain (门一收口 — never yfinance directly).
+
+    Returns ``{"available": False, "reason": "no_data"}`` on a provider failure
+    or an empty series; otherwise the :func:`technical_payload` snapshot. This is
+    the standalone entry for callers that have only a ticker; callers that
+    already hold a ``NormalizedPrice`` should call :func:`technical_payload` on
+    its bars to avoid a redundant fetch.
+    """
     try:
-        df = yf.download(
-            symbols,
-            period="5d",  # 5 trading days covers weekends / holidays
-            group_by="ticker",
-            auto_adjust=True,
-            progress=False,
-            threads=False,  # avoid spawning threads inside to_thread
-        )
-    except (OSError, ValueError, RuntimeError, ImportError, AttributeError, TypeError):
-        # yfinance raises a mix of these depending on network state, pandas
-        # version, or curl_cffi errors. All are non-fatal here — return empty
-        # so callers degrade gracefully rather than crashing the whole request.
-        logger.exception("yfinance batch download failed")
-        return {}
-
-    result: dict[str, tuple[float, float]] = {}
-
-    # yfinance MultiIndex layout differs between single vs multiple symbols.
-    # When only one symbol is downloaded the columns are flat (Open/High/Close…).
-    # When multiple symbols are downloaded, columns are a MultiIndex (symbol, field).
-    if len(symbols) == 1:
-        sym = symbols[0]
-        try:
-            closes = df["Close"].dropna()
-            if len(closes) >= 2:
-                result[sym] = (float(closes.iloc[-1]), float(closes.iloc[-2]))
-            elif len(closes) == 1:
-                result[sym] = (float(closes.iloc[-1]), float(closes.iloc[-1]))
-        except (KeyError, IndexError, TypeError, ValueError):
-            logger.warning("No Close data for %s", sym)
-        return result
-
-    for sym in symbols:
-        try:
-            closes = df[sym]["Close"].dropna()
-            if len(closes) >= 2:
-                result[sym] = (float(closes.iloc[-1]), float(closes.iloc[-2]))
-            elif len(closes) == 1:
-                result[sym] = (float(closes.iloc[-1]), float(closes.iloc[-1]))
-            else:
-                logger.warning("Empty Close series for %s — skipping", sym)
-        except (KeyError, IndexError, TypeError, ValueError):
-            logger.warning("Failed to extract Close data for %s — skipping", sym)
-
-    return result
-
-
-def _build_market_index_list(
-    symbol_map: dict[str, str],
-    prices: dict[str, tuple[float, float]],
-) -> list[MarketIndex]:
-    """Convert raw price tuples into MarketIndex objects, skipping missing symbols."""
-    out: list[MarketIndex] = []
-    for symbol, name in symbol_map.items():
-        if symbol not in prices:
-            continue
-        latest, prev = prices[symbol]
-        change = round(latest - prev, 4)
-        change_pct = round((change / prev) * 100, 4) if prev != 0 else 0.0
-        out.append(
-            MarketIndex(
-                symbol=symbol,
-                name=name,
-                price=round(latest, 4),
-                change=change,
-                change_pct=change_pct,
-            )
-        )
-    return out
+        price = await layer.fetch_canonical(DataType.PRICE, ticker)
+    except ProviderError:
+        return {"available": False, "reason": "no_data"}
+    if not isinstance(price, NormalizedPrice) or not price.bars:
+        return {"available": False, "reason": "no_data"}
+    return technical_payload([{"close": bar.close} for bar in price.bars])
 
 
 # ---------------------------------------------------------------------------
-# Public async API
+# Earnings calendar (FMP)
 # ---------------------------------------------------------------------------
-
-
-async def fetch_market_indices() -> list[MarketIndex]:
-    """Fetch current prices for major market indices.
-
-    Uses yfinance batch download (wrapped in asyncio.to_thread to avoid
-    blocking the event loop). Symbols that fail to return data are skipped
-    gracefully — the response may be a partial list.
-    """
-    symbols = list(INDICES.keys())
-    prices = await asyncio.to_thread(_batch_download, symbols)
-    return _build_market_index_list(INDICES, prices)
-
-
-async def fetch_sector_etfs() -> list[MarketIndex]:
-    """Fetch current prices for GICS sector ETFs.
-
-    Same approach as fetch_market_indices — yfinance batch, to_thread wrapper,
-    graceful per-symbol failure.
-    """
-    symbols = list(SECTOR_ETFS.keys())
-    prices = await asyncio.to_thread(_batch_download, symbols)
-    return _build_market_index_list(SECTOR_ETFS, prices)
 
 
 async def fetch_earnings_calendar(

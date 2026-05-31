@@ -6,6 +6,7 @@ import pytest
 from finrobot.engine.data.cache import DataCache
 from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
 from finrobot.engine.data.layer import DataLayer
+from finrobot.engine.data.normalize import NormalizedFinancials, NormalizedPrice
 
 
 # ---------------------------------------------------------------------------
@@ -646,3 +647,92 @@ class TestFetchPriceRaises:
         layer = DataLayer([p], cache)
         with pytest.raises(ProviderError, match="No PRICE"):
             await layer.fetch_price("AAPL")
+
+
+def _price_result(provider: str = "mock") -> DataResult:
+    return DataResult(
+        data={
+            "current_price": 175.0,
+            "price_history": [
+                {"date": "2026-05-20", "open": 170, "high": 171, "low": 169, "close": 170},
+                {"date": "2026-05-21", "open": 171, "high": 176, "low": 170, "close": 175},
+            ],
+        },
+        provider=provider,
+        ticker="AAPL",
+        data_type="price",
+        timestamp=datetime.now(tz=timezone.utc),
+    )
+
+
+class TestFetchCanonical:
+    """ADR-0006: DataLayer.fetch_canonical is the one normalization关卡 —
+    raw fetch → normalize → versioned canonical cache, typed output."""
+
+    async def test_price_returns_normalized_price(self, cache):
+        p = MockProvider("mock", ["price"], result=_price_result())
+        layer = DataLayer([p], cache)
+        out = await layer.fetch_canonical("price", "AAPL")
+        assert isinstance(out, NormalizedPrice)
+        assert out.current_price == 175.0
+        assert out.provenance.provider == "mock"
+        assert out.provenance.from_cache is False
+
+    async def test_financials_returns_normalized_financials(self, cache):
+        r = DataResult(
+            data={"revenue": 1_000, "financial_currency": "USD"},
+            provider="fmp",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        layer = DataLayer([MockProvider("fmp", ["financials"], result=r)], cache)
+        out = await layer.fetch_canonical("financials", "AAPL")
+        assert isinstance(out, NormalizedFinancials)
+        assert out.revenue == 1_000
+        assert out.reporting_currency == "USD"
+
+    async def test_cache_hit_marks_from_cache_and_skips_provider(self, cache):
+        p = MockProvider("mock", ["price"], result=_price_result())
+        layer = DataLayer([p], cache)
+        await layer.fetch_canonical("price", "AAPL")
+        assert p.fetch_called == 1
+        second = await layer.fetch_canonical("price", "AAPL")
+        assert isinstance(second, NormalizedPrice)
+        assert second.provenance.from_cache is True
+        assert p.fetch_called == 1  # served from canonical cache, no refetch
+
+    async def test_cross_validate_warnings_carried_onto_canonical(self, cache):
+        # Two FINANCIALS providers disagree on revenue → cross_validate warns;
+        # the warning must survive the normalization boundary (ADR-0006 §5 待定).
+        r1 = DataResult(
+            data={"revenue": 100_000_000, "financial_currency": "USD"},
+            provider="fmp",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        r2 = DataResult(
+            data={"revenue": 150_000_000, "financial_currency": "USD"},  # 33% off
+            provider="finnhub",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        layer = DataLayer(
+            [MockProvider("fmp", ["financials"], r1), MockProvider("finnhub", ["financials"], r2)],
+            cache,
+        )
+        out = await layer.fetch_canonical("financials", "AAPL")
+        assert any("revenue" in w and "discrepancy" in w for w in out.warnings)
+
+    async def test_unsupported_type_raises_value_error(self, cache):
+        layer = DataLayer([MockProvider("mock", ["news"])], cache)
+        with pytest.raises(ValueError, match="PRICE / FINANCIALS"):
+            await layer.fetch_canonical("news", "AAPL")
+
+    async def test_all_providers_fail_raises_provider_error(self, cache):
+        failing = MockProvider("bad", ["financials"], raises=ProviderError("boom"))
+        layer = DataLayer([failing], cache)
+        with pytest.raises(ProviderError, match="所有 provider 失败"):
+            await layer.fetch_canonical("financials", "AAPL")

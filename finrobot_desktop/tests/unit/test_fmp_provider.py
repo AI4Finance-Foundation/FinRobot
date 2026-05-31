@@ -174,9 +174,11 @@ class TestFMPFetch:
 
         # End-to-end: extract_company_financials must resolve reporting_currency
         # from the provider dict (the gap this fix closes — it used to default USD).
+        # ADR-0006: extractor now accepts NormalizedFinancials; wrap with normalize_financials.
         from finrobot.engine.compute.extractor import extract_company_financials
+        from finrobot.engine.data.normalize.financials import normalize_financials
 
-        company = extract_company_financials(result)
+        company = extract_company_financials(normalize_financials(result))
         assert company.reporting_currency == "TWD"
         assert company.quote_currency == "USD"
 
@@ -568,6 +570,53 @@ class TestFMPEarnings:
         with patch.object(provider, "_get", AsyncMock(return_value=_mock_response(raw))):
             result = await provider.fetch("AAPL", "earnings")
         assert len(result.data["earnings_history"]) == 1
+
+
+def _fmp_analyst_estimates_response(ticker: str = "AAPL") -> list[dict]:
+    """Mock FMP /analyst-estimates response (annual, farthest-future first)."""
+    return [
+        {"date": "2028-09-30", "symbol": ticker, "estimatedEpsAvg": 11.0},
+        {"date": "2027-09-30", "symbol": ticker, "estimatedEpsAvg": 9.8},
+        {
+            "date": "2026-09-30",
+            "symbol": ticker,
+            "estimatedRevenueAvg": 4.65e11,
+            "estimatedEbitdaAvg": 1.55e11,
+            "estimatedEpsAvg": 8.6,
+        },
+    ]
+
+
+class TestFMPForwardEstimates:
+    @pytest.mark.asyncio
+    async def test_fetch_forward_estimates_ships_raw_rows(self, provider):
+        """Provider returns FMP rows verbatim under 'rows' — it never derives
+        a forward number itself (that's the red-line leaf's job)."""
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(return_value=_mock_response(_fmp_analyst_estimates_response())),
+        ):
+            result = await provider.fetch("AAPL", "forward_estimates")
+        assert result.provider == "fmp"
+        assert result.data_type == "forward_estimates"
+        rows = result.data["rows"]
+        assert len(rows) == 3
+        assert rows[0]["date"] == "2028-09-30"  # order preserved; leaf picks FY1
+        assert rows[2]["estimatedEpsAvg"] == 8.6
+
+    @pytest.mark.asyncio
+    async def test_forward_estimates_in_capabilities(self, provider):
+        assert "forward_estimates" in provider.capabilities()
+
+    @pytest.mark.asyncio
+    async def test_non_list_response_yields_empty_rows(self, provider):
+        """A malformed (non-list) FMP body degrades to empty rows, never raises."""
+        with patch.object(
+            provider, "_get", AsyncMock(return_value=_mock_response({"error": "not found"}))
+        ):
+            result = await provider.fetch("AAPL", "forward_estimates")
+        assert result.data["rows"] == []
 
 
 def _fmp_quote_response(ticker: str = "AAPL", price: float = 175.0) -> list[dict]:

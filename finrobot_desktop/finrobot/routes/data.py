@@ -104,15 +104,19 @@ async def get_catalysts(
 
 @router.get("/{ticker}/financials", response_model=FinancialData)
 async def get_financials(ticker: str, request: Request) -> FinancialData:
+    from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
+
     data_layer = request.app.state.deps.data_layer
     try:
-        financials = await data_layer.fetch(DataType.FINANCIALS, ticker.upper())
-        price = await data_layer.fetch(DataType.PRICE, ticker.upper())
+        _fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker.upper())
+        _price = await data_layer.fetch_canonical(DataType.PRICE, ticker.upper())
     except (ValueError, ProviderError) as e:
         raise _data_http_error(e, ticker.upper()) from e
-    extracted = extract_financial_data(financials, price)
-    if financials.warnings or price.warnings:
-        extracted.warnings = _dedupe([*extracted.warnings, *financials.warnings, *price.warnings])
+    assert isinstance(_fin, NormalizedFinancials)  # FINANCIALS always returns this type
+    assert isinstance(_price, NormalizedPrice)  # PRICE always returns this type
+    # Cross-validation warnings already merged into fin/price.warnings by
+    # fetch_canonical, and extract_financial_data carries them through.
+    extracted = extract_financial_data(_fin, _price)
     return extracted
 
 

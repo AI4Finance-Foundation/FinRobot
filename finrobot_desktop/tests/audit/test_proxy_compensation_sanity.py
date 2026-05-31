@@ -13,8 +13,6 @@ Red-line contract (must all hold):
 
 from __future__ import annotations
 
-import pytest
-
 from finrobot.engine.compute.ownership import (
     _CEO_COMP_MAX,
     _CEO_COMP_MIN,
@@ -130,6 +128,36 @@ def test_explicit_ceo_total_comp_line_accepted() -> None:
     assert proxy.ceo_total_compensation == 74_250_000.0
     assert proxy.ceo_name == "Sundar Pichai"
     assert proxy.ceo_pay_ratio == 833
+
+
+def test_aapl_summary_compensation_table_beats_business_highlights() -> None:
+    """Apple 2026 DEF 14A: revenue is $416.2B, Tim Cook SCT total is $74.294811M."""
+    text = (
+        "2025 Business Highlights Net sales $416.2 billion. "
+        "Summary Compensation Table Name and Principal Position Year Salary Stock Awards "
+        "Non-Equity Incentive Plan Compensation All Other Compensation Total "
+        "Tim Cook Chief Executive Officer 2025 3,000,000 58,093,236 12,000,000 "
+        "1,201,575 (2) 74,294,811 "
+        "Summary of CEO Total Target Compensation 2025 Total Target CEO Compensation: "
+        "$59 million. The 2025 annual total compensation of our CEO was $74,294,811, "
+        "the 2025 annual total compensation of our median compensated employee was "
+        "$139,483, and the ratio of these amounts is 533 to 1."
+    )
+    proxy = build_proxy_compensation(_proxy(text))
+    assert proxy is not None
+    assert proxy.ceo_name == "Tim Cook"
+    assert proxy.ceo_total_compensation == 74_294_811.0
+    assert proxy.ceo_pay_ratio == 533
+
+
+def test_target_ceo_compensation_is_not_actual_total_compensation() -> None:
+    text = (
+        "Summary of CEO Total Target Compensation 2025 Total Target CEO Compensation: "
+        "$59 million. Actual Summary Compensation Table data appears elsewhere."
+    )
+    proxy = build_proxy_compensation(_proxy(text))
+    assert proxy is not None
+    assert proxy.ceo_total_compensation is None
 
 
 # ---------------------------------------------------------------------------

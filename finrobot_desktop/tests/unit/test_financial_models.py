@@ -382,7 +382,10 @@ def test_peer_selection_validates_ticker_count():
     assert len(ps.tickers) == 3
 
 
-def test_company_financials_total_debt_cash():
+def test_company_financials_total_debt_cash_default_none_means_unreported():
+    """Default is None ("provider didn't report"), NOT 0. A zero default
+    fabricated EV=market_cap for balance-sheet-less peers and poisoned the
+    median; None makes calculate_multiples withhold EV instead."""
     cf = CompanyFinancials(
         ticker="X",
         revenue=100e9,
@@ -392,8 +395,8 @@ def test_company_financials_total_debt_cash():
         gross_margin=0.4,
         operating_margin=0.2,
     )
-    assert cf.total_debt == 0
-    assert cf.total_cash == 0
+    assert cf.total_debt is None
+    assert cf.total_cash is None
 
 
 def test_step_output_stores_structured():

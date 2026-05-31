@@ -70,9 +70,13 @@ async def _execute_ic_financials(
     industry median, or — for LBO deal-structure quantities — standard PE
     convention recorded in ``assumption_provenance``.
     """
-    financials_result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
-    price_result = await deps.data_layer.fetch(DataType.PRICE, ticker)
-    financial_data = extract_financial_data(financials_result, price_result)
+    _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+    _price = await deps.data_layer.fetch_canonical(DataType.PRICE, ticker)
+    from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
+
+    assert isinstance(_fin, NormalizedFinancials)  # FINANCIALS always returns this type
+    assert isinstance(_price, NormalizedPrice)  # PRICE always returns this type
+    financial_data = extract_financial_data(_fin, _price)
 
     # Multi-year history powers the 3y-median assumption derivation. Fall
     # back to an empty HistoricalMetrics on extraction failure so the seed

@@ -88,30 +88,6 @@ class TestFetchPriceHistorySuccess:
         assert result["change_pct"] == pytest.approx(0.985, abs=0.01)
 
     @pytest.mark.asyncio
-    async def test_technicals_insufficient_history_with_two_bars(self):
-        # The 2-bar default is too short for a trend snapshot.
-        result = await _fetch(_FakeLayer(result=_price_raw()))
-        assert result["technicals"] == {
-            "available": False,
-            "reason": "insufficient_history",
-        }
-
-    @pytest.mark.asyncio
-    async def test_technicals_uptrend_from_rising_series(self):
-        # A monotonically rising 1-year series → stacked SMAs → uptrend, and the
-        # snapshot is computed from the same bars the chart renders.
-        history = [
-            {"date": f"2025-{(i // 28) + 1:02d}-{(i % 28) + 1:02d}", "close": float(i)}
-            for i in range(1, 221)
-        ]
-        result = await _fetch(_FakeLayer(result=_price_raw(history=history)))
-        tech = result["technicals"]
-        assert tech["available"] is True
-        assert tech["trend"] == "uptrend"
-        assert tech["sma20"] > tech["sma50"] > tech["sma200"]
-        assert tech["range_position"] == pytest.approx(1.0)
-
-    @pytest.mark.asyncio
     async def test_fetched_at_is_iso8601_tz_aware(self):
         result = await _fetch(_FakeLayer(result=_price_raw()))
         fetched = datetime.fromisoformat(result["fetched_at"])

@@ -18,7 +18,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from finrobot.engine.compute.market import technical_payload
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.normalize.contracts import NormalizedPrice
 
@@ -55,10 +54,11 @@ async def fetch_price_history(data_layer: DataLayer, ticker: str) -> dict[str, A
     """Fetch current price + ~1y OHLC history via the DataLayer canonical PRICE chain.
 
     Returns the route payload (current_price, change/change_pct computed from
-    NormalizedPrice.latest_session_change(), a technicals trend snapshot,
-    exchange, history, fetched_at, data_source, warnings). market_cap and
-    company_name are left None here and filled by the route from the financials
-    cache.
+    NormalizedPrice.latest_session_change(), exchange, history, fetched_at,
+    data_source, warnings). market_cap and company_name are left None here and
+    filled by the route from the financials cache; the technicals snapshot,
+    as_of, and session_state are added by the route's _enrich choke point (so
+    the provider-cache fast path carries them too).
 
     Raises:
         ValueError: invalid / unknown ticker → 422.
@@ -93,20 +93,11 @@ async def fetch_price_history(data_layer: DataLayer, ticker: str) -> dict[str, A
         for b in price.bars
     ]
 
-    # Trend snapshot computed from the bars we already hold (no refetch). The
-    # close series is the same one the frontend chart renders, so SMA/trend/
-    # 52w-range stay consistent with the line on screen; intraday high/low feed
-    # the 52-week extremes (matches the high/low the route's _market_status uses).
-    technicals = technical_payload(
-        [{"close": b.close, "high": b.high, "low": b.low} for b in price.bars]
-    )
-
     fetched_at = price.provenance.fetched_at.isoformat()
     return {
         "current_price": price.current_price,
         "change": change,
         "change_pct": change_pct,
-        "technicals": technicals,
         # market_cap / company_name are enriched by the route from the
         # financials cache; the PRICE canonical doesn't carry them.
         "market_cap": None,

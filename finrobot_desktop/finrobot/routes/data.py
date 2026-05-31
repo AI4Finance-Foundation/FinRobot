@@ -17,6 +17,7 @@ from finrobot.engine.compute.catalyst import (
 )
 from finrobot.engine.compute.extractor import extract_financial_data
 from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
+from finrobot.engine.compute.market import technical_payload
 from finrobot.engine.analysis.news_classifier import classify_news
 from finrobot.engine.compute.news import fetch_news
 from finrobot.engine.data.cache import cached_fetch
@@ -331,6 +332,13 @@ async def _enrich_price_payload_from_financial_cache(
     """
     _stamp_as_of(payload)
     payload["session_state"] = _compute_session_state(payload.get("as_of"))
+    # Technicals trend snapshot — computed here (the one choke point all /price
+    # paths flow through: fetcher, provider-cache fast path, stale-cache
+    # fallback) so every path carries it identically. The guard keeps any
+    # pre-set value (e.g. a re-enriched cached payload) instead of recomputing.
+    if "technicals" not in payload:
+        hist = payload.get("history") or payload.get("price_history") or []
+        payload["technicals"] = technical_payload(hist if isinstance(hist, list) else [])
     if payload.get("market_cap") is not None and payload.get("company_name") is not None:
         return payload
 

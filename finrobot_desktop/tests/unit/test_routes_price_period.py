@@ -116,6 +116,46 @@ async def test_price_endpoint_reuses_provider_price_cache_for_default_period(app
     assert payload["change"] == pytest.approx(12.6)
     assert payload["change_pct"] == pytest.approx(6.3)
     assert payload["data_source"] == "yfinance:provider-cache"
+    # Regression: the provider-cache fast path bypasses fetch_price_history, so
+    # technicals must be backfilled at the _enrich choke point — not only on the
+    # fetch path. Two bars is too short for a snapshot, but the key must exist.
+    assert payload["technicals"] == {"available": False, "reason": "insufficient_history"}
+
+
+@pytest.mark.asyncio
+async def test_price_endpoint_provider_cache_path_carries_full_technicals(app_with_deps):
+    """A rich provider-cache history yields a full technicals snapshot on the
+    fast path (not just the fetch_price_history path)."""
+    app = app_with_deps
+    cache = app.state.deps.data_layer.cache
+    history = [
+        {"date": f"2025-{(i // 28) + 1:02d}-{(i % 28) + 1:02d}", "close": float(i)}
+        for i in range(1, 221)
+    ]
+    await cache.set(
+        DataType.PRICE,
+        "MSFT",
+        DataResult(
+            data={"current_price": 220.0, "price_history": history, "exchange": "NasdaqGS"},
+            provider="fmp",
+            ticker="MSFT",
+            data_type=DataType.PRICE,
+            timestamp=datetime(2026, 5, 27, 12, 0, tzinfo=timezone.utc),
+        ),
+    )
+    with patch(
+        "finrobot.routes.data.fetch_price_history",
+        new=AsyncMock(side_effect=AssertionError("route should not hit the fetcher")),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/data/MSFT/price")
+
+    assert resp.status_code == 200
+    tech = resp.json()["technicals"]
+    assert tech["available"] is True
+    assert tech["trend"] == "uptrend"
+    assert tech["sma20"] > tech["sma50"] > tech["sma200"]
 
 
 @pytest.mark.asyncio

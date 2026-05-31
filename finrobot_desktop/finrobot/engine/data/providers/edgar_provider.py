@@ -38,6 +38,8 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
+import httpx
+
 # edgartools 5.31 real exception classes (probe-verified; EdgarError does
 # not exist). Imported lazily-fail style so the module loads even without
 # the dep (build_data_layer SKIPs registration when identity is invalid).
@@ -49,6 +51,7 @@ try:
         get_filings,
         set_identity,
     )
+
     _EDGAR_AVAILABLE = True
 except ImportError:  # pragma: no cover — defensive; we always pin edgartools
     Company = None
@@ -137,14 +140,24 @@ _SUPPORTED: list[DataType] = [
     DataType.INSIDER_TRADES,
     DataType.INSTITUTIONAL_HOLDINGS,
     DataType.PROXY_STATEMENT,
-    DataType.RAG_10K,       # legacy alias
-    DataType.FILINGS,       # legacy alias for 10-K
+    DataType.RAG_10K,  # legacy alias
+    DataType.FILINGS,  # legacy alias for 10-K
 ]
 
 
 # Exceptions we map to ProviderError (don't crash the route layer).
 # Wider than strictly needed because edgartools occasionally raises
 # bare AttributeError / TypeError when a filing has unexpected structure.
+#
+# httpx.HTTPError is the base of every edgartools network failure
+# (ReadTimeout / ConnectError / ConnectTimeout / RemoteProtocolError …).
+# edgartools runs its OWN httpx client inside our asyncio.to_thread call, so
+# a slow/unreachable SEC raises a raw httpx error that is NOT an OSError —
+# without catching it here it escaped fetch() un-wrapped and crashed the whole
+# pipeline (observed: 8-K ReadTimeout / "nodename nor servname" ConnectError
+# tanking an entire equity_research run from _gather_data). Mapping it to
+# ProviderError lets every consumer (_gather_data, _fetch_optional_sec,
+# peer XBRL fetch) degrade to "SEC unavailable" instead of aborting.
 _ADAPTER_CATCH = (
     DataObjectException,
     CompanyNotFoundError,
@@ -153,6 +166,7 @@ _ADAPTER_CATCH = (
     ValueError,
     AttributeError,
     TypeError,
+    httpx.HTTPError,
 )
 
 
@@ -206,9 +220,7 @@ def _slice_proxy_text(full_text: str) -> str:
     # Find the FIRST "Summary Compensation Table" heading past the intro
     # window — earlier matches are nearly always TOC entries, not the
     # real table.
-    matches = list(
-        re.finditer(r"Summary Compensation Table", full_text, re.I)
-    )
+    matches = list(re.finditer(r"Summary Compensation Table", full_text, re.I))
     sct_pos: int | None = None
     for m in matches:
         if m.start() >= _PROXY_INTRO_CHARS:
@@ -271,9 +283,7 @@ class EdgarToolsProvider(DataProvider):
     def capabilities(self) -> list[str | DataType]:
         return list(_SUPPORTED)
 
-    async def fetch(
-        self, ticker: str, data_type: str | DataType, **kwargs: Any
-    ) -> DataResult:
+    async def fetch(self, ticker: str, data_type: str | DataType, **kwargs: Any) -> DataResult:
         # edgartools 5.31 is sync-blocking; offload to thread so the asyncio
         # event loop stays responsive. nest-asyncio is installed transitively
         # and 门 1 实测 with uvicorn lifespan: 10/10 starts, 0 anomalies.
@@ -285,9 +295,7 @@ class EdgarToolsProvider(DataProvider):
                 kwargs,
             )
         except _ADAPTER_CATCH as e:
-            raise ProviderError(
-                f"edgartools {data_type} for {ticker}: {e}"
-            ) from e
+            raise ProviderError(f"edgartools {data_type} for {ticker}: {e}") from e
         return DataResult(
             data=data,
             provider=self.name,
@@ -331,24 +339,19 @@ class EdgarToolsProvider(DataProvider):
 
     # Mapping: (canonical_id, edgar TenK attr name, display title)
     _SECTION_ATTRS: list[tuple[str, str, str]] = [
-        ("item_1_business",          "business",
-            "Item 1 — Business"),
-        ("item_1a_risk_factors",     "risk_factors",
-            "Item 1A — Risk Factors"),
-        ("item_7_mdna",              "management_discussion",
-            "Item 7 — Management's Discussion and Analysis"),
-        ("item_10_directors_officers",
+        ("item_1_business", "business", "Item 1 — Business"),
+        ("item_1a_risk_factors", "risk_factors", "Item 1A — Risk Factors"),
+        ("item_7_mdna", "management_discussion", "Item 7 — Management's Discussion and Analysis"),
+        (
+            "item_10_directors_officers",
             "directors_officers_and_governance",
-            "Item 10 — Directors, Officers and Corporate Governance"),
-        ("subsidiaries",             "subsidiaries",
-            "Subsidiaries"),
-        ("notes",                    "notes",
-            "Notes to Financial Statements"),
+            "Item 10 — Directors, Officers and Corporate Governance",
+        ),
+        ("subsidiaries", "subsidiaries", "Subsidiaries"),
+        ("notes", "notes", "Notes to Financial Statements"),
     ]
 
-    def _fetch_10k(
-        self, c: Company, want_rag: bool
-    ) -> tuple[dict[str, Any], list[str]]:
+    def _fetch_10k(self, c: Company, want_rag: bool) -> tuple[dict[str, Any], list[str]]:
         warnings: list[str] = []
         filing = c.latest("10-K")
         if filing is None:
@@ -361,8 +364,7 @@ class EdgarToolsProvider(DataProvider):
         sections_extraction_quality = "ok"
         if is_amended:
             warnings.append(
-                f"latest 10-K is {filing.form} (amended); "
-                "retrying with amendments=False"
+                f"latest 10-K is {filing.form} (amended); retrying with amendments=False"
             )
             non_amended = c.get_filings(form="10-K", amendments=False).latest(1)
             if non_amended is not None:
@@ -370,9 +372,7 @@ class EdgarToolsProvider(DataProvider):
                 sections_extraction_quality = "amended_redirected"
                 is_amended = False  # we successfully resolved to the original
             else:
-                warnings.append(
-                    "no non-amended 10-K available; section quality may degrade"
-                )
+                warnings.append("no non-amended 10-K available; section quality may degrade")
 
         tenk = filing.obj()
         sections: list[dict[str, Any]] = []
@@ -380,13 +380,15 @@ class EdgarToolsProvider(DataProvider):
         for canonical_id, attr_name, display_title in self._SECTION_ATTRS:
             raw = getattr(tenk, attr_name, "") or ""
             text = str(raw)
-            sections.append({
-                "canonical_id": canonical_id,
-                "title": display_title,
-                "text": text,
-                "char_count": len(text),
-                "extracted_via": "edgartools_attribute",
-            })
+            sections.append(
+                {
+                    "canonical_id": canonical_id,
+                    "title": display_title,
+                    "text": text,
+                    "char_count": len(text),
+                    "extracted_via": "edgartools_attribute",
+                }
+            )
             items[canonical_id] = text
 
         # Fallback: financial institutions (JPM probe) parsing comes up short.
@@ -432,9 +434,8 @@ class EdgarToolsProvider(DataProvider):
             # FinRobot's own BM25 — input switched from regex-strip chunks
             # to clean typed-section chunks.
             from finrobot.engine.compute.rag import BM25Index, chunk_text
-            merged = "\n\n".join(
-                f"[{s['title']}]\n{s['text']}" for s in sections if s["text"]
-            )
+
+            merged = "\n\n".join(f"[{s['title']}]\n{s['text']}" for s in sections if s["text"])
             source_label = f"10-K/{filing.filing_date}"
             chunks = chunk_text(merged, chunk_size=300, overlap=30, source=source_label)
             data["rag_index"] = BM25Index(chunks)
@@ -446,16 +447,11 @@ class EdgarToolsProvider(DataProvider):
     # 10-Q (Quarterly)
     # ------------------------------------------------------------------
 
-    def _fetch_10q(
-        self, c: Company, n: int
-    ) -> tuple[dict[str, Any], list[str]]:
+    def _fetch_10q(self, c: Company, n: int) -> tuple[dict[str, Any], list[str]]:
         filings_iter = c.get_filings(form="10-Q").latest(n)
         if filings_iter is None:
             return {"quarterly_filings": []}, ["No 10-Q filings found"]
-        filings = (
-            list(filings_iter) if hasattr(filings_iter, "__iter__")
-            else [filings_iter]
-        )
+        filings = list(filings_iter) if hasattr(filings_iter, "__iter__") else [filings_iter]
         out: list[dict[str, Any]] = []
         for f in filings:
             try:
@@ -463,31 +459,28 @@ class EdgarToolsProvider(DataProvider):
                 mdna = getattr(tenq, "management_discussion", "") or ""
             except _ADAPTER_CATCH:
                 mdna = ""
-            out.append({
-                "form": f.form,
-                "filing_date": str(f.filing_date),
-                "period_of_report": str(getattr(f, "period_of_report", "")),
-                "accession_no": f.accession_no,
-                "mdna_chars": len(str(mdna)),
-                "mdna_text": str(mdna),
-                "source_url": getattr(f, "homepage_url", None),
-            })
+            out.append(
+                {
+                    "form": f.form,
+                    "filing_date": str(f.filing_date),
+                    "period_of_report": str(getattr(f, "period_of_report", "")),
+                    "accession_no": f.accession_no,
+                    "mdna_chars": len(str(mdna)),
+                    "mdna_text": str(mdna),
+                    "source_url": getattr(f, "homepage_url", None),
+                }
+            )
         return {"quarterly_filings": out}, []
 
     # ------------------------------------------------------------------
     # 8-K (Current Report — note: obj class is ``CurrentReport``, not EightK)
     # ------------------------------------------------------------------
 
-    def _fetch_8k(
-        self, c: Company, n: int
-    ) -> tuple[dict[str, Any], list[str]]:
+    def _fetch_8k(self, c: Company, n: int) -> tuple[dict[str, Any], list[str]]:
         filings_iter = c.get_filings(form="8-K").latest(n)
         if filings_iter is None:
             return {"events": []}, ["No 8-K filings found"]
-        filings = (
-            list(filings_iter) if hasattr(filings_iter, "__iter__")
-            else [filings_iter]
-        )
+        filings = list(filings_iter) if hasattr(filings_iter, "__iter__") else [filings_iter]
         events: list[dict[str, Any]] = []
         for f in filings:
             items: list[str] = []
@@ -500,32 +493,29 @@ class EdgarToolsProvider(DataProvider):
                 text = (f.text() or "")[:5000] if hasattr(f, "text") else ""
             except _ADAPTER_CATCH:
                 text = ""
-            events.append({
-                "filing_date": str(f.filing_date),
-                "period_of_report": str(getattr(f, "period_of_report", "")),
-                "accession_no": f.accession_no,
-                "items": items,
-                "text": text,
-                "source_url": getattr(f, "homepage_url", None),
-            })
+            events.append(
+                {
+                    "filing_date": str(f.filing_date),
+                    "period_of_report": str(getattr(f, "period_of_report", "")),
+                    "accession_no": f.accession_no,
+                    "items": items,
+                    "text": text,
+                    "source_url": getattr(f, "homepage_url", None),
+                }
+            )
         return {"events": events}, []
 
     # ------------------------------------------------------------------
     # Form 4 (Insider transactions)
     # ------------------------------------------------------------------
 
-    def _fetch_insider(
-        self, c: Company, days: int
-    ) -> tuple[dict[str, Any], list[str]]:
+    def _fetch_insider(self, c: Company, days: int) -> tuple[dict[str, Any], list[str]]:
         cutoff = date.today() - timedelta(days=days)
         # Pull a generous buffer (60) and stop early when we fall past cutoff.
         filings_iter = c.get_filings(form="4").latest(60)
         if filings_iter is None:
             return {"transactions": [], "window_days": days}, []
-        filings = (
-            list(filings_iter) if hasattr(filings_iter, "__iter__")
-            else [filings_iter]
-        )
+        filings = list(filings_iter) if hasattr(filings_iter, "__iter__") else [filings_iter]
 
         transactions: list[dict[str, Any]] = []
         for f in filings:
@@ -534,50 +524,43 @@ class EdgarToolsProvider(DataProvider):
             try:
                 form4 = f.obj()
             except _ADAPTER_CATCH as e:
-                logger.warning(
-                    "Form 4 obj() failed for %s: %s", f.accession_no, e
-                )
+                logger.warning("Form 4 obj() failed for %s: %s", f.accession_no, e)
                 continue
             insider_name = getattr(form4, "insider_name", "") or ""
             position = getattr(form4, "position", None)
             activities: list[Any] = []
             if hasattr(form4, "get_transaction_activities"):
                 try:
-                    activities = (
-                        form4.get_transaction_activities() or []
-                    )
+                    activities = form4.get_transaction_activities() or []
                 except _ADAPTER_CATCH as e:
                     logger.warning(
                         "get_transaction_activities failed for %s: %s",
-                        f.accession_no, e,
+                        f.accession_no,
+                        e,
                     )
             for act in activities:
-                transactions.append({
-                    "filing_date": str(f.filing_date),
-                    "accession_no": f.accession_no,
-                    "insider_name": insider_name,
-                    "insider_position": position,
-                    "transaction_type": getattr(act, "transaction_type", "") or "",
-                    "code": getattr(act, "code", "") or "",
-                    "shares": float(getattr(act, "shares", 0) or 0),
-                    "value": float(getattr(act, "value", 0) or 0),
-                    "price_per_share": (
-                        float(getattr(act, "price_per_share", 0) or 0) or None
-                    ),
-                    "security_type": getattr(act, "security_type", "") or "",
-                    "security_title": getattr(act, "security_title", "") or "",
-                    "underlying_security": (
-                        getattr(act, "underlying_security", "") or ""
-                    ),
-                    "exercise_date": _coerce_form4_date(
-                        getattr(act, "exercise_date", None)
-                    ),
-                    "expiration_date": _coerce_form4_date(
-                        getattr(act, "expiration_date", None)
-                    ),
-                    "footnote_ids": getattr(act, "footnote_ids", "") or "",
-                    "footnotes_text": getattr(act, "footnotes_text", "") or "",
-                })
+                transactions.append(
+                    {
+                        "filing_date": str(f.filing_date),
+                        "accession_no": f.accession_no,
+                        "insider_name": insider_name,
+                        "insider_position": position,
+                        "transaction_type": getattr(act, "transaction_type", "") or "",
+                        "code": getattr(act, "code", "") or "",
+                        "shares": float(getattr(act, "shares", 0) or 0),
+                        "value": float(getattr(act, "value", 0) or 0),
+                        "price_per_share": (float(getattr(act, "price_per_share", 0) or 0) or None),
+                        "security_type": getattr(act, "security_type", "") or "",
+                        "security_title": getattr(act, "security_title", "") or "",
+                        "underlying_security": (getattr(act, "underlying_security", "") or ""),
+                        "exercise_date": _coerce_form4_date(getattr(act, "exercise_date", None)),
+                        "expiration_date": _coerce_form4_date(
+                            getattr(act, "expiration_date", None)
+                        ),
+                        "footnote_ids": getattr(act, "footnote_ids", "") or "",
+                        "footnotes_text": getattr(act, "footnotes_text", "") or "",
+                    }
+                )
         return {"transactions": transactions, "window_days": days}, []
 
     # ------------------------------------------------------------------
@@ -633,17 +616,17 @@ class EdgarToolsProvider(DataProvider):
         # of form type, so 10-Q overrides 10-K once it lands.
         return {
             "facts_available": True,
-            "ttm_revenue":    _ttm("get_ttm_revenue"),
+            "ttm_revenue": _ttm("get_ttm_revenue"),
             "ttm_net_income": _ttm("get_ttm_net_income"),
             # P&L: "latest" remains the latest annual point — TTM is the
             # current-period caliber and lives in ``ttm_*`` above.
-            "latest_revenue":             _float("get_revenue"),
-            "latest_net_income":          _float("get_net_income"),
-            "latest_gross_profit":        _float("get_gross_profit"),
-            "latest_operating_income":    _float("get_operating_income"),
+            "latest_revenue": _float("get_revenue"),
+            "latest_net_income": _float("get_net_income"),
+            "latest_gross_profit": _float("get_gross_profit"),
+            "latest_operating_income": _float("get_operating_income"),
             # Balance sheet: include 10-Q in the "most recent" calculus.
-            "latest_total_assets":        _float("get_total_assets", annual=False),
-            "latest_total_liabilities":   _float("get_total_liabilities", annual=False),
+            "latest_total_assets": _float("get_total_assets", annual=False),
+            "latest_total_liabilities": _float("get_total_liabilities", annual=False),
             "latest_shareholders_equity": _float("get_shareholders_equity", annual=False),
         }, []
 
@@ -681,14 +664,14 @@ class EdgarToolsProvider(DataProvider):
             # because to_thread runs in a fresh thread with no loop), use
             # nest-asyncio safe path.
             import nest_asyncio
+
             nest_asyncio.apply()
             holders, status = asyncio.run(_go())
 
         warnings: list[str] = []
         if not status.get("populated"):
             warnings.append(
-                "13F holdings cache not built yet; run "
-                "scripts/refresh_sec_holdings.py to populate"
+                "13F holdings cache not built yet; run scripts/refresh_sec_holdings.py to populate"
             )
         return {
             "holders": holders,
@@ -706,7 +689,7 @@ class EdgarToolsProvider(DataProvider):
             return {"proxy": None}, ["No DEF 14A found"]
         text = ""
         try:
-            text = (proxy_filing.text() or "")
+            text = proxy_filing.text() or ""
         except _ADAPTER_CATCH:
             pass
         return {

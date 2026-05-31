@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Literal
 
+import httpx
 from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import AgentRunError
@@ -97,10 +98,22 @@ async def _fetch_optional_sec(
         msg = f"SEC {data_type.name} 拉取超过 {_SEC_FETCH_TIMEOUT_S:.0f}s — SEC 慢/不可达，已跳过"
         logger.warning("%s (%s)", msg, ticker)
         return {"available": False, "error": msg, "warnings": [msg]}
-    except (ProviderError, OSError, ValueError, KeyError, TypeError, RuntimeError) as exc:
-        # provider/network error on optional SEC data — non-fatal. Concrete types
-        # only: a bare `except Exception` would swallow CancelledError and break
-        # client-disconnect cleanup (test_no_bare_except_exception_in_finrobot).
+    except (
+        ProviderError,
+        OSError,
+        ValueError,
+        KeyError,
+        TypeError,
+        RuntimeError,
+        httpx.HTTPError,
+    ) as exc:
+        # provider/network error on optional SEC data — non-fatal. httpx.HTTPError
+        # is belt-and-suspenders: edgar_provider now wraps its httpx failures into
+        # ProviderError at the boundary, but this guard's contract ("optional SEC
+        # data must never kill the run") means we catch a raw transport error from
+        # ANY future provider path too. Concrete types only: a bare `except
+        # Exception` would swallow CancelledError and break client-disconnect
+        # cleanup (test_no_bare_except_exception_in_finrobot).
         msg = f"SEC {data_type.name} 拉取失败：{type(exc).__name__}"
         logger.warning("%s for %s: %s", msg, ticker, exc)
         return {"available": False, "error": msg, "warnings": [msg]}

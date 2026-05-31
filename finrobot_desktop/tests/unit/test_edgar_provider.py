@@ -19,6 +19,7 @@ from datetime import date, timedelta
 from typing import Any
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 
 from finrobot.engine.data.interface import ProviderError
@@ -146,6 +147,33 @@ def _stub_company_with_10k(
     return c
 
 
+@pytest.mark.parametrize(
+    "exc",
+    [
+        httpx.ReadTimeout("The read operation timed out"),
+        httpx.ConnectError("[Errno 8] nodename nor servname provided, or not known"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_fetch_wraps_httpx_error_into_provider_error(
+    exc: httpx.HTTPError, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """edgartools runs its OWN httpx client inside our to_thread call; a slow or
+    unreachable SEC raises a raw httpx error that is NOT an OSError. fetch() must
+    map it to ProviderError so _fetch_optional_sec / _gather_data degrade to
+    "SEC unavailable" — the un-wrapped httpx.ReadTimeout / ConnectError observed
+    tanking an entire equity_research run from _gather_data is the regression
+    this guards (edgar_provider._ADAPTER_CATCH now includes httpx.HTTPError)."""
+    p = EdgarToolsProvider("Jane Doe jane@example.com")
+
+    def _boom(_ticker: str) -> Any:
+        raise exc
+
+    monkeypatch.setattr("finrobot.engine.data.providers.edgar_provider.Company", _boom)
+    with pytest.raises(ProviderError, match="edgartools"):
+        await p.fetch("AAPL", DataType.FILINGS_8K, n=10)
+
+
 @pytest.mark.asyncio
 async def test_fetch_10k_happy_path() -> None:
     p = EdgarToolsProvider("Jane Doe jane@example.com")
@@ -180,8 +208,14 @@ async def test_fetch_10k_amended_triggers_redirect() -> None:
     amended.period_of_report = date(2025, 12, 31)
     amended.homepage_url = None
     amended_tenk = MagicMock()
-    for attr in ("business", "risk_factors", "management_discussion",
-                 "directors_officers_and_governance", "subsidiaries", "notes"):
+    for attr in (
+        "business",
+        "risk_factors",
+        "management_discussion",
+        "directors_officers_and_governance",
+        "subsidiaries",
+        "notes",
+    ):
         setattr(amended_tenk, attr, "")
     amended.obj.return_value = amended_tenk
     amended.text.return_value = ""
@@ -264,7 +298,7 @@ async def test_fetch_10q_returns_n_filings() -> None:
         f.period_of_report = date(2026, 2 - i, 28) if 2 - i > 0 else date(2025, 11, 30)
         f.homepage_url = None
         tenq = MagicMock()
-        tenq.management_discussion = f"Q{4-i} MD&A " * 50
+        tenq.management_discussion = f"Q{4 - i} MD&A " * 50
         f.obj.return_value = tenq
         filings.append(f)
     qfilings = MagicMock()
@@ -375,8 +409,15 @@ async def test_fetch_insider_drops_filings_outside_window() -> None:
     f4_fresh.insider_name = "Fresh Insider"
     f4_fresh.position = "CFO"
     act = MagicMock()
-    for attr in ("transaction_type", "code", "security_type", "security_title",
-                 "underlying_security", "footnote_ids", "footnotes_text"):
+    for attr in (
+        "transaction_type",
+        "code",
+        "security_type",
+        "security_title",
+        "underlying_security",
+        "footnote_ids",
+        "footnotes_text",
+    ):
         setattr(act, attr, "")
     act.shares = 100
     act.value = 1000.0
@@ -735,9 +776,11 @@ async def test_fetch_translates_edgar_exception_to_provider_error(
 ) -> None:
     """Any underlying _ADAPTER_CATCH error becomes ProviderError, not 500."""
     p = EdgarToolsProvider("Jane Doe jane@example.com")
+
     # Force the dispatcher to raise an AttributeError (e.g. edgartools schema drift)
     def _broken(*args: Any, **kwargs: Any) -> Any:
         raise AttributeError("edgartools API moved")
+
     monkeypatch.setattr(p, "_fetch_sync", _broken)
     with pytest.raises(ProviderError) as exc:
         await p.fetch("AAPL", DataType.FILINGS_10K)
@@ -750,7 +793,8 @@ async def test_fetch_returns_well_formed_data_result(
 ) -> None:
     p = EdgarToolsProvider("Jane Doe jane@example.com")
     monkeypatch.setattr(
-        p, "_fetch_sync",
+        p,
+        "_fetch_sync",
         lambda ticker, data_type, kwargs: ({"foo": "bar"}, ["one warning"]),
     )
     result = await p.fetch("aapl", DataType.FILINGS_10K)

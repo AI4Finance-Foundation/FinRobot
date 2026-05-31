@@ -18,6 +18,24 @@ export interface PricePoint {
   volume: number
 }
 
+/** Deterministic trend snapshot computed by engine.compute.market.technical_payload
+ *  from the same price bars the chart renders. `available: false` carries a
+ *  `reason` ("insufficient_history" | "no_data") instead of the numeric fields. */
+export interface Technicals {
+  available: boolean
+  reason?: string
+  trend?: 'uptrend' | 'downtrend' | 'sideways'
+  current_price?: number
+  sma20?: number | null
+  sma50?: number | null
+  sma200?: number | null
+  /** 52-week high/low from intraday extremes (Yahoo/Bloomberg convention). */
+  high_52w?: number
+  low_52w?: number
+  /** (current − low) / (high − low), 0..1; null when high == low. */
+  range_position?: number | null
+}
+
 export interface PriceData {
   ticker: string
   // current_price comes from provider; can be null when the upstream feed
@@ -46,6 +64,8 @@ export interface PriceData {
   session_state?: 'live' | 'closed' | null
   /** Which provider actually served this payload ("fmp" / "yfinance" / "<provider>:provider-cache"). */
   data_source?: string | null
+  /** SMA stack + trend + 52w range snapshot from the price bars. */
+  technicals?: Technicals
 }
 
 // Mirror of finrobot.engine.models.financial.FinancialData — backend nests

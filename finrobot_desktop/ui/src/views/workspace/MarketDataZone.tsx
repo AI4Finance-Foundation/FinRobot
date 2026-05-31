@@ -12,6 +12,7 @@ import {
   useTickerFinancials,
   useTickerCatalysts,
   type FinancialsData,
+  type Technicals,
 } from '../../hooks/useTickerData'
 import { tSync } from '../../i18n'
 import { PriceTrendChart } from '../../components/charts/PriceTrendChart'
@@ -61,6 +62,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
       {/* Price chart */}
       <MktCard title="📈 价格趋势" liveTag={providerTag(price?.data_source)}>
         <PriceTrendChart points={price?.history ?? null} />
+        <TechnicalsStrip tech={price?.technicals} />
       </MktCard>
 
       {/* Financial TTM */}
@@ -395,6 +397,115 @@ function ProvenanceFootnote({
           ⚠ {DEGRADED_LABELS[d] ?? d}
         </span>
       ))}
+    </div>
+  )
+}
+
+// Trend snapshot under the price line: 多/空头排列 (SMA stack) + the SMA values
+// + a 52-week range bar with the current-price marker. Numbers come straight
+// from the deterministic technical_payload (SMA close-based, 52w intraday) — no
+// client-side recompute, so what's shown matches the engine and the chart.
+const TREND_META: Record<string, { label: string; color: string }> = {
+  uptrend: { label: '↑ 多头排列', color: 'var(--success)' },
+  downtrend: { label: '↓ 空头排列', color: 'var(--danger)' },
+  sideways: { label: '→ 盘整', color: 'var(--text-muted)' },
+}
+
+export function TechnicalsStrip({ tech }: { tech?: Technicals }): React.ReactElement | null {
+  if (!tech) return null
+  if (!tech.available) {
+    return (
+      <p
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          color: 'var(--text-dim)',
+          marginTop: 10,
+        }}
+      >
+        {tech.reason === 'insufficient_history'
+          ? '趋势数据不足（不足 20 个交易日）'
+          : '趋势数据暂不可用'}
+      </p>
+    )
+  }
+  const meta = TREND_META[tech.trend ?? 'sideways'] ?? TREND_META.sideways
+  // Clamp the marker into [0,1] so a current price poking past the rolling
+  // window's extreme can't push the dot outside the track.
+  const pos =
+    typeof tech.range_position === 'number' ? Math.max(0, Math.min(1, tech.range_position)) : null
+
+  return (
+    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* trend pill + SMA stack */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10.5,
+            color: meta.color,
+            border: `1px solid ${meta.color}`,
+            borderRadius: 999,
+            padding: '2px 9px',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {meta.label}
+        </span>
+        <span style={{ display: 'flex', gap: 12, marginLeft: 'auto' }}>
+          {(['sma20', 'sma50', 'sma200'] as const).map((k) => (
+            <span key={k} style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>
+              <span style={{ color: 'var(--text-muted)' }}>{k.toUpperCase()} </span>
+              <span style={{ color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                {fmtPrice(tech[k])}
+              </span>
+            </span>
+          ))}
+        </span>
+      </div>
+
+      {/* 52-week range bar with current-price marker */}
+      {pos !== null && (
+        <div>
+          <div
+            style={{
+              position: 'relative',
+              height: 6,
+              borderRadius: 999,
+              background: 'linear-gradient(90deg, var(--danger-soft), var(--success-soft))',
+            }}
+          >
+            <span
+              title={`现价 ${fmtPrice(tech.current_price)} · 区间位置 ${(pos * 100).toFixed(0)}%`}
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: `${pos * 100}%`,
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                background: 'var(--accent-cyan)',
+                boxShadow: 'var(--glow-cyan)',
+                transform: 'translate(-50%, -50%)',
+              }}
+            />
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginTop: 4,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9.5,
+              color: 'var(--text-muted)',
+            }}
+          >
+            <span>52W低 {fmtPrice(tech.low_52w)}</span>
+            <span style={{ color: 'var(--accent-cyan)' }}>区间 {(pos * 100).toFixed(0)}%</span>
+            <span>52W高 {fmtPrice(tech.high_52w)}</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

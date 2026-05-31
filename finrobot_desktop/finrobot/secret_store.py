@@ -8,8 +8,11 @@ import stat
 import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Literal
 
 logger = logging.getLogger(__name__)
+
+SecretStorageMode = Literal["keychain", "plaintext"]
 
 
 class SecretStore(ABC):
@@ -142,32 +145,55 @@ class FileSecretStore(SecretStore):
     def _ensure_file(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         if not self._path.exists():
-            self._path.write_text("{}")
-            os.chmod(self._path, stat.S_IRUSR | stat.S_IWUSR)
-            return
+            # Use O_CREAT|O_WRONLY|O_EXCL with mode 0o600 to create the file
+            # atomically: the permission bits are set by the kernel on the same
+            # syscall that creates the inode, eliminating the write-then-chmod
+            # race window that existed with write_text() + chmod().
+            try:
+                fd = os.open(
+                    str(self._path),
+                    os.O_CREAT | os.O_WRONLY | os.O_EXCL,
+                    0o600,
+                )
+                try:
+                    os.write(fd, b"{}")
+                finally:
+                    os.close(fd)
+            except FileExistsError:
+                # Another coroutine raced us and already created the file.
+                # Fall through to the permission check below.
+                pass
         mode = stat.S_IMODE(self._path.stat().st_mode)
         expected = stat.S_IRUSR | stat.S_IWUSR
         if mode != expected:
             raise PermissionError(f"Secret file {self._path} must have 0600 permissions")
 
 
-def create_secret_store(dev_mode: bool | None = None) -> SecretStore:
-    """Create the best available secret store for this runtime."""
+def create_secret_store(
+    dev_mode: bool | None = None,
+) -> tuple[SecretStore, SecretStorageMode]:
+    """Create the best available secret store for this runtime.
 
+    Returns a ``(store, mode)`` pair so callers can surface the storage mode
+    to the user without probing the store again.  ``mode`` is:
+    - ``"keychain"``  — secrets stored in the OS credential manager
+    - ``"plaintext"`` — secrets stored in a permission-locked JSON file at
+                         ``~/.finrobot/.secrets``; the caller must warn the user
+    """
     use_dev = dev_mode
     if use_dev is None:
         use_dev = os.environ.get("FINROBOT_DEV_MODE") == "1"
     if use_dev:
         logger.info("Using FileSecretStore (dev mode)")
-        return FileSecretStore()
+        return FileSecretStore(), "plaintext"
     try:
         store = KeychainSecretStore()
         logger.info("Using KeychainSecretStore (OS keychain)")
-        return store
+        return store, "keychain"
     except RuntimeError as exc:
         logger.warning(
             "Keychain unavailable (%s), falling back to FileSecretStore. "
             "Secrets will be stored as a permission-locked local file.",
             exc,
         )
-        return FileSecretStore()
+        return FileSecretStore(), "plaintext"

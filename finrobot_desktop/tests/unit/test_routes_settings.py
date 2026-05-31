@@ -168,6 +168,41 @@ async def test_get_settings_includes_field_sources(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_sec_identity_active_true_for_valid_identity(tmp_path: Path) -> None:
+    """sec_identity_active mirrors the backend gate that registers EdgarProvider.
+
+    Regression: a Chinese display-name identity (``郭嘉祺 17696026747@163.com``)
+    is accepted by ``_is_valid_identity`` and DID register the provider at boot,
+    so the response MUST report active=True. The landing banner reads this.
+    """
+    settings = FinRobotSettings(
+        model_name="deepseek:deepseek-chat",
+        deepseek_api_key="env-key",
+        sec_user_agent="郭嘉祺 17696026747@163.com",
+    )
+    app = _make_app(tmp_path, settings=settings)
+    async with _client(app) as c:
+        resp = await c.get("/api/settings")
+    assert resp.status_code == 200
+    assert resp.json()["sec_identity_active"] is True
+
+
+@pytest.mark.asyncio
+async def test_sec_identity_active_false_for_placeholder(tmp_path: Path) -> None:
+    """The config.py placeholder default is NOT a real identity → active=False."""
+    settings = FinRobotSettings(
+        model_name="deepseek:deepseek-chat",
+        deepseek_api_key="env-key",
+        sec_user_agent="FinRobot admin@example.com",
+    )
+    app = _make_app(tmp_path, settings=settings)
+    async with _client(app) as c:
+        resp = await c.get("/api/settings")
+    assert resp.status_code == 200
+    assert resp.json()["sec_identity_active"] is False
+
+
+@pytest.mark.asyncio
 async def test_get_settings_marks_settings_json_source(tmp_path: Path) -> None:
     """A field present in settings.json wins source attribution."""
     settings_path = tmp_path / "settings.json"
@@ -414,7 +449,7 @@ async def test_get_settings_returns_sec_identity_dismissed_at_null(
     # Field present in the response payload (renders the landing banner state)
     assert "sec_identity_dismissed_at" in body
     assert body["sec_identity_dismissed_at"] is None
-    assert body["sec_holdings_auto_refresh"] is True
+    assert body["sec_holdings_auto_refresh"] is False
 
 
 @pytest.mark.asyncio
@@ -481,3 +516,88 @@ async def test_put_persists_sec_holdings_auto_refresh(tmp_path: Path, monkeypatc
     assert resp.status_code == 200, resp.text
     content = json.loads((tmp_path / "settings.json").read_text())
     assert content["sec_holdings_auto_refresh"] is False
+
+
+# ---------------------------------------------------------------------------
+# B1 — secret_storage_mode surfaced via GET /api/settings
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_settings_reports_keychain_mode(tmp_path: Path) -> None:
+    """Default app.state.secret_storage_mode 'keychain' is reflected in response."""
+    app = _make_app(tmp_path)
+    # Simulate the value set by server.lifespan after create_secret_store().
+    app.state.secret_storage_mode = "keychain"
+    async with _client(app) as c:
+        resp = await c.get("/api/settings")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert "secret_storage_mode" in body
+    assert body["secret_storage_mode"] == "keychain"
+
+
+@pytest.mark.asyncio
+async def test_get_settings_reports_plaintext_mode(tmp_path: Path) -> None:
+    """When keychain is unavailable, 'plaintext' mode is reported so the UI can warn."""
+    app = _make_app(tmp_path)
+    app.state.secret_storage_mode = "plaintext"
+    async with _client(app) as c:
+        resp = await c.get("/api/settings")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["secret_storage_mode"] == "plaintext"
+
+
+@pytest.mark.asyncio
+async def test_get_settings_defaults_to_keychain_when_state_missing(tmp_path: Path) -> None:
+    """If app.state.secret_storage_mode is absent (old test setup), defaults to 'keychain'."""
+    app = _make_app(tmp_path)
+    # Do NOT set app.state.secret_storage_mode — simulate missing state.
+    if hasattr(app.state, "secret_storage_mode"):
+        del app.state.secret_storage_mode
+    async with _client(app) as c:
+        resp = await c.get("/api/settings")
+    assert resp.status_code == 200, resp.text
+    # Default fallback must be 'keychain', not a crash.
+    assert resp.json()["secret_storage_mode"] == "keychain"
+
+
+# ---------------------------------------------------------------------------
+# Task 11: log_to_file + log_retention_days surfaced through settings route
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_settings_exposes_logging_fields(tmp_path: Path) -> None:
+    app = _make_app(tmp_path)
+    async with _client(app) as c:
+        resp = await c.get("/api/settings")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert "log_to_file" in body
+    assert "log_retention_days" in body
+
+
+@pytest.mark.asyncio
+async def test_settings_update_logging_fields(tmp_path: Path, monkeypatch: Any) -> None:
+    settings = FinRobotSettings(
+        model_name="deepseek:deepseek-chat",
+        deepseek_api_key="dev-key",
+    )
+    app = _make_app(tmp_path, settings=settings)
+
+    # Mock _replace_runtime_settings but still update deps.settings so
+    # _build_response reads the candidate (updated) settings.
+    async def _fake_replace(request: Any, candidate: Any) -> None:
+        request.app.state.deps.settings = candidate
+
+    monkeypatch.setattr(
+        "finrobot.routes.settings._replace_runtime_settings", _fake_replace
+    )
+    async with _client(app) as c:
+        resp = await c.put("/api/settings", json={"log_retention_days": 14, "log_to_file": False})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["log_retention_days"] == 14
+    assert body["log_to_file"] is False

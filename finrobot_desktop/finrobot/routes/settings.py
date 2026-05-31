@@ -13,6 +13,7 @@ from finrobot.config import (
     FinRobotSettings,
     is_field_from_environ,
 )
+from finrobot.secret_store import SecretStorageMode
 from finrobot.data_layer_factory import build_data_layer
 from finrobot.engine.agents.factory import create_sub_agents
 from finrobot.engine.orchestrator import create_lead_agent
@@ -52,6 +53,8 @@ _NON_SECRET_FIELDS: tuple[str, ...] = (
     "sec_identity_dismissed_at",  # 2026-05 EdgarTools — landing banner dismiss state
     "sec_holdings_auto_refresh",
     "log_level",
+    "log_to_file",
+    "log_retention_days",
     # Notification channels — non-secret, surfaced through the same PUT
     # endpoint from the UI's "通知通道" section.
     "feishu_webhook_url",
@@ -83,11 +86,19 @@ class SettingsResponse(BaseModel):
     alpha_vantage_api_key_set: bool
     adanos_api_key_set: bool
     sec_user_agent: str
+    # Authoritative answer to "did the backend accept this identity?" — the
+    # SAME gate (``_is_valid_identity``) that decides whether build_data_layer
+    # registers the EdgarToolsProvider. The landing banner reads THIS boolean
+    # instead of re-deriving validity from the raw string client-side, so the
+    # UI can never disagree with what the backend actually did.
+    sec_identity_active: bool
     # 2026-05 EdgarTools: ISO timestamp when user dismissed the "解锁 SEC 数据"
     # landing banner; null = never dismissed (banner still shows on landing).
     sec_identity_dismissed_at: datetime | None = None
     sec_holdings_auto_refresh: bool
     log_level: str
+    log_to_file: bool
+    log_retention_days: int
     available_providers: list[str]
     valid_model_providers: list[Literal["anthropic", "deepseek", "openai"]]
     # Per-field source map. Key = field name (e.g. "model_name",
@@ -98,6 +109,10 @@ class SettingsResponse(BaseModel):
     # If validate_runtime_config() failed at server boot, the error message
     # is surfaced here so the UI can show a banner. None = config is valid.
     startup_error: str | None = None
+    # Indicates whether secrets are protected by the OS keychain or written to
+    # a permission-locked plaintext JSON file.  "plaintext" means the user
+    # should be warned that their API keys are stored unencrypted on disk.
+    secret_storage_mode: SecretStorageMode = "keychain"
 
 
 class SettingsUpdate(BaseModel):
@@ -111,6 +126,8 @@ class SettingsUpdate(BaseModel):
     sec_identity_dismissed_at: datetime | None = None
     sec_holdings_auto_refresh: bool | None = None
     log_level: str | None = None
+    log_to_file: bool | None = None
+    log_retention_days: int | None = None
 
     anthropic_api_key: str | None = Field(default=None, repr=False)
     deepseek_api_key: str | None = Field(default=None, repr=False)
@@ -193,9 +210,7 @@ async def put_settings_route(update: SettingsUpdate, request: Request) -> Settin
 
 
 @router.post("/reset", response_model=SettingsResponse)
-async def reset_settings_route(
-    body: SettingsResetRequest, request: Request
-) -> SettingsResponse:
+async def reset_settings_route(body: SettingsResetRequest, request: Request) -> SettingsResponse:
     """Remove the listed fields from ``~/.finrobot/settings.json``.
 
     This re-empowers .env / FINROBOT_* environment variables as the source
@@ -234,9 +249,7 @@ async def reset_settings_route(
                     mutated = True
             if mutated:
                 settings_path.parent.mkdir(parents=True, exist_ok=True)
-                settings_path.write_text(
-                    json.dumps(current_json, indent=2, sort_keys=True)
-                )
+                settings_path.write_text(json.dumps(current_json, indent=2, sort_keys=True))
 
     # Clear secret fields from the keychain so .env wins on next reload.
     for field in body.fields:
@@ -266,6 +279,10 @@ async def reset_settings_route(
 
 
 async def _build_response(request: Request) -> SettingsResponse:
+    # Same identity gate build_data_layer uses to register EdgarToolsProvider —
+    # the single source of truth for sec_identity_active (no client-side mirror).
+    from finrobot.engine.data.providers.edgar_provider import _is_valid_identity
+
     settings: FinRobotSettings = request.app.state.deps.settings
     secret_store = request.app.state.secret_store
     settings_path: Path = request.app.state.settings_path
@@ -330,13 +347,17 @@ async def _build_response(request: Request) -> SettingsResponse:
         adanos_api_key_set=keychain_presence.get("adanos_api_key", False)
         or bool(settings.adanos_api_key),
         sec_user_agent=settings.sec_user_agent,
+        sec_identity_active=_is_valid_identity(settings.sec_user_agent),
         sec_identity_dismissed_at=settings.sec_identity_dismissed_at,
         sec_holdings_auto_refresh=settings.sec_holdings_auto_refresh,
         log_level=settings.log_level,
+        log_to_file=settings.log_to_file,
+        log_retention_days=settings.log_retention_days,
         available_providers=providers,
         valid_model_providers=["deepseek", "anthropic", "openai"],
         field_sources=field_sources,
         startup_error=getattr(request.app.state, "startup_error", None),
+        secret_storage_mode=getattr(request.app.state, "secret_storage_mode", "keychain"),
     )
 
 

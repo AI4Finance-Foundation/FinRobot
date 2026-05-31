@@ -14,6 +14,9 @@ Usage:
     EDGAR_IDENTITY="Name email@domain" \
         uv run python -m scripts.refresh_sec_holdings --period 2026-03-31
 
+    uv run python -m scripts.refresh_sec_holdings \
+        --period 2026-03-31 --identity "Name email@domain"
+
     # latest completed quarter:
     uv run python -m scripts.refresh_sec_holdings --latest
 
@@ -124,6 +127,7 @@ async def _refresh_quarter(period_end: date, *, max_filings: int | None = None) 
     rows_inserted = 0
     filings_processed = 0
     filings_skipped_schema = 0
+    skipped_schema_examples: list[str] = []
 
     for f in filings_iter:
         if max_filings is not None and filings_processed >= max_filings:
@@ -151,11 +155,11 @@ async def _refresh_quarter(period_end: date, *, max_filings: int | None = None) 
             cols = set(getattr(holdings_df, "columns", []))
             missing = _EXPECTED_COLUMNS - cols
             if missing:
-                logger.warning(
-                    "13F %s has unexpected schema (missing cols: %s) — skipping",
-                    f.accession_no, missing,
-                )
                 filings_skipped_schema += 1
+                if len(skipped_schema_examples) < 5:
+                    skipped_schema_examples.append(
+                        f"{f.accession_no} missing {sorted(missing)}"
+                    )
                 continue
             normalised_rows: list[dict[str, Any]] = []
             for record in holdings_df.to_dict("records"):
@@ -178,6 +182,13 @@ async def _refresh_quarter(period_end: date, *, max_filings: int | None = None) 
         except (OSError, RuntimeError, ValueError, TypeError, AttributeError, KeyError) as e:
             logger.exception("13F %s failed: %s", getattr(f, "accession_no", "?"), e)
 
+    if filings_skipped_schema:
+        logger.warning(
+            "skipped %d 13F filings with unexpected holdings schema; examples=%s",
+            filings_skipped_schema,
+            skipped_schema_examples,
+        )
+
     status = await cache_status()
     return {
         "period_end": period_end.isoformat(),
@@ -196,9 +207,14 @@ def main() -> int:
                        help="Most recent completed quarter (45+ days past period end)")
     parser.add_argument("--max-filings", type=int, default=None,
                         help="Cap total 13F filings processed (dev only)")
+    parser.add_argument(
+        "--identity",
+        default=None,
+        help="SEC EDGAR identity. Overrides EDGAR_IDENTITY when provided.",
+    )
     args = parser.parse_args()
 
-    identity = os.environ.get("EDGAR_IDENTITY", "").strip()
+    identity = (args.identity or os.environ.get("EDGAR_IDENTITY", "")).strip()
     if not identity or " " not in identity or "@" not in identity:
         logger.error("EDGAR_IDENTITY env var required (format: 'Name email@domain')")
         return 2

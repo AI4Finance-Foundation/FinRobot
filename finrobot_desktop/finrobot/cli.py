@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -13,17 +11,6 @@ from finrobot.engine.analysis.prompts import ANALYSIS_TYPES
 
 if TYPE_CHECKING:
     from finrobot.engine.deps import FinRobotDeps
-
-# Show pipeline progress on stderr so users see what's happening.
-# This surfaces base.py's logger.info("Step 1/5: ...") to the terminal.
-logging.basicConfig(
-    level=logging.INFO,
-    stream=sys.stderr,
-    format="%(message)s",
-)
-# Silence noisy third-party loggers
-for _quiet in ("httpx", "httpcore", "urllib3", "yfinance", "filelock"):
-    logging.getLogger(_quiet).setLevel(logging.WARNING)
 
 
 # Reminder appended to CLI pipeline output. HTML rendering lives in the
@@ -38,6 +25,10 @@ _HTML_REPORT_NOTE = (
 def _build_deps(model: str | None = None) -> "FinRobotDeps":
     """Build deps only. No agent creation.
     Used by pipeline commands that create their own sub-agents."""
+    from finrobot.obs import setup_logging
+
+    setup_logging(get_settings())
+
     from finrobot.data_layer_factory import build_data_layer
     from finrobot.engine.deps import FinRobotDeps
     from finrobot.engine.skills.registry import SkillRegistry
@@ -639,6 +630,10 @@ def serve(host: str, port: int, reload: bool, log_level: str) -> None:
     Use ``--reload`` during development so editing Python files
     auto-restarts the worker — avoids stale-process 500s after edits.
     """
+    from finrobot.obs import setup_logging
+
+    setup_logging(get_settings())
+
     import uvicorn
 
     if reload:
@@ -651,8 +646,9 @@ def serve(host: str, port: int, reload: bool, log_level: str) -> None:
             reload=True,
             reload_dirs=["finrobot"],
             log_level=log_level,
+            log_config=None,
         )
     else:
         from finrobot.server import app
 
-        uvicorn.run(app, host=host, port=port, log_level=log_level)
+        uvicorn.run(app, host=host, port=port, log_level=log_level, log_config=None)

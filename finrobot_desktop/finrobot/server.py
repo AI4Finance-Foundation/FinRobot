@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import sys
+from collections import OrderedDict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date
@@ -17,6 +18,8 @@ from starlette.responses import JSONResponse, Response
 from pydantic_ai.ui.vercel_ai import VercelAIAdapter
 
 from finrobot.config import get_settings
+from finrobot.obs import bind_session, setup_logging
+from finrobot.obs.middleware import RequestTraceMiddleware
 from finrobot.data_layer_factory import build_data_layer
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.orchestrator import create_lead_agent
@@ -30,6 +33,7 @@ from finrobot.routes.compute import router as compute_router
 from finrobot.routes.dashboard import router as dashboard_router
 from finrobot.routes.data import router as data_router
 from finrobot.routes.health import router as health_router
+from finrobot.routes.diagnostics import router as diagnostics_router
 from finrobot.routes.notify import router as notify_router
 from finrobot.routes.runs import router as runs_router
 from finrobot.routes.search import router as search_router
@@ -75,8 +79,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     settings_path = SETTINGS_JSON
     settings = get_settings(**load_non_secret_settings(settings_path))
-    secret_store = create_secret_store()
+    secret_store, secret_storage_mode = create_secret_store()
     settings = await hydrate_settings_from_secrets(settings, secret_store)
+
+    # Configure runtime logging as soon as settings are known so every
+    # subsequent startup step (validation, warmup, migration) is captured.
+    setup_logging(settings)
+    logger.info("FinRobot server starting (log_to_file=%s)", settings.log_to_file)
 
     # Fail-fast config validation — but DO NOT crash the server. The desktop
     # app needs HTTP to be up so the UI can render the SettingsView and the
@@ -127,11 +136,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.agent = agent
     app.state.deps = deps
     app.state.secret_store = secret_store
+    app.state.secret_storage_mode = secret_storage_mode
     app.state.settings_path = settings_path
     app.state.run_store = RunStore()
     app.state.run_tasks = {}
     app.state.artifact_store = artifact_store
-    transcript_writers: dict[str, TranscriptWriter] = {}
+    # Bounded LRU dict for transcript writers.  Using OrderedDict lets us
+    # evict the least-recently-used entry in O(1) when the cap is reached.
+    # TranscriptWriter is open-on-write (no persistent file handle), so
+    # eviction is purely a memory-size guard — no flush/close needed.
+    # Cap at 256: a desktop user will never have 256 concurrent chat sessions;
+    # anything beyond that is a test or a leak worth discarding.
+    transcript_writers: OrderedDict[str, TranscriptWriter] = OrderedDict()
     app.state.transcript_writers = transcript_writers
     app.state.sub_agents = sub_agents
 
@@ -350,6 +366,7 @@ app = FastAPI(title="FinRobot", lifespan=lifespan)
 
 # CORS: allow Vite dev server origin (electron dev mode uses http://localhost:5173).
 # Production Electron loads from file:// so this has no effect on packaged builds.
+app.add_middleware(RequestTraceMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -368,6 +385,7 @@ app.include_router(search_router, prefix="/api/search", tags=["search"])
 app.include_router(valuation_router)
 app.include_router(sentiment_router)
 app.include_router(notify_router)
+app.include_router(diagnostics_router)
 
 
 def _extract_user_text(message: dict[str, Any]) -> str:
@@ -419,25 +437,43 @@ def _extract_user_text(message: dict[str, Any]) -> str:
     return "\n".join(text_fragments)
 
 
+_TRANSCRIPT_WRITERS_MAX = 256
+
+
 async def _get_or_create_writer(
     app_state: Any, session_id: str, model_hint: str
 ) -> TranscriptWriter:
     """Return an existing TranscriptWriter or create a new one with session_start.
 
+    Writers are kept in a bounded LRU OrderedDict (cap: _TRANSCRIPT_WRITERS_MAX).
+    When the cap is reached the oldest entry is discarded.  TranscriptWriter
+    uses open-on-write semantics (no persistent file handle), so eviction is a
+    pure memory guard — no flush or close is required on removal.
+
     Defensively creates the ``transcript_writers`` dict on ``app_state`` if it
     is missing (e.g. tests that bypass lifespan and set state manually).
     """
     if not hasattr(app_state, "transcript_writers"):
-        app_state.transcript_writers = {}
-    writers: dict[str, TranscriptWriter] = app_state.transcript_writers
-    if session_id not in writers:
-        writer = TranscriptWriter(session_id)
-        try:
-            await writer.log_session_start(user_id="local", model=model_hint)
-        except OSError:
-            logger.exception("TranscriptWriter: failed to write session_start for %s", session_id)
-        writers[session_id] = writer
-    return writers[session_id]
+        app_state.transcript_writers = OrderedDict()
+    writers: OrderedDict[str, TranscriptWriter] = app_state.transcript_writers
+    if session_id in writers:
+        # Move to end (most-recently-used) on access.
+        writers.move_to_end(session_id)
+        return writers[session_id]
+
+    writer = TranscriptWriter(session_id)
+    try:
+        await writer.log_session_start(user_id="local", model=model_hint)
+    except OSError:
+        logger.exception("TranscriptWriter: failed to write session_start for %s", session_id)
+
+    # Evict LRU entry before inserting so we never exceed the cap.
+    if len(writers) >= _TRANSCRIPT_WRITERS_MAX:
+        evicted_id, _ = writers.popitem(last=False)
+        logger.debug("TranscriptWriter LRU eviction: session=%s", evicted_id)
+
+    writers[session_id] = writer
+    return writer
 
 
 async def _intercept_native_events(
@@ -516,26 +552,12 @@ async def _intercept_native_events(
         yield event
 
 
-@app.post("/chat")
-async def chat(request: Request) -> Response:
-    """Handle a Vercel AI SDK chat request with transcript side-logging.
-
-    The transcript hook intercepts native pydantic_ai stream events to write
-    user messages, assistant text, tool calls, and tool results to a per-session
-    JSONL file at ``~/.finrobot-desktop/sessions/<session_id>.jsonl``.
-
-    Transcript write failures are logged and never surface to the client —
-    the Vercel AI stream is unaffected by transcript I/O errors.
-    """
-    body = await request.body()
-    try:
-        body_json: dict[str, Any] = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
-        body_json = {}
-
-    session_id: str = body_json.get("id") or body_json.get("session_id") or "default"
-    model_hint: str = str(body_json.get("model") or "unknown")
-
+async def _chat_impl(
+    request: Request,
+    body_json: dict[str, Any],
+    session_id: str,
+    model_hint: str,
+) -> Response:
     # Log the user's latest message before streaming begins.
     writer = await _get_or_create_writer(request.app.state, session_id, model_hint)
     messages: list[Any] = body_json.get("messages", [])
@@ -571,6 +593,29 @@ async def chat(request: Request) -> Response:
     instrumented_stream = _intercept_native_events(native_stream, writer)
     event_stream = adapter.transform_stream(instrumented_stream)
     return adapter.streaming_response(event_stream)
+
+
+@app.post("/chat")
+async def chat(request: Request) -> Response:
+    """Handle a Vercel AI SDK chat request with transcript side-logging.
+
+    The transcript hook intercepts native pydantic_ai stream events to write
+    user messages, assistant text, tool calls, and tool results to a per-session
+    JSONL file at ``~/.finrobot-desktop/sessions/<session_id>.jsonl``.
+
+    Transcript write failures are logged and never surface to the client —
+    the Vercel AI stream is unaffected by transcript I/O errors.
+    """
+    body = await request.body()
+    try:
+        body_json: dict[str, Any] = json.loads(body)
+    except (json.JSONDecodeError, ValueError):
+        body_json = {}
+
+    session_id: str = body_json.get("id") or body_json.get("session_id") or "default"
+    model_hint: str = str(body_json.get("model") or "unknown")
+    with bind_session(session_id):
+        return await _chat_impl(request, body_json, session_id, model_hint)
 
 
 @app.get("/health")

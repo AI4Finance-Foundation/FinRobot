@@ -48,6 +48,20 @@ class FakeDataLayer:
             timestamp=datetime.now(tz=timezone.utc),
         )
 
+    async def fetch_canonical(self, data_type, ticker, **kwargs):
+        """Return NormalizedFinancials / NormalizedPrice (ADR-0006 canonical contract)."""
+        from finrobot.engine.data.normalize.financials import normalize_financials
+        from finrobot.engine.data.normalize.price import normalize_price
+        from finrobot.engine.data.types import DataType
+
+        raw = await self.fetch(str(data_type), ticker, **kwargs)
+        if DataType(data_type) == DataType.PRICE:
+            return normalize_price(raw)
+        return normalize_financials(raw)
+
+    async def fetch_historical(self, data_type: str, ticker: str, years: int = 5, **kwargs):
+        return []
+
 
 def _fake_deps():
     """Create fake deps for testing."""

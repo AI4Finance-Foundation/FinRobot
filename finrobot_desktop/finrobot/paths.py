@@ -35,11 +35,13 @@ SETTINGS_JSON: Path = FINROBOT_HOME / "settings.json"
 # scripts/refresh_sec_holdings.py because edgartools has no ticker→holders
 # reverse API (probe 2026-05-27, see specs/research/edgartools_probe_findings_2026-05-27.md).
 SEC_HOLDINGS_DB: Path = FINROBOT_HOME / "sec_holdings_cache.db"
+LOGS_DIR: Path = FINROBOT_HOME / "logs"
 
 
 def ensure_home() -> Path:
-    """Create ``~/.finrobot/`` if it does not exist. Returns the dir path."""
+    """Create ``~/.finrobot/`` (and ``logs/``) if missing. Returns the dir path."""
     FINROBOT_HOME.mkdir(parents=True, exist_ok=True)
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
     return FINROBOT_HOME
 
 

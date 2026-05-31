@@ -35,6 +35,10 @@ class TestDefaults:
         s = get_settings()
         assert s.skills_dir == "skills"
 
+    def test_sec_holdings_refresh_is_opt_in(self):
+        s = FinRobotSettings(_env_file=None)
+        assert s.sec_holdings_auto_refresh is False
+
 
 class TestConstructorOverride:
     def test_model_name_override(self):
@@ -264,3 +268,12 @@ class TestLegacyEnvMigration:
             "_migrate_legacy_env_prefix() must not be called at module top level — "
             "this is a regression of the import-time side-effect removal."
         )
+
+
+def test_logging_defaults() -> None:
+    from finrobot.config import FinRobotSettings
+
+    s = FinRobotSettings()
+    assert s.log_to_file is True
+    assert s.log_retention_days == 7
+    assert s.log_level == "INFO"

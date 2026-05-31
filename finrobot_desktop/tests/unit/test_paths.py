@@ -48,3 +48,18 @@ def test_default_data_cache_db_path_uses_unified_home(tmp_path, monkeypatch):
 
     result = paths.default_data_cache_db_path()
     assert result == str(tmp_path / ".finrobot" / "data_cache.db")
+
+
+def test_logs_dir_under_home() -> None:
+    from finrobot import paths
+
+    assert paths.LOGS_DIR == paths.FINROBOT_HOME / "logs"
+
+
+def test_ensure_home_creates_logs_dir(tmp_path, monkeypatch) -> None:
+    from finrobot import paths
+
+    monkeypatch.setattr(paths, "FINROBOT_HOME", tmp_path / ".finrobot")
+    monkeypatch.setattr(paths, "LOGS_DIR", tmp_path / ".finrobot" / "logs")
+    paths.ensure_home()
+    assert (tmp_path / ".finrobot" / "logs").is_dir()

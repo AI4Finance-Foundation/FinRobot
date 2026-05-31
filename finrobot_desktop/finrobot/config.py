@@ -45,9 +45,7 @@ def _migrate_legacy_env_prefix() -> None:
         return
     if "FINAGENT_" not in original and "finagent_cache" not in original:
         return
-    updated = original.replace("FINAGENT_", "FINROBOT_").replace(
-        "finagent_cache", "finrobot_cache"
-    )
+    updated = original.replace("FINAGENT_", "FINROBOT_").replace("finagent_cache", "finrobot_cache")
     try:
         _ENV_FILE.write_text(updated, encoding="utf-8")
     except OSError as exc:
@@ -111,12 +109,14 @@ class FinRobotSettings(BaseSettings):
     # landing page banner ("⚡ 解锁 FinRobot 一手 SEC 数据") points users at
     # Settings to fill this in. Dismissal of that banner is persisted here:
     sec_identity_dismissed_at: datetime | None = None
-    sec_holdings_auto_refresh: bool = True
+    sec_holdings_auto_refresh: bool = False
 
     # Infrastructure
     cache_db_path: str = ""  # resolved at runtime by paths.default_data_cache_db_path()
     skills_dir: str = "skills"  # path to vendored skills (relative to project root or absolute)
     log_level: str = "INFO"
+    log_to_file: bool = True
+    log_retention_days: int = 7
 
     # Notification channels — all optional; empty string = channel disabled
     feishu_webhook_url: str = ""
@@ -278,3 +278,17 @@ def is_field_from_environ(field: str) -> bool:
     import os
 
     return bool(os.environ.get(f"FINROBOT_{field.upper()}"))
+
+
+def console_color_enabled(stream: Any) -> bool:
+    """Whether to emit ANSI color on a console stream.
+
+    True when the stream is a TTY and the standard ``NO_COLOR`` env var
+    (no-color.org) is unset/empty. Lives in config.py because it is the only
+    module (besides secret_store) allowed to read os.environ — the obs
+    formatters must not peek at the environment themselves (audit red-line).
+    """
+    import os
+
+    is_tty = bool(getattr(stream, "isatty", lambda: False)())
+    return is_tty and os.environ.get("NO_COLOR", "") == ""

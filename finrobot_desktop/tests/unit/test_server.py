@@ -83,6 +83,105 @@ class TestArchitecturalRedLines:
             f"Found: {offenders}"
         )
 
+    def test_sec_holdings_refresh_not_inline_in_lifespan(self):
+        """Startup must not run the 13F refresh coroutine in the web process.
+
+        Full-quarter 13F parsing is sync-heavy edgartools work. If the lifespan
+        task awaits it inline, the sidecar's 30-second /health probe can time
+        out even though Uvicorn technically started.
+        """
+        from pathlib import Path
+
+        server_path = Path(__file__).resolve().parents[2] / "finrobot" / "server.py"
+        source = server_path.read_text()
+        assert "_refresh_quarter" not in source
+        assert "asyncio.create_subprocess_exec" in source
+
+    def test_tauri_sidecar_does_not_enable_python_reload_by_default(self):
+        """Desktop startup must not pay the uvicorn reloader/watchdog cost."""
+        from pathlib import Path
+
+        wrapper_path = (
+            Path(__file__).resolve().parents[2]
+            / "src-tauri"
+            / "binaries"
+            / "finrobot-server-shared.sh"
+        )
+        source = wrapper_path.read_text()
+        assert 'FINROBOT_SERVER_RELOAD:-0' in source
+        assert 'exec uv run finrobot serve "$@"' in source
+
+
+class TestTranscriptWriterLRU:
+    """B2 — transcript_writers dict is bounded by LRU eviction."""
+
+    @pytest.mark.asyncio
+    async def test_lru_evicts_oldest_when_cap_reached(self) -> None:
+        """When the cap is hit, the oldest writer is evicted from the dict."""
+
+        from finrobot.server import _TRANSCRIPT_WRITERS_MAX, _get_or_create_writer
+
+        class _FakeState:
+            pass
+
+        state = _FakeState()
+        # Fill up to exactly the cap using unique session IDs.
+        for i in range(_TRANSCRIPT_WRITERS_MAX):
+            await _get_or_create_writer(state, f"session-{i}", "test-model")
+
+        assert len(state.transcript_writers) == _TRANSCRIPT_WRITERS_MAX
+        # The next insertion must evict session-0 (oldest) and keep session-1…cap-1 + new.
+        await _get_or_create_writer(state, "session-overflow", "test-model")
+        assert len(state.transcript_writers) == _TRANSCRIPT_WRITERS_MAX
+        assert "session-0" not in state.transcript_writers
+        assert "session-overflow" in state.transcript_writers
+
+    @pytest.mark.asyncio
+    async def test_lru_moves_accessed_session_to_end(self) -> None:
+        """Accessing an existing session promotes it to MRU so it isn't evicted first."""
+        from finrobot.server import _TRANSCRIPT_WRITERS_MAX, _get_or_create_writer
+
+        class _FakeState:
+            pass
+
+        state = _FakeState()
+        for i in range(_TRANSCRIPT_WRITERS_MAX):
+            await _get_or_create_writer(state, f"session-{i}", "test-model")
+
+        # Re-access session-0 to make it MRU.
+        await _get_or_create_writer(state, "session-0", "test-model")
+
+        # Adding a new entry must evict session-1 (now oldest), not session-0.
+        await _get_or_create_writer(state, "session-new", "test-model")
+        assert "session-1" not in state.transcript_writers
+        assert "session-0" in state.transcript_writers
+        assert "session-new" in state.transcript_writers
+
+    @pytest.mark.asyncio
+    async def test_lru_creates_dict_when_state_missing(self) -> None:
+        """Defensively creates transcript_writers if not present on app_state."""
+        from finrobot.server import _get_or_create_writer
+
+        class _FakeState:
+            pass
+
+        state = _FakeState()
+        writer = await _get_or_create_writer(state, "s1", "model")
+        assert hasattr(state, "transcript_writers")
+        assert "s1" in state.transcript_writers
+        assert writer.session_id == "s1"
+
+
+class TestRequestTraceMiddleware:
+    def test_response_has_request_id_header(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from finrobot.server import app
+
+        with TestClient(app) as client:
+            resp = client.get("/health")
+            assert resp.headers.get("X-Request-ID")
+
 
 class TestSubAgentsCaching:
     """I1: sub-agents created once in lifespan, not per-request."""

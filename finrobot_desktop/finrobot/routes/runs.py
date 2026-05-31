@@ -29,6 +29,7 @@ from finrobot.events import (
     StepRetry,
     StepStarted,
 )
+from finrobot.obs import bind_run
 from finrobot.run_store import RunStore
 
 logger = logging.getLogger(__name__)
@@ -119,15 +120,20 @@ async def get_run(run_id: str, request: Request) -> RunDetail:
     failed_validations = []
     warnings: list[str] = []
     raw = record.result_json
-    if raw:
-        failed_validations = raw.get("failed_validations", [])
-        warnings = raw.get("warnings", [])
+    # result_json must be a dict produced by _result_to_json().  Rows
+    # persisted by older schema versions or corrupted writes may contain a
+    # list or other non-dict type; guard with isinstance so we never let a
+    # spurious AttributeError propagate as a 500.
+    raw_dict = raw if isinstance(raw, dict) else None
+    if raw_dict is not None:
+        failed_validations = raw_dict.get("failed_validations", [])
+        warnings = raw_dict.get("warnings", [])
     # Flatten: expose structured_data directly (remove redundant nesting)
-    flat_structured = raw.get("structured_data", {}) if raw else None
+    flat_structured = raw_dict.get("structured_data", {}) if raw_dict is not None else None
     result = None
     if record.result_text is not None or flat_structured is not None:
         result = RunResult(text=record.result_text, structured=flat_structured)
-    steps_dict = raw.get("steps") if raw else None
+    steps_dict = raw_dict.get("steps") if raw_dict is not None else None
     return RunDetail(
         run_id=record.run_id,
         status=record.status,
@@ -157,6 +163,15 @@ async def stream_run_events(run_id: str, request: Request) -> StreamingResponse:
     async def event_stream() -> AsyncIterator[str]:
         current_seq = last_seq
         while True:
+            # Stop polling as soon as the client disconnects.  Without this
+            # check the coroutine would keep polling the DB at 0.2 s intervals
+            # until the pipeline finished, even though no one is reading the
+            # stream.  request.is_disconnected() does not raise; it returns
+            # True once the underlying transport is gone.
+            if await request.is_disconnected():
+                logger.debug("SSE client disconnected for run %s — stopping poll", run_id)
+                return
+
             events = await store.get_events_after(run_id, current_seq)
             for stored in events:
                 current_seq = stored.seq
@@ -175,6 +190,11 @@ async def stream_run_events(run_id: str, request: Request) -> StreamingResponse:
 
 
 async def _run_pipeline(run_id: str, request: Request) -> None:
+    with bind_run(run_id):
+        await _run_pipeline_impl(run_id, request)
+
+
+async def _run_pipeline_impl(run_id: str, request: Request) -> None:
     store: RunStore = request.app.state.run_store
     record = await store.get_run(run_id)
     if record is None:

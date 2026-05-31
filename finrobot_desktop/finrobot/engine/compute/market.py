@@ -1,16 +1,14 @@
-"""Deterministic per-ticker market-data helpers.
+"""Deterministic per-ticker technical snapshot.
 
-What this code does that raw LLM cannot:
-- Computes a price-trend snapshot (SMA 20/50/200 stack, trend classification,
-  52-week range position) from a close series with repeatable arithmetic — an
-  LLM would produce plausible but unrepeatable numbers.
-- Hits FMP /v3/earning_calendar for forward-looking events with typed output;
-  an LLM cannot produce a correctly dated forward earnings calendar.
+What this code does that raw LLM cannot: computes a price-trend snapshot (SMA
+20/50/200 stack, trend classification, 52-week range position) from a price
+series with repeatable arithmetic — an LLM would produce plausible but
+unrepeatable numbers.
 
-门一收口 (ADR-0006 / tests/audit/test_no_direct_yfinance.py): the price series
-for technicals is pulled via ``DataLayer.fetch_canonical(PRICE)`` — the provider
-chain (FMP → yfinance) and the circuit-breaker cover it, and provenance stays
-honest. This module never touches yfinance directly.
+门一收口 (ADR-0006 / tests/audit/test_no_direct_yfinance_imports.py): the price
+series is pulled via ``DataLayer.fetch_canonical(PRICE)`` — the provider chain
+(FMP → yfinance) and the circuit-breaker cover it, and provenance stays honest.
+This module never touches yfinance directly.
 
 Leaf-layer rules: no imports from agents/pipelines/orchestrator/pydantic_ai/openai.
 It may depend on the data layer (it is a 取数协调器, not a pure operator — ADR-0005).
@@ -20,11 +18,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping, Sequence
-from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
-
-import httpx
-from pydantic import BaseModel
 
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.normalize.contracts import NormalizedPrice
@@ -35,26 +29,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_FMP_TIMEOUT = 10.0  # seconds
-
 # A trend snapshot needs at least the SMA20 window to mean anything; below this
 # the series is too short to classify (returns insufficient_history).
 _MIN_HISTORY = 20
 # 52-week window in trading days (~252). Shorter series use whatever they have.
 _WINDOW_52W = 252
-
-
-class EarningsEvent(BaseModel):
-    date: str
-    ticker: str
-    company_name: str
-    time: str  # "BMO" | "AMC" | "—"
-    eps_estimate: float | None = None
-
-
-# ---------------------------------------------------------------------------
-# Technical snapshot (pure) + canonical entry point
-# ---------------------------------------------------------------------------
 
 
 def _sma(closes: Sequence[float], window: int) -> float | None:
@@ -167,95 +146,3 @@ async def get_technicals(ticker: str, layer: DataLayer) -> dict[str, Any]:
     return technical_payload(
         [{"close": bar.close, "high": bar.high, "low": bar.low} for bar in price.bars]
     )
-
-
-# ---------------------------------------------------------------------------
-# Earnings calendar (FMP)
-# ---------------------------------------------------------------------------
-
-
-async def fetch_earnings_calendar(
-    fmp_api_key: str | None = None,
-) -> list[EarningsEvent]:
-    """Fetch upcoming earnings events for the next 7 days.
-
-    Requires an FMP API key. Returns an empty list (not an error) when no key
-    is provided — callers should surface this as a "no key configured" UI hint
-    rather than treating it as a failure.
-    """
-    if not fmp_api_key:
-        logger.debug("fetch_earnings_calendar: no FMP key provided, returning empty list")
-        return []
-
-    today = date.today()
-    end = today + timedelta(days=7)
-    url = "https://financialmodelingprep.com/api/v3/earning_calendar"
-    params = {
-        "from": today.isoformat(),
-        "to": end.isoformat(),
-        "apikey": fmp_api_key,
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=_FMP_TIMEOUT) as client:
-            response = await client.get(url, params=params)
-            response.raise_for_status()
-            raw: list[dict[str, object]] = response.json()
-    except httpx.HTTPStatusError as e:
-        logger.exception("FMP earnings calendar HTTP error: %s", e.response.status_code)
-        return []
-    except (httpx.TimeoutException, httpx.ConnectError):
-        logger.exception("FMP earnings calendar network error")
-        return []
-
-    events: list[EarningsEvent] = []
-    for item in raw:
-        ticker = str(item.get("symbol") or "")
-        if not ticker:
-            continue
-        # Filter to US-listed tickers. FMP's earning_calendar returns the full
-        # global universe (NSE/BSE India, .T Japan, .AX Australia, .L London,
-        # .HK Hong Kong, .TWO Taiwan, ...) — thousands of names per week, mostly
-        # noise for a US-focused dashboard. Whitelist US share-class suffixes
-        # (BRK.A, BRK.B, BF.B, LEN.B); drop everything else with a dot.
-        # Note .T / .L look like single-letter share classes but are Tokyo /
-        # London exchange suffixes, so we can't generalise to "any single
-        # uppercase letter".
-        if "." in ticker:
-            suffix = ticker.rsplit(".", 1)[1]
-            if suffix not in {"A", "B"}:
-                continue
-        eps_raw = item.get("epsEstimated")
-        try:
-            eps_estimate = float(str(eps_raw)) if eps_raw is not None else None
-        except (TypeError, ValueError):
-            eps_estimate = None
-
-        # FMP "time" field: "bmo" (before market open) / "amc" (after market close) / null
-        time_raw = str(item.get("time") or "").lower()
-        if time_raw == "bmo":
-            time_label = "BMO"
-        elif time_raw == "amc":
-            time_label = "AMC"
-        else:
-            time_label = "—"
-
-        events.append(
-            EarningsEvent(
-                date=str(item.get("date") or ""),
-                ticker=ticker,
-                company_name=str(item.get("name") or ticker),
-                time=time_label,
-                eps_estimate=eps_estimate,
-            )
-        )
-
-    events.sort(key=lambda ev: ev.date)
-
-    # Dedup (ticker, date) — FMP occasionally returns multiple rows for the same
-    # company on the same date (BMO + AMC, listing-exchange duplicates). Keep
-    # the first occurrence so downstream React keys stay unique.
-    deduped: dict[tuple[str, str], EarningsEvent] = {}
-    for event in events:
-        deduped.setdefault((event.ticker, event.date), event)
-    return list(deduped.values())

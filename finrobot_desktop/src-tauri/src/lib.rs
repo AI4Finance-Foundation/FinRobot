@@ -7,7 +7,7 @@
 //!   3. WebView — loads the React UI from Vite dev server (http://localhost:5173
 //!      in dev) or the bundled frontendDist (../ui/dist/index.html in build).
 //!      React calls Python at 127.0.0.1:8321 via fetch — Vite proxy in dev,
-//!      absolute URL in build (TODO Phase 4c: inject base URL via build env).
+//!      absolute URL in build.
 //!
 //! Communication is plain HTTP/SSE. No `invoke()` calls into Rust.
 
@@ -44,9 +44,8 @@ pub fn run() {
                 .await
                 {
                     Ok(Ok(_child)) => {
-                        // Child handle intentionally dropped here — the sidecar
-                        // process will be killed by the OS when the Tauri process
-                        // exits. Explicit lifecycle management is Phase 4c.
+                        // Child handle intentionally dropped here because the
+                        // dev wrapper process owns the Python server lifecycle.
                         eprintln!("[desktop] sidecar ready — window will load the UI");
                     }
                     Ok(Err(e)) => {

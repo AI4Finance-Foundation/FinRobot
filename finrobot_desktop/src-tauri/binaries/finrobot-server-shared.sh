@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
 # Tauri sidecar wrapper for the FinRobot Python FastAPI server.
 #
-# Phase 4b: assumes `uv` is on PATH. The wrapper resolves the project root
-# relative to this script's location and delegates to uv run.
-#
-# Phase 4c (planned): replace with a bundled Python interpreter so the
-# .app is self-contained and works without uv on PATH.
-#
 # Tauri resolves this file via a platform-triple symlink, e.g.:
 #   finrobot-server-aarch64-apple-darwin -> finrobot-server-shared.sh
 #
@@ -27,9 +21,38 @@ if ! command -v uv &>/dev/null; then
     exit 1
 fi
 
-# --reload is dev-only behavior: this script is the Phase 4b implementation
-# that delegates to uv. Phase 4c bundled interpreter will replace this whole
-# script, at which point reload becomes inappropriate. Until then, every
-# `cargo tauri dev` run is a dev run, so reload by default — saves restarting
-# the desktop app after every Python edit.
-exec uv run finrobot serve --reload "$@"
+HOST="127.0.0.1"
+PORT="8321"
+ARGS=("$@")
+for ((i = 0; i < ${#ARGS[@]}; i++)); do
+    case "${ARGS[$i]}" in
+        --host)
+            HOST="${ARGS[$((i + 1))]:-$HOST}"
+            ;;
+        --port)
+            PORT="${ARGS[$((i + 1))]:-$PORT}"
+            ;;
+    esac
+done
+
+if command -v curl &>/dev/null && command -v lsof &>/dev/null; then
+    if ! curl -fsS --max-time 2 "http://${HOST}:${PORT}/health" >/dev/null 2>&1; then
+        PIDS="$(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true)"
+        for PID in $PIDS; do
+            CMD="$(ps -p "$PID" -o command= 2>/dev/null || true)"
+            PPID_VALUE="$(ps -p "$PID" -o ppid= 2>/dev/null | tr -d ' ' || true)"
+            PARENT_CMD="$(ps -p "$PPID_VALUE" -o command= 2>/dev/null || true)"
+            if [[ "$CMD" == *"finrobot"* || "$CMD" == *"uvicorn"* || "$CMD" == *"uv run"* || "$PARENT_CMD" == *"finrobot"* ]]; then
+                echo >&2 "[finrobot-server] Clearing unresponsive FinRobot process on ${HOST}:${PORT} (pid=${PID})."
+                kill "$PID" 2>/dev/null || true
+            fi
+        done
+        sleep 1
+    fi
+fi
+
+if [[ "${FINROBOT_SERVER_RELOAD:-0}" == "1" ]]; then
+    exec uv run finrobot serve --reload "$@"
+fi
+
+exec uv run finrobot serve "$@"

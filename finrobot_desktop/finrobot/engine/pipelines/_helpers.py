@@ -4,18 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
 from typing import Any
 
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import AgentRunError
 from pydantic import ValidationError
 
-from finrobot.engine.compute.data_processor import (
-    extract_historical_metrics,
-    forecast_financials,
-)
+from finrobot.engine.compute.data_processor import forecast_financials
 from finrobot.engine.compute.extractor import extract_financial_data, extract_company_financials
+from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
 from finrobot.engine.compute.fx_normalize import normalize_company_to_usd
 from finrobot.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
 from finrobot.engine.compute.valuation_aggregator import aggregate_valuation
@@ -24,10 +21,8 @@ from finrobot.engine.compute.xbrl_aligned_comps import (
     build_xbrl_aligned_company,
     override_company_with_xbrl,
 )
-from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
-from finrobot.engine.data.normalize.financials import normalize_financials
-from finrobot.engine.data.normalize.price import normalize_price
 from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
@@ -313,7 +308,7 @@ async def execute_financial_data_step(
     # These are deterministic — no LLM call needed.
     # structured_context IS structured_results (same dict reference) so
     # writes here persist into PipelineResult.structured_data.
-    hm = await _build_historical_metrics(deps, ticker, financial_data)
+    hm = await _build_historical_metrics(deps, ticker)
     if hm is not None:
         structured_context["historical_metrics"] = hm
         logger.info(
@@ -336,56 +331,38 @@ async def execute_financial_data_step(
     return StepOutput(text=step_result.output, structured=financial_data)
 
 
-async def _build_historical_metrics(
-    deps: FinRobotDeps, ticker: str, current_fd: FinancialData
-) -> HistoricalMetrics | None:
-    """Fetch multi-year data and build HistoricalMetrics. Returns None on failure."""
+async def _build_historical_metrics(deps: FinRobotDeps, ticker: str) -> HistoricalMetrics | None:
+    """Build multi-year HistoricalMetrics for charts + DCF seeding.
+
+    Delegates to ``fetch_historical_metrics`` — the single canonical extractor
+    every other pipeline/route already uses (dcf, lbo, ic_memo, equity_research's
+    own modeling-step fallback, routes/compute, routes/data). It reads CapEx /
+    D&A / ΔNWC straight from the raw per-year provider dicts.
+
+    The previous FinancialData→``extract_historical_metrics`` path silently
+    DROPPED those three cash-flow fields (they never round-tripped through
+    FinancialData), so ``dcf_seed`` saw empty CapEx/D&A history and fell back to
+    the Damodaran industry aggregate — for ``Software (Internet)`` that means
+    CapEx = 31.8% of revenue (an aggregate skewed by cash-burning small-caps),
+    which crushed a profitable mega-cap's projected FCF to ~0 and produced a
+    NEGATIVE implied price (META: −$22, failing the DCF validator every run).
+    Consuming the same complete extractor as everyone else removes that path
+    split. Returns None when fewer than 2 usable years exist (caller skips
+    chart/forecast generation).
+    """
     try:
-        if not hasattr(deps.data_layer, "fetch_historical"):
-            return None
-        yearly_results = await deps.data_layer.fetch_historical(
-            DataType.FINANCIALS, ticker, years=5
-        )
-        if len(yearly_results) < 2:
-            logger.info(
-                "Only %d year(s) of data for %s — skipping HistoricalMetrics",
-                len(yearly_results),
-                ticker,
-            )
-            return None
-
-        # Convert each yearly DataResult to FinancialData.
-        # Historical slices come from fetch_historical (list[DataResult]), which has
-        # no canonical cache slot.  Normalize inline here (the one allowed per-year
-        # use of normalize_* outside fetch_canonical — see ADR-0006 §7 comment).
-        # The dummy price carries only the single current close used for fallback;
-        # the 52w window will collapse to a single bar, which is acceptable for
-        # historical year-over-year metrics that don't use 52w high/low.
-        dummy_price_raw = DataResult(
-            data={"price_history": [{"close": current_fd.market.current_price}]},
-            provider="derived",
-            ticker=ticker,
-            data_type="price",
-            timestamp=datetime.now(tz=timezone.utc),
-        )
-        dummy_price_norm = normalize_price(dummy_price_raw)
-        fd_list: list[FinancialData] = []
-        for yr in yearly_results:
-            try:
-                yr_norm = normalize_financials(yr)
-                fd = extract_financial_data(yr_norm, dummy_price_norm)
-                fd_list.append(fd)
-            except (ValueError, KeyError) as e:
-                logger.debug("Skipping year for %s: %s", ticker, e)
-                continue
-
-        if len(fd_list) < 2:
-            return None
-
-        return extract_historical_metrics(fd_list)
-    except (ValueError, KeyError, TypeError, RuntimeError) as e:
+        hm = await fetch_historical_metrics(deps.data_layer, ticker, years=5)
+    except (ValueError, KeyError, TypeError, RuntimeError, AttributeError, OSError) as e:
         logger.warning("Failed to build HistoricalMetrics for %s: %s", ticker, e)
         return None
+    if len(hm.years) < 2:
+        logger.info(
+            "Only %d year(s) of data for %s — skipping HistoricalMetrics",
+            len(hm.years),
+            ticker,
+        )
+        return None
+    return hm
 
 
 def _build_forecast(hm: HistoricalMetrics) -> ForecastResult | None:

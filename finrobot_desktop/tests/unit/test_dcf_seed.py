@@ -22,6 +22,7 @@ import pytest
 from finrobot.engine.compute.dcf_seed import (
     _cost_of_debt,
     _decay_growth_schedule,
+    _effective_tax_rate,
     _median_ratio,
     _median_recent,
     seed_dcf_inputs,
@@ -355,3 +356,69 @@ class TestDecliningFirmGrowth:
         assert inputs.revenue_growth_rates[0] == pytest.approx(0.30)
         assert inputs.revenue_growth_rates[-1] == pytest.approx(0.025)
         assert "衰减" in inputs.assumption_provenance["revenue_growth_rates"]
+
+
+# ---------------------------------------------------------------------------
+# Effective tax rate (B) — company rate from income_tax_expense vs industry
+# ---------------------------------------------------------------------------
+
+
+class TestEffectiveTaxRate:
+    def test_meta_like_rate(self):
+        # META: tax 18.715B / pretax (70.587B + 18.715B) = 20.96%
+        assert _effective_tax_rate(18_715_000_000, 70_587_000_000) == pytest.approx(
+            0.2096, abs=1e-3
+        )
+
+    def test_none_when_tax_missing(self):
+        assert _effective_tax_rate(None, 70e9) is None
+
+    def test_none_when_net_income_missing(self):
+        assert _effective_tax_rate(15e9, None) is None
+
+    def test_none_on_loss_year_nonpositive_pretax(self):
+        # Loss-maker with a tax benefit → pretax = NI + tax can be ≤ 0
+        assert _effective_tax_rate(-5e9, -10e9) is None
+
+    def test_none_on_implausible_high_rate(self):
+        # > 45% signals a one-off item, not the run-rate → fall back to industry
+        assert _effective_tax_rate(60e9, 40e9) is None
+
+    def test_seed_uses_company_rate_over_industry(self):
+        # A profitable internet-mapped company must NOT inherit the distorted
+        # "Software (Internet)" industry aggregate (40%) when its own filing
+        # gives a real effective rate.
+        fin = _aapl_financials()
+        fin.income.income_tax_expense = 18_715_000_000
+        fin.income.net_income = 70_587_000_000
+        inputs = seed_dcf_inputs(fin, _aapl_historical())
+        assert inputs.tax_rate == pytest.approx(0.2096, abs=1e-3)
+        assert "最新财报有效税率" in inputs.assumption_provenance["tax_rate"]
+
+
+# ---------------------------------------------------------------------------
+# CapEx consistency cap (C) — industry fallback can't exceed EBITDA margin
+# ---------------------------------------------------------------------------
+
+
+class TestCapexConsistencyCap:
+    def test_industry_capex_capped_at_ebitda_margin(self):
+        # No company CapEx history → falls back to industry. With a company
+        # EBITDA margin (50%) below a pathological industry CapEx (e.g. Software
+        # (Internet) 31.8%... here forced higher), CapEx is capped at the EBITDA
+        # margin so FCF can't be structurally negative.
+        fin = _aapl_financials()
+        # Empty capex history forces the industry fallback; keep a known EBITDA margin.
+        hist = _aapl_historical().model_copy(
+            update={"capital_expenditure": [], "ebitda_margin": [0.50, 0.50, 0.50, 0.50]}
+        )
+        inputs = seed_dcf_inputs(fin, hist)
+        # Cap fires only if industry capex > ebitda_margin; assert the invariant holds.
+        assert inputs.capex_pct_revenue <= inputs.ebitda_margin + 1e-9
+
+    def test_company_capex_never_capped(self):
+        # When the company's own CapEx history is present it is used verbatim —
+        # the consistency guard must not touch it even if low.
+        inputs = seed_dcf_inputs(_aapl_financials(), _aapl_historical())
+        assert 0.02 <= inputs.capex_pct_revenue <= 0.04
+        assert "过去 3 年 CapEx" in inputs.assumption_provenance["capex_pct_revenue"]

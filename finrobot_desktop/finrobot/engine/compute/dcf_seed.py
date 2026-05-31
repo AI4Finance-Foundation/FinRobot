@@ -137,6 +137,27 @@ def _cost_of_debt(
     return rate
 
 
+def _effective_tax_rate(income_tax_expense: float | None, net_income: float | None) -> float | None:
+    """Company effective tax rate = tax_expense / pretax, pretax = NI + tax_expense.
+
+    Returns None when the inputs can't yield a meaningful run-rate:
+      - either line is missing,
+      - pretax ≤ 0 (a loss year makes the ratio meaningless),
+      - the implied rate is outside [0%, 45%] — a sign of a one-off tax item
+        (large credit/benefit or settlement) rather than the sustainable rate.
+    The caller falls back to the industry effective rate in those cases.
+    """
+    if income_tax_expense is None or net_income is None:
+        return None
+    pretax = net_income + income_tax_expense
+    if pretax <= 0:
+        return None
+    rate = income_tax_expense / pretax
+    if rate < 0.0 or rate > 0.45:
+        return None
+    return rate
+
+
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
@@ -233,13 +254,29 @@ def seed_dcf_inputs(
     prov["ebitda_margin"] = f"{ebitda_margin:.1%}（{ebitda_source}）"
 
     # ----- capex_pct_revenue -----------------------------------------------
+    capex_ticker = _median_ratio(historical.capital_expenditure, historical.revenue)
     capex_pct, capex_source = _pick_with_provenance(
-        ticker_value=_median_ratio(historical.capital_expenditure, historical.revenue),
+        ticker_value=capex_ticker,
         ticker_label="过去 3 年 CapEx / 营收 中位数",
         industry_value=industry.capex_pct_revenue,
         industry_label=f"{industry.industry} 行业中位数",
     )
-    prov["capex_pct_revenue"] = f"{capex_pct:.1%}（{capex_source}）"
+    # Consistency guard (防地雷): when CapEx falls back to the industry aggregate
+    # but EBITDA margin is the company's own, the pair can be mutually
+    # inconsistent — e.g. Damodaran "Software (Internet)" CapEx 31.8% (an
+    # aggregate skewed by cash-burning small-caps) layered onto a 50%-EBITDA-
+    # margin mega-cap. CapEx can't sustainably exceed EBITDA (that is permanently
+    # negative FCF), so cap an industry-fallback CapEx at the EBITDA margin. Only
+    # fires on the fallback path (capex_ticker is None); a company's own
+    # historical CapEx ratio is never touched.
+    if capex_ticker is None and capex_pct > ebitda_margin:
+        prov["capex_pct_revenue"] = (
+            f"{ebitda_margin:.1%}（{capex_source} {capex_pct:.1%} 收敛到 EBITDA 利润率 "
+            f"{ebitda_margin:.1%}——行业聚合 CapEx 高于本公司 EBITDA，不可持续）"
+        )
+        capex_pct = ebitda_margin
+    else:
+        prov["capex_pct_revenue"] = f"{capex_pct:.1%}（{capex_source}）"
 
     # ----- da_pct_revenue ---------------------------------------------------
     da_pct, da_source = _pick_with_provenance(
@@ -261,17 +298,25 @@ def seed_dcf_inputs(
         prov["nwc_pct_revenue"] = "1.0%（历史不可得，按通用基准）"
 
     # ----- tax_rate ---------------------------------------------------------
-    # If we can derive an effective rate from net_income vs pre-tax income,
-    # prefer that; otherwise use industry effective rate; otherwise 21%.
-    tax_rate, tax_source = _pick_with_provenance(
-        ticker_value=None,  # Effective-tax-from-history extraction lives in a
-        # follow-up — current FinancialData doesn't expose pre-tax income directly.
-        ticker_label="历史有效税率",
-        industry_value=industry.effective_tax_rate,
-        industry_label=f"{industry.industry} 行业实际有效税率",
-        floor=DEFAULT_TAX_RATE * 0.5,
+    # Company effective tax = income_tax_expense / pretax, where
+    # pretax = net_income + income_tax_expense (textbook effective-rate口径).
+    # Prefer it over the Damodaran industry aggregate, which for distorted
+    # sectors badly misstates a profitable firm's real rate — "Software
+    # (Internet)" reports 40% (skewed by loss-makers), ~2x META's actual ~21%,
+    # and a 40% tax on top of an industry-fallback CapEx is what drove META's
+    # implied price negative. Falls back to industry only when the snapshot lacks
+    # a usable tax line or the implied rate is a non-run-rate outlier.
+    company_tax = _effective_tax_rate(
+        financials.income.income_tax_expense, financials.income.net_income
     )
-    prov["tax_rate"] = f"{tax_rate:.1%}（{tax_source}）"
+    if company_tax is not None:
+        tax_rate = company_tax
+        prov["tax_rate"] = f"{tax_rate:.1%}（最新财报有效税率 = 所得税 / 税前利润）"
+    else:
+        tax_rate = industry.effective_tax_rate
+        prov["tax_rate"] = (
+            f"{tax_rate:.1%}（{industry.industry} 行业实际有效税率——财报无可用税项/税前为负）"
+        )
 
     # ----- WACC components --------------------------------------------------
     # Beta: prefer provider-reported beta, fall back to industry levered beta.

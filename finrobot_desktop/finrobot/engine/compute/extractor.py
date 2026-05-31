@@ -159,6 +159,7 @@ def extract_financial_data(
             rd_expense=fin.rd_expense,
             sga_expense=fin.sga_expense,
             interest_expense=fin.interest_expense,
+            income_tax_expense=fin.income_tax_expense,
         ),
         balance=BalanceSheet(
             total_debt=total_debt,

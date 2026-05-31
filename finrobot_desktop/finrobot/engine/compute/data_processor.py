@@ -12,12 +12,10 @@ from __future__ import annotations
 import math
 
 from finrobot.engine.models.financial import (
-    FinancialData,
     ForecastAssumptions,
     ForecastResult,
     HistoricalMetrics,
     MarginAssumptions,
-    PriceHistory,
 )
 
 
@@ -35,139 +33,6 @@ def calculate_cagr(start: float, end: float, years: int) -> float | None:
     if start <= 0 or years <= 0:
         return None
     return float((end / start) ** (1 / years) - 1)
-
-
-def extract_historical_metrics(
-    financial_data: list[FinancialData],
-    price_data: PriceHistory | None = None,
-    years: int = 5,
-) -> HistoricalMetrics:
-    """Extract multi-year historical metrics from FinancialData list.
-
-    Sorts data oldest-first by ``fiscal_period_end`` (the canonical fiscal
-    period the snapshot represents), falling back to ``timestamp`` when the
-    provider didn't surface a fiscal date. Computes: YoY revenue growth,
-    margins (gross, EBITDA, operating), SGA ratio, EPS, PE ratio (if
-    price_data), and CAGR.
-
-    COGS is derived as revenue * (1 - gross_margin).
-    Operating income is derived as revenue * operating_margin.
-    """
-
-    def _sort_key(d: FinancialData) -> tuple[int, int, int]:
-        # Prefer fiscal_period_end so 5-year history sorts/labels by fiscal year,
-        # not by the fetch wall-clock. Encoding as a (year, month, day) tuple
-        # lets timestamp-only entries (no fiscal date) still order coherently.
-        if d.fiscal_period_end is not None:
-            return (d.fiscal_period_end.year, d.fiscal_period_end.month, d.fiscal_period_end.day)
-        return (d.timestamp.year, d.timestamp.month, d.timestamp.day)
-
-    sorted_data = sorted(financial_data, key=_sort_key)
-
-    # Limit to requested number of years (take most recent N)
-    if len(sorted_data) > years:
-        sorted_data = sorted_data[-years:]
-
-    year_list: list[int] = []
-    revenue_list: list[float] = []
-    revenue_growth: list[float | None] = []
-    cogs_list: list[float] = []
-    gross_profit_list: list[float] = []
-    gross_margin_list: list[float] = []
-    sga_list: list[float] = []
-    sga_ratio_list: list[float] = []
-    ebitda_list: list[float] = []
-    ebitda_margin_list: list[float] = []
-    operating_income_list: list[float] = []
-    operating_margin_list: list[float] = []
-    net_income_list: list[float] = []
-    eps_list: list[float] = []
-    pe_ratio_list: list[float | None] = []
-
-    for i, fd in enumerate(sorted_data):
-        # Use fiscal_period_end.year when the provider surfaced it; the fall-
-        # back to timestamp.year exists for legacy single-year fetches but in
-        # the multi-year historical path this guarantees distinct fiscal years.
-        year_list.append(
-            fd.fiscal_period_end.year if fd.fiscal_period_end is not None else fd.timestamp.year
-        )
-        revenue_list.append(fd.income.revenue)
-
-        # YoY revenue growth: None for first year
-        if i == 0:
-            revenue_growth.append(None)
-        else:
-            prev_rev = sorted_data[i - 1].income.revenue
-            if prev_rev != 0:
-                revenue_growth.append((fd.income.revenue - prev_rev) / prev_rev)
-            else:
-                revenue_growth.append(None)
-
-        # COGS = revenue * (1 - gross_margin)
-        cogs = fd.income.revenue * (1 - fd.income.gross_margin)
-        cogs_list.append(cogs)
-
-        # Gross profit = revenue - COGS
-        gross_profit_list.append(fd.income.revenue - cogs)
-
-        # Margins (passthrough from provider)
-        gross_margin_list.append(fd.income.gross_margin)
-
-        # SGA
-        sga = fd.income.sga_expense if fd.income.sga_expense is not None else 0.0
-        sga_list.append(sga)
-        sga_ratio_list.append(sga / fd.income.revenue if fd.income.revenue != 0 else 0.0)
-
-        # EBITDA
-        ebitda_list.append(fd.income.ebitda)
-        ebitda_margin_list.append(
-            fd.income.ebitda / fd.income.revenue if fd.income.revenue != 0 else 0.0
-        )
-
-        # Operating income = revenue * operating_margin
-        operating_income_list.append(fd.income.revenue * fd.income.operating_margin)
-        operating_margin_list.append(fd.income.operating_margin)
-
-        # Net income
-        net_income_list.append(fd.income.net_income)
-
-        # EPS = net_income / shares_outstanding
-        so = fd.market.shares_outstanding
-        eps = fd.income.net_income / so
-        eps_list.append(eps)
-
-        # PE ratio: only if price_data is provided
-        if price_data is not None and eps != 0:
-            pe_ratio_list.append(price_data.current_price / eps)
-        else:
-            pe_ratio_list.append(None)
-
-    # Revenue CAGR across all years
-    n_periods = len(sorted_data) - 1
-    cagr_revenue = (
-        calculate_cagr(revenue_list[0], revenue_list[-1], n_periods) if n_periods > 0 else None
-    )
-
-    return HistoricalMetrics(
-        years=year_list,
-        revenue=revenue_list,
-        revenue_growth_yoy=revenue_growth,
-        cogs=cogs_list,
-        gross_profit=gross_profit_list,
-        gross_margin=gross_margin_list,
-        sga=sga_list,
-        sga_ratio=sga_ratio_list,
-        ebitda=ebitda_list,
-        ebitda_margin=ebitda_margin_list,
-        operating_income=operating_income_list,
-        operating_margin=operating_margin_list,
-        net_income=net_income_list,
-        eps=eps_list,
-        pe_ratio=pe_ratio_list,
-        cagr_revenue=cagr_revenue,
-        ticker=sorted_data[0].ticker,
-        price_data_available=price_data is not None,
-    )
 
 
 def forecast_financials(

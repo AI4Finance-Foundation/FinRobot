@@ -48,10 +48,16 @@ def _price_raw() -> DataResult:
 
 
 def _yearly_result(year: int, revenue: float = 1e9) -> DataResult:
-    """Build a single-year financials DataResult for historical testing."""
+    """Build a single-year financials DataResult shaped like fetch_historical's
+    output — the canonical normalized per-year dict that historical_extractor's
+    ``_build_from_yearly`` consumes. ``fiscal_year`` is what pins the row to a
+    year, and the cash-flow lines (CapEx / D&A / ΔNWC) must round-trip so the DCF
+    seed uses the company's own CapEx instead of the Damodaran industry
+    aggregate."""
     return DataResult(
         data={
             "revenue": revenue,
+            "fiscal_year": year,
             "ebitda": revenue * 0.2,
             "net_income": revenue * 0.1,
             "market_cap": 5e9,
@@ -59,6 +65,9 @@ def _yearly_result(year: int, revenue: float = 1e9) -> DataResult:
             "current_price": 50.0,
             "gross_margin": 0.4,
             "operating_margin": 0.15,
+            "capital_expenditure": revenue * 0.05,
+            "depreciation_amortization": revenue * 0.04,
+            "change_in_working_capital": revenue * 0.01,
         },
         provider="fmp",
         ticker="TEST",
@@ -140,18 +149,23 @@ async def test_historical_metrics_injected_into_structured_context():
     await execute_financial_data_step(mock_agent, mock_deps, "prompt", structured_context, "TEST")
 
     # structured_context must now contain historical_metrics and forecast
-    assert (
-        "historical_metrics" in structured_context
-    ), f"Missing historical_metrics. Keys: {list(structured_context.keys())}"
+    assert "historical_metrics" in structured_context, (
+        f"Missing historical_metrics. Keys: {list(structured_context.keys())}"
+    )
     from finrobot.engine.models.financial import HistoricalMetrics, ForecastResult
 
     hm = structured_context["historical_metrics"]
     assert isinstance(hm, HistoricalMetrics)
     assert len(hm.years) == 5
+    # A-fix: the cash-flow lines must round-trip (the old FinancialData→
+    # extract_historical_metrics path dropped them, starving dcf_seed of company
+    # CapEx and forcing the broken industry fallback).
+    assert len(hm.capital_expenditure) == 5
+    assert len(hm.depreciation_amortization) == 5
 
-    assert (
-        "forecast" in structured_context
-    ), f"Missing forecast. Keys: {list(structured_context.keys())}"
+    assert "forecast" in structured_context, (
+        f"Missing forecast. Keys: {list(structured_context.keys())}"
+    )
     fc = structured_context["forecast"]
     assert isinstance(fc, ForecastResult)
     assert len(fc.years) == 3  # 3-year default forecast

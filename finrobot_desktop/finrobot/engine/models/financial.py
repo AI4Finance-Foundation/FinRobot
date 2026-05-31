@@ -20,6 +20,12 @@ class IncomeStatement(BaseModel):
     rd_expense: float | None = None
     sga_expense: float | None = None
     interest_expense: float | None = None
+    income_tax_expense: float | None = None
+    """Income tax provision in USD. Carried from NormalizedFinancials so the DCF
+    seed can derive a company-specific effective tax rate
+    (tax / (net_income + tax)) instead of falling back to the Damodaran industry
+    aggregate — which for distorted sectors (Software (Internet) = 40%, skewed by
+    loss-makers) badly misstates a profitable mega-cap's real ~16-21% rate."""
 
 
 class BalanceSheet(BaseModel):

@@ -28,7 +28,7 @@ describe('ReportTOC — locale-aware chapter sidebar', () => {
     render(<ReportTOC entries={allChapterLabels('zh')} />)
     // sidebar header
     expect(screen.getByText('研报章节')).toBeInTheDocument()
-    // 12 chapters — sample a few across the spread
+    // 13 chapters — sample a few across the spread
     expect(screen.getByText('封面')).toBeInTheDocument()
     expect(screen.getByText('投资论点')).toBeInTheDocument()
     expect(screen.getByText('估值分析')).toBeInTheDocument()

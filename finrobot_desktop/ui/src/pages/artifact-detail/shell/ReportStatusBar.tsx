@@ -1,4 +1,4 @@
-// Bottom status bar for the 12-chapter report — Zed-inspired.
+// Bottom status bar for the 13-chapter report — Zed-inspired.
 //
 // Sticky to the viewport bottom, ~28px tall. Surfaces the current chapter
 // (via scroll-spy on the same section ids the TOC observes), a scroll
@@ -7,8 +7,13 @@
 // document — those were a non-pattern in desktop apps (Linear / Notion /
 // Obsidian / Apple Mail never put a return button at the bottom of a
 // reading view) and the breadcrumb plus toolbar arrow now own that role.
+//
+// Scroll events are bound to the REAL scroll container: #main-scroll
+// (<main id="main-scroll" class="main-content"> in AppShell). The body /
+// window never scrolls — body is overflow:hidden and the main pane is the
+// only element with overflow-y:auto. window.scrollY is always 0.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { TOCEntry } from './ReportTOC'
 
 interface ReportStatusBarProps {
@@ -18,12 +23,21 @@ interface ReportStatusBarProps {
 export function ReportStatusBar({ entries }: ReportStatusBarProps): React.ReactElement {
   const [activeIdx, setActiveIdx] = useState<number>(0)
   const [progressPct, setProgressPct] = useState<number>(0)
+  // Cache the scroll container reference so both effects share the same node.
+  const scrollElRef = useRef<HTMLElement | null>(null)
 
-  // Scroll-spy on the same section ids the TOC tracks. We share the same
-  // rootMargin so the two stay in sync — when the TOC highlights chapter
-  // 04 the status bar also reads 04/12.
+  function getScrollEl(): HTMLElement | null {
+    if (scrollElRef.current) return scrollElRef.current
+    const el = document.getElementById('main-scroll')
+    scrollElRef.current = el
+    return el
+  }
+
+  // Scroll-spy on the same section ids the TOC tracks. root: scrollEl so
+  // IntersectionObserver correctly observes against the pane, not viewport.
   useEffect(() => {
     if (entries.length === 0) return
+    const scrollEl = getScrollEl()
     const observer = new IntersectionObserver(
       (rows) => {
         rows.forEach((row) => {
@@ -33,7 +47,10 @@ export function ReportStatusBar({ entries }: ReportStatusBarProps): React.ReactE
           }
         })
       },
-      { rootMargin: '-30% 0px -60% 0px' },
+      {
+        root: scrollEl ?? null, // null = viewport (safe fallback if not found)
+        rootMargin: '-30% 0px -60% 0px',
+      },
     )
     entries.forEach((e) => {
       const el = document.getElementById(e.id)
@@ -43,33 +60,44 @@ export function ReportStatusBar({ entries }: ReportStatusBarProps): React.ReactE
   }, [entries])
 
   // Document scroll progress. rAF-throttled so we don't recompute on
-  // every scroll event — the bar only needs to feel "alive", not pixel-
-  // perfect.
+  // every scroll event — the bar only needs to feel "alive", not pixel-perfect.
+  // Listens on the REAL scroll container (not window).
   useEffect(() => {
+    const scrollEl = getScrollEl()
+    if (!scrollEl) return
+
     let raf: number | null = null
+
     function compute(): void {
       raf = null
-      const scrollTop = window.scrollY
-      const max = document.documentElement.scrollHeight - window.innerHeight
+      const el = scrollElRef.current
+      if (!el) return
+      const scrollTop = el.scrollTop
+      const max = el.scrollHeight - el.clientHeight
       const pct = max > 0 ? Math.min(100, Math.max(0, (scrollTop / max) * 100)) : 0
       setProgressPct(pct)
     }
+
     function onScroll(): void {
       if (raf !== null) return
       raf = requestAnimationFrame(compute)
     }
+
     compute()
-    window.addEventListener('scroll', onScroll, { passive: true })
+    scrollEl.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onScroll)
     return () => {
-      window.removeEventListener('scroll', onScroll)
+      scrollEl.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onScroll)
       if (raf !== null) cancelAnimationFrame(raf)
     }
   }, [])
 
   function scrollToTop(): void {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    const scrollEl = getScrollEl()
+    if (scrollEl) {
+      scrollEl.scrollTo({ top: 0, behavior: 'smooth' })
+    }
   }
 
   const total = entries.length

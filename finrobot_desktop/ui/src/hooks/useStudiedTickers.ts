@@ -3,6 +3,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
+import { fetchWithTimeout } from '../api/fetch'
 import { FetchHttpError } from '../utils/errorMessage'
 
 export interface StudiedTicker {
@@ -26,7 +27,9 @@ export function useStudiedTickers(limit = 100) {
   return useQuery<StudiedTickersResponse>({
     queryKey: ['studied-tickers', limit],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${BASE_URL}/api/artifacts/studied-tickers?limit=${limit}`, { signal })
+      const r = await fetchWithTimeout(`${BASE_URL}/api/artifacts/studied-tickers?limit=${limit}`, {
+        signal,
+      })
       if (!r.ok) throw new FetchHttpError(r.status, r.statusText)
       return r.json() as Promise<StudiedTickersResponse>
     },

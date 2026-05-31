@@ -1,4 +1,4 @@
-// Sticky top toolbar for the 12-chapter research report view.
+// Sticky top toolbar for the 13-chapter research report view.
 //
 // Single-row, Finder-style (Spacedrive-inspired): one ← back arrow as the
 // canonical return path, a 3-segment breadcrumb whose tail doubles as a
@@ -51,12 +51,30 @@ export function ReportToolbar({
 
   const sameTypeTimeline = timeline.filter((a) => a.type === reportType)
 
+  // Map artifact type → pipeline_type accepted by POST /api/runs.
+  // artifact type uses snake_case; pipeline type uses kebab-case for ic-memo.
+  function reportTypeToPipelineType(type: string): string {
+    const MAP: Record<string, string> = {
+      equity_research: 'research',
+      earnings: 'earnings',
+      dcf: 'dcf',
+      lbo: 'lbo',
+      ddm: 'ddm',
+      comps: 'comps',
+      ic_memo: 'ic-memo',
+      peer_research: 'research', // no dedicated pipeline; re-run as full research
+      ad_hoc: 'research',
+    }
+    return MAP[type] ?? 'research'
+  }
+
   async function handleRerun(): Promise<void> {
+    const pipelineType = reportTypeToPipelineType(reportType)
     try {
-      await startRun('research', ticker)
+      await startRun(pipelineType, ticker)
       addToast({
         type: 'success',
-        title: `${ticker} 重跑研报已启动`,
+        title: `${ticker} 重跑 ${reportType} 已启动`,
         description: '分析进行中，完成后可在工作区抽屉查看版本历史',
       })
       navigate(`/stocks/${ticker}`)

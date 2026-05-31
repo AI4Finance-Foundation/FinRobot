@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, BASE_URL } from '../api/client'
+import { api, BASE_URL, exportDiagnosticsLogs } from '../api/client'
 import { useToastStore } from '../stores/toastStore'
 import { useUiStore } from '../stores/uiStore'
 import { mapErrorToUserMessage, FetchHttpError } from '../utils/errorMessage'
@@ -89,6 +89,33 @@ const hintInvalidStyle: React.CSSProperties = {
   lineHeight: 1.5,
 }
 
+const hintOkStyle: React.CSSProperties = {
+  ...hintStyle,
+  color: 'var(--success)',
+  lineHeight: 1.5,
+}
+
+const hintWarningStyle: React.CSSProperties = {
+  ...hintStyle,
+  color: 'var(--warning)',
+  lineHeight: 1.5,
+}
+
+const secHeaderPreviewStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '10px',
+  color: 'var(--text-muted)',
+  marginTop: '0',
+  lineHeight: 1.5,
+}
+
+const SEC_IDENTITY_EXAMPLE = 'Acme Research analyst@example.com'
+const SEC_EMAIL_RE = /[\w.!#$%&'*+/=?^`{|}~-]+@[\w.-]+\.[A-Za-z]{2,}/
+
+function extractSecEmail(s: string): RegExpMatchArray | null {
+  return s.match(SEC_EMAIL_RE)
+}
+
 /** Mirrors finrobot.engine.data.providers.edgar_provider._is_valid_identity.
  * SEC requires `Name email@domain` — we also reject the backend's placeholder
  * default `FinRobot admin@example.com` so the user has to set a real one. */
@@ -97,7 +124,25 @@ export function isValidSecIdentity(s: string | null | undefined): boolean {
   const trimmed = s.trim()
   if (!trimmed.includes('@') || !trimmed.includes(' ')) return false
   if (trimmed === 'FinRobot admin@example.com') return false
-  return true
+  return extractSecEmail(trimmed) !== null
+}
+
+export function secHeaderIdentityPreview(s: string | null | undefined): string | null {
+  if (!s || !isValidSecIdentity(s)) return null
+  const raw = s.trim()
+  const match = extractSecEmail(raw)
+  if (!match || match.index === undefined) return null
+  const email = match[0]
+  const nameBeforeEmail = raw.slice(0, match.index).trim()
+  const nameAfterEmail = raw.slice(match.index + email.length).trim()
+  const displayName = nameBeforeEmail || nameAfterEmail
+  const asciiName = [...displayName]
+    .map((ch) => (ch.charCodeAt(0) < 128 ? ch : ' '))
+    .join('')
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(' ')
+  return `${asciiName || 'FinRobot'} ${email}`
 }
 
 const requiredBadgeStyle: React.CSSProperties = {
@@ -123,6 +168,15 @@ const configuredBadgeStyle: React.CSSProperties = {
   fontSize: '9px',
   background: 'var(--positive-bg)',
   color: 'var(--positive)',
+  padding: '1px 5px',
+  borderRadius: '2px',
+}
+
+const pendingBadgeStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: '9px',
+  background: 'var(--warning-soft)',
+  color: 'var(--warning)',
   padding: '1px 5px',
   borderRadius: '2px',
 }
@@ -355,6 +409,12 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   const [webhookEnabled, setWebhookEnabled] = useState(false)
   const [webhookUrl, setWebhookUrl] = useState('')
 
+  // ── Section 4: Logging / Diagnostics ────────────────────────────────────
+  const [logLevel, setLogLevel] = useState('INFO')
+  const [logToFile, setLogToFile] = useState(false)
+  const [logRetentionDays, setLogRetentionDays] = useState(7)
+  const [exportState, setExportState] = useState<'idle' | 'loading' | 'error'>('idle')
+
   // Pending fields awaiting user confirmation before resetting their
   // settings.json override back to the .env default. Set by handleResetField,
   // cleared by the inline confirm modal.
@@ -371,6 +431,9 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     initializedRef.current = true
     if (settingsResp.model_name) setModelName(settingsResp.model_name)
     if (settingsResp.sec_user_agent) setSecUserAgent(settingsResp.sec_user_agent)
+    if (settingsResp.log_level) setLogLevel(settingsResp.log_level)
+    setLogToFile(settingsResp.log_to_file)
+    setLogRetentionDays(settingsResp.log_retention_days)
   }, [settingsResp])
 
   // ── PUT /api/settings mutation ───────────────────────────────────────────
@@ -450,14 +513,17 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     settingsMutationRef.current = settingsMutation
   }, [settingsMutation])
 
-  const scheduleStandardSave = useCallback((payload: Record<string, string | null>) => {
-    if (!initializedRef.current) return
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    setSaveState('saving')
-    debounceRef.current = setTimeout(() => {
-      settingsMutationRef.current.mutate(payload)
-    }, 500)
-  }, [])
+  const scheduleStandardSave = useCallback(
+    (payload: Record<string, string | number | boolean | null>) => {
+      if (!initializedRef.current) return
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      setSaveState('saving')
+      debounceRef.current = setTimeout(() => {
+        settingsMutationRef.current.mutate(payload as never)
+      }, 500)
+    },
+    [],
+  )
 
   // ── Notify field save (direct fetch, no schema constraint) ───────────────
   const notifyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -536,6 +602,44 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     scheduleStandardSave({ sec_user_agent: v })
   }
 
+  // Logging field helpers
+  const handleLogLevelChange = (v: string) => {
+    setLogLevel(v)
+    scheduleStandardSave({ log_level: v })
+  }
+
+  const handleLogToFileChange = (v: boolean) => {
+    setLogToFile(v)
+    scheduleStandardSave({ log_to_file: v })
+  }
+
+  const handleLogRetentionDaysChange = (v: number) => {
+    setLogRetentionDays(v)
+    scheduleStandardSave({ log_retention_days: v })
+  }
+
+  const handleExportLogs = async () => {
+    setExportState('loading')
+    try {
+      const blob = await exportDiagnosticsLogs()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'finrobot-logs.zip'
+      a.click()
+      URL.revokeObjectURL(url)
+      setExportState('idle')
+    } catch (err) {
+      setExportState('error')
+      addToast({
+        type: 'error',
+        title: '导出失败',
+        description: (err as Error).message,
+      })
+      setTimeout(() => setExportState('idle'), 3000)
+    }
+  }
+
   // Notification field helpers
   const handleFeishuUrl = (v: string) => {
     setFeishuUrl(v)
@@ -578,6 +682,41 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   const fieldSources = (settingsResp?.field_sources ?? {}) as Record<string, string>
   const sourceOf = (field: string): string | null => fieldSources[field] ?? null
   const startupError = settingsResp?.startup_error ?? null
+  const secIdentityLocallyValid = isValidSecIdentity(secUserAgent)
+  const secIdentityActive = settingsResp?.sec_identity_active ?? false
+  const secIdentityMatchesServer =
+    secUserAgent.trim() === (settingsResp?.sec_user_agent ?? '').trim()
+  const secIdentityPreview = secHeaderIdentityPreview(secUserAgent)
+  const secIdentityHint = (() => {
+    if (!secUserAgent.trim()) {
+      return {
+        style: hintInvalidStyle,
+        text: `填写格式：姓名或机构 + 空格 + 可联系邮箱，例如 ${SEC_IDENTITY_EXAMPLE}`,
+      }
+    }
+    if (!secIdentityLocallyValid) {
+      return {
+        style: hintInvalidStyle,
+        text: `格式未通过：不要只填邮箱；必须像 ${SEC_IDENTITY_EXAMPLE} 这样包含名称和邮箱`,
+      }
+    }
+    if (!secIdentityMatchesServer) {
+      return {
+        style: hintWarningStyle,
+        text: '格式有效，等待自动保存到 settings.json；保存成功后后台会重新加载 SEC 数据层',
+      }
+    }
+    if (secIdentityActive) {
+      return {
+        style: hintOkStyle,
+        text: '已启用：新分析会拉取 10-K / Ownership / XBRL；已经生成的报告需要重新跑才会更新',
+      }
+    }
+    return {
+      style: hintWarningStyle,
+      text: '格式有效，但后台尚未确认启用；请等待保存完成或查看保存失败提示',
+    }
+  })()
 
   const handleResetField = (fields: string[]) => {
     if (!fields.length) return
@@ -747,7 +886,13 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           <div style={fieldStyle}>
             <div style={labelStyle}>
               <span>SEC EDGAR 身份 (User-Agent)</span>
-              <span style={requiredBadgeStyle}>必填</span>
+              {secIdentityActive ? (
+                <span style={configuredBadgeStyle}>已启用</span>
+              ) : secIdentityLocallyValid ? (
+                <span style={pendingBadgeStyle}>待启用</span>
+              ) : (
+                <span style={requiredBadgeStyle}>必填</span>
+              )}
               <SourceBadge source={sourceOf('sec_user_agent')} />
               {sourceOf('sec_user_agent') === 'settings_json' && (
                 <button
@@ -760,25 +905,27 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               )}
             </div>
             <InputWithFocus
-              type="email"
+              type="text"
               value={secUserAgent}
               onChange={(e) => handleSecAgentChange(e.target.value)}
-              placeholder="姓名 邮箱@example.com"
-              data-invalid={!isValidSecIdentity(secUserAgent) || undefined}
+              placeholder="姓名或机构 邮箱@example.com"
+              autoComplete="off"
+              spellCheck={false}
+              aria-invalid={!secIdentityLocallyValid}
+              data-invalid={!secIdentityLocallyValid || undefined}
               style={
-                !isValidSecIdentity(secUserAgent)
+                !secIdentityLocallyValid
                   ? {
                       borderColor: 'var(--danger)',
-                      boxShadow: '0 0 0 1px rgba(220, 38, 38, 0.32)',
+                      boxShadow: '0 0 0 1px var(--danger-glow-soft)',
                     }
                   : undefined
               }
             />
-            <p style={!isValidSecIdentity(secUserAgent) ? hintInvalidStyle : hintStyle}>
-              {!isValidSecIdentity(secUserAgent)
-                ? '⚠ SEC EDGAR 要求 User-Agent 格式 "姓名 邮箱@example.com" — 未配置时 10-K 章节 / Ownership 章节 / XBRL 财务数据均不可用'
-                : '启用：10-K 章节 / Ownership 章节 / XBRL 财务数据（SEC EDGAR 条款要求）'}
-            </p>
+            <p style={secIdentityHint.style}>{secIdentityHint.text}</p>
+            {secIdentityPreview && (
+              <p style={secHeaderPreviewStyle}>SEC 请求头预览：{secIdentityPreview}</p>
+            )}
           </div>
         </div>
       </section>
@@ -1072,6 +1219,125 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                 <TestButton channel="webhook" disabled={!webhookUrl.trim()} />
               </div>
             )}
+          </div>
+        </div>
+      </section>
+
+      {/* ═════════════════════════════════════════════
+          Section 4: Logging / Diagnostics
+          ═════════════════════════════════════════════ */}
+      <section style={sectionStyle}>
+        <h2 style={sectionTitleStyle}>日志 / 诊断</h2>
+        <div style={fieldGroupStyle}>
+          {/* Log level */}
+          <div style={fieldStyle}>
+            <div style={labelStyle}>
+              <span>日志级别</span>
+            </div>
+            <SelectWithFocus
+              value={logLevel}
+              onChange={(e) => handleLogLevelChange(e.target.value)}
+            >
+              {(['DEBUG', 'INFO', 'WARNING', 'ERROR'] as const).map((lvl) => (
+                <option key={lvl} value={lvl}>
+                  {lvl}
+                </option>
+              ))}
+            </SelectWithFocus>
+            <p style={hintStyle}>
+              控制 ~/.finrobot/logs/ 写入的详细程度；DEBUG 输出量大，生产环境建议 INFO
+            </p>
+          </div>
+
+          {/* Log to file toggle */}
+          <div style={fieldStyle}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <Checkbox checked={logToFile} onChange={handleLogToFileChange} />
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '11px',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                写入日志文件
+              </span>
+            </div>
+            <p style={{ ...hintStyle, marginTop: '4px' }}>
+              开启后将日志持久化到 ~/.finrobot/logs/；关闭则仅输出到 stderr
+            </p>
+          </div>
+
+          {/* Retention days */}
+          <div style={fieldStyle}>
+            <div style={labelStyle}>
+              <span>日志保留天数</span>
+            </div>
+            <InputWithFocus
+              type="number"
+              value={logRetentionDays}
+              min={1}
+              onChange={(e) => {
+                const n = parseInt(e.target.value)
+                if (!isNaN(n) && n >= 1) handleLogRetentionDaysChange(n)
+              }}
+              style={{ width: '100px' }}
+            />
+            <p style={hintStyle}>超过该天数的日志文件将在下次启动时自动清理</p>
+          </div>
+
+          {/* Export button */}
+          <div style={fieldStyle}>
+            <div style={labelStyle}>
+              <span>诊断日志</span>
+            </div>
+            <div>
+              <button
+                type="button"
+                disabled={exportState === 'loading'}
+                onClick={handleExportLogs}
+                style={{
+                  background: exportState === 'error' ? 'var(--negative-bg)' : 'var(--bg-3)',
+                  border: `1px solid ${exportState === 'error' ? 'var(--negative)' : 'var(--border)'}`,
+                  borderRadius: '4px',
+                  padding: '7px 14px',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '11px',
+                  color: exportState === 'error' ? 'var(--negative)' : 'var(--text-secondary)',
+                  cursor: exportState === 'loading' ? 'not-allowed' : 'pointer',
+                  opacity: exportState === 'loading' ? 0.6 : 1,
+                  transition: 'all 0.15s',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                {/* Download icon — inline SVG per style guide */}
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+                  <path
+                    d="M6 1v7M3.5 5.5L6 8l2.5-2.5M2 10h8"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                {exportState === 'loading'
+                  ? '打包中…'
+                  : exportState === 'error'
+                    ? '导出失败'
+                    : '导出诊断日志'}
+              </button>
+            </div>
+            <p style={hintStyle}>
+              将 ~/.finrobot/logs/ 下所有日志文件打包为 finrobot-logs.zip 下载
+            </p>
           </div>
         </div>
       </section>

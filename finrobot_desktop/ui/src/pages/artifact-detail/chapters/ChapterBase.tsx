@@ -1,5 +1,5 @@
 // Shared structural primitives used by every chapter in the
-// 12-chapter investment-bank-grade long-scroll report.
+// 13-chapter investment-bank-grade long-scroll report.
 
 import type { CSSProperties, ReactNode } from 'react'
 import { useI18n } from '../../../i18n'

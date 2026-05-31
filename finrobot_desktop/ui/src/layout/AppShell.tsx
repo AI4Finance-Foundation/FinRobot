@@ -75,7 +75,7 @@ export function AppShell(): React.ReactElement {
       <TitleBar />
       <div className="app-body">
         <Sidebar />
-        <main className="main-content">
+        <main id="main-scroll" className="main-content">
           <Outlet />
         </main>
         <RightChatPanel />

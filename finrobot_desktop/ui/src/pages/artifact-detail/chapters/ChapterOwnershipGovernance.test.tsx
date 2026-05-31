@@ -127,6 +127,25 @@ describe('ChapterOwnershipGovernance', () => {
     expect(screen.getByText('92th')).toBeInTheDocument()
   })
 
+  it('does not render stale proxy payloads with title-as-name and revenue-sized comp', () => {
+    const comp: ProxyCompensationShape = {
+      filing_date: '2026-01-08',
+      accession_no: '0001308179-26-000008',
+      ceo_name: 'Chief Executive Officer',
+      ceo_total_compensation: 416_200_000_000,
+      provenance: baseProv('DEF 14A'),
+    }
+    const ownership: OwnershipGovernanceShape = {
+      proxy_compensation: comp,
+      generated_at: '2026-05-28T01:21:46Z',
+      degraded_sections: [],
+    }
+    render(wrap(<ChapterOwnershipGovernance ownership={ownership} />))
+    expect(screen.queryByText('Chief Executive Officer')).not.toBeInTheDocument()
+    expect(screen.queryByText(/\$416/)).not.toBeInTheDocument()
+    expect(screen.getByText(/DEF 14A parse failed/i)).toBeInTheDocument()
+  })
+
   it('uses reason-specific message when backend supplies degraded_reasons', () => {
     // Backend emits `no_recent_filings` when SEC identity is configured but the
     // ticker simply has no Form 4 in the last 90 days (small caps, post-grant
@@ -152,7 +171,8 @@ describe('ChapterOwnershipGovernance', () => {
       // No degraded_reasons supplied → fallback to generic message
     }
     render(wrap(<ChapterOwnershipGovernance ownership={ownership} />))
-    expect(screen.getByText(/Form 4 data unavailable/i)).toBeInTheDocument()
+    expect(screen.getByText(/older report has no specific reason/i)).toBeInTheDocument()
+    expect(screen.queryByText(/verify SEC identity/i)).not.toBeInTheDocument()
   })
 
   it('renders Schedule 13D as activist with warning tone', () => {

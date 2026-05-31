@@ -14,6 +14,7 @@ import {
   type FinancialsData,
 } from '../../hooks/useTickerData'
 import { tSync } from '../../i18n'
+import { PriceTrendChart } from '../../components/charts/PriceTrendChart'
 
 interface MarketDataZoneProps {
   ticker: string
@@ -59,7 +60,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
 
       {/* Price chart */}
       <MktCard title="📈 价格趋势" liveTag={providerTag(price?.data_source)}>
-        <PriceSparkline points={price?.history ?? null} />
+        <PriceTrendChart points={price?.history ?? null} />
       </MktCard>
 
       {/* Financial TTM */}
@@ -313,86 +314,6 @@ function Kv4({ cells }: { cells: KvCell[] }): React.ReactElement {
           )}
         </div>
       ))}
-    </div>
-  )
-}
-
-function PriceSparkline({
-  points,
-}: {
-  points: { date: string; close: number }[] | null
-}): React.ReactElement {
-  if (!points || points.length < 2) {
-    return (
-      <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
-        加载中…
-      </p>
-    )
-  }
-  const closes = points.map((p) => p.close)
-  const min = Math.min(...closes)
-  const max = Math.max(...closes)
-  const range = max - min || 1
-  const w = 400
-  const h = 70
-  const path = closes
-    .map((c, i) => {
-      const x = (i / (closes.length - 1)) * w
-      const y = h - ((c - min) / range) * h
-      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
-    })
-    .join(' ')
-  // 1-year return must anchor to the close ~365 calendar days before the last
-  // bar, not points[0]. Providers can hand back more than a year (FMP's
-  // historical window carries a cushion), and using points[0] then measured
-  // from ~17 months ago — TSLA read +9.8% instead of the real ~+21%.
-  const lastDate = new Date(points[points.length - 1].date)
-  const cutoff = new Date(lastDate)
-  cutoff.setDate(cutoff.getDate() - 365)
-  const baseIdx = Math.max(
-    0,
-    points.findIndex((p) => new Date(p.date) >= cutoff),
-  )
-  const first = closes[baseIdx]
-  const last = closes[closes.length - 1]
-  const pct = ((last - first) / first) * 100
-  const spanDays = Math.round(
-    (lastDate.getTime() - new Date(points[baseIdx].date).getTime()) / 86_400_000,
-  )
-  const spanLabel = spanDays >= 350 ? '1Y' : `${spanDays}D`
-
-  return (
-    <div>
-      <svg
-        viewBox={`0 0 ${w} ${h}`}
-        preserveAspectRatio="none"
-        style={{ width: '100%', height: 70 }}
-      >
-        <defs>
-          <linearGradient id="sp-grad-mkt" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="var(--accent-cyan)" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="var(--accent-cyan)" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={path} fill="none" stroke="var(--accent-cyan)" strokeWidth={1.5} />
-        <path d={`${path} L${w},${h} L0,${h} Z`} fill="url(#sp-grad-mkt)" />
-      </svg>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10.5,
-          color: 'var(--text-muted)',
-          marginTop: 4,
-        }}
-      >
-        <span>{spanLabel} 走势</span>
-        <span style={{ color: pct >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-          {pct >= 0 ? '+' : ''}
-          {pct.toFixed(1)}%
-        </span>
-      </div>
     </div>
   )
 }

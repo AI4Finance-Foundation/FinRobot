@@ -7,7 +7,7 @@
 // and the input area.
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useParams, useLocation, useNavigate } from 'react-router-dom'
+import { useParams, useLocation } from 'react-router-dom'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import type { UIMessage, UIMessagePart, UIDataTypes, UITools, DynamicToolUIPart } from 'ai'
@@ -36,7 +36,7 @@ const MAX_INPUT_LENGTH = 20_000
 // AI panel suggests questions about *this* report rather than the workspace
 // generic ones.
 const ROUTE_CHIP_PATTERNS: Array<{ test: (path: string) => boolean; chips: string[] }> = [
-  // /stocks/:ticker/runs/:artifactId — 12-chapter report detail
+  // /stocks/:ticker/runs/:artifactId — 13-chapter report detail
   {
     test: (p) => /^\/stocks\/[^/]+\/runs\//.test(p),
     chips: [
@@ -939,7 +939,6 @@ function IconColumn({ onToggle, unreadCount, onNewSession }: IconColumnProps): R
   const [showMenu, setShowMenu] = useState(false)
   const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
   const { t } = useI18n()
-  const navigate = useNavigate()
 
   const handlePointerDown = (): void => {
     const timer = setTimeout(() => {
@@ -1009,16 +1008,6 @@ function IconColumn({ onToggle, unreadCount, onNewSession }: IconColumnProps): R
             type="button"
           >
             {t('chat.newSession')}
-          </button>
-          <button
-            className="ai-icon-menu-item"
-            onClick={() => {
-              navigate('/stocks')
-              setShowMenu(false)
-            }}
-            type="button"
-          >
-            {t('chat.history')}
           </button>
           <button
             className="ai-icon-menu-item"

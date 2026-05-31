@@ -6,6 +6,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
+import { fetchWithTimeout } from '../api/fetch'
 import { FetchHttpError } from '../utils/errorMessage'
 
 export type HitRateWindow = '30d' | '90d' | 'all'
@@ -29,7 +30,7 @@ export function useDashboardHitRate(window: HitRateWindow = 'all') {
     queryKey: ['dashboard', 'hit-rate', window],
     queryFn: async ({ signal }) => {
       const params = new URLSearchParams({ window })
-      const r = await fetch(`${BASE_URL}/api/dashboard/hit-rate?${params}`, { signal })
+      const r = await fetchWithTimeout(`${BASE_URL}/api/dashboard/hit-rate?${params}`, { signal })
       if (!r.ok) throw new FetchHttpError(r.status, r.statusText)
       return r.json() as Promise<HitRateOverview>
     },

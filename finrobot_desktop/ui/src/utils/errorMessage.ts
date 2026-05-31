@@ -14,6 +14,7 @@
 // The catalog keys live in i18n/locales/{zh,en}/messages.po under `errors.*`.
 
 import { tSync } from '../i18n'
+import { RequestTimeoutError } from '../api/fetch'
 
 /**
  * Typed HTTP error. Throw this from fetch wrappers instead of plain Error
@@ -43,6 +44,10 @@ export class FetchHttpError extends Error {
  * Otherwise we apply the rules above.
  */
 export function mapErrorToUserMessage(err: unknown): string {
+  if (err instanceof RequestTimeoutError) {
+    return tSync('errors.network.offline')
+  }
+
   // Network failure — fetch couldn't get a response at all.
   if (err instanceof TypeError && /fetch|network/i.test(err.message)) {
     return tSync('errors.network.offline')

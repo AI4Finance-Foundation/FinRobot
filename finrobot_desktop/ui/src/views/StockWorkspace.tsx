@@ -127,7 +127,12 @@ export function StockWorkspace(): React.ReactElement {
       <TickerHero ticker={symbol} />
       <main
         style={{
-          maxWidth: 1480,
+          // 1320 (not 1480): on ultra-wide windows a 50/50 split at 1480 made
+          // both columns ~700px — wider than the compact data cards need.
+          // 1320 keeps the dashboard at a Bloomberg-terminal density. Must stay
+          // in sync with TickerHero's inner box so the ticker glyph's left edge
+          // aligns with the MarketDataZone card edge.
+          maxWidth: 1320,
           margin: '0 auto',
           padding: '24px 32px 96px',
         }}
@@ -135,7 +140,10 @@ export function StockWorkspace(): React.ReactElement {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
+            // Right (AI) column weighted wider: its verdict badge + target row
+            // and 3-col chapter grid are width-hungry, while the left data
+            // column's Kv4 cards read fine narrower.
+            gridTemplateColumns: '1fr 1.15fr',
             gap: 24,
             alignItems: 'start',
           }}

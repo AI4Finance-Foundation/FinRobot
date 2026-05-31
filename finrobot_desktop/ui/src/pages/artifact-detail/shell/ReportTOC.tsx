@@ -1,5 +1,9 @@
-// Left-side sticky table of contents for the 12-chapter report.
+// Left-side sticky table of contents for the 13-chapter report.
 // Highlights the active chapter via IntersectionObserver scroll-spy.
+//
+// IntersectionObserver root is set to #main-scroll (the real scroll
+// container in AppShell). Using the default viewport root would never fire
+// because body is overflow:hidden and window never scrolls.
 
 import { useEffect, useState } from 'react'
 import { useI18n } from '../../../i18n'
@@ -21,6 +25,12 @@ export function ReportTOC({ entries }: ReportTOCProps): React.ReactElement {
 
   useEffect(() => {
     if (entries.length === 0) return
+
+    // Resolve the real scroll container. document.getElementById is safe to
+    // call in useEffect (DOM is committed). Falls back to null (= viewport)
+    // so the observer degrades gracefully in tests / unusual environments.
+    const scrollEl = document.getElementById('main-scroll')
+
     const observer = new IntersectionObserver(
       (rows) => {
         rows.forEach((row) => {
@@ -29,7 +39,10 @@ export function ReportTOC({ entries }: ReportTOCProps): React.ReactElement {
           }
         })
       },
-      { rootMargin: '-30% 0px -60% 0px' },
+      {
+        root: scrollEl ?? null,
+        rootMargin: '-30% 0px -60% 0px',
+      },
     )
     entries.forEach((e) => {
       const el = document.getElementById(e.id)

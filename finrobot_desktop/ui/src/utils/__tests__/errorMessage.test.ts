@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { FetchHttpError, mapErrorToUserMessage } from '../errorMessage'
+import { RequestTimeoutError } from '../../api/fetch'
 import { useUiPrefs } from '../../i18n'
 
 describe('FetchHttpError', () => {
@@ -32,6 +33,10 @@ describe('mapErrorToUserMessage (zh)', () => {
   it('network TypeError → offline message', () => {
     const err = new TypeError('Failed to fetch')
     expect(mapErrorToUserMessage(err)).toBe('网络连接失败，请检查网络')
+  })
+
+  it('request timeout → restart app guidance', () => {
+    expect(mapErrorToUserMessage(new RequestTimeoutError(5000))).toBe('网络连接失败，请检查网络')
   })
 
   it('AbortError → 已取消', () => {
@@ -69,6 +74,12 @@ describe('mapErrorToUserMessage (en)', () => {
   it('network failure', () => {
     const err = new TypeError('network failure')
     expect(mapErrorToUserMessage(err)).toBe(
+      'Network connection failed. Please check your connection.',
+    )
+  })
+
+  it('request timeout', () => {
+    expect(mapErrorToUserMessage(new RequestTimeoutError(5000))).toBe(
       'Network connection failed. Please check your connection.',
     )
   })

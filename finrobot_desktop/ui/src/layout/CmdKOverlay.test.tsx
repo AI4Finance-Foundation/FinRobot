@@ -16,6 +16,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { CmdKOverlay, loadRecentSearches, saveRecentSearch } from './CmdKOverlay'
 import { useAppStore } from '../stores/appStore'
+import { useUiPrefs } from '../i18n'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -77,6 +78,7 @@ beforeEach(() => {
   useAppStore.setState({ cmdPaletteOpen: false, cmdKQuery: '' })
   // Clear localStorage
   localStorage.clear()
+  useUiPrefs.getState().setLocale('zh')
   // Clear fetch mock
   vi.restoreAllMocks()
 })
@@ -315,9 +317,7 @@ describe('CmdKOverlay — exception paths', () => {
     expect(screen.getByTestId('retry-button')).toBeInTheDocument()
   })
 
-  // G4: Fetch timeout → timeout message shown
-  // TODO: pre-existing failure, see git log — error text uses zh i18n key but en locale active in tests.
-  it.skip('G4: fetch timeout shows timeout error', async () => {
+  it('G4: fetch timeout shows timeout error', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(
       () => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 0)),
     )

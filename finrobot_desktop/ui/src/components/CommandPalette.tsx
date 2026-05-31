@@ -338,7 +338,8 @@ export default function CommandPalette({ open, onClose, onOpenSettings }: Props)
           items: [],
         })
       }
-      sectionMap.get(sec)!.items.push(match)
+      const section = sectionMap.get(sec)
+      if (section) section.items.push(match)
     }
 
     return Array.from(sectionMap.values()).sort(

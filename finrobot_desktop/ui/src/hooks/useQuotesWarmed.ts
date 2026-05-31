@@ -9,6 +9,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
+import { fetchWithTimeout } from '../api/fetch'
 import { FetchHttpError } from '../utils/errorMessage'
 
 export interface QuotesWarmedStatus {
@@ -20,7 +21,7 @@ export function useQuotesWarmed() {
   return useQuery<QuotesWarmedStatus>({
     queryKey: ['quotes-warmed'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${BASE_URL}/api/health/quotes-warmed`, { signal })
+      const r = await fetchWithTimeout(`${BASE_URL}/api/health/quotes-warmed`, { signal }, 2_000)
       if (!r.ok) throw new FetchHttpError(r.status, r.statusText)
       return r.json() as Promise<QuotesWarmedStatus>
     },

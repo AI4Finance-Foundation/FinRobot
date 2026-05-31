@@ -1,12 +1,20 @@
-// v5 PipelineProgressPanel — 6-step pipeline progress display.
-// Reads the live RunState from runStreamStore (which receives backend SSE
-// events). Renders one row per step matching the equity_research pipeline's
-// step names. Header switches between running / completed / failed states
-// so the panel isn't a stale "正在跑" forever once the run actually finishes.
+// PipelineProgressPanel — live 8-step equity_research progress.
+// Reads the RunState from runStreamStore (fed by backend SSE events) and
+// renders a progress bar + one row per step. Step names/order MUST mirror
+// equity_research.py create_*_pipeline().steps; STEP_LABELS below maps each
+// backend step name to its Chinese label + one-line help.
+//
+// Header switches running / completed / failed so the panel isn't a stale
+// "正在跑" forever. Colours are design tokens (涨绿跌红 only for status); the
+// running step shows a real rotating spinner, not a static glyph.
 
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRunStreamStore } from '../stores/runStreamStore'
 import { useLatestArtifact } from '../hooks/useV5Artifacts'
+
+// Backend Pipeline.max_retries — mirrored here only to render "重试中 n/3".
+const MAX_RETRIES = 3
 
 const STEP_LABELS: Record<string, { label: string; help: string }> = {
   data_collection: {
@@ -25,13 +33,21 @@ const STEP_LABELS: Record<string, { label: string; help: string }> = {
     label: '财务建模',
     help: 'DCF 蒙特卡洛 + Comps + 敏感性',
   },
+  ownership_governance_analysis: {
+    label: '股权与治理',
+    help: '内部人交易 + 机构持仓 + 高管薪酬',
+  },
+  technical_analysis: {
+    label: '技术与高阶',
+    help: '蒙特卡洛 + 狙击位 + 价格走势',
+  },
   thesis: {
     label: '投资论点',
     help: '生成 target_price + 风险因素',
   },
   report: {
     label: '整合报告',
-    help: '8 段标准章节 + LLM 叙事',
+    help: '13 章研报 + LLM 叙事',
   },
 }
 
@@ -49,27 +65,60 @@ export function PipelineProgressPanel({
   // route directly into the report view that just got generated.
   const { latest } = useLatestArtifact(ticker, 'equity_research')
 
+  // 1s heartbeat while running — re-renders so the elapsed counters tick. This
+  // is the core "is it alive or hung?" signal: a long step (SEC fetches run
+  // 60-90s) now shows a climbing clock instead of a static spinner. Hooks must
+  // run unconditionally, so this sits above the early return.
+  const isActive = run?.status === 'running'
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  useEffect(() => {
+    if (!isActive) return
+    const id = window.setInterval(() => setNowTick(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [isActive])
+
   if (!run || run.dismissed) {
     return null
   }
 
+  const runElapsed =
+    run.status === 'running' ? Math.max(0, Math.round((nowTick - run.startedAt) / 1000)) : null
+
+  const numStyle: React.CSSProperties = {
+    fontSize: 11,
+    color: 'var(--text-muted)',
+    fontFamily: 'var(--font-mono)',
+    fontVariantNumeric: 'tabular-nums',
+  }
+  const stepElapsed = (s: { startedAt?: number }): number | null =>
+    typeof s.startedAt === 'number' ? Math.max(0, Math.round((nowTick - s.startedAt) / 1000)) : null
+
   const eta = estimateEta(run.steps)
   const completedCount = run.steps.filter((s) => s.status === 'completed').length
+  const totalSteps = run.steps.length
   const totalDuration = run.steps.reduce((sum, s) => sum + (s.duration_s ?? 0), 0)
+  const pct = totalSteps > 0 ? Math.round((completedCount / totalSteps) * 100) : 0
+
+  const accent =
+    run.status === 'completed'
+      ? 'var(--success)'
+      : run.status === 'failed'
+        ? 'var(--danger)'
+        : 'var(--secondary)'
+  const borderColor =
+    run.status === 'completed'
+      ? 'var(--success-glow-soft)'
+      : run.status === 'failed'
+        ? 'var(--danger-glow-soft)'
+        : 'var(--border-soft)'
 
   return (
     <div
       data-testid="pipeline-progress-panel"
       style={{
-        border: `1px solid ${
-          run.status === 'completed'
-            ? 'rgba(22, 163, 74, 0.32)'
-            : run.status === 'failed'
-              ? 'rgba(220, 38, 38, 0.32)'
-              : 'var(--border-soft)'
-        }`,
-        borderRadius: 10,
-        padding: 20,
+        border: `1px solid ${borderColor}`,
+        borderRadius: 'var(--radius-md)',
+        padding: 18,
         background: 'var(--bg-card)',
         margin: '12px 0',
       }}
@@ -85,26 +134,49 @@ export function PipelineProgressPanel({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <span style={spinnerStyle(run.status)} />
-          <span style={{ fontWeight: 600, fontSize: 13 }}>
+          <span
+            className={run.status === 'running' ? 'cosmic-pulse-dot' : undefined}
+            style={{
+              width: 9,
+              height: 9,
+              borderRadius: '50%',
+              display: 'inline-block',
+              background: accent,
+              flexShrink: 0,
+            }}
+          />
+          <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
             {run.status === 'completed'
               ? `${labelForPipeline(run.pipelineType)} · 完成`
               : run.status === 'failed'
                 ? `${labelForPipeline(run.pipelineType)} · 失败`
                 : `正在生成 ${labelForPipeline(run.pipelineType)}`}
           </span>
-          {run.status === 'running' && eta && (
-            <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>· 还剩 ~{eta}s</span>
+          {run.status === 'running' && (
+            <span
+              style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
+            >
+              · 已运行 {runElapsed}s{eta ? ` · 还剩 ~${eta}s` : ''}
+            </span>
           )}
           {run.status === 'completed' && totalDuration > 0 && (
-            <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
+            <span
+              style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
+            >
               · 总耗时 {totalDuration.toFixed(1)}s
             </span>
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
-            {completedCount}/{run.steps.length}
+          <span
+            style={{
+              fontSize: 11,
+              color: 'var(--text-muted)',
+              fontFamily: 'var(--font-mono)',
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {completedCount}/{totalSteps}
           </span>
           {run.status === 'completed' && latest && (
             <button
@@ -148,9 +220,35 @@ export function PipelineProgressPanel({
           )}
         </div>
       </header>
-      <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 6 }}>
+
+      {/* Progress bar — the at-a-glance "how far" the text count alone couldn't give. */}
+      <div
+        style={{
+          height: 4,
+          borderRadius: 'var(--radius-pill)',
+          background: 'var(--bg-elevated)',
+          overflow: 'hidden',
+          marginBottom: 14,
+        }}
+      >
+        <div
+          className="pipeline-bar-fill"
+          style={{
+            height: '100%',
+            width: `${pct}%`,
+            borderRadius: 'var(--radius-pill)',
+            background:
+              run.status === 'failed'
+                ? 'var(--danger)'
+                : 'linear-gradient(90deg, var(--secondary) 0%, var(--primary) 100%)',
+          }}
+        />
+      </div>
+
+      <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 4 }}>
         {run.steps.map((step, idx) => {
           const meta = STEP_LABELS[step.name] || { label: step.name, help: '' }
+          const isRunning = step.status === 'running' || step.status === 'retrying'
           return (
             <li
               key={step.name}
@@ -159,30 +257,55 @@ export function PipelineProgressPanel({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
-                padding: '6px 8px',
+                padding: '7px 9px',
                 borderRadius: 6,
-                background: step.status === 'running' ? 'rgba(16, 185, 129, 0.06)' : 'transparent',
+                background: isRunning ? 'var(--secondary-soft)' : 'transparent',
+                borderLeft: `2px solid ${isRunning ? 'var(--secondary)' : 'transparent'}`,
                 fontSize: 12.5,
+                transition: 'background 0.2s',
               }}
             >
-              <span style={{ width: 18, color: 'var(--text-faint)' }}>{`${idx + 1}.`}</span>
-              <span style={{ width: 16, textAlign: 'center' }}>{statusGlyph(step.status)}</span>
-              <span style={{ flex: 1 }}>
-                <strong style={{ fontWeight: 600 }}>{meta.label}</strong>
-                <span style={{ color: 'var(--text-faint)', marginLeft: 8, fontSize: 11.5 }}>
+              <span
+                style={{
+                  width: 16,
+                  fontSize: 10.5,
+                  color: 'var(--text-dim)',
+                  fontFamily: 'var(--font-mono)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {idx + 1}
+              </span>
+              <StepIndicator status={step.status} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <strong
+                  style={{
+                    fontWeight: 600,
+                    color: step.status === 'pending' ? 'var(--text-muted)' : 'var(--text-primary)',
+                  }}
+                >
+                  {meta.label}
+                </strong>
+                <span style={{ color: 'var(--text-dim)', marginLeft: 8, fontSize: 11.5 }}>
                   {meta.help}
                 </span>
               </span>
-              {typeof step.duration_s === 'number' && (
-                <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
-                  {step.duration_s.toFixed(1)}s
+              {step.status === 'completed' && typeof step.duration_s === 'number' ? (
+                <span style={numStyle}>{step.duration_s.toFixed(1)}s</span>
+              ) : step.status === 'retrying' ? (
+                <span style={{ ...numStyle, color: 'var(--warning)' }}>
+                  重试中 {step.attempt ?? 1}/{MAX_RETRIES}
+                  {stepElapsed(step) !== null ? ` · ${stepElapsed(step)}s` : ''}
                 </span>
-              )}
+              ) : step.status === 'running' && stepElapsed(step) !== null ? (
+                <span style={numStyle}>{stepElapsed(step)}s</span>
+              ) : null}
             </li>
           )
         })}
       </ol>
-      <p style={{ marginTop: 12, fontSize: 11, color: 'var(--text-faint)' }}>
+
+      <p style={{ marginTop: 12, fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
         数字由代码算出，不是 LLM 编 · 任一步骤失败整份研报重新生成
       </p>
       {run.status === 'failed' && (
@@ -197,27 +320,69 @@ export function PipelineProgressPanel({
   )
 }
 
-function spinnerStyle(status: string): React.CSSProperties {
+/** Per-step status badge. Running shows a real rotating ring (the old static
+ *  "⟳" made a live run look frozen); pending is a hollow dim dot, not a ⏳. */
+function StepIndicator({ status }: { status: string }): React.ReactElement {
   const base: React.CSSProperties = {
-    width: 10,
-    height: 10,
-    borderRadius: '50%',
-    display: 'inline-block',
+    width: 16,
+    height: 16,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   }
-  if (status === 'running') {
-    return { ...base, background: 'var(--success)', boxShadow: '0 0 0 3px rgba(16,185,129,0.18)' }
+  if (status === 'completed') {
+    return (
+      <span
+        style={{
+          ...base,
+          borderRadius: '50%',
+          background: 'var(--success)',
+          color: 'var(--bg-deep)',
+          fontSize: 10,
+          fontWeight: 700,
+        }}
+      >
+        ✓
+      </span>
+    )
+  }
+  if (status === 'running' || status === 'retrying') {
+    return (
+      <span style={base}>
+        <span className="pipeline-spinner" />
+      </span>
+    )
   }
   if (status === 'failed') {
-    return { ...base, background: 'var(--danger)' }
+    return (
+      <span
+        style={{
+          ...base,
+          borderRadius: '50%',
+          background: 'var(--danger)',
+          color: 'var(--bg-deep)',
+          fontSize: 10,
+          fontWeight: 700,
+        }}
+      >
+        ✕
+      </span>
+    )
   }
-  return { ...base, background: 'var(--text-faint)' }
-}
-
-function statusGlyph(status: string): string {
-  if (status === 'completed') return '✓'
-  if (status === 'running') return '⟳'
-  if (status === 'retrying') return '⟳'
-  return '⏳'
+  // pending — hollow dim ring
+  return (
+    <span style={base}>
+      <span
+        style={{
+          width: 9,
+          height: 9,
+          borderRadius: '50%',
+          border: '1.5px solid var(--text-dim)',
+        }}
+      />
+    </span>
+  )
 }
 
 function labelForPipeline(pipelineType: string): string {

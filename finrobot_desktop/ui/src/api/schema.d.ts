@@ -2237,12 +2237,18 @@ export interface components {
       adanos_api_key_set: boolean
       /** Sec User Agent */
       sec_user_agent: string
+      /** Sec Identity Active */
+      sec_identity_active: boolean
       /** Sec Identity Dismissed At */
       sec_identity_dismissed_at?: string | null
       /** Sec Holdings Auto Refresh */
       sec_holdings_auto_refresh: boolean
       /** Log Level */
       log_level: string
+      /** Log To File */
+      log_to_file: boolean
+      /** Log Retention Days */
+      log_retention_days: number
       /** Available Providers */
       available_providers: string[]
       /** Valid Model Providers */
@@ -2276,6 +2282,10 @@ export interface components {
       sec_holdings_auto_refresh?: boolean | null
       /** Log Level */
       log_level?: string | null
+      /** Log To File */
+      log_to_file?: boolean | null
+      /** Log Retention Days */
+      log_retention_days?: number | null
       /** Anthropic Api Key */
       anthropic_api_key?: string | null
       /** Deepseek Api Key */

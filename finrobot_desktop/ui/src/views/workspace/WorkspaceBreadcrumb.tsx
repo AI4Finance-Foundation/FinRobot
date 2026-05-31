@@ -1,6 +1,6 @@
-// Shared breadcrumb header for workspace pages (TickerHero / TickerNotFoundView /
-// ServiceDownView). Extracted from TickerHero's internal Breadcrumb so the
-// error views can render the same identity strip without duplicating logic.
+// Shared breadcrumb header for workspace pages (TickerHero / TickerNotFoundView).
+// Extracted from TickerHero's internal Breadcrumb so error views can render
+// the same identity strip without duplicating logic.
 
 import { Link } from 'react-router-dom'
 import { useI18n } from '../../i18n'

@@ -1,5 +1,7 @@
 // Vitest for the SEC identity nudge banner on /stocks landing.
-// Covers: invalid identity → shows; valid identity → hides; localStorage
+// Contract: the banner reflects the backend's own gate (sec_identity_active),
+// NOT a client-side re-derivation. Covers: inactive → shows; active → hides;
+// settings fetch failure (boot-race) → hides (never false-nag); localStorage
 // dismiss persists; dismissed > 30 days ago re-prompts.
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
@@ -18,11 +20,20 @@ import { api } from '../../api/client'
 
 const DISMISS_KEY = 'finrobot-sec-banner-dismissed-at'
 
-function setIdentity(value: string | null) {
+function setActive(active: boolean) {
   vi.mocked(api.GET).mockResolvedValue({
-    data: { sec_user_agent: value } as never,
+    data: { sec_identity_active: active } as never,
     error: undefined as never,
     response: new Response(),
+  } as never)
+}
+
+/** Simulate the boot-race: /api/settings unreachable (sidecar not up yet). */
+function setFetchError() {
+  vi.mocked(api.GET).mockResolvedValue({
+    data: undefined as never,
+    error: { detail: 'ECONNREFUSED' } as never,
+    response: new Response(null, { status: 502 }),
   } as never)
 }
 
@@ -45,8 +56,8 @@ beforeEach(() => {
 })
 
 describe('SecIdentityBanner', () => {
-  it('shows the banner when sec_user_agent is empty', async () => {
-    setIdentity('')
+  it('shows the banner when SEC identity is not active', async () => {
+    setActive(false)
     renderBanner()
     await waitFor(() => {
       expect(screen.getByTestId('sec-identity-banner')).toBeInTheDocument()
@@ -57,24 +68,25 @@ describe('SecIdentityBanner', () => {
     )
   })
 
-  it('shows the banner when sec_user_agent is the placeholder default', async () => {
-    setIdentity('FinRobot admin@example.com')
-    renderBanner()
-    await waitFor(() => {
-      expect(screen.getByTestId('sec-identity-banner')).toBeInTheDocument()
-    })
-  })
-
-  it('hides the banner when sec_user_agent is configured properly', async () => {
-    setIdentity('Jane Doe jane@example.com')
+  it('hides the banner when SEC identity is active', async () => {
+    setActive(true)
     renderBanner()
     // Wait for the query to settle (avoid false-positive hide-before-fetch).
     await waitFor(() => expect(api.GET).toHaveBeenCalled())
     expect(screen.queryByTestId('sec-identity-banner')).not.toBeInTheDocument()
   })
 
+  it('hides the banner when the settings fetch fails — never false-nag on boot-race', async () => {
+    // Regression: a failed /api/settings used to be swallowed into null and
+    // cached as "unconfigured", so the banner stuck even with a valid identity.
+    setFetchError()
+    renderBanner()
+    await waitFor(() => expect(api.GET).toHaveBeenCalled())
+    expect(screen.queryByTestId('sec-identity-banner')).not.toBeInTheDocument()
+  })
+
   it('hides the banner after dismiss + persists in localStorage', async () => {
-    setIdentity('')
+    setActive(false)
     renderBanner()
     await waitFor(() => expect(screen.getByTestId('sec-identity-banner')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /Dismiss notification/i }))
@@ -83,7 +95,7 @@ describe('SecIdentityBanner', () => {
   })
 
   it('honours recent dismiss across re-mounts (within 30-day window)', async () => {
-    setIdentity('')
+    setActive(false)
     localStorage.setItem(DISMISS_KEY, String(Date.now() - 7 * 24 * 60 * 60 * 1000))
     renderBanner()
     await waitFor(() => expect(api.GET).toHaveBeenCalled())
@@ -91,7 +103,7 @@ describe('SecIdentityBanner', () => {
   })
 
   it('re-prompts when previous dismiss is older than 30 days', async () => {
-    setIdentity('')
+    setActive(false)
     localStorage.setItem(DISMISS_KEY, String(Date.now() - 40 * 24 * 60 * 60 * 1000))
     renderBanner()
     await waitFor(() => expect(screen.getByTestId('sec-identity-banner')).toBeInTheDocument())

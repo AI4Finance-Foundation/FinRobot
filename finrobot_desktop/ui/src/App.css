@@ -2525,6 +2525,26 @@ select.input-field {
   }
 }
 
+/* ── Pipeline progress (workspace AIZone) ──
+   The running step previously used a STATIC "⟳" glyph that never moved, so a
+   live run read as frozen. This spinner actually rotates; the bar fill eases. */
+@keyframes pipeline-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.pipeline-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-soft);
+  border-top-color: var(--accent-cyan);
+  border-radius: 50%;
+  animation: pipeline-spin 0.7s linear infinite;
+}
+.pipeline-bar-fill {
+  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* ── Monte Carlo Chart ── */
 .mc-percentile-table {
   margin-top: var(--sp-3);

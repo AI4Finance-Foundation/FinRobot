@@ -136,11 +136,11 @@ function OverallTile({
           fontSize: 48,
           fontWeight: 600,
           color: insufficient ? 'var(--text-muted)' : 'var(--text-primary)',
-          letterSpacing: '-0.02em',
+          letterSpacing: 0,
           lineHeight: 1,
         }}
       >
-        {insufficient ? '—' : `${(bucket.hit_rate! * 100).toFixed(1)}%`}
+        {insufficient || bucket.hit_rate == null ? '—' : `${(bucket.hit_rate * 100).toFixed(1)}%`}
       </div>
       <div
         style={{
@@ -208,10 +208,10 @@ function VerdictTile({
           fontSize: 28,
           fontWeight: 600,
           color: insufficient ? 'var(--text-muted)' : c.fg,
-          letterSpacing: '-0.02em',
+          letterSpacing: 0,
         }}
       >
-        {insufficient ? '—' : `${(bucket.hit_rate! * 100).toFixed(0)}%`}
+        {insufficient || bucket.hit_rate == null ? '—' : `${(bucket.hit_rate * 100).toFixed(0)}%`}
       </div>
       <div style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--text-muted)' }}>
         {bucket.n_hit}/{bucket.n_closed} hits

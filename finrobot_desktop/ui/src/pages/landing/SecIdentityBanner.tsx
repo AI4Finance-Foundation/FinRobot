@@ -10,7 +10,6 @@ import { Link } from 'react-router-dom'
 
 import { api } from '../../api/client'
 import { useI18n } from '../../i18n'
-import { isValidSecIdentity } from '../../views/SettingsView'
 
 const DISMISS_KEY = 'finrobot-sec-banner-dismissed-at'
 /** Re-prompt after 30 days even if dismissed — long enough to be unannoying,
@@ -24,20 +23,22 @@ export function SecIdentityBanner(): React.ReactElement | null {
   // navigation, which is exactly the cadence we want for re-reading dismiss.
   const [hidden, setHidden] = useState<boolean>(() => isDismissedRecently())
 
+  // Single source of truth = the backend's own gate (sec_identity_active, i.e.
+  // the _is_valid_identity that decides whether EdgarToolsProvider registers).
+  // No client-side mirror; on fetch error data stays undefined → banner hidden
+  // (if the backend is unreachable we have no business nagging about SEC).
   const { data } = useQuery({
-    queryKey: ['settings', 'sec_user_agent'],
+    queryKey: ['settings'],
     queryFn: async () => {
       const { data: resp, error } = await api.GET('/api/settings')
-      if (error || !resp) return null
-      return resp.sec_user_agent ?? null
+      if (error || !resp) throw new Error('settings unavailable')
+      return resp
     },
-    staleTime: 5 * 60 * 1000,
   })
 
   if (hidden) return null
-  // We can't tell yet whether identity is configured — wait for the query.
-  if (data === undefined) return null
-  if (isValidSecIdentity(data)) return null
+  if (data === undefined) return null // loading or unreachable → don't nag
+  if (data.sec_identity_active) return null // backend accepted the identity
 
   const handleDismiss = () => {
     try {

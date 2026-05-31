@@ -1,14 +1,14 @@
 // ArtifactDetailPage — single artifact deep-dive route, mounted at
 // `/stocks/:ticker/runs/:artifactId`.
 //
-// Renders the artifact as a 12-chapter investment-bank-grade long-scroll
+// Renders the artifact as a 13-chapter investment-bank-grade long-scroll
 // research report in a three-column desktop layout:
 //   - sticky top toolbar  (price overlay · version switcher · diff · re-run)
-//   - left sticky TOC     (12 chapters with scroll-spy active highlight)
-//   - center scroll area  (chapters 00–11, each a structured Section)
+//   - left sticky TOC     (13 chapters with scroll-spy active highlight)
+//   - center scroll area  (chapters 01–13, each a structured Section)
 //   - right sticky rail   (Version Timeline + live DCF What-if Editor)
 //
-// The 12 chapters are split into per-file components under
+// The 13 chapters are split into per-file components under
 // pages/artifact-detail/chapters/. They consume artifact.outputs.structured
 // (thesis / financial_modeling / peer_analysis / catalyst_analysis) plus
 // inputs.raw_data for the audit dump.

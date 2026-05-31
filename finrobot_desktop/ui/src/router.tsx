@@ -14,7 +14,7 @@ import { AppShell } from './layout/AppShell'
 import { StocksPage } from './pages/StocksPage'
 import { StockWorkspace } from './views/StockWorkspace'
 
-// Lazy-routed: ArtifactDetailPage pulls 12 chapter components + the 4-panel
+// Lazy-routed: ArtifactDetailPage pulls 13 chapter components + the 4-panel
 // chrome, and Settings imports the full provider/channel matrix. Loading them
 // only when the user navigates keeps the initial bundle under the
 // chunk-size warning threshold and shaves cold-start time on the workspace

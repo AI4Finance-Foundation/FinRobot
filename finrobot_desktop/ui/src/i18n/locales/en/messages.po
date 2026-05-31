@@ -66,10 +66,6 @@ msgid "chat.expand"
 msgstr "Open chat"
 
 #. js-lingui-explicit-id
-msgid "chat.history"
-msgstr "History"
-
-#. js-lingui-explicit-id
 msgid "chat.input.placeholder"
 msgstr "Message FinRobot… (Enter to send, Shift+Enter for newline)"
 

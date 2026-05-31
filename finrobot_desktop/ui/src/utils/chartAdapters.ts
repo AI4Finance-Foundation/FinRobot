@@ -60,8 +60,14 @@ export function dcfResultToRevenueEbitdaData(
 
 /**
  * Build margin trend data from DCF projections.
- * Computes EBITDA margin per projected year.
- * Operating margin approximated as EBITDA margin minus D&A (if available).
+ *
+ * EBITDA margin is taken straight from the projection. The `operating_margin`
+ * series is the DERIVED EBIT margin (EBITDA margin − D&A%), since EBIT =
+ * EBITDA − D&A; the DCF result carries no GAAP operating-income figure for
+ * future years, so this is an assumption-driven approximation, not a reported
+ * number. When `da_pct_revenue` is unknown we emit `null` rather than 0 —
+ * defaulting D&A to zero would render operating_margin == ebitda_margin and
+ * falsely imply the company has no depreciation drag.
  */
 export function dcfResultToMarginData(
   result: DCFResult,
@@ -69,13 +75,20 @@ export function dcfResultToMarginData(
   const currentYear = new Date().getFullYear()
   const rows: Array<Record<string, number | string | boolean | null>> = []
 
+  // null (not 0) when D&A% is unknown — see docstring.
+  const daPct =
+    result.inputs.da_pct_revenue != null && result.inputs.da_pct_revenue > 0
+      ? result.inputs.da_pct_revenue
+      : null
+  const ebitMargin = (ebitdaMargin: number): number | null =>
+    daPct != null ? ebitdaMargin - daPct : null
+
   // Base year
   const baseEbitdaMargin = result.inputs.ebitda_margin
-  const daPct = result.inputs.da_pct_revenue ?? 0
   rows.push({
     year: String(currentYear),
     ebitda_margin: baseEbitdaMargin,
-    operating_margin: baseEbitdaMargin - daPct,
+    operating_margin: ebitMargin(baseEbitdaMargin),
     is_forecast: false,
   })
 
@@ -87,7 +100,7 @@ export function dcfResultToMarginData(
     rows.push({
       year: `${currentYear + 1 + i}E`,
       ebitda_margin: ebitdaMargin,
-      operating_margin: ebitdaMargin - daPct,
+      operating_margin: ebitMargin(ebitdaMargin),
       is_forecast: true,
     })
   }
@@ -171,11 +184,13 @@ export function compsResultToRadarData(
         Math.max(Math.abs(d.company), Math.abs(d.median)) > 0,
     )
     .map((d) => {
-      const scale = Math.max(Math.abs(d.company!), Math.abs(d.median!))
+      const company = d.company as number
+      const median = d.median as number
+      const scale = Math.max(Math.abs(company), Math.abs(median))
       return {
         dimension: d.label,
-        value: Math.round((d.company! / scale) * 100),
-        benchmark: Math.round((d.median! / scale) * 100),
+        value: Math.round((company / scale) * 100),
+        benchmark: Math.round((median / scale) * 100),
       }
     })
 }
@@ -270,7 +285,7 @@ export function historicalToRevenueYoYData(h: HistoricalMetrics) {
   return h.years
     .map((year, i) => ({
       year: String(year),
-      yoy_pct: h.revenue_growth_yoy[i] != null ? h.revenue_growth_yoy[i]! * 100 : null,
+      yoy_pct: h.revenue_growth_yoy[i] != null ? Number(h.revenue_growth_yoy[i]) * 100 : null,
     }))
     .filter((d) => d.yoy_pct != null)
 }

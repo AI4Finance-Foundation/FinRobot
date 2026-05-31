@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
-import SettingsView, { isValidSecIdentity } from '../views/SettingsView'
+import SettingsView, { isValidSecIdentity, secHeaderIdentityPreview } from '../views/SettingsView'
 
 // Mock the API client module
 vi.mock('../api/client', () => ({
@@ -15,15 +15,21 @@ vi.mock('../api/client', () => ({
         fmp_api_key_set: false,
         finnhub_api_key_set: false,
         sec_user_agent: '',
+        sec_identity_active: false,
+        sec_holdings_auto_refresh: true,
         log_level: 'INFO',
+        log_to_file: false,
+        log_retention_days: 7,
         available_providers: ['yfinance'],
         valid_model_providers: ['deepseek', 'anthropic', 'openai'],
+        field_sources: {},
       },
       error: undefined,
     }),
     PUT: vi.fn().mockResolvedValue({ data: {}, error: undefined }),
   },
   BASE_URL: 'http://127.0.0.1:8321',
+  exportDiagnosticsLogs: vi.fn().mockResolvedValue(new Blob(['test'], { type: 'application/zip' })),
 }))
 
 function renderWithQuery(ui: React.ReactElement) {
@@ -49,7 +55,15 @@ describe('SettingsView', () => {
     expect(await screen.findByText('通知通道')).toBeInTheDocument()
   })
 
-  // 外观 section removed in v5: theme toggle 推迟 v2.1 (spec §10.4)
+  // 外观 section removed in v5; theme controls are outside this settings surface.
+
+  it('renders logging controls and export button', async () => {
+    renderWithQuery(<SettingsView onComplete={() => {}} />)
+    expect(await screen.findByText('日志 / 诊断')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: /导出诊断日志|export.*log/i }),
+    ).toBeInTheDocument()
+  })
 })
 
 describe('isValidSecIdentity', () => {
@@ -74,7 +88,21 @@ describe('isValidSecIdentity', () => {
     expect(isValidSecIdentity('Acme Capital alpha@acme.com')).toBe(true)
   })
 
+  it('accepts Chinese display names because the backend preserves the contact email', () => {
+    expect(isValidSecIdentity('郭嘉祺 17696026747@163.com')).toBe(true)
+  })
+
+  it('rejects a name with a malformed email', () => {
+    expect(isValidSecIdentity('Jane Doe jane@example')).toBe(false)
+  })
+
   it('trims whitespace before checking', () => {
     expect(isValidSecIdentity('  Jane Doe jane@example.com  ')).toBe(true)
+  })
+
+  it('previews the ASCII SEC header sent for Chinese display names', () => {
+    expect(secHeaderIdentityPreview('郭嘉祺 17696026747@163.com')).toBe(
+      'FinRobot 17696026747@163.com',
+    )
   })
 })

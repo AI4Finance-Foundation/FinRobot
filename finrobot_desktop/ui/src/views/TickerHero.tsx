@@ -63,7 +63,7 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
         borderBottom: '1px solid var(--border-faint)',
       }}
     >
-      <div style={{ maxWidth: 1480, margin: '0 auto', padding: '0 32px', minWidth: 0 }}>
+      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 32px', minWidth: 0 }}>
         <WorkspaceBreadcrumb ticker={ticker} />
 
         <div

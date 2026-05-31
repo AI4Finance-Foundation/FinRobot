@@ -8,6 +8,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
+import { fetchWithTimeout } from '../api/fetch'
 import { FetchHttpError } from '../utils/errorMessage'
 
 export type Signal = 'hit' | 'watching' | 'failed'
@@ -39,7 +40,9 @@ export function useDashboardRecentResearch(limit = 5) {
   return useQuery<RecentResearchResponse>({
     queryKey: ['dashboard', 'recent-research', limit],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${BASE_URL}/api/dashboard/recent-research?limit=${limit}`, { signal })
+      const r = await fetchWithTimeout(`${BASE_URL}/api/dashboard/recent-research?limit=${limit}`, {
+        signal,
+      })
       if (!r.ok) throw new FetchHttpError(r.status, r.statusText)
       return r.json() as Promise<RecentResearchResponse>
     },

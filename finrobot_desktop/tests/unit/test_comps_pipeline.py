@@ -130,12 +130,15 @@ class TestExecutePeerAnalysisOverride:
     def test_override_skips_llm_and_uses_given_tickers(self, monkeypatch):
         # If the override path leaked into LLM selection this would raise a
         # different error; instead the candidates in the failure are exactly the
-        # supplied set, proving the LLM was bypassed.
+        # supplied set, proving the LLM was bypassed. With every peer dropping
+        # (failing layer → 0 survivors) the step raises ProviderError — typed
+        # recoverable, NOT a raw ValueError that would crash the run — and its
+        # message lists the supplied candidates verbatim.
         async def _boom(*_a, **_k):
             raise AssertionError("LLM peer selection must not run when --peers is given")
 
         monkeypatch.setattr(_helpers, "_llm_select_peers", _boom)
-        with pytest.raises(ValueError, match="QCOM"):
+        with pytest.raises(ProviderError, match="QCOM"):
             asyncio.run(
                 execute_peer_analysis(
                     None,
@@ -146,3 +149,109 @@ class TestExecutePeerAnalysisOverride:
                     peers=["NVDA", "AMD", "QCOM"],
                 )
             )
+
+
+def _canned_company(ticker: str):
+    from finrobot.engine.models.financial import CompanyFinancials
+
+    return CompanyFinancials(
+        ticker=ticker,
+        revenue=100.0,
+        ebitda=20.0,
+        net_income=10.0,
+        market_cap=200.0,
+        total_debt=30.0,
+        total_cash=5.0,
+        gross_margin=0.6,
+        operating_margin=0.3,
+        ev_ebitda=11.0,
+        pe_ratio=18.0,
+        ev_revenue=2.0,
+    )
+
+
+def _target_financial_data():
+    from datetime import datetime, timezone
+
+    from finrobot.engine.models.financial import (
+        BalanceSheet,
+        FinancialData,
+        IncomeStatement,
+        MarketData,
+        ValuationMetrics,
+    )
+
+    return FinancialData(
+        ticker="AAPL",
+        income=IncomeStatement(
+            revenue=100.0, ebitda=20.0, net_income=10.0, gross_margin=0.6, operating_margin=0.3
+        ),
+        balance=BalanceSheet(total_debt=30.0, total_cash=5.0),
+        market=MarketData(current_price=10.0, shares_outstanding=10.0, market_cap=100.0),
+        valuation=ValuationMetrics(enterprise_value=125.0),
+        data_source="test",
+        timestamp=datetime.now(tz=timezone.utc),
+    )
+
+
+class TestPeerAnalysisDegradesInsteadOfCrashing:
+    """Fix: a thin comp set (1..MIN-1 survivors) must NOT raise — it builds the
+    thin PeerComps + a warning and lets the step validator gate it (non-critical
+    → degrade). The old code raised ValueError whose graceful handling depended
+    on the literal substring "429" living in its own message — a hack that
+    crashed the run when the wording drifted."""
+
+    def test_two_survivors_returns_thin_comps_with_warning(self, monkeypatch):
+        from datetime import datetime, timezone
+
+        from finrobot.engine.data.normalize.contracts import NormalizedFinancials, Provenance
+        from finrobot.engine.models.financial import PeerComps, StepOutput
+
+        now = datetime.now(tz=timezone.utc)
+        good = NormalizedFinancials(
+            ticker="X",
+            revenue=100.0,
+            market_cap=200.0,
+            as_of=now,
+            provenance=Provenance(provider="test", as_of=now, fetched_at=now),
+        )
+
+        # Survivors: A, B fetch fine; C, D drop (rate-limited). 2 < MIN(3).
+        async def _fetch_canonical(_dt, ticker):
+            if ticker in ("A", "B"):
+                return good
+            raise ProviderError(f"forced drop {ticker}")
+
+        async def _fetch(_dt, _ticker):
+            return SimpleNamespace(data={})
+
+        deps = SimpleNamespace(
+            data_layer=SimpleNamespace(fetch_canonical=_fetch_canonical, fetch=_fetch),
+            settings=SimpleNamespace(fmp_api_key=""),
+        )
+
+        # Short-circuit the deterministic compute chain — we are testing the
+        # thin-set control flow, not multiples math (covered by test_multiples).
+        async def _id_normalize(company, **_k):
+            return company
+
+        monkeypatch.setattr(
+            _helpers, "extract_company_financials", lambda _fin: _canned_company("peer")
+        )
+        monkeypatch.setattr(_helpers, "normalize_peer_to_usd", _id_normalize)
+        monkeypatch.setattr(_helpers, "calculate_multiples", lambda c: c)
+        monkeypatch.setattr(_helpers, "override_company_with_xbrl", lambda c, _x: c)
+        monkeypatch.setattr(
+            _helpers, "build_xbrl_aligned_company", lambda **_k: _canned_company("AAPL")
+        )
+
+        ctx = {"target_data": _target_financial_data()}
+        out = asyncio.run(
+            execute_peer_analysis(None, deps, "", ctx, "AAPL", peers=["A", "B", "C", "D"])
+        )
+
+        # No raise — degraded StepOutput with a 2-peer PeerComps + thin warning.
+        assert isinstance(out, StepOutput)
+        assert isinstance(out.structured, PeerComps)
+        assert len(out.structured.peers) == 2
+        assert any("Thin comp set" in w for w in out.structured.warnings)

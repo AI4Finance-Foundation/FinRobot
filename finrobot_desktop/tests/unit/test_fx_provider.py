@@ -37,9 +37,7 @@ class TestUsdFastPath:
 
     @pytest.mark.asyncio
     async def test_lowercase_usd_treated_as_usd(self, monkeypatch):
-        monkeypatch.setattr(
-            fx_module.yf, "Ticker", lambda *_a, **_k: pytest.fail("unreachable")
-        )
+        monkeypatch.setattr(fx_module.yf, "Ticker", lambda *_a, **_k: pytest.fail("unreachable"))
         assert await fetch_fx_rate_to_usd("usd") == 1.0
 
 
@@ -56,9 +54,7 @@ class _FakeTicker:
 class TestSuccessfulFetch:
     @pytest.mark.asyncio
     async def test_returns_float_from_yfinance(self, monkeypatch):
-        monkeypatch.setattr(
-            fx_module.yf, "Ticker", lambda symbol: _FakeTicker(0.03125)
-        )
+        monkeypatch.setattr(fx_module.yf, "Ticker", lambda symbol: _FakeTicker(0.03125))
         rate = await fetch_fx_rate_to_usd("TWD")
         assert rate == pytest.approx(0.03125)
 
@@ -73,8 +69,9 @@ class TestSuccessfulFetch:
 class TestProviderErrorOnBadQuote:
     @pytest.mark.asyncio
     async def test_none_quote_raises_provider_error(self, monkeypatch):
+        """yfinance no-quote AND no FMP key → ProviderError naming yfinance only."""
         monkeypatch.setattr(fx_module.yf, "Ticker", lambda _: _FakeTicker(None))
-        with pytest.raises(ProviderError, match="no spot FX quote for TWDUSD=X"):
+        with pytest.raises(ProviderError, match=r"No spot FX quote.*TWDUSD=X"):
             await fetch_fx_rate_to_usd("TWD")
 
     @pytest.mark.asyncio
@@ -91,9 +88,7 @@ class TestProviderErrorOnBadQuote:
 
     @pytest.mark.asyncio
     async def test_nan_quote_raises(self, monkeypatch):
-        monkeypatch.setattr(
-            fx_module.yf, "Ticker", lambda _: _FakeTicker(float("nan"))
-        )
+        monkeypatch.setattr(fx_module.yf, "Ticker", lambda _: _FakeTicker(float("nan")))
         with pytest.raises(ProviderError):
             await fetch_fx_rate_to_usd("GBP")
 
@@ -113,3 +108,56 @@ class TestProviderErrorOnBadQuote:
         monkeypatch.setattr(fx_module.yf, "Ticker", lambda _: _BrokenTicker())
         with pytest.raises(ProviderError):
             await fetch_fx_rate_to_usd("KRW")
+
+
+class TestFmpFallback:
+    """yfinance shares Yahoo's rate-limit budget with every peer quote, so under
+    a 429 storm the FX read is the first thing to fail. FMP is an independent
+    source consulted only when a key is supplied AND yfinance returned nothing."""
+
+    @pytest.mark.asyncio
+    async def test_fmp_used_when_yfinance_returns_none(self, monkeypatch):
+        monkeypatch.setattr(fx_module.yf, "Ticker", lambda _: _FakeTicker(None))
+
+        async def _fake_fmp(from_ccy, api_key):
+            assert from_ccy == "CNY"
+            assert api_key == "key123"
+            return 0.1478
+
+        monkeypatch.setattr(fx_module, "_fmp_fx_rate_to_usd", _fake_fmp)
+        rate = await fetch_fx_rate_to_usd("CNY", fmp_api_key="key123")
+        assert rate == pytest.approx(0.1478)
+
+    @pytest.mark.asyncio
+    async def test_yfinance_primary_skips_fmp_when_it_succeeds(self, monkeypatch):
+        """FMP must NOT be hit when yfinance already returned a good quote."""
+        monkeypatch.setattr(fx_module.yf, "Ticker", lambda _: _FakeTicker(0.1480))
+
+        async def _explode_fmp(*_a, **_k):
+            pytest.fail("FMP must not be consulted when yfinance succeeds")
+
+        monkeypatch.setattr(fx_module, "_fmp_fx_rate_to_usd", _explode_fmp)
+        rate = await fetch_fx_rate_to_usd("CNY", fmp_api_key="key123")
+        assert rate == pytest.approx(0.1480)
+
+    @pytest.mark.asyncio
+    async def test_both_sources_fail_raises_mentioning_fmp(self, monkeypatch):
+        monkeypatch.setattr(fx_module.yf, "Ticker", lambda _: _FakeTicker(None))
+
+        async def _fmp_none(*_a, **_k):
+            return None
+
+        monkeypatch.setattr(fx_module, "_fmp_fx_rate_to_usd", _fmp_none)
+        with pytest.raises(ProviderError, match=r"yfinance.*or FMP"):
+            await fetch_fx_rate_to_usd("CNY", fmp_api_key="key123")
+
+    @pytest.mark.asyncio
+    async def test_fmp_inverse_pair_inverted(self, monkeypatch):
+        """When only USD{FROM} quotes (e.g. USDCNY≈6.77), invert to FROM→USD."""
+
+        async def _fake_quote(client, pair, api_key):
+            return 6.77 if pair == "USDCNY" else None
+
+        monkeypatch.setattr(fx_module, "_fmp_quote_price", _fake_quote)
+        rate = await fx_module._fmp_fx_rate_to_usd("CNY", "key123")
+        assert rate == pytest.approx(1.0 / 6.77)

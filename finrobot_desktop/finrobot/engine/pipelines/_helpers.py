@@ -57,16 +57,22 @@ _PEER_COMP_SET_MIN = 3
 _PEER_COMP_SET_MAX = 6
 
 
-async def normalize_peer_to_usd(company: CompanyFinancials) -> CompanyFinancials:
+async def normalize_peer_to_usd(
+    company: CompanyFinancials, *, fmp_api_key: str | None = None
+) -> CompanyFinancials:
     """Convert a peer's IS/BS items (and market_cap if quoted in non-USD) to
     canonical USD using today's spot FX. No-op fast path when both currency
-    tags are already USD — the common case for US peers."""
+    tags are already USD — the common case for US peers.
+
+    ``fmp_api_key`` is forwarded to the FX layer as a fallback source so a
+    yfinance rate-limit storm doesn't drop an otherwise-fetchable foreign peer.
+    """
     if company.reporting_currency == "USD" and company.quote_currency == "USD":
         return company
     reporting_rate = (
         1.0
         if company.reporting_currency == "USD"
-        else await fetch_fx_rate_to_usd(company.reporting_currency)
+        else await fetch_fx_rate_to_usd(company.reporting_currency, fmp_api_key=fmp_api_key)
     )
     if company.quote_currency == "USD":
         quote_rate = 1.0
@@ -74,7 +80,7 @@ async def normalize_peer_to_usd(company: CompanyFinancials) -> CompanyFinancials
         # Local listing (e.g. 2330.TW): both tags equal, reuse the rate.
         quote_rate = reporting_rate
     else:
-        quote_rate = await fetch_fx_rate_to_usd(company.quote_currency)
+        quote_rate = await fetch_fx_rate_to_usd(company.quote_currency, fmp_api_key=fmp_api_key)
     return normalize_company_to_usd(company, reporting_rate, quote_rate)
 
 
@@ -186,7 +192,9 @@ async def execute_peer_analysis(
             # USD market_cap) collapses EV/EBITDA to 0.158x. A failed FX lookup
             # falls through to the outer except and drops this peer; thinning
             # the set beats publishing a mixed-unit multiple.
-            company = await normalize_peer_to_usd(company)
+            company = await normalize_peer_to_usd(
+                company, fmp_api_key=getattr(deps.settings, "fmp_api_key", None)
+            )
             company = calculate_multiples(company)
             xbrl_result = await deps.data_layer.fetch(DataType.XBRL_FACTS, peer_ticker)
             return override_company_with_xbrl(company, xbrl_result.data)
@@ -204,14 +212,43 @@ async def execute_peer_analysis(
     survivors: list[CompanyFinancials] = [p for p in peer_results if p is not None]
     peers: list[CompanyFinancials] = survivors[:_PEER_COMP_SET_MAX]
 
-    if len(peers) < _PEER_COMP_SET_MIN:
-        raise ValueError(
-            f"Only {len(survivors)} of {len(selection.tickers)} candidate peers "
-            f"returned usable financials (need >={_PEER_COMP_SET_MIN}). "
-            f"Candidates: {selection.tickers}. This is almost always transient "
-            f"data-provider rate-limiting (yfinance 429 / FX quote unavailable) — "
-            f"retry shortly."
+    # A thin comp set is a QUALITY problem, not a crash. peer_analysis is a
+    # non-critical step in both pipelines, and the step's validator
+    # (validate_peer_comps / validate_has_peers, min_peers=3) already gates a thin
+    # set — failing validation triggers a re-selection retry (the LLM may pick a
+    # luckier, fully-fetchable set) and, if still thin after retries, degrades
+    # best-effort instead of tanking the whole report.
+    #
+    # Two cases:
+    #   • 1..MIN-1 survivors → build the thin PeerComps anyway, tag a warning so
+    #     it surfaces in the artifact, and let the validator fail it (→ retry →
+    #     degrade). NEVER raise on count: the old `raise ValueError(...)` depended
+    #     on the literal substring "429" living in its own message so
+    #     _is_recoverable_exception would treat it as retryable — a fragile
+    #     self-referential hack that crashed the run the moment the wording
+    #     drifted (observed: "Only N peers fetched … need >=3" → raw traceback).
+    #   • 0 survivors → PeerComps requires >=1 peer (Field min_length=1), so we
+    #     can't build one at all. Raise ProviderError — recoverable BY TYPE (not
+    #     by message text), so it retries with backoff then degrades on the
+    #     non-critical step, never surfacing a raw pydantic ValidationError.
+    if not peers:
+        raise ProviderError(
+            f"No comparable peers returned usable financials for {ticker} "
+            f"(0 of {len(selection.tickers)} candidates: {selection.tickers}). "
+            f"All peer financials/FX fetches failed — usually transient provider "
+            f"rate-limiting; retry shortly."
         )
+    thin_warning: str | None = None
+    if len(peers) < _PEER_COMP_SET_MIN:
+        thin_warning = (
+            f"Thin comp set: only {len(survivors)} of {len(selection.tickers)} "
+            f"candidate peers returned usable financials (target >="
+            f"{_PEER_COMP_SET_MIN}). Candidates: {selection.tickers}. Usually "
+            f"transient data-provider rate-limiting (yfinance 429) or a missing "
+            f"FX quote for a foreign-listed peer — median multiples below are "
+            f"less reliable; retry shortly for a fuller set."
+        )
+        logger.warning("%s (target=%s)", thin_warning, ticker)
 
     target_fin = _find_target_financial_data(structured_context)
     if target_fin is None:
@@ -230,6 +267,8 @@ async def execute_peer_analysis(
         peer_justification=selection.rationale,
     )
     peer_comps = calculate_peer_statistics(peer_comps)
+    if thin_warning is not None and thin_warning not in peer_comps.warnings:
+        peer_comps.warnings.insert(0, thin_warning)
 
     ev_ebitda_str = (
         f"{peer_comps.median_ev_ebitda:.1f}x" if peer_comps.median_ev_ebitda is not None else "N/A"

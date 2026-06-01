@@ -170,6 +170,31 @@ export function IcDebatePage() {
             </div>
           )}
 
+          {/* Reliability caveat over the argument columns. The VerdictCard banner
+              downgrades the call to REVIEW when data is unreliable; the precise
+              estimates cited in the bull/bear chips below must carry the same
+              caveat instead of reading as firm conclusions (the downgrade signal
+              has to reach this node, not just the verdict). */}
+          {isCompleted && debate.reliable === false && (
+            <div
+              role="note"
+              style={{
+                margin: '0 0 16px',
+                padding: '10px 14px',
+                background: 'color-mix(in srgb, var(--warning) 8%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--warning) 28%, transparent)',
+                borderRadius: 'var(--radius-sm)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                lineHeight: 1.6,
+                color: 'var(--warning)',
+                letterSpacing: '0.02em',
+              }}
+            >
+              ⚠ {t('ic.column.provisional')}
+            </div>
+          )}
+
           {/* Two-column bull / bear layout */}
           <div
             style={{

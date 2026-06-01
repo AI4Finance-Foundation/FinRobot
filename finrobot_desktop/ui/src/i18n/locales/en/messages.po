@@ -2679,6 +2679,10 @@ msgid "ic.column.pointCount"
 msgstr "{count, plural, one {# point} other {# points}}"
 
 #. js-lingui-explicit-id
+msgid "ic.column.provisional"
+msgstr "Data reliability is degraded — the valuation figures cited below (incl. DCF / comps mids) are provisional, not firm conclusions"
+
+#. js-lingui-explicit-id
 msgid "ic.column.verified"
 msgstr "Data verified"
 

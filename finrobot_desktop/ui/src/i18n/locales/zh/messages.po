@@ -2679,6 +2679,10 @@ msgid "ic.column.pointCount"
 msgstr "{count} 条论点"
 
 #. js-lingui-explicit-id
+msgid "ic.column.provisional"
+msgstr "数据可靠性不足 — 以下论点引用的估值数字（含 DCF / comps 中值）仅供参考，请勿当作确定结论"
+
+#. js-lingui-explicit-id
 msgid "ic.column.verified"
 msgstr "数据已核验"
 

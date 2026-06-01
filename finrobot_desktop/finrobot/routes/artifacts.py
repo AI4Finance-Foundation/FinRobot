@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from starlette.requests import Request
 
-from finrobot.artifact.diff import FieldDiff, diff_artifacts
+from finrobot.artifact.semantic_diff import SemanticDelta, build_semantic_delta
 from finrobot.artifact.models import Artifact, ArtifactSummary, ArtifactType
 from finrobot.artifact.store import ArtifactStore
 from finrobot.engine.data.layer import DataLayer
@@ -227,22 +227,25 @@ async def delete_artifact(artifact_id: str, request: Request) -> dict[str, str]:
     return {"status": "deleted", "id": artifact_id}
 
 
-@router.get("/{a_id}/diff/{b_id}", response_model=list[FieldDiff])
-async def diff_two(a_id: str, b_id: str, request: Request) -> list[FieldDiff]:
-    """Return field-level differences between two artifacts.
+@router.get("/{a_id}/diff/{b_id}", response_model=SemanticDelta)
+async def diff_two(a_id: str, b_id: str, request: Request) -> SemanticDelta:
+    """Return an analyst-grade semantic delta between two artifact versions.
 
-    Diffs the assumptions, outputs, compute_version, and inputs (excluding
-    raw_data). Meta fields like id and created_at are skipped because they
-    always differ.
-
-    Numeric diffs include abs_change and pct_change for convenience.
+    ``a_id`` is the older/base version, ``b_id`` the newer/compare version. The
+    response answers "why did the conclusion change" — rating / target / fair
+    value moves, deterministic single-factor attribution of the DCF fair-value
+    change, the driver assumptions that moved, and a comparability gate that
+    suppresses deltas (or disables attribution) when the two versions aren't
+    like-for-like (different formula / data source / earnings season). All
+    numbers arrive pre-formatted with backend-owned units — see
+    ``finrobot.artifact.semantic_diff`` and ``field_registry``.
 
     Args:
-        a_id: The "before" artifact id.
-        b_id: The "after" artifact id.
+        a_id: The "before" (base) artifact id.
+        b_id: The "after" (compare) artifact id.
 
     Returns:
-        List of FieldDiff, sorted by path.
+        A SemanticDelta.
 
     Raises:
         404: If either artifact is not found.
@@ -254,7 +257,7 @@ async def diff_two(a_id: str, b_id: str, request: Request) -> list[FieldDiff]:
     b = await store.get(b_id)
     if b is None:
         raise HTTPException(status_code=404, detail=f"Artifact not found: {b_id}")
-    return diff_artifacts(a, b)
+    return build_semantic_delta(a, b)
 
 
 @router.post("/{artifact_id}/view")

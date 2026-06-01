@@ -169,10 +169,10 @@ class TestDeleteArtifact:
 
 
 class TestDiff:
-    def test_diff_identical_artifacts_returns_empty(
+    def test_diff_identical_artifacts_flagged_identical(
         self, client: TestClient, store: ArtifactStore, sample_artifact: Artifact
     ) -> None:
-        # Save the same artifact twice (different ids)
+        # Save the same artifact twice (different ids), same assumptions/outputs.
         a = sample_artifact
         b = _make_artifact(
             id="art_2026-05-13T11:00:00_AAPL_dcf_b",
@@ -184,18 +184,10 @@ class TestDiff:
 
         resp = client.get(f"/api/artifacts/{a.id}/diff/{b.id}")
         assert resp.status_code == 200
-        diffs = resp.json()
-        # summary_text will differ (contains id), but numeric fields are same
-        numeric_diffs = [
-            d
-            for d in diffs
-            if d["path"]
-            in (
-                "assumptions.parameters.wacc",
-                "outputs.structured.implied_price",
-            )
-        ]
-        assert numeric_diffs == []
+        delta = resp.json()
+        assert delta["identical"] is True
+        # No driver should report a direction other than flat.
+        assert all(d["direction"] == "flat" for d in delta["drivers"])
 
     def test_diff_changed_wacc(
         self,
@@ -209,16 +201,28 @@ class TestDiff:
 
         resp = client.get(f"/api/artifacts/{sample_artifact.id}/diff/{sample_artifact_v2.id}")
         assert resp.status_code == 200
-        diffs = resp.json()
-        by_path = {d["path"]: d for d in diffs}
+        delta = resp.json()
+        assert delta["identical"] is False
 
-        wacc_diff = by_path.get("assumptions.parameters.wacc")
-        assert wacc_diff is not None
-        assert wacc_diff["kind"] == "changed"
-        assert wacc_diff["old"] == pytest.approx(0.082)
-        assert wacc_diff["new"] == pytest.approx(0.095)
-        assert wacc_diff["abs_change"] is not None
-        assert wacc_diff["pct_change"] is not None
+        drivers = {d["key"]: d for d in delta["drivers"]}
+        wacc = drivers.get("wacc")
+        assert wacc is not None
+        assert wacc["old_value"] == pytest.approx(0.082)
+        assert wacc["new_value"] == pytest.approx(0.095)
+        assert wacc["direction"] == "up"
+        # WACC is lower_better → a rise is a negative development.
+        assert wacc["sentiment"] == "negative"
+        # Backend gives the display string; "%" unit, not a guessed $.
+        assert wacc["formatted_old"] == "8.2%"
+        assert wacc["formatted_new"] == "9.5%"
+
+        # Target price (DCF implied for a dcf artifact) fell 185 → 162.
+        conclusion = {c["key"]: c for c in delta["conclusion"]}
+        tp = conclusion.get("target_price")
+        assert tp is not None
+        assert tp["old_value"] == pytest.approx(185.0)
+        assert tp["new_value"] == pytest.approx(162.0)
+        assert tp["direction"] == "down"
 
     def test_diff_404_first_artifact_missing(
         self, client: TestClient, store: ArtifactStore, sample_artifact: Artifact

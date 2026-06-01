@@ -18,7 +18,6 @@ do DCF" — every number can be traced back to data snapshot + assumption
 set + compute version + timestamp.
 """
 
-from finrobot.artifact.diff import FieldDiff, diff_artifacts
 from finrobot.artifact.models import (
     Artifact,
     ArtifactAssumptions,
@@ -29,6 +28,7 @@ from finrobot.artifact.models import (
     ArtifactSummary,
     ArtifactType,
 )
+from finrobot.artifact.semantic_diff import SemanticDelta, build_semantic_delta
 from finrobot.artifact.store import ArtifactStore
 
 __all__ = [
@@ -41,6 +41,6 @@ __all__ = [
     "ArtifactStore",
     "ArtifactSummary",
     "ArtifactType",
-    "FieldDiff",
-    "diff_artifacts",
+    "SemanticDelta",
+    "build_semantic_delta",
 ]

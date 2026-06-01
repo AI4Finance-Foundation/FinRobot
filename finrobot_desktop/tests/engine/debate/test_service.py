@@ -65,7 +65,11 @@ async def test_unreliable_evidence_forces_review() -> None:
         judge_output=Verdict(call="BUY", conviction=0.9, swing_factor="x", change_my_mind="y"),
     )
     emitted: list[dict] = []
-    result: DebateResult = await run_debate(es, agents, emit=emitted.append)
+
+    async def _emit(ev: dict) -> None:
+        emitted.append(ev)
+
+    result: DebateResult = await run_debate(es, agents, emit=_emit)
 
     assert result.verdict.call == "REVIEW"
     assert result.verdict.conviction is None
@@ -109,7 +113,11 @@ async def test_unsupported_bull_arg_marked_unverified_and_emitted() -> None:
         judge_output=Verdict(call="HOLD", conviction=0.5, swing_factor="x", change_my_mind="y"),
     )
     emitted: list[dict] = []
-    result: DebateResult = await run_debate(es, agents, emit=emitted.append)
+
+    async def _emit(ev: dict) -> None:
+        emitted.append(ev)
+
+    result: DebateResult = await run_debate(es, agents, emit=_emit)
 
     assert result.bull[0].verified is False
     assert result.bear[0].verified is True
@@ -137,7 +145,10 @@ async def test_divergences_empty_in_v1() -> None:
             call="HOLD", conviction=0.6, swing_factor="growth", change_my_mind="macro"
         ),
     )
-    result: DebateResult = await run_debate(es, agents, emit=lambda _: None)
+    async def _noop_emit(ev: dict) -> None:
+        pass
+
+    result: DebateResult = await run_debate(es, agents, emit=_noop_emit)
     assert result.divergences == []
 
 
@@ -165,7 +176,11 @@ async def test_verdict_event_always_emitted() -> None:
             ),
         )
         emitted: list[dict] = []
-        await run_debate(es, agents, emit=emitted.append)
+
+        async def _emit(ev: dict) -> None:
+            emitted.append(ev)
+
+        await run_debate(es, agents, emit=_emit)
         verdict_events = [e for e in emitted if e["event"] == "debate.verdict"]
         assert len(verdict_events) == 1, f"reliable={reliable}: expected 1 verdict event"
 
@@ -187,7 +202,10 @@ async def test_result_fields_wired_from_evidence_set() -> None:
         bear_output=SideCase(side="bear", arguments=[]),
         judge_output=Verdict(call="BUY", conviction=0.8, swing_factor="f", change_my_mind="m"),
     )
-    result: DebateResult = await run_debate(es, agents, emit=lambda _: None)
+    async def _noop_emit(ev: dict) -> None:
+        pass
+
+    result: DebateResult = await run_debate(es, agents, emit=_noop_emit)
     assert result.ticker == "AAPL"
     assert result.artifact_id == "artifact-42"
     assert result.reliable is True

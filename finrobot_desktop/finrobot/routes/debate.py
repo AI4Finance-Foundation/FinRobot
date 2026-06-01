@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -26,7 +26,7 @@ from starlette.requests import Request
 from finrobot.engine.debate.agents import build_debate_agents
 from finrobot.engine.debate.evidence import build_evidence_set
 from finrobot.engine.debate.service import run_debate
-from finrobot.events import RunFailed, RunStarted
+from finrobot.events import RunEvent, RunFailed, RunStarted
 from finrobot.run_store import RunStore
 
 logger = logging.getLogger(__name__)
@@ -93,12 +93,12 @@ async def _run_debate_task(
     `except Exception` is forbidden; CancelledError is intentionally NOT
     caught so Ctrl-C / server shutdown propagates normally.
 
-    Emit bridge: service.run_debate expects a sync callable, but we need to
-    write to RunStore which is async.  We accumulate all emitted events in a
-    list (synchronously, zero I/O cost) during run_debate, then flush them
-    sequentially to the store afterward.  This preserves event ordering and
-    avoids fire-and-forget task races that would silently lose events if the
-    loop drained before all tasks ran.
+    Emit: async closure that writes each event to RunStore immediately as
+    run_debate produces it, matching runs.py's RunProgress pattern.  Events
+    are injected with run_id before writing so RunStore.append_event can find
+    event["run_id"] (see runs.py::_append).  cast(RunEvent, ...) is the
+    sanctioned assertion that the runtime dict satisfies the TypedDict union —
+    the shape is guaranteed by service.py's emit call sites.
     """
     from datetime import datetime, timezone
 
@@ -115,20 +115,12 @@ async def _run_debate_task(
         ),
     )
 
-    # Accumulate events synchronously during run_debate, flush them async after.
-    # Inject run_id so RunStore.append_event finds event["run_id"].
-    pending_events: list[dict[str, Any]] = []
-
-    def _sync_emit(ev: dict[str, Any]) -> None:
-        pending_events.append({**ev, "run_id": run_id})
+    async def _emit(ev: dict[str, Any]) -> None:
+        await run_store.append_event(run_id, cast(RunEvent, {**ev, "run_id": run_id}))
 
     try:
         deps = request.app.state.deps
-        await run_debate(evidence_set, agents, emit=_sync_emit, deps=deps)
-
-        # Flush all emitted debate.point / debate.verdict events to the store.
-        for ev in pending_events:
-            await run_store.append_event(run_id, ev)  # type: ignore[arg-type]  # typed union assembled at runtime from TypedDict fields
+        await run_debate(evidence_set, agents, emit=_emit, deps=deps)
 
         duration_s = round(time.monotonic() - started, 1)
         await run_store.update_run(

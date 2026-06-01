@@ -26,7 +26,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from finrobot.engine.debate.models import (
     DebateResult,
@@ -58,7 +59,7 @@ def _format_evidence_context(evidence_set: EvidenceSet) -> str:
 async def run_debate(
     evidence_set: EvidenceSet,
     agents: dict[str, Any],
-    emit: Callable[[dict[str, Any]], None],
+    emit: Callable[[dict[str, Any]], Awaitable[None]],
     deps: Any = None,
 ) -> DebateResult:
     """Orchestrate one full IC debate session.
@@ -72,9 +73,11 @@ async def run_debate(
         Dict with keys "bull", "bear", "judge" — each a pydantic-ai Agent
         (or a compatible stub).  Produced by build_debate_agents().
     emit:
-        SSE sink.  Called with a plain dict for every debate.point and the
-        final debate.verdict.  Exceptions from emit propagate to the caller
-        (route layer handles run.failed).
+        Async SSE sink.  Awaited for every debate.point and the final
+        debate.verdict, so events reach the RunStore (and the SSE stream)
+        in real-time as the debate progresses rather than buffered to the end.
+        Exceptions from emit propagate to the caller (route layer handles
+        run.failed).
     deps:
         Optional FinRobotDeps passed through to each agent.run() call.
 
@@ -109,7 +112,7 @@ async def run_debate(
 
     # ── Step 4: emit debate.point for each verified argument ─────────────────
     for va in verified_bull + verified_bear:
-        emit(
+        await emit(
             {
                 "event": "debate.point",
                 "side": va.side,
@@ -156,7 +159,7 @@ async def run_debate(
         verdict = verdict.model_copy(update={"call": "REVIEW", "conviction": None})
 
     # ── Step 7: emit debate.verdict ──────────────────────────────────────────
-    emit(
+    await emit(
         {
             "event": "debate.verdict",
             "call": verdict.call,

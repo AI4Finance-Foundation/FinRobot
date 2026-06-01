@@ -300,6 +300,48 @@ def solve_for_implied_growth(
     return result
 
 
+def compute_dcf_implied_price(
+    inputs: DCFInputs,
+    overrides: dict[str, float],
+) -> float:
+    """Thin entry point: run a full DCF with one or more assumption overrides
+    and return only the implied equity price per share.
+
+    Used by the IC debate divergence recomputation layer so that bull/bear
+    sides can each substitute their own WACC or terminal-growth assumption into
+    the *same* DCF arithmetic that the single-stock report used — zero DCF math
+    lives outside dcf.py.
+
+    Supported override keys:
+        ``"wacc"``              — replaces the CAPM-derived WACC.
+        ``"terminal_growth"``   — replaces ``inputs.terminal_growth_rate``.
+
+    Any key not in the supported set raises ``KeyError`` so callers discover
+    mismatches immediately rather than silently ignoring them.
+
+    Args:
+        inputs:    Frozen DCFInputs produced by seed_dcf_inputs for the ticker.
+        overrides: Subset of assumption overrides; must not be empty.
+
+    Returns:
+        Implied equity price per share as a plain float.
+
+    Raises:
+        KeyError:   An unsupported override key was supplied.
+        ValueError: terminal_growth >= wacc (Gordon Growth Model undefined).
+    """
+    _SUPPORTED = {"wacc", "terminal_growth"}
+    unknown = set(overrides) - _SUPPORTED
+    if unknown:
+        raise KeyError(f"Unsupported DCF override key(s): {unknown!r}")
+
+    wacc_override: float | None = overrides.get("wacc")
+    tg_override: float | None = overrides.get("terminal_growth")
+
+    result = calculate_dcf(inputs, wacc_override=wacc_override, tg_override=tg_override)
+    return result.implied_price
+
+
 def solve_for_implied_wacc(
     inputs: DCFInputs,
     target_price: float,

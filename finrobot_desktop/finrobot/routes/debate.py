@@ -1,0 +1,166 @@
+"""POST /api/debate — create an IC debate run backed by an existing artifact.
+
+SSE decision: Option A — the generic /api/runs/{run_id}/events endpoint in
+runs.py is run_id-universal; it only verifies that the run_id exists in
+RunStore, then polls run_events.  Creating a run via RunStore.create_run
+registers the run_id, so debate runs are served by the same SSE machinery
+with no duplication.
+
+Structured-data contract:
+  artifact.outputs.structured  is the dict produced by the equity_research
+  pipeline (valuation_synthesis + method breakdown).
+  build_evidence_set() expects that exact shape — see engine/debate/evidence.py.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from typing import Any
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from starlette.requests import Request
+
+from finrobot.engine.debate.agents import build_debate_agents
+from finrobot.engine.debate.evidence import build_evidence_set
+from finrobot.engine.debate.service import run_debate
+from finrobot.events import RunFailed, RunStarted
+from finrobot.run_store import RunStore
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/debate", tags=["debate"])
+
+
+class DebateRequest(BaseModel):
+    ticker: str
+    artifact_id: str
+
+
+class DebateResponse(BaseModel):
+    run_id: str
+
+
+@router.post("", response_model=DebateResponse)
+async def create_debate(body: DebateRequest, request: Request) -> DebateResponse:
+    """Launch an IC debate run for an existing equity_research artifact.
+
+    Steps:
+      1. Fetch the artifact from ArtifactStore; 404 if absent.
+      2. Extract deterministic evidence from artifact.outputs.structured.
+      3. Create a run in RunStore (pipeline_type="debate").
+      4. Build debate agents from settings.
+      5. Fire off background task; return run_id immediately.
+
+    The caller streams debate.point / debate.verdict events via the existing
+    generic SSE endpoint:  GET /api/runs/{run_id}/events
+    """
+    artifact_store = request.app.state.artifact_store
+    artifact = await artifact_store.get(body.artifact_id)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail=f"Artifact not found: {body.artifact_id}")
+
+    structured_data: dict[str, Any] = artifact.outputs.structured
+    evidence_set = build_evidence_set(structured_data, body.artifact_id)
+
+    run_store: RunStore = request.app.state.run_store
+    record = await run_store.create_run("debate", body.ticker)
+    run_id = record.run_id
+
+    settings = request.app.state.deps.settings
+    agents = build_debate_agents(settings)
+
+    task = asyncio.create_task(_run_debate_task(run_id, evidence_set, agents, run_store, request))
+    request.app.state.run_tasks[run_id] = task
+
+    return DebateResponse(run_id=run_id)
+
+
+async def _run_debate_task(
+    run_id: str,
+    evidence_set: Any,
+    agents: dict[str, Any],
+    run_store: RunStore,
+    request: Request,
+) -> None:
+    """Background task: orchestrate debate, mark run completed/failed.
+
+    Exception handling mirrors runs.py::_run_pipeline_impl — we catch the
+    broad-but-explicit set that can escape debate orchestration so that the
+    run transitions to 'failed' and the SSE stream breaks cleanly.  Bare
+    `except Exception` is forbidden; CancelledError is intentionally NOT
+    caught so Ctrl-C / server shutdown propagates normally.
+
+    Emit bridge: service.run_debate expects a sync callable, but we need to
+    write to RunStore which is async.  We accumulate all emitted events in a
+    list (synchronously, zero I/O cost) during run_debate, then flush them
+    sequentially to the store afterward.  This preserves event ordering and
+    avoids fire-and-forget task races that would silently lose events if the
+    loop drained before all tasks ran.
+    """
+    from datetime import datetime, timezone
+
+    started = time.monotonic()
+    await run_store.update_run(run_id, status="running")
+    await run_store.append_event(
+        run_id,
+        RunStarted(
+            event="run.started",
+            run_id=run_id,
+            pipeline_type="debate",
+            ticker=evidence_set.ticker,
+            total_steps=3,  # bull/bear → verify → judge
+        ),
+    )
+
+    # Accumulate events synchronously during run_debate, flush them async after.
+    # Inject run_id so RunStore.append_event finds event["run_id"].
+    pending_events: list[dict[str, Any]] = []
+
+    def _sync_emit(ev: dict[str, Any]) -> None:
+        pending_events.append({**ev, "run_id": run_id})
+
+    try:
+        deps = request.app.state.deps
+        await run_debate(evidence_set, agents, emit=_sync_emit, deps=deps)
+
+        # Flush all emitted debate.point / debate.verdict events to the store.
+        for ev in pending_events:
+            await run_store.append_event(run_id, ev)  # type: ignore[arg-type]  # typed union assembled at runtime from TypedDict fields
+
+        duration_s = round(time.monotonic() - started, 1)
+        await run_store.update_run(
+            run_id,
+            status="completed",
+            completed_at=datetime.now(tz=timezone.utc).isoformat(),
+            duration_s=duration_s,
+        )
+    except (
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+        RuntimeError,
+        OSError,
+    ) as exc:
+        # Task-boundary exception handler: mirrors runs.py::_run_pipeline_impl.
+        # Captures errors from debate orchestration (agent run failures, evidence
+        # parse errors, store I/O) so the run transitions to failed and the SSE
+        # stream terminates rather than hanging at status="running" forever.
+        logger.exception("Debate run %s failed", run_id)
+        error_msg = str(exc)[:500] or type(exc).__name__
+        await run_store.update_run(
+            run_id,
+            status="failed",
+            completed_at=datetime.now(tz=timezone.utc).isoformat(),
+            duration_s=round(time.monotonic() - started, 1),
+            error=error_msg,
+        )
+        await run_store.append_event(
+            run_id,
+            RunFailed(event="run.failed", run_id=run_id, error=error_msg),
+        )
+    finally:
+        request.app.state.run_tasks.pop(run_id, None)

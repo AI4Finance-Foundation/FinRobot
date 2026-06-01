@@ -32,6 +32,7 @@ from finrobot.routes.compute import router as compute_router
 from finrobot.routes.dashboard import router as dashboard_router
 from finrobot.routes.data import router as data_router
 from finrobot.routes.health import router as health_router
+from finrobot.routes.debate import router as debate_router
 from finrobot.routes.diagnostics import router as diagnostics_router
 from finrobot.routes.notify import router as notify_router
 from finrobot.routes.runs import router as runs_router
@@ -368,6 +369,7 @@ app.include_router(search_router, prefix="/api/search", tags=["search"])
 app.include_router(valuation_router)
 app.include_router(sentiment_router)
 app.include_router(notify_router)
+app.include_router(debate_router)
 app.include_router(diagnostics_router)
 
 

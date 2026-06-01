@@ -14,6 +14,7 @@ from typing import Any
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.contracts import (
     DEGRADED_CLOSE_ONLY,
+    DEGRADED_PRICE_FALLBACK_CLOSE,
     NormalizedPrice,
     PriceBar,
     Provenance,
@@ -64,15 +65,24 @@ def normalize_price(result: DataResult) -> NormalizedPrice:
         ohlc_complete = False
 
     current_price = _f(data.get("current_price"))
-    if current_price is None and bars:
+    price_fell_back_to_close = current_price is None and bool(bars)
+    if price_fell_back_to_close:
         current_price = bars[-1].close
+
+    degraded: list[str] = []
+    if not ohlc_complete:
+        degraded.append(DEGRADED_CLOSE_ONLY)
+    if price_fell_back_to_close:
+        # The "current" price is actually the latest bar's close — flag it so the
+        # UI freshness pill won't present a stale close as a live "实时" quote.
+        degraded.append(DEGRADED_PRICE_FALLBACK_CLOSE)
 
     as_of = _date_to_dt(bars[-1].date) if bars else result.timestamp
     provenance = Provenance(
         provider=result.provider,
         as_of=as_of,
         fetched_at=result.timestamp,
-        degraded=[] if ohlc_complete else [DEGRADED_CLOSE_ONLY],
+        degraded=degraded,
     )
     return NormalizedPrice(
         ticker=result.ticker,

@@ -11,6 +11,7 @@ from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.contracts import (
     DEGRADED_CCY_INFERRED,
     DEGRADED_CLOSE_ONLY,
+    DEGRADED_PRICE_FALLBACK_CLOSE,
     DEGRADED_TTM_LAG,
 )
 from finrobot.engine.data.normalize.financials import normalize_financials
@@ -58,6 +59,29 @@ def test_price_close_only_is_degraded():
     assert p.is_ohlc_complete is False
     assert DEGRADED_CLOSE_ONLY in p.provenance.degraded
     assert p.fifty_two_week_low() == 300.0  # close fallback
+
+
+def test_price_current_price_present_no_fallback_marker():
+    """When the provider gives a real current_price, no fallback marker."""
+    hist = [
+        {"date": "2025-06-01", "close": 300.0, "high": 305.0, "low": 295.0},
+        {"date": "2026-05-27", "close": 440.0, "high": 450.0, "low": 430.0},
+    ]
+    p = normalize_price(_price_result(hist, provider="yfinance", current_price=441.0))
+    assert p.current_price == 441.0
+    assert DEGRADED_PRICE_FALLBACK_CLOSE not in p.provenance.degraded
+
+
+def test_price_missing_current_price_falls_back_to_close_with_marker():
+    """Provider gave no current_price → we use the latest bar's close, but flag
+    it so the UI freshness pill won't claim a stale close is a live quote."""
+    hist = [
+        {"date": "2025-06-01", "close": 300.0, "high": 305.0, "low": 295.0},
+        {"date": "2026-05-27", "close": 440.0, "high": 450.0, "low": 430.0},
+    ]
+    p = normalize_price(_price_result(hist, provider="yfinance"))  # no current_price
+    assert p.current_price == 440.0  # latest close
+    assert DEGRADED_PRICE_FALLBACK_CLOSE in p.provenance.degraded
 
 
 def test_price_over_wide_window_is_trimmed():

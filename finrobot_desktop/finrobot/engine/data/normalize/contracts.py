@@ -29,6 +29,9 @@ CANONICAL_CONTRACT_VERSION = 1
 DEGRADED_CLOSE_ONLY = "close_only"  # no intraday OHLC; 52w high/low fall back to close
 DEGRADED_TTM_LAG = "ttm_lag"  # TTM denominator trails the latest reported quarter
 DEGRADED_CCY_INFERRED = "ccy_inferred"  # reporting currency inferred, not provider-stated
+# provider gave no real-time current_price; using the latest bar's close as a
+# stand-in. Lets the UI avoid claiming a stale close is a live "实时" quote.
+DEGRADED_PRICE_FALLBACK_CLOSE = "price_fallback_close"
 
 
 class Provenance(BaseModel):

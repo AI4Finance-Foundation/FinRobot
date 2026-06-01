@@ -871,6 +871,30 @@ msgid "chapter.sensitivity.driver.tg"
 msgstr "永续增长率"
 
 #. js-lingui-explicit-id
+msgid "chart.priceTrend.close"
+msgstr "收盘"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.ohlc"
+msgstr "开/高/低"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.volume"
+msgstr "成交量"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.loading"
+msgstr "加载中…"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.trend"
+msgstr "走势"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.last"
+msgstr "现价"
+
+#. js-lingui-explicit-id
 msgid "chapter.valuation.target12m"
 msgstr "12 个月目标价："
 

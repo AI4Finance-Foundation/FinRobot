@@ -871,6 +871,30 @@ msgid "chapter.sensitivity.driver.tg"
 msgstr "terminal growth"
 
 #. js-lingui-explicit-id
+msgid "chart.priceTrend.close"
+msgstr "Close"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.ohlc"
+msgstr "O/H/L"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.volume"
+msgstr "Volume"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.loading"
+msgstr "Loading…"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.trend"
+msgstr "trend"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.last"
+msgstr "Last"
+
+#. js-lingui-explicit-id
 msgid "chapter.valuation.target12m"
 msgstr "12-Month Target:"
 

@@ -21,18 +21,11 @@ import {
   YAxis,
 } from 'recharts'
 import type { PricePoint } from '../../hooks/useTickerData'
+import { useI18n } from '../../i18n'
+import { CosmicTooltipShell } from './chartTooltip'
 
 interface Props {
   points: PricePoint[] | null
-}
-
-const TOOLTIP_STYLE: React.CSSProperties = {
-  background: 'var(--bg-elevated)',
-  border: '1px solid var(--border-glow)',
-  borderRadius: 6,
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  padding: '8px 10px',
 }
 
 const AXIS_TICK = {
@@ -83,35 +76,41 @@ function ChartTooltip({
   active?: boolean
   payload?: TooltipPayloadItem[]
 }): React.ReactElement | null {
+  const { t } = useI18n()
   if (!active || !payload || payload.length === 0) return null
   const p = payload[0].payload
-  const rows: [string, string][] = [['收盘', fmtPrice(p.close)]]
+  const rows: [string, string][] = [[t('chart.priceTrend.close'), fmtPrice(p.close)]]
   if (Number.isFinite(p.open) && Number.isFinite(p.high) && Number.isFinite(p.low)) {
-    rows.push(['开/高/低', `${fmtPrice(p.open)} / ${fmtPrice(p.high)} / ${fmtPrice(p.low)}`])
+    rows.push([
+      t('chart.priceTrend.ohlc'),
+      `${fmtPrice(p.open)} / ${fmtPrice(p.high)} / ${fmtPrice(p.low)}`,
+    ])
   }
   if (Number.isFinite(p.volume) && p.volume > 0) {
-    rows.push(['成交量', fmtVol(p.volume)])
+    rows.push([t('chart.priceTrend.volume'), fmtVol(p.volume)])
   }
+  // Shares the cosmic tooltip shell, but keeps label/value rows (no series dot)
+  // since OHLC/volume aren't colour-coded series.
   return (
-    <div style={TOOLTIP_STYLE}>
-      <div style={{ color: 'var(--text-primary)', marginBottom: 4 }}>{p.date}</div>
+    <CosmicTooltipShell label={p.date}>
       {rows.map(([label, value]) => (
         <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-          <span style={{ color: 'var(--text-muted)' }}>{label}</span>
-          <span style={{ color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+          <span style={{ color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
             {value}
           </span>
         </div>
       ))}
-    </div>
+    </CosmicTooltipShell>
   )
 }
 
 export function PriceTrendChart({ points }: Props): React.ReactElement {
+  const { t } = useI18n()
   if (!points || points.length < 2) {
     return (
       <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
-        加载中…
+        {t('chart.priceTrend.loading')}
       </p>
     )
   }
@@ -215,7 +214,8 @@ export function PriceTrendChart({ points }: Props): React.ReactElement {
         }}
       >
         <span>
-          {spanLabel} 走势 · 现价 {fmtPrice(last.close)}
+          {spanLabel} {t('chart.priceTrend.trend')} · {t('chart.priceTrend.last')}{' '}
+          {fmtPrice(last.close)}
         </span>
         <span style={{ color: up ? 'var(--success)' : 'var(--danger)' }}>
           {up ? '+' : ''}

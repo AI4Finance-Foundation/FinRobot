@@ -159,6 +159,9 @@
   --border: var(--border-soft);
   --border-subtle: var(--border-faint);
   --border-hover: var(--border-glow);
+  /* Neutral white hairline for data grids (KvGrid cell dividers) — distinct
+     from the purple --border-* family, which would tint the gridlines. */
+  --border-grid: rgba(255, 255, 255, 0.08);
 
   --text-0: var(--text-primary);
   --text-1: var(--text-primary);

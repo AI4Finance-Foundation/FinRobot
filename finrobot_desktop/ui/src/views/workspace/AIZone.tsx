@@ -15,7 +15,7 @@ import { PipelineProgressPanel } from '../PipelineProgressPanel'
 import { verdictLabel } from '../../utils/verdict'
 import { formatDate } from '../../utils/format'
 import { mapErrorToUserMessage } from '../../utils/errorMessage'
-import { useI18n } from '../../i18n'
+import { useI18n, tSync } from '../../i18n'
 import { allChapterLabels } from '../../pages/artifact-detail/chapters/labels'
 
 interface AIZoneProps {
@@ -24,6 +24,7 @@ interface AIZoneProps {
 
 export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
   const navigate = useNavigate()
+  const { t } = useI18n()
   const {
     latest,
     isLoading: artifactLoading,
@@ -59,8 +60,8 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
     if (isRunning) {
       addToast({
         type: 'info',
-        title: `${ticker} 已有分析正在进行`,
-        description: '请等待当前分析结束后再发起新的',
+        title: t('workspace.ai.toast.alreadyRunning', { ticker }),
+        description: t('workspace.ai.toast.alreadyRunningDesc'),
       })
       return
     }
@@ -68,13 +69,13 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
       await startRun('research', ticker)
       addToast({
         type: 'success',
-        title: `${ticker} 研报已启动`,
-        description: '分析进行中，约 60 秒后此处会自动刷新',
+        title: t('workspace.ai.toast.launched', { ticker }),
+        description: t('workspace.ai.toast.launchedDesc'),
       })
     } catch (err) {
       addToast({
         type: 'error',
-        title: '启动研报失败',
+        title: t('workspace.ai.toast.launchFailed'),
         description: mapErrorToUserMessage(err),
       })
     }
@@ -114,7 +115,7 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
               marginBottom: 8,
             }}
           >
-            加载失败 — 后端服务不可达或返回错误
+            {t('workspace.ai.error.title')}
           </div>
           <div
             style={{
@@ -124,7 +125,7 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
               marginBottom: 14,
             }}
           >
-            {artifactErr instanceof Error ? artifactErr.message : '请检查后端服务是否正常运行'}
+            {artifactErr instanceof Error ? artifactErr.message : t('workspace.ai.error.hint')}
           </div>
           <button
             type="button"
@@ -142,7 +143,7 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
               letterSpacing: '0.04em',
             }}
           >
-            ↻ 重试
+            {t('workspace.ai.retry')}
           </button>
         </div>
       </section>
@@ -152,10 +153,7 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
   return (
     <section data-testid="ai-zone">
       <ZoneHeader hasArtifact={!!latest} versionsCount={sameTypeTimeline.length} />
-      <p style={zoneDesc}>
-        AI 投研报告 · 投资论点、估值分析（DCF / 同业 / DDM）、风险催化剂等 13
-        章节，数字由代码算出，判断由 LLM 给出。
-      </p>
+      <p style={zoneDesc}>{t('workspace.ai.zoneDesc')}</p>
 
       {showProgress && <PipelineProgressPanel ticker={ticker} />}
 
@@ -187,6 +185,7 @@ function ZoneHeader({
   hasArtifact: boolean
   versionsCount: number
 }): React.ReactElement {
+  const { t } = useI18n()
   return (
     <div
       style={{
@@ -207,7 +206,7 @@ function ZoneHeader({
           textShadow: '0 0 12px var(--secondary-glow)',
         }}
       >
-        🤖 AI 研报
+        {t('workspace.ai.zoneTitle')}
       </span>
       <span
         style={{
@@ -218,7 +217,9 @@ function ZoneHeader({
           letterSpacing: '0.08em',
         }}
       >
-        {hasArtifact ? `共 ${versionsCount} 份研报` : '未跑过'}
+        {hasArtifact
+          ? t('workspace.ai.reportCount', { n: versionsCount })
+          : t('workspace.ai.neverRun')}
       </span>
     </div>
   )
@@ -243,6 +244,7 @@ function ColdState({
   isQuerying: boolean
   onLaunch: () => void
 }): React.ReactElement {
+  const { t } = useI18n()
   return (
     <div
       data-testid="ai-zone-cold"
@@ -266,7 +268,7 @@ function ColdState({
             letterSpacing: '0.04em',
           }}
         >
-          检查研报历史中…
+          {t('workspace.ai.cold.checking')}
         </div>
       )}
       <div
@@ -278,7 +280,7 @@ function ColdState({
           marginBottom: 10,
         }}
       >
-        还未为 {ticker} 生成研报
+        {t('workspace.ai.cold.title', { ticker })}
       </div>
       <p
         style={{
@@ -289,9 +291,9 @@ function ColdState({
           margin: '0 auto 18px',
         }}
       >
-        生成一份 <strong style={{ color: 'var(--accent-cyan)' }}>13 章投行级研报</strong>： 投资论点
-        · 公司概览 · 财务分析 · 估值（DCF + 同业 + DDM）· 新闻事件 · 敏感性 · 催化剂 · 技术分析 ·
-        竞争格局 · 财务数据 · 股权与治理（含封面与免责声明）
+        {t('workspace.ai.cold.descPrefix')}{' '}
+        <strong style={{ color: 'var(--accent-cyan)' }}>{t('workspace.ai.cold.descBold')}</strong>
+        {t('workspace.ai.cold.descSuffix')}
       </p>
       <button
         type="button"
@@ -313,7 +315,7 @@ function ColdState({
           boxShadow: '0 0 22px var(--secondary-glow)',
         }}
       >
-        {isRunning ? '正在跑 …' : '▶ 立即跑 AI 研报（~60s）'}
+        {isRunning ? t('workspace.ai.running') : t('workspace.ai.cold.launchBtn')}
       </button>
       <p
         style={{
@@ -323,7 +325,7 @@ function ColdState({
           marginTop: 14,
         }}
       >
-        研报一旦生成即不可变 · 重新生成会追加新版本，不会覆盖旧版
+        {t('workspace.ai.cold.immutableNote')}
       </p>
     </div>
   )
@@ -345,7 +347,7 @@ function HotState({
   onOpen: (id: string) => void
 }): React.ReactElement {
   const navigate = useNavigate()
-  const { locale } = useI18n()
+  const { locale, t } = useI18n()
   const verdict = readVerdict(latest)
   const target = latest.target_price ?? null
   const verdictTone =
@@ -381,7 +383,7 @@ function HotState({
               textTransform: 'uppercase',
             }}
           >
-            📄 最新研报
+            {t('workspace.ai.hot.latestReport')}
           </span>
           <span
             style={{
@@ -512,10 +514,10 @@ function HotState({
               boxShadow: '0 0 16px var(--secondary-glow-soft)',
             }}
           >
-            → 打开完整 13 章研报
+            {t('workspace.ai.hot.openFull')}
           </button>
           <button type="button" onClick={onRerun} disabled={isRunning} style={ghostBtn(isRunning)}>
-            {isRunning ? '正在跑 …' : '↻ 重跑'}
+            {isRunning ? t('workspace.ai.running') : t('workspace.ai.hot.rerun')}
           </button>
         </div>
       </div>
@@ -541,7 +543,7 @@ function HotState({
               textTransform: 'uppercase',
             }}
           >
-            📑 13 章节快速跳转
+            {t('workspace.ai.hot.chapterJump')}
           </span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
@@ -615,7 +617,7 @@ function HotState({
                 textTransform: 'uppercase',
               }}
             >
-              ⏱ 历史版本 · {timeline.length} 份
+              {t('workspace.ai.hot.history', { n: timeline.length })}
             </span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -656,7 +658,7 @@ function HotState({
                     {formatDate(a.created_at, locale, 'short')} · {ageLabel(a.created_at)}
                   </span>
                   <span style={{ color: 'var(--secondary)', textDecoration: 'underline' }}>
-                    打开 →
+                    {t('workspace.ai.hot.openArrow')}
                   </span>
                 </button>
               )
@@ -715,12 +717,12 @@ function readVerdict(
 function ageLabel(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime()
   const minutes = Math.round(ms / 60_000)
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes} 分钟前`
+  if (minutes < 1) return tSync('workspace.ai.age.justNow')
+  if (minutes < 60) return tSync('workspace.ai.age.minAgo', { n: minutes })
   const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours} 小时前`
+  if (hours < 24) return tSync('workspace.ai.age.hAgo', { n: hours })
   const days = Math.round(hours / 24)
-  return `${days} 天前`
+  return tSync('workspace.ai.age.dAgo', { n: days })
 }
 
 function ghostBtn(disabled: boolean): React.CSSProperties {

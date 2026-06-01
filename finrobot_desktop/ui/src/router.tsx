@@ -13,6 +13,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { AppShell } from './layout/AppShell'
 import { StocksPage } from './pages/StocksPage'
 import { StockWorkspace } from './views/StockWorkspace'
+import { tSync } from './i18n'
 
 // Lazy-routed: ArtifactDetailPage pulls 13 chapter components + the 4-panel
 // chrome, and Settings imports the full provider/channel matrix. Loading them
@@ -59,15 +60,16 @@ export const REDIRECT_TOAST_KEY = 'finrobot.redirect_toast'
 
 interface RedirectWithToastProps {
   to: string
-  message: string
+  /** i18n key for the destination banner message; resolved at navigation time. */
+  messageKey: string
   /** When true, preserves the :ticker URL segment by interpolating it into `to`. */
   preserveTicker?: boolean
 }
 
-function RedirectWithToast({ to, message, preserveTicker = false }: RedirectWithToastProps) {
+function RedirectWithToast({ to, messageKey, preserveTicker = false }: RedirectWithToastProps) {
   const navigate = useNavigate()
   useEffect(() => {
-    sessionStorage.setItem(REDIRECT_TOAST_KEY, message)
+    sessionStorage.setItem(REDIRECT_TOAST_KEY, tSync(messageKey))
     let target = to
     if (preserveTicker) {
       // The retired routes (/library/:ticker, /playground/:ticker) share their
@@ -81,7 +83,7 @@ function RedirectWithToast({ to, message, preserveTicker = false }: RedirectWith
       }
     }
     navigate(target, { replace: true })
-  }, [to, message, preserveTicker, navigate])
+  }, [to, messageKey, preserveTicker, navigate])
   return null
 }
 
@@ -134,36 +136,38 @@ export const router = createBrowserRouter([
       // v5 deprecation redirects (one release window) — spec §11.4
       {
         path: 'dashboard',
-        element: <RedirectWithToast to="/stocks" message="工作台已合并到「个股」首页" />,
+        element: <RedirectWithToast to="/stocks" messageKey="shell.router.dashboardMerged" />,
       },
       {
         path: 'library',
-        element: (
-          <RedirectWithToast to="/stocks" message="报告库已合并到 ticker 的「我的研究」section" />
-        ),
+        element: <RedirectWithToast to="/stocks" messageKey="shell.router.libraryMerged" />,
       },
       {
         path: 'library/:ticker',
         element: (
           <RedirectWithToast
             to="/stocks"
-            message="报告库已合并到「我的研究」section"
+            messageKey="shell.router.libraryMergedShort"
             preserveTicker
           />
         ),
       },
       {
         path: 'journal',
-        element: <RedirectWithToast to="/stocks" message="决策日记 v3 重新设计中" />,
+        element: <RedirectWithToast to="/stocks" messageKey="shell.router.journalRedesign" />,
       },
       {
         path: 'playground',
-        element: <RedirectWithToast to="/stocks" message="估值假设调节 v2.1 重新设计" />,
+        element: <RedirectWithToast to="/stocks" messageKey="shell.router.playgroundRedesign" />,
       },
       {
         path: 'playground/:ticker',
         element: (
-          <RedirectWithToast to="/stocks" message="估值假设调节 v2.1 重新设计" preserveTicker />
+          <RedirectWithToast
+            to="/stocks"
+            messageKey="shell.router.playgroundRedesign"
+            preserveTicker
+          />
         ),
       },
     ],

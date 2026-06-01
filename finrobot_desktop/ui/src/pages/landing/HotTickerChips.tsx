@@ -7,12 +7,14 @@
 
 import { useNavigate } from 'react-router-dom'
 import { useStudiedTickers } from '../../hooks/useStudiedTickers'
+import { useI18n } from '../../i18n'
 
 const POPULAR = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'META', 'GOOGL', 'BRKB'] as const
 const MAX_CHIPS = 6
 
 export function HotTickerChips(): React.ReactElement {
   const navigate = useNavigate()
+  const { t } = useI18n()
   const { data } = useStudiedTickers(MAX_CHIPS)
 
   const studied =
@@ -37,7 +39,7 @@ export function HotTickerChips(): React.ReactElement {
           marginBottom: 10,
         }}
       >
-        {showRecent ? '最近' : '热门'}
+        {showRecent ? t('landing.hot.recent') : t('landing.hot.popular')}
       </div>
       <div
         style={{

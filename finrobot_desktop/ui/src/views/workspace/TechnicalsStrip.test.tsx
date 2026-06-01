@@ -13,7 +13,7 @@ describe('TechnicalsStrip', () => {
   it('shows an insufficient-history note instead of numbers', () => {
     const tech: Technicals = { available: false, reason: 'insufficient_history' }
     render(<TechnicalsStrip tech={tech} />)
-    expect(screen.getByText(/趋势数据不足/)).toBeInTheDocument()
+    expect(screen.getByText(/Insufficient trend data/)).toBeInTheDocument()
   })
 
   it('renders 多头排列 + SMA stack + clamped range position for an uptrend', () => {
@@ -29,13 +29,13 @@ describe('TechnicalsStrip', () => {
       range_position: 0.975,
     }
     render(<TechnicalsStrip tech={tech} />)
-    expect(screen.getByText('↑ 多头排列')).toBeInTheDocument()
+    expect(screen.getByText('↑ Uptrend')).toBeInTheDocument()
     expect(screen.getByText('$297.54')).toBeInTheDocument()
     expect(screen.getByText('$263.24')).toBeInTheDocument()
-    expect(screen.getByText('52W低 $195.07')).toBeInTheDocument()
-    expect(screen.getByText('52W高 $315.00')).toBeInTheDocument()
+    expect(screen.getByText('52W Low $195.07')).toBeInTheDocument()
+    expect(screen.getByText('52W High $315.00')).toBeInTheDocument()
     // 0.975 → 98%
-    expect(screen.getByText('区间 98%')).toBeInTheDocument()
+    expect(screen.getByText('Range 98%')).toBeInTheDocument()
   })
 
   it('clamps a range_position above the rolling window into [0,1]', () => {
@@ -52,7 +52,7 @@ describe('TechnicalsStrip', () => {
     }
     render(<TechnicalsStrip tech={tech} />)
     // clamped to 100%
-    expect(screen.getByText('区间 100%')).toBeInTheDocument()
+    expect(screen.getByText('Range 100%')).toBeInTheDocument()
     // null SMA shows the em-dash placeholder
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1)
   })

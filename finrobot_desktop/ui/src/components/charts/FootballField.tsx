@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useI18n } from '../../i18n'
 
 interface ChartProps {
   data: Record<string, number | string | boolean | null>[]
@@ -25,6 +26,7 @@ interface Row {
 }
 
 export default function FootballField({ data, title, currentPrice }: ChartProps) {
+  const { t } = useI18n()
   const rows: Row[] = useMemo(
     () =>
       (data ?? [])
@@ -100,8 +102,8 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
           style={{
             margin: '0 16px 8px',
             padding: '8px 12px',
-            background: 'rgba(217, 119, 6, 0.08)',
-            border: '1px solid rgba(217, 119, 6, 0.35)',
+            background: 'color-mix(in srgb, var(--warning) 8%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--warning) 35%, transparent)',
             borderRadius: 'var(--radius-sm)',
             fontFamily: 'var(--font-mono)',
             fontSize: 11,
@@ -109,9 +111,15 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
             lineHeight: 1.5,
           }}
         >
-          市价 {fmtPrice(cp)} 距模型估值中位 {fmtPrice(dataMid)} 偏离{' '}
+          {t('chart.footballField.offScalePrefix', {
+            price: fmtPrice(cp),
+            mid: fmtPrice(dataMid),
+          })}{' '}
           <strong>{(((cp - dataMid) / dataMid) * 100).toFixed(0)}%</strong> ——
-          {cp > dataMid ? '模型隐含明显高估' : '模型隐含明显低估'}，请审计假设来源后再下结论。
+          {cp > dataMid
+            ? t('chart.footballField.overvalued')
+            : t('chart.footballField.undervalued')}
+          {t('chart.footballField.offScaleSuffix')}
         </div>
       )}
 
@@ -157,7 +165,7 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
           <div
             style={{
               position: 'relative',
-              background: 'rgba(15, 15, 34, 0.5)',
+              background: 'var(--bg-card-50)',
               border: '1px solid var(--border-soft)',
               borderRadius: 'var(--radius-sm)',
               overflow: 'hidden',
@@ -194,8 +202,8 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
                       width: `${Math.max(0.4, xHigh - xLow)}%`,
                       height: BAR_THICKNESS,
                       background:
-                        'linear-gradient(90deg, rgba(59,130,246,0.35), rgba(139,92,246,0.55))',
-                      border: '1px solid rgba(139,92,246,0.55)',
+                        'linear-gradient(90deg, color-mix(in srgb, var(--primary) 35%, transparent), color-mix(in srgb, var(--secondary) 55%, transparent))',
+                      border: '1px solid color-mix(in srgb, var(--secondary) 55%, transparent)',
                       borderRadius: 4,
                       boxShadow: '0 0 18px rgba(59,130,246,0.18)',
                     }}

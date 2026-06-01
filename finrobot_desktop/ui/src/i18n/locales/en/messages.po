@@ -1949,3 +1949,1075 @@ msgstr "Save failed"
 #. js-lingui-explicit-id
 msgid "settings.savedOk"
 msgstr "✓ Saved"
+
+#. js-lingui-explicit-id
+msgid "shell.sidebar.ic"
+msgstr "IC"
+
+#. js-lingui-explicit-id
+msgid "shell.sidebar.runningCount"
+msgstr "{count} analysis running"
+
+#. js-lingui-explicit-id
+msgid "shell.titlebar.aiAssistant"
+msgstr "AI Assistant (⌘L)"
+
+#. js-lingui-explicit-id
+msgid "shell.status.connected"
+msgstr "Connected"
+
+#. js-lingui-explicit-id
+msgid "shell.status.delay15min"
+msgstr "15-min delayed"
+
+#. js-lingui-explicit-id
+msgid "shell.warning.collapse"
+msgstr "Collapse"
+
+#. js-lingui-explicit-id
+msgid "shell.warning.more"
+msgstr "+{count} more"
+
+#. js-lingui-explicit-id
+msgid "shell.error.renderFailed"
+msgstr "Page render error"
+
+#. js-lingui-explicit-id
+msgid "shell.router.dashboardMerged"
+msgstr "Dashboard has been merged into the Stocks home"
+
+#. js-lingui-explicit-id
+msgid "shell.router.libraryMerged"
+msgstr "The report library has been merged into the ticker's \"My Research\" section"
+
+#. js-lingui-explicit-id
+msgid "shell.router.libraryMergedShort"
+msgstr "The report library has been merged into the \"My Research\" section"
+
+#. js-lingui-explicit-id
+msgid "shell.router.journalRedesign"
+msgstr "Decision Journal v3 is being redesigned"
+
+#. js-lingui-explicit-id
+msgid "shell.router.playgroundRedesign"
+msgstr "Valuation assumption tuning v2.1 is being redesigned"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.tagline1"
+msgstr "DETERMINISTIC COMPUTE · LLM NARRATIVE"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.tagline2"
+msgstr "NUMBER FIRST · NARRATIVE SECOND"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.tagline3"
+msgstr "AI ANALYST · ALWAYS WORKING"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.tagline4"
+msgstr "EVERY NUMBER · TRACEABLE TO A FUNCTION CALL"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.invalidTicker"
+msgstr "Invalid symbol · use 1-12 letters / digits / .-"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.searchPlaceholder"
+msgstr "Enter a ticker · AAPL / NVDA / TSLA"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.analyze"
+msgstr "Analyze"
+
+#. js-lingui-explicit-id
+msgid "landing.hitRate.window30d"
+msgstr "30D"
+
+#. js-lingui-explicit-id
+msgid "landing.hitRate.window90d"
+msgstr "90D"
+
+#. js-lingui-explicit-id
+msgid "landing.hitRate.windowAll"
+msgstr "All"
+
+#. js-lingui-explicit-id
+msgid "landing.hitRate.title"
+msgstr "Track Record · Hit Rate"
+
+#. js-lingui-explicit-id
+msgid "landing.hitRate.error"
+msgstr "Failed to load data. Please refresh the page."
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.typeResearch"
+msgstr "Report"
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.typeIcMemo"
+msgstr "IC Memo"
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.typeEarnings"
+msgstr "Earnings"
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.typeDcf"
+msgstr "DCF"
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.typeLbo"
+msgstr "LBO"
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.typeDdm"
+msgstr "DDM"
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.typeComps"
+msgstr "Comps"
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.typeAdHoc"
+msgstr "Ad hoc"
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.title"
+msgstr "Studied Tickers · Research History"
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.openReport"
+msgstr "Open {type} report detail"
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.openWorkspace"
+msgstr "Open {ticker} workspace"
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.runCount"
+msgstr "{count} runs ›"
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.overflow"
+msgstr "+ {count} more · view all →"
+
+#. js-lingui-explicit-id
+msgid "landing.recentResearch.quoteLoading"
+msgstr "Loading quotes"
+
+#. js-lingui-explicit-id
+msgid "landing.hot.recent"
+msgstr "Recent"
+
+#. js-lingui-explicit-id
+msgid "landing.hot.popular"
+msgstr "Popular"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.statusGenerating"
+msgstr "Generating {name}"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.statusDone"
+msgstr "{name} · Done"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.statusFailed"
+msgstr "{name} · Failed"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.elapsed"
+msgstr " · {s}s elapsed"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.eta"
+msgstr " · ~{s}s left"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.totalDuration"
+msgstr " · {s}s total"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.openReport"
+msgstr "→ Open report"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.dismissAria"
+msgstr "Dismiss progress panel"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.retrying"
+msgstr "Retrying {attempt}/{max}"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.footer"
+msgstr "Numbers are computed in code, not authored by the LLM · any step failure regenerates the whole report"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.failedMsg"
+msgstr "⚠️ Report generation failed · {error}"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.retryLater"
+msgstr "Please try again later"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.research"
+msgstr "Full AI Research"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.icMemo"
+msgstr "IC Memo"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.earnings"
+msgstr "Earnings Call Analysis"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.lbo"
+msgstr "LBO Valuation"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.ddm"
+msgstr "Dividend Discount"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.comps"
+msgstr "Peer Comps"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.dcf"
+msgstr "DCF Valuation"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.dataCollection.label"
+msgstr "Data Collection"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.dataCollection.help"
+msgstr "Fetch 10-K / 10-Q / prices / news"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.catalystAnalysis.label"
+msgstr "Catalyst Detection"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.catalystAnalysis.help"
+msgstr "News classification + event extraction + impact scoring"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.peerAnalysis.label"
+msgstr "Peer Comps"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.peerAnalysis.help"
+msgstr "Financial comparison across 5 comparables"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.financialModeling.label"
+msgstr "Financial Modeling"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.financialModeling.help"
+msgstr "DCF Monte Carlo + Comps + sensitivity"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.ownershipGovernance.label"
+msgstr "Ownership & Governance"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.ownershipGovernance.help"
+msgstr "Insider trades + institutional holdings + exec comp"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.technicalAnalysis.label"
+msgstr "Technical & Advanced"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.technicalAnalysis.help"
+msgstr "Monte Carlo + entry levels + price action"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.thesis.label"
+msgstr "Investment Thesis"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.thesis.help"
+msgstr "Generate target price + risk factors"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.report.label"
+msgstr "Report Assembly"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.report.help"
+msgstr "13-chapter report + LLM narrative"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.zoneTitle"
+msgstr "📊 Market Data"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.zoneDesc"
+msgstr "Source: yfinance / SEC EDGAR / FMP · pulled live, independent of any AI report."
+
+#. js-lingui-explicit-id
+msgid "workspace.market.snapshot"
+msgstr "📊 Quote Snapshot"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.priceTrend"
+msgstr "📈 Price Trend"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.financialsTtm"
+msgstr "💰 Financials · TTM"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.catalystCalendar"
+msgstr "📅 Catalyst Calendar"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.marketCap"
+msgstr "Market Cap"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.revenueTtm"
+msgstr "Revenue TTM"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.streetCaliber"
+msgstr "Street {v}"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.evEbitdaCaliber"
+msgstr "Primary = operating EV/EBITDA (EBITDA = EBIT + D&A). EV is net of cash, so interest income is excluded. Street = net income + tax + interest + D&A, includes interest income — used by most retail sources."
+
+#. js-lingui-explicit-id
+msgid "workspace.market.ebitdaCaliber"
+msgstr "Primary = operating EBITDA (EBIT + D&A). Street = net income + tax + interest + D&A, includes interest income."
+
+#. js-lingui-explicit-id
+msgid "workspace.market.unnamedEvent"
+msgstr "(unnamed event)"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.noCatalysts"
+msgstr "No recent events · earnings / product launches / regulatory"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.source"
+msgstr "Source {provider}"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.ttmAsOf"
+msgstr "TTM as of {date}"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.closeOnly"
+msgstr "Close-only · 52w high/low from closing prices"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.ttmLag"
+msgstr "TTM lag · denominator not latest quarter"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.ccyInferred"
+msgstr "Currency inferred · not stated directly in filings"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.trend.uptrend"
+msgstr "↑ Uptrend"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.trend.downtrend"
+msgstr "↓ Downtrend"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.trend.sideways"
+msgstr "→ Sideways"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.trendInsufficient"
+msgstr "Insufficient trend data (under 20 trading days)"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.trendUnavailable"
+msgstr "Trend data unavailable"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.rangeMarker"
+msgstr "Current {price} · range position {pct}%"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.low52w"
+msgstr "52W Low {v}"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.high52w"
+msgstr "52W High {v}"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.range"
+msgstr "Range {pct}%"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.zoneTitle"
+msgstr "🤖 AI Research"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.zoneDesc"
+msgstr "AI research report · 13 chapters spanning investment thesis, valuation (DCF / comps / DDM), risks and catalysts — numbers computed in code, judgments from the LLM."
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.reportCount"
+msgstr "{n} reports"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.neverRun"
+msgstr "Never run"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.running"
+msgstr "Running …"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.retry"
+msgstr "↻ Retry"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.error.title"
+msgstr "Load failed — backend unreachable or returned an error"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.error.hint"
+msgstr "Check whether the backend service is running"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.toast.alreadyRunning"
+msgstr "{ticker} analysis already in progress"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.toast.alreadyRunningDesc"
+msgstr "Wait for the current run to finish before starting a new one"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.toast.launched"
+msgstr "{ticker} report started"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.toast.launchedDesc"
+msgstr "Analysis in progress — this view refreshes automatically in about 60s"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.toast.launchFailed"
+msgstr "Failed to start report"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.checking"
+msgstr "Checking report history…"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.title"
+msgstr "No report generated for {ticker} yet"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.descPrefix"
+msgstr "Generate a"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.descBold"
+msgstr "13-chapter investment-bank-grade report"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.descSuffix"
+msgstr ": investment thesis · company overview · financial analysis · valuation (DCF + comps + DDM) · news & events · sensitivity · catalysts · technicals · competitive landscape · financial data · ownership & governance (with cover and disclaimer)"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.launchBtn"
+msgstr "▶ Run AI Research now (~60s)"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.immutableNote"
+msgstr "Reports are immutable once generated · regenerating appends a new version, never overwrites the old one"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.latestReport"
+msgstr "📄 Latest Report"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.openFull"
+msgstr "→ Open full 13-chapter report"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.rerun"
+msgstr "↻ Rerun"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.chapterJump"
+msgstr "📑 13-chapter quick jump"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.history"
+msgstr "⏱ Version history · {n}"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.openArrow"
+msgstr "Open →"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.age.justNow"
+msgstr "just now"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.age.minAgo"
+msgstr "{n}min ago"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.age.hAgo"
+msgstr "{n}h ago"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.age.dAgo"
+msgstr "{n}d ago"
+
+#. js-lingui-explicit-id
+msgid "workspace.hero.closedAsOf"
+msgstr "Close · {date}"
+
+#. js-lingui-explicit-id
+msgid "workspace.hero.usMarket"
+msgstr "US"
+
+#. js-lingui-explicit-id
+msgid "workspace.toast.reportDone"
+msgstr "{ticker} report complete"
+
+#. js-lingui-explicit-id
+msgid "workspace.toast.reportDoneDesc"
+msgstr "The full 13-chapter report is ready — click \"Open full report\" in the AI panel on the right to view it"
+
+#. js-lingui-explicit-id
+msgid "workspace.toast.reportFailed"
+msgstr "{ticker} report failed"
+
+#. js-lingui-explicit-id
+msgid "workspace.toast.retryLater"
+msgstr "Please try again later"
+
+#. js-lingui-explicit-id
+msgid "workspace.missingTicker"
+msgstr "No ticker specified — enter one via search or your watchlist."
+
+#. js-lingui-explicit-id
+msgid "ic.toast.missingParams.title"
+msgstr "Missing parameters"
+
+#. js-lingui-explicit-id
+msgid "ic.toast.missingParams.desc"
+msgstr "Ticker or artifact_id is empty. Please enter the Investment Committee from a research report."
+
+#. js-lingui-explicit-id
+msgid "ic.toast.startFailed.title"
+msgstr "Unable to start the IC debate"
+
+#. js-lingui-explicit-id
+msgid "ic.error.missingTicker"
+msgstr "Missing ticker parameter in the URL"
+
+#. js-lingui-explicit-id
+msgid "ic.breadcrumb.back"
+msgstr "Back to committee list"
+
+#. js-lingui-explicit-id
+msgid "ic.breadcrumb.committee"
+msgstr "Committee"
+
+#. js-lingui-explicit-id
+msgid "ic.action.reset"
+msgstr "Reset"
+
+#. js-lingui-explicit-id
+msgid "ic.action.retry"
+msgstr "Retry debate"
+
+#. js-lingui-explicit-id
+msgid "ic.start.title"
+msgstr "AI Investment Committee Debate"
+
+#. js-lingui-explicit-id
+msgid "ic.start.desc"
+msgstr "Drawing on the structured data of the generated report, the system pits a Bull member against a Bear member in a cross-examination. Every claim carries a verification status and traceable evidence; the committee delivers a verdict with a Conviction Score and the conditions that would Change My Mind."
+
+#. js-lingui-explicit-id
+msgid "ic.start.reportId"
+msgstr "Report ID"
+
+#. js-lingui-explicit-id
+msgid "ic.start.viewReport"
+msgstr "View report →"
+
+#. js-lingui-explicit-id
+msgid "ic.start.noArtifactWarning"
+msgstr "No report linked — the debate cannot cite structured evidence data"
+
+#. js-lingui-explicit-id
+msgid "ic.start.cta"
+msgstr "Start IC debate"
+
+#. js-lingui-explicit-id
+msgid "ic.landing.subtitle"
+msgstr "AI bull and bear members debate the report data in a structured format, delivering a conviction-weighted verdict and the conditions that would change the call. Select a generated equity report to begin the committee process."
+
+#. js-lingui-explicit-id
+msgid "ic.landing.loading"
+msgstr "Loading reports…"
+
+#. js-lingui-explicit-id
+msgid "ic.landing.loadError"
+msgstr "Unable to load reports. Please check the backend service."
+
+#. js-lingui-explicit-id
+msgid "ic.landing.empty.title"
+msgstr "No equity reports yet"
+
+#. js-lingui-explicit-id
+msgid "ic.landing.empty.line1"
+msgstr "First generate an Equity Research report for the target ticker on the Stocks page,"
+
+#. js-lingui-explicit-id
+msgid "ic.landing.empty.line2"
+msgstr "then you can launch an IC debate here once the report is ready."
+
+#. js-lingui-explicit-id
+msgid "ic.landing.empty.cta"
+msgstr "Go to stock analysis"
+
+#. js-lingui-explicit-id
+msgid "ic.landing.row.aria"
+msgstr "Launch the IC debate for {ticker}"
+
+#. js-lingui-explicit-id
+msgid "ic.landing.row.reportDate"
+msgstr "Report {date}"
+
+#. js-lingui-explicit-id
+msgid "ic.verdict.reliabilityWarning"
+msgstr "Insufficient data reliability — current market data quality is limited, so the verdict has been downgraded to REVIEW. Please weigh it carefully against the report details."
+
+#. js-lingui-explicit-id
+msgid "ic.verdict.unavailable"
+msgstr "Verdict unavailable"
+
+#. js-lingui-explicit-id
+msgid "ic.verdict.running"
+msgstr "IC debate in progress…"
+
+#. js-lingui-explicit-id
+msgid "ic.verdict.runningHint"
+msgstr "AI members are cross-examining the bull and bear arguments"
+
+#. js-lingui-explicit-id
+msgid "ic.verdict.callAria"
+msgstr "Committee verdict: {call}"
+
+#. js-lingui-explicit-id
+msgid "ic.verdict.convictionAria"
+msgstr "Conviction: {value}"
+
+#. js-lingui-explicit-id
+msgid "ic.verdict.changeMyMindTitle"
+msgstr "Conditions that would make the committee change its stance"
+
+#. js-lingui-explicit-id
+msgid "ic.verdict.changeMyMindLabel"
+msgstr "· Conditions to change the call"
+
+#. js-lingui-explicit-id
+msgid "ic.column.bull.empty"
+msgstr "Building the bull case…"
+
+#. js-lingui-explicit-id
+msgid "ic.column.bear.empty"
+msgstr "Building the bear case…"
+
+#. js-lingui-explicit-id
+msgid "ic.column.pointCount"
+msgstr "{count, plural, one {# point} other {# points}}"
+
+#. js-lingui-explicit-id
+msgid "ic.column.verified"
+msgstr "Data verified"
+
+#. js-lingui-explicit-id
+msgid "ic.column.unverified"
+msgstr "Unverified"
+
+#. js-lingui-explicit-id
+msgid "ic.column.unverifiedReason"
+msgstr "Unverified: {reason}"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.model.configuredInSettings"
+msgstr "Model is configured in Settings"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.send.title"
+msgstr "Send (↵ · Shift+↵ for newline)"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.expand.shortcut"
+msgstr "Open chat (⌘L)"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.collapse.shortcut"
+msgstr "Collapse (⌘L)"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.assistant"
+msgstr "AI Assistant"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.context.label"
+msgstr "Context"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.context.add"
+msgstr "+ Add"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.context.remove"
+msgstr "Remove"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.context.openTabs"
+msgstr "Open tabs"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.context.empty"
+msgstr "No context available to attach"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.chip.report.dcf"
+msgstr "Explain this report's DCF assumptions"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.chip.report.peers"
+msgstr "Compare valuation against peers"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.chip.report.catalysts"
+msgstr "Which catalysts are most worth tracking"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.chip.report.diff"
+msgstr "What changed from the previous version"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.chip.ticker.dcf"
+msgstr "Explain DCF assumptions"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.chip.ticker.peers"
+msgstr "Compare with peers"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.chip.ticker.montecarlo"
+msgstr "Monte Carlo simulation"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.chip.ticker.tenk"
+msgstr "10-K Q&A"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.chip.landing.search"
+msgstr "Search a new stock"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.chip.landing.methods"
+msgstr "Explain DCF / LBO / Comps"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.chip.landing.howto"
+msgstr "How to use FinRobot"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.chip.settings.apiStatus"
+msgstr "Check API status"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.chip.settings.coverage"
+msgstr "Data coverage"
+
+#. js-lingui-explicit-id
+msgid "term.dcf.short"
+msgstr "Discounted cash flow valuation: the present value of future cash flows"
+
+#. js-lingui-explicit-id
+msgid "term.dcf.ask"
+msgstr "Explain DCF (discounted cash flow valuation) in one paragraph for a finance beginner. Cover the core idea, the 3 key inputs, and its biggest limitation."
+
+#. js-lingui-explicit-id
+msgid "term.wacc.short"
+msgstr "Weighted Average Cost of Capital — the discount rate used in a DCF"
+
+#. js-lingui-explicit-id
+msgid "term.wacc.ask"
+msgstr "What is WACC (Weighted Average Cost of Capital)? How is it calculated, and why is it the most sensitive input in a DCF model? Explain in one paragraph for a finance beginner."
+
+#. js-lingui-explicit-id
+msgid "term.pe.short"
+msgstr "P/E ratio = price / earnings per share — how many years to earn back the price"
+
+#. js-lingui-explicit-id
+msgid "term.pe.ask"
+msgstr "How do you use the P/E ratio? Does a high P/E always mean expensive? Explain the correct usage in one paragraph."
+
+#. js-lingui-explicit-id
+msgid "term.ebitda.short"
+msgstr "Earnings Before Interest, Taxes, Depreciation & Amortization — operating profit stripped of financing and accounting effects"
+
+#. js-lingui-explicit-id
+msgid "term.ebitda.ask"
+msgstr "What is EBITDA? Why do valuations often use EV/EBITDA instead of P/E? Explain in one paragraph for a finance beginner."
+
+#. js-lingui-explicit-id
+msgid "term.fcf.short"
+msgstr "Free Cash Flow = operating cash flow − capital expenditure — the cash actually available to shareholders"
+
+#. js-lingui-explicit-id
+msgid "term.fcf.ask"
+msgstr "How does Free Cash Flow (FCF) differ from net income? Why do valuations favor FCF? Explain in one paragraph for a finance beginner."
+
+#. js-lingui-explicit-id
+msgid "term.ev.short"
+msgstr "Enterprise Value = market cap + net debt — the total cost to acquire the company"
+
+#. js-lingui-explicit-id
+msgid "term.ev.ask"
+msgstr "What is Enterprise Value (EV)? Why not just use market cap? Explain in one paragraph for a finance beginner."
+
+#. js-lingui-explicit-id
+msgid "term.irr.short"
+msgstr "Internal Rate of Return — the discount rate that makes NPV = 0, commonly used in LBOs"
+
+#. js-lingui-explicit-id
+msgid "term.irr.ask"
+msgstr "What does IRR (Internal Rate of Return) mean? In an LBO, is an 18% IRR high or low? Explain in one paragraph for a finance beginner."
+
+#. js-lingui-explicit-id
+msgid "term.lbo.short"
+msgstr "Leveraged Buyout — buy a company with heavy debt, pay it down, then sell at a profit"
+
+#. js-lingui-explicit-id
+msgid "term.lbo.ask"
+msgstr "What does an LBO (Leveraged Buyout) model do? How does it differ from a DCF? Explain in one paragraph for a finance beginner."
+
+#. js-lingui-explicit-id
+msgid "term.ddm.short"
+msgstr "Dividend Discount Model — discounts future dividends into equity value"
+
+#. js-lingui-explicit-id
+msgid "term.ddm.ask"
+msgstr "What kind of companies suit the DDM (Dividend Discount Model)? Why is it rarely used for tech stocks? Explain in one paragraph for a finance beginner."
+
+#. js-lingui-explicit-id
+msgid "term.beta.short"
+msgstr "A stock's volatility relative to the market; beta = 1 moves in line with the market"
+
+#. js-lingui-explicit-id
+msgid "term.beta.ask"
+msgstr "What role does Beta play in CAPM? What does a beta of 0.8 vs 1.5 mean? Explain in one paragraph for a finance beginner."
+
+#. js-lingui-explicit-id
+msgid "term.roe.short"
+msgstr "Return on Equity = net income / shareholders' equity — how efficiently shareholder capital earns returns"
+
+#. js-lingui-explicit-id
+msgid "term.roe.ask"
+msgstr "What ROE (Return on Equity) counts as excellent? How does it differ from ROA and ROIC? Explain in one paragraph for a finance beginner."
+
+#. js-lingui-explicit-id
+msgid "term.terminalValue.short"
+msgstr "Terminal Value — the present value of all cash flows beyond the forecast period, typically 60–80% of total DCF value"
+
+#. js-lingui-explicit-id
+msgid "term.terminalValue.ask"
+msgstr "How is Terminal Value calculated in a DCF? Why does it have such a large impact on the result? Explain in one paragraph for a finance beginner."
+
+#. js-lingui-explicit-id
+msgid "term.pvOfFcf.short"
+msgstr "The sum of the present values of free cash flows over the forecast period (discounted to today)"
+
+#. js-lingui-explicit-id
+msgid "term.pvOfFcf.ask"
+msgstr "What is PV of FCF (present value of free cash flow)? Why does a DCF discount future money back to today? Explain in one paragraph for a finance beginner."
+
+#. js-lingui-explicit-id
+msgid "term.enterpriseValue.short"
+msgstr "Enterprise Value = equity + net debt — the cost to buy the entire company"
+
+#. js-lingui-explicit-id
+msgid "term.enterpriseValue.ask"
+msgstr "How does Enterprise Value differ from market cap? Why do valuations often use EV instead of market cap? Explain in one paragraph for a finance beginner."
+
+#. js-lingui-explicit-id
+msgid "term.equityValue.short"
+msgstr "Equity Value = Enterprise Value − net debt — the portion belonging to shareholders"
+
+#. js-lingui-explicit-id
+msgid "term.equityValue.ask"
+msgstr "How do you convert between Equity Value and Enterprise Value? Which is more useful for an individual investor? Explain in one paragraph for a finance beginner."
+
+#. js-lingui-explicit-id
+msgid "term.evEbitda.short"
+msgstr "Enterprise Value / operating profit — how many years of operating profit to earn back the value"
+
+#. js-lingui-explicit-id
+msgid "term.evEbitda.ask"
+msgstr "How do you use the EV/EBITDA multiple? What counts as cheap? How does it differ from P/E? Explain in one paragraph for a finance beginner."
+
+#. js-lingui-explicit-id
+msgid "term.beat.short"
+msgstr "Beat — actual EPS above the analyst consensus estimate"
+
+#. js-lingui-explicit-id
+msgid "term.beat.ask"
+msgstr "Does an earnings beat always mean the stock will rise? Which details should you look at? Explain in one paragraph for a finance beginner."
+
+#. js-lingui-explicit-id
+msgid "term.miss.short"
+msgstr "Miss — actual EPS below the analyst consensus estimate"
+
+#. js-lingui-explicit-id
+msgid "term.miss.ask"
+msgstr "After an earnings miss, should you sell into the drop or buy the dip? Which details should you look at? Explain in one paragraph for a finance beginner."
+
+#. js-lingui-explicit-id
+msgid "term.ariaLabel"
+msgstr "Term: {term}"
+
+#. js-lingui-explicit-id
+msgid "term.askMore"
+msgstr "Ask FinRobot to explain →"
+
+#. js-lingui-explicit-id
+msgid "diff.title"
+msgstr "Report diff"
+
+#. js-lingui-explicit-id
+msgid "diff.fieldLevel"
+msgstr "Field-level diff"
+
+#. js-lingui-explicit-id
+msgid "diff.v1Old"
+msgstr "v1 (old)"
+
+#. js-lingui-explicit-id
+msgid "diff.v2New"
+msgstr "v2 (new)"
+
+#. js-lingui-explicit-id
+msgid "diff.close"
+msgstr "Close diff"
+
+#. js-lingui-explicit-id
+msgid "diff.typeMismatchTitle"
+msgstr "Cannot compare: report types differ"
+
+#. js-lingui-explicit-id
+msgid "diff.typeMismatchBody"
+msgstr "{a} vs {b} — only reports of the same type can be compared."
+
+#. js-lingui-explicit-id
+msgid "diff.closeBtn"
+msgstr "Close"
+
+#. js-lingui-explicit-id
+msgid "diff.loading"
+msgstr "Loading diff…"
+
+#. js-lingui-explicit-id
+msgid "diff.loadError"
+msgstr "Failed to load diff. Please confirm both records exist."
+
+#. js-lingui-explicit-id
+msgid "diff.identical"
+msgstr "The two reports are identical"
+
+#. js-lingui-explicit-id
+msgid "diff.identicalBody"
+msgstr "All assumptions and outputs are the same."
+
+#. js-lingui-explicit-id
+msgid "diff.colField"
+msgstr "Field"
+
+#. js-lingui-explicit-id
+msgid "diff.colV1"
+msgstr "v1 (old)"
+
+#. js-lingui-explicit-id
+msgid "diff.colV2"
+msgstr "v2 (new)"
+
+#. js-lingui-explicit-id
+msgid "diff.colChange"
+msgstr "Change"
+
+#. js-lingui-explicit-id
+msgid "sourced.title"
+msgstr "Data source"
+
+#. js-lingui-explicit-id
+msgid "sourced.provider"
+msgstr "Source"
+
+#. js-lingui-explicit-id
+msgid "sourced.unknown"
+msgstr "Unknown"
+
+#. js-lingui-explicit-id
+msgid "sourced.fetchedAt"
+msgstr "Fetched at"
+
+#. js-lingui-explicit-id
+msgid "sourced.formula"
+msgstr "Formula"
+
+#. js-lingui-explicit-id
+msgid "sourced.warning"
+msgstr "Warning"
+
+#. js-lingui-explicit-id
+msgid "sourced.openReport"
+msgstr "Open full report →"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.offScalePrefix"
+msgstr "Market price {price} deviates from the model's median valuation {mid} by"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.overvalued"
+msgstr "the model implies clear overvaluation"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.undervalued"
+msgstr "the model implies clear undervaluation"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.offScaleSuffix"
+msgstr " — audit the assumption sources before drawing conclusions."
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.icDebate"
+msgstr "IC Debate"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.icDebateOnlyEquity"
+msgstr "Only available for equity research reports"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.icDebateTitle"
+msgstr "Run a bull/bear debate on this report in the IC"

@@ -15,7 +15,7 @@ import { useI18n } from '../../i18n'
 
 export function IcLandingPage() {
   const navigate = useNavigate()
-  const { locale } = useI18n()
+  const { locale, t } = useI18n()
   const { data, isLoading, isError } = useDashboardRecentResearch(20)
 
   // Filter to tickers that have at least one equity_research run.
@@ -58,8 +58,7 @@ export function IcLandingPage() {
             lineHeight: 1.6,
           }}
         >
-          AI 多空委员围绕研报数据进行结构化辩论，输出带信念度的裁决与改变立场条件。
-          选择一份已生成的股票研报开始投委会流程。
+          {t('ic.landing.subtitle')}
         </p>
       </div>
 
@@ -73,7 +72,7 @@ export function IcLandingPage() {
             letterSpacing: '0.08em',
           }}
         >
-          加载研报列表…
+          {t('ic.landing.loading')}
         </div>
       )}
 
@@ -90,7 +89,7 @@ export function IcLandingPage() {
             color: 'var(--danger)',
           }}
         >
-          无法加载研报列表，请检查后端服务
+          {t('ic.landing.loadError')}
         </div>
       )}
 
@@ -115,7 +114,7 @@ export function IcLandingPage() {
               marginBottom: 12,
             }}
           >
-            暂无股票研报
+            {t('ic.landing.empty.title')}
           </div>
           <p
             style={{
@@ -126,9 +125,9 @@ export function IcLandingPage() {
               lineHeight: 1.6,
             }}
           >
-            请先在「个股」页面为目标 ticker 生成 Equity Research 研报，
+            {t('ic.landing.empty.line1')}
             <br />
-            研报生成后即可在此发起投委会辩论。
+            {t('ic.landing.empty.line2')}
           </p>
           <button
             type="button"
@@ -148,7 +147,7 @@ export function IcLandingPage() {
             onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.85')}
             onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
           >
-            前往个股分析
+            {t('ic.landing.empty.cta')}
           </button>
         </div>
       )}
@@ -187,7 +186,7 @@ export function IcLandingPage() {
                   e.currentTarget.style.borderColor = 'var(--border-soft)'
                   e.currentTarget.style.boxShadow = 'none'
                 }}
-                aria-label={`发起 ${item.ticker} 投委会辩论`}
+                aria-label={t('ic.landing.row.aria', { ticker: item.ticker })}
               >
                 {/* Ticker */}
                 <span
@@ -220,7 +219,9 @@ export function IcLandingPage() {
                     flexShrink: 0,
                   }}
                 >
-                  研报 {formatDate(latestRun.created_at, locale, 'short')}
+                  {t('ic.landing.row.reportDate', {
+                    date: formatDate(latestRun.created_at, locale, 'short'),
+                  })}
                 </span>
 
                 {/* CTA chevron */}

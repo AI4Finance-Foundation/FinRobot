@@ -10,6 +10,7 @@
 
 import { EvidenceChip } from './EvidenceChip'
 import type { DebatePoint, DebateEvidenceItem } from '../../stores/debateStore'
+import { useI18n } from '../../i18n'
 
 interface DebateColumnProps {
   side: 'bull' | 'bear'
@@ -29,7 +30,7 @@ const SIDE_CONFIG = {
     borderSoft: 'color-mix(in srgb, var(--success) 20%, transparent)',
     borderGlow: 'color-mix(in srgb, var(--success) 45%, transparent)',
     dotColor: 'var(--success)',
-    emptyLabel: '多头论点积累中…',
+    emptyLabelKey: 'ic.column.bull.empty',
   },
   bear: {
     label: 'BEAR CASE',
@@ -39,11 +40,12 @@ const SIDE_CONFIG = {
     borderSoft: 'color-mix(in srgb, var(--danger) 20%, transparent)',
     borderGlow: 'color-mix(in srgb, var(--danger) 45%, transparent)',
     dotColor: 'var(--danger)',
-    emptyLabel: '空头论点积累中…',
+    emptyLabelKey: 'ic.column.bear.empty',
   },
 } as const
 
 export function DebateColumn({ side, points, evidence, artifactId, isRunning }: DebateColumnProps) {
+  const { t } = useI18n()
   const cfg = SIDE_CONFIG[side]
 
   return (
@@ -85,14 +87,14 @@ export function DebateColumn({ side, points, evidence, artifactId, isRunning }: 
               letterSpacing: '0.04em',
             }}
           >
-            {points.length} 条论点
+            {t('ic.column.pointCount', { count: points.length })}
           </span>
         )}
       </div>
 
       {/* Points list */}
       {points.length === 0 ? (
-        <EmptyState label={cfg.emptyLabel} isRunning={isRunning} accentVar={cfg.accentVar} />
+        <EmptyState label={t(cfg.emptyLabelKey)} isRunning={isRunning} accentVar={cfg.accentVar} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {points.map((pt, idx) => (
@@ -175,10 +177,13 @@ function PointCard({ point, evidence, artifactId, cfg }: PointCardProps) {
 }
 
 function VerifiedBadge({ verified, reason }: { verified: boolean; reason: string }) {
+  const { t } = useI18n()
   return (
     <span
-      title={reason || (verified ? '数据已核验' : '未核验')}
-      aria-label={verified ? '已核验' : `未核验: ${reason}`}
+      title={reason || (verified ? t('ic.column.verified') : t('ic.column.unverified'))}
+      aria-label={
+        verified ? t('ic.column.verified') : t('ic.column.unverifiedReason', { reason })
+      }
       style={{
         flexShrink: 0,
         display: 'inline-flex',

@@ -7,11 +7,13 @@
 import { useAppStore } from '../stores/appStore'
 import { useUiStore } from '../stores/uiStore'
 import { IconSparkle } from '../lib/icons'
+import { useI18n } from '../i18n'
 
 export function TitleBar(): React.ReactElement {
   const aiPanelOpen = useUiStore((s) => s.aiPanelOpen)
   const toggleAiPanel = useUiStore((s) => s.toggleAiPanel)
   const setCmdPaletteOpen = useAppStore((s) => s.setCmdPaletteOpen)
+  const { t } = useI18n()
 
   return (
     <div
@@ -80,7 +82,7 @@ export function TitleBar(): React.ReactElement {
       {/* AI panel toggle */}
       <button
         className={`tb-btn${aiPanelOpen ? ' active' : ''}`}
-        title="AI 助手 (⌘L)"
+        title={t('shell.titlebar.aiAssistant')}
         onClick={toggleAiPanel}
         style={{
           width: 32,

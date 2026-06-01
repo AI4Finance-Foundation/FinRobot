@@ -16,24 +16,24 @@ import {
 } from '../../hooks/useDashboardRecentResearch'
 import { useQuotesWarmed } from '../../hooks/useQuotesWarmed'
 import { verdictLabel } from '../../utils/verdict'
-import { useI18n } from '../../i18n'
+import { useI18n, tSync } from '../../i18n'
 
-// Pipeline key → human label. Keep this map aligned with the backend
-// `ArtifactType` Literal (finrobot/artifact/models.py); SDK-only pipelines
-// (ic-memo / dcf / lbo / ddm / comps) still show up in old artifacts the
-// user generated before research became the sole UI-facing pipeline.
-const TYPE_SHORT: Record<string, string> = {
-  research: '研报',
-  equity_research: '研报',
-  'ic-memo': '投委',
-  ic_memo: '投委',
-  earnings: '财报',
-  dcf: 'DCF',
-  lbo: 'LBO',
-  ddm: 'DDM',
-  comps: '同业',
-  peer_research: '同业',
-  ad_hoc: 'Ad hoc',
+// Pipeline key → i18n key for its human label. Keep this map aligned with the
+// backend `ArtifactType` Literal (finrobot/artifact/models.py); SDK-only
+// pipelines (ic-memo / dcf / lbo / ddm / comps) still show up in old artifacts
+// the user generated before research became the sole UI-facing pipeline.
+const TYPE_SHORT_KEY: Record<string, string> = {
+  research: 'landing.recentResearch.typeResearch',
+  equity_research: 'landing.recentResearch.typeResearch',
+  'ic-memo': 'landing.recentResearch.typeIcMemo',
+  ic_memo: 'landing.recentResearch.typeIcMemo',
+  earnings: 'landing.recentResearch.typeEarnings',
+  dcf: 'landing.recentResearch.typeDcf',
+  lbo: 'landing.recentResearch.typeLbo',
+  ddm: 'landing.recentResearch.typeDdm',
+  comps: 'landing.recentResearch.typeComps',
+  peer_research: 'landing.recentResearch.typeComps',
+  ad_hoc: 'landing.recentResearch.typeAdHoc',
 }
 
 // Bump to 20 now that this strip is the sole landing-page surface
@@ -63,7 +63,7 @@ export function RecentResearchStrip(): React.ReactElement {
       <div className="cosmic-group-header" style={{ margin: 0, marginBottom: 16 }}>
         <span className="group-num">02</span>
         <span className="group-title" style={{ fontSize: 20, letterSpacing: 2.5 }}>
-          Studied Tickers · 历史研究
+          {t('landing.recentResearch.title')}
         </span>
         <span style={{ flex: 1 }} />
         <span
@@ -149,6 +149,7 @@ function TickerDrawerCard({
   onOpenWorkspace: () => void
   onOpenRun: (run: RecentTickerRun) => void
 }): React.ReactElement {
+  const { t } = useI18n()
   const overflow = item.run_count - item.runs.length
   return (
     <div
@@ -176,7 +177,7 @@ function TickerDrawerCard({
         type="button"
         data-testid={`recent-research-card-${item.ticker}-header`}
         onClick={onOpenWorkspace}
-        title={`打开 ${item.ticker} 工作区`}
+        title={t('landing.recentResearch.openWorkspace', { ticker: item.ticker })}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -216,7 +217,7 @@ function TickerDrawerCard({
             letterSpacing: '0.04em',
           }}
         >
-          {item.run_count} 份 ›
+          {t('landing.recentResearch.runCount', { count: item.run_count })}
         </span>
       </button>
 
@@ -257,7 +258,7 @@ function TickerDrawerCard({
             letterSpacing: '0.04em',
           }}
         >
-          + 还有 {overflow} 份历史 · 查看全部 →
+          {t('landing.recentResearch.overflow', { count: overflow })}
         </button>
       )}
     </div>
@@ -271,13 +272,14 @@ function RunRow({
   run: RecentTickerRun
   onClick: () => void
 }): React.ReactElement {
-  const typeLabel = TYPE_SHORT[run.type] ?? run.type.slice(0, 6)
+  const typeKey = TYPE_SHORT_KEY[run.type]
+  const typeLabel = typeKey ? tSync(typeKey) : run.type.slice(0, 6)
   return (
     <button
       type="button"
       data-testid={`recent-research-run-${run.artifact_id}`}
       onClick={onClick}
-      title={`打开 ${typeLabel} 报告详情`}
+      title={tSync('landing.recentResearch.openReport', { type: typeLabel })}
       style={{
         display: 'grid',
         gridTemplateColumns: '52px 56px 1fr auto',
@@ -361,10 +363,11 @@ function VerdictText({ verdict }: { verdict: 'BUY' | 'HOLD' | 'SELL' | null }): 
 // pulsing placeholder dot rather than nothing, so the resolved lamp does not
 // pop in from empty when the post-warmup refetch lands.
 function SignalLamp({ signal }: { signal: Signal | null }): React.ReactElement {
+  const { t } = useI18n()
   if (signal === null) {
     return (
       <span
-        title="行情加载中"
+        title={t('landing.recentResearch.quoteLoading')}
         aria-label="signal pending"
         style={{
           width: 8,

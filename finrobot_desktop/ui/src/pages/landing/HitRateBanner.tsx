@@ -7,14 +7,16 @@
 import { useState } from 'react'
 import { useDashboardHitRate, type HitRateWindow } from '../../hooks/useDashboardHitRate'
 import { verdictLabel } from '../../utils/verdict'
+import { useI18n } from '../../i18n'
 
-const WINDOWS: { value: HitRateWindow; label: string }[] = [
-  { value: '30d', label: '30 天' },
-  { value: '90d', label: '90 天' },
-  { value: 'all', label: '全部' },
+const WINDOWS: { value: HitRateWindow; labelKey: string }[] = [
+  { value: '30d', labelKey: 'landing.hitRate.window30d' },
+  { value: '90d', labelKey: 'landing.hitRate.window90d' },
+  { value: 'all', labelKey: 'landing.hitRate.windowAll' },
 ]
 
 export function HitRateBanner(): React.ReactElement {
+  const { t } = useI18n()
   const [window, setWindow] = useState<HitRateWindow>('all')
   const { data, isLoading, isError } = useDashboardHitRate(window)
 
@@ -48,7 +50,7 @@ export function HitRateBanner(): React.ReactElement {
             margin: 0,
           }}
         >
-          Track Record · 命中率
+          {t('landing.hitRate.title')}
         </h2>
         <span style={{ flex: 1 }} />
         <div style={{ display: 'flex', gap: 4 }}>
@@ -70,14 +72,14 @@ export function HitRateBanner(): React.ReactElement {
                 transition: 'all 0.15s',
               }}
             >
-              {w.label}
+              {t(w.labelKey)}
             </button>
           ))}
         </div>
       </div>
 
       {isError && (
-        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>数据加载失败，请稍后刷新页面。</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>{t('landing.hitRate.error')}</p>
       )}
 
       {isLoading && !data && <BannerSkeleton />}

@@ -509,7 +509,7 @@ describe('RightChatPanel — exception paths', () => {
     mockChatControls.setError(new Error('token limit exceeded'))
     renderPanel()
     await waitFor(() => {
-      expect(screen.getByText(/对话过长/)).toBeInTheDocument()
+      expect(screen.getByText(/Conversation too long/)).toBeInTheDocument()
     })
   })
 
@@ -601,7 +601,7 @@ describe('RightChatPanel — model selector', () => {
     const badge = screen.getByTestId('model-selector')
     // Verify it's a span (read-only), not a select
     expect(badge.tagName).toBe('SPAN')
-    expect(badge).toHaveAttribute('title', '模型在 Settings 中配置')
+    expect(badge).toHaveAttribute('title', 'Model is configured in Settings')
   })
 })
 
@@ -637,7 +637,7 @@ describe('RightChatPanel — panel header', () => {
 
   it('shows "探索" when no ticker', () => {
     renderPanel()
-    expect(screen.getByText('探索')).toBeInTheDocument()
+    expect(screen.getByText('Explore')).toBeInTheDocument()
   })
 })
 

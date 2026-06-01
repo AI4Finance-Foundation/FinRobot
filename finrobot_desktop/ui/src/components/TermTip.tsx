@@ -13,96 +13,32 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useUiStore } from '../stores/uiStore'
+import { useI18n } from '../i18n'
 
-const GLOSSARY: Record<string, { short: string; askPrompt: string }> = {
-  DCF: {
-    short: '折现现金流估值法：把未来现金流折回今天的价值',
-    askPrompt:
-      '用一段中文给我解释 DCF（折现现金流估值法），假设我是金融新手。说清楚核心思想、3 个关键输入、最大的局限。',
-  },
-  WACC: {
-    short: '加权平均资本成本，DCF 里的"折现率"',
-    askPrompt:
-      'WACC（加权平均资本成本）是什么？怎么算出来的？为什么 DCF 模型最敏感的参数就是它？用一段中文给金融新手解释。',
-  },
-  'P/E': {
-    short: '市盈率 = 股价 / 每股收益。多少年回本',
-    askPrompt: 'P/E 市盈率怎么用？高 PE 一定贵吗？给我一段中文解释正确用法。',
-  },
-  PE: {
-    short: '市盈率 = 股价 / 每股收益。多少年回本',
-    askPrompt: 'P/E 市盈率怎么用？高 PE 一定贵吗？给我一段中文解释正确用法。',
-  },
-  EBITDA: {
-    short: '息税折旧摊销前利润，剥离财务和会计影响的"经营盈利"',
-    askPrompt: 'EBITDA 是什么？为什么估值时常用 EV/EBITDA 而不是 PE？用一段中文给金融新手解释。',
-  },
-  FCF: {
-    short: '自由现金流 = 经营现金流 - 资本开支。真正能分给股东的钱',
-    askPrompt:
-      '自由现金流 FCF 和净利润有什么区别？为什么估值时大家更看 FCF？用一段中文给金融新手解释。',
-  },
-  EV: {
-    short: '企业价值 = 市值 + 净债务。代表收购公司要付的总钱',
-    askPrompt:
-      'Enterprise Value（企业价值，EV）是什么？为什么不直接用市值？用一段中文给金融新手解释。',
-  },
-  IRR: {
-    short: '内部收益率：让 NPV = 0 的折现率，常用于 LBO',
-    askPrompt: 'IRR（内部收益率）是什么意思？LBO 里 18% IRR 算高还是低？用一段中文给金融新手解释。',
-  },
-  LBO: {
-    short: '杠杆收购：借大量债务买下公司、还债、卖出获利',
-    askPrompt: 'LBO（杠杆收购）模型在干什么？跟 DCF 有什么区别？用一段中文给金融新手解释。',
-  },
-  DDM: {
-    short: '股息折现模型：把未来股息折现成股权价值',
-    askPrompt:
-      'DDM（股息折现模型）适合什么样的公司？为什么科技股不常用？用一段中文给金融新手解释。',
-  },
-  Beta: {
-    short: '股票相对市场的波动倍数，beta=1 跟市场同步',
-    askPrompt:
-      'Beta 在 CAPM 里是干什么用的？Beta 0.8 vs 1.5 意味着什么？用一段中文给金融新手解释。',
-  },
-  ROE: {
-    short: '净资产收益率 = 净利润 / 股东权益。股东资本的"赚钱效率"',
-    askPrompt: 'ROE（净资产收益率）多少算优秀？跟 ROA、ROIC 有什么区别？用一段中文给金融新手解释。',
-  },
-  'Terminal Value': {
-    short: '终值：永续期之后所有现金流的现值，DCF 里通常占总价值 60-80%',
-    askPrompt:
-      'Terminal Value（终值）在 DCF 里是怎么算的？为什么它对结果影响这么大？用一段中文给金融新手解释。',
-  },
-  'PV of FCF': {
-    short: '预测期内自由现金流的现值之和（折现回今天）',
-    askPrompt:
-      'PV of FCF（自由现金流现值）是什么？为什么 DCF 要把未来的钱折回今天？用一段中文给金融新手解释。',
-  },
-  'Enterprise Value': {
-    short: '企业价值 = 股权 + 净债务。代表买下整个公司要付的钱',
-    askPrompt:
-      'Enterprise Value（企业价值）和市值有什么区别？为什么估值时常用 EV 而不是 Market Cap？用一段中文给金融新手解释。',
-  },
-  'Equity Value': {
-    short: '股权价值 = 企业价值 - 净债务。归股东的那部分',
-    askPrompt:
-      'Equity Value（股权价值）和 Enterprise Value 怎么换算？这两个值哪个对散户更有用？用一段中文给金融新手解释。',
-  },
-  'EV/EBITDA': {
-    short: '企业价值 / 经营盈利。看几年能用经营利润回本',
-    askPrompt:
-      'EV/EBITDA 这个估值倍数怎么用？多少算便宜？跟 P/E 有什么区别？用一段中文给金融新手解释。',
-  },
-  Beat: {
-    short: '超预期：实际 EPS 高于分析师一致预期',
-    askPrompt:
-      '财报 Beat（超预期）一定意味着股价会涨吗？应该看哪些细节？用一段中文给金融新手解释。',
-  },
-  Miss: {
-    short: '不及预期：实际 EPS 低于分析师一致预期',
-    askPrompt: '财报 Miss（不及预期）后该追跌还是抄底？应该看哪些细节？用一段中文给金融新手解释。',
-  },
+// Each glossary entry maps a term to its i18n key suffix. The actual short
+// definition and "ask LLM" prompt live in the catalogs under
+// `term.<key>.short` / `term.<key>.ask`, so they translate + re-render on
+// locale change (resolved inside the component via useI18n).
+const GLOSSARY: Record<string, string> = {
+  DCF: 'dcf',
+  WACC: 'wacc',
+  'P/E': 'pe',
+  PE: 'pe',
+  EBITDA: 'ebitda',
+  FCF: 'fcf',
+  EV: 'ev',
+  IRR: 'irr',
+  LBO: 'lbo',
+  DDM: 'ddm',
+  Beta: 'beta',
+  ROE: 'roe',
+  'Terminal Value': 'terminalValue',
+  'PV of FCF': 'pvOfFcf',
+  'Enterprise Value': 'enterpriseValue',
+  'Equity Value': 'equityValue',
+  'EV/EBITDA': 'evEbitda',
+  Beat: 'beat',
+  Miss: 'miss',
 }
 
 export function isKnownTerm(term: string): boolean {
@@ -117,7 +53,8 @@ interface Props {
 }
 
 export function TermTip({ term, children }: Props): React.ReactElement {
-  const entry = GLOSSARY[term]
+  const keySuffix = GLOSSARY[term]
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState<{ x: number; y: number } | null>(null)
   const anchorRef = useRef<HTMLSpanElement>(null)
@@ -131,9 +68,12 @@ export function TermTip({ term, children }: Props): React.ReactElement {
   }, [open])
 
   // Unknown terms render plain text (no tooltip, no errors)
-  if (!entry) {
+  if (!keySuffix) {
     return <span>{children ?? term}</span>
   }
+
+  const short = t(`term.${keySuffix}.short`)
+  const askPrompt = t(`term.${keySuffix}.ask`)
 
   return (
     <>
@@ -149,7 +89,7 @@ export function TermTip({ term, children }: Props): React.ReactElement {
           cursor: 'help',
           fontStyle: 'normal',
         }}
-        aria-label={`术语：${term}`}
+        aria-label={t('term.ariaLabel', { term })}
       >
         {children ?? term}
       </span>
@@ -189,11 +129,11 @@ export function TermTip({ term, children }: Props): React.ReactElement {
               >
                 {term}
               </span>
-              <span style={{ color: 'var(--text-secondary)' }}>{entry.short}</span>
+              <span style={{ color: 'var(--text-secondary)' }}>{short}</span>
             </div>
             <button
               onClick={() => {
-                sendChatPrompt(entry.askPrompt, true)
+                sendChatPrompt(askPrompt, true)
                 setOpen(false)
               }}
               style={{
@@ -208,7 +148,7 @@ export function TermTip({ term, children }: Props): React.ReactElement {
               }}
               type="button"
             >
-              让 FinRobot 详细讲讲 →
+              {t('term.askMore')}
             </button>
           </div>,
           document.body,

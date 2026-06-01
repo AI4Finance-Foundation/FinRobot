@@ -44,10 +44,10 @@ describe('WarningBanner', () => {
     )
     expect(screen.getByText(/First warning visible by default/)).toBeInTheDocument()
     expect(screen.queryByText(/Second hidden until expand/)).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /\+2 更多/ }))
+    fireEvent.click(screen.getByRole('button', { name: /\+2 more/ }))
     expect(screen.getByText(/Second hidden until expand/)).toBeInTheDocument()
     expect(screen.getByText(/Third also hidden/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /收起/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Collapse/ }))
     expect(screen.queryByText(/Second hidden until expand/)).not.toBeInTheDocument()
   })
 

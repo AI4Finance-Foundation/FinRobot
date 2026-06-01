@@ -12,6 +12,7 @@
 //     provider-down scenarios where the analyst MUST notice before acting.
 
 import { useState, type CSSProperties } from 'react'
+import { useI18n } from '../i18n'
 
 interface Props {
   warnings: readonly string[] | null | undefined
@@ -28,6 +29,7 @@ export function WarningBanner({
   label,
   style: outerStyle,
 }: Props): React.ReactElement | null {
+  const { t } = useI18n()
   const [expanded, setExpanded] = useState(false)
   const items = (warnings ?? []).filter((w) => typeof w === 'string' && w.trim().length > 0)
   if (items.length === 0) return null
@@ -78,7 +80,7 @@ export function WarningBanner({
               borderRadius: 'var(--radius-sm)',
             }}
           >
-            {expanded ? '收起' : `+${rest.length} 更多`}
+            {expanded ? t('shell.warning.collapse') : t('shell.warning.more', { count: rest.length })}
           </button>
         )}
       </div>

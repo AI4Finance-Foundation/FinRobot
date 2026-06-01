@@ -12,6 +12,7 @@
 // reliable=false → orange warning banner above the call badge (data quality caveat).
 
 import type { DebateVerdict, DebateStatus } from '../../stores/debateStore'
+import { useI18n } from '../../i18n'
 
 interface VerdictCardProps {
   verdict: DebateVerdict | null
@@ -54,6 +55,7 @@ const CALL_CONFIG: Record<CallKey, { bg: string; glow: string; border: string; t
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function VerdictCard({ verdict, status, reliable, current_price }: VerdictCardProps) {
+  const { t } = useI18n()
   const isRunning = status === 'running'
   const hasVerdict = verdict !== null
 
@@ -98,7 +100,7 @@ export function VerdictCard({ verdict, status, reliable, current_price }: Verdic
           }}
         >
           <span aria-hidden>⚠</span>
-          数据可靠性不足 — 当前行情数据质量受限，裁决已降级至 REVIEW，请结合研报细节审慎参考
+          {t('ic.verdict.reliabilityWarning')}
         </div>
       )}
 
@@ -112,6 +114,7 @@ export function VerdictCard({ verdict, status, reliable, current_price }: Verdic
             verdict={verdict}
             callCfg={callCfg ?? CALL_CONFIG.REVIEW}
             current_price={current_price}
+            t={t}
           />
         ) : (
           // Failed state or edge case — show minimal error hint
@@ -123,7 +126,7 @@ export function VerdictCard({ verdict, status, reliable, current_price }: Verdic
               letterSpacing: '0.06em',
             }}
           >
-            裁决不可用
+            {t('ic.verdict.unavailable')}
           </div>
         )}
       </div>
@@ -134,6 +137,7 @@ export function VerdictCard({ verdict, status, reliable, current_price }: Verdic
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function RunningState() {
+  const { t } = useI18n()
   return (
     <div
       style={{
@@ -158,7 +162,7 @@ function RunningState() {
         }}
         aria-hidden
       />
-      投委会辩论进行中…
+      {t('ic.verdict.running')}
       <span
         style={{
           marginLeft: 'auto',
@@ -166,7 +170,7 @@ function RunningState() {
           color: 'var(--text-dim)',
         }}
       >
-        AI 委员正在就多空论据交叉核验
+        {t('ic.verdict.runningHint')}
       </span>
     </div>
   )
@@ -176,9 +180,10 @@ interface FullVerdictProps {
   verdict: DebateVerdict
   callCfg: (typeof CALL_CONFIG)[CallKey]
   current_price: number | null
+  t: (key: string, params?: Record<string, string | number>) => string
 }
 
-function FullVerdict({ verdict, callCfg, current_price }: FullVerdictProps) {
+function FullVerdict({ verdict, callCfg, current_price, t }: FullVerdictProps) {
   const convictionDisplay = verdict.conviction !== null ? `${verdict.conviction.toFixed(0)}` : '—'
 
   return (
@@ -199,7 +204,7 @@ function FullVerdict({ verdict, callCfg, current_price }: FullVerdictProps) {
             boxShadow: callCfg.glow,
             lineHeight: 1,
           }}
-          aria-label={`委员会裁决: ${verdict.call}`}
+          aria-label={t('ic.verdict.callAria', { call: verdict.call })}
         >
           {verdict.call}
         </span>
@@ -225,7 +230,7 @@ function FullVerdict({ verdict, callCfg, current_price }: FullVerdictProps) {
               color: callCfg.text,
               lineHeight: 1,
             }}
-            aria-label={`信念度: ${convictionDisplay}`}
+            aria-label={t('ic.verdict.convictionAria', { value: convictionDisplay })}
           >
             {convictionDisplay}
             {verdict.conviction !== null && (
@@ -337,9 +342,9 @@ function FullVerdict({ verdict, callCfg, current_price }: FullVerdictProps) {
                 textTransform: 'none',
                 letterSpacing: 0,
               }}
-              title="使委员会改变立场所需的条件"
+              title={t('ic.verdict.changeMyMindTitle')}
             >
-              · 改变裁决所需条件
+              {t('ic.verdict.changeMyMindLabel')}
             </span>
           </div>
           <p

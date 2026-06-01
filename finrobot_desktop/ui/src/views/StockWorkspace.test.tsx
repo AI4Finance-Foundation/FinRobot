@@ -284,7 +284,7 @@ describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
       expect(addToastMock).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'error',
-          title: '启动研报失败',
+          title: 'Failed to start report',
           description: '网络连接失败，请检查网络',
         }),
       ),

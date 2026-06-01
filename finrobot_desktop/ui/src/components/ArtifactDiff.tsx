@@ -243,7 +243,7 @@ function groupBySection(diffs: FieldDiff[]): Map<string, FieldDiff[]> {
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProps) {
-  const { locale } = useI18n()
+  const { locale, t } = useI18n()
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
 
   // Type mismatch guard
@@ -306,7 +306,7 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div style={dialogStyle} role="dialog" aria-modal="true" aria-label="研报差异">
+      <div style={dialogStyle} role="dialog" aria-modal="true" aria-label={t('diff.title')}>
         {/* Header */}
         <div
           style={{
@@ -328,7 +328,7 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
                 letterSpacing: '0.05em',
               }}
             >
-              字段级差异
+              {t('diff.fieldLevel')}
             </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
               <div
@@ -340,7 +340,7 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
                 }}
               >
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block' }}>
-                  v1（旧）
+                  {t('diff.v1Old')}
                 </span>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>
                   {artifactA.headline}
@@ -373,7 +373,7 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
                 }}
               >
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block' }}>
-                  v2（新）
+                  {t('diff.v2New')}
                 </span>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>
                   {artifactB.headline}
@@ -386,7 +386,7 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
           </div>
           <button
             onClick={onClose}
-            aria-label="关闭差异"
+            aria-label={t('diff.close')}
             style={{
               background: 'none',
               border: 'none',
@@ -414,11 +414,13 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
             <div style={{ padding: 32, textAlign: 'center' }}>
               <div style={{ fontSize: '2rem', marginBottom: 12 }}>⚠</div>
               <div style={{ color: 'var(--warning)', fontWeight: 600, marginBottom: 8 }}>
-                无法对比：研报类型不一致
+                {t('diff.typeMismatchTitle')}
               </div>
               <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                {artifactA.type.toUpperCase()} vs {artifactB.type.toUpperCase()} —
-                仅支持同类型研报之间的对比。
+                {t('diff.typeMismatchBody', {
+                  a: artifactA.type.toUpperCase(),
+                  b: artifactB.type.toUpperCase(),
+                })}
               </div>
               <button
                 onClick={onClose}
@@ -432,29 +434,29 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
                   cursor: 'pointer',
                 }}
               >
-                关闭
+                {t('diff.closeBtn')}
               </button>
             </div>
           )}
 
           {!typeMismatch && isLoading && (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-              <div style={{ marginBottom: 8 }}>正在加载差异…</div>
+              <div style={{ marginBottom: 8 }}>{t('diff.loading')}</div>
             </div>
           )}
 
           {!typeMismatch && error && (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--negative)' }}>
-              加载差异失败，请确认两份记录都存在。
+              {t('diff.loadError')}
             </div>
           )}
 
           {!typeMismatch && data && data.length === 0 && (
             <div style={{ padding: 40, textAlign: 'center' }}>
               <div style={{ fontSize: '1.5rem', marginBottom: 8 }}>✓</div>
-              <div style={{ color: 'var(--positive)', fontWeight: 600 }}>两份研报完全一致</div>
+              <div style={{ color: 'var(--positive)', fontWeight: 600 }}>{t('diff.identical')}</div>
               <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 4 }}>
-                假设和输出全部相同。
+                {t('diff.identicalBody')}
               </div>
             </div>
           )}
@@ -487,7 +489,7 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
                           borderBottom: '1px solid var(--border)',
                         }}
                       >
-                        字段
+                        {t('diff.colField')}
                       </th>
                       <th
                         style={{
@@ -501,7 +503,7 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
                           borderBottom: '1px solid var(--border)',
                         }}
                       >
-                        v1 (旧)
+                        {t('diff.colV1')}
                       </th>
                       <th
                         style={{
@@ -515,7 +517,7 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
                           borderBottom: '1px solid var(--border)',
                         }}
                       >
-                        v2 (新)
+                        {t('diff.colV2')}
                       </th>
                       <th
                         style={{
@@ -529,7 +531,7 @@ export function ArtifactDiff({ artifactA, artifactB, onClose }: ArtifactDiffProp
                           borderBottom: '1px solid var(--border)',
                         }}
                       >
-                        变化
+                        {t('diff.colChange')}
                       </th>
                     </tr>
                   </thead>

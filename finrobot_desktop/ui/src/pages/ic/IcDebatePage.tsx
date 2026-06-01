@@ -16,12 +16,14 @@ import { useDebateStore, selectDebate } from '../../stores/debateStore'
 import { VerdictCard } from '../../components/debate/VerdictCard'
 import { DebateColumn } from '../../components/debate/DebateColumn'
 import { useToastStore } from '../../stores/toastStore'
+import { useI18n } from '../../i18n'
 
 export function IcDebatePage() {
   const { ticker } = useParams<{ ticker: string }>()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const addToast = useToastStore((s) => s.addToast)
+  const { t } = useI18n()
 
   const symbol = (ticker ?? '').toUpperCase()
   const artifactId = searchParams.get('artifact_id')
@@ -38,8 +40,8 @@ export function IcDebatePage() {
     if (!symbol || !artifactId) {
       addToast({
         type: 'error',
-        title: '参数缺失',
-        description: 'ticker 或 artifact_id 为空，请从研报页面进入投委会',
+        title: t('ic.toast.missingParams.title'),
+        description: t('ic.toast.missingParams.desc'),
       })
       return
     }
@@ -48,16 +50,16 @@ export function IcDebatePage() {
     } catch (err) {
       addToast({
         type: 'error',
-        title: '无法启动投委会辩论',
+        title: t('ic.toast.startFailed.title'),
         description: err instanceof Error ? err.message : String(err),
       })
     }
-  }, [symbol, artifactId, startDebate, addToast])
+  }, [symbol, artifactId, startDebate, addToast, t])
 
   if (!symbol) {
     return (
       <PageFrame>
-        <ErrorBanner message="URL 中缺少 ticker 参数" />
+        <ErrorBanner message={t('ic.error.missingTicker')} />
       </PageFrame>
     )
   }
@@ -89,13 +91,13 @@ export function IcDebatePage() {
           type="button"
           onClick={() => navigate('/ic')}
           style={backBtnStyle}
-          title="返回投委会列表"
-          aria-label="返回投委会列表"
+          title={t('ic.breadcrumb.back')}
+          aria-label={t('ic.breadcrumb.back')}
         >
           ‹
         </button>
         <button type="button" onClick={() => navigate('/ic')} style={crumbBtnStyle}>
-          投委会
+          {t('ic.breadcrumb.committee')}
         </button>
         <span style={{ color: 'var(--text-dim)' }}>›</span>
         <span style={{ color: 'var(--accent-cyan)' }}>{symbol}</span>
@@ -140,7 +142,7 @@ export function IcDebatePage() {
                   }}
                   style={secondaryBtnStyle}
                 >
-                  重置
+                  {t('ic.action.reset')}
                 </button>
                 <button
                   type="button"
@@ -151,7 +153,7 @@ export function IcDebatePage() {
                   }}
                   style={primaryBtnStyle}
                 >
-                  重试辩论
+                  {t('ic.action.retry')}
                 </button>
               </div>
             </div>
@@ -197,6 +199,7 @@ interface StartPanelProps {
 }
 
 function StartPanel({ ticker, artifactId, onStart, onViewReport }: StartPanelProps) {
+  const { t } = useI18n()
   return (
     <div
       style={{
@@ -234,7 +237,7 @@ function StartPanel({ ticker, artifactId, onStart, onViewReport }: StartPanelPro
             margin: 0,
           }}
         >
-          AI 投委会对抗辩论
+          {t('ic.start.title')}
         </h2>
       </div>
 
@@ -249,9 +252,7 @@ function StartPanel({ ticker, artifactId, onStart, onViewReport }: StartPanelPro
           maxWidth: 560,
         }}
       >
-        系统将基于已生成研报的结构化数据，驱动 Bull 委员和 Bear 委员进行交叉辩论。
-        每条论点均附核验状态与溯源证据，委员会最终输出带信念度（Conviction Score）
-        的裁决及"改变立场所需条件"（Change My Mind）。
+        {t('ic.start.desc')}
       </p>
 
       {/* Artifact context */}
@@ -275,7 +276,7 @@ function StartPanel({ ticker, artifactId, onStart, onViewReport }: StartPanelPro
               letterSpacing: '0.06em',
             }}
           >
-            研报 ID
+            {t('ic.start.reportId')}
           </span>
           <span
             style={{
@@ -304,7 +305,7 @@ function StartPanel({ ticker, artifactId, onStart, onViewReport }: StartPanelPro
             onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.7')}
             onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
           >
-            查看研报 →
+            {t('ic.start.viewReport')}
           </button>
         </div>
       )}
@@ -322,7 +323,7 @@ function StartPanel({ ticker, artifactId, onStart, onViewReport }: StartPanelPro
             color: 'var(--warning)',
           }}
         >
-          ⚠ 未关联研报 — 辩论将无法引用结构化证据数据
+          ⚠ {t('ic.start.noArtifactWarning')}
         </div>
       )}
 
@@ -353,7 +354,7 @@ function StartPanel({ ticker, artifactId, onStart, onViewReport }: StartPanelPro
           if (artifactId) e.currentTarget.style.opacity = '1'
         }}
       >
-        ⚖ 开始投委会辩论
+        ⚖ {t('ic.start.cta')}
       </button>
     </div>
   )

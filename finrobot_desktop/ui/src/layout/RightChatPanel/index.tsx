@@ -11,6 +11,7 @@
 
 import { useCallback, useRef } from 'react'
 import { useUiStore } from '../../stores/uiStore'
+import { useI18n } from '../../i18n'
 import { AiChatTab } from './AiChatTab'
 
 interface RightChatPanelProps {
@@ -23,6 +24,7 @@ export function RightChatPanel({
   expanded: expandedProp,
   onToggle: onToggleProp,
 }: RightChatPanelProps = {}): React.ReactElement {
+  const { t } = useI18n()
   const storeOpen = useUiStore((s) => s.aiPanelOpen)
   const storeWidth = useUiStore((s) => s.aiPanelWidth)
   const toggleAiPanel = useUiStore((s) => s.toggleAiPanel)
@@ -95,7 +97,7 @@ export function RightChatPanel({
           data-testid="expand-btn"
           className="ai-panel-expand-btn"
           onClick={handleToggle}
-          title="展开 (⌘L)"
+          title={t('chatpanel.expand.shortcut')}
           type="button"
         >
           <span className="expand-icon">◈</span>
@@ -129,14 +131,14 @@ export function RightChatPanel({
                 color: 'var(--primary)',
               }}
             >
-              AI 助手
+              {t('chatpanel.assistant')}
             </span>
             <span style={{ flex: 1 }} />
             <button
               type="button"
               data-testid="collapse-btn"
               onClick={handleToggle}
-              title="收起 (⌘L)"
+              title={t('chatpanel.collapse.shortcut')}
               style={{
                 background: 'transparent',
                 border: 'none',

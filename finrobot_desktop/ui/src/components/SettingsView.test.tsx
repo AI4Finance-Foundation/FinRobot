@@ -42,24 +42,24 @@ function renderWithQuery(ui: React.ReactElement) {
 describe('SettingsView', () => {
   it('renders AI 模型 section', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
-    expect(await screen.findByText('AI 模型')).toBeInTheDocument()
+    expect(await screen.findByText('AI Model')).toBeInTheDocument()
   })
 
   it('renders 数据源 section', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
-    expect(await screen.findByText('数据源')).toBeInTheDocument()
+    expect(await screen.findByText('Data Sources')).toBeInTheDocument()
   })
 
   it('renders 通知通道 section', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
-    expect(await screen.findByText('通知通道')).toBeInTheDocument()
+    expect(await screen.findByText('Notification Channels')).toBeInTheDocument()
   })
 
   // 外观 section removed in v5; theme controls are outside this settings surface.
 
   it('renders logging controls and export button', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
-    expect(await screen.findByText('日志 / 诊断')).toBeInTheDocument()
+    expect(await screen.findByText('Logging / Diagnostics')).toBeInTheDocument()
     expect(
       await screen.findByRole('button', { name: /导出诊断日志|export.*log/i }),
     ).toBeInTheDocument()

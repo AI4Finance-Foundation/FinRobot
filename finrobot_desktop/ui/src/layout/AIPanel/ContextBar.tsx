@@ -7,6 +7,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useUiStore, selectActiveTab } from '../../stores/uiStore'
 import type { ContextItem } from '../../stores/uiStore'
+import { useI18n } from '../../i18n'
 import { IconDashboard, IconPipeline, IconFileText, IconStar } from '../../lib/icons'
 
 // ── 图标映射 ─────────────────────────────────────────────────────
@@ -50,13 +51,19 @@ interface PinnedChipProps {
 }
 
 function PinnedChip({ item, onRemove }: PinnedChipProps): React.ReactElement {
+  const { t } = useI18n()
   return (
     <span className="ctx-chip">
       <span className="ic">
         <ChipIcon kind={item.kind} />
       </span>
       {item.label}
-      <button className="x" title="移除" onClick={() => onRemove(item.id)} type="button">
+      <button
+        className="x"
+        title={t('chatpanel.context.remove')}
+        onClick={() => onRemove(item.id)}
+        type="button"
+      >
         ×
       </button>
     </span>
@@ -73,6 +80,7 @@ interface PopoverProps {
 
 function CtxPopover({ openTabs, onSelect, onClose }: PopoverProps): React.ReactElement {
   const ref = useRef<HTMLDivElement>(null)
+  const { t } = useI18n()
 
   useEffect(() => {
     const handler = (e: MouseEvent): void => {
@@ -98,7 +106,7 @@ function CtxPopover({ openTabs, onSelect, onClose }: PopoverProps): React.ReactE
     <div className="ctx-popover" ref={ref}>
       {recentTabs.length > 0 ? (
         <>
-          <div className="ctx-popover-section">打开的标签</div>
+          <div className="ctx-popover-section">{t('chatpanel.context.openTabs')}</div>
           {recentTabs.map((tab) => (
             <button
               key={tab.id}
@@ -121,7 +129,7 @@ function CtxPopover({ openTabs, onSelect, onClose }: PopoverProps): React.ReactE
           ))}
         </>
       ) : (
-        <div className="ctx-popover-section">暂无可挂载的上下文</div>
+        <div className="ctx-popover-section">{t('chatpanel.context.empty')}</div>
       )}
     </div>
   )
@@ -130,6 +138,7 @@ function CtxPopover({ openTabs, onSelect, onClose }: PopoverProps): React.ReactE
 // ── ContextBar ────────────────────────────────────────────────────
 
 export function ContextBar(): React.ReactElement {
+  const { t } = useI18n()
   const activeTab = useUiStore(selectActiveTab)
   const workspacePath = useUiStore((s) => s.workspacePath)
   const pinned = useUiStore((s) => s.contextBundle.pinned)
@@ -145,7 +154,7 @@ export function ContextBar(): React.ReactElement {
 
   return (
     <div className="ai-context">
-      <span className="ctx-label">上下文</span>
+      <span className="ctx-label">{t('chatpanel.context.label')}</span>
 
       {/* 自动挂载：当前激活 Tab */}
       {activeTab && <FixedChip label={activeTab.title} icon={<IconFileText size={10} />} />}
@@ -160,7 +169,7 @@ export function ContextBar(): React.ReactElement {
 
       {/* + 添加 按钮 */}
       <button className="ctx-add" onClick={() => setPopoverOpen((v) => !v)} type="button">
-        + 添加
+        {t('chatpanel.context.add')}
       </button>
 
       {popoverOpen && (

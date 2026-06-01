@@ -35,31 +35,42 @@ const MAX_INPUT_LENGTH = 20_000
 // wins. The artifact-detail surface gets its own report-aware chips so the
 // AI panel suggests questions about *this* report rather than the workspace
 // generic ones.
-const ROUTE_CHIP_PATTERNS: Array<{ test: (path: string) => boolean; chips: string[] }> = [
+// Chips carry i18n keys; the literal prompt text is resolved per-locale in
+// the component (routeChips useMemo) so switching language re-renders them.
+const ROUTE_CHIP_PATTERNS: Array<{ test: (path: string) => boolean; chipKeys: string[] }> = [
   // /stocks/:ticker/runs/:artifactId — 13-chapter report detail
   {
     test: (p) => /^\/stocks\/[^/]+\/runs\//.test(p),
-    chips: [
-      '解释这份研报的 DCF 假设',
-      '对比同期竞争对手估值',
-      '哪些催化剂最值得跟踪',
-      '与上一版有何差异',
+    chipKeys: [
+      'chatpanel.chip.report.dcf',
+      'chatpanel.chip.report.peers',
+      'chatpanel.chip.report.catalysts',
+      'chatpanel.chip.report.diff',
     ],
   },
   // /stocks/:ticker — ticker workspace
   {
     test: (p) => /^\/stocks\/[^/]+$/.test(p),
-    chips: ['解释 DCF 假设', '对比同业竞争', '蒙特卡洛模拟', '10-K 问答'],
+    chipKeys: [
+      'chatpanel.chip.ticker.dcf',
+      'chatpanel.chip.ticker.peers',
+      'chatpanel.chip.ticker.montecarlo',
+      'chatpanel.chip.ticker.tenk',
+    ],
   },
   // /stocks landing
   {
     test: (p) => p === '/stocks',
-    chips: ['搜一个新股票', '解释 DCF / LBO / Comps', 'FinRobot 怎么用'],
+    chipKeys: [
+      'chatpanel.chip.landing.search',
+      'chatpanel.chip.landing.methods',
+      'chatpanel.chip.landing.howto',
+    ],
   },
   // /settings
   {
     test: (p) => p.startsWith('/settings'),
-    chips: ['检查 API 状态', '数据覆盖范围'],
+    chipKeys: ['chatpanel.chip.settings.apiStatus', 'chatpanel.chip.settings.coverage'],
   },
 ]
 
@@ -262,8 +273,8 @@ export function AiChatTab({
   const location = useLocation()
   const routeChips = useMemo((): string[] => {
     const match = ROUTE_CHIP_PATTERNS.find((p) => p.test(location.pathname))
-    return match ? match.chips : []
-  }, [location.pathname])
+    return match ? match.chipKeys.map((k) => t(k)) : []
+  }, [location.pathname, t])
 
   // ── Handle expand toggle for collapsed state ─────────────────
   const handleExpandToggle = useCallback(() => {
@@ -392,14 +403,14 @@ function AiPanelHeader({
           letterSpacing: '0.05em',
         }}
       >
-        {ticker ?? '探索'}
+        {ticker ?? t('chat.title.explore')}
       </span>
 
       {/* Model badge (read-only — model configured in Settings) */}
       <span
         data-testid="model-selector"
         className="ai-model"
-        title="模型在 Settings 中配置"
+        title={t('chatpanel.model.configuredInSettings')}
         style={{ cursor: 'default' }}
       >
         {MODELS.find((m) => m.value === modelValue)?.label ?? modelValue}
@@ -804,7 +815,7 @@ function AiInputArea({
         >
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {error.message.includes('context') || error.message.includes('token')
-              ? '对话过长，请开启新对话。'
+              ? t('chat.error.context')
               : t('chat.error.generic')}
           </span>
           {hasMessages && (
@@ -839,7 +850,7 @@ function AiInputArea({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="向 FinRobot 提问 · ↵ 发送 · ⇧↵ 换行"
+          placeholder={t('chat.input.placeholder')}
           rows={2}
           disabled={isLoading}
           aria-label={t('chat.input.placeholder')}
@@ -899,9 +910,9 @@ function AiInputArea({
                 cursor: isEmpty || isOverLimit ? 'not-allowed' : 'pointer',
               }}
               type="button"
-              title="发送 (↵ · Shift+↵ 换行)"
+              title={t('chatpanel.send.title')}
             >
-              发送
+              {t('chat.send')}
               <span className="kbd">↵</span>
             </button>
           )}

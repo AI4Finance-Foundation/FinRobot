@@ -20,16 +20,18 @@ import { DashboardSkeleton } from './DashboardSkeleton'
 import { SecIdentityBanner } from './SecIdentityBanner'
 import { SplineHero } from '../../components/SplineHero'
 import { useQuotesWarmed } from '../../hooks/useQuotesWarmed'
+import { useI18n, tSync } from '../../i18n'
 
-const TAGLINES = [
-  '确定性计算 · LLM 叙事',
-  'NUMBER FIRST · NARRATIVE SECOND',
-  'AI ANALYST · 持续工作中',
-  '每一个数字 · 都能追溯到函数调用',
+const TAGLINE_KEYS = [
+  'landing.hero.tagline1',
+  'landing.hero.tagline2',
+  'landing.hero.tagline3',
+  'landing.hero.tagline4',
 ] as const
 
 export function StocksLandingHero(): React.ReactElement {
   const navigate = useNavigate()
+  const { t } = useI18n()
 
   const [inputValue, setInputValue] = useState('')
   const [inputError, setInputError] = useState('')
@@ -53,7 +55,7 @@ export function StocksLandingHero(): React.ReactElement {
       const sym = inputValue.trim().toUpperCase()
       if (!sym) return
       if (!isValidTicker(sym)) {
-        setInputError('代码格式不对 · 用 1-12 个字母 / 数字 / .-')
+        setInputError(tSync('landing.hero.invalidTicker'))
         return
       }
       navigate(`/stocks/${sym}`)
@@ -129,9 +131,9 @@ export function StocksLandingHero(): React.ReactElement {
             textShadow: 'var(--glow-cyan)',
           }}
         >
-          {TAGLINES.map((t, i) => (
+          {TAGLINE_KEYS.map((key, i) => (
             <span
-              key={t}
+              key={key}
               style={{
                 position: 'absolute',
                 inset: 0,
@@ -143,7 +145,7 @@ export function StocksLandingHero(): React.ReactElement {
                 opacity: 0,
               }}
             >
-              {t}
+              {t(key)}
             </span>
           ))}
         </div>
@@ -189,7 +191,7 @@ export function StocksLandingHero(): React.ReactElement {
               type="text"
               value={inputValue}
               onChange={handleInput}
-              placeholder="输入股票代码 · AAPL / NVDA / TSLA"
+              placeholder={t('landing.hero.searchPlaceholder')}
               maxLength={12}
               aria-label="Ticker symbol"
               aria-describedby={inputError ? 'ticker-error' : undefined}
@@ -218,7 +220,7 @@ export function StocksLandingHero(): React.ReactElement {
                 cursor: inputValue.trim() ? 'pointer' : 'not-allowed',
               }}
             >
-              分析
+              {t('landing.hero.analyze')}
             </button>
           </div>
         </div>

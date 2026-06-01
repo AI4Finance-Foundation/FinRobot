@@ -1,4 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
+import { tSync } from '../i18n'
 
 interface Props {
   children: ReactNode
@@ -38,7 +39,7 @@ export class ErrorBoundary extends Component<Props, State> {
             justifyContent: 'center',
           }}
         >
-          <h2>页面渲染出错</h2>
+          <h2>{tSync('shell.error.renderFailed')}</h2>
           <p style={{ color: 'var(--negative)', maxWidth: 600, wordBreak: 'break-word' }}>
             {this.state.error?.message}
           </p>
@@ -54,7 +55,7 @@ export class ErrorBoundary extends Component<Props, State> {
               cursor: 'pointer',
             }}
           >
-            重试
+            {tSync('common.retry')}
           </button>
         </div>
       )

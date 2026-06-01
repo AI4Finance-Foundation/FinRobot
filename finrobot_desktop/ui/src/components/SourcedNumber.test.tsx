@@ -175,7 +175,7 @@ describe('SourcedNumber', () => {
     })
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    const link = screen.getByText(/打开完整研报/) as HTMLAnchorElement
+    const link = screen.getByText(/Open full report/) as HTMLAnchorElement
     expect(link).toBeInTheDocument()
     expect(link.getAttribute('href')).toBe('/stocks/AAPL/runs/art_2026-05-13_AAPL_dcf')
   })

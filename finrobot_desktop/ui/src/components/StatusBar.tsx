@@ -1,9 +1,11 @@
 // StatusBar — terminal-style: connected indicator + data source + version.
 
 import { useLocation } from 'react-router-dom'
+import { useI18n } from '../i18n'
 
 export default function StatusBar(): React.ReactElement {
   const location = useLocation()
+  const { t } = useI18n()
 
   const tickerMatch = location.pathname.match(/\/stocks\/([A-Z0-9.]+)/i)
   const ticker = tickerMatch ? tickerMatch[1].toUpperCase() : null
@@ -13,12 +15,12 @@ export default function StatusBar(): React.ReactElement {
       {/* Left: connection status */}
       <div className="sb-section sb-left">
         <span className="sb-pulse-dot" />
-        <span className="sb-text">已连接</span>
+        <span className="sb-text">{t('shell.status.connected')}</span>
       </div>
 
       {/* Center: data source info */}
       <div className="sb-section sb-center">
-        <span className="sb-text">YFINANCE + FMP · 延迟15分钟</span>
+        <span className="sb-text">YFINANCE + FMP · {t('shell.status.delay15min')}</span>
       </div>
 
       {/* Right: version + optional ticker */}

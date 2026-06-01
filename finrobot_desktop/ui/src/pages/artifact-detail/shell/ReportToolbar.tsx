@@ -229,11 +229,11 @@ export function ReportToolbar({
         disabled={reportType !== 'equity_research' || !onOpenIcDebate}
         title={
           reportType !== 'equity_research'
-            ? '仅支持股票研报（Equity Research）'
-            : '在投委会对此研报进行多空辩论'
+            ? t('report.toolbar.icDebateOnlyEquity')
+            : t('report.toolbar.icDebateTitle')
         }
       >
-        ⚖ 投委会
+        ⚖ {t('report.toolbar.icDebate')}
       </ToolbarButton>
     </div>
   )

@@ -8,19 +8,21 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { IconTrendingUp, IconSettings, IconScale } from '../lib/icons'
 import { useRunStreamStore } from '../stores/runStreamStore'
 import { useNavMemoryStore } from '../stores/navMemoryStore'
+import { useI18n } from '../i18n'
 
 interface NavItem {
-  label: string
+  /** i18n key resolved at render time via useI18n. */
+  labelKey: string
   path: string
   Icon: typeof IconTrendingUp
 }
 
 const TOP_NAV: NavItem[] = [
-  { label: '个股', path: '/stocks', Icon: IconTrendingUp },
-  { label: '投委会', path: '/ic', Icon: IconScale },
+  { labelKey: 'nav.stocks', path: '/stocks', Icon: IconTrendingUp },
+  { labelKey: 'shell.sidebar.ic', path: '/ic', Icon: IconScale },
 ]
 
-const BOTTOM_NAV: NavItem[] = [{ label: '设置', path: '/settings', Icon: IconSettings }]
+const BOTTOM_NAV: NavItem[] = [{ labelKey: 'nav.settings', path: '/settings', Icon: IconSettings }]
 
 const SIDEBAR_W = 64
 const ICON_BOX = 44
@@ -132,7 +134,10 @@ interface SideIconProps {
 }
 
 function SideIcon({ item, active, badge, onClick }: SideIconProps): React.ReactElement {
-  const { Icon, label } = item
+  const { Icon, labelKey } = item
+  const { t } = useI18n()
+  const label = t(labelKey)
+  const runningLabel = t('shell.sidebar.runningCount', { count: badge })
 
   return (
     <button
@@ -140,7 +145,7 @@ function SideIcon({ item, active, badge, onClick }: SideIconProps): React.ReactE
       onClick={(e) => onClick(e)}
       aria-label={label}
       aria-current={active ? 'page' : undefined}
-      title={badge > 0 ? `${label} · ${badge} 个分析进行中` : label}
+      title={badge > 0 ? `${label} · ${runningLabel}` : label}
       style={{
         position: 'relative',
         width: ICON_BOX,
@@ -187,7 +192,7 @@ function SideIcon({ item, active, badge, onClick }: SideIconProps): React.ReactE
       <Icon size={18} />
       {badge > 0 && (
         <span
-          aria-label={`${badge} 个分析进行中`}
+          aria-label={runningLabel}
           style={{
             position: 'absolute',
             top: 4,

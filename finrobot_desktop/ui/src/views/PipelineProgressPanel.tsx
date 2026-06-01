@@ -12,43 +12,21 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRunStreamStore } from '../stores/runStreamStore'
 import { useLatestArtifact } from '../hooks/useV5Artifacts'
+import { useI18n, tSync } from '../i18n'
 
 // Backend Pipeline.max_retries — mirrored here only to render "重试中 n/3".
 const MAX_RETRIES = 3
 
-const STEP_LABELS: Record<string, { label: string; help: string }> = {
-  data_collection: {
-    label: '数据收集',
-    help: '拉取 10-K / 10-Q / 价格 / 新闻',
-  },
-  catalyst_analysis: {
-    label: '催化剂识别',
-    help: '新闻分类 + 事件提取 + 影响打分',
-  },
-  peer_analysis: {
-    label: '同业对标',
-    help: '5 家可比公司财务比较',
-  },
-  financial_modeling: {
-    label: '财务建模',
-    help: 'DCF 蒙特卡洛 + Comps + 敏感性',
-  },
-  ownership_governance_analysis: {
-    label: '股权与治理',
-    help: '内部人交易 + 机构持仓 + 高管薪酬',
-  },
-  technical_analysis: {
-    label: '技术与高阶',
-    help: '蒙特卡洛 + 狙击位 + 价格走势',
-  },
-  thesis: {
-    label: '投资论点',
-    help: '生成 target_price + 风险因素',
-  },
-  report: {
-    label: '整合报告',
-    help: '13 章研报 + LLM 叙事',
-  },
+// Backend step names → i18n key suffixes. Labels/help resolved via t() at render.
+const STEP_KEYS: Record<string, string> = {
+  data_collection: 'dataCollection',
+  catalyst_analysis: 'catalystAnalysis',
+  peer_analysis: 'peerAnalysis',
+  financial_modeling: 'financialModeling',
+  ownership_governance_analysis: 'ownershipGovernance',
+  technical_analysis: 'technicalAnalysis',
+  thesis: 'thesis',
+  report: 'report',
 }
 
 interface PipelineProgressPanelProps {
@@ -61,6 +39,7 @@ export function PipelineProgressPanel({
   const run = useRunStreamStore((s) => s.runs[ticker])
   const dismiss = useRunStreamStore((s) => s.dismiss)
   const navigate = useNavigate()
+  const { t } = useI18n()
   // Pull the freshly-invalidated latest artifact so the "→ 打开研报" CTA can
   // route directly into the report view that just got generated.
   const { latest } = useLatestArtifact(ticker, 'equity_research')
@@ -147,23 +126,26 @@ export function PipelineProgressPanel({
           />
           <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
             {run.status === 'completed'
-              ? `${labelForPipeline(run.pipelineType)} · 完成`
+              ? t('workspace.pipeline.statusDone', { name: labelForPipeline(run.pipelineType) })
               : run.status === 'failed'
-                ? `${labelForPipeline(run.pipelineType)} · 失败`
-                : `正在生成 ${labelForPipeline(run.pipelineType)}`}
+                ? t('workspace.pipeline.statusFailed', { name: labelForPipeline(run.pipelineType) })
+                : t('workspace.pipeline.statusGenerating', {
+                    name: labelForPipeline(run.pipelineType),
+                  })}
           </span>
           {run.status === 'running' && (
             <span
               style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
             >
-              · 已运行 {runElapsed}s{eta ? ` · 还剩 ~${eta}s` : ''}
+              {t('workspace.pipeline.elapsed', { s: runElapsed ?? 0 })}
+              {eta ? t('workspace.pipeline.eta', { s: eta }) : ''}
             </span>
           )}
           {run.status === 'completed' && totalDuration > 0 && (
             <span
               style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
             >
-              · 总耗时 {totalDuration.toFixed(1)}s
+              {t('workspace.pipeline.totalDuration', { s: totalDuration.toFixed(1) })}
             </span>
           )}
         </div>
@@ -195,7 +177,7 @@ export function PipelineProgressPanel({
                 letterSpacing: '0.04em',
               }}
             >
-              → 打开研报
+              {t('workspace.pipeline.openReport')}
             </button>
           )}
           {(run.status === 'completed' || run.status === 'failed') && (
@@ -213,7 +195,7 @@ export function PipelineProgressPanel({
                 border: '1px solid var(--border-soft)',
                 cursor: 'pointer',
               }}
-              aria-label="关闭进度面板"
+              aria-label={t('workspace.pipeline.dismissAria')}
             >
               ✕
             </button>
@@ -247,7 +229,13 @@ export function PipelineProgressPanel({
 
       <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 4 }}>
         {run.steps.map((step, idx) => {
-          const meta = STEP_LABELS[step.name] || { label: step.name, help: '' }
+          const keySuffix = STEP_KEYS[step.name]
+          const meta = keySuffix
+            ? {
+                label: t(`workspace.pipeline.step.${keySuffix}.label`),
+                help: t(`workspace.pipeline.step.${keySuffix}.help`),
+              }
+            : { label: step.name, help: '' }
           const isRunning = step.status === 'running' || step.status === 'retrying'
           return (
             <li
@@ -294,7 +282,10 @@ export function PipelineProgressPanel({
                 <span style={numStyle}>{step.duration_s.toFixed(1)}s</span>
               ) : step.status === 'retrying' ? (
                 <span style={{ ...numStyle, color: 'var(--warning)' }}>
-                  重试中 {step.attempt ?? 1}/{MAX_RETRIES}
+                  {t('workspace.pipeline.retrying', {
+                    attempt: step.attempt ?? 1,
+                    max: MAX_RETRIES,
+                  })}
                   {stepElapsed(step) !== null ? ` · ${stepElapsed(step)}s` : ''}
                 </span>
               ) : step.status === 'running' && stepElapsed(step) !== null ? (
@@ -306,14 +297,16 @@ export function PipelineProgressPanel({
       </ol>
 
       <p style={{ marginTop: 12, fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
-        数字由代码算出，不是 LLM 编 · 任一步骤失败整份研报重新生成
+        {t('workspace.pipeline.footer')}
       </p>
       {run.status === 'failed' && (
         <p
           data-testid="pipeline-failed"
           style={{ marginTop: 8, fontSize: 12, color: 'var(--danger)' }}
         >
-          ⚠️ 研报生成失败 · {run.error ?? '请稍后重试'}
+          {t('workspace.pipeline.failedMsg', {
+            error: run.error ?? t('workspace.pipeline.retryLater'),
+          })}
         </p>
       )}
     </div>
@@ -389,19 +382,19 @@ function labelForPipeline(pipelineType: string): string {
   // 这里的 key 是 pipeline 注册名（registry.py），不是 artifact.type。
   switch (pipelineType) {
     case 'research':
-      return 'AI 完整研报'
+      return tSync('workspace.pipeline.type.research')
     case 'ic-memo':
-      return '投委备忘'
+      return tSync('workspace.pipeline.type.icMemo')
     case 'earnings':
-      return '财报电话会分析'
+      return tSync('workspace.pipeline.type.earnings')
     case 'lbo':
-      return 'LBO 估值'
+      return tSync('workspace.pipeline.type.lbo')
     case 'ddm':
-      return '股息折现'
+      return tSync('workspace.pipeline.type.ddm')
     case 'comps':
-      return '同业对标'
+      return tSync('workspace.pipeline.type.comps')
     case 'dcf':
-      return 'DCF 估值'
+      return tSync('workspace.pipeline.type.dcf')
     default:
       return pipelineType
   }

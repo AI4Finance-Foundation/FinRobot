@@ -9,6 +9,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
+import { useI18n } from '../i18n'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -70,6 +71,7 @@ function formatFetchedAt(iso: string | undefined): string {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function SourcedNumber({ value, source, format, className }: SourcedNumberProps) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLSpanElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -213,17 +215,19 @@ export function SourcedNumber({ value, source, format, className }: SourcedNumbe
         <div
           ref={popoverRef}
           role="dialog"
-          aria-label="数据来源"
+          aria-label={t('sourced.title')}
           style={popoverStyle}
           onMouseEnter={handlePopoverMouseEnter}
           onMouseLeave={handlePopoverMouseLeave}
         >
-          <ProvRow label="来源" value={source.provider ?? '未知'} />
+          <ProvRow label={t('sourced.provider')} value={source.provider ?? t('sourced.unknown')} />
           {source.fetched_at && (
-            <ProvRow label="抓取时间" value={formatFetchedAt(source.fetched_at)} />
+            <ProvRow label={t('sourced.fetchedAt')} value={formatFetchedAt(source.fetched_at)} />
           )}
-          {source.formula_id && <ProvRow label="公式" value={source.formula_id} mono />}
-          {source.formula_warning && <ProvRow label="警告" value={source.formula_warning} warn />}
+          {source.formula_id && <ProvRow label={t('sourced.formula')} value={source.formula_id} mono />}
+          {source.formula_warning && (
+            <ProvRow label={t('sourced.warning')} value={source.formula_warning} warn />
+          )}
           {source.artifact_id && ticker && (
             <div style={{ marginTop: 8 }}>
               <a
@@ -236,7 +240,7 @@ export function SourcedNumber({ value, source, format, className }: SourcedNumbe
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
-                打开完整研报 →
+                {t('sourced.openReport')}
               </a>
             </div>
           )}

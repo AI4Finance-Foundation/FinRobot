@@ -14,7 +14,7 @@ import {
   type FinancialsData,
   type Technicals,
 } from '../../hooks/useTickerData'
-import { tSync } from '../../i18n'
+import { useI18n, tSync } from '../../i18n'
 import { PriceTrendChart } from '../../components/charts/PriceTrendChart'
 
 interface MarketDataZoneProps {
@@ -25,28 +25,29 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
   const { data: price } = useTickerPrice(ticker)
   const { data: fin } = useTickerFinancials(ticker)
   const { data: catalysts } = useTickerCatalysts(ticker)
+  const { t } = useI18n()
 
   return (
     <section data-testid="market-data-zone">
       <ZoneHeader />
-      <p style={zoneDesc}>来源 yfinance / SEC EDGAR / FMP · 实时拉，跟 AI 研报互不依赖。</p>
+      <p style={zoneDesc}>{t('workspace.market.zoneDesc')}</p>
 
       {/* 行情快照 */}
-      <MktCard title="📊 行情快照" liveTag={providerTag(fin?.data_source)}>
+      <MktCard title={t('workspace.market.snapshot')} liveTag={providerTag(fin?.data_source)}>
         <Kv4
           cells={[
-            { label: '市值', value: fmtMc(fin?.market?.market_cap) },
+            { label: t('workspace.market.marketCap'), value: fmtMc(fin?.market?.market_cap) },
             { label: 'P/E (TTM)', value: fmt(fin?.market?.pe_ratio, 1) },
             {
               label: 'EV/EBITDA',
               value: fmt(fin?.valuation?.ev_ebitda, 1),
               sub:
                 typeof fin?.valuation?.ev_ebitda_reported === 'number'
-                  ? `街口径 ${fin.valuation.ev_ebitda_reported.toFixed(1)}`
+                  ? t('workspace.market.streetCaliber', {
+                      v: fin.valuation.ev_ebitda_reported.toFixed(1),
+                    })
                   : undefined,
-              subTitle:
-                '主显=营业口径 EV/EBITDA（EBITDA=EBIT+D&A）。EV 已扣现金，故不计利息收入。' +
-                '街口径=净利+税+利息+D&A，含利息收入，多数零售源用这个。',
+              subTitle: t('workspace.market.evEbitdaCaliber'),
             },
             {
               label: 'Beta (5Y)',
@@ -60,24 +61,26 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
       </MktCard>
 
       {/* Price chart */}
-      <MktCard title="📈 价格趋势" liveTag={providerTag(price?.data_source)}>
+      <MktCard title={t('workspace.market.priceTrend')} liveTag={providerTag(price?.data_source)}>
         <PriceTrendChart points={price?.history ?? null} />
         <TechnicalsStrip tech={price?.technicals} />
       </MktCard>
 
       {/* Financial TTM */}
-      <MktCard title="💰 财务指标 · TTM" liveTag={providerTag(fin?.data_source)}>
+      <MktCard title={t('workspace.market.financialsTtm')} liveTag={providerTag(fin?.data_source)}>
         <Kv4
           cells={[
-            { label: '营收 TTM', value: fmtMc(fin?.income?.revenue) },
+            { label: t('workspace.market.revenueTtm'), value: fmtMc(fin?.income?.revenue) },
             {
               label: 'EBITDA',
               value: fmtMc(fin?.income?.ebitda),
               sub:
                 typeof fin?.valuation?.ebitda_reported === 'number'
-                  ? `街口径 ${fmtMc(fin.valuation.ebitda_reported)}`
+                  ? t('workspace.market.streetCaliber', {
+                      v: fmtMc(fin.valuation.ebitda_reported),
+                    })
                   : undefined,
-              subTitle: '主显=营业口径 EBITDA（EBIT+D&A）。街口径=净利+税+利息+D&A，含利息收入。',
+              subTitle: t('workspace.market.ebitdaCaliber'),
             },
             {
               label: 'Net Income',
@@ -96,7 +99,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
       </MktCard>
 
       {/* Catalyst calendar */}
-      <MktCard title="📅 催化剂日历">
+      <MktCard title={t('workspace.market.catalystCalendar')}>
         {catalysts && catalysts.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {catalysts.slice(0, 5).map((c, i) => (
@@ -122,7 +125,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {c.headline ?? '(未命名事件)'}
+                  {c.headline ?? t('workspace.market.unnamedEvent')}
                 </span>
                 <span
                   style={{
@@ -144,7 +147,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
             ))}
           </div>
         ) : (
-          <Empty>暂无近期事件 · 财报 / 产品发布 / 监管</Empty>
+          <Empty>{t('workspace.market.noCatalysts')}</Empty>
         )}
       </MktCard>
     </section>
@@ -152,6 +155,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
 }
 
 function ZoneHeader(): React.ReactElement {
+  const { t } = useI18n()
   return (
     <div
       style={{
@@ -172,7 +176,7 @@ function ZoneHeader(): React.ReactElement {
           textShadow: '0 0 12px var(--glow-amber-soft)',
         }}
       >
-        📊 市场数据
+        {t('workspace.market.zoneTitle')}
       </span>
       <span
         style={{
@@ -346,10 +350,16 @@ function providerTag(src: string | null | undefined): string | undefined {
 
 // Degradation flags from the backend normalization layer (ADR-0004). Surfaced
 // so a fallback (close-only history, stale TTM, inferred currency) is visible.
-const DEGRADED_LABELS: Record<string, string> = {
-  close_only: '仅收盘价 · 52周高低用收盘价',
-  ttm_lag: 'TTM 落后 · 分母非最新季',
-  ccy_inferred: '币种推断 · 非财报直接标注',
+// i18n key suffix per flag; the human label resolves via t() at render.
+const DEGRADED_KEYS: Record<string, string> = {
+  close_only: 'closeOnly',
+  ttm_lag: 'ttmLag',
+  ccy_inferred: 'ccyInferred',
+}
+
+function degradedLabel(t: (k: string) => string, flag: string): string {
+  const suffix = DEGRADED_KEYS[flag]
+  return suffix ? t(`workspace.market.degraded.${suffix}`) : flag
 }
 
 function ProvenanceFootnote({
@@ -359,13 +369,14 @@ function ProvenanceFootnote({
   provenance?: FinancialsData['provenance']
   showPeriodEnd?: boolean
 }): React.ReactElement | null {
+  const { t } = useI18n()
   if (!provenance) return null
   const provider = provenance.provider
   const periodEnd = provenance.as_of
   const degraded = provenance.degraded ?? []
   const parts: string[] = []
-  if (provider) parts.push(`来源 ${provider}`)
-  if (showPeriodEnd && periodEnd) parts.push(`TTM 截至 ${periodEnd}`)
+  if (provider) parts.push(t('workspace.market.source', { provider }))
+  if (showPeriodEnd && periodEnd) parts.push(t('workspace.market.ttmAsOf', { date: periodEnd }))
   if (parts.length === 0 && degraded.length === 0) return null
   return (
     <div
@@ -385,7 +396,7 @@ function ProvenanceFootnote({
       {degraded.map((d) => (
         <span
           key={d}
-          title={DEGRADED_LABELS[d] ?? d}
+          title={degradedLabel(t, d)}
           style={{
             color: 'var(--accent-amber)',
             border: '1px solid var(--border-amber-soft)',
@@ -394,7 +405,7 @@ function ProvenanceFootnote({
             fontSize: 9,
           }}
         >
-          ⚠ {DEGRADED_LABELS[d] ?? d}
+          ⚠ {degradedLabel(t, d)}
         </span>
       ))}
     </div>
@@ -405,13 +416,14 @@ function ProvenanceFootnote({
 // + a 52-week range bar with the current-price marker. Numbers come straight
 // from the deterministic technical_payload (SMA close-based, 52w intraday) — no
 // client-side recompute, so what's shown matches the engine and the chart.
-const TREND_META: Record<string, { label: string; color: string }> = {
-  uptrend: { label: '↑ 多头排列', color: 'var(--success)' },
-  downtrend: { label: '↓ 空头排列', color: 'var(--danger)' },
-  sideways: { label: '→ 盘整', color: 'var(--text-muted)' },
+const TREND_META: Record<string, { labelKey: string; color: string }> = {
+  uptrend: { labelKey: 'workspace.market.trend.uptrend', color: 'var(--success)' },
+  downtrend: { labelKey: 'workspace.market.trend.downtrend', color: 'var(--danger)' },
+  sideways: { labelKey: 'workspace.market.trend.sideways', color: 'var(--text-muted)' },
 }
 
 export function TechnicalsStrip({ tech }: { tech?: Technicals }): React.ReactElement | null {
+  const { t } = useI18n()
   if (!tech) return null
   if (!tech.available) {
     return (
@@ -424,8 +436,8 @@ export function TechnicalsStrip({ tech }: { tech?: Technicals }): React.ReactEle
         }}
       >
         {tech.reason === 'insufficient_history'
-          ? '趋势数据不足（不足 20 个交易日）'
-          : '趋势数据暂不可用'}
+          ? t('workspace.market.trendInsufficient')
+          : t('workspace.market.trendUnavailable')}
       </p>
     )
   }
@@ -450,7 +462,7 @@ export function TechnicalsStrip({ tech }: { tech?: Technicals }): React.ReactEle
             letterSpacing: '0.04em',
           }}
         >
-          {meta.label}
+          {t(meta.labelKey)}
         </span>
         <span style={{ display: 'flex', gap: 12, marginLeft: 'auto' }}>
           {(['sma20', 'sma50', 'sma200'] as const).map((k) => (
@@ -476,7 +488,10 @@ export function TechnicalsStrip({ tech }: { tech?: Technicals }): React.ReactEle
             }}
           >
             <span
-              title={`现价 ${fmtPrice(tech.current_price)} · 区间位置 ${(pos * 100).toFixed(0)}%`}
+              title={t('workspace.market.rangeMarker', {
+                price: fmtPrice(tech.current_price),
+                pct: (pos * 100).toFixed(0),
+              })}
               style={{
                 position: 'absolute',
                 top: '50%',
@@ -500,9 +515,11 @@ export function TechnicalsStrip({ tech }: { tech?: Technicals }): React.ReactEle
               color: 'var(--text-muted)',
             }}
           >
-            <span>52W低 {fmtPrice(tech.low_52w)}</span>
-            <span style={{ color: 'var(--accent-cyan)' }}>区间 {(pos * 100).toFixed(0)}%</span>
-            <span>52W高 {fmtPrice(tech.high_52w)}</span>
+            <span>{t('workspace.market.low52w', { v: fmtPrice(tech.low_52w) })}</span>
+            <span style={{ color: 'var(--accent-cyan)' }}>
+              {t('workspace.market.range', { pct: (pos * 100).toFixed(0) })}
+            </span>
+            <span>{t('workspace.market.high52w', { v: fmtPrice(tech.high_52w) })}</span>
           </div>
         </div>
       )}

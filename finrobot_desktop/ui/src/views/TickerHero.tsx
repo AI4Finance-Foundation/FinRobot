@@ -14,7 +14,7 @@
 import { useTickerPrice } from '../hooks/useTickerData'
 import { WorkspaceBreadcrumb } from './workspace/WorkspaceBreadcrumb'
 import { formatAge, freshnessColor, freshnessTier } from '../utils/format'
-import { useI18n } from '../i18n'
+import { useI18n, tSync } from '../i18n'
 
 interface Props {
   ticker: string
@@ -48,7 +48,10 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
   const isClosed = price?.session_state === 'closed'
   const pillDotColor = isClosed ? 'var(--warning)' : freshnessColor(ageSeconds)
   // slice(5, 10) bounds to MM-DD even if as_of ever carries a time component.
-  const pillLabel = isClosed && asOf ? `收盘 · ${asOf.slice(5, 10)}` : `${tierLabel} · ${ageText}`
+  const pillLabel =
+    isClosed && asOf
+      ? t('workspace.hero.closedAsOf', { date: asOf.slice(5, 10) })
+      : `${tierLabel} · ${ageText}`
 
   return (
     <header
@@ -157,7 +160,7 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
  * (which we don't really support yet) don't show a confusing code.
  */
 function formatExchange(raw: string | null | undefined): string {
-  if (!raw) return '美股'
+  if (!raw) return tSync('workspace.hero.usMarket')
   const lower = raw.toLowerCase()
   if (lower.includes('nasdaq') || lower === 'nms' || lower === 'ngm' || lower === 'ncm')
     return 'NASDAQ'

@@ -12,6 +12,7 @@ vi.mock('../i18n', async () => {
     ...actual,
     tSync: (key: string, params?: Record<string, unknown>) => {
       const n = params?.n ?? ''
+      const date = params?.date ?? ''
       const map: Record<string, string> = {
         'marketdata.age.justNow': '刚刚',
         'marketdata.age.sAgo': `${n}s 前`,
@@ -20,6 +21,8 @@ vi.mock('../i18n', async () => {
         'marketdata.tier.fresh': '近实时',
         'marketdata.tier.delayed': '延迟',
         'marketdata.tier.stale': '陈旧',
+        'workspace.hero.usMarket': '美股',
+        'workspace.hero.closedAsOf': `收盘 · ${date}`,
       }
       return map[key] ?? key
     },
@@ -27,6 +30,7 @@ vi.mock('../i18n', async () => {
       locale: 'zh',
       t: (key: string, params?: Record<string, unknown>) => {
         const n = params?.n ?? ''
+        const date = params?.date ?? ''
         const map: Record<string, string> = {
           'marketdata.age.justNow': '刚刚',
           'marketdata.age.sAgo': `${n}s 前`,
@@ -35,6 +39,8 @@ vi.mock('../i18n', async () => {
           'marketdata.tier.fresh': '近实时',
           'marketdata.tier.delayed': '延迟',
           'marketdata.tier.stale': '陈旧',
+          'workspace.hero.usMarket': '美股',
+          'workspace.hero.closedAsOf': `收盘 · ${date}`,
         }
         return map[key] ?? key
       },

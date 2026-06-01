@@ -28,11 +28,13 @@ import { TickerNotFoundView } from './workspace/TickerNotFoundView'
 import { TickerHero } from './TickerHero'
 import { MarketDataZone } from './workspace/MarketDataZone'
 import { AIZone } from './workspace/AIZone'
+import { useI18n } from '../i18n'
 
 export function StockWorkspace(): React.ReactElement {
   const { ticker } = useParams<{ ticker: string }>()
   const symbol = (ticker || '').toUpperCase()
   const location = useLocation()
+  const { t } = useI18n()
 
   // Remember this path so the sidebar can restore context after the user
   // detours through /settings or any other top-level section.
@@ -74,18 +76,18 @@ export function StockWorkspace(): React.ReactElement {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       addToast({
         type: 'success',
-        title: `${symbol} 研报完成`,
-        description: '完整 13 章研报已生成，点击右侧 AI 区"打开完整研报"查看',
+        title: t('workspace.toast.reportDone', { ticker: symbol }),
+        description: t('workspace.toast.reportDoneDesc'),
       })
     } else if (runState.status === 'failed') {
       lastNotifiedRunIdRef.current = runId
       addToast({
         type: 'error',
-        title: `${symbol} 研报失败`,
-        description: runState.error ?? '请稍后重试',
+        title: t('workspace.toast.reportFailed', { ticker: symbol }),
+        description: runState.error ?? t('workspace.toast.retryLater'),
       })
     }
-  }, [runState?.runId, runState?.status, runState?.error, symbol, addToast, queryClient])
+  }, [runState?.runId, runState?.status, runState?.error, symbol, addToast, queryClient, t])
 
   // Gate: validate ticker via useTickerPrice before rendering the workspace
   // shell. Status code is the protocol; UI never matches on Chinese detail.
@@ -108,7 +110,7 @@ export function StockWorkspace(): React.ReactElement {
   if (!symbol) {
     return (
       <div style={{ padding: 48, color: 'var(--text-faint)' }}>
-        缺少股票代码，请通过搜索或自选股进入。
+        {t('workspace.missingTicker')}
       </div>
     )
   }

@@ -83,19 +83,14 @@ class TestArchitecturalRedLines:
             f"Found: {offenders}"
         )
 
-    def test_sec_holdings_refresh_not_inline_in_lifespan(self):
-        """Startup must not run the 13F refresh coroutine in the web process.
-
-        Full-quarter 13F parsing is sync-heavy edgartools work. If the lifespan
-        task awaits it inline, the sidecar's 30-second /health probe can time
-        out even though Uvicorn technically started.
-        """
-        from pathlib import Path
-
-        server_path = Path(__file__).resolve().parents[2] / "finrobot" / "server.py"
-        source = server_path.read_text()
-        assert "_refresh_quarter" not in source
-        assert "asyncio.create_subprocess_exec" in source
+    # The 13F-refresh "don't block the lifespan" red line lives in
+    # tests/audit/test_architecture.py::TestEventLoopNotBlocked. That guard is
+    # AST-based and accepts any off-loop offload (asyncio.to_thread /
+    # run_in_executor / subprocess). A former textual twin here mandated
+    # `asyncio.create_subprocess_exec` specifically — which the frozen desktop
+    # sidecar cannot use (sys.executable is the bundled binary, no repo tree),
+    # so the parse is offloaded via asyncio.to_thread instead. Removed to keep
+    # one authoritative invariant rather than two that drift apart.
 
     def test_tauri_sidecar_does_not_enable_python_reload_by_default(self):
         """Desktop startup must not pay the uvicorn reloader/watchdog cost."""

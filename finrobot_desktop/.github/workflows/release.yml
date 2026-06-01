@@ -1,0 +1,68 @@
+name: Release
+
+# Build the macOS desktop bundle and attach it to a GitHub Release.
+# Triggered by pushing a version tag (e.g. `git tag v0.1.0 && git push --tags`)
+# or manually from the Actions tab.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  desktop-macos:
+    # macos-14 is Apple Silicon → produces the aarch64-apple-darwin sidecar +
+    # .dmg. Add an x86_64 runner here later for Intel coverage.
+    runs-on: macos-14
+    permissions:
+      contents: write # create the release and upload the .dmg
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        working-directory: ui
+        run: npm ci
+
+      - name: Freeze Python sidecar
+        # Must run before `tauri build` so binaries/finrobot-server-<triple>
+        # exists for Tauri's externalBin matcher to bundle.
+        run: |
+          uv sync --extra package
+          bash src-tauri/sidecar/build.sh
+
+      - name: Build, bundle, and publish
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GitHub runners already export CI=true, which makes Tauri's
+          # bundle_dmg.sh skip the AppleScript Finder step (it would hang
+          # headless). Set explicitly to be safe.
+          CI: "true"
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "FinRobot ${{ github.ref_name }}"
+          releaseBody: |
+            Unsigned macOS (Apple Silicon) build.
+
+            First open is blocked by Gatekeeper — right-click the app → **Open**,
+            or run once:
+            `xattr -dr com.apple.quarantine /Applications/FinRobot.app`
+
+            On first run, open **Settings** and paste your own LLM API key.
+          releaseDraft: true
+          prerelease: false

@@ -1,8 +1,8 @@
 //! Python sidecar lifecycle manager.
 //!
 //! Spawns the bundled `finrobot-server` binary via `tauri-plugin-shell`,
-//! waits up to 30 seconds for `/health` to return 200, and returns the
-//! `CommandChild` handle so the caller can kill it on exit.
+//! waits up to `READINESS_TIMEOUT_SECS` for `/health` to return 200, and
+//! returns the `CommandChild` handle so the caller can kill it on exit.
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -15,6 +15,16 @@ use tauri_plugin_shell::{process::CommandEvent, ShellExt};
 /// post-mortem reporting when the sidecar fails to become ready.
 const STDERR_RING_CAPACITY: usize = 50;
 
+/// How long to wait for the sidecar's `/health` to return 200 before giving up.
+///
+/// The sidecar is a PyInstaller one-file binary: on launch it unpacks ~140 MB
+/// to a temp dir, then imports a heavy dependency tree (pandas, edgartools,
+/// pydantic-ai) before FastAPI is ready. On the dev machine that is ~10-18 s,
+/// but a slower/older Mac — or one whose antivirus scans the freshly-extracted
+/// files — can take much longer. 30 s was too tight and surfaced as a bogus
+/// "sidecar did not become ready" on exactly the end-user machines we ship to.
+const READINESS_TIMEOUT_SECS: u64 = 90;
+
 /// Spawn the bundled `finrobot-server` sidecar and block until it is ready.
 ///
 /// The sidecar is resolved by Tauri's platform-triple matcher, e.g.
@@ -25,7 +35,7 @@ const STDERR_RING_CAPACITY: usize = 50;
 ///
 /// While the sidecar boots, the most recent `STDERR_RING_CAPACITY` lines of
 /// its stderr are also stashed in a ring buffer. If `/health` does not
-/// respond within 30 seconds, those lines are replayed to our stderr so the
+/// respond in time, those lines are replayed to our stderr so the
 /// user (or the dev) can see the real Python traceback — historically this
 /// information vanished because the Tauri window had no terminal attached
 /// and the only visible failure was the generic "did not become ready"
@@ -35,7 +45,7 @@ const STDERR_RING_CAPACITY: usize = 50;
 ///
 /// Returns an error string if:
 /// - The sidecar binary cannot be found or spawned.
-/// - `/health` does not return 200 within 30 seconds.
+/// - `/health` does not return 200 within `READINESS_TIMEOUT_SECS`.
 pub fn spawn_and_wait_for_ready(
     app: &AppHandle,
 ) -> Result<tauri_plugin_shell::process::CommandChild, String> {
@@ -98,7 +108,7 @@ pub fn spawn_and_wait_for_ready(
     });
 
     // Poll /health until 200 OK or timeout.
-    let deadline = Instant::now() + Duration::from_secs(30);
+    let deadline = Instant::now() + Duration::from_secs(READINESS_TIMEOUT_SECS);
     while Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(500));
         let result = ureq::get("http://127.0.0.1:8321/health")
@@ -131,5 +141,7 @@ pub fn spawn_and_wait_for_ready(
     }
     eprintln!("[sidecar] ----------------------------------------------");
 
-    Err("sidecar did not become ready within 30 seconds".into())
+    Err(format!(
+        "sidecar did not become ready within {READINESS_TIMEOUT_SECS} seconds"
+    ))
 }

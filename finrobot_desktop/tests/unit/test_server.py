@@ -93,18 +93,23 @@ class TestArchitecturalRedLines:
     # one authoritative invariant rather than two that drift apart.
 
     def test_tauri_sidecar_does_not_enable_python_reload_by_default(self):
-        """Desktop startup must not pay the uvicorn reloader/watchdog cost."""
+        """Desktop startup must not pay the uvicorn reloader/watchdog cost.
+
+        The sidecar is a frozen PyInstaller binary; its entry point
+        (src-tauri/sidecar/entry.py) injects the ``serve`` subcommand and hands
+        off to the Click CLI. It must never inject ``--reload`` — that would
+        spin up uvicorn's file-watching reloader inside the shipped desktop app.
+        (The previous artifact was a uv shell shim with a FINROBOT_SERVER_RELOAD
+        opt-in; the frozen sidecar dropped both the shim and the env hook.)
+        """
         from pathlib import Path
 
-        wrapper_path = (
-            Path(__file__).resolve().parents[2]
-            / "src-tauri"
-            / "binaries"
-            / "finrobot-server-shared.sh"
+        entry_path = (
+            Path(__file__).resolve().parents[2] / "src-tauri" / "sidecar" / "entry.py"
         )
-        source = wrapper_path.read_text()
-        assert 'FINROBOT_SERVER_RELOAD:-0' in source
-        assert 'exec uv run finrobot serve "$@"' in source
+        source = entry_path.read_text()
+        assert '"serve"' in source  # the serve subcommand is injected
+        assert "--reload" not in source  # the dev-only reloader is never enabled
 
 
 class TestTranscriptWriterLRU:

@@ -9,6 +9,8 @@
 
 import { SourcedNumber } from '../SourcedNumber'
 import type { DebateEvidenceItem } from '../../stores/debateStore'
+import { useI18n, type Locale } from '../../i18n'
+import { formatNumber } from '../../utils/format'
 
 interface EvidenceChipProps {
   evidenceId: string
@@ -18,7 +20,35 @@ interface EvidenceChipProps {
   artifactId: string | null
 }
 
+/**
+ * Render a raw evidence value for display. The backend sends full-precision
+ * floats (e.g. 341.5839011153877) — the data layer keeps precision, the UI
+ * rounds. Currency prefixes its symbol ($341.58), percent is suffixed with no
+ * space (-15.33%), other units keep a trailing space. Non-numeric evidence
+ * (rare) renders verbatim. Full precision stays available in the SourcedNumber
+ * provenance hover.
+ */
+function formatEvidenceValue(
+  value: number | string,
+  unit: string | undefined,
+  locale: Locale,
+): string {
+  if (typeof value !== 'number') {
+    return unit ? `${value} ${unit}` : String(value)
+  }
+  if (Number.isNaN(value)) return '—'
+  if (unit === '$') {
+    const sign = value < 0 ? '-' : ''
+    return `${sign}$${formatNumber(Math.abs(value), locale, 2)}`
+  }
+  if (unit === '%') return `${formatNumber(value, locale, 2)}%`
+  const num = formatNumber(value, locale, 2)
+  return unit ? `${num} ${unit}` : num
+}
+
 export function EvidenceChip({ evidenceId, item, artifactId }: EvidenceChipProps) {
+  const { locale } = useI18n()
+
   if (!item) {
     // Degraded state: id received but evidence event hasn't arrived yet.
     // Show a muted pill with the raw id so nothing crashes.
@@ -44,7 +74,7 @@ export function EvidenceChip({ evidenceId, item, artifactId }: EvidenceChipProps
     )
   }
 
-  const unitSuffix = item.unit ? ` ${item.unit}` : ''
+  const displayValue = formatEvidenceValue(item.value, item.unit, locale)
 
   return (
     <span
@@ -72,7 +102,7 @@ export function EvidenceChip({ evidenceId, item, artifactId }: EvidenceChipProps
         }}
       >
         <SourcedNumber
-          value={`${item.value}${unitSuffix}`}
+          value={displayValue}
           source={{
             formula_id: item.formula_id,
             artifact_id: artifactId ?? undefined,

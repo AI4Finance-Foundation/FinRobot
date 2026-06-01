@@ -1595,6 +1595,26 @@ msgid "report.toolbar.exportPdfTitle"
 msgstr "Print a light-theme report PDF (choose “Save as PDF” in the print dialog)"
 
 #. js-lingui-explicit-id
+msgid "report.toolbar.exportHtml"
+msgstr "Export HTML"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportHtmlTitle"
+msgstr "Export an HTML report identical to the page (dark theme, charts, continuous scroll; open/share in any browser)"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportHtmlDone"
+msgstr "HTML report exported"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportHtmlEmpty"
+msgstr "No report content found to export"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportHtmlFailed"
+msgstr "HTML export failed"
+
+#. js-lingui-explicit-id
 msgid "report.toolbar.exportPdfHint"
 msgstr "Exporting report PDF"
 

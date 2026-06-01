@@ -20,7 +20,12 @@
     },
     "shell:allow-open",
     "dialog:default",
+    "dialog:allow-save",
     "fs:default",
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "$HOME/**" }]
+    },
     "global-shortcut:default",
     "os:default",
     "os:allow-locale"

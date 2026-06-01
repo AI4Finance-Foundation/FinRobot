@@ -15,6 +15,8 @@ import type { ArtifactSummaryV5 } from '../../../types/v5'
 import { useI18n } from '../../../i18n'
 import { formatDate } from '../../../utils/format'
 import { mapErrorToUserMessage } from '../../../utils/errorMessage'
+import { buildReportHtml, reportFileStem } from '../../../lib/exportReport'
+import { saveTextFile } from '../../../lib/tauri'
 
 interface ReportToolbarProps {
   ticker: string
@@ -105,6 +107,32 @@ export function ReportToolbar({
       duration: 7000,
     })
     window.setTimeout(() => window.print(), 450)
+  }
+
+  // Export HTML — a pixel-faithful mirror of the on-screen report (same DOM,
+  // same cosmic dark theme, same Recharts SVGs, continuous scroll). Unlike the
+  // print→PDF path it is NOT re-themed or paginated, so it looks exactly like
+  // what the analyst sees. Self-contained: open in any browser, send to anyone.
+  async function handleExportHtml(): Promise<void> {
+    const html = buildReportHtml(`${ticker} · ${reportVersionLabel}`)
+    if (!html) {
+      addToast({ type: 'error', title: t('report.toolbar.exportHtmlEmpty') })
+      return
+    }
+    try {
+      const saved = await saveTextFile(`${reportFileStem(ticker, reportVersionLabel)}.html`, html, [
+        { name: 'HTML', extensions: ['html'] },
+      ])
+      if (saved) {
+        addToast({ type: 'success', title: t('report.toolbar.exportHtmlDone') })
+      }
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: t('report.toolbar.exportHtmlFailed'),
+        description: mapErrorToUserMessage(err),
+      })
+    }
   }
 
   function handleVersionChange(targetArtifactId: string): void {
@@ -234,8 +262,15 @@ export function ReportToolbar({
 
       <span style={{ flex: 1, minWidth: 8 }} />
 
+      {/* Export HTML — page-faithful mirror (see handleExportHtml). Primary
+          export: this is what looks exactly like the on-screen report. */}
+      <ToolbarButton onClick={handleExportHtml} title={t('report.toolbar.exportHtmlTitle')}>
+        ⤓ {t('report.toolbar.exportHtml')}
+      </ToolbarButton>
+
       {/* Export PDF — see handleExportPdf: announces the native print→"Save as
-          PDF" flow before opening the OS dialog. */}
+          PDF" flow before opening the OS dialog. Light, paginated deliverable
+          for printing/archival; for a screen-identical copy, use Export HTML. */}
       <ToolbarButton onClick={handleExportPdf} title={t('report.toolbar.exportPdfTitle')}>
         ⤓ {t('report.toolbar.exportPdf')}
       </ToolbarButton>

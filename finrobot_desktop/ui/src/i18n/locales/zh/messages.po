@@ -1595,6 +1595,26 @@ msgid "report.toolbar.exportPdfTitle"
 msgstr "打印为浅色研报 PDF（在系统打印框中选“存储为 PDF”）"
 
 #. js-lingui-explicit-id
+msgid "report.toolbar.exportHtml"
+msgstr "导出 HTML"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportHtmlTitle"
+msgstr "导出与页面完全一致的 HTML 研报（暗色主题、图表、连续滚动；可用任意浏览器打开/分享）"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportHtmlDone"
+msgstr "已导出 HTML 研报"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportHtmlEmpty"
+msgstr "未找到研报内容，无法导出"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportHtmlFailed"
+msgstr "导出 HTML 失败"
+
+#. js-lingui-explicit-id
 msgid "report.toolbar.exportPdfHint"
 msgstr "正在导出研报 PDF"
 

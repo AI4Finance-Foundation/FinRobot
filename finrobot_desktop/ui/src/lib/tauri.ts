@@ -5,8 +5,11 @@
 // Browser fallbacks are safe no-ops or window.open equivalents.
 
 import { open as openShell } from '@tauri-apps/plugin-shell'
-import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { readTextFile as fsReadTextFile } from '@tauri-apps/plugin-fs'
+import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
+import {
+  readTextFile as fsReadTextFile,
+  writeTextFile as fsWriteTextFile,
+} from '@tauri-apps/plugin-fs'
 import {
   register as registerGlobalShortcut,
   unregister as unregisterGlobalShortcut,
@@ -113,6 +116,44 @@ export async function readTextFile(path: string): Promise<string> {
     throw new Error(`readTextFile not available in browser (path: ${path})`)
   }
   return fsReadTextFile(path)
+}
+
+export interface SaveFileFilter {
+  /** Human label shown in the OS save dialog, e.g. "HTML". */
+  name: string
+  /** Extensions without the dot, e.g. ["html"]. */
+  extensions: string[]
+}
+
+/**
+ * Save text to a user-chosen path. In Tauri: native save dialog → writeTextFile
+ * (fs capability scopes writes to $HOME/** — covers Desktop/Documents/Downloads).
+ * In a plain browser (dev): trigger a Blob download. Returns true if a file was
+ * written, false if the user cancelled the dialog.
+ */
+export async function saveTextFile(
+  suggestedName: string,
+  contents: string,
+  filters?: SaveFileFilter[],
+): Promise<boolean> {
+  if (!isTauri()) {
+    const mime = suggestedName.endsWith('.html')
+      ? 'text/html;charset=utf-8'
+      : 'text/plain;charset=utf-8'
+    const url = URL.createObjectURL(new Blob([contents], { type: mime }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = suggestedName
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+    return true
+  }
+  const path = await saveDialog({ defaultPath: suggestedName, filters })
+  if (!path) return false
+  await fsWriteTextFile(path, contents)
+  return true
 }
 
 // ─── Workspace path (P1 default; Phase 5 T5.6 wires real dialog) ──

@@ -425,7 +425,28 @@ async def _execute_financial_modeling(
     try:
         dcf_result = calculate_dcf(dcf_inputs)
     except (ValueError, ArithmeticError) as e:
-        raise ValueError(f"DCF calculation failed with seeded parameters: {e}") from e
+        # Gordon terminal value is undefined when terminal growth >= WACC (very
+        # low-WACC profiles: low-beta, high-leverage utilities / REITs), or other
+        # degenerate arithmetic. Degrade gracefully — skip the DCF chapter instead
+        # of crashing the whole report, and still build the valuation synthesis
+        # from the remaining (relative) methods so the football field renders.
+        logger.warning("DCF chapter not applicable for %s: %s", ticker, e)
+        current_price = (
+            financial_data.market.current_price if hasattr(financial_data, "market") else 0
+        )
+        if current_price > 0:
+            from finrobot.engine.pipelines._helpers import build_valuation_synthesis
+
+            vs = build_valuation_synthesis(structured_context, current_price, ticker=ticker)
+            if vs is not None:
+                structured_context["valuation_synthesis"] = vs
+        return StepOutput(
+            text=(
+                f"DCF 不适用：以本标的的资本成本与永续增长率假设，Gordon 永续增长模型无定义"
+                f"（{e}）。本章跳过 DCF 估值，估值结论以相对估值（可比公司倍数、历史估值区间）为准。"
+            ),
+            structured=None,
+        )
     wacc_range, tg_range = build_sensitivity_ranges(
         dcf_result.wacc, dcf_result.inputs.terminal_growth_rate
     )

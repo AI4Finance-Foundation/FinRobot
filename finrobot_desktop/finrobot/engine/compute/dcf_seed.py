@@ -383,7 +383,11 @@ def seed_dcf_inputs(
         beta=max(0.3, min(2.5, beta_chosen)),
         equity_risk_premium=equity_risk_premium,
         cost_of_debt=cost_of_debt,
-        debt_ratio=max(0.0, min(0.9, debt_ratio)),
+        # Cap market-leverage at 0.80 for WACC weighting. Above ~80% debt the
+        # equity sliver is so thin that a low after-tax cost of debt drives WACC
+        # below long-run GDP growth (terminal growth), making the Gordon perpetuity
+        # undefined. 80% is the standard practitioner ceiling for a going concern.
+        debt_ratio=max(0.0, min(0.80, debt_ratio)),
         terminal_growth_rate=terminal_growth_rate,
         shares_outstanding=shares_outstanding,
         net_debt=net_debt,

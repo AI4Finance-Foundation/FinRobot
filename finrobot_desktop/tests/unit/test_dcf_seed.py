@@ -284,6 +284,21 @@ class TestSeedDcfInputsAapl:
         inputs = seed_dcf_inputs(self.financials, hist)
         assert inputs.nwc_pct_revenue > 0
 
+    def test_debt_ratio_capped_at_80_percent(self):
+        """Market leverage is capped at 80% for WACC weighting. Above that the thin
+        equity sliver lets a low after-tax cost of debt drag WACC below terminal
+        growth, making the Gordon perpetuity undefined. Regression for the crash on
+        very low-WACC, high-leverage profiles (utilities / REITs)."""
+        levered = self.financials.model_copy(
+            update={
+                "balance": self.financials.balance.model_copy(update={"total_debt": 900e9}),
+                "market": self.financials.market.model_copy(update={"market_cap": 100e9}),
+            }
+        )
+        inputs = seed_dcf_inputs(levered, self.historical)
+        # raw debt_ratio = 900 / (900 + 100) = 0.90, capped to 0.80
+        assert inputs.debt_ratio == pytest.approx(0.80)
+
 
 class TestSeedDcfInputsIndustryFallback:
     """When ticker history is missing, every field should fall through to industry median."""

@@ -26,6 +26,7 @@ from pydantic_ai import Agent
 
 from finrobot.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
+from finrobot.engine.compute.wacc import calculate_wacc
 from finrobot.engine.compute.historical_extractor import (
     fetch_historical_metrics,
 )
@@ -79,6 +80,36 @@ async def _execute_dcf_calc(
     # Multi-year history powers the 3y-median assumption derivation.
     historical = await fetch_historical_metrics(deps.data_layer, ticker)
     dcf_inputs = seed_dcf_inputs(financial_data, historical)
+
+    # Gordon Growth terminal value is undefined when terminal growth >= WACC,
+    # which arises for very low-WACC profiles (low-beta, high-leverage utilities /
+    # REITs). Degrade gracefully — emit a text-only step stating DCF is not
+    # applicable rather than letting calculate_dcf raise and crash the whole run.
+    # build_dcf_artifact tolerates the missing DCFResult; the report falls back to
+    # relative valuation.
+    _, wacc = calculate_wacc(
+        dcf_inputs.risk_free_rate,
+        dcf_inputs.beta,
+        dcf_inputs.equity_risk_premium,
+        dcf_inputs.cost_of_debt,
+        dcf_inputs.tax_rate,
+        dcf_inputs.debt_ratio,
+    )
+    if dcf_inputs.terminal_growth_rate >= wacc:
+        logger.warning(
+            "DCF not applicable for %s: WACC %.4f <= terminal growth %.4f",
+            ticker,
+            wacc,
+            dcf_inputs.terminal_growth_rate,
+        )
+        return StepOutput(
+            text=(
+                f"DCF 不适用：加权资本成本 WACC {wacc:.1%} 不高于永续增长率 "
+                f"{dcf_inputs.terminal_growth_rate:.1%}，Gordon 永续增长模型在此情形下无定义。"
+                f"本标的跳过 DCF 估值，请以相对估值（可比公司倍数、历史估值区间）为准。"
+            ),
+            structured=None,
+        )
 
     dcf_result = calculate_dcf(dcf_inputs)
     wacc_range, tg_range = build_sensitivity_ranges(

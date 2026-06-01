@@ -18,19 +18,13 @@ import '@fontsource/jetbrains-mono/700.css'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './api/queryClient'
 import { router } from './router'
-import { useUiPrefs } from './i18n'
-import { detectInitialLocale, hasStoredLocale } from './i18n/detect'
+// Importing the i18n module runs its side effects (load catalogs + activate the
+// persisted/default locale) before the first render. FinRobot is Chinese-first:
+// the default locale is zh and we deliberately do NOT probe the OS locale on
+// first launch; English users switch via Settings → 外观 → 语言.
+import './i18n'
 import './App.css'
 import './styles/tabs.css'
-
-// FinRobot positions Chinese-first. We do NOT probe OS locale on first run —
-// English macOS users were getting an English UI by default which contradicts
-// the product positioning. Default is always zh; English users can switch via
-// Settings → 外观 → 语言. The detect.ts helper is kept for future opt-in use
-// (e.g. a "first-launch language picker" feature).
-void detectInitialLocale
-void hasStoredLocale
-void useUiPrefs
 
 const root = document.getElementById('root')
 if (!(root instanceof HTMLElement)) {

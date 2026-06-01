@@ -43,6 +43,15 @@ PEER_EV_REVENUE_SANITY_MAX: float = 100.0
 PEER_PE_SANITY_MIN: float = 1.0
 PEER_PE_SANITY_MAX: float = 300.0
 
+# NOPAT core-earnings effective-tax band. Own rates outside this are degenerate
+# (tax holidays, credit/DTA releases — observed live: AMD 0.2%, AVGO 1.8% in the
+# NVDA peer set) and would distort NOPAT comparability, so such rows fall back to
+# the peer-set median in-band rate. If the whole set is degenerate, the US
+# federal statutory 21% is the last resort.
+CORE_TAX_RATE_MIN: float = 0.05
+CORE_TAX_RATE_MAX: float = 0.35
+CORE_TAX_RATE_FALLBACK: float = 0.21
+
 
 def _sanity(value: float | None, lo: float, hi: float) -> float | None:
     """Return ``value`` if it falls within ``[lo, hi]``, else None.
@@ -148,6 +157,75 @@ def calculate_multiples(company: CompanyFinancials) -> CompanyFinancials:
     raw_pe = result.market_cap / result.net_income if result.net_income > 0 else None
     result.pe_ratio = _sanity(raw_pe, PEER_PE_SANITY_MIN, PEER_PE_SANITY_MAX)
 
+    return result
+
+
+def _effective_tax_rate(net_income: float, income_tax_expense: float | None) -> float | None:
+    """Own effective tax rate = tax / pretax, where pretax = net_income + tax.
+
+    Returns None when tax is unreported or pretax ≤ 0 (loss-maker or degenerate),
+    so the caller falls back to the peer-set median rate.
+    """
+    if income_tax_expense is None:
+        return None
+    pretax = net_income + income_tax_expense
+    if pretax <= 0:
+        return None
+    return income_tax_expense / pretax
+
+
+def calculate_core_pe(comps: PeerComps) -> PeerComps:
+    """Compute the NOPAT core P/E for target + every peer, plus the peer median.
+
+    P/E comparability requires one earnings caliber across the set. As-reported
+    net income mixes in non-operating items that differ company-to-company —
+    NVDA's TTM investment gains (~$27B), AMD/AVGO near-zero effective tax — so
+    raw P/E compares apples to oranges. Core earnings normalise to after-tax
+    operating profit:
+
+        NOPAT = EBIT × (1 − t),   EBIT = operating_margin × revenue (FX-safe ratio)
+
+    where ``t`` is each company's own effective rate when it falls in
+    ``[CORE_TAX_RATE_MIN, CORE_TAX_RATE_MAX]``, else the peer-set median in-band
+    rate (so one company's tax holiday can't distort the comp), else 21%
+    statutory. ``core_pe = market_cap / NOPAT`` is gated by the same P/E sanity
+    bounds as the as-reported ratio. Returns a new copy; input is not mutated.
+    """
+    result = comps.model_copy(deep=True)
+
+    # Pass 1 — peer-set median in-band rate, the fallback for degenerate rows.
+    peer_rates = [
+        r
+        for p in result.peers
+        if (r := _effective_tax_rate(p.net_income, p.income_tax_expense)) is not None
+        and CORE_TAX_RATE_MIN <= r <= CORE_TAX_RATE_MAX
+    ]
+    fallback_rate = median(peer_rates) if peer_rates else CORE_TAX_RATE_FALLBACK
+
+    # Pass 2 — assign each row its rate, NOPAT, and core P/E.
+    def _apply(c: CompanyFinancials) -> None:
+        own = _effective_tax_rate(c.net_income, c.income_tax_expense)
+        rate = (
+            own
+            if (own is not None and CORE_TAX_RATE_MIN <= own <= CORE_TAX_RATE_MAX)
+            else fallback_rate
+        )
+        ebit = c.operating_margin * c.revenue
+        nopat = ebit * (1 - rate)
+        c.effective_tax_rate = rate
+        c.core_net_income = nopat
+        c.core_pe_ratio = _sanity(
+            c.market_cap / nopat if nopat > 0 else None,
+            PEER_PE_SANITY_MIN,
+            PEER_PE_SANITY_MAX,
+        )
+
+    _apply(result.target)
+    for peer in result.peers:
+        _apply(peer)
+
+    core_vals = [p.core_pe_ratio for p in result.peers if p.core_pe_ratio is not None]
+    result.median_core_pe = median(core_vals) if core_vals else None
     return result
 
 

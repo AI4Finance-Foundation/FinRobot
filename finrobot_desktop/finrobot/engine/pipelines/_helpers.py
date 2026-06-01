@@ -14,7 +14,11 @@ from finrobot.engine.compute.data_processor import forecast_financials
 from finrobot.engine.compute.extractor import extract_financial_data, extract_company_financials
 from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
 from finrobot.engine.compute.fx_normalize import normalize_company_to_usd
-from finrobot.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
+from finrobot.engine.compute.multiples import (
+    calculate_core_pe,
+    calculate_multiples,
+    calculate_peer_statistics,
+)
 from finrobot.engine.compute.valuation_aggregator import aggregate_valuation
 from finrobot.engine.compute.valuation_synthesis import synthesize_valuations
 from finrobot.engine.compute.xbrl_aligned_comps import (
@@ -262,6 +266,9 @@ async def execute_peer_analysis(
         peer_justification=selection.rationale,
     )
     peer_comps = calculate_peer_statistics(peer_comps)
+    # NOPAT core P/E (target + peers) so the comps_pe method pairs a core peer
+    # median with the target's core EPS — one earnings caliber on both sides.
+    peer_comps = calculate_core_pe(peer_comps)
     if thin_warning is not None and thin_warning not in peer_comps.warnings:
         peer_comps.warnings.insert(0, thin_warning)
 

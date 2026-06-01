@@ -346,11 +346,32 @@ class TestAggregatorContract:
         assert row.confidence == 0.78
         assert "forward_eps" in row.source
 
-    def test_comps_pe_falls_back_to_trailing_eps(self) -> None:
+    def test_comps_pe_uses_core_caliber_when_available(self) -> None:
+        """Trailing path with NOPAT core fields populated (the real post-
+        calculate_core_pe pipeline state) pairs the core peer median with the
+        target's core EPS — one earnings caliber on both sides."""
+        comps = _peer_comps()
+        comps.median_core_pe = 24.0
+        comps.target.core_net_income = 18e9  # below net_income 24e9 (non-op stripped)
         agg = aggregate_valuation(
             ticker="NVDA",
             current_price=876.42,
-            peer_comps=_peer_comps(),
+            peer_comps=comps,
+            shares_outstanding=2.4e9,
+            as_of=AS_OF,
+        )
+        row = next(m for m in agg.methods if m.method == "comps_pe")
+        assert row.mid == 24.0 * (18e9 / 2.4e9)  # median_core_pe × core EPS
+        assert row.confidence == 0.55
+        assert "core_eps" in row.source
+
+    def test_comps_pe_falls_back_to_trailing_eps_when_core_unavailable(self) -> None:
+        """No core fields (provider omitted margin/tax) → keep the as-reported
+        trailing path rather than dropping the comps_pe row entirely."""
+        agg = aggregate_valuation(
+            ticker="NVDA",
+            current_price=876.42,
+            peer_comps=_peer_comps(),  # median_core_pe / core_net_income unset
             shares_outstanding=2.4e9,
             as_of=AS_OF,
         )

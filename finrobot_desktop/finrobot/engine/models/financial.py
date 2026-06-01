@@ -204,6 +204,18 @@ class CompanyFinancials(BaseModel):
     pe_ratio: float | None = None
     ev_ebitda: float | None = None
     ev_revenue: float | None = None
+    # Income tax provision in USD, carried from the provider so calculate_core_pe
+    # can derive a company-specific effective rate (tax / (net_income + tax)) for
+    # the NOPAT core-earnings caliber. None when the provider omits it.
+    income_tax_expense: float | None = None
+    # NOPAT-based core-earnings fields, filled by calculate_core_pe (a set-level
+    # pass — the degenerate-tax fallback needs the whole peer set). They give P/E
+    # comps a consistent earnings caliber: as-reported net income mixes in
+    # non-operating items that differ across the set (NVDA's TTM investment gains,
+    # AMD/AVGO near-zero effective tax), making raw P/E apples-to-oranges.
+    effective_tax_rate: float | None = None
+    core_net_income: float | None = None  # NOPAT = EBIT × (1 − effective_tax_rate)
+    core_pe_ratio: float | None = None  # market_cap / NOPAT, gated by P/E sanity bounds
     reporting_currency: str = "USD"
     quote_currency: str = "USD"
     # [待核] note set when SEC XBRL TTM diverged materially from the FMP TTM base
@@ -226,6 +238,10 @@ class PeerComps(BaseModel):
     median_ev_revenue: float | None = None
     mean_ev_ebitda: float | None = None
     mean_pe: float | None = None
+    # Peer median of the NOPAT-based core P/E (calculate_core_pe). The comps_pe
+    # valuation method pairs this with the target's core EPS so numerator and
+    # denominator share one earnings caliber.
+    median_core_pe: float | None = None
 
     # LLM-provided
     peer_justification: str = ""

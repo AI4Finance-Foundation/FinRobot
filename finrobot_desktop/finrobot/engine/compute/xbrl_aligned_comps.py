@@ -188,6 +188,7 @@ def build_xbrl_aligned_company(
         total_cash=total_cash,
         gross_margin=gross_margin,
         operating_margin=operating_margin,
+        income_tax_expense=financial_data.income.income_tax_expense,
         ttm_divergence_note=divergence_note,
     )
     return calculate_multiples(company)

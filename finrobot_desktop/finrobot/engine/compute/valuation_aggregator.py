@@ -157,27 +157,55 @@ def _comps_pe_method(
     forward_eps: float | None,
     shares_outstanding: float | None,
 ) -> ValuationMethodRange | None:
-    if peer_comps is None or peer_comps.median_pe is None or peer_comps.median_pe <= 0:
+    if peer_comps is None:
         return None
 
-    # Prefer forward EPS (FMP analyst-estimates); fall back to trailing EPS (net_income / shares).
-    eps = forward_eps if forward_eps is not None and forward_eps > 0 else None
-    if eps is None and shares_outstanding is not None and shares_outstanding > 0:
-        net_income = peer_comps.target.net_income
-        if net_income > 0:
-            eps = net_income / shares_outstanding
-    if eps is None or eps <= 0:
-        return None
-
-    mid = peer_comps.median_pe * eps
-    band = mid * _COMPS_PE_BAND_WIDTH
     used_forward = forward_eps is not None and forward_eps > 0
-    source = (
-        "peer_median_pe × forward_eps"
-        if used_forward
-        else "peer_median_pe × trailing_eps (forward 不可得)"
-    )
-    confidence = 0.78 if used_forward else 0.55
+    has_shares = shares_outstanding is not None and shares_outstanding > 0
+    mid: float | None = None
+    source = ""
+    confidence = 0.55
+
+    if used_forward:
+        # Forward EPS is analyst consensus — already a normalised forward number,
+        # paired with the as-reported trailing peer median P/E (we have no peer
+        # forward P/E). Highest-confidence path.
+        if peer_comps.median_pe is not None and peer_comps.median_pe > 0:
+            mid = peer_comps.median_pe * forward_eps  # type: ignore[operator]
+            source = "peer_median_pe × forward_eps"
+            confidence = 0.78
+    else:
+        # Trailing path: use the NOPAT core caliber so the target EPS and the
+        # peer median P/E share ONE earnings definition — stripping the
+        # non-operating items that differ across the set (the apples-to-oranges
+        # that put NVDA's comps_pe at $341 on EPS inflated by ~$27B of TTM
+        # investment gains). calculate_core_pe fills these in the pipeline.
+        core_ni = peer_comps.target.core_net_income
+        if (
+            peer_comps.median_core_pe is not None
+            and peer_comps.median_core_pe > 0
+            and core_ni is not None
+            and core_ni > 0
+            and has_shares
+        ):
+            core_eps = core_ni / shares_outstanding  # type: ignore[operator]
+            mid = peer_comps.median_core_pe * core_eps
+            source = "peer_median_core_pe × core_eps（NOPAT 核心盈利口径，forward 不可得）"
+            confidence = 0.55
+        elif peer_comps.median_pe is not None and peer_comps.median_pe > 0 and has_shares:
+            # Fallback: core caliber unavailable (provider omitted operating
+            # margin / tax) — keep the as-reported trailing path rather than
+            # dropping the method entirely.
+            net_income = peer_comps.target.net_income
+            if net_income > 0:
+                mid = peer_comps.median_pe * (net_income / shares_outstanding)  # type: ignore[operator]
+                source = "peer_median_pe × trailing_eps (forward 不可得)"
+                confidence = 0.55
+
+    if mid is None or mid <= 0:
+        return None
+
+    band = mid * _COMPS_PE_BAND_WIDTH
     return ValuationMethodRange(
         method="comps_pe",
         method_type="valuation",

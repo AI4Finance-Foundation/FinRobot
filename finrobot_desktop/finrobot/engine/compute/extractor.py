@@ -251,6 +251,7 @@ def extract_company_financials(fin: NormalizedFinancials) -> CompanyFinancials:
         gross_margin=fin.gross_margin or 0,
         operating_margin=fin.operating_margin or 0,
         pe_ratio=fin.pe_ratio,
+        income_tax_expense=fin.income_tax_expense,
         reporting_currency=fin.reporting_currency,
         quote_currency=fin.quote_currency,
     )

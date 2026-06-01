@@ -63,8 +63,12 @@ def _yearly_result(year: int, revenue: float = 1e9) -> DataResult:
             "market_cap": 5e9,
             "shares_outstanding": 1e8,
             "current_price": 50.0,
-            "gross_margin": 0.4,
-            "operating_margin": 0.15,
+            # Margin line items the extractor actually reads (it derives margins
+            # from gross_profit / operating_income / sga_expense, not the
+            # pre-computed *_margin fields).
+            "gross_profit": revenue * 0.4,
+            "operating_income": revenue * 0.15,
+            "sga_expense": revenue * 0.1,
             "capital_expenditure": revenue * 0.05,
             "depreciation_amortization": revenue * 0.04,
             "change_in_working_capital": revenue * 0.01,

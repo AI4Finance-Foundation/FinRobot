@@ -400,11 +400,17 @@ def seed_dcf_inputs(
 # ---------------------------------------------------------------------------
 
 
-def _median_recent(values: list[float], min_samples: int = _MIN_HISTORY_SAMPLES) -> float | None:
-    """Median of the most recent *min_samples* non-zero, non-NaN entries."""
+def _median_recent(
+    values: list[float | None], min_samples: int = _MIN_HISTORY_SAMPLES
+) -> float | None:
+    """Median of the most recent *min_samples* non-zero, non-None, non-NaN entries.
+
+    None entries (a year whose numerator the provider omitted) are skipped, not
+    treated as 0 — a missing margin must not drag the historical median down.
+    """
     if len(values) < min_samples:
         return None
-    recent = [v for v in values[-min_samples:] if v != 0 and not math.isnan(v)]
+    recent = [v for v in values[-min_samples:] if v is not None and v != 0 and not math.isnan(v)]
     if not recent:
         return None
     return statistics.median(recent)

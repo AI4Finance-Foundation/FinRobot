@@ -10,8 +10,10 @@ What this code does that raw LLM cannot:
   (FMP → yfinance) selects the source and normalizes its shape. This module is
   the single point where all yfinance access for DCF history was收口 into the
   DataLayer abstraction (门一), so the future circuit-breaker covers it.
-- Sorts data oldest-first so all parallel list fields are time-aligned, and
-  applies the same None→0.0 fill the downstream dcf_seed medians expect.
+- Sorts data oldest-first so all parallel list fields are time-aligned. Absolute
+  line items keep the None→0.0 fill the downstream dcf_seed medians expect (an
+  all-zero row reads as "missing"); derived margins instead stay None when their
+  numerator is absent, so a missing margin never reads as a real 0%.
 """
 
 from __future__ import annotations
@@ -97,16 +99,16 @@ def _build_from_yearly(
     years_list: list[int] = []
     revenue_list: list[float] = []
     gp_list: list[float] = []
-    gross_margin_list: list[float] = []
+    gross_margin_list: list[float | None] = []
     cogs_list: list[float] = []
     ebitda_list: list[float] = []
-    ebitda_margin_list: list[float] = []
+    ebitda_margin_list: list[float | None] = []
     oi_list: list[float] = []
-    operating_margin_list: list[float] = []
+    operating_margin_list: list[float | None] = []
     ni_list: list[float] = []
     eps_list: list[float] = []
     sga_list: list[float] = []
-    sga_ratio_list: list[float] = []
+    sga_ratio_list: list[float | None] = []
     ocf_list: list[float] = []
     icf_list: list[float] = []
     fcf_list: list[float] = []
@@ -115,28 +117,41 @@ def _build_from_yearly(
     nwc_change_list: list[float] = []
 
     for _fy_str, year, data in rows:
+        # Raw (None when the provider omitted the row) drives the margins below
+        # so a *missing* numerator yields a None margin, not a fabricated 0%.
+        # The absolute line-item lists keep the 0.0 fill — downstream consumers
+        # (dcf_seed._median_ratio, shares-from-EPS) already treat all-zero rows
+        # as "missing", so 0.0 there is the established convention.
+        raw_gp = _safe_float(data.get("gross_profit"))
+        raw_ebitda = _safe_float(data.get("ebitda"))
+        raw_oi = _safe_float(data.get("operating_income"))
+        raw_sga = _safe_float(data.get("sga_expense"))
         rev = _safe_float(data.get("revenue")) or 0.0
-        gp = _safe_float(data.get("gross_profit")) or 0.0
-        ebitda = _safe_float(data.get("ebitda")) or 0.0
-        oi = _safe_float(data.get("operating_income")) or 0.0
+        gp = raw_gp or 0.0
+        ebitda = raw_ebitda or 0.0
+        oi = raw_oi or 0.0
         ni = _safe_float(data.get("net_income")) or 0.0
         eps = _safe_float(data.get("eps")) or 0.0
-        sga = _safe_float(data.get("sga_expense")) or 0.0
+        sga = raw_sga or 0.0
 
         rev_positive = rev > 0
         years_list.append(year)
         revenue_list.append(rev)
         gp_list.append(gp)
-        gross_margin_list.append(gp / rev if rev_positive else 0.0)
+        gross_margin_list.append(raw_gp / rev if (raw_gp is not None and rev_positive) else None)
         cogs_list.append(rev - gp)
         ebitda_list.append(ebitda)
-        ebitda_margin_list.append(ebitda / rev if rev_positive else 0.0)
+        ebitda_margin_list.append(
+            raw_ebitda / rev if (raw_ebitda is not None and rev_positive) else None
+        )
         oi_list.append(oi)
-        operating_margin_list.append(oi / rev if rev_positive else 0.0)
+        operating_margin_list.append(
+            raw_oi / rev if (raw_oi is not None and rev_positive) else None
+        )
         ni_list.append(ni)
         eps_list.append(eps)
         sga_list.append(sga)
-        sga_ratio_list.append(sga / rev if rev_positive else 0.0)
+        sga_ratio_list.append(raw_sga / rev if (raw_sga is not None and rev_positive) else None)
 
         # Cash-flow scalars: a structurally-absent row stays 0.0. dcf_seed's
         # _median_ratio treats an all-zero row as "missing" and falls back to

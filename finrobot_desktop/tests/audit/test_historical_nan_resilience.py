@@ -148,7 +148,77 @@ class TestMixedNanRevenue:
     def test_cagr_is_one_year_growth(self) -> None:
         # 383285 → 391035 over 1 year: CAGR = 391035/383285 - 1 ≈ 2.02%
         assert self.result.cagr_revenue is not None
-        assert pytest.approx(self.result.cagr_revenue, abs=0.005) == pytest.approx(0.0202, abs=0.005)
+        assert pytest.approx(self.result.cagr_revenue, abs=0.005) == pytest.approx(
+            0.0202, abs=0.005
+        )
+
+
+# ---------------------------------------------------------------------------
+# 3b. Margins: revenue present but numerator missing → None, not fabricated 0%
+# ---------------------------------------------------------------------------
+
+
+class TestMissingNumeratorMarginsAreNone:
+    """A year with revenue present but a margin numerator (gross_profit /
+    ebitda / operating_income / sga) absent must yield None for that margin —
+    NOT 0%, which would (a) drag the forecast's historical-mean margin down and
+    (b) paint a false 0% point on the margin-trend chart. None ≠ 0."""
+
+    def setup_method(self) -> None:
+        results = [
+            DataResult(
+                data={"fiscal_year": "2024-09-30", "revenue": 1000.0},  # numerators absent
+                provider="test",
+                ticker="TEST",
+                data_type=DataType.FINANCIALS,
+                timestamp=datetime.now(tz=timezone.utc),
+                warnings=[],
+            ),
+            DataResult(
+                data={
+                    "fiscal_year": "2025-09-30",
+                    "revenue": 1200.0,
+                    "gross_profit": 600.0,
+                    "ebitda": 360.0,
+                    "operating_income": 240.0,
+                    "sga_expense": 120.0,
+                },
+                provider="test",
+                ticker="TEST",
+                data_type=DataType.FINANCIALS,
+                timestamp=datetime.now(tz=timezone.utc),
+                warnings=[],
+            ),
+        ]
+        self.result = _build_from_yearly("TEST", results, max_years=5, trailing_pe=None)
+
+    def test_missing_year_margins_are_none(self) -> None:
+        assert self.result.gross_margin[0] is None
+        assert self.result.ebitda_margin[0] is None
+        assert self.result.operating_margin[0] is None
+        assert self.result.sga_ratio[0] is None
+
+    def test_present_year_margins_computed(self) -> None:
+        assert self.result.gross_margin[1] == pytest.approx(0.5)
+        assert self.result.ebitda_margin[1] == pytest.approx(0.3)
+        assert self.result.operating_margin[1] == pytest.approx(0.2)
+        assert self.result.sga_ratio[1] == pytest.approx(0.1)
+
+    def test_genuine_zero_numerator_stays_zero_not_none(self) -> None:
+        """A genuinely *reported* 0 (not a missing field) must produce a real 0%
+        margin — the None signal is reserved for absent data."""
+        results = [
+            DataResult(
+                data={"fiscal_year": "2025-09-30", "revenue": 1000.0, "operating_income": 0.0},
+                provider="test",
+                ticker="TEST",
+                data_type=DataType.FINANCIALS,
+                timestamp=datetime.now(tz=timezone.utc),
+                warnings=[],
+            ),
+        ]
+        result = _build_from_yearly("TEST", results, max_years=5, trailing_pe=None)
+        assert result.operating_margin[0] == 0.0
 
 
 # ---------------------------------------------------------------------------

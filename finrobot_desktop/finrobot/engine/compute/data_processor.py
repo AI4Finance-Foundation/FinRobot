@@ -147,8 +147,14 @@ def forecast_financials(
     )
 
 
-def _mean(values: list[float]) -> float:
-    """Simple arithmetic mean. Raises ValueError on empty list."""
-    if not values:
+def _mean(values: list[float | None]) -> float:
+    """Arithmetic mean of the non-None entries. Raises ValueError when none remain.
+
+    None entries (a year whose margin numerator the provider omitted) are
+    skipped rather than counted as 0 — averaging a fabricated 0% would
+    understate the forecast margin. A genuinely reported 0.0 is still counted.
+    """
+    present = [v for v in values if v is not None]
+    if not present:
         raise ValueError("Cannot compute mean of empty list")
-    return sum(values) / len(values)
+    return sum(present) / len(present)

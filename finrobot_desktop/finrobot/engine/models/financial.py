@@ -447,13 +447,17 @@ class HistoricalMetrics(BaseModel):
     revenue_growth_yoy: list[float | None]
     cogs: list[float]
     gross_profit: list[float]
-    gross_margin: list[float]
+    # Margins are None for a year whose numerator the provider omitted — a
+    # missing margin is "not reported", distinct from a real 0% (None ≠ 0). The
+    # absolute line items keep the 0.0 fill (all-zero row = missing convention
+    # used by dcf_seed._median_ratio).
+    gross_margin: list[float | None]
     sga: list[float]
-    sga_ratio: list[float]
+    sga_ratio: list[float | None]
     ebitda: list[float]
-    ebitda_margin: list[float]
+    ebitda_margin: list[float | None]
     operating_income: list[float]
-    operating_margin: list[float]
+    operating_margin: list[float | None]
     net_income: list[float]
     eps: list[float]
     pe_ratio: list[float | None]
@@ -550,6 +554,15 @@ class ValuationMethod(BaseModel):
     high: float
     confidence: float = Field(ge=0, le=1)
     source: str
+    assumptions: str | None = Field(
+        default=None,
+        description=(
+            "Short human-readable summary of the load-bearing assumptions behind "
+            "`mid` — e.g. DCF's 'WACC 16.6% · 5年增长40%→2.5% · β2.24'. A mid like "
+            "$73 is not a valuation, it's an answer conditional on these. Carried "
+            "downstream into the IC debate so a price is never cited naked."
+        ),
+    )
 
 
 class ValuationSynthesis(BaseModel):
@@ -835,6 +848,14 @@ class ValuationMethodRange(BaseModel):
     high: float = Field(gt=0)
     confidence: float = Field(ge=0, le=1)
     source: str = Field(description="Human-readable provenance, e.g. 'monte_carlo_p10_p90'")
+    assumptions: str | None = Field(
+        default=None,
+        description=(
+            "Short summary of the load-bearing assumptions behind `mid`, built at "
+            "the source where the underlying result object is in scope. Propagated "
+            "to ValuationMethod.assumptions and into the IC debate evidence."
+        ),
+    )
     warnings: list[str] = Field(default_factory=list)
 
 

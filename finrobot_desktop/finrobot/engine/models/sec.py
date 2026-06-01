@@ -195,8 +195,11 @@ class InsiderTransaction(BaseModel):
     insider_position: str | None = None  # e.g. "Chief Financial Officer" / "CEO"
     transaction_type: str  # "sale" / "purchase" / "exercise" / "other_disposition" / "grant" / "award"
     code: str  # SEC code: "S" sale / "P" purchase / "M" exercise / "D" other_disposition / "A" award
-    shares: float
-    value: float = 0.0  # USD value of this leg (forfeit → 0)
+    # None ≠ 0: shares/value are None when the provider omitted them (parse gap),
+    # NOT a fabricated 0 — a 0-share/$0 row would read as a real (and for shares,
+    # nonsensical) transaction. An *explicit* value=0 (forfeit/gift) stays 0.
+    shares: float | None = None
+    value: float | None = None  # USD value of this leg; explicit 0 = forfeit, None = missing
     price_per_share: float | None = None
     security_type: str = ""  # "non-derivative" / "derivative"
     security_title: str = ""  # "Common Stock" / "Non-Qualified Stock Option (right to buy)"

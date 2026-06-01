@@ -30,6 +30,20 @@ def _parse_date(value: Any) -> date:
     raise ValueError(f"missing SEC date: {value!r}")
 
 
+def _opt_float(value: Any) -> float | None:
+    """Parse a numeric to float; None/empty/unparseable → None (missing data).
+
+    Preserves an explicit 0.0 (a forfeit's $0 value is real) — only genuinely
+    absent values collapse to None, so a parse gap never reads as a real 0.
+    """
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _maybe_parse_date(value: Any) -> date | None:
     if value in (None, ""):
         return None
@@ -463,8 +477,8 @@ def build_insider_transactions(raw_insider: dict[str, Any]) -> list[InsiderTrans
                     tx.get("code"), tx.get("transaction_type")
                 ),
                 code=str(tx.get("code") or ""),
-                shares=float(tx.get("shares") or 0),
-                value=float(tx.get("value") or 0),
+                shares=_opt_float(tx.get("shares")),
+                value=_opt_float(tx.get("value")),
                 price_per_share=(
                     float(tx["price_per_share"])
                     if tx.get("price_per_share") not in (None, "")

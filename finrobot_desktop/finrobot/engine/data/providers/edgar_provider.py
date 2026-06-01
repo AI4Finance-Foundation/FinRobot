@@ -393,6 +393,21 @@ def _coerce_form4_date(value: Any) -> str | None:
     return head[:10]
 
 
+def _opt_float(value: Any) -> float | None:
+    """Parse a numeric to float; None/empty/unparseable → None (missing data).
+
+    Preserves an explicit 0.0 — only genuinely absent values collapse to None,
+    so a parse gap never reads downstream as a real 0 (e.g. a Form 4 leg with no
+    reported share count is None, not a nonsensical 0-share transaction).
+    """
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 class EdgarToolsProvider(DataProvider):
     """SEC EDGAR data provider backed by edgartools 5.31.
 
@@ -687,8 +702,11 @@ class EdgarToolsProvider(DataProvider):
                         "insider_position": position,
                         "transaction_type": getattr(act, "transaction_type", "") or "",
                         "code": getattr(act, "code", "") or "",
-                        "shares": float(getattr(act, "shares", 0) or 0),
-                        "value": float(getattr(act, "value", 0) or 0),
+                        # None ≠ 0: a missing share/value stays None (the compute
+                        # layer treats it as a parse gap, not a real 0-share/$0
+                        # leg). An explicit 0 (forfeit's $0 value) is preserved.
+                        "shares": _opt_float(getattr(act, "shares", None)),
+                        "value": _opt_float(getattr(act, "value", None)),
                         "price_per_share": (float(getattr(act, "price_per_share", 0) or 0) or None),
                         "security_type": getattr(act, "security_type", "") or "",
                         "security_title": getattr(act, "security_title", "") or "",

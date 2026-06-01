@@ -101,6 +101,43 @@ def test_form4_build_insider_transactions_normalises_M_derivative_label() -> Non
     assert rows[1].security_type == "non-derivative"
 
 
+def test_form4_missing_shares_value_become_none_not_zero() -> None:
+    """A Form 4 leg whose provider omitted shares/value must carry None — a
+    fabricated 0 makes a parse failure look like a real 0-share/$0 transaction,
+    wasting analyst time. An *explicit* value=0 (forfeit/gift) stays 0 (None≠0)."""
+    from finrobot.engine.compute.ownership import build_insider_transactions
+
+    rows = build_insider_transactions(
+        {
+            "transactions": [
+                {
+                    "filing_date": "2026-05-15",
+                    "accession_no": "0001104659-26-000001",
+                    "insider_name": "Jane Doe",
+                    "transaction_type": "sale",
+                    "code": "S",
+                    # shares + value absent (provider parse gap)
+                },
+                {
+                    "filing_date": "2026-05-15",
+                    "accession_no": "0001104659-26-000002",
+                    "insider_name": "Elon Musk",
+                    "transaction_type": "other_disposition",
+                    "code": "D",
+                    "shares": 96_000_000,
+                    "value": 0,  # Tornetta forfeit — a genuine $0 leg
+                },
+            ]
+        }
+    )
+
+    assert rows[0].shares is None
+    assert rows[0].value is None
+    # Genuine forfeit: shares present, value an explicit 0 (not None).
+    assert rows[1].shares == 96_000_000
+    assert rows[1].value == 0.0
+
+
 def test_compute_ownership_governance_builds_typed_models_with_provenance() -> None:
     analysis = compute_ownership_governance(
         insider_data={

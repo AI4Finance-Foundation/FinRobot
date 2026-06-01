@@ -19,22 +19,35 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './api/queryClient'
 import { router } from './router'
 // Importing the i18n module runs its side effects (load catalogs + activate the
-// persisted/default locale) before the first render. FinRobot is Chinese-first:
-// the default locale is zh and we deliberately do NOT probe the OS locale on
-// first launch; English users switch via Settings → 外观 → 语言.
-import './i18n'
+// persisted/default locale) before the first render.
+import { useUiPrefs } from './i18n'
+import { detectInitialLocale, hasStoredLocale } from './i18n/detect'
 import './App.css'
 import './styles/tabs.css'
 
-const root = document.getElementById('root')
-if (!(root instanceof HTMLElement)) {
-  throw new Error('FinRobot root element #root was not found')
+// First-launch language: if the user has never picked a language, match the OS
+// locale (English OS → English UI, Chinese OS → Chinese UI) before the first
+// paint. Once set, setLocale() persists it, so subsequent launches honor the
+// stored choice and skip detection. Chinese-first remains the fallback when the
+// OS gives no usable hint (or outside Tauri).
+async function bootstrap(): Promise<void> {
+  if (!hasStoredLocale()) {
+    const detected = await detectInitialLocale()
+    useUiPrefs.getState().setLocale(detected)
+  }
+
+  const root = document.getElementById('root')
+  if (!(root instanceof HTMLElement)) {
+    throw new Error('FinRobot root element #root was not found')
+  }
+
+  createRoot(root).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </StrictMode>,
+  )
 }
 
-createRoot(root).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
-  </StrictMode>,
-)
+void bootstrap()

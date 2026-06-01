@@ -92,7 +92,9 @@ export function ReportTOC({ entries }: ReportTOCProps): React.ReactElement {
               fontSize: 11,
               lineHeight: 1.35,
               borderLeft: `2px solid ${isActive ? 'var(--secondary)' : 'transparent'}`,
-              background: isActive ? 'rgba(139, 92, 246, 0.08)' : 'transparent',
+              background: isActive
+                ? 'color-mix(in srgb, var(--secondary) 8%, transparent)'
+                : 'transparent',
               boxShadow: isActive ? '-1px 0 12px rgba(139, 92, 246, 0.3)' : 'none',
               transition: 'all 0.18s',
               marginRight: 8,

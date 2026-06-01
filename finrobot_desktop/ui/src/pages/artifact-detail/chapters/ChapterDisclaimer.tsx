@@ -23,7 +23,7 @@ export function ChapterDisclaimer({
     <Chapter id="disclaimer">
       <div
         style={{
-          background: 'rgba(15, 15, 34, 0.5)',
+          background: 'var(--bg-card-50)',
           border: '1px dashed var(--border-soft)',
           borderRadius: 'var(--radius-md)',
           padding: '18px 22px',

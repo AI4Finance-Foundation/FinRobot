@@ -49,6 +49,11 @@
   --danger-soft: rgba(220, 38, 38, 0.18); /* verdict SELL badge bg */
   --danger-glow: rgba(220, 38, 38, 0.45);
   --danger-glow-soft: rgba(220, 38, 38, 0.3);
+  /* Neutral slate — the REVIEW verdict makes NO directional call, so it must
+     not borrow buy/sell green/red. Deliberately outside the up/down palette. */
+  --neutral: #64748b;
+  --neutral-soft: rgba(100, 116, 139, 0.18); /* verdict REVIEW badge bg */
+  --neutral-edge: rgba(100, 116, 139, 0.55); /* verdict REVIEW badge border */
 
   /* ── Card translucency stack (inert surfaces over cosmic gradient).
      Three discrete steps — 0.3 / 0.5 / 0.6 — chosen empirically to land
@@ -188,6 +193,14 @@
   /* Muted gold for a secondary bar series where --success green would
      wrongly read as "up" (e.g. P/E vs EV/EBITDA peer bars). */
   --chart-gold: #c9a84c;
+  /* Faded projection-year bar fills (RevenueEbitdaChart). Tokenized so the
+     print stylesheet can lift them to ink-readable on white paper. */
+  --chart-forecast-revenue: rgba(59, 130, 246, 0.32);
+  --chart-forecast-ebitda: rgba(34, 211, 238, 0.32);
+  /* Component surfaces that were inlined as dark literals (cosmic spec bans
+     hardcoded hex). Tokenized so @media print flips them light. */
+  --table-surface: rgba(15, 15, 34, 0.4); /* KvGrid / data-table backdrop */
+  --ff-label-bg: rgba(0, 0, 0, 0.4); /* FootballField current-price pill */
 
   --base: var(--bg-void);
   --surface: var(--bg-deep);

@@ -183,7 +183,7 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
                   bottom: 16,
                   left: `${xPctFor(t)}%`,
                   width: 1,
-                  background: 'rgba(255,255,255,0.05)',
+                  background: 'var(--border-grid)',
                 }}
               />
             ))}
@@ -282,7 +282,7 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
                     fontSize: 10,
                     color: 'var(--warning)',
                     letterSpacing: '0.04em',
-                    background: 'rgba(0,0,0,0.4)',
+                    background: 'var(--ff-label-bg)',
                     padding: '1px 4px',
                     borderRadius: 3,
                     whiteSpace: 'nowrap',

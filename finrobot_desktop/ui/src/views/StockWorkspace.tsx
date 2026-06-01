@@ -109,9 +109,7 @@ export function StockWorkspace(): React.ReactElement {
 
   if (!symbol) {
     return (
-      <div style={{ padding: 48, color: 'var(--text-faint)' }}>
-        {t('workspace.missingTicker')}
-      </div>
+      <div style={{ padding: 48, color: 'var(--text-faint)' }}>{t('workspace.missingTicker')}</div>
     )
   }
 

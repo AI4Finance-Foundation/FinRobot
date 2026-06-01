@@ -1,17 +1,21 @@
 import RevenueEbitdaChart from '../../../components/charts/RevenueEbitdaChart'
 import MarginTrendChart from '../../../components/charts/MarginTrendChart'
 import CashFlowChart from '../../../components/charts/CashFlowChart'
+import EpsTrendChart from '../../../components/charts/EpsTrendChart'
 import {
   historicalToRevenueEbitdaData,
   historicalToMarginData,
   historicalToCashFlowData,
+  historicalToEpsData,
   dcfResultToRevenueEbitdaData,
   dcfResultToMarginData,
 } from '../../../utils/chartAdapters'
 import type { DCFResult } from '../../../stores/appStore'
 import { useHistoricalData } from '../../../hooks/useHistoricalData'
 import { useI18n } from '../../../i18n'
-import { Chapter, KvGrid, SubChapter, tableStyle } from './ChapterBase'
+import { formatCompactNumber } from '../../../utils/format'
+import { Chapter, KvGrid, SubChapter, tableStyle, type KvCell } from './ChapterBase'
+import type { NumberSource } from '../../../components/SourcedNumber'
 import type { DcfShape } from './types'
 
 interface ChapterFinancialAnalysisProps {
@@ -25,7 +29,10 @@ export function ChapterFinancialAnalysis({
   dcf,
   rawData,
 }: ChapterFinancialAnalysisProps): React.ReactElement {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
+  // Locale-aware compact currency: en → $1.23B / $4.5M, zh → $1.23 亿 / $4500 万.
+  // Mirrors the `$` + formatCompactNumber convention used in ChapterOwnershipGovernance.
+  const fmtMoney = (v: number): string => `$${formatCompactNumber(v, locale)}`
   const { data: historical } = useHistoricalData(ticker)
   // raw_data is FinancialData.model_dump() — the money line items live under
   // `income.*`, NOT at the top level (the sibling ChapterFinancialData reads
@@ -36,7 +43,14 @@ export function ChapterFinancialAnalysis({
   const baseRev = (income?.revenue as number | undefined) ?? dcf?.inputs?.revenue_base ?? null
   const baseEbitda = (income?.ebitda as number | undefined) ?? null
   const baseNet = (income?.net_income as number | undefined) ?? null
-  const fcfTtm = (income?.fcf_ttm as number | undefined) ?? null
+
+  // Provenance for the TTM income figures: provider + fetch time from the
+  // captured snapshot, so each KV number is hover-traceable (数字可溯源).
+  const provenance = rawData?.provenance as { provider?: string | null } | undefined
+  const fetchedAt = rawData?.timestamp as string | undefined
+  const provider = provenance?.provider ?? (rawData?.data_source as string | undefined)
+  const numberSource: NumberSource | undefined =
+    provider || fetchedAt ? { provider: provider ?? undefined, fetched_at: fetchedAt } : undefined
 
   const hasDcfForecast =
     dcf?.projected_revenue != null &&
@@ -65,25 +79,28 @@ export function ChapterFinancialAnalysis({
   })()
 
   const cashFlowChartData = historical ? historicalToCashFlowData(historical) : []
+  // Only render EPS when at least one year actually carries a number.
+  const epsChartData = (historical ? historicalToEpsData(historical) : []).filter(
+    (r) => r.eps != null,
+  )
 
-  const cells = [
+  const candidateCells: (KvCell | false)[] = [
     baseRev !== null && {
       label: t('chapter.financial.kv.revenueBase'),
-      value: fmtBillions(baseRev),
+      value: fmtMoney(baseRev),
       delta: rawData?.fiscal_period_end
         ? `FY${String(rawData.fiscal_period_end).slice(0, 4)}`
         : undefined,
+      source: numberSource,
     },
-    baseEbitda !== null && { label: 'EBITDA', value: fmtBillions(baseEbitda) },
+    baseEbitda !== null && { label: 'EBITDA', value: fmtMoney(baseEbitda), source: numberSource },
     baseNet !== null && {
       label: t('chapter.financial.kv.netIncome'),
-      value: fmtBillions(baseNet),
+      value: fmtMoney(baseNet),
+      source: numberSource,
     },
-    fcfTtm !== null && {
-      label: t('chapter.financial.kv.fcfTtm'),
-      value: fmtBillions(fcfTtm),
-    },
-  ].filter((c): c is { label: string; value: string; delta?: string } => c !== false)
+  ]
+  const cells = candidateCells.filter((c): c is KvCell => c !== false)
 
   return (
     <Chapter id="financial">
@@ -107,6 +124,12 @@ export function ChapterFinancialAnalysis({
         </SubChapter>
       )}
 
+      {epsChartData.length > 0 && (
+        <SubChapter heading={t('chapter.financial.subheading.eps')}>
+          <EpsTrendChart data={epsChartData} title={t('chapter.financial.chart.title.eps')} />
+        </SubChapter>
+      )}
+
       {cashFlowChartData.length > 0 && (
         <SubChapter heading={t('chapter.financial.subheading.cashFlow')}>
           <CashFlowChart
@@ -121,7 +144,7 @@ export function ChapterFinancialAnalysis({
           <table style={tableStyle}>
             <thead style={{ background: 'var(--bg-elevated)' }}>
               <tr>
-                <th style={thStyle}>$B</th>
+                <th style={thStyle}>{t('chapter.financial.table.unit')}</th>
                 {dcf.projected_revenue.map((_, i) => (
                   <th key={`year-${i}`} style={thStyle}>
                     {t('chapter.financial.table.yearPlus', { n: i + 1 })}
@@ -136,7 +159,7 @@ export function ChapterFinancialAnalysis({
                 </td>
                 {dcf.projected_revenue.map((v, i) => (
                   <td key={`rev-${i}`} style={{ ...tdStyle, textAlign: 'right' }}>
-                    {fmtBillions(v)}
+                    {fmtMoney(v)}
                   </td>
                 ))}
               </tr>
@@ -147,7 +170,7 @@ export function ChapterFinancialAnalysis({
                   </td>
                   {dcf.projected_ebitda.map((v, i) => (
                     <td key={`ebitda-${i}`} style={{ ...tdStyle, textAlign: 'right' }}>
-                      {fmtBillions(v)}
+                      {fmtMoney(v)}
                     </td>
                   ))}
                 </tr>
@@ -162,7 +185,7 @@ export function ChapterFinancialAnalysis({
                       key={`fcf-${i}`}
                       style={{ ...tdStyle, textAlign: 'right', color: 'var(--accent-cyan)' }}
                     >
-                      {fmtBillions(v)}
+                      {fmtMoney(v)}
                     </td>
                   ))}
                 </tr>
@@ -190,12 +213,6 @@ export function ChapterFinancialAnalysis({
   )
 }
 
-function fmtBillions(v: number): string {
-  if (Math.abs(v) >= 1e9) return `$${(v / 1e9).toFixed(2)}B`
-  if (Math.abs(v) >= 1e6) return `$${(v / 1e6).toFixed(1)}M`
-  return `$${v.toFixed(0)}`
-}
-
 const thStyle: React.CSSProperties = {
   padding: '10px 14px',
   textAlign: 'left',
@@ -217,7 +234,7 @@ const emptyMsg: React.CSSProperties = {
   fontSize: 11.5,
   color: 'var(--text-muted)',
   padding: '14px 18px',
-  background: 'rgba(15, 15, 34, 0.5)',
+  background: 'var(--bg-card-50)',
   border: '1px dashed var(--border-soft)',
   borderRadius: 'var(--radius-sm)',
 }

@@ -2,6 +2,8 @@ import PeerComparisonChart from '../../../components/charts/PeerComparisonChart'
 import CompanyRadarChart from '../../../components/charts/CompanyRadarChart'
 import { compsResultToPeerChartData, compsResultToRadarData } from '../../../utils/chartAdapters'
 import type { CompsResult } from '../../../stores/appStore'
+import { useI18n } from '../../../i18n'
+import { formatCompactNumber } from '../../../utils/format'
 import { Chapter, Narrative, SubChapter, tableStyle } from './ChapterBase'
 import type { PeerCompsShape, ThesisShape } from './types'
 
@@ -11,6 +13,7 @@ interface ChapterCompetitiveProps {
 }
 
 export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): React.ReactElement {
+  const { t, locale } = useI18n()
   const narrative = thesis?.competitor_analysis ?? null
   const target = peers?.target
   const peerList = peers?.peers ?? []
@@ -45,12 +48,18 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
         <table style={tableStyle}>
           <thead style={{ background: 'var(--bg-elevated)' }}>
             <tr>
-              <th style={thStyle}>Ticker</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>Revenue</th>
+              <th style={thStyle}>{t('chapter.competitive.col.ticker')}</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>
+                {t('chapter.competitive.col.revenue')}
+              </th>
               <th style={{ ...thStyle, textAlign: 'right' }}>P/E</th>
               <th style={{ ...thStyle, textAlign: 'right' }}>EV/EBITDA</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>Gross Margin</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>Op Margin</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>
+                {t('chapter.competitive.col.grossMargin')}
+              </th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>
+                {t('chapter.competitive.col.opMargin')}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -59,7 +68,11 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
               return (
                 <tr
                   key={c.ticker}
-                  style={isTarget ? { background: 'rgba(34, 211, 238, 0.06)' } : undefined}
+                  style={
+                    isTarget
+                      ? { background: 'color-mix(in srgb, var(--accent-cyan) 6%, transparent)' }
+                      : undefined
+                  }
                 >
                   <td
                     style={{
@@ -83,7 +96,9 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
                     )}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    ${(c.revenue / 1e9).toFixed(1)}B
+                    {/* USD assumed — peer comps are US-listed; PeerCompShape
+                        carries no currency field. Locale-aware compact units. */}
+                    {`$${formatCompactNumber(c.revenue, locale)}`}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
                     {c.pe_ratio !== null && c.pe_ratio !== undefined ? c.pe_ratio.toFixed(1) : '—'}
@@ -105,7 +120,7 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
           </tbody>
         </table>
       ) : (
-        <p style={mutedNote}>该研报未生成同业对标 — 重新生成研报后此处补齐</p>
+        <p style={mutedNote}>{t('chapter.competitive.empty')}</p>
       )}
 
       {(peers?.median_pe !== null && peers?.median_pe !== undefined) ||
@@ -118,7 +133,7 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
             marginTop: 6,
           }}
         >
-          Peer median:
+          {t('chapter.competitive.peerMedian')}
           {peers.median_pe !== null && peers.median_pe !== undefined && (
             <span style={{ marginLeft: 10, color: 'var(--text-secondary)' }}>
               P/E {peers.median_pe.toFixed(1)}
@@ -133,19 +148,22 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
       ) : null}
 
       {peerBarData.length > 0 && (
-        <SubChapter heading="Multiples Comparison">
-          <PeerComparisonChart data={peerBarData} title="P/E & EV/EBITDA vs Peers" />
+        <SubChapter heading={t('chapter.competitive.subheading.multiples')}>
+          <PeerComparisonChart
+            data={peerBarData}
+            title={t('chapter.competitive.chart.multiples')}
+          />
         </SubChapter>
       )}
 
       {radarData.length > 0 && (
-        <SubChapter heading="Multi-Dimensional Profile">
-          <CompanyRadarChart data={radarData} title="Target vs Peer Median (normalised 0–100)" />
+        <SubChapter heading={t('chapter.competitive.subheading.profile')}>
+          <CompanyRadarChart data={radarData} title={t('chapter.competitive.chart.radar')} />
         </SubChapter>
       )}
 
       {peers?.positioning_narrative && (
-        <SubChapter heading="Positioning vs Peers">
+        <SubChapter heading={t('chapter.competitive.subheading.positioning')}>
           <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
             {peers.positioning_narrative}
           </p>
@@ -176,7 +194,7 @@ const mutedNote: React.CSSProperties = {
   fontSize: 11.5,
   color: 'var(--text-muted)',
   padding: '14px 18px',
-  background: 'rgba(15, 15, 34, 0.5)',
+  background: 'var(--bg-card-50)',
   border: '1px dashed var(--border-soft)',
   borderRadius: 'var(--radius-sm)',
 }

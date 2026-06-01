@@ -32,9 +32,6 @@ _SECRET_FIELDS: tuple[str, ...] = (
     "finnhub_api_key",
     "alpha_vantage_api_key",
     "adanos_api_key",
-    # Bot token is a credential — keep it out of settings.json. Was
-    # previously dropped on the floor (neither in secret nor non-secret).
-    "telegram_bot_token",
 )
 
 # Non-secret fields are written into ``~/.finrobot/settings.json`` only when
@@ -55,15 +52,6 @@ _NON_SECRET_FIELDS: tuple[str, ...] = (
     "log_level",
     "log_to_file",
     "log_retention_days",
-    # Notification channels — non-secret, surfaced through the same PUT
-    # endpoint from the UI's "通知通道" section.
-    "feishu_webhook_url",
-    "telegram_chat_id",
-    "discord_webhook_url",
-    "email_smtp_host",
-    "email_smtp_port",
-    "email_to",
-    "custom_webhook_url",
 )
 
 # Source labels exposed to the UI. Keep this list of literals in sync with
@@ -136,17 +124,6 @@ class SettingsUpdate(BaseModel):
     finnhub_api_key: str | None = Field(default=None, repr=False)
     alpha_vantage_api_key: str | None = Field(default=None, repr=False)
     adanos_api_key: str | None = Field(default=None, repr=False)
-    telegram_bot_token: str | None = Field(default=None, repr=False)
-
-    # Notification channel fields — accepted but stored in settings.json,
-    # not in keychain (they are non-secret webhook URLs / chat IDs).
-    feishu_webhook_url: str | None = None
-    telegram_chat_id: str | None = None
-    discord_webhook_url: str | None = None
-    email_smtp_host: str | None = None
-    email_smtp_port: int | None = None
-    email_to: str | None = None
-    custom_webhook_url: str | None = None
 
 
 class SettingsResetRequest(BaseModel):

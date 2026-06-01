@@ -217,6 +217,13 @@ export function ReportToolbar({
 
       <span style={{ flex: 1, minWidth: 8 }} />
 
+      {/* Export PDF — print the report to a light deliverable PDF. Zero deps:
+          window.print() drives the WKWebView print dialog; @media print
+          (styles/print.css) flips the cosmic theme light and strips chrome. */}
+      <ToolbarButton onClick={() => window.print()} title={t('report.toolbar.exportPdfTitle')}>
+        ⤓ {t('report.toolbar.exportPdf')}
+      </ToolbarButton>
+
       {/* Primary actions — Re-run is the focal CTA. Diff sits next to it
           because version comparison is the second most-used action. */}
       <ToolbarButton onClick={handleRerun} primary>

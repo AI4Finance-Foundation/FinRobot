@@ -108,6 +108,7 @@ function OverallTile({
 }: {
   bucket: { n_total: number; n_closed: number; n_hit: number; hit_rate: number | null }
 }): React.ReactElement {
+  const { t } = useI18n()
   const insufficient = bucket.n_closed === 0
   return (
     <div
@@ -130,7 +131,7 @@ function OverallTile({
           textTransform: 'uppercase',
         }}
       >
-        Overall · settled {bucket.n_closed} / total {bucket.n_total}
+        {t('landing.hitRate.overallMeta', { closed: bucket.n_closed, total: bucket.n_total })}
       </div>
       <div
         style={{
@@ -152,8 +153,8 @@ function OverallTile({
         }}
       >
         {insufficient
-          ? 'Insufficient track record · need ≥1 settled position to compute hit rate'
-          : `${bucket.n_hit} of ${bucket.n_closed} settled positions hit target`}
+          ? t('landing.hitRate.insufficient')
+          : t('landing.hitRate.hitSummary', { hit: bucket.n_hit, closed: bucket.n_closed })}
       </div>
     </div>
   )
@@ -173,6 +174,7 @@ function VerdictTile({
     warning: { fg: 'var(--accent-amber)', glow: 'rgba(217,119,6,0.45)' },
     danger: { fg: 'var(--danger)', glow: 'var(--danger-glow)' },
   } as const
+  const { t } = useI18n()
   const c = colorMap[tone]
   const insufficient = bucket.n_closed === 0
   return (
@@ -201,7 +203,7 @@ function VerdictTile({
           {label}
         </span>
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-          n={bucket.n_total}
+          {t('landing.hitRate.sampleCount', { n: bucket.n_total })}
         </span>
       </div>
       <div
@@ -216,7 +218,7 @@ function VerdictTile({
         {insufficient || bucket.hit_rate == null ? '—' : `${(bucket.hit_rate * 100).toFixed(0)}%`}
       </div>
       <div style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--text-muted)' }}>
-        {bucket.n_hit}/{bucket.n_closed} hits
+        {t('landing.hitRate.hitsShort', { hit: bucket.n_hit, closed: bucket.n_closed })}
       </div>
     </div>
   )

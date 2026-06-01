@@ -50,12 +50,8 @@ describe('SettingsView', () => {
     expect(await screen.findByText('Data Sources')).toBeInTheDocument()
   })
 
-  it('renders 通知通道 section', async () => {
-    renderWithQuery(<SettingsView onComplete={() => {}} />)
-    expect(await screen.findByText('Notification Channels')).toBeInTheDocument()
-  })
-
   // 外观 section removed in v5; theme controls are outside this settings surface.
+  // 通知通道 section removed 2026-06; multi-channel push had no trigger wired.
 
   it('renders logging controls and export button', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)

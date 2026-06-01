@@ -118,19 +118,6 @@ class FinRobotSettings(BaseSettings):
     log_to_file: bool = True
     log_retention_days: int = 7
 
-    # Notification channels — all optional; empty string = channel disabled
-    feishu_webhook_url: str = ""
-    telegram_bot_token: str = ""
-    telegram_chat_id: str = ""
-    discord_webhook_url: str = ""
-    email_smtp_host: str = ""
-    email_smtp_port: int = 587
-    email_smtp_user: str = ""
-    email_smtp_pass: str = ""
-    email_to: str = ""
-    custom_webhook_url: str = ""
-    notify_on_complete: bool = True  # auto-notify when pipeline completes
-
     # Output language for LLM narrative. "en" = English, "zh" = Chinese (简体中文).
     # Only affects LLM-generated text — deterministic calculations are unchanged.
     language: str = Field(default="en", pattern=r"^(en|zh)$")

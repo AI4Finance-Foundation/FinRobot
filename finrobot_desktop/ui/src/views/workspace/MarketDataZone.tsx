@@ -22,9 +22,24 @@ interface MarketDataZoneProps {
 }
 
 export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElement {
-  const { data: price } = useTickerPrice(ticker)
-  const { data: fin } = useTickerFinancials(ticker)
-  const { data: catalysts } = useTickerCatalysts(ticker)
+  const {
+    data: price,
+    isError: priceError,
+    error: priceErr,
+    refetch: refetchPrice,
+  } = useTickerPrice(ticker)
+  const {
+    data: fin,
+    isError: finError,
+    error: finErr,
+    refetch: refetchFin,
+  } = useTickerFinancials(ticker)
+  const {
+    data: catalysts,
+    isError: catalystsError,
+    error: catalystsErr,
+    refetch: refetchCatalysts,
+  } = useTickerCatalysts(ticker)
   const { t } = useI18n()
 
   return (
@@ -34,73 +49,97 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
 
       {/* 行情快照 */}
       <MktCard title={t('workspace.market.snapshot')} liveTag={providerTag(fin?.data_source)}>
-        <Kv4
-          cells={[
-            { label: t('workspace.market.marketCap'), value: fmtMc(fin?.market?.market_cap) },
-            { label: 'P/E (TTM)', value: fmt(fin?.market?.pe_ratio, 1) },
-            {
-              label: 'EV/EBITDA',
-              value: fmt(fin?.valuation?.ev_ebitda, 1),
-              sub:
-                typeof fin?.valuation?.ev_ebitda_reported === 'number'
-                  ? t('workspace.market.streetCaliber', {
-                      v: fin.valuation.ev_ebitda_reported.toFixed(1),
-                    })
-                  : undefined,
-              subTitle: t('workspace.market.evEbitdaCaliber'),
-            },
-            {
-              label: 'Beta (5Y)',
-              value: fmt(fin?.market?.beta, 2),
-            },
-            { label: '52W Low', value: fmtPrice(fin?.market?.price_52w_low) },
-            { label: '52W High', value: fmtPrice(fin?.market?.price_52w_high) },
-          ]}
-        />
-        <ProvenanceFootnote provenance={fin?.provenance} />
+        {finError ? (
+          <CardError status={finErr?.status} onRetry={() => void refetchFin()} />
+        ) : (
+          <>
+            <Kv4
+              cells={[
+                { label: t('workspace.market.marketCap'), value: fmtMc(fin?.market?.market_cap) },
+                { label: 'P/E (TTM)', value: fmt(fin?.market?.pe_ratio, 1) },
+                {
+                  label: 'EV/EBITDA',
+                  value: fmt(fin?.valuation?.ev_ebitda, 1),
+                  sub:
+                    typeof fin?.valuation?.ev_ebitda_reported === 'number'
+                      ? t('workspace.market.streetCaliber', {
+                          v: fin.valuation.ev_ebitda_reported.toFixed(1),
+                        })
+                      : undefined,
+                  subTitle: t('workspace.market.evEbitdaCaliber'),
+                },
+                {
+                  label: 'Beta (5Y)',
+                  value: fmt(fin?.market?.beta, 2),
+                },
+                { label: '52W Low', value: fmtPrice(fin?.market?.price_52w_low) },
+                { label: '52W High', value: fmtPrice(fin?.market?.price_52w_high) },
+              ]}
+            />
+            <ProvenanceFootnote provenance={fin?.provenance} />
+          </>
+        )}
       </MktCard>
 
       {/* Price chart */}
       <MktCard title={t('workspace.market.priceTrend')} liveTag={providerTag(price?.data_source)}>
-        <PriceTrendChart points={price?.history ?? null} />
-        <TechnicalsStrip tech={price?.technicals} />
+        {priceError ? (
+          <CardError status={priceErr?.status} onRetry={() => void refetchPrice()} />
+        ) : (
+          <>
+            <PriceTrendChart points={price?.history ?? null} />
+            <TechnicalsStrip tech={price?.technicals} />
+          </>
+        )}
       </MktCard>
 
       {/* Financial TTM */}
       <MktCard title={t('workspace.market.financialsTtm')} liveTag={providerTag(fin?.data_source)}>
-        <Kv4
-          cells={[
-            { label: t('workspace.market.revenueTtm'), value: fmtMc(fin?.income?.revenue) },
-            {
-              label: 'EBITDA',
-              value: fmtMc(fin?.income?.ebitda),
-              sub:
-                typeof fin?.valuation?.ebitda_reported === 'number'
-                  ? t('workspace.market.streetCaliber', {
-                      v: fmtMc(fin.valuation.ebitda_reported),
-                    })
-                  : undefined,
-              subTitle: t('workspace.market.ebitdaCaliber'),
-            },
-            {
-              label: 'Net Income',
-              value: fmtMc(fin?.income?.net_income),
-            },
-            {
-              label: 'Gross Margin',
-              value:
-                typeof fin?.income?.gross_margin === 'number'
-                  ? `${(fin.income.gross_margin * 100).toFixed(1)}%`
-                  : '—',
-            },
-          ]}
-        />
-        <ProvenanceFootnote provenance={fin?.provenance} showPeriodEnd />
+        {finError ? (
+          <CardError status={finErr?.status} onRetry={() => void refetchFin()} />
+        ) : (
+          <>
+            <Kv4
+              cells={[
+                { label: t('workspace.market.revenueTtm'), value: fmtMc(fin?.income?.revenue) },
+                {
+                  label: 'EBITDA',
+                  value: fmtMc(fin?.income?.ebitda),
+                  sub:
+                    typeof fin?.valuation?.ebitda_reported === 'number'
+                      ? t('workspace.market.streetCaliber', {
+                          v: fmtMc(fin.valuation.ebitda_reported),
+                        })
+                      : undefined,
+                  subTitle: t('workspace.market.ebitdaCaliber'),
+                },
+                {
+                  label: 'Net Income',
+                  value: fmtMc(fin?.income?.net_income),
+                },
+                {
+                  label: 'Gross Margin',
+                  value:
+                    typeof fin?.income?.gross_margin === 'number'
+                      ? `${(fin.income.gross_margin * 100).toFixed(1)}%`
+                      : '—',
+                },
+              ]}
+            />
+            <ProvenanceFootnote provenance={fin?.provenance} showPeriodEnd />
+          </>
+        )}
       </MktCard>
 
       {/* Catalyst calendar */}
       <MktCard title={t('workspace.market.catalystCalendar')}>
-        {catalysts && catalysts.length > 0 ? (
+        {catalystsError ? (
+          <CardError
+            message={t('workspace.market.catalystError')}
+            status={catalystsErr?.status}
+            onRetry={() => void refetchCatalysts()}
+          />
+        ) : catalysts && catalysts.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {catalysts.slice(0, 5).map((c, i) => (
               <div
@@ -336,6 +375,59 @@ function Empty({ children }: { children: React.ReactNode }): React.ReactElement 
     >
       {children}
     </p>
+  )
+}
+
+// Shown when an upstream data fetch fails (5xx / network). Critical for analyst
+// trust: a backend outage must NOT silently degrade to "—" / "无催化剂", which
+// reads as "this stock has no data" rather than "the source is down". Mirrors
+// AIZone's error state; the retry button re-runs the failed query.
+function CardError({
+  message,
+  status,
+  onRetry,
+}: {
+  message?: string
+  status?: number
+  onRetry: () => void
+}): React.ReactElement {
+  const { t } = useI18n()
+  return (
+    <div
+      data-testid="market-card-error"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        gap: 8,
+        padding: '12px 4px',
+        fontFamily: 'var(--font-mono)',
+      }}
+    >
+      <span style={{ fontSize: 11.5, color: 'var(--danger)' }}>
+        ⚠ {message ?? t('workspace.market.dataUnavailable')}
+      </span>
+      <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>
+        {t('workspace.market.dataUnavailableHint', { status: status ?? '5xx' })}
+      </span>
+      <button
+        type="button"
+        onClick={onRetry}
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10.5,
+          color: 'var(--danger)',
+          background: 'rgba(220,38,38,0.12)',
+          border: '1px solid var(--danger)',
+          borderRadius: 4,
+          padding: '4px 12px',
+          cursor: 'pointer',
+          letterSpacing: '0.04em',
+        }}
+      >
+        {t('workspace.market.retry')}
+      </button>
+    </div>
   )
 }
 

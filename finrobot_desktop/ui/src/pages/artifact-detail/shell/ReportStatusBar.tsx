@@ -14,6 +14,7 @@
 // only element with overflow-y:auto. window.scrollY is always 0.
 
 import { useEffect, useRef, useState } from 'react'
+import { useI18n } from '../../../i18n'
 import type { TOCEntry } from './ReportTOC'
 
 interface ReportStatusBarProps {
@@ -21,6 +22,7 @@ interface ReportStatusBarProps {
 }
 
 export function ReportStatusBar({ entries }: ReportStatusBarProps): React.ReactElement {
+  const { t } = useI18n()
   const [activeIdx, setActiveIdx] = useState<number>(0)
   const [progressPct, setProgressPct] = useState<number>(0)
   // Cache the scroll container reference so both effects share the same node.
@@ -142,7 +144,8 @@ export function ReportStatusBar({ entries }: ReportStatusBarProps): React.ReactE
       />
 
       <span data-testid="report-status-chapter" style={{ color: 'var(--text-secondary)' }}>
-        章节 {String(activeIdx + 1).padStart(2, '0')}/{String(total).padStart(2, '0')}
+        {t('report.statusBar.chapter')} {String(activeIdx + 1).padStart(2, '0')}/
+        {String(total).padStart(2, '0')}
         {chapterLabel && (
           <span style={{ color: 'var(--text-dim)', marginLeft: 8 }}>{chapterLabel}</span>
         )}
@@ -161,18 +164,19 @@ export function ReportStatusBar({ entries }: ReportStatusBarProps): React.ReactE
         type="button"
         data-testid="report-status-back-to-top"
         onClick={scrollToTop}
-        title="回到顶部"
+        title={t('report.statusBar.backToTop')}
         style={backTopBtnStyle}
         onMouseEnter={(e) => {
           e.currentTarget.style.color = 'var(--accent-cyan)'
-          e.currentTarget.style.background = 'rgba(34, 211, 238, 0.08)'
+          e.currentTarget.style.background =
+            'color-mix(in srgb, var(--accent-cyan) 8%, transparent)'
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.color = 'var(--text-secondary)'
           e.currentTarget.style.background = 'transparent'
         }}
       >
-        ↑ 回顶
+        ↑ {t('report.statusBar.backToTopShort')}
       </button>
     </div>
   )

@@ -139,7 +139,7 @@ export function ChapterValuation({
             fontSize: 11.5,
             color: 'var(--text-muted)',
             padding: '14px 18px',
-            background: 'rgba(15, 15, 34, 0.5)',
+            background: 'var(--bg-card-50)',
             border: '1px dashed var(--border-soft)',
             borderRadius: 'var(--radius-sm)',
           }}

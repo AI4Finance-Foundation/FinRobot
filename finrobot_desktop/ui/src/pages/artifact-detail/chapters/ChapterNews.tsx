@@ -5,8 +5,10 @@
 
 import { Chapter, Narrative } from './ChapterBase'
 import type { ThesisShape } from './types'
+import { useI18n } from '../../../i18n'
 
 export function ChapterNews({ thesis }: { thesis: ThesisShape | null }): React.ReactElement {
+  const { t } = useI18n()
   const summary = thesis?.news_summary ?? null
 
   return (
@@ -22,14 +24,13 @@ export function ChapterNews({ thesis }: { thesis: ThesisShape | null }): React.R
             fontSize: 11.5,
             color: 'var(--text-muted)',
             padding: '14px 18px',
-            background: 'rgba(15, 15, 34, 0.5)',
+            background: 'var(--bg-card-50)',
             border: '1px dashed var(--border-soft)',
             borderRadius: 'var(--radius-sm)',
             lineHeight: 1.7,
           }}
         >
-          该研报未生成新闻情绪段 — 重新生成研报即在此章产出近 30 天关键事件的整体情绪与论点支撑 /
-          挑战分析。
+          {t('chapter.news.empty')}
         </p>
       )}
       <p
@@ -41,7 +42,7 @@ export function ChapterNews({ thesis }: { thesis: ThesisShape | null }): React.R
           letterSpacing: '0.04em',
         }}
       >
-        Snapshot frozen at artifact creation · live news feed available on the workspace dashboard.
+        {t('chapter.news.snapshotNote')}
       </p>
     </Chapter>
   )

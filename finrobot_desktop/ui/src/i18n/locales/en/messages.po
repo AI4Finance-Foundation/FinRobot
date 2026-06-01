@@ -703,10 +703,6 @@ msgid "chapter.financial.kv.netIncome"
 msgstr "Net Income"
 
 #. js-lingui-explicit-id
-msgid "chapter.financial.kv.fcfTtm"
-msgstr "FCF (TTM)"
-
-#. js-lingui-explicit-id
 msgid "chapter.financial.subheading.revenueEbitda"
 msgstr "Revenue & EBITDA Trajectory"
 
@@ -1591,6 +1587,14 @@ msgid "report.toolbar.diff"
 msgstr "Diff"
 
 #. js-lingui-explicit-id
+msgid "report.toolbar.exportPdf"
+msgstr "Export PDF"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportPdfTitle"
+msgstr "Print a light-theme report PDF (choose “Save as PDF” in the print dialog)"
+
+#. js-lingui-explicit-id
 msgid "report.rightRail.timeline"
 msgstr "Version Timeline"
 
@@ -1649,10 +1653,6 @@ msgstr "EPS"
 #. js-lingui-explicit-id
 msgid "chart.epsTrend.yoy"
 msgstr "YoY"
-
-#. js-lingui-explicit-id
-msgid "settings.test"
-msgstr "Test"
 
 #. js-lingui-explicit-id
 msgid "settings.loadFailed"
@@ -1755,10 +1755,6 @@ msgid "settings.section.aiModel"
 msgstr "AI Model"
 
 #. js-lingui-explicit-id
-msgid "settings.section.notifications"
-msgstr "Notification Channels"
-
-#. js-lingui-explicit-id
 msgid "settings.section.logging"
 msgstr "Logging / Diagnostics"
 
@@ -1837,34 +1833,6 @@ msgstr "SEC request header preview: "
 #. js-lingui-explicit-id
 msgid "settings.model.label"
 msgstr "Model"
-
-#. js-lingui-explicit-id
-msgid "settings.notify.desktop"
-msgstr "Desktop notifications"
-
-#. js-lingui-explicit-id
-msgid "settings.notify.onByDefault"
-msgstr "On by default"
-
-#. js-lingui-explicit-id
-msgid "settings.notify.desktopHint"
-msgstr "System-level · managed in macOS Notification Center"
-
-#. js-lingui-explicit-id
-msgid "settings.notify.telegramToken"
-msgstr "Bot Token (from @BotFather)"
-
-#. js-lingui-explicit-id
-msgid "settings.notify.telegramChatId"
-msgstr "Chat ID"
-
-#. js-lingui-explicit-id
-msgid "settings.notify.emailTo"
-msgstr "Recipient email address"
-
-#. js-lingui-explicit-id
-msgid "settings.notify.smtpHost"
-msgstr "SMTP host (e.g. smtp.gmail.com)"
 
 #. js-lingui-explicit-id
 msgid "settings.log.level"
@@ -2049,6 +2017,26 @@ msgstr "Track Record · Hit Rate"
 #. js-lingui-explicit-id
 msgid "landing.hitRate.error"
 msgstr "Failed to load data. Please refresh the page."
+
+#. js-lingui-explicit-id
+msgid "landing.hitRate.overallMeta"
+msgstr "Overall · settled {closed} / total {total}"
+
+#. js-lingui-explicit-id
+msgid "landing.hitRate.insufficient"
+msgstr "Insufficient track record · need ≥1 settled position to compute hit rate"
+
+#. js-lingui-explicit-id
+msgid "landing.hitRate.hitSummary"
+msgstr "{hit} of {closed} settled positions hit target"
+
+#. js-lingui-explicit-id
+msgid "landing.hitRate.sampleCount"
+msgstr "n={n}"
+
+#. js-lingui-explicit-id
+msgid "landing.hitRate.hitsShort"
+msgstr "{hit}/{closed} hits"
 
 #. js-lingui-explicit-id
 msgid "landing.recentResearch.typeResearch"
@@ -2305,6 +2293,22 @@ msgstr "(unnamed event)"
 #. js-lingui-explicit-id
 msgid "workspace.market.noCatalysts"
 msgstr "No recent events · earnings / product launches / regulatory"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.dataUnavailable"
+msgstr "Market data source unavailable"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.dataUnavailableHint"
+msgstr "Upstream returned {status} · click to retry"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.retry"
+msgstr "Retry"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.catalystError"
+msgstr "Catalyst detection unavailable (≠ no catalysts) · click to retry"
 
 #. js-lingui-explicit-id
 msgid "workspace.market.source"

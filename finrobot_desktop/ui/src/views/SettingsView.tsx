@@ -17,7 +17,6 @@ const MODEL_OPTIONS = [
   { value: 'deepseek:deepseek-reasoner', label: 'DeepSeek R1' },
   { value: 'anthropic:claude-sonnet-4-6', label: 'Claude Sonnet 4' },
   { value: 'openai:gpt-4o', label: 'GPT-4o' },
-  { value: 'openai:qwen3-235b-a22b', label: 'Qwen3 235B' },
 ]
 
 // ─── Styles ────────────────────────────────────────────────────────────────
@@ -223,55 +222,6 @@ const ghostBtnStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
-// ─── Notification Channel Row ──────────────────────────────────────────────
-
-type TestState = 'idle' | 'loading' | 'ok' | 'fail'
-
-function TestButton({ channel, disabled }: { channel: string; disabled?: boolean }) {
-  const { t } = useI18n()
-  const [state, setState] = useState<TestState>('idle')
-
-  const handleTest = async () => {
-    setState('loading')
-    try {
-      const resp = await fetch(`${BASE_URL}/api/notify/test/${channel}`, {
-        method: 'POST',
-      })
-      const json = await resp.json()
-      setState(json?.success ? 'ok' : 'fail')
-    } catch {
-      setState('fail')
-    }
-    // Reset after 3s
-    setTimeout(() => setState('idle'), 3000)
-  }
-
-  const label =
-    state === 'loading' ? '...' : state === 'ok' ? '✓' : state === 'fail' ? '✗' : t('settings.test')
-
-  const style: React.CSSProperties = {
-    ...ghostBtnStyle,
-    color:
-      state === 'ok'
-        ? 'var(--positive)'
-        : state === 'fail'
-          ? 'var(--negative)'
-          : 'var(--text-secondary)',
-    borderColor:
-      state === 'ok' ? 'var(--positive)' : state === 'fail' ? 'var(--negative)' : 'var(--border)',
-    opacity: disabled ? 0.4 : 1,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    minWidth: '36px',
-    textAlign: 'center',
-  }
-
-  return (
-    <button style={style} onClick={handleTest} disabled={disabled || state === 'loading'}>
-      {label}
-    </button>
-  )
-}
-
 function InputWithFocus({ style: s, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   const [focused, setFocused] = useState(false)
   return (
@@ -394,28 +344,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   const [modelName, setModelName] = useState('')
   const [llmApiKey, setLlmApiKey] = useState('')
 
-  // ── Section 3: Notifications (managed locally, saved via direct fetch) ───
-  const [notifyDesktop, _setNotifyDesktop] = useState(true)
-
-  const [feishuEnabled, setFeishuEnabled] = useState(false)
-  const [feishuUrl, setFeishuUrl] = useState('')
-
-  const [telegramEnabled, setTelegramEnabled] = useState(false)
-  const [telegramToken, setTelegramToken] = useState('')
-  const [telegramChatId, setTelegramChatId] = useState('')
-
-  const [discordEnabled, setDiscordEnabled] = useState(false)
-  const [discordUrl, setDiscordUrl] = useState('')
-
-  const [emailEnabled, setEmailEnabled] = useState(false)
-  const [emailTo, setEmailTo] = useState('')
-  const [emailSmtpHost, setEmailSmtpHost] = useState('')
-  const [emailSmtpPort, setEmailSmtpPort] = useState('587')
-
-  const [webhookEnabled, setWebhookEnabled] = useState(false)
-  const [webhookUrl, setWebhookUrl] = useState('')
-
-  // ── Section 4: Logging / Diagnostics ────────────────────────────────────
+  // ── Section 3: Logging / Diagnostics ────────────────────────────────────
   const [logLevel, setLogLevel] = useState('INFO')
   const [logToFile, setLogToFile] = useState(false)
   const [logRetentionDays, setLogRetentionDays] = useState(7)
@@ -461,7 +390,11 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     },
     onError: (err: Error) => {
       setSaveState('error')
-      addToast({ type: 'error', title: t('settings.saveFailedTitle'), description: mapErrorToUserMessage(err) })
+      addToast({
+        type: 'error',
+        title: t('settings.saveFailedTitle'),
+        description: mapErrorToUserMessage(err),
+      })
       saveTimerRef.current = setTimeout(() => setSaveState('idle'), 3000)
     },
   })
@@ -505,7 +438,11 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       })
     },
     onError: (err: Error) => {
-      addToast({ type: 'error', title: t('settings.reset.failTitle'), description: mapErrorToUserMessage(err) })
+      addToast({
+        type: 'error',
+        title: t('settings.reset.failTitle'),
+        description: mapErrorToUserMessage(err),
+      })
     },
   })
 
@@ -531,47 +468,10 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     [],
   )
 
-  // ── Notify field save (direct fetch, no schema constraint) ───────────────
-  const notifyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const scheduleNotifySave = useCallback(
-    (fields: Record<string, string>) => {
-      if (!initializedRef.current) return
-      if (notifyDebounceRef.current) clearTimeout(notifyDebounceRef.current)
-      setSaveState('saving')
-      notifyDebounceRef.current = setTimeout(async () => {
-        try {
-          const resp = await fetch(`${BASE_URL}/api/settings`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(fields),
-          })
-          if (!resp.ok) {
-            const j = await resp.json().catch(() => ({}))
-            throw new Error(j?.detail || 'Notification settings save failed')
-          }
-          setSaveState('saved')
-          saveTimerRef.current = setTimeout(() => setSaveState('idle'), 2500)
-        } catch (err) {
-          setSaveState('error')
-          addToast({
-            type: 'error',
-            title: t('settings.saveFailedTitle'),
-            description: (err as Error).message,
-          })
-          saveTimerRef.current = setTimeout(() => setSaveState('idle'), 3000)
-        }
-      }, 500)
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  )
-
   // Cleanup timers
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
-      if (notifyDebounceRef.current) clearTimeout(notifyDebounceRef.current)
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     }
   }, [])
@@ -644,41 +544,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       })
       setTimeout(() => setExportState('idle'), 3000)
     }
-  }
-
-  // Notification field helpers
-  const handleFeishuUrl = (v: string) => {
-    setFeishuUrl(v)
-    scheduleNotifySave({ feishu_webhook_url: v })
-  }
-  const handleTelegramToken = (v: string) => {
-    setTelegramToken(v)
-    scheduleNotifySave({ telegram_bot_token: v })
-  }
-  const handleTelegramChatId = (v: string) => {
-    setTelegramChatId(v)
-    scheduleNotifySave({ telegram_chat_id: v })
-  }
-  const handleDiscordUrl = (v: string) => {
-    setDiscordUrl(v)
-    scheduleNotifySave({ discord_webhook_url: v })
-  }
-  const handleEmailTo = (v: string) => {
-    setEmailTo(v)
-    scheduleNotifySave({ email_to: v })
-  }
-  const handleSmtpHost = (v: string) => {
-    setEmailSmtpHost(v)
-    scheduleNotifySave({ email_smtp_host: v })
-  }
-  const handleSmtpPort = (v: string) => {
-    setEmailSmtpPort(v)
-    const port = parseInt(v)
-    if (!isNaN(port)) scheduleNotifySave({ email_smtp_port: String(port) })
-  }
-  const handleWebhookUrl = (v: string) => {
-    setWebhookUrl(v)
-    scheduleNotifySave({ custom_webhook_url: v })
   }
 
   // ── Derived ──────────────────────────────────────────────────────────────
@@ -1008,234 +873,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       </section>
 
       {/* ═════════════════════════════════════════════
-          Section 3: Notification Channels
-          ═════════════════════════════════════════════ */}
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>{t('settings.section.notifications')}</h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {/* Desktop — always on via Tauri native notification API; not
-              user-configurable, so we render a read-only status row rather
-              than a disabled checkbox the user would otherwise click in
-              vain. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span
-              aria-hidden
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: 'var(--positive)',
-                boxShadow: '0 0 8px var(--positive)',
-                flexShrink: 0,
-              }}
-            />
-            <span
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '11px',
-                color: 'var(--text-primary)',
-              }}
-            >
-              {t('settings.notify.desktop')}
-            </span>
-            <span style={{ ...configuredBadgeStyle, marginLeft: '4px' }}>
-              {t('settings.notify.onByDefault')}
-            </span>
-            <span
-              style={{
-                marginLeft: 'auto',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '10px',
-                color: 'var(--text-muted)',
-              }}
-            >
-              {t('settings.notify.desktopHint')}
-            </span>
-            {/* Reference notifyDesktop so the local-state hook keeps satisfying
-                the lint check; the value itself is always true today. */}
-            {!notifyDesktop && null}
-          </div>
-
-          {/* Feishu */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Checkbox checked={feishuEnabled} onChange={setFeishuEnabled} />
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '11px',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                Feishu Webhook
-              </span>
-            </div>
-            {feishuEnabled && (
-              <div style={{ display: 'flex', gap: '8px', paddingLeft: '22px' }}>
-                <InputWithFocus
-                  type="url"
-                  value={feishuUrl}
-                  onChange={(e) => handleFeishuUrl(e.target.value)}
-                  placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
-                />
-                <TestButton channel="feishu" disabled={!feishuUrl.trim()} />
-              </div>
-            )}
-          </div>
-
-          {/* Telegram */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Checkbox checked={telegramEnabled} onChange={setTelegramEnabled} />
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '11px',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                Telegram Bot
-              </span>
-            </div>
-            {telegramEnabled && (
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                  paddingLeft: '22px',
-                }}
-              >
-                <InputWithFocus
-                  type="password"
-                  value={telegramToken}
-                  onChange={(e) => handleTelegramToken(e.target.value)}
-                  placeholder={t('settings.notify.telegramToken')}
-                />
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <InputWithFocus
-                    type="text"
-                    value={telegramChatId}
-                    onChange={(e) => handleTelegramChatId(e.target.value)}
-                    placeholder={t('settings.notify.telegramChatId')}
-                  />
-                  <TestButton
-                    channel="telegram"
-                    disabled={!telegramToken.trim() || !telegramChatId.trim()}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Discord */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Checkbox checked={discordEnabled} onChange={setDiscordEnabled} />
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '11px',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                Discord Webhook
-              </span>
-            </div>
-            {discordEnabled && (
-              <div style={{ display: 'flex', gap: '8px', paddingLeft: '22px' }}>
-                <InputWithFocus
-                  type="url"
-                  value={discordUrl}
-                  onChange={(e) => handleDiscordUrl(e.target.value)}
-                  placeholder="https://discord.com/api/webhooks/..."
-                />
-                <TestButton channel="discord" disabled={!discordUrl.trim()} />
-              </div>
-            )}
-          </div>
-
-          {/* Email */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Checkbox checked={emailEnabled} onChange={setEmailEnabled} />
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '11px',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                Email
-              </span>
-            </div>
-            {emailEnabled && (
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                  paddingLeft: '22px',
-                }}
-              >
-                <InputWithFocus
-                  type="email"
-                  value={emailTo}
-                  onChange={(e) => handleEmailTo(e.target.value)}
-                  placeholder={t('settings.notify.emailTo')}
-                />
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <InputWithFocus
-                    type="text"
-                    value={emailSmtpHost}
-                    onChange={(e) => handleSmtpHost(e.target.value)}
-                    placeholder={t('settings.notify.smtpHost')}
-                    style={{ flex: 1 }}
-                  />
-                  <InputWithFocus
-                    type="number"
-                    value={emailSmtpPort}
-                    onChange={(e) => handleSmtpPort(e.target.value)}
-                    placeholder="587"
-                    style={{ width: '70px' }}
-                  />
-                  <TestButton channel="email" disabled={!emailTo.trim() || !emailSmtpHost.trim()} />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Custom Webhook */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Checkbox checked={webhookEnabled} onChange={setWebhookEnabled} />
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '11px',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                Custom Webhook
-              </span>
-            </div>
-            {webhookEnabled && (
-              <div style={{ display: 'flex', gap: '8px', paddingLeft: '22px' }}>
-                <InputWithFocus
-                  type="url"
-                  value={webhookUrl}
-                  onChange={(e) => handleWebhookUrl(e.target.value)}
-                  placeholder="https://your-endpoint.example.com/hook"
-                />
-                <TestButton channel="webhook" disabled={!webhookUrl.trim()} />
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* ═════════════════════════════════════════════
-          Section 4: Logging / Diagnostics
+          Section 3: Logging / Diagnostics
           ═════════════════════════════════════════════ */}
       <section style={sectionStyle}>
         <h2 style={sectionTitleStyle}>{t('settings.section.logging')}</h2>

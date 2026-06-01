@@ -5,6 +5,7 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import type { NumberSource } from '../../../components/SourcedNumber'
 import { Chapter, KvGrid, SubChapter } from './ChapterBase'
 import { formatDate, formatCompactNumber, formatNumber, formatPercent } from '../../../utils/format'
 import { useI18n, type Locale } from '../../../i18n'
@@ -68,7 +69,17 @@ interface ValuationShape {
   ev_revenue?: number | null
 }
 
-type Cell = { label: string; value: string; delta?: string; tone?: 'up' | 'down' }
+type Cell = {
+  label: string
+  value: string
+  delta?: string
+  tone?: 'up' | 'down'
+  source?: NumberSource
+}
+
+interface ProvenanceShape {
+  provider?: string | null
+}
 
 function tr(zh: string, en: string, locale: Locale): string {
   return locale === 'en' ? en : zh
@@ -97,16 +108,20 @@ function buildCompanyCells(
   return cells
 }
 
-function buildIncomeCells(income: IncomeShape | undefined, locale: Locale): Cell[] {
+function buildIncomeCells(
+  income: IncomeShape | undefined,
+  locale: Locale,
+  source?: NumberSource,
+): Cell[] {
   if (!income) return []
   const cells: Cell[] = []
   const push = (key: keyof IncomeShape, label: string, mode: 'currency' | 'percent') => {
     const v = income[key]
     if (v === null || v === undefined) return
     if (mode === 'currency') {
-      cells.push({ label, value: `$${formatCompactNumber(v as number, locale)}` })
+      cells.push({ label, value: `$${formatCompactNumber(v as number, locale)}`, source })
     } else {
-      cells.push({ label, value: formatPercent(v as number, locale) })
+      cells.push({ label, value: formatPercent(v as number, locale), source })
     }
   }
   push('revenue', tr('营收', 'Revenue', locale), 'currency')
@@ -125,30 +140,35 @@ function buildBalanceCells(
   balance: BalanceShape | undefined,
   market: MarketShape,
   locale: Locale,
+  source?: NumberSource,
 ): Cell[] {
   const cells: Cell[] = []
   if (balance?.total_debt !== undefined && balance.total_debt !== null) {
     cells.push({
       label: tr('总负债', 'Total Debt', locale),
       value: `$${formatCompactNumber(balance.total_debt, locale)}`,
+      source,
     })
   }
   if (balance?.total_cash !== undefined && balance.total_cash !== null) {
     cells.push({
       label: tr('现金', 'Total Cash', locale),
       value: `$${formatCompactNumber(balance.total_cash, locale)}`,
+      source,
     })
   }
   if (market.market_cap !== undefined && market.market_cap !== null) {
     cells.push({
       label: tr('市值', 'Market Cap', locale),
       value: `$${formatCompactNumber(market.market_cap, locale)}`,
+      source,
     })
   }
   if (market.shares_outstanding !== undefined && market.shares_outstanding !== null) {
     cells.push({
       label: tr('总股本', 'Shares Out', locale),
       value: formatCompactNumber(market.shares_outstanding, locale),
+      source,
     })
   }
   return cells
@@ -158,54 +178,63 @@ function buildValuationCells(
   market: MarketShape,
   valuation: ValuationShape | undefined,
   locale: Locale,
+  source?: NumberSource,
 ): Cell[] {
   const cells: Cell[] = []
   if (market.current_price !== undefined && market.current_price !== null) {
     cells.push({
       label: tr('现价', 'Price', locale),
       value: `$${formatNumber(market.current_price, locale, 2)}`,
+      source,
     })
   }
   if (market.pe_ratio !== undefined && market.pe_ratio !== null) {
     cells.push({
       label: 'P/E',
       value: `${formatNumber(market.pe_ratio, locale, 1)}x`,
+      source,
     })
   }
   if (valuation?.enterprise_value !== undefined && valuation.enterprise_value !== null) {
     cells.push({
       label: 'EV',
       value: `$${formatCompactNumber(valuation.enterprise_value, locale)}`,
+      source,
     })
   }
   if (valuation?.ev_ebitda !== undefined && valuation.ev_ebitda !== null) {
     cells.push({
       label: 'EV/EBITDA',
       value: `${formatNumber(valuation.ev_ebitda, locale, 1)}x`,
+      source,
     })
   }
   if (valuation?.ev_revenue !== undefined && valuation.ev_revenue !== null) {
     cells.push({
       label: 'EV/Revenue',
       value: `${formatNumber(valuation.ev_revenue, locale, 1)}x`,
+      source,
     })
   }
   if (market.price_52w_high !== undefined && market.price_52w_high !== null) {
     cells.push({
       label: tr('52 周高', '52W High', locale),
       value: `$${formatNumber(market.price_52w_high, locale, 2)}`,
+      source,
     })
   }
   if (market.price_52w_low !== undefined && market.price_52w_low !== null) {
     cells.push({
       label: tr('52 周低', '52W Low', locale),
       value: `$${formatNumber(market.price_52w_low, locale, 2)}`,
+      source,
     })
   }
   if (market.beta !== undefined && market.beta !== null) {
     cells.push({
       label: 'Beta',
       value: formatNumber(market.beta, locale, 2),
+      source,
     })
   }
   return cells
@@ -226,10 +255,20 @@ export function ChapterFinancialData({
   const market = (data['market'] as MarketShape | undefined) ?? {}
   const valuation = data['valuation'] as ValuationShape | undefined
 
+  // Provenance for the snapshot's numbers: the provider that supplied them +
+  // when they were fetched. `provenance.provider` (DataProvenance) is the
+  // canonical source-of-truth; `dataSource` is the legacy top-level mirror.
+  const provenance = data['provenance'] as ProvenanceShape | undefined
+  const sourceProvider = provenance?.provider ?? dataSource ?? undefined
+  const numberSource: NumberSource | undefined =
+    sourceProvider || fetchedAt
+      ? { provider: sourceProvider, fetched_at: fetchedAt ?? undefined }
+      : undefined
+
   const companyCells = buildCompanyCells(data, market, locale)
-  const incomeCells = buildIncomeCells(income, locale)
-  const balanceCells = buildBalanceCells(balance, market, locale)
-  const valuationCells = buildValuationCells(market, valuation, locale)
+  const incomeCells = buildIncomeCells(income, locale, numberSource)
+  const balanceCells = buildBalanceCells(balance, market, locale, numberSource)
+  const valuationCells = buildValuationCells(market, valuation, locale, numberSource)
 
   return (
     <Chapter id="data">
@@ -247,7 +286,9 @@ export function ChapterFinancialData({
       >
         <span>
           {tr('数据来源', 'DATA SOURCE', locale)}:{' '}
-          <span style={{ color: 'var(--accent-cyan)' }}>{dataSource ?? 'unknown'}</span>
+          <span style={{ color: 'var(--accent-cyan)' }}>
+            {sourceProvider ?? tr('未知', 'unknown', locale)}
+          </span>
         </span>
         {fetchedAt && (
           <span>
@@ -438,7 +479,9 @@ function EarningsCallSection({
                 padding: '4px 10px',
                 borderRadius: 'var(--radius-sm)',
                 border: `1px solid ${active ? 'var(--accent-cyan)' : 'var(--border-soft)'}`,
-                background: active ? 'rgba(34, 211, 238, 0.12)' : 'transparent',
+                background: active
+                  ? 'color-mix(in srgb, var(--accent-cyan) 12%, transparent)'
+                  : 'transparent',
                 color: active ? 'var(--accent-cyan)' : 'var(--text-secondary)',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',

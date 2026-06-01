@@ -80,3 +80,7 @@ scripts/evolve.log
 # locally / in CI by src-tauri/sidecar/build.sh. The source (spec + entry +
 # build script under src-tauri/sidecar/) is tracked; the frozen output is not.
 src-tauri/binaries/finrobot-server-*
+
+# understand-anything — local codebase-analysis tool cache (graph/batches/tmp).
+# Regenerated on demand; never part of the project source.
+.understand-anything/

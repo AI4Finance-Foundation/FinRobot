@@ -34,8 +34,8 @@ interface ChartProps {
 
 const REVENUE_COLOR = 'var(--primary)'
 const EBITDA_COLOR = 'var(--accent-cyan)'
-const FORECAST_REVENUE = 'rgba(59, 130, 246, 0.32)'
-const FORECAST_EBITDA = 'rgba(34, 211, 238, 0.32)'
+const FORECAST_REVENUE = 'var(--chart-forecast-revenue)'
+const FORECAST_EBITDA = 'var(--chart-forecast-ebitda)'
 
 function formatBillions(value: number): string {
   if (Math.abs(value) >= 1e9) return `$${(value / 1e9).toFixed(1)}B`

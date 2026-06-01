@@ -4,6 +4,7 @@
 
 import { Chapter, SubChapter } from './ChapterBase'
 import type { CatalystAnalysisShape, CatalystEventShape, ThesisShape } from './types'
+import { useI18n } from '../../../i18n'
 
 interface ChapterCatalystsProps {
   catalysts: CatalystAnalysisShape | null
@@ -11,6 +12,7 @@ interface ChapterCatalystsProps {
 }
 
 export function ChapterCatalysts({ catalysts, thesis }: ChapterCatalystsProps): React.ReactElement {
+  const { t } = useI18n()
   const top_positive = catalysts?.top_positive ?? []
   const top_negative = catalysts?.top_negative ?? []
   const thesisCatalysts = thesis?.catalysts ?? []
@@ -23,31 +25,31 @@ export function ChapterCatalysts({ catalysts, thesis }: ChapterCatalystsProps): 
 
   return (
     <Chapter id="catalysts">
-      <SubChapter heading="↑ Positive Catalysts (Upside Potential)">
+      <SubChapter heading={`↑ ${t('chapter.catalysts.positiveHeading')}`}>
         {top_positive.length > 0 ? (
           <CatalystList items={top_positive} tone="positive" />
         ) : thesisCatalysts.length > 0 ? (
           <BulletList items={thesisCatalysts} tone="positive" />
         ) : (
-          <p style={mutedNote}>未识别到 positive catalysts</p>
+          <p style={mutedNote}>{t('chapter.catalysts.emptyPositive')}</p>
         )}
       </SubChapter>
 
-      <SubChapter heading="↓ Risk Factors (Downside Risks)">
+      <SubChapter heading={`↓ ${t('chapter.catalysts.riskHeading')}`}>
         {top_negative.length > 0 ? (
           <CatalystList items={top_negative} tone="negative" />
         ) : thesisRisks.length > 0 ? (
           <BulletList items={thesisRisks} tone="negative" />
         ) : (
-          <p style={mutedNote}>未识别到主要 risk factors</p>
+          <p style={mutedNote}>{t('chapter.catalysts.emptyRisks')}</p>
         )}
       </SubChapter>
 
-      <SubChapter heading="◆ Events to Monitor">
+      <SubChapter heading={`◆ ${t('chapter.catalysts.monitorHeading')}`}>
         {monitor.length > 0 ? (
           <CatalystList items={monitor} tone="neutral" />
         ) : (
-          <p style={mutedNote}>该 artifact 未标记需追踪事件 · 实时事件日历在工作区</p>
+          <p style={mutedNote}>{t('chapter.catalysts.emptyMonitor')}</p>
         )}
       </SubChapter>
 
@@ -60,7 +62,7 @@ export function ChapterCatalysts({ catalysts, thesis }: ChapterCatalystsProps): 
             color: 'var(--text-muted)',
           }}
         >
-          Overall sentiment:{' '}
+          {t('chapter.catalysts.overallSentiment')}:{' '}
           <strong
             style={{
               color:
@@ -73,7 +75,8 @@ export function ChapterCatalysts({ catalysts, thesis }: ChapterCatalystsProps): 
           >
             {catalysts.overall_sentiment.toUpperCase()}
           </strong>
-          {' · '}net sentiment{' '}
+          {' · '}
+          {t('chapter.catalysts.netSentiment')}{' '}
           <span style={{ color: 'var(--accent-cyan)' }}>
             {catalysts.net_sentiment >= 0 ? '+' : ''}
             {catalysts.net_sentiment.toFixed(2)}
@@ -91,6 +94,7 @@ function CatalystList({
   items: CatalystEventShape[]
   tone: 'positive' | 'negative' | 'neutral'
 }): React.ReactElement {
+  const { t } = useI18n()
   const border =
     tone === 'positive'
       ? 'var(--success)'
@@ -104,7 +108,7 @@ function CatalystList({
           key={`${tone}-${e.category}-${i}-${e.headline.slice(0, 24)}`}
           style={{
             padding: '10px 14px',
-            background: 'rgba(15, 15, 34, 0.5)',
+            background: 'var(--bg-card-50)',
             borderLeft: `2px solid ${border}`,
             borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
             fontSize: 12.5,
@@ -121,7 +125,8 @@ function CatalystList({
               marginTop: 4,
             }}
           >
-            CATEGORY {e.category} · IMPACT {e.impact_score}/5 · PROBABILITY{' '}
+            {t('chapter.catalysts.metaCategory')} {e.category} · {t('chapter.catalysts.metaImpact')}{' '}
+            {e.impact_score}/5 · {t('chapter.catalysts.metaProbability')}{' '}
             {(e.probability * 100).toFixed(0)}%
           </div>
         </div>
@@ -150,7 +155,7 @@ function BulletList({
           key={`${tone}-${i}-${t.slice(0, 24)}`}
           style={{
             padding: '10px 14px',
-            background: 'rgba(15, 15, 34, 0.5)',
+            background: 'var(--bg-card-50)',
             borderLeft: `2px solid ${border}`,
             borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
             fontSize: 12.5,
@@ -170,7 +175,7 @@ const mutedNote: React.CSSProperties = {
   fontSize: 11.5,
   color: 'var(--text-muted)',
   padding: '14px 18px',
-  background: 'rgba(15, 15, 34, 0.5)',
+  background: 'var(--bg-card-50)',
   border: '1px dashed var(--border-soft)',
   borderRadius: 'var(--radius-sm)',
 }

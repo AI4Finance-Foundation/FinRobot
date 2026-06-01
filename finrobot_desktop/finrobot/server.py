@@ -34,7 +34,6 @@ from finrobot.routes.data import router as data_router
 from finrobot.routes.health import router as health_router
 from finrobot.routes.debate import router as debate_router
 from finrobot.routes.diagnostics import router as diagnostics_router
-from finrobot.routes.notify import router as notify_router
 from finrobot.routes.runs import router as runs_router
 from finrobot.routes.search import router as search_router
 from finrobot.routes.settings import load_non_secret_settings
@@ -53,8 +52,8 @@ async def hydrate_settings_from_secrets(settings: Any, secret_store: SecretStore
     # Keep this list in sync with routes.settings._SECRET_FIELDS — secrets
     # live in the keychain, not in settings.json, and must be hydrated back
     # into FinRobotSettings on every boot so downstream code (data layer,
-    # LLM providers, notification channels) sees the same values whether
-    # the user originally configured them via .env or via the UI.
+    # LLM providers) sees the same values whether the user originally
+    # configured them via .env or via the UI.
     for key in (
         "anthropic_api_key",
         "deepseek_api_key",
@@ -63,7 +62,6 @@ async def hydrate_settings_from_secrets(settings: Any, secret_store: SecretStore
         "finnhub_api_key",
         "alpha_vantage_api_key",
         "adanos_api_key",
-        "telegram_bot_token",
     ):
         value = await secret_store.get(key)
         if value:
@@ -368,7 +366,6 @@ app.include_router(dashboard_router)
 app.include_router(search_router, prefix="/api/search", tags=["search"])
 app.include_router(valuation_router)
 app.include_router(sentiment_router)
-app.include_router(notify_router)
 app.include_router(debate_router)
 app.include_router(diagnostics_router)
 

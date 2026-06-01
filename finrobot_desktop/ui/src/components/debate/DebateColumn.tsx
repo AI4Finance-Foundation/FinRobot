@@ -181,9 +181,7 @@ function VerifiedBadge({ verified, reason }: { verified: boolean; reason: string
   return (
     <span
       title={reason || (verified ? t('ic.column.verified') : t('ic.column.unverified'))}
-      aria-label={
-        verified ? t('ic.column.verified') : t('ic.column.unverifiedReason', { reason })
-      }
+      aria-label={verified ? t('ic.column.verified') : t('ic.column.unverifiedReason', { reason })}
       style={{
         flexShrink: 0,
         display: 'inline-flex',

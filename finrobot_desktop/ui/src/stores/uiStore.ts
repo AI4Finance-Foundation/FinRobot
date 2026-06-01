@@ -101,7 +101,6 @@ interface UiStoreState {
   activeTabId: string | null
 
   // AI Panel
-  currentModel: string
   contextBundle: ContextBundle
 
   /** One-shot message handoff from other parts of the UI (Dashboard hero, etc.)
@@ -119,8 +118,6 @@ interface UiStoreState {
   setWorkspacePath: (p: string) => void
 
   openTab: (tab: Tab) => void
-
-  setCurrentModel: (model: string) => void
 
   /** Hand a prompt to RightChatPanel and (optionally) auto-send it.
    * Opens the AI panel if collapsed. */
@@ -176,7 +173,6 @@ export const useUiStore = create<UiStoreState>()(
       openTabs: [DASHBOARD_TAB],
       activeTabId: DASHBOARD_TAB.id,
 
-      currentModel: 'deepseek',
       contextBundle: initialContext,
       pendingChatPrompt: null,
 
@@ -205,9 +201,6 @@ export const useUiStore = create<UiStoreState>()(
             activeTabId: tab.id,
           }
         }),
-
-      // model
-      setCurrentModel: (currentModel) => set({ currentModel }),
 
       // chat handoff (Dashboard hero → RightChatPanel)
       sendChatPrompt: (text, autoSend = true) =>
@@ -276,7 +269,6 @@ export const useUiStore = create<UiStoreState>()(
         aiPanelOpen: s.aiPanelOpen,
         cursorTrailEnabled: s.cursorTrailEnabled,
         splineEnabled: s.splineEnabled,
-        currentModel: s.currentModel,
         workspacePath: s.workspacePath,
       }),
       onRehydrateStorage: () => (state) => {

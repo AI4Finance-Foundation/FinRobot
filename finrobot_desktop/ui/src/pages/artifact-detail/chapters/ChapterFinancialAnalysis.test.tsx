@@ -14,7 +14,6 @@ vi.mock('../../../i18n', () => ({
       const map: Record<string, string> = {
         'chapter.financial.kv.revenueBase': '营收',
         'chapter.financial.kv.netIncome': '净利润',
-        'chapter.financial.kv.fcfTtm': 'FCF (TTM)',
       }
       return map[key] ?? key
     },

@@ -4,6 +4,8 @@
 //!   1. Tauri Rust shell (this process) — owns the window and menu bar.
 //!   2. Python sidecar — spawned at startup via `tauri-plugin-shell`;
 //!      runs the FastAPI server on 127.0.0.1:8321 (provides /api/* + /chat).
+//!      Skipped when `FINROBOT_DEV_LIVE_BACKEND` is set, so a live source-tree
+//!      backend can serve :8321 instead (see `dev.sh --app`).
 //!   3. WebView — loads the React UI from Vite dev server (http://localhost:5173
 //!      in dev) or the bundled frontendDist (../ui/dist/index.html in build).
 //!      React calls Python at 127.0.0.1:8321 via fetch — Vite proxy in dev,
@@ -45,6 +47,20 @@ pub fn run() {
     builder
         .manage(SidecarHandle::default())
         .setup(|app| {
+            // Live-backend dev posture (see `dev.sh --app`): a `finrobot serve`
+            // process from this machine's source tree is already running on :8321,
+            // so backend edits take effect immediately. Skip the frozen PyInstaller
+            // sidecar entirely — the WebView reaches the live backend through the
+            // Vite proxy, exactly like the browser dev loop. Production launches
+            // (env var unset) keep spawning the bundled sidecar as before.
+            if std::env::var_os("FINROBOT_DEV_LIVE_BACKEND").is_some() {
+                eprintln!(
+                    "[desktop] FINROBOT_DEV_LIVE_BACKEND set — skipping bundled sidecar; \
+                     WebView will use the live backend already on 127.0.0.1:8321"
+                );
+                return Ok(());
+            }
+
             let handle = app.handle().clone();
 
             // Spawn the Python sidecar in a background task so the Tauri

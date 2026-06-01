@@ -80,7 +80,9 @@ export function WarningBanner({
               borderRadius: 'var(--radius-sm)',
             }}
           >
-            {expanded ? t('shell.warning.collapse') : t('shell.warning.more', { count: rest.length })}
+            {expanded
+              ? t('shell.warning.collapse')
+              : t('shell.warning.more', { count: rest.length })}
           </button>
         )}
       </div>

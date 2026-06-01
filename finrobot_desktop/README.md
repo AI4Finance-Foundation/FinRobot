@@ -39,11 +39,14 @@ cargo tauri dev                    # run the desktop app (debug)
 cargo tauri build                  # produce FinRobot.app + .dmg under src-tauri/target/release/bundle/
 ```
 
-`build.sh` must be re-run whenever the Python backend changes, so the bundled sidecar reflects your edits. For a fast backend edit loop, run the server directly with hot-reload instead:
+`build.sh` freezes the backend into a PyInstaller sidecar, so a plain `cargo tauri dev` runs against that **frozen** binary — backend edits won't show up until you re-run `build.sh`. For a live edit loop (backend source + frontend HMR, no re-freezing) use `dev.sh`, which starts a source-tree `finrobot serve` on :8321 and points the frontend at it:
 
 ```bash
-finrobot serve --reload            # live-reloading backend on :8321
+./dev.sh            # browser shell  → http://localhost:5173
+./dev.sh --app      # desktop shell  → Tauri native window (live backend, skips the frozen sidecar)
 ```
+
+`--app` sets `FINROBOT_DEV_LIVE_BACKEND=1` so the Tauri shell skips spawning the bundled sidecar; the WebView then talks to the live backend through the Vite proxy. Or run just the backend with hot-reload: `finrobot serve --reload`.
 
 CLI usage, the Python SDK, and the engine architecture / contracts are documented in the in-repo `CLAUDE.md` (developer reference).
 

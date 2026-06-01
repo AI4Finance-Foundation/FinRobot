@@ -703,10 +703,6 @@ msgid "chapter.financial.kv.netIncome"
 msgstr "净利润"
 
 #. js-lingui-explicit-id
-msgid "chapter.financial.kv.fcfTtm"
-msgstr "自由现金流（TTM）"
-
-#. js-lingui-explicit-id
 msgid "chapter.financial.subheading.revenueEbitda"
 msgstr "营收 & EBITDA 走势"
 
@@ -1591,6 +1587,14 @@ msgid "report.toolbar.diff"
 msgstr "对比"
 
 #. js-lingui-explicit-id
+msgid "report.toolbar.exportPdf"
+msgstr "导出 PDF"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportPdfTitle"
+msgstr "打印为浅色研报 PDF（在系统打印框中选“存储为 PDF”）"
+
+#. js-lingui-explicit-id
 msgid "report.rightRail.timeline"
 msgstr "版本时间线"
 
@@ -1649,10 +1653,6 @@ msgstr "EPS"
 #. js-lingui-explicit-id
 msgid "chart.epsTrend.yoy"
 msgstr "同比"
-
-#. js-lingui-explicit-id
-msgid "settings.test"
-msgstr "测试"
 
 #. js-lingui-explicit-id
 msgid "settings.loadFailed"
@@ -1755,10 +1755,6 @@ msgid "settings.section.aiModel"
 msgstr "AI 模型"
 
 #. js-lingui-explicit-id
-msgid "settings.section.notifications"
-msgstr "通知通道"
-
-#. js-lingui-explicit-id
 msgid "settings.section.logging"
 msgstr "日志 / 诊断"
 
@@ -1837,34 +1833,6 @@ msgstr "SEC 请求头预览："
 #. js-lingui-explicit-id
 msgid "settings.model.label"
 msgstr "模型"
-
-#. js-lingui-explicit-id
-msgid "settings.notify.desktop"
-msgstr "桌面通知"
-
-#. js-lingui-explicit-id
-msgid "settings.notify.onByDefault"
-msgstr "默认开启"
-
-#. js-lingui-explicit-id
-msgid "settings.notify.desktopHint"
-msgstr "系统级 · 在 macOS 通知中心管理"
-
-#. js-lingui-explicit-id
-msgid "settings.notify.telegramToken"
-msgstr "Bot Token（@BotFather 获取）"
-
-#. js-lingui-explicit-id
-msgid "settings.notify.telegramChatId"
-msgstr "Chat ID（会话 ID）"
-
-#. js-lingui-explicit-id
-msgid "settings.notify.emailTo"
-msgstr "收件人邮箱地址"
-
-#. js-lingui-explicit-id
-msgid "settings.notify.smtpHost"
-msgstr "SMTP 主机（如 smtp.gmail.com）"
 
 #. js-lingui-explicit-id
 msgid "settings.log.level"
@@ -2049,6 +2017,26 @@ msgstr "Track Record · 命中率"
 #. js-lingui-explicit-id
 msgid "landing.hitRate.error"
 msgstr "数据加载失败，请稍后刷新页面。"
+
+#. js-lingui-explicit-id
+msgid "landing.hitRate.overallMeta"
+msgstr "整体 · 已结算 {closed} / 共 {total}"
+
+#. js-lingui-explicit-id
+msgid "landing.hitRate.insufficient"
+msgstr "样本不足 · 需 ≥1 个已结算仓位才能计算命中率"
+
+#. js-lingui-explicit-id
+msgid "landing.hitRate.hitSummary"
+msgstr "{closed} 个已结算仓位中 {hit} 个达到目标"
+
+#. js-lingui-explicit-id
+msgid "landing.hitRate.sampleCount"
+msgstr "n={n}"
+
+#. js-lingui-explicit-id
+msgid "landing.hitRate.hitsShort"
+msgstr "{hit}/{closed} 命中"
 
 #. js-lingui-explicit-id
 msgid "landing.recentResearch.typeResearch"
@@ -2305,6 +2293,22 @@ msgstr "(未命名事件)"
 #. js-lingui-explicit-id
 msgid "workspace.market.noCatalysts"
 msgstr "暂无近期事件 · 财报 / 产品发布 / 监管"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.dataUnavailable"
+msgstr "市场数据源暂不可用"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.dataUnavailableHint"
+msgstr "上游返回 {status} · 点击重试"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.catalystError"
+msgstr "催化剂识别暂不可用（≠ 无催化剂）· 点击重试"
 
 #. js-lingui-explicit-id
 msgid "workspace.market.source"

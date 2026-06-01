@@ -224,7 +224,9 @@ export function SourcedNumber({ value, source, format, className }: SourcedNumbe
           {source.fetched_at && (
             <ProvRow label={t('sourced.fetchedAt')} value={formatFetchedAt(source.fetched_at)} />
           )}
-          {source.formula_id && <ProvRow label={t('sourced.formula')} value={source.formula_id} mono />}
+          {source.formula_id && (
+            <ProvRow label={t('sourced.formula')} value={source.formula_id} mono />
+          )}
           {source.formula_warning && (
             <ProvRow label={t('sourced.warning')} value={source.formula_warning} warn />
           )}

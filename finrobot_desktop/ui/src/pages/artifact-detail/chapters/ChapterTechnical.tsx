@@ -391,6 +391,8 @@ function HistoricalBandPanel({
   const timeline = band.timeline ?? []
   const cls = band.classification ?? 'unknown'
   const color = CLASSIFICATION_COLORS[cls] ?? 'var(--text-muted)'
+  // Display label localised; raw `cls` stays the enum for color/logic above.
+  const clsLabel = t(`chapter.technical.band.${cls in CLASSIFICATION_COLORS ? cls : 'unknown'}`)
 
   const width = 720
   const height = 220
@@ -459,7 +461,7 @@ function HistoricalBandPanel({
             marginLeft: 'auto',
           }}
         >
-          {cls}
+          {clsLabel}
         </span>
       </div>
 
@@ -594,7 +596,7 @@ const mutedNote: React.CSSProperties = {
   fontSize: 11.5,
   color: 'var(--text-muted)',
   padding: '14px 18px',
-  background: 'rgba(15, 15, 34, 0.5)',
+  background: 'var(--bg-card-50)',
   border: '1px dashed var(--border-soft)',
   borderRadius: 'var(--radius-sm)',
 }

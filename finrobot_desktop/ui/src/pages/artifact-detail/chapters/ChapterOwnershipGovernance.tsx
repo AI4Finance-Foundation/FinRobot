@@ -214,11 +214,13 @@ function InsiderTable({
         </tr>
       </thead>
       <tbody>
-        {sorted.map((r) => {
+        {sorted.map((r, i) => {
           const isBuy = r.transaction_type === 'purchase'
           const isSell = r.transaction_type === 'sale'
           return (
-            <tr key={`${r.accession_no}-${r.insider_name}-${r.shares}-${r.value}`}>
+            // index guards against identical (accession, insider, shares, value)
+            // rows — a filer can report two matching lines in one Form 4.
+            <tr key={`${r.accession_no}-${r.insider_name}-${r.shares}-${r.value}-${i}`}>
               <td style={tdStyle}>
                 <ProvenanceLink prov={r.provenance} locale={locale} t={t}>
                   {formatDate(r.filing_date, locale)}
@@ -312,8 +314,8 @@ function InstitutionTable({
         </tr>
       </thead>
       <tbody>
-        {sorted.map((r) => (
-          <tr key={`${r.holder_name}-${r.period_end}-${r.shares}`}>
+        {sorted.map((r, i) => (
+          <tr key={`${r.holder_name}-${r.period_end}-${r.shares}-${i}`}>
             <td style={tdStyle}>
               <ProvenanceLink prov={r.provenance} locale={locale} t={t}>
                 {r.holder_name}
@@ -438,14 +440,16 @@ function AlertList({
 }): React.ReactElement {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {rows.map((r) => {
+      {rows.map((r, i) => {
         const isActivist = r.schedule_type === '13D'
         return (
           <div
-            key={`${r.accession_no}-${r.filer_name}`}
+            // accession+filer alone collides when one filer has multiple 13D/13G
+            // rows in the same accession — index disambiguates this display list.
+            key={`${r.accession_no}-${r.filer_name}-${i}`}
             style={{
               padding: '10px 14px',
-              background: 'rgba(15, 15, 34, 0.5)',
+              background: 'var(--bg-card-50)',
               borderLeft: `2px solid ${isActivist ? 'var(--warning)' : 'var(--accent-cyan)'}`,
               borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
               fontSize: 12.5,
@@ -461,7 +465,9 @@ function AlertList({
                   fontSize: 10,
                   padding: '2px 6px',
                   borderRadius: 999,
-                  background: isActivist ? 'rgba(217, 119, 6, 0.18)' : 'rgba(34, 211, 238, 0.18)',
+                  background: isActivist
+                    ? 'var(--warning-soft)'
+                    : 'color-mix(in srgb, var(--accent-cyan) 18%, transparent)',
                   color: isActivist ? 'var(--warning)' : 'var(--accent-cyan)',
                   letterSpacing: '0.08em',
                 }}
@@ -547,8 +553,8 @@ function DegradedPlaceholder({ reason }: { reason: string }): React.ReactElement
     <div
       style={{
         padding: '14px 18px',
-        background: 'rgba(217, 119, 6, 0.06)',
-        border: '1px dashed rgba(217, 119, 6, 0.32)',
+        background: 'color-mix(in srgb, var(--warning) 6%, transparent)',
+        border: '1px dashed color-mix(in srgb, var(--warning) 32%, transparent)',
         borderRadius: 'var(--radius-sm)',
         fontFamily: 'var(--font-mono)',
         fontSize: 11.5,
@@ -569,7 +575,7 @@ function EmptyNote({ children }: { children: React.ReactNode }): React.ReactElem
         fontSize: 11.5,
         color: 'var(--text-muted)',
         padding: '14px 18px',
-        background: 'rgba(15, 15, 34, 0.5)',
+        background: 'var(--bg-card-50)',
         border: '1px dashed var(--border-soft)',
         borderRadius: 'var(--radius-sm)',
       }}
@@ -603,7 +609,7 @@ const tdStyle: CSSProperties = {
 
 const emptyChapterCallout: CSSProperties = {
   padding: '24px 28px',
-  background: 'rgba(34, 211, 238, 0.06)',
+  background: 'color-mix(in srgb, var(--accent-cyan) 6%, transparent)',
   borderLeft: '2px solid var(--accent-cyan)',
   borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
 }

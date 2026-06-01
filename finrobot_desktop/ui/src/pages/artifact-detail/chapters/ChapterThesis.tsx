@@ -5,13 +5,15 @@
 import { Chapter, Narrative } from './ChapterBase'
 import type { ThesisShape } from './types'
 import { verdictLabel } from '../../../utils/verdict'
+import { useI18n } from '../../../i18n'
 
 export function ChapterThesis({ thesis }: { thesis: ThesisShape | null }): React.ReactElement {
+  const { t } = useI18n()
   if (!thesis) {
     return (
       <Chapter id="thesis">
         <Narrative>
-          <p>该研报缺少投资论点字段，请重新生成完整研报。</p>
+          <p>{t('chapter.thesis.empty')}</p>
         </Narrative>
       </Chapter>
     )
@@ -60,12 +62,12 @@ export function ChapterThesis({ thesis }: { thesis: ThesisShape | null }): React
                 fontVariantNumeric: 'tabular-nums',
               }}
             >
-              目标 ${target.toFixed(2)}
+              {t('chapter.thesis.target', { value: target.toFixed(2) })}
             </span>
           ) : (
             verdict === 'REVIEW' && (
               <span style={{ fontSize: 18, color: 'var(--text-secondary)' }}>
-                目标 N/A · 待复核
+                {t('chapter.thesis.targetWithheld')}
               </span>
             )
           )}
@@ -102,7 +104,7 @@ export function ChapterThesis({ thesis }: { thesis: ThesisShape | null }): React
               margin: '18px 0 10px',
             }}
           >
-            Key Takeaways
+            {t('chapter.thesis.keyTakeaways')}
           </h4>
           <ul
             style={{

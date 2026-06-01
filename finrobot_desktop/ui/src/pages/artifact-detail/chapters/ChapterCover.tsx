@@ -20,27 +20,27 @@ interface ChapterCoverProps {
 
 const VERDICT_TONE: Record<string, { bg: string; fg: string; border: string }> = {
   BUY: {
-    bg: 'rgba(22, 163, 74, 0.18)',
+    bg: 'var(--success-soft)',
     fg: 'var(--success)',
-    border: 'rgba(22, 163, 74, 0.55)',
+    border: 'color-mix(in srgb, var(--success) 55%, transparent)',
   },
   HOLD: {
-    bg: 'rgba(217, 119, 6, 0.18)',
+    bg: 'var(--warning-soft)',
     fg: 'var(--warning)',
-    border: 'rgba(217, 119, 6, 0.55)',
+    border: 'color-mix(in srgb, var(--warning) 55%, transparent)',
   },
   SELL: {
-    bg: 'rgba(220, 38, 38, 0.18)',
+    bg: 'var(--danger-soft)',
     fg: 'var(--danger)',
-    border: 'rgba(220, 38, 38, 0.55)',
+    border: 'color-mix(in srgb, var(--danger) 55%, transparent)',
   },
   // Data-health-gate verdict — neutral slate, deliberately NOT 涨绿跌红:
   // REVIEW makes no directional call, so colouring it like a buy/sell would
   // misrepresent the (withheld) conclusion.
   REVIEW: {
-    bg: 'rgba(100, 116, 139, 0.18)',
+    bg: 'var(--neutral-soft)',
     fg: 'var(--text-secondary)',
-    border: 'rgba(100, 116, 139, 0.55)',
+    border: 'var(--neutral-edge)',
   },
 }
 
@@ -54,7 +54,7 @@ export function ChapterCover({
   versionNumber,
   totalVersions,
 }: ChapterCoverProps): React.ReactElement {
-  const { locale } = useI18n()
+  const { locale, t } = useI18n()
   const verdict = (thesis?.recommendation ?? '').toUpperCase()
   const tone = VERDICT_TONE[verdict] ?? VERDICT_TONE.HOLD
   const target = thesis?.price_target ?? null
@@ -67,7 +67,7 @@ export function ChapterCover({
         margin: '12px 0 28px',
         padding: '28px 28px 24px',
         background:
-          'radial-gradient(ellipse 70% 60% at 50% 30%, rgba(139, 92, 246, 0.14), transparent 70%), linear-gradient(160deg, rgba(15, 15, 34, 0.95), rgba(10, 10, 24, 0.6))',
+          'radial-gradient(ellipse 70% 60% at 50% 30%, color-mix(in srgb, var(--secondary) 14%, transparent), transparent 70%), linear-gradient(160deg, color-mix(in srgb, var(--bg-card) 95%, transparent), color-mix(in srgb, var(--bg-deep) 60%, transparent))',
         border: '1px solid var(--border-soft)',
         borderRadius: 'var(--radius-lg)',
         position: 'relative',
@@ -87,7 +87,7 @@ export function ChapterCover({
         }}
       >
         <span style={{ fontFamily: 'var(--font-display)', letterSpacing: '0.3em' }}>
-          FINROBOT {locale === 'en' ? 'EQUITY RESEARCH' : '股票研报'}
+          FINROBOT {t('chapter.cover.equityResearch')}
         </span>
         <span>{createdAt ? formatDate(createdAt, locale, 'datetime') : ''}</span>
       </div>
@@ -141,7 +141,7 @@ export function ChapterCover({
                 letterSpacing: '0.08em',
               }}
             >
-              {locale === 'en' ? '12-MONTH TARGET' : '12 个月目标价'}
+              {t('chapter.cover.twelveMonthTarget')}
             </span>
             <span
               style={{
@@ -167,7 +167,7 @@ export function ChapterCover({
                   letterSpacing: '0.08em',
                 }}
               >
-                {locale === 'en' ? '12-MONTH TARGET' : '12 个月目标价'}
+                {t('chapter.cover.twelveMonthTarget')}
               </span>
               <span
                 style={{
@@ -178,7 +178,7 @@ export function ChapterCover({
                   lineHeight: 1.1,
                 }}
               >
-                {locale === 'en' ? 'N/A · withheld' : 'N/A · 待复核'}
+                {t('chapter.cover.targetWithheld')}
               </span>
             </div>
           )
@@ -194,13 +194,13 @@ export function ChapterCover({
           letterSpacing: '0.06em',
         }}
       >
-        {locale === 'en' ? 'TYPE' : '类型'} {reportType.toUpperCase()}
+        {t('chapter.cover.typeLabel')} {reportType.toUpperCase()}
         {versionNumber !== null && (
           <>
             {' · '}
-            {locale === 'en'
-              ? `v${versionNumber}${totalVersions > 1 ? ` of ${totalVersions}` : ''}`
-              : `第 v${versionNumber} 版${totalVersions > 1 ? ` · 共 ${totalVersions} 份` : ''}`}
+            {totalVersions > 1
+              ? t('chapter.cover.versionOfTotal', { version: versionNumber, total: totalVersions })
+              : t('chapter.cover.version', { version: versionNumber })}
           </>
         )}
         {computeVersion && <> · {computeVersion}</>}

@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useLocation } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import type { UIMessage, UIMessagePart, UIDataTypes, UITools, DynamicToolUIPart } from 'ai'
@@ -18,7 +19,7 @@ import { ToolCard } from '../../components/ToolCard'
 import type { ToolResult } from '../../components/ToolCard'
 import { MarkdownLite } from '../../components/MarkdownLite'
 import { useI18n } from '../../i18n'
-import { BASE_URL } from '../../api/client'
+import { BASE_URL, api } from '../../api/client'
 import { ContextBar } from '../AIPanel/ContextBar'
 
 // ──────────────────────────────────────────────────────────────
@@ -75,17 +76,25 @@ const ROUTE_CHIP_PATTERNS: Array<{ test: (path: string) => boolean; chipKeys: st
 ]
 
 // ──────────────────────────────────────────────────────────────
-// MODELS — aligned to prototype.  Legacy values 'deepseek' / 'anthropic' / 'openai'
-// are preserved as aliases so existing tests and persisted uiStore values keep
-// working.  AppShell-level UI shows the "human" label; value is sent to backend.
-const MODELS = [
-  { value: 'deepseek', label: 'DeepSeek Chat' },
-  { value: 'qwen-max', label: 'Qwen Max' },
-  { value: 'anthropic', label: 'Claude Sonnet' },
-  { value: 'gpt-4o', label: 'GPT-4o' },
-] as const
+// Model badge — the chat runs on the SINGLE model configured in Settings
+// (settings.model_name, e.g. "anthropic:claude-sonnet-4-6"). The badge is
+// read-only and MUST reflect that real value: a hardcoded prototype list
+// (it used to include a "qwen-max" that the backend never runs, and a
+// uiStore default that drifted from the actual configured model) would lie
+// about which model answered. Labels mirror SettingsView.MODEL_OPTIONS;
+// unknown model_names fall back to the bare model id so the badge is still
+// honest rather than blank.
+const MODEL_LABELS: Record<string, string> = {
+  'deepseek:deepseek-chat': 'DeepSeek V3',
+  'deepseek:deepseek-reasoner': 'DeepSeek R1',
+  'anthropic:claude-sonnet-4-6': 'Claude Sonnet 4',
+  'openai:gpt-4o': 'GPT-4o',
+}
 
-type ModelValue = (typeof MODELS)[number]['value']
+function modelLabel(modelName: string | undefined): string {
+  if (!modelName) return '…'
+  return MODEL_LABELS[modelName] ?? modelName.split(':').pop() ?? modelName
+}
 
 // ──────────────────────────────────────────────────────────────
 // AiChatTab — chat body, no aside wrapper.
@@ -113,7 +122,6 @@ export function AiChatTab({
   // ── uiStore bindings ────────────────────────────────────────
   const storeOpen = useUiStore((s) => s.aiPanelOpen)
   const storeWidth = useUiStore((s) => s.aiPanelWidth)
-  const storeModel = useUiStore((s) => s.currentModel)
   const toggleAiPanel = useUiStore((s) => s.toggleAiPanel)
   const setAiPanelWidth = useUiStore((s) => s.setAiPanelWidth)
   const pendingChatPrompt = useUiStore((s) => s.pendingChatPrompt)
@@ -144,9 +152,19 @@ export function AiChatTab({
   const [unreadCount, setUnreadCount] = useState(0)
   const lastSeenMessageCountRef = useRef(0)
 
-  const modelValue: ModelValue = MODELS.some((m) => m.value === storeModel)
-    ? (storeModel as ModelValue)
-    : 'deepseek'
+  // The configured lead model (settings.model_name) — shared ['settings']
+  // query, deduped with SecIdentityBanner / SettingsView. Drives the read-only
+  // badge AND the transcript model hint, so the log records the model that
+  // actually answered rather than a stale prototype default.
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/settings')
+      if (error || !data) throw new Error('settings unavailable')
+      return data
+    },
+  })
+  const configuredModel = settings?.model_name
 
   // Transport — recreated when ticker/model changes. Absolute URL is
   // required in Tauri prod builds (asset loads from `file://` so a
@@ -156,9 +174,9 @@ export function AiChatTab({
     () =>
       new DefaultChatTransport({
         api: `${BASE_URL}/chat`,
-        body: { ticker: ticker ?? null, model: modelValue },
+        body: { ticker: ticker ?? null, model: configuredModel ?? 'unknown' },
       }),
-    [ticker, modelValue],
+    [ticker, configuredModel],
   )
 
   const { messages, status, error, sendMessage, stop, regenerate, clearError } = useChat({
@@ -312,7 +330,7 @@ export function AiChatTab({
       style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}
     >
       <AiPanelHeader
-        modelValue={modelValue}
+        modelLabel={modelLabel(configuredModel)}
         onToggle={handleToggle}
         onNewSession={startNewSession}
         ticker={ticker}
@@ -375,14 +393,14 @@ function SuggestionChips({ chips, onSelect }: SuggestionChipsProps): React.React
 // ──────────────────────────────────────────────────────────────
 
 interface AiPanelHeaderProps {
-  modelValue: ModelValue
+  modelLabel: string
   onToggle: () => void
   onNewSession: () => void
   ticker: string | undefined
 }
 
 function AiPanelHeader({
-  modelValue,
+  modelLabel,
   onToggle,
   onNewSession,
   ticker,
@@ -413,7 +431,7 @@ function AiPanelHeader({
         title={t('chatpanel.model.configuredInSettings')}
         style={{ cursor: 'default' }}
       >
-        {MODELS.find((m) => m.value === modelValue)?.label ?? modelValue}
+        {modelLabel}
       </span>
 
       {/* New session */}

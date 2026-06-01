@@ -4,6 +4,19 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { useI18n } from '../../../i18n'
 import { chapterLabel, type ChapterId } from './labels'
+import { SourcedNumber, type NumberSource } from '../../../components/SourcedNumber'
+
+/** A single KV cell. `value` is pre-formatted (currency/percent/raw) by the
+ * chapter. When `source` is present, the value gets a hover provenance popover
+ * (provider + fetched_at) so every provider-sourced number is traceable —
+ * the headline "数字可溯源" contract (CLAUDE.md 数据正确性). */
+export interface KvCell {
+  label: string
+  value: string
+  delta?: string
+  tone?: 'up' | 'down'
+  source?: NumberSource
+}
 
 interface ChapterProps {
   id: ChapterId
@@ -90,7 +103,8 @@ export function Narrative({ children }: { children: ReactNode }): React.ReactEle
   return (
     <div
       style={{
-        background: 'linear-gradient(160deg, rgba(34, 211, 238, 0.06), transparent)',
+        background:
+          'linear-gradient(160deg, color-mix(in srgb, var(--accent-cyan) 6%, transparent), transparent)',
         borderLeft: '2px solid var(--accent-cyan)',
         padding: '14px 18px',
         margin: '12px 0 22px',
@@ -148,7 +162,7 @@ export function KvGrid({
   cells,
   columns = 4,
 }: {
-  cells: { label: string; value: string; delta?: string; tone?: 'up' | 'down' }[]
+  cells: KvCell[]
   columns?: number
 }): React.ReactElement {
   return (
@@ -191,7 +205,7 @@ export function KvGrid({
               fontVariantNumeric: 'tabular-nums',
             }}
           >
-            {c.value}
+            {c.source ? <SourcedNumber value={c.value} source={c.source} /> : c.value}
           </div>
           {c.delta && (
             <div
@@ -217,7 +231,7 @@ export const tableStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 12,
   margin: '12px 0',
-  background: 'rgba(15, 15, 34, 0.4)',
+  background: 'var(--table-surface)',
   borderRadius: 'var(--radius-sm)',
   overflow: 'hidden',
 }

@@ -24,6 +24,7 @@ import { useUiPrefs } from './i18n'
 import { detectInitialLocale, hasStoredLocale } from './i18n/detect'
 import './App.css'
 import './styles/tabs.css'
+import './styles/print.css'
 
 // First-launch language: if the user has never picked a language, match the OS
 // locale (English OS → English UI, Chinese OS → Chinese UI) before the first

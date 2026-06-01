@@ -11,6 +11,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { UIMessage } from 'ai'
 
 // ──────────────────────────────────────────────────────────────
@@ -100,6 +101,21 @@ interface RenderOptions {
   ticker?: string
 }
 
+// The model badge reads settings.model_name via the shared ['settings'] query.
+// Seed it with a configured model that differs from the old prototype default
+// so the test proves the badge reflects the REAL configured model, not a
+// hardcoded 'deepseek'. staleTime: Infinity keeps the seeded value (no refetch
+// against a non-existent server in jsdom).
+const SEEDED_MODEL_NAME = 'anthropic:claude-sonnet-4-6'
+
+function makeSeededClient(): QueryClient {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+  })
+  queryClient.setQueryData(['settings'], { model_name: SEEDED_MODEL_NAME })
+  return queryClient
+}
+
 function renderPanel(opts: RenderOptions = {}) {
   const { expanded = true, ticker } = opts
   const onToggle = vi.fn()
@@ -107,18 +123,20 @@ function renderPanel(opts: RenderOptions = {}) {
   const initialPath = ticker ? `/stocks/${ticker}` : '/stocks'
 
   return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <Routes>
-        <Route
-          path="/stocks/:ticker"
-          element={<RightChatPanel expanded={expanded} onToggle={onToggle} />}
-        />
-        <Route
-          path="/stocks"
-          element={<RightChatPanel expanded={expanded} onToggle={onToggle} />}
-        />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={makeSeededClient()}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Routes>
+          <Route
+            path="/stocks/:ticker"
+            element={<RightChatPanel expanded={expanded} onToggle={onToggle} />}
+          />
+          <Route
+            path="/stocks"
+            element={<RightChatPanel expanded={expanded} onToggle={onToggle} />}
+          />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   )
 }
 
@@ -207,11 +225,13 @@ describe('RightChatPanel — collapse / expand', () => {
   it('calls onToggle when collapse button clicked', () => {
     const onToggle = vi.fn()
     render(
-      <MemoryRouter>
-        <Routes>
-          <Route path="/" element={<RightChatPanel expanded onToggle={onToggle} />} />
-        </Routes>
-      </MemoryRouter>,
+      <QueryClientProvider client={makeSeededClient()}>
+        <MemoryRouter>
+          <Routes>
+            <Route path="/" element={<RightChatPanel expanded onToggle={onToggle} />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
     )
     fireEvent.click(screen.getByTestId('collapse-btn'))
     expect(onToggle).toHaveBeenCalledOnce()
@@ -220,11 +240,13 @@ describe('RightChatPanel — collapse / expand', () => {
   it('calls onToggle when expand button in icon-column is clicked', () => {
     const onToggle = vi.fn()
     render(
-      <MemoryRouter>
-        <Routes>
-          <Route path="/" element={<RightChatPanel expanded={false} onToggle={onToggle} />} />
-        </Routes>
-      </MemoryRouter>,
+      <QueryClientProvider client={makeSeededClient()}>
+        <MemoryRouter>
+          <Routes>
+            <Route path="/" element={<RightChatPanel expanded={false} onToggle={onToggle} />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
     )
     fireEvent.click(screen.getByTestId('expand-btn'))
     expect(onToggle).toHaveBeenCalledOnce()
@@ -244,12 +266,15 @@ describe('RightChatPanel — unread badge', () => {
   it('shows badge when assistant messages arrive while collapsed', async () => {
     const onToggle = vi.fn()
 
+    const client = makeSeededClient()
     const { rerender } = render(
-      <MemoryRouter>
-        <Routes>
-          <Route path="/" element={<RightChatPanel expanded={false} onToggle={onToggle} />} />
-        </Routes>
-      </MemoryRouter>,
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <Routes>
+            <Route path="/" element={<RightChatPanel expanded={false} onToggle={onToggle} />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
     )
 
     // Simulate assistant message arriving while collapsed
@@ -258,11 +283,13 @@ describe('RightChatPanel — unread badge', () => {
     })
 
     rerender(
-      <MemoryRouter>
-        <Routes>
-          <Route path="/" element={<RightChatPanel expanded={false} onToggle={onToggle} />} />
-        </Routes>
-      </MemoryRouter>,
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <Routes>
+            <Route path="/" element={<RightChatPanel expanded={false} onToggle={onToggle} />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
     )
 
     await waitFor(() => {
@@ -589,11 +616,12 @@ describe('RightChatPanel — model selector', () => {
     expect(screen.getByTestId('model-selector')).toBeInTheDocument()
   })
 
-  it('model selector defaults to DeepSeek Chat label', () => {
+  it('model badge reflects the configured model_name from settings', () => {
     renderPanel()
     const badge = screen.getByTestId('model-selector')
-    // Read-only badge shows the store's currentModel default ('deepseek').
-    expect(badge.textContent).toBe('DeepSeek Chat')
+    // Badge maps settings.model_name → human label (mirrors SettingsView).
+    // Proves it reads the real configured model, not a hardcoded default.
+    expect(badge.textContent).toBe('Claude Sonnet 4')
   })
 
   it('model badge is read-only (configured via Settings)', () => {

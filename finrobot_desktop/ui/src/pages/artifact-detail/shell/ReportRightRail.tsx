@@ -72,7 +72,7 @@ export function ReportRightRail({
         fontSize: 12,
       }}
     >
-      <RailPanel title="版本时间线">
+      <RailPanel title={t('report.rightRail.timeline')}>
         {sameType.length === 0 ? (
           <p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
             {t('report.timeline.empty')}
@@ -90,7 +90,9 @@ export function ReportRightRail({
                   style={{
                     textAlign: 'left',
                     padding: '8px 10px',
-                    background: current ? 'rgba(139,92,246,0.08)' : 'rgba(15,15,34,0.5)',
+                    background: current
+                      ? 'color-mix(in srgb, var(--secondary) 8%, transparent)'
+                      : 'var(--bg-card-50)',
                     border: 'none',
                     borderLeft: `2px solid ${current ? 'var(--secondary)' : 'var(--border-soft)'}`,
                     borderRadius: '0 6px 6px 0',
@@ -142,6 +144,7 @@ export function WhatIfEditor({
   initialTg: number | null
   originalImpliedPrice: number | null
 }): React.ReactElement {
+  const { t } = useI18n()
   const baseWacc = initialWacc ?? 0.1
   const baseTg = initialTg ?? 0.025
 
@@ -202,17 +205,17 @@ export function WhatIfEditor({
 
   return (
     <RailPanel
-      title="What-if Editor"
+      title={t('report.rightRail.whatif')}
       headerAction={
         dirty ? (
           <button
             type="button"
             onClick={handleReset}
             style={resetButtonStyle}
-            title="重置到研报原始假设"
+            title={t('report.rightRail.resetTitle')}
             data-testid="whatif-reset"
           >
-            重置
+            {t('report.rightRail.reset')}
           </button>
         ) : undefined
       }
@@ -228,7 +231,7 @@ export function WhatIfEditor({
         testid="whatif-slider-wacc"
       />
       <SliderRow
-        label="Terminal Growth"
+        label={t('report.rightRail.terminalGrowth')}
         valueLabel={`${tgPct.toFixed(2)}%`}
         min={-2}
         max={5}
@@ -238,7 +241,7 @@ export function WhatIfEditor({
         testid="whatif-slider-tg"
       />
       <SliderRow
-        label="Revenue Growth Scale"
+        label={t('report.rightRail.revenueGrowthScale')}
         valueLabel={`${growthScalePct >= 0 ? '+' : ''}${growthScalePct.toFixed(0)}%`}
         min={-50}
         max={50}
@@ -275,13 +278,14 @@ function ComparePanel({
   isPending: boolean
   isError: boolean
 }): React.ReactElement {
+  const { t } = useI18n()
   return (
     <div
       data-testid="whatif-compare"
       style={{
         marginTop: 12,
         padding: '10px 12px',
-        background: 'rgba(15, 15, 34, 0.6)',
+        background: 'var(--bg-card-deep)',
         border: '1px solid var(--border-soft)',
         borderRadius: 'var(--radius-sm)',
         fontFamily: 'var(--font-mono)',
@@ -315,7 +319,7 @@ function ComparePanel({
           style={{ fontSize: 10.5, color: 'var(--danger)', textAlign: 'right' }}
           data-testid="whatif-error"
         >
-          重算失败 · 检查参数范围
+          {t('report.rightRail.recomputeError')}
         </div>
       ) : (
         <div style={{ textAlign: 'right' }}>
@@ -341,7 +345,11 @@ function ComparePanel({
               fontVariantNumeric: 'tabular-nums',
             }}
           >
-            {isPending ? 'computing…' : newImplied !== null ? `$${newImplied.toFixed(2)}` : '—'}
+            {isPending
+              ? t('report.rightRail.computing')
+              : newImplied !== null
+                ? `$${newImplied.toFixed(2)}`
+                : '—'}
           </div>
           {!isPending && delta !== null && (
             <div
@@ -495,9 +503,9 @@ function SignalBadge({
 }): React.ReactElement | null {
   if (!signal) return null
   const colors = {
-    hit: { bg: 'rgba(22,163,74,0.18)', fg: 'var(--success)' },
-    watching: { bg: 'rgba(217,119,6,0.18)', fg: 'var(--warning)' },
-    failed: { bg: 'rgba(220,38,38,0.18)', fg: 'var(--danger)' },
+    hit: { bg: 'var(--success-soft)', fg: 'var(--success)' },
+    watching: { bg: 'var(--warning-soft)', fg: 'var(--warning)' },
+    failed: { bg: 'var(--danger-soft)', fg: 'var(--danger)' },
   } as const
   const c = colors[signal]
   return (

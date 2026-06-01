@@ -119,6 +119,31 @@ class TestLBOEdgeCases:
         result = calculate_lbo(inputs)
         assert result.irr == pytest.approx(-1.0)
 
+    def test_moic_floored_at_zero_when_equity_wiped(self):
+        """MOIC must floor at 0.0 when exit_equity < 0 — you can lose at most
+        100% of your equity, never a negative multiple. A negative MOIC would
+        contradict the IRR=-1.0 total-loss signal for the same deal (BUG-011)."""
+        # Default leverage 5 keeps entry_equity > 0 (300); a 1.0x exit + high
+        # interest + no sweep wipes exit_equity negative — the exact (entry>0,
+        # exit<0) combo that produced a negative MOIC.
+        inputs = _base_inputs(exit_ev_ebitda=1.0, interest_rate=0.15, cash_sweep=False)
+        result = calculate_lbo(inputs)
+        assert result.entry_equity > 0  # division path is exercised
+        assert result.moic == 0.0
+        assert result.irr == pytest.approx(-1.0)  # MOIC and IRR agree: total loss
+
+    def test_sensitivity_moic_never_negative(self):
+        """No MOIC grid cell may be negative — wiped-out equity floors at 0×,
+        matching the grid's IRR=-1.0 cells instead of showing a nonsensical
+        negative multiple in the heatmap (BUG-011). A low exit-multiple center +
+        high interest + no sweep pushes the low-exit cells to negative equity."""
+        inputs = _base_inputs(exit_ev_ebitda=2.0, interest_rate=0.15, cash_sweep=False)
+        result = calculate_lbo(inputs)
+        for row in result.sensitivity["moic_grid"]:
+            for cell in row:
+                if cell is not None:
+                    assert cell >= 0.0
+
     def test_no_cash_sweep(self):
         """Without cash sweep, ending debt is higher than with sweep."""
         with_sweep = calculate_lbo(_base_inputs(cash_sweep=True))

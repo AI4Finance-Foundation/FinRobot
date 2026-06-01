@@ -42,7 +42,10 @@ def _calculate_lbo_core(inputs: LBOInputs) -> LBOResult:
     remaining_debt = schedule[-1].ending_debt
     exit_equity = exit_ev - remaining_debt
 
-    moic = exit_equity / entry_equity if entry_equity > 0 else 0.0
+    # Floor at 0×: equity can be wiped out (total loss) but never returns a
+    # negative multiple — a negative MOIC would contradict the IRR=-1.0 total-loss
+    # signal _compute_irr emits for the same exit_equity<=0 case.
+    moic = max(exit_equity / entry_equity, 0.0) if entry_equity > 0 else 0.0
     irr = _compute_irr(entry_equity, exit_equity, inputs.holding_period_years)
 
     return LBOResult(
@@ -278,7 +281,9 @@ def calculate_lbo_sensitivity(
                 continue
             exit_ev = e_exit * exit_ebitda
             exit_equity = exit_ev - remaining_debt
-            moic = exit_equity / entry_equity if entry_equity > 0 else 0.0
+            # Floor at 0× (see headline path): wiped-out equity is 0×, never a
+            # negative multiple, to stay consistent with the IRR=-1.0 cell.
+            moic = max(exit_equity / entry_equity, 0.0) if entry_equity > 0 else 0.0
             irr = _compute_irr(entry_equity, exit_equity, years)
             irr_row.append(round(irr, 4))
             moic_row.append(round(moic, 2))

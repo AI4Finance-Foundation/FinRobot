@@ -9,26 +9,18 @@ import {
   ReferenceArea,
   Cell,
 } from 'recharts'
-import type { TooltipValueType } from 'recharts'
 import { useMemo } from 'react'
 import type { MonteCarloResult } from '../../stores/appStore'
+import { CosmicTooltip } from './chartTooltip'
 
 interface Props {
   result: MonteCarloResult
   currentPrice: number | null
 }
 
-const CHART_TOOLTIP = {
-  backgroundColor: 'var(--bg-3)',
-  border: '1px solid var(--border-hover)',
-  borderRadius: 6,
-  color: 'var(--text-primary)',
-  fontFamily: "'JetBrains Mono', monospace",
-  fontSize: '0.78rem',
-}
-
 const BAR_COLOR = 'var(--primary)'
 const MARKER_COLOR = 'var(--warning)'
+const MEDIAN_COLOR = 'var(--text-primary)'
 
 export default function MonteCarloChart({ result, currentPrice }: Props) {
   const { chartData, p25, p75, median, mean } = useMemo(() => {
@@ -88,16 +80,13 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
               tickFormatter={(v: number) => v.toLocaleString()}
             />
             <Tooltip
-              contentStyle={CHART_TOOLTIP}
-              labelStyle={{ color: 'var(--text-primary)' }}
-              formatter={(value: TooltipValueType | undefined) => {
-                const v = typeof value === 'number' ? value : 0
-                return [v.toLocaleString(), 'Simulations']
-              }}
-              labelFormatter={(label: unknown) => {
-                const n = typeof label === 'number' ? label : Number(label)
-                return `$${n.toFixed(2)}`
-              }}
+              content={
+                <CosmicTooltip
+                  format={(v) => v.toLocaleString()}
+                  labelFormat={(label) => `$${Number(label).toFixed(2)}`}
+                />
+              }
+              cursor={{ fill: 'var(--primary-soft)' }}
             />
 
             {/* 25-75 percentile shaded region */}
@@ -120,15 +109,16 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
               />
             )}
 
-            {/* Median line (dark solid on light bg) */}
+            {/* Median line — must be a light solid on the dark cosmic bg
+                (was var(--bg-deep), i.e. invisible against the chart). */}
             <ReferenceLine
               x={median}
-              stroke="var(--bg-deep)"
+              stroke={MEDIAN_COLOR}
               strokeWidth={1.5}
               label={{
                 value: `中位 $${median.toFixed(0)}`,
                 position: 'insideTopRight',
-                fill: 'var(--bg-deep)',
+                fill: MEDIAN_COLOR,
                 fontSize: 10,
                 fontFamily: "'JetBrains Mono', monospace",
               }}
@@ -137,10 +127,13 @@ export default function MonteCarloChart({ result, currentPrice }: Props) {
             {/* Mean line (blue dashed) */}
             <ReferenceLine x={mean} stroke="var(--primary)" strokeWidth={1} strokeDasharray="4 2" />
 
-            <Bar dataKey="count" radius={[2, 2, 0, 0]}>
+            <Bar dataKey="count" name="Simulations" radius={[2, 2, 0, 0]}>
               {chartData.map((entry, index) => {
+                // Bars inside the 25-75 IQR are solid; outside are dimmed.
+                // (Was `${BAR_COLOR}66` — appending hex alpha to a var() string
+                // is invalid CSS, so out-of-range bars rendered with no fill.)
                 const inRange = entry.binMid >= p25 && entry.binMid <= p75
-                return <Cell key={`mc-${index}`} fill={inRange ? BAR_COLOR : `${BAR_COLOR}66`} />
+                return <Cell key={`mc-${index}`} fill={BAR_COLOR} fillOpacity={inRange ? 1 : 0.4} />
               })}
             </Bar>
           </BarChart>

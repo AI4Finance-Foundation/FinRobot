@@ -8,20 +8,17 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import type { TooltipValueType } from 'recharts'
+import { CosmicTooltip, CosmicLegend } from './chartTooltip'
 
 interface ChartProps {
   data: { year: string; operating: number; investing: number; financing: number }[]
   title: string
 }
 
-const CHART_TOOLTIP = {
-  backgroundColor: 'var(--bg-3)',
-  border: '1px solid var(--border-hover)',
-  borderRadius: 6,
-  color: 'var(--text-primary)',
+const AXIS_TICK = {
+  fill: 'var(--text-muted)',
+  fontSize: 11,
   fontFamily: "'JetBrains Mono', monospace",
-  fontSize: '0.78rem',
 }
 
 function formatBillions(v: number): string {
@@ -46,35 +43,25 @@ export default function CashFlowChart({ data, title }: ChartProps) {
       <div className="card-body">
         <ResponsiveContainer width="100%" height={260}>
           <ComposedChart data={enriched} barGap={2}>
-            <XAxis
-              dataKey="year"
-              tick={{
-                fill: 'var(--text-muted)',
-                fontSize: 11,
-                fontFamily: "'JetBrains Mono', monospace",
-              }}
-              axisLine={{ stroke: 'var(--border-soft)' }}
-            />
+            <XAxis dataKey="year" tick={AXIS_TICK} axisLine={{ stroke: 'var(--border-soft)' }} />
             <YAxis
               tickFormatter={formatBillions}
-              tick={{
-                fill: 'var(--text-muted)',
-                fontSize: 11,
-                fontFamily: "'JetBrains Mono', monospace",
-              }}
+              tick={AXIS_TICK}
               axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <Tooltip
-              formatter={(value: TooltipValueType | undefined) =>
-                formatBillions(typeof value === 'number' ? value : 0)
-              }
-              contentStyle={CHART_TOOLTIP}
-              labelStyle={{ color: 'var(--text-primary)' }}
+              content={<CosmicTooltip format={formatBillions} />}
+              cursor={{ fill: 'var(--primary-soft)', radius: 4 }}
             />
-            <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
+            <Legend content={<CosmicLegend />} />
             <Bar dataKey="operating" name="Operating" fill="var(--success)" radius={[2, 2, 0, 0]} />
             <Bar dataKey="investing" name="Investing" fill="var(--danger)" radius={[2, 2, 0, 0]} />
-            <Bar dataKey="financing" name="Financing" fill="#C9A84C" radius={[2, 2, 0, 0]} />
+            <Bar
+              dataKey="financing"
+              name="Financing"
+              fill="var(--chart-gold)"
+              radius={[2, 2, 0, 0]}
+            />
             <Line
               type="monotone"
               dataKey="net"

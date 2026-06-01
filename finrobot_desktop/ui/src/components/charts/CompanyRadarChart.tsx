@@ -8,6 +8,7 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts'
+import { CosmicTooltip, CosmicLegend } from './chartTooltip'
 
 interface ChartProps {
   data: Record<string, number | string | boolean | null>[]
@@ -16,16 +17,7 @@ interface ChartProps {
 
 // Design system chart palette
 const COMPANY_COLOR = 'var(--primary)' // chart-1
-const BENCHMARK_COLOR = '#C9A84C' // chart-2
-
-const CHART_TOOLTIP = {
-  backgroundColor: 'var(--bg-3)',
-  border: '1px solid var(--border-hover)',
-  borderRadius: 6,
-  color: 'var(--text-primary)',
-  fontFamily: "'JetBrains Mono', monospace",
-  fontSize: '0.78rem',
-}
+const BENCHMARK_COLOR = 'var(--chart-gold)' // gold, distinct from the blue company trace
 
 export default function CompanyRadarChart({ data, title }: ChartProps) {
   if (!data || data.length === 0) return null
@@ -44,8 +36,8 @@ export default function CompanyRadarChart({ data, title }: ChartProps) {
               tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
             />
             <PolarRadiusAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} />
-            <Tooltip contentStyle={CHART_TOOLTIP} labelStyle={{ color: 'var(--text-primary)' }} />
-            <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
+            <Tooltip content={<CosmicTooltip format={(v) => v.toFixed(1)} />} />
+            <Legend content={<CosmicLegend />} />
             <Radar
               name="Company"
               dataKey="value"

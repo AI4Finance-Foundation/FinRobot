@@ -182,6 +182,9 @@
   --chart-3: var(--danger);
   --chart-4: var(--secondary);
   --chart-5: var(--accent-cyan);
+  /* Muted gold for a secondary bar series where --success green would
+     wrongly read as "up" (e.g. P/E vs EV/EBITDA peer bars). */
+  --chart-gold: #c9a84c;
 
   --base: var(--bg-void);
   --surface: var(--bg-deep);

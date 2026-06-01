@@ -1,5 +1,5 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts'
-import type { TooltipValueType } from 'recharts'
+import { CosmicTooltip, CosmicLegend } from './chartTooltip'
 
 interface ChartProps {
   data: Record<string, number | string | boolean | null>[]
@@ -7,17 +7,14 @@ interface ChartProps {
 }
 
 // Design system chart palette
-const PRIMARY = 'var(--primary)' // chart-1
-const ACCENT = '#C9A84C' // chart-2
-const TARGET_HIGHLIGHT = 'var(--warning)' // chart-5
+const PRIMARY = 'var(--primary)' // chart-1, EV/EBITDA series
+const ACCENT = 'var(--chart-gold)' // P/E series — gold, not green, to avoid "up" connotation
+const TARGET_HIGHLIGHT = 'var(--warning)' // target ticker highlight
 
-const CHART_TOOLTIP = {
-  backgroundColor: 'var(--bg-3)',
-  border: '1px solid var(--border-hover)',
-  borderRadius: 6,
-  color: 'var(--text-primary)',
+const AXIS_TICK = {
+  fill: 'var(--text-muted)',
+  fontSize: 11,
   fontFamily: "'JetBrains Mono', monospace",
-  fontSize: '0.78rem',
 }
 
 export default function PeerComparisonChart({ data, title }: ChartProps) {
@@ -31,38 +28,22 @@ export default function PeerComparisonChart({ data, title }: ChartProps) {
       <div className="card-body">
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={data} barGap={2}>
-            <XAxis
-              dataKey="ticker"
-              tick={{
-                fill: 'var(--text-muted)',
-                fontSize: 11,
-                fontFamily: "'JetBrains Mono', monospace",
-              }}
-              axisLine={{ stroke: 'var(--border-soft)' }}
-            />
-            <YAxis
-              tick={{
-                fill: 'var(--text-muted)',
-                fontSize: 11,
-                fontFamily: "'JetBrains Mono', monospace",
-              }}
-              axisLine={{ stroke: 'var(--border-soft)' }}
-            />
+            <XAxis dataKey="ticker" tick={AXIS_TICK} axisLine={{ stroke: 'var(--border-soft)' }} />
+            <YAxis tick={AXIS_TICK} axisLine={{ stroke: 'var(--border-soft)' }} />
             <Tooltip
-              formatter={(value: TooltipValueType | undefined) => {
-                const v = typeof value === 'number' ? value : 0
-                return v.toFixed(1)
-              }}
-              contentStyle={CHART_TOOLTIP}
-              labelStyle={{ color: 'var(--text-primary)' }}
+              content={<CosmicTooltip format={(v) => `${v.toFixed(1)}x`} />}
+              cursor={false}
             />
-            <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
-            <Bar dataKey="ev_ebitda" name="EV/EBITDA" radius={[3, 3, 0, 0]}>
+            <Legend content={<CosmicLegend />} />
+            {/* fill on <Bar> drives the legend swatch; <Cell> overrides per-bar
+                so the target ticker can be highlighted. Without Bar fill the
+                legend icons render black (Recharts default). */}
+            <Bar dataKey="ev_ebitda" name="EV/EBITDA" fill={PRIMARY} radius={[3, 3, 0, 0]}>
               {data.map((entry, index) => (
                 <Cell key={`ev-${index}`} fill={entry.is_target ? TARGET_HIGHLIGHT : PRIMARY} />
               ))}
             </Bar>
-            <Bar dataKey="pe_ratio" name="P/E Ratio" radius={[3, 3, 0, 0]}>
+            <Bar dataKey="pe_ratio" name="P/E Ratio" fill={ACCENT} radius={[3, 3, 0, 0]}>
               {data.map((entry, index) => (
                 <Cell key={`pe-${index}`} fill={entry.is_target ? TARGET_HIGHLIGHT : ACCENT} />
               ))}

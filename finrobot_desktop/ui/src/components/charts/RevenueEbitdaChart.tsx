@@ -24,28 +24,7 @@ import {
   Cell,
   LabelList,
 } from 'recharts'
-
-// Recharts custom-component prop types are notoriously imprecise across
-// versions; using narrow local shapes keeps this file portable as the
-// library evolves.
-interface TooltipPayloadItem {
-  value?: number | string | null
-  name?: string
-  dataKey?: string | number
-  color?: string
-}
-interface CosmicTooltipProps {
-  active?: boolean
-  payload?: TooltipPayloadItem[]
-  label?: string | number
-}
-interface LegendPayloadItem {
-  value: string
-  color?: string
-}
-interface CosmicLegendProps {
-  payload?: LegendPayloadItem[]
-}
+import { CosmicTooltip, CosmicLegend } from './chartTooltip'
 
 interface ChartProps {
   data: Record<string, number | string | boolean | null>[]
@@ -61,109 +40,6 @@ function formatBillions(value: number): string {
   if (Math.abs(value) >= 1e9) return `$${(value / 1e9).toFixed(1)}B`
   if (Math.abs(value) >= 1e6) return `$${(value / 1e6).toFixed(1)}M`
   return `$${value.toLocaleString()}`
-}
-
-function CosmicTooltip({ active, payload, label }: CosmicTooltipProps) {
-  if (!active || !payload || payload.length === 0) return null
-  return (
-    <div
-      style={{
-        background: 'rgba(15, 15, 34, 0.92)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        border: '1px solid var(--border-glow)',
-        borderRadius: 8,
-        padding: '10px 14px',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 12,
-        color: 'var(--text-primary)',
-        boxShadow: 'var(--glow-blue)',
-        minWidth: 160,
-      }}
-    >
-      <div
-        style={{
-          fontFamily: 'var(--font-display)',
-          fontSize: 11,
-          letterSpacing: '0.12em',
-          color: 'var(--accent-cyan)',
-          marginBottom: 6,
-        }}
-      >
-        {label}
-      </div>
-      {payload.map((p) => {
-        const v = typeof p.value === 'number' ? p.value : 0
-        return (
-          <div
-            key={String(p.dataKey ?? p.name)}
-            style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}
-          >
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                color: 'var(--text-secondary)',
-              }}
-            >
-              <span
-                aria-hidden
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 2,
-                  background: p.color ?? 'var(--text-muted)',
-                  boxShadow: `0 0 6px ${p.color ?? 'transparent'}`,
-                }}
-              />
-              {p.name}
-            </span>
-            <span style={{ color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-              {formatBillions(v)}
-            </span>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function CosmicLegend(props: CosmicLegendProps) {
-  const payload = props.payload ?? []
-  return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        gap: 18,
-        fontFamily: 'var(--font-mono)',
-        fontSize: 11,
-        letterSpacing: '0.04em',
-        color: 'var(--text-secondary)',
-        marginTop: 6,
-      }}
-    >
-      {payload.map((entry) => (
-        <span
-          key={String(entry.value)}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-        >
-          <span
-            aria-hidden
-            style={{
-              width: 10,
-              height: 10,
-              borderRadius: 2,
-              background: entry.color,
-              boxShadow: `0 0 8px ${entry.color}`,
-            }}
-          />
-          {entry.value}
-        </span>
-      ))}
-    </div>
-  )
 }
 
 export default function RevenueEbitdaChart({ data, title }: ChartProps) {
@@ -199,7 +75,7 @@ export default function RevenueEbitdaChart({ data, title }: ChartProps) {
               width={64}
             />
             <Tooltip
-              content={<CosmicTooltip />}
+              content={<CosmicTooltip format={formatBillions} />}
               // The default hover-cursor is a giant filled rect that on dark
               // bg becomes that "ghost rectangle" the user flagged. Tint it
               // to the cosmic primary-soft so it reads as a focus highlight

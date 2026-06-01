@@ -8,10 +8,10 @@ import {
   Cell,
   ReferenceLine,
 } from 'recharts'
-import type { TooltipValueType } from 'recharts'
 import { useMemo } from 'react'
 
 import { fmtUsd } from '../../utils/formatters'
+import { CosmicTooltipShell, CosmicTooltipRow } from './chartTooltip'
 
 interface ChartProps {
   data: Record<string, number | string | boolean | null>[]
@@ -21,15 +21,12 @@ interface ChartProps {
 // Design system colors
 const POSITIVE_COLOR = 'var(--success)'
 const NEGATIVE_COLOR = 'var(--danger)'
-const TOTAL_COLOR = '#C9A84C'
+const TOTAL_COLOR = 'var(--chart-gold)'
 
-const CHART_TOOLTIP = {
-  backgroundColor: 'var(--bg-3)',
-  border: '1px solid var(--border-hover)',
-  borderRadius: 6,
-  color: 'var(--text-primary)',
+const AXIS_TICK = {
+  fill: 'var(--text-muted)',
+  fontSize: 11,
   fontFamily: "'JetBrains Mono', monospace",
-  fontSize: '0.78rem',
 }
 
 interface WaterfallBar {
@@ -39,6 +36,29 @@ interface WaterfallBar {
   base: number
   delta: number
   fill: string
+}
+
+// Bespoke content (Add / Subtract / Total) but the shared cosmic shell so it
+// matches every other chart's tooltip rather than the old low-contrast box.
+function WaterfallTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean
+  payload?: { payload?: WaterfallBar }[]
+}) {
+  const entry = active ? payload?.[0]?.payload : undefined
+  if (!entry) return null
+  const name = entry.is_total ? 'Total' : entry.value >= 0 ? 'Add' : 'Subtract'
+  return (
+    <CosmicTooltipShell label={entry.label}>
+      <CosmicTooltipRow
+        color={entry.fill}
+        name={name}
+        value={fmtUsd(entry.is_total ? entry.delta : entry.value)}
+      />
+    </CosmicTooltipShell>
+  )
 }
 
 export default function WaterfallChart({ data, title }: ChartProps) {
@@ -86,11 +106,7 @@ export default function WaterfallChart({ data, title }: ChartProps) {
           <BarChart data={bars}>
             <XAxis
               dataKey="label"
-              tick={{
-                fill: 'var(--text-muted)',
-                fontSize: 11,
-                fontFamily: "'JetBrains Mono', monospace",
-              }}
+              tick={AXIS_TICK}
               axisLine={{ stroke: 'var(--border-soft)' }}
               interval={0}
               angle={-30}
@@ -98,11 +114,7 @@ export default function WaterfallChart({ data, title }: ChartProps) {
               height={60}
             />
             <YAxis
-              tick={{
-                fill: 'var(--text-muted)',
-                fontSize: 11,
-                fontFamily: "'JetBrains Mono', monospace",
-              }}
+              tick={AXIS_TICK}
               axisLine={{ stroke: 'var(--border-soft)' }}
               // Large values (e.g. AAPL terminal value ~$1.2T) need abbreviated
               // ticks — raw `${v}` overflowed the Y-axis gutter and rendered as
@@ -111,19 +123,8 @@ export default function WaterfallChart({ data, title }: ChartProps) {
               width={60}
             />
             <Tooltip
-              contentStyle={CHART_TOOLTIP}
-              labelStyle={{ color: 'var(--text-primary)' }}
-              formatter={(
-                _val: TooltipValueType | undefined,
-                _name: string | number | undefined,
-                // recharts Payload<> interface has payload?: any which carries the row data
-                item: { payload?: WaterfallBar },
-              ) => {
-                const entry = item.payload
-                if (!entry) return ['', '']
-                if (entry.is_total) return [fmtUsd(entry.delta), 'Total']
-                return [fmtUsd(entry.value), entry.value >= 0 ? 'Add' : 'Subtract']
-              }}
+              content={<WaterfallTooltip />}
+              cursor={{ fill: 'var(--primary-soft)', radius: 4 }}
             />
             <ReferenceLine y={0} stroke="var(--border-soft)" />
             <Bar dataKey="base" stackId="waterfall" fill="transparent" />

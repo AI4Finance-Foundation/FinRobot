@@ -8,7 +8,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import type { TooltipValueType } from 'recharts'
+import { CosmicTooltip, CosmicLegend } from './chartTooltip'
 
 interface ChartProps {
   data: Record<string, number | string | boolean | null>[]
@@ -22,13 +22,10 @@ const COLORS = {
   operating_margin: 'var(--primary)', // chart-1 (blue)
 }
 
-const CHART_TOOLTIP = {
-  backgroundColor: 'var(--bg-3)',
-  border: '1px solid var(--border-hover)',
-  borderRadius: 6,
-  color: 'var(--text-primary)',
+const AXIS_TICK = {
+  fill: 'var(--text-muted)',
+  fontSize: 11,
   fontFamily: "'JetBrains Mono', monospace",
-  fontSize: '0.78rem',
 }
 
 function formatPercent(value: number): string {
@@ -56,32 +53,17 @@ export default function MarginTrendChart({ data, title }: ChartProps) {
                 <stop offset="95%" stopColor={COLORS.ebitda_margin} stopOpacity={0.01} />
               </linearGradient>
             </defs>
-            <XAxis
-              dataKey="year"
-              tick={{
-                fill: 'var(--text-muted)',
-                fontSize: 11,
-                fontFamily: "'JetBrains Mono', monospace",
-              }}
-              axisLine={{ stroke: 'var(--border-soft)' }}
-            />
+            <XAxis dataKey="year" tick={AXIS_TICK} axisLine={{ stroke: 'var(--border-soft)' }} />
             <YAxis
               tickFormatter={formatPercent}
-              tick={{
-                fill: 'var(--text-muted)',
-                fontSize: 11,
-                fontFamily: "'JetBrains Mono', monospace",
-              }}
+              tick={AXIS_TICK}
               axisLine={{ stroke: 'var(--border-soft)' }}
             />
             <Tooltip
-              formatter={(value: TooltipValueType | undefined) =>
-                formatPercent(typeof value === 'number' ? value : 0)
-              }
-              contentStyle={CHART_TOOLTIP}
-              labelStyle={{ color: 'var(--text-primary)' }}
+              content={<CosmicTooltip format={formatPercent} />}
+              cursor={{ stroke: 'var(--border-glow)', strokeWidth: 1 }}
             />
-            <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: '0.72rem' }} />
+            <Legend content={<CosmicLegend />} />
             <Area
               type="monotone"
               dataKey="gross_margin"

@@ -101,6 +101,7 @@ _RAW_TICK_ALLOWLIST = {
     "MonteCarloChart.tsx",   # implied-price histogram, $-hundreds bins
     "EpsPeChart.tsx",        # EPS in $, single digits
     "EpsSurpriseChart.tsx",  # EPS surprise in $
+    "EpsTrendChart.tsx",     # annual EPS bars in $, single digits (eps.toFixed(2))
     "FootballField.tsx",     # valuation range in $ per share
     "PriceTrendChart.tsx",   # 1Y share-price line, Y-axis = close prices ($-hundreds)
 }

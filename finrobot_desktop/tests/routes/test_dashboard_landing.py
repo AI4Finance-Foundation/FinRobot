@@ -1,7 +1,9 @@
 """Integration tests for /api/dashboard/hit-rate + /api/dashboard/recent-research.
 
-Quotes resolve through a fake ``deps.data_layer.fetch_quote`` (门一 Step 3) so
-the tests don't hit the network. ArtifactStore runs against a real on-disk temp
+Hit-rate cold-fetches quotes through a fake ``deps.data_layer.fetch_quote``
+(门一 Step 3) so the tests don't hit the network. The recent-research strip is
+cache-only — it reads pre-warmed L2 rows seeded by ``_warm_quote_cache`` and
+never fans out to a provider. ArtifactStore runs against a real on-disk temp
 dir so we exercise the actual summary indexing path.
 """
 
@@ -41,9 +43,43 @@ _QUOTE_PRICES: dict[str, float] = {}
 
 
 def _set_quotes(prices: dict[str, float]) -> None:
-    """Set the prices the fake ``DataLayer.fetch_quote`` returns this test."""
+    """Set the prices the fake ``DataLayer.fetch_quote`` returns this test.
+
+    Only the hit-rate endpoint cold-fetches through this fake; the
+    recent-research strip is cache-only and reads pre-warmed L2 rows via
+    :func:`_warm_quote_cache` instead.
+    """
     _QUOTE_PRICES.clear()
     _QUOTE_PRICES.update({k.upper(): v for k, v in prices.items()})
+
+
+def _warm_quote_cache(db_path: Path, prices: dict[str, float]) -> None:
+    """Seed fresh L2 QuoteCache rows so the cache-only recent-research endpoint
+    can light its signal lamps.
+
+    Mirrors the production post-warmup state: the strip endpoint never
+    cold-fetches, so a fresh row here is the only way a lamp resolves. Written
+    synchronously via sqlite3 (no asyncio) to dodge cross-event-loop entangle-
+    ment with the QuoteCache aiosqlite worker. Must run AFTER ``_clear_caches``
+    has rebound ``paths.QUOTES_DB`` to this ``db_path``.
+    """
+    import sqlite3
+    import time
+
+    from finrobot.engine.data.quote_cache import _CREATE_TABLE
+
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(_CREATE_TABLE)
+        now = time.time()
+        conn.executemany(
+            "INSERT OR REPLACE INTO quotes_cache(ticker, last_price, fetched_at) VALUES (?, ?, ?)",
+            [(k.upper(), v, now) for k, v in prices.items()],
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 class _FakeQuoteLayer:
@@ -223,10 +259,13 @@ def test_recent_research_rejects_bad_limit(client: TestClient) -> None:
 def test_recent_research_rolls_up_same_ticker_into_one_card(
     client: TestClient,
     store: ArtifactStore,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Three AAPL artifacts collapse into one card with 3 runs newest-first."""
-    _set_quotes({"AAPL": 115.0})
+    # Cache-only endpoint: pre-warm L2 so the latest run's signal lamp resolves
+    # (entry=100, target=130, current=115 → "watching").
+    _warm_quote_cache(tmp_path / "quotes.db", {"AAPL": 115.0})
     for i, days in enumerate([1, 5, 10]):
         _save(
             store,
@@ -263,7 +302,7 @@ def test_recent_research_caps_runs_per_card_and_reports_overflow(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """7 runs for one ticker → 5 rows surfaced, run_count=7 for overflow footer."""
-    _set_quotes({"AAPL": 115.0})
+    # No quote pre-warm needed: this asserts row structure, not the lamp.
     for i in range(7):
         _save(
             store,
@@ -282,7 +321,11 @@ def test_recent_research_caps_runs_per_card_and_reports_overflow(
     assert card["run_count"] == 7
     assert len(card["runs"]) == 5
     assert [r["artifact_id"] for r in card["runs"]] == [
-        "art_AAPL_0", "art_AAPL_1", "art_AAPL_2", "art_AAPL_3", "art_AAPL_4",
+        "art_AAPL_0",
+        "art_AAPL_1",
+        "art_AAPL_2",
+        "art_AAPL_3",
+        "art_AAPL_4",
     ]
 
 
@@ -292,19 +335,40 @@ def test_recent_research_top_n_distinct_tickers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Three different tickers, limit=2 returns two most recently touched."""
-    _set_quotes({"AAPL": 115.0, "MSFT": 115.0, "NVDA": 115.0})
-    _save(store, _make_artifact(
-        artifact_id="art_AAPL", ticker="AAPL",
-        entry_price=100.0, target_price=130.0, verdict="BUY", days_ago=15,
-    ))
-    _save(store, _make_artifact(
-        artifact_id="art_NVDA", ticker="NVDA",
-        entry_price=100.0, target_price=130.0, verdict="BUY", days_ago=5,
-    ))
-    _save(store, _make_artifact(
-        artifact_id="art_MSFT", ticker="MSFT",
-        entry_price=100.0, target_price=130.0, verdict="BUY", days_ago=1,
-    ))
+    # No quote pre-warm needed: this asserts top-N ordering, not the lamp.
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_AAPL",
+            ticker="AAPL",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=15,
+        ),
+    )
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_NVDA",
+            ticker="NVDA",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=5,
+        ),
+    )
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_MSFT",
+            ticker="MSFT",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=1,
+        ),
+    )
     resp = client.get("/api/dashboard/recent-research?limit=2")
     assert resp.status_code == 200
     data = resp.json()
@@ -383,9 +447,7 @@ def test_hit_rate_does_not_500_when_quote_fetch_explodes(
 
     # The route imports fetch_quotes_batch_cached *inside* the handler, so
     # the only patch that lands is on the source module.
-    monkeypatch.setattr(
-        "finrobot.engine.data.quote_batch.fetch_quotes_batch_cached", explode
-    )
+    monkeypatch.setattr("finrobot.engine.data.quote_batch.fetch_quotes_batch_cached", explode)
 
     resp = client.get("/api/dashboard/hit-rate")
     # Key guarantee: no 500. Without live prices the aggregator can't
@@ -398,13 +460,16 @@ def test_hit_rate_does_not_500_when_quote_fetch_explodes(
     assert set(data["by_verdict"].keys()) == {"BUY", "HOLD", "SELL"}
 
 
-def test_recent_research_does_not_500_when_quote_fetch_explodes(
+def test_recent_research_does_not_500_when_quote_read_explodes(
     client: TestClient,
     store: ArtifactStore,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Same guarantee for the recent-research drawer endpoint."""
-    _set_quotes({"AAPL": 128.0})
+    """A wedged QuoteCache read must not take the recent-research drawer down.
+
+    The strip is cache-only now, so the failure mode is the L1/L2 read itself
+    exploding — it must degrade to None lamps (200), never 500.
+    """
     _save(
         store,
         _make_artifact(
@@ -417,18 +482,60 @@ def test_recent_research_does_not_500_when_quote_fetch_explodes(
         ),
     )
 
-    async def explode(_tickers, _data_layer):  # type: ignore[no-untyped-def]
+    async def explode(_tickers):  # type: ignore[no-untyped-def]
         raise RuntimeError("aiosqlite worker thread died")
 
-    monkeypatch.setattr(
-        "finrobot.engine.data.quote_batch.fetch_quotes_batch_cached", explode
-    )
+    # The route imports fetch_quotes_cache_only *inside* the handler, so the
+    # patch must land on the source module.
+    monkeypatch.setattr("finrobot.engine.data.quote_batch.fetch_quotes_cache_only", explode)
 
     resp = client.get("/api/dashboard/recent-research?limit=5")
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["distinct_ticker_count"] == 1
     assert len(data["items"]) == 1
+    # Lamp degrades to None rather than crashing the card.
+    assert data["items"][0]["latest_signal"] is None
+
+
+def test_recent_research_lamp_pending_when_cache_cold(
+    client: TestClient,
+    store: ArtifactStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cards render instantly with a null lamp when quotes are not warm yet.
+
+    The whole point of the cache-only switch: the DB-backed card never waits
+    on a quote round-trip. Without a pre-warm, the lamp is null (the frontend
+    shows a pending dot and refetches once warmup populates the cache) — but
+    the card content is fully present.
+    """
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_AAPL",
+            ticker="AAPL",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=30,
+        ),
+    )
+
+    # Guard: a cold cache-only read must NOT fan out to the provider chain.
+    # If it did, the fake DataLayer would serve a price and the lamp would
+    # resolve — proving we regressed back to a blocking cold fetch.
+    _set_quotes({"AAPL": 128.0})
+
+    resp = client.get("/api/dashboard/recent-research?limit=5")
+    assert resp.status_code == 200, resp.text
+    card = resp.json()["items"][0]
+    assert card["ticker"] == "AAPL"
+    assert card["run_count"] == 1
+    assert card["latest_signal"] is None, (
+        "cache-only endpoint must not cold-fetch quotes — lamp should stay "
+        "pending until the cache is warm"
+    )
 
 
 def test_recent_research_does_not_read_full_artifact_for_verdict(
@@ -437,7 +544,6 @@ def test_recent_research_does_not_read_full_artifact_for_verdict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Same guarantee for the recent-research drawer endpoint."""
-    _set_quotes({"AAPL": 115.0})
     for i in range(3):
         _save(
             store,

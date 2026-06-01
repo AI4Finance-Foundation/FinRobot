@@ -44,7 +44,6 @@ _QUOTE_BATCH_DEGRADABLE = (
 # ─────────────────────────────────────────────────────────────────────
 
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Landing-page banner: cross-ticker hit-rate + recent research
 # ─────────────────────────────────────────────────────────────────────────────
@@ -225,19 +224,23 @@ async def recent_research(
         reverse=True,
     )[:limit]
 
-    # Live quotes for top-N only — cached batched call. The QuoteCache
-    # singleton means the parallel /api/dashboard/hit-rate call within the
-    # same 60s TTL window shares this batch (no double-fetch from yfinance).
-    from finrobot.engine.data.quote_batch import fetch_quotes_batch_cached
+    # Signal-lamp prices for top-N — CACHE-ONLY, never a cold provider call.
+    # The strip's cards are DB-backed and must not block on a yfinance/FMP
+    # round-trip (pre-fix this endpoint paid up to the 8s warmup budget on
+    # every cold boot — see ADR/landing). Warm tickers light their lamp now;
+    # cold ones come back None and fill on the frontend's post-warmup refetch
+    # once the lifespan warmup has populated the shared QuoteCache. Live price
+    # is a progressive enhancement here, not a render dependency — that is why
+    # this uses fetch_quotes_cache_only while /hit-rate (whose bucket math
+    # genuinely needs warm quotes) still cold-fetches.
+    from finrobot.engine.data.quote_batch import fetch_quotes_cache_only
 
     try:
-        quotes = await fetch_quotes_batch_cached(top_tickers, deps.data_layer)
+        quotes = await fetch_quotes_cache_only(top_tickers)
     except _QUOTE_BATCH_DEGRADABLE:
-        # Live quotes are decorative for this endpoint — the page is fully
-        # readable without them. Any failure (network / sqlite worker died /
-        # asyncio teardown / yfinance import gone) falls back to None
-        # prices instead of 500-ing the entire landing.
-        logger.exception("Quote batch failed for recent-research")
+        # A wedged L1/L2 read must never 500 the landing — fall back to None
+        # prices (lamps pending) instead.
+        logger.exception("Cache-only quote read failed for recent-research")
         quotes = dict.fromkeys(top_tickers)
 
     # Per-row verdict comes straight from ArtifactSummary.verdict (already
@@ -321,9 +324,7 @@ async def _collect_signal_inputs(store: Any, data_layer: Any) -> list[Any]:
     from finrobot.engine.aggregations.hit_rate_overview import ArtifactSignalInput
     from finrobot.engine.data.quote_batch import fetch_quotes_batch_cached
 
-    summaries = await store.list_by_ticker(
-        ticker=None, include_archived=False, limit=500
-    )
+    summaries = await store.list_by_ticker(ticker=None, include_archived=False, limit=500)
     if not summaries:
         return []
 
@@ -348,5 +349,3 @@ async def _collect_signal_inputs(store: Any, data_layer: Any) -> list[Any]:
         )
         for s in summaries
     ]
-
-

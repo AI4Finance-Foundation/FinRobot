@@ -99,7 +99,13 @@ def seed_ddm_inputs(
         prov["dividend_per_share"] = f"${dps:.2f}（provider 报告年化 DPS）"
     else:
         payout_raw = normalized.payout_ratio
-        if payout_raw and payout_raw > 0 and net_income > 0 and shares > 0:
+        if (
+            payout_raw
+            and payout_raw > 0
+            and net_income is not None
+            and net_income > 0
+            and shares > 0
+        ):
             dps = payout_raw * net_income / shares
             prov["dividend_per_share"] = (
                 f"${dps:.2f}（派息率 {payout_raw:.1%} × 净利 ÷ 股本，provider 未直接给 DPS）"
@@ -115,7 +121,7 @@ def seed_ddm_inputs(
     if payout is not None and 0 < payout <= 1:
         prov["payout_ratio"] = f"{payout:.1%}（provider 报告派息率）"
     else:
-        eps = net_income / shares if shares > 0 else 0.0
+        eps = net_income / shares if (net_income is not None and shares > 0) else 0.0
         if eps > 0:
             payout = dps / eps
             prov["payout_ratio"] = f"{payout:.1%}（DPS ÷ 每股收益，provider 未给派息率）"

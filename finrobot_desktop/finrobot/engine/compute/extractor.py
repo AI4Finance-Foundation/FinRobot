@@ -151,10 +151,12 @@ def extract_financial_data(
         fiscal_period_end=fin.period_end,
         income=IncomeStatement(
             revenue=revenue,
-            ebitda=ebitda or 0,
-            net_income=fin.net_income or 0,
-            gross_margin=fin.gross_margin or 0,
-            operating_margin=fin.operating_margin or 0,
+            # None ≠ 0: propagate a missing figure as None so the derived metric
+            # is withheld (data unavailable) rather than fabricated as a real 0.
+            ebitda=ebitda,
+            net_income=fin.net_income,
+            gross_margin=fin.gross_margin,
+            operating_margin=fin.operating_margin,
             depreciation_amortization=fin.depreciation_amortization,
             rd_expense=fin.rd_expense,
             sga_expense=fin.sga_expense,

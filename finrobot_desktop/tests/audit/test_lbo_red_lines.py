@@ -61,8 +61,7 @@ def test_ic_memo_financials_step_uses_seed_lbo_inputs():
 
     func_marker = "async def _execute_ic_financials("
     assert func_marker in src, (
-        "_execute_ic_financials function missing from ic_memo.py — "
-        "did you rename it?"
+        "_execute_ic_financials function missing from ic_memo.py — did you rename it?"
     )
     start = src.index(func_marker)
     next_func = src.find("\nasync def ", start + 1)
@@ -101,8 +100,7 @@ def test_lbo_pipeline_uses_seed_lbo_inputs():
 
     func_marker = "async def _execute_lbo_params("
     assert func_marker in src, (
-        "_execute_lbo_params function missing from pipelines/lbo.py — "
-        "did you rename it?"
+        "_execute_lbo_params function missing from pipelines/lbo.py — did you rename it?"
     )
 
     start = src.index(func_marker)
@@ -136,8 +134,7 @@ def test_lbo_pipeline_uses_seed_lbo_inputs():
     }
     offenders = [tok for tok in banned_in_body if tok in body_no_docstring]
     assert not offenders, "\n".join(
-        f"_execute_lbo_params body contains banned token '{tok}': "
-        f"{banned_in_body[tok]}"
+        f"_execute_lbo_params body contains banned token '{tok}': {banned_in_body[tok]}"
         for tok in offenders
     )
 
@@ -231,6 +228,17 @@ def test_lbo_assumption_provenance_messages_are_chinese():
         if not any("一" <= ch <= "鿿" for ch in msg):
             offenders.append(f"{key}: {msg}")
     assert not offenders, "LBO provenance messages must contain Chinese:\n" + "\n".join(offenders)
+
+
+def test_lbo_missing_ebitda_falls_back_to_industry_estimate():
+    """income.ebitda None (provider omitted EBITDA) must route to the same
+    industry-implied fallback as a non-positive EBITDA — never crash on a None
+    comparison, and never seed a zero/None ltm_ebitda into the model."""
+    fin = _minimal_financials()
+    fin.income.ebitda = None
+    inputs = seed_lbo_inputs(fin, _empty_historical())
+    assert inputs.ltm_ebitda > 0
+    assert "不可得" in inputs.assumption_provenance["ltm_ebitda"]
 
 
 if __name__ == "__main__":

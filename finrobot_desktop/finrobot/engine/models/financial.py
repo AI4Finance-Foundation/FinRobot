@@ -12,10 +12,19 @@ class IncomeStatement(BaseModel):
     """Income statement metrics."""
 
     revenue: float = Field(description="Annual revenue in USD")
-    ebitda: float = Field(description="EBITDA in USD")
-    net_income: float = Field(description="Net income in USD")
-    gross_margin: float = Field(ge=0, le=1, description="Gross margin as decimal")
-    operating_margin: float = Field(ge=-5, le=1, description="Operating margin as decimal")
+    # None ≠ 0: a missing figure stays None so downstream withholds the derived
+    # metric (data unavailable) instead of treating a fabricated 0 as a real
+    # value — 0 EBITDA / 0 margin is a going-concern signal, not "not reported".
+    ebitda: float | None = Field(default=None, description="EBITDA in USD; None when unavailable")
+    net_income: float | None = Field(
+        default=None, description="Net income in USD; None when unavailable"
+    )
+    gross_margin: float | None = Field(
+        default=None, ge=0, le=1, description="Gross margin as decimal; None when unavailable"
+    )
+    operating_margin: float | None = Field(
+        default=None, ge=-5, le=1, description="Operating margin as decimal; None when unavailable"
+    )
     depreciation_amortization: float | None = None
     rd_expense: float | None = None
     sga_expense: float | None = None

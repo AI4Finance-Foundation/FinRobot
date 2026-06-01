@@ -46,7 +46,7 @@ JPM_NET_INCOME = 57_512_001_536.0
 def _financials(
     *,
     beta: float | None = JPM_BETA,
-    net_income: float = JPM_NET_INCOME,
+    net_income: float | None = JPM_NET_INCOME,
     shares: float = JPM_SHARES,
     price: float = JPM_PRICE,
     industry: str | None = "Banks - Diversified",
@@ -161,6 +161,22 @@ class TestSeedFallbacks:
             seed_ddm_inputs(
                 _financials(),
                 _normalized(dividend_per_share=None, payout_ratio=None),
+            )
+
+    def test_missing_net_income_with_provider_dps_still_seeds(self) -> None:
+        """income.net_income None but provider reports DPS directly ⇒ the DPS
+        path needs no net income, so DDM still seeds (no None arithmetic)."""
+        inputs = seed_ddm_inputs(_financials(net_income=None), _normalized())
+        assert inputs.dividend_per_share == pytest.approx(JPM_DPS)
+
+    def test_missing_net_income_no_provider_dps_raises(self) -> None:
+        """income.net_income None and no provider DPS ⇒ the payout-derived
+        dividend can't be computed; DDM is inapplicable rather than crashing on
+        a None × payout multiply."""
+        with pytest.raises(ValueError, match="positive dividend"):
+            seed_ddm_inputs(
+                _financials(net_income=None),
+                _normalized(dividend_per_share=None),
             )
 
     def test_payout_derived_from_dps_eps(self) -> None:

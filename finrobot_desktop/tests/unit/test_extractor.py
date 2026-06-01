@@ -135,27 +135,21 @@ def test_extract_financial_data_no_fiscal_period_when_provider_omits_it():
 
 def test_extract_financial_data_reads_fiscal_year_iso_string():
     """yfinance historical-fetch shape: fiscal_year='2024-09-30' → parsed date."""
-    fd = extract_financial_data(
-        _make_fin(fiscal_year="2024-09-30"), _make_price()
-    )
+    fd = extract_financial_data(_make_fin(fiscal_year="2024-09-30"), _make_price())
     assert fd.fiscal_period_end == date(2024, 9, 30)
 
 
 def test_extract_financial_data_reads_date_iso_string():
     """FMP historical-fetch shape: date='2023-12-31' → parsed date.
     Live NVDA bug was that this never got read; assert the contract."""
-    fd = extract_financial_data(
-        _make_fin(date="2023-12-31"), _make_price()
-    )
+    fd = extract_financial_data(_make_fin(date="2023-12-31"), _make_price())
     assert fd.fiscal_period_end == date(2023, 12, 31)
 
 
 def test_extract_financial_data_unparseable_fiscal_year_returns_none():
     """Garbage fiscal_year string shouldn't crash extraction — just skip the
     field so downstream falls back to timestamp."""
-    fd = extract_financial_data(
-        _make_fin(fiscal_year="not-a-date"), _make_price()
-    )
+    fd = extract_financial_data(_make_fin(fiscal_year="not-a-date"), _make_price())
     assert fd.fiscal_period_end is None
 
 
@@ -182,9 +176,7 @@ def test_extract_financial_data_ev_ebitda_none_when_negative_ebitda():
 
 
 def test_extract_financial_data_zero_debt_cash():
-    fd = extract_financial_data(
-        _make_fin(total_debt=0, total_cash=0), _make_price()
-    )
+    fd = extract_financial_data(_make_fin(total_debt=0, total_cash=0), _make_price())
     assert abs(fd.valuation.enterprise_value - fd.market.market_cap) < 1
 
 
@@ -224,6 +216,36 @@ def test_extract_financial_data_ev_none_when_both_missing():
     fd = extract_financial_data(_make_fin(total_debt=None, total_cash=None), _make_price())
     assert fd.valuation.enterprise_value is None
     assert any("total_debt" in w and "total_cash" in w for w in fd.warnings)
+
+
+# ---------------------------------------------------------------------------
+# None ≠ 0: missing income-statement figures stay None (BUG #5 cluster)
+# ---------------------------------------------------------------------------
+
+
+def test_extract_financial_data_ebitda_none_when_missing():
+    """Missing EBITDA (no operating components, no provider ebitda) must stay
+    None — not fabricated as 0, which would read as a going-concern signal and
+    poison EV/EBITDA. Provider gave neither operating_income/D&A nor ebitda."""
+    fd = extract_financial_data(_make_fin(ebitda=None), _make_price())
+    assert fd.income.ebitda is None
+    assert fd.valuation.ebitda_operating is None
+    assert fd.valuation.ev_ebitda is None
+
+
+def test_extract_financial_data_net_income_none_when_missing():
+    """Missing net income stays None, not 0 — 0 would mean a break-even firm and
+    silently zero out derived per-share/tax-rate inputs downstream."""
+    fd = extract_financial_data(_make_fin(net_income=None), _make_price())
+    assert fd.income.net_income is None
+
+
+def test_extract_financial_data_margins_none_when_missing():
+    """Missing gross/operating margin stay None, not 0% — 0% margin is a
+    distinct (going-concern) signal from 'provider didn't report it'."""
+    fd = extract_financial_data(_make_fin(gross_margin=None, operating_margin=None), _make_price())
+    assert fd.income.gross_margin is None
+    assert fd.income.operating_margin is None
 
 
 # ---------------------------------------------------------------------------
@@ -380,9 +402,7 @@ class TestExtractCompanyFinancialsCurrencyOverride:
     def test_tsm_adr_country_taiwan_overrides_usd_to_twd(self) -> None:
         """TSM (no '.' suffix) with country=Taiwan: financial_currency="USD" is
         overridden to "TWD" so FX normalization will convert IS/BS items."""
-        result = extract_company_financials(
-            self._make_peer_fin("TSM", country="Taiwan")
-        )
+        result = extract_company_financials(self._make_peer_fin("TSM", country="Taiwan"))
         assert result.reporting_currency == "TWD", (
             f"Expected TWD, got {result.reporting_currency} — FX override not applied"
         )
@@ -390,16 +410,12 @@ class TestExtractCompanyFinancialsCurrencyOverride:
 
     def test_asml_adr_country_netherlands_overrides_usd_to_eur(self) -> None:
         """ASML (no '.' suffix) with country=Netherlands: USD → EUR."""
-        result = extract_company_financials(
-            self._make_peer_fin("ASML", country="Netherlands")
-        )
+        result = extract_company_financials(self._make_peer_fin("ASML", country="Netherlands"))
         assert result.reporting_currency == "EUR"
 
     def test_us_issuer_no_override(self) -> None:
         """AAPL: country=None → USD tag is trusted as-is."""
-        result = extract_company_financials(
-            self._make_peer_fin("AAPL", country=None)
-        )
+        result = extract_company_financials(self._make_peer_fin("AAPL", country=None))
         assert result.reporting_currency == "USD"
 
     def test_local_listing_no_override(self) -> None:
@@ -419,7 +435,5 @@ class TestExtractCompanyFinancialsCurrencyOverride:
 
     def test_unknown_country_trusts_provider_tag(self) -> None:
         """Country not in the mapping: fall back to provider tag (USD)."""
-        result = extract_company_financials(
-            self._make_peer_fin("XYZ", country="Narnia")
-        )
+        result = extract_company_financials(self._make_peer_fin("XYZ", country="Narnia"))
         assert result.reporting_currency == "USD"

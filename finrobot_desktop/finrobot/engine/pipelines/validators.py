@@ -52,11 +52,7 @@ def validate_technical_analysis(output: object) -> ValidationResult:
             passed=False,
             error=f"technical_analysis output must be TechnicalAnalysis, got {type(output).__name__}",
         )
-    if (
-        output.monte_carlo is None
-        and output.sniper is None
-        and output.historical_bands is None
-    ):
+    if output.monte_carlo is None and output.sniper is None and output.historical_bands is None:
         joined = "; ".join(output.warnings) or "no diagnostics"
         return ValidationResult(
             passed=False,
@@ -312,13 +308,16 @@ def validate_financial_data(
         return ValidationResult(passed=False, error="Revenue must be positive")
     if data.market.market_cap <= 0:
         return ValidationResult(passed=False, error="Market cap must be positive")
-    margin = data.income.ebitda / data.income.revenue
-    margin_min, margin_max = ebitda_margin_range
-    if not (margin_min <= margin <= margin_max):
-        return ValidationResult(
-            passed=False,
-            error=f"EBITDA margin {margin:.1%} out of range ({margin_min:.0%} to {margin_max:.0%})",
-        )
+    # None ≠ 0: a missing EBITDA is "not reported", not an out-of-range value —
+    # skip the margin sanity band rather than crash or flag it as a failure.
+    if data.income.ebitda is not None:
+        margin = data.income.ebitda / data.income.revenue
+        margin_min, margin_max = ebitda_margin_range
+        if not (margin_min <= margin <= margin_max):
+            return ValidationResult(
+                passed=False,
+                error=f"EBITDA margin {margin:.1%} out of range ({margin_min:.0%} to {margin_max:.0%})",
+            )
     if data.market.pe_ratio is not None and data.market.pe_ratio <= 0:
         return ValidationResult(passed=False, error="PE ratio must be positive if set")
     return ValidationResult(passed=True)
@@ -356,9 +355,7 @@ def _outlier_warnings(comps: PeerComps) -> list[str]:
                     f"{ticker} {label} {v:.2f}x deviates >{ratio:.0f}x from peer median {med:.2f}x"
                 )
 
-    ev_ebitda_vals = [
-        (p.ticker, p.ev_ebitda) for p in comps.peers if p.ev_ebitda is not None
-    ]
+    ev_ebitda_vals = [(p.ticker, p.ev_ebitda) for p in comps.peers if p.ev_ebitda is not None]
     _check("EV/EBITDA", ev_ebitda_vals)
 
     pe_vals = [(p.ticker, p.pe_ratio) for p in comps.peers if p.pe_ratio is not None]

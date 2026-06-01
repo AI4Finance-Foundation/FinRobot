@@ -92,9 +92,10 @@ def seed_lbo_inputs(
 
     # ----- ltm_ebitda --------------------------------------------------------
     ltm_ebitda = financials.income.ebitda
-    if ltm_ebitda <= 0:
-        # LBO model requires positive EBITDA — fall back to industry-implied
-        # value via revenue × industry EBITDA margin. Prov flag this clearly.
+    if ltm_ebitda is None or ltm_ebitda <= 0:
+        # LBO model requires positive EBITDA — when missing (None) or
+        # non-positive, fall back to industry-implied value via
+        # revenue × industry EBITDA margin. Prov flag this clearly.
         ltm_ebitda = max(revenue_base * industry.ebitda_pct_revenue, 1.0)
         prov["ltm_ebitda"] = (
             f"${ltm_ebitda / 1e9:.1f}B（最新 EBITDA 不可得，按"

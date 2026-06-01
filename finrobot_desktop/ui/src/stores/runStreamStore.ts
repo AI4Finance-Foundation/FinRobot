@@ -19,6 +19,7 @@
 import { create } from 'zustand'
 import { BASE_URL } from '../api/client'
 import { fetchWithTimeout } from '../api/fetch'
+import { useUiPrefs } from '../i18n'
 
 export interface RunStep {
   name: string
@@ -248,7 +249,14 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pipeline_type: pipelineType, ticker }),
+          // Generate the report's prose in the current UI language. The backend
+          // stamps this onto artifact.meta.language; the detail view then renders
+          // the body in this language regardless of later UI-locale switches.
+          body: JSON.stringify({
+            pipeline_type: pipelineType,
+            ticker,
+            language: useUiPrefs.getState().locale,
+          }),
         },
         5_000,
       )

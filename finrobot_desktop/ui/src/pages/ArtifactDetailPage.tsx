@@ -78,6 +78,10 @@ interface ArtifactMeta {
   created_at?: string
   source?: string
   user_id?: string
+  // Language the report's prose was generated in. The body renders in this
+  // language regardless of the current UI locale (only chrome follows locale);
+  // a banner warns when the two differ. Legacy artifacts default to 'zh'.
+  language?: 'en' | 'zh'
 }
 
 export function ArtifactDetailPage(): React.ReactElement {
@@ -159,6 +163,12 @@ export function ArtifactDetailPage(): React.ReactElement {
   const createdAt = meta.created_at ?? null
   const computeVersionStr = compute_version?.version ?? null
 
+  // The report body is fixed in the language it was generated in (meta.language;
+  // legacy artifacts → 'zh'). When the viewer's UI locale differs, the chrome is
+  // localized but the prose is not — warn rather than silently show mixed text.
+  const reportLang: 'en' | 'zh' = meta.language ?? 'zh'
+  const langMismatch = reportLang !== locale
+
   // Derive a human-friendly version number (v1/v2/v3) from the timeline.
   // Timeline arrives newest→oldest; oldest is v1, newest is v(N). If this
   // artifact isn't in the timeline (race condition during a fresh run),
@@ -230,6 +240,33 @@ export function ArtifactDetailPage(): React.ReactElement {
         />
 
         <main style={{ minWidth: 0, padding: '12px 0 60px' }}>
+          {langMismatch && (
+            <div
+              data-testid="report-lang-mismatch"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 14px',
+                marginBottom: 16,
+                borderRadius: 8,
+                fontSize: 13,
+                lineHeight: 1.5,
+                color: 'var(--text-secondary)',
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border)',
+              }}
+            >
+              <span aria-hidden style={{ fontSize: 15 }}>
+                🌐
+              </span>
+              <span>
+                {t('report.lang.mismatch', {
+                  lang: t(reportLang === 'zh' ? 'report.lang.zh' : 'report.lang.en'),
+                })}
+              </span>
+            </div>
+          )}
           <ChapterCover
             ticker={symbol}
             thesis={thesis}

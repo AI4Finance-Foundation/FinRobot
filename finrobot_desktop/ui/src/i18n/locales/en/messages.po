@@ -1357,3 +1357,295 @@ msgstr "HK / A-share tickers are not supported"
 #. js-lingui-explicit-id
 msgid "ticker.notFound.hint4"
 msgstr "If the spelling is correct, yfinance may not list this ticker"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.equityResearch"
+msgstr "EQUITY RESEARCH"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.twelveMonthTarget"
+msgstr "12-MONTH TARGET"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.targetWithheld"
+msgstr "N/A · withheld"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.typeLabel"
+msgstr "TYPE"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.version"
+msgstr "v{version}"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.versionOfTotal"
+msgstr "v{version} of {total}"
+
+#. js-lingui-explicit-id
+msgid "chapter.companyOverview.empty"
+msgstr "This report has no company-overview field. Re-run a full report to see investment-bank-style coverage of the business, segments, geographies, and moat here."
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.positiveHeading"
+msgstr "Positive Catalysts (Upside Potential)"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.riskHeading"
+msgstr "Risk Factors (Downside Risks)"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.monitorHeading"
+msgstr "Events to Monitor"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.emptyPositive"
+msgstr "No positive catalysts identified"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.emptyRisks"
+msgstr "No major risk factors identified"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.emptyMonitor"
+msgstr "This artifact flagged no events to monitor · live event calendar is in the workspace"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.overallSentiment"
+msgstr "Overall sentiment"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.netSentiment"
+msgstr "net sentiment"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.metaCategory"
+msgstr "CATEGORY"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.metaImpact"
+msgstr "IMPACT"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.metaProbability"
+msgstr "PROBABILITY"
+
+#. js-lingui-explicit-id
+msgid "chapter.thesis.empty"
+msgstr "This report is missing the investment-thesis field. Please regenerate the full report."
+
+#. js-lingui-explicit-id
+msgid "chapter.thesis.target"
+msgstr "Target ${value}"
+
+#. js-lingui-explicit-id
+msgid "chapter.thesis.targetWithheld"
+msgstr "Target N/A · withheld"
+
+#. js-lingui-explicit-id
+msgid "chapter.thesis.keyTakeaways"
+msgstr "Key Takeaways"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.empty"
+msgstr "This report has no news-sentiment section — regenerate the report to produce an overall-sentiment read on the last 30 days of key events plus thesis support / challenge analysis here."
+
+#. js-lingui-explicit-id
+msgid "chapter.news.snapshotNote"
+msgstr "Snapshot frozen at artifact creation · live news feed available on the workspace dashboard"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.empty"
+msgstr "No peer comparables were generated for this report — regenerate to populate"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.col.ticker"
+msgstr "Ticker"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.col.revenue"
+msgstr "Revenue"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.col.grossMargin"
+msgstr "Gross Margin"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.col.opMargin"
+msgstr "Op Margin"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.peerMedian"
+msgstr "Peer median:"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.subheading.multiples"
+msgstr "Multiples Comparison"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.subheading.profile"
+msgstr "Multi-Dimensional Profile"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.subheading.positioning"
+msgstr "Positioning vs Peers"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.chart.multiples"
+msgstr "P/E & EV/EBITDA vs Peers"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.chart.radar"
+msgstr "Target vs Peer Median (normalised 0–100)"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.unit"
+msgstr "Amount"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.expensive"
+msgstr "Expensive"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.fair"
+msgstr "Fair"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.cheap"
+msgstr "Cheap"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.unknown"
+msgstr "Unknown"
+
+#. js-lingui-explicit-id
+msgid "report.load.missingId"
+msgstr "Missing report ID"
+
+#. js-lingui-explicit-id
+msgid "report.load.missingIdBody"
+msgstr "The path is incomplete — return to the workspace and reselect a report."
+
+#. js-lingui-explicit-id
+msgid "report.load.loading"
+msgstr "Loading report…"
+
+#. js-lingui-explicit-id
+msgid "report.load.failed"
+msgstr "Failed to load"
+
+#. js-lingui-explicit-id
+msgid "report.load.failedBody"
+msgstr "Could not load the report. Please try again later."
+
+#. js-lingui-explicit-id
+msgid "report.lang.mismatch"
+msgstr "This report was written in {lang}; its body does not follow the interface language."
+
+#. js-lingui-explicit-id
+msgid "report.lang.zh"
+msgstr "Chinese"
+
+#. js-lingui-explicit-id
+msgid "report.lang.en"
+msgstr "English"
+
+#. js-lingui-explicit-id
+msgid "report.diff.noPartner"
+msgstr "No version to compare"
+
+#. js-lingui-explicit-id
+msgid "report.diff.noPartnerBody"
+msgstr "{ticker} has only this report · regenerate to accumulate versions for comparison"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.back"
+msgstr "Back to {ticker} workspace"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.switchVersion"
+msgstr "Switch to another version"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerunStarted"
+msgstr "{ticker} {reportType} re-run started"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerunStartedBody"
+msgstr "Analysis in progress — version history appears in the workspace drawer when done"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerunFailed"
+msgstr "Failed to start re-run"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.toTarget"
+msgstr "To target"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerun"
+msgstr "Re-run"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.diff"
+msgstr "Diff"
+
+#. js-lingui-explicit-id
+msgid "report.rightRail.timeline"
+msgstr "Version Timeline"
+
+#. js-lingui-explicit-id
+msgid "report.rightRail.whatif"
+msgstr "What-if Editor"
+
+#. js-lingui-explicit-id
+msgid "report.rightRail.resetTitle"
+msgstr "Reset to the report's original assumptions"
+
+#. js-lingui-explicit-id
+msgid "report.rightRail.reset"
+msgstr "Reset"
+
+#. js-lingui-explicit-id
+msgid "report.rightRail.terminalGrowth"
+msgstr "Terminal Growth"
+
+#. js-lingui-explicit-id
+msgid "report.rightRail.revenueGrowthScale"
+msgstr "Revenue Growth Scale"
+
+#. js-lingui-explicit-id
+msgid "report.rightRail.recomputeError"
+msgstr "Recompute failed · check parameter ranges"
+
+#. js-lingui-explicit-id
+msgid "report.rightRail.computing"
+msgstr "computing…"
+
+#. js-lingui-explicit-id
+msgid "report.statusBar.chapter"
+msgstr "Chapter"
+
+#. js-lingui-explicit-id
+msgid "report.statusBar.backToTop"
+msgstr "Back to top"
+
+#. js-lingui-explicit-id
+msgid "report.statusBar.backToTopShort"
+msgstr "Top"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.eps"
+msgstr "Earnings per Share (EPS) Trend"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.chart.title.eps"
+msgstr "Diluted EPS · by Year"
+
+#. js-lingui-explicit-id
+msgid "chart.epsTrend.eps"
+msgstr "EPS"
+
+#. js-lingui-explicit-id
+msgid "chart.epsTrend.yoy"
+msgstr "YoY"

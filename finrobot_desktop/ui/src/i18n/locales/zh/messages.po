@@ -1357,3 +1357,295 @@ msgstr "港股 / A 股代码不支持"
 #. js-lingui-explicit-id
 msgid "ticker.notFound.hint4"
 msgstr "如确认拼写无误，可能 yfinance 暂未收录该代码"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.equityResearch"
+msgstr "股票研报"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.twelveMonthTarget"
+msgstr "12 个月目标价"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.targetWithheld"
+msgstr "N/A · 待复核"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.typeLabel"
+msgstr "类型"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.version"
+msgstr "第 v{version} 版"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.versionOfTotal"
+msgstr "第 v{version} 版 · 共 {total} 份"
+
+#. js-lingui-explicit-id
+msgid "chapter.companyOverview.empty"
+msgstr "该研报未包含公司概览字段，请重新生成完整研报即可在本章看到投行口吻的业务、分部、地区与护城河描述。"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.positiveHeading"
+msgstr "正面催化（上行潜力）"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.riskHeading"
+msgstr "风险因素（下行风险）"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.monitorHeading"
+msgstr "待追踪事件"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.emptyPositive"
+msgstr "未识别到 positive catalysts"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.emptyRisks"
+msgstr "未识别到主要 risk factors"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.emptyMonitor"
+msgstr "该 artifact 未标记需追踪事件 · 实时事件日历在工作区"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.overallSentiment"
+msgstr "整体情绪"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.netSentiment"
+msgstr "净情绪"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.metaCategory"
+msgstr "类别"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.metaImpact"
+msgstr "影响"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.metaProbability"
+msgstr "概率"
+
+#. js-lingui-explicit-id
+msgid "chapter.thesis.empty"
+msgstr "该研报缺少投资论点字段，请重新生成完整研报。"
+
+#. js-lingui-explicit-id
+msgid "chapter.thesis.target"
+msgstr "目标 ${value}"
+
+#. js-lingui-explicit-id
+msgid "chapter.thesis.targetWithheld"
+msgstr "目标 N/A · 待复核"
+
+#. js-lingui-explicit-id
+msgid "chapter.thesis.keyTakeaways"
+msgstr "核心要点"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.empty"
+msgstr "该研报未生成新闻情绪段 — 重新生成研报即在此章产出近 30 天关键事件的整体情绪与论点支撑 / 挑战分析。"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.snapshotNote"
+msgstr "快照冻结于研报生成时 · 实时新闻流在工作区仪表盘"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.empty"
+msgstr "该研报未生成同业对标 — 重新生成研报后此处补齐"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.col.ticker"
+msgstr "代码"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.col.revenue"
+msgstr "营收"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.col.grossMargin"
+msgstr "毛利率"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.col.opMargin"
+msgstr "营业利润率"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.peerMedian"
+msgstr "同业中位数："
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.subheading.multiples"
+msgstr "估值倍数对比"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.subheading.profile"
+msgstr "多维画像"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.subheading.positioning"
+msgstr "相对同业的定位"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.chart.multiples"
+msgstr "P/E 与 EV/EBITDA 对比同业"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.chart.radar"
+msgstr "标的 vs 同业中位数（归一化 0–100）"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.unit"
+msgstr "金额"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.expensive"
+msgstr "偏贵"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.fair"
+msgstr "合理"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.cheap"
+msgstr "偏便宜"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.unknown"
+msgstr "未知"
+
+#. js-lingui-explicit-id
+msgid "report.load.missingId"
+msgstr "缺少研报编号"
+
+#. js-lingui-explicit-id
+msgid "report.load.missingIdBody"
+msgstr "访问路径不完整，请回工作区重新选择研报。"
+
+#. js-lingui-explicit-id
+msgid "report.load.loading"
+msgstr "加载研报中…"
+
+#. js-lingui-explicit-id
+msgid "report.load.failed"
+msgstr "加载失败"
+
+#. js-lingui-explicit-id
+msgid "report.load.failedBody"
+msgstr "无法加载研报，请稍后重试。"
+
+#. js-lingui-explicit-id
+msgid "report.lang.mismatch"
+msgstr "本报告正文以{lang}撰写，不随界面语言切换。"
+
+#. js-lingui-explicit-id
+msgid "report.lang.zh"
+msgstr "中文"
+
+#. js-lingui-explicit-id
+msgid "report.lang.en"
+msgstr "英文"
+
+#. js-lingui-explicit-id
+msgid "report.diff.noPartner"
+msgstr "无可对比版本"
+
+#. js-lingui-explicit-id
+msgid "report.diff.noPartnerBody"
+msgstr "{ticker} 只有这一份研报 · 重新生成累积版本后即可对比"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.back"
+msgstr "返回 {ticker} 工作区"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.switchVersion"
+msgstr "切换其他版本"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerunStarted"
+msgstr "{ticker} 重跑 {reportType} 已启动"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerunStartedBody"
+msgstr "分析进行中，完成后可在工作区抽屉查看版本历史"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerunFailed"
+msgstr "启动重跑失败"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.toTarget"
+msgstr "距目标"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerun"
+msgstr "重跑"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.diff"
+msgstr "对比"
+
+#. js-lingui-explicit-id
+msgid "report.rightRail.timeline"
+msgstr "版本时间线"
+
+#. js-lingui-explicit-id
+msgid "report.rightRail.whatif"
+msgstr "What-if 编辑器"
+
+#. js-lingui-explicit-id
+msgid "report.rightRail.resetTitle"
+msgstr "重置到研报原始假设"
+
+#. js-lingui-explicit-id
+msgid "report.rightRail.reset"
+msgstr "重置"
+
+#. js-lingui-explicit-id
+msgid "report.rightRail.terminalGrowth"
+msgstr "永续增长率"
+
+#. js-lingui-explicit-id
+msgid "report.rightRail.revenueGrowthScale"
+msgstr "营收增速调整"
+
+#. js-lingui-explicit-id
+msgid "report.rightRail.recomputeError"
+msgstr "重算失败 · 检查参数范围"
+
+#. js-lingui-explicit-id
+msgid "report.rightRail.computing"
+msgstr "计算中…"
+
+#. js-lingui-explicit-id
+msgid "report.statusBar.chapter"
+msgstr "章节"
+
+#. js-lingui-explicit-id
+msgid "report.statusBar.backToTop"
+msgstr "回到顶部"
+
+#. js-lingui-explicit-id
+msgid "report.statusBar.backToTopShort"
+msgstr "回顶"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.eps"
+msgstr "每股收益（EPS）趋势"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.chart.title.eps"
+msgstr "摊薄 EPS · 逐年"
+
+#. js-lingui-explicit-id
+msgid "chart.epsTrend.eps"
+msgstr "EPS"
+
+#. js-lingui-explicit-id
+msgid "chart.epsTrend.yoy"
+msgstr "同比"

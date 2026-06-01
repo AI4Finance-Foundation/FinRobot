@@ -31,7 +31,7 @@ from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.debate.agents import build_debate_agents
 from finrobot.engine.debate.evidence import build_evidence_set
 from finrobot.engine.debate.service import run_debate
-from finrobot.events import RunEvent, RunFailed, RunStarted
+from finrobot.events import RunCompleted, RunEvent, RunFailed, RunStarted
 from finrobot.run_store import RunStore
 
 logger = logging.getLogger(__name__)
@@ -141,6 +141,23 @@ async def _run_debate_task(
             status="completed",
             completed_at=datetime.now(tz=timezone.utc).isoformat(),
             duration_s=duration_s,
+        )
+        # Emit the terminal run.completed event — symmetric with the failure
+        # path's run.failed below and with runs.py::_run_pipeline_impl.  Without
+        # it the frontend debateStore never leaves 'running': the server closes
+        # the SSE stream once status flips to completed, EventSource reads the
+        # close as an error, auto-reconnects, the server immediately closes
+        # again (already completed) → repeat → 8 errors → the catastrophic
+        # "请检查后端服务" banner fires even though the verdict already arrived.
+        await run_store.append_event(
+            run_id,
+            RunCompleted(
+                event="run.completed",
+                run_id=run_id,
+                ticker=evidence_set.ticker,
+                duration_s=duration_s,
+                result_url=f"/api/runs/{run_id}",
+            ),
         )
     except (
         ProviderError,

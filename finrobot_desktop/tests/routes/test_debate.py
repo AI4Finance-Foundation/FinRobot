@@ -14,7 +14,6 @@ from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
@@ -59,9 +58,15 @@ class _StubAgent:
 
 def _stub_agents() -> dict[str, Any]:
     return {
-        "bull": _StubAgent(SideCase(side="bull", arguments=[Argument(claim="강세 논거", evidence_ids=[])])),
-        "bear": _StubAgent(SideCase(side="bear", arguments=[Argument(claim="약세 논거", evidence_ids=[])])),
-        "judge": _StubAgent(Verdict(call="HOLD", conviction=0.5, swing_factor="x", change_my_mind="y")),
+        "bull": _StubAgent(
+            SideCase(side="bull", arguments=[Argument(claim="강세 논거", evidence_ids=[])])
+        ),
+        "bear": _StubAgent(
+            SideCase(side="bear", arguments=[Argument(claim="약세 논거", evidence_ids=[])])
+        ),
+        "judge": _StubAgent(
+            Verdict(call="HOLD", conviction=0.5, swing_factor="x", change_my_mind="y")
+        ),
     }
 
 
@@ -150,7 +155,9 @@ async def test_create_debate_returns_run_id() -> None:
         return_value=_stub_agents(),
     ):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
-            resp = await client.post("/api/debate", json={"ticker": "NVDA", "artifact_id": "seed-1"})
+            resp = await client.post(
+                "/api/debate", json={"ticker": "NVDA", "artifact_id": "seed-1"}
+            )
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -198,11 +205,68 @@ async def test_create_debate_calls_run_store_create_run() -> None:
         return_value=_stub_agents(),
     ):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
-            await client.post(
-                "/api/debate", json={"ticker": "AAPL", "artifact_id": "art-cr"}
-            )
+            await client.post("/api/debate", json={"ticker": "AAPL", "artifact_id": "art-cr"})
 
     app.state.run_store.create_run.assert_called_once_with("debate", "AAPL")
+
+
+async def test_successful_debate_emits_run_completed() -> None:
+    """Regression: the success path must emit a terminal run.completed event.
+
+    Without it the run silently flips to status='completed' but no SSE event is
+    sent. The server closes the stream, the frontend (still 'running') reads the
+    close as an error, reconnects, the server closes again → 8 errors → the
+    catastrophic "请检查后端服务" banner fires even though the verdict arrived.
+    This mirrors test_agent_run_error_transitions_run_to_failed for the happy path.
+    """
+    import asyncio
+
+    app = _make_app(artifact=_equity_research_artifact("art-ok"))
+
+    with patch(
+        "finrobot.routes.debate.build_debate_agents",
+        return_value=_stub_agents(),
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+            resp = await client.post(
+                "/api/debate", json={"ticker": "NVDA", "artifact_id": "art-ok"}
+            )
+
+    assert resp.status_code == 200
+    run_id = resp.json()["run_id"]
+
+    bg_task = app.state.run_tasks.get(run_id)
+    if bg_task is not None:
+        await asyncio.gather(bg_task, return_exceptions=True)
+    else:
+        await asyncio.sleep(0.05)
+
+    run_store = app.state.run_store
+
+    # run must have been marked completed.
+    update_calls = run_store.update_run.call_args_list
+    completed_call = next(
+        (c for c in update_calls if c.kwargs.get("status") == "completed"),
+        None,
+    )
+    assert completed_call is not None, "update_run(status='completed') was never called"
+
+    # run.completed event must have been appended (the actual regression).
+    append_calls = run_store.append_event.call_args_list
+    completed_event_call = next(
+        (
+            c
+            for c in append_calls
+            if isinstance(c.args[1], dict) and c.args[1].get("event") == "run.completed"
+        ),
+        None,
+    )
+    assert completed_event_call is not None, "run.completed event was never appended"
+    event = completed_event_call.args[1]
+    assert event["run_id"] == run_id
+    assert event["ticker"] == "NVDA"
+
+    assert run_id not in app.state.run_tasks, "run_id still in run_tasks after completion"
 
 
 async def test_agent_run_error_transitions_run_to_failed() -> None:

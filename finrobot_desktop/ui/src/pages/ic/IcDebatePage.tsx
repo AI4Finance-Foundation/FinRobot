@@ -28,13 +28,14 @@ export function IcDebatePage() {
   const symbol = (ticker ?? '').toUpperCase()
   const artifactId = searchParams.get('artifact_id')
 
-  const debate = useDebateStore(selectDebate(symbol))
+  const debate = useDebateStore(selectDebate(symbol, artifactId))
   const startDebate = useDebateStore((s) => s.startDebate)
   const reset = useDebateStore((s) => s.reset)
 
   const isIdle = !debate || debate.status === 'idle'
   const isRunning = debate?.status === 'running'
   const isFailed = debate?.status === 'failed'
+  const isCompleted = debate?.status === 'completed'
 
   const handleStart = useCallback(async () => {
     if (!symbol || !artifactId) {
@@ -55,6 +56,16 @@ export function IcDebatePage() {
       })
     }
   }, [symbol, artifactId, startDebate, addToast, t])
+
+  // Re-run a debate for the SAME (ticker, artifact): clear the prior state then
+  // kick off a fresh run. Used by both the failed-state retry and the
+  // completed-state re-debate buttons. Backend has no dedup — each run is new.
+  const handleRedebate = useCallback(() => {
+    if (!artifactId) return
+    reset(symbol, artifactId)
+    // Re-trigger start after reset; need a tick for the store to clear.
+    setTimeout(() => handleStart(), 0)
+  }, [symbol, artifactId, reset, handleStart])
 
   if (!symbol) {
     return (
@@ -130,6 +141,16 @@ export function IcDebatePage() {
             current_price={debate.current_price}
           />
 
+          {/* Re-debate: a completed verdict reflects one moment's data/assumptions.
+              Let the analyst re-run against the same report to compare. */}
+          {isCompleted && (
+            <div style={{ margin: '4px 0 24px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="button" onClick={handleRedebate} style={secondaryBtnStyle}>
+                ⚖ {t('ic.action.retry')}
+              </button>
+            </div>
+          )}
+
           {/* Error state */}
           {isFailed && debate.error && (
             <div style={{ marginBottom: 24 }}>
@@ -137,22 +158,12 @@ export function IcDebatePage() {
               <div style={{ marginTop: 10, display: 'flex', gap: 10 }}>
                 <button
                   type="button"
-                  onClick={() => {
-                    reset(symbol)
-                  }}
+                  onClick={() => artifactId && reset(symbol, artifactId)}
                   style={secondaryBtnStyle}
                 >
                   {t('ic.action.reset')}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    reset(symbol)
-                    // Re-trigger start after reset; need a tick for store to clear.
-                    setTimeout(() => handleStart(), 0)
-                  }}
-                  style={primaryBtnStyle}
-                >
+                <button type="button" onClick={handleRedebate} style={primaryBtnStyle}>
                   {t('ic.action.retry')}
                 </button>
               </div>

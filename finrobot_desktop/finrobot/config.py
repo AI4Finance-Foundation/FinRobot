@@ -113,7 +113,7 @@ class FinRobotSettings(BaseSettings):
 
     # Infrastructure
     cache_db_path: str = ""  # resolved at runtime by paths.default_data_cache_db_path()
-    skills_dir: str = "skills"  # path to vendored skills (relative to project root or absolute)
+    skills_dir: str = ""  # resolved at runtime by paths.default_skills_dir() (bundle-aware)
     log_level: str = "INFO"
     log_to_file: bool = True
     log_retention_days: int = 7
@@ -138,11 +138,22 @@ class FinRobotSettings(BaseSettings):
     model_config = {"env_prefix": "FINROBOT_", "env_file": str(_ENV_FILE)}
 
     def model_post_init(self, __context: Any) -> None:
-        """Resolve cache_db_path default after env/settings loading."""
+        """Resolve path defaults that depend on the runtime (cwd / frozen bundle).
+
+        Both ``cache_db_path`` and ``skills_dir`` default to "" so the resolved
+        value reflects *this* process's environment — a frozen desktop sidecar
+        unpacks ``skills/`` under ``sys._MEIPASS`` while a dev checkout uses the
+        repo tree. Resolving here (not as a class-level literal) keeps the env
+        override (``FINROBOT_SKILLS_DIR``) authoritative when the user sets one.
+        """
         if not self.cache_db_path:
             from finrobot.paths import default_data_cache_db_path
 
             object.__setattr__(self, "cache_db_path", default_data_cache_db_path())
+        if not self.skills_dir:
+            from finrobot.paths import default_skills_dir
+
+            object.__setattr__(self, "skills_dir", default_skills_dir())
 
     def get_model_for_role(self, role: str) -> str:
         """Return the model name for a specific agent role.

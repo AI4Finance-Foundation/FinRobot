@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import sys
 from collections import OrderedDict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -248,7 +247,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             _sec_header_identity,
         )
         from finrobot.engine.data.sec_holdings_cache import cache_status
-        from scripts.refresh_sec_holdings import _latest_completed_quarter_end
+        from scripts.refresh_sec_holdings import (
+            _latest_completed_quarter_end,
+            _refresh_quarter,
+        )
 
         if not _is_valid_identity(settings.sec_user_agent):
             logger.info("SEC 13F holdings refresh skipped: SEC identity not configured")
@@ -257,7 +259,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if header_identity is None:
             logger.info("SEC 13F holdings refresh skipped: SEC identity not configured")
             return
-        proc: asyncio.subprocess.Process | None = None
         try:
             status = await cache_status()
             latest_raw = status.get("latest_period_end")
@@ -270,44 +271,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     )
                     return
             period = _latest_completed_quarter_end()
-            repo_root = Path(__file__).resolve().parent.parent
-            proc = await asyncio.create_subprocess_exec(
-                sys.executable,
-                "-m",
-                "scripts.refresh_sec_holdings",
-                "--period",
-                period.isoformat(),
-                "--identity",
-                header_identity,
-                cwd=str(repo_root),
-            )
-            logger.info(
-                "SEC 13F holdings refresh spawned: pid=%s period_end=%s",
-                proc.pid,
-                period.isoformat(),
-            )
-            return_code = await proc.wait()
-            if return_code == 0:
-                logger.info("SEC 13F holdings refresh complete")
-            else:
-                logger.warning(
-                    "SEC 13F holdings refresh exited with code %s",
-                    return_code,
-                )
+            # Run in-process rather than spawning ``python -m scripts...``: the
+            # desktop build is a frozen PyInstaller binary where sys.executable
+            # is the sidecar itself (not a Python interpreter) and the repo tree
+            # does not exist, so a subprocess could never resolve the module.
+            # _refresh_quarter is async — it shares this event loop as a
+            # background task without blocking the server.
+            from edgar import set_identity
+
+            set_identity(header_identity)
+            logger.info("SEC 13F holdings refresh starting: period_end=%s", period.isoformat())
+            summary = await _refresh_quarter(period)
+            logger.info("SEC 13F holdings refresh complete: %s", summary)
         except asyncio.CancelledError:
-            if proc is not None and proc.returncode is None:
-                try:
-                    proc.terminate()
-                except ProcessLookupError:
-                    pass
-                try:
-                    await asyncio.wait_for(proc.wait(), timeout=5)
-                except asyncio.TimeoutError:
-                    try:
-                        proc.kill()
-                    except ProcessLookupError:
-                        pass
-                    await proc.wait()
             raise
         except (ImportError, OSError, RuntimeError, ValueError, TypeError, AttributeError):
             logger.exception("SEC 13F holdings refresh failed — non-fatal")

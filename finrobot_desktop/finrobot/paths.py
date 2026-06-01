@@ -14,6 +14,7 @@ separately. One module, one set of constants.
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,31 @@ logger = logging.getLogger(__name__)
 
 def _home() -> Path:
     return Path.home()
+
+
+def bundle_resource_root() -> Path:
+    """Root directory for bundled read-only resources (``skills/`` etc.).
+
+    Two runtime shapes:
+    - **Frozen** (PyInstaller desktop sidecar): resources are unpacked under
+      ``sys._MEIPASS``. There is no source tree and no repo root — the binary
+      may be launched from anywhere (Tauri spawns it with an arbitrary cwd).
+    - **Dev / pip install**: resolve relative to the source tree, i.e. the repo
+      root two levels up from this file (``finrobot/paths.py`` → repo root).
+
+    Resolving resources through this function instead of a bare relative path
+    removes the implicit "cwd must be the repo root" assumption — which the old
+    ``Path("skills")`` default silently relied on and which breaks both in a
+    frozen bundle and when running the CLI from any other directory.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+    return Path(__file__).resolve().parent.parent
+
+
+def default_skills_dir() -> str:
+    """Absolute path to the vendored ``skills/`` directory for this runtime."""
+    return str(bundle_resource_root() / "skills")
 
 
 FINROBOT_HOME: Path = _home() / ".finrobot"

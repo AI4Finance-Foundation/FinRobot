@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from finrobot.config import FinRobotSettings, get_settings
@@ -32,8 +34,13 @@ class TestDefaults:
         )
 
     def test_default_skills_dir(self):
+        # skills_dir resolves at runtime to an absolute, bundle-aware path
+        # (repo_root/skills in dev, sys._MEIPASS/skills in a frozen desktop
+        # build) — never a bare "skills" relative to an arbitrary cwd.
         s = get_settings()
-        assert s.skills_dir == "skills"
+        assert s.skills_dir  # non-empty after model_post_init
+        assert s.skills_dir.endswith("skills")
+        assert Path(s.skills_dir).is_absolute()
 
     def test_sec_holdings_refresh_is_opt_in(self):
         s = FinRobotSettings(_env_file=None)

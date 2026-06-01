@@ -21,68 +21,15 @@ import { useToastStore } from '../stores/toastStore'
 import { ArtifactDiff } from '../components/ArtifactDiff'
 import type { ArtifactSummaryV5 } from '../types/v5'
 import { useI18n } from '../i18n'
-import { formatDate } from '../utils/format'
 import { mapErrorToUserMessage } from '../utils/errorMessage'
 
 import { ReportToolbar } from './artifact-detail/shell/ReportToolbar'
 import { ReportTOC } from './artifact-detail/shell/ReportTOC'
 import { ReportRightRail } from './artifact-detail/shell/ReportRightRail'
 import { ReportStatusBar } from './artifact-detail/shell/ReportStatusBar'
-import {
-  ChapterCover,
-  ChapterThesis,
-  ChapterCompanyOverview,
-  ChapterFinancialAnalysis,
-  ChapterValuation,
-  ChapterNews,
-  ChapterSensitivity,
-  ChapterCatalysts,
-  ChapterTechnical,
-  ChapterCompetitive,
-  ChapterFinancialData,
-  ChapterOwnershipGovernance,
-  ChapterDisclaimer,
-} from './artifact-detail/chapters'
-import type {
-  ArtifactStructured,
-  CatalystAnalysisShape,
-  DcfShape,
-  OwnershipGovernanceShape,
-  PeerCompsShape,
-  TechnicalAnalysisShape,
-  ThesisShape,
-} from './artifact-detail/chapters'
-
+import { ReportChapters } from './artifact-detail/ReportChapters'
+import { deriveReportData } from './artifact-detail/reportData'
 import { allChapterLabels } from './artifact-detail/chapters/labels'
-
-interface ArtifactInputs {
-  data_source?: string
-  data_fetched_at?: string
-  raw_data?: Record<string, unknown>
-}
-
-interface ArtifactComputeVersion {
-  version?: string
-  git_commit?: string
-  formula_id?: string
-  formula_warnings?: string[]
-}
-
-interface ArtifactOutputs {
-  structured?: ArtifactStructured
-  summary_text?: string
-  warnings?: string[]
-}
-
-interface ArtifactMeta {
-  created_at?: string
-  source?: string
-  user_id?: string
-  // Language the report's prose was generated in. The body renders in this
-  // language regardless of the current UI locale (only chrome follows locale);
-  // a banner warns when the two differ. Legacy artifacts default to 'zh'.
-  language?: 'en' | 'zh'
-}
 
 export function ArtifactDetailPage(): React.ReactElement {
   const { ticker, artifactId } = useParams<{ ticker: string; artifactId: string }>()
@@ -142,47 +89,14 @@ export function ArtifactDetailPage(): React.ReactElement {
     )
   }
 
-  const inputs = data.inputs as ArtifactInputs
-  const outputs = data.outputs as ArtifactOutputs
-  const meta = data.meta as ArtifactMeta
-  const compute_version = (data as unknown as { compute_version?: ArtifactComputeVersion })
-    .compute_version
-
-  const structured = outputs.structured ?? {}
-  const thesis: ThesisShape | null = (structured.thesis as ThesisShape | undefined) ?? null
-  const dcf: DcfShape | null = (structured.financial_modeling as DcfShape | undefined) ?? null
-  const peers: PeerCompsShape | null =
-    (structured.peer_analysis as PeerCompsShape | undefined) ?? null
-  const catalysts: CatalystAnalysisShape | null =
-    (structured.catalyst_analysis as CatalystAnalysisShape | undefined) ?? null
-  const technical: TechnicalAnalysisShape | null =
-    (structured.technical_analysis as TechnicalAnalysisShape | undefined) ?? null
-  const ownership: OwnershipGovernanceShape | null =
-    (structured.ownership_governance as OwnershipGovernanceShape | undefined) ?? null
-
-  const createdAt = meta.created_at ?? null
-  const computeVersionStr = compute_version?.version ?? null
-
-  // The report body is fixed in the language it was generated in (meta.language;
-  // legacy artifacts → 'zh'). When the viewer's UI locale differs, the chrome is
-  // localized but the prose is not — warn rather than silently show mixed text.
-  const reportLang: 'en' | 'zh' = meta.language ?? 'zh'
-  const langMismatch = reportLang !== locale
-
-  // Derive a human-friendly version number (v1/v2/v3) from the timeline.
-  // Timeline arrives newest→oldest; oldest is v1, newest is v(N). If this
-  // artifact isn't in the timeline (race condition during a fresh run),
-  // fall back to N/A and keep totalVersions at 0 so the cover hides it.
-  const sameTypeTimeline = (timeline ?? []).filter((a) => a.type === data.type)
-  const totalVersions = sameTypeTimeline.length
-  const idxFromEnd = sameTypeTimeline.findIndex((a) => a.id === artifactId)
-  const versionNumber = idxFromEnd === -1 ? null : totalVersions - idxFromEnd
-  const versionLabel =
-    versionNumber !== null
-      ? `v${versionNumber}${createdAt ? ` · ${formatDate(createdAt, locale, 'short')}` : ''}`
-      : createdAt
-        ? formatDate(createdAt, locale, 'short')
-        : data.id.slice(0, 12)
+  // Chapter data + the values the surrounding chrome needs (toolbar target
+  // price + version label, right-rail WACC, diff headline). deriveReportData is
+  // the single source of truth shared with the standalone export viewer.
+  const { thesis, dcf, outputs, createdAt, versionLabel } = deriveReportData(
+    data,
+    timeline ?? [],
+    locale,
+  )
 
   // Pre-compute diff partner candidate: the most recent prior artifact of the
   // same type, surfaced by the Diff button. ArtifactDiff handles its own UI.
@@ -245,105 +159,7 @@ export function ArtifactDetailPage(): React.ReactElement {
           entries={allChapterLabels(locale).map((c) => ({ id: c.id, num: c.num, title: c.title }))}
         />
 
-        <main style={{ minWidth: 0, padding: '12px 0 60px' }}>
-          {langMismatch && (
-            <div
-              data-testid="report-lang-mismatch"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '10px 14px',
-                marginBottom: 16,
-                borderRadius: 8,
-                fontSize: 13,
-                lineHeight: 1.5,
-                color: 'var(--text-secondary)',
-                background: 'var(--surface-2)',
-                border: '1px solid var(--border)',
-              }}
-            >
-              <span aria-hidden style={{ fontSize: 15 }}>
-                🌐
-              </span>
-              <span>
-                {t('report.lang.mismatch', {
-                  lang: t(reportLang === 'zh' ? 'report.lang.zh' : 'report.lang.en'),
-                })}
-              </span>
-            </div>
-          )}
-          <ChapterCover
-            ticker={symbol}
-            thesis={thesis}
-            createdAt={createdAt}
-            artifactId={data.id}
-            computeVersion={computeVersionStr}
-            reportType={data.type}
-            versionNumber={versionNumber}
-            totalVersions={totalVersions}
-          />
-          <ChapterThesis thesis={thesis} />
-          <ChapterCompanyOverview thesis={thesis} />
-          <ChapterFinancialAnalysis ticker={symbol} dcf={dcf} rawData={inputs.raw_data ?? null} />
-          <ChapterValuation dcf={dcf} thesis={thesis} ticker={symbol} />
-          <ChapterNews thesis={thesis} />
-          <ChapterSensitivity dcf={dcf} />
-          <ChapterCatalysts catalysts={catalysts} thesis={thesis} />
-          <ChapterTechnical ticker={symbol} technical={technical} />
-          <ChapterCompetitive peers={peers} thesis={thesis} />
-          <ChapterFinancialData
-            rawData={inputs.raw_data ?? null}
-            dataSource={inputs.data_source ?? null}
-            fetchedAt={inputs.data_fetched_at ?? null}
-            ticker={symbol}
-          />
-          <ChapterOwnershipGovernance ownership={ownership} />
-          <ChapterDisclaimer
-            artifactId={data.id}
-            createdAt={createdAt}
-            computeVersion={computeVersionStr}
-          />
-
-          {(outputs.warnings && outputs.warnings.length > 0) ||
-          (compute_version?.formula_warnings && compute_version.formula_warnings.length > 0) ? (
-            <section
-              data-testid="report-warnings"
-              style={{
-                margin: '32px 0',
-                padding: '14px 18px',
-                background: 'color-mix(in srgb, var(--warning) 6%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--warning) 32%, transparent)',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: 12,
-                color: 'var(--warning)',
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 10.5,
-                  letterSpacing: '0.08em',
-                  marginBottom: 6,
-                }}
-              >
-                ⚠ {t('report.computeWarnings')}
-              </div>
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                {(outputs.warnings ?? []).map((w, i) => (
-                  <li key={`o-${i}`} style={{ marginBottom: 4 }}>
-                    {w}
-                  </li>
-                ))}
-                {(compute_version?.formula_warnings ?? []).map((w, i) => (
-                  <li key={`f-${i}`} style={{ marginBottom: 4 }}>
-                    {w}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-        </main>
+        <ReportChapters artifact={data} timeline={timeline ?? []} />
 
         <ReportRightRail
           ticker={symbol}

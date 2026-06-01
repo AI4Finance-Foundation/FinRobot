@@ -4,6 +4,7 @@ import { api, BASE_URL, exportDiagnosticsLogs } from '../api/client'
 import { useToastStore } from '../stores/toastStore'
 import { useUiStore } from '../stores/uiStore'
 import { mapErrorToUserMessage, FetchHttpError } from '../utils/errorMessage'
+import { useI18n, tSync } from '../i18n'
 
 interface Props {
   onComplete: () => void
@@ -193,16 +194,18 @@ const sourceBadgeStyle: React.CSSProperties = {
   border: '1px solid var(--border)',
 }
 
-const SOURCE_LABELS: Record<string, string> = {
-  keychain: '来自 keychain',
-  settings_json: '来自 settings.json',
-  env: '来自 .env',
-  default: '默认值',
+const SOURCE_LABEL_KEYS: Record<string, string> = {
+  keychain: 'settings.source.keychain',
+  settings_json: 'settings.source.settingsJson',
+  env: 'settings.source.env',
+  default: 'settings.source.default',
 }
 
 function SourceBadge({ source }: { source?: string | null }) {
+  const { t } = useI18n()
   if (!source) return null
-  const label = SOURCE_LABELS[source] ?? source
+  const key = SOURCE_LABEL_KEYS[source]
+  const label = key ? t(key) : source
   return <span style={sourceBadgeStyle}>{label}</span>
 }
 
@@ -225,6 +228,7 @@ const ghostBtnStyle: React.CSSProperties = {
 type TestState = 'idle' | 'loading' | 'ok' | 'fail'
 
 function TestButton({ channel, disabled }: { channel: string; disabled?: boolean }) {
+  const { t } = useI18n()
   const [state, setState] = useState<TestState>('idle')
 
   const handleTest = async () => {
@@ -242,7 +246,8 @@ function TestButton({ channel, disabled }: { channel: string; disabled?: boolean
     setTimeout(() => setState('idle'), 3000)
   }
 
-  const label = state === 'loading' ? '...' : state === 'ok' ? '✓' : state === 'fail' ? '✗' : '测试'
+  const label =
+    state === 'loading' ? '...' : state === 'ok' ? '✓' : state === 'fail' ? '✗' : t('settings.test')
 
   const style: React.CSSProperties = {
     ...ghostBtnStyle,
@@ -366,6 +371,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 // ─── Main component ────────────────────────────────────────────────────────
 
 export default function SettingsView({ onComplete: _onComplete }: Props) {
+  const { t } = useI18n()
   const queryClient = useQueryClient()
   const addToast = useToastStore((s) => s.addToast)
 
@@ -374,7 +380,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     queryKey: ['settings'],
     queryFn: async () => {
       const { data, error } = await api.GET('/api/settings')
-      if (error) throw new Error('加载设置失败')
+      if (error) throw new Error(tSync('settings.loadFailed'))
       return data
     },
   })
@@ -455,7 +461,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     },
     onError: (err: Error) => {
       setSaveState('error')
-      addToast({ type: 'error', title: '保存失败', description: mapErrorToUserMessage(err) })
+      addToast({ type: 'error', title: t('settings.saveFailedTitle'), description: mapErrorToUserMessage(err) })
       saveTimerRef.current = setTimeout(() => setSaveState('idle'), 3000)
     },
   })
@@ -494,12 +500,12 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       if (r?.sec_user_agent !== undefined) setSecUserAgent(r.sec_user_agent ?? '')
       addToast({
         type: 'success',
-        title: '已恢复 .env 默认',
-        description: 'settings.json 中的覆盖已清除，重启后从环境变量重新加载',
+        title: t('settings.reset.doneTitle'),
+        description: t('settings.reset.doneBody'),
       })
     },
     onError: (err: Error) => {
-      addToast({ type: 'error', title: '恢复失败', description: mapErrorToUserMessage(err) })
+      addToast({ type: 'error', title: t('settings.reset.failTitle'), description: mapErrorToUserMessage(err) })
     },
   })
 
@@ -550,7 +556,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           setSaveState('error')
           addToast({
             type: 'error',
-            title: '保存失败',
+            title: t('settings.saveFailedTitle'),
             description: (err as Error).message,
           })
           saveTimerRef.current = setTimeout(() => setSaveState('idle'), 3000)
@@ -633,7 +639,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       setExportState('error')
       addToast({
         type: 'error',
-        title: '导出失败',
+        title: t('settings.export.failTitle'),
         description: (err as Error).message,
       })
       setTimeout(() => setExportState('idle'), 3000)
@@ -691,30 +697,30 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     if (!secUserAgent.trim()) {
       return {
         style: hintInvalidStyle,
-        text: `填写格式：姓名或机构 + 空格 + 可联系邮箱，例如 ${SEC_IDENTITY_EXAMPLE}`,
+        text: t('settings.sec.hintEmpty', { example: SEC_IDENTITY_EXAMPLE }),
       }
     }
     if (!secIdentityLocallyValid) {
       return {
         style: hintInvalidStyle,
-        text: `格式未通过：不要只填邮箱；必须像 ${SEC_IDENTITY_EXAMPLE} 这样包含名称和邮箱`,
+        text: t('settings.sec.hintInvalid', { example: SEC_IDENTITY_EXAMPLE }),
       }
     }
     if (!secIdentityMatchesServer) {
       return {
         style: hintWarningStyle,
-        text: '格式有效，等待自动保存到 settings.json；保存成功后后台会重新加载 SEC 数据层',
+        text: t('settings.sec.hintPending'),
       }
     }
     if (secIdentityActive) {
       return {
         style: hintOkStyle,
-        text: '已启用：新分析会拉取 10-K / Ownership / XBRL；已经生成的报告需要重新跑才会更新',
+        text: t('settings.sec.hintActive'),
       }
     }
     return {
       style: hintWarningStyle,
-      text: '格式有效，但后台尚未确认启用；请等待保存完成或查看保存失败提示',
+      text: t('settings.sec.hintUnconfirmed'),
     }
   })()
 
@@ -736,7 +742,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           fontSize: '11px',
         }}
       >
-        加载设置中...
+        {t('settings.loading')}
       </div>
     )
   }
@@ -763,10 +769,10 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
             gap: '6px',
           }}
         >
-          <div style={{ fontWeight: 600 }}>启动配置错误</div>
+          <div style={{ fontWeight: 600 }}>{t('settings.startupError.title')}</div>
           <div style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>{startupError}</div>
           <div style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
-            修复下方字段后会自动重新校验。LLM 路由将在配置修复前返回 503。
+            {t('settings.startupError.hint')}
           </div>
         </div>
       )}
@@ -789,7 +795,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               color: 'var(--text-muted)',
             }}
           >
-            保存中…
+            {t('settings.saving')}
           </span>
         )}
         {saveState === 'saved' && (
@@ -800,7 +806,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               color: 'var(--positive)',
             }}
           >
-            ✓ 已保存
+            {t('settings.savedOk')}
           </span>
         )}
         {saveState === 'error' && (
@@ -811,7 +817,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               color: 'var(--negative)',
             }}
           >
-            ✗ 保存失败
+            {t('settings.saveFailedShort')}
           </span>
         )}
       </div>
@@ -820,25 +826,25 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           Section 1: Data Sources
           ═════════════════════════════════════════════ */}
       <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>数据源</h2>
+        <h2 style={sectionTitleStyle}>{t('settings.section.dataSources')}</h2>
         <div style={fieldGroupStyle}>
           {/* FMP */}
           <div style={fieldStyle}>
             <div style={labelStyle}>
-              <span>FMP API 密钥</span>
+              <span>{t('settings.fmp.label')}</span>
               {fmpConfigured ? (
-                <span style={configuredBadgeStyle}>已配置</span>
+                <span style={configuredBadgeStyle}>{t('settings.badge.configured')}</span>
               ) : (
-                <span style={requiredBadgeStyle}>必填</span>
+                <span style={requiredBadgeStyle}>{t('settings.badge.required')}</span>
               )}
               <SourceBadge source={sourceOf('fmp_api_key')} />
               {sourceOf('fmp_api_key') === 'keychain' && (
                 <button
                   style={ghostBtnStyle}
                   onClick={() => handleResetField(['fmp_api_key'])}
-                  title="清除 keychain 中的覆盖，让 .env 重新生效"
+                  title={t('settings.resetToEnv.titleKeychain')}
                 >
-                  恢复 .env
+                  {t('settings.resetToEnv')}
                 </button>
               )}
             </div>
@@ -847,29 +853,29 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                 type="password"
                 value={fmpKey}
                 onChange={(e) => handleFmpKeyChange(e.target.value)}
-                placeholder={fmpConfigured ? '••••••••' : '输入 FMP API 密钥'}
+                placeholder={fmpConfigured ? '••••••••' : t('settings.fmp.placeholder')}
               />
             </div>
-            <p style={hintStyle}>完整准确性所需 — 在 financialmodelingprep.com 免费注册</p>
+            <p style={hintStyle}>{t('settings.fmp.hint')}</p>
           </div>
 
           {/* Finnhub */}
           <div style={fieldStyle}>
             <div style={labelStyle}>
-              <span>Finnhub API 密钥</span>
+              <span>{t('settings.finnhub.label')}</span>
               {finnhubConfigured ? (
-                <span style={configuredBadgeStyle}>已配置</span>
+                <span style={configuredBadgeStyle}>{t('settings.badge.configured')}</span>
               ) : (
-                <span style={optionalBadgeStyle}>可选</span>
+                <span style={optionalBadgeStyle}>{t('settings.badge.optional')}</span>
               )}
               <SourceBadge source={sourceOf('finnhub_api_key')} />
               {sourceOf('finnhub_api_key') === 'keychain' && (
                 <button
                   style={ghostBtnStyle}
                   onClick={() => handleResetField(['finnhub_api_key'])}
-                  title="清除 keychain 中的覆盖，让 .env 重新生效"
+                  title={t('settings.resetToEnv.titleKeychain')}
                 >
-                  恢复 .env
+                  {t('settings.resetToEnv')}
                 </button>
               )}
             </div>
@@ -877,30 +883,30 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               type="password"
               value={finnhubKey}
               onChange={(e) => handleFinnhubKeyChange(e.target.value)}
-              placeholder={finnhubConfigured ? '••••••••' : '输入 Finnhub API 密钥'}
+              placeholder={finnhubConfigured ? '••••••••' : t('settings.finnhub.placeholder')}
             />
-            <p style={hintStyle}>启用：实时新闻 + WebSocket 行情</p>
+            <p style={hintStyle}>{t('settings.finnhub.hint')}</p>
           </div>
 
           {/* SEC EDGAR */}
           <div style={fieldStyle}>
             <div style={labelStyle}>
-              <span>SEC EDGAR 身份 (User-Agent)</span>
+              <span>{t('settings.sec.label')}</span>
               {secIdentityActive ? (
-                <span style={configuredBadgeStyle}>已启用</span>
+                <span style={configuredBadgeStyle}>{t('settings.badge.active')}</span>
               ) : secIdentityLocallyValid ? (
-                <span style={pendingBadgeStyle}>待启用</span>
+                <span style={pendingBadgeStyle}>{t('settings.badge.pending')}</span>
               ) : (
-                <span style={requiredBadgeStyle}>必填</span>
+                <span style={requiredBadgeStyle}>{t('settings.badge.required')}</span>
               )}
               <SourceBadge source={sourceOf('sec_user_agent')} />
               {sourceOf('sec_user_agent') === 'settings_json' && (
                 <button
                   style={ghostBtnStyle}
                   onClick={() => handleResetField(['sec_user_agent'])}
-                  title="清除 settings.json 中的覆盖，让 .env 重新生效"
+                  title={t('settings.resetToEnv.titleSettingsJson')}
                 >
-                  恢复 .env
+                  {t('settings.resetToEnv')}
                 </button>
               )}
             </div>
@@ -908,7 +914,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               type="text"
               value={secUserAgent}
               onChange={(e) => handleSecAgentChange(e.target.value)}
-              placeholder="姓名或机构 邮箱@example.com"
+              placeholder={t('settings.sec.placeholder')}
               autoComplete="off"
               spellCheck={false}
               aria-invalid={!secIdentityLocallyValid}
@@ -924,7 +930,10 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
             />
             <p style={secIdentityHint.style}>{secIdentityHint.text}</p>
             {secIdentityPreview && (
-              <p style={secHeaderPreviewStyle}>SEC 请求头预览：{secIdentityPreview}</p>
+              <p style={secHeaderPreviewStyle}>
+                {t('settings.sec.preview')}
+                {secIdentityPreview}
+              </p>
             )}
           </div>
         </div>
@@ -934,19 +943,19 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           Section 2: LLM Provider
           ═════════════════════════════════════════════ */}
       <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>AI 模型</h2>
+        <h2 style={sectionTitleStyle}>{t('settings.section.aiModel')}</h2>
         <div style={fieldGroupStyle}>
           <div style={fieldStyle}>
             <div style={labelStyle}>
-              <span>模型</span>
+              <span>{t('settings.model.label')}</span>
               <SourceBadge source={sourceOf('model_name')} />
               {sourceOf('model_name') === 'settings_json' && (
                 <button
                   style={ghostBtnStyle}
                   onClick={() => handleResetField(['model_name'])}
-                  title="清除 settings.json 中的 model_name 覆盖，让 .env 重新生效"
+                  title={t('settings.resetToEnv.titleModel')}
                 >
-                  恢复 .env
+                  {t('settings.resetToEnv')}
                 </button>
               )}
             </div>
@@ -969,9 +978,9 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                 const keyField = `${currentProvider}_api_key_set` as keyof typeof settingsResp
                 const isSet = settingsResp?.[keyField]
                 return isSet ? (
-                  <span style={configuredBadgeStyle}>已配置</span>
+                  <span style={configuredBadgeStyle}>{t('settings.badge.configured')}</span>
                 ) : (
-                  <span style={requiredBadgeStyle}>必填</span>
+                  <span style={requiredBadgeStyle}>{t('settings.badge.required')}</span>
                 )
               })()}
               <SourceBadge source={sourceOf(`${currentProvider}_api_key`)} />
@@ -979,9 +988,9 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                 <button
                   style={ghostBtnStyle}
                   onClick={() => handleResetField([`${currentProvider}_api_key`])}
-                  title="清除 keychain 中的覆盖，让 .env 重新生效"
+                  title={t('settings.resetToEnv.titleKeychain')}
                 >
-                  恢复 .env
+                  {t('settings.resetToEnv')}
                 </button>
               )}
             </div>
@@ -1002,7 +1011,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           Section 3: Notification Channels
           ═════════════════════════════════════════════ */}
       <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>通知通道</h2>
+        <h2 style={sectionTitleStyle}>{t('settings.section.notifications')}</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {/* Desktop — always on via Tauri native notification API; not
               user-configurable, so we render a read-only status row rather
@@ -1027,9 +1036,11 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                 color: 'var(--text-primary)',
               }}
             >
-              桌面通知
+              {t('settings.notify.desktop')}
             </span>
-            <span style={{ ...configuredBadgeStyle, marginLeft: '4px' }}>默认开启</span>
+            <span style={{ ...configuredBadgeStyle, marginLeft: '4px' }}>
+              {t('settings.notify.onByDefault')}
+            </span>
             <span
               style={{
                 marginLeft: 'auto',
@@ -1038,7 +1049,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                 color: 'var(--text-muted)',
               }}
             >
-              系统级 · 在 macOS 通知中心管理
+              {t('settings.notify.desktopHint')}
             </span>
             {/* Reference notifyDesktop so the local-state hook keeps satisfying
                 the lint check; the value itself is always true today. */}
@@ -1099,14 +1110,14 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                   type="password"
                   value={telegramToken}
                   onChange={(e) => handleTelegramToken(e.target.value)}
-                  placeholder="Bot Token（@BotFather 获取）"
+                  placeholder={t('settings.notify.telegramToken')}
                 />
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <InputWithFocus
                     type="text"
                     value={telegramChatId}
                     onChange={(e) => handleTelegramChatId(e.target.value)}
-                    placeholder="Chat ID（会话 ID）"
+                    placeholder={t('settings.notify.telegramChatId')}
                   />
                   <TestButton
                     channel="telegram"
@@ -1171,14 +1182,14 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                   type="email"
                   value={emailTo}
                   onChange={(e) => handleEmailTo(e.target.value)}
-                  placeholder="收件人邮箱地址"
+                  placeholder={t('settings.notify.emailTo')}
                 />
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <InputWithFocus
                     type="text"
                     value={emailSmtpHost}
                     onChange={(e) => handleSmtpHost(e.target.value)}
-                    placeholder="SMTP 主机（如 smtp.gmail.com）"
+                    placeholder={t('settings.notify.smtpHost')}
                     style={{ flex: 1 }}
                   />
                   <InputWithFocus
@@ -1227,12 +1238,12 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           Section 4: Logging / Diagnostics
           ═════════════════════════════════════════════ */}
       <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>日志 / 诊断</h2>
+        <h2 style={sectionTitleStyle}>{t('settings.section.logging')}</h2>
         <div style={fieldGroupStyle}>
           {/* Log level */}
           <div style={fieldStyle}>
             <div style={labelStyle}>
-              <span>日志级别</span>
+              <span>{t('settings.log.level')}</span>
             </div>
             <SelectWithFocus
               value={logLevel}
@@ -1244,9 +1255,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                 </option>
               ))}
             </SelectWithFocus>
-            <p style={hintStyle}>
-              控制 ~/.finrobot/logs/ 写入的详细程度；DEBUG 输出量大，生产环境建议 INFO
-            </p>
+            <p style={hintStyle}>{t('settings.log.levelHint')}</p>
           </div>
 
           {/* Log to file toggle */}
@@ -1266,18 +1275,16 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                   color: 'var(--text-primary)',
                 }}
               >
-                写入日志文件
+                {t('settings.log.toFile')}
               </span>
             </div>
-            <p style={{ ...hintStyle, marginTop: '4px' }}>
-              开启后将日志持久化到 ~/.finrobot/logs/；关闭则仅输出到 stderr
-            </p>
+            <p style={{ ...hintStyle, marginTop: '4px' }}>{t('settings.log.toFileHint')}</p>
           </div>
 
           {/* Retention days */}
           <div style={fieldStyle}>
             <div style={labelStyle}>
-              <span>日志保留天数</span>
+              <span>{t('settings.log.retention')}</span>
             </div>
             <InputWithFocus
               type="number"
@@ -1289,13 +1296,13 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               }}
               style={{ width: '100px' }}
             />
-            <p style={hintStyle}>超过该天数的日志文件将在下次启动时自动清理</p>
+            <p style={hintStyle}>{t('settings.log.retentionHint')}</p>
           </div>
 
           {/* Export button */}
           <div style={fieldStyle}>
             <div style={labelStyle}>
-              <span>诊断日志</span>
+              <span>{t('settings.log.diagnostics')}</span>
             </div>
             <div>
               <button
@@ -1329,15 +1336,13 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                   />
                 </svg>
                 {exportState === 'loading'
-                  ? '打包中…'
+                  ? t('settings.export.packing')
                   : exportState === 'error'
-                    ? '导出失败'
-                    : '导出诊断日志'}
+                    ? t('settings.export.failTitle')
+                    : t('settings.export.button')}
               </button>
             </div>
-            <p style={hintStyle}>
-              将 ~/.finrobot/logs/ 下所有日志文件打包为 finrobot-logs.zip 下载
-            </p>
+            <p style={hintStyle}>{t('settings.export.hint')}</p>
           </div>
         </div>
       </section>
@@ -1368,6 +1373,7 @@ function ResetConfirmModal({
   onCancel: () => void
   onConfirm: () => void
 }): React.ReactElement {
+  const { t } = useI18n()
   return (
     <div
       role="dialog"
@@ -1407,11 +1413,12 @@ function ResetConfirmModal({
             color: 'var(--warning)',
           }}
         >
-          确认恢复默认
+          {t('settings.reset.confirmTitle')}
         </div>
         <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.55 }}>
-          将 <code style={{ color: 'var(--accent-cyan)' }}>{fields.join(', ')}</code> 恢复为 .env
-          默认值，会清除当前覆盖。
+          {t('settings.reset.confirmBodyPrefix')}{' '}
+          <code style={{ color: 'var(--accent-cyan)' }}>{fields.join(', ')}</code>
+          {t('settings.reset.confirmBodySuffix')}
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
           <button
@@ -1428,7 +1435,7 @@ function ResetConfirmModal({
               cursor: 'pointer',
             }}
           >
-            取消
+            {t('settings.reset.cancel')}
           </button>
           <button
             type="button"
@@ -1445,7 +1452,7 @@ function ResetConfirmModal({
               fontWeight: 600,
             }}
           >
-            确认恢复
+            {t('settings.reset.confirm')}
           </button>
         </div>
       </div>
@@ -1455,6 +1462,7 @@ function ResetConfirmModal({
 
 // ── Cosmic appearance section (桌面动效 toggles) ───────────────────────────
 function CosmicAppearanceSection(): React.ReactElement {
+  const { t } = useI18n()
   const cursorOn = useUiStore((s) => s.cursorTrailEnabled)
   const splineOn = useUiStore((s) => s.splineEnabled)
   const setCursor = useUiStore((s) => s.setCursorTrailEnabled)
@@ -1474,26 +1482,26 @@ function CosmicAppearanceSection(): React.ReactElement {
 
   return (
     <section style={sectionStyle}>
-      <h2 style={sectionTitleStyle}>外观与电量</h2>
+      <h2 style={sectionTitleStyle}>{t('settings.appearance.title')}</h2>
       <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 16px' }}>
-        关掉装饰动效可以省电、降低风扇噪音。不影响任何数据和分析结果。
+        {t('settings.appearance.intro')}
       </p>
 
       <ToggleRow
-        label="省电模式"
-        desc="一键关闭下面所有动效。笔记本用电池时建议开启。"
+        label={t('settings.appearance.saver')}
+        desc={t('settings.appearance.saverDesc')}
         enabled={saverOn}
         onToggle={toggleSaver}
       />
       <ToggleRow
-        label="鼠标光带"
-        desc="鼠标移动时跟随的彩色尾迹，纯装饰。"
+        label={t('settings.appearance.cursor')}
+        desc={t('settings.appearance.cursorDesc')}
         enabled={cursorOn}
         onToggle={() => setCursor(!cursorOn)}
       />
       <ToggleRow
-        label="首页 3D 机器人"
-        desc="股票首页背景上漂浮的 3D 模型，纯装饰。打开分析页时不会出现。"
+        label={t('settings.appearance.spline')}
+        desc={t('settings.appearance.splineDesc')}
         enabled={splineOn}
         onToggle={() => setSpline(!splineOn)}
       />

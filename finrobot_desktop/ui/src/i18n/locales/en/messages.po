@@ -1649,3 +1649,303 @@ msgstr "EPS"
 #. js-lingui-explicit-id
 msgid "chart.epsTrend.yoy"
 msgstr "YoY"
+
+#. js-lingui-explicit-id
+msgid "settings.test"
+msgstr "Test"
+
+#. js-lingui-explicit-id
+msgid "settings.loadFailed"
+msgstr "Failed to load settings"
+
+#. js-lingui-explicit-id
+msgid "settings.loading"
+msgstr "Loading settings…"
+
+#. js-lingui-explicit-id
+msgid "settings.saveFailedShort"
+msgstr "✗ Save failed"
+
+#. js-lingui-explicit-id
+msgid "settings.saving"
+msgstr "Saving…"
+
+#. js-lingui-explicit-id
+msgid "settings.reset.doneTitle"
+msgstr "Reverted to .env defaults"
+
+#. js-lingui-explicit-id
+msgid "settings.reset.doneBody"
+msgstr "settings.json overrides cleared; reloaded from environment variables after restart"
+
+#. js-lingui-explicit-id
+msgid "settings.reset.failTitle"
+msgstr "Revert failed"
+
+#. js-lingui-explicit-id
+msgid "settings.reset.confirmTitle"
+msgstr "Confirm reset to defaults"
+
+#. js-lingui-explicit-id
+msgid "settings.reset.confirmBodyPrefix"
+msgstr "Reset"
+
+#. js-lingui-explicit-id
+msgid "settings.reset.confirmBodySuffix"
+msgstr " to .env defaults; this clears the current override."
+
+#. js-lingui-explicit-id
+msgid "settings.reset.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+msgid "settings.reset.confirm"
+msgstr "Confirm reset"
+
+#. js-lingui-explicit-id
+msgid "settings.export.failTitle"
+msgstr "Export failed"
+
+#. js-lingui-explicit-id
+msgid "settings.export.packing"
+msgstr "Packaging…"
+
+#. js-lingui-explicit-id
+msgid "settings.export.button"
+msgstr "Export diagnostic logs"
+
+#. js-lingui-explicit-id
+msgid "settings.export.hint"
+msgstr "Package all logs under ~/.finrobot/logs/ into finrobot-logs.zip"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.hintEmpty"
+msgstr "Format: name or org + space + contact email, e.g. {example}"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.hintInvalid"
+msgstr "Invalid: don't enter only an email — include a name and email like {example}"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.hintPending"
+msgstr "Valid; auto-saving to settings.json. The backend reloads the SEC data layer once saved."
+
+#. js-lingui-explicit-id
+msgid "settings.sec.hintActive"
+msgstr "Active: new analyses fetch 10-K / Ownership / XBRL; existing reports need a re-run to update."
+
+#. js-lingui-explicit-id
+msgid "settings.sec.hintUnconfirmed"
+msgstr "Valid, but the backend hasn't confirmed activation; wait for the save to finish or check for a save error."
+
+#. js-lingui-explicit-id
+msgid "settings.startupError.title"
+msgstr "Startup configuration error"
+
+#. js-lingui-explicit-id
+msgid "settings.startupError.hint"
+msgstr "Fixing the fields below re-validates automatically. LLM routing returns 503 until the config is fixed."
+
+#. js-lingui-explicit-id
+msgid "settings.section.dataSources"
+msgstr "Data Sources"
+
+#. js-lingui-explicit-id
+msgid "settings.section.aiModel"
+msgstr "AI Model"
+
+#. js-lingui-explicit-id
+msgid "settings.section.notifications"
+msgstr "Notification Channels"
+
+#. js-lingui-explicit-id
+msgid "settings.section.logging"
+msgstr "Logging / Diagnostics"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.configured"
+msgstr "Configured"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.required"
+msgstr "Required"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.optional"
+msgstr "Optional"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.active"
+msgstr "Active"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.pending"
+msgstr "Pending"
+
+#. js-lingui-explicit-id
+msgid "settings.resetToEnv"
+msgstr "Reset to .env"
+
+#. js-lingui-explicit-id
+msgid "settings.resetToEnv.titleKeychain"
+msgstr "Clear the keychain override so .env takes effect again"
+
+#. js-lingui-explicit-id
+msgid "settings.resetToEnv.titleSettingsJson"
+msgstr "Clear the settings.json override so .env takes effect again"
+
+#. js-lingui-explicit-id
+msgid "settings.resetToEnv.titleModel"
+msgstr "Clear the settings.json model_name override so .env takes effect again"
+
+#. js-lingui-explicit-id
+msgid "settings.fmp.label"
+msgstr "FMP API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.fmp.placeholder"
+msgstr "Enter FMP API key"
+
+#. js-lingui-explicit-id
+msgid "settings.fmp.hint"
+msgstr "Required for full accuracy — sign up free at financialmodelingprep.com"
+
+#. js-lingui-explicit-id
+msgid "settings.finnhub.label"
+msgstr "Finnhub API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.finnhub.placeholder"
+msgstr "Enter Finnhub API key"
+
+#. js-lingui-explicit-id
+msgid "settings.finnhub.hint"
+msgstr "Enables: real-time news + WebSocket quotes"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.label"
+msgstr "SEC EDGAR Identity (User-Agent)"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.placeholder"
+msgstr "Name or org email@example.com"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.preview"
+msgstr "SEC request header preview: "
+
+#. js-lingui-explicit-id
+msgid "settings.model.label"
+msgstr "Model"
+
+#. js-lingui-explicit-id
+msgid "settings.notify.desktop"
+msgstr "Desktop notifications"
+
+#. js-lingui-explicit-id
+msgid "settings.notify.onByDefault"
+msgstr "On by default"
+
+#. js-lingui-explicit-id
+msgid "settings.notify.desktopHint"
+msgstr "System-level · managed in macOS Notification Center"
+
+#. js-lingui-explicit-id
+msgid "settings.notify.telegramToken"
+msgstr "Bot Token (from @BotFather)"
+
+#. js-lingui-explicit-id
+msgid "settings.notify.telegramChatId"
+msgstr "Chat ID"
+
+#. js-lingui-explicit-id
+msgid "settings.notify.emailTo"
+msgstr "Recipient email address"
+
+#. js-lingui-explicit-id
+msgid "settings.notify.smtpHost"
+msgstr "SMTP host (e.g. smtp.gmail.com)"
+
+#. js-lingui-explicit-id
+msgid "settings.log.level"
+msgstr "Log level"
+
+#. js-lingui-explicit-id
+msgid "settings.log.levelHint"
+msgstr "Controls verbosity written to ~/.finrobot/logs/; DEBUG is noisy — INFO recommended for production"
+
+#. js-lingui-explicit-id
+msgid "settings.log.toFile"
+msgstr "Write log files"
+
+#. js-lingui-explicit-id
+msgid "settings.log.toFileHint"
+msgstr "When on, logs persist to ~/.finrobot/logs/; when off, stderr only"
+
+#. js-lingui-explicit-id
+msgid "settings.log.retention"
+msgstr "Log retention (days)"
+
+#. js-lingui-explicit-id
+msgid "settings.log.retentionHint"
+msgstr "Log files older than this are cleaned up on next startup"
+
+#. js-lingui-explicit-id
+msgid "settings.log.diagnostics"
+msgstr "Diagnostic logs"
+
+#. js-lingui-explicit-id
+msgid "settings.appearance.title"
+msgstr "Appearance & Power"
+
+#. js-lingui-explicit-id
+msgid "settings.appearance.intro"
+msgstr "Turning off decorative animations saves power and reduces fan noise. It does not affect any data or analysis results."
+
+#. js-lingui-explicit-id
+msgid "settings.appearance.saver"
+msgstr "Power saver"
+
+#. js-lingui-explicit-id
+msgid "settings.appearance.saverDesc"
+msgstr "Turn off all animations below in one click. Recommended on battery."
+
+#. js-lingui-explicit-id
+msgid "settings.appearance.cursor"
+msgstr "Cursor trail"
+
+#. js-lingui-explicit-id
+msgid "settings.appearance.cursorDesc"
+msgstr "Colored trail following the cursor; purely decorative."
+
+#. js-lingui-explicit-id
+msgid "settings.appearance.spline"
+msgstr "Home 3D robot"
+
+#. js-lingui-explicit-id
+msgid "settings.appearance.splineDesc"
+msgstr "Floating 3D model on the stocks home background; purely decorative. Absent on analysis pages."
+
+#. js-lingui-explicit-id
+msgid "settings.source.keychain"
+msgstr "From keychain"
+
+#. js-lingui-explicit-id
+msgid "settings.source.settingsJson"
+msgstr "From settings.json"
+
+#. js-lingui-explicit-id
+msgid "settings.source.env"
+msgstr "From .env"
+
+#. js-lingui-explicit-id
+msgid "settings.source.default"
+msgstr "Default"
+
+#. js-lingui-explicit-id
+msgid "settings.saveFailedTitle"
+msgstr "Save failed"
+
+#. js-lingui-explicit-id
+msgid "settings.savedOk"
+msgstr "✓ Saved"

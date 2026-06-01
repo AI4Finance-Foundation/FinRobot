@@ -95,8 +95,8 @@ async def _run_debate_task(
     Exception handling mirrors runs.py::_run_pipeline_impl — we catch the
     broad-but-explicit set that can escape debate orchestration so that the
     run transitions to 'failed' and the SSE stream breaks cleanly.  Bare
-    `except Exception` is forbidden; CancelledError is intentionally NOT
-    caught so Ctrl-C / server shutdown propagates normally.
+    blanket catches are forbidden (CLAUDE.md N2 / P3 audit D1); CancelledError
+    is intentionally NOT caught so Ctrl-C / server shutdown propagates normally.
 
     Emit: async closure that writes each event to RunStore immediately as
     run_debate produces it, matching runs.py's RunProgress pattern.  Events

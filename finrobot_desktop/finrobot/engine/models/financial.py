@@ -187,8 +187,11 @@ class CompanyFinancials(BaseModel):
     ticker: str
     name: str | None = None
     revenue: float
-    ebitda: float
-    net_income: float
+    # None ≠ 0: a provider that omits these must not be treated as zero EBITDA /
+    # earnings / margin — that fabrication poisoned the peer median and the NOPAT
+    # core P/E. Downstream multiples withhold the affected ratio when None.
+    ebitda: float | None = None
+    net_income: float | None = None
     market_cap: float
     # None ≠ 0: None means the provider did not report the figure, so EV (and
     # the EV-based multiples) MUST be withheld rather than computed against an
@@ -199,8 +202,8 @@ class CompanyFinancials(BaseModel):
     total_debt: float | None = None
     total_cash: float | None = None
     enterprise_value: float | None = None
-    gross_margin: float
-    operating_margin: float
+    gross_margin: float | None = None
+    operating_margin: float | None = None
     pe_ratio: float | None = None
     ev_ebitda: float | None = None
     ev_revenue: float | None = None

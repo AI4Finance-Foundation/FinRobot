@@ -87,10 +87,12 @@ def normalize_company_to_usd(
 
     converted = company.model_copy(deep=True)
     converted.revenue = company.revenue * reporting_rate
-    converted.ebitda = company.ebitda * reporting_rate
-    converted.net_income = company.net_income * reporting_rate
-    # None (provider didn't report) stays None through FX — converting an
-    # unknown to 0 would re-fabricate the net-debt the model now refuses to assume.
+    # None (provider didn't report) stays None through FX — converting an unknown
+    # to 0 would re-fabricate the value the model now refuses to assume.
+    converted.ebitda = company.ebitda * reporting_rate if company.ebitda is not None else None
+    converted.net_income = (
+        company.net_income * reporting_rate if company.net_income is not None else None
+    )
     converted.total_debt = (
         company.total_debt * reporting_rate if company.total_debt is not None else None
     )

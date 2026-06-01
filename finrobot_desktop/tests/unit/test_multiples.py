@@ -112,6 +112,40 @@ def test_calculate_multiples_negative_earnings():
     assert c.pe_ratio is None
 
 
+def test_calculate_multiples_withholds_ratios_when_inputs_missing():
+    """Missing EBITDA / net income must withhold EV/EBITDA and P/E (None), never
+    fabricate them from an assumed-zero figure. Regression for the silent → 0
+    default that poisoned the peer median and the multiples."""
+    c = _make_company(
+        "X",
+        revenue=100,
+        ebitda=None,
+        net_income=None,
+        market_cap=500,
+        total_debt=30,
+        total_cash=10,
+    )
+    c = calculate_multiples(c)
+    assert c.enterprise_value == 520  # EV still computable from debt/cash
+    assert c.ev_ebitda is None  # EV/EBITDA withheld — EBITDA unknown
+    assert c.pe_ratio is None  # P/E withheld — net income unknown
+
+
+def test_core_pe_withheld_when_operating_margin_missing():
+    """Core P/E builds EBIT from operating margin; a missing margin must withhold
+    core P/E (None) rather than compute EBIT against a fabricated 0% margin."""
+    target = _make_company(
+        "X", revenue=100, ebitda=25, net_income=10, market_cap=500, operating_margin=None
+    )
+    peers = [
+        _make_company(
+            "P", revenue=100, ebitda=25, net_income=10, market_cap=400, operating_margin=0.2
+        )
+    ]
+    comps = calculate_core_pe(PeerComps(target=target, peers=peers))
+    assert comps.target.core_pe_ratio is None
+
+
 def test_calculate_multiples_negative_ebitda():
     c = _make_company("X", revenue=100, ebitda=-5, net_income=10, market_cap=500)
     c = calculate_multiples(c)

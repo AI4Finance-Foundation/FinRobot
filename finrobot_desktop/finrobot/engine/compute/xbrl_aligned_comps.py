@@ -47,16 +47,19 @@ def _ttm_relative_divergence(a: float, b: float) -> float:
 
 
 def _reconcile_ttm(
-    xbrl_value: float | None, fmp_value: float, *, field: str
-) -> tuple[float, str | None]:
+    xbrl_value: float | None, fmp_value: float | None, *, field: str
+) -> tuple[float | None, str | None]:
     """Cross-check a validated XBRL TTM against the trusted FMP TTM base.
 
-    Returns ``(chosen_value, note)``. FMP TTM is the base (a required model field,
-    always present); XBRL is adopted as the more authoritative SEC figure ONLY
-    when it agrees within ``_TTM_DIVERGENCE_TOLERANCE``. On material divergence we
-    keep FMP and return a ``[待核]`` note (surfaced via PeerComps.warnings) instead
-    of silently overriding. When XBRL is absent we keep FMP.
+    Returns ``(chosen_value, note)``. FMP TTM is the base; XBRL is adopted as the
+    more authoritative SEC figure ONLY when it agrees within
+    ``_TTM_DIVERGENCE_TOLERANCE``. On material divergence we keep FMP and return a
+    ``[待核]`` note (surfaced via PeerComps.warnings) instead of silently
+    overriding. When the FMP base is absent (provider omitted the figure) we adopt
+    XBRL if present, else leave it unavailable (None). When XBRL is absent we keep FMP.
     """
+    if fmp_value is None:
+        return xbrl_value, None
     if xbrl_value is None:
         return fmp_value, None
     if _ttm_relative_divergence(xbrl_value, fmp_value) > _TTM_DIVERGENCE_TOLERANCE:
@@ -180,7 +183,9 @@ def build_xbrl_aligned_company(
 
     company = CompanyFinancials(
         ticker=ticker.upper(),
-        revenue=revenue,
+        # revenue is reconciled from the always-present provider base, so it is
+        # never None here; fall back explicitly to satisfy the required field.
+        revenue=revenue if revenue is not None else financial_data.income.revenue,
         ebitda=ebitda,
         net_income=net_income,
         market_cap=financial_data.market.market_cap,

@@ -197,7 +197,7 @@ def _comps_pe_method(
             # margin / tax) — keep the as-reported trailing path rather than
             # dropping the method entirely.
             net_income = peer_comps.target.net_income
-            if net_income > 0:
+            if net_income is not None and net_income > 0:
                 mid = peer_comps.median_pe * (net_income / shares_outstanding)  # type: ignore[operator]
                 source = "peer_median_pe × trailing_eps (forward 不可得)"
                 confidence = 0.55

@@ -138,7 +138,9 @@ def calculate_multiples(company: CompanyFinancials) -> CompanyFinancials:
         ev = calculate_ev(result.market_cap, result.total_debt, result.total_cash)
         result.enterprise_value = ev
 
-        raw_ev_ebitda = ev / result.ebitda if result.ebitda > 0 else None
+        raw_ev_ebitda = (
+            ev / result.ebitda if result.ebitda is not None and result.ebitda > 0 else None
+        )
         result.ev_ebitda = _sanity(
             raw_ev_ebitda, PEER_EV_EBITDA_SANITY_MIN, PEER_EV_EBITDA_SANITY_MAX
         )
@@ -154,19 +156,23 @@ def calculate_multiples(company: CompanyFinancials) -> CompanyFinancials:
 
     # P/E is equity-only and independent of net debt, so it survives a missing
     # balance sheet.
-    raw_pe = result.market_cap / result.net_income if result.net_income > 0 else None
+    raw_pe = (
+        result.market_cap / result.net_income
+        if result.net_income is not None and result.net_income > 0
+        else None
+    )
     result.pe_ratio = _sanity(raw_pe, PEER_PE_SANITY_MIN, PEER_PE_SANITY_MAX)
 
     return result
 
 
-def _effective_tax_rate(net_income: float, income_tax_expense: float | None) -> float | None:
+def _effective_tax_rate(net_income: float | None, income_tax_expense: float | None) -> float | None:
     """Own effective tax rate = tax / pretax, where pretax = net_income + tax.
 
-    Returns None when tax is unreported or pretax ≤ 0 (loss-maker or degenerate),
-    so the caller falls back to the peer-set median rate.
+    Returns None when net income or tax is unreported, or pretax ≤ 0 (loss-maker
+    or degenerate), so the caller falls back to the peer-set median rate.
     """
-    if income_tax_expense is None:
+    if net_income is None or income_tax_expense is None:
         return None
     pretax = net_income + income_tax_expense
     if pretax <= 0:
@@ -210,9 +216,15 @@ def calculate_core_pe(comps: PeerComps) -> PeerComps:
             if (own is not None and CORE_TAX_RATE_MIN <= own <= CORE_TAX_RATE_MAX)
             else fallback_rate
         )
+        c.effective_tax_rate = rate
+        # Core P/E needs an operating margin to build EBIT = margin × revenue.
+        # Withhold (None) rather than fabricate when the provider omits it.
+        if c.operating_margin is None:
+            c.core_net_income = None
+            c.core_pe_ratio = None
+            return
         ebit = c.operating_margin * c.revenue
         nopat = ebit * (1 - rate)
-        c.effective_tax_rate = rate
         c.core_net_income = nopat
         c.core_pe_ratio = _sanity(
             c.market_cap / nopat if nopat > 0 else None,

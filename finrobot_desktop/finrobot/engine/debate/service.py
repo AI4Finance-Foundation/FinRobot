@@ -40,8 +40,58 @@ from finrobot.engine.debate.verifier import verify_arguments
 
 logger = logging.getLogger(__name__)
 
+# Debate prose strings, keyed by language. The debate's language follows the
+# artifact being debated (an English report must get an English debate), NOT the
+# viewer's current UI locale — see ADR-0008 and routes/debate.py. The bull/bear/
+# judge agent .md files are language-neutral; the language is enforced by the
+# instruction appended to each prompt below, the single source of truth.
+_DEBATE_STRINGS: dict[str, dict[str, str]] = {
+    "zh": {
+        "no_evidence": "（本次无确定性证据可引用）",
+        "evidence_header": "确定性证据列表（仅可通过 evidence_id 引用，禁止编造数字）：",
+        "current_price": "当前价格",
+        "no_arguments": "无论点",
+        "verified": "已核验",
+        "unverified": "未核验",
+        "evidence": "证据",
+        "none": "无",
+        "side_bull": "多方",
+        "side_bear": "空方",
+        "judge_intro": "以下是多空双方已经过核验的论点，请综合判断并给出 Verdict：",
+        "lang_directive": (
+            "请用简体中文作答；数字、股票代码与金融缩写（WACC、DCF、EV、EBITDA、FCF、P/E）保留英文/原样。"
+        ),
+    },
+    "en": {
+        "no_evidence": "(No deterministic evidence available to cite.)",
+        "evidence_header": (
+            "Deterministic evidence (cite only by evidence_id; never fabricate numbers):"
+        ),
+        "current_price": "Current price",
+        "no_arguments": "no arguments",
+        "verified": "verified",
+        "unverified": "unverified",
+        "evidence": "evidence",
+        "none": "none",
+        "side_bull": "BULL",
+        "side_bear": "BEAR",
+        "judge_intro": (
+            "Below are the verified arguments from both sides. "
+            "Synthesize them and produce a Verdict:"
+        ),
+        "lang_directive": (
+            "Respond in English. Keep all numbers, ticker symbols, and financial "
+            "acronyms (WACC, DCF, EV, EBITDA, FCF, P/E) as-is."
+        ),
+    },
+}
 
-def _format_evidence_context(evidence_set: EvidenceSet) -> str:
+
+def _strings(lang: str) -> dict[str, str]:
+    return _DEBATE_STRINGS["zh"] if lang == "zh" else _DEBATE_STRINGS["en"]
+
+
+def _format_evidence_context(evidence_set: EvidenceSet, s: dict[str, str]) -> str:
     """Render EvidenceSet as a numbered list for LLM consumption.
 
     Format per line:  <evidence_id>: <label> = <value><unit>
@@ -49,9 +99,9 @@ def _format_evidence_context(evidence_set: EvidenceSet) -> str:
     still receive a defined context block.
     """
     if not evidence_set.items:
-        return "（本次无确定性证据可引用）"
+        return s["no_evidence"]
 
-    lines: list[str] = ["确定性证据列表（仅可通过 evidence_id 引用，禁止编造数字）："]
+    lines: list[str] = [s["evidence_header"]]
     for ev in evidence_set.items:
         lines.append(f"  {ev.evidence_id}: {ev.label} = {ev.value}{ev.unit}")
     return "\n".join(lines)
@@ -62,6 +112,7 @@ async def run_debate(
     agents: dict[str, Any],
     emit: Callable[[dict[str, Any]], Awaitable[None]],
     deps: Any = None,
+    lang: str = "zh",
 ) -> DebateResult:
     """Orchestrate one full IC debate session.
 
@@ -81,6 +132,10 @@ async def run_debate(
         run.failed).
     deps:
         Optional FinRobotDeps passed through to each agent.run() call.
+    lang:
+        Output language ('zh'|'en'). Follows the debated artifact's
+        meta.language, NOT the viewer's UI locale, so an English report yields
+        an English debate (see routes/debate.py). Defaults to 'zh'.
 
     Returns
     -------
@@ -88,7 +143,8 @@ async def run_debate(
         Complete typed result for this debate.  divergences is always []
         in v1 (see module-level docstring for the design rationale).
     """
-    evidence_ctx = _format_evidence_context(evidence_set)
+    s = _strings(lang)
+    evidence_ctx = _format_evidence_context(evidence_set, s)
 
     # ── Step 1b: emit debate.evidence — id→value map for the frontend ────────
     # Emitted before bull/bear so the frontend can resolve evidence_id→value
@@ -106,7 +162,8 @@ async def run_debate(
 
     # ── Step 2: bull / bear run in parallel ─────────────────────────────────
     side_prompt = (
-        f"Ticker: {evidence_set.ticker}\n当前价格: {evidence_set.current_price}\n\n{evidence_ctx}"
+        f"Ticker: {evidence_set.ticker}\n{s['current_price']}: {evidence_set.current_price}\n\n"
+        f"{evidence_ctx}\n\n{s['lang_directive']}"
     )
 
     bull_result, bear_result = await asyncio.gather(
@@ -141,19 +198,21 @@ async def run_debate(
     # ── Step 5: judge ────────────────────────────────────────────────────────
     def _render_side(label: str, args: list[VerifiedArgument]) -> str:
         if not args:
-            return f"[{label}] 无论点"
+            return f"[{label}] {s['no_arguments']}"
         lines = [f"[{label}]"]
         for i, va in enumerate(args, 1):
-            status = "已核验" if va.verified else "未核验"
-            lines.append(f"  {i}. {va.claim} [{status}] 证据: {va.evidence_ids or '无'}")
+            status = s["verified"] if va.verified else s["unverified"]
+            ev_ids = va.evidence_ids or s["none"]
+            lines.append(f"  {i}. {va.claim} [{status}] {s['evidence']}: {ev_ids}")
         return "\n".join(lines)
 
     judge_prompt = (
-        f"Ticker: {evidence_set.ticker}  当前价格: {evidence_set.current_price}\n\n"
+        f"Ticker: {evidence_set.ticker}  {s['current_price']}: {evidence_set.current_price}\n\n"
         f"{evidence_ctx}\n\n"
-        "以下是多空双方已经过核验的论点，请综合判断并给出 Verdict：\n\n"
-        f"{_render_side('多方', verified_bull)}\n\n"
-        f"{_render_side('空方', verified_bear)}"
+        f"{s['judge_intro']}\n\n"
+        f"{_render_side(s['side_bull'], verified_bull)}\n\n"
+        f"{_render_side(s['side_bear'], verified_bear)}\n\n"
+        f"{s['lang_directive']}"
     )
 
     judge_result = await agents["judge"].run(judge_prompt, deps=deps)

@@ -18,5 +18,5 @@ cross-check): no headline target. Surfacing "methods don't corroborate" is the
 correct, honest output, not a failure.
 
 If skill methodology is provided in context, follow its framework and terminology.
-Write in the language specified in the step prompt. Default is English.
+Write in the language specified by the step prompt's language instruction.
 Do not mix languages — use one language consistently throughout.

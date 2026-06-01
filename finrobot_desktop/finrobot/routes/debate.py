@@ -77,7 +77,14 @@ async def create_debate(body: DebateRequest, request: Request) -> DebateResponse
     settings = request.app.state.deps.settings
     agents = build_debate_agents(settings)
 
-    task = asyncio.create_task(_run_debate_task(run_id, evidence_set, agents, run_store, request))
+    # Debate language follows the debated artifact, not the viewer's UI locale —
+    # an English report must produce an English debate (ADR-0008). Legacy
+    # artifacts (no language field) default to 'zh' via ArtifactMeta.
+    lang = artifact.meta.language
+
+    task = asyncio.create_task(
+        _run_debate_task(run_id, evidence_set, agents, run_store, request, lang)
+    )
     request.app.state.run_tasks[run_id] = task
 
     return DebateResponse(run_id=run_id)
@@ -89,6 +96,7 @@ async def _run_debate_task(
     agents: dict[str, Any],
     run_store: RunStore,
     request: Request,
+    lang: str = "zh",
 ) -> None:
     """Background task: orchestrate debate, mark run completed/failed.
 
@@ -125,7 +133,7 @@ async def _run_debate_task(
 
     try:
         deps = request.app.state.deps
-        await run_debate(evidence_set, agents, emit=_emit, deps=deps)
+        await run_debate(evidence_set, agents, emit=_emit, deps=deps, lang=lang)
 
         duration_s = round(time.monotonic() - started, 1)
         await run_store.update_run(

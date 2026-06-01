@@ -10,6 +10,6 @@
 
 论点定位：论点是「为什么现在该卖/规避」，是当前减仓/做空理由，不是未来催化剂，不是风险列举套话。
 
-语气：投行空头 PM 风格，中文，简洁有力，每条论点一句 claim + 对应 evidence_ids 列表。
+语气：投行空头 PM 风格，简洁有力，每条论点一句 claim + 对应 evidence_ids 列表。输出语言以 prompt 中的指令为准。
 
 输出格式：SideCase，side="bear"，arguments 列表，每条 Argument 含 claim 和 evidence_ids。

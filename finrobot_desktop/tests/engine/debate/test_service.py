@@ -293,3 +293,84 @@ async def test_debate_evidence_reliable_false_propagated() -> None:
     assert evidence_event["event"] == "debate.evidence"
     assert evidence_event["reliable"] is False
     assert evidence_event["items"] == []
+
+
+# ── Test: debate language follows the lang arg (artifact.meta.language) ──────
+
+
+class _CapturingAgent:
+    """Stub that records the prompt it was run with, so we can assert the
+    debate prose language without an LLM call."""
+
+    def __init__(self, output: SideCase | Verdict) -> None:
+        self._output = output
+        self.prompt: str | None = None
+
+    async def run(self, prompt: str, deps: object = None) -> object:
+        self.prompt = prompt
+
+        class _Result:
+            pass
+
+        r = _Result()
+        r.output = self._output  # type: ignore[attr-defined]
+        return r
+
+
+def _capturing_agents() -> dict[str, _CapturingAgent]:
+    return {
+        "bull": _CapturingAgent(
+            SideCase(side="bull", arguments=[Argument(claim="up", evidence_ids=["e1"])])
+        ),
+        "bear": _CapturingAgent(
+            SideCase(side="bear", arguments=[Argument(claim="down", evidence_ids=[])])
+        ),
+        "judge": _CapturingAgent(
+            Verdict(call="HOLD", conviction=0.5, swing_factor="x", change_my_mind="y")
+        ),
+    }
+
+
+async def test_debate_lang_en_renders_english_prompts() -> None:
+    es = EvidenceSet(
+        ticker="AAPL",
+        artifact_id="r",
+        current_price=150,
+        reliable=True,
+        items=[Evidence(evidence_id="e1", label="DCF target", value=185, unit="")],
+    )
+    agents = _capturing_agents()
+
+    async def _noop_emit(ev: dict) -> None:
+        pass
+
+    await run_debate(es, agents, emit=_noop_emit, lang="en")
+
+    judge_prompt = agents["judge"].prompt or ""
+    assert "Current price" in judge_prompt
+    assert "Respond in English" in judge_prompt
+    assert "[BULL]" in judge_prompt and "[BEAR]" in judge_prompt
+    # No Chinese debate chrome leaked through.
+    assert "当前价格" not in judge_prompt and "多方" not in judge_prompt
+
+
+async def test_debate_lang_zh_renders_chinese_prompts() -> None:
+    es = EvidenceSet(
+        ticker="AAPL",
+        artifact_id="r",
+        current_price=150,
+        reliable=True,
+        items=[Evidence(evidence_id="e1", label="DCF target", value=185, unit="")],
+    )
+    agents = _capturing_agents()
+
+    async def _noop_emit(ev: dict) -> None:
+        pass
+
+    # Default lang is "zh" — call without the arg to also guard the default.
+    await run_debate(es, agents, emit=_noop_emit)
+
+    judge_prompt = agents["judge"].prompt or ""
+    assert "当前价格" in judge_prompt
+    assert "简体中文" in judge_prompt
+    assert "[多方]" in judge_prompt and "[空方]" in judge_prompt

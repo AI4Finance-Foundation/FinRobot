@@ -71,8 +71,17 @@ export function assembleStandaloneHtml(parts: {
 ${css}
 </style>
 <style>
-/* Export shell — mirror the in-app reading column on the cosmic backdrop. */
-html, body { margin: 0; padding: 0; background: var(--bg-void, #0a0a0f); }
+/* Export shell — mirror the in-app reading column on the cosmic backdrop.
+   The captured App.css locks scrolling with html,body{height:100%} +
+   body{overflow:hidden} (the app scrolls inside an inner .main-content, absent
+   here). Re-enable normal document scroll, or the export is a frozen viewport. */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: auto !important;
+  overflow: auto !important;
+  background: var(--bg-void, #0a0a0f);
+}
 .report-export-shell {
   max-width: 920px;
   margin: 0 auto;

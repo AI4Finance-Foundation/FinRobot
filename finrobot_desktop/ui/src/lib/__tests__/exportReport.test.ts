@@ -69,17 +69,14 @@ describe('buildReportHtml (DOM capture)', () => {
   it('captures only the <main> chapters, excluding toolbar/TOC/rail siblings', () => {
     document.body.innerHTML = `
       <div data-testid="artifact-detail-page">
-        <div data-testid="report-grid">
+        <div>
           <div data-testid="report-toolbar">TOOLBAR_CHROME</div>
           <nav data-testid="report-toc">TOC_CHROME</nav>
           <main>
             <section data-testid="chapter-cover"><svg><rect/></svg>COVER_BODY</section>
-            <aside data-testid="report-right-rail">RAIL_CHROME</aside>
           </main>
         </div>
       </div>`
-    // The right-rail in this fixture is nested in main only to prove we grab
-    // main wholesale; in the real tree it is a grid sibling and never captured.
     const html = buildReportHtml('NVDA · v1')
     expect(html).not.toBeNull()
     expect(html).toContain('COVER_BODY')

@@ -92,23 +92,6 @@ export function ReportToolbar({
     }
   }
 
-  // Export PDF goes through the OS print pipeline — window.print() drives the
-  // native "Save as PDF" (the print dialog's bottom-left PDF ▾). The dialog
-  // can't be skipped without per-OS native code, so we announce it first: the
-  // toast paints, the user reads "Save as PDF", THEN the print sheet animates
-  // in over the webview (a short delay buys that read; the toast also persists
-  // if they cancel the sheet confused). @media print (styles/print.css) flips
-  // the cosmic theme to a light ink-on-paper deliverable.
-  function handleExportPdf(): void {
-    addToast({
-      type: 'info',
-      title: t('report.toolbar.exportPdfHint'),
-      description: t('report.toolbar.exportPdfHintBody'),
-      duration: 7000,
-    })
-    window.setTimeout(() => window.print(), 450)
-  }
-
   // Export HTML — a pixel-faithful mirror of the on-screen report (same DOM,
   // same cosmic dark theme, same Recharts SVGs, continuous scroll). Unlike the
   // print→PDF path it is NOT re-themed or paginated, so it looks exactly like
@@ -145,14 +128,15 @@ export function ReportToolbar({
     <div
       data-testid="report-toolbar"
       style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 30,
+        // Stickiness is owned by the grid-item wrapper in ArtifactDetailPage
+        // (its parent is the tall grid, so it has room to stick). This bar just
+        // provides the chrome — full-bleed bg/blur that covers content scrolling
+        // underneath once the wrapper pins it to the top.
         display: 'flex',
         alignItems: 'center',
         gap: 14,
         padding: '10px 24px',
-        margin: '0 -24px 16px',
+        margin: '0 -24px',
         background: 'var(--bg-sticky-88)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
@@ -262,17 +246,10 @@ export function ReportToolbar({
 
       <span style={{ flex: 1, minWidth: 8 }} />
 
-      {/* Export HTML — page-faithful mirror (see handleExportHtml). Primary
-          export: this is what looks exactly like the on-screen report. */}
+      {/* Export HTML — page-faithful mirror (see handleExportHtml): same DOM,
+          theme, charts, continuous scroll. The single export path. */}
       <ToolbarButton onClick={handleExportHtml} title={t('report.toolbar.exportHtmlTitle')}>
         ⤓ {t('report.toolbar.exportHtml')}
-      </ToolbarButton>
-
-      {/* Export PDF — see handleExportPdf: announces the native print→"Save as
-          PDF" flow before opening the OS dialog. Light, paginated deliverable
-          for printing/archival; for a screen-identical copy, use Export HTML. */}
-      <ToolbarButton onClick={handleExportPdf} title={t('report.toolbar.exportPdfTitle')}>
-        ⤓ {t('report.toolbar.exportPdf')}
       </ToolbarButton>
 
       {/* Primary actions — Re-run is the focal CTA. Diff sits next to it

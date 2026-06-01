@@ -203,7 +203,6 @@ export function ArtifactDetailPage(): React.ReactElement {
   return (
     <div data-testid="artifact-detail-page" style={{ position: 'relative', minHeight: '100vh' }}>
       <div
-        data-testid="report-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: '184px 1fr 268px',
@@ -214,10 +213,16 @@ export function ArtifactDetailPage(): React.ReactElement {
           alignItems: 'start',
         }}
       >
+        {/* Sticky must live HERE, not on ReportToolbar's root: a sticky element
+            only travels within its parent's box, and the toolbar's own root is
+            this grid item whose parent is the (tall) report grid. Putting it on
+            an inner wrapper that hugs the toolbar gives it zero travel room. */}
         <div
           style={{
             gridColumn: '1 / -1',
-            paddingTop: 16,
+            position: 'sticky',
+            top: 0,
+            zIndex: 30,
           }}
         >
           <ReportToolbar

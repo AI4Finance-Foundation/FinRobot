@@ -1587,14 +1587,6 @@ msgid "report.toolbar.diff"
 msgstr "Diff"
 
 #. js-lingui-explicit-id
-msgid "report.toolbar.exportPdf"
-msgstr "Export PDF"
-
-#. js-lingui-explicit-id
-msgid "report.toolbar.exportPdfTitle"
-msgstr "Print a light-theme report PDF (choose “Save as PDF” in the print dialog)"
-
-#. js-lingui-explicit-id
 msgid "report.toolbar.exportHtml"
 msgstr "Export HTML"
 
@@ -1613,14 +1605,6 @@ msgstr "No report content found to export"
 #. js-lingui-explicit-id
 msgid "report.toolbar.exportHtmlFailed"
 msgstr "HTML export failed"
-
-#. js-lingui-explicit-id
-msgid "report.toolbar.exportPdfHint"
-msgstr "Exporting report PDF"
-
-#. js-lingui-explicit-id
-msgid "report.toolbar.exportPdfHintBody"
-msgstr "The system print dialog is opening — click “PDF ▾ → Save as PDF” at the bottom-left to save a file. No printer needed."
 
 #. js-lingui-explicit-id
 msgid "report.rightRail.timeline"

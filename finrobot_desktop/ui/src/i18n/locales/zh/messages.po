@@ -1587,14 +1587,6 @@ msgid "report.toolbar.diff"
 msgstr "对比"
 
 #. js-lingui-explicit-id
-msgid "report.toolbar.exportPdf"
-msgstr "导出 PDF"
-
-#. js-lingui-explicit-id
-msgid "report.toolbar.exportPdfTitle"
-msgstr "打印为浅色研报 PDF（在系统打印框中选“存储为 PDF”）"
-
-#. js-lingui-explicit-id
 msgid "report.toolbar.exportHtml"
 msgstr "导出 HTML"
 
@@ -1613,14 +1605,6 @@ msgstr "未找到研报内容，无法导出"
 #. js-lingui-explicit-id
 msgid "report.toolbar.exportHtmlFailed"
 msgstr "导出 HTML 失败"
-
-#. js-lingui-explicit-id
-msgid "report.toolbar.exportPdfHint"
-msgstr "正在导出研报 PDF"
-
-#. js-lingui-explicit-id
-msgid "report.toolbar.exportPdfHintBody"
-msgstr "即将打开系统打印框 —— 在左下角点「PDF ▾ → 存储为 PDF」即可存成文件，无需打印机。"
 
 #. js-lingui-explicit-id
 msgid "report.rightRail.timeline"

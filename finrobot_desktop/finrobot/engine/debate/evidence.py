@@ -84,6 +84,12 @@ def build_evidence_set(
         name: str = str(method.get("name", ""))
         mid: Any = method.get("mid")
         if mid is not None and name:
+            # Carry the method's load-bearing assumptions so the debate cites a
+            # price with its conditions, never naked. A DCF mid of $73 is an
+            # answer under "WACC 16.6% · 5y fade", not a claim the stock is worth
+            # $73; the bull/bear/judge agents are instructed to surface this.
+            assumptions: Any = method.get("assumptions")
+            provenance = {"assumptions": str(assumptions)} if assumptions else None
             items.append(
                 Evidence(
                     evidence_id=f"method.{name}.mid",
@@ -91,6 +97,7 @@ def build_evidence_set(
                     value=float(mid),
                     unit="$",
                     formula_id=method.get("source"),
+                    provenance=provenance,
                 )
             )
 

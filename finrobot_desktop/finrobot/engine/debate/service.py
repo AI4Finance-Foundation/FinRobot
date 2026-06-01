@@ -103,7 +103,14 @@ def _format_evidence_context(evidence_set: EvidenceSet, s: dict[str, str]) -> st
 
     lines: list[str] = [s["evidence_header"]]
     for ev in evidence_set.items:
-        lines.append(f"  {ev.evidence_id}: {ev.label} = {ev.value}{ev.unit}")
+        line = f"  {ev.evidence_id}: {ev.label} = {ev.value}{ev.unit}"
+        # Append the load-bearing assumptions so the agents never see a valuation
+        # number naked — a $73 DCF mid arrives as "…= 73.44$（WACC 16.6% · 5年增长
+        # 40%→2.5% · β2.24）", making the price visibly conditional on its inputs.
+        assumptions = (ev.provenance or {}).get("assumptions")
+        if assumptions:
+            line += f"（{assumptions}）"
+        lines.append(line)
     return "\n".join(lines)
 
 

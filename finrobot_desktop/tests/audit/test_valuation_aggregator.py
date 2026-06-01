@@ -390,3 +390,31 @@ class TestAggregatorContract:
         assert agg.methods == []
         assert len(agg.warnings) >= 4  # at least dcf / comps / ev / pf flagged
         assert agg.ticker == "NVDA"
+
+    def test_dcf_row_carries_load_bearing_assumptions(self) -> None:
+        """A DCF mid is an answer conditional on WACC / growth fade / beta — the
+        row must carry those so the debate never cites the price naked (the $73
+        NVDA pathology). See _dcf_assumptions."""
+        agg = aggregate_valuation(
+            ticker="NVDA",
+            current_price=876.42,
+            dcf=_dcf(implied_price=73.44),
+            as_of=AS_OF,
+        )
+        row = next(m for m in agg.methods if m.method == "dcf")
+        # fixture: wacc 0.082, growth [0.10,0.08,0.06], terminal 0.025, beta 1.2
+        assert row.assumptions == "WACC 8.2% · 3年增长 10%→2.5% · β1.20"
+
+    def test_comps_pe_row_carries_caliber_assumption(self) -> None:
+        """comps_pe's load-bearing bet is 'NVDA deserves the peer median P/E' on a
+        named EPS caliber — the assumption that put NVDA at $341 on inflated EPS."""
+        agg = aggregate_valuation(
+            ticker="NVDA",
+            current_price=876.42,
+            peer_comps=_peer_comps(),
+            forward_eps=12.5,
+            shares_outstanding=2.4e9,
+            as_of=AS_OF,
+        )
+        row = next(m for m in agg.methods if m.method == "comps_pe")
+        assert row.assumptions == "押同业中值 P/E 28.0× × forward EPS"

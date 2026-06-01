@@ -52,3 +52,17 @@ def test_missing_synthesis_yields_empty_but_valid_set() -> None:
     es = build_evidence_set({}, artifact_id="run-x")
     assert es.items == []
     assert es.reliable is False
+
+
+def test_method_assumptions_flow_into_evidence_provenance() -> None:
+    """A method's assumptions string must reach Evidence.provenance so the debate
+    can cite the price with its conditions (the $73-needs-its-prefix fix)."""
+    structured = _structured()
+    structured["valuation_synthesis"]["methods"][0]["assumptions"] = (
+        "WACC 16.6% · 5年增长 40%→2.5% · β2.24"
+    )
+    es = build_evidence_set(structured, artifact_id="run-9")
+    dcf_ev = es.by_id()["method.DCF.mid"]
+    assert dcf_ev.provenance == {"assumptions": "WACC 16.6% · 5年增长 40%→2.5% · β2.24"}
+    # A method without assumptions leaves provenance None — no fabricated prefix.
+    assert es.by_id()["method.Comps.mid"].provenance is None

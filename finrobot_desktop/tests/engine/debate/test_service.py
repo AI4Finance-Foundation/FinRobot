@@ -14,7 +14,36 @@ from finrobot.engine.debate.models import (
     SideCase,
     Verdict,
 )
-from finrobot.engine.debate.service import run_debate
+from finrobot.engine.debate.service import (
+    _format_evidence_context,
+    _strings,
+    run_debate,
+)
+
+
+def test_evidence_context_renders_assumption_prefix() -> None:
+    """A valuation number must reach the agents with its load-bearing assumptions
+    inline — a $73 DCF mid is never fed naked (the core $73-needs-its-prefix fix)."""
+    es = EvidenceSet(
+        ticker="NVDA",
+        artifact_id="run-1",
+        current_price=211.14,
+        reliable=True,
+        items=[
+            Evidence(
+                evidence_id="method.dcf.mid",
+                label="dcf 中值估值",
+                value=73.44,
+                unit="$",
+                provenance={"assumptions": "WACC 16.6% · 5年增长 40%→2.5% · β2.24"},
+            ),
+            Evidence(evidence_id="bare", label="无假设项", value=1.0, unit="x"),
+        ],
+    )
+    ctx = _format_evidence_context(es, _strings("zh"))
+    assert "73.44$（WACC 16.6% · 5年增长 40%→2.5% · β2.24）" in ctx
+    # An evidence item without assumptions renders no parenthetical — no fabrication.
+    assert "无假设项 = 1.0x\n" in ctx + "\n"
 
 
 class _StubAgent:

@@ -139,7 +139,27 @@ def _dcf_method(dcf: DCFResult | None) -> ValuationMethodRange | None:
         high=p90,
         confidence=0.85,
         source=source,
+        assumptions=_dcf_assumptions(dcf),
     )
+
+
+def _dcf_assumptions(dcf: DCFResult) -> str:
+    """The load-bearing assumptions behind the DCF mid, in one line.
+
+    These three do almost all the work in setting fair value — a DCF mid is an
+    answer conditional on them, not a standalone number. The discount rate and
+    the length/steepness of the growth fade are exactly the axes a reader argues
+    over (an NVDA-style $73 is what a 16.6% WACC + 5y fade produces, not a claim
+    the stock is worth $73).
+    """
+    rates = dcf.inputs.revenue_growth_rates
+    tg = dcf.inputs.terminal_growth_rate
+    if rates:
+        g0 = rates[0]
+        growth = f"{len(rates)}年增长 {g0:.0%}→{tg:.1%}"
+    else:
+        growth = f"永续增长 {tg:.1%}"
+    return f"WACC {dcf.wacc:.1%} · {growth} · β{dcf.inputs.beta:.2f}"
 
 
 def _dcf_band(dcf: DCFResult, mid: float) -> tuple[float, float, str]:
@@ -164,6 +184,8 @@ def _comps_pe_method(
     has_shares = shares_outstanding is not None and shares_outstanding > 0
     mid: float | None = None
     source = ""
+    multiple: float | None = None
+    caliber = ""
     confidence = 0.55
 
     if used_forward:
@@ -173,6 +195,8 @@ def _comps_pe_method(
         if peer_comps.median_pe is not None and peer_comps.median_pe > 0:
             mid = peer_comps.median_pe * forward_eps  # type: ignore[operator]
             source = "peer_median_pe × forward_eps"
+            multiple = peer_comps.median_pe
+            caliber = "forward EPS"
             confidence = 0.78
     else:
         # Trailing path: use the NOPAT core caliber so the target EPS and the
@@ -191,6 +215,8 @@ def _comps_pe_method(
             core_eps = core_ni / shares_outstanding  # type: ignore[operator]
             mid = peer_comps.median_core_pe * core_eps
             source = "peer_median_core_pe × core_eps（NOPAT 核心盈利口径，forward 不可得）"
+            multiple = peer_comps.median_core_pe
+            caliber = "NOPAT 核心盈利 EPS"
             confidence = 0.55
         elif peer_comps.median_pe is not None and peer_comps.median_pe > 0 and has_shares:
             # Fallback: core caliber unavailable (provider omitted operating
@@ -200,12 +226,15 @@ def _comps_pe_method(
             if net_income is not None and net_income > 0:
                 mid = peer_comps.median_pe * (net_income / shares_outstanding)  # type: ignore[operator]
                 source = "peer_median_pe × trailing_eps (forward 不可得)"
+                multiple = peer_comps.median_pe
+                caliber = "trailing EPS"
                 confidence = 0.55
 
     if mid is None or mid <= 0:
         return None
 
     band = mid * _COMPS_PE_BAND_WIDTH
+    assumptions = f"押同业中值 P/E {multiple:.1f}× × {caliber}" if multiple is not None else None
     return ValuationMethodRange(
         method="comps_pe",
         method_type="valuation",
@@ -214,6 +243,7 @@ def _comps_pe_method(
         high=mid + band,
         confidence=confidence,
         source=source,
+        assumptions=assumptions,
     )
 
 

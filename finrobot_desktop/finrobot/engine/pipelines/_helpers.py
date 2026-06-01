@@ -480,6 +480,7 @@ def build_valuation_synthesis(
             high=r.high,
             confidence=r.confidence,
             source=r.source,
+            assumptions=r.assumptions,
         )
         for r in agg.methods
     ]

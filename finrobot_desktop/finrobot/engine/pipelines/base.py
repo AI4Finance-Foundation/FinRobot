@@ -322,6 +322,7 @@ class Pipeline:
         ticker: str,
         progress: ProgressCallback | None = None,
         lang: str | None = None,
+        source_artifact_id: str | None = None,
         **kwargs: object,
     ) -> "PipelineResult":
         results: dict[str, str] = {}
@@ -409,6 +410,12 @@ class Pipeline:
                 # the viewer's current UI locale. Single write point: effective_lang
                 # already resolved above (explicit arg > settings > "en").
                 artifact.meta.language = "zh" if effective_lang == "zh" else "en"
+                # Record version lineage when this run was triggered as a re-run
+                # from an existing artifact. The diff view's default "compare vs
+                # previous" walks meta.parent_artifact_id; created_at adjacency is
+                # only the fallback when the chain is absent (legacy / fresh runs).
+                if source_artifact_id is not None:
+                    artifact.meta.parent_artifact_id = source_artifact_id
                 artifact_id = await _artifact_store.save(artifact)
                 pipeline_result.artifact_id = artifact_id
                 logger.info("Artifact persisted: %s", artifact_id)

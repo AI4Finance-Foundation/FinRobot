@@ -233,9 +233,9 @@ class TestGatherData:
         ]
         assert len(step_a_line) == 1, f"Expected one compact line for step_a, got: {step_a_line}"
         # D6 fix: the compact line should contain actual text content
-        assert (
-            "step output text" in step_a_line[0]
-        ), f"Step_a compact line missing text snippet: {step_a_line[0]}"
+        assert "step output text" in step_a_line[0], (
+            f"Step_a compact line missing text snippet: {step_a_line[0]}"
+        )
 
 
 class TestPipelineLogging:
@@ -363,6 +363,62 @@ class TestArtifactLanguageStamping:
         await pipeline.execute(deps, "AAPL", lang=lang)
 
         assert saved["artifact"].meta.language == expected
+
+
+class TestArtifactParentLineageStamping:
+    """meta.parent_artifact_id is stamped from the run's source_artifact_id at
+    the same single write point in execute() — it records version lineage so the
+    diff view can default to comparing against the version a re-run came from."""
+
+    @pytest.mark.asyncio
+    async def test_execute_stamps_parent_artifact_id_on_rerun(self):
+        saved: dict = {}
+
+        def builder(result, ticker, deps):
+            return _minimal_artifact()
+
+        store = MagicMock()
+
+        async def _save(art):
+            saved["artifact"] = art
+            return art.id
+
+        store.save = _save
+
+        deps = MagicMock()
+        deps.skill_runtime = None
+        deps.artifact_store = store
+        deps.settings.language = "en"
+
+        pipeline = Pipeline(steps=[_make_step("s1")], artifact_builder=builder)
+        await pipeline.execute(deps, "AAPL", source_artifact_id="art_prev_AAPL_eq")
+
+        assert saved["artifact"].meta.parent_artifact_id == "art_prev_AAPL_eq"
+
+    @pytest.mark.asyncio
+    async def test_execute_leaves_parent_none_for_fresh_run(self):
+        saved: dict = {}
+
+        def builder(result, ticker, deps):
+            return _minimal_artifact()
+
+        store = MagicMock()
+
+        async def _save(art):
+            saved["artifact"] = art
+            return art.id
+
+        store.save = _save
+
+        deps = MagicMock()
+        deps.skill_runtime = None
+        deps.artifact_store = store
+        deps.settings.language = "en"
+
+        pipeline = Pipeline(steps=[_make_step("s1")], artifact_builder=builder)
+        await pipeline.execute(deps, "AAPL")  # no source_artifact_id
+
+        assert saved["artifact"].meta.parent_artifact_id is None
 
 
 @pytest.mark.asyncio

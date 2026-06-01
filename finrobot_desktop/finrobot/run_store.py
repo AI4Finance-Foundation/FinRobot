@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS runs (
     result_text   TEXT,
     result_json   TEXT,
     error         TEXT,
-    language      TEXT
+    language      TEXT,
+    source_artifact_id TEXT
 )
 """
 
@@ -38,7 +39,10 @@ CREATE TABLE IF NOT EXISTS runs (
 # connection open via ALTER TABLE (SQLite has no "ADD COLUMN IF NOT EXISTS"), so
 # existing on-disk run DBs gain the column without a manual migration. Keep the
 # CREATE statement above in sync — fresh DBs get the column from CREATE directly.
-_RUN_COLUMN_MIGRATIONS = (("language", "ALTER TABLE runs ADD COLUMN language TEXT"),)
+_RUN_COLUMN_MIGRATIONS = (
+    ("language", "ALTER TABLE runs ADD COLUMN language TEXT"),
+    ("source_artifact_id", "ALTER TABLE runs ADD COLUMN source_artifact_id TEXT"),
+)
 
 _CREATE_RUN_EVENTS = """
 CREATE TABLE IF NOT EXISTS run_events (
@@ -73,7 +77,7 @@ _CREATE_INDEXES = [
 # with this tuple so positional decoding matches the row layout.
 _RUN_SELECT_COLUMNS = (
     "run_id, pipeline_type, ticker, status, created_at, completed_at, "
-    "duration_s, result_text, result_json, error, language"
+    "duration_s, result_text, result_json, error, language, source_artifact_id"
 )
 
 
@@ -94,6 +98,16 @@ class RunRecord(BaseModel):
             "Output language requested for this run ('en'|'zh'), set from the UI "
             "locale at creation and passed to Pipeline.execute(lang=). None → "
             "execute falls back to settings.language. Legacy rows are NULL."
+        ),
+    )
+    source_artifact_id: str | None = Field(
+        default=None,
+        description=(
+            "When this run is a re-run/iteration triggered from an existing "
+            "artifact, the id of that source artifact. Threaded to "
+            "Pipeline.execute(source_artifact_id=) and stamped onto the new "
+            "artifact's meta.parent_artifact_id to build the version lineage "
+            "the diff view follows. None for fresh runs / legacy rows."
         ),
     )
 
@@ -146,7 +160,11 @@ class RunStore:
         return self._conn
 
     async def create_run(
-        self, pipeline_type: str, ticker: str, language: str | None = None
+        self,
+        pipeline_type: str,
+        ticker: str,
+        language: str | None = None,
+        source_artifact_id: str | None = None,
     ) -> RunRecord:
         try:
             run_id = f"run_{uuid.uuid4().hex[:12]}"
@@ -154,10 +172,11 @@ class RunStore:
             conn = await self._ensure_connection()
             await conn.execute(
                 """
-                INSERT INTO runs (run_id, pipeline_type, ticker, status, created_at, language)
-                VALUES (?, ?, ?, 'created', ?, ?)
+                INSERT INTO runs
+                    (run_id, pipeline_type, ticker, status, created_at, language, source_artifact_id)
+                VALUES (?, ?, ?, 'created', ?, ?, ?)
                 """,
-                (run_id, pipeline_type, ticker.upper(), created_at, language),
+                (run_id, pipeline_type, ticker.upper(), created_at, language, source_artifact_id),
             )
             await conn.commit()
             return RunRecord(
@@ -167,6 +186,7 @@ class RunStore:
                 status="created",
                 created_at=created_at,
                 language=language,
+                source_artifact_id=source_artifact_id,
             )
         except aiosqlite.OperationalError:
             logger.exception("Failed to create run for %s/%s", pipeline_type, ticker)
@@ -353,6 +373,7 @@ def _row_to_run(row: Any) -> RunRecord:
         result_json=json.loads(result_raw) if result_raw else None,
         error=row[9],
         language=row[10],
+        source_artifact_id=row[11],
     )
 
 

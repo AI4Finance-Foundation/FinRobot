@@ -45,6 +45,12 @@ class CreateRunRequest(BaseModel):
     current UI locale at trigger time; None → pipeline falls back to
     settings.language. Stamped onto the artifact's meta.language."""
 
+    source_artifact_id: str | None = None
+    """When this run is a re-run triggered from an existing report, the id of
+    that source artifact. Stamped onto the new artifact's
+    meta.parent_artifact_id so the version-diff view can default to comparing
+    against the version it was re-run from. None for fresh runs."""
+
     @classmethod
     def model_validate_strict(cls, data: Any) -> "CreateRunRequest":
         # Pydantic would happily accept ticker="" — reject early so the
@@ -103,7 +109,10 @@ async def create_run(request_body: CreateRunRequest, request: Request) -> Create
 
     store: RunStore = request.app.state.run_store
     record = await store.create_run(
-        request_body.pipeline_type, ticker, language=request_body.language
+        request_body.pipeline_type,
+        ticker,
+        language=request_body.language,
+        source_artifact_id=request_body.source_artifact_id,
     )
     task = asyncio.create_task(_run_pipeline(record.run_id, request))
     request.app.state.run_tasks[record.run_id] = task
@@ -269,6 +278,7 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
             record.ticker,
             progress=RunProgress(),
             lang=record.language,
+            source_artifact_id=record.source_artifact_id,
         )
         duration_s = round(time.monotonic() - started, 1)
         result_json = _result_to_json(result)

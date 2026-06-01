@@ -53,7 +53,11 @@ export interface RunState {
 
 interface RunStreamState {
   runs: Record<string, RunState>
-  startRun: (pipelineType: string, ticker: string) => Promise<string>
+  startRun: (
+    pipelineType: string,
+    ticker: string,
+    sourceArtifactId?: string,
+  ) => Promise<string>
   dismiss: (ticker: string) => void
   clear: (ticker: string) => void
 }
@@ -243,7 +247,7 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
   return {
     runs: {},
 
-    startRun: async (pipelineType, ticker) => {
+    startRun: async (pipelineType, ticker, sourceArtifactId) => {
       const resp = await fetchWithTimeout(
         `${BASE_URL}/api/runs`,
         {
@@ -252,10 +256,13 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
           // Generate the report's prose in the current UI language. The backend
           // stamps this onto artifact.meta.language; the detail view then renders
           // the body in this language regardless of later UI-locale switches.
+          // source_artifact_id (set on re-run) records the version lineage so the
+          // diff view can default to comparing against the version re-run from.
           body: JSON.stringify({
             pipeline_type: pipelineType,
             ticker,
             language: useUiPrefs.getState().locale,
+            ...(sourceArtifactId ? { source_artifact_id: sourceArtifactId } : {}),
           }),
         },
         5_000,

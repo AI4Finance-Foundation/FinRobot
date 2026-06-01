@@ -76,7 +76,9 @@ export function ReportToolbar({
   async function handleRerun(): Promise<void> {
     const pipelineType = reportTypeToPipelineType(reportType)
     try {
-      await startRun(pipelineType, ticker)
+      // Pass the current artifact as the re-run source so the new version's
+      // meta.parent_artifact_id records the lineage the diff view follows.
+      await startRun(pipelineType, ticker, artifactId)
       addToast({
         type: 'success',
         title: t('report.toolbar.rerunStarted', { ticker, reportType }),

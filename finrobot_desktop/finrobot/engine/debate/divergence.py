@@ -77,8 +77,7 @@ def recompute_divergence(
     if override_key is None:
         supported = sorted(_ASSUMPTION_TO_OVERRIDE_KEY)
         raise KeyError(
-            f"Unsupported divergence assumption: {point.assumption!r}. "
-            f"Supported: {supported}"
+            f"Unsupported divergence assumption: {point.assumption!r}. Supported: {supported}"
         )
 
     bull_price = compute_dcf_implied_price(

@@ -81,8 +81,7 @@ class TestLeafLayerIsolation:
                             f"Move dependency to pipeline level or pass as parameter."
                         )
         assert not violations, (
-            f"Leaf layer {leaf.name}/ has forbidden upward imports:\n"
-            + "\n".join(violations)
+            f"Leaf layer {leaf.name}/ has forbidden upward imports:\n" + "\n".join(violations)
         )
 
     @pytest.mark.parametrize("leaf", [COMPUTE, MODELS], ids=["compute", "models"])
@@ -98,15 +97,15 @@ class TestLeafLayerIsolation:
                             f"  FIX: {leaf.name}/ must be pure deterministic code. "
                             f"No LLM library imports allowed."
                         )
-        assert not violations, (
-            f"Leaf layer {leaf.name}/ imports LLM libraries:\n"
-            + "\n".join(violations)
+        assert not violations, f"Leaf layer {leaf.name}/ imports LLM libraries:\n" + "\n".join(
+            violations
         )
 
 
 # ---------------------------------------------------------------------------
 # Red line 2: Pipeline steps not exposed as individual tools
 # ---------------------------------------------------------------------------
+
 
 class TestPipelineEncapsulation:
     """Orchestrator tools must wrap whole pipelines, never individual steps."""
@@ -119,13 +118,13 @@ class TestPipelineEncapsulation:
         # Tool functions should be run_* (whole pipeline), not step-level names
         tool_funcs = re.findall(r"@agent\.tool\s+async def (\w+)", source)
         step_patterns = [
-            "validate_", "collect_data", "build_thesis",
-            "financial_modeling", "generate_report",
+            "validate_",
+            "collect_data",
+            "build_thesis",
+            "financial_modeling",
+            "generate_report",
         ]
-        violations = [
-            f for f in tool_funcs
-            if any(f.startswith(p) for p in step_patterns)
-        ]
+        violations = [f for f in tool_funcs if any(f.startswith(p) for p in step_patterns)]
         assert not violations, (
             f"Orchestrator exposes individual pipeline steps as tools: {violations}\n"
             f"FIX: Tools must wrap whole pipelines (run_*), not individual steps."
@@ -153,10 +152,7 @@ class TestProviderAbstraction:
                             f"  {rel}:{lineno} imports {module}\n"
                             f"  FIX: Use DataLayer.fetch() instead of calling {sdk} directly."
                         )
-        assert not violations, (
-            "Pipelines import provider SDKs directly:\n"
-            + "\n".join(violations)
-        )
+        assert not violations, "Pipelines import provider SDKs directly:\n" + "\n".join(violations)
 
 
 # ---------------------------------------------------------------------------
@@ -181,9 +177,7 @@ class TestDependencyBlacklist:
                             f"  FIX: {banned} is banned. Use PydanticAI. "
                             f"Need exception? Write an ADR in docs/cc-pillars/adrs/."
                         )
-        assert not violations, (
-            "Banned dependencies found:\n" + "\n".join(violations)
-        )
+        assert not violations, "Banned dependencies found:\n" + "\n".join(violations)
 
 
 # ---------------------------------------------------------------------------
@@ -220,6 +214,7 @@ class TestExceptionHygiene:
 # Coding discipline: no print() in finrobot/
 # ---------------------------------------------------------------------------
 
+
 class TestNoPrint:
     """finrobot/ must use logging, not print(). Docstring examples are OK."""
 
@@ -236,8 +231,7 @@ class TestNoPrint:
                     rel = py.relative_to(ROOT)
                     violations.append(f"  {rel}:{node.lineno}")
         assert not violations, (
-            "print() calls found in finrobot/ (use logging instead):\n"
-            + "\n".join(violations)
+            "print() calls found in finrobot/ (use logging instead):\n" + "\n".join(violations)
         )
 
 
@@ -266,6 +260,60 @@ class TestNoOsEnviron:
                     f"  {rel}:{lineno} — os.environ usage\n"
                     f"  FIX: Use FinRobotSettings (finrobot/config.py) + dependency injection."
                 )
+        assert not violations, "os.environ used outside config.py:\n" + "\n".join(violations)
+
+
+# ---------------------------------------------------------------------------
+# Red line 8: heavy sync-bound coroutines must not block the server event loop
+# ---------------------------------------------------------------------------
+
+SERVER = FINROBOT / "server.py"
+
+# Coroutines whose body is dominated by *synchronous* CPU/IO work (so awaiting
+# them directly on the request/lifespan loop freezes every concurrent request).
+# They must be offloaded — asyncio.to_thread / run_in_executor / a subprocess —
+# never `await`ed inline. Add a name here whenever a coroutine wraps a heavy
+# synchronous library call.
+BLOCKING_COROUTINES = frozenset({"_refresh_quarter"})
+
+
+def _await_call_names(filepath: Path) -> list[tuple[int, str]]:
+    """(lineno, callee) for every ``await <callee>(...)`` directly awaited."""
+    tree = ast.parse(filepath.read_text(), filename=str(filepath))
+    found: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Await):
+            continue
+        call = node.value
+        if not isinstance(call, ast.Call):
+            continue
+        func = call.func
+        if isinstance(func, ast.Name):
+            found.append((node.lineno, func.id))
+        elif isinstance(func, ast.Attribute):
+            found.append((node.lineno, func.attr))
+    return found
+
+
+class TestEventLoopNotBlocked:
+    """Synchronous-heavy coroutines must be offloaded, not awaited inline.
+
+    Regression guard: the SEC 13F background refresh once awaited
+    ``_refresh_quarter`` directly inside the FastAPI lifespan, which parsed an
+    entire quarter of 13F filings on the server event loop and froze the
+    dashboard endpoints. The fix offloads it via ``asyncio.to_thread`` — when
+    that happens the coroutine is an *argument* to ``asyncio.run`` and is no
+    longer the thing being awaited, so this scan stays green.
+    """
+
+    def test_no_blocking_coroutine_awaited_inline(self) -> None:
+        violations = [
+            f"  server.py:{lineno} — `await {name}(...)` blocks the event loop; "
+            f"offload via asyncio.to_thread / run_in_executor"
+            for lineno, name in _await_call_names(SERVER)
+            if name in BLOCKING_COROUTINES
+        ]
         assert not violations, (
-            "os.environ used outside config.py:\n" + "\n".join(violations)
+            "heavy synchronous coroutine awaited directly on the server loop:\n"
+            + "\n".join(violations)
         )

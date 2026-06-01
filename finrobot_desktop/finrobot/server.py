@@ -271,17 +271,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     )
                     return
             period = _latest_completed_quarter_end()
-            # Run in-process rather than spawning ``python -m scripts...``: the
-            # desktop build is a frozen PyInstaller binary where sys.executable
-            # is the sidecar itself (not a Python interpreter) and the repo tree
-            # does not exist, so a subprocess could never resolve the module.
-            # _refresh_quarter is async — it shares this event loop as a
-            # background task without blocking the server.
             from edgar import set_identity
 
             set_identity(header_identity)
             logger.info("SEC 13F holdings refresh starting: period_end=%s", period.isoformat())
-            summary = await _refresh_quarter(period)
+            # Offload to a worker thread with its own event loop. _refresh_quarter
+            # is declared async, but its core is a *synchronous* edgartools parse
+            # of an entire quarter of 13F filings (get_filings → f.obj() →
+            # holdings_df) that blocks between awaits. Awaiting it directly on the
+            # server loop would freeze every concurrent request — dashboard
+            # included — for the duration of the parse (architecture red line:
+            # tests/audit/test_architecture.py::TestEventLoopNotBlocked).
+            #
+            # The previous design used a ``python -m scripts...`` subprocess for
+            # this isolation, but that cannot work in the frozen desktop sidecar
+            # (sys.executable is the bundled binary, not a Python interpreter, and
+            # the repo tree does not exist). A worker thread gives the same
+            # off-loop isolation and works identically in dev and in the bundle.
+            summary = await asyncio.to_thread(asyncio.run, _refresh_quarter(period))
             logger.info("SEC 13F holdings refresh complete: %s", summary)
         except asyncio.CancelledError:
             raise

@@ -25,7 +25,6 @@ interface ReportToolbarProps {
   reportVersionLabel: string
   targetPrice: number | null
   timeline: ArtifactSummaryV5[]
-  onOpenDiff: () => void
   /** Navigate to /ic/:ticker?artifact_id=<id>. Only passed for equity_research reports. */
   onOpenIcDebate?: () => void
 }
@@ -37,7 +36,6 @@ export function ReportToolbar({
   reportVersionLabel,
   targetPrice,
   timeline,
-  onOpenDiff,
   onOpenIcDebate,
 }: ReportToolbarProps): React.ReactElement {
   const navigate = useNavigate()
@@ -254,12 +252,14 @@ export function ReportToolbar({
         ⤓ {t('report.toolbar.exportHtml')}
       </ToolbarButton>
 
-      {/* Primary actions — Re-run is the focal CTA. Diff sits next to it
-          because version comparison is the second most-used action. */}
+      {/* Primary actions — Re-run is the focal CTA. Version comparison lives
+          inline in the report body (VersionDiffBanner), not as a toolbar modal. */}
       <ToolbarButton onClick={handleRerun} primary>
         ↻ {t('report.toolbar.rerun')}
       </ToolbarButton>
-      <ToolbarButton onClick={onOpenDiff}>↹ {t('report.toolbar.diff')}</ToolbarButton>
+      {/* Version comparison moved inline: the VersionDiffBanner at the top of the
+          report body shows "what changed vs a prior version" with a base selector,
+          replacing the old modal diff button. */}
       {/* IC Debate entry — only surfaces for equity_research reports */}
       <ToolbarButton
         onClick={onOpenIcDebate}

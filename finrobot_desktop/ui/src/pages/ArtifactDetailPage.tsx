@@ -13,13 +13,11 @@
 // (thesis / financial_modeling / peer_analysis / catalyst_analysis) plus
 // inputs.raw_data for the audit dump.
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useArtifactDetail, useV5ArtifactTimeline } from '../hooks/useV5Artifacts'
 import { useNavMemoryStore } from '../stores/navMemoryStore'
-import { useToastStore } from '../stores/toastStore'
-import { ArtifactDiff } from '../components/ArtifactDiff'
-import type { ArtifactSummaryV5 } from '../types/v5'
+import { VersionDiffBanner } from '../components/VersionDiffBanner'
 import { useI18n } from '../i18n'
 import { mapErrorToUserMessage } from '../utils/errorMessage'
 
@@ -39,8 +37,6 @@ export function ArtifactDetailPage(): React.ReactElement {
   const { data, isLoading, isError, error } = useArtifactDetail(artifactId)
   const { data: timeline } = useV5ArtifactTimeline(symbol)
   const { locale, t } = useI18n()
-  const [diffPartner, setDiffPartner] = useState<ArtifactSummaryV5 | null>(null)
-  const addToast = useToastStore((s) => s.addToast)
 
   // React Router v6 doesn't auto-scroll to #hash on navigate; chapter
   // mini-grid in AIZone links here with /stocks/X/runs/id#thesis etc.
@@ -92,27 +88,11 @@ export function ArtifactDetailPage(): React.ReactElement {
   // Chapter data + the values the surrounding chrome needs (toolbar target
   // price + version label, right-rail WACC, diff headline). deriveReportData is
   // the single source of truth shared with the standalone export viewer.
-  const { thesis, dcf, outputs, createdAt, versionLabel } = deriveReportData(
-    data,
-    timeline ?? [],
-    locale,
-  )
+  const { thesis, dcf, createdAt, versionLabel } = deriveReportData(data, timeline ?? [], locale)
 
-  // Pre-compute diff partner candidate: the most recent prior artifact of the
-  // same type, surfaced by the Diff button. ArtifactDiff handles its own UI.
-  function openDiff(): void {
-    if (!data) return
-    const list = (timeline ?? []).filter((a) => a.type === data.type && a.id !== artifactId)
-    if (list.length === 0) {
-      addToast({
-        type: 'info',
-        title: t('report.diff.noPartner'),
-        description: t('report.diff.noPartnerBody', { ticker: symbol }),
-      })
-      return
-    }
-    setDiffPartner(list[0])
-  }
+  const parentArtifactId =
+    (data as unknown as { meta?: { parent_artifact_id?: string | null } }).meta
+      ?.parent_artifact_id ?? null
 
   return (
     <div data-testid="artifact-detail-page" style={{ position: 'relative', minHeight: '100vh' }}>
@@ -146,7 +126,6 @@ export function ArtifactDetailPage(): React.ReactElement {
             reportVersionLabel={versionLabel}
             targetPrice={thesis?.price_target ?? null}
             timeline={timeline ?? []}
-            onOpenDiff={openDiff}
             onOpenIcDebate={
               data.type === 'equity_research'
                 ? () => navigate(`/ic/${symbol}?artifact_id=${artifactId}`)
@@ -159,7 +138,18 @@ export function ArtifactDetailPage(): React.ReactElement {
           entries={allChapterLabels(locale).map((c) => ({ id: c.id, num: c.num, title: c.title }))}
         />
 
-        <ReportChapters artifact={data} timeline={timeline ?? []} />
+        <div style={{ minWidth: 0, paddingTop: 12 }}>
+          {/* Inline "what changed vs a prior version" banner — workstation
+              affordance, NOT part of the export (which is just the research). */}
+          <VersionDiffBanner
+            currentId={artifactId}
+            currentCreatedAt={createdAt ?? null}
+            reportType={data.type}
+            parentArtifactId={parentArtifactId}
+            timeline={timeline ?? []}
+          />
+          <ReportChapters artifact={data} timeline={timeline ?? []} />
+        </div>
 
         <ReportRightRail
           ticker={symbol}
@@ -171,24 +161,6 @@ export function ArtifactDetailPage(): React.ReactElement {
           originalImpliedPrice={dcf?.implied_price ?? null}
         />
       </div>
-
-      {diffPartner && (
-        <ArtifactDiff
-          artifactA={{
-            id: artifactId,
-            created_at: createdAt ?? diffPartner.created_at,
-            headline: (outputs.summary_text ?? '').slice(0, 220),
-            type: data.type,
-          }}
-          artifactB={{
-            id: diffPartner.id,
-            created_at: diffPartner.created_at,
-            headline: diffPartner.headline,
-            type: diffPartner.type,
-          }}
-          onClose={() => setDiffPartner(null)}
-        />
-      )}
 
       <ReportStatusBar
         entries={allChapterLabels(locale).map((c) => ({ id: c.id, num: c.num, title: c.title }))}

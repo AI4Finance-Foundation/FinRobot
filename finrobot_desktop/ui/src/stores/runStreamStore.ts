@@ -53,11 +53,7 @@ export interface RunState {
 
 interface RunStreamState {
   runs: Record<string, RunState>
-  startRun: (
-    pipelineType: string,
-    ticker: string,
-    sourceArtifactId?: string,
-  ) => Promise<string>
+  startRun: (pipelineType: string, ticker: string, sourceArtifactId?: string) => Promise<string>
   dismiss: (ticker: string) => void
   clear: (ticker: string) => void
 }

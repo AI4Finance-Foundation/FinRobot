@@ -125,26 +125,6 @@ export function compsResultToPeerChartData(
 }
 
 /**
- * Convert DCFResult into the waterfall data format for WaterfallChart.
- * Each entry has { label, value, is_total }.
- */
-export function dcfResultToWaterfallData(
-  result: DCFResult,
-): Array<Record<string, number | string | boolean | null>> {
-  return [
-    { label: 'FCF 现值', value: result.pv_fcf_total, is_total: false },
-    { label: '终值现值', value: result.pv_terminal, is_total: false },
-    { label: '企业价值', value: result.enterprise_value, is_total: true },
-    {
-      label: '减：净债务',
-      value: -(result.enterprise_value - result.equity_value),
-      is_total: false,
-    },
-    { label: '股权价值', value: result.equity_value, is_total: true },
-  ]
-}
-
-/**
  * Convert CompsResult into CompanyRadarChart format.
  * Each dimension is normalised so that the larger of (company, peer median) = 100,
  * giving both the company and benchmark shapes that are easy to compare visually.

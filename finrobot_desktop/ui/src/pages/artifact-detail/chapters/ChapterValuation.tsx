@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import FootballField from '../../../components/charts/FootballField'
+import WaterfallChart from '../../../components/charts/WaterfallChart'
 import { BASE_URL } from '../../../api/client'
 import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../../../api/fetch'
 import { useI18n } from '../../../i18n'
@@ -72,6 +73,23 @@ export function ChapterValuation({
     high: m.high,
   }))
 
+  // DCF bridge: PV(FCF) + PV(terminal) → enterprise value → −net debt → equity.
+  // Net debt is implied by EV − equity value (the DCF result doesn't carry it
+  // separately). Only build when the full chain is present so the bridge always
+  // reconciles to the implied equity value.
+  const pvFcf = dcf?.pv_fcf_total ?? null
+  const pvTerminal = dcf?.pv_terminal ?? null
+  const waterfallRows =
+    pvFcf !== null && pvTerminal !== null && ev !== null && eq !== null
+      ? [
+          { label: t('chapter.valuation.bridge.pvFcf'), value: pvFcf, is_total: false },
+          { label: t('chapter.valuation.bridge.pvTerminal'), value: pvTerminal, is_total: false },
+          { label: t('chapter.valuation.bridge.ev'), value: ev, is_total: true },
+          { label: t('chapter.valuation.bridge.netDebt'), value: -(ev - eq), is_total: false },
+          { label: t('chapter.valuation.bridge.equity'), value: eq, is_total: true },
+        ]
+      : []
+
   type Cell = { label: string; value: string; delta?: string; tone?: 'up' | 'down' }
   const cells: Cell[] = [
     wacc !== null &&
@@ -128,6 +146,12 @@ export function ChapterValuation({
         >
           {t('chapter.valuation.empty')}
         </p>
+      )}
+
+      {waterfallRows.length > 0 && (
+        <SubChapter heading={t('chapter.valuation.subheading.bridge')}>
+          <WaterfallChart data={waterfallRows} title={t('chapter.valuation.bridge.title')} />
+        </SubChapter>
       )}
 
       {footballRows.length > 0 && (

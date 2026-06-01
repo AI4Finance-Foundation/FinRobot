@@ -787,6 +787,34 @@ msgid "chapter.valuation.football.title"
 msgstr "DCF / Comps / DDM / LBO Target-Price Range"
 
 #. js-lingui-explicit-id
+msgid "chapter.valuation.subheading.bridge"
+msgstr "DCF Value Bridge (Waterfall)"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.title"
+msgstr "DCF Bridge: PV of Cash Flows → Enterprise Value → Equity Value"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.pvFcf"
+msgstr "PV of FCF"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.pvTerminal"
+msgstr "PV of Terminal"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.ev"
+msgstr "Enterprise Value"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.netDebt"
+msgstr "Less: Net Debt"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.equity"
+msgstr "Equity Value"
+
+#. js-lingui-explicit-id
 msgid "chapter.valuation.target12m"
 msgstr "12-Month Target:"
 

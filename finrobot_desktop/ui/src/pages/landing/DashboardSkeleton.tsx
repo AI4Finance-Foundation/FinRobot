@@ -1,7 +1,8 @@
-// DashboardSkeleton — shimmer placeholder for the landing dashboard
-// (hit-rate banner + recent-research strip) while the backend
-// QuoteCache lifespan warmup is still running. Sizing roughly matches
-// the real components so the page does not reflow when the data lands.
+// DashboardSkeleton — shimmer placeholder for the hit-rate banner only,
+// shown while the backend QuoteCache lifespan warmup is still running
+// (the banner's bucket math needs warm quotes). The recent-research strip
+// is NOT covered here — it renders immediately with its own loading state.
+// Sizing roughly matches the real banner so the page does not reflow.
 //
 // Visibility is gated by `useQuotesWarmed` in `StocksLandingHero`.
 
@@ -12,7 +13,7 @@ export function DashboardSkeleton(): React.ReactElement {
   return (
     <div
       data-testid="dashboard-skeleton"
-      style={{ display: 'flex', flexDirection: 'column', gap: 32 }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
     >
       {/* hit-rate banner placeholder: title bar + 3 metric columns */}
       <div
@@ -28,28 +29,6 @@ export function DashboardSkeleton(): React.ReactElement {
             </div>
           ))}
         </div>
-      </div>
-
-      {/* recent-research strip placeholder: 4 ticker drawer cards */}
-      <div style={{ display: 'flex', gap: 16, overflow: 'hidden' }}>
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="cosmic-card cosmic-card-glass"
-            style={{
-              minWidth: 220,
-              padding: 20,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12,
-            }}
-          >
-            <div className="skeleton" style={{ height: 18, width: '50%' }} aria-hidden />
-            <div className="skeleton" style={{ height: 32 }} aria-hidden />
-            <div className="skeleton" style={{ height: 12 }} aria-hidden />
-            <div className="skeleton" style={{ height: 12, width: '80%' }} aria-hidden />
-          </div>
-        ))}
       </div>
 
       <div

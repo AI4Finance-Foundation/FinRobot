@@ -787,6 +787,34 @@ msgid "chapter.valuation.football.title"
 msgstr "DCF / 同业 / DDM / LBO 目标价区间"
 
 #. js-lingui-explicit-id
+msgid "chapter.valuation.subheading.bridge"
+msgstr "DCF 价值桥（瀑布图）"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.title"
+msgstr "DCF 估值桥：现金流现值 → 企业价值 → 股权价值"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.pvFcf"
+msgstr "FCF 现值"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.pvTerminal"
+msgstr "终值现值"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.ev"
+msgstr "企业价值"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.netDebt"
+msgstr "减：净债务"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.equity"
+msgstr "股权价值"
+
+#. js-lingui-explicit-id
 msgid "chapter.valuation.target12m"
 msgstr "12 个月目标价："
 

@@ -6,6 +6,7 @@
 // workspace. If the ticker has more than 5 runs in total, an overflow
 // footer links to the workspace's full timeline.
 
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   useDashboardRecentResearch,
@@ -13,6 +14,7 @@ import {
   type RecentTickerRun,
   type Signal,
 } from '../../hooks/useDashboardRecentResearch'
+import { useQuotesWarmed } from '../../hooks/useQuotesWarmed'
 import { verdictLabel } from '../../utils/verdict'
 import { useI18n } from '../../i18n'
 
@@ -41,7 +43,20 @@ const LANDING_TICKER_LIMIT = 20
 export function RecentResearchStrip(): React.ReactElement {
   const navigate = useNavigate()
   const { t } = useI18n()
-  const { data, isLoading, isError } = useDashboardRecentResearch(LANDING_TICKER_LIMIT)
+  const { data, isLoading, isError, refetch } = useDashboardRecentResearch(LANDING_TICKER_LIMIT)
+
+  // Cards are DB-backed and show instantly; the per-card signal lamp is a
+  // cache-only enhancement (see /api/dashboard/recent-research). On a cold
+  // boot the lamps come back null because quotes are not warm yet. When the
+  // lifespan warmup flips `warmed` true the QuoteCache is populated, so refetch
+  // once to fill the lamps. `quotesPending` keeps a dim placeholder dot in the
+  // meantime instead of a lamp that pops in from nothing.
+  const { data: warmStatus } = useQuotesWarmed()
+  const quotesWarmed = warmStatus?.warmed ?? false
+  useEffect(() => {
+    if (quotesWarmed) void refetch()
+  }, [quotesWarmed, refetch])
+  const quotesPending = !quotesWarmed
 
   return (
     <section data-testid="recent-research-strip">
@@ -112,6 +127,7 @@ export function RecentResearchStrip(): React.ReactElement {
             <TickerDrawerCard
               key={item.ticker}
               item={item}
+              quotesPending={quotesPending}
               onOpenWorkspace={() => navigate(`/stocks/${item.ticker}`)}
               onOpenRun={(run) => navigate(`/stocks/${item.ticker}/runs/${run.artifact_id}`)}
             />
@@ -124,10 +140,12 @@ export function RecentResearchStrip(): React.ReactElement {
 
 function TickerDrawerCard({
   item,
+  quotesPending,
   onOpenWorkspace,
   onOpenRun,
 }: {
   item: RecentTickerItem
+  quotesPending: boolean
   onOpenWorkspace: () => void
   onOpenRun: (run: RecentTickerRun) => void
 }): React.ReactElement {
@@ -184,7 +202,11 @@ function TickerDrawerCard({
         >
           {item.ticker}
         </span>
-        {item.latest_signal && <SignalLamp signal={item.latest_signal} />}
+        {item.latest_signal ? (
+          <SignalLamp signal={item.latest_signal} />
+        ) : (
+          quotesPending && <SignalLamp signal={null} />
+        )}
         <span style={{ flex: 1 }} />
         <span
           style={{
@@ -334,7 +356,27 @@ function VerdictText({ verdict }: { verdict: 'BUY' | 'HOLD' | 'SELL' | null }): 
   )
 }
 
-function SignalLamp({ signal }: { signal: Signal }): React.ReactElement {
+// `signal === null` is the pending state: quotes are still warming so the
+// lamp's hit/watching/failed verdict is not computed yet. Render a dim,
+// pulsing placeholder dot rather than nothing, so the resolved lamp does not
+// pop in from empty when the post-warmup refetch lands.
+function SignalLamp({ signal }: { signal: Signal | null }): React.ReactElement {
+  if (signal === null) {
+    return (
+      <span
+        title="行情加载中"
+        aria-label="signal pending"
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          background: 'var(--text-muted)',
+          opacity: 0.5,
+          animation: 'cosmic-pulse-dot 1.6s ease-in-out infinite',
+        }}
+      />
+    )
+  }
   const colors = {
     hit: { fg: 'var(--success)', glow: 'var(--success-glow)' },
     watching: { fg: 'var(--accent-cyan)', glow: 'var(--glow-cyan)' },

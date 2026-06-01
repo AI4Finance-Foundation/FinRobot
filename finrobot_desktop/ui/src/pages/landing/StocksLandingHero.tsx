@@ -238,17 +238,13 @@ export function StocksLandingHero(): React.ReactElement {
         <HotTickerChips />
       </form>
 
-      {/* Dashboard surfaces (hit-rate + recent research) depend on cached
-          quotes; skeleton until the lifespan warmup finishes so we never
-          trigger a cold yfinance fetch from inside a user-facing request. */}
-      {dashboardReady ? (
-        <>
-          <HitRateBanner />
-          <RecentResearchStrip />
-        </>
-      ) : (
-        <DashboardSkeleton />
-      )}
+      {/* Hit-rate's bucket math genuinely needs warm quotes — skeleton until
+          the lifespan warmup finishes so we never cold-fetch from inside a
+          user-facing request. The recent-research strip below is DB-backed and
+          renders IMMEDIATELY (its own loading state, cache-only signal lamps
+          that fill once quotes warm), so it is deliberately NOT gated here. */}
+      {dashboardReady ? <HitRateBanner /> : <DashboardSkeleton />}
+      <RecentResearchStrip />
     </div>
   )
 }

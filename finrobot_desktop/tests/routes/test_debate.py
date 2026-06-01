@@ -26,6 +26,8 @@ from finrobot.artifact.models import (
     ArtifactMeta,
     ArtifactOutputs,
 )
+from pydantic_ai.exceptions import AgentRunError
+
 from finrobot.engine.debate.models import (
     Argument,
     SideCase,
@@ -201,3 +203,77 @@ async def test_create_debate_calls_run_store_create_run() -> None:
             )
 
     app.state.run_store.create_run.assert_called_once_with("debate", "AAPL")
+
+
+async def test_agent_run_error_transitions_run_to_failed() -> None:
+    """Regression: AgentRunError from a real LLM agent must not leave run at status='running'.
+
+    Before the except-tuple fix, AgentRunError / UnexpectedModelBehavior escaped the
+    handler, the run stayed 'running', and GET /api/runs/{id}/events hung forever.
+    This test verifies the handler catches it, marks the run failed, emits run.failed,
+    and pops run_tasks.
+    """
+
+    class _RaisingAgent:
+        """Agent stub that raises AgentRunError on run()."""
+
+        async def run(self, prompt: str, deps: object = None) -> object:
+            raise AgentRunError("simulated LLM failure")
+
+    app = _make_app(artifact=_equity_research_artifact("art-err"))
+    failing_agents = {
+        "bull": _RaisingAgent(),
+        "bear": _RaisingAgent(),
+        "judge": _RaisingAgent(),
+    }
+
+    with patch(
+        "finrobot.routes.debate.build_debate_agents",
+        return_value=failing_agents,
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+            resp = await client.post(
+                "/api/debate", json={"ticker": "NVDA", "artifact_id": "art-err"}
+            )
+
+    # POST itself succeeds — the failure happens inside the background task.
+    assert resp.status_code == 200
+    run_id = resp.json()["run_id"]
+
+    # Wait for the background task to complete.  The task is created by
+    # asyncio.create_task inside the route handler; we retrieve it from
+    # run_tasks (registered before the route returns) and await it directly
+    # so the test doesn't rely on timing.  If the task already finished and
+    # was popped from run_tasks we fall back to a short sleep.
+    import asyncio
+
+    bg_task = app.state.run_tasks.get(run_id)
+    if bg_task is not None:
+        await asyncio.gather(bg_task, return_exceptions=True)
+    else:
+        await asyncio.sleep(0.05)
+
+    run_store = app.state.run_store
+
+    # run must have been marked failed (not left at 'running').
+    update_calls = run_store.update_run.call_args_list
+    failed_call = next(
+        (c for c in update_calls if c.kwargs.get("status") == "failed"),
+        None,
+    )
+    assert failed_call is not None, "update_run(status='failed') was never called"
+
+    # run.failed event must have been appended.
+    append_calls = run_store.append_event.call_args_list
+    failed_event_call = next(
+        (
+            c
+            for c in append_calls
+            if isinstance(c.args[1], dict) and c.args[1].get("event") == "run.failed"
+        ),
+        None,
+    )
+    assert failed_event_call is not None, "run.failed event was never appended"
+
+    # run_tasks must have been cleaned up.
+    assert run_id not in app.state.run_tasks, "run_id still in run_tasks after failure"

@@ -15,14 +15,19 @@ Structured-data contract:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from typing import Any, cast
 
+import httpx
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
+from pydantic_ai import UnexpectedModelBehavior
+from pydantic_ai.exceptions import AgentRunError
 from starlette.requests import Request
 
+from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.debate.agents import build_debate_agents
 from finrobot.engine.debate.evidence import build_evidence_set
 from finrobot.engine.debate.service import run_debate
@@ -130,17 +135,29 @@ async def _run_debate_task(
             duration_s=duration_s,
         )
     except (
+        ProviderError,
+        ValidationError,
         ValueError,
         TypeError,
         KeyError,
         AttributeError,
         RuntimeError,
+        UnexpectedModelBehavior,
+        AgentRunError,
         OSError,
+        json.JSONDecodeError,
+        httpx.HTTPError,
     ) as exc:
-        # Task-boundary exception handler: mirrors runs.py::_run_pipeline_impl.
-        # Captures errors from debate orchestration (agent run failures, evidence
-        # parse errors, store I/O) so the run transitions to failed and the SSE
-        # stream terminates rather than hanging at status="running" forever.
+        # Task-boundary exception handler: mirrors runs.py::_run_pipeline_impl
+        # (runs.py:302-325).  The set is broad-but-explicit — covers every
+        # concrete failure mode that can escape run_debate: LLM API errors
+        # (AgentRunError, UnexpectedModelBehavior, httpx.HTTPError), output
+        # schema failures (ValidationError), data provider errors (ProviderError),
+        # and standard Python/IO errors.  CancelledError is intentionally omitted
+        # so server shutdown propagates cleanly.  Without this full set a failing
+        # LLM agent would leave the run at status="running" and the SSE stream at
+        # GET /api/runs/{id}/events would hang forever polling a run that will
+        # never complete.
         logger.exception("Debate run %s failed", run_id)
         error_msg = str(exc)[:500] or type(exc).__name__
         await run_store.update_run(

@@ -13,6 +13,7 @@ What this code does that raw LLM cannot:
 - Keyword-based sentiment scoring as fallback when Alpha Vantage
   sentiment is unavailable.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -61,9 +62,7 @@ class NewsAggregatorProvider(DataProvider):
 
     async def fetch(self, ticker: str, data_type: str | DataType, **kwargs: Any) -> DataResult:
         if data_type != DataType.NEWS:
-            raise ProviderError(
-                f"NewsAggregatorProvider only supports NEWS, got '{data_type}'"
-            )
+            raise ProviderError(f"NewsAggregatorProvider only supports NEWS, got '{data_type}'")
 
         tasks: list[asyncio.Task[list[dict[str, Any]]]] = []
         tasks.append(asyncio.create_task(self._fetch_yahoo_rss(ticker)))
@@ -90,10 +89,7 @@ class NewsAggregatorProvider(DataProvider):
         # ProviderError so HTTP routes can turn this into a real error
         # response instead of silently degrading.
         if not all_items and failures and len(failures) == len(results):
-            raise ProviderError(
-                "All news sources failed for "
-                f"'{ticker}': {'; '.join(failures)}"
-            )
+            raise ProviderError(f"All news sources failed for '{ticker}': {'; '.join(failures)}")
 
         deduplicated = self._deduplicate(all_items)
 
@@ -132,16 +128,18 @@ class NewsAggregatorProvider(DataProvider):
                 pub_el = item_el.find("pubDate")
                 if title_el is None or not (title_el.text or "").strip():
                     continue
-                items.append({
-                    "title": (title_el.text or "").strip(),
-                    "source": "Yahoo Finance",
-                    "url": (link_el.text or "").strip() if link_el is not None else "",
-                    "published": self._parse_rss_date(
-                        (pub_el.text or "").strip() if pub_el is not None else ""
-                    ),
-                    "sentiment_score": None,  # filled by keyword scorer later
-                    "category": None,
-                })
+                items.append(
+                    {
+                        "title": (title_el.text or "").strip(),
+                        "source": "Yahoo Finance",
+                        "url": (link_el.text or "").strip() if link_el is not None else "",
+                        "published": self._parse_rss_date(
+                            (pub_el.text or "").strip() if pub_el is not None else ""
+                        ),
+                        "sentiment_score": None,  # filled by keyword scorer later
+                        "category": None,
+                    }
+                )
         except ElementTree.ParseError as e:
             raise ProviderError(f"Yahoo RSS XML parse error for '{ticker}': {e}") from e
 
@@ -192,16 +190,16 @@ class NewsAggregatorProvider(DataProvider):
                         av_score = None
                     break
 
-            items.append({
-                "title": title,
-                "source": article.get("source", "Alpha Vantage"),
-                "url": article.get("url", ""),
-                "published": self._parse_av_date(
-                    article.get("time_published", "")
-                ),
-                "sentiment_score": av_score,
-                "category": article.get("category_within_source"),
-            })
+            items.append(
+                {
+                    "title": title,
+                    "source": article.get("source", "Alpha Vantage"),
+                    "url": article.get("url", ""),
+                    "published": self._parse_av_date(article.get("time_published", "")),
+                    "sentiment_score": av_score,
+                    "category": article.get("category_within_source"),
+                }
+            )
 
         return items
 
@@ -220,7 +218,9 @@ class NewsAggregatorProvider(DataProvider):
             existing = seen.get(prefix)
             if existing is None:
                 seen[prefix] = item
-            elif existing.get("sentiment_score") is None and item.get("sentiment_score") is not None:
+            elif (
+                existing.get("sentiment_score") is None and item.get("sentiment_score") is not None
+            ):
                 # Prefer the version with Alpha Vantage sentiment
                 seen[prefix] = item
         return list(seen.values())

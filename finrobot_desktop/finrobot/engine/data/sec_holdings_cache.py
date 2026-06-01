@@ -285,7 +285,9 @@ async def bulk_upsert_holdings(rows: Iterable[dict[str, Any]]) -> int:
         except sqlite3.Error:
             logger.exception(
                 "Failed to upsert holding cusip=%s holder_cik=%s period_end=%s",
-                r.get("cusip"), r.get("holder_cik"), period_end,
+                r.get("cusip"),
+                r.get("holder_cik"),
+                period_end,
             )
     await c.commit()
     return count
@@ -298,10 +300,17 @@ async def cache_status() -> dict[str, Any]:
     str|None, "distinct_tickers": int}``.
     """
     c = await _conn()
-    async with c.execute("SELECT COUNT(*), MAX(period_end), COUNT(DISTINCT ticker) FROM holdings") as cur:
+    async with c.execute(
+        "SELECT COUNT(*), MAX(period_end), COUNT(DISTINCT ticker) FROM holdings"
+    ) as cur:
         row = await cur.fetchone()
     if row is None:
-        return {"populated": False, "row_count": 0, "latest_period_end": None, "distinct_tickers": 0}
+        return {
+            "populated": False,
+            "row_count": 0,
+            "latest_period_end": None,
+            "distinct_tickers": 0,
+        }
     total, latest, distinct = row
     return {
         "populated": bool(total),

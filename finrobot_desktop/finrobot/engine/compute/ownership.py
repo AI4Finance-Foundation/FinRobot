@@ -236,20 +236,85 @@ _CEO_NAME_BLACKLIST: frozenset[str] = frozenset(
 _CEO_NAME_STOPWORDS: frozenset[str] = frozenset(
     {
         # pronouns
-        "i", "we", "us", "our", "ours", "you", "your", "he", "his",
-        "she", "her", "they", "their", "it", "its",
+        "i",
+        "we",
+        "us",
+        "our",
+        "ours",
+        "you",
+        "your",
+        "he",
+        "his",
+        "she",
+        "her",
+        "they",
+        "their",
+        "it",
+        "its",
         # articles / determiners / quantifiers
-        "the", "a", "an", "this", "that", "these", "those", "all",
-        "some", "any", "each", "every", "other", "another", "such",
+        "the",
+        "a",
+        "an",
+        "this",
+        "that",
+        "these",
+        "those",
+        "all",
+        "some",
+        "any",
+        "each",
+        "every",
+        "other",
+        "another",
+        "such",
         # conjunctions
-        "and", "or", "but", "so", "yet", "nor", "for", "as",
+        "and",
+        "or",
+        "but",
+        "so",
+        "yet",
+        "nor",
+        "for",
+        "as",
         # common prepositions
-        "of", "in", "on", "at", "to", "by", "with", "from", "about",
-        "into", "onto", "upon", "over", "under", "between", "through",
+        "of",
+        "in",
+        "on",
+        "at",
+        "to",
+        "by",
+        "with",
+        "from",
+        "about",
+        "into",
+        "onto",
+        "upon",
+        "over",
+        "under",
+        "between",
+        "through",
         # auxiliaries
-        "is", "are", "was", "were", "has", "have", "had", "do",
-        "does", "did", "be", "been", "being", "will", "would",
-        "should", "could", "can", "may", "might", "must",
+        "is",
+        "are",
+        "was",
+        "were",
+        "has",
+        "have",
+        "had",
+        "do",
+        "does",
+        "did",
+        "be",
+        "been",
+        "being",
+        "will",
+        "would",
+        "should",
+        "could",
+        "can",
+        "may",
+        "might",
+        "must",
     }
 )
 
@@ -355,7 +420,9 @@ def _extract_ceo_name(text: str) -> str | None:
         r"(?:Mr\.|Ms\.|Mrs\.|Dr\.)[ \t\xa0]+"
         r"([A-Z][A-Za-z.'-]+(?:[ \t\xa0]+[A-Z][A-Za-z.'-]+){0,3})",
     )
-    ceo_positions = [m.start() for m in re.finditer(r"(?:Chief Executive Officer|CEO)\b", text, re.I)]
+    ceo_positions = [
+        m.start() for m in re.finditer(r"(?:Chief Executive Officer|CEO)\b", text, re.I)
+    ]
     for m in honorific_pattern.finditer(text):
         candidate = m.group(1).strip()
         if _is_blacklisted_name(candidate):

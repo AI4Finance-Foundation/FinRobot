@@ -71,9 +71,7 @@ async def load_yearly_financials(
     return out
 
 
-async def load_price_history(
-    ticker: str, data_layer: DataLayer, years: int
-) -> list[PricePoint]:
+async def load_price_history(ticker: str, data_layer: DataLayer, years: int) -> list[PricePoint]:
     """Pull `years` of (date, close) points from DataType.PRICE."""
     try:
         result = await data_layer.fetch(DataType.PRICE, ticker)

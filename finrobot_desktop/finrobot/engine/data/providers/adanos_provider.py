@@ -93,10 +93,7 @@ class AdanosProvider(DataProvider):
 
     async def _fetch_sentiment(self, ticker: str, days_back: int) -> dict[str, Any]:
         """Fetch sentiment from all platforms concurrently."""
-        tasks = [
-            self._fetch_one_platform(spec, ticker, days_back)
-            for spec in _PLATFORM_SPECS
-        ]
+        tasks = [self._fetch_one_platform(spec, ticker, days_back) for spec in _PLATFORM_SPECS]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         sources: list[dict[str, Any]] = []
@@ -111,9 +108,7 @@ class AdanosProvider(DataProvider):
 
         covered = [s for s in sources if s["has_data"]]
         buzz_values = [s["buzz_score"] for s in covered]
-        bullish_values = [
-            s["bullish_pct"] for s in covered if s["bullish_pct"] is not None
-        ]
+        bullish_values = [s["bullish_pct"] for s in covered if s["bullish_pct"] is not None]
 
         return {
             "ticker": ticker,
@@ -132,9 +127,7 @@ class AdanosProvider(DataProvider):
     ) -> dict[str, Any]:
         """Fetch and normalize data for a single platform."""
         try:
-            resp = await self._get(
-                spec["path"], params={"tickers": ticker, "days": days_back}
-            )
+            resp = await self._get(spec["path"], params={"tickers": ticker, "days": days_back})
         except httpx.TimeoutException as e:
             raise ProviderError(f"Adanos timeout for {spec['label']}: {e}") from e
         except httpx.HTTPStatusError as e:

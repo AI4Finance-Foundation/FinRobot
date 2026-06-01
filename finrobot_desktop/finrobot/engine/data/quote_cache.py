@@ -136,9 +136,7 @@ class QuoteCache:
             except (sqlite3.Error, OSError, RuntimeError):
                 logger.exception("QuoteCache stale-conn close failed (non-fatal)")
 
-    async def _fill_from_stale(
-        self, missing: list[str], result: dict[str, float | None]
-    ) -> None:
+    async def _fill_from_stale(self, missing: list[str], result: dict[str, float | None]) -> None:
         """Populate ``result`` from L2 rows ignoring TTL.
 
         Used when the upstream is rate-limited or in cooldown: we serve the
@@ -207,9 +205,7 @@ class QuoteCache:
                     if now - float(fetched_at) < self._ttl:
                         l2_fresh[ticker] = last_price
             except sqlite3.Error:
-                logger.exception(
-                    "QuoteCache L2 read failed for %s — dropping conn", missing
-                )
+                logger.exception("QuoteCache L2 read failed for %s — dropping conn", missing)
                 await self._drop_conn()
                 # l2_fresh stays empty; fetcher handles everything
 
@@ -277,9 +273,7 @@ class QuoteCache:
                     )
                 await conn.commit()
             except sqlite3.Error:
-                logger.exception(
-                    "QuoteCache L2 write failed for %s — dropping conn", missing
-                )
+                logger.exception("QuoteCache L2 write failed for %s — dropping conn", missing)
                 await self._drop_conn()
             async with self._l1_lock:
                 for sym in missing:

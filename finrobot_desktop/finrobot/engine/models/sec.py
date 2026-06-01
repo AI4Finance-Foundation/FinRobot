@@ -78,7 +78,9 @@ class XBRLTTMMetric(BaseModel):
 
     concept: str
     value: float
-    periods: list[str] = Field(default_factory=list)  # e.g. ["Q3 2025", "Q4 2025", "Q1 2026", "Q2 2026"]
+    periods: list[str] = Field(
+        default_factory=list
+    )  # e.g. ["Q3 2025", "Q4 2025", "Q1 2026", "Q2 2026"]
     component_provenance: list[FilingProvenance] = Field(default_factory=list)
 
 
@@ -193,8 +195,12 @@ class InsiderTransaction(BaseModel):
     accession_no: str
     insider_name: str
     insider_position: str | None = None  # e.g. "Chief Financial Officer" / "CEO"
-    transaction_type: str  # "sale" / "purchase" / "exercise" / "other_disposition" / "grant" / "award"
-    code: str  # SEC code: "S" sale / "P" purchase / "M" exercise / "D" other_disposition / "A" award
+    transaction_type: (
+        str  # "sale" / "purchase" / "exercise" / "other_disposition" / "grant" / "award"
+    )
+    code: (
+        str  # SEC code: "S" sale / "P" purchase / "M" exercise / "D" other_disposition / "A" award
+    )
     # None ≠ 0: shares/value are None when the provider omitted them (parse gap),
     # NOT a fabricated 0 — a 0-share/$0 row would read as a real (and for shares,
     # nonsensical) transaction. An *explicit* value=0 (forfeit/gift) stays 0.

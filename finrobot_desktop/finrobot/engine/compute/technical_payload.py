@@ -115,9 +115,7 @@ async def build_technical_analysis(
     monte_carlo = _safe_monte_carlo(dcf_inputs, current_price, warnings)
     prices = await load_price_history(ticker, data_layer, years=1)
     sniper = _safe_sniper(ticker, current_price, dcf_target, prices, warnings)
-    historical_bands = await _safe_historical_bands(
-        ticker, data_layer, band_years, warnings
-    )
+    historical_bands = await _safe_historical_bands(ticker, data_layer, band_years, warnings)
 
     return TechnicalAnalysis(
         monte_carlo=monte_carlo,

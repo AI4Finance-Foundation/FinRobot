@@ -117,9 +117,7 @@ class FinRobot:
         # DataLayer without SEC; downstream LLM-touching paths must
         # tolerate that (degrade rather than crash).
         if _is_valid_identity(getattr(self._settings, "sec_user_agent", "")):
-            providers.append(
-                EdgarToolsProvider(user_agent=self._settings.sec_user_agent)
-            )
+            providers.append(EdgarToolsProvider(user_agent=self._settings.sec_user_agent))
 
         if self._settings.adanos_api_key:
             from finrobot.engine.data.providers.adanos_provider import AdanosProvider

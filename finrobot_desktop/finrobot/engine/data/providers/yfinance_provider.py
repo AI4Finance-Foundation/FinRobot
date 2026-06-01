@@ -253,7 +253,15 @@ class YFinanceProvider(DataProvider):
                     raise ProviderError(f"Ticker '{ticker}' not found or returned no data")
         except ProviderError:
             raise
-        except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError, YFException) as e:
+        except (
+            ValueError,
+            KeyError,
+            TypeError,
+            AttributeError,
+            RuntimeError,
+            OSError,
+            YFException,
+        ) as e:
             raise ProviderError(f"Failed to fetch ticker '{ticker}': {e}") from e
 
         if t is None or info is None:
@@ -395,8 +403,7 @@ class YFinanceProvider(DataProvider):
             cashflow = await asyncio.to_thread(lambda: t.cashflow)
         except (AttributeError, KeyError, ValueError, TypeError) as e:
             logger.warning(
-                f"Historical data extraction failed for {ticker}, "
-                f"falling back to single-year: {e}"
+                f"Historical data extraction failed for {ticker}, falling back to single-year: {e}"
             )
             return self._fetch_financials(ticker, info)
 
@@ -438,7 +445,15 @@ class YFinanceProvider(DataProvider):
                         "volume": row["Volume"],
                     }
                 )
-        except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError, YFException) as e:
+        except (
+            ValueError,
+            KeyError,
+            TypeError,
+            AttributeError,
+            RuntimeError,
+            OSError,
+            YFException,
+        ) as e:
             raise ProviderError(f"Failed to fetch price for '{ticker}': {e}") from e
 
         return DataResult(
@@ -475,7 +490,15 @@ class YFinanceProvider(DataProvider):
                         "url": (content.get("canonicalUrl", {}).get("url") or item.get("link", "")),
                     }
                 )
-        except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError, YFException) as e:
+        except (
+            ValueError,
+            KeyError,
+            TypeError,
+            AttributeError,
+            RuntimeError,
+            OSError,
+            YFException,
+        ) as e:
             raise ProviderError(f"Failed to fetch news for '{ticker}': {e}") from e
 
         return DataResult(

@@ -149,7 +149,9 @@ def summary_from_artifact(artifact: Artifact) -> ArtifactSummary:
         cross_tickers=list(artifact.cross_tickers or []),
         type=artifact.type,
         created_at=artifact.meta.created_at,
-        headline=(artifact.outputs.summary_text[:120] or artifact.id) if artifact.outputs else artifact.id,
+        headline=(artifact.outputs.summary_text[:120] or artifact.id)
+        if artifact.outputs
+        else artifact.id,
         source=artifact.meta.source,
         archived=artifact.meta.archived,
         entry_price=extract_entry_price(artifact),
@@ -165,9 +167,7 @@ def _artifact_to_row(artifact: Artifact) -> tuple[Any, ...]:
     target_price = extract_target_price(artifact)
     target_date = extract_target_date(artifact, target_price)
     headline = (
-        (artifact.outputs.summary_text[:120] or artifact.id)
-        if artifact.outputs
-        else artifact.id
+        (artifact.outputs.summary_text[:120] or artifact.id) if artifact.outputs else artifact.id
     )
     return (
         artifact.id,
@@ -272,9 +272,7 @@ class SqliteArtifactStore:
 
     async def delete(self, artifact_id: str) -> bool:
         conn = await self._conn_ready()
-        cur = await conn.execute(
-            "DELETE FROM artifacts WHERE id = ?", (artifact_id,)
-        )
+        cur = await conn.execute("DELETE FROM artifacts WHERE id = ?", (artifact_id,))
         await conn.commit()
         return cur.rowcount > 0
 
@@ -297,10 +295,7 @@ class SqliteArtifactStore:
         if not include_archived:
             where.append("archived = 0")
         clause = ("WHERE " + " AND ".join(where)) if where else ""
-        sql = (
-            f"SELECT {_SUMMARY_COLUMNS} FROM artifacts {clause} "
-            f"ORDER BY created_at DESC LIMIT ?"
-        )
+        sql = f"SELECT {_SUMMARY_COLUMNS} FROM artifacts {clause} ORDER BY created_at DESC LIMIT ?"
         params.append(limit)
         async with conn.execute(sql, params) as cur:
             rows = await cur.fetchall()

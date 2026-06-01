@@ -73,7 +73,9 @@ def _load_taxrate() -> pd.DataFrame:
     )
     # "Aggregate tax rate" column (effective, accrual basis, money-making firms only)
     df = df[["Industry name", "Aggregate tax rate"]]
-    df = df.rename(columns={"Industry name": "industry", "Aggregate tax rate": "effective_tax_rate"})
+    df = df.rename(
+        columns={"Industry name": "industry", "Aggregate tax rate": "effective_tax_rate"}
+    )
     return df
 
 

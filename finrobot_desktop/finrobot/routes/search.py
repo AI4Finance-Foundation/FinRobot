@@ -109,9 +109,7 @@ async def search(
                 continue
             if _matches(q_stripped, s.ticker, str(s.type), s.headline):
                 verdict_chip = s.verdict if s.verdict else ""
-                subtitle = (
-                    f"{verdict_chip} · {s.headline}" if verdict_chip else s.headline
-                )
+                subtitle = f"{verdict_chip} · {s.headline}" if verdict_chip else s.headline
                 results.append(
                     SearchResult(
                         kind="artifact",

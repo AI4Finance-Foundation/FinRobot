@@ -265,6 +265,13 @@ async def execute_peer_analysis(
     if thin_warning is not None and thin_warning not in peer_comps.warnings:
         peer_comps.warnings.insert(0, thin_warning)
 
+    # Surface per-row XBRL-vs-FMP TTM divergence flags (ADR-0008) so a kept-FMP
+    # [待核] doesn't stay buried on the CompanyFinancials row.
+    for company in (peer_comps.target, *peer_comps.peers):
+        note = company.ttm_divergence_note
+        if note and note not in peer_comps.warnings:
+            peer_comps.warnings.append(f"{company.ticker}: {note}")
+
     ev_ebitda_str = (
         f"{peer_comps.median_ev_ebitda:.1f}x" if peer_comps.median_ev_ebitda is not None else "N/A"
     )

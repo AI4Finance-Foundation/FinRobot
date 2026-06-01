@@ -21,6 +21,54 @@ def _num(value: Any) -> float | None:
         return None
 
 
+# Two TTM sources of the SAME caliber — SEC XBRL (concept-selected + structurally
+# gated in edgar_provider, ADR-0008) and FMP's ``_build_ttm_data`` (sum of 4
+# discrete quarters) — can legitimately differ by up to ~one quarter of timing or
+# a restatement. For a fast grower like NVDA a one-quarter offset is ~15%. Beyond
+# this tolerance the two disagree materially: either a degenerate XBRL window the
+# provider gate failed to catch (this is the second line of defense) or a genuine
+# source conflict we must NOT silently resolve. We keep the FMP TTM base and flag
+# ``[待核]`` instead of overriding with a possibly-wrong XBRL value — the exact
+# failure mode that put NVDA's $10.918B into the comps table.
+_TTM_DIVERGENCE_TOLERANCE = 0.35
+
+
+def _ttm_relative_divergence(a: float, b: float) -> float:
+    """Symmetric relative gap ``|a-b| / max(|a|,|b|)``.
+
+    ``abs`` in the denominator makes it sign-aware: a sign flip (e.g. an FY-annual
+    +$5.879B masquerading next to a TTM -$6.105B — the 2026-05-28 Ford bug) yields
+    a divergence > 1.0 and trips the gate rather than being averaged away.
+    """
+    scale = max(abs(a), abs(b))
+    if scale == 0:
+        return 0.0
+    return abs(a - b) / scale
+
+
+def _reconcile_ttm(
+    xbrl_value: float | None, fmp_value: float, *, field: str
+) -> tuple[float, str | None]:
+    """Cross-check a validated XBRL TTM against the trusted FMP TTM base.
+
+    Returns ``(chosen_value, note)``. FMP TTM is the base (a required model field,
+    always present); XBRL is adopted as the more authoritative SEC figure ONLY
+    when it agrees within ``_TTM_DIVERGENCE_TOLERANCE``. On material divergence we
+    keep FMP and return a ``[待核]`` note (surfaced via PeerComps.warnings) instead
+    of silently overriding. When XBRL is absent we keep FMP.
+    """
+    if xbrl_value is None:
+        return fmp_value, None
+    if _ttm_relative_divergence(xbrl_value, fmp_value) > _TTM_DIVERGENCE_TOLERANCE:
+        note = (
+            f"[待核] {field}: SEC XBRL TTM ({xbrl_value:,.0f}) diverges "
+            f"{_ttm_relative_divergence(xbrl_value, fmp_value):.0%} from FMP TTM "
+            f"({fmp_value:,.0f}); kept FMP. Verify against the latest 10-Q."
+        )
+        return fmp_value, note
+    return xbrl_value, None
+
+
 def _ttm_value(field: Any) -> float | None:
     """Extract the numeric value from an XBRL TTM concept dict.
 
@@ -105,10 +153,16 @@ def build_xbrl_aligned_company(
     xbrl_data = xbrl_data or {}
     ttm_rev = _ttm_value(xbrl_data.get("ttm_revenue"))
     ttm_ni = _ttm_value(xbrl_data.get("ttm_net_income"))
-    # Use ``is not None`` (not ``or``) so a genuinely-negative TTM NI such as
-    # Ford's -$6.1B doesn't fall through to a stale annual fallback.
-    revenue = ttm_rev if ttm_rev is not None else financial_data.income.revenue
-    net_income = ttm_ni if ttm_ni is not None else financial_data.income.net_income
+    # Cross-check XBRL against the FMP TTM base instead of letting XBRL override
+    # unconditionally (ADR-0008). ``_reconcile_ttm`` keeps FMP on material
+    # divergence — the structural guard that stops a degenerate XBRL TTM (NVDA's
+    # FY2020 $10.918B) from reaching the comps table even if the provider gate
+    # missed it. Agreement → adopt the more authoritative SEC figure.
+    revenue, rev_note = _reconcile_ttm(ttm_rev, financial_data.income.revenue, field="revenue")
+    net_income, ni_note = _reconcile_ttm(
+        ttm_ni, financial_data.income.net_income, field="net_income"
+    )
+    divergence_note = "; ".join(n for n in (rev_note, ni_note) if n) or None
     # income.ebitda is already the operating caliber (extract_financial_data),
     # matching the peer numerator now produced by extract_company_financials.
     ebitda = financial_data.income.ebitda
@@ -134,6 +188,7 @@ def build_xbrl_aligned_company(
         total_cash=total_cash,
         gross_margin=gross_margin,
         operating_margin=operating_margin,
+        ttm_divergence_note=divergence_note,
     )
     return calculate_multiples(company)
 
@@ -142,23 +197,27 @@ def override_company_with_xbrl(
     company: CompanyFinancials,
     xbrl_data: dict[str, Any] | None,
 ) -> CompanyFinancials:
-    """Override CompanyFinancials with SEC XBRL TTM revenue / net income.
+    """Cross-check a peer's FMP TTM against SEC XBRL TTM revenue / net income.
 
-    Peers carry FMP TTM at entry; only ``ttm_*`` XBRL facts replace those
-    values. ``latest_*`` (10-K annual) is intentionally NOT consulted: it
-    lags the TTM caliber and silently re-introduces FY-annual numbers
-    into a TTM peer table — the exact path that surfaced Ford's phantom
-    P/E of 10.6x in the 2026-05-28 TSLA artifact (FY2024 NI $5.879B
-    overrode the real TTM NI of -$6.105B).
+    Peers carry FMP TTM at entry. XBRL — concept-selected + structurally gated in
+    the provider (ADR-0008) — is adopted only when it agrees with the FMP base
+    within tolerance; on material divergence we keep FMP and tag ``[待核]`` rather
+    than overriding (the guard that stops a degenerate XBRL TTM from poisoning a
+    peer row). ``latest_*`` (10-K annual) is still never consulted: it lags the
+    TTM caliber and silently re-introduces FY-annual numbers into a TTM peer
+    table — the path that surfaced Ford's phantom P/E of 10.6x in the 2026-05-28
+    TSLA artifact (FY2024 NI $5.879B overrode the real TTM NI of -$6.105B).
     """
     xbrl_data = xbrl_data or {}
-    updates: dict[str, float] = {}
-    revenue = _ttm_value(xbrl_data.get("ttm_revenue"))
-    net_income = _ttm_value(xbrl_data.get("ttm_net_income"))
-    if revenue is not None:
-        updates["revenue"] = revenue
-    if net_income is not None:
-        updates["net_income"] = net_income
-    if updates:
-        company = company.model_copy(update=updates)
+    xbrl_revenue = _ttm_value(xbrl_data.get("ttm_revenue"))
+    xbrl_net_income = _ttm_value(xbrl_data.get("ttm_net_income"))
+    new_revenue, rev_note = _reconcile_ttm(xbrl_revenue, company.revenue, field="revenue")
+    new_net_income, ni_note = _reconcile_ttm(
+        xbrl_net_income, company.net_income, field="net_income"
+    )
+    updates: dict[str, Any] = {"revenue": new_revenue, "net_income": new_net_income}
+    divergence_note = "; ".join(n for n in (rev_note, ni_note) if n) or None
+    if divergence_note is not None:
+        updates["ttm_divergence_note"] = divergence_note
+    company = company.model_copy(update=updates)
     return calculate_multiples(company)

@@ -588,16 +588,26 @@ def test_slice_proxy_text_returns_intro_only_when_no_sct_found() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fetch_xbrl_uses_typed_getters() -> None:
+async def test_fetch_xbrl_selects_live_concept_via_get_ttm() -> None:
+    """ADR-0008: _fetch_xbrl drives TTM through concept-aware ``get_ttm`` (latest
+    period_end + structural gate), NOT the first-match ``get_ttm_revenue`` getter
+    that latched abandoned concepts. A valid live-concept window is surfaced as a
+    typed dict; absent net-income concepts (KeyError) → None."""
     p = EdgarToolsProvider("Jane Doe jane@example.com")
     facts = MagicMock()
-    ttm = MagicMock()
-    ttm.concept = "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax"
-    ttm.value = 451_442_000_000
-    # Plain strings → fallback {"raw": ...} typed dict shape
-    ttm.periods = ["Q3 2025", "Q4 2025", "Q1 2026", "Q2 2026"]
-    facts.get_ttm_revenue.return_value = ttm
-    facts.get_ttm_net_income.return_value = None  # nullable
+    rev_metric = _FakeTTMMetric(
+        "us-gaap:Revenues",
+        451_442_000_000,
+        [(2025, "Q3"), (2025, "Q4"), (2026, "Q1"), (2026, "Q2")],
+        date.today() - timedelta(days=30),  # recent → passes recency gate
+    )
+
+    def _get_ttm(concept: str) -> Any:
+        if concept == "Revenues":
+            return rev_metric
+        raise KeyError(concept)  # all net-income concepts absent
+
+    facts.get_ttm.side_effect = _get_ttm
     facts.get_revenue.return_value = 416_161_000_000
     facts.get_net_income.return_value = 96_995_000_000
     facts.get_gross_profit.return_value = 184_103_000_000
@@ -611,10 +621,9 @@ async def test_fetch_xbrl_uses_typed_getters() -> None:
     data, _ = p._fetch_xbrl(c)
     assert data["facts_available"] is True
     assert data["latest_revenue"] == 416_161_000_000
-    assert data["ttm_revenue"]["concept"].startswith("us-gaap:Revenue")
+    assert data["ttm_revenue"]["concept"] == "us-gaap:Revenues"
     assert data["ttm_revenue"]["value"] == 451_442_000_000
-    # Plain strings fall through to {"raw": ...} fallback shape
-    assert all("raw" in p for p in data["ttm_revenue"]["periods"])
+    assert data["ttm_revenue"]["periods"][0] == {"year": 2025, "quarter": "Q3"}
     assert data["ttm_net_income"] is None
 
 
@@ -666,12 +675,19 @@ async def test_fetch_xbrl_periods_tuple_produces_typed_dict() -> None:
     """Tuple periods → {"year": int, "quarter": str} typed dict — not repr string."""
     p = EdgarToolsProvider("Jane Doe jane@example.com")
     facts = MagicMock()
-    ttm = MagicMock()
-    ttm.concept = "us-gaap:NetIncomeLoss"
-    ttm.value = 96_995_000_000
-    ttm.periods = [(2025, "Q3"), (2025, "Q4")]
-    facts.get_ttm_revenue.return_value = None
-    facts.get_ttm_net_income.return_value = ttm
+    ni_metric = _FakeTTMMetric(
+        "us-gaap:NetIncomeLoss",
+        96_995_000_000,
+        [(2025, "Q3"), (2025, "Q4"), (2026, "Q1"), (2026, "Q2")],
+        date.today() - timedelta(days=25),
+    )
+
+    def _get_ttm(concept: str) -> Any:
+        if concept == "NetIncomeLoss":
+            return ni_metric
+        raise KeyError(concept)  # all revenue concepts absent
+
+    facts.get_ttm.side_effect = _get_ttm
     facts.get_revenue.return_value = None
     facts.get_net_income.return_value = 96_995_000_000
     facts.get_gross_profit.return_value = None
@@ -686,7 +702,12 @@ async def test_fetch_xbrl_periods_tuple_produces_typed_dict() -> None:
 
     ni_ttm = data["ttm_net_income"]
     assert ni_ttm is not None
-    assert ni_ttm["periods"] == [{"year": 2025, "quarter": "Q3"}, {"year": 2025, "quarter": "Q4"}]
+    assert ni_ttm["periods"] == [
+        {"year": 2025, "quarter": "Q3"},
+        {"year": 2025, "quarter": "Q4"},
+        {"year": 2026, "quarter": "Q1"},
+        {"year": 2026, "quarter": "Q2"},
+    ]
     # Must NOT be Python repr string
     for period_entry in ni_ttm["periods"]:
         assert "(" not in str(period_entry), "period must not be a Python repr tuple string"
@@ -803,3 +824,136 @@ async def test_fetch_returns_well_formed_data_result(
     assert result.data == {"foo": "bar"}
     assert result.warnings == ["one warning"]
     assert result.timestamp.tzinfo is not None  # UTC tz-aware
+
+
+# ---------------------------------------------------------------------------
+# TTM concept selection + validity gate (ADR-0008)
+# ---------------------------------------------------------------------------
+
+from datetime import date as _date  # noqa: E402
+
+from finrobot.engine.data.providers.edgar_provider import (  # noqa: E402
+    _TTM_REVENUE_CONCEPTS,
+    _select_recent_ttm,
+    _validate_ttm_periods,
+)
+
+
+class _FakePeriodFact:
+    def __init__(self, period_end: _date) -> None:
+        self.period_end = period_end
+
+
+class _FakeTTMMetric:
+    """Mimics edgartools' TTMMetric: concept, value, periods, period_facts."""
+
+    def __init__(self, concept: str, value: float, periods: list[tuple[int, str]],
+                 latest_end: _date) -> None:
+        self.concept = concept
+        self.value = value
+        self.periods = periods
+        # one period_fact carrying the latest period_end is enough for ranking
+        self.period_facts = [_FakePeriodFact(latest_end)]
+
+
+class _FakeFacts:
+    """Fake EntityFacts whose get_ttm(concept) serves canned metrics; absent
+    concepts raise KeyError like the real API."""
+
+    def __init__(self, by_concept: dict[str, _FakeTTMMetric]) -> None:
+        self._by_concept = by_concept
+
+    def get_ttm(self, concept: str) -> _FakeTTMMetric:
+        if concept not in self._by_concept:
+            raise KeyError(concept)
+        return self._by_concept[concept]
+
+
+class TestValidateTTMPeriods:
+    def test_accepts_four_consecutive_distinct_quarters(self) -> None:
+        assert _validate_ttm_periods(
+            [(2026, "Q2"), (2026, "Q3"), (2026, "Q4"), (2027, "Q1")]
+        )
+
+    def test_rejects_repeated_annual_frame(self) -> None:
+        # NVDA's frozen dead concept: same FY period four times.
+        assert not _validate_ttm_periods(
+            [(2020, "FY"), (2020, "FY"), (2020, "FY"), (2020, "FY")]
+        )
+
+    def test_rejects_cumulative_ytd_frame(self) -> None:
+        # An H1 (year-to-date) frame leaking in would double-count.
+        assert not _validate_ttm_periods(
+            [(2026, "Q1"), (2026, "H1"), (2026, "Q3"), (2026, "Q4")]
+        )
+
+    def test_rejects_gap_in_quarters(self) -> None:
+        assert not _validate_ttm_periods(
+            [(2026, "Q1"), (2026, "Q2"), (2026, "Q4"), (2027, "Q1")]
+        )
+
+    def test_rejects_wrong_count(self) -> None:
+        assert not _validate_ttm_periods([(2026, "Q1"), (2026, "Q2"), (2026, "Q3")])
+
+    def test_rejects_empty(self) -> None:
+        assert not _validate_ttm_periods([])
+        assert not _validate_ttm_periods(None)
+
+
+class TestSelectRecentTTM:
+    def test_picks_live_concept_over_frozen_one(self) -> None:
+        """The NVDA bug: a dead concept with stale facts must NOT win over the
+        live concept just because it appears first in the candidate list."""
+        facts = _FakeFacts(
+            {
+                # First in _TTM_REVENUE_CONCEPTS, but frozen at FY2020 — degenerate.
+                "RevenueFromContractWithCustomerExcludingAssessedTax": _FakeTTMMetric(
+                    "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+                    10_918_000_000.0,
+                    [(2020, "FY"), (2020, "FY"), (2020, "FY"), (2020, "FY")],
+                    _date(2020, 1, 26),
+                ),
+                # Live concept with recent, valid quarters.
+                "Revenues": _FakeTTMMetric(
+                    "us-gaap:Revenues",
+                    253_491_000_000.0,
+                    [(2026, "Q2"), (2026, "Q3"), (2026, "Q4"), (2027, "Q1")],
+                    _date(2026, 4, 26),
+                ),
+            }
+        )
+        out = _select_recent_ttm(facts, _TTM_REVENUE_CONCEPTS, today=_date(2026, 6, 1))
+        assert out is not None
+        assert out["concept"] == "us-gaap:Revenues"
+        assert out["value"] == 253_491_000_000.0
+
+    def test_returns_none_when_only_stale_concept_present(self) -> None:
+        """All candidates stale/degenerate → None, so the compute layer falls
+        back to the FMP TTM."""
+        facts = _FakeFacts(
+            {
+                "RevenueFromContractWithCustomerExcludingAssessedTax": _FakeTTMMetric(
+                    "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+                    10_918_000_000.0,
+                    [(2020, "FY"), (2020, "FY"), (2020, "FY"), (2020, "FY")],
+                    _date(2020, 1, 26),
+                ),
+            }
+        )
+        out = _select_recent_ttm(facts, _TTM_REVENUE_CONCEPTS, today=_date(2026, 6, 1))
+        assert out is None
+
+    def test_rejects_recent_but_structurally_invalid_window(self) -> None:
+        """A recent concept whose window has a gap is rejected (returns None)."""
+        facts = _FakeFacts(
+            {
+                "Revenues": _FakeTTMMetric(
+                    "us-gaap:Revenues",
+                    100.0,
+                    [(2026, "Q1"), (2026, "Q2"), (2026, "Q4"), (2027, "Q1")],
+                    _date(2026, 4, 26),
+                ),
+            }
+        )
+        out = _select_recent_ttm(facts, _TTM_REVENUE_CONCEPTS, today=_date(2026, 6, 1))
+        assert out is None

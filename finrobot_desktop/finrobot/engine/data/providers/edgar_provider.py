@@ -177,6 +177,146 @@ _ADAPTER_CATCH = (
 _MIN_VALID_SECTION_CHARS = 1000
 
 
+# ---------------------------------------------------------------------------
+# TTM concept selection + validity gate (ADR-0008)
+# ---------------------------------------------------------------------------
+#
+# edgartools' convenience getters ``get_ttm_revenue`` / ``get_ttm_net_income``
+# walk a fixed concept list and return the FIRST concept that has ANY facts —
+# they never check whether that concept is still being reported. NVDA abandoned
+# ``RevenueFromContractWithCustomerExcludingAssessedTax`` after FY2022, but its
+# stale facts (frozen at $10.918B, period_end 2020-01-26) still satisfy the
+# first-match, so ``get_ttm_revenue`` latched the dead concept and never reached
+# the live ``Revenues`` series ($253.5B). We replicate the concept candidate
+# lists here but pick by **latest period_end** instead of list order, then gate
+# the chosen TTM on period structure (4 distinct consecutive quarters, recent).
+# A failed gate returns None — ``_ttm_value`` (compute layer) then falls back to
+# the FMP TTM, which is independently correct. See ADR-0008.
+_TTM_REVENUE_CONCEPTS: tuple[str, ...] = (
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "Revenues",
+    "SalesRevenueNet",
+    "Revenue",
+)
+_TTM_NET_INCOME_CONCEPTS: tuple[str, ...] = ("NetIncomeLoss", "NetIncome", "ProfitLoss")
+
+# A legitimate TTM window is exactly four DISCRETE quarters. edgartools labels
+# discrete quarters Q1–Q4 and tags cumulative frames (annual / half-year /
+# nine-month) with other markers; any non-Qn label inside a TTM window means a
+# year-to-date frame leaked in and the naive sum would double-count. Allowlist
+# the four quarter labels rather than blocklisting cumulative ones so a new
+# cumulative marker can't slip through.
+_DISCRETE_QUARTER_LABELS: frozenset[str] = frozenset({"Q1", "Q2", "Q3", "Q4"})
+
+# Latest quarter in a valid TTM must end within this window of "now". A TTM whose
+# newest quarter is older than this is a frozen/abandoned concept (NVDA's dead
+# revenue concept ends 2020-01-26 — ~6 years stale). ~200 days ≈ one quarter of
+# reporting lag plus generous slack for slow filers.
+_TTM_RECENCY_DAYS = 200
+
+
+def _validate_ttm_periods(periods: Any) -> bool:
+    """True iff ``periods`` is a structurally valid TTM window.
+
+    edgartools returns ``TTMMetric.periods`` as a list of ``(year, quarter)``
+    tuples. A real TTM is four distinct, consecutive discrete quarters. This
+    rejects the two ways the convenience getters go wrong:
+      - degenerate window (NVDA dead concept → ``[(2020,'FY')]×4``): caught by
+        the ``Qn``-only allowlist (``FY`` is not a discrete quarter) AND by the
+        distinctness check.
+      - year-to-date frame leaking into the sum (would double-count): caught by
+        the same allowlist (``H1`` / ``9M`` etc. are not ``Qn``).
+    """
+    if not isinstance(periods, (list, tuple)) or len(periods) != 4:
+        return False
+    normalized: list[tuple[int, int]] = []
+    for p in periods:
+        if not (isinstance(p, tuple) and len(p) == 2):
+            return False
+        year, quarter = p
+        q = str(quarter).upper()
+        if q not in _DISCRETE_QUARTER_LABELS:
+            return False
+        try:
+            normalized.append((int(year), int(q[1])))
+        except (TypeError, ValueError):
+            return False
+    if len(set(normalized)) != 4:  # four DISTINCT quarters
+        return False
+    ordered = sorted(normalized)
+    for (y0, q0), (y1, q1) in zip(ordered, ordered[1:]):
+        nxt = (y0, q0 + 1) if q0 < 4 else (y0 + 1, 1)
+        if (y1, q1) != nxt:  # consecutive, no gap/overlap
+            return False
+    return True
+
+
+def _metric_latest_period_end(metric: Any) -> date | None:
+    """Latest ``period_end`` across a TTMMetric's underlying period facts.
+
+    Used both to rank candidate concepts (recency wins over list order) and to
+    enforce the recency gate. Returns None when no fact carries a usable date.
+    """
+    latest: date | None = None
+    for pf in getattr(metric, "period_facts", None) or []:
+        pe = getattr(pf, "period_end", None)
+        if isinstance(pe, datetime):
+            pe = pe.date()
+        if isinstance(pe, date) and (latest is None or pe > latest):
+            latest = pe
+    return latest
+
+
+def _select_recent_ttm(
+    facts: Any,
+    concepts: tuple[str, ...],
+    *,
+    today: date,
+) -> dict[str, Any] | None:
+    """Pick the live concept's TTM and return it as a typed dict, or None.
+
+    Among ``concepts`` present in ``facts``, choose the one whose facts have the
+    latest ``period_end`` (NOT first-match-wins like edgartools' getters), then
+    require the window to pass ``_validate_ttm_periods`` and end within
+    ``_TTM_RECENCY_DAYS``. Returns ``{"concept", "value", "periods"}`` shaped like
+    the old ``_ttm`` output, or None when nothing qualifies (→ FMP fallback).
+    """
+    best: dict[str, Any] | None = None
+    best_end: date | None = None
+    for concept in concepts:
+        try:
+            metric = facts.get_ttm(concept)
+        except _ADAPTER_CATCH:
+            continue  # KeyError (absent concept) subclasses LookupError → not caught; handle below
+        except LookupError:
+            continue
+        if metric is None:
+            continue
+        latest_end = _metric_latest_period_end(metric)
+        if latest_end is None:
+            continue
+        # Recency gate: a window whose newest quarter predates the cutoff is a
+        # frozen/abandoned concept, even if it "wins" recency among candidates.
+        if (today - latest_end).days > _TTM_RECENCY_DAYS:
+            continue
+        if not _validate_ttm_periods(getattr(metric, "periods", None)):
+            continue
+        if best_end is None or latest_end > best_end:
+            periods_typed: list[dict[str, Any]] = []
+            for p in metric.periods:
+                if isinstance(p, tuple) and len(p) == 2:
+                    periods_typed.append({"year": int(p[0]), "quarter": str(p[1])})
+                else:
+                    periods_typed.append({"raw": str(p)})
+            best = {
+                "concept": getattr(metric, "concept", ""),
+                "value": float(getattr(metric, "value", 0) or 0),
+                "periods": periods_typed,
+            }
+            best_end = latest_end
+    return best
+
+
 # SEC Form 4 XML lets date fields (exerciseDate / expirationDate on
 # derivative rows) be replaced by a footnote reference like "[F4]" — the
 # date is described in footnote F4 rather than given as a literal date
@@ -572,28 +712,7 @@ class EdgarToolsProvider(DataProvider):
         if facts is None:
             return {"facts_available": False}, ["EntityFacts unavailable"]
 
-        def _ttm(getter_name: str) -> dict[str, Any] | None:
-            getter = getattr(facts, getter_name, None)
-            if not callable(getter):
-                return None
-            try:
-                m = getter()
-                if m is None:
-                    return None
-                periods_list: list[Any] = getattr(m, "periods", []) or []
-                typed_periods: list[dict[str, Any]] = []
-                for p in periods_list:
-                    if isinstance(p, tuple) and len(p) == 2:
-                        typed_periods.append({"year": int(p[0]), "quarter": str(p[1])})
-                    else:
-                        typed_periods.append({"raw": str(p)})
-                return {
-                    "concept": getattr(m, "concept", ""),
-                    "value": float(getattr(m, "value", 0) or 0),
-                    "periods": typed_periods,
-                }
-            except _ADAPTER_CATCH:
-                return None
+        today = datetime.now(timezone.utc).date()
 
         def _float(getter_name: str, **kwargs: Any) -> float | None:
             getter = getattr(facts, getter_name, None)
@@ -616,8 +735,12 @@ class EdgarToolsProvider(DataProvider):
         # of form type, so 10-Q overrides 10-K once it lands.
         return {
             "facts_available": True,
-            "ttm_revenue": _ttm("get_ttm_revenue"),
-            "ttm_net_income": _ttm("get_ttm_net_income"),
+            # Concept-aware TTM (ADR-0008): pick the live concept by latest
+            # period_end + gate on period structure, instead of edgartools'
+            # first-match-wins getters that latch abandoned concepts (NVDA →
+            # FY2020 $10.918B). None here → compute layer falls back to FMP TTM.
+            "ttm_revenue": _select_recent_ttm(facts, _TTM_REVENUE_CONCEPTS, today=today),
+            "ttm_net_income": _select_recent_ttm(facts, _TTM_NET_INCOME_CONCEPTS, today=today),
             # P&L: "latest" remains the latest annual point — TTM is the
             # current-period caliber and lives in ``ttm_*`` above.
             "latest_revenue": _float("get_revenue"),

@@ -206,6 +206,10 @@ class CompanyFinancials(BaseModel):
     ev_revenue: float | None = None
     reporting_currency: str = "USD"
     quote_currency: str = "USD"
+    # [待核] note set when SEC XBRL TTM diverged materially from the FMP TTM base
+    # and we kept FMP rather than overriding (ADR-0008). None when the two agree
+    # or no XBRL was available. Rolled up into PeerComps.warnings for display.
+    ttm_divergence_note: str | None = None
 
 
 class PeerComps(BaseModel):

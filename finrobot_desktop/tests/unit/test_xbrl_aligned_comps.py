@@ -38,19 +38,51 @@ def _financial_data() -> FinancialData:
     )
 
 
-def test_build_xbrl_aligned_company_overrides_with_ttm_facts() -> None:
+def test_build_xbrl_aligned_company_adopts_xbrl_when_it_agrees_with_fmp() -> None:
+    """XBRL TTM within tolerance of the FMP base is adopted as the more
+    authoritative SEC figure (ADR-0008). FMP base here is 100 / 10."""
     company = build_xbrl_aligned_company(
         ticker="NVDA",
         financial_data=_financial_data(),
         xbrl_data={
-            "ttm_revenue": {"concept": "us-gaap:Revenues", "value": 120.0},
-            "ttm_net_income": {"concept": "us-gaap:NetIncomeLoss", "value": 18.0},
+            # +10% and +9% vs FMP — inside _TTM_DIVERGENCE_TOLERANCE (35%).
+            "ttm_revenue": {"concept": "us-gaap:Revenues", "value": 110.0},
+            "ttm_net_income": {"concept": "us-gaap:NetIncomeLoss", "value": 10.9},
         },
     )
 
-    assert company.revenue == 120.0
-    assert company.net_income == 18.0
+    assert company.revenue == 110.0
+    assert company.net_income == 10.9
+    assert company.ttm_divergence_note is None
     assert company.ev_ebitda is not None
+
+
+def test_build_xbrl_aligned_company_keeps_fmp_when_xbrl_diverges() -> None:
+    """The NVDA bug in miniature: a degenerate XBRL TTM ($10.918B) that
+    diverges materially from the FMP TTM base ($253.5B) must NOT override —
+    keep FMP and flag [待核] (ADR-0008). This is the compute-layer guard that
+    backstops the provider concept-selection fix."""
+    fd = _financial_data()
+    fd.income.revenue = 253_491_000_000.0  # FMP TTM truth
+    fd.income.net_income = 159_613_000_000.0
+
+    company = build_xbrl_aligned_company(
+        ticker="NVDA",
+        financial_data=fd,
+        xbrl_data={
+            # Degenerate frozen-concept value — what edgartools' first-match getter
+            # returned before the provider fix.
+            "ttm_revenue": {
+                "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+                "value": 10_918_000_000.0,
+            },
+        },
+    )
+
+    assert company.revenue == 253_491_000_000.0  # kept FMP, not the $10.918B
+    assert company.ttm_divergence_note is not None
+    assert "[待核]" in company.ttm_divergence_note
+    assert "revenue" in company.ttm_divergence_note
 
 
 def test_build_xbrl_aligned_company_ignores_latest_annual_when_ttm_absent() -> None:
@@ -157,6 +189,36 @@ def test_override_company_with_xbrl_keeps_negative_ttm_net_income() -> None:
     # The bug: pre-fix this read ~10.6x. Post-fix: None (negative NI gates
     # P/E in multiples.calculate_multiples).
     assert out.pe_ratio is None
+
+
+def test_override_company_with_xbrl_flags_divergent_peer() -> None:
+    """A peer whose XBRL TTM diverges materially from its FMP base keeps FMP and
+    carries a [待核] note (ADR-0008) — a degenerate XBRL can't poison a peer row."""
+    base = CompanyFinancials(
+        ticker="NVDA",
+        revenue=253_491_000_000.0,  # FMP TTM truth
+        ebitda=100_000_000_000.0,
+        net_income=159_613_000_000.0,
+        market_cap=3_000_000_000_000.0,
+        total_debt=10_000_000_000.0,
+        total_cash=40_000_000_000.0,
+        gross_margin=0.7,
+        operating_margin=0.6,
+    )
+
+    out = override_company_with_xbrl(
+        base,
+        {
+            "ttm_revenue": {
+                "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+                "value": 10_918_000_000.0,  # frozen-concept degenerate value
+            },
+        },
+    )
+
+    assert out.revenue == 253_491_000_000.0  # kept FMP
+    assert out.ttm_divergence_note is not None
+    assert "[待核]" in out.ttm_divergence_note
 
 
 def test_xbrl_concept_snapshot_groups_ttm_and_latest_facts() -> None:

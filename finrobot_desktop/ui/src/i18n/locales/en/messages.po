@@ -815,6 +815,62 @@ msgid "chapter.valuation.bridge.equity"
 msgstr "Equity Value"
 
 #. js-lingui-explicit-id
+msgid "chapter.sensitivity.subheading.assumptions"
+msgstr "Key Assumptions"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.subheading.matrix"
+msgstr "Sensitivity Matrix"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.subheading.notes"
+msgstr "Sensitivity Notes"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.lead"
+msgstr "The DCF anchors on four pivots:"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.revenueCagr"
+msgstr "revenue CAGR"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.ebitdaMargin"
+msgstr "terminal EBITDA margin"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.terminalGrowth"
+msgstr "terminal growth"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.matrix.title"
+msgstr "WACC × Terminal Growth → Implied Price"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.empty"
+msgstr "This report has no sensitivity analysis — regenerate it to get the WACC × terminal-growth grid."
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.notes.wacc"
+msgstr "Varying WACC at base terminal growth, implied price ranges"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.notes.tg"
+msgstr "varying terminal growth at base WACC, it ranges"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.notes.mostSensitive"
+msgstr "The valuation is therefore most sensitive to {driver}."
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.driver.wacc"
+msgstr "WACC"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.driver.tg"
+msgstr "terminal growth"
+
+#. js-lingui-explicit-id
 msgid "chapter.valuation.target12m"
 msgstr "12-Month Target:"
 

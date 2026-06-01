@@ -815,6 +815,62 @@ msgid "chapter.valuation.bridge.equity"
 msgstr "股权价值"
 
 #. js-lingui-explicit-id
+msgid "chapter.sensitivity.subheading.assumptions"
+msgstr "关键假设"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.subheading.matrix"
+msgstr "敏感性矩阵"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.subheading.notes"
+msgstr "敏感性解读"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.lead"
+msgstr "DCF 锚定四个支点："
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.revenueCagr"
+msgstr "营收 CAGR"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.ebitdaMargin"
+msgstr "终值 EBITDA 利润率"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.terminalGrowth"
+msgstr "永续增长"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.matrix.title"
+msgstr "WACC × 永续增长率 → 隐含价"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.empty"
+msgstr "该研报未生成敏感性分析 — 请重新生成研报以得到 WACC × 永续增长率热力网格。"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.notes.wacc"
+msgstr "在基准永续增长率下变动 WACC，隐含价区间为"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.notes.tg"
+msgstr "在基准 WACC 下变动永续增长率，区间为"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.notes.mostSensitive"
+msgstr "因此该估值对 {driver} 最敏感。"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.driver.wacc"
+msgstr "WACC"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.driver.tg"
+msgstr "永续增长率"
+
+#. js-lingui-explicit-id
 msgid "chapter.valuation.target12m"
 msgstr "12 个月目标价："
 

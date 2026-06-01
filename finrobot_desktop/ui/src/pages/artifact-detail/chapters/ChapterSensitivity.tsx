@@ -1,6 +1,7 @@
 import SensitivityHeatmap from '../../../components/charts/SensitivityHeatmap'
 import { Chapter, SubChapter } from './ChapterBase'
 import type { DcfShape } from './types'
+import { useI18n } from '../../../i18n'
 
 interface SensitivityTableShape {
   wacc_values?: number[]
@@ -29,26 +30,75 @@ function flattenSensitivity(
   return rows
 }
 
+interface AxisSwing {
+  waccLow: number
+  waccHigh: number
+  waccSwing: number
+  tgLow: number
+  tgHigh: number
+  tgSwing: number
+  driver: 'wacc' | 'tg'
+}
+
+// Derive how far implied price moves along each axis of the ACTUAL grid, so the
+// "notes" describe this DCF rather than a hardcoded boilerplate paragraph. The
+// base case sits at the grid centre, so we hold one axis at its middle index
+// and read the spread along the other.
+function computeAxisSwing(table: Record<string, unknown> | null | undefined): AxisSwing | null {
+  if (!table) return null
+  const t = table as SensitivityTableShape
+  const waccs = Array.isArray(t.wacc_values) ? t.wacc_values : []
+  const tgs = Array.isArray(t.tg_values) ? t.tg_values : []
+  const prices = Array.isArray(t.implied_prices) ? t.implied_prices : []
+  if (waccs.length < 2 || tgs.length < 2 || prices.length === 0) return null
+
+  const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0
+  const baseWaccRow = Math.floor(waccs.length / 2)
+  const baseTgCol = Math.floor(tgs.length / 2)
+
+  // Vary WACC at base terminal growth = the base-TG column down all rows.
+  const waccCol = prices
+    .map((row) => (Array.isArray(row) ? row[baseTgCol] : undefined))
+    .filter(finite)
+  // Vary terminal growth at base WACC = the base-WACC row.
+  const tgRow = (Array.isArray(prices[baseWaccRow]) ? prices[baseWaccRow] : []).filter(finite)
+  if (waccCol.length < 2 || tgRow.length < 2) return null
+
+  const waccLow = Math.min(...waccCol)
+  const waccHigh = Math.max(...waccCol)
+  const tgLow = Math.min(...tgRow)
+  const tgHigh = Math.max(...tgRow)
+  const waccSwing = waccHigh - waccLow
+  const tgSwing = tgHigh - tgLow
+  return {
+    waccLow,
+    waccHigh,
+    waccSwing,
+    tgLow,
+    tgHigh,
+    tgSwing,
+    driver: waccSwing >= tgSwing ? 'wacc' : 'tg',
+  }
+}
+
+const fmtPrice = (v: number): string => `$${v.toFixed(v >= 100 ? 0 : 2)}`
+
 export function ChapterSensitivity({ dcf }: { dcf: DcfShape | null }): React.ReactElement {
+  const { t } = useI18n()
   const table = dcf?.sensitivity_table ?? null
   const inputs = dcf?.inputs
   const heatmapRows = flattenSensitivity(table)
+  const swing = computeAxisSwing(table)
 
   return (
     <Chapter id="sensitivity">
-      <SubChapter heading="Key Assumptions">
-        <p
-          style={{
-            fontSize: 13,
-            lineHeight: 1.7,
-            color: 'var(--text-secondary)',
-          }}
-        >
-          DCF anchors on four pivots:
+      <SubChapter heading={t('chapter.sensitivity.subheading.assumptions')}>
+        <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
+          {t('chapter.sensitivity.assumptions.lead')}
           {inputs?.revenue_growth_rates && inputs.revenue_growth_rates.length > 0 && (
             <>
               {' '}
-              revenue CAGR{' '}
+              {t('chapter.sensitivity.assumptions.revenueCagr')}{' '}
               <strong style={{ color: 'var(--text-primary)' }}>
                 {(meanArray(inputs.revenue_growth_rates) * 100).toFixed(1)}%
               </strong>
@@ -58,7 +108,7 @@ export function ChapterSensitivity({ dcf }: { dcf: DcfShape | null }): React.Rea
           {inputs?.ebitda_margin !== undefined && (
             <>
               {' '}
-              terminal EBITDA margin{' '}
+              {t('chapter.sensitivity.assumptions.ebitdaMargin')}{' '}
               <strong style={{ color: 'var(--text-primary)' }}>
                 {(inputs.ebitda_margin * 100).toFixed(1)}%
               </strong>
@@ -78,7 +128,7 @@ export function ChapterSensitivity({ dcf }: { dcf: DcfShape | null }): React.Rea
           {inputs?.terminal_growth_rate !== undefined && (
             <>
               {' '}
-              terminal growth{' '}
+              {t('chapter.sensitivity.assumptions.terminalGrowth')}{' '}
               <strong style={{ color: 'var(--text-primary)' }}>
                 {(inputs.terminal_growth_rate * 100).toFixed(2)}%
               </strong>
@@ -88,25 +138,35 @@ export function ChapterSensitivity({ dcf }: { dcf: DcfShape | null }): React.Rea
         </p>
       </SubChapter>
 
-      <SubChapter heading="Sensitivity Matrix">
+      <SubChapter heading={t('chapter.sensitivity.subheading.matrix')}>
         {heatmapRows.length > 0 ? (
-          <SensitivityHeatmap data={heatmapRows} title="WACC × Terminal Growth → Implied Price" />
+          <SensitivityHeatmap data={heatmapRows} title={t('chapter.sensitivity.matrix.title')} />
         ) : (
-          <p style={mutedNote}>
-            该研报未生成敏感性分析 — 请重新生成研报以得到 WACC × 永续增长率热力网格。
-          </p>
+          <p style={mutedNote}>{t('chapter.sensitivity.empty')}</p>
         )}
       </SubChapter>
 
-      <SubChapter heading="Sensitivity Notes">
-        <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
-          Target valuation is most sensitive to{' '}
-          <strong style={{ color: 'var(--text-primary)' }}>terminal EBIT margin</strong> and{' '}
-          <strong style={{ color: 'var(--text-primary)' }}>terminal growth rate</strong>. WACC
-          sensitivity is asymmetric due to non-linear discount-rate compounding. Revenue CAGR has
-          comparatively muted impact unless paired with margin compression.
-        </p>
-      </SubChapter>
+      {swing && (
+        <SubChapter heading={t('chapter.sensitivity.subheading.notes')}>
+          <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
+            {t('chapter.sensitivity.notes.wacc')}{' '}
+            <strong style={{ color: 'var(--text-primary)' }}>
+              {fmtPrice(swing.waccLow)}–{fmtPrice(swing.waccHigh)}
+            </strong>{' '}
+            (Δ{fmtPrice(swing.waccSwing)}). {t('chapter.sensitivity.notes.tg')}{' '}
+            <strong style={{ color: 'var(--text-primary)' }}>
+              {fmtPrice(swing.tgLow)}–{fmtPrice(swing.tgHigh)}
+            </strong>{' '}
+            (Δ{fmtPrice(swing.tgSwing)}).{' '}
+            {t('chapter.sensitivity.notes.mostSensitive', {
+              driver:
+                swing.driver === 'wacc'
+                  ? t('chapter.sensitivity.driver.wacc')
+                  : t('chapter.sensitivity.driver.tg'),
+            })}
+          </p>
+        </SubChapter>
+      )}
     </Chapter>
   )
 }
@@ -121,7 +181,7 @@ const mutedNote: React.CSSProperties = {
   fontSize: 11.5,
   color: 'var(--text-muted)',
   padding: '14px 18px',
-  background: 'rgba(15, 15, 34, 0.5)',
+  background: 'var(--bg-card-50)',
   border: '1px dashed var(--border-soft)',
   borderRadius: 'var(--radius-sm)',
   lineHeight: 1.6,

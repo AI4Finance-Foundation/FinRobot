@@ -35,6 +35,7 @@ __all__ = [
     "QuoteFetchRateLimited",  # re-exported so callers can still import from here
     "close_quote_cache_singleton",
     "fetch_quotes_batch_cached",
+    "fetch_quotes_cache_only",
     "reset_quote_cache_singleton",
 ]
 
@@ -113,9 +114,7 @@ async def fetch_quotes_batch_cached(
             except ProviderError as exc:
                 if is_rate_limit_error(exc):
                     # Propagate so QuoteCache preserves stale + opens cooldown.
-                    raise QuoteFetchRateLimited(
-                        f"DataLayer QUOTE rate-limited for {sym}"
-                    ) from exc
+                    raise QuoteFetchRateLimited(f"DataLayer QUOTE rate-limited for {sym}") from exc
                 logger.info("Quote fetch failed for %s: %s", sym, exc)
                 return None
             data = result.data if isinstance(result.data, dict) else {}
@@ -125,3 +124,31 @@ async def fetch_quotes_batch_cached(
         return dict(zip(missing, results, strict=True))
 
     return await cache.get_batch(syms, fetcher=fetcher)
+
+
+async def fetch_quotes_cache_only(tickers: Iterable[str]) -> dict[str, float | None]:
+    """Cache-only batch quotes — NEVER touches the provider chain.
+
+    L1/L2 *fresh* hits return their price; every miss (cold or stale) comes
+    back ``None`` because the fetcher is a no-op. Returns in sub-millisecond
+    to ~1ms regardless of cache state — no FMP/yfinance round-trip, no 8s
+    warmup tail.
+
+    The landing recent-research strip uses this so its DB-backed cards render
+    instantly: warm tickers light their signal lamp immediately, cold ones
+    come back ``None`` (lamp pending) and fill on the next refetch once the
+    lifespan QuoteCache warmup has populated the cache. Live prices are a
+    progressive enhancement on that strip, never a render dependency — unlike
+    the hit-rate banner, whose bucket math genuinely needs warm quotes and so
+    still calls :func:`fetch_quotes_batch_cached`.
+    """
+    syms = [t.strip().upper() for t in tickers if t and t.strip()]
+    if not syms:
+        return {}
+    cache = _get_singleton()
+
+    async def _no_fetch(missing: list[str]) -> dict[str, float | None]:
+        # Report every miss as None instead of fanning out to the providers.
+        return dict.fromkeys(missing)
+
+    return await cache.get_batch(syms, fetcher=_no_fetch)

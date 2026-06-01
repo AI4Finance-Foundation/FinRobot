@@ -163,3 +163,35 @@ async def test_generic_failure_does_not_open_cooldown() -> None:
 
     out2 = await quote_batch.fetch_quotes_batch_cached(["OTHER"], layer)
     assert out2 == {"OTHER": 50.0}  # no cooldown → OTHER fetched
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# fetch_quotes_cache_only — landing recent-research strip path. NEVER fetches.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_cache_only_returns_none_for_cold_misses_without_fetching() -> None:
+    """A cold cache returns None for every ticker and never touches providers."""
+    out = await quote_batch.fetch_quotes_cache_only(["AAPL", "MSFT"])
+    assert out == {"AAPL": None, "MSFT": None}
+
+
+@pytest.mark.asyncio
+async def test_cache_only_serves_warm_l1_rows() -> None:
+    """A ticker warmed via the cold batch path is served from L1 cache-only,
+    with no further provider call."""
+    layer = _FakeDataLayer({"AAPL": 187.0})
+    warmed = await quote_batch.fetch_quotes_batch_cached(["AAPL"], layer)
+    assert warmed == {"AAPL": 187.0}
+    calls_after_warm = len(layer.calls)
+
+    out = await quote_batch.fetch_quotes_cache_only(["AAPL"])
+    assert out == {"AAPL": 187.0}
+    assert len(layer.calls) == calls_after_warm  # cache-only did NOT re-fetch
+
+
+@pytest.mark.asyncio
+async def test_cache_only_empty_input_returns_empty_dict() -> None:
+    assert await quote_batch.fetch_quotes_cache_only([]) == {}
+    assert await quote_batch.fetch_quotes_cache_only(["", "  "]) == {}

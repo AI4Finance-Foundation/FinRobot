@@ -133,6 +133,24 @@ class TestLBOEdgeCases:
         for year in result.schedule:
             assert year.taxes >= 0.0
 
+    def test_negative_fcf_draws_revolver_instead_of_paying_debt(self):
+        """A cash-burn year (FCF < mandatory amort) cannot pay down debt with
+        cash that doesn't exist — the shortfall must be funded by a revolver draw,
+        so total debt RISES, not falls.
+
+        Regression for the bug where mandatory amort was always applied: a 50%
+        interest burden drives year-1 FCF to ~-166 yet the old model still cut
+        debt by 5, understating leverage and inflating exit equity / IRR exactly
+        where credit risk is highest."""
+        inputs = _base_inputs(interest_rate=0.50, cash_sweep=False)
+        result = calculate_lbo(inputs)
+        yr1 = result.schedule[0]
+        assert yr1.fcf < 0, "scenario must produce a cash-burn year"
+        assert yr1.revolver_draw > 0, "shortfall must draw the revolver"
+        assert yr1.ending_debt > result.entry_debt, "debt must rise, not fall, on a cash-burn year"
+        # debt must rise by the cash burn (revolver funds the gap beyond mandatory)
+        assert yr1.ending_debt == pytest.approx(result.entry_debt - yr1.fcf)
+
 
 class TestLBOSensitivity:
     def test_sensitivity_shapes_match(self):

@@ -90,14 +90,21 @@ def _run_schedule(inputs: LBOInputs, entry_debt: float) -> tuple[list[LBOYear], 
         delta_nwc = (revenue - prev_revenue) * inputs.nwc_change_pct_revenue
         fcf = net_income + da - capex - delta_nwc
 
-        # Debt paydown: mandatory + optional sweep
+        # Debt-service waterfall. fcf is the levered cash available for principal.
+        # Mandatory amortization is contractual; if fcf cannot cover it, the
+        # shortfall is funded by a revolver draw (debt rises) rather than paid
+        # down with cash that does not exist. Optional cash sweep applies only the
+        # excess cash above mandatory amort. Without this, a cash-burn year would
+        # understate leverage and inflate exit equity / IRR.
+        mandatory = min(mandatory_amort, current_debt)
         if inputs.cash_sweep:
-            sweep = max(fcf - mandatory_amort, 0.0)
+            sweep = max(fcf - mandatory, 0.0)
         else:
             sweep = 0.0
-
-        paydown = min(mandatory_amort + sweep, current_debt)
-        ending_debt = current_debt - paydown
+        sweep = min(sweep, current_debt - mandatory)
+        term_paydown = mandatory + sweep
+        revolver_draw = max(mandatory - fcf, 0.0)
+        ending_debt = current_debt - term_paydown + revolver_draw
 
         schedule.append(
             LBOYear(
@@ -113,9 +120,10 @@ def _run_schedule(inputs: LBOInputs, entry_debt: float) -> tuple[list[LBOYear], 
                 capex=capex,
                 delta_nwc=delta_nwc,
                 fcf=fcf,
-                mandatory_amort=mandatory_amort,
+                mandatory_amort=mandatory,
                 cash_sweep_amount=sweep,
-                total_debt_paydown=paydown,
+                total_debt_paydown=term_paydown,
+                revolver_draw=revolver_draw,
                 ending_debt=ending_debt,
             )
         )

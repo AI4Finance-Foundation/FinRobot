@@ -632,6 +632,7 @@ class LBOYear(BaseModel):
     mandatory_amort: float
     cash_sweep_amount: float
     total_debt_paydown: float
+    revolver_draw: float = 0.0  # Revolver borrowing when FCF < mandatory amort (cash-burn year)
     ending_debt: float
 
 

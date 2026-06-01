@@ -269,6 +269,21 @@ class TestSeedDcfInputsAapl:
             # At least one CJK char in each message
             assert any("一" <= ch <= "鿿" for ch in msg), f"{key}: {msg}"
 
+    def test_nwc_pct_revenue_positive_when_working_capital_drains_cash(self):
+        """FMP changeInWorkingCapital carries the cash-flow sign (negative = NWC
+        grew = cash consumed). The seed must flip it to a POSITIVE nwc_pct_revenue
+        ("cash drag"), the same convention as capex (stored absolute), so the FCF
+        formula EBIT(1-t)+D&A-CapEx-ΔNWC reduces FCF when working capital grows.
+
+        Regression for the sign-inversion bug: passing the raw provider value made
+        `- rev * nwc_pct_revenue` *add* cash, inflating FCF for every cash-consuming
+        company (verified live: AAPL FY25 FCF came out ~+37B too high)."""
+        hist = self.historical.model_copy(
+            update={"change_in_working_capital": [-3e9, -4e9, -3.5e9, -5e9]}
+        )
+        inputs = seed_dcf_inputs(self.financials, hist)
+        assert inputs.nwc_pct_revenue > 0
+
 
 class TestSeedDcfInputsIndustryFallback:
     """When ticker history is missing, every field should fall through to industry median."""

@@ -288,11 +288,14 @@ def seed_dcf_inputs(
     prov["da_pct_revenue"] = f"{da_pct:.1%}（{da_source}）"
 
     # ----- nwc_pct_revenue --------------------------------------------------
-    # ΔWC is a delta — can be positive or negative. We accept any median.
+    # FMP changeInWorkingCapital carries the cash-flow sign: negative = NWC grew
+    # = cash consumed. Negate so nwc_pct_revenue means "NWC build as % of revenue,
+    # positive = cash drag" — the same convention as capex (stored absolute) — so
+    # the FCF formula `- ΔNWC` reduces FCF when working capital grows.
     nwc_median = _median_ratio(historical.change_in_working_capital, historical.revenue)
     if nwc_median is not None:
-        nwc_pct = max(-0.10, min(0.10, nwc_median))
-        prov["nwc_pct_revenue"] = f"{nwc_pct:.1%}（过去 3 年 ΔNWC / 营收 中位数）"
+        nwc_pct = max(-0.10, min(0.10, -nwc_median))
+        prov["nwc_pct_revenue"] = f"{nwc_pct:.1%}（过去 3 年 ΔNWC / 营收 中位数，正=占用现金）"
     else:
         nwc_pct = 0.01
         prov["nwc_pct_revenue"] = "1.0%（历史不可得，按通用基准）"

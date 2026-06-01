@@ -146,23 +146,22 @@ def seed_lbo_inputs(
     prov["da_pct_revenue"] = f"{da_pct:.1%}（{da_source}）"
 
     # ----- nwc_change_pct_revenue -------------------------------------------
+    # FMP changeInWorkingCapital carries the cash-flow sign (negative = NWC grew =
+    # cash consumed). Negate so nwc_change_pct_revenue is positive when working
+    # capital grows with revenue, matching the LBO FCF formula `- ΔNWC`.
     nwc_median = _median_ratio(historical.change_in_working_capital, historical.revenue)
     if nwc_median is not None:
-        nwc_pct = max(-0.10, min(0.10, nwc_median))
+        nwc_pct = max(-0.10, min(0.10, -nwc_median))
         prov["nwc_change_pct_revenue"] = (
-            f"{nwc_pct:.1%}（过去 3 年 ΔNWC / 营收 中位数）"
+            f"{nwc_pct:.1%}（过去 3 年 ΔNWC / 营收 中位数，正=占用现金）"
         )
     else:
         nwc_pct = DEFAULT_NWC_PCT_REVENUE
-        prov["nwc_change_pct_revenue"] = (
-            f"{nwc_pct:.1%}（历史不可得，按 PE 承销基准）"
-        )
+        prov["nwc_change_pct_revenue"] = f"{nwc_pct:.1%}（历史不可得，按 PE 承销基准）"
 
     # ----- tax_rate ---------------------------------------------------------
     tax_rate = max(0.10, min(0.40, industry.effective_tax_rate))
-    prov["tax_rate"] = (
-        f"{tax_rate:.1%}（{industry.industry} 行业实际有效税率）"
-    )
+    prov["tax_rate"] = f"{tax_rate:.1%}（{industry.industry} 行业实际有效税率）"
 
     # ----- interest_rate ---------------------------------------------------
     # LBO debt is typically TLB + HY-bond mix. Prefer the company's effective
@@ -182,26 +181,16 @@ def seed_lbo_inputs(
         )
     else:
         interest_rate = DEFAULT_INTEREST_RATE
-        prov["interest_rate"] = (
-            f"{interest_rate:.1%}（PE LBO 杠杆贷款 + 高收益债综合基准）"
-        )
+        prov["interest_rate"] = f"{interest_rate:.1%}（PE LBO 杠杆贷款 + 高收益债综合基准）"
 
     # ----- Deal structure (PE convention; recorded for transparency) -------
-    prov["entry_ev_ebitda"] = (
-        f"{entry_ev_ebitda:.1f}× EBITDA（PE 中端市场 LBO 入场倍数惯例）"
-    )
-    prov["exit_ev_ebitda"] = (
-        f"{exit_ev_ebitda:.1f}× EBITDA（保守假设，无倍数扩张）"
-    )
+    prov["entry_ev_ebitda"] = f"{entry_ev_ebitda:.1f}× EBITDA（PE 中端市场 LBO 入场倍数惯例）"
+    prov["exit_ev_ebitda"] = f"{exit_ev_ebitda:.1f}× EBITDA（保守假设，无倍数扩张）"
     prov["leverage_multiple"] = (
         f"{leverage_multiple:.1f}× EBITDA（PE LBO 总债务 / EBITDA 行业基准）"
     )
-    prov["holding_period_years"] = (
-        f"{holding_period_years} 年（PE 持有期惯例）"
-    )
-    prov["mandatory_amort_pct"] = (
-        f"{DEFAULT_MANDATORY_AMORT:.1%}（Term Loan B 强制摊销率惯例）"
-    )
+    prov["holding_period_years"] = f"{holding_period_years} 年（PE 持有期惯例）"
+    prov["mandatory_amort_pct"] = f"{DEFAULT_MANDATORY_AMORT:.1%}（Term Loan B 强制摊销率惯例）"
 
     return LBOInputs(
         ticker=financials.ticker,

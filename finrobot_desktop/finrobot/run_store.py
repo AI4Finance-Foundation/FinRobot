@@ -38,9 +38,7 @@ CREATE TABLE IF NOT EXISTS runs (
 # connection open via ALTER TABLE (SQLite has no "ADD COLUMN IF NOT EXISTS"), so
 # existing on-disk run DBs gain the column without a manual migration. Keep the
 # CREATE statement above in sync — fresh DBs get the column from CREATE directly.
-_RUN_COLUMN_MIGRATIONS = (
-    ("language", "ALTER TABLE runs ADD COLUMN language TEXT"),
-)
+_RUN_COLUMN_MIGRATIONS = (("language", "ALTER TABLE runs ADD COLUMN language TEXT"),)
 
 _CREATE_RUN_EVENTS = """
 CREATE TABLE IF NOT EXISTS run_events (

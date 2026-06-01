@@ -66,6 +66,8 @@ def _fmp_quarterly_cashflow_response(ticker: str = "AAPL", da: int = 3_000_000_0
             "symbol": ticker,
             "depreciationAndAmortization": da,
             "operatingCashFlow": 28_000_000_000,
+            # FMP reports CapEx as a negative outflow; the provider abs()'s it.
+            "capitalExpenditure": -3_000_000_000,
         }
         for quarter in range(4)
     ]
@@ -383,6 +385,22 @@ class TestFMPFetchHistorical:
         assert result.data["depreciation_amortization"] == 12_000_000_000
         # Operating EBITDA = OI 100B + cash-flow D&A 12B = 112B (not 109B).
         assert result.data["ebitda"] == 112_000_000_000
+
+    @pytest.mark.asyncio
+    async def test_ttm_carries_ocf_and_capex_for_real_fcf(self, provider):
+        """BUG-005: the TTM snapshot must carry summed OCF and (abs) CapEx so the
+        cashflow analysis reports a real FCF = OCF − CapEx instead of letting the
+        LLM hand-compute it. 4×28B OCF = 112B; 4×3B CapEx = 12B (sign-normalised)."""
+        responses = [
+            _mock_response(_fmp_quarterly_income_response()),
+            _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_profile_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials")
+        assert result.data["operating_cash_flow"] == 112_000_000_000
+        assert result.data["capital_expenditure"] == 12_000_000_000  # abs of −12B
 
     @pytest.mark.asyncio
     async def test_ttm_tsla_real_world_caliber(self, provider):

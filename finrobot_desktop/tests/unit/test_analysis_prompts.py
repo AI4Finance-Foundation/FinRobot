@@ -251,28 +251,35 @@ class TestEVEBITDAComputation:
 # ------------------------------------------------------------------ #
 
 
-class TestDAAproximationWarning:
-    def test_warning_in_table_when_da_missing(self) -> None:
-        fin = _make_fin(revenue=400e9, ebitda=130e9)
-        # No depreciation_amortization field → NormalizedFinancials.depreciation_amortization=None
+class TestCashflowFcfInjection:
+    """BUG-005: FCF must be a compute-layer number injected into the table, not
+    something the LLM hand-computes from a prompt formula (red-line 3)."""
+
+    def test_table_shows_computed_fcf_when_components_present(self) -> None:
+        # AAPL TTM proxy: OCF 140.2B − CapEx 11.0B = FCF 129.2B; yield = 129.2/3000.
+        fin = _make_fin(
+            market_cap=3e12, operating_cash_flow=140.2e9, capital_expenditure=11.0e9
+        )
         table = _build_financials_table(fin)
-        assert "Data Quality Notes" in table
-        assert "D&A data unavailable" in table
-        assert "simplified formula" in table
-        assert "10-20%" in table
+        assert "| Free Cash Flow (TTM) | $129.2B |" in table
+        assert "| Operating Cash Flow (TTM) | $140.2B |" in table
+        assert "| CapEx (TTM) | $11.0B |" in table
+        assert "| FCF Yield | 4.3% |" in table  # 129.2 / 3000
+        assert "Free Cash Flow unavailable" not in table
 
-    def test_no_warning_when_da_present(self) -> None:
-        fin = _make_fin(revenue=400e9, ebitda=130e9, depreciation_amortization=20e9)
+    def test_table_withholds_fcf_when_components_missing(self) -> None:
+        fin = _make_fin(revenue=400e9)  # no OCF / CapEx
         table = _build_financials_table(fin)
-        assert "D&A data unavailable" not in table
+        assert "| Free Cash Flow (TTM) | N/A |" in table
+        assert "Free Cash Flow unavailable" in table
+        assert "Do NOT estimate FCF" in table
 
-    def test_cashflow_prompt_instructs_warning(self) -> None:
-        fin = _make_fin(revenue=400e9, ebitda=130e9)
+    def test_cashflow_prompt_does_not_instruct_llm_to_compute_fcf(self) -> None:
+        """The prompt must NOT carry a formula for the LLM to compute FCF — the
+        whole BUG-005 fix is that FCF is pre-computed and only interpreted."""
+        fin = _make_fin(operating_cash_flow=140e9, capital_expenditure=11e9)
         prompt = build_analysis_prompt("cashflow", "AAPL", fin)
-        assert "Data Limitation" in prompt
-        assert "simplified formula" in prompt
-
-    def test_cashflow_prompt_mentions_standard_formula(self) -> None:
-        fin = _make_fin(revenue=400e9, depreciation_amortization=20e9)
-        prompt = build_analysis_prompt("cashflow", "AAPL", fin)
-        assert "EBIT(1-T) + D&A" in prompt
+        assert "EBIT(1-T)" not in prompt
+        assert "EBITDA(1-T)" not in prompt
+        assert "EBITDA × (1-T)" not in prompt
+        assert "Do NOT recompute FCF" in prompt

@@ -22,7 +22,10 @@ from pydantic import BaseModel, ConfigDict, Field
 # in a way that makes an old cached payload unsafe to deserialize/trust. The
 # cache encodes this in the canonical slot key (``…:canonical:v<N>``) so a bump
 # auto-invalidates stale entries with no migration script (ADR-0006 decision C1).
-CANONICAL_CONTRACT_VERSION = 1
+# v2: added NormalizedFinancials.operating_cash_flow / capital_expenditure (TTM)
+# so the cashflow analysis reports a real OCF−CapEx FCF; old v1 canonicals lack
+# these and would serve None, so bump to refetch.
+CANONICAL_CONTRACT_VERSION = 2
 
 # Degradation markers carried in ``Provenance.degraded``. Surfaced to the UI so
 # a fallback is visible rather than silent.
@@ -164,6 +167,12 @@ class NormalizedFinancials(BaseModel):
     rd_expense: float | None = None
     sga_expense: float | None = None
     interest_expense: float | None = None
+    # TTM cash-flow actuals so the cashflow analysis reports a real, traceable
+    # FCF (= OCF − CapEx) instead of letting the LLM hand-compute it from a
+    # prompt formula. capex is stored as a positive magnitude (outflow). None
+    # when the provider didn't supply the cash-flow statement.
+    operating_cash_flow: float | None = None
+    capital_expenditure: float | None = None
     dividend_per_share: float | None = None
     dividend_yield: float | None = None
     payout_ratio: float | None = None

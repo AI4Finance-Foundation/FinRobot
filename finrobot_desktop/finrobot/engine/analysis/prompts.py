@@ -16,6 +16,7 @@ import logging
 from pydantic_ai import Agent
 
 from finrobot.config import FinRobotSettings
+from finrobot.engine.compute.multiples import compute_ttm_fcf, fcf_yield
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials
@@ -93,6 +94,12 @@ def _build_financials_table(fin: NormalizedFinancials) -> str:
     else:
         ev_ebitda_str = "N/A"
 
+    # Real, traceable TTM FCF (= OCF − CapEx) computed by the compute layer —
+    # the LLM must NOT hand-compute FCF (CLAUDE.md red-line 3). None when the
+    # provider didn't supply the cash-flow statement.
+    ttm_fcf = compute_ttm_fcf(fin.operating_cash_flow, fin.capital_expenditure)
+    ttm_fcf_yield = fcf_yield(ttm_fcf, market_cap)
+
     rows = [
         ("Revenue", _fmt_num(fin.revenue)),
         ("EBITDA", _fmt_num(ebitda)),
@@ -105,6 +112,10 @@ def _build_financials_table(fin: NormalizedFinancials) -> str:
         ("EV/EBITDA", ev_ebitda_str),
         ("Total Debt", _fmt_num(total_debt)),
         ("Total Cash", _fmt_num(total_cash)),
+        ("Operating Cash Flow (TTM)", _fmt_num(fin.operating_cash_flow)),
+        ("CapEx (TTM)", _fmt_num(fin.capital_expenditure)),
+        ("Free Cash Flow (TTM)", _fmt_num(ttm_fcf)),
+        ("FCF Yield", _fmt_pct(ttm_fcf_yield)),
         ("D&A", _fmt_num(fin.depreciation_amortization)),
         ("R&D Expense", _fmt_num(fin.rd_expense)),
         ("SG&A Expense", _fmt_num(fin.sga_expense)),
@@ -118,11 +129,15 @@ def _build_financials_table(fin: NormalizedFinancials) -> str:
     notes: list[str] = []
     if ev_note:
         notes.append(ev_note)
-    if fin.depreciation_amortization is None:
+    if ttm_fcf is None:
+        missing = []
+        if fin.operating_cash_flow is None:
+            missing.append("operating cash flow")
+        if fin.capital_expenditure is None:
+            missing.append("CapEx")
         notes.append(
-            "D&A data unavailable — FCF estimates use simplified formula "
-            "(EBITDA × (1-T) − CapEx − ΔNWC) which may overstate FCF by 10-20% "
-            "for capital-intensive companies"
+            f"Free Cash Flow unavailable — provider did not supply {', '.join(missing)}. "
+            "Do NOT estimate FCF; state that it could not be computed from reported data."
         )
     if notes:
         lines.append("")
@@ -176,20 +191,20 @@ _CASHFLOW_PROMPT = """You are a senior equity analyst. Analyze the cash flow pro
 
 ## Analysis Framework
 Provide a structured analysis covering:
-1. **Operating Cash Flow Quality**: Accrual ratio (net income vs OCF), earnings quality
-2. **Free Cash Flow**: If D&A data is available, use FCF = EBIT(1-T) + D&A - CapEx - ΔNWC. \
-If D&A is listed as N/A, use the simplified formula FCF ≈ EBITDA(1-T) - CapEx - ΔNWC. \
-Report FCF yield vs market cap.
-3. **Capital Intensity**: D&A/Revenue ratio (if D&A available), reinvestment requirements
-4. **Cash Conversion**: How efficiently earnings convert to cash
+1. **Operating Cash Flow Quality**: Accrual ratio (Net Income vs Operating Cash Flow), earnings quality
+2. **Free Cash Flow**: Interpret the pre-computed **Free Cash Flow (TTM)** and **FCF Yield** \
+rows in the data above (FCF = Operating Cash Flow − CapEx, the actual reported figure). \
+Do NOT recompute FCF yourself — cite the provided number and explain what it implies. If \
+Free Cash Flow is listed as N/A, state that it could not be computed from reported data and \
+do NOT estimate it.
+3. **Capital Intensity**: CapEx/Revenue and D&A/Revenue ratios, reinvestment requirements
+4. **Cash Conversion**: How efficiently earnings convert to cash (FCF vs Net Income)
 5. **Shareholder Returns Capacity**: FCF available for buybacks + dividends
 
-IMPORTANT: If D&A is listed as N/A in the data above, you MUST include a clearly labeled \
-"⚠ Data Limitation" note in your Free Cash Flow section stating that the FCF estimate uses \
-a simplified formula without separate D&A, which may overstate FCF by 10-20% for \
-capital-intensive companies. Do NOT omit this warning.
+CRITICAL: Every dollar figure you cite must come from a row in the data table above. Do not \
+invent or recompute CapEx, ΔNWC, tax rates, or FCF — the FCF row is already computed for you.
 
-Use concrete numbers. Estimate FCF margin and compare to operating margin.
+Compare FCF margin (FCF/Revenue) to operating margin using the provided numbers.
 Output in Markdown format."""
 
 _RISK_PROMPT = """You are a senior risk analyst. Assess the financial risk profile for {ticker}.

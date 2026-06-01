@@ -286,6 +286,12 @@ class FMPProvider(DataProvider):
         da = _sum(cashflow_rows, "depreciationAndAmortization") if cashflow_rows else None
         if da is None:
             da = total("depreciationAndAmortization")
+        # TTM cash-flow actuals for a real FCF = OCF − CapEx (computed downstream,
+        # never hand-estimated by the LLM). FMP reports capitalExpenditure as a
+        # negative outflow; store the positive magnitude.
+        ttm_ocf = _sum(cashflow_rows, "operatingCashFlow") if cashflow_rows else None
+        ttm_capex_raw = _sum(cashflow_rows, "capitalExpenditure") if cashflow_rows else None
+        ttm_capex = abs(ttm_capex_raw) if ttm_capex_raw is not None else None
         # EBITDA recomputed on the operating caliber (EBIT + D&A) rather than
         # trusting FMP's `ebitda` field, which inherits the same dropped-D&A
         # contamination for the latest quarter. Fall back to FMP's field only
@@ -315,6 +321,8 @@ class FMPProvider(DataProvider):
                 operating_income / revenue if operating_income and revenue else None
             ),
             "depreciation_amortization": da,
+            "operating_cash_flow": ttm_ocf,
+            "capital_expenditure": ttm_capex,
             "rd_expense": total("researchAndDevelopmentExpenses"),
             "sga_expense": total("sellingGeneralAndAdministrative"),
             "interest_expense": total("interestExpense"),

@@ -69,6 +69,35 @@ def calculate_ev(market_cap: float, total_debt: float, cash: float) -> float:
     return market_cap + total_debt - cash
 
 
+def compute_ttm_fcf(
+    operating_cash_flow: float | None,
+    capital_expenditure: float | None,
+) -> float | None:
+    """Trailing-12M free cash flow = OCF − CapEx (levered FCF).
+
+    The analyst-standard *actual* cash figure (not a DCF projection): OCF already
+    embeds working-capital swings, stock-comp add-backs and deferred taxes, so
+    OCF − CapEx is more accurate than the textbook EBIT(1−t)+D&A−CapEx−ΔNWC
+    approximation and exactly reproduces FMP's own reported freeCashFlow
+    (verified live on AAPL TTM: OCF 140.2B − CapEx 11.0B = 129.2B).
+
+    ``capital_expenditure`` is a positive magnitude (the provider sign-flip is
+    normalised upstream). Returns None when either component is unavailable so
+    the cashflow analysis cites a real number or explicitly says N/A — never an
+    LLM-fabricated estimate (CLAUDE.md red-line 3).
+    """
+    if operating_cash_flow is None or capital_expenditure is None:
+        return None
+    return operating_cash_flow - capital_expenditure
+
+
+def fcf_yield(fcf: float | None, market_cap: float | None) -> float | None:
+    """FCF yield = TTM FCF / market cap. None when either input is missing/≤0."""
+    if fcf is None or not market_cap or market_cap <= 0:
+        return None
+    return fcf / market_cap
+
+
 def calculate_ebitda_operating(
     operating_income: float | None,
     depreciation_amortization: float | None,

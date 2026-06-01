@@ -107,6 +107,8 @@ def normalize_financials(result: DataResult) -> NormalizedFinancials:
         rd_expense=_f(data.get("rd_expense")),
         sga_expense=_f(data.get("sga_expense")),
         interest_expense=_f(data.get("interest_expense")),
+        operating_cash_flow=_f(data.get("operating_cash_flow")),
+        capital_expenditure=_f(data.get("capital_expenditure")),
         dividend_per_share=_f(data.get("dividend_per_share")),
         dividend_yield=_f(data.get("dividend_yield")),
         payout_ratio=_f(data.get("payout_ratio")),

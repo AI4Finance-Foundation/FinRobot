@@ -7,7 +7,30 @@ from finrobot.engine.compute.multiples import (
     calculate_ev,
     calculate_multiples,
     calculate_peer_statistics,
+    compute_ttm_fcf,
+    fcf_yield,
 )
+
+
+# External baseline: AAPL TTM ending 2026-03-28 (FMP quarterly cash-flow sum).
+# OCF 140.2B − CapEx 11.0B = FCF 129.2B, which equals FMP's own reported
+# freeCashFlow exactly. FCF yield ≈ 2.9% at the ~4.5T market cap.
+def test_compute_ttm_fcf_is_ocf_minus_capex():
+    assert compute_ttm_fcf(140.2e9, 11.0e9) == pytest.approx(129.2e9)
+
+
+@pytest.mark.parametrize("ocf,capex", [(None, 11e9), (140e9, None), (None, None)])
+def test_compute_ttm_fcf_none_when_component_missing(ocf, capex):
+    # None ≠ 0: a missing component withholds FCF (the cashflow analysis says
+    # N/A) rather than fabricating one — red-line 3.
+    assert compute_ttm_fcf(ocf, capex) is None
+
+
+def test_fcf_yield_ratio_and_guards():
+    assert fcf_yield(129.2e9, 4.5e12) == pytest.approx(0.0287, abs=1e-3)
+    assert fcf_yield(None, 4.5e12) is None
+    assert fcf_yield(129e9, None) is None
+    assert fcf_yield(129e9, 0) is None
 
 
 # External baseline: TSLA TTM Q2'25–Q1'26, raw FMP quarterly statements

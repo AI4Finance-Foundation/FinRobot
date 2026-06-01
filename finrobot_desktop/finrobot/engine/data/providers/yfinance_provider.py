@@ -341,6 +341,17 @@ class YFinanceProvider(DataProvider):
             "total_debt": info.get("totalDebt"),
             "total_cash": info.get("totalCash"),
             "company_name": info.get("shortName") or info.get("longName"),
+            # TTM cash-flow actuals for a real FCF = OCF − CapEx (computed
+            # downstream, never LLM-estimated). yfinance `info` exposes TTM
+            # operatingCashflow + freeCashflow but no capex line, so derive
+            # capex = OCF − FCF (positive magnitude) when both are present.
+            "operating_cash_flow": info.get("operatingCashflow"),
+            "capital_expenditure": (
+                info["operatingCashflow"] - info["freeCashflow"]
+                if isinstance(info.get("operatingCashflow"), int | float)
+                and isinstance(info.get("freeCashflow"), int | float)
+                else None
+            ),
             # Industry/sector for valuation model routing (DDM vs DCF)
             "industry": info.get("industry"),
             "sector": info.get("sector"),

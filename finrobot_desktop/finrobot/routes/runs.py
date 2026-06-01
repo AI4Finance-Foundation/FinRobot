@@ -40,6 +40,10 @@ router = APIRouter(prefix="/api/runs", tags=["runs"])
 class CreateRunRequest(BaseModel):
     pipeline_type: str
     ticker: str
+    language: Literal["en", "zh"] | None = None
+    """Output language for the report's prose. Set by the frontend from the
+    current UI locale at trigger time; None → pipeline falls back to
+    settings.language. Stamped onto the artifact's meta.language."""
 
     @classmethod
     def model_validate_strict(cls, data: Any) -> "CreateRunRequest":
@@ -98,7 +102,9 @@ async def create_run(request_body: CreateRunRequest, request: Request) -> Create
         raise HTTPException(status_code=400, detail="ticker is required")
 
     store: RunStore = request.app.state.run_store
-    record = await store.create_run(request_body.pipeline_type, ticker)
+    record = await store.create_run(
+        request_body.pipeline_type, ticker, language=request_body.language
+    )
     task = asyncio.create_task(_run_pipeline(record.run_id, request))
     request.app.state.run_tasks[record.run_id] = task
     return CreateRunResponse(
@@ -262,6 +268,7 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
             request.app.state.deps,
             record.ticker,
             progress=RunProgress(),
+            lang=record.language,
         )
         duration_s = round(time.monotonic() - started, 1)
         result_json = _result_to_json(result)

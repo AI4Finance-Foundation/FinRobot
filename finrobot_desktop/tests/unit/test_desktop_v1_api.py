@@ -107,6 +107,21 @@ class TestSettingsRoutes:
 
 class TestRunStore:
     @pytest.mark.asyncio
+    async def test_create_run_persists_language(self, tmp_path):
+        store = RunStore(tmp_path / "runs.db")
+        run = await store.create_run("equity_research", "AAPL", language="en")
+        assert run.language == "en"
+        # Round-trip through the DB — _row_to_run must decode the new column.
+        fetched = await store.get_run(run.run_id)
+        assert fetched is not None
+        assert fetched.language == "en"
+        # Unspecified language persists as NULL → None (execute falls back).
+        run2 = await store.create_run("dcf", "MSFT")
+        fetched2 = await store.get_run(run2.run_id)
+        assert fetched2 is not None and fetched2.language is None
+        await store.close()
+
+    @pytest.mark.asyncio
     async def test_run_store_replays_events_after_last_seq(self, tmp_path):
         store = RunStore(tmp_path / "runs.db")
         run = await store.create_run("dcf", "AAPL")
@@ -145,7 +160,7 @@ class TestRunsRoutes:
         class FakePipeline:
             steps = [object()]
 
-            async def execute(self, deps, ticker, progress):
+            async def execute(self, deps, ticker, progress, lang=None):
                 await progress.on_step_start(1, 1, "dcf_calc")
                 await progress.on_step_end(1, 1, "dcf_calc", 0.1)
                 result = MagicMock()

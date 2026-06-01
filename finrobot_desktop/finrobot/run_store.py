@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import aiosqlite
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from finrobot.events import RunEvent
 
@@ -29,9 +29,18 @@ CREATE TABLE IF NOT EXISTS runs (
     duration_s    REAL,
     result_text   TEXT,
     result_json   TEXT,
-    error         TEXT
+    error         TEXT,
+    language      TEXT
 )
 """
+
+# Columns added after the initial schema shipped. Applied idempotently on every
+# connection open via ALTER TABLE (SQLite has no "ADD COLUMN IF NOT EXISTS"), so
+# existing on-disk run DBs gain the column without a manual migration. Keep the
+# CREATE statement above in sync — fresh DBs get the column from CREATE directly.
+_RUN_COLUMN_MIGRATIONS = (
+    ("language", "ALTER TABLE runs ADD COLUMN language TEXT"),
+)
 
 _CREATE_RUN_EVENTS = """
 CREATE TABLE IF NOT EXISTS run_events (
@@ -66,7 +75,7 @@ _CREATE_INDEXES = [
 # with this tuple so positional decoding matches the row layout.
 _RUN_SELECT_COLUMNS = (
     "run_id, pipeline_type, ticker, status, created_at, completed_at, "
-    "duration_s, result_text, result_json, error"
+    "duration_s, result_text, result_json, error, language"
 )
 
 
@@ -81,6 +90,14 @@ class RunRecord(BaseModel):
     result_text: str | None = None
     result_json: dict[str, Any] | None = None
     error: str | None = None
+    language: str | None = Field(
+        default=None,
+        description=(
+            "Output language requested for this run ('en'|'zh'), set from the UI "
+            "locale at creation and passed to Pipeline.execute(lang=). None → "
+            "execute falls back to settings.language. Legacy rows are NULL."
+        ),
+    )
 
 
 class StoredRunEvent(BaseModel):
@@ -122,6 +139,7 @@ class RunStore:
                     await conn.execute(_CREATE_ARTIFACTS)
                     for stmt in _CREATE_INDEXES:
                         await conn.execute(stmt)
+                    await _apply_run_column_migrations(conn)
                     await conn.commit()
                 except BaseException:
                     await conn.close()
@@ -129,17 +147,19 @@ class RunStore:
                 self._conn = conn
         return self._conn
 
-    async def create_run(self, pipeline_type: str, ticker: str) -> RunRecord:
+    async def create_run(
+        self, pipeline_type: str, ticker: str, language: str | None = None
+    ) -> RunRecord:
         try:
             run_id = f"run_{uuid.uuid4().hex[:12]}"
             created_at = _now()
             conn = await self._ensure_connection()
             await conn.execute(
                 """
-                INSERT INTO runs (run_id, pipeline_type, ticker, status, created_at)
-                VALUES (?, ?, ?, 'created', ?)
+                INSERT INTO runs (run_id, pipeline_type, ticker, status, created_at, language)
+                VALUES (?, ?, ?, 'created', ?, ?)
                 """,
-                (run_id, pipeline_type, ticker.upper(), created_at),
+                (run_id, pipeline_type, ticker.upper(), created_at, language),
             )
             await conn.commit()
             return RunRecord(
@@ -148,6 +168,7 @@ class RunStore:
                 ticker=ticker.upper(),
                 status="created",
                 created_at=created_at,
+                language=language,
             )
         except aiosqlite.OperationalError:
             logger.exception("Failed to create run for %s/%s", pipeline_type, ticker)
@@ -333,4 +354,20 @@ def _row_to_run(row: Any) -> RunRecord:
         result_text=row[7],
         result_json=json.loads(result_raw) if result_raw else None,
         error=row[9],
+        language=row[10],
     )
+
+
+async def _apply_run_column_migrations(conn: aiosqlite.Connection) -> None:
+    """Idempotently add columns introduced after the initial runs schema.
+
+    SQLite lacks ADD COLUMN IF NOT EXISTS, so we read the current columns from
+    PRAGMA table_info and only ALTER for the ones that are missing. Safe to call
+    on every connection open; a no-op once the column exists.
+    """
+    cursor = await conn.execute("PRAGMA table_info(runs)")
+    existing = {row[1] for row in await cursor.fetchall()}
+    await cursor.close()
+    for column, ddl in _RUN_COLUMN_MIGRATIONS:
+        if column not in existing:
+            await conn.execute(ddl)

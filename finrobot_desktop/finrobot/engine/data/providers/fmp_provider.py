@@ -233,8 +233,11 @@ class FMPProvider(DataProvider):
             ),
             "capital_expenditure": capex,
             "change_in_working_capital": cf.get("changeInWorkingCapital"),
-            "total_debt": bal.get("totalDebt", 0),
-            "total_cash": bal.get("cashAndCashEquivalents", 0),
+            # None ≠ 0: a missing balance-sheet line must stay None so enterprise
+            # value is left undefined rather than fabricated (market_cap + 0 - 0).
+            # calculate_multiples only computes EV when both are present.
+            "total_debt": bal.get("totalDebt"),
+            "total_cash": bal.get("cashAndCashEquivalents"),
             "market_cap": mkt_cap,
             "shares_outstanding": shares,
             "pe_ratio": pe_ratio,
@@ -315,8 +318,11 @@ class FMPProvider(DataProvider):
             "rd_expense": total("researchAndDevelopmentExpenses"),
             "sga_expense": total("sellingGeneralAndAdministrative"),
             "interest_expense": total("interestExpense"),
-            "total_debt": bal.get("totalDebt", 0),
-            "total_cash": bal.get("cashAndCashEquivalents", 0),
+            # None ≠ 0: a missing balance-sheet line must stay None so enterprise
+            # value is left undefined rather than fabricated (market_cap + 0 - 0).
+            # calculate_multiples only computes EV when both are present.
+            "total_debt": bal.get("totalDebt"),
+            "total_cash": bal.get("cashAndCashEquivalents"),
             "market_cap": mkt_cap,
             "shares_outstanding": shares,
             "pe_ratio": pe_ratio,

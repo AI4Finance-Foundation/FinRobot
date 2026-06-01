@@ -152,6 +152,24 @@ class TestFMPFetch:
         assert result.data["country"] == "US"
 
     @pytest.mark.asyncio
+    async def test_missing_balance_items_stay_none_not_zero(self, provider):
+        """A balance sheet that omits totalDebt / cash must yield None, not 0, so
+        enterprise value is left undefined rather than fabricated (market_cap + 0
+        - 0). Regression for the silent debt/cash → 0 default that poisoned EV and
+        every EV-based multiple."""
+        balance_without_debt = [{"date": "2025-09-30", "symbol": "AAPL"}]
+        responses = [
+            _mock_response(_fmp_quarterly_income_response()),
+            _mock_response(balance_without_debt),
+            _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_profile_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials")
+        assert result.data["total_debt"] is None
+        assert result.data["total_cash"] is None
+
+    @pytest.mark.asyncio
     async def test_fetch_financials_tags_foreign_adr_currency(self, provider):
         """ADR regression (verified against ~/.finrobot cache 2026-05-29): FMP
         reports a foreign issuer's income statement in its home currency

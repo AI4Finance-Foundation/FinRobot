@@ -18,13 +18,12 @@ logger = logging.getLogger(__name__)
 _OUTLIER_THRESHOLD = 0.30
 
 # When a method's mid deviates from the median by more than this (much wider
-# than the soft outlier band), the methods fundamentally disagree and the
-# confidence-weighted price is no longer a defensible target — it's just the
-# midpoint of two estimates that don't corroborate each other. The synthesis
-# is flagged ``reliable=False`` so the pipeline can refuse to publish a
-# headline target/verdict. TSLA 2026-05-28: DCF $5.88 vs Comps $19.54 both
-# deviated 54% from the $12.71 median, yet the artifact shipped a confident
-# SELL @ $11.25. This threshold is the gate that stops that.
+# than the soft outlier band), the methods fundamentally disagree: the
+# confidence-weighted price is then just the midpoint of two estimates that
+# don't corroborate each other, not a defensible target. The synthesis is
+# flagged ``reliable=False`` so the pipeline refuses to publish a headline
+# target/verdict — e.g. DCF and Comps each ~54% from their median must not
+# ship a confident BUY/SELL.
 _RELIABILITY_SPREAD_THRESHOLD = 0.50
 
 

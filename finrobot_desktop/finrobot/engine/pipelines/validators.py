@@ -161,37 +161,8 @@ def validate_has_peers(output: str, min_peers: int = 3) -> ValidationResult:
     )
 
 
-# DEPRECATED: P0/P1b keyword-based validators below.
-# Kept for backward compatibility. New code should use typed validators (bottom of file).
-def validate_has_valuation(output: str) -> ValidationResult:
-    """Strict validator for financial modeling step.
-    Checks that output contains valuation methodology and numbers.
-    Must find at least 2 of the valuation indicators."""
-    lower = output.lower()
-    indicators = [
-        any(kw in lower for kw in ["dcf", "discounted cash flow"]),
-        any(kw in lower for kw in ["wacc", "discount rate", "cost of capital"]),
-        any(kw in lower for kw in ["terminal value", "terminal growth"]),
-        any(kw in lower for kw in ["price target", "implied value", "implied price", "fair value"]),
-        any(
-            kw in lower
-            for kw in [
-                "revenue projection",
-                "ebitda projection",
-                "revenue forecast",
-                "ebitda forecast",
-            ]
-        ),
-    ]
-    found = sum(indicators)
-    if found >= 2:
-        return ValidationResult(passed=True)
-    return ValidationResult(
-        passed=False,
-        error=f"Expected at least 2 valuation indicators, found {found}",
-    )
-
-
+# Keyword-based text validators: a step's free-text output must mention the
+# expected concepts before it can pass. Used by equity_research's text steps.
 def validate_has_thesis(output: str) -> ValidationResult:
     """Strict validator for thesis construction step.
     Checks that output contains investment thesis structure.

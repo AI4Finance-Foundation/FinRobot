@@ -94,10 +94,9 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/stocks" replace /> },
 
-      // v5 live routes — single canonical path. The old 8-tab StocksPage
-      // is retained ONLY at /stocks (no ticker) as a landing placeholder
-      // until spec §2 cross-ticker landing ships. Any /stocks/:ticker
-      // hit renders the v5 single-page StockWorkspace.
+      // Single canonical path. StocksPage serves ONLY /stocks (no ticker) as a
+      // landing placeholder until spec §2 cross-ticker landing ships; any
+      // /stocks/:ticker hit renders the single-page StockWorkspace.
       { path: 'stocks', element: <StocksPage /> },
       { path: 'stocks/:ticker', element: <StockWorkspace /> },
       {

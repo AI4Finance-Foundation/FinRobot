@@ -2,7 +2,6 @@ from finrobot.engine.pipelines.validators import (
     validate_has_fields,
     validate_is_non_empty,
     validate_has_peers,
-    validate_has_valuation,
     validate_has_thesis,
     validate_report_format,
     validate_has_comps_table,
@@ -88,22 +87,6 @@ class TestValidateHasPeers:
     def test_mixed_tickers_and_acronyms(self):
         r = validate_has_peers("MSFT, GOOGL, META with EBITDA and WACC analysis")
         assert r.passed is True
-
-
-class TestValidateHasValuation:
-    def test_dcf_wacc_terminal_passes(self):
-        r = validate_has_valuation(
-            "Our DCF analysis uses a WACC of 10% and terminal value of $500B"
-        )
-        assert r.passed is True
-
-    def test_empty_text_fails(self):
-        r = validate_has_valuation("")
-        assert r.passed is False
-
-    def test_single_indicator_fails(self):
-        r = validate_has_valuation("The DCF model suggests upside")
-        assert r.passed is False
 
 
 class TestValidateHasThesis:

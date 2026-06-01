@@ -32,12 +32,12 @@ _RECOVERABLE_SUBSTRINGS = ("429", "rate limit", "too many requests", "timeout")
 # retried. Two classes:
 #   - billing / auth ("insufficient balance"): retrying can never succeed.
 #   - context-length overflow: the prompt deterministically exceeds the model's
-#     window, so re-sending the identical prompt fails identically. Without this,
-#     an oversized data_collection prompt burned 3 retries (~65s), then the
-#     "best-effort continue" policy let the run proceed with NO FinancialData —
-#     surfacing as a green ✓ on step 1 and a confusing crash at peer_analysis
-#     ("target FinancialData not available"). Failing fast here aborts the run
-#     with the real context-length message instead.
+#     window, so re-sending the identical prompt fails identically. Without a
+#     fail-fast here, an oversized prompt burns every retry, then the
+#     "best-effort continue" policy lets the run proceed with NO FinancialData —
+#     a green ✓ on the step followed by a confusing crash downstream at
+#     peer_analysis ("target FinancialData not available"). Aborting now surfaces
+#     the real context-length message instead.
 _FATAL_SUBSTRINGS = (
     "insufficient balance",
     "maximum context length",

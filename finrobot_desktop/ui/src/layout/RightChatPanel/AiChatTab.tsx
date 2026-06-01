@@ -78,10 +78,9 @@ const ROUTE_CHIP_PATTERNS: Array<{ test: (path: string) => boolean; chipKeys: st
 // ──────────────────────────────────────────────────────────────
 // Model badge — the chat runs on the SINGLE model configured in Settings
 // (settings.model_name, e.g. "anthropic:claude-sonnet-4-6"). The badge is
-// read-only and MUST reflect that real value: a hardcoded prototype list
-// (it used to include a "qwen-max" that the backend never runs, and a
-// uiStore default that drifted from the actual configured model) would lie
-// about which model answered. Labels mirror SettingsView.MODEL_OPTIONS;
+// read-only and MUST reflect that real value: a hardcoded list (or a uiStore
+// default that can drift from the configured model) would lie about which
+// model actually answered. Labels mirror SettingsView.MODEL_OPTIONS;
 // unknown model_names fall back to the bare model id so the badge is still
 // honest rather than blank.
 const MODEL_LABELS: Record<string, string> = {

@@ -239,9 +239,9 @@ export interface DCFResult {
   implied_price: number
   sensitivity_table: unknown
   inputs: DCFInputs
-  // fcf_formula / fcf_formula_warning removed in Phase B — standard FCF
-  // (EBIT(1-T) + D&A - CapEx - ΔNWC) is the only path now, and the
-  // assumption_provenance carries per-field source attribution instead.
+  // No fcf_formula field: FCF always uses the standard
+  // EBIT(1-T) + D&A - CapEx - ΔNWC; per-field source attribution lives in
+  // assumption_provenance.
 }
 
 export interface DcfReverseResult {

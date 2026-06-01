@@ -1,16 +1,15 @@
-"""Backwards-compatible ArtifactStore facade.
+"""``ArtifactStore`` facade.
 
-The real implementation now lives in
+The implementation lives in
 :class:`finrobot.artifact.sqlite_store.SqliteArtifactStore`. This module
-keeps the public ``ArtifactStore`` name so the ~20 existing imports in
-routes / pipelines / tests don't churn.
-
-For new code prefer importing ``SqliteArtifactStore`` directly.
+re-exports the ``ArtifactStore`` name so the ~20 imports across
+routes / pipelines / tests share one entry point; new code may import
+``SqliteArtifactStore`` directly.
 
 Args:
-    base_dir: When provided, the legacy ``base_dir / artifacts.db`` is
-        used (so tests that hand-roll a tmp dir keep isolation). When
-        omitted, the unified path from :mod:`finrobot.paths` applies.
+    base_dir: When provided, ``base_dir / artifacts.db`` is used (so tests
+        that hand-roll a tmp dir keep isolation). When omitted, the unified
+        path from :mod:`finrobot.paths` applies.
 """
 
 from __future__ import annotations
@@ -20,9 +19,8 @@ from pathlib import Path
 from finrobot.artifact.models import Artifact, ArtifactSummary, ArtifactType
 from finrobot.artifact.sqlite_store import SqliteArtifactStore, summary_from_artifact
 
-# Backwards-compat alias: the legacy filesystem implementation exposed
-# ``_summary_from_artifact`` as a private helper that tests + audit tools
-# imported. New code should use the public ``summary_from_artifact``.
+# Alias kept so tests + audit tools importing the private
+# ``_summary_from_artifact`` keep working; new code uses the public name.
 _summary_from_artifact = summary_from_artifact
 
 

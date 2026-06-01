@@ -1204,8 +1204,8 @@ export interface components {
          *         FCF = EBIT(1-tax) + D&A - CapEx - ΔNWC
          *             = (EBITDA - D&A)(1-tax) + D&A - revenue*capex_pct - revenue*nwc_pct
          *
-         *     The simplified branch that dropped the D&A tax shield is removed:
-         *     ``da_pct_revenue`` is now required (non-None), guaranteed by seed_dcf_inputs.
+         *     ``da_pct_revenue`` carries the D&A tax shield and is always populated by
+         *     seed_dcf_inputs.
          */
         DCFInputs: {
             /**
@@ -1235,7 +1235,7 @@ export interface components {
             nwc_pct_revenue: number;
             /**
              * Da Pct Revenue
-             * @description D&A as % of revenue. Default 0.0 (no tax shield — equivalent to the legacy simplified-FCF arithmetic but routed through the standard EBIT(1-T)+D&A formula). seed_dcf_inputs always sets a non-zero value from 3y filings or Damodaran fallback; direct callers can omit it for legacy compatibility.
+             * @description D&A as % of revenue, carrying the tax shield in the FCF formula. Default 0.0 means no shield; seed_dcf_inputs always sets a non-zero value from 3y filings or Damodaran fallback. Direct callers may omit it.
              * @default 0
              */
             da_pct_revenue: number;

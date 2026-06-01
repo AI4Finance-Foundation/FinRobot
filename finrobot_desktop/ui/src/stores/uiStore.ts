@@ -88,9 +88,9 @@ interface UiStoreState {
   cursorTrailEnabled: boolean
 
   /** Spline 3D AI Analyst on the /stocks landing backdrop. Default ON —
-   *  only mounts on the landing route (ticker workspace no longer carries
-   *  it as of 2026-05-22 — user feedback: detail page should show numbers,
-   *  not 3D). When off, the static FakeRobotRings fallback renders. */
+   *  mounts only on the landing route, not the ticker workspace (the detail
+   *  page shows numbers, not 3D). When off, the static FakeRobotRings
+   *  fallback renders. */
   splineEnabled: boolean
 
   // Workspace
@@ -272,8 +272,8 @@ export const useUiStore = create<UiStoreState>()(
         workspacePath: s.workspacePath,
       }),
       onRehydrateStorage: () => (state) => {
-        // v5: 砍了 theme toggle · 强制清理旧持久化的 light 主题
-        // 否则之前点过 light toggle 的用户启动后还是 light，看着乱。
+        // 没有 theme toggle：清掉持久化里残留的 light 主题，
+        // 否则本地存了 light 的用户启动后还是 light，看着乱。
         document.documentElement.removeAttribute('data-theme')
         // prefers-reduced-motion: 自动关掉所有 heavy 装饰（仅首次冷启动）
         // 已经 hydrate 过的用户保留其手动选择。

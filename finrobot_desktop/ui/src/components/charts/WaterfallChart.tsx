@@ -40,7 +40,7 @@ interface WaterfallBar {
 }
 
 // Bespoke content (Add / Subtract / Total) but the shared cosmic shell so it
-// matches every other chart's tooltip rather than the old low-contrast box.
+// matches every other chart's tooltip.
 function WaterfallTooltip({
   active,
   payload,

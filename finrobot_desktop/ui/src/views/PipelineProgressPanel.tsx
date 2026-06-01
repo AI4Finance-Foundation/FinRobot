@@ -313,8 +313,8 @@ export function PipelineProgressPanel({
   )
 }
 
-/** Per-step status badge. Running shows a real rotating ring (the old static
- *  "⟳" made a live run look frozen); pending is a hollow dim dot, not a ⏳. */
+/** Per-step status badge. Running shows a rotating ring (a static glyph makes
+ *  a live run look frozen); pending is a hollow dim dot. */
 function StepIndicator({ status }: { status: string }): React.ReactElement {
   const base: React.CSSProperties = {
     width: 16,

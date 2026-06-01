@@ -221,11 +221,9 @@ async def execute_peer_analysis(
     # Two cases:
     #   • 1..MIN-1 survivors → build the thin PeerComps anyway, tag a warning so
     #     it surfaces in the artifact, and let the validator fail it (→ retry →
-    #     degrade). NEVER raise on count: the old `raise ValueError(...)` depended
-    #     on the literal substring "429" living in its own message so
-    #     _is_recoverable_exception would treat it as retryable — a fragile
-    #     self-referential hack that crashed the run the moment the wording
-    #     drifted (observed: "Only N peers fetched … need >=3" → raw traceback).
+    #     degrade). NEVER raise on count here: recoverability is decided BY
+    #     exception type, not by matching substrings in a message, so a raise
+    #     would not be treated as retryable and would crash the run.
     #   • 0 survivors → PeerComps requires >=1 peer (Field min_length=1), so we
     #     can't build one at all. Raise ProviderError — recoverable BY TYPE (not
     #     by message text), so it retries with backoff then degrades on the

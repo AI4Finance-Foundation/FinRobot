@@ -2,11 +2,10 @@
 //
 // Sticky to the viewport bottom, ~28px tall. Surfaces the current chapter
 // (via scroll-spy on the same section ids the TOC observes), a scroll
-// progress percentage, and a back-to-top control. Replaces the two
-// "← back" / "上一页" buttons that used to live at the foot of the
-// document — those were a non-pattern in desktop apps (Linear / Notion /
-// Obsidian / Apple Mail never put a return button at the bottom of a
-// reading view) and the breadcrumb plus toolbar arrow now own that role.
+// progress percentage, and a back-to-top control. Returning to the doc is
+// owned by the breadcrumb + toolbar arrow, not a bottom "back" button —
+// desktop apps (Linear / Notion / Obsidian / Apple Mail) don't put a return
+// control at the foot of a reading view.
 //
 // Scroll events are bound to the REAL scroll container: #main-scroll
 // (<main id="main-scroll" class="main-content"> in AppShell). The body /

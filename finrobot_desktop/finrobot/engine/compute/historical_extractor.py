@@ -43,8 +43,8 @@ async def fetch_historical_metrics(
     """
     results = await data_layer.fetch_historical(DataType.FINANCIALS, ticker, years=years)
     # Trailing P/E + price_data_available come from the current-snapshot
-    # financials (mirrors the old info.trailingPE behavior). Best-effort and
-    # normally a cache hit — most callers fetched the snapshot moments earlier.
+    # financials (yfinance's info.trailingPE). Best-effort and normally a cache
+    # hit — most callers fetched the snapshot moments earlier.
     trailing_pe = await _fetch_trailing_pe(data_layer, ticker)
     return _build_from_yearly(ticker, results, years, trailing_pe)
 

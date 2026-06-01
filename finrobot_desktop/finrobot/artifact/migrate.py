@@ -35,14 +35,10 @@ async def migrate_filesystem_to_sqlite(
 
     Returns the count of artifacts ingested (insert-only — see below).
 
-    2026-05-27: migration is **insert-only**, not upsert. Previously the
-    server lifespan happily overwrote in-place SQL edits (verdict backfills,
-    user annotations, anything) with whatever stale data the legacy JSON
-    still carried. With backfill scripts running between upgrades that
-    behaviour silently un-did every fix. We now skip any legacy file whose
-    id already lives in SQLite — once an artifact is in the new store it
-    is authoritative, and the JSON is treated as a one-way historical
-    backup only.
+    Insert-only, not upsert: any legacy file whose id already lives in SQLite
+    is skipped. Once an artifact is in the store it is authoritative —
+    upserting would overwrite in-place SQL edits (verdict backfills, user
+    annotations) with stale JSON. The JSON is a one-way backup only.
 
     Args:
         legacy_root: Defaults to ``~/.finrobot-desktop/artifacts``.

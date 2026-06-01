@@ -443,10 +443,10 @@ async def _execute_financial_modeling(
         f"Sensitivity range: {price_range}."
     )
 
-    # Bug A fix: write DCFResult into structured_context BEFORE calling
-    # build_valuation_synthesis so aggregate_valuation can find it. Previously
-    # this write happened via _store_output AFTER the executor returned, so
-    # isinstance(dcf, DCFResult) was always False and DCF was silently dropped.
+    # Write DCFResult into structured_context BEFORE build_valuation_synthesis:
+    # aggregate_valuation reads it from here, so it must land before the synthesis
+    # runs. Writing later (e.g. via _store_output after the executor returns)
+    # leaves isinstance(dcf, DCFResult) False and silently drops DCF.
     structured_context["financial_modeling"] = dcf_result
 
     # Build ValuationSynthesis from all available methods for the football field chart.
@@ -590,15 +590,12 @@ async def _execute_thesis(
 
     # CLAUDE.md core contract: "LLM 永远不产出无法追溯到函数调用的数字".
     # The target price MUST trace to ``synthesize_valuations`` (deterministic
-    # confidence-weighted average across DCF / Comps / …). Before this fix
-    # the LLM picked the number freely — two consecutive 6-minute-apart TSLA
-    # runs returned $25.37 vs $57.96 because the model sometimes anchored on
-    # DCF, sometimes on Comps median, never on the actual weighted price.
-    # ``recommendation`` (Buy/Hold/Sell) had the identical asymmetry — fixed
-    # by classifying off ``upside_downside`` with documented thresholds.
-    # We now (a) inject canonical values into the prompt so the narrative
-    # is consistent and (b) force-override the fields after the run so even
-    # a non-cooperative LLM can't desync the contract.
+    # confidence-weighted average across DCF / Comps / …), and ``recommendation``
+    # (Buy/Hold/Sell) MUST classify off ``upside_downside`` with documented
+    # thresholds — never the LLM's free choice, which drifts run-to-run.
+    # So we (a) inject canonical values into the prompt for a consistent
+    # narrative and (b) force-override the fields after the run, so even a
+    # non-cooperative LLM can't desync the contract.
     vs = structured_context.get("valuation_synthesis")
     canonical_target: float | None = None
     canonical_basis: str | None = None

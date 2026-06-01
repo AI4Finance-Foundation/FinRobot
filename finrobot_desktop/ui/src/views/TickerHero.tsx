@@ -3,13 +3,9 @@
 // Job: breadcrumb back to landing + ticker glyph + freshness pill + morph
 // tagline + current price / day-change.
 //
-// What it does NOT do: anything related to running research. The "run"
-// / "rerun" buttons used to live here, but they duplicated the AIZone's
-// cold-state CTA + hot-state rerun action. After the dual-zone dashboard
-// landed, the hero kept showing redundant controls — surfaced by user as
-// "这个东西也不该留在这了". All run-related affordances now live in AIZone
-// (data-testid="run-analysis-trigger" moved with them so tests still pin
-// on the canonical trigger).
+// What it does NOT do: anything related to running research. All run/rerun
+// affordances live in AIZone (cold-state CTA + hot-state rerun, the canonical
+// data-testid="run-analysis-trigger") — the hero stays a pure identity strip.
 
 import { useTickerPrice } from '../hooks/useTickerData'
 import { WorkspaceBreadcrumb } from './workspace/WorkspaceBreadcrumb'

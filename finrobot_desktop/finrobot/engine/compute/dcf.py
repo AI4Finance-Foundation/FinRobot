@@ -149,8 +149,7 @@ def _project_full(
         rev = prev_revenue * (1 + g)
         ebitda = rev * inputs.ebitda_margin
         # Standard FCF: EBIT(1-t) + D&A - CapEx - ΔNWC, where EBIT = EBITDA - D&A.
-        # The simplified branch that dropped the D&A tax shield is gone — dcf_seed
-        # guarantees da_pct_revenue is non-None (filings → industry median fallback).
+        # da_pct_revenue is always set by dcf_seed (filings → industry median fallback).
         da = rev * inputs.da_pct_revenue
         ebit = ebitda - da
         fcf = (

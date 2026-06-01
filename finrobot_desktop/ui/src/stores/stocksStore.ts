@@ -2,7 +2,7 @@
  * stocksStore — per-ticker UI state for the Stocks page.
  *
  * Manages active tab + the set of tools currently running (prevents
- * double-submit). The "recent tickers" list is no longer stored here —
+ * double-submit). Recent tickers are NOT kept here —
  * /api/artifacts/studied-tickers is the authoritative source.
  */
 

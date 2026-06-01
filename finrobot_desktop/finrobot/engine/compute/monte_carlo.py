@@ -166,9 +166,8 @@ def run_monte_carlo(
     # EBITDA = revenue * margin
     sim_ebitda = sim_revenue * sim_margin[:, np.newaxis]  # (n, n_years)
 
-    # Standard FCF: EBIT(1-T) + D&A - CapEx - ΔNWC. The simplified branch that
-    # dropped the D&A tax shield (Phase B refactor) is gone — da_pct_revenue
-    # is now required on DCFInputs.
+    # Standard FCF: EBIT(1-T) + D&A - CapEx - ΔNWC. da_pct_revenue is required
+    # on DCFInputs (mirrors dcf.project_cash_flows).
     sim_da = sim_revenue * inputs.da_pct_revenue
     sim_ebit = sim_ebitda - sim_da
     sim_fcf = (

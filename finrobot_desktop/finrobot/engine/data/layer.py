@@ -68,10 +68,9 @@ class DataLayer:
         # cache keys use the canonical enum value, not a raw string literal.
         data_type = DataType(data_type)
 
-        # 1. Fresh cache hit — raw slot; staleness is by TTL only.
-        # PRICE/FINANCIALS contract-shape validation was previously handled by
-        # the now-deleted _is_cache_contract_current; canonical slots have
-        # version-tagged keys (ADR-0006 C1) that auto-invalidate on schema bumps.
+        # 1. Fresh cache hit — raw slot; staleness is by TTL only. Canonical
+        # slots use version-tagged keys (ADR-0006 C1) that auto-invalidate on
+        # schema bumps, so a fresh hit needs no contract-shape check.
         cached = await self._cache.get(data_type, ticker)
         if cached is not None and not cached.is_stale:
             return cached.data

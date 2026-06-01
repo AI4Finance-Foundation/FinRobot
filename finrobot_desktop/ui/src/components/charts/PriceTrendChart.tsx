@@ -1,7 +1,6 @@
 // PriceTrendChart — readable 1Y price chart for the workspace MarketDataZone.
 //
-// Replaces the old hand-rolled sparkline that drew only a shape: this one is a
-// Recharts area chart you can actually read numbers off — hover for date +
+// A Recharts area chart you can read numbers off — hover for date +
 // close (+ OHLC / volume when the provider carries them), a price Y-axis,
 // dashed period high/low reference lines, and a current-price dot. Matches the
 // house chart conventions (CHART_TOOLTIP tokens + JetBrains Mono) used by the

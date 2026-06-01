@@ -45,12 +45,10 @@ class SniperPoints(BaseModel):
     resistance_level: float  # detected resistance (20-day rolling max)
     risk_reward_ratio: float  # |take_profit - current| / |stop_loss - current|
     sell_mode: bool = False  # True when DCF intrinsic < current price
-    # "LONG" | "SHORT" — drives the rendering layer's labels and the
-    # invariant gate. SELL-rated artifacts used to ship LONG-flavoured
-    # field semantics with ``stop_loss`` ($484.40) sitting ABOVE the
-    # ``ideal_buy`` ($372.80), giving a risk/reward of 0.11 that read
-    # as a nonsensical long trade. Direction makes the SHORT semantics
-    # explicit and lets the UI swap labels (开空 / 止盈下方 / 止损上方).
+    # "LONG" | "SHORT" — drives the rendering layer's labels and the invariant
+    # gate. For a SHORT, the fields invert (``stop_loss`` sits ABOVE ``ideal_buy``,
+    # cover target below entry); making direction explicit lets the UI swap labels
+    # (开空 / 止盈下方 / 止损上方) and keeps risk/reward meaningful for a bear trade.
     direction: str = "LONG"
     invariant_warnings: list[str] = Field(default_factory=list)
 
@@ -120,15 +118,12 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
         # Short entry: current price (open now) and resistance (add on bounce).
         ideal_buy = current
         secondary_buy = max(resistance, current)
-        # Cover target = the DCF intrinsic value (the thesis). This is the whole
-        # reason we're short — fair value sits at ``target`` below the price, so
-        # that's where the bear case plays out. We deliberately do NOT clamp the
-        # cover up to the 20-day support: doing so (the old ``max(target,
-        # support)``) throttled the short to the nearest technical floor,
-        # understating R/R and — when the stock was already pinned to its 20-day
-        # low (support ≈ current, common for downtrending SELLs) — collapsed to a
-        # degenerate "cover == entry, R/R 0" trade. ``support`` stays available
-        # as ``support_level`` for display context. (Decision 2026-05-29.)
+        # Cover target = the DCF intrinsic value (the thesis): fair value sits at
+        # ``target`` below the price, which is where the bear case plays out. Do NOT
+        # clamp the cover up to the 20-day support — that throttles the short to the
+        # nearest technical floor and, when support ≈ current (common for downtrending
+        # SELLs), collapses to a degenerate "cover == entry, R/R 0" trade. ``support``
+        # stays available as ``support_level`` for display context.
         take_profit = target
         # Trend-reversal stop ABOVE current: take whichever is higher of
         # resistance and a 10% cushion so the stop never sits inside the

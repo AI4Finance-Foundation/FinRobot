@@ -1,7 +1,6 @@
-// v5 frontend types. Kept in a dedicated file so we don't have to touch
-// `hooks/useTickerData.ts` (which still carries the pre-v5 ArtifactSummary
-// shape used by HistoryTab and friends). Once those legacy callers are
-// migrated to /stock/:ticker (PR15), we can fold this back in.
+// v5 frontend types, in a dedicated file separate from
+// `hooks/useTickerData.ts` (which carries the ArtifactSummary shape used by
+// HistoryTab and friends).
 
 // Keep this list in sync with `finrobot.artifact.models.ArtifactType`
 // (Literal). Drift between frontend and backend silently breaks type-narrow

@@ -148,8 +148,7 @@ def build_dcf_artifact(
     data_source, fetched_at, raw_data = _extract_financial_data_dump(result, "historical_data")
     dcf = result.structured_data.get("dcf_calc")
 
-    # Standard D&A-inclusive formula is now the only path — simplified-FCF
-    # branch (and its overstate/understate warning) was removed in Phase B.
+    # FCF uses the standard D&A-inclusive formula: EBIT(1-T) + D&A - CapEx - ΔNWC.
     formula_id = "dcf_standard_with_da_v2"
     formula_warnings: list[str] = []
     assumptions_params: dict[str, Any] = {}

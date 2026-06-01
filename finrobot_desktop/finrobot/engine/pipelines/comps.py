@@ -50,12 +50,10 @@ def create_comps_pipeline(agents: dict[str, Agent]) -> Pipeline:
             # Deterministic peer analysis: the LLM only SELECTS peer tickers
             # (judgment); code fetches each peer's financials, FX-normalizes to
             # USD, and computes multiples + medians via calculate_multiples /
-            # calculate_peer_statistics. Shared with equity_research so the
-            # standalone comps pipeline can no longer emit LLM-fabricated,
-            # provenance-free multiples in free text (the old peer_data /
-            # multiples_calc / statistical_bench LLM steps). The step keeps the
-            # name "statistical_bench" so build_comps_artifact reads the
-            # structured PeerComps from the same key.
+            # calculate_peer_statistics. Every multiple is provenance-tracked —
+            # the LLM never emits free-text numbers. The step is named
+            # "statistical_bench" so build_comps_artifact reads the structured
+            # PeerComps from the same key.
             PipelineStep(
                 name="statistical_bench",
                 skill_section=None,

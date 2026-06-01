@@ -96,6 +96,20 @@ class ArtifactMeta(BaseModel):
         )
     )
     user_id: str = "local"  # multi-user later
+    language: Literal["en", "zh"] = Field(
+        default="zh",
+        description=(
+            "Language the LLM wrote this artifact's prose in (thesis / "
+            "key_takeaways / price_target_basis / financial commentary / news "
+            "summary). Set at generation time = UI locale when the run was "
+            "triggered. The frontend renders the body in THIS language regardless "
+            "of the viewer's current UI locale; only chrome labels follow the live "
+            "locale. Default is 'zh' — every artifact written before this field "
+            "existed was generated in Chinese, so legacy artifacts deserialize "
+            "correctly. (NB: differs from settings.language default 'en', which "
+            "governs NEW generation when unspecified — a separate concern.)"
+        ),
+    )
     tags: list[str] = Field(default_factory=list)
     parent_artifact_id: str | None = Field(
         default=None,

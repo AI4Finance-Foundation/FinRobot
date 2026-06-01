@@ -404,6 +404,11 @@ class Pipeline:
         if _artifact_store is not None and self.artifact_builder is not None:
             try:
                 artifact = self.artifact_builder(pipeline_result, ticker, deps)
+                # Stamp the prose language onto the artifact so the UI renders the
+                # body in the language it was actually generated in, independent of
+                # the viewer's current UI locale. Single write point: effective_lang
+                # already resolved above (explicit arg > settings > "en").
+                artifact.meta.language = "zh" if effective_lang == "zh" else "en"
                 artifact_id = await _artifact_store.save(artifact)
                 pipeline_result.artifact_id = artifact_id
                 logger.info("Artifact persisted: %s", artifact_id)
@@ -662,9 +667,11 @@ class Pipeline:
             parts.append("\n".join(sc_parts))
         parts.append("Produce a detailed, structured analysis for this step.")
 
-        # Language instruction — injected at the end so it takes precedence.
-        # Only adds overhead for non-English; English is the default and needs
-        # no extra instruction (all agent .md files already say "write in English").
+        # Language instruction — injected at the end so it takes precedence over
+        # any language cue the agent might pick up from mixed-language evidence.
+        # Both branches are explicit: the agent .md files are language-neutral
+        # (no hardcoded "中文"/"English") so prose language is decided HERE, the
+        # single source of truth, driven by the per-run effective_lang.
         if lang == "zh":
             parts.append(
                 "IMPORTANT: Respond in Chinese (简体中文). "
@@ -673,6 +680,13 @@ class Pipeline:
                 "Keep all numerical values, ticker symbols, and financial acronyms "
                 "(WACC, DCF, EV, EBITDA, FCF, P/E) in English. "
                 "Tables and section headers should be in Chinese."
+            )
+        else:
+            parts.append(
+                "IMPORTANT: Respond in English. Use standard English financial "
+                "terminology and keep all numerical values, ticker symbols, and "
+                "acronyms (WACC, DCF, EV, EBITDA, FCF, P/E) as-is. Do not switch "
+                "to another language even if some source evidence is non-English."
             )
 
         prompt = "\n\n".join(parts)

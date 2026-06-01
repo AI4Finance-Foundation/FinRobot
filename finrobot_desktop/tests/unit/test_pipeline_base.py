@@ -297,6 +297,74 @@ class TestPipelineResult:
 # --- P1.5 additions ---
 
 
+def _minimal_artifact():
+    """Smallest valid Artifact a builder could return — meta.language is the
+    field under test; everything else uses minimal valid values."""
+    from finrobot.artifact.models import (
+        Artifact,
+        ArtifactAssumptions,
+        ArtifactComputeVersion,
+        ArtifactInputs,
+        ArtifactMeta,
+        ArtifactOutputs,
+    )
+
+    now = datetime.now(tz=timezone.utc)
+    return Artifact(
+        id="art_test_AAPL_eq",
+        ticker="AAPL",
+        type="equity_research",
+        inputs=ArtifactInputs(data_source="fake", data_fetched_at=now, raw_data={}),
+        assumptions=ArtifactAssumptions(parameters={}),
+        compute_version=ArtifactComputeVersion(version="0.0.0", formula_id="test_v1"),
+        outputs=ArtifactOutputs(structured={}, llm_narrative={}),
+        meta=ArtifactMeta(created_at=now, source="cli"),
+    )
+
+
+class TestArtifactLanguageStamping:
+    """meta.language is stamped from the run's effective_lang at the single
+    write point in execute() — see ADR-0008."""
+
+    def test_artifact_meta_defaults_to_zh(self):
+        from finrobot.artifact.models import ArtifactMeta
+
+        # Legacy artifacts (written before this field existed) were all generated
+        # in Chinese; the default MUST be 'zh' so old JSON deserializes with
+        # correct provenance. Deliberately the opposite of settings.language ('en').
+        meta = ArtifactMeta(created_at=datetime.now(tz=timezone.utc), source="cli")
+        assert meta.language == "zh"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "lang,expected",
+        [("en", "en"), ("zh", "zh"), (None, "en")],  # None → settings.language fallback
+    )
+    async def test_execute_stamps_effective_lang(self, lang, expected):
+        saved: dict = {}
+
+        def builder(result, ticker, deps):
+            return _minimal_artifact()
+
+        store = MagicMock()
+
+        async def _save(art):
+            saved["artifact"] = art
+            return art.id
+
+        store.save = _save
+
+        deps = MagicMock()
+        deps.skill_runtime = None
+        deps.artifact_store = store
+        deps.settings.language = "en"  # fallback target when lang is None
+
+        pipeline = Pipeline(steps=[_make_step("s1")], artifact_builder=builder)
+        await pipeline.execute(deps, "AAPL", lang=lang)
+
+        assert saved["artifact"].meta.language == expected
+
+
 @pytest.mark.asyncio
 async def test_executor_called_instead_of_agent_run():
     """Custom executor replaces default agent.run()"""

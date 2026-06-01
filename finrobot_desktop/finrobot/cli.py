@@ -231,7 +231,9 @@ def comps(ticker: str, model: str | None, lang: str | None, peers: str | None) -
 
     # Only forward `peers` when supplied, so the default path passes no run
     # kwargs and behaves byte-identically to before the override existed.
-    extra: dict[str, object] = {}
+    # dict[str, Any] (not object) so the **unpack stays mypy-clean against
+    # execute()'s typed keyword params (lang / source_artifact_id: str | None).
+    extra: dict[str, Any] = {}
     if peers:
         extra["peers"] = [p.strip().upper() for p in peers.split(",") if p.strip()]
 

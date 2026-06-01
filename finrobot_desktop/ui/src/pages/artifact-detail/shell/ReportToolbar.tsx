@@ -90,6 +90,23 @@ export function ReportToolbar({
     }
   }
 
+  // Export PDF goes through the OS print pipeline — window.print() drives the
+  // native "Save as PDF" (the print dialog's bottom-left PDF ▾). The dialog
+  // can't be skipped without per-OS native code, so we announce it first: the
+  // toast paints, the user reads "Save as PDF", THEN the print sheet animates
+  // in over the webview (a short delay buys that read; the toast also persists
+  // if they cancel the sheet confused). @media print (styles/print.css) flips
+  // the cosmic theme to a light ink-on-paper deliverable.
+  function handleExportPdf(): void {
+    addToast({
+      type: 'info',
+      title: t('report.toolbar.exportPdfHint'),
+      description: t('report.toolbar.exportPdfHintBody'),
+      duration: 7000,
+    })
+    window.setTimeout(() => window.print(), 450)
+  }
+
   function handleVersionChange(targetArtifactId: string): void {
     if (targetArtifactId && targetArtifactId !== artifactId) {
       navigate(`/stocks/${ticker}/runs/${targetArtifactId}`)
@@ -217,10 +234,9 @@ export function ReportToolbar({
 
       <span style={{ flex: 1, minWidth: 8 }} />
 
-      {/* Export PDF — print the report to a light deliverable PDF. Zero deps:
-          window.print() drives the WKWebView print dialog; @media print
-          (styles/print.css) flips the cosmic theme light and strips chrome. */}
-      <ToolbarButton onClick={() => window.print()} title={t('report.toolbar.exportPdfTitle')}>
+      {/* Export PDF — see handleExportPdf: announces the native print→"Save as
+          PDF" flow before opening the OS dialog. */}
+      <ToolbarButton onClick={handleExportPdf} title={t('report.toolbar.exportPdfTitle')}>
         ⤓ {t('report.toolbar.exportPdf')}
       </ToolbarButton>
 

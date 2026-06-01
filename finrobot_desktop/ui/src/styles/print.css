@@ -135,11 +135,19 @@
     display: none !important;
   }
 
-  /* Collapse the 3-column report grid (184px 1fr 268px) to a single column */
-  [data-testid='artifact-detail-page'] {
+  /* Collapse the 3-column report grid (184px 1fr 268px) to a single full-width
+     column. The grid lives on the INNER .report-grid div — with the TOC and
+     right-rail display:none'd above, leaving the grid intact would drop <main>
+     into the leftover 184px track (thin column + whitespace pages). Flatten it
+     to block so the content spans the full A4 text width. */
+  [data-testid='artifact-detail-page'],
+  [data-testid='report-grid'] {
     display: block !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
-  [data-testid='artifact-detail-page'] > main {
+  [data-testid='report-grid'] > main {
     padding: 0 !important;
   }
 

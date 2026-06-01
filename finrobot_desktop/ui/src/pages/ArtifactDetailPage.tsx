@@ -203,6 +203,7 @@ export function ArtifactDetailPage(): React.ReactElement {
   return (
     <div data-testid="artifact-detail-page" style={{ position: 'relative', minHeight: '100vh' }}>
       <div
+        data-testid="report-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: '184px 1fr 268px',

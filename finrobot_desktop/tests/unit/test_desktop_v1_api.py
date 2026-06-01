@@ -160,7 +160,9 @@ class TestRunsRoutes:
         class FakePipeline:
             steps = [object()]
 
-            async def execute(self, deps, ticker, progress, lang=None):
+            async def execute(self, deps, ticker, progress, lang=None, **kwargs):
+                # **kwargs tolerates execute() gaining keyword params (e.g.
+                # source_artifact_id) without this fake drifting out of sync.
                 await progress.on_step_start(1, 1, "dcf_calc")
                 await progress.on_step_end(1, 1, "dcf_calc", 0.1)
                 result = MagicMock()

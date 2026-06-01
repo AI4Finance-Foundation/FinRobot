@@ -61,6 +61,11 @@ finrobot = "finrobot.cli:cli"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Skip live-network/LLM tests by default so `pytest tests/` runs the
+# deterministic offline gate to completion (they otherwise stall the run on
+# real yfinance/SEC/LLM calls). Run them explicitly with `-m integration`
+# (or override: `pytest -m "integration or not integration"`).
+addopts = "-m 'not integration'"
 markers = [
     "integration: tests that call real external APIs (yfinance, LLM)",
     "slow: tests that take > 10 seconds",

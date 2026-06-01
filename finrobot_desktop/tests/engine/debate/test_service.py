@@ -124,6 +124,8 @@ async def test_unsupported_bull_arg_marked_unverified_and_emitted() -> None:
     assert result.verdict.call == "HOLD"
     assert any(e["event"] == "debate.point" for e in emitted)
     assert any(e["event"] == "debate.verdict" for e in emitted)
+    # debate.evidence must be the first emitted event
+    assert emitted[0]["event"] == "debate.evidence"
 
 
 # ── Test: v1 divergences always empty ───────────────────────────────────────
@@ -209,3 +211,85 @@ async def test_result_fields_wired_from_evidence_set() -> None:
     assert result.ticker == "AAPL"
     assert result.artifact_id == "artifact-42"
     assert result.reliable is True
+
+
+# ── Test: debate.evidence is first event with correct payload ────────────────
+
+
+async def test_debate_evidence_emitted_first_with_correct_payload() -> None:
+    """debate.evidence must be the first emitted event and carry full evidence
+    payload: items list, current_price, reliable flag, and ticker."""
+    evidence_items = [
+        Evidence(
+            evidence_id="dcf.fair_value",
+            label="DCF Fair Value",
+            value=210.5,
+            unit="$",
+            formula_id="dcf_v1",
+        ),
+        Evidence(
+            evidence_id="comps.ev_ebitda",
+            label="EV/EBITDA",
+            value=41.0,
+            unit="x",
+        ),
+    ]
+    es = EvidenceSet(
+        ticker="AAPL",
+        artifact_id="artifact-99",
+        current_price=195.0,
+        reliable=True,
+        items=evidence_items,
+    )
+    agents = _agents_for(
+        bull_output=SideCase(side="bull", arguments=[]),
+        bear_output=SideCase(side="bear", arguments=[]),
+        judge_output=Verdict(call="BUY", conviction=0.8, swing_factor="f", change_my_mind="m"),
+    )
+    emitted: list[dict] = []
+
+    async def _emit(ev: dict) -> None:
+        emitted.append(ev)
+
+    await run_debate(es, agents, emit=_emit)
+
+    assert len(emitted) >= 1
+    ev = emitted[0]
+    assert ev["event"] == "debate.evidence"
+    assert ev["ticker"] == "AAPL"
+    assert ev["current_price"] == 195.0
+    assert ev["reliable"] is True
+    # items should be serialised dicts with evidence_id keys
+    assert len(ev["items"]) == 2
+    ids = {item["evidence_id"] for item in ev["items"]}
+    assert ids == {"dcf.fair_value", "comps.ev_ebitda"}
+    # downstream events still arrive (debate.point and debate.verdict)
+    event_types = [e["event"] for e in emitted]
+    assert "debate.verdict" in event_types
+
+
+async def test_debate_evidence_reliable_false_propagated() -> None:
+    """debate.evidence carries reliable=False when evidence_set.reliable=False."""
+    es = EvidenceSet(
+        ticker="X",
+        artifact_id="r",
+        current_price=10.0,
+        reliable=False,
+        items=[],
+    )
+    agents = _agents_for(
+        bull_output=SideCase(side="bull", arguments=[]),
+        bear_output=SideCase(side="bear", arguments=[]),
+        judge_output=Verdict(call="BUY", conviction=0.9, swing_factor="x", change_my_mind="y"),
+    )
+    emitted: list[dict] = []
+
+    async def _emit(ev: dict) -> None:
+        emitted.append(ev)
+
+    await run_debate(es, agents, emit=_emit)
+
+    evidence_event = emitted[0]
+    assert evidence_event["event"] == "debate.evidence"
+    assert evidence_event["reliable"] is False
+    assert evidence_event["items"] == []

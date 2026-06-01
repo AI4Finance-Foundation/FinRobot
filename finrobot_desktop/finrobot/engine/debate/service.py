@@ -2,6 +2,7 @@
 
 Execution order:
   1. Format evidence context text from EvidenceSet.
+  1b. emit debate.evidence — push full EvidenceSet to frontend for id→value mapping.
   2. bull / bear agents run in parallel via asyncio.gather.
   3. verify_arguments for both sides.
   4. emit debate.point events for each verified argument.
@@ -88,6 +89,20 @@ async def run_debate(
         in v1 (see module-level docstring for the design rationale).
     """
     evidence_ctx = _format_evidence_context(evidence_set)
+
+    # ── Step 1b: emit debate.evidence — id→value map for the frontend ────────
+    # Emitted before bull/bear so the frontend can resolve evidence_id→value
+    # when rendering debate.point events (which only carry evidence_ids).
+    # run_id is injected by the route's emit closure, not here.
+    await emit(
+        {
+            "event": "debate.evidence",
+            "ticker": evidence_set.ticker,
+            "current_price": evidence_set.current_price,
+            "reliable": evidence_set.reliable,
+            "items": [e.model_dump() for e in evidence_set.items],
+        }
+    )
 
     # ── Step 2: bull / bear run in parallel ─────────────────────────────────
     side_prompt = (

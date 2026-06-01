@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, TypeAlias
+from typing import Any, Literal, TypeAlias
 
 from typing_extensions import TypedDict
 
@@ -61,6 +61,15 @@ class RunFailed(TypedDict):
     error: str
 
 
+class DebateEvidence(TypedDict):
+    event: Literal["debate.evidence"]
+    run_id: str
+    ticker: str
+    current_price: float
+    reliable: bool
+    items: list[dict[str, Any]]  # each item: {evidence_id, label, value, unit, formula_id}
+
+
 class DebatePoint(TypedDict):
     event: Literal["debate.point"]
     run_id: str
@@ -88,6 +97,7 @@ RunEvent: TypeAlias = (
     | ArtifactReady
     | RunCompleted
     | RunFailed
+    | DebateEvidence
     | DebatePoint
     | DebateVerdict
 )

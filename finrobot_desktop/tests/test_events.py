@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from finrobot.events import DebatePoint, DebateVerdict, RunEvent
+from finrobot.events import DebateEvidence, DebatePoint, DebateVerdict, RunEvent
 
 
 def test_debate_events_in_runevent_union() -> None:
@@ -81,3 +81,55 @@ def test_debate_point_in_runevent() -> None:
         "reason": "Gross margin up 200bps YoY",
     }
     assert point["event"] == "debate.point"
+
+
+def test_debate_evidence_fields() -> None:
+    """DebateEvidence carries ticker, current_price, reliable, and items list."""
+    ev: DebateEvidence = {
+        "event": "debate.evidence",
+        "run_id": "run-001",
+        "ticker": "AAPL",
+        "current_price": 195.0,
+        "reliable": True,
+        "items": [
+            {
+                "evidence_id": "dcf.fair_value",
+                "label": "DCF Fair Value",
+                "value": 210.5,
+                "unit": "$",
+                "formula_id": "dcf_v1",
+            }
+        ],
+    }
+    assert ev["event"] == "debate.evidence"
+    assert ev["ticker"] == "AAPL"
+    assert ev["current_price"] == 195.0
+    assert ev["reliable"] is True
+    assert ev["items"][0]["evidence_id"] == "dcf.fair_value"
+
+
+def test_debate_evidence_in_runevent() -> None:
+    """DebateEvidence is a valid member of RunEvent (type-level check via annotation)."""
+    ev: RunEvent = {
+        "event": "debate.evidence",
+        "run_id": "run-002",
+        "ticker": "NVDA",
+        "current_price": 900.0,
+        "reliable": False,
+        "items": [],
+    }
+    assert ev["event"] == "debate.evidence"
+
+
+def test_debate_evidence_empty_items() -> None:
+    """DebateEvidence with an empty items list is valid (unreliable gate case)."""
+    ev: DebateEvidence = {
+        "event": "debate.evidence",
+        "run_id": "run-003",
+        "ticker": "X",
+        "current_price": 10.0,
+        "reliable": False,
+        "items": [],
+    }
+    assert ev["items"] == []
+    assert ev["reliable"] is False

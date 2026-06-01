@@ -1,4 +1,5 @@
 import type { DCFResult, CompsResult, HistoricalMetrics } from '../stores/appStore'
+import { tSync } from '../i18n'
 
 /**
  * Build Revenue & EBITDA bar chart data from DCF projections.
@@ -120,11 +121,27 @@ export function compsResultToRadarData(
   const peerOpMedian = medianOf(result.peers.map((p) => p.operating_margin))
 
   const dims: { label: string; company: number | null; median: number | null }[] = [
-    { label: 'P/E', company: t.pe_ratio, median: result.median_pe },
-    { label: 'EV/EBITDA', company: t.ev_ebitda, median: result.median_ev_ebitda },
-    { label: 'EV/营收', company: t.ev_revenue, median: result.median_ev_revenue },
-    { label: '毛利率', company: t.gross_margin, median: peerGrossMedian },
-    { label: '营业利润率', company: t.operating_margin, median: peerOpMedian },
+    { label: tSync('chart.radar.dim.pe'), company: t.pe_ratio, median: result.median_pe },
+    {
+      label: tSync('chart.radar.dim.evEbitda'),
+      company: t.ev_ebitda,
+      median: result.median_ev_ebitda,
+    },
+    {
+      label: tSync('chart.radar.dim.evRevenue'),
+      company: t.ev_revenue,
+      median: result.median_ev_revenue,
+    },
+    {
+      label: tSync('chart.radar.dim.grossMargin'),
+      company: t.gross_margin,
+      median: peerGrossMedian,
+    },
+    {
+      label: tSync('chart.radar.dim.operatingMargin'),
+      company: t.operating_margin,
+      median: peerOpMedian,
+    },
   ]
 
   return dims
@@ -178,4 +195,22 @@ export function historicalToCashFlowData(h: HistoricalMetrics) {
     investing: h.investing_cash_flow[i],
     financing: h.financing_cash_flow[i],
   }))
+}
+
+/**
+ * Annual diluted EPS with YoY growth. Historical P/E is intentionally NOT
+ * paired here: the backend only carries a current-year P/E (prior years are
+ * null), so an EPS×P/E dual chart would render a one-point P/E line. EPS itself
+ * is fully populated, so this powers a clean EPS-trend bar chart instead.
+ * yoy uses abs(prev) as the base so a swing off a tiny/negative EPS keeps its
+ * sign without flipping.
+ */
+export function historicalToEpsData(h: HistoricalMetrics) {
+  return h.years.map((year, i) => {
+    const eps = h.eps[i]
+    const prev = i > 0 ? h.eps[i - 1] : null
+    const yoy =
+      prev != null && prev !== 0 && eps != null ? ((eps - prev) / Math.abs(prev)) * 100 : null
+    return { year: String(year), eps, yoy }
+  })
 }

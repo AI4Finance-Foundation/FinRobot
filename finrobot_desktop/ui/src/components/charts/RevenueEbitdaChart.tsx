@@ -24,6 +24,7 @@ import {
   Cell,
   LabelList,
 } from 'recharts'
+import { useI18n } from '../../i18n'
 import { CosmicTooltip, CosmicLegend } from './chartTooltip'
 
 interface ChartProps {
@@ -43,6 +44,7 @@ function formatBillions(value: number): string {
 }
 
 export default function RevenueEbitdaChart({ data, title }: ChartProps) {
+  const { t } = useI18n()
   if (!data || data.length === 0) return null
 
   return (
@@ -85,7 +87,7 @@ export default function RevenueEbitdaChart({ data, title }: ChartProps) {
             <Legend content={<CosmicLegend />} />
             <Bar
               dataKey="revenue"
-              name="Revenue"
+              name={t('chart.series.revenue')}
               radius={[4, 4, 0, 0]}
               fill={REVENUE_COLOR}
               isAnimationActive={false}
@@ -112,7 +114,7 @@ export default function RevenueEbitdaChart({ data, title }: ChartProps) {
             </Bar>
             <Bar
               dataKey="ebitda"
-              name="EBITDA"
+              name={t('chart.series.ebitda')}
               radius={[4, 4, 0, 0]}
               fill={EBITDA_COLOR}
               isAnimationActive={false}

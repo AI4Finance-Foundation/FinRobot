@@ -1,4 +1,5 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts'
+import { useI18n } from '../../i18n'
 import { CosmicTooltip, CosmicLegend } from './chartTooltip'
 
 interface ChartProps {
@@ -18,6 +19,7 @@ const AXIS_TICK = {
 }
 
 export default function PeerComparisonChart({ data, title }: ChartProps) {
+  const { t } = useI18n()
   if (!data || data.length === 0) return null
 
   return (
@@ -38,12 +40,17 @@ export default function PeerComparisonChart({ data, title }: ChartProps) {
             {/* fill on <Bar> drives the legend swatch; <Cell> overrides per-bar
                 so the target ticker can be highlighted. Without Bar fill the
                 legend icons render black (Recharts default). */}
-            <Bar dataKey="ev_ebitda" name="EV/EBITDA" fill={PRIMARY} radius={[3, 3, 0, 0]}>
+            <Bar
+              dataKey="ev_ebitda"
+              name={t('chart.peer.evEbitda')}
+              fill={PRIMARY}
+              radius={[3, 3, 0, 0]}
+            >
               {data.map((entry, index) => (
                 <Cell key={`ev-${index}`} fill={entry.is_target ? TARGET_HIGHLIGHT : PRIMARY} />
               ))}
             </Bar>
-            <Bar dataKey="pe_ratio" name="P/E Ratio" fill={ACCENT} radius={[3, 3, 0, 0]}>
+            <Bar dataKey="pe_ratio" name={t('chart.peer.pe')} fill={ACCENT} radius={[3, 3, 0, 0]}>
               {data.map((entry, index) => (
                 <Cell key={`pe-${index}`} fill={entry.is_target ? TARGET_HIGHLIGHT : ACCENT} />
               ))}

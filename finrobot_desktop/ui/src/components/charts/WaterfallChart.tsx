@@ -11,6 +11,7 @@ import {
 import { useMemo } from 'react'
 
 import { fmtUsd } from '../../utils/formatters'
+import { useI18n } from '../../i18n'
 import { CosmicTooltipShell, CosmicTooltipRow } from './chartTooltip'
 
 interface ChartProps {
@@ -47,9 +48,14 @@ function WaterfallTooltip({
   active?: boolean
   payload?: { payload?: WaterfallBar }[]
 }) {
+  const { t } = useI18n()
   const entry = active ? payload?.[0]?.payload : undefined
   if (!entry) return null
-  const name = entry.is_total ? 'Total' : entry.value >= 0 ? 'Add' : 'Subtract'
+  const name = entry.is_total
+    ? t('chart.waterfall.total')
+    : entry.value >= 0
+      ? t('chart.waterfall.add')
+      : t('chart.waterfall.subtract')
   return (
     <CosmicTooltipShell label={entry.label}>
       <CosmicTooltipRow

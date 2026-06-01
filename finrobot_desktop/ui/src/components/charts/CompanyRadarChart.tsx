@@ -8,6 +8,7 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts'
+import { useI18n } from '../../i18n'
 import { CosmicTooltip, CosmicLegend } from './chartTooltip'
 
 interface ChartProps {
@@ -20,6 +21,7 @@ const COMPANY_COLOR = 'var(--primary)' // chart-1
 const BENCHMARK_COLOR = 'var(--chart-gold)' // gold, distinct from the blue company trace
 
 export default function CompanyRadarChart({ data, title }: ChartProps) {
+  const { t } = useI18n()
   if (!data || data.length === 0) return null
 
   return (
@@ -39,14 +41,14 @@ export default function CompanyRadarChart({ data, title }: ChartProps) {
             <Tooltip content={<CosmicTooltip format={(v) => v.toFixed(1)} />} />
             <Legend content={<CosmicLegend />} />
             <Radar
-              name="Company"
+              name={t('chart.radar.company')}
               dataKey="value"
               stroke={COMPANY_COLOR}
               fill={COMPANY_COLOR}
               fillOpacity={0.25}
             />
             <Radar
-              name="Benchmark"
+              name={t('chart.radar.benchmark')}
               dataKey="benchmark"
               stroke={BENCHMARK_COLOR}
               fill={BENCHMARK_COLOR}

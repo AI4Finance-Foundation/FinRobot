@@ -3021,3 +3021,99 @@ msgstr "仅支持股票研报（Equity Research）"
 #. js-lingui-explicit-id
 msgid "report.toolbar.icDebateTitle"
 msgstr "在投委会对此研报进行多空辩论"
+
+#. js-lingui-explicit-id
+msgid "chart.series.revenue"
+msgstr "营收"
+
+#. js-lingui-explicit-id
+msgid "chart.series.ebitda"
+msgstr "EBITDA"
+
+#. js-lingui-explicit-id
+msgid "chart.margin.gross"
+msgstr "毛利率"
+
+#. js-lingui-explicit-id
+msgid "chart.margin.ebitda"
+msgstr "EBITDA 利润率"
+
+#. js-lingui-explicit-id
+msgid "chart.margin.operating"
+msgstr "营业利润率"
+
+#. js-lingui-explicit-id
+msgid "chart.cashflow.operating"
+msgstr "经营"
+
+#. js-lingui-explicit-id
+msgid "chart.cashflow.investing"
+msgstr "投资"
+
+#. js-lingui-explicit-id
+msgid "chart.cashflow.financing"
+msgstr "筹资"
+
+#. js-lingui-explicit-id
+msgid "chart.cashflow.net"
+msgstr "净现金流"
+
+#. js-lingui-explicit-id
+msgid "chart.peer.evEbitda"
+msgstr "EV/EBITDA"
+
+#. js-lingui-explicit-id
+msgid "chart.peer.pe"
+msgstr "市盈率"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.company"
+msgstr "本公司"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.benchmark"
+msgstr "同业基准"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.pe"
+msgstr "市盈率"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.evEbitda"
+msgstr "EV/EBITDA"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.evRevenue"
+msgstr "EV/营收"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.grossMargin"
+msgstr "毛利率"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.operatingMargin"
+msgstr "营业利润率"
+
+#. js-lingui-explicit-id
+msgid "chart.waterfall.total"
+msgstr "合计"
+
+#. js-lingui-explicit-id
+msgid "chart.waterfall.add"
+msgstr "增加"
+
+#. js-lingui-explicit-id
+msgid "chart.waterfall.subtract"
+msgstr "减少"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.current"
+msgstr "现价"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.offScaleBadge"
+msgstr "超出区间"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.mid"
+msgstr "中值"

@@ -8,6 +8,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
+import { useI18n } from '../../i18n'
 import { CosmicTooltip, CosmicLegend } from './chartTooltip'
 
 interface ChartProps {
@@ -33,6 +34,7 @@ function formatPercent(value: number): string {
 }
 
 export default function MarginTrendChart({ data, title }: ChartProps) {
+  const { t } = useI18n()
   if (!data || data.length === 0) return null
 
   return (
@@ -67,7 +69,7 @@ export default function MarginTrendChart({ data, title }: ChartProps) {
             <Area
               type="monotone"
               dataKey="gross_margin"
-              name="Gross"
+              name={t('chart.margin.gross')}
               stroke={COLORS.gross_margin}
               strokeWidth={2}
               fill="url(#grossGradient)"
@@ -76,7 +78,7 @@ export default function MarginTrendChart({ data, title }: ChartProps) {
             <Area
               type="monotone"
               dataKey="ebitda_margin"
-              name="EBITDA"
+              name={t('chart.margin.ebitda')}
               stroke={COLORS.ebitda_margin}
               strokeWidth={2}
               fill="url(#ebitdaGradient)"
@@ -85,7 +87,7 @@ export default function MarginTrendChart({ data, title }: ChartProps) {
             <Line
               type="monotone"
               dataKey="operating_margin"
-              name="Operating"
+              name={t('chart.margin.operating')}
               stroke={COLORS.operating_margin}
               strokeWidth={2}
               dot={{ r: 3, fill: COLORS.operating_margin }}

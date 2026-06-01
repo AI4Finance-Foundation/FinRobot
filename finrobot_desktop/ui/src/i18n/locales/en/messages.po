@@ -3021,3 +3021,99 @@ msgstr "Only available for equity research reports"
 #. js-lingui-explicit-id
 msgid "report.toolbar.icDebateTitle"
 msgstr "Run a bull/bear debate on this report in the IC"
+
+#. js-lingui-explicit-id
+msgid "chart.series.revenue"
+msgstr "Revenue"
+
+#. js-lingui-explicit-id
+msgid "chart.series.ebitda"
+msgstr "EBITDA"
+
+#. js-lingui-explicit-id
+msgid "chart.margin.gross"
+msgstr "Gross"
+
+#. js-lingui-explicit-id
+msgid "chart.margin.ebitda"
+msgstr "EBITDA"
+
+#. js-lingui-explicit-id
+msgid "chart.margin.operating"
+msgstr "Operating"
+
+#. js-lingui-explicit-id
+msgid "chart.cashflow.operating"
+msgstr "Operating"
+
+#. js-lingui-explicit-id
+msgid "chart.cashflow.investing"
+msgstr "Investing"
+
+#. js-lingui-explicit-id
+msgid "chart.cashflow.financing"
+msgstr "Financing"
+
+#. js-lingui-explicit-id
+msgid "chart.cashflow.net"
+msgstr "Net Cash Flow"
+
+#. js-lingui-explicit-id
+msgid "chart.peer.evEbitda"
+msgstr "EV/EBITDA"
+
+#. js-lingui-explicit-id
+msgid "chart.peer.pe"
+msgstr "P/E Ratio"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.company"
+msgstr "Company"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.benchmark"
+msgstr "Benchmark"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.pe"
+msgstr "P/E"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.evEbitda"
+msgstr "EV/EBITDA"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.evRevenue"
+msgstr "EV/Revenue"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.grossMargin"
+msgstr "Gross Margin"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.operatingMargin"
+msgstr "Operating Margin"
+
+#. js-lingui-explicit-id
+msgid "chart.waterfall.total"
+msgstr "Total"
+
+#. js-lingui-explicit-id
+msgid "chart.waterfall.add"
+msgstr "Add"
+
+#. js-lingui-explicit-id
+msgid "chart.waterfall.subtract"
+msgstr "Subtract"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.current"
+msgstr "Current"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.offScaleBadge"
+msgstr "off-scale"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.mid"
+msgstr "Mid"

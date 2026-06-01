@@ -8,6 +8,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
+import { useI18n } from '../../i18n'
 import { CosmicTooltip, CosmicLegend } from './chartTooltip'
 
 interface ChartProps {
@@ -28,6 +29,7 @@ function formatBillions(v: number): string {
 }
 
 export default function CashFlowChart({ data, title }: ChartProps) {
+  const { t } = useI18n()
   if (!data || data.length === 0) return null
 
   const enriched = data.map((d) => ({
@@ -54,18 +56,28 @@ export default function CashFlowChart({ data, title }: ChartProps) {
               cursor={{ fill: 'var(--primary-soft)', radius: 4 }}
             />
             <Legend content={<CosmicLegend />} />
-            <Bar dataKey="operating" name="Operating" fill="var(--success)" radius={[2, 2, 0, 0]} />
-            <Bar dataKey="investing" name="Investing" fill="var(--danger)" radius={[2, 2, 0, 0]} />
+            <Bar
+              dataKey="operating"
+              name={t('chart.cashflow.operating')}
+              fill="var(--success)"
+              radius={[2, 2, 0, 0]}
+            />
+            <Bar
+              dataKey="investing"
+              name={t('chart.cashflow.investing')}
+              fill="var(--danger)"
+              radius={[2, 2, 0, 0]}
+            />
             <Bar
               dataKey="financing"
-              name="Financing"
+              name={t('chart.cashflow.financing')}
               fill="var(--chart-gold)"
               radius={[2, 2, 0, 0]}
             />
             <Line
               type="monotone"
               dataKey="net"
-              name="Net Cash Flow"
+              name={t('chart.cashflow.net')}
               stroke="var(--primary)"
               strokeWidth={2}
               dot={{ r: 3, fill: 'var(--primary)' }}

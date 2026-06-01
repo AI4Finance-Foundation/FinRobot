@@ -89,9 +89,11 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
         <span className="card-title">{title}</span>
         {cp !== null && (
           <span className="card-badge">
-            Current {fmtPrice(cp)}
+            {t('chart.footballField.current')} {fmtPrice(cp)}
             {isOffScale && (
-              <span style={{ marginLeft: 8, color: 'var(--warning)' }}>· off-scale</span>
+              <span style={{ marginLeft: 8, color: 'var(--warning)' }}>
+                · {t('chart.footballField.offScaleBadge')}
+              </span>
             )}
           </span>
         )}
@@ -251,7 +253,7 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
                       borderRadius: '50%',
                       boxShadow: '0 0 8px var(--accent-cyan)',
                     }}
-                    title={`Mid ${fmtPrice(r.mid)}`}
+                    title={`${t('chart.footballField.mid')} ${fmtPrice(r.mid)}`}
                   />
                 </div>
               )
@@ -286,7 +288,7 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  CURRENT {fmtPrice(cp)}
+                  {t('chart.footballField.current')} {fmtPrice(cp)}
                 </span>
               </>
             )}
@@ -348,7 +350,9 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
                     color: 'var(--text-secondary)',
                   }}
                 >
-                  <span style={{ color: 'var(--accent-cyan)' }}>Mid {fmtPrice(r.mid)}</span>
+                  <span style={{ color: 'var(--accent-cyan)' }}>
+                    {t('chart.footballField.mid')} {fmtPrice(r.mid)}
+                  </span>
                   {upside !== null && (
                     <span style={{ color: up ? 'var(--success)' : 'var(--danger)' }}>
                       {up ? '+' : ''}

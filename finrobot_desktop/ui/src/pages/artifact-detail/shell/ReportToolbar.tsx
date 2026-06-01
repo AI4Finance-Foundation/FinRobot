@@ -24,6 +24,8 @@ interface ReportToolbarProps {
   targetPrice: number | null
   timeline: ArtifactSummaryV5[]
   onOpenDiff: () => void
+  /** Navigate to /ic/:ticker?artifact_id=<id>. Only passed for equity_research reports. */
+  onOpenIcDebate?: () => void
 }
 
 export function ReportToolbar({
@@ -34,6 +36,7 @@ export function ReportToolbar({
   targetPrice,
   timeline,
   onOpenDiff,
+  onOpenIcDebate,
 }: ReportToolbarProps): React.ReactElement {
   const navigate = useNavigate()
   const { data: priceData } = useTickerPrice(ticker)
@@ -74,14 +77,14 @@ export function ReportToolbar({
       await startRun(pipelineType, ticker)
       addToast({
         type: 'success',
-        title: `${ticker} 重跑 ${reportType} 已启动`,
-        description: '分析进行中，完成后可在工作区抽屉查看版本历史',
+        title: t('report.toolbar.rerunStarted', { ticker, reportType }),
+        description: t('report.toolbar.rerunStartedBody'),
       })
       navigate(`/stocks/${ticker}`)
     } catch (err) {
       addToast({
         type: 'error',
-        title: '启动重跑失败',
+        title: t('report.toolbar.rerunFailed'),
         description: mapErrorToUserMessage(err),
       })
     }
@@ -117,7 +120,7 @@ export function ReportToolbar({
         type="button"
         data-testid="report-back"
         onClick={() => navigate(`/stocks/${ticker}`)}
-        title={`返回 ${ticker} 工作区`}
+        title={t('report.toolbar.back', { ticker })}
         style={backBtnStyle}
         onMouseEnter={(e) => {
           e.currentTarget.style.color = 'var(--text-primary)'
@@ -155,8 +158,8 @@ export function ReportToolbar({
                 data-testid="version-select"
                 value={artifactId}
                 onChange={(e) => handleVersionChange(e.target.value)}
-                title="切换其他版本"
-                aria-label="切换其他版本"
+                title={t('report.toolbar.switchVersion')}
+                aria-label={t('report.toolbar.switchVersion')}
                 style={hiddenSelectStyle}
               >
                 {sameTypeTimeline.map((a) => (
@@ -182,9 +185,15 @@ export function ReportToolbar({
             <span
               style={{
                 ...quoteChipStyle,
-                background: isUp ? 'rgba(22,163,74,0.14)' : 'rgba(220,38,38,0.14)',
+                background: isUp
+                  ? 'color-mix(in srgb, var(--success) 14%, transparent)'
+                  : 'color-mix(in srgb, var(--danger) 14%, transparent)',
                 color: isUp ? 'var(--success)' : 'var(--danger)',
-                border: `1px solid ${isUp ? 'rgba(22,163,74,0.32)' : 'rgba(220,38,38,0.32)'}`,
+                border: `1px solid ${
+                  isUp
+                    ? 'color-mix(in srgb, var(--success) 32%, transparent)'
+                    : 'color-mix(in srgb, var(--danger) 32%, transparent)'
+                }`,
               }}
             >
               {isUp ? '↑' : '↓'} {Math.abs(changePct).toFixed(2)}%
@@ -199,7 +208,7 @@ export function ReportToolbar({
                 border: '1px solid var(--secondary)',
               }}
             >
-              距目标 {distancePct >= 0 ? '+' : ''}
+              {t('report.toolbar.toTarget')} {distancePct >= 0 ? '+' : ''}
               {distancePct.toFixed(1)}%
             </span>
           )}
@@ -211,9 +220,21 @@ export function ReportToolbar({
       {/* Primary actions — Re-run is the focal CTA. Diff sits next to it
           because version comparison is the second most-used action. */}
       <ToolbarButton onClick={handleRerun} primary>
-        ↻ Re-run
+        ↻ {t('report.toolbar.rerun')}
       </ToolbarButton>
-      <ToolbarButton onClick={onOpenDiff}>↹ Diff</ToolbarButton>
+      <ToolbarButton onClick={onOpenDiff}>↹ {t('report.toolbar.diff')}</ToolbarButton>
+      {/* IC Debate entry — only surfaces for equity_research reports */}
+      <ToolbarButton
+        onClick={onOpenIcDebate}
+        disabled={reportType !== 'equity_research' || !onOpenIcDebate}
+        title={
+          reportType !== 'equity_research'
+            ? '仅支持股票研报（Equity Research）'
+            : '在投委会对此研报进行多空辩论'
+        }
+      >
+        ⚖ 投委会
+      </ToolbarButton>
     </div>
   )
 }
@@ -285,7 +306,7 @@ function ToolbarButton({
         background: primary
           ? 'linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%)'
           : 'transparent',
-        color: primary ? 'white' : 'var(--text-secondary)',
+        color: primary ? 'var(--text-primary)' : 'var(--text-secondary)',
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.45 : 1,
         letterSpacing: '0.04em',

@@ -5,7 +5,7 @@
 
 import { useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { IconTrendingUp, IconSettings } from '../lib/icons'
+import { IconTrendingUp, IconSettings, IconScale } from '../lib/icons'
 import { useRunStreamStore } from '../stores/runStreamStore'
 import { useNavMemoryStore } from '../stores/navMemoryStore'
 
@@ -15,7 +15,10 @@ interface NavItem {
   Icon: typeof IconTrendingUp
 }
 
-const TOP_NAV: NavItem[] = [{ label: '个股', path: '/stocks', Icon: IconTrendingUp }]
+const TOP_NAV: NavItem[] = [
+  { label: '个股', path: '/stocks', Icon: IconTrendingUp },
+  { label: '投委会', path: '/ic', Icon: IconScale },
+]
 
 const BOTTOM_NAV: NavItem[] = [{ label: '设置', path: '/settings', Icon: IconSettings }]
 

@@ -191,3 +191,21 @@ export const IconClose = (p: IconProps) => (
     <line x1="6" y1="6" x2="18" y2="18" />
   </Svg>
 )
+
+// ── IC Debate ─────────────────────────────────────────────────
+
+/** Balance scale — used for the Investment Committee Debate nav item and toolbar button. */
+export const IconScale = (p: IconProps) => (
+  <Svg {...p}>
+    {/* Fulcrum pole */}
+    <line x1="12" y1="3" x2="12" y2="21" />
+    {/* Base */}
+    <line x1="7" y1="21" x2="17" y2="21" />
+    {/* Beam */}
+    <line x1="3" y1="8" x2="21" y2="8" />
+    {/* Left pan */}
+    <path d="M3 8l-2 6h4l-2-6z" />
+    {/* Right pan */}
+    <path d="M21 8l2 6h-4l2-6z" />
+  </Svg>
+)

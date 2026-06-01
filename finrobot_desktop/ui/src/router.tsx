@@ -25,6 +25,12 @@ const ArtifactDetailPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 )
+const IcLandingPage = lazy(() =>
+  import('./pages/ic/IcLandingPage').then((m) => ({ default: m.IcLandingPage })),
+)
+const IcDebatePage = lazy(() =>
+  import('./pages/ic/IcDebatePage').then((m) => ({ default: m.IcDebatePage })),
+)
 
 function RouteSuspense({ children }: { children: React.ReactNode }) {
   return (
@@ -105,6 +111,22 @@ export const router = createBrowserRouter([
         element: (
           <RouteSuspense>
             <SettingsPage />
+          </RouteSuspense>
+        ),
+      },
+      {
+        path: 'ic',
+        element: (
+          <RouteSuspense>
+            <IcLandingPage />
+          </RouteSuspense>
+        ),
+      },
+      {
+        path: 'ic/:ticker',
+        element: (
+          <RouteSuspense>
+            <IcDebatePage />
           </RouteSuspense>
         ),
       },

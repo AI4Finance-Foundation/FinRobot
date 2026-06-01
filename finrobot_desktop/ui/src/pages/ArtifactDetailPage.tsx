@@ -14,7 +14,7 @@
 // inputs.raw_data for the audit dump.
 
 import { useEffect, useState } from 'react'
-import { useLocation, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useArtifactDetail, useV5ArtifactTimeline } from '../hooks/useV5Artifacts'
 import { useNavMemoryStore } from '../stores/navMemoryStore'
 import { useToastStore } from '../stores/toastStore'
@@ -84,6 +84,7 @@ export function ArtifactDetailPage(): React.ReactElement {
   const { ticker, artifactId } = useParams<{ ticker: string; artifactId: string }>()
   const symbol = (ticker || '').toUpperCase()
   const location = useLocation()
+  const navigate = useNavigate()
   const { data, isLoading, isError, error } = useArtifactDetail(artifactId)
   const { data: timeline } = useV5ArtifactTimeline(symbol)
   const { locale, t } = useI18n()
@@ -115,13 +116,15 @@ export function ArtifactDetailPage(): React.ReactElement {
   }, [location.pathname, symbol, setLastStocksPath])
 
   if (!artifactId) {
-    return <CenterMessage title="缺少研报编号" body="访问路径不完整，请回工作区重新选择研报。" />
+    return (
+      <CenterMessage title={t('report.load.missingId')} body={t('report.load.missingIdBody')} />
+    )
   }
 
   if (isLoading) {
     return (
       <div style={{ padding: 48, color: 'var(--text-muted)' }}>
-        <p style={{ fontFamily: 'var(--font-mono)' }}>加载研报中…</p>
+        <p style={{ fontFamily: 'var(--font-mono)' }}>{t('report.load.loading')}</p>
       </div>
     )
   }
@@ -129,8 +132,8 @@ export function ArtifactDetailPage(): React.ReactElement {
   if (isError || !data) {
     return (
       <CenterMessage
-        title="加载失败"
-        body={mapErrorToUserMessage(error) || '无法加载研报，请稍后重试。'}
+        title={t('report.load.failed')}
+        body={mapErrorToUserMessage(error) || t('report.load.failedBody')}
       />
     )
   }
@@ -179,8 +182,8 @@ export function ArtifactDetailPage(): React.ReactElement {
     if (list.length === 0) {
       addToast({
         type: 'info',
-        title: '无可对比版本',
-        description: `${symbol} 只有这一份研报 · 重新生成累积版本后即可对比`,
+        title: t('report.diff.noPartner'),
+        description: t('report.diff.noPartnerBody', { ticker: symbol }),
       })
       return
     }
@@ -214,6 +217,11 @@ export function ArtifactDetailPage(): React.ReactElement {
             targetPrice={thesis?.price_target ?? null}
             timeline={timeline ?? []}
             onOpenDiff={openDiff}
+            onOpenIcDebate={
+              data.type === 'equity_research'
+                ? () => navigate(`/ic/${symbol}?artifact_id=${artifactId}`)
+                : undefined
+            }
           />
         </div>
 
@@ -261,8 +269,8 @@ export function ArtifactDetailPage(): React.ReactElement {
               style={{
                 margin: '32px 0',
                 padding: '14px 18px',
-                background: 'rgba(217, 119, 6, 0.06)',
-                border: '1px solid rgba(217, 119, 6, 0.32)',
+                background: 'color-mix(in srgb, var(--warning) 6%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--warning) 32%, transparent)',
                 borderRadius: 'var(--radius-sm)',
                 fontSize: 12,
                 color: 'var(--warning)',

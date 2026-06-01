@@ -1,31 +1,4 @@
-import type {
-  DCFResult,
-  SensitivityResult,
-  CompsResult,
-  HistoricalMetrics,
-  QuarterlyData,
-  EarningsSurprise,
-} from '../stores/appStore'
-
-/**
- * Convert backend DcfSensitivityResult grid to the flat array format
- * that SensitivityHeatmap expects.
- */
-export function sensitivityGridToHeatmapRows(
-  result: SensitivityResult,
-): Array<{ wacc: number; tg: number; implied_price: number | null }> {
-  const rows: Array<{ wacc: number; tg: number; implied_price: number | null }> = []
-  for (let i = 0; i < result.wacc_values.length; i++) {
-    for (let j = 0; j < result.tg_values.length; j++) {
-      rows.push({
-        wacc: result.wacc_values[i],
-        tg: result.tg_values[j],
-        implied_price: result.implied_prices[i][j],
-      })
-    }
-  }
-  return rows
-}
+import type { DCFResult, CompsResult, HistoricalMetrics } from '../stores/appStore'
 
 /**
  * Build Revenue & EBITDA bar chart data from DCF projections.
@@ -175,69 +148,6 @@ export function compsResultToRadarData(
     })
 }
 
-/**
- * Build football field (valuation range) data from DCF sensitivity grid.
- * Extracts ranges by varying one assumption at a time:
- * - "Discount Rate" row: base terminal growth, vary WACC across grid
- * - "Terminal Growth" row: base WACC, vary terminal growth across grid
- * - "Combined" row: full grid range (most conservative to most optimistic)
- *
- * Each row has { method, low, mid, high } where mid = base-case implied price.
- */
-export function dcfSensitivityToFootballData(
-  result: DCFResult,
-  sensitivity: SensitivityResult,
-): Array<Record<string, number | string | boolean | null>> {
-  const midPrice = result.implied_price
-  const grid = sensitivity.implied_prices
-
-  // Extract non-null values from a row/column of the grid
-  const extractValid = (values: (number | null)[]): number[] =>
-    values.filter((v): v is number => v != null && v > 0 && isFinite(v))
-
-  // Middle row index (base WACC row) — vary terminal growth
-  const midRow = Math.floor(grid.length / 2)
-  const tgRow = extractValid(grid[midRow] ?? [])
-
-  // Middle column (base TG column) — vary WACC
-  const midCol = Math.floor((grid[0]?.length ?? 0) / 2)
-  const waccCol = extractValid(grid.map((row) => row[midCol]))
-
-  // Full grid — all values
-  const allValues = extractValid(grid.flat())
-
-  const rows: Array<Record<string, number | string | boolean | null>> = []
-
-  if (waccCol.length >= 2) {
-    rows.push({
-      method: 'Discount Rate',
-      low: Math.min(...waccCol),
-      mid: midPrice,
-      high: Math.max(...waccCol),
-    })
-  }
-
-  if (tgRow.length >= 2) {
-    rows.push({
-      method: 'Terminal Growth',
-      low: Math.min(...tgRow),
-      mid: midPrice,
-      high: Math.max(...tgRow),
-    })
-  }
-
-  if (allValues.length >= 2) {
-    rows.push({
-      method: 'Combined Range',
-      low: Math.min(...allValues),
-      mid: midPrice,
-      high: Math.max(...allValues),
-    })
-  }
-
-  return rows
-}
-
 // ── FinancialsTab adapters (from HistoricalMetrics) ────────────────────
 
 export function historicalToRevenueEbitdaData(h: HistoricalMetrics) {
@@ -261,61 +171,11 @@ export function historicalToMarginData(h: HistoricalMetrics) {
   }))
 }
 
-export function historicalToRevenueYoYData(h: HistoricalMetrics) {
-  return h.years
-    .map((year, i) => ({
-      year: String(year),
-      yoy_pct: h.revenue_growth_yoy[i] != null ? Number(h.revenue_growth_yoy[i]) * 100 : null,
-    }))
-    .filter((d) => d.yoy_pct != null)
-}
-
 export function historicalToCashFlowData(h: HistoricalMetrics) {
   return h.years.map((year, i) => ({
     year: String(year),
     operating: h.operating_cash_flow[i],
     investing: h.investing_cash_flow[i],
     financing: h.financing_cash_flow[i],
-  }))
-}
-
-export function quarterlyToComparisonData(q: QuarterlyData) {
-  return q.quarters.map((qtr) => ({
-    quarter: qtr.quarter,
-    revenue: qtr.revenue,
-    operating_income: qtr.operating_income,
-    net_income: qtr.net_income,
-  }))
-}
-
-// ── ValuationTab adapters ──────────────────────────────────────────────
-
-export function historicalToEpsPeData(h: HistoricalMetrics) {
-  return h.years.map((year, i) => ({
-    year: String(year),
-    eps: h.eps[i],
-    pe_ratio: h.pe_ratio[i],
-  }))
-}
-
-export interface SurpriseDataPoint {
-  quarter: string
-  eps_actual: number
-  eps_estimated: number
-  surprise_pct: number
-  direction: 'beat' | 'miss' | 'inline'
-}
-
-export function earningsToSurpriseChartData(surprises: EarningsSurprise[]): SurpriseDataPoint[] {
-  // CRITICAL: field names differ between store and chart component.
-  // Store uses: date, eps_surprise_pct, eps_direction
-  // Chart expects: quarter, surprise_pct, direction
-  // Must explicitly rename — do NOT spread the EarningsSurprise object.
-  return surprises.map((s) => ({
-    quarter: s.date,
-    eps_actual: s.eps_actual,
-    eps_estimated: s.eps_estimated,
-    surprise_pct: s.eps_surprise_pct,
-    direction: s.eps_direction,
   }))
 }

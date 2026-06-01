@@ -50,6 +50,11 @@ dev = [
     "ruff>=0.8",
     "mypy>=1.10",
 ]
+# Desktop packaging: freezes `finrobot serve` into the standalone sidecar
+# binary that the Tauri shell spawns. See src-tauri/sidecar/.
+package = [
+    "pyinstaller>=6.10",
+]
 
 [project.scripts]
 finrobot = "finrobot.cli:cli"

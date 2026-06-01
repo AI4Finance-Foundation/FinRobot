@@ -75,3 +75,8 @@ scripts/evolve_progress.py
 scripts/.evolve_state.json
 scripts/evolve_raw.jsonl
 scripts/evolve.log
+
+# Desktop sidecar binaries — multi-hundred-MB PyInstaller output, regenerated
+# locally / in CI by src-tauri/sidecar/build.sh. The source (spec + entry +
+# build script under src-tauri/sidecar/) is tracked; the frozen output is not.
+src-tauri/binaries/finrobot-server-*

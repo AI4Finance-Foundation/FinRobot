@@ -53,11 +53,14 @@ def build_evidence_set(
 
     upside: Any = synthesis.get("upside_downside")
     if upside is not None:
+        # upside_downside is a ratio (e.g. -0.1533); unit is "%", so scale to
+        # the percent magnitude (-15.33) — otherwise the LLM reads "-0.15 %" and
+        # the UI renders "-0.15%", both off by 100x (口径 bug caught in live smoke).
         items.append(
             Evidence(
                 evidence_id="synthesis.upside_downside",
                 label="加权隐含上行/下行",
-                value=float(upside),
+                value=float(upside) * 100.0,
                 unit="%",
                 formula_id="valuation_synthesis",
             )

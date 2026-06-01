@@ -1,5 +1,7 @@
 """TDD tests for build_evidence_set (Task 2, Plan 1)."""
 
+import pytest
+
 from finrobot.engine.debate.evidence import build_evidence_set
 
 
@@ -7,8 +9,22 @@ def _structured() -> dict:
     return {
         "valuation_synthesis": {
             "methods": [
-                {"name": "DCF", "low": 150, "mid": 176, "high": 200, "confidence": 0.6, "source": "dcf@v2"},
-                {"name": "Comps", "low": 180, "mid": 244, "high": 300, "confidence": 0.4, "source": "multiples@v1"},
+                {
+                    "name": "DCF",
+                    "low": 150,
+                    "mid": 176,
+                    "high": 200,
+                    "confidence": 0.6,
+                    "source": "dcf@v2",
+                },
+                {
+                    "name": "Comps",
+                    "low": 180,
+                    "mid": 244,
+                    "high": 300,
+                    "confidence": 0.4,
+                    "source": "multiples@v1",
+                },
             ],
             "weighted_price": 203.2,
             "current_price": 211.14,
@@ -24,7 +40,8 @@ def test_extracts_synthesis_and_methods() -> None:
     es = build_evidence_set(_structured(), artifact_id="run-9")
     ids = es.by_id()
     assert "synthesis.upside_downside" in ids
-    assert ids["synthesis.upside_downside"].value == -0.0376
+    # ratio -0.0376 → percent magnitude -3.76 (unit is "%")
+    assert ids["synthesis.upside_downside"].value == pytest.approx(-3.76)
     assert "method.DCF.mid" in ids and ids["method.DCF.mid"].value == 176
     assert "method.Comps.mid" in ids and ids["method.Comps.mid"].value == 244
     assert es.current_price == 211.14

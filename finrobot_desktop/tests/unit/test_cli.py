@@ -447,3 +447,40 @@ class TestServeCommand:
         result = runner.invoke(cli, ["serve", "--help"])
         assert result.exit_code == 0
         assert "port" in result.output.lower()
+        assert "--parent-pid" in result.output
+
+
+class TestParentDeathWatchdog:
+    """The desktop sidecar must self-terminate when the Tauri shell is gone."""
+
+    def test_watchdog_starts_daemon_thread_for_live_parent(self) -> None:
+        import os
+        import threading
+
+        from finrobot.cli import _start_parent_death_watchdog
+
+        # Watch our own (always-alive) pid: the watchdog must start but never
+        # fire os._exit, so the test process survives.
+        _start_parent_death_watchdog(os.getpid())
+        watchers = [t for t in threading.enumerate() if t.name == "parent-death-watchdog"]
+        assert watchers, "watchdog thread was not started"
+        assert watchers[0].daemon, "watchdog must be a daemon thread"
+
+    def test_watchdog_exits_when_parent_gone(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import os
+        import subprocess
+        import threading
+
+        from finrobot.cli import _start_parent_death_watchdog
+
+        # A reaped subprocess gives a pid that is reliably dead.
+        dead = subprocess.Popen(["true"])
+        dead.wait()
+
+        fired = threading.Event()
+        # Capture the hard-exit instead of actually killing the test runner.
+        monkeypatch.setattr(os, "_exit", lambda code: fired.set())
+
+        _start_parent_death_watchdog(dead.pid)
+        # Poll interval is 2s; allow a margin.
+        assert fired.wait(timeout=6), "watchdog did not exit when parent pid was dead"

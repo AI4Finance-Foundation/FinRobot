@@ -49,11 +49,24 @@ const READINESS_TIMEOUT_SECS: u64 = 90;
 pub fn spawn_and_wait_for_ready(
     app: &AppHandle,
 ) -> Result<tauri_plugin_shell::process::CommandChild, String> {
+    // Pass our own PID so the sidecar self-terminates if this shell dies — see
+    // the parent-death watchdog in finrobot/cli.py. Tauri kills the sidecar
+    // bootloader with SIGKILL on a clean quit (handled in lib.rs), but SIGKILL
+    // can't be forwarded to the Python grandchild; the watchdog is the backstop
+    // that also covers a shell *crash*.
+    let parent_pid = std::process::id().to_string();
     let (mut rx, child) = app
         .shell()
         .sidecar("finrobot-server")
         .map_err(|e| format!("sidecar not found: {e}"))?
-        .args(["--host", "127.0.0.1", "--port", "8321"])
+        .args([
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "8321",
+            "--parent-pid",
+            &parent_pid,
+        ])
         .spawn()
         .map_err(|e| format!("failed to spawn sidecar: {e}"))?;
 

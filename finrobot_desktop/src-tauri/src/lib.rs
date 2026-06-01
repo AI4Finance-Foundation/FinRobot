@@ -13,6 +13,17 @@
 
 mod sidecar;
 
+use std::sync::Mutex;
+
+use tauri::{Manager, RunEvent};
+use tauri_plugin_shell::process::CommandChild;
+
+/// Holds the spawned Python sidecar so we can terminate it when the app exits.
+/// Without this the frozen server orphans on 127.0.0.1:8321 and the next launch
+/// silently talks to the stale process.
+#[derive(Default)]
+struct SidecarHandle(Mutex<Option<CommandChild>>);
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default()
@@ -32,20 +43,30 @@ pub fn run() {
     }
 
     builder
+        .manage(SidecarHandle::default())
         .setup(|app| {
             let handle = app.handle().clone();
 
             // Spawn the Python sidecar in a background task so the Tauri
             // event loop stays responsive while we wait for /health.
             tauri::async_runtime::spawn(async move {
-                match tauri::async_runtime::spawn_blocking(move || {
-                    sidecar::spawn_and_wait_for_ready(&handle)
+                match tauri::async_runtime::spawn_blocking({
+                    let handle = handle.clone();
+                    move || sidecar::spawn_and_wait_for_ready(&handle)
                 })
                 .await
                 {
-                    Ok(Ok(_child)) => {
-                        // Child handle intentionally dropped here because the
-                        // dev wrapper process owns the Python server lifecycle.
+                    Ok(Ok(child)) => {
+                        // Keep the child so RunEvent::Exit can kill it — the
+                        // frozen server would otherwise orphan on :8321. The
+                        // parent-pid watchdog inside the sidecar is the backstop
+                        // for crashes / the SIGKILL-can't-reach-the-grandchild case.
+                        handle
+                            .state::<SidecarHandle>()
+                            .0
+                            .lock()
+                            .unwrap()
+                            .replace(child);
                         eprintln!("[desktop] sidecar ready — window will load the UI");
                     }
                     Ok(Err(e)) => {
@@ -61,6 +82,13 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if let RunEvent::Exit = event {
+                if let Some(child) = app_handle.state::<SidecarHandle>().0.lock().unwrap().take() {
+                    let _ = child.kill();
+                }
+            }
+        });
 }

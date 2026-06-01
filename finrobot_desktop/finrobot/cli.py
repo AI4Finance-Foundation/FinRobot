@@ -618,6 +618,37 @@ def analyze(ticker: str, analysis_type: str, model: str | None) -> None:
     click.echo(result)
 
 
+def _start_parent_death_watchdog(parent_pid: int) -> None:
+    """Terminate this server when ``parent_pid`` (the desktop shell) is gone.
+
+    The desktop sidecar is a PyInstaller one-file binary: Tauri spawns a
+    bootloader that forks the real server, and Tauri kills the bootloader with
+    SIGKILL on quit. SIGKILL is uncatchable, so the bootloader cannot forward it
+    and this uvicorn process would be reparented to launchd and keep holding
+    127.0.0.1:8321 — a stale orphan the next launch then talks to by mistake.
+
+    Polling the *Tauri* pid directly (not ``os.getppid()``, which the bootloader
+    masks) lets the server self-terminate on app quit or crash. Gated on an
+    explicit ``--parent-pid`` so a standalone ``finrobot serve`` under
+    systemd/nohup (real parent pid 1) never trips it.
+    """
+    import os
+    import threading
+    import time
+
+    def _watch() -> None:
+        while True:
+            time.sleep(2)
+            try:
+                os.kill(parent_pid, 0)  # signal 0 = liveness probe, sends nothing
+            except ProcessLookupError:
+                os._exit(0)  # parent gone — exit hard, no clients left to drain
+            except PermissionError:
+                continue  # parent alive but owned by another uid
+
+    threading.Thread(target=_watch, name="parent-death-watchdog", daemon=True).start()
+
+
 @cli.command()
 @click.option("--host", default="127.0.0.1", show_default=True, help="Bind address")
 @click.option("--port", default=8321, show_default=True)
@@ -633,7 +664,17 @@ def analyze(ticker: str, analysis_type: str, model: str | None) -> None:
     show_default=True,
     type=click.Choice(["critical", "error", "warning", "info", "debug", "trace"]),
 )
-def serve(host: str, port: int, reload: bool, log_level: str) -> None:
+@click.option(
+    "--parent-pid",
+    type=int,
+    default=None,
+    help=(
+        "Exit when this process disappears (the desktop shell's PID). Used by "
+        "the Tauri sidecar so the server never orphans on 127.0.0.1; omit for "
+        "standalone runs."
+    ),
+)
+def serve(host: str, port: int, reload: bool, log_level: str, parent_pid: int | None) -> None:
     """Start the FinRobot server.
 
     Use ``--reload`` during development so editing Python files
@@ -642,6 +683,9 @@ def serve(host: str, port: int, reload: bool, log_level: str) -> None:
     from finrobot.obs import setup_logging
 
     setup_logging(get_settings())
+
+    if parent_pid is not None:
+        _start_parent_death_watchdog(parent_pid)
 
     import uvicorn
 

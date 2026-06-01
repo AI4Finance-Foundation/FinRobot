@@ -259,7 +259,18 @@ def _ddm_method(ddm: DDMResult | None) -> ValuationMethodRange | None:
         high=mid * (1 + _DDM_BAND_WIDTH),
         confidence=0.55,
         source="perpetuity_growth ± 15%",
+        assumptions=_ddm_assumptions(ddm),
     )
+
+
+def _ddm_assumptions(ddm: DDMResult) -> str:
+    """DDM's load-bearing assumptions: the equity discount rate (cost of equity,
+    not WACC — dividends accrue to equity only) and the dividend growth path.
+    """
+    rates = ddm.inputs.dividend_growth_rates
+    tg = ddm.inputs.terminal_growth_rate
+    g0 = rates[0] if rates else tg
+    return f"折现率(股权成本) {ddm.cost_of_equity:.1%} · 股息增长 {g0:.0%}→永续 {tg:.1%}"
 
 
 def _lbo_method(
@@ -299,7 +310,27 @@ def _lbo_method(
         high=target_prices[-1],
         confidence=0.60,
         source="exit_multiple × exit_ebitda - remaining_debt (复用 sensitivity 网格)",
+        assumptions=_lbo_assumptions(exit_multiples, lbo.schedule),
     )
+
+
+def _lbo_assumptions(exit_multiples: list[Any], schedule: list[Any]) -> str | None:
+    """LBO target-price band is driven by the exit EV/EBITDA range and the hold
+    period — the assumptions a sponsor actually argues over. Built from the same
+    grid/schedule the band itself reads, so it can never drift from the number.
+    """
+    mults = [float(m) for m in exit_multiples if _is_floatable(m)]
+    if not mults:
+        return None
+    return f"退出 EV/EBITDA {min(mults):.1f}–{max(mults):.1f}× · 持有 {len(schedule)} 年"
+
+
+def _is_floatable(v: Any) -> bool:
+    try:
+        float(v)
+        return True
+    except (TypeError, ValueError):
+        return False
 
 
 def _lbo_target_grid(

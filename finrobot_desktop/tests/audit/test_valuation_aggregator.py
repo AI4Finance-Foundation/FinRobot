@@ -418,3 +418,26 @@ class TestAggregatorContract:
         )
         row = next(m for m in agg.methods if m.method == "comps_pe")
         assert row.assumptions == "押同业中值 P/E 28.0× × forward EPS"
+
+    def test_ddm_row_carries_discount_and_growth_assumption(self) -> None:
+        agg = aggregate_valuation(
+            ticker="JPM",
+            current_price=180.0,
+            ddm=_ddm(),
+            as_of=AS_OF,
+        )
+        row = next(m for m in agg.methods if m.method == "ddm")
+        # fixture: cost_of_equity 0.10, dividend growth [0.05,0.04,0.03], terminal 0.02
+        assert row.assumptions == "折现率(股权成本) 10.0% · 股息增长 5%→永续 2.0%"
+
+    def test_lbo_row_carries_exit_multiple_and_hold_assumption(self) -> None:
+        agg = aggregate_valuation(
+            ticker="NVDA",
+            current_price=876.42,
+            lbo=_lbo_with_grid(),
+            shares_outstanding=2.4e9,
+            as_of=AS_OF,
+        )
+        row = next(m for m in agg.methods if m.method == "lbo")
+        # fixture: exit_multiples [10,11,12], 5-year schedule
+        assert row.assumptions == "退出 EV/EBITDA 10.0–12.0× · 持有 5 年"

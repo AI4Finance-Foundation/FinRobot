@@ -699,12 +699,12 @@ class EarningsSurprise(BaseModel):
     date: str
     eps_actual: float
     eps_estimated: float
-    eps_surprise_pct: float  # (actual - est) / |est| × 100
-    eps_direction: str  # "beat" | "miss" | "inline"
+    eps_surprise_pct: float | None  # (actual - est) / |est| × 100; None if est == 0
+    eps_direction: str  # "beat" | "miss" | "inline" | "n/a" (n/a = undefined, est == 0)
     revenue_actual: float
     revenue_estimated: float
-    revenue_surprise_pct: float
-    revenue_direction: str  # "beat" | "miss" | "inline"
+    revenue_surprise_pct: float | None  # None if estimate == 0 (undefined surprise)
+    revenue_direction: str  # "beat" | "miss" | "inline" | "n/a"
 
 
 class EarningsResult(BaseModel):

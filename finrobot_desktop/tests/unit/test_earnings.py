@@ -73,8 +73,13 @@ class TestSurpriseFormula:
         assert s.eps_surprise_pct == pytest.approx(0.625, rel=1e-4)
         assert s.eps_direction == "inline"
 
-    def test_zero_estimated_yields_zero_surprise(self):
-        """Divide-by-zero guard: eps_estimated=0 → surprise_pct=0."""
+    def test_zero_estimated_yields_undefined_surprise_not_inline(self):
+        """eps_estimated=0 → surprise is undefined (None / 'n/a'), NOT 0% inline.
+
+        A beat against a zero consensus (expected breakeven, actual +$1.00) is a
+        genuine event; reporting 0.0/inline masked it and polluted beat_rate and
+        avg_eps_surprise_pct (BUG-026).
+        """
         result = calculate_earnings_surprises(
             "TEST",
             [
@@ -87,7 +92,40 @@ class TestSurpriseFormula:
                 }
             ],
         )
-        assert result.surprises[0].eps_surprise_pct == 0.0
+        s = result.surprises[0]
+        assert s.eps_surprise_pct is None
+        assert s.eps_direction == "n/a"
+        # The lone undefined quarter must not be counted as a non-beat: with no
+        # defined quarters, beat_rate / avg are 0.0, not skewed by a fake inline.
+        assert result.beat_rate == 0.0
+        assert result.avg_eps_surprise_pct == 0.0
+
+    def test_zero_estimate_quarter_excluded_from_aggregates(self):
+        """A zero-estimate quarter is dropped from beat_rate/avg denominators."""
+        result = calculate_earnings_surprises(
+            "TEST",
+            [
+                # defined beat: +3%
+                {
+                    "date": "Q2",
+                    "eps_actual": 1.03,
+                    "eps_estimated": 1.00,
+                    "revenue_actual": 1e9,
+                    "revenue_estimated": 1e9,
+                },
+                # undefined (est 0) — must be excluded, not treated as a non-beat
+                {
+                    "date": "Q1",
+                    "eps_actual": 0.50,
+                    "eps_estimated": 0.0,
+                    "revenue_actual": 1e9,
+                    "revenue_estimated": 1e9,
+                },
+            ],
+        )
+        # 1 beat out of 1 *defined* quarter → 1.0, not 1/2.
+        assert result.beat_rate == pytest.approx(1.0)
+        assert result.avg_eps_surprise_pct == pytest.approx(3.0, rel=1e-4)
 
 
 class TestClassifySurprise:
@@ -112,6 +150,10 @@ class TestClassifySurprise:
     def test_zero(self):
         assert _classify_surprise(0.0) == "inline"
 
+    def test_none_is_na(self):
+        """Undefined surprise (None, from a zero estimate) → 'n/a', not 'inline'."""
+        assert _classify_surprise(None) == "n/a"
+
 
 class TestBeatRate:
     def test_beat_rate_three_of_five(self):
@@ -119,7 +161,7 @@ class TestBeatRate:
         history = [
             # Most recent first
             {
-                "date": f"2024-Q{5-i}",
+                "date": f"2024-Q{5 - i}",
                 "eps_actual": a,
                 "eps_estimated": 1.0,
                 "revenue_actual": 1e9,

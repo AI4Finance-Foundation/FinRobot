@@ -59,10 +59,17 @@ def calculate_earnings_surprises(
             )
         )
 
-    n = len(surprises)
-    beat_rate = sum(1 for s in surprises if s.eps_direction == "beat") / n
-    avg_eps = sum(s.eps_surprise_pct for s in surprises) / n
-    avg_rev = sum(s.revenue_surprise_pct for s in surprises) / n
+    # Quarters whose surprise is undefined (estimate == 0, see _surprise_pct)
+    # carry None / direction "n/a". They must be excluded from rates and
+    # averages rather than counted as 0% inline — otherwise a real beat/miss
+    # against a zero consensus is silently washed out (BUG-026). For normal data
+    # (no zero estimates) the denominators are unchanged.
+    eps_defined = [s.eps_surprise_pct for s in surprises if s.eps_surprise_pct is not None]
+    rev_defined = [s.revenue_surprise_pct for s in surprises if s.revenue_surprise_pct is not None]
+    beats = sum(1 for s in surprises if s.eps_direction == "beat")
+    beat_rate = beats / len(eps_defined) if eps_defined else 0.0
+    avg_eps = sum(eps_defined) / len(eps_defined) if eps_defined else 0.0
+    avg_rev = sum(rev_defined) / len(rev_defined) if rev_defined else 0.0
     consecutive = _count_consecutive_beats(surprises)
 
     return EarningsResult(
@@ -75,21 +82,29 @@ def calculate_earnings_surprises(
     )
 
 
-def _surprise_pct(actual: float, estimated: float) -> float:
+def _surprise_pct(actual: float, estimated: float) -> float | None:
     """Compute surprise as (actual - estimated) / |estimated| × 100.
 
-    Returns 0.0 if estimated is zero to avoid division by zero.
+    Returns None when ``estimated`` is zero: the surprise is mathematically
+    undefined (division by zero), and a beat/miss against a zero consensus
+    (e.g. expected breakeven, actual +$0.10) is a genuine earnings event — not
+    a 0% "inline". Returning 0.0 here masked it and polluted beat_rate / averages
+    (BUG-026). Callers treat None as "n/a" and exclude it from aggregates.
     """
     if estimated == 0:
-        return 0.0
+        return None
     return (actual - estimated) / abs(estimated) * 100.0
 
 
-def _classify_surprise(pct: float) -> str:
+def _classify_surprise(pct: float | None) -> str:
     """Classify a surprise percentage into beat/miss/inline.
 
-    Thresholds: ≥ +2% → beat, ≤ -2% → miss, else → inline.
+    Thresholds: ≥ +2% → beat, ≤ -2% → miss, else → inline. An undefined
+    surprise (``pct is None``, zero estimate) is "n/a" — neither beat, miss,
+    nor inline — so it is not miscounted as inline.
     """
+    if pct is None:
+        return "n/a"
     if pct >= _BEAT_THRESHOLD:
         return "beat"
     if pct <= _MISS_THRESHOLD:

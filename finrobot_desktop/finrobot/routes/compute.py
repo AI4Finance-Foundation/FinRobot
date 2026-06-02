@@ -34,6 +34,7 @@ from finrobot.engine.compute.wacc import calculate_wacc
 from finrobot.engine.models.financial import (
     DCFInputs,
     DCFResult,
+    FinancialData,
     LBOInputs,
     LBOResult,
 )
@@ -202,48 +203,31 @@ async def compute_dcf(inputs: DCFInputs) -> DCFResult:
     return calculate_dcf(inputs)
 
 
-@router.post("/dcf-seed", response_model=DcfSeedResponse)
-async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedResponse:
-    """One-shot DCF for a ticker — the front-end's single authoritative path.
+async def _seed_dcf_inputs_for_ticker(deps: object, ticker: str) -> tuple[FinancialData, DCFInputs]:
+    """Fetch financials + price + multi-year history for a ticker and seed a
+    DCFInputs. The single fetch-and-seed path shared by the dcf-seed and
+    dcf-equivalence-line endpoints.
 
-    Replaces the legacy front-end hardcoded DCFInputs payload (removed in D1):
-      1. fetch financials (LTM) + price + multi-year history
-      2. seed_dcf_inputs → DCFInputs (with assumption_provenance per field)
-      3. calculate_dcf + calculate_sensitivity
-      4. solve_for_implied_growth + solve_for_implied_wacc (when include_reverse)
-
-    Everything returned in a single bundled response so the UI doesn't need
-    follow-up calls to render the valuation card.
+    Degrades gracefully: if historical extraction fails (yfinance / provider
+    variability), seeds from an empty HistoricalMetrics so seed_dcf_inputs falls
+    through to Damodaran industry medians rather than raising.
     """
     from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
     from finrobot.engine.compute.extractor import extract_financial_data
     from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
     from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
     from finrobot.engine.data.types import DataType
-    from finrobot.engine.pipelines._helpers import build_sensitivity_ranges
 
-    deps = request.app.state.deps
-    ticker = body.ticker.upper()
-
-    _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
-    _price = await deps.data_layer.fetch_canonical(DataType.PRICE, ticker)
+    data_layer = deps.data_layer  # type: ignore[attr-defined]
+    _fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+    _price = await data_layer.fetch_canonical(DataType.PRICE, ticker)
     assert isinstance(_fin, NormalizedFinancials)  # FINANCIALS always returns this type
     assert isinstance(_price, NormalizedPrice)  # PRICE always returns this type
     financial_data = extract_financial_data(_fin, _price)
 
     try:
-        historical = await fetch_historical_metrics(deps.data_layer, ticker)
-    except (
-        ValueError,
-        KeyError,
-        TypeError,
-        AttributeError,
-        RuntimeError,
-        OSError,
-    ) as exc:
-        # yfinance / provider variants can fail with a wide range of low-level
-        # errors; we degrade gracefully to an empty HistoricalMetrics so
-        # dcf_seed falls through to Damodaran industry medians.
+        historical = await fetch_historical_metrics(data_layer, ticker)
+    except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as exc:
         logger.warning("Historical extraction failed for %s: %s", ticker, exc)
         from finrobot.engine.models.financial import HistoricalMetrics
 
@@ -267,7 +251,28 @@ async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedRes
             ticker=ticker,
         )
 
-    dcf_inputs = seed_dcf_inputs(financial_data, historical)
+    return financial_data, seed_dcf_inputs(financial_data, historical)
+
+
+@router.post("/dcf-seed", response_model=DcfSeedResponse)
+async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedResponse:
+    """One-shot DCF for a ticker — the front-end's single authoritative path.
+
+    Replaces the legacy front-end hardcoded DCFInputs payload (removed in D1):
+      1. fetch financials (LTM) + price + multi-year history
+      2. seed_dcf_inputs → DCFInputs (with assumption_provenance per field)
+      3. calculate_dcf + calculate_sensitivity
+      4. solve_for_implied_growth + solve_for_implied_wacc (when include_reverse)
+
+    Everything returned in a single bundled response so the UI doesn't need
+    follow-up calls to render the valuation card.
+    """
+    from finrobot.engine.pipelines._helpers import build_sensitivity_ranges
+
+    deps = request.app.state.deps
+    ticker = body.ticker.upper()
+
+    financial_data, dcf_inputs = await _seed_dcf_inputs_for_ticker(deps, ticker)
     dcf_inputs = apply_growth_scale_override(dcf_inputs, body.growth_scale_override)
     result = calculate_dcf(
         dcf_inputs,
@@ -324,6 +329,124 @@ async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedRes
         reverse_growth=reverse_growth,
         reverse_wacc=reverse_wacc,
         reverse_horizon=reverse_horizon,
+    )
+
+
+class DcfEquivalenceLineRequest(BaseModel):
+    """Inputs for the (growth, horizon) equivalence line at a fixed WACC.
+
+    Powers the IC-debate 'market-implied expectations' expert probe: for a fixed
+    discount rate, every point on the line is a (constant growth, explicit-window
+    length) pair that reprices the stock to ``target_price``. The line *is* the
+    honest answer — the market price implies a family of (growth, horizon) combos,
+    not one. The WACC slider re-requests this with a new ``wacc_override`` to shift
+    the whole line (exposing the third axis).
+    """
+
+    ticker: str = Field(min_length=1, max_length=10)
+    target_price: float | None = Field(
+        default=None, gt=0, description="Defaults to current market price when omitted."
+    )
+    wacc_override: float | None = Field(
+        default=None, ge=0, le=0.50, description="The fixed discount rate (slider value)."
+    )
+    tg_override: float | None = Field(default=None, ge=-0.05, le=0.10)
+    growth_lo: float = Field(default=0.20, ge=-0.20, le=1.0)
+    growth_hi: float = Field(default=0.50, ge=-0.20, le=1.5)
+    steps: int = Field(default=13, ge=3, le=40)
+    mid_year: bool = False
+
+
+class DcfEquivalencePoint(BaseModel):
+    growth: float
+    implied_horizon: float | None = None
+    """None when target_price is unreachable at this growth within max horizon —
+    the front end renders these as a gap, never as 0."""
+
+
+class DcfEquivalenceLineResponse(BaseModel):
+    """The equivalence line + the axes it holds fixed (the visible prefixes)."""
+
+    ticker: str
+    target_price: float
+    wacc: float
+    """The discount rate held fixed for the WHOLE line —换个 WACC 整条线平移."""
+    terminal_growth: float
+    points: list[DcfEquivalencePoint]
+
+
+def build_equivalence_line(
+    dcf_inputs: DCFInputs,
+    target_price: float,
+    *,
+    wacc_override: float | None = None,
+    tg_override: float | None = None,
+    growth_lo: float = 0.20,
+    growth_hi: float = 0.50,
+    steps: int = 13,
+    mid_year: bool = False,
+) -> tuple[float, float, list[DcfEquivalencePoint]]:
+    """Pure (growth → implied horizon) sweep at a fixed WACC.
+
+    For each growth rate across [growth_lo, growth_hi], solve the explicit-window
+    length that reprices to ``target_price``, holding the discount rate fixed.
+    Returns ``(fixed_wacc, terminal_growth, points)``. Points whose target is
+    unreachable at their growth carry ``implied_horizon=None``. No I/O, no LLM —
+    unit-tested directly; the endpoint is a thin seed-and-wrap around it.
+    """
+    fixed_wacc: float | None = None
+    terminal_growth = dcf_inputs.terminal_growth_rate
+    points: list[DcfEquivalencePoint] = []
+    step = (growth_hi - growth_lo) / (steps - 1) if steps > 1 else 0.0
+    for i in range(steps):
+        g = growth_lo + step * i
+        rh = solve_for_implied_horizon(
+            dcf_inputs,
+            target_price=target_price,
+            growth_rate=g,
+            wacc_override=wacc_override,
+            tg_override=tg_override,
+            mid_year=mid_year,
+        )
+        # wacc / terminal_growth are constant across the loop; capture once.
+        if fixed_wacc is None:
+            fixed_wacc = float(rh["wacc"])
+            terminal_growth = float(rh["terminal_growth"])
+        points.append(DcfEquivalencePoint(growth=g, implied_horizon=rh["implied_horizon"]))
+    return (fixed_wacc if fixed_wacc is not None else 0.0), terminal_growth, points
+
+
+@router.post("/dcf-equivalence-line", response_model=DcfEquivalenceLineResponse)
+async def compute_dcf_equivalence_line(
+    body: DcfEquivalenceLineRequest, request: Request
+) -> DcfEquivalenceLineResponse:
+    """Trace the (growth → implied horizon) equivalence line at a fixed WACC.
+
+    Pure deterministic solver loop — no LLM. Cheap enough to call on every
+    WACC-slider drag (debounced client-side).
+    """
+    deps = request.app.state.deps
+    ticker = body.ticker.upper()
+
+    financial_data, dcf_inputs = await _seed_dcf_inputs_for_ticker(deps, ticker)
+    target_price = body.target_price or financial_data.market.current_price
+
+    wacc, terminal_growth, points = build_equivalence_line(
+        dcf_inputs,
+        target_price,
+        wacc_override=body.wacc_override,
+        tg_override=body.tg_override,
+        growth_lo=body.growth_lo,
+        growth_hi=body.growth_hi,
+        steps=body.steps,
+        mid_year=body.mid_year,
+    )
+    return DcfEquivalenceLineResponse(
+        ticker=ticker,
+        target_price=target_price,
+        wacc=wacc,
+        terminal_growth=terminal_growth,
+        points=points,
     )
 
 

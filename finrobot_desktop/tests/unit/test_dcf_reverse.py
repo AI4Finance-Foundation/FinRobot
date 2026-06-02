@@ -242,3 +242,45 @@ def test_reverse_horizon_unreachable_returns_none_with_growth_caveat():
     assert out["implied_horizon"] is None
     assert out["assumed_growth"] == 0.05
     assert "增长" in (out["message"] or "")
+
+
+# ───────────────────────────────────────────────────────────────────
+# build_equivalence_line — the (growth → horizon) line at fixed WACC
+# ───────────────────────────────────────────────────────────────────
+
+
+def test_equivalence_line_holds_wacc_fixed_and_descends_with_growth():
+    """Every point reprices to the SAME target at the SAME WACC; as growth rises,
+    the explicit window needed shrinks (the line slopes down). This is the curve
+    the expert probe draws — a family of (growth, horizon) combos, not one point."""
+    from finrobot.routes.compute import build_equivalence_line
+
+    inputs = _make_inputs()
+    # A target reachable across the mid/high growth range.
+    target = _price_for(inputs, 0.30, 0.10, inputs.terminal_growth_rate, 8, False)
+    wacc, tg, points = build_equivalence_line(
+        inputs, target, wacc_override=0.10, growth_lo=0.20, growth_hi=0.50, steps=7
+    )
+    assert wacc == 0.10  # fixed for the whole line
+    assert len(points) == 7
+    defined = [(p.growth, p.implied_horizon) for p in points if p.implied_horizon is not None]
+    assert len(defined) >= 2
+    # Strictly descending horizon as growth increases (higher growth ⇒ fewer years).
+    horizons = [h for _, h in defined]
+    assert all(horizons[i] > horizons[i + 1] for i in range(len(horizons) - 1))
+
+
+def test_equivalence_line_marks_unreachable_growths_as_none():
+    """Below some growth the target is unreachable at any horizon — those points
+    are None (a gap in the line), never fabricated to 0."""
+    from finrobot.routes.compute import build_equivalence_line
+
+    inputs = _make_inputs()
+    target = _price_for(inputs, 0.45, 0.10, inputs.terminal_growth_rate, 9, False)
+    _, _, points = build_equivalence_line(
+        inputs, target, wacc_override=0.10, growth_lo=0.05, growth_hi=0.50, steps=10
+    )
+    # The very lowest growths cannot reach a target set by 45% growth × 9 years.
+    assert points[0].implied_horizon is None
+    # And the highest growth definitely can.
+    assert points[-1].implied_horizon is not None

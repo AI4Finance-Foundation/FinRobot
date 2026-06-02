@@ -12,6 +12,7 @@ import {
   formatNumber,
   formatPercent,
 } from '../../utils/format'
+import { SourcedNumber } from '../SourcedNumber'
 import type { CoverageRow } from '../../api/coverage'
 
 interface Props {
@@ -139,18 +140,54 @@ export function CoverageTable({
                     {r.ticker}
                   </button>
                 </td>
-                <td style={TD}>{formatCurrency(r.price, ccy, locale)}</td>
-                <td style={{ ...TD, color: changeColor(r.change_pct_1d) }}>
-                  {r.change_pct_1d === null
-                    ? '—'
-                    : `${r.change_pct_1d > 0 ? '+' : ''}${r.change_pct_1d.toFixed(2)}%`}
-                </td>
-                <td style={TD}>{formatCompactNumber(r.market_cap, locale)}</td>
-                <td style={TD}>{formatCompactNumber(r.revenue_ttm, locale)}</td>
                 <td style={TD}>
-                  {r.ev_ebitda === null ? '—' : `${formatNumber(r.ev_ebitda, locale, 1)}×`}
+                  <SourcedNumber
+                    value={r.price}
+                    source={r.sources?.price ?? undefined}
+                    ticker={r.ticker}
+                    format={(v) => formatCurrency(v, ccy, locale)}
+                  />
                 </td>
-                <td style={TD}>{r.pe === null ? '—' : `${formatNumber(r.pe, locale, 1)}×`}</td>
+                <td style={{ ...TD, color: changeColor(r.change_pct_1d) }}>
+                  <SourcedNumber
+                    value={r.change_pct_1d}
+                    source={r.sources?.change_pct_1d ?? undefined}
+                    ticker={r.ticker}
+                    format={(v) => `${v > 0 ? '+' : ''}${v.toFixed(2)}%`}
+                  />
+                </td>
+                <td style={TD}>
+                  <SourcedNumber
+                    value={r.market_cap}
+                    source={r.sources?.market_cap ?? undefined}
+                    ticker={r.ticker}
+                    format={(v) => formatCompactNumber(v, locale)}
+                  />
+                </td>
+                <td style={TD}>
+                  <SourcedNumber
+                    value={r.revenue_ttm}
+                    source={r.sources?.revenue_ttm ?? undefined}
+                    ticker={r.ticker}
+                    format={(v) => formatCompactNumber(v, locale)}
+                  />
+                </td>
+                <td style={TD}>
+                  <SourcedNumber
+                    value={r.ev_ebitda}
+                    source={r.sources?.ev_ebitda ?? undefined}
+                    ticker={r.ticker}
+                    format={(v) => `${formatNumber(v, locale, 1)}×`}
+                  />
+                </td>
+                <td style={TD}>
+                  <SourcedNumber
+                    value={r.pe}
+                    source={r.sources?.pe ?? undefined}
+                    ticker={r.ticker}
+                    format={(v) => `${formatNumber(v, locale, 1)}×`}
+                  />
+                </td>
                 <td style={{ ...TD, textAlign: 'center' }}>
                   {r.latest_verdict ? (
                     <span
@@ -168,9 +205,12 @@ export function CoverageTable({
                   )}
                 </td>
                 <td style={{ ...TD, color: changeColor(r.upside_to_target_live) }}>
-                  {r.upside_to_target_live === null
-                    ? '—'
-                    : formatPercent(r.upside_to_target_live, locale, 1)}
+                  <SourcedNumber
+                    value={r.upside_to_target_live}
+                    source={r.sources?.upside_to_target_live ?? undefined}
+                    ticker={r.ticker}
+                    format={(v) => formatPercent(v, locale, 1)}
+                  />
                 </td>
                 <td style={{ ...TD, textAlign: 'center' }}>
                   {r.signal ? (

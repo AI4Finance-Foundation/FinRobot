@@ -6,6 +6,7 @@
 import { BASE_URL } from './client'
 import { fetchWithTimeout } from './fetch'
 import { FetchHttpError } from '../utils/errorMessage'
+import type { NumberSource } from '../components/SourcedNumber'
 
 // ── Types (mirror finrobot/coverage/models.py + compute/compare.py) ──────────
 
@@ -42,6 +43,19 @@ export interface NeedsRefreshReason {
 export type SignalStatus = 'hit' | 'watching' | 'failed'
 export type RunStatus = 'created' | 'running' | 'completed' | 'failed'
 
+// Per-cell provenance for the numeric columns (mirrors CoverageRowSources in
+// finrobot/coverage/models.py). Each slot feeds a <SourcedNumber> popover; a
+// null slot (degraded fetch) renders the bare value.
+export interface CoverageRowSources {
+  price: NumberSource | null
+  change_pct_1d: NumberSource | null
+  market_cap: NumberSource | null
+  revenue_ttm: NumberSource | null
+  ev_ebitda: NumberSource | null
+  pe: NumberSource | null
+  upside_to_target_live: NumberSource | null
+}
+
 export interface CoverageRow {
   ticker: string
   company: string | null
@@ -67,6 +81,7 @@ export interface CoverageRow {
   run_error: string | null
   needs_refresh: NeedsRefreshReason[]
   warnings: string[]
+  sources: CoverageRowSources
 }
 
 export interface CoverageOverview {

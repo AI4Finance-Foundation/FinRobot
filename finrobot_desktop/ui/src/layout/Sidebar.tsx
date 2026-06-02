@@ -5,7 +5,7 @@
 
 import { useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { IconTrendingUp, IconSettings, IconScale } from '../lib/icons'
+import { IconTrendingUp, IconSettings } from '../lib/icons'
 import { useRunStreamStore } from '../stores/runStreamStore'
 import { useNavMemoryStore } from '../stores/navMemoryStore'
 import { useI18n } from '../i18n'
@@ -17,10 +17,10 @@ interface NavItem {
   Icon: typeof IconTrendingUp
 }
 
-const TOP_NAV: NavItem[] = [
-  { labelKey: 'nav.stocks', path: '/stocks', Icon: IconTrendingUp },
-  { labelKey: 'shell.sidebar.ic', path: '/ic', Icon: IconScale },
-]
+// The investment-committee debate is reached from inside a research report
+// (ReportToolbar → onOpenIcDebate), not a top-level menu — it operates on a
+// specific artifact, so a standalone nav item was a context-less dead-end door.
+const TOP_NAV: NavItem[] = [{ labelKey: 'nav.stocks', path: '/stocks', Icon: IconTrendingUp }]
 
 const BOTTOM_NAV: NavItem[] = [{ labelKey: 'nav.settings', path: '/settings', Icon: IconSettings }]
 

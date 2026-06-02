@@ -26,9 +26,6 @@ const ArtifactDetailPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 )
-const IcLandingPage = lazy(() =>
-  import('./pages/ic/IcLandingPage').then((m) => ({ default: m.IcLandingPage })),
-)
 const IcDebatePage = lazy(() =>
   import('./pages/ic/IcDebatePage').then((m) => ({ default: m.IcDebatePage })),
 )
@@ -116,14 +113,8 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: 'ic',
-        element: (
-          <RouteSuspense>
-            <IcLandingPage />
-          </RouteSuspense>
-        ),
-      },
-      {
+        // IC debate is entered from a report (ReportToolbar → onOpenIcDebate)
+        // with an artifact_id; there is no standalone landing/picker route.
         path: 'ic/:ticker',
         element: (
           <RouteSuspense>

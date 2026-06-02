@@ -28,6 +28,9 @@ export function IcDebatePage() {
 
   const symbol = (ticker ?? '').toUpperCase()
   const artifactId = searchParams.get('artifact_id')
+  // The debate is entered from a report, so "back" returns to that report
+  // (there is no IC landing page anymore).
+  const reportPath = artifactId ? `/stocks/${symbol}/runs/${artifactId}` : `/stocks/${symbol}`
 
   const debate = useDebateStore(selectDebate(symbol, artifactId))
   const startDebate = useDebateStore((s) => s.startDebate)
@@ -101,14 +104,14 @@ export function IcDebatePage() {
       >
         <button
           type="button"
-          onClick={() => navigate('/ic')}
+          onClick={() => navigate(reportPath)}
           style={backBtnStyle}
           title={t('ic.breadcrumb.back')}
           aria-label={t('ic.breadcrumb.back')}
         >
           ‹
         </button>
-        <button type="button" onClick={() => navigate('/ic')} style={crumbBtnStyle}>
+        <button type="button" onClick={() => navigate(reportPath)} style={crumbBtnStyle}>
           {t('ic.breadcrumb.committee')}
         </button>
         <span style={{ color: 'var(--text-dim)' }}>›</span>

@@ -8,11 +8,6 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from starlette.requests import Request
 
-from finrobot.engine.compute.composite_score import (
-    CompositeScore,
-    ScoreRequest,
-    calculate_composite_score,
-)
 from finrobot.engine.compute.dcf import (
     calculate_dcf,
     calculate_sensitivity,
@@ -573,14 +568,3 @@ async def compute_sniper(body: SniperRequest) -> SniperPoints:
     inputs — no LLM inference.
     """
     return calculate_sniper_points(body)
-
-
-@router.post("/score", response_model=CompositeScore)
-async def compute_score(body: ScoreRequest) -> CompositeScore:
-    """Compute a 0-100 composite score from fundamentals, valuation, catalysts, sentiment.
-
-    Weights: fundamental 30%, valuation 30%, catalyst 20%, sentiment 20%.
-    Signal: STRONG_BUY (>=80) / BUY (>=60) / HOLD (>=40) / SELL (>=20) / STRONG_SELL.
-    All thresholds are hardcoded — no LLM reasoning.
-    """
-    return calculate_composite_score(body)

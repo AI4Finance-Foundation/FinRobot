@@ -264,6 +264,27 @@ async def test_batch_run_missing_group_404(client: AsyncClient) -> None:
     assert r.status_code == 404
 
 
+async def test_add_members_rejects_invalid_tickers(client: AsyncClient) -> None:
+    """Junk symbols (CJK, over-long, separators) must not reach the DB and then
+    fan out to providers forever (BUG-053) — the request is rejected 422."""
+    gid = (await client.post("/api/coverage/groups", json={"name": "G"})).json()["id"]
+    for bad in (["苹果"], ["AAPL", "hello-world-too-long"], ["AAPL;MSFT"]):
+        r = await client.post(f"/api/coverage/groups/{gid}/members", json={"tickers": bad})
+        assert r.status_code == 422, bad
+
+
+async def test_add_members_normalises_valid_tickers(client: AsyncClient) -> None:
+    """Valid symbols are upper-cased and de-duped (BRK-B stays intact)."""
+    gid = (await client.post("/api/coverage/groups", json={"name": "G"})).json()["id"]
+    r = await client.post(
+        f"/api/coverage/groups/{gid}/members",
+        json={"tickers": ["aapl", "AAPL", "brk-b"]},
+    )
+    assert r.status_code == 200
+    members = {m["ticker"] for m in r.json()["members"]}
+    assert "AAPL" in members and "BRK-B" in members
+
+
 async def test_batch_run_default_pipeline_is_valid_registry_key(
     client: AsyncClient, monkeypatch
 ) -> None:

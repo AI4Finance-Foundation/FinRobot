@@ -22,6 +22,7 @@ import { CoverageHero } from '../components/coverage/CoverageHero'
 import { ColumnMenu } from '../components/coverage/ColumnMenu'
 import { nextSort, sortCoverageRows } from '../components/coverage/coverageSort'
 import { useToastStore } from '../stores/toastStore'
+import { isValidTicker } from '../utils/ticker'
 
 export function CoveragePage(): React.ReactElement {
   const { t } = useI18n()
@@ -106,13 +107,25 @@ export function CoveragePage(): React.ReactElement {
 
   function handleAdd() {
     if (!activeGroupId) return
-    const tickers = addInput
-      .split(/[\s,]+/)
+    // Split on whitespace / comma / semicolon, then validate each symbol so we
+    // never persist junk ("苹果", "BRK/B", over-long) that would fan out to
+    // providers forever (BUG-053). Invalid tokens are reported, not silently
+    // dropped; only valid ones are sent (backend re-validates → 422 safety net).
+    const tokens = addInput
+      .split(/[\s,;]+/)
       .map((s) => s.trim().toUpperCase())
       .filter(Boolean)
-    if (tickers.length === 0) return
+    const valid = tokens.filter(isValidTicker)
+    const invalid = tokens.filter((s) => !isValidTicker(s))
+    if (invalid.length > 0) {
+      toast({
+        type: 'error',
+        title: t('coverage.error.invalidTickers', { tickers: invalid.join(', ') }),
+      })
+    }
+    if (valid.length === 0) return
     addMembers.mutate(
-      { id: activeGroupId, tickers },
+      { id: activeGroupId, tickers: valid },
       {
         onSuccess: () => setAddInput(''),
         onError: () => toast({ type: 'error', title: t('coverage.error.addFailed') }),

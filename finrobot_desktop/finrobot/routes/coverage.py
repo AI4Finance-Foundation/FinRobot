@@ -18,11 +18,12 @@ endpoint seeds the State-D ``Studied Tickers`` group on first visit.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from starlette.requests import Request
 
 from finrobot.artifact.store import ArtifactStore
@@ -38,6 +39,34 @@ from finrobot.engine.data.layer import DataLayer
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/coverage", tags=["coverage"])
+
+# Single backend source of truth for a coverage ticker symbol. MIRROR of
+# ui/src/utils/ticker.ts TICKER_RE — keep the two in sync. 1–12 chars,
+# upper-case A–Z / digits / '.' / '-' (BRK-B, BRK.B, RDS.A…). Stops junk like
+# "苹果", "AAPL;MSFT", or over-long strings from being persisted and then
+# fanned out to providers forever (BUG-053).
+_TICKER_RE = re.compile(r"^[A-Z0-9.\-]{1,12}$")
+
+
+def _clean_tickers(raw: list[str]) -> list[str]:
+    """Upper-case + dedupe valid symbols; raise ValueError listing any invalid."""
+    cleaned: list[str] = []
+    bad: list[str] = []
+    seen: set[str] = set()
+    for t in raw:
+        s = t.strip().upper()
+        if not s:
+            continue
+        if not _TICKER_RE.match(s):
+            bad.append(t)
+        elif s not in seen:
+            seen.add(s)
+            cleaned.append(s)
+    if bad:
+        raise ValueError(f"Invalid ticker symbol(s): {', '.join(bad)}")
+    if not cleaned:
+        raise ValueError("No valid tickers provided")
+    return cleaned
 
 
 # ── Request bodies ───────────────────────────────────────────────────────────
@@ -56,6 +85,11 @@ class UpdateGroupRequest(BaseModel):
 class AddMembersRequest(BaseModel):
     tickers: list[str] = Field(min_length=1)
     note: str | None = None
+
+    @field_validator("tickers")
+    @classmethod
+    def _validate(cls, v: list[str]) -> list[str]:
+        return _clean_tickers(v)
 
 
 class BatchRunRequest(BaseModel):

@@ -3367,6 +3367,10 @@ msgid "coverage.error.addFailed"
 msgstr "Failed to add tickers"
 
 #. js-lingui-explicit-id
+msgid "coverage.error.invalidTickers"
+msgstr "Ignored invalid symbol(s): {tickers}"
+
+#. js-lingui-explicit-id
 msgid "coverage.toast.launched"
 msgstr "Launched {n} run(s); {skipped} skipped"
 

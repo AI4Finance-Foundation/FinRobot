@@ -3363,6 +3363,10 @@ msgid "coverage.error.addFailed"
 msgstr "添加 ticker 失败"
 
 #. js-lingui-explicit-id
+msgid "coverage.error.invalidTickers"
+msgstr "已忽略非法代码：{tickers}"
+
+#. js-lingui-explicit-id
 msgid "coverage.emptyGroup"
 msgstr "还没有 ticker——在上方添加。"
 

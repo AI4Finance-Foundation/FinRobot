@@ -45,7 +45,7 @@ from finrobot.engine.models.financial import (
 # "Investment Banking" 3rd Ed., Chapter 8 (LBO benchmarks).
 DEFAULT_ENTRY_EV_EBITDA: Final[float] = 8.0  # Mid-market median 2023-2025
 DEFAULT_EXIT_EV_EBITDA: Final[float] = 8.0  # Conservative — no multiple expansion
-DEFAULT_LEVERAGE_MULTIPLE: Final[float] = 5.0  # Net Debt / EBITDA at entry
+DEFAULT_LEVERAGE_MULTIPLE: Final[float] = 5.0  # Total (gross) Debt / EBITDA at entry
 DEFAULT_HOLDING_PERIOD: Final[int] = 5
 DEFAULT_INTEREST_RATE: Final[float] = 0.07  # Blended LBO-loan + HY bond rate
 DEFAULT_MANDATORY_AMORT: Final[float] = 0.05  # 5% / yr typical Term Loan B

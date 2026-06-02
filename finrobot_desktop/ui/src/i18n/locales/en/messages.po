@@ -3351,6 +3351,10 @@ msgid "coverage.toast.runFailed"
 msgstr "Failed to launch runs"
 
 #. js-lingui-explicit-id
+msgid "coverage.toast.allSkipped"
+msgstr "No runs started — all {skipped} skipped: {reason}"
+
+#. js-lingui-explicit-id
 msgid "coverage.toast.compareNeedsTwo"
 msgstr "Select at least 2 tickers to compare"
 

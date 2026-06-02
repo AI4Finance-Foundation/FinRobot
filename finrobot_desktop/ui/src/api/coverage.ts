@@ -173,7 +173,10 @@ export const coverageApi = {
     return req<CoverageOverview>(`/api/coverage/groups/${id}/overview${suffix}`)
   },
 
-  batchRun: (id: string, tickers: string[], pipelineType = 'equity_research', language?: string) =>
+  // pipelineType is a pipeline-registry KEY ('research' | 'dcf' | 'comps' | …),
+  // not an artifact type. 'equity_research' is an artifact type and is NOT a
+  // valid run key — defaulting to it made batch runs silently skip (BUG-049).
+  batchRun: (id: string, tickers: string[], pipelineType = 'research', language?: string) =>
     req<BatchRunResponse>(
       `/api/coverage/groups/${id}/runs`,
       jsonInit('POST', { tickers, pipeline_type: pipelineType, language }),

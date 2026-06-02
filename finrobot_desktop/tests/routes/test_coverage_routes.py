@@ -264,6 +264,41 @@ async def test_batch_run_missing_group_404(client: AsyncClient) -> None:
     assert r.status_code == 404
 
 
+async def test_batch_run_default_pipeline_is_valid_registry_key(
+    client: AsyncClient, monkeypatch
+) -> None:
+    """Coverage's core button posts no pipeline_type; the default must be a real
+    pipeline-registry key, not the artifact type 'equity_research' (BUG-049):
+    the old default made every ticker skip with a 200/zero-runs response."""
+    from finrobot.engine.pipelines.registry import get_pipeline_factories
+
+    gid = (await client.post("/api/coverage/groups", json={"name": "G"})).json()["id"]
+
+    seen: list[str] = []
+
+    async def fake_spawn(request, pipeline_type, ticker, **kw):
+        seen.append(pipeline_type)
+        return RunRecord(
+            run_id=f"run_{ticker.strip().upper()}",
+            pipeline_type=pipeline_type,
+            ticker=ticker.strip().upper(),
+            status="created",
+            created_at=NOW.isoformat(),
+        )
+
+    monkeypatch.setattr("finrobot.routes.runs.spawn_run", fake_spawn)
+
+    # No pipeline_type → exercises the request-model default.
+    r = await client.post(f"/api/coverage/groups/{gid}/runs", json={"tickers": ["AAPL"]})
+    assert r.status_code == 200
+    body = r.json()
+    assert seen == ["research"]
+    assert body["pipeline_type"] == "research"
+    assert len(body["runs"]) == 1 and body["skipped"] == []
+    # Tie the default to the real source of truth so a key rename can't drift.
+    assert "research" in get_pipeline_factories()
+
+
 async def test_overview_l1_cache_and_refresh_bypass(client: AsyncClient) -> None:
     gid = (await client.post("/api/coverage/groups", json={"name": "G"})).json()["id"]
     await client.post(f"/api/coverage/groups/{gid}/members", json={"tickers": ["AAPL"]})

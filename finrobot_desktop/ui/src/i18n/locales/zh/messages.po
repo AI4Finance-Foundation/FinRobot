@@ -3351,6 +3351,10 @@ msgid "coverage.toast.runFailed"
 msgstr "启动运行失败"
 
 #. js-lingui-explicit-id
+msgid "coverage.toast.allSkipped"
+msgstr "没有启动任何运行——{skipped} 个全部跳过：{reason}"
+
+#. js-lingui-explicit-id
 msgid "coverage.toast.compareNeedsTwo"
 msgstr "对比至少需要选择 2 个 ticker"
 

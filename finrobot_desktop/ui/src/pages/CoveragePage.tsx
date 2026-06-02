@@ -100,6 +100,19 @@ export function CoveragePage(): React.ReactElement {
       { id: activeGroupId, tickers },
       {
         onSuccess: (res) => {
+          // All skipped → the batch did nothing (e.g. every ticker rejected).
+          // A 200 with zero runs is NOT success — surface it as an error with
+          // the first reason so the user doesn't think research was launched.
+          if (res.runs.length === 0 && res.skipped.length > 0) {
+            toast({
+              type: 'error',
+              title: t('coverage.toast.allSkipped', {
+                skipped: res.skipped.length,
+                reason: res.skipped[0]?.reason ?? '',
+              }),
+            })
+            return
+          }
           toast({
             type: res.skipped.length ? 'info' : 'success',
             title: t('coverage.toast.launched', {

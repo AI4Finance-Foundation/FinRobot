@@ -59,8 +59,13 @@ class AddMembersRequest(BaseModel):
 
 
 class BatchRunRequest(BaseModel):
+    # Must be a pipeline-registry key (engine/pipelines/registry.py), NOT an
+    # artifact type. "research" → equity research; the artifact it produces is
+    # typed "equity_research", but the run key is "research". Defaulting to
+    # "equity_research" here used to make every batch run skip with
+    # "Invalid pipeline" while still returning 200 (BUG-049).
     tickers: list[str] = Field(min_length=1)
-    pipeline_type: str = "equity_research"
+    pipeline_type: str = "research"
     language: Literal["en", "zh"] | None = None
 
 

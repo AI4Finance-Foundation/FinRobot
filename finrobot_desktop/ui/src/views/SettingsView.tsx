@@ -935,8 +935,7 @@ function SecHoldingsSection(): React.ReactElement {
     },
     // Poll only while a build is running so the row count / status update
     // live; otherwise stay quiet (the cache changes at most quarterly).
-    refetchInterval: (query) =>
-      query.state.data?.refresh.status === 'running' ? 2000 : false,
+    refetchInterval: (query) => (query.state.data?.refresh.status === 'running' ? 2000 : false),
   })
 
   const refreshMutation = useMutation({

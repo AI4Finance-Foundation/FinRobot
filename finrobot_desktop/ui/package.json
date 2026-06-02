@@ -13,7 +13,7 @@
     "lint": "eslint src/ --ext .ts,.tsx",
     "format": "prettier --write 'src/**/*.{ts,tsx}'",
     "format:check": "prettier --check 'src/**/*.{ts,tsx}'",
-    "generate:api": "npx openapi-typescript http://127.0.0.1:8321/openapi.json -o src/api/schema.d.ts",
+    "generate:api": "npx openapi-typescript http://127.0.0.1:8321/openapi.json -o src/api/schema.d.ts && prettier --write src/api/schema.d.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test --project=chromium"

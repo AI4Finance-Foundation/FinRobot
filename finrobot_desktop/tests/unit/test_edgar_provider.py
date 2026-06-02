@@ -958,3 +958,99 @@ class TestSelectRecentTTM:
         )
         out = _select_recent_ttm(facts, _TTM_REVENUE_CONCEPTS, today=_date(2026, 6, 1))
         assert out is None
+
+
+# ---------------------------------------------------------------------------
+# Schedule 13D/13G (5%+ beneficial owners)
+# ---------------------------------------------------------------------------
+
+
+def _sched13_helpers():
+    from finrobot.engine.data.providers.edgar_provider import (
+        _issuer_token,
+        _schedule13_pct,
+        _schedule13_shares,
+    )
+
+    return _issuer_token, _schedule13_shares, _schedule13_pct
+
+
+def test_schedule13_shares_parses_amount_beneficially_owned() -> None:
+    _, shares, _ = _sched13_helpers()
+    # FMR LLC NVDA 13G/A 2024-11-12 cover page (probe-verified text).
+    txt = "Item 4. Ownership\n(a) Amount Beneficially Owned: 998,190,803\n(b) Percent of Class: 4.069%"
+    assert shares(txt) == 998_190_803
+    # "Aggregate Amount Beneficially Owned" variant also matches.
+    assert shares("Aggregate Amount Beneficially Owned 12,345,678 shares") == 12_345_678
+    # No share figure → None (caller must NOT fabricate a 0).
+    assert shares("No ownership table here") is None
+    # A bare item number must not match (needs >=4 digits).
+    assert shares("Item 4. Ownership (a) 123") is None
+
+
+def test_schedule13_pct_parses_percent_of_class() -> None:
+    _, _, pct = _sched13_helpers()
+    assert pct("(b) Percent of Class: 4.069%") == 4.069
+    assert pct("Percent of Class 7.3 %") == 7.3
+    assert pct("no percent here") is None
+    # Out-of-range guard.
+    assert pct("Percent of Class: 250%") is None
+
+
+def test_issuer_token_strips_legal_suffixes() -> None:
+    token, _, _ = _sched13_helpers()
+    assert token("NVIDIA CORP") == "nvidia"
+    assert token("FMR LLC") == "fmr"
+    assert token("The Vanguard Group, Inc.") == "vanguard"
+
+
+def _mock_sched13_filing(form: str, fdate: date, acc: str, filer: str, cik: str | None, text: str):
+    f = MagicMock()
+    f.form = form
+    f.filing_date = fdate
+    f.accession_no = acc
+    f.homepage_url = "https://sec.gov/..."
+    f.text.return_value = text
+    ci = MagicMock()
+    ci.name = filer
+    ci.cik = cik
+    filer_obj = MagicMock()
+    filer_obj.company_information = ci
+    header = MagicMock()
+    header.filers = [filer_obj]
+    f.header = header
+    return f
+
+
+def test_fetch_schedule13_parses_dedups_and_skips_self_filing() -> None:
+    from finrobot.engine.data.providers.edgar_provider import EdgarToolsProvider
+
+    p = EdgarToolsProvider("Jane Doe jane@example.com")
+    cover = "(a) Amount Beneficially Owned: 998,190,803\n(b) Percent of Class: 4.069%"
+    older_cover = "(a) Amount Beneficially Owned: 900,000,000\n(b) Percent of Class: 3.9%"
+    no_shares = "Item 1. cover with no ownership amount"
+    filings = [
+        # newest FMR amendment (kept)
+        _mock_sched13_filing("SC 13G/A", date(2024, 11, 12), "a1", "FMR LLC", "315066", cover),
+        # older FMR amendment (deduped away — same filer)
+        _mock_sched13_filing("SC 13G/A", date(2024, 2, 13), "a2", "FMR LLC", "315066", older_cover),
+        # self-filing: filer == subject (skipped)
+        _mock_sched13_filing("SC 13G", date(2024, 7, 18), "a3", "NVIDIA CORP", "1045810", cover),
+        # BlackRock (kept)
+        _mock_sched13_filing("SC 13D", date(2024, 1, 26), "a4", "BlackRock Inc.", "1364742", cover),
+        # filing with no parseable share count (skipped — no fabricated 0)
+        _mock_sched13_filing("SC 13G", date(2023, 6, 1), "a5", "State Street Corp", "93751", no_shares),
+    ]
+    c = MagicMock()
+    c.cik = "1045810"  # NVDA
+    c.name = "NVIDIA CORP"
+    c.get_filings.return_value = filings
+
+    data, warnings = p._fetch_schedule13(c, limit=8)
+    alerts = data["alerts"]
+    names = [a["filer_name"] for a in alerts]
+    assert names == ["FMR LLC", "BlackRock Inc."]  # deduped, self + no-shares skipped
+    assert alerts[0]["shares"] == 998_190_803
+    assert alerts[0]["pct_of_class"] == 4.069
+    assert alerts[0]["accession_no"] == "a1"  # newest FMR kept
+    assert alerts[1]["schedule_type"] == "13D"  # BlackRock SC 13D → activist

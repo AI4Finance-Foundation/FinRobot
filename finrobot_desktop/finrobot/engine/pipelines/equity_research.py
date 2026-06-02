@@ -321,12 +321,16 @@ async def _execute_ownership_governance_analysis(
     insider_task = _fetch_optional_sec(deps, ticker, DataType.INSIDER_TRADES, days=90)
     holdings_task = _fetch_optional_sec(deps, ticker, DataType.INSTITUTIONAL_HOLDINGS)
     proxy_task = _fetch_optional_sec(deps, ticker, DataType.PROXY_STATEMENT)
-    insider, holdings, proxy = await asyncio.gather(insider_task, holdings_task, proxy_task)
+    schedule13_task = _fetch_optional_sec(deps, ticker, DataType.SCHEDULE_13)
+    insider, holdings, proxy, schedule13 = await asyncio.gather(
+        insider_task, holdings_task, proxy_task, schedule13_task
+    )
 
     analysis = compute_ownership_governance(
         insider_data=insider,
         institutional_data=holdings,
         proxy_data=proxy,
+        schedule13_data=schedule13,
     )
 
     # Populate degraded_reasons based on what _fetch_optional_sec returned.

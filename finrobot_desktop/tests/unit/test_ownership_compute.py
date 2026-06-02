@@ -4,8 +4,95 @@ from __future__ import annotations
 from finrobot.engine.compute.ownership import (
     _canonical_transaction_type,
     build_proxy_compensation,
+    build_schedule13_alerts,
     compute_ownership_governance,
 )
+
+
+_SCHED13_OK = {
+    "alerts": [
+        {
+            "filer_name": "FMR LLC",
+            "filer_cik": "315066",
+            "schedule_type": "13G",
+            "filing_date": "2024-11-12",
+            "accession_no": "0000315066-24-002826",
+            "shares": 998_190_803,
+            "pct_of_class": 4.069,
+        },
+        {
+            "filer_name": "BlackRock Inc.",
+            "filer_cik": "1364742",
+            "schedule_type": "13G",
+            "filing_date": "2024-01-26",
+            "accession_no": "0001086364-24-000123",
+            "shares": 180_593_555,
+            "pct_of_class": 7.3,
+        },
+    ],
+    "warnings": [],
+    "provider": "edgar_tools",
+}
+
+
+def test_build_schedule13_alerts_typed() -> None:
+    alerts = build_schedule13_alerts(_SCHED13_OK)
+    assert [a.filer_name for a in alerts] == ["FMR LLC", "BlackRock Inc."]
+    assert alerts[0].shares == 998_190_803
+    assert alerts[0].pct_of_class == 4.069
+    assert alerts[0].schedule_type == "13G"
+    assert alerts[0].filing_date.isoformat() == "2024-11-12"
+
+
+def test_schedule13_pct_optional_when_unparseable() -> None:
+    """Vanguard-style cover pages can defeat the % regex; shares is still real,
+    pct stays None rather than a fabricated number."""
+    alerts = build_schedule13_alerts(
+        {
+            "alerts": [
+                {
+                    "filer_name": "VANGUARD GROUP INC",
+                    "schedule_type": "13G",
+                    "filing_date": "2024-02-13",
+                    "accession_no": "x",
+                    "shares": 204_504_938,
+                    "pct_of_class": None,
+                }
+            ]
+        }
+    )
+    assert alerts[0].pct_of_class is None
+    assert alerts[0].shares == 204_504_938
+
+
+def test_compute_ownership_populates_schedule13_and_degrades_only_on_failure() -> None:
+    base = {
+        "insider_data": {"transactions": []},
+        "institutional_data": {"holders": []},
+        "proxy_data": {"proxy": None},
+    }
+
+    # Successful fetch with alerts → populated, NOT degraded.
+    a = compute_ownership_governance(**base, schedule13_data=_SCHED13_OK)
+    assert len(a.schedule13_alerts) == 2
+    assert "schedule13_alerts" not in a.degraded_sections
+
+    # Successful fetch, zero filings → empty + NOT degraded (genuinely none).
+    b = compute_ownership_governance(**base, schedule13_data={"alerts": [], "provider": "x"})
+    assert b.schedule13_alerts == []
+    assert "schedule13_alerts" not in b.degraded_sections
+
+    # Fetch failed → degraded so the UI shows "data unavailable", not "none".
+    c = compute_ownership_governance(
+        **base, schedule13_data={"available": False, "error": "boom"}
+    )
+    assert c.schedule13_alerts == []
+    assert "schedule13_alerts" in c.degraded_sections
+
+    # Legacy callers (no schedule13_data) → empty, not degraded.
+    d = compute_ownership_governance(**base)
+    assert d.schedule13_alerts == []
+    assert "schedule13_alerts" not in d.degraded_sections
 
 
 # Representative slice of NVIDIA's FY2026 DEF 14A (filed 2026-05-12), flattened

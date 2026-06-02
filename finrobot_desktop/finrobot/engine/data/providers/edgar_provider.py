@@ -140,6 +140,7 @@ _SUPPORTED: list[DataType] = [
     DataType.INSIDER_TRADES,
     DataType.INSTITUTIONAL_HOLDINGS,
     DataType.PROXY_STATEMENT,
+    DataType.SCHEDULE_13,
     DataType.RAG_10K,  # legacy alias
     DataType.FILINGS,  # legacy alias for 10-K
 ]
@@ -403,6 +404,94 @@ def _slice_proxy_text(full_text: str) -> str:
     return intro + _PROXY_INTRO_SCT_GAP_MARKER + sct_window
 
 
+# ---------------------------------------------------------------------------
+# Schedule 13D/13G parsing helpers (module-level; edgartools has no parser)
+# ---------------------------------------------------------------------------
+
+_ISSUER_SUFFIXES: frozenset[str] = frozenset(
+    {
+        "inc",
+        "incorporated",
+        "corp",
+        "corporation",
+        "co",
+        "company",
+        "ltd",
+        "limited",
+        "plc",
+        "holdings",
+        "holding",
+        "group",
+        "lp",
+        "llc",
+        "the",
+    }
+)
+
+
+def _issuer_token(value: str | None) -> str:
+    """Stable comparison key for issuer/filer names (strips legal suffixes)."""
+    if not value:
+        return ""
+    tokens = re.findall(r"[a-z0-9]+", value.lower())
+    filtered = [t for t in tokens if t not in _ISSUER_SUFFIXES]
+    return " ".join(filtered or tokens)
+
+
+def _schedule13_filer(f: Any) -> tuple[str, str | None]:
+    """Return ``(filer_name, filer_cik)`` from a 13D/13G filing's SGML header."""
+    header = f.header
+    filers = getattr(header, "filers", None) or []
+    if not filers:
+        return "", None
+    ci = getattr(filers[0], "company_information", None)
+    if ci is None:
+        return "", None
+    name = str(getattr(ci, "name", "") or "").strip()
+    cik_raw = getattr(ci, "cik", None)
+    cik = str(cik_raw).strip() if cik_raw else None
+    return name, cik
+
+
+def _schedule13_shares(text: str) -> int | None:
+    """Parse "Amount Beneficially Owned: N" from a 13D/13G cover page.
+
+    Requires ≥4 digits so a cover-page item number ("Item 4") can't match.
+    Returns None when absent — the caller must NOT fabricate a 0.
+    """
+    if not text:
+        return None
+    m = re.search(
+        r"(?:Aggregate\s+)?Amount\s+Beneficially\s+Owned[^0-9]{0,40}([0-9][0-9,]{3,})",
+        text,
+        re.I,
+    )
+    if m is None:
+        return None
+    try:
+        return int(m.group(1).replace(",", ""))
+    except ValueError:
+        return None
+
+
+def _schedule13_pct(text: str) -> float | None:
+    """Parse "Percent of Class: X%" from a 13D/13G cover page (0..100)."""
+    if not text:
+        return None
+    m = re.search(
+        r"Percent\s+of\s+Class[^0-9]{0,40}([0-9]+(?:\.[0-9]+)?)\s*%",
+        text,
+        re.I,
+    )
+    if m is None:
+        return None
+    try:
+        val = float(m.group(1))
+    except ValueError:
+        return None
+    return val if 0.0 <= val <= 100.0 else None
+
+
 def _coerce_form4_date(value: Any) -> str | None:
     if value is None:
         return None
@@ -513,6 +602,8 @@ class EdgarToolsProvider(DataProvider):
             return self._fetch_13f_sync(ticker, company_name=getattr(c, "name", None))
         if data_type == DataType.PROXY_STATEMENT:
             return self._fetch_proxy(c)
+        if data_type == DataType.SCHEDULE_13:
+            return self._fetch_schedule13(c, limit=kwargs.get("limit", 8))
         raise ProviderError(f"unreachable data_type: {data_type}")
 
     # ------------------------------------------------------------------
@@ -866,3 +957,81 @@ class EdgarToolsProvider(DataProvider):
             "text": _slice_proxy_text(text),
             "source_url": getattr(proxy_filing, "homepage_url", None),
         }, []
+
+    # ------------------------------------------------------------------
+    # Schedule 13D / 13G (5%+ beneficial owners)
+    # ------------------------------------------------------------------
+
+    def _fetch_schedule13(self, c: Company, limit: int = 8) -> tuple[dict[str, Any], list[str]]:
+        """Latest SC 13D/13G beneficial-ownership filings for the SUBJECT company.
+
+        edgartools has no structured 13D/G parser (``.obj()`` is None), so we
+        read the filer identity from the SGML header and parse the cover-page
+        "Amount Beneficially Owned" / "Percent of Class" from the filing text.
+        Deduped by filer (latest filing per reporting person) so the panel
+        shows the current 5%+ holders, not every amendment.
+        """
+        warnings: list[str] = []
+        filings_iter = c.get_filings(form=["SC 13D", "SC 13D/A", "SC 13G", "SC 13G/A"])
+        if filings_iter is None:
+            return {"alerts": []}, []
+        filings = list(filings_iter) if hasattr(filings_iter, "__iter__") else [filings_iter]
+        # Newest first; scan a bounded buffer so a noisy amender can't starve
+        # other holders, then dedupe to `limit` distinct filers.
+        try:
+            filings.sort(key=lambda f: str(getattr(f, "filing_date", "")), reverse=True)
+        except (TypeError, ValueError):
+            pass
+
+        subject_cik = str(getattr(c, "cik", "") or "").lstrip("0")
+        subject_name = _issuer_token(getattr(c, "name", None))
+
+        alerts: list[dict[str, Any]] = []
+        seen_filers: set[str] = set()
+        for f in filings[: max(limit * 3, 12)]:
+            if len(alerts) >= limit:
+                break
+            try:
+                filer_name, filer_cik = _schedule13_filer(f)
+            except _ADAPTER_CATCH as e:
+                logger.warning("13D/G header parse failed for %s: %s", f.accession_no, e)
+                continue
+            if not filer_name:
+                continue
+            # Skip self-filings (subject == filer): a company doesn't hold 5%
+            # of itself; these are filing-agent artifacts, not real holders.
+            if (filer_cik and filer_cik.lstrip("0") == subject_cik) or (
+                subject_name and _issuer_token(filer_name) == subject_name
+            ):
+                continue
+            dedup_key = filer_cik or filer_name.lower()
+            if dedup_key in seen_filers:
+                continue
+
+            try:
+                text = f.text() or ""
+            except _ADAPTER_CATCH as e:
+                logger.warning("13D/G text() failed for %s: %s", f.accession_no, e)
+                text = ""
+            shares = _schedule13_shares(text)
+            if shares is None:
+                # No reliable share count → don't fabricate a 0. Skip; the
+                # model requires a real share figure for this to be useful.
+                continue
+            seen_filers.add(dedup_key)
+            alerts.append(
+                {
+                    "filer_name": filer_name,
+                    "filer_cik": filer_cik,
+                    "schedule_type": "13D" if "13D" in str(f.form).upper() else "13G",
+                    "filing_date": str(f.filing_date),
+                    "accession_no": f.accession_no,
+                    "shares": shares,
+                    "pct_of_class": _schedule13_pct(text),
+                    "source_url": getattr(f, "homepage_url", None),
+                }
+            )
+
+        if not alerts and filings:
+            warnings.append("SC 13D/13G filings found but none parseable")
+        return {"alerts": alerts}, warnings

@@ -17,6 +17,7 @@ from finrobot.engine.models.sec import (
     InstitutionalHolding,
     OwnershipGovernanceAnalysis,
     ProxyCompensation,
+    ScheduleThirteenAlert,
 )
 
 
@@ -732,11 +733,37 @@ def build_institutional_holdings(raw_holdings: dict[str, Any]) -> list[Instituti
     return rows
 
 
+def build_schedule13_alerts(raw_schedule13: dict[str, Any]) -> list[ScheduleThirteenAlert]:
+    """Build 5%+ beneficial-ownership alerts from SC 13D/13G fetch payload.
+
+    Each row already carries a parsed share count (the provider skips filings
+    where it couldn't read one), so ``shares`` here is always a real figure.
+    """
+    rows: list[ScheduleThirteenAlert] = []
+    for a in raw_schedule13.get("alerts") or []:
+        rows.append(
+            ScheduleThirteenAlert(
+                filer_name=str(a.get("filer_name") or ""),
+                filer_cik=a.get("filer_cik"),
+                filing_date=_parse_date(a["filing_date"]),
+                accession_no=str(a.get("accession_no") or ""),
+                schedule_type="13D" if str(a.get("schedule_type")).upper() == "13D" else "13G",
+                shares=int(a.get("shares") or 0),
+                pct_of_class=(
+                    float(a["pct_of_class"]) if a.get("pct_of_class") not in (None, "") else None
+                ),
+                transaction_summary=str(a.get("transaction_summary") or ""),
+            )
+        )
+    return rows
+
+
 def compute_ownership_governance(
     *,
     insider_data: dict[str, Any] | None,
     institutional_data: dict[str, Any] | None,
     proxy_data: dict[str, Any] | None,
+    schedule13_data: dict[str, Any] | None = None,
 ) -> OwnershipGovernanceAnalysis:
     degraded_sections: list[str] = []
 
@@ -762,10 +789,21 @@ def compute_ownership_governance(
         degraded_sections.append("proxy_compensation")
         proxy = None
 
+    # schedule13_data None = "not requested" (legacy callers) → leave empty,
+    # not degraded. Only mark degraded when a fetch was attempted and failed;
+    # a successful fetch with zero filings is genuinely "no 5%+ events" and
+    # the UI shows that plainly rather than a degraded placeholder.
+    schedule13_alerts: list[ScheduleThirteenAlert] = []
+    if schedule13_data is not None:
+        schedule13_alerts = build_schedule13_alerts(schedule13_data)
+        if not schedule13_alerts and schedule13_data.get("available") is False:
+            degraded_sections.append("schedule13_alerts")
+
     return OwnershipGovernanceAnalysis(
         insider_transactions=insiders,
         institutional_holdings=institutions,
         proxy_compensation=proxy,
+        schedule13_alerts=schedule13_alerts,
         generated_at=datetime.now(tz=timezone.utc),
         degraded_sections=degraded_sections,
     )

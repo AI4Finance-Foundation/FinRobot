@@ -186,6 +186,8 @@ def test_extract_financial_data_missing_shares_outstanding_warns():
     # Derived: market_cap / current_price = 3e12 / 200 = 15e9
     assert fd.market.shares_outstanding == pytest.approx(15e9, rel=1e-6)
     assert any("shares_outstanding" in w for w in fd.warnings)
+    # Structured: the caveat is attributed to the P/E cell.
+    assert fd.field_warnings.get("pe") == ["shares_derived"]
 
 
 def test_extract_financial_data_zero_shares_outstanding_warns():
@@ -202,6 +204,8 @@ def test_extract_financial_data_ev_none_when_debt_missing():
     assert fd.valuation.ev_ebitda is None
     assert fd.valuation.ev_revenue is None
     assert any("total_debt" in w and "EV" in w for w in fd.warnings)
+    # Structured: the caveat is attributed to the EV/EBITDA cell.
+    assert fd.field_warnings.get("ev_ebitda") == ["ev_missing_net_debt"]
 
 
 def test_extract_financial_data_ev_none_when_cash_missing():

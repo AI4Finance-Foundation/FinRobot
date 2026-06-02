@@ -14,6 +14,8 @@ receive raw ``DataResult`` slices from ``fetch_historical`` wrap them with
 
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
 from finrobot.engine.models.financial import (
+    FIELD_WARN_EV_MISSING_NET_DEBT,
+    FIELD_WARN_SHARES_DERIVED,
     DataProvenance,
     FinancialData,
     IncomeStatement,
@@ -83,6 +85,7 @@ def extract_financial_data(
         raise ValueError(f"Missing or zero market_cap for {ticker}")
 
     warnings: list[str] = []
+    field_warnings: dict[str, list[str]] = {}
 
     raw_debt = fin.total_debt
     raw_cash = fin.total_cash
@@ -114,6 +117,7 @@ def extract_financial_data(
             f"{', '.join(missing_ev_parts)} not available from provider — "
             "EV and EV-based multiples (EV/EBITDA, EV/Revenue) cannot be computed"
         )
+        field_warnings.setdefault("ev_ebitda", []).append(FIELD_WARN_EV_MISSING_NET_DEBT)
 
     # 52w high/low from the canonical (windowed to trailing 52 weeks, intraday
     # high/low when present, close fallback otherwise).
@@ -136,6 +140,7 @@ def extract_financial_data(
             f"for {ticker} — derived as market_cap/price ({shares:,.0f}). "
             "Per-share metrics (EPS, P/E) may be approximate."
         )
+        field_warnings.setdefault("pe", []).append(FIELD_WARN_SHARES_DERIVED)
 
     # Carry any warnings that arrived on the canonical objects (e.g. cross-validate
     # discrepancies forwarded from raw fetch).
@@ -207,6 +212,7 @@ def extract_financial_data(
             degraded=list(dict.fromkeys([*fin.provenance.degraded, *price.provenance.degraded])),
         ),
         warnings=warnings,
+        field_warnings=field_warnings,
     )
 
 

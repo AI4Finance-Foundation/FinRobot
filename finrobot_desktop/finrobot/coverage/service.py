@@ -47,7 +47,11 @@ from finrobot.engine.data.normalize.contracts import (
     DEGRADED_TTM_LAG,
     Provenance,
 )
-from finrobot.engine.models.financial import DCFResult
+from finrobot.engine.models.financial import (
+    FIELD_WARN_EV_MISSING_NET_DEBT,
+    FIELD_WARN_SHARES_DERIVED,
+    DCFResult,
+)
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.types import DataType
@@ -231,10 +235,29 @@ _DEGRADED_CAVEAT = {
     DEGRADED_TTM_LAG: "TTM 口径滞后(P/E 分母)",
 }
 
+# Structured field-warning codes (from extract_financial_data) → cell caveat.
+# Attribution happens at the generation site (the field is known there), so this
+# maps code→文案 without coupling to the extractor's English prose.
+_FIELD_WARN_CAVEAT = {
+    FIELD_WARN_EV_MISSING_NET_DEBT: "缺净债(total_debt/cash)，EV 类无法计算",
+    FIELD_WARN_SHARES_DERIVED: "股数缺失，按市值/价反推，每股指标近似",
+}
+
 
 def _caveat(degraded: list[str], code: str) -> str | None:
     """The caveat note for ``code`` iff this snapshot is degraded by it."""
     return _DEGRADED_CAVEAT[code] if code in degraded else None
+
+
+def _field_caveats(field_warnings: dict[str, list[str]], field: str) -> list[str]:
+    """Localized caveats for a field's structured warning codes."""
+    return [_FIELD_WARN_CAVEAT[c] for c in field_warnings.get(field, []) if c in _FIELD_WARN_CAVEAT]
+
+
+def _join_caveats(*parts: str | None) -> str | None:
+    """Join the non-empty caveats for one cell; None when there are none."""
+    items = [p for p in parts if p]
+    return "；".join(items) if items else None
 
 
 def _source(
@@ -299,14 +322,22 @@ async def _apply_market_fields(row: CoverageRow, ticker: str, data_layer: DataLa
             row.pe = fd.market.pe_ratio
             row.currency = fd.quote_currency or row.currency
             _extend_unique(row.warnings, fd.warnings)
+            fw = fd.field_warnings
             row.sources.market_cap = _source(fprov, formula_id="market_cap")
             row.sources.revenue_ttm = _source(fprov)
-            row.sources.ev_ebitda = _source(fprov, formula_id="ev_ebitda")
-            # ttm_lag bites the P/E denominator specifically — mark it there.
+            # EV/EBITDA uncomputable without net debt — caveat sits on the cell.
+            row.sources.ev_ebitda = _source(
+                fprov,
+                formula_id="ev_ebitda",
+                formula_warning=_join_caveats(*_field_caveats(fw, "ev_ebitda")),
+            )
+            # P/E: ttm_lag (denominator) + derived-shares both bite here.
             row.sources.pe = _source(
                 fprov,
                 formula_id="pe_ttm",
-                formula_warning=_caveat(fprov.degraded, DEGRADED_TTM_LAG),
+                formula_warning=_join_caveats(
+                    _caveat(fprov.degraded, DEGRADED_TTM_LAG), *_field_caveats(fw, "pe")
+                ),
             )
 
 

@@ -136,6 +136,20 @@ class FinancialData(BaseModel):
     data_source: str = "yfinance"
     provenance: DataProvenance | None = None
     warnings: list[str] = Field(default_factory=list)
+    field_warnings: dict[str, list[str]] = Field(default_factory=dict)
+    """Structured, per-field warning *codes* (not prose) — keyed by the field a
+    caveat belongs to (``ev_ebitda`` / ``pe`` / …), each a stable code the UI
+    maps to a localized caveat next to that specific number. The free-text
+    :attr:`warnings` stays the row-level catch-all; this is what lets a caveat
+    sit on the exact cell it concerns instead of a generic row marker."""
+
+
+# ── Structured field-warning codes (attach at the generation site, where the
+# affected field is known; consumers map code → localized caveat) ────────────
+FIELD_WARN_EV_MISSING_NET_DEBT = "ev_missing_net_debt"
+"""EV (hence EV/EBITDA, EV/Revenue) uncomputable — provider lacked debt/cash."""
+FIELD_WARN_SHARES_DERIVED = "shares_derived"
+"""shares_outstanding derived as market_cap/price — per-share (EPS, P/E) approximate."""
 
 
 class AggregatedNewsItem(BaseModel):

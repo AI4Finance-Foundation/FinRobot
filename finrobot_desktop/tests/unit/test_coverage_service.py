@@ -16,6 +16,8 @@ from finrobot.artifact.models import ArtifactSummary
 from finrobot.coverage.models import CoverageGroupDetail, CoverageMember, CoverageRow
 from finrobot.coverage.service import (
     _caveat,
+    _field_caveats,
+    _join_caveats,
     _needs_refresh,
     _safe_signal,
     _upside,
@@ -310,6 +312,39 @@ async def test_overview_full_mode_defaults_fast_false() -> None:
     )
     assert ov.fast is False
     assert ov.rows[0].price == 200.0  # market filled in full mode
+
+
+def test_field_caveats_and_join() -> None:
+    fw = {"ev_ebitda": ["ev_missing_net_debt"], "pe": ["shares_derived"]}
+    assert _field_caveats(fw, "ev_ebitda") == ["缺净债(total_debt/cash)，EV 类无法计算"]
+    assert _field_caveats(fw, "pe") == ["股数缺失，按市值/价反推，每股指标近似"]
+    assert _field_caveats(fw, "market_cap") == []  # no code → no caveat
+    assert (
+        _field_caveats({"ev_ebitda": ["unknown_code"]}, "ev_ebitda") == []
+    )  # unmapped code dropped
+    assert _join_caveats(None, "a", None, "b") == "a；b"
+    assert _join_caveats(None, None) is None
+
+
+async def test_overview_field_warnings_land_on_the_right_cell() -> None:
+    # A ticker whose provider lacks net debt → EV uncomputable. The caveat must
+    # sit on the EV/EBITDA cell (not just a generic row warning).
+    class _MissingDebtLayer:
+        async def fetch_canonical(self, data_type, ticker, **_):
+            if data_type == DataType.PRICE:
+                return _price(ticker)
+            return _fin(ticker, total_debt=None)
+
+    ov = await build_overview(
+        _group("AAPL"),
+        artifact_store=_StubArtifactStore({"AAPL": [_summary()]}),  # type: ignore[arg-type]
+        data_layer=_MissingDebtLayer(),  # type: ignore[arg-type]
+        now=NOW,
+    )
+    (row,) = ov.rows
+    assert row.ev_ebitda is None  # uncomputable, not fabricated
+    assert row.sources.ev_ebitda is not None
+    assert row.sources.ev_ebitda.formula_warning == "缺净债(total_debt/cash)，EV 类无法计算"
 
 
 async def test_overview_degraded_market_leaves_sources_empty() -> None:

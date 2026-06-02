@@ -114,6 +114,10 @@ test('market-implied panel renders cards + equivalence line', async ({ page }) =
 
   // Wait for the completed verdict (SELL) → the panel mounts (collapsed).
   await expect(page.getByText('市场隐含预期')).toBeVisible({ timeout: 8000 })
+
+  // conviction 0.75 must render as 75/100 (0–1 float ×100), not 1/100.
+  const verdictCard = page.getByTestId('verdict-card')
+  await expect(verdictCard).toContainText('75/100')
   await page.getByText('市场隐含预期').click()
   // Line section (unique title) confirms cards + chart fetched and rendered.
   await expect(page.getByText('增长 → 隐含年限 等价线')).toBeVisible({ timeout: 8000 })

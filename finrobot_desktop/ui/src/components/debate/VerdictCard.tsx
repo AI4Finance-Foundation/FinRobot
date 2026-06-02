@@ -184,7 +184,11 @@ interface FullVerdictProps {
 }
 
 function FullVerdict({ verdict, callCfg, current_price, t }: FullVerdictProps) {
-  const convictionDisplay = verdict.conviction !== null ? `${verdict.conviction.toFixed(0)}` : '—'
+  // conviction is a 0–1 float (Verdict model: ge=0, le=1); the "/100" suffix means
+  // we render it as a 0–100 score, so scale up. Without ×100 every value rounded
+  // to 0 or 1 (0.75 → "1/100").
+  const convictionDisplay =
+    verdict.conviction !== null ? `${(verdict.conviction * 100).toFixed(0)}` : '—'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

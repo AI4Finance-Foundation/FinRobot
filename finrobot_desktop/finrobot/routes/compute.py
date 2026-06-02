@@ -156,6 +156,11 @@ class DcfReverseResult(BaseModel):
     price_at_lo: float
     price_at_hi: float
     iterations: int
+    # Whether the bisection bracket actually collapsed below tolerance. The
+    # growth/wacc solvers emit it; without this field pydantic silently dropped
+    # it from the response, so a caller couldn't tell an exact solve from a
+    # capped approximation (BUG-035). Horizon solves omit it → default True.
+    converged: bool = True
     message: str | None = None
 
 

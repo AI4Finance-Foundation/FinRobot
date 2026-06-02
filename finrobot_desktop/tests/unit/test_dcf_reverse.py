@@ -284,3 +284,33 @@ def test_equivalence_line_marks_unreachable_growths_as_none():
     assert points[0].implied_horizon is None
     # And the highest growth definitely can.
     assert points[-1].implied_horizon is not None
+
+
+# ───────────────────────────────────────────────────────────────────
+# BUG-035 — the converged flag must survive into the API response model
+# ───────────────────────────────────────────────────────────────────
+
+
+def test_dcf_reverse_result_preserves_converged_flag():
+    """The bisection reports converged in its dict, but DcfReverseResult silently
+    dropped the key (extra ignored), so an API caller couldn't tell an exact solve
+    from a capped approximation. The model must carry it through (BUG-035)."""
+    from finrobot.routes.compute import DcfReverseResult
+
+    inputs = _make_inputs()
+    out = solve_for_implied_growth(inputs, target_price=300.0, wacc_override=0.10)
+    assert "converged" in out
+    result = DcfReverseResult(solve_for="growth", **out)
+    assert result.converged == out["converged"]
+
+
+def test_dcf_reverse_result_converged_defaults_true_for_horizon():
+    """solve_for_implied_horizon emits no converged key; the model defaults it to
+    True so the horizon path (which reports solvability via implied_horizon/message)
+    doesn't read as non-converged."""
+    from finrobot.routes.compute import DcfReverseResult
+
+    inputs = _make_inputs()
+    out = solve_for_implied_horizon(inputs, target_price=300.0, growth_rate=0.08, wacc_override=0.10)
+    result = DcfReverseResult(solve_for="horizon", **out)
+    assert result.converged is True

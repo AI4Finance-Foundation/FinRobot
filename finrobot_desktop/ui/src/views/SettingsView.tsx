@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, BASE_URL, exportDiagnosticsLogs } from '../api/client'
+import { api, BASE_URL } from '../api/client'
 import { useToastStore } from '../stores/toastStore'
 import { useUiStore } from '../stores/uiStore'
 import { mapErrorToUserMessage, FetchHttpError } from '../utils/errorMessage'
@@ -267,53 +267,6 @@ function SelectWithFocus({ style: s, ...props }: React.SelectHTMLAttributes<HTML
   )
 }
 
-// ─── Custom Checkbox ───────────────────────────────────────────────────────
-
-function Checkbox({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean
-  onChange: (v: boolean) => void
-  disabled?: boolean
-}) {
-  return (
-    <button
-      role="checkbox"
-      aria-checked={checked}
-      onClick={() => !disabled && onChange(!checked)}
-      style={{
-        width: '14px',
-        height: '14px',
-        flexShrink: 0,
-        border: `1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`,
-        borderRadius: '2px',
-        background: checked ? 'var(--accent-dim)' : 'var(--bg-3)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        padding: 0,
-        transition: 'all 0.12s',
-        opacity: disabled ? 0.5 : 1,
-      }}
-    >
-      {checked && (
-        <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
-          <path
-            d="M1 3.5L3.5 6L8 1"
-            stroke="var(--accent)"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      )}
-    </button>
-  )
-}
-
 // ─── Auto-save indicator ───────────────────────────────────────────────────
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
@@ -344,12 +297,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   const [modelName, setModelName] = useState('')
   const [llmApiKey, setLlmApiKey] = useState('')
 
-  // ── Section 3: Logging / Diagnostics ────────────────────────────────────
-  const [logLevel, setLogLevel] = useState('INFO')
-  const [logToFile, setLogToFile] = useState(false)
-  const [logRetentionDays, setLogRetentionDays] = useState(7)
-  const [exportState, setExportState] = useState<'idle' | 'loading' | 'error'>('idle')
-
   // Pending fields awaiting user confirmation before resetting their
   // settings.json override back to the .env default. Set by handleResetField,
   // cleared by the inline confirm modal.
@@ -366,9 +313,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     initializedRef.current = true
     if (settingsResp.model_name) setModelName(settingsResp.model_name)
     if (settingsResp.sec_user_agent) setSecUserAgent(settingsResp.sec_user_agent)
-    if (settingsResp.log_level) setLogLevel(settingsResp.log_level)
-    setLogToFile(settingsResp.log_to_file)
-    setLogRetentionDays(settingsResp.log_retention_days)
   }, [settingsResp])
 
   // ── PUT /api/settings mutation ───────────────────────────────────────────
@@ -506,44 +450,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   const handleSecAgentChange = (v: string) => {
     setSecUserAgent(v)
     scheduleStandardSave({ sec_user_agent: v })
-  }
-
-  // Logging field helpers
-  const handleLogLevelChange = (v: string) => {
-    setLogLevel(v)
-    scheduleStandardSave({ log_level: v })
-  }
-
-  const handleLogToFileChange = (v: boolean) => {
-    setLogToFile(v)
-    scheduleStandardSave({ log_to_file: v })
-  }
-
-  const handleLogRetentionDaysChange = (v: number) => {
-    setLogRetentionDays(v)
-    scheduleStandardSave({ log_retention_days: v })
-  }
-
-  const handleExportLogs = async () => {
-    setExportState('loading')
-    try {
-      const blob = await exportDiagnosticsLogs()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'finrobot-logs.zip'
-      a.click()
-      URL.revokeObjectURL(url)
-      setExportState('idle')
-    } catch (err) {
-      setExportState('error')
-      addToast({
-        type: 'error',
-        title: t('settings.export.failTitle'),
-        description: (err as Error).message,
-      })
-      setTimeout(() => setExportState('idle'), 3000)
-    }
   }
 
   // ── Derived ──────────────────────────────────────────────────────────────
@@ -805,6 +711,11 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       </section>
 
       {/* ═════════════════════════════════════════════
+          Section 1b: SEC 13F Institutional Holdings
+          ═════════════════════════════════════════════ */}
+      <SecHoldingsSection />
+
+      {/* ═════════════════════════════════════════════
           Section 2: LLM Provider
           ═════════════════════════════════════════════ */}
       <section style={sectionStyle}>
@@ -868,119 +779,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                 return settingsResp?.[keyField] ? '••••••••' : `Enter ${currentProvider} API key`
               })()}
             />
-          </div>
-        </div>
-      </section>
-
-      {/* ═════════════════════════════════════════════
-          Section 3: Logging / Diagnostics
-          ═════════════════════════════════════════════ */}
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>{t('settings.section.logging')}</h2>
-        <div style={fieldGroupStyle}>
-          {/* Log level */}
-          <div style={fieldStyle}>
-            <div style={labelStyle}>
-              <span>{t('settings.log.level')}</span>
-            </div>
-            <SelectWithFocus
-              value={logLevel}
-              onChange={(e) => handleLogLevelChange(e.target.value)}
-            >
-              {(['DEBUG', 'INFO', 'WARNING', 'ERROR'] as const).map((lvl) => (
-                <option key={lvl} value={lvl}>
-                  {lvl}
-                </option>
-              ))}
-            </SelectWithFocus>
-            <p style={hintStyle}>{t('settings.log.levelHint')}</p>
-          </div>
-
-          {/* Log to file toggle */}
-          <div style={fieldStyle}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}
-            >
-              <Checkbox checked={logToFile} onChange={handleLogToFileChange} />
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '11px',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                {t('settings.log.toFile')}
-              </span>
-            </div>
-            <p style={{ ...hintStyle, marginTop: '4px' }}>{t('settings.log.toFileHint')}</p>
-          </div>
-
-          {/* Retention days */}
-          <div style={fieldStyle}>
-            <div style={labelStyle}>
-              <span>{t('settings.log.retention')}</span>
-            </div>
-            <InputWithFocus
-              type="number"
-              value={logRetentionDays}
-              min={1}
-              onChange={(e) => {
-                const n = parseInt(e.target.value)
-                if (!isNaN(n) && n >= 1) handleLogRetentionDaysChange(n)
-              }}
-              style={{ width: '100px' }}
-            />
-            <p style={hintStyle}>{t('settings.log.retentionHint')}</p>
-          </div>
-
-          {/* Export button */}
-          <div style={fieldStyle}>
-            <div style={labelStyle}>
-              <span>{t('settings.log.diagnostics')}</span>
-            </div>
-            <div>
-              <button
-                type="button"
-                disabled={exportState === 'loading'}
-                onClick={handleExportLogs}
-                style={{
-                  background: exportState === 'error' ? 'var(--negative-bg)' : 'var(--bg-3)',
-                  border: `1px solid ${exportState === 'error' ? 'var(--negative)' : 'var(--border)'}`,
-                  borderRadius: '4px',
-                  padding: '7px 14px',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '11px',
-                  color: exportState === 'error' ? 'var(--negative)' : 'var(--text-secondary)',
-                  cursor: exportState === 'loading' ? 'not-allowed' : 'pointer',
-                  opacity: exportState === 'loading' ? 0.6 : 1,
-                  transition: 'all 0.15s',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
-              >
-                {/* Download icon — inline SVG per style guide */}
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-                  <path
-                    d="M6 1v7M3.5 5.5L6 8l2.5-2.5M2 10h8"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                {exportState === 'loading'
-                  ? t('settings.export.packing')
-                  : exportState === 'error'
-                    ? t('settings.export.failTitle')
-                    : t('settings.export.button')}
-              </button>
-            </div>
-            <p style={hintStyle}>{t('settings.export.hint')}</p>
           </div>
         </div>
       </section>
@@ -1095,6 +893,175 @@ function ResetConfirmModal({
         </div>
       </div>
     </div>
+  )
+}
+
+// ── SEC 13F institutional-holdings section ─────────────────────────────────
+// The 13F reverse index is OFF by default (building it downloads a whole
+// quarter of market-wide filings — ~1-2h). This section lets the user see
+// cache state, flip auto-sync, and trigger a manual build. Without it the
+// 13F report chapter is permanently cold and the old UI lied that a sync
+// was already running. Polls /status while a refresh is in flight.
+
+interface RefreshRuntime {
+  status: 'idle' | 'running' | 'done' | 'error'
+  period_end: string | null
+  started_at: string | null
+  finished_at: string | null
+  error: string | null
+}
+
+interface SecHoldingsStatusShape {
+  populated: boolean
+  row_count: number
+  latest_period_end: string | null
+  distinct_tickers: number
+  identity_configured: boolean
+  auto_refresh: boolean
+  refresh: RefreshRuntime
+}
+
+function SecHoldingsSection(): React.ReactElement {
+  const { t } = useI18n()
+  const queryClient = useQueryClient()
+  const addToast = useToastStore((s) => s.addToast)
+
+  const { data: status } = useQuery<SecHoldingsStatusShape>({
+    queryKey: ['sec-holdings-status'],
+    queryFn: async () => {
+      const resp = await fetch(`${BASE_URL}/api/sec-holdings/status`)
+      if (!resp.ok) throw new FetchHttpError(resp.status, resp.statusText)
+      return (await resp.json()) as SecHoldingsStatusShape
+    },
+    // Poll only while a build is running so the row count / status update
+    // live; otherwise stay quiet (the cache changes at most quarterly).
+    refetchInterval: (query) =>
+      query.state.data?.refresh.status === 'running' ? 2000 : false,
+  })
+
+  const refreshMutation = useMutation({
+    mutationFn: async () => {
+      const resp = await fetch(`${BASE_URL}/api/sec-holdings/refresh`, { method: 'POST' })
+      if (!resp.ok) throw new FetchHttpError(resp.status, resp.statusText)
+      return (await resp.json()) as SecHoldingsStatusShape
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['sec-holdings-status'], data)
+      if (data.refresh.status === 'error') {
+        addToast({
+          type: 'error',
+          title: t('settings.secHoldings.syncFailed'),
+          description:
+            data.refresh.error === 'identity_missing'
+              ? t('settings.secHoldings.identityRequired')
+              : (data.refresh.error ?? t('settings.secHoldings.syncFailed')),
+        })
+      }
+    },
+    onError: (err: Error) => {
+      addToast({
+        type: 'error',
+        title: t('settings.secHoldings.syncFailed'),
+        description: mapErrorToUserMessage(err),
+      })
+    },
+  })
+
+  const autoRefreshMutation = useMutation({
+    mutationFn: async (v: boolean) => {
+      const { data, error } = await api.PUT('/api/settings', {
+        body: { sec_holdings_auto_refresh: v } as never,
+      })
+      if (error) throw new Error('settings update failed')
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sec-holdings-status'] })
+      queryClient.invalidateQueries({ queryKey: ['settings'] })
+    },
+  })
+
+  const running = status?.refresh.status === 'running' || refreshMutation.isPending
+  const identityOk = status?.identity_configured ?? false
+
+  const statusLine = (() => {
+    if (!status) return ''
+    if (status.populated && status.latest_period_end) {
+      return t('settings.secHoldings.statusPopulated', {
+        rows: status.row_count.toLocaleString(),
+        tickers: status.distinct_tickers.toLocaleString(),
+        period: status.latest_period_end,
+      })
+    }
+    return t('settings.secHoldings.statusEmpty')
+  })()
+
+  return (
+    <section style={sectionStyle}>
+      <h2 style={sectionTitleStyle}>{t('settings.section.secHoldings')}</h2>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 16px', lineHeight: 1.6 }}>
+        {t('settings.secHoldings.intro')}
+      </p>
+
+      {/* Cache status + manual trigger */}
+      <div style={fieldStyle}>
+        <div style={labelStyle}>
+          <span>{statusLine}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            disabled={!identityOk || running}
+            onClick={() => refreshMutation.mutate()}
+            style={{
+              background: 'var(--bg-3)',
+              border: '1px solid var(--border)',
+              borderRadius: '4px',
+              padding: '7px 14px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '11px',
+              color: 'var(--text-secondary)',
+              cursor: !identityOk || running ? 'not-allowed' : 'pointer',
+              opacity: !identityOk || running ? 0.55 : 1,
+              transition: 'all 0.15s',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            {/* Refresh icon — inline SVG per style guide */}
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+              <path
+                d="M10.5 6a4.5 4.5 0 1 1-1.32-3.18M10.5 1.5V4H8"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            {running ? t('settings.secHoldings.syncing') : t('settings.secHoldings.syncNow')}
+          </button>
+          {!identityOk && (
+            <span style={{ ...hintWarningStyle, marginTop: 0 }}>
+              {t('settings.secHoldings.identityRequired')}
+            </span>
+          )}
+        </div>
+        {running && (
+          <p style={{ ...hintStyle, marginTop: '6px', lineHeight: 1.5 }}>
+            {t('settings.secHoldings.runningHint')}
+          </p>
+        )}
+      </div>
+
+      {/* Auto-sync toggle */}
+      <ToggleRow
+        label={t('settings.secHoldings.autoRefresh')}
+        desc={t('settings.secHoldings.autoRefreshDesc')}
+        enabled={status?.auto_refresh ?? false}
+        onToggle={() => autoRefreshMutation.mutate(!(status?.auto_refresh ?? false))}
+      />
+    </section>
   )
 }
 

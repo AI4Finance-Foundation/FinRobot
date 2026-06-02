@@ -102,7 +102,11 @@ describe('ChapterOwnershipGovernance', () => {
       degraded_sections: ['institutional_holdings'],
     }
     render(wrap(<ChapterOwnershipGovernance ownership={ownership} />))
-    expect(screen.getByText(/13F holdings cache empty/i)).toBeInTheDocument()
+    // Honest cold-state copy: the old text promised a "background sync" that
+    // never runs (auto-refresh is off by default). It now tells the user the
+    // sync must be enabled/triggered in Settings, with a CTA to get there.
+    expect(screen.getByText(/13F holdings cache not built/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Open Settings/i })).toBeInTheDocument()
   })
 
   it('renders proxy compensation KvGrid with CEO totals', () => {

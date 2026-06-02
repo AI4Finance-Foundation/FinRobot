@@ -92,7 +92,10 @@ export function ChapterOwnershipGovernance({ ownership }: Props): React.ReactEle
 
       <SubChapter heading={t('chapter.ownership.heading.institutions')}>
         {degraded.has('institutional_holdings') ? (
-          <DegradedPlaceholder reason={t(institutionsReason)} />
+          <DegradedPlaceholder
+            reason={t(institutionsReason)}
+            cta={{ to: '/settings', label: t('chapter.ownership.degraded.institutions.cta') }}
+          />
         ) : holdings.length > 0 ? (
           <InstitutionTable rows={holdings} locale={locale} t={t} />
         ) : (
@@ -548,7 +551,13 @@ function ProvenanceLink({
   return inner
 }
 
-function DegradedPlaceholder({ reason }: { reason: string }): React.ReactElement {
+function DegradedPlaceholder({
+  reason,
+  cta,
+}: {
+  reason: string
+  cta?: { to: string; label: string }
+}): React.ReactElement {
   return (
     <div
       style={{
@@ -560,9 +569,17 @@ function DegradedPlaceholder({ reason }: { reason: string }): React.ReactElement
         fontSize: 11.5,
         color: 'var(--warning)',
         lineHeight: 1.5,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
       }}
     >
-      ⚠ {reason}
+      <span>⚠ {reason}</span>
+      {cta && (
+        <Link to={cta.to} style={degradedCtaStyle}>
+          {cta.label} →
+        </Link>
+      )}
     </div>
   )
 }
@@ -639,6 +656,16 @@ const emptyChapterCalloutCta: CSSProperties = {
   letterSpacing: '2px',
   color: 'var(--text-primary)',
   textDecoration: 'none',
+}
+
+const degradedCtaStyle: CSSProperties = {
+  alignSelf: 'flex-start',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  color: 'var(--warning)',
+  textDecoration: 'none',
+  borderBottom: '1px dotted color-mix(in srgb, var(--warning) 50%, transparent)',
+  paddingBottom: 1,
 }
 
 const kvFooter: CSSProperties = {

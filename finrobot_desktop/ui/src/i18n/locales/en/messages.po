@@ -1092,7 +1092,11 @@ msgstr "Form 4 data unavailable — this older report has no specific reason; re
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.institutions"
-msgstr "13F holdings cache empty — first background sync takes 1-2 hours"
+msgstr "13F holdings cache not built — this sync is off by default (it downloads a full quarter of market-wide filings); enable or trigger it in Settings, then re-run the analysis to populate it"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.institutions.cta"
+msgstr "Open Settings · SEC 13F"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.compensation"
@@ -1715,22 +1719,6 @@ msgid "settings.reset.confirm"
 msgstr "Confirm reset"
 
 #. js-lingui-explicit-id
-msgid "settings.export.failTitle"
-msgstr "Export failed"
-
-#. js-lingui-explicit-id
-msgid "settings.export.packing"
-msgstr "Packaging…"
-
-#. js-lingui-explicit-id
-msgid "settings.export.button"
-msgstr "Export diagnostic logs"
-
-#. js-lingui-explicit-id
-msgid "settings.export.hint"
-msgstr "Package all logs under ~/.finrobot/logs/ into finrobot-logs.zip"
-
-#. js-lingui-explicit-id
 msgid "settings.sec.hintEmpty"
 msgstr "Format: name or org + space + contact email, e.g. {example}"
 
@@ -1765,10 +1753,6 @@ msgstr "Data Sources"
 #. js-lingui-explicit-id
 msgid "settings.section.aiModel"
 msgstr "AI Model"
-
-#. js-lingui-explicit-id
-msgid "settings.section.logging"
-msgstr "Logging / Diagnostics"
 
 #. js-lingui-explicit-id
 msgid "settings.badge.configured"
@@ -1847,32 +1831,48 @@ msgid "settings.model.label"
 msgstr "Model"
 
 #. js-lingui-explicit-id
-msgid "settings.log.level"
-msgstr "Log level"
+msgid "settings.section.secHoldings"
+msgstr "SEC 13F Holdings"
 
 #. js-lingui-explicit-id
-msgid "settings.log.levelHint"
-msgstr "Controls verbosity written to ~/.finrobot/logs/; DEBUG is noisy — INFO recommended for production"
+msgid "settings.secHoldings.intro"
+msgstr "The 13F reverse index powers the report's \"who holds this stock\" institutional-holdings section. Building it downloads a full quarter of market-wide 13F-HR filings (~1-2 hours, heavy SEC traffic), so it is off by default."
 
 #. js-lingui-explicit-id
-msgid "settings.log.toFile"
-msgstr "Write log files"
+msgid "settings.secHoldings.autoRefresh"
+msgstr "Auto-sync on startup"
 
 #. js-lingui-explicit-id
-msgid "settings.log.toFileHint"
-msgstr "When on, logs persist to ~/.finrobot/logs/; when off, stderr only"
+msgid "settings.secHoldings.autoRefreshDesc"
+msgstr "On each startup, rebuild in the background when the cache is empty or older than 60 days (first build still takes ~1-2 hours)."
 
 #. js-lingui-explicit-id
-msgid "settings.log.retention"
-msgstr "Log retention (days)"
+msgid "settings.secHoldings.statusPopulated"
+msgstr "Built · {rows} rows · {tickers} tickers · as of {period}"
 
 #. js-lingui-explicit-id
-msgid "settings.log.retentionHint"
-msgstr "Log files older than this are cleaned up on next startup"
+msgid "settings.secHoldings.statusEmpty"
+msgstr "Not built — no institutional holdings cached yet"
 
 #. js-lingui-explicit-id
-msgid "settings.log.diagnostics"
-msgstr "Diagnostic logs"
+msgid "settings.secHoldings.syncNow"
+msgstr "Sync now"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.syncing"
+msgstr "Syncing…"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.syncFailed"
+msgstr "Sync failed — check logs"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.identityRequired"
+msgstr "Configure a valid SEC identity above before syncing"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.runningHint"
+msgstr "Downloading and parsing a full quarter of 13F-HR filings — this can take 1-2 hours. You can leave this page; re-run the analysis once it finishes to populate institutional holdings."
 
 #. js-lingui-explicit-id
 msgid "settings.appearance.title"

@@ -1092,7 +1092,11 @@ msgstr "Form 4 数据不可用 · 旧报告缺少具体原因，请重跑分析�
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.institutions"
-msgstr "13F 机构持仓缓存为空 · 后台首次同步需 1-2 小时"
+msgstr "13F 机构持仓缓存未建立 · 该同步默认关闭(需下载整季度全市场申报),在设置中开启或手动触发后重新生成研报即可显示"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.institutions.cta"
+msgstr "前往设置 · SEC 13F"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.compensation"
@@ -1715,22 +1719,6 @@ msgid "settings.reset.confirm"
 msgstr "确认恢复"
 
 #. js-lingui-explicit-id
-msgid "settings.export.failTitle"
-msgstr "导出失败"
-
-#. js-lingui-explicit-id
-msgid "settings.export.packing"
-msgstr "打包中…"
-
-#. js-lingui-explicit-id
-msgid "settings.export.button"
-msgstr "导出诊断日志"
-
-#. js-lingui-explicit-id
-msgid "settings.export.hint"
-msgstr "将 ~/.finrobot/logs/ 下所有日志文件打包为 finrobot-logs.zip 下载"
-
-#. js-lingui-explicit-id
 msgid "settings.sec.hintEmpty"
 msgstr "填写格式：姓名或机构 + 空格 + 可联系邮箱，例如 {example}"
 
@@ -1765,10 +1753,6 @@ msgstr "数据源"
 #. js-lingui-explicit-id
 msgid "settings.section.aiModel"
 msgstr "AI 模型"
-
-#. js-lingui-explicit-id
-msgid "settings.section.logging"
-msgstr "日志 / 诊断"
 
 #. js-lingui-explicit-id
 msgid "settings.badge.configured"
@@ -1847,32 +1831,48 @@ msgid "settings.model.label"
 msgstr "模型"
 
 #. js-lingui-explicit-id
-msgid "settings.log.level"
-msgstr "日志级别"
+msgid "settings.section.secHoldings"
+msgstr "SEC 13F 机构持仓"
 
 #. js-lingui-explicit-id
-msgid "settings.log.levelHint"
-msgstr "控制 ~/.finrobot/logs/ 写入的详细程度；DEBUG 输出量大，生产环境建议 INFO"
+msgid "settings.secHoldings.intro"
+msgstr "13F 反向索引用于在研报「机构持仓」一节展示「谁持有这只票」。建立索引需下载整个季度全市场的 13F-HR 申报,约 1-2 小时、占用较多 SEC 请求,因此默认关闭。"
 
 #. js-lingui-explicit-id
-msgid "settings.log.toFile"
-msgstr "写入日志文件"
+msgid "settings.secHoldings.autoRefresh"
+msgstr "启动时自动同步"
 
 #. js-lingui-explicit-id
-msgid "settings.log.toFileHint"
-msgstr "开启后将日志持久化到 ~/.finrobot/logs/；关闭则仅输出到 stderr"
+msgid "settings.secHoldings.autoRefreshDesc"
+msgstr "每次启动时若缓存为空或超过 60 天,自动在后台重建(首次仍需约 1-2 小时)。"
 
 #. js-lingui-explicit-id
-msgid "settings.log.retention"
-msgstr "日志保留天数"
+msgid "settings.secHoldings.statusPopulated"
+msgstr "已建立 · {rows} 行 · {tickers} 只标的 · 截至 {period}"
 
 #. js-lingui-explicit-id
-msgid "settings.log.retentionHint"
-msgstr "超过该天数的日志文件将在下次启动时自动清理"
+msgid "settings.secHoldings.statusEmpty"
+msgstr "缓存未建立 · 尚无机构持仓数据"
 
 #. js-lingui-explicit-id
-msgid "settings.log.diagnostics"
-msgstr "诊断日志"
+msgid "settings.secHoldings.syncNow"
+msgstr "立即同步"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.syncing"
+msgstr "同步中…"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.syncFailed"
+msgstr "同步失败,请查看日志"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.identityRequired"
+msgstr "请先在上方「SEC EDGAR」配置有效身份后再同步"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.runningHint"
+msgstr "正在下载并解析整季度 13F-HR,可能需 1-2 小时;期间可离开本页,完成后重新生成研报即可看到机构持仓。"
 
 #. js-lingui-explicit-id
 msgid "settings.appearance.title"

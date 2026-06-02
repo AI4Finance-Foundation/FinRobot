@@ -25,6 +25,12 @@ from pydantic import BaseModel, ConfigDict, Field
 # v2: added NormalizedFinancials.operating_cash_flow / capital_expenditure (TTM)
 # so the cashflow analysis reports a real OCF−CapEx FCF; old v1 canonicals lack
 # these and would serve None, so bump to refetch.
+# NOT bumped for the revenue/market_cap float→(float | None) change (BUG-038/039/042):
+# old v2 payloads store these as floats, which deserialize cleanly into the wider
+# type, and every downstream consumer collapses a stale fabricated 0.0 and a fresh
+# None onto the same path (``if not revenue: raise`` / ``_fmt_num`` → "N/A"), so no
+# cached entry can surface a wrong number. Bumping would only invalidate valid
+# caches for a semantically identical result.
 CANONICAL_CONTRACT_VERSION = 2
 
 # Degradation markers carried in ``Provenance.degraded``. Surfaced to the UI so
@@ -145,7 +151,7 @@ class NormalizedFinancials(BaseModel):
     period_basis: Literal["ttm", "annual", "quarterly"] = "ttm"
     as_of: datetime = Field(description="Semantic time of the data (= period_end when known)")
 
-    revenue: float
+    revenue: float | None = None
     ebitda: float | None = None
     net_income: float | None = None
     gross_margin: float | None = None
@@ -156,7 +162,7 @@ class NormalizedFinancials(BaseModel):
     # net_income + income_tax_expense + interest_expense + D&A.
     operating_income: float | None = None
     income_tax_expense: float | None = None
-    market_cap: float
+    market_cap: float | None = None
     shares_outstanding: float | None = None
     current_price: float | None = None
     pe_ratio: float | None = None

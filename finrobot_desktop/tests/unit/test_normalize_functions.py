@@ -152,3 +152,13 @@ def test_financials_carries_ebitda_components():
     assert fin.income_tax_expense == 1.511e9
     assert fin.interest_expense == 0.339e9
     assert fin.depreciation_amortization == 6.291e9
+
+
+def test_financials_missing_revenue_market_cap_stay_none():
+    """BUG-038/039/042: when a provider omits revenue/market_cap, normalization
+    must leave them None — a missing-data signal — not fabricate 0.0. A
+    fabricated 0.0 is a valid-looking number that masks the gap (and a zero
+    market_cap silently collapses any downstream EV = market_cap + debt − cash)."""
+    fin = normalize_financials(_fin_result(net_income=1.0e9))
+    assert fin.revenue is None
+    assert fin.market_cap is None

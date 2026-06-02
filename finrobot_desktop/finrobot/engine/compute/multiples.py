@@ -233,6 +233,10 @@ def calculate_core_pe(comps: PeerComps) -> PeerComps:
     rate (so one company's tax holiday can't distort the comp), else 21%
     statutory. ``core_pe = market_cap / NOPAT`` is gated by the same P/E sanity
     bounds as the as-reported ratio. Returns a new copy; input is not mutated.
+
+    When the *target's* own rate is substituted (out of band or unreported), a
+    warning is appended to ``warnings`` so the substitution that shapes the
+    target's NOPAT — and thus the comps_pe price — is visible (BUG-049).
     """
     result = comps.model_copy(deep=True)
 
@@ -246,13 +250,10 @@ def calculate_core_pe(comps: PeerComps) -> PeerComps:
     fallback_rate = median(peer_rates) if peer_rates else CORE_TAX_RATE_FALLBACK
 
     # Pass 2 — assign each row its rate, NOPAT, and core P/E.
-    def _apply(c: CompanyFinancials) -> None:
+    def _apply(c: CompanyFinancials, *, is_target: bool = False) -> None:
         own = _effective_tax_rate(c.net_income, c.income_tax_expense)
-        rate = (
-            own
-            if (own is not None and CORE_TAX_RATE_MIN <= own <= CORE_TAX_RATE_MAX)
-            else fallback_rate
-        )
+        in_band = own is not None and CORE_TAX_RATE_MIN <= own <= CORE_TAX_RATE_MAX
+        rate = own if (own is not None and in_band) else fallback_rate
         c.effective_tax_rate = rate
         # EBIT prefers the absolute operating_income (period-consistent with the
         # FMP base) over operating_margin × revenue: once revenue may be
@@ -268,6 +269,23 @@ def calculate_core_pe(comps: PeerComps) -> PeerComps:
             c.core_net_income = None
             c.core_pe_ratio = None
             return
+        # When the target's own tax is out of band, its NOPAT (hence the comps_pe
+        # target price) is built on a substitute rate, not the reported tax. The
+        # substitution is a defensible normalisation, but it must be visible —
+        # surface it so the user can judge whether the substitute caliber is fair
+        # for this company (e.g. a real DTA-driven low-tax period; BUG-049).
+        if is_target and not in_band:
+            if own is not None:
+                result.warnings.append(
+                    f"Target effective tax rate {own:.1%} outside the core band "
+                    f"[{CORE_TAX_RATE_MIN:.0%}, {CORE_TAX_RATE_MAX:.0%}]; "
+                    f"core P/E uses substitute rate {rate:.1%}"
+                )
+            else:
+                result.warnings.append(
+                    f"Target effective tax rate unavailable; "
+                    f"core P/E uses substitute rate {rate:.1%}"
+                )
         nopat = ebit * (1 - rate)
         c.core_net_income = nopat
         c.core_pe_ratio = _sanity(
@@ -276,7 +294,7 @@ def calculate_core_pe(comps: PeerComps) -> PeerComps:
             PEER_PE_SANITY_MAX,
         )
 
-    _apply(result.target)
+    _apply(result.target, is_target=True)
     for peer in result.peers:
         _apply(peer)
 

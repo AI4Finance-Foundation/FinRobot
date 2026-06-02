@@ -423,6 +423,30 @@ def test_core_pe_all_degenerate_uses_statutory_fallback():
     assert comps.target.effective_tax_rate == pytest.approx(0.21)
 
 
+def test_core_pe_warns_when_target_tax_substituted():
+    """BUG-049: when the target's own effective tax rate is out of band and
+    replaced by the peer/statutory fallback, a warning records the substitution
+    so the user knows the target's NOPAT (hence the comps_pe target price) rests
+    on a substitute rate, not the company's reported tax."""
+    target = _co_tax("T", 100, 30, 29, 550, 0.5)  # own 0.5/29.5 ≈ 1.7% → below floor
+    peers = [
+        _co_tax("P1", 100, 20, 16, 500, 4.0),  # 4/20 = 20% in-band
+        _co_tax("P2", 100, 25, 20, 600, 5.0),  # 5/25 = 20% in-band
+    ]
+    comps = calculate_core_pe(PeerComps(target=target, peers=peers))
+    tax_warnings = [w for w in comps.warnings if "tax rate" in w]
+    assert tax_warnings, f"expected a target tax-substitution warning, got {comps.warnings}"
+    assert "1.7%" in tax_warnings[0]  # target's own (substituted) rate
+    assert "20.0%" in tax_warnings[0]  # peer-median substitute rate applied
+
+
+def test_core_pe_no_warning_when_target_tax_in_band():
+    """In-band target rate is used as-is — no substitution, no warning (NVDA's
+    own effective rate is 15.75%, comfortably inside the band)."""
+    comps = calculate_core_pe(_nvda_peer_comps())
+    assert not [w for w in comps.warnings if "tax rate" in w]
+
+
 def test_single_peer_median_equals_mean():
     c = _make_company("A", 100, 30, 10, 500)
     c = calculate_multiples(c)

@@ -1816,7 +1816,7 @@ msgstr "Enter Finnhub API key"
 
 #. js-lingui-explicit-id
 msgid "settings.finnhub.hint"
-msgstr "Enables: real-time news + WebSocket quotes"
+msgstr "Enables: company news, profile & basic financials"
 
 #. js-lingui-explicit-id
 msgid "settings.sec.label"

@@ -1816,7 +1816,7 @@ msgstr "输入 Finnhub API 密钥"
 
 #. js-lingui-explicit-id
 msgid "settings.finnhub.hint"
-msgstr "启用：实时新闻 + WebSocket 行情"
+msgstr "启用：公司新闻、公司概况与基础财务"
 
 #. js-lingui-explicit-id
 msgid "settings.sec.label"

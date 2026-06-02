@@ -55,6 +55,30 @@ def canonical_key(data_type: str | DataType) -> str:
     return f"{_normalize_data_type(data_type)}:canonical:v{CANONICAL_CONTRACT_VERSION}"
 
 
+# Raw provider-slot format versions. Bump when a provider's cached RAW payload
+# SHAPE changes incompatibly, so old entries are ignored (treated as a miss)
+# and refetched, instead of feeding a stale format into the compute layer.
+# Without this a long-TTL type silently serves the old shape until expiry.
+#   proxy_statement v2 — 2026-06-02: the DEF 14A text slice was re-anchored on
+#   the real Summary Compensation Table; pre-v2 slices miss the SCT + pay-ratio
+#   for large issuers, so the comp parser can't recover from them (7-day TTL).
+_RAW_SLOT_VERSION: dict[str, int] = {
+    DataType.PROXY_STATEMENT.value: 2,
+}
+
+
+def raw_slot_key(data_type: str | DataType) -> str:
+    """Cache slot for RAW provider data, version-tagged per ``_RAW_SLOT_VERSION``.
+
+    Unversioned types return their bare normalized key (back-compat); a bumped
+    type returns ``<type>:vN`` so old entries become unreachable. TTL lookup
+    still uses the BASE data_type, so freshness budgets are unaffected.
+    """
+    base = _normalize_data_type(data_type)
+    version = _RAW_SLOT_VERSION.get(base)
+    return f"{base}:v{version}" if version else base
+
+
 _TTL_SECONDS: dict[str, int] = {
     DataType.PRICE: 900,  # 15 minutes
     DataType.QUOTE: 60,  # 1 minute — aligns with the QuoteCache batch TTL
@@ -207,9 +231,7 @@ class DataCache:
         The ``max_age_hours`` parameter is kept for backwards compatibility and
         test convenience: when provided it overrides the data-type TTL.
         """
-        slot = await self._get_slot(
-            _normalize_data_type(data_type), ticker, data_type, max_age_hours
-        )
+        slot = await self._get_slot(raw_slot_key(data_type), ticker, data_type, max_age_hours)
         if slot is None:
             return None
         payload_json, cached_at, is_stale = slot
@@ -220,7 +242,7 @@ class DataCache:
         )
 
     async def set(self, data_type: str | DataType, ticker: str, result: DataResult) -> None:
-        await self._set_slot(_normalize_data_type(data_type), ticker, result.model_dump_json())
+        await self._set_slot(raw_slot_key(data_type), ticker, result.model_dump_json())
 
     async def get_canonical(
         self,

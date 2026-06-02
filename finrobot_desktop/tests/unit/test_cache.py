@@ -166,3 +166,29 @@ class TestCanonicalSlot:
         assert fresh is not None and fresh.is_stale is False
         stale = await cache.get_canonical("price", "AAPL", max_age_hours=0)
         assert stale is not None and stale.is_stale is True
+
+
+class TestRawSlotVersion:
+    """Versioned raw slots auto-invalidate stale-format payloads on upgrade."""
+
+    def test_proxy_slot_is_versioned_others_bare(self):
+        from finrobot.engine.data.cache import raw_slot_key
+        from finrobot.engine.data.types import DataType
+
+        assert raw_slot_key(DataType.PROXY_STATEMENT) == "proxy_statement:v2"
+        assert raw_slot_key(DataType.INSIDER_TRADES) == "insider_trades"
+        assert raw_slot_key("financials") == "financials"
+
+    async def test_old_unversioned_proxy_entry_is_not_served(self, cache):
+        """A payload written under the bare 'proxy_statement' key (pre-v2) must
+        read as a MISS now, forcing a refetch with the corrected text slice."""
+        # Simulate a pre-upgrade entry by writing directly to the bare slot.
+        await cache._set_slot(
+            "proxy_statement", "NVDA", _result("NVDA", "proxy_statement").model_dump_json()
+        )
+        # The public get() now looks under 'proxy_statement:v2' → miss.
+        assert await cache.get("proxy_statement", "NVDA") is None
+        # A fresh set()/get() round-trips through the versioned slot.
+        await cache.set("proxy_statement", "NVDA", _result("NVDA", "proxy_statement"))
+        hit = await cache.get("proxy_statement", "NVDA")
+        assert hit is not None and hit.data.ticker == "NVDA"

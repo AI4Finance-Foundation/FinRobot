@@ -228,6 +228,39 @@ async def test_overview_happy_path_fields() -> None:
     assert ov.partial is False
 
 
+async def test_research_fields_ignore_newer_non_thesis_artifact() -> None:
+    """A standalone DCF run AFTER an equity_research report must not blank the
+    verdict or overwrite the research target with its implied_price (BUG-054)."""
+    research = _summary(
+        artifact_id="art_eq",
+        verdict="BUY",
+        target=240.0,
+        type_="equity_research",
+        created_at=ENTRY,
+    )
+    newer_dcf = _summary(
+        artifact_id="art_dcf",
+        verdict=None,  # standalone models carry no thesis
+        target=99.0,  # implied_price — must NOT become the research target
+        type_="dcf",
+        created_at=ENTRY + timedelta(days=10),
+    )
+    # Store returns created_at DESC → the DCF is summaries[0].
+    store = _StubArtifactStore({"AAPL": [newer_dcf, research]})
+    ov = await build_overview(
+        _group("AAPL"),
+        artifact_store=store,  # type: ignore[arg-type]
+        data_layer=_StubDataLayer(current=200.0),  # type: ignore[arg-type]
+        now=NOW,
+    )
+    (row,) = ov.rows
+    assert row.latest_verdict == "BUY"  # from the equity_research, not blanked
+    assert row.target_price == 240.0  # NOT the DCF's 99.0
+    assert row.latest_type == "equity_research"
+    assert row.latest_artifact_id == "art_eq"  # target/upside provenance is correct
+    assert row.run_count == 2  # but total activity still counts the DCF
+
+
 def test_caveat_maps_only_attributable_degraded_codes() -> None:
     assert _caveat([DEGRADED_CLOSE_ONLY], DEGRADED_CLOSE_ONLY) is not None
     assert _caveat([DEGRADED_TTM_LAG], DEGRADED_TTM_LAG) is not None

@@ -210,20 +210,29 @@ async def _assemble_row(
 def _apply_research_fields(row: CoverageRow, summaries: list[ArtifactSummary]) -> None:
     """Verdict / target / entry / run_count / latest_* from the artifact store.
 
-    ``signal`` and ``run_count`` are derived here (not stored columns): run_count
-    is the summary count, signal is computed downstream against the live price.
+    The research-conclusion columns (verdict / target / entry / target_date and
+    the latest_* provenance triple) come ONLY from a thesis-bearing report —
+    equity_research / ic_memo carry a verdict; a standalone DCF / LBO / comps /
+    earnings artifact does not. Sourcing them from ``summaries[0]`` (newest of
+    ANY type) let a freshly-run DCF blank the verdict and pass its implied_price
+    off as a research target (BUG-054). ``run_count`` still counts every
+    artifact so the row reflects total activity; ``signal`` is computed
+    downstream against the live price.
     """
     row.run_count = len(summaries)
-    if not summaries:
+    # A verdict is only ever set on thesis-bearing artifacts, so it's the
+    # reliable "is this a research conclusion?" gate. Newest such artifact wins
+    # (store returns created_at DESC).
+    research = next((s for s in summaries if s.verdict is not None), None)
+    if research is None:
         return
-    latest = summaries[0]  # store returns created_at DESC
-    row.latest_verdict = latest.verdict
-    row.target_price = latest.target_price
-    row.target_date = latest.target_date
-    row.entry_price = latest.entry_price
-    row.latest_artifact_id = latest.id
-    row.latest_type = latest.type
-    row.latest_at = latest.created_at
+    row.latest_verdict = research.verdict
+    row.target_price = research.target_price
+    row.target_date = research.target_date
+    row.entry_price = research.entry_price
+    row.latest_artifact_id = research.id
+    row.latest_type = research.type
+    row.latest_at = research.created_at
 
 
 # A provenance degraded code → the field it most directly caveats, with a

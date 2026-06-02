@@ -22,6 +22,7 @@ from finrobot.engine.analysis.news_classifier import classify_news
 from finrobot.engine.compute.news import fetch_news
 from finrobot.engine.data.cache import cached_fetch
 from finrobot.engine.data.interface import ProviderError
+from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.earnings_call import EarningsCallList, EarningsCallTranscript
 from finrobot.engine.models.financial import (
@@ -105,16 +106,14 @@ async def get_catalysts(
 
 @router.get("/{ticker}/financials", response_model=FinancialData)
 async def get_financials(ticker: str, request: Request) -> FinancialData:
-    from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
-
-    data_layer = request.app.state.deps.data_layer
+    data_layer: DataLayer = request.app.state.deps.data_layer
     try:
         _fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker.upper())
         _price = await data_layer.fetch_canonical(DataType.PRICE, ticker.upper())
     except (ValueError, ProviderError) as e:
         raise _data_http_error(e, ticker.upper()) from e
-    assert isinstance(_fin, NormalizedFinancials)  # FINANCIALS always returns this type
-    assert isinstance(_price, NormalizedPrice)  # PRICE always returns this type
+    # fetch_canonical is overloaded on the DataType literal, so _fin / _price are
+    # already typed NormalizedFinancials / NormalizedPrice — no narrowing needed.
     # Cross-validation warnings already merged into fin/price.warnings by
     # fetch_canonical, and extract_financial_data carries them through.
     extracted = extract_financial_data(_fin, _price)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -38,6 +39,9 @@ from finrobot.engine.models.financial import (
     LBOInputs,
     LBOResult,
 )
+
+if TYPE_CHECKING:
+    from finrobot.engine.deps import FinRobotDeps
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +212,9 @@ async def compute_dcf(inputs: DCFInputs) -> DCFResult:
     return calculate_dcf(inputs)
 
 
-async def _seed_dcf_inputs_for_ticker(deps: object, ticker: str) -> tuple[FinancialData, DCFInputs]:
+async def _seed_dcf_inputs_for_ticker(
+    deps: FinRobotDeps, ticker: str
+) -> tuple[FinancialData, DCFInputs]:
     """Fetch financials + price + multi-year history for a ticker and seed a
     DCFInputs. The single fetch-and-seed path shared by the dcf-seed and
     dcf-equivalence-line endpoints.
@@ -220,14 +226,11 @@ async def _seed_dcf_inputs_for_ticker(deps: object, ticker: str) -> tuple[Financ
     from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
     from finrobot.engine.compute.extractor import extract_financial_data
     from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
-    from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
     from finrobot.engine.data.types import DataType
 
-    data_layer = deps.data_layer  # type: ignore[attr-defined]
+    data_layer = deps.data_layer
     _fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
     _price = await data_layer.fetch_canonical(DataType.PRICE, ticker)
-    assert isinstance(_fin, NormalizedFinancials)  # FINANCIALS always returns this type
-    assert isinstance(_price, NormalizedPrice)  # PRICE always returns this type
     financial_data = extract_financial_data(_fin, _price)
 
     try:
@@ -488,17 +491,14 @@ async def compute_lbo_seed(body: LboSeedRequest, request: Request) -> LboSeedRes
     from finrobot.engine.compute.extractor import extract_financial_data
     from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
     from finrobot.engine.compute.lbo_seed import seed_lbo_inputs
-    from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
     from finrobot.engine.data.types import DataType
     from finrobot.engine.models.financial import HistoricalMetrics
 
-    deps = request.app.state.deps
+    deps: FinRobotDeps = request.app.state.deps
     ticker = body.ticker.upper()
 
     _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
     _price = await deps.data_layer.fetch_canonical(DataType.PRICE, ticker)
-    assert isinstance(_fin, NormalizedFinancials)  # FINANCIALS always returns this type
-    assert isinstance(_price, NormalizedPrice)  # PRICE always returns this type
     financial_data = extract_financial_data(_fin, _price)
 
     try:

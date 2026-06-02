@@ -73,10 +73,6 @@ async def _execute_ic_financials(
     """
     _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
     _price = await deps.data_layer.fetch_canonical(DataType.PRICE, ticker)
-    from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
-
-    assert isinstance(_fin, NormalizedFinancials)  # FINANCIALS always returns this type
-    assert isinstance(_price, NormalizedPrice)  # PRICE always returns this type
     financial_data = extract_financial_data(_fin, _price)
 
     # Multi-year history powers the 3y-median assumption derivation. Fall

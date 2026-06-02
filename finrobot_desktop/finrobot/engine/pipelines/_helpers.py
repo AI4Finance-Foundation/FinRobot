@@ -29,7 +29,6 @@ from finrobot.engine.compute.xbrl_aligned_comps import (
     override_company_with_xbrl,
 )
 from finrobot.engine.data.interface import ProviderError
-from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import (
@@ -159,7 +158,6 @@ async def execute_peer_analysis(
     async def _fetch_one_peer(peer_ticker: str) -> CompanyFinancials | None:
         try:
             _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, peer_ticker)
-            assert isinstance(_fin, NormalizedFinancials)  # FINANCIALS always returns this type
             company = extract_company_financials(_fin)
             # Normalize foreign-listed ADRs / local listings to canonical USD
             # BEFORE multiples are computed — otherwise TSM (TWD financials,
@@ -285,8 +283,6 @@ async def execute_financial_data_step(
     step_result = await agent.run(prompt, deps=deps)
     _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
     _price = await deps.data_layer.fetch_canonical(DataType.PRICE, ticker)
-    assert isinstance(_fin, NormalizedFinancials)  # FINANCIALS always returns this type
-    assert isinstance(_price, NormalizedPrice)  # PRICE always returns this type
     financial_data = extract_financial_data(_fin, _price)
     # Cross-validation warnings are already carried on the canonical objects and
     # merged into FinancialData.warnings inside extract_financial_data — no

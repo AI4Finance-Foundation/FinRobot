@@ -26,7 +26,6 @@ from pydantic_ai import Agent
 
 from finrobot.engine.compute.ddm import calculate_ddm, calculate_ddm_sensitivity
 from finrobot.engine.compute.ddm_seed import seed_ddm_inputs
-from finrobot.engine.data.normalize.contracts import NormalizedFinancials
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import DDMInputs, FinancialData, StepOutput
@@ -81,7 +80,6 @@ async def _execute_ddm_seed(
         )
 
     _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
-    assert isinstance(_fin, NormalizedFinancials)  # FINANCIALS always returns this type
     ddm_inputs = seed_ddm_inputs(financial_data, _fin)
 
     return StepOutput(text=ddm_inputs.model_dump_json(), structured=ddm_inputs)

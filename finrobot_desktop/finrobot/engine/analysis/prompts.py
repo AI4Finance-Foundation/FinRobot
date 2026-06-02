@@ -348,7 +348,6 @@ async def run_analysis(
     except (ProviderError, ValueError) as e:
         raise ValueError(f"Data fetch failed for {ticker} (fetch_canonical): {e}") from e
 
-    assert isinstance(_fin, NormalizedFinancials)  # FINANCIALS always returns this type
     _validate_analysis_data(_fin)
 
     peer_table = ""

@@ -19,7 +19,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from finrobot.engine.data.interface import ProviderError
-from finrobot.engine.data.normalize.contracts import NormalizedPrice
+from finrobot.engine.data.types import DataType
 
 if TYPE_CHECKING:
     from finrobot.engine.data.layer import DataLayer
@@ -65,14 +65,12 @@ async def fetch_price_history(data_layer: DataLayer, ticker: str) -> dict[str, A
         ProviderError: upstream data source down (rate limit / timeout / 5xx) → 502.
     """
     try:
-        price = await data_layer.fetch_canonical("price", ticker)
+        price = await data_layer.fetch_canonical(DataType.PRICE, ticker)
     except ProviderError as e:
         if _is_yfinance_service_down(e):
             raise
         # Non-service-down provider error → treat as invalid / unknown ticker.
         raise ValueError(f"未知 ticker '{ticker}': {e}") from e
-
-    assert isinstance(price, NormalizedPrice)  # PRICE always returns NormalizedPrice
 
     if not price.bars and not price.current_price:
         raise ValueError(f"未知 ticker '{ticker}': 无价格数据")

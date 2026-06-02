@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal, overload
 
 from finrobot.engine.data.cache import DataCache, cached_fetch
 from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
@@ -161,10 +161,28 @@ class DataLayer:
             warnings=[msg],
         )
 
+    @overload
+    async def fetch_canonical(
+        self, data_type: Literal[DataType.FINANCIALS], ticker: str, **kwargs: Any
+    ) -> NormalizedFinancials: ...
+    @overload
+    async def fetch_canonical(
+        self, data_type: Literal[DataType.PRICE], ticker: str, **kwargs: Any
+    ) -> NormalizedPrice: ...
+    @overload
+    async def fetch_canonical(
+        self, data_type: str | DataType, ticker: str, **kwargs: Any
+    ) -> NormalizedPrice | NormalizedFinancials: ...
+
     async def fetch_canonical(
         self, data_type: str | DataType, ticker: str, **kwargs: Any
     ) -> NormalizedPrice | NormalizedFinancials:
         """Return the normalized (canonical) PRICE / FINANCIALS for a ticker.
+
+        Typed via ``@overload`` on the ``DataType`` literal so callers passing
+        ``DataType.FINANCIALS`` / ``DataType.PRICE`` get the precise contract
+        type directly — no ``assert isinstance`` narrowing at the call site. The
+        str / non-literal fallback overload still returns the union.
 
         The one true normalization关卡 (ADR-0006): versioned canonical cache →
         on miss, raw provider fetch (FINANCIALS runs its double-provider

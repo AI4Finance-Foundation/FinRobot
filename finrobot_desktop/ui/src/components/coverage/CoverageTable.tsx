@@ -22,6 +22,8 @@ interface Props {
   // Fast-skeleton phase: market/valuation/signal cells render as loading
   // shimmer (pending), not '—' (missing). Research cells stay real.
   marketPending?: boolean
+  // Data-column keys the analyst has hidden (COVERAGE_COLUMNS keys).
+  hiddenColumns?: string[]
   sort: CoverageSort | null
   onSort: (key: CoverageSortKey) => void
   onToggle: (ticker: string) => void
@@ -76,6 +78,7 @@ export function CoverageTable({
   rows,
   selected,
   marketPending = false,
+  hiddenColumns = [],
   sort,
   onSort,
   onToggle,
@@ -89,6 +92,8 @@ export function CoverageTable({
   // Market cell: a loading shimmer in the fast-skeleton phase, the real value
   // otherwise — so "pending" never reads as "missing".
   const mc = (node: React.ReactNode): React.ReactNode => (marketPending ? <CellShimmer /> : node)
+  // Column visibility — ticker/select/action are structural and always shown.
+  const vis = (key: string): boolean => !hiddenColumns.includes(key)
 
   // Sortable header — a button so it's keyboard-operable; shows a caret on the
   // active column. Non-sortable columns (verdict/signal/status/action) stay
@@ -148,17 +153,27 @@ export function CoverageTable({
               />
             </th>
             <SortTh label={t('coverage.col.ticker')} sortKey="ticker" align="left" />
-            <SortTh label={t('coverage.col.price')} sortKey="price" />
-            <SortTh label="1D" sortKey="change_pct_1d" />
-            <SortTh label={t('coverage.col.mcap')} sortKey="market_cap" />
-            <SortTh label={t('coverage.col.revttm')} sortKey="revenue_ttm" />
-            <SortTh label="EV/EBITDA" sortKey="ev_ebitda" />
-            <SortTh label="P/E" sortKey="pe" />
-            <th style={{ ...TH, textAlign: 'center' }}>{t('coverage.col.verdict')}</th>
-            <SortTh label={t('coverage.col.upside')} sortKey="upside_to_target_live" />
-            <th style={{ ...TH, textAlign: 'center' }}>{t('coverage.col.signal')}</th>
-            <SortTh label={t('coverage.col.runs')} sortKey="run_count" />
-            <th style={{ ...TH, textAlign: 'center' }}>{t('coverage.col.status')}</th>
+            {vis('price') && <SortTh label={t('coverage.col.price')} sortKey="price" />}
+            {vis('change_pct_1d') && <SortTh label="1D" sortKey="change_pct_1d" />}
+            {vis('market_cap') && <SortTh label={t('coverage.col.mcap')} sortKey="market_cap" />}
+            {vis('revenue_ttm') && (
+              <SortTh label={t('coverage.col.revttm')} sortKey="revenue_ttm" />
+            )}
+            {vis('ev_ebitda') && <SortTh label="EV/EBITDA" sortKey="ev_ebitda" />}
+            {vis('pe') && <SortTh label="P/E" sortKey="pe" />}
+            {vis('verdict') && (
+              <th style={{ ...TH, textAlign: 'center' }}>{t('coverage.col.verdict')}</th>
+            )}
+            {vis('upside') && (
+              <SortTh label={t('coverage.col.upside')} sortKey="upside_to_target_live" />
+            )}
+            {vis('signal') && (
+              <th style={{ ...TH, textAlign: 'center' }}>{t('coverage.col.signal')}</th>
+            )}
+            {vis('runs') && <SortTh label={t('coverage.col.runs')} sortKey="run_count" />}
+            {vis('status') && (
+              <th style={{ ...TH, textAlign: 'center' }}>{t('coverage.col.status')}</th>
+            )}
             <th style={{ ...TH, textAlign: 'center', width: 56 }} />
           </tr>
         </thead>
@@ -197,107 +212,127 @@ export function CoverageTable({
                     {r.ticker}
                   </button>
                 </td>
-                <td style={TD}>
-                  {mc(
-                    <SourcedNumber
-                      value={r.price}
-                      source={r.sources?.price ?? undefined}
-                      ticker={r.ticker}
-                      format={(v) => formatCurrency(v, ccy, locale)}
-                    />,
-                  )}
-                </td>
-                <td style={{ ...TD, color: changeColor(r.change_pct_1d) }}>
-                  {mc(
-                    <SourcedNumber
-                      value={r.change_pct_1d}
-                      source={r.sources?.change_pct_1d ?? undefined}
-                      ticker={r.ticker}
-                      format={(v) => `${v > 0 ? '+' : ''}${v.toFixed(2)}%`}
-                    />,
-                  )}
-                </td>
-                <td style={TD}>
-                  {mc(
-                    <SourcedNumber
-                      value={r.market_cap}
-                      source={r.sources?.market_cap ?? undefined}
-                      ticker={r.ticker}
-                      format={(v) => formatCompactNumber(v, locale)}
-                    />,
-                  )}
-                </td>
-                <td style={TD}>
-                  {mc(
-                    <SourcedNumber
-                      value={r.revenue_ttm}
-                      source={r.sources?.revenue_ttm ?? undefined}
-                      ticker={r.ticker}
-                      format={(v) => formatCompactNumber(v, locale)}
-                    />,
-                  )}
-                </td>
-                <td style={TD}>
-                  {mc(
-                    <SourcedNumber
-                      value={r.ev_ebitda}
-                      source={r.sources?.ev_ebitda ?? undefined}
-                      ticker={r.ticker}
-                      format={(v) => `${formatNumber(v, locale, 1)}×`}
-                    />,
-                  )}
-                </td>
-                <td style={TD}>
-                  {mc(
-                    <SourcedNumber
-                      value={r.pe}
-                      source={r.sources?.pe ?? undefined}
-                      ticker={r.ticker}
-                      format={(v) => `${formatNumber(v, locale, 1)}×`}
-                    />,
-                  )}
-                </td>
-                <td style={{ ...TD, textAlign: 'center' }}>
-                  {r.latest_verdict ? (
-                    <span
-                      style={{
-                        color: VERDICT_COLOR[r.latest_verdict] ?? 'var(--text-secondary)',
-                        fontWeight: 700,
-                        fontSize: 11,
-                        letterSpacing: '0.05em',
-                      }}
-                    >
-                      {r.latest_verdict}
-                    </span>
-                  ) : (
-                    <span style={{ color: 'var(--text-muted)' }}>{t('coverage.notRun')}</span>
-                  )}
-                </td>
-                <td style={{ ...TD, color: changeColor(r.upside_to_target_live) }}>
-                  {mc(
-                    <SourcedNumber
-                      value={r.upside_to_target_live}
-                      source={r.sources?.upside_to_target_live ?? undefined}
-                      ticker={r.ticker}
-                      format={(v) => formatPercent(v, locale, 1)}
-                    />,
-                  )}
-                </td>
-                <td style={{ ...TD, textAlign: 'center' }}>
-                  {mc(
-                    r.signal ? (
-                      <span title={r.signal} style={{ color: SIGNAL_COLOR[r.signal] }}>
-                        ●
+                {vis('price') && (
+                  <td style={TD}>
+                    {mc(
+                      <SourcedNumber
+                        value={r.price}
+                        source={r.sources?.price ?? undefined}
+                        ticker={r.ticker}
+                        format={(v) => formatCurrency(v, ccy, locale)}
+                      />,
+                    )}
+                  </td>
+                )}
+                {vis('change_pct_1d') && (
+                  <td style={{ ...TD, color: changeColor(r.change_pct_1d) }}>
+                    {mc(
+                      <SourcedNumber
+                        value={r.change_pct_1d}
+                        source={r.sources?.change_pct_1d ?? undefined}
+                        ticker={r.ticker}
+                        format={(v) => `${v > 0 ? '+' : ''}${v.toFixed(2)}%`}
+                      />,
+                    )}
+                  </td>
+                )}
+                {vis('market_cap') && (
+                  <td style={TD}>
+                    {mc(
+                      <SourcedNumber
+                        value={r.market_cap}
+                        source={r.sources?.market_cap ?? undefined}
+                        ticker={r.ticker}
+                        format={(v) => formatCompactNumber(v, locale)}
+                      />,
+                    )}
+                  </td>
+                )}
+                {vis('revenue_ttm') && (
+                  <td style={TD}>
+                    {mc(
+                      <SourcedNumber
+                        value={r.revenue_ttm}
+                        source={r.sources?.revenue_ttm ?? undefined}
+                        ticker={r.ticker}
+                        format={(v) => formatCompactNumber(v, locale)}
+                      />,
+                    )}
+                  </td>
+                )}
+                {vis('ev_ebitda') && (
+                  <td style={TD}>
+                    {mc(
+                      <SourcedNumber
+                        value={r.ev_ebitda}
+                        source={r.sources?.ev_ebitda ?? undefined}
+                        ticker={r.ticker}
+                        format={(v) => `${formatNumber(v, locale, 1)}×`}
+                      />,
+                    )}
+                  </td>
+                )}
+                {vis('pe') && (
+                  <td style={TD}>
+                    {mc(
+                      <SourcedNumber
+                        value={r.pe}
+                        source={r.sources?.pe ?? undefined}
+                        ticker={r.ticker}
+                        format={(v) => `${formatNumber(v, locale, 1)}×`}
+                      />,
+                    )}
+                  </td>
+                )}
+                {vis('verdict') && (
+                  <td style={{ ...TD, textAlign: 'center' }}>
+                    {r.latest_verdict ? (
+                      <span
+                        style={{
+                          color: VERDICT_COLOR[r.latest_verdict] ?? 'var(--text-secondary)',
+                          fontWeight: 700,
+                          fontSize: 11,
+                          letterSpacing: '0.05em',
+                        }}
+                      >
+                        {r.latest_verdict}
                       </span>
                     ) : (
-                      <span style={{ color: 'var(--text-dim)' }}>—</span>
-                    ),
-                  )}
-                </td>
-                <td style={TD}>{r.run_count > 0 ? r.run_count : '—'}</td>
-                <td style={{ ...TD, textAlign: 'center' }}>
-                  <StatusCell row={r} />
-                </td>
+                      <span style={{ color: 'var(--text-muted)' }}>{t('coverage.notRun')}</span>
+                    )}
+                  </td>
+                )}
+                {vis('upside') && (
+                  <td style={{ ...TD, color: changeColor(r.upside_to_target_live) }}>
+                    {mc(
+                      <SourcedNumber
+                        value={r.upside_to_target_live}
+                        source={r.sources?.upside_to_target_live ?? undefined}
+                        ticker={r.ticker}
+                        format={(v) => formatPercent(v, locale, 1)}
+                      />,
+                    )}
+                  </td>
+                )}
+                {vis('signal') && (
+                  <td style={{ ...TD, textAlign: 'center' }}>
+                    {mc(
+                      r.signal ? (
+                        <span title={r.signal} style={{ color: SIGNAL_COLOR[r.signal] }}>
+                          ●
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-dim)' }}>—</span>
+                      ),
+                    )}
+                  </td>
+                )}
+                {vis('runs') && <td style={TD}>{r.run_count > 0 ? r.run_count : '—'}</td>}
+                {vis('status') && (
+                  <td style={{ ...TD, textAlign: 'center' }}>
+                    <StatusCell row={r} />
+                  </td>
+                )}
                 <td style={{ ...TD, textAlign: 'center' }}>
                   <button
                     type="button"

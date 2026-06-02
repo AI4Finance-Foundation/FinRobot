@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { useCoverageStore } from './coverageStore'
 
 function reset() {
-  useCoverageStore.setState({ selectedGroupId: null, selectedTickers: [] })
+  useCoverageStore.setState({
+    selectedGroupId: null,
+    selectedTickers: [],
+    sortByGroup: {},
+    hiddenColumns: [],
+  })
 }
 
 describe('coverageStore', () => {
@@ -36,5 +41,22 @@ describe('coverageStore', () => {
     useCoverageStore.getState().clearSelection()
     expect(useCoverageStore.getState().selectedTickers).toEqual([])
     expect(useCoverageStore.getState().selectedGroupId).toBe('cov_1')
+  })
+
+  it('setSort stores per group; null clears it', () => {
+    useCoverageStore.getState().setSort('cov_1', { key: 'pe', dir: 'desc' })
+    expect(useCoverageStore.getState().sortByGroup['cov_1']).toEqual({ key: 'pe', dir: 'desc' })
+    useCoverageStore.getState().setSort('cov_1', null)
+    expect(useCoverageStore.getState().sortByGroup['cov_1']).toBeUndefined()
+  })
+
+  it('toggleColumn hides then shows a column', () => {
+    const { toggleColumn } = useCoverageStore.getState()
+    toggleColumn('pe')
+    expect(useCoverageStore.getState().hiddenColumns).toEqual(['pe'])
+    toggleColumn('ev_ebitda')
+    expect(useCoverageStore.getState().hiddenColumns).toEqual(['pe', 'ev_ebitda'])
+    toggleColumn('pe')
+    expect(useCoverageStore.getState().hiddenColumns).toEqual(['ev_ebitda'])
   })
 })

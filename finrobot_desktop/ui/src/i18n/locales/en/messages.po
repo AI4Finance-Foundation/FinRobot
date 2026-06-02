@@ -3247,6 +3247,10 @@ msgid "coverage.sortBy"
 msgstr "Sort by {col}"
 
 #. js-lingui-explicit-id
+msgid "coverage.columns"
+msgstr "Columns"
+
+#. js-lingui-explicit-id
 msgid "coverage.notRun"
 msgstr "Not run"
 

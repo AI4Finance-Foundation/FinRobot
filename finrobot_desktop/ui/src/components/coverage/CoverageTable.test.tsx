@@ -68,6 +68,7 @@ function renderTable(
     sort?: CoverageSort | null
     onSort?: (key: CoverageSortKey) => void
     marketPending?: boolean
+    hiddenColumns?: string[]
   } = {},
 ): void {
   render(
@@ -76,6 +77,7 @@ function renderTable(
         rows={rows}
         selected={[]}
         marketPending={opts.marketPending}
+        hiddenColumns={opts.hiddenColumns}
         sort={opts.sort ?? null}
         onSort={opts.onSort ?? (() => {})}
         onToggle={() => {}}
@@ -146,6 +148,24 @@ describe('CoverageTable fast-skeleton (marketPending)', () => {
     renderTable([makeRow()], { marketPending: false })
     expect(screen.getByText('$200.00')).toBeInTheDocument()
     expect(screen.queryByRole('img', { name: 'loading' })).toBeNull()
+  })
+})
+
+describe('CoverageTable column visibility', () => {
+  it('hides a column header and its cells when in hiddenColumns', () => {
+    renderTable([makeRow()], { hiddenColumns: ['pe'] })
+    // P/E header gone (no sort button for it), P/E value gone, but ticker stays.
+    expect(screen.queryByRole('button', { name: /Sort by P\/E/ })).toBeNull()
+    expect(screen.queryByText('28.5×')).toBeNull()
+    expect(screen.getByRole('button', { name: 'AAPL' })).toBeInTheDocument()
+    // A non-hidden column still renders.
+    expect(screen.getByText('$200.00')).toBeInTheDocument()
+  })
+
+  it('shows all columns when hiddenColumns is empty', () => {
+    renderTable([makeRow()], { hiddenColumns: [] })
+    expect(screen.getByRole('button', { name: /Sort by P\/E/ })).toBeInTheDocument()
+    expect(screen.getByText('28.5×')).toBeInTheDocument()
   })
 })
 

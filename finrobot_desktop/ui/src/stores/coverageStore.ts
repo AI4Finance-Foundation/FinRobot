@@ -15,11 +15,14 @@ interface CoverageUiState {
   // Per-group column sort, persisted: each universe remembers how the analyst
   // last sorted it (view-state — belongs client-side, not a backend table).
   sortByGroup: Record<string, CoverageSort>
+  // Hidden data columns — a global view preference (not per-group), persisted.
+  hiddenColumns: string[]
   setSelectedGroup: (id: string | null) => void
   toggleTicker: (ticker: string) => void
   setSelected: (tickers: string[]) => void
   clearSelection: () => void
   setSort: (groupId: string, sort: CoverageSort | null) => void
+  toggleColumn: (key: string) => void
 }
 
 export const useCoverageStore = create<CoverageUiState>()(
@@ -28,6 +31,7 @@ export const useCoverageStore = create<CoverageUiState>()(
       selectedGroupId: null,
       selectedTickers: [],
       sortByGroup: {},
+      hiddenColumns: [],
       setSelectedGroup: (id) => set({ selectedGroupId: id, selectedTickers: [] }),
       toggleTicker: (ticker) =>
         set((s) => ({
@@ -44,12 +48,23 @@ export const useCoverageStore = create<CoverageUiState>()(
           else next[groupId] = sort
           return { sortByGroup: next }
         }),
+      toggleColumn: (key) =>
+        set((s) => ({
+          hiddenColumns: s.hiddenColumns.includes(key)
+            ? s.hiddenColumns.filter((k) => k !== key)
+            : [...s.hiddenColumns, key],
+        })),
     }),
     {
       name: 'finrobot-coverage-ui',
       storage: createJSONStorage(() => localStorage),
-      // Persist last-open group + per-group sort; selection stays per-session.
-      partialize: (s) => ({ selectedGroupId: s.selectedGroupId, sortByGroup: s.sortByGroup }),
+      // Persist last-open group + per-group sort + hidden columns; selection
+      // stays per-session.
+      partialize: (s) => ({
+        selectedGroupId: s.selectedGroupId,
+        sortByGroup: s.sortByGroup,
+        hiddenColumns: s.hiddenColumns,
+      }),
     },
   ),
 )

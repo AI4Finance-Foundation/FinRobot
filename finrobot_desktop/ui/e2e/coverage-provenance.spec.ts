@@ -226,6 +226,29 @@ test('fast skeleton paints research instantly with market cells shimmering', asy
   await expect(page.getByRole('img', { name: 'loading' })).toHaveCount(0)
 })
 
+test('column menu hides a column and it persists in the table', async ({ page }) => {
+  await page.route('**/api/coverage/groups', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(GROUPS) }),
+  )
+  await page.route('**/api/coverage/groups/*/overview**', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(OVERVIEW) }),
+  )
+
+  await page.goto('/coverage')
+  await expect(page.getByRole('button', { name: 'AAPL' })).toBeVisible({ timeout: 8000 })
+  // P/E column present initially.
+  await expect(page.getByRole('button', { name: /P\/E/ })).toBeVisible()
+
+  // Open the column menu, uncheck P/E (scope to the menu — the sort header's
+  // aria-label also contains "P/E").
+  await page.getByRole('button', { name: /列|Columns/ }).click()
+  await page.getByRole('menu').getByLabel('P/E', { exact: true }).uncheck()
+
+  // P/E column header is gone from the table.
+  await expect(page.getByRole('button', { name: /Sort by P\/E|按 P\/E/ })).toHaveCount(0)
+  await page.screenshot({ path: 'e2e/_coverage-columns.png' })
+})
+
 test('clicking a column header sorts the table (NVDA price > AAPL → top)', async ({ page }) => {
   await page.route('**/api/coverage/groups', (r) =>
     r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(GROUPS) }),

@@ -3247,6 +3247,10 @@ msgid "coverage.sortBy"
 msgstr "按 {col} 排序"
 
 #. js-lingui-explicit-id
+msgid "coverage.columns"
+msgstr "列"
+
+#. js-lingui-explicit-id
 msgid "coverage.notRun"
 msgstr "未运行"
 

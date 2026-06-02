@@ -18,6 +18,7 @@ import {
 import { CoverageTable } from '../components/coverage/CoverageTable'
 import { CoverageRail } from '../components/coverage/CoverageRail'
 import { CoverageEmptyState } from '../components/coverage/CoverageEmptyState'
+import { ColumnMenu } from '../components/coverage/ColumnMenu'
 import { nextSort, sortCoverageRows } from '../components/coverage/coverageSort'
 import { useToastStore } from '../stores/toastStore'
 
@@ -37,6 +38,8 @@ export function CoveragePage(): React.ReactElement {
   const clearSelection = useCoverageStore((s) => s.clearSelection)
   const sortByGroup = useCoverageStore((s) => s.sortByGroup)
   const setSort = useCoverageStore((s) => s.setSort)
+  const hiddenColumns = useCoverageStore((s) => s.hiddenColumns)
+  const toggleColumn = useCoverageStore((s) => s.toggleColumn)
 
   // Resolve the active group: stored choice if still present, else first.
   const activeGroupId =
@@ -179,6 +182,9 @@ export function CoveragePage(): React.ReactElement {
           onClick={handleCompare}
           disabled={selectedTickers.length < 2}
         />
+        <div style={{ marginLeft: 'auto' }}>
+          <ColumnMenu hiddenColumns={hiddenColumns} onToggle={toggleColumn} />
+        </div>
       </div>
 
       {/* Table + rail */}
@@ -201,6 +207,7 @@ export function CoveragePage(): React.ReactElement {
               rows={sortedRows}
               selected={selectedTickers}
               marketPending={overviewQuery.marketPending}
+              hiddenColumns={hiddenColumns}
               sort={activeSort}
               onSort={(key) => activeGroupId && setSort(activeGroupId, nextSort(activeSort, key))}
               onToggle={toggleTicker}

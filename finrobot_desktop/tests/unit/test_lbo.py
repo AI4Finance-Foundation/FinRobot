@@ -226,3 +226,19 @@ class TestIRRFormulaWarning:
     def test_irr_formula_warning_mentions_interim_flows(self):
         result = calculate_lbo(_base_inputs())
         assert "interim" in result.irr_formula_warning.lower()
+
+
+class TestCapitalStructureWarning:
+    """BUG-024: the structural simplification (entry debt = new debt; existing
+    cash/debt not netted; no fees/min-cash) must be disclosed to the user, not
+    presented silently as a complete LBO."""
+
+    def test_capital_structure_warning_present(self):
+        result = calculate_lbo(_base_inputs())
+        assert result.capital_structure_warning is not None
+
+    def test_warning_discloses_ignored_existing_cash(self):
+        result = calculate_lbo(_base_inputs())
+        text = result.capital_structure_warning.lower()
+        assert "cash" in text
+        assert "fee" in text  # transaction/financing fees not modeled

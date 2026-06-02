@@ -65,6 +65,15 @@ def _calculate_lbo_core(inputs: LBOInputs) -> LBOResult:
             "management fee recaps, and partial exits are not yet modeled — "
             "actual IRR may differ if these are material."
         ),
+        capital_structure_warning=(
+            "Simplified sources & uses: entry debt is modeled as new debt of "
+            "leverage_multiple × LTM EBITDA. The target's existing balance-sheet "
+            "cash (which would reduce sponsor equity) and existing debt (which "
+            "would be refinanced) are NOT netted into the equity check, and "
+            "transaction/financing fees and a minimum operating-cash requirement "
+            "are not modeled. Entry equity and returns may differ from a full "
+            "sources-&-uses build."
+        ),
     )
 
 

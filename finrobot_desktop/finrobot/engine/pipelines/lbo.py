@@ -125,8 +125,10 @@ async def _execute_lbo_calc(
 
     result: LBOResult = calculate_lbo(inputs)
 
-    warning_prefix = (
-        f"[WARNING: {result.irr_formula_warning}]\n\n" if result.irr_formula_warning else ""
+    warning_prefix = "".join(
+        f"[WARNING: {w}]\n\n"
+        for w in (result.irr_formula_warning, result.capital_structure_warning)
+        if w
     )
     narrative = (
         f"{warning_prefix}"

@@ -197,8 +197,11 @@ def build_lbo_artifact(
     lbo_result = result.structured_data.get("lbo_calculation")
 
     formula_warnings: list[str] = []
-    if isinstance(lbo_result, LBOResult) and lbo_result.irr_formula_warning:
-        formula_warnings = [lbo_result.irr_formula_warning]
+    if isinstance(lbo_result, LBOResult):
+        if lbo_result.irr_formula_warning:
+            formula_warnings.append(lbo_result.irr_formula_warning)
+        if lbo_result.capital_structure_warning:
+            formula_warnings.append(lbo_result.capital_structure_warning)
 
     return Artifact(
         id=_make_artifact_id(ticker, "lbo"),
@@ -485,6 +488,8 @@ def build_ic_memo_artifact(
         }
         if ic.lbo_result.irr_formula_warning:
             formula_warnings.append(ic.lbo_result.irr_formula_warning)
+        if ic.lbo_result.capital_structure_warning:
+            formula_warnings.append(ic.lbo_result.capital_structure_warning)
 
     structured_out: dict[str, Any] = {}
     if isinstance(ic, ICFinancials):

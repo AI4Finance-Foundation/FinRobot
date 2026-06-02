@@ -678,6 +678,7 @@ class LBOResult(BaseModel):
         description="entry_multiples, exit_multiples, irr_grid, moic_grid",
     )
     irr_formula_warning: str | None = None
+    capital_structure_warning: str | None = None
 
 
 # ---------------------------------------------------------------------------

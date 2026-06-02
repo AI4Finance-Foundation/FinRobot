@@ -181,6 +181,42 @@ describe('SourcedNumber', () => {
     expect(screen.queryByRole('img')).toBeNull()
   })
 
+  it('shows as_of (data semantic time) distinct from fetched_at in popover', () => {
+    render(
+      <SourcedNumber
+        value={28.5}
+        source={{ provider: 'yfinance', as_of: '2024-09-28T00:00:00Z' }}
+      />,
+    )
+    const trigger = screen.getByRole('button')
+    fireEvent.mouseEnter(trigger)
+    act(() => {
+      vi.advanceTimersByTime(250)
+    })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    // "As of" labels the reporting-period date — never conflated with fetch time.
+    expect(screen.getByText(/As of/)).toBeInTheDocument()
+  })
+
+  it('resolves the artifact deep-link from the ticker prop when the route has no :ticker', () => {
+    // Coverage Table renders SourcedNumber on /coverage (no :ticker param) —
+    // the prop must fill in so the "open report" link still resolves.
+    render(
+      <SourcedNumber
+        value={50}
+        ticker="MSFT"
+        source={{ provider: 'DCF engine', artifact_id: 'art_msft_dcf' }}
+      />,
+    )
+    const trigger = screen.getByRole('button')
+    fireEvent.mouseEnter(trigger)
+    act(() => {
+      vi.advanceTimersByTime(250)
+    })
+    const link = screen.getByText(/Open full report/) as HTMLAnchorElement
+    expect(link.getAttribute('href')).toBe('/stocks/MSFT/runs/art_msft_dcf')
+  })
+
   it('shows artifact link when artifact_id is present', () => {
     renderWithTicker(
       <SourcedNumber

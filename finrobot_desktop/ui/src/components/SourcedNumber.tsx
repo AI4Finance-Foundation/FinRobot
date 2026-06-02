@@ -15,6 +15,10 @@ import { useI18n } from '../i18n'
 
 export interface NumberSource {
   provider?: string
+  /** Semantic time of the data — fiscal period end / latest bar date. Distinct
+   *  from fetched_at (when we pulled it); a数 can be freshly fetched yet trail
+   *  the latest reported quarter. Shown as "As of" in the popover. */
+  as_of?: string
   fetched_at?: string
   formula_id?: string
   formula_warning?: string
@@ -27,6 +31,10 @@ export interface SourcedNumberProps {
   format?: (v: number) => string
   /** Optional class for the outer span */
   className?: string
+  /** Ticker for the artifact deep-link. Falls back to the route's :ticker
+   *  param; pass explicitly on cross-ticker surfaces (Coverage Table) where the
+   *  route carries no ticker, so the "open report" link still resolves. */
+  ticker?: string
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -40,6 +48,7 @@ function hasContent(source: NumberSource | undefined): boolean {
   if (!source) return false
   return !!(
     source.provider ||
+    source.as_of ||
     source.fetched_at ||
     source.formula_id ||
     source.formula_warning ||
@@ -70,7 +79,13 @@ function formatFetchedAt(iso: string | undefined): string {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function SourcedNumber({ value, source, format, className }: SourcedNumberProps) {
+export function SourcedNumber({
+  value,
+  source,
+  format,
+  className,
+  ticker: tickerProp,
+}: SourcedNumberProps) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLSpanElement>(null)
@@ -81,7 +96,8 @@ export function SourcedNumber({ value, source, format, className }: SourcedNumbe
   // SourcedNumber renders inside ticker-scoped routes (workspace / artifact
   // detail); when rendered elsewhere (tests, future cross-ticker views) the
   // ticker is undefined and the "open report" link is hidden.
-  const { ticker } = useParams<{ ticker?: string }>()
+  const { ticker: routeTicker } = useParams<{ ticker?: string }>()
+  const ticker = tickerProp ?? routeTicker
 
   const showPopover = hasContent(source)
   const displayed = formatValue(value, format)
@@ -231,6 +247,9 @@ export function SourcedNumber({ value, source, format, className }: SourcedNumbe
           onMouseLeave={handlePopoverMouseLeave}
         >
           <ProvRow label={t('sourced.provider')} value={source.provider ?? t('sourced.unknown')} />
+          {source.as_of && (
+            <ProvRow label={t('sourced.asOf')} value={formatFetchedAt(source.as_of)} />
+          )}
           {source.fetched_at && (
             <ProvRow label={t('sourced.fetchedAt')} value={formatFetchedAt(source.fetched_at)} />
           )}

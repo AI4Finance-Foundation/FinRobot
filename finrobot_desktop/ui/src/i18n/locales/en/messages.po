@@ -3059,6 +3059,10 @@ msgid "sourced.fetchedAt"
 msgstr "Fetched at"
 
 #. js-lingui-explicit-id
+msgid "sourced.asOf"
+msgstr "As of"
+
+#. js-lingui-explicit-id
 msgid "sourced.formula"
 msgstr "Formula"
 

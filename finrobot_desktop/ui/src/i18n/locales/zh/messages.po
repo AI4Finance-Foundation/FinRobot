@@ -3059,6 +3059,10 @@ msgid "sourced.fetchedAt"
 msgstr "抓取时间"
 
 #. js-lingui-explicit-id
+msgid "sourced.asOf"
+msgstr "数据截至"
+
+#. js-lingui-explicit-id
 msgid "sourced.formula"
 msgstr "公式"
 

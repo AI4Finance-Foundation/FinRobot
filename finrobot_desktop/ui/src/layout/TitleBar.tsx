@@ -6,14 +6,19 @@
 
 import { useAppStore } from '../stores/appStore'
 import { useUiStore } from '../stores/uiStore'
-import { IconSparkle } from '../lib/icons'
+import { IconSparkle, IconCommand } from '../lib/icons'
 import { useI18n } from '../i18n'
 
 export function TitleBar(): React.ReactElement {
   const aiPanelOpen = useUiStore((s) => s.aiPanelOpen)
   const toggleAiPanel = useUiStore((s) => s.toggleAiPanel)
   const setCmdPaletteOpen = useAppStore((s) => s.setCmdPaletteOpen)
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
+
+  // No existing .po key fits "open command palette"; use the inline
+  // locale literal pattern (precedent: VersionDiffBanner / StatusBar) to
+  // avoid .po coordination in this fix.
+  const cmdPaletteLabel = locale === 'zh' ? '打开命令面板' : 'Open command palette'
 
   return (
     <div
@@ -41,7 +46,8 @@ export function TitleBar(): React.ReactElement {
       <button
         type="button"
         onClick={() => setCmdPaletteOpen(true)}
-        title="⌘K"
+        aria-label={cmdPaletteLabel}
+        title={`${cmdPaletteLabel} · ⌘K`}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -79,9 +85,39 @@ export function TitleBar(): React.ReactElement {
 
       <div style={{ flex: 1 }} data-tauri-drag-region />
 
+      {/* Command-palette trigger — compact pill, distinct from the Coverage
+          ticker search; opens the existing CmdK overlay (artifacts/commands/nav). */}
+      <button
+        className="tb-btn"
+        type="button"
+        aria-label={cmdPaletteLabel}
+        title={cmdPaletteLabel}
+        onClick={() => setCmdPaletteOpen(true)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          height: 28,
+          padding: '0 8px',
+          border: '1px solid var(--border-soft)',
+          borderRadius: 8,
+          background: 'var(--bg-elevated)',
+          color: 'var(--text-secondary)',
+          cursor: 'pointer',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11,
+          transition: 'all 0.2s',
+        }}
+      >
+        <IconCommand size={13} />
+        <span style={{ letterSpacing: '0.5px' }}>⌘K</span>
+      </button>
+
       {/* AI panel toggle */}
       <button
         className={`tb-btn${aiPanelOpen ? ' active' : ''}`}
+        type="button"
+        aria-label={t('shell.titlebar.aiAssistant')}
         title={t('shell.titlebar.aiAssistant')}
         onClick={toggleAiPanel}
         style={{

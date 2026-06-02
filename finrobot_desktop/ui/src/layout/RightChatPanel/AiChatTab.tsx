@@ -152,7 +152,7 @@ export function AiChatTab({
   const lastSeenMessageCountRef = useRef(0)
 
   // The configured lead model (settings.model_name) — shared ['settings']
-  // query, deduped with SecIdentityBanner / SettingsView. Drives the read-only
+  // query, deduped with SettingsView. Drives the read-only
   // badge AND the transcript model hint, so the log records the model that
   // actually answered rather than a stale prototype default.
   const { data: settings } = useQuery({

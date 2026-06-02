@@ -83,8 +83,7 @@ export function AppShell(): React.ReactElement {
       <StatusBar />
       <CmdKOverlay />
       {/* v5: toast portal — mounted at shell level so every page / section
-          can pop toasts (pipeline launch / completion / errors). Was lost
-          when the old StocksPage hosted it. */}
+          can pop toasts (pipeline launch / completion / errors). */}
       <ToastContainer />
       {/* Cosmic: backdrop starfield + bezier-spring cursor trail.
           Both lazy-mount via useEffect; safe under SSR / Vitest jsdom. */}

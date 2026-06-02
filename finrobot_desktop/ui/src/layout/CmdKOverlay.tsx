@@ -12,15 +12,36 @@
 
 import { useEffect, useRef, useCallback, useMemo } from 'react'
 import { Command } from 'cmdk'
+// Radix Dialog Title/Description — cmdk's Command.Dialog renders its children
+// inside a RadixDialog.Content, so rendering RadixDialog.Title/Description here
+// registers the title/description ids on that same dialog context (shared with
+// the copy cmdk bundles). Without them Radix logs a11y warnings
+// ("DialogContent requires a DialogTitle…" / "Missing Description…").
+import { Title as DialogTitle, Description as DialogDescription } from '@radix-ui/react-dialog'
 import { useQuery } from '@tanstack/react-query'
 import { useDebounce } from 'use-debounce'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../stores/appStore'
 import { useCoverageStore } from '../stores/coverageStore'
 import { useToastStore } from '../stores/toastStore'
+import { useUiStore } from '../stores/uiStore'
 import { useI18n, tSync } from '../i18n'
 import { FetchHttpError } from '../utils/errorMessage'
 import { BASE_URL } from '../api/client'
+
+// Visually-hidden style (off-screen but readable by assistive tech). Mirrors the
+// recipe cmdk uses for its own label element.
+const VISUALLY_HIDDEN: React.CSSProperties = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: 0,
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  borderWidth: 0,
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -213,7 +234,7 @@ export function CmdKOverlay() {
   const setCmdPaletteOpen = useAppStore((s) => s.setCmdPaletteOpen)
   const setCmdKQuery = useAppStore((s) => s.setCmdKQuery)
   const navigate = useNavigate()
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
 
   const abortRef = useRef<AbortController | null>(null)
 
@@ -368,14 +389,15 @@ export function CmdKOverlay() {
   const handleAIFallback = useCallback(() => {
     const text = trimmedQuery
     if (!text) return
-    // v5 (spec §11.1.C): /library is retired. Free-text questions land on
-    // /stocks (search-first landing). Ask AI in StockWorkspace picks up the
-    // query via session storage (finrobot.cmdk_ai_query).
-    sessionStorage.setItem('finrobot.cmdk_ai_query', text)
-    navigate('/stocks')
+    // Hand the free-text question to the right-side AI panel via the single
+    // chat handoff channel (uiStore.pendingChatPrompt). sendChatPrompt also
+    // opens the panel if collapsed. RightChatPanel/AiChatTab consumes it via
+    // consumePendingChatPrompt — same path TermTip uses. (No sessionStorage:
+    // the old 'finrobot.cmdk_ai_query' key had no reader.)
+    useUiStore.getState().sendChatPrompt(text, true)
     saveRecentSearch(text)
     handleClose()
-  }, [trimmedQuery, navigate, handleClose])
+  }, [trimmedQuery, handleClose])
 
   // ---------------------------------------------------------------------------
   // Static Coverage commands — local actions (not backend search results). Only
@@ -407,8 +429,18 @@ export function CmdKOverlay() {
         },
       })
     }
+    // Settings — a global destination that must stay reachable even when the
+    // remote /api/search call fails (this palette is the app's command surface).
+    cmds.push({
+      id: 'open-settings',
+      title: locale === 'zh' ? '打开设置' : 'Open Settings',
+      run: () => {
+        navigate('/settings')
+        handleClose()
+      },
+    })
     return cmds
-  }, [t, navigate, handleClose, coverageSelection])
+  }, [t, navigate, handleClose, coverageSelection, locale])
 
   const filteredStatic = useMemo(() => {
     if (trimmedQuery.length === 0) return staticCommands
@@ -419,10 +451,14 @@ export function CmdKOverlay() {
   // ---------------------------------------------------------------------------
   // Derived state
   // ---------------------------------------------------------------------------
-  const hasResults =
-    grouped.ticker.length > 0 || grouped.artifact.length > 0 || filteredStatic.length > 0
+  const hasRemoteResults = grouped.ticker.length > 0 || grouped.artifact.length > 0
 
-  const showEmpty = !isLoading && !isError && debouncedQuery.length > 0 && !hasResults
+  // Ask-AI fallback is offered whenever the user typed a query that produced no
+  // remote results — whether the search returned empty OR failed. The command
+  // palette is a global surface: a failed /api/search must never strand the
+  // user, so Ask AI (and the local static commands above) stay available and
+  // the search failure shows only as a small inline note.
+  const showAiFallback = !isLoading && debouncedQuery.length > 0 && !hasRemoteResults
 
   const showRecentSearches = trimmedQuery.length === 0 && recentSearches.length > 0
 
@@ -449,6 +485,18 @@ export function CmdKOverlay() {
         } as React.CSSProperties
       }
     >
+      {/* ------------------------------------------------------------------ */}
+      {/* a11y: visually-hidden DialogTitle + Description. cmdk renders these   */}
+      {/* inside its RadixDialog.Content, registering the title/description ids */}
+      {/* so Radix stops warning and screen readers announce the palette.       */}
+      {/* ------------------------------------------------------------------ */}
+      <DialogTitle data-testid="cmdk-dialog-title" style={VISUALLY_HIDDEN}>
+        {t('cmdk.search.aria')}
+      </DialogTitle>
+      <DialogDescription data-testid="cmdk-dialog-description" style={VISUALLY_HIDDEN}>
+        {t('cmdk.placeholder')}
+      </DialogDescription>
+
       {/* ------------------------------------------------------------------ */}
       {/* Input row                                                            */}
       {/* ------------------------------------------------------------------ */}
@@ -543,6 +591,7 @@ export function CmdKOverlay() {
           <button
             onClick={() => refetch()}
             data-testid="retry-button"
+            aria-label={t('common.retry')}
             style={{
               marginLeft: '8px',
               padding: '2px 8px',
@@ -694,40 +743,60 @@ export function CmdKOverlay() {
           </div>
         )}
 
-        {/* AI fallback — zero results with non-empty query */}
-        {showEmpty && (
-          <Command.Empty data-testid="ai-fallback">
-            <div
+        {/* AI fallback — non-empty query with no remote results. Rendered as a
+            real, keyboard-selectable Command.Item (not Command.Empty) so it
+            survives even when local static commands exist OR /api/search fails:
+            the palette must never strand a typed question. */}
+        {showAiFallback && (
+          <Command.Group data-testid="ai-fallback">
+            <Command.Item
+              value={`ai-fallback:${debouncedQuery}`}
+              onSelect={handleAIFallback}
+              data-testid="ai-fallback-item"
               style={{
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
-                gap: '12px',
-                padding: '24px 16px',
-                textAlign: 'center',
+                gap: '10px',
+                padding: '12px',
+                cursor: 'pointer',
+                borderRadius: '6px',
               }}
             >
-              <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-                {t('cmdk.results.nothing', { query: debouncedQuery })}
-              </span>
-              <button
-                onClick={handleAIFallback}
-                data-testid="ai-fallback-button"
+              <span
                 style={{
-                  padding: '6px 16px',
-                  fontSize: '14px',
-                  fontWeight: 500,
-                  backgroundColor: 'var(--info)',
-                  color: '#fff',
-                  border: 'none',
+                  display: 'flex',
+                  height: '24px',
+                  width: '24px',
+                  flexShrink: 0,
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   borderRadius: '6px',
-                  cursor: 'pointer',
+                  backgroundColor: 'var(--info)',
+                  color: 'var(--base)',
+                  fontSize: '13px',
                 }}
+                aria-hidden="true"
               >
-                {t('cmdk.results.askHint')}
-              </button>
-            </div>
-          </Command.Empty>
+                ✦
+              </span>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                  <span data-testid="ai-fallback-button">{t('cmdk.results.askHint')}</span>
+                </div>
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--text-muted)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {t('cmdk.results.nothing', { query: debouncedQuery })}
+                </div>
+              </div>
+            </Command.Item>
+          </Command.Group>
         )}
       </Command.List>
 

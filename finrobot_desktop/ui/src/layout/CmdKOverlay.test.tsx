@@ -16,6 +16,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { CmdKOverlay, loadRecentSearches, saveRecentSearch } from './CmdKOverlay'
 import { useAppStore } from '../stores/appStore'
+import { useUiStore } from '../stores/uiStore'
 import { useUiPrefs } from '../i18n'
 
 // ---------------------------------------------------------------------------
@@ -76,6 +77,8 @@ function renderOverlay(initialPath = '/stocks') {
 beforeEach(() => {
   // Reset store to closed state
   useAppStore.setState({ cmdPaletteOpen: false, cmdKQuery: '' })
+  // Reset chat handoff channel (BUG-013) — Ask AI feeds uiStore.pendingChatPrompt
+  useUiStore.setState({ pendingChatPrompt: null, aiPanelOpen: false })
   // Clear localStorage
   localStorage.clear()
   useUiPrefs.getState().setLocale('zh')
@@ -222,13 +225,103 @@ describe('CmdKOverlay — AI fallback', () => {
     expect(screen.getByTestId('ai-fallback-button')).toBeInTheDocument()
   })
 
-  it('AI fallback button closes overlay and navigates to /stocks with ai_query stashed', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'xyzzy random' })
-    mockFetch({ query: 'xyzzy random', results: [] })
+  // BUG-013: Ask AI must feed the right-side AI panel via uiStore.sendChatPrompt
+  // (pendingChatPrompt), NOT a dead sessionStorage key.
+  it('AI fallback hands the query to uiStore.sendChatPrompt, opens AI panel, closes overlay', async () => {
+    const sessionSpy = vi.spyOn(Storage.prototype, 'setItem')
+    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'why is NVDA up' })
+    mockFetch({ query: 'why is NVDA up', results: [] })
     renderOverlay()
-    const btn = await screen.findByTestId('ai-fallback-button')
+    const btn = await screen.findByTestId('ai-fallback-item')
     fireEvent.click(btn)
+    await waitFor(() => {
+      expect(useUiStore.getState().pendingChatPrompt).toEqual({
+        text: 'why is NVDA up',
+        autoSend: true,
+      })
+    })
+    // Panel opened + overlay closed
+    expect(useUiStore.getState().aiPanelOpen).toBe(true)
+    expect(useAppStore.getState().cmdPaletteOpen).toBe(false)
+    // No dead sessionStorage write
+    expect(sessionSpy).not.toHaveBeenCalledWith('finrobot.cmdk_ai_query', expect.anything())
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 6b. BUG-023: search API failure must NOT kill local commands / Ask AI
+// ---------------------------------------------------------------------------
+
+describe('CmdKOverlay — search failure keeps local commands (BUG-023)', () => {
+  it('with /api/search returning 500, the Ask AI fallback still renders (not trapped behind the error)', async () => {
+    mockFetch({ detail: 'boom' }, 500)
+    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'xyzzy random' })
+    renderOverlay()
+    // Inline error note shows (small banner, not a takeover)
+    await waitFor(() => expect(screen.getByTestId('search-error')).toBeInTheDocument())
+    expect(screen.getByTestId('retry-button')).toBeInTheDocument()
+    // Ask AI fallback survives the failure and is selectable — pre-fix it was
+    // gated on a success-only `showEmpty`, so a 500 stranded the typed query.
+    expect(screen.getByTestId('ai-fallback-item')).toBeInTheDocument()
+  })
+
+  it('matching local commands (Settings) still render under a search failure', async () => {
+    mockFetch({ detail: 'boom' }, 500)
+    // Query matches the Settings command title so client-side static filter keeps it.
+    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '设置' })
+    renderOverlay()
+    await waitFor(() => expect(screen.getByTestId('search-error')).toBeInTheDocument())
+    expect(screen.getByTestId('coverage-commands-group')).toBeInTheDocument()
+    expect(screen.getByText('打开设置')).toBeInTheDocument()
+  })
+
+  it('Ask AI is selectable after a 500 and still feeds sendChatPrompt', async () => {
+    mockFetch({ detail: 'boom' }, 500)
+    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'explain the moat' })
+    renderOverlay()
+    const btn = await screen.findByTestId('ai-fallback-item')
+    fireEvent.click(btn)
+    await waitFor(() =>
+      expect(useUiStore.getState().pendingChatPrompt).toEqual({
+        text: 'explain the moat',
+        autoSend: true,
+      }),
+    )
+  })
+
+  it('Settings command navigates and closes even when search failed', async () => {
+    mockFetch({ detail: 'boom' }, 500)
+    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '设置' })
+    renderOverlay()
+    const settings = await screen.findByText('打开设置')
+    fireEvent.click(settings.closest("[data-testid='coverage-command-item']")!)
     await waitFor(() => expect(useAppStore.getState().cmdPaletteOpen).toBe(false))
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 6c. BUG-024: accessible DialogTitle + Description (no Radix a11y warning)
+// ---------------------------------------------------------------------------
+
+describe('CmdKOverlay — a11y dialog title/description (BUG-024)', () => {
+  it('renders a DialogTitle and Description node and logs no Radix a11y warning', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '' })
+    renderOverlay()
+    await waitFor(() => expect(screen.getByTestId('cmdk-input')).toBeInTheDocument())
+    // Accessible nodes exist
+    expect(screen.getByTestId('cmdk-dialog-title')).toBeInTheDocument()
+    expect(screen.getByTestId('cmdk-dialog-description')).toBeInTheDocument()
+    // Radix's missing-title / missing-description warnings never fired
+    const allMessages = [...errSpy.mock.calls, ...warnSpy.mock.calls]
+      .flat()
+      .map((m) => String(m))
+      .join('\n')
+    expect(allMessages).not.toContain('requires a `DialogTitle`')
+    expect(allMessages).not.toContain('Missing `Description`')
+    errSpy.mockRestore()
+    warnSpy.mockRestore()
   })
 })
 

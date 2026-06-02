@@ -113,6 +113,7 @@ class CoverageRow(BaseModel):
     # Research — from artifact store
     latest_verdict: str | None = None
     target_price: float | None = None
+    target_date: datetime | None = None
     entry_price: float | None = None
     upside_to_target_live: float | None = None
     signal: str | None = None

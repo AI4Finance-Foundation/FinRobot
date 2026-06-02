@@ -140,6 +140,31 @@ function renderPanel(opts: RenderOptions = {}) {
   )
 }
 
+// Render against a caller-supplied QueryClient so a test can spy on
+// invalidateQueries. Mirrors renderPanel's provider/router shape.
+function renderPanelWithClient(client: QueryClient, opts: RenderOptions = {}) {
+  const { expanded = true, ticker } = opts
+  const onToggle = vi.fn()
+  const initialPath = ticker ? `/stocks/${ticker}` : '/stocks'
+
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Routes>
+          <Route
+            path="/stocks/:ticker"
+            element={<RightChatPanel expanded={expanded} onToggle={onToggle} />}
+          />
+          <Route
+            path="/stocks"
+            element={<RightChatPanel expanded={expanded} onToggle={onToggle} />}
+          />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
+
 function makeUserMessage(text: string): UIMessage {
   return {
     id: `user-${Math.random()}`,
@@ -479,7 +504,7 @@ describe('RightChatPanel — tool card state machine', () => {
     renderPanel()
     await waitFor(() => {
       const link = screen.getByTestId('artifact-link')
-      expect(link).toHaveAttribute('href', '/stocks/AAPL?artifact=art_002')
+      expect(link).toHaveAttribute('href', '/stocks/AAPL/runs/art_002')
     })
   })
 
@@ -493,6 +518,78 @@ describe('RightChatPanel — tool card state machine', () => {
       expect(card).toHaveAttribute('data-state', 'error')
     })
     expect(screen.getByText('数据不可用')).toBeInTheDocument()
+  })
+})
+
+// ──────────────────────────────────────────────────────────────
+// Tests: AI-generated artifact → query invalidation (BUG-20260602-037)
+//
+// When a tool output carrying artifact_id arrives in the chat, the panel
+// must invalidate the SAME read models the REST run path refreshes so the
+// workspace/dashboard flip out of their stale snapshot. Keys must mirror
+// StockWorkspace exactly:
+//   ['v5-artifacts-timeline', <TICKER>], ['studied-tickers'], ['dashboard']
+// and must fire ONCE per artifact_id (guarded by a Set ref).
+// ──────────────────────────────────────────────────────────────
+
+describe('RightChatPanel — AI artifact invalidation', () => {
+  it('invalidates timeline/studied/dashboard once when a tool output has artifact_id', async () => {
+    const client = makeSeededClient()
+    const spy = vi.spyOn(client, 'invalidateQueries')
+
+    mockChatControls.setMessages([
+      makeToolCallMessage('call_inv', 'run_dcf_valuation', 'output-available', {
+        summary: 'DCF done',
+        artifact_id: 'art_inv_1',
+        ticker: 'aapl',
+      }),
+    ])
+    renderPanelWithClient(client, { ticker: 'AAPL' })
+
+    await waitFor(() => {
+      expect(spy).toHaveBeenCalledWith({ queryKey: ['v5-artifacts-timeline', 'AAPL'] })
+    })
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['studied-tickers'] })
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['dashboard'] })
+
+    // Exactly the three artifact keys (no duplicate firing for one artifact).
+    const artifactCalls = spy.mock.calls.filter(([arg]) => {
+      const key = (arg as { queryKey?: unknown[] })?.queryKey
+      return (
+        Array.isArray(key) &&
+        (key[0] === 'v5-artifacts-timeline' ||
+          key[0] === 'studied-tickers' ||
+          key[0] === 'dashboard')
+      )
+    })
+    expect(artifactCalls).toHaveLength(3)
+  })
+
+  it('does NOT invalidate when a tool output has no artifact_id', async () => {
+    const client = makeSeededClient()
+    const spy = vi.spyOn(client, 'invalidateQueries')
+
+    mockChatControls.setMessages([
+      makeToolCallMessage('call_noart', 'run_dcf_valuation', 'output-available', {
+        summary: 'no artifact produced',
+      }),
+    ])
+    renderPanelWithClient(client, { ticker: 'AAPL' })
+
+    // Let any effect flush, then assert none of the artifact keys fired.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
+    const artifactCalls = spy.mock.calls.filter(([arg]) => {
+      const key = (arg as { queryKey?: unknown[] })?.queryKey
+      return (
+        Array.isArray(key) &&
+        (key[0] === 'v5-artifacts-timeline' ||
+          key[0] === 'studied-tickers' ||
+          key[0] === 'dashboard')
+      )
+    })
+    expect(artifactCalls).toHaveLength(0)
   })
 })
 

@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useLocation } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import type { UIMessage, UIMessagePart, UIDataTypes, UITools, DynamicToolUIPart } from 'ai'
@@ -117,6 +117,7 @@ export function AiChatTab({
   const { ticker } = useParams<{ ticker?: string }>()
   const addToast = useToastStore((s) => s.addToast)
   const { t } = useI18n()
+  const queryClient = useQueryClient()
 
   // ── uiStore bindings ────────────────────────────────────────
   const storeOpen = useUiStore((s) => s.aiPanelOpen)
@@ -198,6 +199,49 @@ export function AiChatTab({
   })
 
   const isLoading = status === 'submitted' || status === 'streaming'
+
+  // ── AI-generated artifact → invalidate the same read models the REST run
+  // path refreshes ─────────────────────────────────────────────────────────
+  // When an AI panel tool (DCF / comps / equity_research / …) finishes and
+  // its output carries an artifact_id, a new immutable artifact now exists
+  // server-side. The workspace AIZone / dashboard / studied-tickers queries
+  // (staleTime: Infinity on the immutable timeline) would otherwise keep
+  // serving their pre-run snapshot, leaving the AI-made artifact an island
+  // the UI never reflects. Mirror StockWorkspace's completion invalidation
+  // exactly (key-prefix match covers every limit/window variant):
+  //   useV5ArtifactTimeline:      ['v5-artifacts-timeline', ticker]
+  //   useStudiedTickers:          ['studied-tickers', limit]
+  //   useDashboardHitRate:        ['dashboard', 'hit-rate', window]
+  //   useDashboardRecentResearch: ['dashboard', 'recent-research', limit]
+  // Guard: each artifact_id is invalidated once (a Set ref), so the effect
+  // re-running on every streamed token / render doesn't re-fire.
+  const invalidatedArtifactsRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    for (const message of messages) {
+      if (message.role !== 'assistant') continue
+      for (const part of message.parts) {
+        if (!isToolUIPart(part)) continue
+        const anyPart = part as DynamicToolUIPart
+        if (anyPart.state !== 'output-available') continue
+        const output = anyPart.output
+        if (!output || typeof output !== 'object') continue
+        const { artifact_id, ticker: outTicker } = output as {
+          artifact_id?: string
+          ticker?: string
+        }
+        if (!artifact_id) continue
+        if (invalidatedArtifactsRef.current.has(artifact_id)) continue
+        invalidatedArtifactsRef.current.add(artifact_id)
+
+        const symbol = (outTicker ?? ticker ?? '').toUpperCase()
+        if (symbol) {
+          void queryClient.invalidateQueries({ queryKey: ['v5-artifacts-timeline', symbol] })
+        }
+        void queryClient.invalidateQueries({ queryKey: ['studied-tickers'] })
+        void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      }
+    }
+  }, [messages, ticker, queryClient])
 
   // Ticker change → switch session.
   useEffect(() => {

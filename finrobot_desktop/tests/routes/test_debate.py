@@ -176,6 +176,23 @@ async def test_missing_artifact_404() -> None:
     assert "nope" in resp.json()["detail"]
 
 
+async def test_empty_ticker_rejected_422() -> None:
+    """BUG-032: empty/blank ticker must be rejected at validation time (422),
+    not stored as a malformed run — matches the compute routes' Field(min_length=1)."""
+    app = _make_app(artifact=None)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        resp = await client.post("/api/debate", json={"ticker": "", "artifact_id": "art-1"})
+    assert resp.status_code == 422, resp.text
+
+
+async def test_empty_artifact_id_rejected_422() -> None:
+    """BUG-040: empty artifact_id must be rejected at validation time (422)."""
+    app = _make_app(artifact=None)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        resp = await client.post("/api/debate", json={"ticker": "AAPL", "artifact_id": ""})
+    assert resp.status_code == 422, resp.text
+
+
 async def test_malformed_structured_data_returns_422() -> None:
     """A reachable artifact whose structured data can't be parsed into evidence
     must return a client-facing 422, not a raw 500 (BUG-021).

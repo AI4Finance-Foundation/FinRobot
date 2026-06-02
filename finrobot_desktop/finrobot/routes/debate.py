@@ -22,7 +22,7 @@ from typing import Any, cast
 
 import httpx
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from pydantic_ai import UnexpectedModelBehavior
 from pydantic_ai.exceptions import AgentRunError
 from starlette.requests import Request
@@ -40,8 +40,10 @@ router = APIRouter(prefix="/api/debate", tags=["debate"])
 
 
 class DebateRequest(BaseModel):
-    ticker: str
-    artifact_id: str
+    # Reject empty/oversized input at validation time (422) rather than storing a
+    # malformed run — same constraint as the compute routes (BUG-032 / BUG-040).
+    ticker: str = Field(min_length=1, max_length=10)
+    artifact_id: str = Field(min_length=1)
 
 
 class DebateResponse(BaseModel):

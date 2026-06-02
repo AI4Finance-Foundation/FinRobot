@@ -5,22 +5,22 @@
 
 import { useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { IconTrendingUp, IconSettings } from '../lib/icons'
+import { IconDashboard, IconSettings } from '../lib/icons'
 import { useRunStreamStore } from '../stores/runStreamStore'
-import { useNavMemoryStore } from '../stores/navMemoryStore'
 import { useI18n } from '../i18n'
 
 interface NavItem {
   /** i18n key resolved at render time via useI18n. */
   labelKey: string
   path: string
-  Icon: typeof IconTrendingUp
+  Icon: typeof IconDashboard
 }
 
-// The investment-committee debate is reached from inside a research report
-// (ReportToolbar → onOpenIcDebate), not a top-level menu — it operates on a
-// specific artifact, so a standalone nav item was a context-less dead-end door.
-const TOP_NAV: NavItem[] = [{ labelKey: 'nav.stocks', path: '/stocks', Icon: IconTrendingUp }]
+// Coverage Desk is the first business menu (research coverage universe). The
+// old /stocks landing folded into it; per-ticker drill-down is reached from the
+// Coverage table, not a top-level menu. The IC debate is likewise report-
+// contextual (ReportToolbar → onOpenIcDebate), not a standalone nav door.
+const TOP_NAV: NavItem[] = [{ labelKey: 'nav.coverage', path: '/coverage', Icon: IconDashboard }]
 
 const BOTTOM_NAV: NavItem[] = [{ labelKey: 'nav.settings', path: '/settings', Icon: IconSettings }]
 
@@ -41,31 +41,11 @@ export function Sidebar(): React.ReactElement {
     [activeRuns],
   )
 
-  const lastStocksPath = useNavMemoryStore((s) => s.lastStocksPath)
-
   function isActive(path: string): boolean {
     return location.pathname.startsWith(path)
   }
 
-  function handleClick(path: string, event?: React.MouseEvent): void {
-    // /stocks click resolution: running ticker > remembered deep path >
-    // landing. Hold ⌘/Ctrl to force-skip memory and reach the landing
-    // page (escape hatch when the remembered path is stale).
-    if (path === '/stocks') {
-      const forceLanding = !!event && (event.metaKey || event.ctrlKey)
-      if (forceLanding) {
-        navigate('/stocks')
-        return
-      }
-      if (runningTickers.length > 0) {
-        navigate(`/stocks/${runningTickers[0]}`)
-        return
-      }
-      if (lastStocksPath && lastStocksPath !== location.pathname) {
-        navigate(lastStocksPath)
-        return
-      }
-    }
+  function handleClick(path: string): void {
     navigate(path)
   }
 
@@ -93,8 +73,8 @@ export function Sidebar(): React.ReactElement {
             key={item.path}
             item={item}
             active={isActive(item.path)}
-            onClick={(e) => handleClick(item.path, e)}
-            badge={item.path === '/stocks' ? runningTickers.length : 0}
+            onClick={() => handleClick(item.path)}
+            badge={item.path === '/coverage' ? runningTickers.length : 0}
           />
         ))}
       </div>
@@ -117,7 +97,7 @@ export function Sidebar(): React.ReactElement {
             key={item.path}
             item={item}
             active={isActive(item.path)}
-            onClick={(e) => handleClick(item.path, e)}
+            onClick={() => handleClick(item.path)}
             badge={0}
           />
         ))}

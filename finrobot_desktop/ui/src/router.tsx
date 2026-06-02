@@ -11,7 +11,8 @@
 import { createBrowserRouter, Navigate, useNavigate } from 'react-router-dom'
 import { lazy, Suspense, useEffect } from 'react'
 import { AppShell } from './layout/AppShell'
-import { StocksPage } from './pages/StocksPage'
+import { CoveragePage } from './pages/CoveragePage'
+import { ComparePage } from './pages/ComparePage'
 import { StockWorkspace } from './views/StockWorkspace'
 import { tSync } from './i18n'
 
@@ -89,12 +90,20 @@ export const router = createBrowserRouter([
     path: '/',
     element: <AppShell />,
     children: [
-      { index: true, element: <Navigate to="/stocks" replace /> },
+      { index: true, element: <Navigate to="/coverage" replace /> },
 
-      // Single canonical path. StocksPage serves ONLY /stocks (no ticker) as a
-      // landing placeholder until spec §2 cross-ticker landing ships; any
-      // /stocks/:ticker hit renders the single-page StockWorkspace.
-      { path: 'stocks', element: <StocksPage /> },
+      // Coverage Desk is the first screen (research coverage universe).
+      { path: 'coverage', element: <CoveragePage /> },
+      { path: 'compare', element: <ComparePage /> },
+
+      // The old /stocks landing retired into Coverage; the per-ticker
+      // drill-down (StockWorkspace) and report detail keep their routes.
+      {
+        path: 'stocks',
+        element: (
+          <RedirectWithToast to="/coverage" messageKey="shell.router.stocksMergedCoverage" />
+        ),
+      },
       { path: 'stocks/:ticker', element: <StockWorkspace /> },
       {
         path: 'stocks/:ticker/runs/:artifactId',

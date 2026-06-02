@@ -286,6 +286,10 @@ msgid "nav.settings"
 msgstr "设置"
 
 #. js-lingui-explicit-id
+msgid "nav.coverage"
+msgstr "覆盖池"
+
+#. js-lingui-explicit-id
 msgid "nav.stocks"
 msgstr "股票"
 
@@ -3189,3 +3193,175 @@ msgstr "超出区间"
 #. js-lingui-explicit-id
 msgid "chart.footballField.mid"
 msgstr "中值"
+
+#. js-lingui-explicit-id
+msgid "shell.router.stocksMergedCoverage"
+msgstr "「股票」首页已并入「覆盖」。"
+
+#. js-lingui-explicit-id
+msgid "coverage.table.selectAll"
+msgstr "全选"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.ticker"
+msgstr "代码"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.price"
+msgstr "价格"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.mcap"
+msgstr "市值"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.revttm"
+msgstr "营收 TTM"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.verdict"
+msgstr "结论"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.upside"
+msgstr "上行空间"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.signal"
+msgstr "信号"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.runs"
+msgstr "次数"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.status"
+msgstr "状态"
+
+#. js-lingui-explicit-id
+msgid "coverage.notRun"
+msgstr "未运行"
+
+#. js-lingui-explicit-id
+msgid "coverage.run"
+msgstr "运行"
+
+#. js-lingui-explicit-id
+msgid "coverage.runOne"
+msgstr "运行该股研究"
+
+#. js-lingui-explicit-id
+msgid "coverage.running"
+msgstr "运行中"
+
+#. js-lingui-explicit-id
+msgid "coverage.track.title"
+msgstr "命中率"
+
+#. js-lingui-explicit-id
+msgid "coverage.track.watching"
+msgstr "样本仍在观察中"
+
+#. js-lingui-explicit-id
+msgid "coverage.track.empty"
+msgstr "完成首份带目标价的研究后开始统计"
+
+#. js-lingui-explicit-id
+msgid "coverage.track.sample"
+msgstr "{closed}/{total} 已结算"
+
+#. js-lingui-explicit-id
+msgid "coverage.refresh.title"
+msgstr "待刷新"
+
+#. js-lingui-explicit-id
+msgid "coverage.refresh.empty"
+msgstr "暂无需要刷新的"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.defaultName"
+msgstr "我的覆盖"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.subtitle"
+msgstr "你的研究覆盖池还没有 ticker。添加几个开始。"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.addPlaceholder"
+msgstr "添加 ticker（如 AAPL MSFT NVDA）…"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.cta"
+msgstr "创建覆盖组"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.step1"
+msgstr "添加 3-10 个 ticker"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.step2"
+msgstr "选择 ticker"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.step3"
+msgstr "运行研究，生成第一份可追溯研报"
+
+#. js-lingui-explicit-id
+msgid "coverage.groupSelect"
+msgstr "覆盖组"
+
+#. js-lingui-explicit-id
+msgid "coverage.addPlaceholder"
+msgstr "添加 ticker…"
+
+#. js-lingui-explicit-id
+msgid "coverage.runSelected"
+msgstr "运行研究 ({n})"
+
+#. js-lingui-explicit-id
+msgid "coverage.compareSelected"
+msgstr "对比"
+
+#. js-lingui-explicit-id
+msgid "coverage.loading"
+msgstr "加载覆盖池…"
+
+#. js-lingui-explicit-id
+msgid "coverage.emptyGroup"
+msgstr "还没有 ticker——在上方添加。"
+
+#. js-lingui-explicit-id
+msgid "coverage.toast.launched"
+msgstr "已启动 {n} 个运行；跳过 {skipped} 个"
+
+#. js-lingui-explicit-id
+msgid "coverage.toast.runFailed"
+msgstr "启动运行失败"
+
+#. js-lingui-explicit-id
+msgid "coverage.toast.compareNeedsTwo"
+msgstr "对比至少需要选择 2 个 ticker"
+
+#. js-lingui-explicit-id
+msgid "compare.back"
+msgstr "覆盖"
+
+#. js-lingui-explicit-id
+msgid "compare.title"
+msgstr "DCF 对比"
+
+#. js-lingui-explicit-id
+msgid "compare.needTwo"
+msgstr "至少选择 2 个 ticker。"
+
+#. js-lingui-explicit-id
+msgid "compare.loading"
+msgstr "对比中…"
+
+#. js-lingui-explicit-id
+msgid "compare.error"
+msgstr "对比失败。"
+
+#. js-lingui-explicit-id
+msgid "compare.implied"
+msgstr "隐含价"

@@ -36,15 +36,15 @@ describe('AppShell — simplified shell structure', () => {
     expect(screen.getByTestId('statusbar')).toBeInTheDocument()
   })
 
-  it('clicking Stocks button navigates to /stocks', () => {
+  it('clicking the Coverage button navigates to /coverage', () => {
     renderWithProviders()
-    // v5 (spec §11.1): NAV_ITEMS label simplified 个股分析 → 个股 (个股 now the
-    // landing for everything: dashboard / library / playground / journal all
-    // redirect here).
-    const stocksBtn = screen.getByLabelText('Stocks')
-    fireEvent.click(stocksBtn)
+    // Coverage Desk is the first business menu — the old /stocks landing
+    // folded into it (dashboard / library / playground / journal / stocks
+    // all redirect to /coverage).
+    const coverageBtn = screen.getByLabelText('Coverage')
+    fireEvent.click(coverageBtn)
     // Sidebar uses react-router navigate; button should remain in the doc
-    expect(stocksBtn).toBeInTheDocument()
+    expect(coverageBtn).toBeInTheDocument()
   })
 })
 

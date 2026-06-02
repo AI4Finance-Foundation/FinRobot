@@ -286,6 +286,10 @@ msgid "nav.settings"
 msgstr "Settings"
 
 #. js-lingui-explicit-id
+msgid "nav.coverage"
+msgstr "Coverage"
+
+#. js-lingui-explicit-id
 msgid "nav.stocks"
 msgstr "Stocks"
 
@@ -3189,3 +3193,175 @@ msgstr "off-scale"
 #. js-lingui-explicit-id
 msgid "chart.footballField.mid"
 msgstr "Mid"
+
+#. js-lingui-explicit-id
+msgid "shell.router.stocksMergedCoverage"
+msgstr "Stocks landing merged into Coverage."
+
+#. js-lingui-explicit-id
+msgid "coverage.table.selectAll"
+msgstr "Select all"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.ticker"
+msgstr "Ticker"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.price"
+msgstr "Price"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.mcap"
+msgstr "Mkt Cap"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.revttm"
+msgstr "Rev TTM"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.verdict"
+msgstr "Verdict"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.upside"
+msgstr "Upside"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.signal"
+msgstr "Signal"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.runs"
+msgstr "Runs"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.status"
+msgstr "Status"
+
+#. js-lingui-explicit-id
+msgid "coverage.notRun"
+msgstr "Not run"
+
+#. js-lingui-explicit-id
+msgid "coverage.run"
+msgstr "Run"
+
+#. js-lingui-explicit-id
+msgid "coverage.runOne"
+msgstr "Run research for this ticker"
+
+#. js-lingui-explicit-id
+msgid "coverage.running"
+msgstr "Running"
+
+#. js-lingui-explicit-id
+msgid "coverage.track.title"
+msgstr "Track Record"
+
+#. js-lingui-explicit-id
+msgid "coverage.track.watching"
+msgstr "Sample still building"
+
+#. js-lingui-explicit-id
+msgid "coverage.track.empty"
+msgstr "Starts after your first target-price research"
+
+#. js-lingui-explicit-id
+msgid "coverage.track.sample"
+msgstr "{closed}/{total} closed"
+
+#. js-lingui-explicit-id
+msgid "coverage.refresh.title"
+msgstr "Needs Refresh"
+
+#. js-lingui-explicit-id
+msgid "coverage.refresh.empty"
+msgstr "Everything's current"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.defaultName"
+msgstr "My Coverage"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.subtitle"
+msgstr "Your research coverage universe is empty. Add a few tickers to begin."
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.addPlaceholder"
+msgstr "Add tickers (e.g. AAPL MSFT NVDA)…"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.cta"
+msgstr "Create coverage"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.step1"
+msgstr "Add 3–10 tickers"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.step2"
+msgstr "Select tickers"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.step3"
+msgstr "Run research → your first traceable report"
+
+#. js-lingui-explicit-id
+msgid "coverage.groupSelect"
+msgstr "Coverage group"
+
+#. js-lingui-explicit-id
+msgid "coverage.addPlaceholder"
+msgstr "Add ticker…"
+
+#. js-lingui-explicit-id
+msgid "coverage.runSelected"
+msgstr "Run Research ({n})"
+
+#. js-lingui-explicit-id
+msgid "coverage.compareSelected"
+msgstr "Compare"
+
+#. js-lingui-explicit-id
+msgid "coverage.loading"
+msgstr "Loading coverage…"
+
+#. js-lingui-explicit-id
+msgid "coverage.emptyGroup"
+msgstr "No tickers yet — add some above."
+
+#. js-lingui-explicit-id
+msgid "coverage.toast.launched"
+msgstr "Launched {n} run(s); {skipped} skipped"
+
+#. js-lingui-explicit-id
+msgid "coverage.toast.runFailed"
+msgstr "Failed to launch runs"
+
+#. js-lingui-explicit-id
+msgid "coverage.toast.compareNeedsTwo"
+msgstr "Select at least 2 tickers to compare"
+
+#. js-lingui-explicit-id
+msgid "compare.back"
+msgstr "Coverage"
+
+#. js-lingui-explicit-id
+msgid "compare.title"
+msgstr "DCF Comparison"
+
+#. js-lingui-explicit-id
+msgid "compare.needTwo"
+msgstr "Select at least 2 tickers."
+
+#. js-lingui-explicit-id
+msgid "compare.loading"
+msgstr "Comparing…"
+
+#. js-lingui-explicit-id
+msgid "compare.error"
+msgstr "Comparison failed."
+
+#. js-lingui-explicit-id
+msgid "compare.implied"
+msgstr "Implied"

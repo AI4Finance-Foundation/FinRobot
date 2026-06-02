@@ -12,6 +12,8 @@ Also tests data validation, EV/EBITDA computation, and D&A approximation warning
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -19,6 +21,7 @@ from finrobot.engine.analysis.prompts import (
     ANALYSIS_TYPES,
     build_analysis_prompt,
     _build_financials_table,
+    _fetch_peer_table,
     _validate_analysis_data,
     _fmt_num,
     _fmt_pct,
@@ -146,6 +149,67 @@ class TestBuildAnalysisPrompt:
         assert "Peer Data" in prompt
         assert "MSFT" in prompt
 
+
+class TestPeerTableFxNormalization:
+    """BUG-016: the `analyze competitors` peer table must run peers through the
+    same FX-normalize + sanity-gate recipe as the comps pipeline — never feed
+    the LLM a raw, mixed-currency provider P/E (the 0.158x-class collapse)."""
+
+    async def test_foreign_peer_pe_is_fx_normalized_not_collapsed(self) -> None:
+        # A TSM-like peer: financials in TWD, market cap quoted in USD. The raw
+        # provider P/E (market_cap_USD / net_income_TWD) collapses below 1x.
+        foreign = DataResult(
+            data={
+                "revenue": 3_000e9,  # TWD
+                "ebitda": 1_500e9,  # TWD
+                "net_income": 1_000e9,  # TWD  → 31.25B USD at 1/32
+                "market_cap": 900e9,  # USD (quote ccy)
+                "shares_outstanding": 5e9,
+                "pe_ratio": 0.9,  # collapsed mixed-ccy value the OLD path fed the LLM
+                "financial_currency": "TWD",
+                "quote_currency": "USD",
+            },
+            provider="fmp",
+            ticker="TSM",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        foreign_fin = normalize_financials(foreign)
+        # Sanity-check the fixture really is a foreign-ccy collapse case.
+        assert foreign_fin.reporting_currency == "TWD"
+
+        class _FakeDataLayer:
+            async def fetch_canonical(self, data_type: object, ticker: str) -> object:
+                return foreign_fin
+
+        class _StubAgent:
+            def __init__(self, *a: object, **k: object) -> None: ...
+
+            async def run(self, prompt: str, **kwargs: object) -> object:
+                return SimpleNamespace(output="TSM")
+
+        settings = MagicMock()
+        settings.create_model = MagicMock(return_value=MagicMock())
+        settings.fmp_api_key = None
+
+        async def _fake_fx(ccy: str, *, fmp_api_key: object = None) -> float:
+            return 1.0 / 32.0  # TWD → USD
+
+        target = _make_fin()
+        with (
+            patch("finrobot.engine.analysis.prompts.Agent", _StubAgent),
+            patch("finrobot.engine.compute.extractor.fetch_fx_rate_to_usd", _fake_fx),
+        ):
+            table = await _fetch_peer_table(_FakeDataLayer(), settings, "AAPL", target)
+
+        # net_income 1000B TWD × (1/32) = 31.25B USD; market_cap 900B USD →
+        # P/E ≈ 28.8x (sane), NOT the collapsed 0.9x.
+        assert "28.8x" in table, table
+        assert "0.9x" not in table
+        assert "Revenue (USD)" in table  # header flags the normalization
+
+
+class TestBuildAnalysisPromptMore:
     def test_invalid_type_raises(self) -> None:
         fin = _make_fin()
         with pytest.raises(ValueError, match="Unknown analysis type"):
@@ -257,9 +321,7 @@ class TestCashflowFcfInjection:
 
     def test_table_shows_computed_fcf_when_components_present(self) -> None:
         # AAPL TTM proxy: OCF 140.2B − CapEx 11.0B = FCF 129.2B; yield = 129.2/3000.
-        fin = _make_fin(
-            market_cap=3e12, operating_cash_flow=140.2e9, capital_expenditure=11.0e9
-        )
+        fin = _make_fin(market_cap=3e12, operating_cash_flow=140.2e9, capital_expenditure=11.0e9)
         table = _build_financials_table(fin)
         assert "| Free Cash Flow (TTM) | $129.2B |" in table
         assert "| Operating Cash Flow (TTM) | $140.2B |" in table

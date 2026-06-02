@@ -11,9 +11,12 @@ from pydantic_ai.exceptions import AgentRunError
 from pydantic import ValidationError
 
 from finrobot.engine.compute.data_processor import forecast_financials
-from finrobot.engine.compute.extractor import extract_financial_data, extract_company_financials
+from finrobot.engine.compute.extractor import (
+    extract_company_financials,
+    extract_financial_data,
+    normalize_peer_to_usd,
+)
 from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
-from finrobot.engine.compute.fx_normalize import normalize_company_to_usd
 from finrobot.engine.compute.multiples import (
     calculate_core_pe,
     calculate_multiples,
@@ -27,7 +30,6 @@ from finrobot.engine.compute.xbrl_aligned_comps import (
 )
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
-from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import (
@@ -54,33 +56,6 @@ logger = logging.getLogger(__name__)
 # floor for a defensible median; MAX caps the published comp set.
 _PEER_COMP_SET_MIN = 3
 _PEER_COMP_SET_MAX = 6
-
-
-async def normalize_peer_to_usd(
-    company: CompanyFinancials, *, fmp_api_key: str | None = None
-) -> CompanyFinancials:
-    """Convert a peer's IS/BS items (and market_cap if quoted in non-USD) to
-    canonical USD using today's spot FX. No-op fast path when both currency
-    tags are already USD — the common case for US peers.
-
-    ``fmp_api_key`` is forwarded to the FX layer as a fallback source so a
-    yfinance rate-limit storm doesn't drop an otherwise-fetchable foreign peer.
-    """
-    if company.reporting_currency == "USD" and company.quote_currency == "USD":
-        return company
-    reporting_rate = (
-        1.0
-        if company.reporting_currency == "USD"
-        else await fetch_fx_rate_to_usd(company.reporting_currency, fmp_api_key=fmp_api_key)
-    )
-    if company.quote_currency == "USD":
-        quote_rate = 1.0
-    elif company.quote_currency == company.reporting_currency:
-        # Local listing (e.g. 2330.TW): both tags equal, reuse the rate.
-        quote_rate = reporting_rate
-    else:
-        quote_rate = await fetch_fx_rate_to_usd(company.quote_currency, fmp_api_key=fmp_api_key)
-    return normalize_company_to_usd(company, reporting_rate, quote_rate)
 
 
 def _find_target_financial_data(structured_context: dict[str, object]) -> FinancialData | None:

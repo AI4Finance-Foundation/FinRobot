@@ -16,10 +16,12 @@ import logging
 from pydantic_ai import Agent
 
 from finrobot.config import FinRobotSettings
-from finrobot.engine.compute.multiples import compute_ttm_fcf, fcf_yield
+from finrobot.engine.compute.extractor import extract_company_financials, normalize_peer_to_usd
+from finrobot.engine.compute.multiples import calculate_multiples, compute_ttm_fcf, fcf_yield
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials
+from finrobot.engine.models.financial import CompanyFinancials
 from finrobot.engine.data.types import DataType
 
 logger = logging.getLogger(__name__)
@@ -399,33 +401,45 @@ async def _fetch_peer_table(
     if not peer_tickers:
         return "No peers identified."
 
-    async def _fetch_one(t: str) -> tuple[str, NormalizedFinancials] | None:
+    fmp_api_key = getattr(settings, "fmp_api_key", None)
+
+    async def _fetch_one(t: str) -> tuple[str, CompanyFinancials] | None:
+        # Identical recipe to the hardened comps pipeline (execute_peer_analysis):
+        # extract → FX-normalize to USD → compute multiples. Without this the
+        # peer table fed to the LLM mixed currencies (e.g. TSM EBITDA in TWD vs a
+        # USD market cap → the 0.158x failure mode) and showed un-sanity-gated raw
+        # provider P/E. There is now ONE comps normalization path, not two (BUG-016).
         try:
             _peer = await data_layer.fetch_canonical(DataType.FINANCIALS, t)
             if not isinstance(_peer, NormalizedFinancials):
                 return None
-            return (t, _peer)
+            company = extract_company_financials(_peer)
+            company = await normalize_peer_to_usd(company, fmp_api_key=fmp_api_key)
+            company = calculate_multiples(company)
+            return (t, company)
         except (ProviderError, ValueError, RuntimeError, AttributeError, KeyError):
             logger.warning("Failed to fetch peer %s", t, exc_info=True)
             return None
 
     results = await asyncio.gather(*[_fetch_one(t) for t in peer_tickers])
-    peers: list[tuple[str, NormalizedFinancials]] = [r for r in results if r is not None]
+    peers: list[tuple[str, CompanyFinancials]] = [r for r in results if r is not None]
 
     if not peers:
         return "Peer data unavailable."
 
+    # Figures are USD-normalized; P/E is sanity-gated (out-of-range → N/A) so a
+    # mixed-unit collapse can never reach the LLM as a real multiple.
     lines = [
-        "| Ticker | Revenue | EBITDA | Gross Margin | Op. Margin | P/E |",
-        "|--------|---------|--------|--------------|------------|-----|",
+        "| Ticker | Revenue (USD) | EBITDA (USD) | Gross Margin | Op. Margin | P/E |",
+        "|--------|---------------|--------------|--------------|------------|-----|",
     ]
-    for pticker, pfin in peers:
-        pe = f"{pfin.pe_ratio:.1f}x" if pfin.pe_ratio else "N/A"
+    for pticker, pcomp in peers:
+        pe = f"{pcomp.pe_ratio:.1f}x" if pcomp.pe_ratio else "N/A"
         lines.append(
-            f"| {pticker} | {_fmt_num(pfin.revenue)} "
-            f"| {_fmt_num(pfin.ebitda)} "
-            f"| {_fmt_pct(pfin.gross_margin)} "
-            f"| {_fmt_pct(pfin.operating_margin)} "
+            f"| {pticker} | {_fmt_num(pcomp.revenue)} "
+            f"| {_fmt_num(pcomp.ebitda)} "
+            f"| {_fmt_pct(pcomp.gross_margin)} "
+            f"| {_fmt_pct(pcomp.operating_margin)} "
             f"| {pe} |"
         )
     return "\n".join(lines)

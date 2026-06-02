@@ -23,11 +23,13 @@ from finrobot.engine.models.financial import (
     PriceHistory,
     CompanyFinancials,
 )
+from finrobot.engine.compute.fx_normalize import normalize_company_to_usd
 from finrobot.engine.compute.multiples import (
     calculate_ebitda_operating,
     calculate_ebitda_reported,
     calculate_ev,
 )
+from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 
 
 def extract_financial_data(
@@ -259,6 +261,38 @@ def extract_company_financials(fin: NormalizedFinancials) -> CompanyFinancials:
         reporting_currency=fin.reporting_currency,
         quote_currency=fin.quote_currency,
     )
+
+
+async def normalize_peer_to_usd(
+    company: CompanyFinancials, *, fmp_api_key: str | None = None
+) -> CompanyFinancials:
+    """Convert a peer's IS/BS items (and market_cap if quoted in non-USD) to
+    canonical USD using today's spot FX. No-op fast path when both currency
+    tags are already USD — the common case for US peers.
+
+    ``fmp_api_key`` is forwarded to the FX layer as a fallback source so a
+    yfinance rate-limit storm doesn't drop an otherwise-fetchable foreign peer.
+
+    Lives here (a compute coordinator, alongside ``extract_company_financials``)
+    rather than in any one pipeline so BOTH the comps pipeline AND the
+    ``analyze competitors`` path normalize peers through the identical FX recipe
+    — there is exactly one comps normalization path, never two (BUG-016).
+    """
+    if company.reporting_currency == "USD" and company.quote_currency == "USD":
+        return company
+    reporting_rate = (
+        1.0
+        if company.reporting_currency == "USD"
+        else await fetch_fx_rate_to_usd(company.reporting_currency, fmp_api_key=fmp_api_key)
+    )
+    if company.quote_currency == "USD":
+        quote_rate = 1.0
+    elif company.quote_currency == company.reporting_currency:
+        # Local listing (e.g. 2330.TW): both tags equal, reuse the rate.
+        quote_rate = reporting_rate
+    else:
+        quote_rate = await fetch_fx_rate_to_usd(company.quote_currency, fmp_api_key=fmp_api_key)
+    return normalize_company_to_usd(company, reporting_rate, quote_rate)
 
 
 def extract_price_history(price: NormalizedPrice) -> PriceHistory:

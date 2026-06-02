@@ -224,6 +224,13 @@ async def delete_artifact(artifact_id: str, request: Request) -> dict[str, str]:
     deleted = await store.delete(artifact_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_id}")
+    # Removing an artifact changes the landing hit-rate buckets and may drop a
+    # ticker card off the recent-research strip — bust the dashboard TTL caches
+    # so it reflects the deletion immediately (BUG-20260602-030). Local import
+    # keeps the routes.dashboard ← routes.artifacts edge lazy/one-directional.
+    from finrobot.routes.dashboard import invalidate_dashboard_caches
+
+    invalidate_dashboard_caches()
     return {"status": "deleted", "id": artifact_id}
 
 
@@ -280,5 +287,17 @@ async def mark_viewed(artifact_id: str, request: Request) -> dict[str, str]:
     artifact = await store.get(artifact_id)
     if artifact is None:
         raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_id}")
+    was_archived = artifact.meta.archived
     await store.mark_viewed(artifact_id)
+    # mark_viewed un-archives the artifact (store sets archived=False). When it
+    # was archived, viewing it brings it back into the dashboard's
+    # include_archived=False window, so the landing caches must drop or the
+    # resurrected report stays invisible for up to 60s (BUG-20260602-030). We
+    # gate on was_archived: the desktop shell fires /view on every report open,
+    # and busting the cache on already-active artifacts would defeat it for no
+    # behavioural change (the strip sorts by created_at, not last_viewed_at).
+    if was_archived:
+        from finrobot.routes.dashboard import invalidate_dashboard_caches
+
+        invalidate_dashboard_caches()
     return {"status": "ok", "id": artifact_id}

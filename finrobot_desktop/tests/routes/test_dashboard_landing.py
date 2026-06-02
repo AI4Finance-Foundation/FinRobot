@@ -730,3 +730,156 @@ def test_recent_research_does_not_read_full_artifact_for_verdict(
     resp = client.get("/api/dashboard/recent-research?limit=5")
     assert resp.status_code == 200
     assert calls == [], f"recent-research called store.get {len(calls)} times, expected 0"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Lifecycle cache invalidation (BUG-20260602-030)
+#
+# The landing endpoints cache for _LANDING_CACHE_TTL_S (60s). Without explicit
+# invalidation, a report saved right after a GET stays invisible for up to a
+# minute. invalidate_dashboard_caches() — called by the run-completion and
+# artifact delete/view lifecycle paths — must make the change show up on the
+# next GET with no TTL wait. These tests assert that WITHOUT sleeping on the
+# real TTL.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_invalidate_dashboard_caches_clears_both_caches() -> None:
+    """The invalidation primitive drops both module-level TTL caches."""
+    dashboard_mod._HIT_RATE_CACHE["all"] = (1.0, object())  # type: ignore[assignment]
+    dashboard_mod._RECENT_CACHE[(5, False)] = (1.0, object())  # type: ignore[assignment]
+
+    dashboard_mod.invalidate_dashboard_caches()
+
+    assert dashboard_mod._HIT_RATE_CACHE == {}
+    assert dashboard_mod._RECENT_CACHE == {}
+
+
+def test_recent_research_shows_new_artifact_after_invalidation(
+    client: TestClient,
+    store: ArtifactStore,
+) -> None:
+    """Prime the strip cache, save a new ticker, invalidate → it appears now.
+
+    Without the invalidation call the second GET would serve the cached
+    (single-card) response for up to 60s. We never touch the real clock — the
+    explicit invalidation is the whole point.
+    """
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_AAPL",
+            ticker="AAPL",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=10,
+        ),
+    )
+    # Prime the cache: one card (AAPL).
+    first = client.get("/api/dashboard/recent-research?limit=5").json()
+    assert [c["ticker"] for c in first["items"]] == ["AAPL"]
+    assert first["total_in_store"] == 1
+
+    # A new report lands AFTER the cache was primed.
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_NVDA",
+            ticker="NVDA",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=1,
+        ),
+    )
+
+    # Stale cache still served (proves the TTL window would have hidden NVDA).
+    stale = client.get("/api/dashboard/recent-research?limit=5").json()
+    assert [c["ticker"] for c in stale["items"]] == ["AAPL"]
+
+    # Lifecycle invalidation (what run-completion fires) → NVDA shows up now.
+    dashboard_mod.invalidate_dashboard_caches()
+    fresh = client.get("/api/dashboard/recent-research?limit=5").json()
+    assert [c["ticker"] for c in fresh["items"]] == ["NVDA", "AAPL"]
+    assert fresh["total_in_store"] == 2
+
+
+@pytest.fixture
+def lifecycle_app(tmp_path: Path) -> FastAPI:
+    """App mounting BOTH the dashboard and artifacts routers over one store.
+
+    The artifacts route reads ``app.state.artifact_store`` while the dashboard
+    route reads ``app.state.deps.artifact_store`` — point both at the same
+    store so a mutation through the artifacts route is visible to the dashboard
+    endpoints (mirrors the real server wiring).
+    """
+    from finrobot.routes.artifacts import router as artifacts_router
+
+    app = FastAPI()
+    app.include_router(dashboard_router)
+    app.include_router(artifacts_router)
+    store = ArtifactStore(base_dir=tmp_path / "artifacts")
+    app.state.artifact_store = store
+    app.state.deps = SimpleNamespace(artifact_store=store, data_layer=_FakeQuoteLayer())
+    return app
+
+
+def test_delete_endpoint_invalidates_dashboard_cache(lifecycle_app: FastAPI) -> None:
+    """DELETE /api/artifacts/{id} drops the artifact off the strip immediately."""
+    store: ArtifactStore = lifecycle_app.state.artifact_store
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_AAPL",
+            ticker="AAPL",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=1,
+        ),
+    )
+    client = TestClient(lifecycle_app)
+
+    # Prime the strip cache: AAPL present.
+    primed = client.get("/api/dashboard/recent-research?limit=5").json()
+    assert [c["ticker"] for c in primed["items"]] == ["AAPL"]
+
+    # Delete it through the real lifecycle endpoint.
+    assert client.delete("/api/artifacts/art_AAPL").status_code == 200
+
+    # No TTL wait: the strip recomputes and AAPL is gone.
+    after = client.get("/api/dashboard/recent-research?limit=5").json()
+    assert after["items"] == []
+    assert after["total_in_store"] == 0
+
+
+def test_view_endpoint_invalidates_when_unarchiving(lifecycle_app: FastAPI) -> None:
+    """POST /{id}/view un-archives a stale report → it reappears on the strip.
+
+    ``mark_viewed`` sets ``archived=False``. An archived artifact is hidden by
+    the strip's ``include_archived=False`` query; viewing it must bring it back
+    on the next GET with no TTL wait.
+    """
+    store: ArtifactStore = lifecycle_app.state.artifact_store
+    art = _make_artifact(
+        artifact_id="art_AAPL",
+        ticker="AAPL",
+        entry_price=100.0,
+        target_price=130.0,
+        verdict="BUY",
+        days_ago=1,
+    )
+    art.meta.archived = True
+    _save(store, art)
+    client = TestClient(lifecycle_app)
+
+    # Prime the strip cache: archived artifact is hidden.
+    primed = client.get("/api/dashboard/recent-research?limit=5").json()
+    assert primed["items"] == []
+
+    # Viewing un-archives it (lifecycle path) and busts the cache.
+    assert client.post("/api/artifacts/art_AAPL/view").status_code == 200
+
+    after = client.get("/api/dashboard/recent-research?limit=5").json()
+    assert [c["ticker"] for c in after["items"]] == ["AAPL"]

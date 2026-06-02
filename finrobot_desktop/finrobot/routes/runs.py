@@ -365,6 +365,16 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
                 artifact_type=artifact_type,
             ),
         )
+        if artifact_id:
+            # A new artifact just landed in the store. Drop the dashboard's
+            # 60s TTL caches so the landing hit-rate + recent-research strip
+            # reflect this run on the next GET instead of up to a minute later
+            # (BUG-20260602-030). Local import: routes.dashboard imports nothing
+            # from routes.runs, but keep the dependency one-directional and
+            # lazy so the module graph stays acyclic regardless of future edits.
+            from finrobot.routes.dashboard import invalidate_dashboard_caches
+
+            invalidate_dashboard_caches()
     except (
         ProviderError,
         ValidationError,

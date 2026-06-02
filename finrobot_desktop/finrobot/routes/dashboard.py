@@ -124,6 +124,21 @@ _RECENT_CACHE: dict[tuple[int, bool], tuple[float, RecentResearchResponse]] = {}
 _LANDING_CACHE_TTL_S = 60.0
 
 
+def invalidate_dashboard_caches() -> None:
+    """Drop the landing-page TTL caches so the next GET recomputes from store.
+
+    Artifact-lifecycle mutations (a run completing and saving its artifact, a
+    delete, a mark-viewed that bumps the strip's ordering) must surface on the
+    dashboard immediately — not after the 60s ``_LANDING_CACHE_TTL_S`` window
+    expires. The lifecycle call sites (``routes.runs`` on RunCompleted,
+    ``routes.artifacts`` on delete/view) call this so "just ran a report, don't
+    see it" never happens. The TTL stays as a backstop for everything that does
+    NOT route through an explicit invalidation (e.g. background stale-archive).
+    """
+    _HIT_RATE_CACHE.clear()
+    _RECENT_CACHE.clear()
+
+
 @router.get("/hit-rate", response_model=HitRateOverview)
 async def hit_rate(
     request: Request,

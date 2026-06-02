@@ -121,6 +121,14 @@ class FinancialData(BaseModel):
     market: MarketData
     valuation: ValuationMetrics = Field(default_factory=ValuationMetrics)
 
+    # Currency tags carried from NormalizedFinancials (same meaning as on
+    # CompanyFinancials): reporting_currency = IS/BS line items, quote_currency =
+    # market_cap/price. They DISAGREE for foreign-listed ADRs (TSM: TWD / USD).
+    # build_xbrl_aligned_company reads these to FX-normalize a foreign target to
+    # canonical USD before comps multiples, symmetric with the peer path (BUG-018).
+    reporting_currency: str = "USD"
+    quote_currency: str = "USD"
+
     data_source: str = "yfinance"
     provenance: DataProvenance | None = None
     warnings: list[str] = Field(default_factory=list)

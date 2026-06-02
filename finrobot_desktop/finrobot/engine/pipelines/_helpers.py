@@ -227,10 +227,11 @@ async def execute_peer_analysis(
         raise ValueError("target FinancialData not available in context; cannot build peer target.")
     raw_target_xbrl = structured_context.get("xbrl_facts_raw")
     target_xbrl = raw_target_xbrl if isinstance(raw_target_xbrl, dict) else None
-    target = build_xbrl_aligned_company(
+    target = await build_xbrl_aligned_company(
         ticker=ticker,
         financial_data=target_fin,
         xbrl_data=target_xbrl,
+        fmp_api_key=getattr(deps.settings, "fmp_api_key", None),
     )
 
     peer_comps = PeerComps(

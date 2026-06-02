@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from finrobot.engine.compute.extractor import normalize_peer_to_usd
 from finrobot.engine.compute.multiples import calculate_multiples
 from finrobot.engine.models.financial import CompanyFinancials, FinancialData
 
@@ -137,66 +138,54 @@ def xbrl_concept_snapshot(raw_xbrl: dict[str, Any]) -> dict[str, list[dict[str, 
     return snapshot
 
 
-def build_xbrl_aligned_company(
+async def build_xbrl_aligned_company(
     *,
     ticker: str,
     financial_data: FinancialData,
     xbrl_data: dict[str, Any] | None,
+    fmp_api_key: str | None = None,
 ) -> CompanyFinancials:
-    """Create CompanyFinancials with SEC XBRL overriding core line items.
+    """Create the comps target CompanyFinancials, FX-normalized then XBRL-aligned.
 
-    XBRL preference order: ``ttm_*`` (rolling 4-quarter, caliber matches
-    the FMP TTM that drives the rest of the report) → fall back to the FMP
-    snapshot in ``financial_data``. ``latest_*`` (the latest 10-K annual
-    point) is deliberately NOT consulted — surfacing FY-annual revenue/NI
-    next to TTM EBITDA / TTM EV-multiples is what caused the 2026-05-28
-    Ford peer-row P/E hallucination (artifact wrote FY2024 NI $5.879B
-    instead of TTM NI -$6.105B and rendered a phantom P/E of 10.6x).
+    Runs the SAME recipe as a peer row (``_helpers._fetch_one_peer``) so the
+    target and peers are produced by one path, never two:
+
+      1. Build the FMP-base row from ``financial_data`` in its reported currency.
+      2. ``normalize_peer_to_usd`` → canonical USD BEFORE any multiple, so a
+         foreign-listed target (TSM: TWD financials, USD market_cap) doesn't
+         collapse core_pe the way an un-normalized peer collapses EV/EBITDA to
+         0.158x (BUG-018). US targets hit the no-op FX fast path.
+      3. ``override_company_with_xbrl`` cross-checks the now-USD base against SEC
+         XBRL TTM (ADR-0008): adopt XBRL only within tolerance, else keep FMP and
+         flag ``[待核]``; ``latest_*`` (10-K annual) is never consulted — that is
+         the path that surfaced Ford's phantom P/E of 10.6x (FY2024 NI $5.879B
+         over the real TTM NI -$6.105B).
     """
-    xbrl_data = xbrl_data or {}
-    ttm_rev = _ttm_value(xbrl_data.get("ttm_revenue"))
-    ttm_ni = _ttm_value(xbrl_data.get("ttm_net_income"))
-    # Cross-check XBRL against the FMP TTM base instead of letting XBRL override
-    # unconditionally (ADR-0008). ``_reconcile_ttm`` keeps FMP on material
-    # divergence — the structural guard that stops a degenerate XBRL TTM (NVDA's
-    # FY2020 $10.918B) from reaching the comps table even if the provider gate
-    # missed it. Agreement → adopt the more authoritative SEC figure.
-    revenue, rev_note = _reconcile_ttm(ttm_rev, financial_data.income.revenue, field="revenue")
-    net_income, ni_note = _reconcile_ttm(
-        ttm_ni, financial_data.income.net_income, field="net_income"
-    )
-    divergence_note = "; ".join(n for n in (rev_note, ni_note) if n) or None
     # income.ebitda is already the operating caliber (extract_financial_data),
-    # matching the peer numerator now produced by extract_company_financials.
-    ebitda = financial_data.income.ebitda
-    gross_margin = financial_data.income.gross_margin
-    operating_margin = financial_data.income.operating_margin
-
+    # matching the peer numerator produced by extract_company_financials.
+    #
     # Preserve the "debt/cash not reported" signal: extract_financial_data leaves
     # valuation.enterprise_value None precisely when a net-debt component was
-    # missing (and zero-filled balance.total_debt/total_cash). Passing None here
-    # makes the target row withhold EV just like a peer would, instead of
-    # comparing an EV=market_cap artifact against debt-aware peers.
+    # missing (and zero-filled balance.total_debt/total_cash). Passing None makes
+    # the target row withhold EV just like a peer would, instead of comparing an
+    # EV=market_cap artifact against debt-aware peers.
     debt_cash_reported = financial_data.valuation.enterprise_value is not None
-    total_debt = financial_data.balance.total_debt if debt_cash_reported else None
-    total_cash = financial_data.balance.total_cash if debt_cash_reported else None
-
-    company = CompanyFinancials(
+    base = CompanyFinancials(
         ticker=ticker.upper(),
-        # revenue is reconciled from the always-present provider base, so it is
-        # never None here; fall back explicitly to satisfy the required field.
-        revenue=revenue if revenue is not None else financial_data.income.revenue,
-        ebitda=ebitda,
-        net_income=net_income,
+        revenue=financial_data.income.revenue,
+        ebitda=financial_data.income.ebitda,
+        net_income=financial_data.income.net_income,
         market_cap=financial_data.market.market_cap,
-        total_debt=total_debt,
-        total_cash=total_cash,
-        gross_margin=gross_margin,
-        operating_margin=operating_margin,
+        total_debt=financial_data.balance.total_debt if debt_cash_reported else None,
+        total_cash=financial_data.balance.total_cash if debt_cash_reported else None,
+        gross_margin=financial_data.income.gross_margin,
+        operating_margin=financial_data.income.operating_margin,
         income_tax_expense=financial_data.income.income_tax_expense,
-        ttm_divergence_note=divergence_note,
+        reporting_currency=financial_data.reporting_currency,
+        quote_currency=financial_data.quote_currency,
     )
-    return calculate_multiples(company)
+    base = await normalize_peer_to_usd(base, fmp_api_key=fmp_api_key)
+    return override_company_with_xbrl(base, xbrl_data)
 
 
 def override_company_with_xbrl(

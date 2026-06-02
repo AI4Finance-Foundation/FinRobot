@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import pytest
+
+from finrobot.engine.compute import extractor as extractor_mod
 from finrobot.engine.compute.xbrl_aligned_comps import (
     build_xbrl_aligned_company,
     override_company_with_xbrl,
@@ -38,10 +41,10 @@ def _financial_data() -> FinancialData:
     )
 
 
-def test_build_xbrl_aligned_company_adopts_xbrl_when_it_agrees_with_fmp() -> None:
+async def test_build_xbrl_aligned_company_adopts_xbrl_when_it_agrees_with_fmp() -> None:
     """XBRL TTM within tolerance of the FMP base is adopted as the more
     authoritative SEC figure (ADR-0008). FMP base here is 100 / 10."""
-    company = build_xbrl_aligned_company(
+    company = await build_xbrl_aligned_company(
         ticker="NVDA",
         financial_data=_financial_data(),
         xbrl_data={
@@ -57,7 +60,7 @@ def test_build_xbrl_aligned_company_adopts_xbrl_when_it_agrees_with_fmp() -> Non
     assert company.ev_ebitda is not None
 
 
-def test_build_xbrl_aligned_company_keeps_fmp_when_xbrl_diverges() -> None:
+async def test_build_xbrl_aligned_company_keeps_fmp_when_xbrl_diverges() -> None:
     """The NVDA bug in miniature: a degenerate XBRL TTM ($10.918B) that
     diverges materially from the FMP TTM base ($253.5B) must NOT override —
     keep FMP and flag [待核] (ADR-0008). This is the compute-layer guard that
@@ -66,7 +69,7 @@ def test_build_xbrl_aligned_company_keeps_fmp_when_xbrl_diverges() -> None:
     fd.income.revenue = 253_491_000_000.0  # FMP TTM truth
     fd.income.net_income = 159_613_000_000.0
 
-    company = build_xbrl_aligned_company(
+    company = await build_xbrl_aligned_company(
         ticker="NVDA",
         financial_data=fd,
         xbrl_data={
@@ -85,12 +88,12 @@ def test_build_xbrl_aligned_company_keeps_fmp_when_xbrl_diverges() -> None:
     assert "revenue" in company.ttm_divergence_note
 
 
-def test_build_xbrl_aligned_company_ignores_latest_annual_when_ttm_absent() -> None:
+async def test_build_xbrl_aligned_company_ignores_latest_annual_when_ttm_absent() -> None:
     """``latest_*`` is the 10-K annual snapshot — typically 1-2 quarters behind
     the FMP TTM baseline carried by ``financial_data``. The builder must NOT
     silently substitute it; falling through to FMP TTM keeps the caliber
     aligned with the rest of the report."""
-    company = build_xbrl_aligned_company(
+    company = await build_xbrl_aligned_company(
         ticker="NVDA",
         financial_data=_financial_data(),
         # Only annual snapshot, no TTM facts.
@@ -98,6 +101,63 @@ def test_build_xbrl_aligned_company_ignores_latest_annual_when_ttm_absent() -> N
     )
 
     # Falls back to FMP TTM (the FinancialData fixture), NOT the stale annuals.
+    assert company.revenue == 100.0
+    assert company.net_income == 10.0
+
+
+async def test_build_xbrl_aligned_company_normalizes_foreign_target(monkeypatch) -> None:
+    """A foreign-listed target (TSM shape: TWD financials, USD market_cap) must
+    be FX-normalized to USD BEFORE multiples — symmetric with the peer path
+    (BUG-018). Pre-fix the target built USD/USD by default and core_pe collapsed
+    like the un-normalized 0.158x EV/EBITDA bug; the target rendered a mixed-
+    currency NOPAT price target up to ~32x off (TWD/USD)."""
+
+    async def _fake_fx(ccy: str, *, fmp_api_key: str | None = None) -> float:
+        assert ccy == "TWD"
+        return 1.0 / 32.0
+
+    monkeypatch.setattr(extractor_mod, "fetch_fx_rate_to_usd", _fake_fx)
+
+    fd = _financial_data()
+    fd.reporting_currency = "TWD"
+    fd.quote_currency = "USD"
+    fd.income.revenue = 3_200.0  # TWD
+    fd.income.net_income = 320.0  # TWD
+    fd.income.income_tax_expense = 64.0  # TWD
+    fd.market.market_cap = 100.0  # already USD
+    # Foreign target: drop the cached USD/TWD-mixed EV so debt/cash recompute.
+    fd.balance.total_debt = 320.0  # TWD
+    fd.balance.total_cash = 160.0  # TWD
+
+    company = await build_xbrl_aligned_company(
+        ticker="TSM",
+        financial_data=fd,
+        xbrl_data=None,
+    )
+
+    # IS/BS items converted to USD (÷32); market_cap (USD) untouched.
+    assert company.revenue == pytest.approx(100.0)  # 3200 TWD × 1/32
+    assert company.net_income == pytest.approx(10.0)  # 320 TWD × 1/32
+    assert company.income_tax_expense == pytest.approx(2.0)  # 64 TWD × 1/32
+    assert company.market_cap == 100.0
+    assert company.reporting_currency == "USD"
+    assert company.quote_currency == "USD"
+
+
+async def test_build_xbrl_aligned_company_usd_target_no_fx_call(monkeypatch) -> None:
+    """A US target (USD/USD, the common case) must hit the no-op FX fast path —
+    no FX lookup, values unchanged."""
+
+    async def _boom(ccy: str, *, fmp_api_key: str | None = None) -> float:
+        raise AssertionError("US target must not trigger an FX lookup")
+
+    monkeypatch.setattr(extractor_mod, "fetch_fx_rate_to_usd", _boom)
+
+    company = await build_xbrl_aligned_company(
+        ticker="NVDA",
+        financial_data=_financial_data(),
+        xbrl_data=None,
+    )
     assert company.revenue == 100.0
     assert company.net_income == 10.0
 

@@ -241,9 +241,11 @@ class TestPeerAnalysisDegradesInsteadOfCrashing:
         monkeypatch.setattr(_helpers, "normalize_peer_to_usd", _id_normalize)
         monkeypatch.setattr(_helpers, "calculate_multiples", lambda c: c)
         monkeypatch.setattr(_helpers, "override_company_with_xbrl", lambda c, _x: c)
-        monkeypatch.setattr(
-            _helpers, "build_xbrl_aligned_company", lambda **_k: _canned_company("AAPL")
-        )
+
+        async def _canned_target(**_k):
+            return _canned_company("AAPL")
+
+        monkeypatch.setattr(_helpers, "build_xbrl_aligned_company", _canned_target)
 
         ctx = {"target_data": _target_financial_data()}
         out = asyncio.run(

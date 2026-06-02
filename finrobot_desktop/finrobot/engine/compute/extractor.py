@@ -188,6 +188,12 @@ def extract_financial_data(
             ev_ebitda_reported=ev_ebitda_reported,
             ev_revenue=ev_revenue,
         ),
+        # Carry the currency tags so a foreign target (TWD financials, USD
+        # market_cap) can be FX-normalized in build_xbrl_aligned_company before
+        # comps multiples — without these the target defaulted to USD/USD and
+        # core_pe collapsed for ADRs (BUG-018).
+        reporting_currency=fin.reporting_currency,
+        quote_currency=fin.quote_currency,
         data_source=fin.provenance.provider,
         provenance=DataProvenance(
             provider=fin.provenance.provider,

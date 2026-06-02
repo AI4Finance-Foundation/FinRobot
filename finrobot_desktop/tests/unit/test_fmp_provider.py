@@ -874,3 +874,84 @@ class TestFMPRateLimiter:
         assert len(sleep_durations) == 1
         assert sleep_durations[0] <= _MIN_INTERVAL
         assert sleep_durations[0] > 0
+
+
+class TestFMPHistoricalPerYear:
+    """years>1 path must use each year's OWN balance sheet for net debt, and must
+    NOT stamp the current profile's market data onto historical years
+    (BUG-012 / BUG-028)."""
+
+    @staticmethod
+    def _multi_year_income() -> list[dict]:
+        # Newest-first, as FMP returns annual statements.
+        return [
+            {
+                "date": d,
+                "symbol": "AAPL",
+                "revenue": rev,
+                "netIncome": ni,
+                "operatingIncome": ni,
+                "grossProfit": rev,
+                "reportedCurrency": "USD",
+            }
+            for d, rev, ni in [
+                ("2025-09-30", 400e9, 100e9),
+                ("2024-09-30", 380e9, 95e9),
+                ("2023-09-30", 360e9, 90e9),
+            ]
+        ]
+
+    @staticmethod
+    def _multi_year_balance() -> list[dict]:
+        # Distinct debt/cash per year — the whole point of BUG-012.
+        return [
+            {"date": d, "symbol": "AAPL", "totalDebt": td, "cashAndCashEquivalents": tc}
+            for d, td, tc in [
+                ("2025-09-30", 112e9, 36e9),  # net 76
+                ("2024-09-30", 119e9, 30e9),  # net 89
+                ("2023-09-30", 124e9, 30e9),  # net 94
+            ]
+        ]
+
+    @staticmethod
+    def _multi_year_cashflow() -> list[dict]:
+        return [
+            {
+                "date": d,
+                "symbol": "AAPL",
+                "operatingCashFlow": 28e9,
+                "capitalExpenditure": -3e9,
+                "depreciationAndAmortization": 3e9,
+            }
+            for d in ("2025-09-30", "2024-09-30", "2023-09-30")
+        ]
+
+    async def test_per_year_net_debt_and_no_stale_market_data(self, provider) -> None:
+        from finrobot.engine.data.types import DataType
+
+        responses = [
+            _mock_response(self._multi_year_income()),
+            _mock_response(self._multi_year_balance()),
+            _mock_response(self._multi_year_cashflow()),
+            _mock_response(_fmp_profile_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", DataType.FINANCIALS, years=3)
+
+        rows = result.data["yearly_data"]
+        assert len(rows) == 3
+
+        # BUG-012: each year's net debt comes from THAT year's balance sheet.
+        net_debts = [(r["total_debt"] - r["total_cash"]) for r in rows]
+        assert net_debts == [112e9 - 36e9, 119e9 - 30e9, 124e9 - 30e9]
+        assert len(set(net_debts)) == 3, "net debt must differ per year, not reuse the latest"
+
+        # BUG-028: only the current (index 0) row carries live profile market data;
+        # historical rows are None rather than today's snapshot.
+        assert rows[0]["market_cap"] == 2_620_000_000_000
+        assert rows[0]["shares_outstanding"] is not None
+        for stale in rows[1:]:
+            assert stale["market_cap"] is None
+            assert stale["shares_outstanding"] is None
+            assert stale["pe_ratio"] is None
+            assert stale["current_price"] is None

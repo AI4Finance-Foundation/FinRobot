@@ -103,8 +103,13 @@ class FMPProvider(DataProvider):
                 income = (
                     await self._get(f"/income-statement/{ticker}", params={"limit": years})
                 ).json()
+                # Pull `years` of annual balance sheets (not limit:1) so each
+                # historical year's net debt comes from THAT year's filing. Reusing
+                # the latest balance sheet for every year distorted the EV side of
+                # the historical EV/EBITDA bands for companies whose debt structure
+                # moved across years (BUG-012).
                 balance = (
-                    await self._get(f"/balance-sheet-statement/{ticker}", params={"limit": 1})
+                    await self._get(f"/balance-sheet-statement/{ticker}", params={"limit": years})
                 ).json()
                 # DCF's FCF = OCF − CapEx − ΔNWC. The income statement carries
                 # none of those; without this cash-flow pull FMP-sourced history
@@ -149,15 +154,26 @@ class FMPProvider(DataProvider):
         prof = profile[0] if profile else {}
 
         if years and years > 1 and len(income) > 1:
-            # Align cash-flow rows to income rows by fiscal-year-end date so
-            # each year's OCF/CapEx/ΔNWC come from the matching period.
+            # Align cash-flow AND balance-sheet rows to income rows by
+            # fiscal-year-end date so each year's OCF/CapEx/ΔNWC and net debt come
+            # from the matching period (BUG-012). income is newest-first, so index
+            # 0 is the current year — only that row gets the live profile's market
+            # data (market_cap/shares/price/PE/beta); older rows carry None for
+            # those because the profile is a point-in-time snapshot with no history
+            # and would otherwise stamp today's market cap onto every past year
+            # (BUG-028).
             cf_by_date = {cf.get("date"): cf for cf in cashflow if isinstance(cf, dict)}
+            bal_by_date = {b.get("date"): b for b in balance if isinstance(b, dict)}
             data: dict[str, Any] = {
                 "yearly_data": [
                     self._build_single_year_data(
-                        inc_i, bal, prof, cf_by_date.get(inc_i.get("date"))
+                        inc_i,
+                        bal_by_date.get(inc_i.get("date"), {}),
+                        prof,
+                        cf_by_date.get(inc_i.get("date")),
+                        is_current=(idx == 0),
                     )
-                    for inc_i in income
+                    for idx, inc_i in enumerate(income)
                 ],
             }
         else:
@@ -178,14 +194,27 @@ class FMPProvider(DataProvider):
         bal: dict[str, Any],
         prof: dict[str, Any],
         cf: dict[str, Any] | None = None,
+        *,
+        is_current: bool = True,
     ) -> dict[str, Any]:
-        """Extract a flat dict of normalized financial fields for one year."""
+        """Extract a flat dict of normalized financial fields for one year.
+
+        ``is_current`` marks the most-recent period. Market-data fields
+        (market_cap / shares / price / PE / beta) come from the live profile,
+        which has no history — so for older years (``is_current=False``) they are
+        left None instead of stamping today's snapshot onto a past fiscal year
+        (BUG-028). Statement fields (income / balance / cash-flow) are always the
+        period's own.
+        """
         revenue = inc.get("revenue")
         gross_profit = inc.get("grossProfit")
         operating_income = inc.get("operatingIncome")
         net_income = inc.get("netIncome")
-        mkt_cap = prof.get("mktCap")
-        price = prof.get("price")
+        # Profile market data is a point-in-time snapshot — only valid for the
+        # current period. Historical years get None (no historical price here).
+        mkt_cap = prof.get("mktCap") if is_current else None
+        price = prof.get("price") if is_current else None
+        beta = prof.get("beta") if is_current else None
         shares = int(mkt_cap / price) if mkt_cap and price else None
         cf = cf or {}
         # FMP reports capitalExpenditure as a negative (cash outflow); the rest
@@ -194,6 +223,8 @@ class FMPProvider(DataProvider):
         capex = abs(capex_raw) if isinstance(capex_raw, int | float) else None
         # PE = market_cap / net_income (algebraically equivalent to
         # price / EPS where EPS = net_income / shares = net_income * price / mkt_cap).
+        # None on historical rows: mixing today's market cap with a past year's
+        # net income produced a meaningless per-year P/E (BUG-028).
         pe_ratio = mkt_cap / net_income if mkt_cap and net_income and net_income > 0 else None
         return {
             "revenue": revenue,
@@ -241,7 +272,7 @@ class FMPProvider(DataProvider):
             "market_cap": mkt_cap,
             "shares_outstanding": shares,
             "pe_ratio": pe_ratio,
-            "beta": prof.get("beta"),
+            "beta": beta,
             "current_price": price,
             "company_name": prof.get("companyName"),
             "industry": prof.get("industry"),

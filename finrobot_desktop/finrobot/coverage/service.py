@@ -32,6 +32,7 @@ from finrobot.coverage.models import (
     CoverageOverview,
     CoverageRow,
     NeedsRefreshReason,
+    NumberSource,
 )
 from finrobot.coverage.sqlite_store import CoverageStore
 from finrobot.engine.compute.compare import (
@@ -41,6 +42,11 @@ from finrobot.engine.compute.compare import (
 )
 from finrobot.engine.compute.extractor import extract_financial_data
 from finrobot.engine.compute.signal import Signal, compute_signal
+from finrobot.engine.data.normalize.contracts import (
+    DEGRADED_CLOSE_ONLY,
+    DEGRADED_TTM_LAG,
+    Provenance,
+)
 from finrobot.engine.models.financial import DCFResult
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
@@ -171,6 +177,14 @@ async def _assemble_row(
     # 4. Derived — signal + live upside + refresh reasons.
     row.signal = _safe_signal(row, now)
     row.upside_to_target_live = _upside(row.target_price, row.price)
+    if row.upside_to_target_live is not None:
+        # Derived from the artifact's target vs the live price — traces back to
+        # the report (as_of = its created_at), not to a data provider.
+        row.sources.upside_to_target_live = NumberSource(
+            formula_id="upside_to_target_live",
+            as_of=row.latest_at,
+            artifact_id=row.latest_artifact_id,
+        )
     row.needs_refresh = _needs_refresh(row)
     return row
 
@@ -194,6 +208,37 @@ def _apply_research_fields(row: CoverageRow, summaries: list[ArtifactSummary]) -
     row.latest_at = latest.created_at
 
 
+# A provenance degraded code → the field it most directly caveats, with a
+# concise Chinese note (matching the row-warning style). Only codes with a clear
+# single-field attribution live here; ``ccy_inferred`` stays on the currency
+# column rather than being smeared across every价-denominated cell.
+_DEGRADED_CAVEAT = {
+    DEGRADED_CLOSE_ONLY: "实时价缺失，用最近收盘价",
+    DEGRADED_TTM_LAG: "TTM 口径滞后(P/E 分母)",
+}
+
+
+def _caveat(degraded: list[str], code: str) -> str | None:
+    """The caveat note for ``code`` iff this snapshot is degraded by it."""
+    return _DEGRADED_CAVEAT[code] if code in degraded else None
+
+
+def _source(
+    prov: Provenance,
+    *,
+    formula_id: str | None = None,
+    formula_warning: str | None = None,
+) -> NumberSource:
+    """Project a snapshot's :class:`Provenance` into a cell ``NumberSource``."""
+    return NumberSource(
+        provider=prov.provider,
+        as_of=prov.as_of,
+        fetched_at=prov.fetched_at,
+        formula_id=formula_id,
+        formula_warning=formula_warning,
+    )
+
+
 async def _apply_market_fields(row: CoverageRow, ticker: str, data_layer: DataLayer) -> None:
     """Price / 1D / market cap / TTM revenue / EV-EBITDA / P/E.
 
@@ -214,11 +259,18 @@ async def _apply_market_fields(row: CoverageRow, ticker: str, data_layer: DataLa
         row.warnings.append(f"{ticker} 财务获取失败：{exc}")
 
     if price_norm is not None:
+        prov = price_norm.provenance
         row.price = price_norm.current_price
         _, row.change_pct_1d = price_norm.latest_session_change()
-        row.price_as_of = price_norm.provenance.as_of
+        row.price_as_of = prov.as_of
         row.currency = price_norm.quote_currency
         _extend_unique(row.warnings, price_norm.warnings)
+        # close_only caveats the price itself (we're showing last close, not a
+        # live quote); the 1D change carries its own derivation formula.
+        row.sources.price = _source(
+            prov, formula_warning=_caveat(prov.degraded, DEGRADED_CLOSE_ONLY)
+        )
+        row.sources.change_pct_1d = _source(prov, formula_id="latest_session_change")
 
     if price_norm is not None and fin_norm is not None:
         try:
@@ -226,12 +278,22 @@ async def _apply_market_fields(row: CoverageRow, ticker: str, data_layer: DataLa
         except _MARKET_DEGRADABLE as exc:
             row.warnings.append(f"{ticker} 财务字段提取失败：{exc}")
         else:
+            fprov = fin_norm.provenance
             row.market_cap = fd.market.market_cap
             row.revenue_ttm = fd.income.revenue
             row.ev_ebitda = fd.valuation.ev_ebitda
             row.pe = fd.market.pe_ratio
             row.currency = fd.quote_currency or row.currency
             _extend_unique(row.warnings, fd.warnings)
+            row.sources.market_cap = _source(fprov, formula_id="market_cap")
+            row.sources.revenue_ttm = _source(fprov)
+            row.sources.ev_ebitda = _source(fprov, formula_id="ev_ebitda")
+            # ttm_lag bites the P/E denominator specifically — mark it there.
+            row.sources.pe = _source(
+                fprov,
+                formula_id="pe_ttm",
+                formula_warning=_caveat(fprov.degraded, DEGRADED_TTM_LAG),
+            )
 
 
 def _safe_signal(row: CoverageRow, now: datetime) -> str | None:

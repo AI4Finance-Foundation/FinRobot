@@ -84,6 +84,47 @@ class NeedsRefreshReason(BaseModel):
     artifact_id: str | None = None
 
 
+class NumberSource(BaseModel):
+    """Provenance for one numeric cell — mirrors the UI's ``NumberSource``.
+
+    Lets the Coverage Table render every amount/multiple/percent through
+    ``SourcedNumber``: who served it (:attr:`provider`), as of which reporting
+    period/bar (:attr:`as_of`), when we pulled it (:attr:`fetched_at`), by what
+    formula (:attr:`formula_id`), with what口径 caveat (:attr:`formula_warning`),
+    and which report it traces to (:attr:`artifact_id`). All optional — an
+    absent field simply doesn't render in the popover.
+
+    ``as_of`` ≠ ``fetched_at`` on purpose: ``as_of`` is the data's semantic time
+    (fiscal period end / latest bar date), ``fetched_at`` is wall-clock fetch.
+    Conflating them is exactly the kind of口径 error that looks right and isn't.
+    """
+
+    provider: str | None = None
+    as_of: datetime | None = None
+    fetched_at: datetime | None = None
+    formula_id: str | None = None
+    formula_warning: str | None = None
+    artifact_id: str | None = None
+
+
+class CoverageRowSources(BaseModel):
+    """Per-cell provenance for a :class:`CoverageRow`'s numeric columns.
+
+    Parallel to the flat numeric fields (kept typed rather than a
+    ``dict[str, NumberSource]`` so a column and its source can't drift apart).
+    A cell with no provenance (e.g. degraded fetch) just leaves its slot
+    ``None`` and ``SourcedNumber`` renders the bare value.
+    """
+
+    price: NumberSource | None = None
+    change_pct_1d: NumberSource | None = None
+    market_cap: NumberSource | None = None
+    revenue_ttm: NumberSource | None = None
+    ev_ebitda: NumberSource | None = None
+    pe: NumberSource | None = None
+    upside_to_target_live: NumberSource | None = None
+
+
 class CoverageRow(BaseModel):
     """One ticker row in the Coverage Table.
 
@@ -131,6 +172,12 @@ class CoverageRow(BaseModel):
 
     needs_refresh: list[NeedsRefreshReason] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+
+    # Per-cell provenance for the numeric columns above (price/mcap/EV-EBITDA/…).
+    # Additive: the flat numbers stay the source of truth for sorting/signal/
+    # compare; this rides alongside so the table can render each through
+    # SourcedNumber without changing any existing consumer's contract.
+    sources: CoverageRowSources = Field(default_factory=CoverageRowSources)
 
 
 class CoverageOverview(BaseModel):

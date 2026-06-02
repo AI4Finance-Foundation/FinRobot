@@ -15,12 +15,14 @@ import pytest
 from finrobot.artifact.models import ArtifactSummary
 from finrobot.coverage.models import CoverageGroupDetail, CoverageMember, CoverageRow
 from finrobot.coverage.service import (
+    _caveat,
     _needs_refresh,
     _safe_signal,
     _upside,
     build_overview,
     ensure_system_group,
 )
+from finrobot.engine.data.normalize.contracts import DEGRADED_CLOSE_ONLY, DEGRADED_TTM_LAG
 from finrobot.coverage.sqlite_store import CoverageStore
 from finrobot.engine.data.interface import DataResult, ProviderError
 from finrobot.engine.data.normalize.financials import normalize_financials
@@ -222,6 +224,63 @@ async def test_overview_happy_path_fields() -> None:
     assert row.upside_to_target_live == pytest.approx((240 - 200) / 200)
     assert row.signal in {"hit", "watching", "failed"}
     assert ov.partial is False
+
+
+def test_caveat_maps_only_attributable_degraded_codes() -> None:
+    assert _caveat([DEGRADED_CLOSE_ONLY], DEGRADED_CLOSE_ONLY) is not None
+    assert _caveat([DEGRADED_TTM_LAG], DEGRADED_TTM_LAG) is not None
+    # Not degraded by the queried code → no caveat (never a fabricated warning).
+    assert _caveat([], DEGRADED_CLOSE_ONLY) is None
+    assert _caveat([DEGRADED_CLOSE_ONLY], DEGRADED_TTM_LAG) is None
+
+
+async def test_overview_populates_per_field_sources() -> None:
+    store = _StubArtifactStore({"AAPL": [_summary()]})
+    ov = await build_overview(
+        _group("AAPL"),
+        artifact_store=store,  # type: ignore[arg-type]
+        data_layer=_StubDataLayer(current=200.0),  # type: ignore[arg-type]
+        now=NOW,
+    )
+    (row,) = ov.rows
+    src = row.sources
+
+    # Price/1D trace to the price provider, stamped with both timestamps; the
+    # close-only fixture (bars carry only `close`) caveats the price cell.
+    assert src.price is not None
+    assert src.price.provider == "yfinance"
+    assert src.price.as_of is not None
+    assert src.price.fetched_at is not None
+    assert src.price.formula_warning is not None  # close_only
+    assert src.change_pct_1d is not None
+    assert src.change_pct_1d.formula_id == "latest_session_change"
+
+    # Fundamentals trace to the financials provider with their derivation id.
+    assert src.market_cap is not None and src.market_cap.formula_id == "market_cap"
+    assert src.ev_ebitda is not None and src.ev_ebitda.formula_id == "ev_ebitda"
+    assert src.pe is not None and src.pe.formula_id == "pe_ttm"
+    assert src.revenue_ttm is not None and src.revenue_ttm.provider == "yfinance"
+
+    # Upside is derived from the artifact's target — it deep-links to the report.
+    assert src.upside_to_target_live is not None
+    assert src.upside_to_target_live.formula_id == "upside_to_target_live"
+    assert src.upside_to_target_live.artifact_id == "art_1"
+    assert src.upside_to_target_live.provider is None  # not a provider number
+
+
+async def test_overview_degraded_market_leaves_sources_empty() -> None:
+    # A market outage must not fabricate provenance for numbers we don't have.
+    store = _StubArtifactStore({"NVDA": [_summary(ticker="NVDA")]})
+    ov = await build_overview(
+        _group("NVDA"),
+        artifact_store=store,  # type: ignore[arg-type]
+        data_layer=_StubDataLayer(raise_for={"NVDA"}),  # type: ignore[arg-type]
+        now=NOW,
+    )
+    (row,) = ov.rows
+    assert row.sources.price is None
+    assert row.sources.market_cap is None
+    assert row.sources.upside_to_target_live is None  # no live price → no upside
 
 
 async def test_overview_degraded_market_keeps_research_and_flags_partial() -> None:

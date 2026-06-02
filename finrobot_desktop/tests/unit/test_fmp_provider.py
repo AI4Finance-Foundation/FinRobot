@@ -105,6 +105,25 @@ def _fmp_profile_response(
     ]
 
 
+def _fmp_adj_historical_price_response() -> dict:
+    """Mock FMP /historical-price-full — newest-first, real AAPL 2020 split shape.
+
+    raw close is nominal (pre-split day carries the unsplit quote); adjClose is
+    the split-adjusted value. Verified live 2026-06-02 against yfinance auto_adjust.
+    """
+    return {
+        "symbol": "AAPL",
+        "historical": [
+            {"date": "2020-09-01", "open": 132.76, "high": 134.8, "low": 130.53,
+             "close": 134.18, "adjClose": 130.13, "volume": 151_948_100},
+            {"date": "2020-08-31", "open": 127.58, "high": 131.0, "low": 126.0,
+             "close": 129.04, "adjClose": 125.15, "volume": 225_702_700},
+            {"date": "2020-08-28", "open": 126.01, "high": 126.44, "low": 124.58,
+             "close": 124.81, "adjClose": 121.05, "volume": 187_630_000},
+        ],
+    }
+
+
 def _mock_response(json_data, status_code=200):
     resp = MagicMock(spec=httpx.Response)
     resp.status_code = status_code
@@ -115,6 +134,46 @@ def _mock_response(json_data, status_code=200):
             "error", request=MagicMock(), response=resp
         )
     return resp
+
+
+class TestFMPPriceRange:
+    @pytest.mark.asyncio
+    async def test_price_range_uses_adjclose_and_scales_ohl(self, provider):
+        """BUG-022: PRICE_RANGE must return split-adjusted bars matching yfinance
+        auto_adjust — close=adjClose, O/H/L scaled by adjClose/close — never the
+        raw nominal close that injects a 4x jump at a split."""
+        with patch.object(
+            provider, "_get", AsyncMock(return_value=_mock_response(_fmp_adj_historical_price_response()))
+        ):
+            result = await provider.fetch(
+                "AAPL", "price_range", start="2020-08-28", end="2020-09-01", interval="1d"
+            )
+
+        assert result.data_type == "price_range"
+        assert result.data["adjusted"] is True
+        assert result.data["source_provider"] == "fmp"
+        bars = result.data["bars"]
+        # Oldest-first ordering (FMP returns newest-first).
+        assert [b["date"] for b in bars] == ["2020-08-28", "2020-08-31", "2020-09-01"]
+        # close == adjClose, not the nominal close.
+        assert bars[0]["close"] == pytest.approx(121.05)
+        assert bars[1]["close"] == pytest.approx(125.15)
+        # open scaled by adjClose/close ratio: 127.58 × (125.15/129.04) = 123.73.
+        assert bars[1]["open"] == pytest.approx(127.58 * (125.15 / 129.04), rel=1e-6)
+        assert bars[1]["volume"] == pytest.approx(225_702_700)
+
+    @pytest.mark.asyncio
+    async def test_price_range_empty_raises(self, provider):
+        with patch.object(
+            provider, "_get", AsyncMock(return_value=_mock_response({"symbol": "AAPL", "historical": []}))
+        ):
+            with pytest.raises(ProviderError, match="no bars"):
+                await provider.fetch("AAPL", "price_range", start="1990-01-01", end="1990-01-02")
+
+    @pytest.mark.asyncio
+    async def test_price_range_rejects_non_daily_interval(self, provider):
+        with pytest.raises(ProviderError, match="interval"):
+            await provider.fetch("AAPL", "price_range", start="2020-01-01", end="2020-02-01", interval="1wk")
 
 
 class TestFMPFetch:

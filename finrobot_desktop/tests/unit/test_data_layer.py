@@ -152,6 +152,62 @@ class TestProviderFailure:
         assert any("不可用" in w or "失败" in w for w in result.warnings)
 
 
+def _range_result(provider: str, ticker: str = "AAPL") -> DataResult:
+    return DataResult(
+        data={
+            "ticker": ticker,
+            "interval": "1d",
+            "bars": [
+                {"date": "2020-01-02", "open": 100.0, "high": 101.0, "low": 99.0,
+                 "close": 100.5, "volume": 1_000_000.0},
+                {"date": "2020-01-03", "open": 102.0, "high": 103.0, "low": 101.0,
+                 "close": 102.5, "volume": 1_100_000.0},
+            ],
+            "adjusted": True,
+            "source_provider": provider,
+        },
+        provider=provider,
+        ticker=ticker,
+        data_type="price_range",
+        timestamp=datetime.now(tz=timezone.utc),
+    )
+
+
+class TestFetchPriceRange:
+    async def test_returns_typed_bars(self, cache):
+        provider = MockProvider("fmp", ["price_range"], result=_range_result("fmp"))
+        layer = DataLayer([provider], cache)
+        bars = await layer.fetch_price_range("AAPL", "2020-01-01", "2020-01-04")
+        assert provider.fetch_called == 1
+        assert [str(b.date) for b in bars] == ["2020-01-02", "2020-01-03"]
+        assert bars[1].close == 102.5
+
+    async def test_distinct_ranges_do_not_collide(self, cache):
+        provider = MockProvider("fmp", ["price_range"], result=_range_result("fmp"))
+        layer = DataLayer([provider], cache)
+        await layer.fetch_price_range("AAPL", "2020-01-01", "2020-01-04")
+        # A different window must NOT hit the first window's cache slot.
+        await layer.fetch_price_range("AAPL", "2021-01-01", "2021-06-01")
+        assert provider.fetch_called == 2
+        # Re-requesting the first window hits cache (no new provider call).
+        await layer.fetch_price_range("AAPL", "2020-01-01", "2020-01-04")
+        assert provider.fetch_called == 2
+
+    async def test_falls_back_to_second_provider(self, cache):
+        p1 = MockProvider("fmp", ["price_range"], raises=ProviderError("fmp down"))
+        p2 = MockProvider("yfinance", ["price_range"], result=_range_result("yfinance"))
+        layer = DataLayer([p1, p2], cache)
+        bars = await layer.fetch_price_range("AAPL", "2020-01-01", "2020-01-04")
+        assert p1.fetch_called == 1 and p2.fetch_called == 1
+        assert len(bars) == 2
+
+    async def test_raises_when_all_providers_fail(self, cache):
+        p1 = MockProvider("fmp", ["price_range"], raises=ProviderError("fmp down"))
+        layer = DataLayer([p1], cache)
+        with pytest.raises(ProviderError, match="fmp down"):
+            await layer.fetch_price_range("AAPL", "2020-01-01", "2020-01-04")
+
+
 class TestMultipleProviders:
     async def test_selects_correct_provider_for_data_type(self, cache):
         p_financials = MockProvider("fin_provider", ["financials"])

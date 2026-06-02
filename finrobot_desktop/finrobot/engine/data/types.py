@@ -32,6 +32,11 @@ class DataType(StrEnum):
     # (yfinance-only deep financial data — historical multi-year + quarterly).
     HISTORICAL = "historical"
     QUARTERLY = "quarterly"
+    # Arbitrary-date-range daily OHLCV (split/dividend-adjusted), distinct from
+    # PRICE (trailing ~1y, the 52w-high/low feed). Drives the backtest engine and
+    # any chart needing a caller-chosen window. Cache slot is keyed by
+    # (ticker, start, end, interval) so different ranges don't overwrite.
+    PRICE_RANGE = "price_range"
     # Historical valuation bands (v5 §6.6): EV/EBITDA + P/FCF time series with
     # P25/P75/P90 quantiles. Derived deterministically from price history +
     # quarterly financials; cached separately so the band endpoint can have

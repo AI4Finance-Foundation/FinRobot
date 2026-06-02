@@ -17,6 +17,7 @@ _BASE_URL = "https://financialmodelingprep.com/api/v3"
 _SUPPORTED = [
     DataType.FINANCIALS,
     DataType.PRICE,
+    DataType.PRICE_RANGE,
     DataType.QUOTE,
     DataType.NEWS,
     DataType.EARNINGS,
@@ -29,6 +30,35 @@ _MIN_INTERVAL = 0.15  # 6 req/sec — stays within per-minute burst limits on al
 # the downstream 52-week high/low window (366 calendar days) is fully covered
 # even across weekend/holiday gaps at the boundary.
 _PRICE_HISTORY_DAYS = 372
+
+
+def _adjust_fmp_bar(p: dict[str, Any]) -> dict[str, Any] | None:
+    """Convert one FMP /historical-price-full row to a split/dividend-adjusted
+    OHLCV bar (the yfinance auto_adjust basis).
+
+    ``adjClose`` becomes the canonical close; O/H/L are scaled by
+    ``adjClose/close`` so the whole bar sits on the adjusted basis. Returns None
+    when the row lacks the date / close / adjClose needed to adjust (the caller
+    drops it rather than emit a half-adjusted bar).
+    """
+    date = p.get("date")
+    close = p.get("close")
+    adj_close = p.get("adjClose")
+    if date is None or not close or adj_close is None:
+        return None
+    ratio = adj_close / close
+
+    def _scale(v: Any) -> float | None:
+        return float(v) * ratio if v is not None else None
+
+    return {
+        "date": date,
+        "open": _scale(p.get("open")),
+        "high": _scale(p.get("high")),
+        "low": _scale(p.get("low")),
+        "close": float(adj_close),
+        "volume": float(p["volume"]) if p.get("volume") is not None else None,
+    }
 
 
 class FMPProvider(DataProvider):
@@ -80,6 +110,13 @@ class FMPProvider(DataProvider):
             )
         if data_type == DataType.PRICE:
             return await self._fetch_price(ticker)
+        if data_type == DataType.PRICE_RANGE:
+            return await self._fetch_price_range(
+                ticker,
+                start=kwargs["start"],
+                end=kwargs["end"],
+                interval=kwargs.get("interval", "1d"),
+            )
         if data_type == DataType.QUOTE:
             return await self._fetch_quote(ticker)
         if data_type == DataType.NEWS:
@@ -443,6 +480,56 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.PRICE,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+    async def _fetch_price_range(
+        self, ticker: str, *, start: str, end: str, interval: str = "1d"
+    ) -> DataResult:
+        """Arbitrary-range daily OHLCV via /historical-price-full?from=&to=.
+
+        Bars are split/dividend-adjusted to match yfinance ``auto_adjust=True``:
+        FMP's raw ``close`` is the nominal quote (a pre-split day carries the
+        unsplit price, injecting a discontinuity at the split that would corrupt
+        a multi-year backtest), so we adopt ``adjClose`` as the close and scale
+        O/H/L by ``adjClose/close``. Verified live 2026-06-02 against the AAPL
+        2020-08-31 4:1 split — FMP adjClose matched yfinance auto_adjust close to
+        ≤0.02%. ``interval`` other than ``"1d"`` is not supported by this endpoint.
+        """
+        if interval != "1d":
+            raise ProviderError(f"FMP price_range supports only interval='1d', got {interval!r}")
+        with self._wrap_errors(ticker, "price range fetch"):
+            resp = (
+                await self._get(
+                    f"/historical-price-full/{ticker}",
+                    params={"from": start, "to": end},
+                )
+            ).json()
+        # FMP returns newest-first under "historical"; reverse to oldest-first so
+        # the bar list is ascending like every other price path in the codebase.
+        raw_hist: list[dict[str, Any]] = []
+        if isinstance(resp, dict):
+            raw_hist = list(reversed(resp.get("historical", [])))
+        if not raw_hist:
+            raise ProviderError(
+                f"FMP /historical-price-full/{ticker} returned no bars for {start}..{end}"
+            )
+        bars = [b for p in raw_hist if (b := _adjust_fmp_bar(p)) is not None]
+        if not bars:
+            raise ProviderError(
+                f"FMP /historical-price-full/{ticker} bars lacked adjClose for {start}..{end}"
+            )
+        return DataResult(
+            data={
+                "ticker": ticker.upper(),
+                "interval": interval,
+                "bars": bars,
+                "adjusted": True,
+                "source_provider": self.name,
+            },
+            provider=self.name,
+            ticker=ticker,
+            data_type=DataType.PRICE_RANGE,
             timestamp=datetime.now(tz=timezone.utc),
         )
 

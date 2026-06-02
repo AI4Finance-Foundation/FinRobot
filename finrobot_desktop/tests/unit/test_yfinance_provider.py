@@ -74,7 +74,7 @@ class TestYFinanceProviderMeta:
 
     def test_capabilities(self):
         caps = YFinanceProvider().capabilities()
-        assert set(caps) == {"financials", "price", "quote", "news"}
+        assert set(caps) == {"financials", "price", "price_range", "quote", "news"}
 
 
 class TestFetchFinancials:
@@ -154,6 +154,51 @@ class TestFetchPrice:
         assert "price_history" in result.data
         assert len(result.data["price_history"]) == 1
         assert result.data["price_history"][0]["close"] == 152.0
+
+
+class TestFetchPriceRange:
+    @pytest.mark.asyncio
+    async def test_returns_adjusted_bars(self):
+        provider = YFinanceProvider()
+        hist = pd.DataFrame(
+            {
+                "Open": [100.0, 102.0],
+                "High": [101.0, 103.0],
+                "Low": [99.0, 101.0],
+                "Close": [100.5, 102.5],
+                "Volume": [1_000_000, 1_100_000],
+            },
+            index=pd.to_datetime(["2020-01-02", "2020-01-03"]),
+        )
+        mock_ticker = _make_mock_ticker(VALID_INFO, history=hist)
+        with patch(
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
+            result = await provider.fetch(
+                "AAPL", "price_range", start="2020-01-01", end="2020-01-04", interval="1d"
+            )
+        assert result.data_type == "price_range"
+        assert result.data["adjusted"] is True
+        assert result.data["source_provider"] == "yfinance"
+        bars = result.data["bars"]
+        assert [b["date"] for b in bars] == ["2020-01-02", "2020-01-03"]
+        assert bars[1]["close"] == 102.5
+        # history called with auto_adjust=True (the adjusted basis).
+        _, kwargs = mock_ticker.history.call_args
+        assert kwargs["auto_adjust"] is True
+        assert kwargs["start"] == "2020-01-01"
+
+    @pytest.mark.asyncio
+    async def test_empty_range_raises(self):
+        provider = YFinanceProvider()
+        mock_ticker = _make_mock_ticker(VALID_INFO, history=pd.DataFrame())
+        with patch(
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
+            with pytest.raises(ProviderError, match="no bars"):
+                await provider.fetch(
+                    "AAPL", "price_range", start="1990-01-01", end="1990-01-02"
+                )
 
 
 class TestFetchNews:

@@ -20,7 +20,13 @@ try:
 except (AttributeError, OSError, TypeError):
     pass  # non-critical, ignore if not supported by this yfinance version
 
-_SUPPORTED = [DataType.FINANCIALS, DataType.PRICE, DataType.QUOTE, DataType.NEWS]
+_SUPPORTED = [
+    DataType.FINANCIALS,
+    DataType.PRICE,
+    DataType.PRICE_RANGE,
+    DataType.QUOTE,
+    DataType.NEWS,
+]
 _CALL_DELAY = 1.0  # seconds between the info fetch and subsequent calls
 
 # ---------------------------------------------------------------------------
@@ -223,6 +229,16 @@ class YFinanceProvider(DataProvider):
         # high-fan-out dashboard quotes stay cheap (the whole point of QUOTE vs PRICE).
         if data_type == DataType.QUOTE:
             return await self._fetch_quote(ticker)
+
+        # PRICE_RANGE is OHLCV-only — no current-price/marketCap needed, so skip
+        # the heavy .info round-trip like QUOTE does.
+        if data_type == DataType.PRICE_RANGE:
+            return await self._fetch_price_range(
+                ticker,
+                start=kwargs["start"],
+                end=kwargs["end"],
+                interval=kwargs.get("interval", "1d"),
+            )
 
         # Fetch and validate ticker info. info is passed to sub-methods
         # to avoid a redundant second HTTP call. We use explicit
@@ -476,6 +492,73 @@ class YFinanceProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.PRICE,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+    async def _fetch_price_range(
+        self, ticker: str, *, start: str, end: str, interval: str = "1d"
+    ) -> DataResult:
+        """Arbitrary-range split/dividend-adjusted daily OHLCV.
+
+        Uses ``Ticker.history(start, end, auto_adjust=True)`` — the adjusted
+        basis that lines up with FMP's ``adjClose`` (verified live 2026-06-02),
+        so a multi-year backtest doesn't break across a split. Throttled by
+        ``_CALL_DELAY`` like every other yfinance call; no in-provider retry
+        (DataLayer owns fallback). ``interval`` passes through to yfinance.
+        """
+        await asyncio.sleep(_CALL_DELAY)
+        bars: list[dict[str, Any]] = []
+        try:
+            t = await asyncio.to_thread(_make_ticker, ticker)
+            if t is None:
+                raise ProviderError(f"yfinance returned no Ticker object for '{ticker}'")
+            _t: yf.Ticker = t  # capture for the closure — avoids mypy union-attr
+            hist = await asyncio.to_thread(
+                lambda: _t.history(start=start, end=end, interval=interval, auto_adjust=True)
+            )
+            # Some yfinance versions return MultiIndex columns even for a single
+            # ticker; flatten to the level-0 OHLCV names.
+            if hasattr(hist.columns, "levels") and len(hist.columns.levels) > 1:
+                hist.columns = hist.columns.droplevel(1)
+            for dt, row in hist.iterrows():
+                bars.append(
+                    {
+                        "date": str(dt.date()),
+                        "open": float(row["Open"]),
+                        "high": float(row["High"]),
+                        "low": float(row["Low"]),
+                        "close": float(row["Close"]),
+                        "volume": float(row["Volume"]),
+                    }
+                )
+        except ProviderError:
+            raise
+        except (
+            ValueError,
+            KeyError,
+            TypeError,
+            AttributeError,
+            RuntimeError,
+            OSError,
+            YFException,
+        ) as e:
+            raise ProviderError(f"Failed to fetch price range for '{ticker}': {e}") from e
+
+        if not bars:
+            raise ProviderError(
+                f"yfinance returned no bars for '{ticker}' between {start} and {end}"
+            )
+        return DataResult(
+            data={
+                "ticker": ticker.upper(),
+                "interval": interval,
+                "bars": bars,
+                "adjusted": True,
+                "source_provider": self.name,
+            },
+            provider=self.name,
+            ticker=ticker,
+            data_type=DataType.PRICE_RANGE,
             timestamp=datetime.now(tz=timezone.utc),
         )
 

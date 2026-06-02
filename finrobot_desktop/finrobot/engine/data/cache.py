@@ -81,6 +81,10 @@ _TTL_SECONDS: dict[str, int] = {
     # is quarterly so a 24h freshness window is ample.
     DataType.HISTORICAL: 86400,
     DataType.QUARTERLY: 86400,
+    # Arbitrary-range daily OHLCV: a historical window's bars are effectively
+    # immutable (only a future split re-adjusts them, rare), so a 24h TTL is
+    # generous — the (ticker,start,end,interval) cache key already isolates ranges.
+    DataType.PRICE_RANGE: 86400,
     # v5 §6.6 historical valuation bands — recomputing them is expensive
     # (price + financial fan-out) but underlying numbers move ≤ daily, so a
     # 12h TTL hits the sweet spot between freshness and load.

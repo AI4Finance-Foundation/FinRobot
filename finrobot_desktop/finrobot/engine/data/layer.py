@@ -2,11 +2,12 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from finrobot.engine.data.cache import DataCache
+from finrobot.engine.data.cache import DataCache, cached_fetch
 from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
 from finrobot.engine.data.normalize import (
     NormalizedFinancials,
     NormalizedPrice,
+    PriceBar,
     normalize_financials,
     normalize_price,
 )
@@ -273,6 +274,54 @@ class DataLayer:
         if last_error is not None:
             raise last_error
         raise ProviderError(f"No QUOTE-capable provider available for {ticker}")
+
+    async def fetch_price_range(
+        self, ticker: str, start: str, end: str, interval: str = "1d"
+    ) -> list[PriceBar]:
+        """Fetch arbitrary-range split/dividend-adjusted daily OHLCV as typed bars.
+
+        The one door for caller-chosen price windows (BUG-022): walks the provider
+        chain (FMP → yfinance) like :meth:`fetch`, but the cache slot is keyed by
+        ``(ticker, start, end, interval)`` so distinct windows never overwrite each
+        other. Bars are ascending and on a single adjusted basis (FMP adjClose /
+        yfinance ``auto_adjust``), so a multi-year backtest reads one consistent
+        price series instead of a split-broken one. Raises ``ProviderError`` when
+        every capable provider fails (no silent empty series).
+
+        ``start``/``end`` are ISO dates (``YYYY-MM-DD``); ``end`` is exclusive per
+        the underlying providers' conventions.
+        """
+
+        async def _fetch() -> dict[str, Any]:
+            last_error: ProviderError | None = None
+            for provider in self._providers:
+                if DataType.PRICE_RANGE not in provider.capabilities():
+                    continue
+                try:
+                    result = await provider.fetch(
+                        ticker, DataType.PRICE_RANGE, start=start, end=end, interval=interval
+                    )
+                    return result.data
+                except ProviderError as e:
+                    logger.warning(
+                        f"Provider '{provider.name}' PRICE_RANGE failed for "
+                        f"{ticker} {start}..{end}: {e}"
+                    )
+                    last_error = e
+                    continue
+            if last_error is not None:
+                raise last_error
+            raise ProviderError(f"No PRICE_RANGE-capable provider available for {ticker}")
+
+        data = await cached_fetch(
+            self._cache,
+            DataType.PRICE_RANGE,
+            ticker.upper(),
+            _fetch,
+            cache_key_suffix=f":{start}:{end}:{interval}",
+        )
+        raw_bars = data.get("bars", []) if isinstance(data, dict) else []
+        return [PriceBar.model_validate(b) for b in raw_bars]
 
     async def fetch_price(self, ticker: str) -> DataResult:
         """Fetch PRICE (current price + ~1y OHLC), caching success and RAISING

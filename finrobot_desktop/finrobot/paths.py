@@ -54,6 +54,11 @@ ARTIFACTS_DB: Path = FINROBOT_HOME / "artifacts.db"
 QUOTES_DB: Path = FINROBOT_HOME / "quotes.db"
 DATA_CACHE_DB: Path = FINROBOT_HOME / "data_cache.db"
 RUNS_DB: Path = FINROBOT_HOME / "runs.db"
+# Coverage Desk: the user's research coverage universe (groups + members).
+# Own db slot per the per-module convention (artifacts.db / runs.db / …) so a
+# user's curated coverage is a first-class, backup-able research asset rather
+# than localStorage that evaporates (see CoverageDesk plan M5 / ADR-0012).
+COVERAGE_DB: Path = FINROBOT_HOME / "coverage.db"
 JOURNAL_DB: Path = FINROBOT_HOME / "journal.db"
 SESSIONS_DIR: Path = FINROBOT_HOME / "sessions"
 SETTINGS_JSON: Path = FINROBOT_HOME / "settings.json"

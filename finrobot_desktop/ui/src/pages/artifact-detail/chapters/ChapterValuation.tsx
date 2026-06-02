@@ -71,6 +71,10 @@ export function ChapterValuation({
     low: m.low,
     mid: m.mid,
     high: m.high,
+    // Caliber/source string from valuation_aggregator (e.g. "peer_median_core_pe
+    // × core_eps（NOPAT 核心盈利口径…）"). FootballField uses it to label the comps
+    // row by its actual caliber so the target reconciles with the comps table.
+    source: m.source,
   }))
 
   // DCF bridge: PV(FCF) + PV(terminal) → enterprise value → −net debt → equity.

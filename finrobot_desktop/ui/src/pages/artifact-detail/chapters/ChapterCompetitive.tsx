@@ -19,6 +19,25 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
   const peerList = peers?.peers ?? []
   const all = target ? [target, ...peerList] : peerList
 
+  // No fitting i18n key for the NOPAT-core caliber — inline literal per the
+  // VersionDiffBanner precedent (do not touch .po in this task). The comps
+  // price target (football-field "Comps (core P/E)") is computed on this core
+  // median, so surfacing it here lets an analyst reconcile target ↔ table.
+  const coreLabel =
+    locale === 'zh'
+      ? {
+          header: '核心 P/E',
+          tooltip:
+            'NOPAT 核心盈利口径 P/E（市值 / NOPAT），剔除非经营性损益。Comps 估值目标用同业核心 P/E 中位数计算，与此列对齐。',
+          medianPrefix: '核心 P/E',
+        }
+      : {
+          header: 'Core P/E',
+          tooltip:
+            'NOPAT core-earnings P/E (market cap / NOPAT), stripping non-operating items. The Comps price target uses the peer core-P/E median, so it reconciles with this column.',
+          medianPrefix: 'Core P/E',
+        }
+
   const compsForCharts: CompsResult | null =
     target && peerList.length > 0
       ? ({
@@ -53,6 +72,12 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
                 {t('chapter.competitive.col.revenue')}
               </th>
               <th style={{ ...thStyle, textAlign: 'right' }}>P/E</th>
+              <th
+                style={{ ...thStyle, textAlign: 'right', cursor: 'help' }}
+                title={coreLabel.tooltip}
+              >
+                {coreLabel.header}
+              </th>
               <th style={{ ...thStyle, textAlign: 'right' }}>EV/EBITDA</th>
               <th style={{ ...thStyle, textAlign: 'right' }}>
                 {t('chapter.competitive.col.grossMargin')}
@@ -103,6 +128,17 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
                     {c.pe_ratio !== null && c.pe_ratio !== undefined ? c.pe_ratio.toFixed(1) : '—'}
                   </td>
+                  <td
+                    style={{
+                      ...tdStyle,
+                      textAlign: 'right',
+                      color: 'var(--accent-cyan)',
+                    }}
+                  >
+                    {c.core_pe_ratio !== null && c.core_pe_ratio !== undefined
+                      ? c.core_pe_ratio.toFixed(1)
+                      : '—'}
+                  </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
                     {c.ev_ebitda !== null && c.ev_ebitda !== undefined
                       ? c.ev_ebitda.toFixed(1)
@@ -124,6 +160,7 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
       )}
 
       {(peers?.median_pe !== null && peers?.median_pe !== undefined) ||
+      (peers?.median_core_pe !== null && peers?.median_core_pe !== undefined) ||
       (peers?.median_ev_ebitda !== null && peers?.median_ev_ebitda !== undefined) ? (
         <p
           style={{
@@ -137,6 +174,14 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
           {peers.median_pe !== null && peers.median_pe !== undefined && (
             <span style={{ marginLeft: 10, color: 'var(--text-secondary)' }}>
               P/E {peers.median_pe.toFixed(1)}
+            </span>
+          )}
+          {peers.median_core_pe !== null && peers.median_core_pe !== undefined && (
+            <span
+              style={{ marginLeft: 10, color: 'var(--accent-cyan)', cursor: 'help' }}
+              title={coreLabel.tooltip}
+            >
+              {coreLabel.medianPrefix} {peers.median_core_pe.toFixed(1)}
             </span>
           )}
           {peers.median_ev_ebitda !== null && peers.median_ev_ebitda !== undefined && (

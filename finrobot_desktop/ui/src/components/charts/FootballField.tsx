@@ -20,9 +20,36 @@ const METHOD_LABEL: Record<string, string> = {
 interface Row {
   method: string
   label: string
+  sublabel: string | null
   low: number
   mid: number
   high: number
+}
+
+/**
+ * Comps (P/E) is computed on TWO different earnings calibers depending on data
+ * availability (see valuation_aggregator.py): the trailing path multiplies the
+ * NOPAT *core* P/E median by core EPS, while the forward path multiplies the
+ * *as-reported* peer median P/E by forward EPS. The Competitive table shows
+ * both as-reported P/E and core P/E, so a bare "Comps (P/E)" label leaves the
+ * analyst unable to tell which median produced the target. We read the backend
+ * `source` string to label the caliber explicitly.
+ */
+function compsPeLabel(source: string | null | undefined): {
+  label: string
+  sublabel: string | null
+} {
+  const s = (source ?? '').toLowerCase()
+  if (s.includes('core_pe') || s.includes('core_eps') || s.includes('核心')) {
+    return { label: 'Comps (core P/E)', sublabel: 'NOPAT core · peer median' }
+  }
+  if (s.includes('forward')) {
+    return { label: 'Comps (P/E)', sublabel: 'forward EPS · as-reported median' }
+  }
+  if (s.includes('trailing') || s.includes('median_pe')) {
+    return { label: 'Comps (P/E)', sublabel: 'trailing · as-reported median' }
+  }
+  return { label: METHOD_LABEL.comps_pe, sublabel: null }
 }
 
 export default function FootballField({ data, title, currentPrice }: ChartProps) {
@@ -30,13 +57,19 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
   const rows: Row[] = useMemo(
     () =>
       (data ?? [])
-        .map((d) => ({
-          method: String(d.method),
-          label: METHOD_LABEL[String(d.method)] ?? String(d.method).toUpperCase(),
-          low: Number(d.low),
-          mid: Number(d.mid),
-          high: Number(d.high),
-        }))
+        .map((d) => {
+          const method = String(d.method)
+          const source = typeof d.source === 'string' ? d.source : null
+          const comps = method === 'comps_pe' ? compsPeLabel(source) : null
+          return {
+            method,
+            label: comps?.label ?? METHOD_LABEL[method] ?? method.toUpperCase(),
+            sublabel: comps?.sublabel ?? null,
+            low: Number(d.low),
+            mid: Number(d.mid),
+            high: Number(d.high),
+          }
+        })
         .filter((r) => Number.isFinite(r.low) && Number.isFinite(r.mid) && Number.isFinite(r.high)),
     [data],
   )
@@ -150,15 +183,28 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
                 style={{
                   height: 18,
                   display: 'flex',
-                  alignItems: 'center',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
                   fontFamily: 'var(--font-mono)',
                   fontSize: 11.5,
                   color: 'var(--text-primary)',
                   letterSpacing: '0.04em',
-                  textTransform: 'uppercase',
                 }}
               >
-                {r.label}
+                <span style={{ textTransform: 'uppercase' }}>{r.label}</span>
+                {r.sublabel && (
+                  <span
+                    style={{
+                      fontSize: 9,
+                      color: 'var(--text-muted)',
+                      textTransform: 'none',
+                      letterSpacing: '0.02em',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {r.sublabel}
+                  </span>
+                )}
               </div>
             ))}
           </div>

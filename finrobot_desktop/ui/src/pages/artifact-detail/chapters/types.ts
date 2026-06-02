@@ -75,6 +75,12 @@ export interface CompanyFinancialsShape {
   pe_ratio?: number | null
   ev_ebitda?: number | null
   ev_revenue?: number | null
+  // NOPAT core P/E (market_cap / NOPAT). Same caliber the trailing comps_pe
+  // valuation target is computed on (peer_median_core_pe × core_eps), so the
+  // table can reconcile with the football-field "Comps (core P/E)" row. Filled
+  // by calculate_core_pe in the backend; None when operating income / tax was
+  // unavailable.
+  core_pe_ratio?: number | null
 }
 
 export interface PeerCompsShape {
@@ -83,6 +89,9 @@ export interface PeerCompsShape {
   median_ev_ebitda?: number | null
   median_pe?: number | null
   median_ev_revenue?: number | null
+  // Peer median of the NOPAT core P/E — the multiple the trailing comps target
+  // uses. Distinct from median_pe (as-reported, the forward-EPS path multiple).
+  median_core_pe?: number | null
   peer_justification?: string
   positioning_narrative?: string
 }

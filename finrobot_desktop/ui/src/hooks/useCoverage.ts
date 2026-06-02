@@ -27,14 +27,44 @@ export function useCoverageGroups() {
   })
 }
 
-export function useCoverageOverview(groupId: string | null) {
-  return useQuery<CoverageOverview>({
+export interface CoverageOverviewState {
+  data: CoverageOverview | undefined
+  isLoading: boolean
+  isError: boolean
+  /** Showing the fast skeleton while the full (market) fetch is in flight —
+   *  market cells render as loading, not as missing. */
+  marketPending: boolean
+}
+
+/**
+ * Two-phase overview: a fast skeleton (research + run state, local SQLite ~ms)
+ * paints the table instantly, then the full fetch backfills market/valuation.
+ * The fast query nests under the full key so member-mutation invalidations
+ * (prefix-matched on `['coverage','overview',id]`) hit both phases.
+ */
+export function useCoverageOverview(groupId: string | null): CoverageOverviewState {
+  const full = useQuery<CoverageOverview>({
     queryKey: KEYS.overview(groupId ?? ''),
     queryFn: () => coverageApi.overview(groupId as string),
     enabled: !!groupId,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   })
+  const fast = useQuery<CoverageOverview>({
+    queryKey: [...KEYS.overview(groupId ?? ''), 'fast'],
+    queryFn: () => coverageApi.overview(groupId as string, false, true),
+    // Only needed until the full table lands; never refetches once full has data.
+    enabled: !!groupId && !full.data,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  })
+  const data = full.data ?? fast.data
+  return {
+    data,
+    isLoading: !data && full.isLoading,
+    isError: !data && full.isError,
+    marketPending: !full.data && !!fast.data && !full.isError,
+  }
 }
 
 export function useCompare(tickers: string[], enabled: boolean) {

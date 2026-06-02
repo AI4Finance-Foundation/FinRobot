@@ -200,6 +200,7 @@ export function CoveragePage(): React.ReactElement {
             <CoverageTable
               rows={sortedRows}
               selected={selectedTickers}
+              marketPending={overviewQuery.marketPending}
               sort={activeSort}
               onSort={(key) => activeGroupId && setSort(activeGroupId, nextSort(activeSort, key))}
               onToggle={toggleTicker}

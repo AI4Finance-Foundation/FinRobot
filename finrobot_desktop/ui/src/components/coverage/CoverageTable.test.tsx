@@ -64,13 +64,18 @@ function makeRow(over: Partial<CoverageRow> = {}): CoverageRow {
 
 function renderTable(
   rows: CoverageRow[],
-  opts: { sort?: CoverageSort | null; onSort?: (key: CoverageSortKey) => void } = {},
+  opts: {
+    sort?: CoverageSort | null
+    onSort?: (key: CoverageSortKey) => void
+    marketPending?: boolean
+  } = {},
 ): void {
   render(
     <MemoryRouter initialEntries={['/coverage']}>
       <CoverageTable
         rows={rows}
         selected={[]}
+        marketPending={opts.marketPending}
         sort={opts.sort ?? null}
         onSort={opts.onSort ?? (() => {})}
         onToggle={() => {}}
@@ -124,6 +129,23 @@ describe('CoverageTable provenance', () => {
     })
     const link = screen.getByText(/Open full report/) as HTMLAnchorElement
     expect(link.getAttribute('href')).toBe('/stocks/AAPL/runs/art_aapl_eq')
+  })
+})
+
+describe('CoverageTable fast-skeleton (marketPending)', () => {
+  it('renders market cells as loading shimmer, not values, while pending', () => {
+    renderTable([makeRow()], { marketPending: true })
+    // Price value is NOT shown; a loading placeholder is.
+    expect(screen.queryByText('$200.00')).toBeNull()
+    expect(screen.getAllByRole('img', { name: 'loading' }).length).toBeGreaterThan(0)
+    // Research cells stay real — verdict is available in the fast phase.
+    expect(screen.getByText('BUY')).toBeInTheDocument()
+  })
+
+  it('renders real market values once not pending', () => {
+    renderTable([makeRow()], { marketPending: false })
+    expect(screen.getByText('$200.00')).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: 'loading' })).toBeNull()
   })
 })
 

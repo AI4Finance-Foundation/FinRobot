@@ -19,6 +19,9 @@ import type { CoverageSort, CoverageSortKey, SortDir } from './coverageSort'
 interface Props {
   rows: CoverageRow[]
   selected: string[]
+  // Fast-skeleton phase: market/valuation/signal cells render as loading
+  // shimmer (pending), not '—' (missing). Research cells stay real.
+  marketPending?: boolean
   sort: CoverageSort | null
   onSort: (key: CoverageSortKey) => void
   onToggle: (ticker: string) => void
@@ -72,6 +75,7 @@ const VERDICT_COLOR: Record<string, string> = {
 export function CoverageTable({
   rows,
   selected,
+  marketPending = false,
   sort,
   onSort,
   onToggle,
@@ -81,6 +85,10 @@ export function CoverageTable({
 }: Props): React.ReactElement {
   const { t, locale } = useI18n()
   const allSelected = rows.length > 0 && selected.length === rows.length
+
+  // Market cell: a loading shimmer in the fast-skeleton phase, the real value
+  // otherwise — so "pending" never reads as "missing".
+  const mc = (node: React.ReactNode): React.ReactNode => (marketPending ? <CellShimmer /> : node)
 
   // Sortable header — a button so it's keyboard-operable; shows a caret on the
   // active column. Non-sortable columns (verdict/signal/status/action) stay
@@ -190,52 +198,64 @@ export function CoverageTable({
                   </button>
                 </td>
                 <td style={TD}>
-                  <SourcedNumber
-                    value={r.price}
-                    source={r.sources?.price ?? undefined}
-                    ticker={r.ticker}
-                    format={(v) => formatCurrency(v, ccy, locale)}
-                  />
+                  {mc(
+                    <SourcedNumber
+                      value={r.price}
+                      source={r.sources?.price ?? undefined}
+                      ticker={r.ticker}
+                      format={(v) => formatCurrency(v, ccy, locale)}
+                    />,
+                  )}
                 </td>
                 <td style={{ ...TD, color: changeColor(r.change_pct_1d) }}>
-                  <SourcedNumber
-                    value={r.change_pct_1d}
-                    source={r.sources?.change_pct_1d ?? undefined}
-                    ticker={r.ticker}
-                    format={(v) => `${v > 0 ? '+' : ''}${v.toFixed(2)}%`}
-                  />
+                  {mc(
+                    <SourcedNumber
+                      value={r.change_pct_1d}
+                      source={r.sources?.change_pct_1d ?? undefined}
+                      ticker={r.ticker}
+                      format={(v) => `${v > 0 ? '+' : ''}${v.toFixed(2)}%`}
+                    />,
+                  )}
                 </td>
                 <td style={TD}>
-                  <SourcedNumber
-                    value={r.market_cap}
-                    source={r.sources?.market_cap ?? undefined}
-                    ticker={r.ticker}
-                    format={(v) => formatCompactNumber(v, locale)}
-                  />
+                  {mc(
+                    <SourcedNumber
+                      value={r.market_cap}
+                      source={r.sources?.market_cap ?? undefined}
+                      ticker={r.ticker}
+                      format={(v) => formatCompactNumber(v, locale)}
+                    />,
+                  )}
                 </td>
                 <td style={TD}>
-                  <SourcedNumber
-                    value={r.revenue_ttm}
-                    source={r.sources?.revenue_ttm ?? undefined}
-                    ticker={r.ticker}
-                    format={(v) => formatCompactNumber(v, locale)}
-                  />
+                  {mc(
+                    <SourcedNumber
+                      value={r.revenue_ttm}
+                      source={r.sources?.revenue_ttm ?? undefined}
+                      ticker={r.ticker}
+                      format={(v) => formatCompactNumber(v, locale)}
+                    />,
+                  )}
                 </td>
                 <td style={TD}>
-                  <SourcedNumber
-                    value={r.ev_ebitda}
-                    source={r.sources?.ev_ebitda ?? undefined}
-                    ticker={r.ticker}
-                    format={(v) => `${formatNumber(v, locale, 1)}×`}
-                  />
+                  {mc(
+                    <SourcedNumber
+                      value={r.ev_ebitda}
+                      source={r.sources?.ev_ebitda ?? undefined}
+                      ticker={r.ticker}
+                      format={(v) => `${formatNumber(v, locale, 1)}×`}
+                    />,
+                  )}
                 </td>
                 <td style={TD}>
-                  <SourcedNumber
-                    value={r.pe}
-                    source={r.sources?.pe ?? undefined}
-                    ticker={r.ticker}
-                    format={(v) => `${formatNumber(v, locale, 1)}×`}
-                  />
+                  {mc(
+                    <SourcedNumber
+                      value={r.pe}
+                      source={r.sources?.pe ?? undefined}
+                      ticker={r.ticker}
+                      format={(v) => `${formatNumber(v, locale, 1)}×`}
+                    />,
+                  )}
                 </td>
                 <td style={{ ...TD, textAlign: 'center' }}>
                   {r.latest_verdict ? (
@@ -254,20 +274,24 @@ export function CoverageTable({
                   )}
                 </td>
                 <td style={{ ...TD, color: changeColor(r.upside_to_target_live) }}>
-                  <SourcedNumber
-                    value={r.upside_to_target_live}
-                    source={r.sources?.upside_to_target_live ?? undefined}
-                    ticker={r.ticker}
-                    format={(v) => formatPercent(v, locale, 1)}
-                  />
+                  {mc(
+                    <SourcedNumber
+                      value={r.upside_to_target_live}
+                      source={r.sources?.upside_to_target_live ?? undefined}
+                      ticker={r.ticker}
+                      format={(v) => formatPercent(v, locale, 1)}
+                    />,
+                  )}
                 </td>
                 <td style={{ ...TD, textAlign: 'center' }}>
-                  {r.signal ? (
-                    <span title={r.signal} style={{ color: SIGNAL_COLOR[r.signal] }}>
-                      ●
-                    </span>
-                  ) : (
-                    <span style={{ color: 'var(--text-dim)' }}>—</span>
+                  {mc(
+                    r.signal ? (
+                      <span title={r.signal} style={{ color: SIGNAL_COLOR[r.signal] }}>
+                        ●
+                      </span>
+                    ) : (
+                      <span style={{ color: 'var(--text-dim)' }}>—</span>
+                    ),
                   )}
                 </td>
                 <td style={TD}>{r.run_count > 0 ? r.run_count : '—'}</td>
@@ -334,6 +358,19 @@ function StatusCell({ row }: { row: CoverageRow }): React.ReactElement {
       <WarnTriangle color={isError ? 'var(--danger)' : 'var(--warning)'} />
       {reasons.length + warnings.length}
     </span>
+  )
+}
+
+// Fast-skeleton placeholder for a pending market cell — reuses the global
+// `.skeleton` shimmer so "loading" is visually distinct from "—" (missing).
+function CellShimmer(): React.ReactElement {
+  return (
+    <span
+      className="skeleton"
+      role="img"
+      aria-label="loading"
+      style={{ display: 'inline-block', width: 40, height: 11, verticalAlign: 'middle' }}
+    />
   )
 }
 

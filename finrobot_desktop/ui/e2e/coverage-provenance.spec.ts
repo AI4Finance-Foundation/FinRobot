@@ -158,6 +158,74 @@ test('coverage table renders per-field provenance + popover', async ({ page }) =
   await page.screenshot({ path: 'e2e/_coverage-popover.png' })
 })
 
+// Fast skeleton: research/run fields real, market fields null + fast:true.
+function skeletonRow(over: Record<string, unknown> = {}) {
+  return {
+    ...row(over),
+    price: null,
+    change_pct_1d: null,
+    market_cap: null,
+    revenue_ttm: null,
+    ev_ebitda: null,
+    pe: null,
+    upside_to_target_live: null,
+    signal: null,
+    sources: {
+      price: null,
+      change_pct_1d: null,
+      market_cap: null,
+      revenue_ttm: null,
+      ev_ebitda: null,
+      pe: null,
+      upside_to_target_live: null,
+    },
+    ...over,
+  }
+}
+
+const FAST_OVERVIEW = {
+  group_id: 'cov_demo',
+  group_name: 'Mag7',
+  generated_at: '2026-06-02T08:00:00Z',
+  partial: false,
+  fast: true,
+  rows: [skeletonRow(), skeletonRow({ ticker: 'NVDA', company: 'NVIDIA Corp.', latest_verdict: 'HOLD' })],
+}
+
+test('fast skeleton paints research instantly with market cells shimmering', async ({ page }) => {
+  await page.route('**/api/coverage/groups', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(GROUPS) }),
+  )
+  // fast=true returns instantly; the full fetch is delayed so the skeleton stays
+  // on screen long enough to capture.
+  await page.route('**/api/coverage/groups/*/overview**', async (route) => {
+    if (route.request().url().includes('fast=true')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(FAST_OVERVIEW),
+      })
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 2500))
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(OVERVIEW),
+      })
+    }
+  })
+
+  await page.goto('/coverage')
+  // Research side (verdict) is real immediately; market cells are shimmering.
+  await expect(page.getByText('BUY')).toBeVisible({ timeout: 8000 })
+  await expect(page.getByRole('img', { name: 'loading' }).first()).toBeVisible()
+  await page.screenshot({ path: 'e2e/_coverage-skeleton.png' })
+
+  // Once the full fetch lands, real prices replace the shimmer.
+  await expect(page.getByText('$200.12')).toBeVisible({ timeout: 8000 })
+  await expect(page.getByRole('img', { name: 'loading' })).toHaveCount(0)
+})
+
 test('clicking a column header sorts the table (NVDA price > AAPL → top)', async ({ page }) => {
   await page.route('**/api/coverage/groups', (r) =>
     r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(GROUPS) }),

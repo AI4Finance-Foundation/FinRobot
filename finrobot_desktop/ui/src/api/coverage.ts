@@ -90,6 +90,9 @@ export interface CoverageOverview {
   rows: CoverageRow[]
   generated_at: string
   partial: boolean
+  // True for the fast skeleton: market fields are pending (loading), not
+  // missing — the client backfills with a full fetch.
+  fast: boolean
 }
 
 export interface BatchRunItem {
@@ -162,8 +165,13 @@ export const coverageApi = {
       method: 'DELETE',
     }),
 
-  overview: (id: string, refresh = false) =>
-    req<CoverageOverview>(`/api/coverage/groups/${id}/overview${refresh ? '?refresh=true' : ''}`),
+  overview: (id: string, refresh = false, fast = false) => {
+    const qs = new URLSearchParams()
+    if (refresh) qs.set('refresh', 'true')
+    if (fast) qs.set('fast', 'true')
+    const suffix = qs.toString() ? `?${qs}` : ''
+    return req<CoverageOverview>(`/api/coverage/groups/${id}/overview${suffix}`)
+  },
 
   batchRun: (id: string, tickers: string[], pipelineType = 'equity_research', language?: string) =>
     req<BatchRunResponse>(

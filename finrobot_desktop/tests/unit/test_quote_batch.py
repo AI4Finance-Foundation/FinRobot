@@ -9,6 +9,7 @@ behavior with a fake DataLayer.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Any
 
@@ -50,17 +51,28 @@ class _FakeDataLayer:
 
 
 @pytest.fixture(autouse=True)
-def _fresh_singleton(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+async def _fresh_singleton(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[None]:
     """Isolate the QuoteCache singleton + its SQLite file per test.
 
     QUOTES_DB is an import-time path constant, so point it at a per-test tmp
-    file directly (monkeypatching HOME alone wouldn't relocate it)."""
+    file directly (monkeypatching HOME alone wouldn't relocate it).
+
+    Tear down by *closing* the singleton (await), not merely dropping the
+    reference: ``reset_quote_cache_singleton`` would orphan the live aiosqlite
+    connection whose non-daemon worker thread is bound to this test's event
+    loop. Once that loop closes, GC's ``Connection.__del__`` fires
+    ``call_soon_threadsafe`` on a dead loop at a non-deterministic point,
+    eventually corrupting the run (``pytest tests/`` died abruptly ~test 1150,
+    BUG-050). ``close_quote_cache_singleton`` sends aiosqlite its STOP sentinel
+    inside the still-live loop so the worker thread exits cleanly. It also nulls
+    the reference, so the per-test QUOTES_DB monkeypatch is picked up on the
+    next ``_get_singleton`` build."""
     import finrobot.paths as _paths
 
     monkeypatch.setattr(_paths, "QUOTES_DB", tmp_path / "quotes_cache.db")
-    quote_batch.reset_quote_cache_singleton()
+    await quote_batch.close_quote_cache_singleton()
     yield
-    quote_batch.reset_quote_cache_singleton()
+    await quote_batch.close_quote_cache_singleton()
 
 
 @pytest.mark.asyncio

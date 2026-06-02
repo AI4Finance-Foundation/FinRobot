@@ -34,8 +34,14 @@ from finrobot.coverage.models import (
     NeedsRefreshReason,
 )
 from finrobot.coverage.sqlite_store import CoverageStore
+from finrobot.engine.compute.compare import (
+    CompanyValuation,
+    ComparisonResult,
+    build_company_valuation,
+)
 from finrobot.engine.compute.extractor import extract_financial_data
 from finrobot.engine.compute.signal import Signal, compute_signal
+from finrobot.engine.models.financial import DCFResult
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.types import DataType
@@ -59,6 +65,12 @@ _MARKET_DEGRADABLE = (
 )
 
 _SYSTEM_GROUP_NAME = "Studied Tickers"
+
+# Artifact types that embed a DCF result, and the structured keys it may sit
+# under (equity_research nests it under financial_modeling; dcf at dcf_calc;
+# ic_memo at dcf_result). Mirrors routes/valuation.py's reconstruction.
+_DCF_BEARING_TYPES = ("dcf", "equity_research", "ic_memo")
+_DCF_STRUCTURED_KEYS = ("dcf_calc", "financial_modeling", "dcf_result")
 
 
 def _now() -> datetime:
@@ -335,3 +347,92 @@ async def ensure_system_group(
     await store.add_members(group.id, tickers)
     logger.info("Seeded system coverage group %s with %d tickers", group.id, len(tickers))
     return group
+
+
+# ── Compare (H1) ─────────────────────────────────────────────────────────────
+
+
+async def build_comparison(
+    tickers: list[str],
+    *,
+    artifact_store: ArtifactStore,
+    data_layer: DataLayer,
+) -> ComparisonResult:
+    """Side-by-side DCF comparison, assembled from each ticker's latest DCF
+    artifact + live market fields.
+
+    The expensive DCF *generation* is NOT done here — it runs through the
+    async batch-run path (one DCF run per ticker). This function is a fast,
+    LLM-free assembly over already-stored results (H1: the GET runs no
+    pipeline, so it can't time out). A ticker with no DCF artifact comes back
+    as a ``CompanyValuation`` carrying an error → the UI prompts "run DCF
+    first". upside uses the **live** current price (to-fair-value-from-today),
+    consistent with the Coverage Table.
+    """
+    companies = await asyncio.gather(
+        *(_compare_one(t, artifact_store=artifact_store, data_layer=data_layer) for t in tickers)
+    )
+    return ComparisonResult(companies=list(companies))
+
+
+async def _compare_one(
+    ticker: str,
+    *,
+    artifact_store: ArtifactStore,
+    data_layer: DataLayer,
+) -> CompanyValuation:
+    ticker = ticker.upper()
+    dcf = await _latest_dcf_result(artifact_store, ticker)
+    if dcf is None:
+        return CompanyValuation(ticker=ticker, error="尚未运行 DCF——先对该 ticker 运行 DCF 再对比")
+    company_name = ""
+    current_price: float | None = None
+    ev_ebitda: float | None = None
+    pe_ratio: float | None = None
+    warnings: list[str] = []
+    try:
+        fin_norm = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+        price_norm = await data_layer.fetch_canonical(DataType.PRICE, ticker)
+        fd = extract_financial_data(fin_norm, price_norm)
+        company_name = fd.company_name
+        current_price = fd.market.current_price
+        ev_ebitda = fd.valuation.ev_ebitda
+        pe_ratio = fd.market.pe_ratio
+        warnings = list(fd.warnings)
+    except _MARKET_DEGRADABLE as exc:
+        # DCF (implied price, WACC) still compares fine without live market —
+        # only current_price-relative upside degrades. Surface, don't drop.
+        warnings = [f"{ticker} 实时市场数据获取失败：{exc}"]
+    return build_company_valuation(
+        ticker=ticker,
+        company_name=company_name,
+        current_price=current_price,
+        dcf_result=dcf,
+        ev_ebitda=ev_ebitda,
+        pe_ratio=pe_ratio,
+        warnings=warnings,
+    )
+
+
+async def _latest_dcf_result(artifact_store: ArtifactStore, ticker: str) -> DCFResult | None:
+    """Reconstruct the most recent DCFResult for a ticker from its stored
+    artifacts. Walks newest-first across DCF-bearing types; returns the first
+    that parses. (Same reconstruction as routes/valuation._parse_dcf, scoped
+    to the single latest DCF rather than latest-of-each-type.)"""
+    summaries = await artifact_store.list_by_ticker(ticker=ticker, include_archived=True, limit=200)
+    for summary in summaries:  # newest first
+        if summary.type not in _DCF_BEARING_TYPES:
+            continue
+        artifact = await artifact_store.get(summary.id)
+        if artifact is None or artifact.outputs is None:
+            continue
+        structured = artifact.outputs.structured
+        for key in _DCF_STRUCTURED_KEYS:
+            candidate = structured.get(key)
+            if isinstance(candidate, dict):
+                try:
+                    return DCFResult.model_validate(candidate)
+                except (TypeError, ValueError) as exc:
+                    logger.debug("DCFResult parse failed for %s at %s: %s", ticker, key, exc)
+                    continue
+    return None

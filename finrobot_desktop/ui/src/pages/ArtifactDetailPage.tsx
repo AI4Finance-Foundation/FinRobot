@@ -13,7 +13,7 @@
 // (thesis / financial_modeling / peer_analysis / catalyst_analysis) plus
 // inputs.raw_data for the audit dump.
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useArtifactDetail, useV5ArtifactTimeline } from '../hooks/useV5Artifacts'
 import { useNavMemoryStore } from '../stores/navMemoryStore'
@@ -21,6 +21,7 @@ import { useToastStore } from '../stores/toastStore'
 import { VersionDiffBanner } from '../components/VersionDiffBanner'
 import { useI18n } from '../i18n'
 import { mapErrorToUserMessage } from '../utils/errorMessage'
+import { markArtifactViewed } from '../api/client'
 import { queryClient } from '../api/queryClient'
 import { saveTextFile } from '../lib/tauri'
 import { reportFileStem } from '../lib/exportReport'
@@ -66,6 +67,30 @@ export function ArtifactDetailPage(): React.ReactElement {
   useEffect(() => {
     if (symbol) setLastStocksPath(location.pathname)
   }, [location.pathname, symbol, setLastStocksPath])
+
+  // Mark the artifact as read once it resolves so the backend refreshes
+  // last_viewed_at and the 30-day stale-archive task leaves it alone (BUG-029).
+  // Fire-and-forget: a network blip must never block reading the report; a
+  // 404/410 just means it's already gone. Guard by id so re-renders / hash
+  // navigations don't re-POST, and so switching to a sibling version fires once
+  // for the new id. On success we invalidate the lists that surface archive
+  // state so an un-archive shows up immediately.
+  const loadedId = data?.id ?? null
+  const viewedIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!loadedId) return
+    if (viewedIdRef.current === loadedId) return
+    viewedIdRef.current = loadedId
+    markArtifactViewed(loadedId)
+      .then(() => {
+        void queryClient.invalidateQueries({ queryKey: ['v5-artifacts-timeline', symbol] })
+        void queryClient.invalidateQueries({ queryKey: ['studied-tickers'] })
+        void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      })
+      .catch((err) => {
+        console.error('[ArtifactDetailPage] markArtifactViewed failed', err)
+      })
+  }, [loadedId, symbol])
 
   if (!artifactId) {
     return (

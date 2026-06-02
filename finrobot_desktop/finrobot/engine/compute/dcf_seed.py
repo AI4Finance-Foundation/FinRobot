@@ -17,6 +17,7 @@ Routes / pipelines / SDK should call ``seed_dcf_inputs``; the legacy
 
 from __future__ import annotations
 
+import logging
 import math
 import statistics
 from typing import Final
@@ -42,9 +43,18 @@ DEFAULT_TAX_RATE: Final[float] = 0.21  # US corporate statutory
 DEFAULT_PROJECTION_YEARS: Final[int] = 5
 DEFAULT_COST_OF_DEBT: Final[float] = 0.05  # Investment-grade corporate yield
 
+# Effective cost-of-debt is clamped into this band: below it the rate is
+# rounding noise (sub-1% interest on a large debt balance), above it the implied
+# yield signals a one-off (default/restructuring) rather than the run-rate.
+# Clamping is logged + flagged in provenance so it's never silent (BUG-023).
+COST_OF_DEBT_FLOOR: Final[float] = 0.02
+COST_OF_DEBT_CAP: Final[float] = 0.20
+
 # Minimum historical samples required before we trust the ticker's own median.
 # Fewer than this ⇒ fall back to industry median.
 _MIN_HISTORY_SAMPLES: Final[int] = 2
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -119,20 +129,37 @@ def _cost_of_debt(
     interest_expense: float | None,
     total_debt: float,
     *,
-    floor: float = 0.02,
-    cap: float = 0.20,
+    floor: float = COST_OF_DEBT_FLOOR,
+    cap: float = COST_OF_DEBT_CAP,
 ) -> float | None:
-    """Effective cost of debt = interest expense / total debt.
+    """Effective cost of debt = interest expense / total debt, clamped to [floor, cap].
 
     Returns None when interest_expense missing or total_debt too small to
-    yield a meaningful rate (sub-1% of equity ⇒ rounding noise).
+    yield a meaningful rate (sub-1% of equity ⇒ rounding noise). When the raw
+    rate is clamped, logs a warning so the substitution is never silent — the
+    DCF caller additionally marks it in ``assumption_provenance`` (BUG-023).
     """
     if interest_expense is None or total_debt <= 0:
         return None
     rate = interest_expense / total_debt
     if rate < floor:
+        logger.warning(
+            "Cost of debt %.2f%% below floor — clamped to %.1f%% "
+            "(interest=%.3g / debt=%.3g)",
+            rate * 100,
+            floor * 100,
+            interest_expense,
+            total_debt,
+        )
         return floor
     if rate > cap:
+        logger.warning(
+            "Cost of debt %.1f%% above cap — clamped to %.1f%% (interest=%.3g / debt=%.3g)",
+            rate * 100,
+            cap * 100,
+            interest_expense,
+            total_debt,
+        )
         return cap
     return rate
 
@@ -337,7 +364,22 @@ def seed_dcf_inputs(
     cod = _cost_of_debt(interest_exp, total_debt)
     if cod is not None:
         cost_of_debt = cod
-        prov["cost_of_debt"] = f"{cost_of_debt:.1%}（最新利息支出 / 总债务）"
+        # interest_exp is not None and total_debt > 0 here (else cod is None), so
+        # the raw rate is well-defined. Be honest in provenance when it was
+        # clamped instead of implying the displayed value is the raw ratio (BUG-023).
+        raw_rate = interest_exp / total_debt  # type: ignore[operator]
+        if raw_rate < COST_OF_DEBT_FLOOR:
+            prov["cost_of_debt"] = (
+                f"{cost_of_debt:.1%}（利息支出 / 总债务 = {raw_rate:.2%}，已夹至下限 "
+                f"{COST_OF_DEBT_FLOOR:.0%}）"
+            )
+        elif raw_rate > COST_OF_DEBT_CAP:
+            prov["cost_of_debt"] = (
+                f"{cost_of_debt:.1%}（利息支出 / 总债务 = {raw_rate:.1%}，已夹至上限 "
+                f"{COST_OF_DEBT_CAP:.0%}）"
+            )
+        else:
+            prov["cost_of_debt"] = f"{cost_of_debt:.1%}（最新利息支出 / 总债务）"
     else:
         cost_of_debt = DEFAULT_COST_OF_DEBT
         prov["cost_of_debt"] = f"{cost_of_debt:.1%}（投资级公司债基准）"

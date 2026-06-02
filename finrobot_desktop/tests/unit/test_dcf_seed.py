@@ -20,6 +20,8 @@ from datetime import datetime, timezone
 import pytest
 
 from finrobot.engine.compute.dcf_seed import (
+    COST_OF_DEBT_CAP,
+    COST_OF_DEBT_FLOOR,
     _cost_of_debt,
     _decay_growth_schedule,
     _effective_tax_rate,
@@ -188,6 +190,37 @@ class TestCostOfDebt:
 
     def test_returns_none_when_interest_missing(self):
         assert _cost_of_debt(None, 100e9) is None
+
+
+class TestCostOfDebtProvenanceClamp:
+    """BUG-023: a clamped cost of debt must be marked in provenance, never
+    presented as if it were the raw interest/debt ratio."""
+
+    def test_clamp_below_floor_marked(self):
+        fin = _aapl_financials()
+        # Tiny interest on a large debt balance → raw rate ≪ 2% floor.
+        fin = fin.model_copy(
+            update={"income": fin.income.model_copy(update={"interest_expense": 1.0})}
+        )
+        inputs = seed_dcf_inputs(fin, _aapl_historical())
+        assert inputs.cost_of_debt == COST_OF_DEBT_FLOOR
+        assert "夹至下限" in inputs.assumption_provenance["cost_of_debt"]
+
+    def test_clamp_above_cap_marked(self):
+        fin = _aapl_financials()
+        # Huge interest → raw rate ≫ 20% cap.
+        fin = fin.model_copy(
+            update={"income": fin.income.model_copy(update={"interest_expense": 50e9})}
+        )
+        inputs = seed_dcf_inputs(fin, _aapl_historical())
+        assert inputs.cost_of_debt == COST_OF_DEBT_CAP
+        assert "夹至上限" in inputs.assumption_provenance["cost_of_debt"]
+
+    def test_normal_rate_not_marked_as_clamped(self):
+        inputs = seed_dcf_inputs(_aapl_financials(), _aapl_historical())
+        prov = inputs.assumption_provenance["cost_of_debt"]
+        assert "夹至" not in prov
+        assert "最新利息支出 / 总债务" in prov
 
 
 # ---------------------------------------------------------------------------

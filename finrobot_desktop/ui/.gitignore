@@ -9,3 +9,8 @@ src/i18n/locales/*/messages.js
 
 # Generated standalone report-viewer bundle (built by build:viewer)
 src/export/generated/
+
+# Playwright run artifacts
+test-results/
+e2e/_*.png
+playwright-report/

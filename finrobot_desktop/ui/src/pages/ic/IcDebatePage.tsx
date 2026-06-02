@@ -15,6 +15,7 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { useDebateStore, selectDebate } from '../../stores/debateStore'
 import { VerdictCard } from '../../components/debate/VerdictCard'
 import { DebateColumn } from '../../components/debate/DebateColumn'
+import { MarketImpliedPanel } from '../../components/debate/MarketImpliedPanel'
 import { useToastStore } from '../../stores/toastStore'
 import { useI18n } from '../../i18n'
 
@@ -194,6 +195,12 @@ export function IcDebatePage() {
               ⚠ {t('ic.column.provisional')}
             </div>
           )}
+
+          {/* Market-implied expectations — reverse-DCF expert probe. The
+              confirmable evidence base for the judge's one-line SWING_FACTOR:
+              shown below the verdict, default-collapsed, never feeding the
+              verdict itself. */}
+          {isCompleted && <MarketImpliedPanel ticker={symbol} />}
 
           {/* Two-column bull / bear layout */}
           <div

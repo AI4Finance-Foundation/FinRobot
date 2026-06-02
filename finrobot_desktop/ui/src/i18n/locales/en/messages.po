@@ -2667,6 +2667,58 @@ msgid "ic.column.provisional"
 msgstr "Data reliability is degraded — the valuation figures cited below (incl. DCF / comps mids) are provisional, not firm conclusions"
 
 #. js-lingui-explicit-id
+msgid "ic.implied.title"
+msgstr "Market-implied expectations"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.subtitle"
+msgstr "· reverse-solve what the market is betting"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.loading"
+msgstr "Reverse-solving…"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.lede"
+msgstr "The market price implies a FAMILY of assumption combos, not one valuation. Each reverse solve pins two axes and solves the third — read it as 'fixing X, the market requires Y':"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.axis.growth"
+msgstr "Growth · fix WACC + 5y"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.axis.wacc"
+msgstr "Discount · fix growth curve"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.axis.horizon"
+msgstr "Horizon · fix growth + WACC"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.unreachable"
+msgstr "unreachable"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.years"
+msgstr "y"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.lineTitle"
+msgstr "growth → implied horizon equivalence line"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.fixedWacc"
+msgstr "fixed WACC"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.waccSlider"
+msgstr "discount WACC"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.priorNote"
+msgstr "✓/⚠ are analyst credibility priors, not an objective verdict; swap the fixed axes and the answer changes. The market price sits on this line — which segment you believe is your call."
+
+#. js-lingui-explicit-id
 msgid "ic.column.verified"
 msgstr "Data verified"
 

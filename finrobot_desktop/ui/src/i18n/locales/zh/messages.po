@@ -2667,6 +2667,58 @@ msgid "ic.column.provisional"
 msgstr "数据可靠性不足 — 以下论点引用的估值数字（含 DCF / comps 中值）仅供参考，请勿当作确定结论"
 
 #. js-lingui-explicit-id
+msgid "ic.implied.title"
+msgstr "市场隐含预期"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.subtitle"
+msgstr "· 反解市场押了什么"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.loading"
+msgstr "反解中…"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.lede"
+msgstr "市场价不对应一个估值，对应一族假设组合。三个反解各钉死两根轴、解第三根——读法是「固定 X，市场就要求 Y」："
+
+#. js-lingui-explicit-id
+msgid "ic.implied.axis.growth"
+msgstr "增长轴 · 固定 WACC + 5年"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.axis.wacc"
+msgstr "折现轴 · 固定增长曲线"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.axis.horizon"
+msgstr "年限轴 · 固定增长 + WACC"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.unreachable"
+msgstr "够不着"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.years"
+msgstr "年"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.lineTitle"
+msgstr "增长 → 隐含年限 等价线"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.fixedWacc"
+msgstr "固定 WACC"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.waccSlider"
+msgstr "折现率 WACC"
+
+#. js-lingui-explicit-id
+msgid "ic.implied.priorNote"
+msgstr "✓/⚠ 是 analyst 可信先验，不是算法客观结论；换一组固定的轴，结论就变。市场价落在这条线上，你信线上哪一段，是你的判断。"
+
+#. js-lingui-explicit-id
 msgid "ic.column.verified"
 msgstr "数据已核验"
 

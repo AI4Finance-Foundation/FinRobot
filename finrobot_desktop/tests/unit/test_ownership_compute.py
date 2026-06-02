@@ -139,6 +139,20 @@ def test_proxy_compensation_nvda_fy2026_reads_correct_year_and_ratio() -> None:
     assert comp.ceo_pay_ratio == 129
 
 
+def test_proxy_pay_ratio_accepts_ratio_of_n_to_1_phrasing() -> None:
+    """JPM-style disclosure says "...resulting in a ratio of 363 to 1" with no
+    literal "pay ratio". The extractor must still capture it."""
+    text = (
+        "The annual total compensation of our estimated median employee was "
+        "$111,905, resulting in a ratio of 363 to 1."
+    )
+    comp = build_proxy_compensation(
+        {"filing_date": "2026-04-06", "accession_no": "x", "text": text}
+    )
+    assert comp is not None
+    assert comp.ceo_pay_ratio == 363
+
+
 def test_proxy_compensation_pay_ratio_disclosure_is_comp_fallback() -> None:
     """When the SCT grid is unparseable, the pay-ratio disclosure sentence
     ("Our CEO's ... total compensation was $X") still yields CEO total comp."""

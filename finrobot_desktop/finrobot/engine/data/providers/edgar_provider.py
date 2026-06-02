@@ -372,9 +372,16 @@ def _slice_proxy_text(full_text: str) -> str:
     anchor: int | None = None
 
     # Primary: the SCT column header — unambiguous marker of the real table.
-    nap = re.search(r"Name and Principal Position", full_text, re.I)
-    if nap is not None and nap.start() >= _PROXY_INTRO_CHARS:
-        anchor = nap.start()
+    # Take the FIRST occurrence PAST the intro: large proxies (JPM) repeat the
+    # header in a compensation-overview section inside the intro window, while
+    # the real Summary Compensation Table sits much deeper.
+    nap_first: int | None = None
+    for nap_m in re.finditer(r"Name and Principal Position", full_text, re.I):
+        if nap_first is None:
+            nap_first = nap_m.start()
+        if nap_m.start() >= _PROXY_INTRO_CHARS:
+            anchor = nap_m.start()
+            break
 
     # Fallback: an SCT heading past the intro that is followed within ~1.5k
     # chars by a data row (a 4-digit year next to a comma-grouped number) —
@@ -391,8 +398,8 @@ def _slice_proxy_text(full_text: str) -> str:
     if anchor is None:
         # Last resort: keep a NAP match even if it fell inside the intro, or
         # bail to intro-only rather than drag a useless tail.
-        if nap is not None:
-            anchor = nap.start()
+        if nap_first is not None:
+            anchor = nap_first
         else:
             return intro
 

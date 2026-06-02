@@ -271,14 +271,19 @@ def _ceo_comp_and_ratio_from_disclosure(text: str) -> tuple[float | None, int | 
             comp = val
 
     ratio: int | None = None
-    rm = re.search(
+    # Issuers phrase the Item 402(u) ratio several ways:
+    #   "...pay ratio was 129:1"            (NVDA)
+    #   "...pay ratio of 533 to 1"          (AAPL)
+    #   "...resulting in a ratio of 363 to 1" (JPM — no literal "pay ratio")
+    for ratio_pat in (
         r"pay\s+ratio\s+(?:of\s+)?(?:was|is|equal to|:)?\s*(?:approximately\s+)?"
         r"([0-9][0-9,]*)\s*(?:to|:)\s*1\b",
-        compact,
-        re.I,
-    )
-    if rm is not None:
-        ratio = int(rm.group(1).replace(",", ""))
+        r"ratio\s+of\s+(?:approximately\s+)?([0-9][0-9,]*)\s*(?:to|:)\s*1\b",
+    ):
+        rm = re.search(ratio_pat, compact, re.I)
+        if rm is not None:
+            ratio = int(rm.group(1).replace(",", ""))
+            break
 
     return comp, ratio
 

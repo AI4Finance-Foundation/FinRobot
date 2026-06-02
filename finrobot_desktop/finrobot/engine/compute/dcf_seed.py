@@ -144,8 +144,7 @@ def _cost_of_debt(
     rate = interest_expense / total_debt
     if rate < floor:
         logger.warning(
-            "Cost of debt %.2f%% below floor — clamped to %.1f%% "
-            "(interest=%.3g / debt=%.3g)",
+            "Cost of debt %.2f%% below floor — clamped to %.1f%% (interest=%.3g / debt=%.3g)",
             rate * 100,
             floor * 100,
             interest_expense,

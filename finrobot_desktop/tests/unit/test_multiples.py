@@ -350,6 +350,48 @@ def test_core_pe_strips_non_operating_income_from_target():
     assert t.core_net_income < t.net_income  # non-operating income stripped
 
 
+def test_core_pe_ebit_uses_operating_income_not_overridden_revenue():
+    """BUG-017: when revenue is XBRL-overridden away from the FMP base, EBIT must
+    stay sourced from the period-consistent FMP operating_income, NOT
+    operating_margin(FMP) × revenue(XBRL) — that mix lifts EBIT by the override
+    divergence (up to ~15% for a fast grower) and skews NOPAT/core P/E."""
+    # FMP base was operating_income=30 on revenue=100 (margin 0.30). The XBRL
+    # reconcile then bumped revenue to 130 (TTM, +30% inside tolerance). margin
+    # stayed FMP, so margin×revenue would now read 0.30×130 = 39 — wrong period.
+    target = CompanyFinancials(
+        ticker="X",
+        revenue=130.0,  # XBRL-overridden
+        ebitda=30.0,
+        net_income=20.0,
+        market_cap=1000.0,
+        total_debt=0.0,
+        total_cash=0.0,
+        gross_margin=0.5,
+        operating_margin=0.30,  # FMP margin (computed on FMP revenue 100)
+        operating_income=30.0,  # FMP operating income — period-consistent EBIT
+        income_tax_expense=5.0,  # own rate 5/(20+5)=0.20, in band → used
+    )
+    peers = [
+        CompanyFinancials(
+            ticker="P",
+            revenue=100.0,
+            ebitda=25.0,
+            net_income=10.0,
+            market_cap=400.0,
+            total_debt=0.0,
+            total_cash=0.0,
+            gross_margin=0.5,
+            operating_margin=0.20,
+            operating_income=20.0,
+            income_tax_expense=3.0,
+        )
+    ]
+    comps = calculate_core_pe(PeerComps(target=target, peers=peers))
+    # EBIT = operating_income (30), NOPAT = 30 × (1 − 0.20) = 24 — NOT 39 × 0.8 = 31.2.
+    assert comps.target.effective_tax_rate == pytest.approx(0.20)
+    assert comps.target.core_net_income == pytest.approx(24.0)
+
+
 def test_core_pe_degenerate_tax_falls_back_to_peer_median():
     """AMD (own effective tax 0.2%) and AVGO (1.8%) are below the in-band floor,
     so both adopt the peer-set median rate instead of their tax-holiday rate."""

@@ -25,6 +25,10 @@ class IncomeStatement(BaseModel):
     operating_margin: float | None = Field(
         default=None, ge=-5, le=1, description="Operating margin as decimal; None when unavailable"
     )
+    # Absolute operating income (EBIT) in USD. Carried alongside the margin so the
+    # comps target can hand calculate_core_pe a period-consistent EBIT instead of
+    # operating_margin × a possibly XBRL-overridden revenue (BUG-017).
+    operating_income: float | None = None
     depreciation_amortization: float | None = None
     rd_expense: float | None = None
     sga_expense: float | None = None
@@ -221,6 +225,12 @@ class CompanyFinancials(BaseModel):
     enterprise_value: float | None = None
     gross_margin: float | None = None
     operating_margin: float | None = None
+    # Absolute operating income (EBIT) in the reporting currency. calculate_core_pe
+    # builds NOPAT from this directly instead of operating_margin × revenue, so a
+    # revenue that was XBRL-TTM-reconciled (override_company_with_xbrl) can't drag
+    # EBIT to a cross-period margin×revenue product (BUG-017). FX-normalized with
+    # the other reporting-currency line items. None → fall back to margin×revenue.
+    operating_income: float | None = None
     pe_ratio: float | None = None
     ev_ebitda: float | None = None
     ev_revenue: float | None = None

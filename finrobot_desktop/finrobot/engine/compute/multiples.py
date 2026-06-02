@@ -218,7 +218,8 @@ def calculate_core_pe(comps: PeerComps) -> PeerComps:
     raw P/E compares apples to oranges. Core earnings normalise to after-tax
     operating profit:
 
-        NOPAT = EBIT × (1 − t),   EBIT = operating_margin × revenue (FX-safe ratio)
+        NOPAT = EBIT × (1 − t),   EBIT = operating_income (period-consistent;
+                                  falls back to operating_margin × revenue)
 
     where ``t`` is each company's own effective rate when it falls in
     ``[CORE_TAX_RATE_MIN, CORE_TAX_RATE_MAX]``, else the peer-set median in-band
@@ -246,13 +247,20 @@ def calculate_core_pe(comps: PeerComps) -> PeerComps:
             else fallback_rate
         )
         c.effective_tax_rate = rate
-        # Core P/E needs an operating margin to build EBIT = margin × revenue.
-        # Withhold (None) rather than fabricate when the provider omits it.
-        if c.operating_margin is None:
+        # EBIT prefers the absolute operating_income (period-consistent with the
+        # FMP base) over operating_margin × revenue: once revenue may be
+        # XBRL-TTM-reconciled (override_company_with_xbrl), margin(FMP) ×
+        # revenue(XBRL) mixes periods and lifts EBIT by the override divergence
+        # (BUG-017). Fall back to margin × revenue only when operating_income is
+        # absent; withhold (None) when neither is available rather than fabricate.
+        if c.operating_income is not None:
+            ebit = c.operating_income
+        elif c.operating_margin is not None:
+            ebit = c.operating_margin * c.revenue
+        else:
             c.core_net_income = None
             c.core_pe_ratio = None
             return
-        ebit = c.operating_margin * c.revenue
         nopat = ebit * (1 - rate)
         c.core_net_income = nopat
         c.core_pe_ratio = _sanity(

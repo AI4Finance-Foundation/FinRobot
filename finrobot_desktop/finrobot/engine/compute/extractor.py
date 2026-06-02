@@ -159,6 +159,7 @@ def extract_financial_data(
             net_income=fin.net_income,
             gross_margin=fin.gross_margin,
             operating_margin=fin.operating_margin,
+            operating_income=fin.operating_income,
             depreciation_amortization=fin.depreciation_amortization,
             rd_expense=fin.rd_expense,
             sga_expense=fin.sga_expense,
@@ -262,6 +263,9 @@ def extract_company_financials(fin: NormalizedFinancials) -> CompanyFinancials:
         total_cash=fin.total_cash,
         gross_margin=fin.gross_margin,
         operating_margin=fin.operating_margin,
+        # Period-consistent EBIT for NOPAT core P/E (BUG-017) — preferred over
+        # operating_margin × revenue once revenue may be XBRL-reconciled.
+        operating_income=fin.operating_income,
         pe_ratio=fin.pe_ratio,
         income_tax_expense=fin.income_tax_expense,
         reporting_currency=fin.reporting_currency,

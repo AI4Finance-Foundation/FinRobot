@@ -108,6 +108,11 @@ def normalize_company_to_usd(
         if company.income_tax_expense is not None
         else None
     )
+    # operating_income is a reporting-currency absolute (EBIT) feeding core_pe's
+    # NOPAT — scale it like revenue/net_income so the USD core P/E is consistent.
+    converted.operating_income = (
+        company.operating_income * reporting_rate if company.operating_income is not None else None
+    )
 
     converted.market_cap = company.market_cap * quote_rate
     if company.enterprise_value is not None:

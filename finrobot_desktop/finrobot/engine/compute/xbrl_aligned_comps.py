@@ -180,6 +180,9 @@ async def build_xbrl_aligned_company(
         total_cash=financial_data.balance.total_cash if debt_cash_reported else None,
         gross_margin=financial_data.income.gross_margin,
         operating_margin=financial_data.income.operating_margin,
+        # Period-consistent EBIT for core_pe — immune to the XBRL revenue
+        # reconcile below (BUG-017).
+        operating_income=financial_data.income.operating_income,
         income_tax_expense=financial_data.income.income_tax_expense,
         reporting_currency=financial_data.reporting_currency,
         quote_currency=financial_data.quote_currency,

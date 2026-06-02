@@ -1687,6 +1687,18 @@ msgid "settings.saveFailedShort"
 msgstr "✗ 保存失败"
 
 #. js-lingui-explicit-id
+msgid "settings.saveFailedRetry"
+msgstr "✗ 保存失败 · 点击重试"
+
+#. js-lingui-explicit-id
+msgid "settings.loadError.title"
+msgstr "无法加载设置"
+
+#. js-lingui-explicit-id
+msgid "settings.loadError.body"
+msgstr "后端不可用或返回错误,设置无法显示或保存。请确认 FinRobot 后端正在运行后重试——连接恢复前,这里输入的任何内容都不会被保存。"
+
+#. js-lingui-explicit-id
 msgid "settings.saving"
 msgstr "保存中…"
 
@@ -1877,6 +1889,26 @@ msgstr "请先在上方「SEC EDGAR」配置有效身份后再同步"
 #. js-lingui-explicit-id
 msgid "settings.secHoldings.runningHint"
 msgstr "正在下载并解析整季度 13F-HR,可能需 1-2 小时;期间可离开本页,完成后重新生成研报即可看到机构持仓。"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.confirmTitle"
+msgstr "开始 13F 同步?"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.confirmBody"
+msgstr "将下载整季度全市场 13F-HR 文件(约 1-2 小时,SEC 请求压力较大),在后台运行,期间可离开本页。完成后需重新生成研报才能看到机构持仓。"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.confirmProceed"
+msgstr "开始同步"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.startedAt"
+msgstr "开始于 {time}"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.syncError"
+msgstr "无法启动同步——后端不可用或返回错误。"
 
 #. js-lingui-explicit-id
 msgid "settings.appearance.title"

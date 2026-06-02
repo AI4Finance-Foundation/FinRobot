@@ -1687,6 +1687,18 @@ msgid "settings.saveFailedShort"
 msgstr "✗ Save failed"
 
 #. js-lingui-explicit-id
+msgid "settings.saveFailedRetry"
+msgstr "✗ Save failed · click to retry"
+
+#. js-lingui-explicit-id
+msgid "settings.loadError.title"
+msgstr "Can't load settings"
+
+#. js-lingui-explicit-id
+msgid "settings.loadError.body"
+msgstr "The backend is unreachable or returned an error, so settings can't be shown or saved. Make sure the FinRobot backend is running, then retry — nothing you type here would be saved until the connection is restored."
+
+#. js-lingui-explicit-id
 msgid "settings.saving"
 msgstr "Saving…"
 
@@ -1877,6 +1889,26 @@ msgstr "Configure a valid SEC identity above before syncing"
 #. js-lingui-explicit-id
 msgid "settings.secHoldings.runningHint"
 msgstr "Downloading and parsing a full quarter of 13F-HR filings — this can take 1-2 hours. You can leave this page; re-run the analysis once it finishes to populate institutional holdings."
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.confirmTitle"
+msgstr "Start 13F sync?"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.confirmBody"
+msgstr "This downloads a full quarter of market-wide 13F-HR filings (~1-2 hours, heavy SEC traffic). It runs in the background — you can leave this page. Reports must be regenerated after it finishes to pick up institutional holdings."
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.confirmProceed"
+msgstr "Start sync"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.startedAt"
+msgstr "Started at {time}"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.syncError"
+msgstr "Couldn't start the sync — the backend is unreachable or returned an error."
 
 #. js-lingui-explicit-id
 msgid "settings.appearance.title"

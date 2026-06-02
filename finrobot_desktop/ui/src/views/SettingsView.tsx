@@ -279,7 +279,13 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   const addToast = useToastStore((s) => s.addToast)
 
   // ── Remote settings ──────────────────────────────────────────────────────
-  const { data: settingsResp, isLoading } = useQuery({
+  const {
+    data: settingsResp,
+    isLoading,
+    isError,
+    refetch,
+    isFetching,
+  } = useQuery({
     queryKey: ['settings'],
     queryFn: async () => {
       const { data, error } = await api.GET('/api/settings')
@@ -306,6 +312,10 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initializedRef = useRef(false)
+  // Last payload sent to the PUT mutation. On save failure we keep this around
+  // so the "Save failed · retry" indicator can re-fire the exact same write
+  // instead of silently dropping the user's edit (BUG-026).
+  const lastPayloadRef = useRef<Record<string, string | number | boolean | null> | null>(null)
 
   // Populate from server on first load
   useEffect(() => {
@@ -329,17 +339,20 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     },
     onSuccess: (data) => {
       queryClient.setQueryData(['settings'], data)
+      lastPayloadRef.current = null
       setSaveState('saved')
       saveTimerRef.current = setTimeout(() => setSaveState('idle'), 2500)
     },
     onError: (err: Error) => {
+      // Keep the dirty payload in lastPayloadRef and stay in the 'error' state
+      // (no auto-revert to idle) so the indicator stays a tappable "retry"
+      // affordance until the write actually succeeds — never silently drop it.
       setSaveState('error')
       addToast({
         type: 'error',
         title: t('settings.saveFailedTitle'),
         description: mapErrorToUserMessage(err),
       })
-      saveTimerRef.current = setTimeout(() => setSaveState('idle'), 3000)
     },
   })
 
@@ -404,13 +417,25 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     (payload: Record<string, string | number | boolean | null>) => {
       if (!initializedRef.current) return
       if (debounceRef.current) clearTimeout(debounceRef.current)
+      // Merge into any payload still pending from a prior failed save so a
+      // retry replays every dirty field, not just the most recent one.
+      const merged = { ...(lastPayloadRef.current ?? {}), ...payload }
+      lastPayloadRef.current = merged
       setSaveState('saving')
       debounceRef.current = setTimeout(() => {
-        settingsMutationRef.current.mutate(payload as never)
+        settingsMutationRef.current.mutate(merged as never)
       }, 500)
     },
     [],
   )
+
+  // Re-fire the last (failed) save when the user taps the retry indicator.
+  const retrySave = useCallback(() => {
+    const payload = lastPayloadRef.current
+    if (!payload) return
+    setSaveState('saving')
+    settingsMutationRef.current.mutate(payload as never)
+  }, [])
 
   // Cleanup timers
   useEffect(() => {
@@ -518,6 +543,55 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     )
   }
 
+  // ── Load-error state ───────────────────────────────────────────────────────
+  // When the settings query failed (backend unreachable / error) we must NOT
+  // render the editable key form: auto-save would no-op (initializedRef stays
+  // false) and the user would type secrets that silently never persist
+  // (BUG-026). Show a clear error + retry instead.
+  if (isError || !settingsResp) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: '12px',
+          background: 'var(--negative-bg)',
+          border: '1px solid var(--negative)',
+          borderRadius: 'var(--r-sm)',
+          padding: '20px 22px',
+          fontFamily: 'var(--font-mono)',
+        }}
+        role="alert"
+      >
+        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--negative)' }}>
+          {t('settings.loadError.title')}
+        </div>
+        <div style={{ fontSize: '11px', color: 'var(--text-primary)', lineHeight: 1.6 }}>
+          {t('settings.loadError.body')}
+        </div>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          style={{
+            background: 'var(--bg-3)',
+            border: '1px solid var(--border)',
+            borderRadius: '4px',
+            padding: '7px 14px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '11px',
+            color: 'var(--text-secondary)',
+            cursor: isFetching ? 'not-allowed' : 'pointer',
+            opacity: isFetching ? 0.55 : 1,
+          }}
+        >
+          {isFetching ? t('settings.loading') : t('common.retry')}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div>
       {/* ── Startup error banner ── */}
@@ -581,15 +655,22 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
           </span>
         )}
         {saveState === 'error' && (
-          <span
+          <button
+            type="button"
+            onClick={retrySave}
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: '10px',
               color: 'var(--negative)',
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              textDecoration: 'underline',
             }}
           >
-            {t('settings.saveFailedShort')}
-          </span>
+            {t('settings.saveFailedRetry')}
+          </button>
         )}
       </div>
 
@@ -980,8 +1061,19 @@ function SecHoldingsSection(): React.ReactElement {
     },
   })
 
+  // Gate the heavy 13F build behind an explicit confirm (BUG-009): a single
+  // click used to kick off a ~1-2h market-wide download with no warning.
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
   const running = status?.refresh.status === 'running' || refreshMutation.isPending
   const identityOk = status?.identity_configured ?? false
+  const startedAt = status?.refresh.started_at ?? null
+  const startedAtLabel = (() => {
+    if (!running || !startedAt) return null
+    const d = new Date(startedAt)
+    if (Number.isNaN(d.getTime())) return null
+    return t('settings.secHoldings.startedAt', { time: d.toLocaleString() })
+  })()
 
   const statusLine = (() => {
     if (!status) return ''
@@ -1011,7 +1103,7 @@ function SecHoldingsSection(): React.ReactElement {
           <button
             type="button"
             disabled={!identityOk || running}
-            onClick={() => refreshMutation.mutate()}
+            onClick={() => setConfirmOpen(true)}
             style={{
               background: 'var(--bg-3)',
               border: '1px solid var(--border)',
@@ -1047,8 +1139,34 @@ function SecHoldingsSection(): React.ReactElement {
           )}
         </div>
         {running && (
-          <p style={{ ...hintStyle, marginTop: '6px', lineHeight: 1.5 }}>
-            {t('settings.secHoldings.runningHint')}
+          <>
+            {startedAtLabel && (
+              <p style={{ ...hintStyle, marginTop: '6px', lineHeight: 1.5 }}>{startedAtLabel}</p>
+            )}
+            <p style={{ ...hintStyle, marginTop: '6px', lineHeight: 1.5 }}>
+              {t('settings.secHoldings.runningHint')}
+            </p>
+          </>
+        )}
+        {refreshMutation.isError && !running && (
+          <p style={{ ...hintInvalidStyle, marginTop: '6px', lineHeight: 1.5 }}>
+            {t('settings.secHoldings.syncError')}{' '}
+            <button
+              type="button"
+              onClick={() => refreshMutation.mutate()}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                color: 'var(--danger)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '10px',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+            >
+              {t('common.retry')}
+            </button>
           </p>
         )}
       </div>
@@ -1060,7 +1178,111 @@ function SecHoldingsSection(): React.ReactElement {
         enabled={status?.auto_refresh ?? false}
         onToggle={() => autoRefreshMutation.mutate(!(status?.auto_refresh ?? false))}
       />
+
+      {confirmOpen && (
+        <SecHoldingsConfirmModal
+          onCancel={() => setConfirmOpen(false)}
+          onConfirm={() => {
+            setConfirmOpen(false)
+            refreshMutation.mutate()
+          }}
+        />
+      )}
     </section>
+  )
+}
+
+// Confirm dialog gating the heavy 13F build (BUG-009). Reuses the cosmic modal
+// chrome from ResetConfirmModal but with a "start sync" affirmative.
+function SecHoldingsConfirmModal({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void
+  onConfirm: () => void
+}): React.ReactElement {
+  const { t } = useI18n()
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onCancel}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(5,5,13,0.72)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+        display: 'grid',
+        placeItems: 'center',
+        zIndex: 200,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          minWidth: 360,
+          maxWidth: 460,
+          padding: '20px 22px',
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--border-soft)',
+          borderRadius: 'var(--radius-md)',
+          boxShadow: '0 16px 40px rgba(0,0,0,0.4)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            letterSpacing: '0.06em',
+            color: 'var(--warning)',
+          }}
+        >
+          {t('settings.secHoldings.confirmTitle')}
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.55 }}>
+          {t('settings.secHoldings.confirmBody')}
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              padding: '7px 14px',
+              borderRadius: 6,
+              border: '1px solid var(--border-soft)',
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+            }}
+          >
+            {t('settings.reset.cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              padding: '7px 14px',
+              borderRadius: 6,
+              border: 'none',
+              background: 'var(--warning)',
+              color: '#1a1207',
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            {t('settings.secHoldings.confirmProceed')}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 

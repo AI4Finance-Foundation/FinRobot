@@ -97,16 +97,14 @@ export function ToolCard({
   const [expanded, setExpanded] = useState(false)
   const { t } = useI18n()
 
-  // v5 (spec §11.1.C): /library route retired. Artifact links point at the
-  // ticker workspace (/stock/:ticker) when we know the ticker, or the
-  // /stocks landing when we don't — both surface the artifact via the
-  // ?artifact=… query the new "我的研究" section will consume in PR15.
+  // The artifact detail route is /stocks/:ticker/runs/:artifactId — there is
+  // no `?artifact=` consumer anywhere (the old /stocks landing now redirects to
+  // /coverage), so we can only build a live link when we know the ticker.
+  // Without a ticker we hide the link rather than emit a dead one.
   const artifactHref =
     result?.artifact_id && result?.ticker
-      ? `/stocks/${result.ticker}?artifact=${result.artifact_id}`
-      : result?.artifact_id
-        ? `/stocks?artifact=${result.artifact_id}`
-        : null
+      ? `/stocks/${result.ticker.toUpperCase()}/runs/${result.artifact_id}`
+      : null
 
   return (
     <div

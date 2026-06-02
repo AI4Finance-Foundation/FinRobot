@@ -3365,3 +3365,15 @@ msgstr "Comparison failed."
 #. js-lingui-explicit-id
 msgid "compare.implied"
 msgstr "Implied"
+
+#. js-lingui-explicit-id
+msgid "cmdk.section.coverage"
+msgstr "Coverage"
+
+#. js-lingui-explicit-id
+msgid "cmdk.coverage.open"
+msgstr "Open Coverage Desk"
+
+#. js-lingui-explicit-id
+msgid "cmdk.coverage.compare"
+msgstr "Compare {n} selected tickers"

@@ -16,6 +16,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useDebounce } from 'use-debounce'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../stores/appStore'
+import { useCoverageStore } from '../stores/coverageStore'
 import { useToastStore } from '../stores/toastStore'
 import { useI18n, tSync } from '../i18n'
 import { FetchHttpError } from '../utils/errorMessage'
@@ -377,15 +378,56 @@ export function CmdKOverlay() {
   }, [trimmedQuery, navigate, handleClose])
 
   // ---------------------------------------------------------------------------
+  // Static Coverage commands — local actions (not backend search results). Only
+  // the ones that work without in-page group/mutation context: navigate to the
+  // desk, and compare the current selection. "Add X to Coverage" / "Run
+  // selection" need the active group + mutations and belong to an in-page
+  // command surface (follow-up), not this global palette.
+  // ---------------------------------------------------------------------------
+  const coverageSelection = useCoverageStore((s) => s.selectedTickers)
+  const staticCommands = useMemo(() => {
+    const cmds: { id: string; title: string; subtitle?: string; run: () => void }[] = [
+      {
+        id: 'coverage-open',
+        title: t('cmdk.coverage.open'),
+        run: () => {
+          navigate('/coverage')
+          handleClose()
+        },
+      },
+    ]
+    if (coverageSelection.length >= 2) {
+      cmds.push({
+        id: 'coverage-compare',
+        title: t('cmdk.coverage.compare', { n: coverageSelection.length }),
+        subtitle: coverageSelection.join(', '),
+        run: () => {
+          navigate(`/compare?tickers=${encodeURIComponent(coverageSelection.join(','))}`)
+          handleClose()
+        },
+      })
+    }
+    return cmds
+  }, [t, navigate, handleClose, coverageSelection])
+
+  const filteredStatic = useMemo(() => {
+    if (trimmedQuery.length === 0) return staticCommands
+    const q = trimmedQuery.toLowerCase()
+    return staticCommands.filter((c) => c.title.toLowerCase().includes(q))
+  }, [staticCommands, trimmedQuery])
+
+  // ---------------------------------------------------------------------------
   // Derived state
   // ---------------------------------------------------------------------------
-  const hasResults = grouped.ticker.length > 0 || grouped.artifact.length > 0
+  const hasResults =
+    grouped.ticker.length > 0 || grouped.artifact.length > 0 || filteredStatic.length > 0
 
   const showEmpty = !isLoading && !isError && debouncedQuery.length > 0 && !hasResults
 
   const showRecentSearches = trimmedQuery.length === 0 && recentSearches.length > 0
 
-  const showPlaceholder = trimmedQuery.length === 0 && recentSearches.length === 0
+  const showPlaceholder =
+    trimmedQuery.length === 0 && recentSearches.length === 0 && filteredStatic.length === 0
 
   // ---------------------------------------------------------------------------
   // Render
@@ -525,6 +567,58 @@ export function CmdKOverlay() {
         style={{ maxHeight: '440px', overflowY: 'auto' }}
         aria-label={t('cmdk.results.aria')}
       >
+        {/* Coverage commands — local actions, shown first */}
+        {filteredStatic.length > 0 && (
+          <Command.Group heading={t('cmdk.section.coverage')} data-testid="coverage-commands-group">
+            {filteredStatic.map((c) => (
+              <Command.Item
+                key={c.id}
+                value={`coverage-cmd:${c.title}`}
+                onSelect={c.run}
+                data-testid="coverage-command-item"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  borderRadius: '6px',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '14px',
+                    flexShrink: 0,
+                    width: '24px',
+                    textAlign: 'center',
+                  }}
+                  aria-hidden="true"
+                >
+                  ◫
+                </span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                    {c.title}
+                  </div>
+                  {c.subtitle && (
+                    <div
+                      style={{
+                        fontSize: '12px',
+                        color: 'var(--text-muted)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {c.subtitle}
+                    </div>
+                  )}
+                </div>
+              </Command.Item>
+            ))}
+          </Command.Group>
+        )}
+
         {/* Recent searches — shown when query is empty */}
         {showRecentSearches && (
           <Command.Group heading={t('cmdk.section.recent')} data-testid="recent-searches-group">

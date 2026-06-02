@@ -289,14 +289,16 @@ describe('CmdKOverlay — recent searches', () => {
 // ---------------------------------------------------------------------------
 
 describe('CmdKOverlay — exception paths', () => {
-  // G1: Empty query → no request fired, placeholder shown
-  it('G1: empty query shows placeholder, no fetch', async () => {
+  // G1: Empty query → no request fired. The palette shows local Coverage
+  // quick-commands (no backend search), so the empty-placeholder is replaced
+  // by the commands group — the invariant being guarded is "no fetch".
+  it('G1: empty query fires no fetch and shows Coverage commands', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
     useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '' })
     renderOverlay()
     await new Promise((r) => setTimeout(r, 300)) // wait past debounce
     expect(fetchSpy).not.toHaveBeenCalled()
-    expect(screen.getByTestId('empty-placeholder')).toBeInTheDocument()
+    expect(screen.getByTestId('coverage-commands-group')).toBeInTheDocument()
   })
 
   // G2: Query > 200 chars → truncated + warning

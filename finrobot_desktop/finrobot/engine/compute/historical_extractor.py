@@ -111,7 +111,7 @@ def _build_from_yearly(
     sga_ratio_list: list[float | None] = []
     ocf_list: list[float] = []
     icf_list: list[float] = []
-    fcf_list: list[float] = []
+    financing_cf_list: list[float] = []
     da_list: list[float] = []
     capex_list: list[float] = []
     nwc_change_list: list[float] = []
@@ -158,7 +158,7 @@ def _build_from_yearly(
         # industry medians, so 0.0 is the correct fill (not a fabricated value).
         ocf_list.append(_safe_float(data.get("operating_cash_flow")) or 0.0)
         icf_list.append(_safe_float(data.get("investing_cash_flow")) or 0.0)
-        fcf_list.append(_safe_float(data.get("financing_cash_flow")) or 0.0)
+        financing_cf_list.append(_safe_float(data.get("financing_cash_flow")) or 0.0)
         # D&A is reported positive; CapEx is already a positive magnitude
         # (providers sign-flip the cash outflow) — both feed the FCF formula's
         # "+ D&A - CapEx" convention as positive numbers.
@@ -205,7 +205,7 @@ def _build_from_yearly(
         price_data_available=trailing_pe is not None,
         operating_cash_flow=ocf_list,
         investing_cash_flow=icf_list,
-        financing_cash_flow=fcf_list,
+        financing_cash_flow=financing_cf_list,
         depreciation_amortization=da_list,
         capital_expenditure=capex_list,
         change_in_working_capital=nwc_change_list,

@@ -122,6 +122,13 @@ class CoverageRow(BaseModel):
     latest_type: str | None = None
     latest_at: datetime | None = None
 
+    # Live run state for this ticker (latest run in the run store), distinct
+    # from the research artifacts above: a batch run may be in flight or have
+    # failed without producing an artifact.
+    run_status: str | None = None
+    """created | running | completed | failed — latest run, or None if never run."""
+    run_error: str | None = None
+
     needs_refresh: list[NeedsRefreshReason] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 

@@ -180,6 +180,14 @@ def test_needs_refresh_never_run_and_signal_closed() -> None:
     assert _needs_refresh(watching) == []
 
 
+def test_needs_refresh_run_failed_takes_precedence() -> None:
+    # A failed run is more actionable than "never run" and precedes it.
+    row = CoverageRow(ticker="X", run_count=0, run_status="failed", run_error="boom")
+    reasons = _needs_refresh(row)
+    assert [r.kind for r in reasons] == ["run_failed"]
+    assert "boom" in reasons[0].detail
+
+
 # ── build_overview ───────────────────────────────────────────────────────────
 
 
@@ -249,6 +257,39 @@ async def test_overview_one_bad_ticker_does_not_blank_others() -> None:
     assert by_ticker["AAPL"].price == 200.0  # healthy ticker unaffected
     assert by_ticker["NVDA"].price is None  # bad ticker degraded
     assert ov.partial is True
+
+
+class _StubRunStore:
+    def __init__(self, by_ticker: dict[str, object]) -> None:
+        self._by = {k.upper(): v for k, v in by_ticker.items()}
+
+    async def latest_runs_by_ticker(self, tickers):
+        return {t.upper(): self._by[t.upper()] for t in tickers if t.upper() in self._by}
+
+
+async def test_overview_surfaces_failed_run_status() -> None:
+    from finrobot.run_store import RunRecord
+
+    rec = RunRecord(
+        run_id="run_x",
+        pipeline_type="dcf",
+        ticker="NVDA",
+        status="failed",
+        created_at=NOW.isoformat(),
+        error="provider down",
+    )
+    ov = await build_overview(
+        _group("NVDA"),
+        artifact_store=_StubArtifactStore({}),  # type: ignore[arg-type]
+        data_layer=_StubDataLayer(),  # type: ignore[arg-type]
+        run_store=_StubRunStore({"NVDA": rec}),  # type: ignore[arg-type]
+        now=NOW,
+    )
+    (row,) = ov.rows
+    assert row.run_status == "failed"
+    assert row.run_error == "provider down"
+    # run_failed precedes never_run even though the ticker has 0 artifacts.
+    assert [r.kind for r in row.needs_refresh] == ["run_failed"]
 
 
 async def test_overview_never_run_ticker() -> None:

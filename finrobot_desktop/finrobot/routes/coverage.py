@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -55,6 +56,26 @@ class UpdateGroupRequest(BaseModel):
 class AddMembersRequest(BaseModel):
     tickers: list[str] = Field(min_length=1)
     note: str | None = None
+
+
+class BatchRunRequest(BaseModel):
+    tickers: list[str] = Field(min_length=1)
+    pipeline_type: str = "equity_research"
+    language: Literal["en", "zh"] | None = None
+
+
+class BatchRunItem(BaseModel):
+    ticker: str
+    run_id: str
+
+
+class BatchRunResponse(BaseModel):
+    group_id: str
+    pipeline_type: str
+    runs: list[BatchRunItem]
+    skipped: list[dict[str, str]] = Field(default_factory=list)
+    """Tickers that couldn't be started (bad symbol / unknown pipeline), each
+    {ticker, reason} — the rest still launch."""
 
 
 # ── Overview L1 cache (M1) ───────────────────────────────────────────────────
@@ -211,6 +232,49 @@ async def group_overview(
     if data_layer is None or artifact_store is None:
         raise HTTPException(status_code=503, detail="Backend deps not initialized")
 
-    overview = await build_overview(group, artifact_store=artifact_store, data_layer=data_layer)
+    overview = await build_overview(
+        group,
+        artifact_store=artifact_store,
+        data_layer=data_layer,
+        run_store=getattr(request.app.state, "run_store", None),
+    )
     _OVERVIEW_CACHE[group_id] = (now_ts, overview)
     return overview
+
+
+# ── Batch runs (M4) ──────────────────────────────────────────────────────────
+
+
+@router.post("/groups/{group_id}/runs", response_model=BatchRunResponse)
+async def batch_run(group_id: str, request: Request, body: BatchRunRequest) -> BatchRunResponse:
+    """Kick off a pipeline run for each selected ticker in the group.
+
+    Reuses the single-run machinery (``spawn_run`` → same concurrency cap +
+    SSE), so the frontend tracks aggregate progress by connecting one SSE
+    stream per returned ``run_id``. A bad ticker / pipeline lands in
+    ``skipped`` instead of failing the whole batch. The overview's cache is
+    invalidated so an in-flight / failed run shows on next render.
+    """
+    from finrobot.routes.runs import spawn_run
+
+    store = _store(request)
+    if await store.get_group(group_id) is None:
+        raise HTTPException(status_code=404, detail=f"Coverage group not found: {group_id}")
+
+    runs: list[BatchRunItem] = []
+    skipped: list[dict[str, str]] = []
+    for ticker in body.tickers:
+        try:
+            record = await spawn_run(request, body.pipeline_type, ticker, language=body.language)
+        except ValueError as exc:
+            skipped.append({"ticker": ticker.strip().upper(), "reason": str(exc)})
+            continue
+        runs.append(BatchRunItem(ticker=record.ticker, run_id=record.run_id))
+
+    _invalidate(group_id)
+    return BatchRunResponse(
+        group_id=group_id,
+        pipeline_type=body.pipeline_type,
+        runs=runs,
+        skipped=skipped,
+    )

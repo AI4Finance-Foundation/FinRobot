@@ -22,6 +22,7 @@ from finrobot.engine.data.normalize.financials import normalize_financials
 from finrobot.engine.data.normalize.price import normalize_price
 from finrobot.engine.data.types import DataType
 from finrobot.routes.coverage import _OVERVIEW_CACHE, router
+from finrobot.run_store import RunRecord, RunStore
 
 UTC = timezone.utc
 NOW = datetime(2026, 5, 1, tzinfo=UTC)
@@ -112,13 +113,18 @@ async def client(tmp_path: Path):
     app = FastAPI()
     app.include_router(router)
     store = CoverageStore(db_path=tmp_path / "coverage.db")
+    run_store = RunStore(db_path=tmp_path / "runs.db")
     app.state.coverage_store = store
+    app.state.run_store = run_store
+    app.state.run_tasks = {}
     app.state.artifact_store = _StubArtifactStore({"AAPL": [_summary("AAPL")]})
     app.state.deps = SimpleNamespace(data_layer=_StubDataLayer())
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        ac._app = app  # type: ignore[attr-defined]  # test-only handle for store access
         yield ac
     await store.close()
+    await run_store.close()
 
 
 async def test_create_get_and_list_group(client: AsyncClient) -> None:
@@ -204,6 +210,58 @@ async def test_overview_assembles_rows(client: AsyncClient) -> None:
 
 async def test_overview_missing_group_404(client: AsyncClient) -> None:
     assert (await client.get("/api/coverage/groups/cov_nope/overview")).status_code == 404
+
+
+async def test_overview_surfaces_failed_run(client: AsyncClient) -> None:
+    gid = (await client.post("/api/coverage/groups", json={"name": "G"})).json()["id"]
+    await client.post(f"/api/coverage/groups/{gid}/members", json={"tickers": ["AAPL"]})
+
+    run_store: RunStore = client._app.state.run_store  # type: ignore[attr-defined]
+    rec = await run_store.create_run("dcf", "AAPL")
+    await run_store.update_run(rec.run_id, status="failed", error="provider down")
+
+    body = (await client.get(f"/api/coverage/groups/{gid}/overview?refresh=true")).json()
+    (row,) = body["rows"]
+    assert row["run_status"] == "failed"
+    assert row["run_error"] == "provider down"
+    assert any(r["kind"] == "run_failed" for r in row["needs_refresh"])
+
+
+async def test_batch_run_spawns_per_ticker(client: AsyncClient, monkeypatch) -> None:
+    gid = (await client.post("/api/coverage/groups", json={"name": "G"})).json()["id"]
+
+    calls: list[tuple[str, str]] = []
+
+    async def fake_spawn(request, pipeline_type, ticker, **kw):
+        norm = ticker.strip().upper()
+        if norm == "BAD":
+            raise ValueError(f"Invalid pipeline: {pipeline_type}")
+        calls.append((pipeline_type, norm))
+        return RunRecord(
+            run_id=f"run_{norm}",
+            pipeline_type=pipeline_type,
+            ticker=norm,
+            status="created",
+            created_at=NOW.isoformat(),
+        )
+
+    monkeypatch.setattr("finrobot.routes.runs.spawn_run", fake_spawn)
+
+    r = await client.post(
+        f"/api/coverage/groups/{gid}/runs",
+        json={"tickers": ["aapl", "msft", "bad"], "pipeline_type": "dcf"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert {item["ticker"] for item in body["runs"]} == {"AAPL", "MSFT"}
+    assert body["runs"][0]["run_id"].startswith("run_")
+    assert [s["ticker"] for s in body["skipped"]] == ["BAD"]
+    assert calls == [("dcf", "AAPL"), ("dcf", "MSFT")]
+
+
+async def test_batch_run_missing_group_404(client: AsyncClient) -> None:
+    r = await client.post("/api/coverage/groups/cov_nope/runs", json={"tickers": ["AAPL"]})
+    assert r.status_code == 404
 
 
 async def test_overview_l1_cache_and_refresh_bypass(client: AsyncClient) -> None:

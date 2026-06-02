@@ -39,6 +39,7 @@ from finrobot.engine.compute.signal import Signal, compute_signal
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.types import DataType
+from finrobot.run_store import RunRecord, RunStore
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,7 @@ async def build_overview(
     *,
     artifact_store: ArtifactStore,
     data_layer: DataLayer,
+    run_store: "RunStore | None" = None,
     now: datetime | None = None,
 ) -> CoverageOverview:
     """Assemble the Coverage Table for one group.
@@ -80,6 +82,10 @@ async def build_overview(
     PRICE/FINANCIALS + signal) is independent, so wall-clock is one ticker's
     latency, not N×. Cache stampede guard + per-provider rate lock in the
     DataLayer bound the actual outbound calls.
+
+    ``run_store`` is optional: when given, each row carries the latest run's
+    status/error (an in-flight batch run, or a failed attempt) and a
+    ``run_failed`` refresh reason.
     """
     now = now or _now()
     tickers = [m.ticker for m in group.members]
@@ -92,9 +98,22 @@ async def build_overview(
             partial=False,
         )
 
+    latest_runs = {}
+    if run_store is not None:
+        try:
+            latest_runs = await run_store.latest_runs_by_ticker(tickers)
+        except (sqlite3.Error, RuntimeError, OSError) as exc:
+            logger.warning("Coverage overview run-status lookup failed: %s", exc)
+
     rows = await asyncio.gather(
         *(
-            _assemble_row(t, artifact_store=artifact_store, data_layer=data_layer, now=now)
+            _assemble_row(
+                t,
+                artifact_store=artifact_store,
+                data_layer=data_layer,
+                latest_run=latest_runs.get(t.upper()),
+                now=now,
+            )
             for t in tickers
         )
     )
@@ -113,6 +132,7 @@ async def _assemble_row(
     *,
     artifact_store: ArtifactStore,
     data_layer: DataLayer,
+    latest_run: "RunRecord | None" = None,
     now: datetime,
 ) -> CoverageRow:
     ticker = ticker.upper()
@@ -131,7 +151,12 @@ async def _assemble_row(
     # 2. Market side — network, degradable independently of the research side.
     await _apply_market_fields(row, ticker, data_layer)
 
-    # 3. Derived — signal + live upside + refresh reasons.
+    # 3. Live run state (in-flight batch run / failed attempt).
+    if latest_run is not None:
+        row.run_status = latest_run.status
+        row.run_error = latest_run.error
+
+    # 4. Derived — signal + live upside + refresh reasons.
     row.signal = _safe_signal(row, now)
     row.upside_to_target_live = _upside(row.target_price, row.price)
     row.needs_refresh = _needs_refresh(row)
@@ -236,12 +261,22 @@ def _upside(target: float | None, current: float | None) -> float | None:
 
 
 def _needs_refresh(row: CoverageRow) -> list[NeedsRefreshReason]:
-    """Phase-1 refresh rules. Each reason deep-links to its source.
+    """Refresh rules. Each reason deep-links to its source.
 
-    Deferred (need data this layer doesn't fetch yet): ``stale_catalyst``
-    (catalyst/earnings fetch) and ``run_failed`` (batch-run state, Phase 2).
+    Deferred (needs catalyst/earnings fetch this layer doesn't do yet):
+    ``stale_catalyst``.
     """
     reasons: list[NeedsRefreshReason] = []
+    # A failed last run is the most actionable signal — retry it. Takes
+    # precedence over "never run" (the failure is why there's no artifact).
+    if row.run_status == "failed":
+        reasons.append(
+            NeedsRefreshReason(
+                kind="run_failed",
+                detail=f"上次运行失败：{row.run_error or '未知错误'}",
+            )
+        )
+        return reasons
     if row.run_count == 0:
         reasons.append(NeedsRefreshReason(kind="never_run", detail="覆盖池中但从未跑过 Research"))
         return reasons

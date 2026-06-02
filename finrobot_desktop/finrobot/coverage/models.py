@@ -190,3 +190,8 @@ class CoverageOverview(BaseModel):
     partial: bool = False
     """True when at least one ticker's market/fundamental fetch degraded — the
     table still renders, the affected rows carry warnings."""
+    fast: bool = False
+    """True when this is the fast skeleton: research + run state only (SQLite,
+    ~ms), the per-ticker market fan-out skipped. Market/valuation fields are
+    **pending, not missing** — the client renders them as loading and backfills
+    with a full (``fast=false``) fetch. Distinct from ``partial`` (degraded)."""

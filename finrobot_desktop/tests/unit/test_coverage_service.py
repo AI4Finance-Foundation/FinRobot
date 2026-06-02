@@ -268,6 +268,50 @@ async def test_overview_populates_per_field_sources() -> None:
     assert src.upside_to_target_live.provider is None  # not a provider number
 
 
+async def test_overview_fast_skips_market_keeps_research() -> None:
+    # Fast skeleton: research side real, market side pending (None), and the
+    # data layer must not be touched at all (no network on cold first paint).
+    class _ExplodingDataLayer:
+        async def fetch_canonical(self, data_type, ticker, **_):  # pragma: no cover
+            raise AssertionError("fast mode must not hit the data layer")
+
+    store = _StubArtifactStore({"AAPL": [_summary()]})
+    ov = await build_overview(
+        _group("AAPL"),
+        artifact_store=store,  # type: ignore[arg-type]
+        data_layer=_ExplodingDataLayer(),  # type: ignore[arg-type]
+        now=NOW,
+        fast=True,
+    )
+    assert ov.fast is True
+    (row,) = ov.rows
+    # research side present
+    assert row.latest_verdict == "BUY"
+    assert row.run_count == 1
+    assert row.target_price == 240.0
+    # market side pending, not fabricated
+    assert row.price is None
+    assert row.market_cap is None
+    assert row.pe is None
+    # signal/upside depend on live price → pending too
+    assert row.signal is None
+    assert row.upside_to_target_live is None
+    assert row.sources.price is None
+    # no market fetch → no degradation
+    assert ov.partial is False
+
+
+async def test_overview_full_mode_defaults_fast_false() -> None:
+    ov = await build_overview(
+        _group("AAPL"),
+        artifact_store=_StubArtifactStore({"AAPL": [_summary()]}),  # type: ignore[arg-type]
+        data_layer=_StubDataLayer(),  # type: ignore[arg-type]
+        now=NOW,
+    )
+    assert ov.fast is False
+    assert ov.rows[0].price == 200.0  # market filled in full mode
+
+
 async def test_overview_degraded_market_leaves_sources_empty() -> None:
     # A market outage must not fabricate provenance for numbers we don't have.
     store = _StubArtifactStore({"NVDA": [_summary(ticker="NVDA")]})

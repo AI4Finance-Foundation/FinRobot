@@ -93,6 +93,7 @@ async def build_overview(
     data_layer: DataLayer,
     run_store: "RunStore | None" = None,
     now: datetime | None = None,
+    fast: bool = False,
 ) -> CoverageOverview:
     """Assemble the Coverage Table for one group.
 
@@ -104,6 +105,12 @@ async def build_overview(
     ``run_store`` is optional: when given, each row carries the latest run's
     status/error (an in-flight batch run, or a failed attempt) and a
     ``run_failed`` refresh reason.
+
+    ``fast`` builds the **skeleton**: research + run state only (local SQLite,
+    ~ms), skipping the per-ticker market fan-out. Market/valuation/signal/upside
+    come back ``None`` (pending, not missing) — the client renders them as
+    loading and backfills with a full fetch. This makes cold-start first paint
+    instant on big groups instead of waiting on N rate-limited provider calls.
     """
     now = now or _now()
     tickers = [m.ticker for m in group.members]
@@ -114,6 +121,7 @@ async def build_overview(
             rows=[],
             generated_at=now,
             partial=False,
+            fast=fast,
         )
 
     latest_runs = {}
@@ -131,6 +139,7 @@ async def build_overview(
                 data_layer=data_layer,
                 latest_run=latest_runs.get(t.upper()),
                 now=now,
+                fast=fast,
             )
             for t in tickers
         )
@@ -142,6 +151,7 @@ async def build_overview(
         rows=list(rows),
         generated_at=now,
         partial=partial,
+        fast=fast,
     )
 
 
@@ -152,6 +162,7 @@ async def _assemble_row(
     data_layer: DataLayer,
     latest_run: "RunRecord | None" = None,
     now: datetime,
+    fast: bool = False,
 ) -> CoverageRow:
     ticker = ticker.upper()
     row = CoverageRow(ticker=ticker)
@@ -167,7 +178,10 @@ async def _assemble_row(
     _apply_research_fields(row, summaries)
 
     # 2. Market side — network, degradable independently of the research side.
-    await _apply_market_fields(row, ticker, data_layer)
+    # Skipped in fast mode: market/signal/upside stay None (pending), the
+    # skeleton renders instantly off the local research side above.
+    if not fast:
+        await _apply_market_fields(row, ticker, data_layer)
 
     # 3. Live run state (in-flight batch run / failed attempt).
     if latest_run is not None:

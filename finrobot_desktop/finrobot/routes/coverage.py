@@ -83,12 +83,16 @@ class BatchRunResponse(BaseModel):
 # overview = an N-ticker canonical fan-out; a short TTL absorbs refresh storms
 # while staying live. Keyed by group_id; invalidated on any membership/name
 # mutation so an edit is reflected immediately.
-_OVERVIEW_CACHE: dict[str, tuple[float, CoverageOverview]] = {}
+# Keyed by (group_id, fast) — the fast skeleton and the full table are distinct
+# payloads, cached independently.
+_OVERVIEW_CACHE: dict[tuple[str, bool], tuple[float, CoverageOverview]] = {}
 _OVERVIEW_TTL_S = 60.0
 
 
 def _invalidate(group_id: str) -> None:
-    _OVERVIEW_CACHE.pop(group_id, None)
+    # Drop both phases — a membership/name edit invalidates skeleton and full.
+    _OVERVIEW_CACHE.pop((group_id, True), None)
+    _OVERVIEW_CACHE.pop((group_id, False), None)
 
 
 # ── Dependency accessors ─────────────────────────────────────────────────────
@@ -209,17 +213,22 @@ async def remove_member(group_id: str, ticker: str, request: Request) -> Coverag
 
 @router.get("/groups/{group_id}/overview", response_model=CoverageOverview)
 async def group_overview(
-    group_id: str, request: Request, refresh: bool = False
+    group_id: str, request: Request, refresh: bool = False, fast: bool = False
 ) -> CoverageOverview:
     """Assembled Coverage Table for a group (60s L1 cache; ``refresh=true`` bypasses).
 
     Needs the data layer + artifact store; per-ticker fetch failures degrade
     individual rows (``partial=true``) rather than failing the request.
+
+    ``fast=true`` returns the skeleton (research + run state only, no market
+    fan-out) so the client paints the table instantly on cold start, then
+    backfills with a full fetch. The two phases are cached separately.
     """
     store = _store(request)
     now_ts = time.time()
+    key = (group_id, fast)
     if not refresh:
-        cached = _OVERVIEW_CACHE.get(group_id)
+        cached = _OVERVIEW_CACHE.get(key)
         if cached and now_ts - cached[0] < _OVERVIEW_TTL_S:
             return cached[1]
 
@@ -237,8 +246,9 @@ async def group_overview(
         artifact_store=artifact_store,
         data_layer=data_layer,
         run_store=getattr(request.app.state, "run_store", None),
+        fast=fast,
     )
-    _OVERVIEW_CACHE[group_id] = (now_ts, overview)
+    _OVERVIEW_CACHE[key] = (now_ts, overview)
     return overview
 
 

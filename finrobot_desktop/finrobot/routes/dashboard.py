@@ -116,10 +116,14 @@ _LANDING_CACHE_TTL_S = 60.0
 async def hit_rate(
     request: Request,
     window: str = "all",
+    tickers: str | None = None,
 ) -> HitRateOverview:
-    """Cross-ticker hit-rate buckets for the /stocks landing banner.
+    """Hit-rate buckets for the track-record panel.
 
     `window`: "30d" | "90d" | "all" (default "all")
+    `tickers`: optional comma-separated symbols to scope the stats to a coverage
+        group (BUG-055). Omitted → global (all artifacts). An empty value scopes
+        to the empty set → null buckets (an empty group has no track record).
 
     The endpoint never returns 500 for sparse data — empty buckets come back
     as `hit_rate=null`. UI renders a "样本不足" hint in that case.
@@ -127,8 +131,13 @@ async def hit_rate(
     if window not in ("30d", "90d", "all"):
         raise HTTPException(status_code=400, detail="window must be 30d|90d|all")
 
+    ticker_set: set[str] | None = None
+    if tickers is not None:
+        ticker_set = {t.strip().upper() for t in tickers.split(",") if t.strip()}
+
     now_ts = time.time()
-    cached = _HIT_RATE_CACHE.get(window)
+    cache_key = window if ticker_set is None else f"{window}|{','.join(sorted(ticker_set))}"
+    cached = _HIT_RATE_CACHE.get(cache_key)
     if cached and now_ts - cached[0] < _LANDING_CACHE_TTL_S:
         return cached[1]
 
@@ -137,7 +146,7 @@ async def hit_rate(
         raise HTTPException(status_code=503, detail="Backend deps not initialized")
     store = deps.artifact_store
 
-    inputs = await _collect_signal_inputs(store, deps.data_layer)
+    inputs = await _collect_signal_inputs(store, deps.data_layer, ticker_set)
     from finrobot.engine.aggregations.hit_rate_overview import compute_hit_rate_overview
 
     stats = compute_hit_rate_overview(
@@ -164,7 +173,7 @@ async def hit_rate(
         },
         generated_at=stats.generated_at,
     )
-    _HIT_RATE_CACHE[window] = (now_ts, overview)
+    _HIT_RATE_CACHE[cache_key] = (now_ts, overview)
     return overview
 
 
@@ -312,7 +321,9 @@ async def recent_research(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-async def _collect_signal_inputs(store: Any, data_layer: Any) -> list[Any]:
+async def _collect_signal_inputs(
+    store: Any, data_layer: Any, tickers: set[str] | None = None
+) -> list[Any]:
     """Walk artifact summaries → ArtifactSignalInput list (with live prices).
 
     Uses ``ArtifactSummary.verdict`` directly — does NOT reload the full
@@ -325,18 +336,22 @@ async def _collect_signal_inputs(store: Any, data_layer: Any) -> list[Any]:
     from finrobot.engine.data.quote_batch import fetch_quotes_batch_cached
 
     summaries = await store.list_by_ticker(ticker=None, include_archived=False, limit=500)
+    if tickers is not None:
+        # Scope to a coverage group's members (BUG-055). An EMPTY set (an empty
+        # group) correctly yields no inputs → null hit-rate, not the global one.
+        summaries = [s for s in summaries if s.ticker and s.ticker.upper() in tickers]
     if not summaries:
         return []
 
-    tickers = sorted({s.ticker for s in summaries if s.ticker})
+    quote_tickers = sorted({s.ticker for s in summaries if s.ticker})
     try:
-        quotes = await fetch_quotes_batch_cached(tickers, data_layer)
+        quotes = await fetch_quotes_batch_cached(quote_tickers, data_layer)
     except _QUOTE_BATCH_DEGRADABLE:
         # Without live prices the aggregator can't classify signals so
         # buckets degrade to null hit-rate — UI shows "样本不足" which is
         # far better than a 500 black-out of the entire landing banner.
         logger.exception("Quote batch failed for hit-rate overview")
-        quotes = dict.fromkeys(tickers)
+        quotes = dict.fromkeys(quote_tickers)
 
     return [
         ArtifactSignalInput(

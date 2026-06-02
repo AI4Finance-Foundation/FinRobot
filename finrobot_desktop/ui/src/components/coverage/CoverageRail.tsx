@@ -3,6 +3,7 @@
 // the current overview rows. No new menus — the landing's hit-rate lives here
 // now (Coverage plan). Honest 0-data: no closed sample → "—", never a fake 0%.
 
+import { useMemo } from 'react'
 import { useI18n } from '../../i18n'
 import { formatPercent } from '../../utils/format'
 import { useDashboardHitRate } from '../../hooks/useDashboardHitRate'
@@ -27,15 +28,19 @@ const TITLE: React.CSSProperties = {
 export function CoverageRail({ rows }: { rows: CoverageRow[] }): React.ReactElement {
   return (
     <div style={{ width: 260, flexShrink: 0, overflow: 'auto' }}>
-      <TrackRecordPanel />
+      <TrackRecordPanel rows={rows} />
       <NeedsRefreshPanel rows={rows} />
     </div>
   )
 }
 
-function TrackRecordPanel(): React.ReactElement {
+function TrackRecordPanel({ rows }: { rows: CoverageRow[] }): React.ReactElement {
   const { t, locale } = useI18n()
-  const { data, isLoading } = useDashboardHitRate('all')
+  // Scope the track record to THIS group's members, not the whole store
+  // (BUG-055) — a 3-name group's hit-rate must not silently fold in every
+  // historical ticker. Re-keyed by ticker set, so switching group refetches.
+  const tickers = useMemo(() => rows.map((r) => r.ticker), [rows])
+  const { data, isLoading } = useDashboardHitRate('all', tickers)
   const overall = data?.overall
 
   let body: React.ReactNode

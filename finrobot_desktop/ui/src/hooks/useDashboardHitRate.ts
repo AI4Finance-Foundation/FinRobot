@@ -25,11 +25,20 @@ export interface HitRateOverview {
   generated_at: string
 }
 
-export function useDashboardHitRate(window: HitRateWindow = 'all') {
+/**
+ * @param tickers Pass a coverage group's member symbols to scope the stats to
+ *   that group (BUG-055). `undefined` → global (all artifacts); an empty array
+ *   scopes to the empty set (an empty group has no track record) — deliberately
+ *   distinct from global.
+ */
+export function useDashboardHitRate(window: HitRateWindow = 'all', tickers?: string[]) {
+  const scoped = tickers !== undefined
+  const tickerParam = scoped ? tickers.join(',') : null
   return useQuery<HitRateOverview>({
-    queryKey: ['dashboard', 'hit-rate', window],
+    queryKey: ['dashboard', 'hit-rate', window, scoped ? tickerParam : 'all'],
     queryFn: async ({ signal }) => {
       const params = new URLSearchParams({ window })
+      if (scoped) params.set('tickers', tickerParam ?? '')
       const r = await fetchWithTimeout(`${BASE_URL}/api/dashboard/hit-rate?${params}`, { signal })
       if (!r.ok) throw new FetchHttpError(r.status, r.statusText)
       return r.json() as Promise<HitRateOverview>

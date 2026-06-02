@@ -242,6 +242,47 @@ def test_hit_rate_aggregates_real_artifacts(
     assert data["by_verdict"]["HOLD"]["hit_rate"] is None
 
 
+def test_hit_rate_scopes_to_group_tickers(
+    client: TestClient,
+    store: ArtifactStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """?tickers=… scopes the track record to a coverage group (BUG-055): a
+    3-name group must not fold in every historical ticker. Empty value → the
+    empty set → null buckets, NOT the global stats."""
+    _set_quotes({"AAPL": 128.0, "MSFT": 60.0})
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_AAPL",
+            ticker="AAPL",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=30,
+        ),
+    )
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_MSFT",
+            ticker="MSFT",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=30,
+        ),
+    )
+    # Scoped to AAPL only → its single (hit) sample, not the global 0.5.
+    scoped = client.get("/api/dashboard/hit-rate?tickers=AAPL").json()
+    assert scoped["overall"]["n_total"] == 1
+    assert scoped["overall"]["hit_rate"] == 1.0
+    # Empty group → empty set → null, distinct from global.
+    empty = client.get("/api/dashboard/hit-rate?tickers=").json()
+    assert empty["overall"]["n_total"] == 0
+    assert empty["overall"]["hit_rate"] is None
+
+
 def test_recent_research_empty_store(client: TestClient) -> None:
     resp = client.get("/api/dashboard/recent-research")
     assert resp.status_code == 200

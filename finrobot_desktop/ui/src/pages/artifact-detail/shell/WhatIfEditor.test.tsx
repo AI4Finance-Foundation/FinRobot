@@ -11,6 +11,7 @@ vi.mock('../../../api/client', () => ({ BASE_URL: 'http://test' }))
 const DEBOUNCE_MS = 500
 
 function renderEditor(props?: {
+  artifactId?: string
   initialWacc?: number | null
   initialTg?: number | null
   originalImpliedPrice?: number | null
@@ -18,10 +19,14 @@ function renderEditor(props?: {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
+  // key={artifactId} mirrors how ReportRightRail mounts the editor — switching
+  // artifact remounts with fresh initial values (BUG-007).
+  const artifactId = props?.artifactId ?? 'art_AAPL_eq'
   return render(
     <QueryClientProvider client={queryClient}>
       <WhatIfEditor
-        ticker="AAPL"
+        key={artifactId}
+        artifactId={artifactId}
         initialWacc={props?.initialWacc ?? 0.09}
         initialTg={props?.initialTg ?? 0.025}
         originalImpliedPrice={props?.originalImpliedPrice ?? 180.5}
@@ -37,9 +42,10 @@ describe('WhatIfEditor', () => {
     fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
+        artifact_id: 'art_AAPL_eq',
         inputs: { wacc: 0.1, terminal_growth_rate: 0.025 },
         result: { implied_price: 210.42, wacc: 0.1 },
-        current_price: 175,
+        base_implied_price: 180.5,
       }),
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -69,6 +75,22 @@ describe('WhatIfEditor', () => {
   it('does not show reset button when all sliders at baseline', () => {
     renderEditor()
     expect(screen.queryByTestId('whatif-reset')).not.toBeInTheDocument()
+  })
+
+  it('replays the FROZEN artifact via the what-if endpoint, NOT the live dcf-seed reseed', async () => {
+    renderEditor({ artifactId: 'art_2026_AAPL_equity_research', initialWacc: 0.09 })
+    fireEvent.change(screen.getByTestId('whatif-slider-wacc'), { target: { value: '12.5' } })
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1), { timeout: DEBOUNCE_MS + 500 })
+    const url = fetchMock.mock.calls[0][0] as string
+    // Must hit the artifact-replay endpoint with the current artifact id …
+    expect(url).toBe('http://test/api/compute/artifacts/art_2026_AAPL_equity_research/what-if/dcf')
+    // … and MUST NOT hit the live reseed path that re-fetches financials/price.
+    expect(url).not.toContain('/dcf-seed')
+    // Body carries only slider overrides — no ticker, no live-data hints.
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
+    expect(body).not.toHaveProperty('ticker')
+    expect(body.wacc_override).toBeCloseTo(0.125)
   })
 
   it('sends growth_scale_override=null when only WACC is dirty', async () => {
@@ -126,6 +148,42 @@ describe('WhatIfEditor', () => {
     expect((screen.getByTestId('whatif-slider-growth') as HTMLInputElement).value).toBe('0')
     expect((screen.getByTestId('whatif-slider-wacc') as HTMLInputElement).value).toBe('9')
     expect(screen.queryByTestId('whatif-reset')).not.toBeInTheDocument()
+  })
+
+  it('resets sliders to the new artifact base when the report version changes (BUG-007)', () => {
+    // Report A: WACC 9%, TG 2.5%.
+    const { rerender } = renderEditor({
+      artifactId: 'art_A',
+      initialWacc: 0.09,
+      initialTg: 0.025,
+    })
+    // Drag report A's WACC to 14% — leaves the editor dirty.
+    fireEvent.change(screen.getByTestId('whatif-slider-wacc'), { target: { value: '14' } })
+    expect((screen.getByTestId('whatif-slider-wacc') as HTMLInputElement).value).toBe('14')
+    expect(screen.getByTestId('whatif-reset')).toBeInTheDocument()
+
+    // Switch to report B (WACC 11%, TG 3%) — the key change remounts the editor,
+    // so the sliders must show B's frozen assumptions, not A's dragged 14%.
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    })
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <WhatIfEditor
+          key="art_B"
+          artifactId="art_B"
+          initialWacc={0.11}
+          initialTg={0.03}
+          originalImpliedPrice={205}
+        />
+      </QueryClientProvider>,
+    )
+
+    expect((screen.getByTestId('whatif-slider-wacc') as HTMLInputElement).value).toBe('11')
+    expect((screen.getByTestId('whatif-slider-tg') as HTMLInputElement).value).toBe('3')
+    // Fresh base ⇒ not dirty ⇒ no reset button.
+    expect(screen.queryByTestId('whatif-reset')).not.toBeInTheDocument()
+    expect(screen.getByTestId('whatif-base-price')).toHaveTextContent('$205.00')
   })
 
   it('surfaces error UI on failed fetch', async () => {

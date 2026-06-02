@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from starlette.requests import Request
 
@@ -332,6 +332,125 @@ async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedRes
         reverse_growth=reverse_growth,
         reverse_wacc=reverse_wacc,
         reverse_horizon=reverse_horizon,
+    )
+
+
+class DcfWhatIfRequest(BaseModel):
+    """What-if recompute on a SAVED report's frozen DCF inputs.
+
+    Unlike /dcf-seed (which re-fetches live financials/price/history and reseeds
+    from scratch), this path replays the artifact's persisted DCFInputs verbatim
+    and overrides ONLY the slider field(s). The BASE/NEW delta is therefore
+    attributable solely to the slider — no live-data drift leaks in. Omitted
+    overrides leave the frozen assumption untouched.
+    """
+
+    wacc_override: float | None = Field(default=None, ge=0, le=0.50)
+    tg_override: float | None = Field(default=None, ge=-0.05, le=0.10)
+    growth_scale_override: float | None = Field(
+        default=None,
+        ge=-0.5,
+        le=0.5,
+        description=(
+            "Multiplier applied uniformly to every FROZEN revenue_growth_rate. "
+            "0.1 → +10% each year, -0.2 → -20%, None → unchanged."
+        ),
+    )
+    mid_year: bool = False
+
+
+class DcfWhatIfResponse(BaseModel):
+    """Replayed DCF output. ``base_implied_price`` is the artifact's persisted
+    implied price (the UI's BASE); ``result.implied_price`` is NEW. They differ
+    only by the applied overrides — never by data drift."""
+
+    artifact_id: str
+    inputs: DCFInputs
+    result: DCFResult
+    base_implied_price: float
+
+
+def _extract_frozen_dcf_result(structured: dict[str, Any]) -> dict[str, Any] | None:
+    """Pull the persisted DCFResult dump out of an artifact's outputs.structured.
+
+    Covers the three artifact shapes that carry a DCF:
+      - equity_research → structured["financial_modeling"]
+      - dcf             → structured itself is the DCFResult dump
+      - ic_memo         → structured["dcf_result"]
+
+    Returns the DCFResult-shaped dict (with nested ``inputs`` and
+    ``implied_price``) or None when no replayable DCF is present.
+    """
+
+    def _is_dcf_dump(d: object) -> bool:
+        return isinstance(d, dict) and isinstance(d.get("inputs"), dict) and "implied_price" in d
+
+    for key in ("financial_modeling", "dcf_result"):
+        candidate = structured.get(key)
+        if isinstance(candidate, dict) and _is_dcf_dump(candidate):
+            return candidate
+    if _is_dcf_dump(structured):
+        return structured
+    return None
+
+
+@router.post("/artifacts/{artifact_id}/what-if/dcf", response_model=DcfWhatIfResponse)
+async def compute_dcf_what_if(
+    artifact_id: str, body: DcfWhatIfRequest, request: Request
+) -> DcfWhatIfResponse:
+    """Replay a saved report's frozen DCF, overriding only the slider field(s).
+
+    Loads the artifact, reads its persisted DCFInputs (frozen at generation
+    time), applies the What-if overrides, and runs the pure ``calculate_dcf``.
+    No ``data_layer.fetch_canonical`` / ``seed_dcf_inputs`` — so dragging a
+    slider on an old report cannot smear in fresh price/financials/Damodaran
+    drift. Returns BASE (persisted) and NEW (recomputed) implied prices.
+    """
+    from finrobot.engine.pipelines._helpers import build_sensitivity_ranges
+
+    store = getattr(request.app.state, "artifact_store", None)
+    if store is None:
+        raise HTTPException(status_code=503, detail="Artifact store not initialised")
+
+    artifact = await store.get(artifact_id)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail=f"Artifact {artifact_id} not found")
+
+    frozen = _extract_frozen_dcf_result(artifact.outputs.structured)
+    if frozen is None:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Artifact {artifact_id} (type={artifact.type}) has no replayable "
+                "DCF inputs — What-if requires a persisted DCFResult."
+            ),
+        )
+
+    try:
+        dcf_inputs = DCFInputs.model_validate(frozen["inputs"])
+        base_implied_price = float(frozen["implied_price"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Artifact {artifact_id} DCF inputs are malformed: {exc}",
+        ) from exc
+
+    dcf_inputs = apply_growth_scale_override(dcf_inputs, body.growth_scale_override)
+    result = calculate_dcf(
+        dcf_inputs,
+        wacc_override=body.wacc_override,
+        tg_override=body.tg_override,
+        mid_year=body.mid_year,
+    )
+    wacc_range, tg_range = build_sensitivity_ranges(result.wacc, result.inputs.terminal_growth_rate)
+    sensitivity = calculate_sensitivity(dcf_inputs, wacc_range, tg_range)
+    result = result.model_copy(update={"sensitivity_table": sensitivity})
+
+    return DcfWhatIfResponse(
+        artifact_id=artifact_id,
+        inputs=dcf_inputs,
+        result=result,
+        base_implied_price=base_implied_price,
     )
 
 

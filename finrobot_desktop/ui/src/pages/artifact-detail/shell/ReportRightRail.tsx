@@ -18,26 +18,36 @@ interface ReportRightRailProps {
   originalImpliedPrice: number | null
 }
 
-interface DcfSeedResponse {
+interface DcfWhatIfResponse {
+  artifact_id: string
   inputs: { wacc?: number; terminal_growth_rate?: number } & Record<string, unknown>
   result: { implied_price: number; wacc: number }
-  current_price: number | null
+  base_implied_price: number
 }
 
-interface PostDcfSeedBody {
-  ticker: string
+interface PostDcfWhatIfBody {
+  artifactId: string
   wacc_override: number
   tg_override: number
   growth_scale_override: number | null
 }
 
-async function postDcfSeed(body: PostDcfSeedBody): Promise<DcfSeedResponse> {
+/**
+ * Replay the CURRENT artifact's FROZEN DCF inputs, overriding only the slider
+ * field(s). Hits /api/compute/artifacts/{id}/what-if/dcf — NOT the live
+ * /dcf-seed reseed path — so the BASE→NEW delta is attributable solely to the
+ * slider, never to data drift (latest price/financials/Damodaran fallback).
+ */
+async function postDcfWhatIf({
+  artifactId,
+  ...overrides
+}: PostDcfWhatIfBody): Promise<DcfWhatIfResponse> {
   const resp = await fetchWithTimeout(
-    `${BASE_URL}/api/compute/dcf-seed`,
+    `${BASE_URL}/api/compute/artifacts/${encodeURIComponent(artifactId)}/what-if/dcf`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...body, mid_year: false, include_reverse: false }),
+      body: JSON.stringify({ ...overrides, mid_year: false }),
     },
     HEAVY_API_TIMEOUT_MS,
   )
@@ -45,7 +55,7 @@ async function postDcfSeed(body: PostDcfSeedBody): Promise<DcfSeedResponse> {
     const detail = await resp.text().catch(() => '')
     throw new Error(`${resp.status} ${detail.slice(0, 160)}`)
   }
-  return (await resp.json()) as DcfSeedResponse
+  return (await resp.json()) as DcfWhatIfResponse
 }
 
 export function ReportRightRail({
@@ -123,8 +133,12 @@ export function ReportRightRail({
         )}
       </RailPanel>
 
+      {/* key={currentArtifactId} forces a fresh remount when the report version
+          changes, so the sliders reset to the NEW artifact's base assumptions
+          instead of keeping the previous report's WACC/TG (BUG-007). */}
       <WhatIfEditor
-        ticker={ticker}
+        key={currentArtifactId}
+        artifactId={currentArtifactId}
         initialWacc={wacc}
         initialTg={terminalGrowth}
         originalImpliedPrice={originalImpliedPrice}
@@ -134,12 +148,12 @@ export function ReportRightRail({
 }
 
 export function WhatIfEditor({
-  ticker,
+  artifactId,
   initialWacc,
   initialTg,
   originalImpliedPrice,
 }: {
-  ticker: string
+  artifactId: string
   initialWacc: number | null
   initialTg: number | null
   originalImpliedPrice: number | null
@@ -155,7 +169,7 @@ export function WhatIfEditor({
   const [growthScalePct, setGrowthScalePct] = useState<number>(0)
 
   const mutation = useMutation({
-    mutationFn: postDcfSeed,
+    mutationFn: postDcfWhatIf,
   })
 
   // Capture latest mutation methods so the debounce effect can stay free of
@@ -176,14 +190,14 @@ export function WhatIfEditor({
         return
       }
       mutationRef.current.mutate({
-        ticker,
+        artifactId,
         wacc_override: waccPct / 100,
         tg_override: tgPct / 100,
         growth_scale_override: growthDirty ? growthScalePct / 100 : null,
       })
     }, 380)
     return () => clearTimeout(handle)
-  }, [waccPct, tgPct, growthScalePct, ticker, baseWacc, baseTg])
+  }, [waccPct, tgPct, growthScalePct, artifactId, baseWacc, baseTg])
 
   const handleReset = useCallback(() => {
     setWaccPct(baseWacc * 100)

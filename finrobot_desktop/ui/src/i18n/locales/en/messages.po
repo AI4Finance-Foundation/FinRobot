@@ -3371,6 +3371,50 @@ msgid "coverage.error.invalidTickers"
 msgstr "Ignored invalid symbol(s): {tickers}"
 
 #. js-lingui-explicit-id
+msgid "coverage.error.renameFailed"
+msgstr "Failed to rename group"
+
+#. js-lingui-explicit-id
+msgid "coverage.error.deleteGroupFailed"
+msgstr "Failed to delete group"
+
+#. js-lingui-explicit-id
+msgid "coverage.error.removeFailed"
+msgstr "Failed to remove ticker"
+
+#. js-lingui-explicit-id
+msgid "coverage.menu.manage"
+msgstr "Manage group"
+
+#. js-lingui-explicit-id
+msgid "coverage.menu.rename"
+msgstr "Rename"
+
+#. js-lingui-explicit-id
+msgid "coverage.menu.delete"
+msgstr "Delete group"
+
+#. js-lingui-explicit-id
+msgid "coverage.row.remove"
+msgstr "Remove from group"
+
+#. js-lingui-explicit-id
+msgid "coverage.row.removeOne"
+msgstr "Remove {ticker} from group"
+
+#. js-lingui-explicit-id
+msgid "coverage.confirm.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+msgid "coverage.confirm.deleteGroupTitle"
+msgstr "Delete coverage group"
+
+#. js-lingui-explicit-id
+msgid "coverage.confirm.deleteGroup"
+msgstr "Delete \"{name}\" and all its tickers? This can't be undone."
+
+#. js-lingui-explicit-id
 msgid "coverage.toast.launched"
 msgstr "Launched {n} run(s); {skipped} skipped"
 

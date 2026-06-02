@@ -69,6 +69,7 @@ function renderTable(
     onSort?: (key: CoverageSortKey) => void
     marketPending?: boolean
     hiddenColumns?: string[]
+    onRemove?: (ticker: string) => void
   } = {},
 ): void {
   render(
@@ -84,6 +85,7 @@ function renderTable(
         onToggleAll={() => {}}
         onOpenTicker={() => {}}
         onRunOne={() => {}}
+        onRemove={opts.onRemove ?? (() => {})}
       />
     </MemoryRouter>,
   )
@@ -166,6 +168,15 @@ describe('CoverageTable column visibility', () => {
     renderTable([makeRow()], { hiddenColumns: [] })
     expect(screen.getByRole('button', { name: /Sort by P\/E/ })).toBeInTheDocument()
     expect(screen.getByText('28.5×')).toBeInTheDocument()
+  })
+})
+
+describe('CoverageTable row actions', () => {
+  it('per-row remove action calls onRemove with the ticker', () => {
+    const onRemove = vi.fn()
+    renderTable([makeRow({ ticker: 'AAPL' })], { onRemove })
+    fireEvent.click(screen.getByRole('button', { name: /Remove AAPL from group/ }))
+    expect(onRemove).toHaveBeenCalledWith('AAPL')
   })
 })
 

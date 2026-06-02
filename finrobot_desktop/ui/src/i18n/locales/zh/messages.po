@@ -3367,6 +3367,50 @@ msgid "coverage.error.invalidTickers"
 msgstr "已忽略非法代码：{tickers}"
 
 #. js-lingui-explicit-id
+msgid "coverage.error.renameFailed"
+msgstr "重命名分组失败"
+
+#. js-lingui-explicit-id
+msgid "coverage.error.deleteGroupFailed"
+msgstr "删除分组失败"
+
+#. js-lingui-explicit-id
+msgid "coverage.error.removeFailed"
+msgstr "移除 ticker 失败"
+
+#. js-lingui-explicit-id
+msgid "coverage.menu.manage"
+msgstr "管理分组"
+
+#. js-lingui-explicit-id
+msgid "coverage.menu.rename"
+msgstr "重命名"
+
+#. js-lingui-explicit-id
+msgid "coverage.menu.delete"
+msgstr "删除分组"
+
+#. js-lingui-explicit-id
+msgid "coverage.row.remove"
+msgstr "从分组移除"
+
+#. js-lingui-explicit-id
+msgid "coverage.row.removeOne"
+msgstr "将 {ticker} 从分组移除"
+
+#. js-lingui-explicit-id
+msgid "coverage.confirm.cancel"
+msgstr "取消"
+
+#. js-lingui-explicit-id
+msgid "coverage.confirm.deleteGroupTitle"
+msgstr "删除覆盖分组"
+
+#. js-lingui-explicit-id
+msgid "coverage.confirm.deleteGroup"
+msgstr "删除“{name}”及其全部 ticker？此操作无法撤销。"
+
+#. js-lingui-explicit-id
 msgid "coverage.emptyGroup"
 msgstr "还没有 ticker——在上方添加。"
 

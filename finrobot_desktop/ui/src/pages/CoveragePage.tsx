@@ -14,8 +14,12 @@ import {
   useCoverageGroups,
   useCoverageOverview,
   useCreateGroup,
+  useDeleteGroup,
+  useRemoveMember,
+  useUpdateGroup,
 } from '../hooks/useCoverage'
 import { CoverageTable } from '../components/coverage/CoverageTable'
+import { CoverageGroupMenu } from '../components/coverage/CoverageGroupMenu'
 import { CoverageRail } from '../components/coverage/CoverageRail'
 import { CoverageEmptyState } from '../components/coverage/CoverageEmptyState'
 import { CoverageHero } from '../components/coverage/CoverageHero'
@@ -62,8 +66,13 @@ export function CoveragePage(): React.ReactElement {
   const createGroup = useCreateGroup()
   const addMembers = useAddMembers()
   const batchRun = useBatchRun()
+  const updateGroup = useUpdateGroup()
+  const deleteGroup = useDeleteGroup()
+  const removeMember = useRemoveMember()
 
   const [addInput, setAddInput] = useState('')
+
+  const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null
 
   // ── Groups request failed → error state, NOT the starter ──────────────────
   // Falling through to the empty check would show the "create your first
@@ -174,6 +183,46 @@ export function CoveragePage(): React.ReactElement {
     navigate(`/compare?tickers=${encodeURIComponent(selectedTickers.join(','))}`)
   }
 
+  function handleRename(name: string) {
+    if (!activeGroupId) return
+    updateGroup.mutate(
+      { id: activeGroupId, name },
+      { onError: () => toast({ type: 'error', title: t('coverage.error.renameFailed') }) },
+    )
+  }
+
+  function handleDeleteGroup() {
+    if (!activeGroupId) return
+    const deletingId = activeGroupId
+    deleteGroup.mutate(deletingId, {
+      onSuccess: () => {
+        // Move the selection off the now-gone group: next remaining group, else
+        // let activeGroupId fall back to the first (or the starter if none).
+        const next = groups.find((g) => g.id !== deletingId)
+        // setSelectedGroup already clears the multi-select; passing null lets
+        // activeGroupId fall back to the first remaining group (or the starter).
+        setSelectedGroup(next ? next.id : null)
+      },
+      onError: () => toast({ type: 'error', title: t('coverage.error.deleteGroupFailed') }),
+    })
+  }
+
+  function handleRemoveMember(ticker: string) {
+    if (!activeGroupId) return
+    removeMember.mutate(
+      { id: activeGroupId, ticker },
+      {
+        onSuccess: () => toggleTickerOff(ticker),
+        onError: () => toast({ type: 'error', title: t('coverage.error.removeFailed') }),
+      },
+    )
+  }
+
+  // Drop a removed ticker from the multi-select so a stale id can't be batch-run.
+  function toggleTickerOff(ticker: string) {
+    if (selectedTickers.includes(ticker)) toggleTicker(ticker)
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px 24px' }}>
       {/* Hero band — robot backdrop + big ticker search (drill-down into a
@@ -210,6 +259,15 @@ export function CoveragePage(): React.ReactElement {
             </option>
           ))}
         </select>
+
+        {activeGroup && (
+          <CoverageGroupMenu
+            groupName={activeGroup.name}
+            busy={updateGroup.isPending || deleteGroup.isPending}
+            onRename={handleRename}
+            onDelete={handleDeleteGroup}
+          />
+        )}
 
         {/* Add-to-group control — NOT a second search. The hero search drills
             into a single stock (/stocks/:ticker); this adds a ticker to THIS
@@ -321,6 +379,7 @@ export function CoveragePage(): React.ReactElement {
               }
               onOpenTicker={(ticker) => navigate(`/stocks/${ticker}`)}
               onRunOne={(ticker) => handleRun([ticker])}
+              onRemove={handleRemoveMember}
             />
           )}
         </div>

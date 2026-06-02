@@ -30,6 +30,8 @@ interface Props {
   onToggleAll: () => void
   onOpenTicker: (ticker: string) => void
   onRunOne: (ticker: string) => void
+  // Drop a ticker from the active group (the only way the universe shrinks).
+  onRemove: (ticker: string) => void
 }
 
 const TH: React.CSSProperties = {
@@ -85,6 +87,7 @@ export function CoverageTable({
   onToggleAll,
   onOpenTicker,
   onRunOne,
+  onRemove,
 }: Props): React.ReactElement {
   const { t, locale } = useI18n()
   const allSelected = rows.length > 0 && selected.length === rows.length
@@ -174,7 +177,7 @@ export function CoverageTable({
             {vis('status') && (
               <th style={{ ...TH, textAlign: 'center' }}>{t('coverage.col.status')}</th>
             )}
-            <th style={{ ...TH, textAlign: 'center', width: 56 }} />
+            <th style={{ ...TH, textAlign: 'center', width: 92 }} />
           </tr>
         </thead>
         <tbody>
@@ -334,22 +337,58 @@ export function CoverageTable({
                   </td>
                 )}
                 <td style={{ ...TD, textAlign: 'center' }}>
-                  <button
-                    type="button"
-                    onClick={() => onRunOne(r.ticker)}
-                    title={t('coverage.runOne')}
+                  <div
                     style={{
-                      background: 'var(--primary-soft)',
-                      border: '1px solid var(--border-soft)',
-                      borderRadius: 'var(--radius-sm)',
-                      color: 'var(--primary)',
-                      cursor: 'pointer',
-                      fontSize: 11,
-                      padding: '3px 8px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
                     }}
                   >
-                    {t('coverage.run')}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => onRunOne(r.ticker)}
+                      title={t('coverage.runOne')}
+                      style={{
+                        background: 'var(--primary-soft)',
+                        border: '1px solid var(--border-soft)',
+                        borderRadius: 'var(--radius-sm)',
+                        color: 'var(--primary)',
+                        cursor: 'pointer',
+                        fontSize: 11,
+                        padding: '3px 8px',
+                      }}
+                    >
+                      {t('coverage.run')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onRemove(r.ticker)}
+                      title={t('coverage.row.remove')}
+                      aria-label={t('coverage.row.removeOne', { ticker: r.ticker })}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 22,
+                        height: 22,
+                        background: 'transparent',
+                        border: '1px solid var(--border-faint)',
+                        borderRadius: 'var(--radius-sm)',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--danger)'
+                        e.currentTarget.style.borderColor = 'var(--danger)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--text-muted)'
+                        e.currentTarget.style.borderColor = 'var(--border-faint)'
+                      }}
+                    >
+                      <CloseIcon />
+                    </button>
+                  </div>
                 </td>
               </tr>
             )
@@ -416,6 +455,26 @@ function SortCaret({ dir }: { dir?: SortDir }): React.ReactElement | null {
   return (
     <svg width="8" height="8" viewBox="0 0 8 8" role="img" aria-hidden style={{ flexShrink: 0 }}>
       <path d={dir === 'asc' ? 'M4 1 L7 6 L1 6 Z' : 'M1 2 L7 2 L4 7 Z'} fill="var(--primary)" />
+    </svg>
+  )
+}
+
+function CloseIcon(): React.ReactElement {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      role="img"
+      aria-hidden
+      style={{ flexShrink: 0 }}
+    >
+      <path
+        d="M1.5 1.5 L8.5 8.5 M8.5 1.5 L1.5 8.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
     </svg>
   )
 }

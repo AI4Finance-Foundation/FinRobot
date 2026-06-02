@@ -34,6 +34,8 @@ export interface CoverageOverviewState {
   /** Showing the fast skeleton while the full (market) fetch is in flight —
    *  market cells render as loading, not as missing. */
   marketPending: boolean
+  /** Re-run the full fetch — used by the error-state retry (BUG-051). */
+  refetch: () => void
 }
 
 /**
@@ -64,6 +66,7 @@ export function useCoverageOverview(groupId: string | null): CoverageOverviewSta
     isLoading: !data && full.isLoading,
     isError: !data && full.isError,
     marketPending: !full.data && !!fast.data && !full.isError,
+    refetch: () => void full.refetch(),
   }
 }
 

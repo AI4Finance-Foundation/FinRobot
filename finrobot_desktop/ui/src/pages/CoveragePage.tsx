@@ -64,6 +64,19 @@ export function CoveragePage(): React.ReactElement {
 
   const [addInput, setAddInput] = useState('')
 
+  // ── Groups request failed → error state, NOT the starter ──────────────────
+  // Falling through to the empty check would show the "create your first
+  // group" starter on a 503, hiding existing groups and inviting duplicates.
+  if (groupsQuery.isError) {
+    return (
+      <ErrorState
+        message={t('coverage.error.groupsFailed')}
+        retryLabel={t('coverage.error.retry')}
+        onRetry={() => void groupsQuery.refetch()}
+      />
+    )
+  }
+
   // ── No groups yet → Coverage Starter (State A) ────────────────────────────
   if (!groupsQuery.isLoading && groups.length === 0) {
     return (
@@ -75,8 +88,15 @@ export function CoveragePage(): React.ReactElement {
             {
               onSuccess: (group) => {
                 setSelectedGroup(group.id)
-                if (tickers.length > 0) addMembers.mutate({ id: group.id, tickers })
+                if (tickers.length > 0)
+                  addMembers.mutate(
+                    { id: group.id, tickers },
+                    {
+                      onError: () => toast({ type: 'error', title: t('coverage.error.addFailed') }),
+                    },
+                  )
               },
+              onError: () => toast({ type: 'error', title: t('coverage.error.createFailed') }),
             },
           )
         }}
@@ -91,7 +111,13 @@ export function CoveragePage(): React.ReactElement {
       .map((s) => s.trim().toUpperCase())
       .filter(Boolean)
     if (tickers.length === 0) return
-    addMembers.mutate({ id: activeGroupId, tickers }, { onSuccess: () => setAddInput('') })
+    addMembers.mutate(
+      { id: activeGroupId, tickers },
+      {
+        onSuccess: () => setAddInput(''),
+        onError: () => toast({ type: 'error', title: t('coverage.error.addFailed') }),
+      },
+    )
   }
 
   function handleRun(tickers: string[]) {
@@ -219,6 +245,13 @@ export function CoveragePage(): React.ReactElement {
         >
           {overviewQuery.isLoading ? (
             <Placeholder text={t('coverage.loading')} />
+          ) : overviewQuery.isError ? (
+            // 503 / store-not-initialised must not render as "empty group".
+            <ErrorState
+              message={t('coverage.error.overviewFailed')}
+              retryLabel={t('coverage.error.retry')}
+              onRetry={() => void overviewQuery.refetch()}
+            />
           ) : rows.length === 0 ? (
             <Placeholder text={t('coverage.emptyGroup')} />
           ) : (
@@ -295,6 +328,49 @@ function Placeholder({ text }: { text: string }): React.ReactElement {
       }}
     >
       {text}
+    </div>
+  )
+}
+
+// Error state — distinct from the empty state on purpose. A request FAILURE
+// (503 / network / store not initialised) must never look like "no data"
+// (BUG-051): for an analyst, "the service is down" and "this group is empty"
+// are opposite conclusions. Offers a retry.
+function ErrorState({
+  message,
+  retryLabel,
+  onRetry,
+}: {
+  message: string
+  retryLabel: string
+  onRetry: () => void
+}): React.ReactElement {
+  return (
+    <div
+      data-testid="coverage-error"
+      style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+        color: 'var(--danger)',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 12,
+        textAlign: 'center',
+        padding: 24,
+      }}
+    >
+      <span>{message}</span>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="btn-shimmer"
+        style={{ padding: '6px 16px', fontSize: 11 }}
+      >
+        {retryLabel}
+      </button>
     </div>
   )
 }

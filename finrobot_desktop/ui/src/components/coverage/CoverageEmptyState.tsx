@@ -33,6 +33,7 @@ export function CoverageEmptyState({ onCreate, busy }: Props): React.ReactElemen
 
   return (
     <div
+      data-testid="coverage-empty"
       style={{
         maxWidth: 560,
         margin: '64px auto',

@@ -3343,6 +3343,26 @@ msgid "coverage.emptyGroup"
 msgstr "No tickers yet — add some above."
 
 #. js-lingui-explicit-id
+msgid "coverage.error.groupsFailed"
+msgstr "Couldn't reach the coverage service — it may still be starting."
+
+#. js-lingui-explicit-id
+msgid "coverage.error.overviewFailed"
+msgstr "Couldn't load this group's coverage data."
+
+#. js-lingui-explicit-id
+msgid "coverage.error.retry"
+msgstr "Retry"
+
+#. js-lingui-explicit-id
+msgid "coverage.error.createFailed"
+msgstr "Failed to create coverage group"
+
+#. js-lingui-explicit-id
+msgid "coverage.error.addFailed"
+msgstr "Failed to add tickers"
+
+#. js-lingui-explicit-id
 msgid "coverage.toast.launched"
 msgstr "Launched {n} run(s); {skipped} skipped"
 

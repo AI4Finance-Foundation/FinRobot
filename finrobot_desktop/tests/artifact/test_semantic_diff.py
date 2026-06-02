@@ -106,6 +106,35 @@ class TestConclusion:
         tp = next(it for it in delta.conclusion if it.key == "target_price")
         assert tp.formatted_new.startswith("$")  # USD assumed
         assert tp.old_value is not None and tp.new_value is not None
+        # Backend owns the pct-badge string too — signed, one decimal, "%" suffix.
+        assert tp.pct_change is not None
+        assert tp.formatted_pct_change is not None
+        assert tp.formatted_pct_change[0] in "+-"
+        assert tp.formatted_pct_change.endswith("%")
+        assert tp.formatted_pct_change == f"{tp.pct_change * 100:+.1f}%"
+
+    def test_flat_row_has_no_pct_badge(self) -> None:
+        # Identical inputs → every conclusion row is flat and must carry no
+        # "+0.0%" badge next to two identical values.
+        a = _equity_artifact("art_v1", _inputs(), recommendation="BUY", current_price=170.0)
+        b = _equity_artifact("art_v2", _inputs(), recommendation="BUY", current_price=170.0)
+        delta = build_semantic_delta(a, b)
+        for it in delta.conclusion:
+            if it.direction == "flat":
+                assert it.pct_change is None, it.key
+                assert it.formatted_pct_change is None, it.key
+
+    def test_incomparable_row_has_no_pct_badge(self) -> None:
+        # When a row is not like-for-like, both the numeric pct and its formatted
+        # badge must be suppressed together (no half-state).
+        a = _equity_artifact("art_v1", _inputs(), recommendation="BUY", current_price=170.0)
+        b = _equity_artifact("art_v2", _inputs(beta=1.4), recommendation="BUY", current_price=170.0)
+        b.inputs.data_fetched_at = a.inputs.data_fetched_at + timedelta(days=120)
+        delta = build_semantic_delta(a, b)
+        for it in delta.conclusion + delta.drivers:
+            if not it.comparable:
+                assert it.pct_change is None
+                assert it.formatted_pct_change is None
 
 
 class TestAttribution:

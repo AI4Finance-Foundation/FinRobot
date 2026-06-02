@@ -37,6 +37,7 @@ const DELTA = {
       formatted_old: '$195.00',
       formatted_new: '$180.00',
       pct_change: -0.077,
+      formatted_pct_change: '-7.7%',
       direction: 'down',
       sentiment: 'negative',
       comparable: true,
@@ -107,7 +108,7 @@ describe('VersionDiffBanner', () => {
     })
     expect(screen.getByTestId('version-diff-banner')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText('$180.00')).toBeInTheDocument())
-    // pct from backend numeric, rendered by the component
+    // pct badge string comes pre-formatted from the backend, rendered verbatim
     expect(screen.getByText(/-7\.7%/)).toBeInTheDocument()
   })
 

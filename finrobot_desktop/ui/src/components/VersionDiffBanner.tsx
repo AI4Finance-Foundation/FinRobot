@@ -38,6 +38,7 @@ interface DeltaItem {
   formatted_old: string
   formatted_new: string
   pct_change: number | null
+  formatted_pct_change: string | null
   direction: Direction
   sentiment: Sentiment
   comparable: boolean
@@ -315,10 +316,9 @@ export function VersionDiffBanner({
                     <span style={{ color: sentimentColor(it.sentiment), fontWeight: 600 }}>
                       {it.formatted_new}
                     </span>
-                    {it.pct_change !== null && (
+                    {it.formatted_pct_change !== null && (
                       <span style={{ color: sentimentColor(it.sentiment), fontSize: '0.78rem' }}>
-                        ({it.pct_change >= 0 ? '+' : ''}
-                        {(it.pct_change * 100).toFixed(1)}%)
+                        ({it.formatted_pct_change})
                       </span>
                     )}
                   </div>

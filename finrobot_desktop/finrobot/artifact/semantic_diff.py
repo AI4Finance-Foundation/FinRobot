@@ -61,6 +61,7 @@ class DeltaItem(BaseModel):
     formatted_old: str
     formatted_new: str
     pct_change: float | None = None
+    formatted_pct_change: str | None = None
     direction: Direction = "flat"
     sentiment: Sentiment = "neutral"
     comparable: bool = True
@@ -272,7 +273,11 @@ def _numeric_item(
     # treat it as flat. Keeps the identical-version check honest too.
     if direction in ("up", "down") and fmt_old == fmt_new:
         direction = "flat"
+    # A pct badge only means something on a move — a flat row (incl. an exact
+    # 0.0 delta) carries no "+0.0%" noise next to two identical values.
+    if direction != "up" and direction != "down":
         pct = None
+    shown_pct = pct if comparable else None
     return DeltaItem(
         key=caliber.key,
         label_zh=caliber.label_zh,
@@ -281,7 +286,10 @@ def _numeric_item(
         new_value=new,
         formatted_old=fmt_old,
         formatted_new=fmt_new,
-        pct_change=pct if comparable else None,
+        pct_change=shown_pct,
+        # Backend owns every display string — the frontend renders this verbatim
+        # rather than re-deriving "×100, sign, one decimal" itself.
+        formatted_pct_change=(f"{shown_pct * 100:+.1f}%" if shown_pct is not None else None),
         direction=direction,
         sentiment=_sentiment(direction, caliber.direction_semantics),
         comparable=comparable,

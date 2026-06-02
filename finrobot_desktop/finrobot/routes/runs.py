@@ -315,20 +315,29 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
         )
         duration_s = round(time.monotonic() - started, 1)
         result_json = _result_to_json(result)
-        if result.artifact_id:
+        artifact_id = result.artifact_id
+        # Resolve the artifact's real type (dcf/lbo/comps/equity_research/...)
+        # from the persisted artifact so the completion events carry true
+        # identity. The run_store's artifact_type column historically held the
+        # opaque "artifact" placeholder; we now store the real type so
+        # list_artifacts and any consumer reflect what was actually produced.
+        artifact_type: str | None = None
+        if artifact_id:
+            artifact_type = await _resolve_artifact_type(request, artifact_id)
             await store.add_artifact(
                 run_id,
-                artifact_type="artifact",
+                artifact_type=artifact_type or "artifact",
                 format="json",
-                file_path=f"/api/artifacts/{result.artifact_id}",
+                file_path=f"/api/artifacts/{artifact_id}",
             )
             await _append(
                 store,
                 ArtifactReady(
                     event="artifact.ready",
                     run_id=run_id,
-                    artifact_type="artifact",
+                    artifact_type=artifact_type or "artifact",
                     format="json",
+                    artifact_id=artifact_id,
                 ),
             )
         await store.update_run(
@@ -346,7 +355,14 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
                 run_id=run_id,
                 ticker=record.ticker,
                 duration_s=duration_s,
-                result_url=f"/api/runs/{run_id}",
+                # Point result_url at the artifact when there is one so a plain
+                # consumer of the completion event can fetch the exact product;
+                # fall back to the run url when no artifact was persisted.
+                result_url=(
+                    f"/api/artifacts/{artifact_id}" if artifact_id else f"/api/runs/{run_id}"
+                ),
+                artifact_id=artifact_id,
+                artifact_type=artifact_type,
             ),
         )
     except (
@@ -391,6 +407,26 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
         )
     finally:
         request.app.state.run_tasks.pop(run_id, None)
+
+
+async def _resolve_artifact_type(request: Request, artifact_id: str) -> str | None:
+    """Fetch the persisted artifact's real type (dcf/lbo/comps/...).
+
+    The pipeline result only carries an ``artifact_id``; the canonical type
+    lives on the saved Artifact. We read it from the artifact_store so the
+    completion events name the true product instead of the opaque "artifact"
+    placeholder. Returns None if the store is absent or the artifact can't be
+    loaded — callers degrade to the placeholder rather than failing the run.
+    """
+    artifact_store = getattr(request.app.state, "artifact_store", None)
+    if artifact_store is None:
+        return None
+    try:
+        artifact = await artifact_store.get(artifact_id)
+    except (OSError, ValueError, KeyError):
+        logger.warning("Could not load artifact %s to resolve its type", artifact_id)
+        return None
+    return str(artifact.type) if artifact is not None else None
 
 
 async def _append(store: RunStore, event: RunEvent) -> int:

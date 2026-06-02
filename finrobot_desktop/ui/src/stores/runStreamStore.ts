@@ -49,6 +49,15 @@ export interface RunState {
    * progress overlay even though completed/failed state is still here for
    * the badge / history. */
   dismissed: boolean
+  /** The artifact THIS run produced, from the run.completed / artifact.ready
+   * SSE event. The completion CTA navigates to this id instead of guessing the
+   * latest equity_research for the ticker — which opens the wrong report on a
+   * same-ticker re-run or a non-research (DCF/LBO/comps/earnings) pipeline.
+   * null until the completion event lands (or if the run produced no artifact). */
+  artifactId: string | null
+  /** The artifact's real type (dcf / lbo / comps / equity_research / …), so the
+   * UI can route to the right viewer regardless of pipeline. null until known. */
+  artifactType: string | null
 }
 
 interface RunStreamState {
@@ -97,11 +106,26 @@ const PIPELINE_STEP_NAMES: Record<string, string[]> = {
 function stepNamesForPipeline(pipelineType: string, totalSteps: number): string[] {
   const known = PIPELINE_STEP_NAMES[pipelineType]
   if (known && known.length === totalSteps) return known
-  if (known) return known.slice(0, totalSteps)
-  // Unknown pipeline OR backend reported a different step count than we
-  // hardcoded — fall back to numeric placeholders so we don't fabricate
-  // wrong names. SSE events will overwrite as they land.
-  return Array.from({ length: totalSteps }, (_, i) => `Step ${i + 1}`)
+  // Backend is the source of truth for step COUNT (total_steps). When our
+  // hardcoded list disagrees, ALWAYS build an array of length totalSteps:
+  // use a known label where we have one, and a `Step N` placeholder for the
+  // rest. Never slice down to the shorter list — that silently drops the
+  // backend's extra steps (the historical 6-vs-8 research bug). The real
+  // names still arrive via step.* events and overwrite these.
+  return Array.from({ length: totalSteps }, (_, i) => known?.[i] ?? `Step ${i + 1}`)
+}
+
+/** Replace the step at 0-based `index`, growing the array with `Step N`
+ * placeholders if the event's index lands beyond the current length. A
+ * backend that emits more steps than `run.started` implied (or than our
+ * placeholder array covers) must still render every step — never drop one. */
+function setStepAt(steps: RunStep[], index: number, next: RunStep): RunStep[] {
+  const out = steps.slice()
+  for (let i = out.length; i <= index; i++) {
+    out[i] = { name: `Step ${i + 1}`, status: 'pending' }
+  }
+  out[index] = next
+  return out
 }
 
 // ── Module-level EventSource registry (not in store: not serialisable) ──────
@@ -156,18 +180,16 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
       const data = JSON.parse((e as MessageEvent).data)
       const cur = get().runs[ticker]
       if (!cur) return
+      const startIdx = data.step - 1
+      const prev = cur.steps[startIdx]
       patch(ticker, {
-        steps: cur.steps.map((s, i) =>
-          i === data.step - 1
-            ? {
-                ...s,
-                name: data.name,
-                status: 'running',
-                startedAt: Date.now(),
-                attempt: undefined,
-              }
-            : s,
-        ),
+        steps: setStepAt(cur.steps, startIdx, {
+          ...(prev ?? { status: 'pending' }),
+          name: data.name,
+          status: 'running',
+          startedAt: Date.now(),
+          attempt: undefined,
+        }),
         progress: Math.max(0, (data.step - 1) / data.total),
       })
     })
@@ -176,12 +198,15 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
       const data = JSON.parse((e as MessageEvent).data)
       const cur = get().runs[ticker]
       if (!cur) return
+      const doneIdx = data.step - 1
+      const prevDone = cur.steps[doneIdx]
       patch(ticker, {
-        steps: cur.steps.map((s, i) =>
-          i === data.step - 1
-            ? { ...s, name: data.name, status: 'completed', duration_s: data.duration_s }
-            : s,
-        ),
+        steps: setStepAt(cur.steps, doneIdx, {
+          ...(prevDone ?? { status: 'pending' }),
+          name: data.name,
+          status: 'completed',
+          duration_s: data.duration_s,
+        }),
         progress: data.step / data.total,
       })
     })
@@ -190,18 +215,38 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
       const data = JSON.parse((e as MessageEvent).data)
       const cur = get().runs[ticker]
       if (!cur) return
+      const retryIdx = data.step - 1
+      const prevRetry = cur.steps[retryIdx]
       patch(ticker, {
-        steps: cur.steps.map((s, i) =>
-          i === data.step - 1
-            ? { ...s, name: data.name, status: 'retrying', attempt: data.attempt }
-            : s,
-        ),
+        steps: setStepAt(cur.steps, retryIdx, {
+          ...(prevRetry ?? { status: 'pending' }),
+          name: data.name,
+          status: 'retrying',
+          attempt: data.attempt,
+        }),
       })
     })
 
-    es.addEventListener('run.completed', () => {
+    es.addEventListener('artifact.ready', (e) => {
       sseErrorCounts.set(ticker, 0)
-      patch(ticker, { status: 'completed', progress: 1 })
+      const data = JSON.parse((e as MessageEvent).data)
+      // artifact_id is optional (back-compat with pre-field stored events);
+      // only stamp identity when present so we never clobber a real id with null.
+      const update: Partial<RunState> = {}
+      if (data.artifact_id) update.artifactId = data.artifact_id
+      if (data.artifact_type) update.artifactType = data.artifact_type
+      if (Object.keys(update).length > 0) patch(ticker, update)
+    })
+
+    es.addEventListener('run.completed', (e) => {
+      sseErrorCounts.set(ticker, 0)
+      const data = JSON.parse((e as MessageEvent).data)
+      const update: Partial<RunState> = { status: 'completed', progress: 1 }
+      // Prefer the completion event's identity; artifact.ready may already have
+      // set it. Both optional for back-compat — keep any prior value if absent.
+      if (data.artifact_id) update.artifactId = data.artifact_id
+      if (data.artifact_type) update.artifactType = data.artifact_type
+      patch(ticker, update)
       closeAndForget(ticker)
     })
 
@@ -283,6 +328,8 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
             error: null,
             startedAt: Date.now(),
             dismissed: false,
+            artifactId: null,
+            artifactType: null,
           },
         },
       }))

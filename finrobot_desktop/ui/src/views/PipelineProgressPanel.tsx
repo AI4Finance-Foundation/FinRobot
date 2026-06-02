@@ -11,7 +11,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRunStreamStore } from '../stores/runStreamStore'
-import { useLatestArtifact } from '../hooks/useV5Artifacts'
 import { useI18n, tSync } from '../i18n'
 
 // Backend Pipeline.max_retries — mirrored here only to render "重试中 n/3".
@@ -29,6 +28,20 @@ const STEP_KEYS: Record<string, string> = {
   report: 'report',
 }
 
+// Steps that only appear in non-research pipelines (dcf/lbo/ddm/comps/earnings/
+// ic-memo) have no i18n entry yet. Rather than leak raw snake_case
+// (lbo_modeling), title-case the name so the panel reads cleanly. Acronyms stay
+// upper-cased. SSE always sends the real step name, so this is purely cosmetic.
+const STEP_ACRONYMS = new Set(['lbo', 'ddm', 'dcf', 'ic', 'ebitda', 'wacc'])
+function prettyStepName(name: string): string {
+  return name
+    .split('_')
+    .map((w) =>
+      STEP_ACRONYMS.has(w.toLowerCase()) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1),
+    )
+    .join(' ')
+}
+
 interface PipelineProgressPanelProps {
   ticker: string
 }
@@ -40,9 +53,6 @@ export function PipelineProgressPanel({
   const dismiss = useRunStreamStore((s) => s.dismiss)
   const navigate = useNavigate()
   const { t } = useI18n()
-  // Pull the freshly-invalidated latest artifact so the "→ 打开研报" CTA can
-  // route directly into the report view that just got generated.
-  const { latest } = useLatestArtifact(ticker, 'equity_research')
 
   // 1s heartbeat while running — re-renders so the elapsed counters tick. This
   // is the core "is it alive or hung?" signal: a long step (SEC fetches run
@@ -160,11 +170,14 @@ export function PipelineProgressPanel({
           >
             {completedCount}/{totalSteps}
           </span>
-          {run.status === 'completed' && latest && (
+          {run.status === 'completed' && run.artifactId && (
             <button
               type="button"
               data-testid="pipeline-open-report"
-              onClick={() => navigate(`/stocks/${ticker}/runs/${latest.id}`)}
+              // Open THIS run's artifact by id (from the run.completed event),
+              // not the latest equity_research for the ticker — that opened the
+              // wrong report on same-ticker re-runs or non-research pipelines.
+              onClick={() => navigate(`/stocks/${ticker}/runs/${run.artifactId}`)}
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 11,
@@ -235,7 +248,7 @@ export function PipelineProgressPanel({
                 label: t(`workspace.pipeline.step.${keySuffix}.label`),
                 help: t(`workspace.pipeline.step.${keySuffix}.help`),
               }
-            : { label: step.name, help: '' }
+            : { label: prettyStepName(step.name), help: '' }
           const isRunning = step.status === 'running' || step.status === 'retrying'
           return (
             <li

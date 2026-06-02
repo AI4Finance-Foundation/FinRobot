@@ -44,6 +44,14 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
 
   const sameTypeTimeline = (timeline ?? []).filter((a) => a.type === 'equity_research')
   const isRunning = runState?.status === 'running'
+  // A completed run whose artifact is NOT equity_research (DCF/LBO/comps/
+  // earnings/…). Its result lives behind the PipelineProgressPanel's CTA
+  // (run.artifactId), so we must not fall through to ColdState and bury it.
+  const nonResearchResult =
+    runState?.status === 'completed' &&
+    !runState.dismissed &&
+    !!runState.artifactId &&
+    runState.artifactType !== 'equity_research'
 
   // Show error state only when both queries failed AND the run is not active
   // (a running pipeline masks stale query errors — user knows data is being
@@ -166,7 +174,12 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
           onRerun={launchResearch}
           onOpen={(id) => navigate(`/stocks/${ticker}/runs/${id}`)}
         />
-      ) : !isRunning && !latest ? (
+      ) : !isRunning && !latest && !nonResearchResult ? (
+        // Don't drop a just-finished non-research run (DCF/LBO/comps/earnings)
+        // into ColdState's "run research" prompt — that buries the result the
+        // user just produced. The PipelineProgressPanel above stays visible
+        // with its "open" CTA pointing at run.artifactId, so the result is
+        // reachable. Only show ColdState when there's genuinely nothing.
         <ColdState
           ticker={ticker}
           isRunning={isRunning}

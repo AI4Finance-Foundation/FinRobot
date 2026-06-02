@@ -138,3 +138,72 @@ async def test_get_run_404_when_not_found() -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         resp = await c.get("/api/runs/does-not-exist")
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# BUG-034/043 — completion events must carry the artifact's real id + type so
+# the UI opens THIS run's product, not the ticker's latest equity_research.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_completion_emits_artifact_id_and_type(monkeypatch: Any) -> None:
+    """_run_pipeline_impl emits artifact.ready + run.completed carrying the
+    persisted artifact's id AND its real type (resolved from artifact_store),
+    not the opaque "artifact" placeholder."""
+    from finrobot.engine.pipelines.base import PipelineResult
+    from finrobot.routes import runs as runs_mod
+
+    # Fake pipeline: 1 step, execute() returns a result with an artifact_id.
+    pipeline = MagicMock()
+    pipeline.steps = [MagicMock()]
+    result = PipelineResult(steps={"report": "done"}, structured_data={})
+    result.artifact_id = "art_2026-06-02_AAPL_lbo"
+    pipeline.execute = AsyncMock(return_value=result)
+    pipeline.format_summary = MagicMock(return_value="summary")
+
+    monkeypatch.setattr(runs_mod, "get_pipeline_factories", lambda: {"lbo": lambda agents: pipeline})
+
+    record = _make_run_record(status="created")
+    record.pipeline_type = "lbo"
+    record.language = None
+    record.source_artifact_id = None
+
+    store = AsyncMock()
+    store.get_run = AsyncMock(return_value=record)
+    appended: list[dict[str, Any]] = []
+
+    async def _capture(run_id: str, event: dict[str, Any]) -> int:
+        appended.append(event)
+        return len(appended)
+
+    store.append_event = AsyncMock(side_effect=_capture)
+
+    # Artifact store resolves the real type for the persisted id.
+    artifact = MagicMock()
+    artifact.type = "lbo"
+    artifact_store = AsyncMock()
+    artifact_store.get = AsyncMock(return_value=artifact)
+
+    request = MagicMock()
+    request.app.state.run_store = store
+    request.app.state.run_semaphore = None
+    request.app.state.artifact_store = artifact_store
+    request.app.state.run_tasks = {}
+    request.app.state.sub_agents = {}
+    request.app.state.deps = MagicMock()
+
+    await runs_mod._run_pipeline(record.run_id, request)
+
+    ready = next(e for e in appended if e["event"] == "artifact.ready")
+    assert ready["artifact_id"] == "art_2026-06-02_AAPL_lbo"
+    assert ready["artifact_type"] == "lbo"
+
+    completed = next(e for e in appended if e["event"] == "run.completed")
+    assert completed["artifact_id"] == "art_2026-06-02_AAPL_lbo"
+    assert completed["artifact_type"] == "lbo"
+    assert completed["result_url"] == "/api/artifacts/art_2026-06-02_AAPL_lbo"
+
+    # The persisted run-store artifact row also records the real type.
+    add_call = store.add_artifact.await_args
+    assert add_call.kwargs["artifact_type"] == "lbo"

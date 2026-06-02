@@ -169,6 +169,11 @@ class TestRunsRoutes:
                 result.structured_data = {}
                 result.failed_validations = []
                 result.steps = []
+                # artifact_id is str | None on the real PipelineResult; an
+                # unconfigured MagicMock here is truthy AND non-serialisable,
+                # which now poisons the completion event (it carries
+                # artifact_id). This fake DCF persists no artifact → None.
+                result.artifact_id = None
                 result.format_summary.return_value = "summary"
                 return result
 

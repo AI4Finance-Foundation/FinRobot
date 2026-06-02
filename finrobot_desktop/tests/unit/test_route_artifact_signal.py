@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -121,3 +122,45 @@ async def test_degenerate_artifact_target_equal_entry_does_not_explode() -> None
     s = _summary(entry=100.0, target=100.0)
     out = await attach_signals([s], layer, now=NOW)  # type: ignore[arg-type]
     assert out[0].signal is None
+
+
+class _ConcurrencyTrackingLayer:
+    """Records max in-flight fetches so we can prove quotes go out concurrently."""
+
+    def __init__(self, quotes: dict[str, float]) -> None:
+        self._quotes = quotes
+        self._active = 0
+        self.max_active = 0
+
+    async def fetch(self, data_type: DataType | str, ticker: str, **_: object) -> DataResult:
+        self._active += 1
+        self.max_active = max(self.max_active, self._active)
+        try:
+            await asyncio.sleep(0.01)  # hold the fetch open so overlap is observable
+        finally:
+            self._active -= 1
+        return DataResult(
+            data={"current_price": self._quotes[ticker]},
+            provider="stub",
+            ticker=ticker,
+            data_type=DataType.PRICE,
+            timestamp=NOW,
+        )
+
+
+@pytest.mark.asyncio
+async def test_quotes_fetched_concurrently_not_serially() -> None:
+    # Regression guard for the serial→asyncio.gather change: with a serial loop
+    # max_active would stay 1; concurrent fan-out lets multiple fetches overlap.
+    layer = _ConcurrencyTrackingLayer(quotes={"NVDA": 115.0, "AAPL": 115.0, "MSFT": 115.0})
+    out = await attach_signals(
+        [
+            _summary(artifact_id="a", ticker="NVDA"),
+            _summary(artifact_id="b", ticker="AAPL"),
+            _summary(artifact_id="c", ticker="MSFT"),
+        ],
+        layer,  # type: ignore[arg-type]
+        now=NOW,
+    )
+    assert all(s.signal == "hit" for s in out)
+    assert layer.max_active >= 2  # proves overlap; serial loop could only reach 1

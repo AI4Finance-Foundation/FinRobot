@@ -15,6 +15,7 @@ Designed to keep the per-list overhead bounded:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Iterable
 from datetime import datetime, timezone
@@ -83,20 +84,36 @@ def _apply_signal(
 
 
 async def _fetch_quotes(tickers: Iterable[str], data_layer: DataLayer) -> dict[str, float]:
-    quotes: dict[str, float] = {}
-    for ticker in tickers:
+    """Fetch one quote per ticker, concurrently.
+
+    The DataLayer's per-provider lock + cache stampede guard already bound the
+    real outbound calls, so firing these together is safe — it turns an
+    N-ticker serial wait into a single concurrent batch (an N-ticker coverage
+    group dropped from ~N×latency to ~1×). Per-ticker errors leave that ticker
+    out of the result, never raise.
+    """
+    ticker_list = list(tickers)
+    if not ticker_list:
+        return {}
+
+    async def _one(ticker: str) -> float | None:
         try:
             result = await data_layer.fetch(DataType.PRICE, ticker)
         except (ProviderError, ValueError, KeyError) as exc:
             logger.info("price fetch failed for %s while attaching signals: %s", ticker, exc)
-            continue
+            return None
         raw = result.data.get("current_price") if isinstance(result.data, dict) else None
         if raw is None:
-            continue
+            return None
         try:
             price = float(raw)
         except (TypeError, ValueError):
-            continue
-        if price > 0:
-            quotes[ticker] = price
-    return quotes
+            return None
+        return price if price > 0 else None
+
+    prices = await asyncio.gather(*(_one(ticker) for ticker in ticker_list))
+    return {
+        ticker: price
+        for ticker, price in zip(ticker_list, prices, strict=True)
+        if price is not None
+    }

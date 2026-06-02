@@ -22,6 +22,7 @@ def _peer(
     total_debt: float = 10e9,
     total_cash: float = 5e9,
     enterprise_value: float | None = None,
+    income_tax_expense: float | None = None,
 ) -> CompanyFinancials:
     return CompanyFinancials(
         ticker=ticker,
@@ -34,6 +35,7 @@ def _peer(
         gross_margin=0.5,
         operating_margin=0.3,
         enterprise_value=enterprise_value,
+        income_tax_expense=income_tax_expense,
         reporting_currency=reporting_currency,
         quote_currency=quote_currency,
     )
@@ -85,6 +87,44 @@ class TestAdrShape:
         assert math.isclose(result.total_cash, 1_700_000e6 * rate, rel_tol=1e-9)
         # market_cap stays put (quote already USD).
         assert result.market_cap == 650e9
+
+    def test_income_tax_expense_scaled_with_reporting_currency(self):
+        """income_tax_expense is a reporting-currency line item. It must scale
+        with revenue/net_income so calculate_core_pe's effective tax rate
+        ``tax / (net_income + tax)`` stays currency-invariant after
+        normalization — otherwise a foreign issuer's NOPAT core P/E is wrong
+        (BUG-018 FX boundary)."""
+        rate = 1 / 32.0
+        company = _peer(
+            ticker="TSM",
+            reporting_currency="TWD",
+            quote_currency="USD",
+            net_income=800_000e6,
+            income_tax_expense=160_000e6,
+        )
+        result = normalize_company_to_usd(
+            company, reporting_fx_rate_to_usd=rate, quote_fx_rate_to_usd=1.0
+        )
+        assert result.income_tax_expense is not None
+        assert math.isclose(result.income_tax_expense, 160_000e6 * rate, rel_tol=1e-9)
+        # Effective tax ratio is dimensionless — it must be identical pre/post.
+        assert company.income_tax_expense is not None
+        pre = company.income_tax_expense / (company.net_income + company.income_tax_expense)
+        post = result.income_tax_expense / (result.net_income + result.income_tax_expense)
+        assert math.isclose(pre, post, rel_tol=1e-9)
+
+    def test_none_income_tax_expense_stays_none(self):
+        """A provider-omitted tax figure stays None through FX — never fabricated."""
+        company = _peer(
+            ticker="TSM",
+            reporting_currency="TWD",
+            quote_currency="USD",
+            income_tax_expense=None,
+        )
+        result = normalize_company_to_usd(
+            company, reporting_fx_rate_to_usd=1 / 32.0, quote_fx_rate_to_usd=1.0
+        )
+        assert result.income_tax_expense is None
 
     def test_adr_dropped_ev_when_currencies_mismatched(self):
         """A pre-computed EV mixed quote-USD market_cap with TWD debt/cash —

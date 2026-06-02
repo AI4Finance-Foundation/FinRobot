@@ -99,6 +99,15 @@ def normalize_company_to_usd(
     converted.total_cash = (
         company.total_cash * reporting_rate if company.total_cash is not None else None
     )
+    # income_tax_expense is a reporting-currency line item: it MUST scale with
+    # net_income so calculate_core_pe's effective tax rate tax/(net_income+tax)
+    # stays currency-invariant. Scaling net_income alone would skew the ratio and
+    # corrupt a foreign issuer's NOPAT core P/E (BUG-018).
+    converted.income_tax_expense = (
+        company.income_tax_expense * reporting_rate
+        if company.income_tax_expense is not None
+        else None
+    )
 
     converted.market_cap = company.market_cap * quote_rate
     if company.enterprise_value is not None:

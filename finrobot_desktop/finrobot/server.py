@@ -4,7 +4,6 @@ import logging
 from collections import OrderedDict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -33,9 +32,9 @@ from finrobot.routes.dashboard import router as dashboard_router
 from finrobot.routes.data import router as data_router
 from finrobot.routes.health import router as health_router
 from finrobot.routes.debate import router as debate_router
-from finrobot.routes.diagnostics import router as diagnostics_router
 from finrobot.routes.runs import router as runs_router
 from finrobot.routes.search import router as search_router
+from finrobot.routes.sec_holdings import router as sec_holdings_router
 from finrobot.routes.settings import load_non_secret_settings
 from finrobot.routes.settings import router as settings_router
 from finrobot.routes.sentiment import router as sentiment_router
@@ -239,60 +238,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await _warm_quote_cache_background()
 
     async def _refresh_sec_holdings_background() -> None:
+        # Auto-refresh is OFF by default (heavy whole-quarter download). When
+        # on, delegate to the shared trigger so startup auto-refresh and the
+        # Settings → 立即同步 button run the EXACT same guarded code path.
         if not settings.sec_holdings_auto_refresh:
             return
-        from finrobot.engine.data.providers.edgar_provider import (
-            _is_valid_identity,
-            _sec_header_identity,
-        )
-        from finrobot.engine.data.sec_holdings_cache import cache_status
-        from scripts.refresh_sec_holdings import (
-            _latest_completed_quarter_end,
-            _refresh_quarter,
-        )
+        from finrobot.engine.data.sec_holdings_sync import start_refresh
 
-        if not _is_valid_identity(settings.sec_user_agent):
-            logger.info("SEC 13F holdings refresh skipped: SEC identity not configured")
-            return
-        header_identity = _sec_header_identity(settings.sec_user_agent)
-        if header_identity is None:
-            logger.info("SEC 13F holdings refresh skipped: SEC identity not configured")
-            return
-        try:
-            status = await cache_status()
-            latest_raw = status.get("latest_period_end")
-            if latest_raw:
-                latest = date.fromisoformat(str(latest_raw))
-                if (date.today() - latest).days <= 60:
-                    logger.info(
-                        "SEC 13F holdings refresh skipped: cache fresh at %s",
-                        latest.isoformat(),
-                    )
-                    return
-            period = _latest_completed_quarter_end()
-            from edgar import set_identity
-
-            set_identity(header_identity)
-            logger.info("SEC 13F holdings refresh starting: period_end=%s", period.isoformat())
-            # Offload to a worker thread with its own event loop. _refresh_quarter
-            # is declared async, but its core is a *synchronous* edgartools parse
-            # of an entire quarter of 13F filings (get_filings → f.obj() →
-            # holdings_df) that blocks between awaits. Awaiting it directly on the
-            # server loop would freeze every concurrent request — dashboard
-            # included — for the duration of the parse (architecture red line:
-            # tests/audit/test_architecture.py::TestEventLoopNotBlocked).
-            #
-            # The previous design used a ``python -m scripts...`` subprocess for
-            # this isolation, but that cannot work in the frozen desktop sidecar
-            # (sys.executable is the bundled binary, not a Python interpreter, and
-            # the repo tree does not exist). A worker thread gives the same
-            # off-loop isolation and works identically in dev and in the bundle.
-            summary = await asyncio.to_thread(asyncio.run, _refresh_quarter(period))
-            logger.info("SEC 13F holdings refresh complete: %s", summary)
-        except asyncio.CancelledError:
-            raise
-        except (ImportError, OSError, RuntimeError, ValueError, TypeError, AttributeError):
-            logger.exception("SEC 13F holdings refresh failed — non-fatal")
+        await start_refresh(app, settings, force=False)
 
     app.state.background_tasks = [
         asyncio.create_task(_archive_stale_background()),
@@ -367,7 +320,7 @@ app.include_router(search_router, prefix="/api/search", tags=["search"])
 app.include_router(valuation_router)
 app.include_router(sentiment_router)
 app.include_router(debate_router)
-app.include_router(diagnostics_router)
+app.include_router(sec_holdings_router)
 
 
 def _extract_user_text(message: dict[str, Any]) -> str:

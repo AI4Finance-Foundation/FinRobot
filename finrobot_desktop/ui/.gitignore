@@ -6,3 +6,6 @@ build/
 # Lingui compiled catalogs (regenerated from .po by `npx lingui compile`)
 src/i18n/locales/*/messages.mjs
 src/i18n/locales/*/messages.js
+
+# Generated standalone report-viewer bundle (built by build:viewer)
+src/export/generated/

@@ -15,8 +15,6 @@ import type { ArtifactSummaryV5 } from '../../../types/v5'
 import { useI18n } from '../../../i18n'
 import { formatDate } from '../../../utils/format'
 import { mapErrorToUserMessage } from '../../../utils/errorMessage'
-import { buildReportHtml, reportFileStem } from '../../../lib/exportReport'
-import { saveTextFile } from '../../../lib/tauri'
 
 interface ReportToolbarProps {
   ticker: string
@@ -25,6 +23,9 @@ interface ReportToolbarProps {
   reportVersionLabel: string
   targetPrice: number | null
   timeline: ArtifactSummaryV5[]
+  /** Export the report as a self-contained interactive HTML. Owned by
+      ArtifactDetailPage (it holds the artifact + the query cache to inline). */
+  onExportHtml: () => void
   /** Navigate to /ic/:ticker?artifact_id=<id>. Only passed for equity_research reports. */
   onOpenIcDebate?: () => void
 }
@@ -36,6 +37,7 @@ export function ReportToolbar({
   reportVersionLabel,
   targetPrice,
   timeline,
+  onExportHtml,
   onOpenIcDebate,
 }: ReportToolbarProps): React.ReactElement {
   const navigate = useNavigate()
@@ -87,32 +89,6 @@ export function ReportToolbar({
       addToast({
         type: 'error',
         title: t('report.toolbar.rerunFailed'),
-        description: mapErrorToUserMessage(err),
-      })
-    }
-  }
-
-  // Export HTML — a pixel-faithful mirror of the on-screen report (same DOM,
-  // same cosmic dark theme, same Recharts SVGs, continuous scroll). Unlike the
-  // print→PDF path it is NOT re-themed or paginated, so it looks exactly like
-  // what the analyst sees. Self-contained: open in any browser, send to anyone.
-  async function handleExportHtml(): Promise<void> {
-    const html = buildReportHtml(`${ticker} · ${reportVersionLabel}`)
-    if (!html) {
-      addToast({ type: 'error', title: t('report.toolbar.exportHtmlEmpty') })
-      return
-    }
-    try {
-      const saved = await saveTextFile(`${reportFileStem(ticker, reportVersionLabel)}.html`, html, [
-        { name: 'HTML', extensions: ['html'] },
-      ])
-      if (saved) {
-        addToast({ type: 'success', title: t('report.toolbar.exportHtmlDone') })
-      }
-    } catch (err) {
-      addToast({
-        type: 'error',
-        title: t('report.toolbar.exportHtmlFailed'),
         description: mapErrorToUserMessage(err),
       })
     }
@@ -248,7 +224,7 @@ export function ReportToolbar({
 
       {/* Export HTML — page-faithful mirror (see handleExportHtml): same DOM,
           theme, charts, continuous scroll. The single export path. */}
-      <ToolbarButton onClick={handleExportHtml} title={t('report.toolbar.exportHtmlTitle')}>
+      <ToolbarButton onClick={onExportHtml} title={t('report.toolbar.exportHtmlTitle')}>
         ⤓ {t('report.toolbar.exportHtml')}
       </ToolbarButton>
 

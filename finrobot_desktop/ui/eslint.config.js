@@ -1,9 +1,9 @@
-import js from '@eslint/js';
-import tsPlugin from '@typescript-eslint/eslint-plugin';
-import tsParser from '@typescript-eslint/parser';
-import reactPlugin from 'eslint-plugin-react';
-import reactHooksPlugin from 'eslint-plugin-react-hooks';
-import globals from 'globals';
+import js from '@eslint/js'
+import tsPlugin from '@typescript-eslint/eslint-plugin'
+import tsParser from '@typescript-eslint/parser'
+import reactPlugin from 'eslint-plugin-react'
+import reactHooksPlugin from 'eslint-plugin-react-hooks'
+import globals from 'globals'
 
 export default [
   {
@@ -12,6 +12,8 @@ export default [
       'node_modules/**',
       'src/api/schema.d.ts',
       'src/i18n/locales/**/messages.mjs',
+      // Generated standalone report-viewer bundle (build:viewer output).
+      'src/export/generated/**',
     ],
   },
   js.configs.recommended,
@@ -61,4 +63,4 @@ export default [
       'react/display-name': 'off',
     },
   },
-];
+]

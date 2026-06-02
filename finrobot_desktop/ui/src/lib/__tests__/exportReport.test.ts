@@ -1,17 +1,13 @@
-import { describe, it, expect, afterEach } from 'vitest'
-import {
-  assembleStandaloneHtml,
-  reportFileStem,
-  buildReportHtml,
-  findReportNode,
-} from '../exportReport'
+import { describe, it, expect } from 'vitest'
+import { assembleInteractiveHtml, reportFileStem } from '../exportReport'
 
-describe('assembleStandaloneHtml', () => {
-  const out = assembleStandaloneHtml({
+describe('assembleInteractiveHtml', () => {
+  const out = assembleInteractiveHtml({
     title: 'NVDA · v3',
     lang: 'zh',
-    css: ':root{--bg-void:#0a0a0f}.card{color:red}',
-    bodyHtml: '<section data-testid="chapter-cover">cover</section>',
+    css: '.card{color:red}',
+    js: 'console.log("viewer")',
+    payloadJson: '{"artifact":{"id":"a1"},"locale":"zh"}',
   })
 
   it('produces a complete standalone document', () => {
@@ -20,25 +16,47 @@ describe('assembleStandaloneHtml', () => {
     expect(out.trimEnd().endsWith('</html>')).toBe(true)
   })
 
-  it('inlines the captured CSS and report body', () => {
-    expect(out).toContain(':root{--bg-void:#0a0a0f}')
-    expect(out).toContain('data-testid="chapter-cover"')
-  })
-
-  it('wraps the body in the centered cosmic export shell', () => {
-    expect(out).toContain('class="report-export-shell"')
-    expect(out).toContain('background: var(--bg-void, #0a0a0f)')
+  it('inlines the css, the data payload, and the viewer bundle', () => {
+    expect(out).toContain('.card{color:red}')
+    expect(out).toContain('window.__FINROBOT_REPORT__ = ')
+    expect(out).toContain('console.log("viewer")')
+    expect(out).toContain('"id":"a1"')
   })
 
   it('escapes the title to prevent markup injection', () => {
-    const evil = assembleStandaloneHtml({
+    const evil = assembleInteractiveHtml({
       title: '<script>x</script>',
       lang: 'en',
       css: '',
-      bodyHtml: '',
+      js: '',
+      payloadJson: '{}',
     })
     expect(evil).toContain('<title>&lt;script&gt;x&lt;/script&gt;</title>')
     expect(evil).not.toContain('<title><script>')
+  })
+
+  it('hardens inlined JS so a literal </script> cannot break out of the tag', () => {
+    const out2 = assembleInteractiveHtml({
+      title: 't',
+      lang: 'en',
+      css: '',
+      js: 'var s = "</script>"',
+      payloadJson: '{}',
+    })
+    expect(out2).toContain('<\\/script>')
+    expect(out2).not.toContain('"</script>"')
+  })
+
+  it('escapes < inside the JSON payload so it cannot close the script tag', () => {
+    const out3 = assembleInteractiveHtml({
+      title: 't',
+      lang: 'en',
+      css: '',
+      js: '',
+      payloadJson: '{"x":"a</script>b"}',
+    })
+    expect(out3).toContain('\\u003c/script>')
+    expect(out3).not.toContain('"a</script>b"')
   })
 })
 
@@ -53,36 +71,5 @@ describe('reportFileStem', () => {
 
   it('falls back to "report" when nothing usable remains', () => {
     expect(reportFileStem('/', '?')).toBe('report')
-  })
-})
-
-describe('buildReportHtml (DOM capture)', () => {
-  afterEach(() => {
-    document.body.innerHTML = ''
-  })
-
-  it('returns null when the report node is absent', () => {
-    expect(findReportNode()).toBeNull()
-    expect(buildReportHtml('NVDA · v1')).toBeNull()
-  })
-
-  it('captures only the <main> chapters, excluding toolbar/TOC/rail siblings', () => {
-    document.body.innerHTML = `
-      <div data-testid="artifact-detail-page">
-        <div>
-          <div data-testid="report-toolbar">TOOLBAR_CHROME</div>
-          <nav data-testid="report-toc">TOC_CHROME</nav>
-          <main>
-            <section data-testid="chapter-cover"><svg><rect/></svg>COVER_BODY</section>
-          </main>
-        </div>
-      </div>`
-    const html = buildReportHtml('NVDA · v1')
-    expect(html).not.toBeNull()
-    expect(html).toContain('COVER_BODY')
-    expect(html).toContain('<svg>') // Recharts-style inline SVG survives
-    expect(html).not.toContain('TOOLBAR_CHROME')
-    expect(html).not.toContain('TOC_CHROME')
-    expect(html).toContain('<title>NVDA · v1</title>')
   })
 })

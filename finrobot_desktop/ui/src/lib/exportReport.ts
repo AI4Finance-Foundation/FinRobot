@@ -1,43 +1,15 @@
-// Standalone HTML export for the 13-chapter research report.
+// Standalone INTERACTIVE HTML export for the research report.
 //
-// Why HTML and not (only) PDF: PDF goes through the print pipeline, which
-// deliberately flips the cosmic dark theme to light ink-on-paper and forces a
-// page break per chapter — so the deliverable never looks like what the analyst
-// sees on screen. HTML export is a true mirror: the SAME rendered DOM + the SAME
-// stylesheets + the SAME Recharts SVGs, continuous scroll, dark cosmic theme.
-// Open it in any browser and it is pixel-identical to the in-app report.
+// Earlier this serialized the live DOM to a static file — but a static snapshot
+// has no JavaScript, so Recharts hover tooltips, the sensitivity heatmap and the
+// football field were all dead. This now ships a real, self-contained mini-app:
+// a lean React+Recharts bundle (built from src/export/viewer.tsx) plus the
+// report's data inlined as JSON. Opened in any browser it re-renders the exact
+// same <ReportChapters>, fully interactive, fully offline.
 //
-// Mechanism: clone the report <main> (chapters only — toolbar/TOC/rail are
-// siblings and stay out), concatenate every accessible stylesheet into one
-// inline <style>, and wrap it in a self-contained document. Recharts renders to
-// inline SVG with concrete dimensions baked in at capture time, so charts
-// serialize losslessly. There is no theme toggle in the app (data-theme is
-// stripped on load — see uiStore), so the captured :root tokens ARE the cosmic
-// dark palette; nothing extra to copy.
-
-/** The report content node — chapters only, excluding toolbar/TOC/right-rail. */
-export function findReportNode(): HTMLElement | null {
-  return document.querySelector<HTMLElement>('[data-testid="artifact-detail-page"] main')
-}
-
-/**
- * Concatenate the text of every same-origin stylesheet into one CSS string.
- * Cross-origin sheets (rare here — all CSS is bundled same-origin) throw on
- * .cssRules access; we skip them rather than abort the whole export.
- */
-export function collectDocumentCss(): string {
-  const chunks: string[] = []
-  for (const sheet of Array.from(document.styleSheets)) {
-    try {
-      const rules = sheet.cssRules
-      if (!rules) continue
-      for (const rule of Array.from(rules)) chunks.push(rule.cssText)
-    } catch {
-      // Inaccessible (cross-origin) sheet — skip; the rest still style the doc.
-    }
-  }
-  return chunks.join('\n')
-}
+// This module is the PURE assembler + filename helper — no bundle imports, so it
+// stays unit-testable without the generated viewer build. The bundle wiring
+// lives in src/export/bundle.ts.
 
 function escapeHtml(s: string): string {
   return s
@@ -47,19 +19,30 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;')
 }
 
+/** Neutralize a literal `</script` so inlined JS can't break out of its tag. */
+function hardenScript(js: string): string {
+  return js.replace(/<\/(script)/gi, '<\\/$1')
+}
+
+/** JSON inside a <script> must not contain a raw `<` (it could close the tag or
+ *  open an HTML comment). `<` is valid JSON and parses identically. */
+function hardenJson(json: string): string {
+  return json.replace(/</g, '\\u003c')
+}
+
 /**
- * Pure assembler — given the captured CSS and the report's inner HTML, produce a
- * complete standalone document. Kept side-effect-free so it is unit-testable
- * without a DOM. The wrapper recreates the page's reading column on the cosmic
- * background; the hex fallbacks cover the instant before :root tokens parse.
+ * Assemble a complete, self-contained interactive report document: the viewer
+ * CSS in <head>, the data payload and the viewer IIFE bundle at end of <body>.
+ * Pure — given the four strings it returns the final HTML.
  */
-export function assembleStandaloneHtml(parts: {
+export function assembleInteractiveHtml(parts: {
   title: string
   lang: string
   css: string
-  bodyHtml: string
+  js: string
+  payloadJson: string
 }): string {
-  const { title, lang, css, bodyHtml } = parts
+  const { title, lang, css, js, payloadJson } = parts
   return `<!doctype html>
 <html lang="${escapeHtml(lang)}">
 <head>
@@ -70,46 +53,13 @@ export function assembleStandaloneHtml(parts: {
 <style>
 ${css}
 </style>
-<style>
-/* Export shell — mirror the in-app reading column on the cosmic backdrop.
-   The captured App.css locks scrolling with html,body{height:100%} +
-   body{overflow:hidden} (the app scrolls inside an inner .main-content, absent
-   here). Re-enable normal document scroll, or the export is a frozen viewport. */
-html, body {
-  margin: 0;
-  padding: 0;
-  height: auto !important;
-  overflow: auto !important;
-  background: var(--bg-void, #0a0a0f);
-}
-.report-export-shell {
-  max-width: 920px;
-  margin: 0 auto;
-  padding: 28px 24px 72px;
-}
-</style>
 </head>
 <body>
-<div class="report-export-shell">
-${bodyHtml}
-</div>
+<div id="root"></div>
+<script>window.__FINROBOT_REPORT__ = ${hardenJson(payloadJson)};</script>
+<script>${hardenScript(js)}</script>
 </body>
 </html>`
-}
-
-/**
- * Capture the live report into a standalone HTML string. Returns null if the
- * report node is not present (e.g. called off the detail page).
- */
-export function buildReportHtml(title: string): string | null {
-  const node = findReportNode()
-  if (!node) return null
-  return assembleStandaloneHtml({
-    title,
-    lang: document.documentElement.lang || 'zh',
-    css: collectDocumentCss(),
-    bodyHtml: node.outerHTML,
-  })
 }
 
 /** Filesystem-safe filename stem from a ticker + version label. */

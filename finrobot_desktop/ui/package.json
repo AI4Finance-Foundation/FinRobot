@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npm run lingui:compile && vite",
-    "build": "npm run lingui:compile && tsc -b && vite build",
+    "dev": "npm run lingui:compile && npm run build:viewer && vite",
+    "build": "npm run lingui:compile && npm run build:viewer && tsc -b && vite build",
+    "build:viewer": "vite build --config vite.viewer.config.ts",
     "lingui:compile": "lingui compile",
     "lingui:extract": "lingui extract",
     "preview": "vite preview",

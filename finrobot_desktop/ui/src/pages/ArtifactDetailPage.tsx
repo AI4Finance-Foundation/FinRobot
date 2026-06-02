@@ -17,9 +17,13 @@ import { useEffect } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useArtifactDetail, useV5ArtifactTimeline } from '../hooks/useV5Artifacts'
 import { useNavMemoryStore } from '../stores/navMemoryStore'
+import { useToastStore } from '../stores/toastStore'
 import { VersionDiffBanner } from '../components/VersionDiffBanner'
 import { useI18n } from '../i18n'
 import { mapErrorToUserMessage } from '../utils/errorMessage'
+import { queryClient } from '../api/queryClient'
+import { saveTextFile } from '../lib/tauri'
+import { reportFileStem } from '../lib/exportReport'
 
 import { ReportToolbar } from './artifact-detail/shell/ReportToolbar'
 import { ReportTOC } from './artifact-detail/shell/ReportTOC'
@@ -37,6 +41,7 @@ export function ArtifactDetailPage(): React.ReactElement {
   const { data, isLoading, isError, error } = useArtifactDetail(artifactId)
   const { data: timeline } = useV5ArtifactTimeline(symbol)
   const { locale, t } = useI18n()
+  const addToast = useToastStore((s) => s.addToast)
 
   // React Router v6 doesn't auto-scroll to #hash on navigate; chapter
   // mini-grid in AIZone links here with /stocks/X/runs/id#thesis etc.
@@ -94,6 +99,34 @@ export function ArtifactDetailPage(): React.ReactElement {
     (data as unknown as { meta?: { parent_artifact_id?: string | null } }).meta
       ?.parent_artifact_id ?? null
 
+  // Export the report as a self-contained interactive HTML. The viewer bundle is
+  // multi-hundred-KB, so it's a lazy chunk pulled in only on click. The live
+  // query cache (queryClient) is dehydrated into the file so the offline viewer
+  // renders charts/tables from inlined data without any network.
+  async function handleExportHtml(): Promise<void> {
+    if (!data) return
+    try {
+      const { buildInteractiveReportHtml } = await import('../export/bundle')
+      const html = buildInteractiveReportHtml({
+        artifact: data,
+        timeline: timeline ?? [],
+        queryClient,
+        locale,
+        title: `${symbol} · ${versionLabel}`,
+      })
+      const saved = await saveTextFile(`${reportFileStem(symbol, versionLabel)}.html`, html, [
+        { name: 'HTML', extensions: ['html'] },
+      ])
+      if (saved) addToast({ type: 'success', title: t('report.toolbar.exportHtmlDone') })
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: t('report.toolbar.exportHtmlFailed'),
+        description: mapErrorToUserMessage(err),
+      })
+    }
+  }
+
   return (
     <div data-testid="artifact-detail-page" style={{ position: 'relative', minHeight: '100vh' }}>
       <div
@@ -126,6 +159,7 @@ export function ArtifactDetailPage(): React.ReactElement {
             reportVersionLabel={versionLabel}
             targetPrice={thesis?.price_target ?? null}
             timeline={timeline ?? []}
+            onExportHtml={handleExportHtml}
             onOpenIcDebate={
               data.type === 'equity_research'
                 ? () => navigate(`/ic/${symbol}?artifact_id=${artifactId}`)

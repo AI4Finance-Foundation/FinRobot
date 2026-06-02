@@ -410,8 +410,18 @@ def build_sensitivity_ranges(
     Both apply a ±2% sweep around discount_rate paired with terminal-growth
     candidates filtered to stay strictly below min(discount_rate_range), so
     every cell in the resulting grid is a valid Gordon-growth denominator.
+
+    The lower cells are floored at ``terminal_growth + 0.005`` (not a hardcoded
+    3%) to keep every rate a valid Gordon denominator. Because that floor is
+    below ``discount_rate`` for any sound DCF (WACC > terminal growth), the
+    center cell (index 2) always equals ``discount_rate`` — so the sensitivity
+    table's center matches the narrative's base-case implied price (BUG-013).
+    The old absolute 3% floor clobbered the center whenever WACC < 3%, shifting
+    it off the base case by a large margin. (For very low WACC the bottom cells
+    may clamp to the floor and repeat; they stay valid, the center stays exact.)
     """
-    rate_range = [round(max(0.03, discount_rate - 0.02 + i * 0.01), 4) for i in range(5)]
+    rate_floor = terminal_growth + 0.005
+    rate_range = [round(max(rate_floor, discount_rate - 0.02 + i * 0.01), 4) for i in range(5)]
     tg_candidates = [round(max(0.0, terminal_growth - 0.01 + i * 0.005), 4) for i in range(5)]
 
     min_rate = min(rate_range)

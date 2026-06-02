@@ -495,6 +495,31 @@ def test_build_sensitivity_ranges_returns_valid_ranges():
     )
 
 
+def test_sensitivity_center_equals_discount_rate_normal():
+    """Center cell (index 2) must equal the base discount_rate so the heatmap
+    center matches the narrative base-case implied price (BUG-013)."""
+    from finrobot.engine.pipelines._helpers import build_sensitivity_ranges
+
+    wacc_range, _ = build_sensitivity_ranges(0.09, 0.025)
+    assert wacc_range[2] == pytest.approx(0.09)
+
+
+def test_sensitivity_center_preserved_for_low_wacc():
+    """The old absolute 3% floor clobbered the center when WACC < 3%; the
+    terminal-growth-relative floor keeps the center exact (BUG-013)."""
+    from finrobot.engine.pipelines._helpers import build_sensitivity_ranges
+
+    # WACC 2%, terminal growth 1% — valid (WACC > g) but below the old 3% floor.
+    wacc_range, tg_range = build_sensitivity_ranges(0.02, 0.01)
+    assert len(wacc_range) == 5
+    assert wacc_range[2] == pytest.approx(0.02), (
+        f"center must equal base WACC 0.02, got {wacc_range[2]} (range={wacc_range})"
+    )
+    # Gordon validity preserved: every terminal-growth candidate stays below the
+    # lowest discount rate.
+    assert tg_range and all(g < min(wacc_range) for g in tg_range)
+
+
 # ---------------------------------------------------------------------------
 # Catalyst analysis integration tests
 # ---------------------------------------------------------------------------

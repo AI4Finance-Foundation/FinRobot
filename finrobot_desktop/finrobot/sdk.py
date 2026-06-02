@@ -412,7 +412,7 @@ class FinRobot:
         """
         from finrobot.engine.backtest.backtrader_adapter import BackTraderAdapter
 
-        engine = BackTraderAdapter()
+        engine = BackTraderAdapter(self._ensure_deps().data_layer)
         return await engine.run(config)
 
     async def aauto_backtest(
@@ -433,6 +433,7 @@ class FinRobot:
             ticker,
             start_date,
             end_date,
+            self._ensure_deps().data_layer,
             initial_cash=initial_cash,
         )
 

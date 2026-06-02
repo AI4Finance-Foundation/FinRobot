@@ -18,6 +18,7 @@ from pydantic_ai import Agent
 from finrobot.config import FinRobotSettings
 from finrobot.engine.backtest.backtrader_adapter import BackTraderAdapter
 from finrobot.engine.backtest.engine import BacktestConfig, BacktestResult
+from finrobot.engine.data.layer import DataLayer
 
 logger = logging.getLogger(__name__)
 
@@ -64,17 +65,18 @@ async def run_strategy_selection(
     ticker: str,
     start_date: str,
     end_date: str,
+    data_layer: DataLayer,
     initial_cash: float = 100_000.0,
 ) -> BacktestResult:
     """Run LLM-guided strategy selection with iterative parameter tuning.
 
     1. Ask the LLM to pick an initial BacktestConfig.
-    2. Execute the backtest via BackTraderAdapter.
+    2. Execute the backtest via BackTraderAdapter (price data via ``data_layer``).
     3. Show results to LLM and ask for adjustments (up to MAX_ITERATIONS).
     4. Return the BacktestResult with the highest total_return.
     """
     model = settings.create_model()
-    engine = BackTraderAdapter()
+    engine = BackTraderAdapter(data_layer)
 
     # --- Initial config selection ---
     config_agent: Agent[None, BacktestConfig] = Agent(

@@ -537,19 +537,29 @@ def backtest(
     With --auto, the LLM picks and iteratively tunes strategy parameters:
         finrobot backtest AAPL --start 2023-01-01 --end 2024-01-01 --auto
     """
+    from finrobot.data_layer_factory import build_data_layer
+    from finrobot.engine.backtest.engine import BacktestConfig, BacktestResult
+
     if auto:
         from finrobot.engine.backtest.strategy_agent import run_strategy_selection
 
         settings = get_settings(model_name=model)
-        result = asyncio.run(
-            run_strategy_selection(settings, ticker, start, end, initial_cash=cash)
-        )
+
+        async def _run_auto() -> BacktestResult:
+            data_layer = build_data_layer(settings)
+            try:
+                return await run_strategy_selection(
+                    settings, ticker, start, end, data_layer, initial_cash=cash
+                )
+            finally:
+                await data_layer.close()
+
+        result = asyncio.run(_run_auto())
         click.echo(result.format_summary())
     else:
         import json
 
         from finrobot.engine.backtest.backtrader_adapter import BackTraderAdapter
-        from finrobot.engine.backtest.engine import BacktestConfig
 
         strategy_params: dict[str, float | int | str] = {}
         if params:
@@ -567,8 +577,16 @@ def backtest(
             initial_cash=cash,
         )
 
-        engine = BackTraderAdapter()
-        result = asyncio.run(engine.run(config))
+        settings = get_settings()
+
+        async def _run_manual() -> BacktestResult:
+            data_layer = build_data_layer(settings)
+            try:
+                return await BackTraderAdapter(data_layer).run(config)
+            finally:
+                await data_layer.close()
+
+        result = asyncio.run(_run_manual())
         click.echo(result.format_summary())
 
     if save_chart and result.chart_base64:

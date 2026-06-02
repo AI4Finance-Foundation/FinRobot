@@ -9,11 +9,15 @@ Whitelist (user-ratified single-point gateways — low-frequency / non-stock,
 NOT 收口 targets):
   - providers/yfinance_provider.py — THE yfinance provider
   - providers/fx.py                — single FX spot-rate gateway
-  - backtest/backtrader_adapter.py — isolated optional backtest tool
 
 compute/market.py was removed from this whitelist once its index/ETF display
 (the only direct-yfinance user) was deleted and the technical snapshot moved
 onto ``DataLayer.fetch_canonical(PRICE)`` (门一收口, ADR-0006).
+
+backtest/backtrader_adapter.py was removed once it stopped calling
+``yf.download`` and started pulling price bars through
+``DataLayer.fetch_price_range`` (BUG-022) — the backtest now shares the provider
+chain like every other path, so the exemption became a closeable hole.
 """
 
 from __future__ import annotations
@@ -27,7 +31,6 @@ ENGINE = ROOT / "finrobot" / "engine"
 _WHITELIST = {
     "finrobot/engine/data/providers/yfinance_provider.py",
     "finrobot/engine/data/providers/fx.py",
-    "finrobot/engine/backtest/backtrader_adapter.py",
 }
 # yfinance entry points that hit the network directly.
 _YF_CALL_ATTRS = {"Ticker", "Tickers", "download"}

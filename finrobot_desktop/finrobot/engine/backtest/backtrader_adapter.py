@@ -15,13 +15,17 @@ import functools
 import importlib
 import io
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from finrobot.engine.backtest.engine import (
     BacktestConfig,
     BacktestEngine,
     BacktestResult,
 )
+from finrobot.engine.data.interface import ProviderError
+
+if TYPE_CHECKING:
+    from finrobot.engine.data.layer import DataLayer
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +79,15 @@ def _get_sma_crossover() -> type:
 
 
 class BackTraderAdapter(BacktestEngine):
-    """BacktestEngine implementation using BackTrader."""
+    """BacktestEngine implementation using BackTrader.
+
+    Price bars come from the injected ``DataLayer`` (BUG-022) — the backtest no
+    longer calls yfinance directly, so it shares the provider fallback chain,
+    circuit-breaker and cache like every other data path.
+    """
+
+    def __init__(self, data_layer: DataLayer) -> None:
+        self._data_layer = data_layer
 
     async def run(self, config: BacktestConfig) -> BacktestResult:
         """Execute backtest using BackTrader in a thread pool."""
@@ -156,26 +168,50 @@ class BackTraderAdapter(BacktestEngine):
         )
 
     def _load_data(self, config: BacktestConfig) -> Any:
-        """Load price data using yfinance via backtrader's feed."""
-        import backtrader as bt
-        import yfinance as yf
+        """Load split/dividend-adjusted price bars via the DataLayer (BUG-022).
 
-        df = yf.download(
-            config.ticker,
-            start=config.start_date,
-            end=config.end_date,
-            auto_adjust=True,
-            progress=False,
-        )
-        if df.empty:
+        Runs inside ``_run_sync``, which executes in a worker thread (``run`` →
+        ``asyncio.to_thread``), so this thread owns no event loop and ``asyncio.run``
+        is the correct bridge to the async DataLayer. A provider failure or an empty
+        window degrades to the same ``ValueError("No price data …")`` the caller
+        already handles.
+        """
+        import backtrader as bt
+        import pandas as pd
+
+        try:
+            bars = asyncio.run(
+                self._data_layer.fetch_price_range(
+                    config.ticker, config.start_date, config.end_date
+                )
+            )
+        except ProviderError as e:
+            raise ValueError(
+                f"No price data available for {config.ticker} "
+                f"between {config.start_date} and {config.end_date}: {e}"
+            ) from e
+        if not bars:
             raise ValueError(
                 f"No price data available for {config.ticker} "
                 f"between {config.start_date} and {config.end_date}"
             )
 
-        # yfinance may return MultiIndex columns; flatten if needed
-        if hasattr(df.columns, "levels") and len(df.columns.levels) > 1:
-            df.columns = df.columns.droplevel(1)
+        # PriceBar carries an adjusted close always; O/H/L may be None for a
+        # close-only feed — fall back to close so backtrader's PandasData has a
+        # full OHLC even on degraded bars.
+        df = pd.DataFrame(
+            [
+                {
+                    "datetime": pd.Timestamp(b.date),
+                    "open": b.open if b.open is not None else b.close,
+                    "high": b.high if b.high is not None else b.close,
+                    "low": b.low if b.low is not None else b.close,
+                    "close": b.close,
+                    "volume": b.volume if b.volume is not None else 0.0,
+                }
+                for b in bars
+            ]
+        ).set_index("datetime")
 
         return bt.feeds.PandasData(dataname=df)
 

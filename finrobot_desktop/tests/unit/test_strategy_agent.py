@@ -82,7 +82,7 @@ class TestRunStrategySelection:
 
             mock_adapter_cls.return_value.run = mock_engine_run
 
-            result = await run_strategy_selection(settings, "AAPL", "2023-01-01", "2024-01-01")
+            result = await run_strategy_selection(settings, "AAPL", "2023-01-01", "2024-01-01", MagicMock())
 
         assert result.total_return == pytest.approx(0.15)
         # Engine should run exactly once (early stop after iter 1)
@@ -131,7 +131,7 @@ class TestRunStrategySelection:
             ]
             mock_adapter_cls.return_value.run = mock_engine_run
 
-            result = await run_strategy_selection(settings, "AAPL", "2023-01-01", "2024-01-01")
+            result = await run_strategy_selection(settings, "AAPL", "2023-01-01", "2024-01-01", MagicMock())
 
         # Best is iteration 2 with 0.20 return
         assert result.total_return == pytest.approx(0.20)
@@ -178,7 +178,7 @@ class TestRunStrategySelection:
             ]
             mock_adapter_cls.return_value.run = mock_engine_run
 
-            result = await run_strategy_selection(settings, "AAPL", "2023-01-01", "2024-01-01")
+            result = await run_strategy_selection(settings, "AAPL", "2023-01-01", "2024-01-01", MagicMock())
 
         # Best result is 0.25 from iteration 1
         assert result.total_return == pytest.approx(0.25)
@@ -221,6 +221,7 @@ class TestRunStrategySelection:
                 "AAPL",
                 "2023-01-01",
                 "2024-01-01",
+                MagicMock(),
                 initial_cash=100_000.0,
             )
 

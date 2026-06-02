@@ -3324,7 +3324,11 @@ msgstr "覆盖组"
 
 #. js-lingui-explicit-id
 msgid "coverage.addPlaceholder"
-msgstr "添加 ticker…"
+msgstr "添加股票到此组…"
+
+#. js-lingui-explicit-id
+msgid "coverage.addButton"
+msgstr "添加"
 
 #. js-lingui-explicit-id
 msgid "coverage.runSelected"

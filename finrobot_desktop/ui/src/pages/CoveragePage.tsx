@@ -198,23 +198,61 @@ export function CoveragePage(): React.ReactElement {
           ))}
         </select>
 
-        <input
-          value={addInput}
-          onChange={(e) => setAddInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-          placeholder={t('coverage.addPlaceholder')}
+        {/* Add-to-group control — NOT a second search. The hero search drills
+            into a single stock (/stocks/:ticker); this adds a ticker to THIS
+            coverage group (a row in the table below). The leading "+" and the
+            explicit Add button keep the two from reading as the same thing. */}
+        <div
           style={{
+            display: 'flex',
+            alignItems: 'center',
             flex: '1 1 220px',
-            minWidth: 180,
+            minWidth: 200,
             background: 'var(--bg-card)',
             border: '1px solid var(--border-soft)',
             borderRadius: 'var(--radius-md)',
-            color: 'var(--text-primary)',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 13,
-            padding: '7px 12px',
+            paddingLeft: 10,
           }}
-        />
+        >
+          <span style={{ color: 'var(--text-muted)', fontSize: 14, lineHeight: 1 }} aria-hidden>
+            +
+          </span>
+          <input
+            value={addInput}
+            onChange={(e) => setAddInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+            placeholder={t('coverage.addPlaceholder')}
+            aria-label={t('coverage.addPlaceholder')}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              color: 'var(--text-primary)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 13,
+              padding: '7px 10px',
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={!addInput.trim() || addMembers.isPending}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              borderLeft: '1px solid var(--border-soft)',
+              color: addInput.trim() ? 'var(--primary)' : 'var(--text-muted)',
+              cursor: addInput.trim() ? 'pointer' : 'not-allowed',
+              fontSize: 12,
+              padding: '7px 12px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {t('coverage.addButton')}
+          </button>
+        </div>
 
         <ToolbarButton
           label={t('coverage.runSelected', { n: selectedTickers.length })}

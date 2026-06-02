@@ -572,6 +572,19 @@ async def chat(request: Request) -> Response:
     Transcript write failures are logged and never surface to the client —
     the Vercel AI stream is unaffected by transcript I/O errors.
     """
+    # Fail-fast on broken runtime config. lifespan stashes the validation
+    # error on app.state.startup_error (missing API key / bad provider) and
+    # the SettingsView promises "LLM 路由将在配置修复前返回 503". Honour that
+    # contract HERE — before opening a session/stream — so a misconfigured
+    # box gets a clean 503 instead of entering the SSE stream and erroring
+    # deep in the pipeline with a buried OpenAIError (BUG-20260602-056).
+    startup_error = getattr(request.app.state, "startup_error", None)
+    if startup_error:
+        return JSONResponse(
+            content={"detail": f"Server not ready: {startup_error}"},
+            status_code=503,
+        )
+
     body = await request.body()
     try:
         body_json: dict[str, Any] = json.loads(body)

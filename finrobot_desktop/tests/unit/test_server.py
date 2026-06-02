@@ -40,11 +40,28 @@ class TestChatEndpoint:
             settings=settings,  # type: ignore[arg-type]
         )
 
+        app.state.startup_error = None
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             response = await c.post("/chat", json={})
         assert response.status_code != 404
         assert response.status_code != 405
+
+    async def test_chat_returns_503_when_startup_error_set(self):
+        """BUG-20260602-056: a broken runtime config (startup_error set) must
+        make /chat reply 503 BEFORE entering the stream, honouring the
+        SettingsView contract instead of failing deep in the pipeline."""
+        try:
+            app.state.startup_error = "DEEPSEEK_API_KEY is required but not set"
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as c:
+                response = await c.post(
+                    "/chat", json={"messages": [{"role": "user", "content": "hi"}]}
+                )
+            assert response.status_code == 503, response.text
+            assert "DEEPSEEK_API_KEY" in response.json()["detail"]
+        finally:
+            app.state.startup_error = None
 
 
 class TestArchitecturalRedLines:

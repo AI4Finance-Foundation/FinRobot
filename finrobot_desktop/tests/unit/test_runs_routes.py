@@ -20,7 +20,7 @@ from finrobot.routes.runs import router as runs_router
 # ---------------------------------------------------------------------------
 
 
-def _make_app(run_record: Any | None = None) -> FastAPI:
+def _make_app(run_record: Any | None = None, *, startup_error: str | None = None) -> FastAPI:
     """Minimal FastAPI app wired with the runs router and a mock RunStore."""
     app = FastAPI()
     app.include_router(runs_router)
@@ -35,6 +35,7 @@ def _make_app(run_record: Any | None = None) -> FastAPI:
     app.state.run_store = store
     app.state.run_tasks = {}
     app.state.sub_agents = {}
+    app.state.startup_error = startup_error
     return app
 
 
@@ -138,6 +139,63 @@ async def test_get_run_404_when_not_found() -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         resp = await c.get("/api/runs/does-not-exist")
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# BUG-20260602-056 — POST /api/runs must 503 (not create an orphan run) when
+# app.state.startup_error is set (broken runtime config / missing LLM key).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_run_503_when_startup_error_set() -> None:
+    """A misconfigured server (startup_error set) returns 503 from POST /api/runs."""
+    app = _make_app(startup_error="ANTHROPIC_API_KEY is required but not set")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.post("/api/runs", json={"pipeline_type": "full_analysis", "ticker": "AAPL"})
+
+    assert resp.status_code == 503, resp.text
+    assert "ANTHROPIC_API_KEY" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_create_run_with_startup_error_creates_no_run_record() -> None:
+    """The 503 gate fires BEFORE create_run, so no orphan run row is persisted
+    and no pipeline task is spawned."""
+    app = _make_app(startup_error="bad config")
+    store = app.state.run_store
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.post("/api/runs", json={"pipeline_type": "full_analysis", "ticker": "AAPL"})
+
+    assert resp.status_code == 503
+    store.create_run.assert_not_awaited()
+    assert app.state.run_tasks == {}
+
+
+@pytest.mark.asyncio
+async def test_create_run_succeeds_when_no_startup_error(monkeypatch: Any) -> None:
+    """Sanity counter-test: with startup_error=None the run is created (no 503)."""
+    from finrobot.routes import runs as runs_mod
+
+    monkeypatch.setattr(
+        runs_mod, "get_pipeline_factories", lambda: {"full_analysis": lambda agents: MagicMock()}
+    )
+    # Stop the spawned task from actually running the pipeline impl.
+    def _fake_create_task(coro: Any) -> Any:
+        coro.close()  # avoid "coroutine was never awaited" warning
+        return MagicMock()
+
+    monkeypatch.setattr(runs_mod.asyncio, "create_task", _fake_create_task)
+
+    record = _make_run_record(status="created")
+    app = _make_app(startup_error=None)
+    app.state.run_store.create_run = AsyncMock(return_value=record)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.post("/api/runs", json={"pipeline_type": "full_analysis", "ticker": "AAPL"})
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "created"
 
 
 # ---------------------------------------------------------------------------

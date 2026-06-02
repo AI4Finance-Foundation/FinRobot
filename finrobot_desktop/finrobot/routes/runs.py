@@ -107,7 +107,20 @@ async def spawn_run(
     dance (and both inherit the same concurrency cap, since every task goes
     through ``_run_pipeline``). Raises ``ValueError`` for an unknown
     ``pipeline_type`` or blank ticker — callers map it to an HTTP error.
+
+    Raises ``HTTPException(503)`` when ``app.state.startup_error`` is set:
+    every registered pipeline (research/dcf/lbo/...) drives sub-agents that
+    need a configured LLM, so a broken runtime config can't possibly produce
+    a valid run. Gating HERE — before ``create_run`` — means no orphan
+    "created" row is persisted, and the 503 (an HTTPException, not the
+    ValueError the batch handler catches) propagates so a misconfigured box
+    fails the whole Coverage batch instead of silently skipping every ticker
+    (BUG-20260602-056).
     """
+    startup_error = getattr(request.app.state, "startup_error", None)
+    if startup_error:
+        raise HTTPException(status_code=503, detail=f"Server not ready: {startup_error}")
+
     factories = get_pipeline_factories()
     if pipeline_type not in factories:
         raise ValueError(f"Invalid pipeline: {pipeline_type}. Valid: {sorted(factories.keys())}")

@@ -8,8 +8,10 @@ test_dcf.py and tests/audit/test_financial_sanity.py.
 
 
 from finrobot.engine.compute.dcf import (
+    _price_for,
     calculate_dcf,
     solve_for_implied_growth,
+    solve_for_implied_horizon,
     solve_for_implied_wacc,
 )
 from finrobot.engine.models.financial import DCFInputs
@@ -182,3 +184,61 @@ def test_reverse_wacc_clips_bracket_above_terminal_growth():
         bracket=(0.02, 0.20),
     )
     assert out["bracket"][0] > 0.03  # bumped above tg
+
+
+# ───────────────────────────────────────────────────────────────────
+# solve_for_implied_horizon — the third reverse axis (asymmetric)
+# ───────────────────────────────────────────────────────────────────
+
+
+def test_reverse_horizon_round_trip():
+    """Price at a constant 12% growth over exactly 8 explicit years → solving for
+    horizon at that price (same fixed growth) should return ~8 years."""
+    inputs = _make_inputs()
+    target = _price_for(inputs, 0.12, 0.10, inputs.terminal_growth_rate, 8, False)
+    out = solve_for_implied_horizon(inputs, target_price=target, growth_rate=0.12, wacc_override=0.10)
+    assert out["implied_horizon"] is not None
+    assert abs(out["implied_horizon"] - 8.0) < 0.05
+
+
+def test_reverse_horizon_depends_on_assumed_growth():
+    """The load-bearing property: implied horizon is a FUNCTION of the fixed
+    growth, not a standalone market reading. A lower assumed growth needs a
+    LONGER high-growth window to reach the same price. This is exactly why the
+    solver is asymmetric and must echo assumed_growth."""
+    inputs = _make_inputs()
+    # Pick a target reachable by both growth assumptions.
+    target = _price_for(inputs, 0.20, 0.10, inputs.terminal_growth_rate, 9, False)
+    hi_growth = solve_for_implied_horizon(
+        inputs, target_price=target, growth_rate=0.20, wacc_override=0.10
+    )
+    lo_growth = solve_for_implied_horizon(
+        inputs, target_price=target, growth_rate=0.12, wacc_override=0.10
+    )
+    assert hi_growth["implied_horizon"] is not None
+    assert lo_growth["implied_horizon"] is not None
+    # Same price, lower growth ⇒ strictly more years required.
+    assert lo_growth["implied_horizon"] > hi_growth["implied_horizon"]
+
+
+def test_reverse_horizon_echoes_assumed_growth():
+    """assumed_growth must round-trip so the UI can show 'under g=X%, ~N years'."""
+    inputs = _make_inputs()
+    out = solve_for_implied_horizon(inputs, target_price=300.0, growth_rate=0.18, wacc_override=0.10)
+    assert out["assumed_growth"] == 0.18
+
+
+def test_reverse_horizon_unreachable_returns_none_with_growth_caveat():
+    """A target above what even max_horizon of the fixed growth can reach ⇒ no
+    horizon solves it; message must flag that the answer hinges on the growth."""
+    inputs = _make_inputs()
+    out = solve_for_implied_horizon(
+        inputs,
+        target_price=10_000_000.0,  # absurdly high — unreachable at any horizon
+        growth_rate=0.05,
+        wacc_override=0.10,
+        max_horizon=20,
+    )
+    assert out["implied_horizon"] is None
+    assert out["assumed_growth"] == 0.05
+    assert "增长" in (out["message"] or "")

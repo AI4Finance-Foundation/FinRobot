@@ -16,6 +16,7 @@ from finrobot.engine.compute.dcf import (
     calculate_dcf,
     calculate_sensitivity,
     solve_for_implied_growth,
+    solve_for_implied_horizon,
     solve_for_implied_wacc,
 )
 from finrobot.engine.compute.lbo import calculate_lbo
@@ -119,6 +120,7 @@ class DcfSeedResponse(BaseModel):
     current_price: float | None = None
     reverse_growth: "DcfReverseResult | None" = None
     reverse_wacc: "DcfReverseResult | None" = None
+    reverse_horizon: "DcfReverseResult | None" = None
 
 
 class DcfReverseRequest(BaseModel):
@@ -140,6 +142,11 @@ class DcfReverseResult(BaseModel):
     target_price: float
     implied_growth: float | None = None
     implied_wacc: float | None = None
+    implied_horizon: float | None = None
+    # The growth rate held fixed when solve_for="horizon". Horizon and growth
+    # trade off, so the implied horizon is a function of this assumed growth — the
+    # UI MUST show it so the answer reads "under g=X%, ~N years", not a bare N.
+    assumed_growth: float | None = None
     computed_price: float | None = None
     wacc: float | None = None
     terminal_growth: float
@@ -275,6 +282,7 @@ async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedRes
     current_price = financial_data.market.current_price
     reverse_growth: DcfReverseResult | None = None
     reverse_wacc: DcfReverseResult | None = None
+    reverse_horizon: DcfReverseResult | None = None
     if body.include_reverse and current_price and current_price > 0:
         rg = solve_for_implied_growth(
             dcf_inputs,
@@ -291,6 +299,23 @@ async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedRes
             mid_year=body.mid_year,
         )
         reverse_wacc = DcfReverseResult(solve_for="wacc", **rw)
+        # Horizon reverse needs a growth axis to hold fixed (it trades off against
+        # horizon). Default to the seeded first-year growth; the response echoes it
+        # as assumed_growth so the implied horizon is read "under g=X%, ~N years".
+        seeded_growth = (
+            dcf_inputs.revenue_growth_rates[0]
+            if dcf_inputs.revenue_growth_rates
+            else dcf_inputs.terminal_growth_rate
+        )
+        rh = solve_for_implied_horizon(
+            dcf_inputs,
+            target_price=current_price,
+            growth_rate=seeded_growth,
+            wacc_override=body.wacc_override,
+            tg_override=body.tg_override,
+            mid_year=body.mid_year,
+        )
+        reverse_horizon = DcfReverseResult(solve_for="horizon", **rh)
 
     return DcfSeedResponse(
         inputs=dcf_inputs,
@@ -298,6 +323,7 @@ async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedRes
         current_price=current_price,
         reverse_growth=reverse_growth,
         reverse_wacc=reverse_wacc,
+        reverse_horizon=reverse_horizon,
     )
 
 

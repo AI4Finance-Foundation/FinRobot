@@ -436,3 +436,116 @@ def solve_for_implied_wacc(
             "为近似值，请勿当作精确解。"
         )
     return result
+
+
+def solve_for_implied_horizon(
+    inputs: DCFInputs,
+    target_price: float,
+    growth_rate: float,
+    max_horizon: int = 30,
+    wacc_override: float | None = None,
+    tg_override: float | None = None,
+    mid_year: bool = False,
+) -> dict[str, Any]:
+    """Reverse DCF — solve for the number of explicit high-growth years that
+    justifies ``target_price``, holding a CONSTANT ``growth_rate`` and the
+    discount rate fixed. Completes the reverse-DCF trio (growth / WACC / horizon).
+
+    Asymmetry caveat — this solver is NOT a drop-in sibling of
+    ``solve_for_implied_growth`` / ``solve_for_implied_wacc``. Those hold a fully
+    determined input set and solve one scalar. This one needs an *additional*
+    free choice — the constant ``growth_rate`` to hold — because horizon and
+    growth trade off against each other: at 40% growth the market price may imply
+    ~7 years, at 25% the same price implies ~14, at 20% it may be unreachable.
+    The returned ``assumed_growth`` echoes that fixed axis; callers MUST surface
+    it so the answer is never read as a standalone "the market implies N years"
+    (it is "under g = X%, the market implies N years"). There is no objective
+    load-bearing axis — only this slice through the (growth, horizon, WACC) face.
+
+    horizon is integer-grained (a count of explicit forecast years), so the
+    returned ``implied_horizon`` is a LINEAR INTERPOLATION between the two
+    bracketing integer years — an approximation, never an exact root.
+
+    Returns a dict shaped to fill ``DcfReverseResult`` (``solve_for="horizon"``),
+    with ``bracket`` / ``price_at_lo`` / ``price_at_hi`` carrying the horizon-axis
+    bracket and its edge prices.
+    """
+    if wacc_override is not None:
+        wacc = wacc_override
+    else:
+        _, wacc = calculate_wacc(
+            inputs.risk_free_rate,
+            inputs.beta,
+            inputs.equity_risk_premium,
+            inputs.cost_of_debt,
+            inputs.tax_rate,
+            inputs.debt_ratio,
+        )
+    tg = tg_override if tg_override is not None else inputs.terminal_growth_rate
+
+    # Price at each integer horizon, holding the constant growth_rate. Stops if
+    # the Gordon perpetuity becomes undefined (tg >= wacc) — _price_for raises.
+    prices: list[tuple[int, float]] = []
+    for h in range(1, max_horizon + 1):
+        try:
+            prices.append((h, _price_for(inputs, growth_rate, wacc, tg, h, mid_year)))
+        except ValueError:
+            break
+
+    base: dict[str, Any] = {
+        "target_price": target_price,
+        "wacc": wacc,
+        "terminal_growth": tg,
+        "assumed_growth": growth_rate,
+        "horizon_years": max_horizon,
+        "implied_horizon": None,
+        "computed_price": None,
+        "iterations": len(prices),
+    }
+    if not prices:
+        return {
+            **base,
+            "bracket": [1.0, float(max_horizon)],
+            "price_at_lo": 0.0,
+            "price_at_hi": 0.0,
+            "message": (
+                f"在固定增长率 {growth_rate:.0%} 下，永续增长率 {tg:.1%} 不低于 WACC "
+                f"{wacc:.1%}，Gordon 模型无定义，无法反推年限。"
+            ),
+        }
+
+    p_lo = prices[0][1]
+    p_hi = prices[-1][1]
+    base["bracket"] = [float(prices[0][0]), float(prices[-1][0])]
+    base["price_at_lo"] = p_lo
+    base["price_at_hi"] = p_hi
+
+    # Price is monotonically increasing in horizon (longer high-growth window ⇒
+    # more value). Target outside [p_lo, p_hi] ⇒ no horizon in range justifies it.
+    if not (p_lo <= target_price <= p_hi):
+        return {
+            **base,
+            "message": (
+                f"在固定增长率 {growth_rate:.0%} 下，目标价 ${target_price:.2f} 落在 "
+                f"1–{max_horizon} 年可达区间 [${p_lo:.2f}, ${p_hi:.2f}] 之外。"
+                f"{'增长假设太低、再长的高增长窗口也够不着' if target_price > p_hi else '当前价已低于最短窗口隐含价'}。"
+                f"换一个固定增长率会得到不同年限——隐含年限是增长假设的函数。"
+            ),
+        }
+
+    # Linear-interpolate the fractional horizon between the two bracketing years.
+    implied = float(prices[-1][0])
+    for (h0, p0), (h1, p1) in zip(prices, prices[1:]):
+        if p0 <= target_price <= p1:
+            implied = h0 + (target_price - p0) / (p1 - p0) * (h1 - h0) if p1 != p0 else float(h0)
+            break
+    return {
+        **base,
+        "implied_horizon": implied,
+        "computed_price": target_price,
+        "message": (
+            f"在固定增长率 {growth_rate:.0%}、WACC {wacc:.1%} 下，${target_price:.2f} 隐含约 "
+            f"{implied:.1f} 年高增长窗口（整数年线性插值近似）。注意：这个年限取决于所固定的 "
+            f"{growth_rate:.0%} 增长——换一个同样合理的增长率会得到不同年限。"
+        ),
+    }

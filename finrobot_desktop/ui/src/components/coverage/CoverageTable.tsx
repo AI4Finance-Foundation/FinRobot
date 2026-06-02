@@ -14,10 +14,13 @@ import {
 } from '../../utils/format'
 import { SourcedNumber } from '../SourcedNumber'
 import type { CoverageRow } from '../../api/coverage'
+import type { CoverageSort, CoverageSortKey, SortDir } from './coverageSort'
 
 interface Props {
   rows: CoverageRow[]
   selected: string[]
+  sort: CoverageSort | null
+  onSort: (key: CoverageSortKey) => void
   onToggle: (ticker: string) => void
   onToggleAll: () => void
   onOpenTicker: (ticker: string) => void
@@ -69,6 +72,8 @@ const VERDICT_COLOR: Record<string, string> = {
 export function CoverageTable({
   rows,
   selected,
+  sort,
+  onSort,
   onToggle,
   onToggleAll,
   onOpenTicker,
@@ -76,6 +81,50 @@ export function CoverageTable({
 }: Props): React.ReactElement {
   const { t, locale } = useI18n()
   const allSelected = rows.length > 0 && selected.length === rows.length
+
+  // Sortable header — a button so it's keyboard-operable; shows a caret on the
+  // active column. Non-sortable columns (verdict/signal/status/action) stay
+  // plain <th>.
+  function SortTh({
+    label,
+    sortKey,
+    align = 'right',
+  }: {
+    label: string
+    sortKey: CoverageSortKey
+    align?: 'left' | 'right'
+  }): React.ReactElement {
+    const active = sort?.key === sortKey
+    return (
+      <th style={{ ...TH, padding: 0, textAlign: align }}>
+        <button
+          type="button"
+          onClick={() => onSort(sortKey)}
+          aria-label={t('coverage.sortBy', { col: label })}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            width: '100%',
+            justifyContent: align === 'left' ? 'flex-start' : 'flex-end',
+            padding: '8px 10px',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            font: 'inherit',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            fontSize: 10,
+            fontWeight: active ? 600 : 500,
+            color: active ? 'var(--text-secondary)' : 'var(--text-muted)',
+          }}
+        >
+          {label}
+          <SortCaret dir={active ? sort?.dir : undefined} />
+        </button>
+      </th>
+    )
+  }
 
   return (
     <div style={{ overflow: 'auto', height: '100%' }}>
@@ -90,17 +139,17 @@ export function CoverageTable({
                 aria-label={t('coverage.table.selectAll')}
               />
             </th>
-            <th style={{ ...TH, textAlign: 'left' }}>{t('coverage.col.ticker')}</th>
-            <th style={TH}>{t('coverage.col.price')}</th>
-            <th style={TH}>1D</th>
-            <th style={TH}>{t('coverage.col.mcap')}</th>
-            <th style={TH}>{t('coverage.col.revttm')}</th>
-            <th style={TH}>EV/EBITDA</th>
-            <th style={TH}>P/E</th>
+            <SortTh label={t('coverage.col.ticker')} sortKey="ticker" align="left" />
+            <SortTh label={t('coverage.col.price')} sortKey="price" />
+            <SortTh label="1D" sortKey="change_pct_1d" />
+            <SortTh label={t('coverage.col.mcap')} sortKey="market_cap" />
+            <SortTh label={t('coverage.col.revttm')} sortKey="revenue_ttm" />
+            <SortTh label="EV/EBITDA" sortKey="ev_ebitda" />
+            <SortTh label="P/E" sortKey="pe" />
             <th style={{ ...TH, textAlign: 'center' }}>{t('coverage.col.verdict')}</th>
-            <th style={TH}>{t('coverage.col.upside')}</th>
+            <SortTh label={t('coverage.col.upside')} sortKey="upside_to_target_live" />
             <th style={{ ...TH, textAlign: 'center' }}>{t('coverage.col.signal')}</th>
-            <th style={TH}>{t('coverage.col.runs')}</th>
+            <SortTh label={t('coverage.col.runs')} sortKey="run_count" />
             <th style={{ ...TH, textAlign: 'center' }}>{t('coverage.col.status')}</th>
             <th style={{ ...TH, textAlign: 'center', width: 56 }} />
           </tr>
@@ -285,6 +334,17 @@ function StatusCell({ row }: { row: CoverageRow }): React.ReactElement {
       <WarnTriangle color={isError ? 'var(--danger)' : 'var(--warning)'} />
       {reasons.length + warnings.length}
     </span>
+  )
+}
+
+// Active-column sort direction caret. Inline SVG (cosmic spec: simple icons
+// hand-drawn); renders nothing on inactive columns so headers don't jitter.
+function SortCaret({ dir }: { dir?: SortDir }): React.ReactElement | null {
+  if (!dir) return null
+  return (
+    <svg width="8" height="8" viewBox="0 0 8 8" role="img" aria-hidden style={{ flexShrink: 0 }}>
+      <path d={dir === 'asc' ? 'M4 1 L7 6 L1 6 Z' : 'M1 2 L7 2 L4 7 Z'} fill="var(--primary)" />
+    </svg>
   )
 }
 

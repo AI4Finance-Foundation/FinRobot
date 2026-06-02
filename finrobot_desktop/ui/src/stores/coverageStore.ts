@@ -7,14 +7,19 @@
 
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import type { CoverageSort } from '../components/coverage/coverageSort'
 
 interface CoverageUiState {
   selectedGroupId: string | null
   selectedTickers: string[]
+  // Per-group column sort, persisted: each universe remembers how the analyst
+  // last sorted it (view-state — belongs client-side, not a backend table).
+  sortByGroup: Record<string, CoverageSort>
   setSelectedGroup: (id: string | null) => void
   toggleTicker: (ticker: string) => void
   setSelected: (tickers: string[]) => void
   clearSelection: () => void
+  setSort: (groupId: string, sort: CoverageSort | null) => void
 }
 
 export const useCoverageStore = create<CoverageUiState>()(
@@ -22,6 +27,7 @@ export const useCoverageStore = create<CoverageUiState>()(
     (set) => ({
       selectedGroupId: null,
       selectedTickers: [],
+      sortByGroup: {},
       setSelectedGroup: (id) => set({ selectedGroupId: id, selectedTickers: [] }),
       toggleTicker: (ticker) =>
         set((s) => ({
@@ -31,12 +37,19 @@ export const useCoverageStore = create<CoverageUiState>()(
         })),
       setSelected: (tickers) => set({ selectedTickers: [...new Set(tickers)] }),
       clearSelection: () => set({ selectedTickers: [] }),
+      setSort: (groupId, sort) =>
+        set((s) => {
+          const next = { ...s.sortByGroup }
+          if (sort === null) delete next[groupId]
+          else next[groupId] = sort
+          return { sortByGroup: next }
+        }),
     }),
     {
       name: 'finrobot-coverage-ui',
       storage: createJSONStorage(() => localStorage),
-      // Persist only the last-open group — selection is per-session.
-      partialize: (s) => ({ selectedGroupId: s.selectedGroupId }),
+      // Persist last-open group + per-group sort; selection stays per-session.
+      partialize: (s) => ({ selectedGroupId: s.selectedGroupId, sortByGroup: s.sortByGroup }),
     },
   ),
 )

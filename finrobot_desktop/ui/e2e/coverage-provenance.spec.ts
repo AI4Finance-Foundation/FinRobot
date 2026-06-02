@@ -157,3 +157,23 @@ test('coverage table renders per-field provenance + popover', async ({ page }) =
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.screenshot({ path: 'e2e/_coverage-popover.png' })
 })
+
+test('clicking a column header sorts the table (NVDA price > AAPL → top)', async ({ page }) => {
+  await page.route('**/api/coverage/groups', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(GROUPS) }),
+  )
+  await page.route('**/api/coverage/groups/*/overview**', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(OVERVIEW) }),
+  )
+
+  await page.goto('/coverage')
+  await expect(page.getByRole('button', { name: 'AAPL' })).toBeVisible({ timeout: 8000 })
+
+  // Click the Price header → default desc → NVDA (1024.5) sorts above AAPL (200.12).
+  await page.getByRole('button', { name: /价格|Price/ }).click()
+  await page.waitForTimeout(150)
+
+  const firstTicker = page.locator('tbody tr').first().getByRole('button')
+  await expect(firstTicker.first()).toHaveText('NVDA')
+  await page.screenshot({ path: 'e2e/_coverage-sorted.png' })
+})

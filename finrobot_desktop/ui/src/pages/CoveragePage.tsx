@@ -4,7 +4,7 @@
 // batch-run research, jump to Compare. Server state via useCoverage (TanStack
 // Query); selection in coverageStore. Drill-down stays at /stocks/:ticker.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useI18n } from '../i18n'
 import { useCoverageStore } from '../stores/coverageStore'
@@ -18,6 +18,7 @@ import {
 import { CoverageTable } from '../components/coverage/CoverageTable'
 import { CoverageRail } from '../components/coverage/CoverageRail'
 import { CoverageEmptyState } from '../components/coverage/CoverageEmptyState'
+import { nextSort, sortCoverageRows } from '../components/coverage/coverageSort'
 import { useToastStore } from '../stores/toastStore'
 
 export function CoveragePage(): React.ReactElement {
@@ -34,6 +35,8 @@ export function CoveragePage(): React.ReactElement {
   const toggleTicker = useCoverageStore((s) => s.toggleTicker)
   const setSelected = useCoverageStore((s) => s.setSelected)
   const clearSelection = useCoverageStore((s) => s.clearSelection)
+  const sortByGroup = useCoverageStore((s) => s.sortByGroup)
+  const setSort = useCoverageStore((s) => s.setSort)
 
   // Resolve the active group: stored choice if still present, else first.
   const activeGroupId =
@@ -42,7 +45,14 @@ export function CoveragePage(): React.ReactElement {
     null
 
   const overviewQuery = useCoverageOverview(activeGroupId)
-  const rows = overviewQuery.data?.rows ?? []
+  // Stable ref (the `?? []` would otherwise be a fresh array each render and
+  // defeat the sort useMemo below).
+  const rows = useMemo(() => overviewQuery.data?.rows ?? [], [overviewQuery.data])
+
+  // Per-group sort (persisted in coverageStore). Sort here so the Table stays
+  // presentational and the Rail keeps the backend (member) order.
+  const activeSort = activeGroupId ? (sortByGroup[activeGroupId] ?? null) : null
+  const sortedRows = useMemo(() => sortCoverageRows(rows, activeSort), [rows, activeSort])
 
   const createGroup = useCreateGroup()
   const addMembers = useAddMembers()
@@ -188,8 +198,10 @@ export function CoveragePage(): React.ReactElement {
             <Placeholder text={t('coverage.emptyGroup')} />
           ) : (
             <CoverageTable
-              rows={rows}
+              rows={sortedRows}
               selected={selectedTickers}
+              sort={activeSort}
+              onSort={(key) => activeGroupId && setSort(activeGroupId, nextSort(activeSort, key))}
               onToggle={toggleTicker}
               onToggleAll={() =>
                 selectedTickers.length === rows.length

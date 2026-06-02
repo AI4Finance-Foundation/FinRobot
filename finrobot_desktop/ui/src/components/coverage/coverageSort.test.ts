@@ -1,0 +1,120 @@
+import { describe, it, expect } from 'vitest'
+import { sortCoverageRows, nextSort, defaultDir } from './coverageSort'
+import type { CoverageRow } from '../../api/coverage'
+
+function row(over: Partial<CoverageRow>): CoverageRow {
+  return {
+    ticker: 'AAA',
+    company: null,
+    price: null,
+    change_pct_1d: null,
+    price_as_of: null,
+    market_cap: null,
+    revenue_ttm: null,
+    ev_ebitda: null,
+    pe: null,
+    currency: null,
+    latest_verdict: null,
+    target_price: null,
+    target_date: null,
+    entry_price: null,
+    upside_to_target_live: null,
+    signal: null,
+    run_count: 0,
+    latest_artifact_id: null,
+    latest_type: null,
+    latest_at: null,
+    run_status: null,
+    run_error: null,
+    needs_refresh: [],
+    warnings: [],
+    sources: {
+      price: null,
+      change_pct_1d: null,
+      market_cap: null,
+      revenue_ttm: null,
+      ev_ebitda: null,
+      pe: null,
+      upside_to_target_live: null,
+    },
+    ...over,
+  }
+}
+
+describe('sortCoverageRows', () => {
+  it('returns the original array reference-order when sort is null', () => {
+    const rows = [row({ ticker: 'B' }), row({ ticker: 'A' })]
+    expect(sortCoverageRows(rows, null)).toEqual(rows)
+  })
+
+  it('sorts numbers descending and ascending', () => {
+    const rows = [
+      row({ ticker: 'A', pe: 10 }),
+      row({ ticker: 'B', pe: 30 }),
+      row({ ticker: 'C', pe: 20 }),
+    ]
+    expect(sortCoverageRows(rows, { key: 'pe', dir: 'desc' }).map((r) => r.ticker)).toEqual([
+      'B',
+      'C',
+      'A',
+    ])
+    expect(sortCoverageRows(rows, { key: 'pe', dir: 'asc' }).map((r) => r.ticker)).toEqual([
+      'A',
+      'C',
+      'B',
+    ])
+  })
+
+  it('pins null values to the bottom in BOTH directions', () => {
+    const rows = [
+      row({ ticker: 'A', pe: 10 }),
+      row({ ticker: 'N', pe: null }),
+      row({ ticker: 'B', pe: 30 }),
+    ]
+    // desc: real numbers first (30,10), null last
+    expect(sortCoverageRows(rows, { key: 'pe', dir: 'desc' }).map((r) => r.ticker)).toEqual([
+      'B',
+      'A',
+      'N',
+    ])
+    // asc: real numbers first (10,30), null STILL last (never floated to top)
+    expect(sortCoverageRows(rows, { key: 'pe', dir: 'asc' }).map((r) => r.ticker)).toEqual([
+      'A',
+      'B',
+      'N',
+    ])
+  })
+
+  it('sorts tickers as locale strings', () => {
+    const rows = [row({ ticker: 'NVDA' }), row({ ticker: 'AAPL' }), row({ ticker: 'MSFT' })]
+    expect(sortCoverageRows(rows, { key: 'ticker', dir: 'asc' }).map((r) => r.ticker)).toEqual([
+      'AAPL',
+      'MSFT',
+      'NVDA',
+    ])
+  })
+
+  it('does not mutate the input array', () => {
+    const rows = [row({ ticker: 'B', pe: 1 }), row({ ticker: 'A', pe: 2 })]
+    const before = rows.map((r) => r.ticker)
+    sortCoverageRows(rows, { key: 'pe', dir: 'desc' })
+    expect(rows.map((r) => r.ticker)).toEqual(before)
+  })
+})
+
+describe('nextSort / defaultDir', () => {
+  it('tickers default ascending, numbers default descending', () => {
+    expect(defaultDir('ticker')).toBe('asc')
+    expect(defaultDir('pe')).toBe('desc')
+  })
+
+  it('jumps to a new column at its natural direction', () => {
+    expect(nextSort(null, 'pe')).toEqual({ key: 'pe', dir: 'desc' })
+    expect(nextSort({ key: 'pe', dir: 'desc' }, 'ticker')).toEqual({ key: 'ticker', dir: 'asc' })
+  })
+
+  it('toggles direction when clicking the active column', () => {
+    expect(nextSort({ key: 'pe', dir: 'desc' }, 'pe')).toEqual({ key: 'pe', dir: 'asc' })
+    expect(nextSort({ key: 'pe', dir: 'asc' }, 'pe')).toEqual({ key: 'pe', dir: 'desc' })
+  })
+})

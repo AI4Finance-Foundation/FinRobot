@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { CoverageTable } from './CoverageTable'
+import type { CoverageSort, CoverageSortKey } from './coverageSort'
 import type { CoverageRow } from '../../api/coverage'
 
 function makeRow(over: Partial<CoverageRow> = {}): CoverageRow {
@@ -61,12 +62,17 @@ function makeRow(over: Partial<CoverageRow> = {}): CoverageRow {
   }
 }
 
-function renderTable(rows: CoverageRow[]): void {
+function renderTable(
+  rows: CoverageRow[],
+  opts: { sort?: CoverageSort | null; onSort?: (key: CoverageSortKey) => void } = {},
+): void {
   render(
     <MemoryRouter initialEntries={['/coverage']}>
       <CoverageTable
         rows={rows}
         selected={[]}
+        sort={opts.sort ?? null}
+        onSort={opts.onSort ?? (() => {})}
         onToggle={() => {}}
         onToggleAll={() => {}}
         onOpenTicker={() => {}}
@@ -118,5 +124,26 @@ describe('CoverageTable provenance', () => {
     })
     const link = screen.getByText(/Open full report/) as HTMLAnchorElement
     expect(link.getAttribute('href')).toBe('/stocks/AAPL/runs/art_aapl_eq')
+  })
+})
+
+describe('CoverageTable sorting', () => {
+  it('column headers are sort buttons that emit the column key', () => {
+    const onSort = vi.fn()
+    renderTable([makeRow()], { onSort })
+    fireEvent.click(screen.getByRole('button', { name: /Sort by P\/E/ }))
+    expect(onSort).toHaveBeenCalledWith('pe')
+  })
+
+  it('every numeric/ticker column is sortable; categorical ones are not', () => {
+    renderTable([makeRow()])
+    for (const col of ['Price', '1D', 'EV/EBITDA', 'P/E']) {
+      expect(
+        screen.getByRole('button', { name: new RegExp(`Sort by ${col.replace('/', '\\/')}`) }),
+      ).toBeInTheDocument()
+    }
+    // Verdict / Signal / Status are categorical — no sort button.
+    expect(screen.queryByRole('button', { name: /Sort by Verdict/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Sort by Signal/ })).toBeNull()
   })
 })

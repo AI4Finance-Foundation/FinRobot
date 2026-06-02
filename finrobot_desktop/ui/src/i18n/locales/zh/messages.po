@@ -3243,6 +3243,10 @@ msgid "coverage.col.status"
 msgstr "状态"
 
 #. js-lingui-explicit-id
+msgid "coverage.sortBy"
+msgstr "按 {col} 排序"
+
+#. js-lingui-explicit-id
 msgid "coverage.notRun"
 msgstr "未运行"
 

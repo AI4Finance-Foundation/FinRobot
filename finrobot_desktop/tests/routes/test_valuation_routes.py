@@ -274,8 +274,10 @@ async def test_aggregate_endpoint_uses_forward_eps_when_estimates_available(
     body = r.json()
     comps = next(m for m in body["methods"] if m["method"] == "comps_pe")
     # Forward EPS flowed through — source proves it, and 20 × 8.6 = 172 proves
-    # FY1 selection (20 × 9.5 = 190 would mean the farthest row leaked in).
-    assert comps["source"] == "peer_median_pe × forward_eps"
+    # FY1 selection (20 × 9.5 = 190 would mean the farthest row leaked in). The
+    # source also discloses the as-reported peer-P/E口径 (BUG-029).
+    assert comps["source"].startswith("peer_median_pe × forward_eps")
+    assert "as-reported" in comps["source"]
     assert abs(comps["mid"] - 172.0) < 0.01
 
 

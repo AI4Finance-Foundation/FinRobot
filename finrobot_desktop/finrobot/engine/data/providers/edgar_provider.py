@@ -337,19 +337,30 @@ def _select_recent_ttm(
 # extractors. We keep the governance overview window (intro + risk
 # disclosures) and splice in a second window anchored on the SCT
 # heading; both are needed for the proxy compensation panel. Total
-# payload is bounded at ~90k per ticker.
+# payload is bounded at ~140k per ticker.
 _PROXY_INTRO_CHARS = 50_000
-_PROXY_SCT_WINDOW_CHARS = 40_000
+# Wide enough to span BOTH the Summary Compensation Table AND the CEO
+# pay-ratio disclosure that follows it. NVDA FY2026 (probe 2026-06-02):
+# real SCT at char 243,910, pay-ratio "129:1" at ~283,000 — ~40k apart.
+# A 40k window anchored on the table missed the ratio entirely.
+_PROXY_SCT_WINDOW_CHARS = 90_000
 _PROXY_INTRO_SCT_GAP_MARKER = "\n\n--- [SCT WINDOW] ---\n\n"
 
 
 def _slice_proxy_text(full_text: str) -> str:
-    """Return up-to-90k window: first 50k (governance) + 40k around SCT.
+    """Return up-to-140k window: first 50k (governance) + 90k around the SCT.
 
     Compensation regex extractors (Summary Compensation Table parser,
-    CEO pay ratio extractor) need the SCT section, which for TSLA-class
-    issuers sits 100k+ chars into the full filing. Naïvely capping at
-    50k loses the entire compensation discussion.
+    CEO pay ratio extractor) need the SCT section, which for large issuers
+    sits 200k+ chars into the full filing. Naïvely capping at 50k loses the
+    entire compensation discussion.
+
+    Anchoring is the subtle part: a proxy mentions "Summary Compensation
+    Table" many times (TOC, Pay-Versus-Performance cross-references) BEFORE
+    the actual table. NVDA FY2026 had 20 such mentions; the real table is
+    marked by its column header "Name and Principal Position", which appears
+    exactly once. We anchor there; only if that's absent do we fall back to
+    an SCT heading that is actually followed by tabular data.
     """
     if not full_text:
         return ""
@@ -357,22 +368,38 @@ def _slice_proxy_text(full_text: str) -> str:
     if len(full_text) <= _PROXY_INTRO_CHARS:
         return intro
 
-    # Find the FIRST "Summary Compensation Table" heading past the intro
-    # window — earlier matches are nearly always TOC entries, not the
-    # real table.
-    matches = list(re.finditer(r"Summary Compensation Table", full_text, re.I))
-    sct_pos: int | None = None
-    for m in matches:
-        if m.start() >= _PROXY_INTRO_CHARS:
-            sct_pos = m.start()
-            break
+    anchor: int | None = None
 
-    if sct_pos is None:
-        # Heading not found past the intro window — return the intro
-        # only. Avoids dragging along a useless tail.
-        return intro
+    # Primary: the SCT column header — unambiguous marker of the real table.
+    nap = re.search(r"Name and Principal Position", full_text, re.I)
+    if nap is not None and nap.start() >= _PROXY_INTRO_CHARS:
+        anchor = nap.start()
 
-    sct_window = full_text[sct_pos : sct_pos + _PROXY_SCT_WINDOW_CHARS]
+    # Fallback: an SCT heading past the intro that is followed within ~1.5k
+    # chars by a data row (a 4-digit year next to a comma-grouped number) —
+    # skips TOC entries and prose cross-references.
+    if anchor is None:
+        for m in re.finditer(r"Summary Compensation Table", full_text, re.I):
+            if m.start() < _PROXY_INTRO_CHARS:
+                continue
+            tail = full_text[m.start() : m.start() + 1500]
+            if re.search(r"20\d{2}\s+[0-9]{1,3}(?:,[0-9]{3})+", tail):
+                anchor = m.start()
+                break
+
+    if anchor is None:
+        # Last resort: keep a NAP match even if it fell inside the intro, or
+        # bail to intro-only rather than drag a useless tail.
+        if nap is not None:
+            anchor = nap.start()
+        else:
+            return intro
+
+    # Start slightly before the anchor so the "Summary Compensation Table"
+    # heading itself (sits just above the column header) is in the window for
+    # the downstream table parser.
+    start = max(_PROXY_INTRO_CHARS, anchor - 1_200)
+    sct_window = full_text[start : start + _PROXY_SCT_WINDOW_CHARS]
     return intro + _PROXY_INTRO_SCT_GAP_MARKER + sct_window
 
 

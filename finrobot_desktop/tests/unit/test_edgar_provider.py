@@ -528,11 +528,12 @@ def test_coerce_form4_date_handles_all_edgartools_shapes(
 
 
 def test_slice_proxy_text_splices_sct_window_past_intro() -> None:
-    """TSLA-class proxies are 500k+ chars; the Summary Compensation Table
-    sits 100k+ chars deep, well past the 50k governance-intro head cap.
-    The slicer must keep the intro AND splice in a 40k window anchored
-    on the first SCT heading found past the intro cut so the SCT row
-    extractor has something to parse.
+    """Large proxies are 300k+ chars; the real Summary Compensation Table sits
+    200k+ chars deep, well past the 50k governance-intro head cap. The slicer
+    keeps the intro AND splices in a 90k window anchored on the table's column
+    header "Name and Principal Position" — NOT a TOC/cross-reference mention of
+    "Summary Compensation Table" — so the SCT row + pay-ratio extractors have
+    the actual table AND the pay-ratio disclosure that follows it.
     """
     from finrobot.engine.data.providers.edgar_provider import _slice_proxy_text
 
@@ -546,13 +547,13 @@ def test_slice_proxy_text_splices_sct_window_past_intro() -> None:
     assert len(intro) == 50_000
 
     body_gap = "z" * 60_000  # 60k chars between intro and real SCT
-    # SCT body must exceed the 40k window so the tail beyond it is
-    # actually excluded from the sliced window.
+    # SCT + pay-ratio body, then a long filler so the tail lands BEYOND the
+    # 90k window and is excluded.
     sct = (
         "Summary Compensation Table\n"
         "Name and Principal Position    Year   Salary    Total\n"
         "Elon Musk Chief Executive Officer 2024 0 100,000,000\n"
-    ) + ("w" * 50_000)
+    ) + ("w" * 100_000)
     tail = "TAIL_BEYOND_SCT_WINDOW" * 5_000
 
     full = intro + body_gap + sct + tail
@@ -560,11 +561,11 @@ def test_slice_proxy_text_splices_sct_window_past_intro() -> None:
 
     # Intro is preserved verbatim
     assert sliced.startswith("INTRO ")
-    # The SCT window is present
+    # The real table (anchored on its column header) is present
     assert "Elon Musk Chief Executive Officer" in sliced
-    # Bounded: intro + gap marker + SCT window — well under full text size
-    assert len(sliced) < 100_000
-    # Tail beyond the SCT window is dropped
+    # Bounded: intro (50k) + gap marker + 90k SCT window ≈ 140k
+    assert 130_000 < len(sliced) < 145_000
+    # Tail beyond the 90k SCT window is dropped
     assert "TAIL_BEYOND_SCT_WINDOW" not in sliced
 
 

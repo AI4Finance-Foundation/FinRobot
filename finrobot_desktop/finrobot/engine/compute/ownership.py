@@ -155,10 +155,16 @@ def _summary_table_ceo_comp_from_text(text: str) -> tuple[str | None, float | No
         return None, None
 
     compact = _normalise_proxy_text(text)
-    table_heading = re.compile(r"Summary Compensation Table", re.I)
-    row_pattern = re.compile(
+
+    # Layout A — title BETWEEN name and year (e.g. some issuers):
+    #   "Jane Doe, Chief Executive Officer 2026 1,000,000 ... 12,000,000"
+    # ``role`` forbids digits so it cannot span a data row: without this, a
+    # "name year ...figures... total <title>" layout (NVDA) lets the role
+    # group swallow the first year's figures and the parser reads the NEXT
+    # year's total. Real job titles never contain digits.
+    row_pattern_role_first = re.compile(
         r"(?P<name>[A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3})\s+"
-        r"(?P<role>.{0,140}?(?:Chief Executive Officer|CEO).{0,80}?)\s+"
+        r"(?P<role>[^\d\n]{0,140}?(?:Chief Executive Officer|CEO)[^\d\n]{0,80}?)\s+"
         r"(?P<year>20\d{2})\s+"
         r"(?P<salary>[0-9][0-9,]*)\s+"
         r"(?P<stock>[0-9][0-9,]*)\s+"
@@ -168,17 +174,36 @@ def _summary_table_ceo_comp_from_text(text: str) -> tuple[str | None, float | No
         re.I,
     )
 
-    for heading in table_heading.finditer(compact):
+    # Layout B — name + year + figures on one line, title on the NEXT line
+    # (NVDA FY2026):
+    #   "Jen-Hsun Huang 2026 1,497,627 24,800,511 6,000,000 4,045,691 (4)
+    #    36,343,830 President and CEO 2025 ..."
+    # The total is the last comma-grouped number before the role text. We
+    # require the role to appear within ~160 chars AFTER the total so a
+    # non-CEO NEO row can't match.
+    row_pattern_role_after = re.compile(
+        r"(?P<name>[A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3})\s+"
+        r"(?P<year>20\d{2})\s+"
+        r"(?P<figures>(?:[0-9][0-9,]*(?:\s*\([^)]*\))*\s+){2,7})"
+        r"(?P<total>[0-9]{1,3}(?:,[0-9]{3})+)"
+        r"(?P<after>.{0,160}?(?:Chief Executive Officer|President and CEO|\bCEO\b))",
+        re.I,
+    )
+
+    for heading in re.finditer(
+        r"(?:Summary Compensation Table|Name and Principal Position)", compact, re.I
+    ):
         window = compact[heading.start() : heading.start() + 12_000]
-        header = re.search(r"Name and Principal Position.*?Total", window, re.I)
+        header = re.search(r"Name and Principal Position.*?(?:Total|Fiscal)", window, re.I)
         search_window = window[header.end() :] if header else window
-        for match in row_pattern.finditer(search_window):
-            name = match.group("name").strip()
-            total = float(match.group("total").replace(",", ""))
-            if _is_blacklisted_name(name):
-                continue
-            if _CEO_COMP_MIN <= total <= _CEO_COMP_MAX:
-                return name, total
+        for pattern in (row_pattern_role_first, row_pattern_role_after):
+            for match in pattern.finditer(search_window):
+                name = _strip_leading_sct_header_words(match.group("name").strip())
+                total = float(match.group("total").replace(",", ""))
+                if len(name.split()) < 2 or _is_blacklisted_name(name):
+                    continue
+                if _CEO_COMP_MIN <= total <= _CEO_COMP_MAX:
+                    return name, total
     return None, None
 
 
@@ -202,6 +227,59 @@ def _ceo_comp_from_text(text: str) -> float | None:
             continue
         return _money_from_text(context)
     return None
+
+
+def _ceo_comp_and_ratio_from_disclosure(text: str) -> tuple[float | None, int | None]:
+    """Parse the SEC-mandated CEO pay-ratio disclosure (Item 402(u)).
+
+    Every proxy with a pay ratio states, in plain prose, the CEO's *actual*
+    SCT total compensation and the ratio, e.g. NVDA FY2026:
+
+      "Our median employee's total compensation for Fiscal 2026 was $282,050.
+       Our CEO's Fiscal 2026 total compensation was $36,343,830. Therefore,
+       our Fiscal 2026 CEO to median employee pay ratio was 129:1."
+
+    This is the single most reliable source: the dollar figure is the SCT
+    total by definition, and the ratio is spelled out. Far more robust than
+    parsing the table grid, whose column layout varies by issuer.
+
+    Returns ``(ceo_total_compensation | None, ceo_pay_ratio | None)``.
+    """
+    compact = _normalise_proxy_text(text)
+
+    comp: float | None = None
+    # "CEO['s] [annual] [fiscal YYYY] total compensation [was/of/is/:] $X"
+    m = re.search(
+        r"(?:CEO|chief executive officer)['’s]*\s+"
+        r"(?:annual\s+)?(?:fiscal\s+\d{4}\s+)?total\s+compensation\s+"
+        r"(?:was|of|is|equal to|:)?\s*\$?\s*([0-9][0-9,]+)",
+        compact,
+        re.I,
+    )
+    if m is None:
+        # Reverse phrasing: "annual total compensation of our CEO ... $X"
+        m = re.search(
+            r"total\s+compensation\s+of\s+our\s+(?:CEO|chief executive officer)"
+            r"[^$\n]{0,80}\$\s*([0-9][0-9,]+)",
+            compact,
+            re.I,
+        )
+    if m is not None:
+        val = float(m.group(1).replace(",", ""))
+        if _CEO_COMP_MIN <= val <= _CEO_COMP_MAX:
+            comp = val
+
+    ratio: int | None = None
+    rm = re.search(
+        r"pay\s+ratio\s+(?:of\s+)?(?:was|is|equal to|:)?\s*(?:approximately\s+)?"
+        r"([0-9][0-9,]*)\s*(?:to|:)\s*1\b",
+        compact,
+        re.I,
+    )
+    if rm is not None:
+        ratio = int(rm.group(1).replace(",", ""))
+
+    return comp, ratio
 
 
 # Words that look like a proper-noun name regex match but are actually titles/roles.
@@ -321,6 +399,51 @@ _CEO_NAME_STOPWORDS: frozenset[str] = frozenset(
 # Plausibility gate: CEO comp must be between $1M and $500M.
 _CEO_COMP_MIN: float = 1_000_000.0
 _CEO_COMP_MAX: float = 500_000_000.0
+
+# Summary-Compensation-Table column-header / accounting words. They are
+# capitalized and sit immediately before the first data row, so a name regex
+# anchored on "<tokens> <year>" can glue them onto the front of the real name
+# (e.g. "...Non-Equity Incentive Total Jen-Hsun Huang 2026 ..." → captured name
+# "Incentive Total Jen-Hsun Huang"). We strip them from the front of the match.
+_SCT_HEADER_WORDS: frozenset[str] = frozenset(
+    {
+        "name",
+        "principal",
+        "position",
+        "fiscal",
+        "year",
+        "salary",
+        "bonus",
+        "stock",
+        "awards",
+        "award",
+        "option",
+        "options",
+        "incentive",
+        "equity",
+        "non-equity",
+        "nonequity",
+        "pension",
+        "deferred",
+        "nonqualified",
+        "non-qualified",
+        "compensation",
+        "change",
+        "value",
+        "earnings",
+        "total",
+        "all",
+        "other",
+    }
+)
+
+
+def _strip_leading_sct_header_words(name: str) -> str:
+    """Drop leading SCT column-header words a name-regex over-captured."""
+    tokens = name.split()
+    while tokens and tokens[0].lower().strip(",") in _SCT_HEADER_WORDS:
+        tokens.pop(0)
+    return " ".join(tokens)
 
 
 def _extract_ceo_pay_ratio(text: str) -> int | None:
@@ -501,14 +624,28 @@ def build_proxy_compensation(raw_proxy: dict[str, Any]) -> ProxyCompensation | N
     text = str(raw_proxy.get("text") or "")
 
     summary_name, summary_comp = _summary_table_ceo_comp_from_text(text)
+    disclosure_comp, disclosure_ratio = _ceo_comp_and_ratio_from_disclosure(text)
     ceo_name = summary_name or _extract_ceo_name(text)
 
-    raw_comp = summary_comp if summary_comp is not None else _ceo_comp_from_text(text)
+    # Comp source priority: SCT table grid → pay-ratio disclosure prose →
+    # generic "CEO compensation $X" anchor. All three are SCT-total figures;
+    # the disclosure is the most reliable cross-issuer fallback.
+    raw_comp = (
+        summary_comp
+        if summary_comp is not None
+        else disclosure_comp
+        if disclosure_comp is not None
+        else _ceo_comp_from_text(text)
+    )
     ceo_total_compensation: float | None = None
     if raw_comp is not None and _CEO_COMP_MIN <= raw_comp <= _CEO_COMP_MAX:
         ceo_total_compensation = raw_comp
 
+    # Ratio: the dedicated extractor handles "CEO pay ratio" phrasings; the
+    # disclosure parser catches "CEO to median employee pay ratio was N:1".
     ceo_pay_ratio = _extract_ceo_pay_ratio(text)
+    if ceo_pay_ratio is None:
+        ceo_pay_ratio = disclosure_ratio
 
     return ProxyCompensation(
         filing_date=_parse_date(raw_proxy["filing_date"]),

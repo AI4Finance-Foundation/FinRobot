@@ -3,8 +3,68 @@ from __future__ import annotations
 
 from finrobot.engine.compute.ownership import (
     _canonical_transaction_type,
+    build_proxy_compensation,
     compute_ownership_governance,
 )
+
+
+# Representative slice of NVIDIA's FY2026 DEF 14A (filed 2026-05-12), flattened
+# the way edgartools' .text() emits it. External benchmark (proxy original):
+#   CEO Jen-Hsun Huang · FY2026 SCT total = $36,343,830 · pay ratio = 129:1
+# The table puts name+year+figures on one line and the TITLE on the next — the
+# layout that previously made the parser read the wrong year (FY2025).
+_NVDA_PROXY_SCT = """
+Summary Compensation Table for Fiscal 2026, 2025, and 2024
+
+The following table summarizes information regarding the compensation earned by
+our NEOs during Fiscal 2026, 2025, and 2024.
+
+Name and Principal Position   Fiscal Year   Salary   Stock Awards   Option Awards   Non-Equity Incentive   Total
+Jen-Hsun Huang   2026   1,497,627   24,800,511   6,000,000   4,045,691   (4)   36,343,830
+President and CEO   2025   1,486,199   38,811,306   6,000,000   3,568,746   49,866,251
+                    2024   996,514   26,676,415   4,000,000   2,494,973   34,167,902
+Colette M. Kress   2026   898,577   12,825,872   2,000,000   1,500,000   17,224,449
+EVP and CFO   2025   850,000   11,000,000   2,000,000   1,400,000   15,250,000
+
+Pay Ratio
+
+Our median employee's total compensation for Fiscal 2026 was $282,050. Our CEO's
+Fiscal 2026 total compensation was $36,343,830. Therefore, our Fiscal 2026 CEO to
+median employee pay ratio was 129:1.
+"""
+
+
+def test_proxy_compensation_nvda_fy2026_reads_correct_year_and_ratio() -> None:
+    """Regression for BUG: parser read the FY2025 total ($49.9M) instead of the
+    most-recent FY2026 total ($36,343,830) because the role group spanned the
+    first data row. Also locks pay-ratio extraction from the Item 402(u)
+    disclosure prose ("...pay ratio was 129:1")."""
+    comp = build_proxy_compensation(
+        {
+            "filing_date": "2026-05-12",
+            "accession_no": "0001045810-26-000036",
+            "text": _NVDA_PROXY_SCT,
+        }
+    )
+    assert comp is not None
+    assert comp.ceo_name == "Jen-Hsun Huang"
+    assert comp.ceo_total_compensation == 36_343_830.0
+    assert comp.ceo_pay_ratio == 129
+
+
+def test_proxy_compensation_pay_ratio_disclosure_is_comp_fallback() -> None:
+    """When the SCT grid is unparseable, the pay-ratio disclosure sentence
+    ("Our CEO's ... total compensation was $X") still yields CEO total comp."""
+    text = (
+        "Our CEO's Fiscal 2026 total compensation was $36,343,830. Therefore, "
+        "our CEO to median employee pay ratio was 129:1."
+    )
+    comp = build_proxy_compensation(
+        {"filing_date": "2026-05-12", "accession_no": "x", "text": text}
+    )
+    assert comp is not None
+    assert comp.ceo_total_compensation == 36_343_830.0
+    assert comp.ceo_pay_ratio == 129
 
 
 def test_form4_code_M_derivative_side_is_exercise_not_sale() -> None:

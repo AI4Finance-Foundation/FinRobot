@@ -1,13 +1,61 @@
 """Shared test fixtures for FinRobot test suite."""
 
 import asyncio
+import weakref
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import aiosqlite
 import pytest
 
 from finrobot.engine.data.cache import DataCache
+
+
+@pytest.fixture(autouse=True)
+async def _close_leaked_aiosqlite_connections(monkeypatch):
+    """Close any aiosqlite connection a test opened but forgot to close.
+
+    Many tests build a sqlite-backed store/cache inline (ArtifactStore,
+    DataCache, QuoteCache, SqliteArtifactStore, raw aiosqlite.connect) and
+    never call ``.close()``. Each open ``aiosqlite.Connection`` owns a daemon
+    worker thread that holds a reference to the event loop it was created on.
+    When that connection is later garbage-collected — typically while a *later*
+    test's loop is active or at interpreter shutdown — its ``__del__`` enqueues
+    a stop task and the worker thread calls ``call_soon_threadsafe`` on the now
+    dead loop, raising ``RuntimeError: Event loop is closed`` surfaced as a
+    PytestUnhandledThreadExceptionWarning (red-line per AGENTS.md).
+
+    Rather than chase down every inline store across ~20 test files, we wrap
+    ``aiosqlite.connect`` to register every connection opened during a test and
+    drain the still-open ones here — inside the test's own (still-live) loop —
+    so each worker thread exits cleanly against a loop that is still running.
+    """
+    opened: "weakref.WeakSet[aiosqlite.Connection]" = weakref.WeakSet()
+    real_connect = aiosqlite.connect
+
+    def _tracking_connect(*args, **kwargs):
+        conn = real_connect(*args, **kwargs)
+        opened.add(conn)
+        return conn
+
+    # Patch both the canonical attribute and the re-export consumers import.
+    monkeypatch.setattr(aiosqlite, "connect", _tracking_connect)
+    monkeypatch.setattr("aiosqlite.core.connect", _tracking_connect, raising=False)
+
+    yield
+
+    for conn in list(opened):
+        # Only connections that actually connected (worker thread started and
+        # holds a sqlite3 handle) need draining; unconnected ones are inert.
+        if getattr(conn, "_connection", None) is None:
+            continue
+        try:
+            await conn.close()
+        except Exception:
+            # A test may have already closed it, or the underlying handle is
+            # gone — nothing left to leak in either case.
+            pass
 
 
 @pytest.fixture(autouse=True)
@@ -29,7 +77,7 @@ async def _close_quote_cache_singleton_between_tests():
 
 
 @pytest.fixture
-def app_with_deps(tmp_path):
+async def app_with_deps(tmp_path):
     """Yield the FastAPI app with a minimal ``state.deps`` set up.
 
     Routes that touch ``request.app.state.deps.data_layer.cache`` (e.g.
@@ -46,9 +94,13 @@ def app_with_deps(tmp_path):
     try:
         yield app
     finally:
-        # Sync close — the test loop may already be tearing down; aiosqlite's
-        # async close would re-enter a closed loop and warn loudly. The OS
-        # cleans the per-test sqlite file with tmp_path anyway.
+        # Close the aiosqlite connection inside the test's still-live loop.
+        # The fixture is async, so its teardown runs before the loop is torn
+        # down — awaiting close() lets aiosqlite's worker thread exit cleanly.
+        # Skipping this leaves the worker thread holding a dead loop and it
+        # raises "RuntimeError: Event loop is closed" via call_soon_threadsafe
+        # at interpreter teardown (PytestUnhandledThreadExceptionWarning).
+        await cache.close()
         if saved_deps is None:
             del app.state.deps
         else:

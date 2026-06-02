@@ -408,7 +408,27 @@ def _slice_proxy_text(full_text: str) -> str:
     # the downstream table parser.
     start = max(_PROXY_INTRO_CHARS, anchor - 1_200)
     sct_window = full_text[start : start + _PROXY_SCT_WINDOW_CHARS]
-    return intro + _PROXY_INTRO_SCT_GAP_MARKER + sct_window
+    result = intro + _PROXY_INTRO_SCT_GAP_MARKER + sct_window
+
+    # Also capture the Item 402(u) CEO-comp disclosure prose — it states the
+    # CEO's actual total compensation in words ("...total compensation of our
+    # CEO was $96,496,790") and is the most reliable cross-issuer source, but
+    # can sit OUTSIDE the SCT window (MSFT puts it well after the table). Anchor
+    # specifically on the CEO-comp sentence (NOT a bare "pay ratio" mention,
+    # which often appears inside the SCT window first and would suppress this).
+    sct_lo, sct_hi = start, start + _PROXY_SCT_WINDOW_CHARS
+    for dm in re.finditer(
+        r"total compensation of (?:our |the )?(?:CEO|chief executive officer)"
+        r"|(?:CEO|chief executive officer)['’s]{0,2}\s+"
+        r"(?:annual\s+|fiscal\s+\d{4}\s+)*total compensation",
+        full_text,
+        re.I,
+    ):
+        if not (sct_lo <= dm.start() <= sct_hi):
+            lo = max(0, dm.start() - 2_000)
+            result += _PROXY_INTRO_SCT_GAP_MARKER + full_text[lo : dm.start() + 6_000]
+            break
+    return result
 
 
 # ---------------------------------------------------------------------------

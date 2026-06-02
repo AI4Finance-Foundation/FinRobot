@@ -153,6 +153,35 @@ def test_proxy_pay_ratio_accepts_ratio_of_n_to_1_phrasing() -> None:
     assert comp.ceo_pay_ratio == 363
 
 
+def test_proxy_comp_from_ceo_total_prose_msft_phrasing() -> None:
+    """MSFT states CEO comp in prose ("...total compensation of our CEO was
+    $96,496,790") with the figures table in a vertical layout the grid parser
+    can't read. The prose disclosure must carry it."""
+    text = "for fiscal year 2025, the total compensation of our CEO was $96,496,790."
+    comp = build_proxy_compensation(
+        {"filing_date": "2025-10-21", "accession_no": "x", "text": text}
+    )
+    assert comp is not None
+    assert comp.ceo_total_compensation == 96_496_790.0
+
+
+def test_proxy_comp_ignores_roleless_peer_table_rows() -> None:
+    """Safety: TSLA's proxy embeds a PEER company's comp table (Apple/Tim Cook)
+    for comparison. Rows with no adjacent CEO title must NOT be read as the
+    issuer's CEO comp — a wrong figure is worse than a blank."""
+    text = (
+        "Comparison of peer CEO pay. Name and Principal Position Year Total "
+        "Tim Cook 2019 3,000,000 7,671,000 884,466 11,555,466 "
+        "2018 3,000,000 12,000,000 682,219 15,682,219"
+    )
+    comp = build_proxy_compensation(
+        {"filing_date": "2025-09-17", "accession_no": "x", "text": text}
+    )
+    # No CEO-comp prose and no role-anchored row → comp stays None (blank), and
+    # critically NOT the peer's 11.5M / 15.7M figure.
+    assert comp is None or comp.ceo_total_compensation is None
+
+
 def test_proxy_compensation_pay_ratio_disclosure_is_comp_fallback() -> None:
     """When the SCT grid is unparseable, the pay-ratio disclosure sentence
     ("Our CEO's ... total compensation was $X") still yields CEO total comp."""

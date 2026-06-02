@@ -191,6 +191,12 @@ def _summary_table_ceo_comp_from_text(text: str) -> tuple[str | None, float | No
         re.I,
     )
 
+    # NOTE: a looser "year-stacked rows" pattern (name once, one row per year,
+    # no adjacent title) was tried to cover JPM/AMZN, but it grabbed a WRONG
+    # number on TSLA — whose proxy embeds a PEER company's comp table (Apple /
+    # Tim Cook) for comparison, and the role-less pattern can't tell it isn't
+    # TSLA's own CEO. A wrong CEO-comp figure is worse than a blank, so we only
+    # trust role-anchored table rows + the labeled pay-ratio prose disclosure.
     for heading in re.finditer(
         r"(?:Summary Compensation Table|Name and Principal Position)", compact, re.I
     ):
@@ -633,14 +639,16 @@ def build_proxy_compensation(raw_proxy: dict[str, Any]) -> ProxyCompensation | N
     disclosure_comp, disclosure_ratio = _ceo_comp_and_ratio_from_disclosure(text)
     ceo_name = summary_name or _extract_ceo_name(text)
 
-    # Comp source priority: SCT table grid → pay-ratio disclosure prose →
-    # generic "CEO compensation $X" anchor. All three are SCT-total figures;
-    # the disclosure is the most reliable cross-issuer fallback.
+    # Comp source priority: pay-ratio disclosure prose → SCT table grid →
+    # generic "CEO compensation $X" anchor. The Item 402(u) disclosure states
+    # the CEO's actual total comp in words ("...total compensation of our CEO
+    # was $96,496,790") and is the most reliable across issuer table formats;
+    # all three resolve to the same SCT-total figure.
     raw_comp = (
-        summary_comp
-        if summary_comp is not None
-        else disclosure_comp
+        disclosure_comp
         if disclosure_comp is not None
+        else summary_comp
+        if summary_comp is not None
         else _ceo_comp_from_text(text)
     )
     ceo_total_compensation: float | None = None

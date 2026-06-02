@@ -28,6 +28,7 @@ from finrobot.paths import SETTINGS_JSON, ensure_home
 from finrobot.audit.transcript import TranscriptWriter
 from finrobot.routes.artifacts import router as artifacts_router
 from finrobot.routes.compute import router as compute_router
+from finrobot.routes.coverage import router as coverage_router
 from finrobot.routes.dashboard import router as dashboard_router
 from finrobot.routes.data import router as data_router
 from finrobot.routes.health import router as health_router
@@ -39,6 +40,7 @@ from finrobot.routes.settings import load_non_secret_settings
 from finrobot.routes.settings import router as settings_router
 from finrobot.routes.sentiment import router as sentiment_router
 from finrobot.routes.valuation import router as valuation_router
+from finrobot.coverage.sqlite_store import CoverageStore
 from finrobot.run_store import RunStore
 from finrobot.secret_store import SecretStore, create_secret_store
 
@@ -138,6 +140,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.run_store = RunStore()
     app.state.run_tasks = {}
     app.state.artifact_store = artifact_store
+    # Coverage Desk store — the user's research coverage universe (groups +
+    # members). Own aiosqlite db at ~/.finrobot/coverage.db; the overview
+    # orchestration above it reuses artifact_store + data_layer (ADR-0012).
+    app.state.coverage_store = CoverageStore()
     # Bounded LRU dict for transcript writers.  Using OrderedDict lets us
     # evict the least-recently-used entry in O(1) when the cap is reached.
     # TranscriptWriter is open-on-write (no persistent file handle), so
@@ -274,6 +280,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await artifact_store.close()
     except (OSError, RuntimeError):
         logger.exception("ArtifactStore shutdown error")
+    try:
+        await app.state.coverage_store.close()
+    except (OSError, RuntimeError):
+        logger.exception("CoverageStore shutdown error")
     from finrobot.engine.data.quote_batch import close_quote_cache_singleton
 
     try:
@@ -315,6 +325,7 @@ app.include_router(health_router)
 app.include_router(settings_router)
 app.include_router(runs_router)
 app.include_router(artifacts_router)
+app.include_router(coverage_router)
 app.include_router(dashboard_router)
 app.include_router(search_router, prefix="/api/search", tags=["search"])
 app.include_router(valuation_router)

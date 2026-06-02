@@ -1,0 +1,226 @@
+"""End-to-end tests for /api/coverage/* (Coverage Desk Phase 1).
+
+Real CoverageStore (tmp db) behind a FastAPI app; artifact store + data layer
+are stubbed at their method surface. Canonical market inputs go through the
+real ``normalize_*`` path so the overview exercises ``extract_financial_data``.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
+
+from finrobot.artifact.models import ArtifactSummary
+from finrobot.coverage.sqlite_store import CoverageStore
+from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.normalize.financials import normalize_financials
+from finrobot.engine.data.normalize.price import normalize_price
+from finrobot.engine.data.types import DataType
+from finrobot.routes.coverage import _OVERVIEW_CACHE, router
+
+UTC = timezone.utc
+NOW = datetime(2026, 5, 1, tzinfo=UTC)
+ENTRY = NOW - timedelta(days=30)
+
+
+def _summary(ticker: str, *, artifact_id: str = "art_1") -> ArtifactSummary:
+    return ArtifactSummary(
+        id=artifact_id,
+        ticker=ticker,
+        cross_tickers=[],
+        type="equity_research",
+        created_at=ENTRY,
+        headline="x",
+        source="pipeline:equity_research",
+        archived=False,
+        entry_price=180.0,
+        target_price=240.0,
+        target_date=ENTRY + timedelta(days=365),
+        signal=None,
+        verdict="BUY",
+    )
+
+
+def _fin(ticker: str):
+    return normalize_financials(
+        DataResult(
+            data=dict(
+                revenue=100e9,
+                ebitda=35e9,
+                net_income=20e9,
+                gross_margin=0.47,
+                operating_margin=0.28,
+                pe_ratio=28.5,
+                market_cap=3e12,
+                shares_outstanding=15e9,
+                current_price=200.0,
+                total_debt=50e9,
+                total_cash=20e9,
+            ),
+            provider="yfinance",
+            ticker=ticker,
+            data_type="financials",
+            timestamp=NOW,
+        )
+    )
+
+
+def _price(ticker: str):
+    return normalize_price(
+        DataResult(
+            data={
+                "current_price": 200.0,
+                "price_history": [
+                    {"date": "2025-06-01", "close": 180.0},
+                    {"date": "2026-03-01", "close": 200.0},
+                ],
+            },
+            provider="yfinance",
+            ticker=ticker,
+            data_type="price",
+            timestamp=NOW,
+        )
+    )
+
+
+class _StubArtifactStore:
+    def __init__(self, by_ticker: dict[str, list[ArtifactSummary]] | None = None) -> None:
+        self._by_ticker = {k.upper(): v for k, v in (by_ticker or {}).items()}
+
+    async def list_by_ticker(self, ticker=None, type=None, include_archived=False, limit=100):  # noqa: A002
+        if ticker is None:
+            flat = [s for lst in self._by_ticker.values() for s in lst]
+        else:
+            flat = list(self._by_ticker.get(ticker.upper(), []))
+        flat.sort(key=lambda s: s.created_at, reverse=True)
+        return flat[:limit]
+
+
+class _StubDataLayer:
+    async def fetch_canonical(self, data_type, ticker, **_):
+        return _price(ticker) if data_type == DataType.PRICE else _fin(ticker)
+
+
+@pytest.fixture
+async def client(tmp_path: Path):
+    _OVERVIEW_CACHE.clear()
+    app = FastAPI()
+    app.include_router(router)
+    store = CoverageStore(db_path=tmp_path / "coverage.db")
+    app.state.coverage_store = store
+    app.state.artifact_store = _StubArtifactStore({"AAPL": [_summary("AAPL")]})
+    app.state.deps = SimpleNamespace(data_layer=_StubDataLayer())
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+    await store.close()
+
+
+async def test_create_get_and_list_group(client: AsyncClient) -> None:
+    r = await client.post("/api/coverage/groups", json={"name": "Mag7", "description": "tech"})
+    assert r.status_code == 201
+    gid = r.json()["id"]
+    assert r.json()["name"] == "Mag7"
+
+    r = await client.get(f"/api/coverage/groups/{gid}")
+    assert r.status_code == 200
+    assert r.json()["members"] == []
+
+    r = await client.get("/api/coverage/groups")
+    assert r.status_code == 200
+    # A real group now exists → system-group seeding does NOT fire.
+    names = [g["name"] for g in r.json()]
+    assert "Mag7" in names
+    assert "Studied Tickers" not in names
+
+
+async def test_state_d_seeds_studied_tickers_on_first_visit(client: AsyncClient) -> None:
+    # No groups yet, but the artifact store has AAPL → first list seeds it.
+    r = await client.get("/api/coverage/groups")
+    assert r.status_code == 200
+    groups = r.json()
+    assert len(groups) == 1
+    assert groups[0]["name"] == "Studied Tickers"
+    assert groups[0]["is_system"] is True
+    assert groups[0]["member_count"] == 1
+
+
+async def test_add_and_remove_members(client: AsyncClient) -> None:
+    gid = (await client.post("/api/coverage/groups", json={"name": "AI"})).json()["id"]
+
+    r = await client.post(f"/api/coverage/groups/{gid}/members", json={"tickers": ["nvda", "amd"]})
+    assert r.status_code == 200
+    assert sorted(m["ticker"] for m in r.json()["members"]) == ["AMD", "NVDA"]
+
+    r = await client.request("DELETE", f"/api/coverage/groups/{gid}/members/amd")
+    assert r.status_code == 200
+    assert [m["ticker"] for m in r.json()["members"]] == ["NVDA"]
+
+    # removing a ticker that isn't a member → 404
+    r = await client.request("DELETE", f"/api/coverage/groups/{gid}/members/tsla")
+    assert r.status_code == 404
+
+
+async def test_add_members_to_missing_group_404(client: AsyncClient) -> None:
+    r = await client.post("/api/coverage/groups/cov_nope/members", json={"tickers": ["AAPL"]})
+    assert r.status_code == 404
+
+
+async def test_patch_and_delete_group(client: AsyncClient) -> None:
+    gid = (await client.post("/api/coverage/groups", json={"name": "Old"})).json()["id"]
+    r = await client.patch(f"/api/coverage/groups/{gid}", json={"name": "New"})
+    assert r.status_code == 200
+    assert r.json()["name"] == "New"
+
+    r = await client.delete(f"/api/coverage/groups/{gid}")
+    assert r.status_code == 204
+    assert (await client.get(f"/api/coverage/groups/{gid}")).status_code == 404
+    assert (await client.delete(f"/api/coverage/groups/{gid}")).status_code == 404
+
+
+async def test_overview_assembles_rows(client: AsyncClient) -> None:
+    gid = (await client.post("/api/coverage/groups", json={"name": "G"})).json()["id"]
+    await client.post(f"/api/coverage/groups/{gid}/members", json={"tickers": ["AAPL"]})
+
+    r = await client.get(f"/api/coverage/groups/{gid}/overview")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["group_id"] == gid
+    (row,) = body["rows"]
+    assert row["ticker"] == "AAPL"
+    assert row["price"] == 200.0
+    assert row["market_cap"] == pytest.approx(3e12)
+    assert row["revenue_ttm"] == pytest.approx(100e9)
+    assert row["latest_verdict"] == "BUY"
+    assert row["run_count"] == 1
+    assert row["upside_to_target_live"] == pytest.approx(0.2)
+    assert body["partial"] is False
+
+
+async def test_overview_missing_group_404(client: AsyncClient) -> None:
+    assert (await client.get("/api/coverage/groups/cov_nope/overview")).status_code == 404
+
+
+async def test_overview_l1_cache_and_refresh_bypass(client: AsyncClient) -> None:
+    gid = (await client.post("/api/coverage/groups", json={"name": "G"})).json()["id"]
+    await client.post(f"/api/coverage/groups/{gid}/members", json={"tickers": ["AAPL"]})
+
+    first = (await client.get(f"/api/coverage/groups/{gid}/overview")).json()
+    assert len(first["rows"]) == 1
+
+    # Mutate the store directly (bypassing the route's cache invalidation) to
+    # prove the next plain GET is served from the L1 cache, stale on purpose.
+    store: CoverageStore = client._transport.app.state.coverage_store  # type: ignore[attr-defined]
+    await store.add_members(gid, ["MSFT"])
+
+    cached = (await client.get(f"/api/coverage/groups/{gid}/overview")).json()
+    assert len(cached["rows"]) == 1  # cache hit — MSFT not yet visible
+    assert cached["generated_at"] == first["generated_at"]
+
+    fresh = (await client.get(f"/api/coverage/groups/{gid}/overview?refresh=true")).json()
+    assert len(fresh["rows"]) == 2  # bypass → MSFT now present

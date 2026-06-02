@@ -30,7 +30,7 @@ from finrobot.events import (
     StepStarted,
 )
 from finrobot.obs import bind_run
-from finrobot.run_store import RunStore
+from finrobot.run_store import RunRecord, RunStore
 
 logger = logging.getLogger(__name__)
 
@@ -92,30 +92,53 @@ class RunDetail(BaseModel):
     error: str | None = None
 
 
-@router.post("", response_model=CreateRunResponse)
-async def create_run(request_body: CreateRunRequest, request: Request) -> CreateRunResponse:
-    factories = get_pipeline_factories()
-    if request_body.pipeline_type not in factories:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Invalid pipeline: {request_body.pipeline_type}. Valid: {sorted(factories.keys())}"
-            ),
-        )
+async def spawn_run(
+    request: Request,
+    pipeline_type: str,
+    ticker: str,
+    *,
+    language: str | None = None,
+    source_artifact_id: str | None = None,
+) -> RunRecord:
+    """Create a run record and spawn its pipeline task.
 
-    ticker = _normalise_ticker(request_body.ticker)
-    if not ticker:
-        raise HTTPException(status_code=400, detail="ticker is required")
+    Shared by the single-run route and the Coverage batch-run endpoint so
+    neither duplicates the create-record → spawn-task → register-in-run_tasks
+    dance (and both inherit the same concurrency cap, since every task goes
+    through ``_run_pipeline``). Raises ``ValueError`` for an unknown
+    ``pipeline_type`` or blank ticker — callers map it to an HTTP error.
+    """
+    factories = get_pipeline_factories()
+    if pipeline_type not in factories:
+        raise ValueError(f"Invalid pipeline: {pipeline_type}. Valid: {sorted(factories.keys())}")
+    norm = _normalise_ticker(ticker)
+    if not norm:
+        raise ValueError("ticker is required")
 
     store: RunStore = request.app.state.run_store
     record = await store.create_run(
-        request_body.pipeline_type,
-        ticker,
-        language=request_body.language,
-        source_artifact_id=request_body.source_artifact_id,
+        pipeline_type,
+        norm,
+        language=language,
+        source_artifact_id=source_artifact_id,
     )
     task = asyncio.create_task(_run_pipeline(record.run_id, request))
     request.app.state.run_tasks[record.run_id] = task
+    return record
+
+
+@router.post("", response_model=CreateRunResponse)
+async def create_run(request_body: CreateRunRequest, request: Request) -> CreateRunResponse:
+    try:
+        record = await spawn_run(
+            request,
+            request_body.pipeline_type,
+            request_body.ticker,
+            language=request_body.language,
+            source_artifact_id=request_body.source_artifact_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return CreateRunResponse(
         run_id=record.run_id,
         status="created",
@@ -206,7 +229,17 @@ async def stream_run_events(run_id: str, request: Request) -> StreamingResponse:
 
 async def _run_pipeline(run_id: str, request: Request) -> None:
     with bind_run(run_id):
-        await _run_pipeline_impl(run_id, request)
+        semaphore = getattr(request.app.state, "run_semaphore", None)
+        if semaphore is None:
+            await _run_pipeline_impl(run_id, request)
+        else:
+            # Bound concurrent pipelines app-wide: a batch of N coverage runs
+            # must not fire N LLM pipelines at once and blow provider/LLM rate
+            # limits (Coverage Phase 2/M4c). The whole impl runs inside the
+            # slot, so a queued run stays "created" (status reflects reality
+            # for the overview) and its duration excludes queue time.
+            async with semaphore:
+                await _run_pipeline_impl(run_id, request)
 
 
 async def _run_pipeline_impl(run_id: str, request: Request) -> None:

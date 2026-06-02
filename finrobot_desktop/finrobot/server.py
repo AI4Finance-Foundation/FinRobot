@@ -46,6 +46,10 @@ from finrobot.secret_store import SecretStore, create_secret_store
 
 logger = logging.getLogger(__name__)
 
+# Max pipelines executing at once across the whole app (Coverage Phase 2/M4c).
+# 4 balances batch throughput against provider/LLM rate limits on a desktop box.
+_MAX_CONCURRENT_RUNS = 4
+
 
 async def hydrate_settings_from_secrets(settings: Any, secret_store: SecretStore) -> Any:
     """Return settings with API keys loaded from SecretStore."""
@@ -139,6 +143,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.settings_path = settings_path
     app.state.run_store = RunStore()
     app.state.run_tasks = {}
+    # Cap concurrent pipelines app-wide (Coverage Phase 2/M4c): batch coverage
+    # runs spawn one task per ticker, but only this many execute at once — the
+    # rest stay "created" until a slot frees, so a 20-ticker batch can't blow
+    # the provider / LLM rate limits. Single runs share the same pool.
+    app.state.run_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_RUNS)
+    # Fail runs abandoned by a previous process (run_tasks is in-memory, so a
+    # restart orphans every running row → wedged SSE + phantom in-progress in
+    # the Coverage overview). M4b.
+    try:
+        reconciled = await app.state.run_store.reconcile_orphaned_runs()
+        if reconciled:
+            logger.info("Startup: reconciled %d orphaned run(s) to failed", reconciled)
+    except (OSError, RuntimeError):
+        logger.exception("Run reconcile on startup failed")
     app.state.artifact_store = artifact_store
     # Coverage Desk store — the user's research coverage universe (groups +
     # members). Own aiosqlite db at ~/.finrobot/coverage.db; the overview

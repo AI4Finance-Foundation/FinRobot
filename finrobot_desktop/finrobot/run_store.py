@@ -246,6 +246,30 @@ class RunStore:
             return None
         return _row_to_run(row)
 
+    async def reconcile_orphaned_runs(self) -> int:
+        """Fail runs left mid-flight by a previous process.
+
+        Run tasks live in ``app.state.run_tasks`` (in-memory), so a server
+        restart abandons every ``created``/``running`` row — the asyncio task
+        is gone but the DB still says "running", which would wedge the SSE
+        stream forever (it only breaks on completed/failed) and show phantom
+        in-progress runs in the Coverage overview. Called once on startup to
+        mark them ``failed``. Returns the number reconciled.
+        """
+        conn = await self._ensure_connection()
+        async with conn.execute(
+            """
+            UPDATE runs SET status = 'failed', error = ?, completed_at = ?
+            WHERE status IN ('created', 'running')
+            """,
+            ("interrupted by server restart", _now()),
+        ) as cursor:
+            count = cursor.rowcount
+        await conn.commit()
+        if count:
+            logger.info("Reconciled %d orphaned run(s) to failed on startup", count)
+        return count
+
     async def list_runs(self, limit: int = 50) -> list[RunRecord]:
         conn = await self._ensure_connection()
         async with conn.execute(
@@ -254,6 +278,30 @@ class RunStore:
         ) as cursor:
             rows = await cursor.fetchall()
         return [_row_to_run(row) for row in rows]
+
+    async def latest_runs_by_ticker(self, tickers: list[str]) -> dict[str, RunRecord]:
+        """Most-recent run per ticker, in one query. Empty dict for no tickers.
+
+        Powers the Coverage overview's run-status column / needs-refresh:
+        surfaces an in-flight ``running`` run or a ``failed`` last attempt per
+        covered ticker without N round-trips.
+        """
+        if not tickers:
+            return {}
+        uppers = [t.upper() for t in tickers]
+        placeholders = ",".join("?" * len(uppers))
+        conn = await self._ensure_connection()
+        async with conn.execute(
+            f"SELECT {_RUN_SELECT_COLUMNS} FROM runs "
+            f"WHERE ticker IN ({placeholders}) ORDER BY created_at DESC",
+            uppers,
+        ) as cursor:
+            rows = await cursor.fetchall()
+        out: dict[str, RunRecord] = {}
+        for row in rows:
+            record = _row_to_run(row)
+            out.setdefault(record.ticker, record)  # newest first → first wins
+        return out
 
     async def append_event(self, run_id: str, event: RunEvent) -> int:
         try:

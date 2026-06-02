@@ -36,6 +36,12 @@ _PERIOD_DRIFT_DAYS = 80
 # Numeric equality tolerance for "did this assumption actually move?".
 _EPS = 1e-9
 
+# A per-share contribution below this rounds to "$0.00" at display precision, so
+# it is NOT a driver of the change — naming a $0.00 contributor as the "主因"
+# (which a raw rank would do when only an un-attributable assumption like tax_rate
+# moved) is misleading. Such near-zero contributions stay in the named residual.
+_NEGLIGIBLE_CONTRIBUTION = 0.005
+
 
 # ── Contract ─────────────────────────────────────────────────────────────────
 
@@ -259,14 +265,22 @@ def _numeric_item(
         straddles_zero = (old <= 0 <= new) or (new <= 0 <= old)
         if comparable and abs(old) > _EPS and not (caliber.sign_flip_sensitive and straddles_zero):
             pct = delta / abs(old)
+    fmt_old = format_caliber_value(caliber, old, currency=currency)
+    fmt_new = format_caliber_value(caliber, new, currency=currency)
+    # If the change is invisible at display precision (e.g. 16.599% vs 16.601%
+    # both render "16.6%"), don't show an arrow / pct the analyst can't see —
+    # treat it as flat. Keeps the identical-version check honest too.
+    if direction in ("up", "down") and fmt_old == fmt_new:
+        direction = "flat"
+        pct = None
     return DeltaItem(
         key=caliber.key,
         label_zh=caliber.label_zh,
         label_en=caliber.label_en,
         old_value=old,
         new_value=new,
-        formatted_old=format_caliber_value(caliber, old, currency=currency),
-        formatted_new=format_caliber_value(caliber, new, currency=currency),
+        formatted_old=fmt_old,
+        formatted_new=fmt_new,
         pct_change=pct if comparable else None,
         direction=direction,
         sentiment=_sentiment(direction, caliber.direction_semantics),
@@ -308,6 +322,7 @@ def _build_attribution(
     b_dcf: dict[str, Any] | None,
     blocked_reason: str | None,
     currency: str | None,
+    assumptions_moved: bool,
 ) -> Attribution:
     from finrobot.engine.compute.dcf import compute_dcf_implied_price
     from finrobot.engine.models.financial import DCFInputs
@@ -373,6 +388,11 @@ def _build_attribution(
             # e.g. terminal_growth >= wacc — can't isolate; leave in residual.
             continue
         contribution = repriced - float(a_implied)
+        # The assumption moved but its price impact rounds to zero → not a driver
+        # of the change. Drop it (it stays in the residual) rather than letting it
+        # surface as a $0.00 "主因".
+        if abs(contribution) < _NEGLIGIBLE_CONTRIBUTION:
+            continue
         attributed += contribution
         cal = REGISTRY[reg_key]
         items.append(
@@ -386,7 +406,9 @@ def _build_attribution(
         )
 
     residual = total - attributed
-    summary_zh, summary_en = _attribution_summary(total, items, residual, fair, currency)
+    summary_zh, summary_en = _attribution_summary(
+        total, items, residual, fair, currency, assumptions_moved
+    )
     return Attribution(
         available=True,
         items=items,
@@ -405,14 +427,25 @@ def _attribution_summary(
     residual: float,
     fair: FieldCaliber,
     currency: str | None,
+    assumptions_moved: bool,
 ) -> tuple[str, str]:
     if not items:
-        # Pure data-driven move: assumptions unchanged but fair value moved.
-        if abs(total) <= _EPS:
-            return "公允价值未变。", "Fair value unchanged."
+        if abs(total) < _NEGLIGIBLE_CONTRIBUTION:
+            return "公允价值基本未变。", "Fair value essentially unchanged."
+        fmt = format_caliber_value(fair, total, currency=currency)
+        if assumptions_moved:
+            # Assumptions DID move, but only ones the re-pricer can't isolate yet
+            # (e.g. tax_rate / revenue CAGR). Be honest about the limitation rather
+            # than naming a $0.00 driver or falsely claiming "assumptions unchanged".
+            return (
+                f"公允价值变化 {fmt}，主要来自暂不支持逐项拆解的假设（如税率 / 营收增速）与数据重估。",
+                f"Fair value moved {fmt}, mainly from assumptions not yet isolable "
+                "(e.g. tax rate / revenue growth) and data re-basing.",
+            )
+        # No assumption moved at all → pure data-driven re-basing.
         return (
-            "假设未变，公允价值变化来自数据基数（如实际财报数字）的更新。",
-            "Assumptions unchanged; the fair-value move comes from updated data inputs.",
+            f"假设未变，公允价值变化 {fmt} 来自数据基数（如实际财报数字）的更新。",
+            f"Assumptions unchanged; the {fmt} fair-value move comes from updated data inputs.",
         )
     ranked = sorted(items, key=lambda it: abs(it.contribution), reverse=True)
     top = ranked[:2]
@@ -572,7 +605,11 @@ def build_semantic_delta(a: Artifact, b: Artifact) -> SemanticDelta:
             )
         )
 
-    attribution = _build_attribution(a, a_dcf, b_dcf, blocked_reason, currency)
+    _ASSUMPTION_KEYS = {"wacc", "terminal_growth", "tax_rate", "revenue_cagr"}
+    assumptions_moved = any(
+        d.key in _ASSUMPTION_KEYS and d.direction in ("up", "down") for d in drivers
+    )
+    attribution = _build_attribution(a, a_dcf, b_dcf, blocked_reason, currency, assumptions_moved)
 
     identical = all(it.direction == "flat" for it in conclusion) and all(
         it.direction == "flat" for it in drivers

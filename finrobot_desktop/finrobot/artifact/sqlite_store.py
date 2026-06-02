@@ -301,6 +301,35 @@ class SqliteArtifactStore:
             rows = await cur.fetchall()
         return [_row_to_summary(tuple(r)) for r in rows]
 
+    async def count(self, *, include_archived: bool = False) -> int:
+        """Total artifact count in the store (honest full-store aggregate).
+
+        Unlike ``list_by_ticker`` this never caps — the dashboard needs the
+        true total to label "N reports in store", which a LIMIT-500 page
+        silently misrepresents once the store grows past the cap.
+        """
+        conn = await self._conn_ready()
+        sql = "SELECT COUNT(*) FROM artifacts"
+        if not include_archived:
+            sql += " WHERE archived = 0"
+        async with conn.execute(sql) as cur:
+            row = await cur.fetchone()
+        return int(row[0]) if row else 0
+
+    async def distinct_ticker_count(self, *, include_archived: bool = False) -> int:
+        """Number of distinct non-NULL tickers across the store.
+
+        Cross-ticker artifacts (ticker IS NULL) are excluded, matching the
+        dashboard's ``{s.ticker for s in summaries if s.ticker}`` semantics.
+        """
+        conn = await self._conn_ready()
+        sql = "SELECT COUNT(DISTINCT ticker) FROM artifacts WHERE ticker IS NOT NULL"
+        if not include_archived:
+            sql += " AND archived = 0"
+        async with conn.execute(sql) as cur:
+            row = await cur.fetchone()
+        return int(row[0]) if row else 0
+
     async def list_versions(
         self,
         ticker: str,

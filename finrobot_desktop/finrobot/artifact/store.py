@@ -58,6 +58,12 @@ class ArtifactStore:
             ticker=ticker, type=type, include_archived=include_archived, limit=limit
         )
 
+    async def count(self, *, include_archived: bool = False) -> int:
+        return await self._impl.count(include_archived=include_archived)
+
+    async def distinct_ticker_count(self, *, include_archived: bool = False) -> int:
+        return await self._impl.distinct_ticker_count(include_archived=include_archived)
+
     async def list_versions(self, ticker: str, type: ArtifactType) -> list[ArtifactSummary]:  # noqa: A002
         return await self._impl.list_versions(ticker, type)
 

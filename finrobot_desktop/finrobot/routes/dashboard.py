@@ -59,6 +59,13 @@ class HitRateBucket(BaseModel):
     """null when n_closed == 0 (sample too small)."""
 
 
+_HIT_RATE_SAMPLE_CAP = 500
+"""Max summaries the hit-rate aggregation reads — bounds compute cost. When the
+store holds more than this, the buckets reflect only the latest 500 artifacts;
+``HitRateOverview.is_sampled`` discloses that instead of pretending it's the
+full track record."""
+
+
 class HitRateOverview(BaseModel):
     """Response for /api/dashboard/hit-rate."""
 
@@ -66,6 +73,11 @@ class HitRateOverview(BaseModel):
     overall: HitRateBucket
     by_verdict: dict[str, HitRateBucket]  # always has BUY / HOLD / SELL keys
     generated_at: datetime
+    is_sampled: bool = False
+    """True when the store exceeded the sample cap, so buckets cover only the
+    latest ``sample_size`` artifacts rather than the full track record."""
+    sample_size: int = _HIT_RATE_SAMPLE_CAP
+    """The cap applied to the underlying summary scan (compute-cost bound)."""
 
 
 class RecentTickerRun(BaseModel):
@@ -147,6 +159,12 @@ async def hit_rate(
     store = deps.artifact_store
 
     inputs = await _collect_signal_inputs(store, deps.data_layer, ticker_set)
+    # Disclose sampling: when the store holds more than the cap, the buckets
+    # only cover the latest _HIT_RATE_SAMPLE_CAP artifacts. Scoped (group)
+    # queries filter the same capped page, so they're sampled too if the
+    # global store exceeded the cap.
+    store_count = await store.count(include_archived=False)
+    is_sampled = store_count > _HIT_RATE_SAMPLE_CAP
     from finrobot.engine.aggregations.hit_rate_overview import compute_hit_rate_overview
 
     stats = compute_hit_rate_overview(
@@ -155,6 +173,8 @@ async def hit_rate(
     )
 
     overview = HitRateOverview(
+        is_sampled=is_sampled,
+        sample_size=_HIT_RATE_SAMPLE_CAP,
         window=stats.window,
         overall=HitRateBucket(
             n_total=stats.overall.n_total,
@@ -208,8 +228,12 @@ async def recent_research(
         include_archived=include_archived,
         limit=500,
     )
-    total_in_store = len(summaries)
-    distinct_ticker_count = len({s.ticker for s in summaries if s.ticker})
+    # Full-store aggregates — NOT len(summaries). The summary list is capped at
+    # 500 (compute bound for the card-assembly fan-out); past the cap
+    # len(summaries) would silently report "500" as the total. The header
+    # counts must reflect the true store, so query them directly.
+    total_in_store = await store.count(include_archived=include_archived)
+    distinct_ticker_count = await store.distinct_ticker_count(include_archived=include_archived)
     if not summaries:
         empty = RecentResearchResponse(
             items=[],
@@ -335,7 +359,9 @@ async def _collect_signal_inputs(
     from finrobot.engine.aggregations.hit_rate_overview import ArtifactSignalInput
     from finrobot.engine.data.quote_batch import fetch_quotes_batch_cached
 
-    summaries = await store.list_by_ticker(ticker=None, include_archived=False, limit=500)
+    summaries = await store.list_by_ticker(
+        ticker=None, include_archived=False, limit=_HIT_RATE_SAMPLE_CAP
+    )
     if tickers is not None:
         # Scope to a coverage group's members (BUG-055). An EMPTY set (an empty
         # group) correctly yields no inputs → null hit-rate, not the global one.

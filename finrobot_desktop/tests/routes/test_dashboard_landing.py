@@ -418,6 +418,127 @@ def test_recent_research_top_n_distinct_tickers(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Honest totals past the 500 sample cap (BUG-20260602-031)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_store_count_aggregates_are_uncapped(
+    store: ArtifactStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``count`` / ``distinct_ticker_count`` return true totals, not a 500 page.
+
+    Seeds 501 artifacts across 2 tickers and asserts the aggregate queries see
+    all 501 / 2 — the value the dashboard header must report.
+    """
+    import asyncio
+
+    async def seed_and_count() -> tuple[int, int, int]:
+        for i in range(501):
+            await store.save(
+                _make_artifact(
+                    artifact_id=f"art_{i:04d}",
+                    ticker="AAPL" if i % 2 == 0 else "MSFT",
+                    entry_price=100.0,
+                    target_price=130.0,
+                    verdict="BUY",
+                    days_ago=i % 90,
+                )
+            )
+        capped = await store.list_by_ticker(ticker=None, include_archived=False, limit=500)
+        total = await store.count(include_archived=False)
+        distinct = await store.distinct_ticker_count(include_archived=False)
+        return len(capped), total, distinct
+
+    loop = asyncio.new_event_loop()
+    try:
+        capped_len, total, distinct = loop.run_until_complete(seed_and_count())
+    finally:
+        loop.close()
+
+    assert capped_len == 500  # the page is capped …
+    assert total == 501  # … but the aggregate is honest
+    assert distinct == 2
+
+
+def test_recent_research_total_reflects_true_store_past_cap(
+    client: TestClient,
+    store: ArtifactStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """recent-research header reports the real store totals, not len(summaries).
+
+    A 500-row page would silently cap ``total_in_store`` at 500 once the store
+    grows; monkeypatch the aggregate queries to a >500 store and assert the
+    response carries the true numbers through.
+    """
+    # One real artifact so the strip has a card to render.
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_AAPL",
+            ticker="AAPL",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=1,
+        ),
+    )
+
+    async def fake_count(*, include_archived: bool = False) -> int:
+        return 1234
+
+    async def fake_distinct(*, include_archived: bool = False) -> int:
+        return 87
+
+    monkeypatch.setattr(store, "count", fake_count)
+    monkeypatch.setattr(store, "distinct_ticker_count", fake_distinct)
+
+    resp = client.get("/api/dashboard/recent-research?limit=5")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_in_store"] == 1234
+    assert data["distinct_ticker_count"] == 87
+
+
+def test_hit_rate_discloses_sampling_past_cap(
+    client: TestClient,
+    store: ArtifactStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``is_sampled`` flips True once the store exceeds the 500 sample cap."""
+    _set_quotes({"AAPL": 128.0})
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_AAPL",
+            ticker="AAPL",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=30,
+        ),
+    )
+
+    # Below the cap: not sampled.
+    not_sampled = client.get("/api/dashboard/hit-rate").json()
+    assert not_sampled["is_sampled"] is False
+    assert not_sampled["sample_size"] == dashboard_mod._HIT_RATE_SAMPLE_CAP
+
+    # Bust the cache, then simulate a store larger than the cap.
+    dashboard_mod._HIT_RATE_CACHE.clear()
+
+    async def fake_count(*, include_archived: bool = False) -> int:
+        return dashboard_mod._HIT_RATE_SAMPLE_CAP + 1
+
+    monkeypatch.setattr(store, "count", fake_count)
+
+    sampled = client.get("/api/dashboard/hit-rate").json()
+    assert sampled["is_sampled"] is True
+    assert sampled["sample_size"] == dashboard_mod._HIT_RATE_SAMPLE_CAP
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Regression guards: routes must not N+1-read the full artifact for verdict
 # ─────────────────────────────────────────────────────────────────────────────
 

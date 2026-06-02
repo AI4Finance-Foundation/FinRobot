@@ -18,6 +18,7 @@ import {
 import { CoverageTable } from '../components/coverage/CoverageTable'
 import { CoverageRail } from '../components/coverage/CoverageRail'
 import { CoverageEmptyState } from '../components/coverage/CoverageEmptyState'
+import { CoverageHero } from '../components/coverage/CoverageHero'
 import { ColumnMenu } from '../components/coverage/ColumnMenu'
 import { nextSort, sortCoverageRows } from '../components/coverage/coverageSort'
 import { useToastStore } from '../stores/toastStore'
@@ -123,6 +124,11 @@ export function CoveragePage(): React.ReactElement {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px 24px' }}>
+      {/* Hero band — robot backdrop + big ticker search (drill-down into a
+          single name). Sits above the Coverage tool so the first screen reads
+          as a product, not a bare table. */}
+      <CoverageHero />
+
       {/* Command bar */}
       <div
         style={{

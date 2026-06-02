@@ -126,6 +126,47 @@ describe('VersionDiffBanner', () => {
     expect(select.value).toBe('art_parent')
   })
 
+  it('resets the diff base when navigating to a different artifact (no stale base)', () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    // Report A: current art_a, default base art_a_parent.
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <VersionDiffBanner
+          currentId="art_a"
+          currentCreatedAt="2026-05-10T00:00:00Z"
+          reportType="equity_research"
+          parentArtifactId="art_a_parent"
+          timeline={[
+            summary('art_a', '2026-05-10T00:00:00Z'),
+            summary('art_a_parent', '2026-04-01T00:00:00Z'),
+          ]}
+        />
+      </QueryClientProvider>,
+    )
+    let select = screen.getByRole('combobox') as HTMLSelectElement
+    expect(select.value).toBe('art_a_parent')
+
+    // Navigate to report B (same component position is reused): current art_b,
+    // whose only candidate / default base is art_b_parent. The base must follow
+    // B, not stay stuck on art_a_parent (which isn't even a B candidate).
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <VersionDiffBanner
+          currentId="art_b"
+          currentCreatedAt="2026-05-20T00:00:00Z"
+          reportType="equity_research"
+          parentArtifactId="art_b_parent"
+          timeline={[
+            summary('art_b', '2026-05-20T00:00:00Z'),
+            summary('art_b_parent', '2026-05-15T00:00:00Z'),
+          ]}
+        />
+      </QueryClientProvider>,
+    )
+    select = screen.getByRole('combobox') as HTMLSelectElement
+    expect(select.value).toBe('art_b_parent')
+  })
+
   it('requests diff with older artifact as base (a) and current as compare (b)', async () => {
     renderBanner({
       timeline: [

@@ -181,8 +181,18 @@ export function VersionDiffBanner({
     return candidates[0]?.id ?? null
   }, [parentArtifactId, candidates])
 
-  const [baseId, setBaseId] = useState<string | null>(defaultBaseId)
-  const effectiveBaseId = baseId ?? defaultBaseId
+  // Hold only the analyst's explicit pick. The component instance is reused
+  // across artifact navigations (same React position), so a raw useState seeded
+  // from defaultBaseId would keep the *previous* report's base — see
+  // BUG-20260602-006. We derive the effective base instead: an explicit pick is
+  // honored only while it still names a candidate of the current report;
+  // otherwise we fall back to the current report's default.
+  const [pickedBaseId, setPickedBaseId] = useState<string | null>(null)
+  const effectiveBaseId =
+    pickedBaseId !== null && candidates.some((a) => a.id === pickedBaseId)
+      ? pickedBaseId
+      : defaultBaseId
+  const setBaseId = setPickedBaseId
 
   // Order a (older) / b (newer) by created_at so "old → new" stays correct
   // regardless of which version the analyst selected as the base.

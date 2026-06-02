@@ -82,7 +82,8 @@ export function deriveReportData(
   const peers = (structured.peer_analysis as PeerCompsShape | undefined) ?? null
   const catalysts = (structured.catalyst_analysis as CatalystAnalysisShape | undefined) ?? null
   const technical = (structured.technical_analysis as TechnicalAnalysisShape | undefined) ?? null
-  const ownership = (structured.ownership_governance as OwnershipGovernanceShape | undefined) ?? null
+  const ownership =
+    (structured.ownership_governance as OwnershipGovernanceShape | undefined) ?? null
 
   const createdAt = meta.created_at ?? null
   const computeVersionStr = compute_version?.version ?? null

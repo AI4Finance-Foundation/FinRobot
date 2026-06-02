@@ -29,7 +29,6 @@ vi.mock('../api/client', () => ({
     PUT: vi.fn().mockResolvedValue({ data: {}, error: undefined }),
   },
   BASE_URL: 'http://127.0.0.1:8321',
-  exportDiagnosticsLogs: vi.fn().mockResolvedValue(new Blob(['test'], { type: 'application/zip' })),
 }))
 
 function renderWithQuery(ui: React.ReactElement) {
@@ -52,14 +51,7 @@ describe('SettingsView', () => {
 
   // 外观 section removed in v5; theme controls are outside this settings surface.
   // 通知通道 section removed 2026-06; multi-channel push had no trigger wired.
-
-  it('renders logging controls and export button', async () => {
-    renderWithQuery(<SettingsView onComplete={() => {}} />)
-    expect(await screen.findByText('Logging / Diagnostics')).toBeInTheDocument()
-    expect(
-      await screen.findByRole('button', { name: /导出诊断日志|export.*log/i }),
-    ).toBeInTheDocument()
-  })
+  // 日志/诊断 section removed 2026-06; log config is .env-only, not user-facing.
 })
 
 describe('isValidSecIdentity', () => {

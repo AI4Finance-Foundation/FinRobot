@@ -67,6 +67,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/compute/dcf-equivalence-line": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compute Dcf Equivalence Line
+         * @description Trace the (growth → implied horizon) equivalence line at a fixed WACC.
+         *
+         *     Pure deterministic solver loop — no LLM. Cheap enough to call on every
+         *     WACC-slider drag (debounced client-side).
+         */
+        post: operations["compute_dcf_equivalence_line_api_compute_dcf_equivalence_line_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/compute/dcf-sensitivity": {
         parameters: {
             query?: never;
@@ -573,20 +596,23 @@ export interface paths {
         };
         /**
          * Diff Two
-         * @description Return field-level differences between two artifacts.
+         * @description Return an analyst-grade semantic delta between two artifact versions.
          *
-         *     Diffs the assumptions, outputs, compute_version, and inputs (excluding
-         *     raw_data). Meta fields like id and created_at are skipped because they
-         *     always differ.
-         *
-         *     Numeric diffs include abs_change and pct_change for convenience.
+         *     ``a_id`` is the older/base version, ``b_id`` the newer/compare version. The
+         *     response answers "why did the conclusion change" — rating / target / fair
+         *     value moves, deterministic single-factor attribution of the DCF fair-value
+         *     change, the driver assumptions that moved, and a comparability gate that
+         *     suppresses deltas (or disables attribution) when the two versions aren't
+         *     like-for-like (different formula / data source / earnings season). All
+         *     numbers arrive pre-formatted with backend-owned units — see
+         *     ``finrobot.artifact.semantic_diff`` and ``field_registry``.
          *
          *     Args:
-         *         a_id: The "before" artifact id.
-         *         b_id: The "after" artifact id.
+         *         a_id: The "before" (base) artifact id.
+         *         b_id: The "after" (compare) artifact id.
          *
          *     Returns:
-         *         List of FieldDiff, sorted by path.
+         *         A SemanticDelta.
          *
          *     Raises:
          *         404: If either artifact is not found.
@@ -809,7 +835,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/diagnostics/logs/export": {
+    "/api/sec-holdings/status": {
         parameters: {
             query?: never;
             header?: never;
@@ -817,12 +843,36 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Export Logs
-         * @description Return a zip of every file in the logs directory (empty zip if none).
+         * Sec Holdings Status
+         * @description Report 13F cache population + the most-recent/in-flight refresh state.
          */
-        get: operations["export_logs_api_diagnostics_logs_export_get"];
+        get: operations["sec_holdings_status_api_sec_holdings_status_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sec-holdings/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sec Holdings Refresh
+         * @description Trigger a 13F refresh for the latest completed quarter (force=True).
+         *
+         *     Idempotent: if a refresh is already running, returns the running state
+         *     without starting a second one. If SEC identity is unconfigured, returns
+         *     with ``refresh.error == "identity_missing"`` and does no work.
+         */
+        post: operations["sec_holdings_refresh_api_sec_holdings_refresh_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1104,6 +1154,63 @@ export interface components {
             tagline?: string | null;
         };
         /**
+         * Attribution
+         * @description Single-factor decomposition of the DCF fair-value change. Each item holds
+         *     all-else-constant and re-prices one assumption; the residual is the explicit,
+         *     named remainder (DCF is non-linear, so contributions don't sum to the total).
+         */
+        Attribution: {
+            /** Available */
+            available: boolean;
+            /** Disabled Reason */
+            disabled_reason?: string | null;
+            /** Items */
+            items?: components["schemas"]["AttributionItem"][];
+            /**
+             * Total Change
+             * @default 0
+             */
+            total_change: number;
+            /**
+             * Formatted Total
+             * @default
+             */
+            formatted_total: string;
+            /**
+             * Residual
+             * @default 0
+             */
+            residual: number;
+            /**
+             * Formatted Residual
+             * @default
+             */
+            formatted_residual: string;
+            /**
+             * Summary Zh
+             * @default
+             */
+            summary_zh: string;
+            /**
+             * Summary En
+             * @default
+             */
+            summary_en: string;
+        };
+        /** AttributionItem */
+        AttributionItem: {
+            /** Driver Key */
+            driver_key: string;
+            /** Label Zh */
+            label_zh: string;
+            /** Label En */
+            label_en: string;
+            /** Contribution */
+            contribution: number;
+            /** Formatted Contribution */
+            formatted_contribution: string;
+        };
+        /**
          * BalanceSheet
          * @description Balance sheet metrics.
          */
@@ -1149,6 +1256,23 @@ export interface components {
             /** Url */
             url?: string | null;
         };
+        /** ComparabilityFlag */
+        ComparabilityFlag: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "formula" | "data_source" | "period";
+            /** Message Zh */
+            message_zh: string;
+            /** Message En */
+            message_en: string;
+            /**
+             * Blocks Attribution
+             * @default false
+             */
+            blocks_attribution: boolean;
+        };
         /** CompositeScore */
         CompositeScore: {
             /** Total */
@@ -1176,6 +1300,8 @@ export interface components {
             ticker: string;
             /** Language */
             language?: ("en" | "zh") | null;
+            /** Source Artifact Id */
+            source_artifact_id?: string | null;
         };
         /** CreateRunResponse */
         CreateRunResponse: {
@@ -1312,6 +1438,21 @@ export interface components {
             } | null;
             inputs: components["schemas"]["DCFInputs"];
         };
+        /** DataFootnote */
+        DataFootnote: {
+            /** A Source */
+            a_source: string;
+            /** B Source */
+            b_source: string;
+            /** A Fetched At */
+            a_fetched_at: string;
+            /** B Fetched At */
+            b_fetched_at: string;
+            /** Currency */
+            currency: string | null;
+            /** Currency Assumed */
+            currency_assumed: boolean;
+        };
         /**
          * DataProvenance
          * @description Source + freshness + degradation flags for a snapshot's numbers.
@@ -1334,6 +1475,76 @@ export interface components {
             /** Degraded */
             degraded?: string[];
         };
+        /**
+         * DcfEquivalenceLineRequest
+         * @description Inputs for the (growth, horizon) equivalence line at a fixed WACC.
+         *
+         *     Powers the IC-debate 'market-implied expectations' expert probe: for a fixed
+         *     discount rate, every point on the line is a (constant growth, explicit-window
+         *     length) pair that reprices the stock to ``target_price``. The line *is* the
+         *     honest answer — the market price implies a family of (growth, horizon) combos,
+         *     not one. The WACC slider re-requests this with a new ``wacc_override`` to shift
+         *     the whole line (exposing the third axis).
+         */
+        DcfEquivalenceLineRequest: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Target Price
+             * @description Defaults to current market price when omitted.
+             */
+            target_price?: number | null;
+            /**
+             * Wacc Override
+             * @description The fixed discount rate (slider value).
+             */
+            wacc_override?: number | null;
+            /** Tg Override */
+            tg_override?: number | null;
+            /**
+             * Growth Lo
+             * @default 0.2
+             */
+            growth_lo: number;
+            /**
+             * Growth Hi
+             * @default 0.5
+             */
+            growth_hi: number;
+            /**
+             * Steps
+             * @default 13
+             */
+            steps: number;
+            /**
+             * Mid Year
+             * @default false
+             */
+            mid_year: boolean;
+        };
+        /**
+         * DcfEquivalenceLineResponse
+         * @description The equivalence line + the axes it holds fixed (the visible prefixes).
+         */
+        DcfEquivalenceLineResponse: {
+            /** Ticker */
+            ticker: string;
+            /** Target Price */
+            target_price: number;
+            /** Wacc */
+            wacc: number;
+            /** Terminal Growth */
+            terminal_growth: number;
+            /** Points */
+            points: components["schemas"]["DcfEquivalencePoint"][];
+        };
+        /** DcfEquivalencePoint */
+        DcfEquivalencePoint: {
+            /** Growth */
+            growth: number;
+            /** Implied Horizon */
+            implied_horizon?: number | null;
+        };
         /** DcfReverseResult */
         DcfReverseResult: {
             /** Solve For */
@@ -1344,6 +1555,10 @@ export interface components {
             implied_growth?: number | null;
             /** Implied Wacc */
             implied_wacc?: number | null;
+            /** Implied Horizon */
+            implied_horizon?: number | null;
+            /** Assumed Growth */
+            assumed_growth?: number | null;
             /** Computed Price */
             computed_price?: number | null;
             /** Wacc */
@@ -1406,6 +1621,7 @@ export interface components {
             current_price?: number | null;
             reverse_growth?: components["schemas"]["DcfReverseResult"] | null;
             reverse_wacc?: components["schemas"]["DcfReverseResult"] | null;
+            reverse_horizon?: components["schemas"]["DcfReverseResult"] | null;
         };
         /** DcfSensitivityRequest */
         DcfSensitivityRequest: {
@@ -1437,6 +1653,59 @@ export interface components {
             run_id: string;
         };
         /**
+         * DeltaItem
+         * @description One compared field, fully formatted by the backend — the frontend renders
+         *     ``formatted_*`` verbatim and uses the numeric fields only for colouring.
+         */
+        DeltaItem: {
+            /** Key */
+            key: string;
+            /** Label Zh */
+            label_zh: string;
+            /** Label En */
+            label_en: string;
+            /** Old Value */
+            old_value: number | string | null;
+            /** New Value */
+            new_value: number | string | null;
+            /** Formatted Old */
+            formatted_old: string;
+            /** Formatted New */
+            formatted_new: string;
+            /** Pct Change */
+            pct_change?: number | null;
+            /** Formatted Pct Change */
+            formatted_pct_change?: string | null;
+            /**
+             * Direction
+             * @default flat
+             * @enum {string}
+             */
+            direction: "up" | "down" | "flat" | "added" | "removed";
+            /**
+             * Sentiment
+             * @default neutral
+             * @enum {string}
+             */
+            sentiment: "positive" | "negative" | "neutral";
+            /**
+             * Comparable
+             * @default true
+             */
+            comparable: boolean;
+            /** Caliber Note */
+            caliber_note?: string | null;
+            /**
+             * Is User Override
+             * @default false
+             */
+            is_user_override: boolean;
+            /** Contribution */
+            contribution?: number | null;
+            /** Formatted Contribution */
+            formatted_contribution?: string | null;
+        };
+        /**
          * EarningsCallList
          * @description Collection of transcripts for a ticker, ordered most-recent first.
          */
@@ -1463,27 +1732,6 @@ export interface components {
             content: string;
             /** Summary */
             summary?: string | null;
-        };
-        /**
-         * FieldDiff
-         * @description One field difference between two artifacts.
-         */
-        FieldDiff: {
-            /** Path */
-            path: string;
-            /** Old */
-            old: unknown;
-            /** New */
-            new: unknown;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "added" | "removed" | "changed";
-            /** Abs Change */
-            abs_change?: number | null;
-            /** Pct Change */
-            pct_change?: number | null;
         };
         /**
          * FinancialData
@@ -1586,19 +1834,19 @@ export interface components {
             /** Gross Profit */
             gross_profit: number[];
             /** Gross Margin */
-            gross_margin: number[];
+            gross_margin: (number | null)[];
             /** Sga */
             sga: number[];
             /** Sga Ratio */
-            sga_ratio: number[];
+            sga_ratio: (number | null)[];
             /** Ebitda */
             ebitda: number[];
             /** Ebitda Margin */
-            ebitda_margin: number[];
+            ebitda_margin: (number | null)[];
             /** Operating Income */
             operating_income: number[];
             /** Operating Margin */
-            operating_margin: number[];
+            operating_margin: (number | null)[];
             /** Net Income */
             net_income: number[];
             /** Eps */
@@ -1671,24 +1919,24 @@ export interface components {
             revenue: number;
             /**
              * Ebitda
-             * @description EBITDA in USD
+             * @description EBITDA in USD; None when unavailable
              */
-            ebitda: number;
+            ebitda?: number | null;
             /**
              * Net Income
-             * @description Net income in USD
+             * @description Net income in USD; None when unavailable
              */
-            net_income: number;
+            net_income?: number | null;
             /**
              * Gross Margin
-             * @description Gross margin as decimal
+             * @description Gross margin as decimal; None when unavailable
              */
-            gross_margin: number;
+            gross_margin?: number | null;
             /**
              * Operating Margin
-             * @description Operating margin as decimal
+             * @description Operating margin as decimal; None when unavailable
              */
-            operating_margin: number;
+            operating_margin?: number | null;
             /** Depreciation Amortization */
             depreciation_amortization?: number | null;
             /** Rd Expense */
@@ -1829,6 +2077,8 @@ export interface components {
             };
             /** Irr Formula Warning */
             irr_formula_warning?: string | null;
+            /** Capital Structure Warning */
+            capital_structure_warning?: string | null;
         };
         /**
          * LBOYear
@@ -1865,6 +2115,11 @@ export interface components {
             cash_sweep_amount: number;
             /** Total Debt Paydown */
             total_debt_paydown: number;
+            /**
+             * Revolver Draw
+             * @default 0
+             */
+            revolver_draw: number;
             /** Ending Debt */
             ending_debt: number;
         };
@@ -2089,6 +2344,19 @@ export interface components {
             /** Age Label */
             age_label: string;
         };
+        /** RefreshRuntimeState */
+        RefreshRuntimeState: {
+            /** Status */
+            status: string;
+            /** Period End */
+            period_end?: string | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Error */
+            error?: string | null;
+        };
         /** RunDetail */
         RunDetail: {
             /** Run Id */
@@ -2201,6 +2469,45 @@ export interface components {
              * @default 0
              */
             score: number;
+        };
+        /** SecHoldingsStatus */
+        SecHoldingsStatus: {
+            /** Populated */
+            populated: boolean;
+            /** Row Count */
+            row_count: number;
+            /** Latest Period End */
+            latest_period_end: string | null;
+            /** Distinct Tickers */
+            distinct_tickers: number;
+            /** Identity Configured */
+            identity_configured: boolean;
+            /** Auto Refresh */
+            auto_refresh: boolean;
+            refresh: components["schemas"]["RefreshRuntimeState"];
+        };
+        /** SemanticDelta */
+        SemanticDelta: {
+            /** A Id */
+            a_id: string;
+            /** B Id */
+            b_id: string;
+            /** A Label */
+            a_label: string;
+            /** B Label */
+            b_label: string;
+            /** Report Type */
+            report_type: string;
+            /** Identical */
+            identical: boolean;
+            /** Conclusion */
+            conclusion?: components["schemas"]["DeltaItem"][];
+            attribution: components["schemas"]["Attribution"];
+            /** Drivers */
+            drivers?: components["schemas"]["DeltaItem"][];
+            /** Comparability */
+            comparability?: components["schemas"]["ComparabilityFlag"][];
+            data_footnote: components["schemas"]["DataFootnote"];
         };
         /**
          * SentimentSnapshot
@@ -2518,6 +2825,11 @@ export interface components {
              * @description Human-readable provenance, e.g. 'monte_carlo_p10_p90'
              */
             source: string;
+            /**
+             * Assumptions
+             * @description Short summary of the load-bearing assumptions behind `mid`, built at the source where the underlying result object is in scope. Propagated to ValuationMethod.assumptions and into the IC debate evidence.
+             */
+            assumptions?: string | null;
             /** Warnings */
             warnings?: string[];
         };
@@ -2656,6 +2968,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DcfSeedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compute_dcf_equivalence_line_api_compute_dcf_equivalence_line_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DcfEquivalenceLineRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DcfEquivalenceLineResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3414,7 +3759,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FieldDiff"][];
+                    "application/json": components["schemas"]["SemanticDelta"];
                 };
             };
             /** @description Validation Error */
@@ -3687,7 +4032,7 @@ export interface operations {
             };
         };
     };
-    export_logs_api_diagnostics_logs_export_get: {
+    sec_holdings_status_api_sec_holdings_status_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3702,7 +4047,27 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SecHoldingsStatus"];
+                };
+            };
+        };
+    };
+    sec_holdings_refresh_api_sec_holdings_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecHoldingsStatus"];
                 };
             };
         };

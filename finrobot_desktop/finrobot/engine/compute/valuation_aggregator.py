@@ -192,11 +192,18 @@ def _comps_pe_method(
         # Forward EPS is analyst consensus — already a normalised forward number,
         # paired with the as-reported trailing peer median P/E (we have no peer
         # forward P/E). Highest-confidence path.
+        #
+        # 口径 caveat (BUG-029): median_pe is the median of peers' AS-REPORTED P/E
+        # (market_cap / net_income), which still carries peers' non-operating
+        # income — a DIFFERENT earnings definition than the trailing path's
+        # NOPAT-core median_core_pe. Unifying forward onto a core peer multiple
+        # needs peer forward NOPAT we don't have, so the label below states the
+        # caliber explicitly rather than silently mixing definitions.
         if peer_comps.median_pe is not None and peer_comps.median_pe > 0:
             mid = peer_comps.median_pe * forward_eps  # type: ignore[operator]
-            source = "peer_median_pe × forward_eps"
+            source = "peer_median_pe × forward_eps（as-reported 同业 P/E，含非经营性收益；无 peer forward 口径）"
             multiple = peer_comps.median_pe
-            caliber = "forward EPS"
+            caliber = "forward EPS（as-reported 同业 P/E）"
             confidence = 0.78
     else:
         # Trailing path: use the NOPAT core caliber so the target EPS and the

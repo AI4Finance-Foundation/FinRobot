@@ -345,6 +345,10 @@ class TestAggregatorContract:
         assert row.mid == 28.0 * 12.5
         assert row.confidence == 0.78
         assert "forward_eps" in row.source
+        # BUG-029: the forward path uses an AS-REPORTED peer median P/E (a
+        # different earnings caliber than the trailing NOPAT-core path). The
+        # source must disclose that口径 rather than mix definitions silently.
+        assert "as-reported" in row.source
 
     def test_comps_pe_uses_core_caliber_when_available(self) -> None:
         """Trailing path with NOPAT core fields populated (the real post-
@@ -417,7 +421,8 @@ class TestAggregatorContract:
             as_of=AS_OF,
         )
         row = next(m for m in agg.methods if m.method == "comps_pe")
-        assert row.assumptions == "押同业中值 P/E 28.0× × forward EPS"
+        # The caliber now discloses the as-reported peer-P/E口径 (BUG-029).
+        assert row.assumptions == "押同业中值 P/E 28.0× × forward EPS（as-reported 同业 P/E）"
 
     def test_ddm_row_carries_discount_and_growth_assumption(self) -> None:
         agg = aggregate_valuation(

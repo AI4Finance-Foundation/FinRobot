@@ -68,7 +68,18 @@ async def create_debate(body: DebateRequest, request: Request) -> DebateResponse
         raise HTTPException(status_code=404, detail=f"Artifact not found: {body.artifact_id}")
 
     structured_data: dict[str, Any] = artifact.outputs.structured
-    evidence_set = build_evidence_set(structured_data, body.artifact_id)
+    # build_evidence_set float()s current_price / upside_downside / weighted_price
+    # / method mids straight off the artifact. A malformed or incomplete artifact
+    # (non-numeric field, wrong shape) would otherwise escape here as a raw 500 —
+    # this is the sync path before the background task, so _run_debate_task's
+    # try/except can't catch it. Surface a client-facing 422 instead (BUG-021).
+    try:
+        evidence_set = build_evidence_set(structured_data, body.artifact_id)
+    except (KeyError, ValueError, TypeError) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Artifact {body.artifact_id} has structured data unfit for debate: {exc}",
+        ) from exc
 
     run_store: RunStore = request.app.state.run_store
     record = await run_store.create_run("debate", body.ticker)

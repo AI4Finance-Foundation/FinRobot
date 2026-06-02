@@ -176,6 +176,33 @@ async def test_missing_artifact_404() -> None:
     assert "nope" in resp.json()["detail"]
 
 
+async def test_malformed_structured_data_returns_422() -> None:
+    """A reachable artifact whose structured data can't be parsed into evidence
+    must return a client-facing 422, not a raw 500 (BUG-021).
+
+    build_evidence_set float()s current_price / upside / mid — a non-numeric
+    value raises ValueError, which previously escaped create_debate (a sync path
+    before the background task) as an unhandled 500.
+    """
+    art = _equity_research_artifact("art-bad")
+    # Corrupt a numeric field into a non-numeric string the way a malformed
+    # upstream artifact would.
+    art.outputs.structured["valuation_synthesis"]["current_price"] = "N/A"
+    app = _make_app(artifact=art)
+
+    with patch(
+        "finrobot.routes.debate.build_debate_agents",
+        return_value=_stub_agents(),
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+            resp = await client.post(
+                "/api/debate", json={"ticker": "NVDA", "artifact_id": "art-bad"}
+            )
+
+    assert resp.status_code == 422, resp.text
+    assert "art-bad" in resp.json()["detail"]
+
+
 async def test_create_debate_registers_background_task() -> None:
     """Background task must be registered in app.state.run_tasks immediately."""
     app = _make_app(artifact=_equity_research_artifact("art-bg"))

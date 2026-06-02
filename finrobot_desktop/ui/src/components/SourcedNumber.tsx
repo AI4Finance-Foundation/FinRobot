@@ -85,6 +85,10 @@ export function SourcedNumber({ value, source, format, className }: SourcedNumbe
 
   const showPopover = hasContent(source)
   const displayed = formatValue(value, format)
+  // A data-quality caveat must be visible at a glance in dense tables — not
+  // hidden behind a hover popover (analysts scan dozens of rows). Render an
+  // inline amber marker whenever a formula warning is attached.
+  const hasWarning = !!source?.formula_warning
 
   // ── Position ────────────────────────────────────────────────────────────────
 
@@ -187,7 +191,11 @@ export function SourcedNumber({ value, source, format, className }: SourcedNumbe
       ref={triggerRef}
       role={showPopover ? 'button' : undefined}
       tabIndex={showPopover ? 0 : undefined}
-      aria-label={showPopover ? `${displayed} — click for data source` : undefined}
+      aria-label={
+        showPopover
+          ? `${displayed} — ${hasWarning ? 'has data warning; ' : ''}click for data source`
+          : undefined
+      }
       aria-expanded={showPopover ? open : undefined}
       aria-haspopup={showPopover ? 'dialog' : undefined}
       className={className}
@@ -210,6 +218,8 @@ export function SourcedNumber({ value, source, format, className }: SourcedNumbe
       >
         {displayed}
       </span>
+
+      {hasWarning && <WarningGlyph label={source?.formula_warning ?? ''} />}
 
       {showPopover && open && source && (
         <div
@@ -268,7 +278,9 @@ function ProvRow({
       <span style={{ color: 'var(--text-muted)', minWidth: 56, flexShrink: 0 }}>{label}:</span>
       <span
         style={{
-          color: warn ? 'var(--negative)' : 'var(--text-primary)',
+          // Caveat = caution (amber --warning), not a price loss (red). Keeps
+          // 涨绿跌红 intact: red stays reserved for price-down semantics.
+          color: warn ? 'var(--warning)' : 'var(--text-primary)',
           fontFamily: mono ? 'var(--font-mono)' : undefined,
           fontSize: mono ? '0.7rem' : undefined,
           wordBreak: 'break-all',
@@ -277,5 +289,42 @@ function ProvRow({
         {value}
       </span>
     </div>
+  )
+}
+
+/**
+ * WarningGlyph — small inline amber triangle marking a numbers with a
+ * data-quality caveat. Inline SVG (per cosmic spec: simple icons hand-drawn),
+ * all colors via var(--*), accessible name via aria-label (no <title> child so
+ * the warning text doesn't leak into text-content queries).
+ */
+function WarningGlyph({ label }: { label: string }) {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 16 16"
+      role="img"
+      aria-label={label}
+      style={{ marginLeft: 3, verticalAlign: '-1px', flexShrink: 0 }}
+    >
+      <path
+        d="M8 2 L14.5 13.5 H1.5 Z"
+        fill="var(--warning-soft)"
+        stroke="var(--warning)"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      <line
+        x1="8"
+        y1="6.2"
+        x2="8"
+        y2="9.6"
+        stroke="var(--warning)"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <circle cx="8" cy="11.4" r="0.85" fill="var(--warning)" />
+    </svg>
   )
 }

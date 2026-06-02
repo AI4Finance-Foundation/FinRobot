@@ -139,7 +139,7 @@ describe('SourcedNumber', () => {
     expect(screen.getByText('DCF engine')).toBeInTheDocument()
   })
 
-  it('shows formula_warning in red when present', () => {
+  it('shows formula_warning in amber (caution, not price-red) in popover', () => {
     render(
       <SourcedNumber
         value={50}
@@ -158,7 +158,27 @@ describe('SourcedNumber', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     const warning = screen.getByText('Simplified FCF formula — excludes D&A tax shield')
     expect(warning).toBeInTheDocument()
-    expect(warning).toHaveStyle({ color: 'var(--negative)' })
+    // Data caveat = --warning (amber), red stays reserved for price-down.
+    expect(warning).toHaveStyle({ color: 'var(--warning)' })
+  })
+
+  // ── Inline warning marker (visible without hover) ────────────────────────────
+
+  it('renders an inline warning marker without opening the popover', () => {
+    render(
+      <SourcedNumber
+        value={50}
+        source={{ provider: 'DCF engine', formula_warning: 'Simplified FCF formula' }}
+      />,
+    )
+    // No hover, no keyboard — the marker must already be visible inline.
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('img', { name: 'Simplified FCF formula' })).toBeInTheDocument()
+  })
+
+  it('renders no inline warning marker when there is no formula_warning', () => {
+    render(<SourcedNumber value={50} source={{ provider: 'DCF engine' }} />)
+    expect(screen.queryByRole('img')).toBeNull()
   })
 
   it('shows artifact link when artifact_id is present', () => {

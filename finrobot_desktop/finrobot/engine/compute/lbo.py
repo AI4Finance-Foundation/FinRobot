@@ -5,7 +5,8 @@ Deterministic arithmetic — no LLM involvement.
 
 Key formula notes:
 - FCF = NetIncome + D&A - CapEx - ΔNWC  (standard indirect method)
-- IRR = (Exit_Equity / Entry_Equity)^(1/n) - 1  (closed-form, no external solver)
+- IRR solved via Newton-Raphson on NPV=0 (_solve_irr); with no interim cash
+  flows it degenerates to the closed form (Exit_Equity / Entry_Equity)^(1/n) - 1.
   Valid for single hold-to-exit profile (no interim dividends modeled).
   Returns -1.0 for total loss (exit_equity ≤ 0 or entry_equity ≤ 0).
 - MandAmort = Entry Debt × mandatory_amort_pct  (constant each year)

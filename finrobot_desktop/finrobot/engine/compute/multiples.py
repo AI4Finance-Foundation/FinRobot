@@ -134,10 +134,17 @@ def calculate_ebitda_reported(
 
     Returns None if any component is missing — never fabricates a number.
     """
-    parts = (net_income, income_tax_expense, interest_expense, depreciation_amortization)
-    if any(p is None for p in parts):
+    # Explicit per-name None guard (not any(...)) so the type checker narrows each
+    # component to float — the sum is then unconditional, with no misleading
+    # "filter out None" step suggesting None could still be present here (BUG-041).
+    if (
+        net_income is None
+        or income_tax_expense is None
+        or interest_expense is None
+        or depreciation_amortization is None
+    ):
         return None
-    return float(sum(p for p in parts if p is not None))
+    return float(net_income + income_tax_expense + interest_expense + depreciation_amortization)
 
 
 def calculate_multiples(company: CompanyFinancials) -> CompanyFinancials:

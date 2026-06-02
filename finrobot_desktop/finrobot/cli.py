@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -620,7 +621,7 @@ def analyze(ticker: str, analysis_type: str, model: str | None) -> None:
     click.echo(result)
 
 
-def _start_parent_death_watchdog(parent_pid: int) -> None:
+def _start_parent_death_watchdog(parent_pid: int) -> threading.Event:
     """Terminate this server when ``parent_pid`` (the desktop shell) is gone.
 
     The desktop sidecar is a PyInstaller one-file binary: Tauri spawns a
@@ -633,14 +634,24 @@ def _start_parent_death_watchdog(parent_pid: int) -> None:
     masks) lets the server self-terminate on app quit or crash. Gated on an
     explicit ``--parent-pid`` so a standalone ``finrobot serve`` under
     systemd/nohup (real parent pid 1) never trips it.
+
+    Returns the stop ``Event`` so callers (notably tests) can shut the daemon
+    thread down deterministically — ``stop.set()`` breaks the poll loop on its
+    next tick. Without this the loop is unstoppable: a test that leaves it
+    running keeps calling ``os._exit(0)`` every 2s once the watched pid is gone,
+    hard-killing the whole pytest session at a random later test (BUG-050).
+    ``serve`` ignores the return — in production the watchdog runs for the
+    process lifetime and exits via ``os._exit`` on real parent death.
     """
     import os
-    import threading
-    import time
+
+    stop = threading.Event()
 
     def _watch() -> None:
-        while True:
-            time.sleep(2)
+        # Event.wait doubles as the poll interval *and* an interruptible
+        # shutdown signal: returns True the instant stop is set, False on the
+        # 2s timeout (the normal poll tick).
+        while not stop.wait(2.0):
             try:
                 os.kill(parent_pid, 0)  # signal 0 = liveness probe, sends nothing
             except ProcessLookupError:
@@ -649,6 +660,7 @@ def _start_parent_death_watchdog(parent_pid: int) -> None:
                 continue  # parent alive but owned by another uid
 
     threading.Thread(target=_watch, name="parent-death-watchdog", daemon=True).start()
+    return stop
 
 
 @cli.command()

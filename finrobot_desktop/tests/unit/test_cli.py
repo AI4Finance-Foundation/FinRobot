@@ -266,9 +266,9 @@ class TestCliProgress:
         output = capsys.readouterr().out
         lines = output.strip().split("\n")
         # Last line should contain both the step label and "done"
-        assert (
-            "Data Collection" in lines[-1] and "done" in lines[-1]
-        ), f"Expected step label before 'done' on last line, got: {lines[-1]}"
+        assert "Data Collection" in lines[-1] and "done" in lines[-1], (
+            f"Expected step label before 'done' on last line, got: {lines[-1]}"
+        )
 
 
 class TestBacktestCommand:
@@ -461,10 +461,13 @@ class TestParentDeathWatchdog:
 
         # Watch our own (always-alive) pid: the watchdog must start but never
         # fire os._exit, so the test process survives.
-        _start_parent_death_watchdog(os.getpid())
-        watchers = [t for t in threading.enumerate() if t.name == "parent-death-watchdog"]
-        assert watchers, "watchdog thread was not started"
-        assert watchers[0].daemon, "watchdog must be a daemon thread"
+        stop = _start_parent_death_watchdog(os.getpid())
+        try:
+            watchers = [t for t in threading.enumerate() if t.name == "parent-death-watchdog"]
+            assert watchers, "watchdog thread was not started"
+            assert watchers[0].daemon, "watchdog must be a daemon thread"
+        finally:
+            stop.set()  # stop the poll loop so the daemon thread can't leak into later tests
 
     def test_watchdog_exits_when_parent_gone(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import os
@@ -479,8 +482,15 @@ class TestParentDeathWatchdog:
 
         fired = threading.Event()
         # Capture the hard-exit instead of actually killing the test runner.
+        # NB: the real os._exit never returns, but this mock does — so the
+        # watch loop keeps spinning. We MUST stop it (finally below) or it
+        # fires the *restored* real os._exit on its next tick and hard-kills
+        # the whole pytest session at some random later test (BUG-050).
         monkeypatch.setattr(os, "_exit", lambda code: fired.set())
 
-        _start_parent_death_watchdog(dead.pid)
-        # Poll interval is 2s; allow a margin.
-        assert fired.wait(timeout=6), "watchdog did not exit when parent pid was dead"
+        stop = _start_parent_death_watchdog(dead.pid)
+        try:
+            # Poll interval is 2s; allow a margin.
+            assert fired.wait(timeout=6), "watchdog did not exit when parent pid was dead"
+        finally:
+            stop.set()

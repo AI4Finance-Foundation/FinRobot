@@ -36,13 +36,33 @@ import { allChapterLabels } from './artifact-detail/chapters/labels'
 
 export function ArtifactDetailPage(): React.ReactElement {
   const { ticker, artifactId } = useParams<{ ticker: string; artifactId: string }>()
-  const symbol = (ticker || '').toUpperCase()
+  const urlSymbol = (ticker || '').toUpperCase()
   const location = useLocation()
   const navigate = useNavigate()
   const { data, isLoading, isError, error } = useArtifactDetail(artifactId)
+
+  // The artifact id is the real identity; the URL ticker is only routing
+  // context. Visiting /stocks/AAPL/runs/<NVDA-artifact-id> must NOT render
+  // AAPL chrome (price / timeline / IC path / export) around NVDA chapters —
+  // that's a cross-contaminated report. The report BODY already keys off
+  // artifact.ticker (reportData.ts), so once the artifact loads we treat its
+  // ticker as the source of truth for ALL chrome too (BUG-014).
+  const artifactSymbol = (data?.ticker ?? '').toUpperCase()
+  const symbol = artifactSymbol || urlSymbol
   const { data: timeline } = useV5ArtifactTimeline(symbol)
   const { locale, t } = useI18n()
   const addToast = useToastStore((s) => s.addToast)
+
+  // Canonicalize the URL: if the loaded artifact's ticker disagrees with the
+  // URL ticker, redirect (replace) to /stocks/<artifact-ticker>/runs/<id> so
+  // the address bar, deep links, and nav memory all reflect the real subject.
+  // Guarded to fire only on a genuine mismatch (no loop: after replace the URL
+  // ticker equals artifactSymbol).
+  useEffect(() => {
+    if (!artifactSymbol || !artifactId) return
+    if (artifactSymbol === urlSymbol) return
+    navigate(`/stocks/${artifactSymbol}/runs/${artifactId}`, { replace: true })
+  }, [artifactSymbol, urlSymbol, artifactId, navigate])
 
   // React Router v6 doesn't auto-scroll to #hash on navigate; chapter
   // mini-grid in AIZone links here with /stocks/X/runs/id#thesis etc.

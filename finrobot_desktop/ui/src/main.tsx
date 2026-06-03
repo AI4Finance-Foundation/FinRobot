@@ -18,6 +18,7 @@ import '@fontsource/jetbrains-mono/700.css'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './api/queryClient'
 import { router } from './router'
+import { ErrorBoundary } from './components/ErrorBoundary'
 // Importing the i18n module runs its side effects (load catalogs + activate the
 // persisted/default locale) before the first render.
 import { useUiPrefs } from './i18n'
@@ -44,7 +45,9 @@ async function bootstrap(): Promise<void> {
   createRoot(root).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
+        <ErrorBoundary>
+          <RouterProvider router={router} />
+        </ErrorBoundary>
       </QueryClientProvider>
     </StrictMode>,
   )

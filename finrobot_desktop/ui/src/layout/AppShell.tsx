@@ -7,6 +7,7 @@ import { TitleBar } from './TitleBar'
 import { Sidebar } from './Sidebar'
 import { RightChatPanel } from './RightChatPanel'
 import { CmdKOverlay } from './CmdKOverlay'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 import StatusBar from '../components/StatusBar'
 import ToastContainer from '../components/Toast'
 import { CursorCanvas } from '../components/CursorCanvas'
@@ -76,7 +77,9 @@ export function AppShell(): React.ReactElement {
       <div className="app-body">
         <Sidebar />
         <main id="main-scroll" className="main-content">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
         <RightChatPanel />
       </div>

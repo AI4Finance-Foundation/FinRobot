@@ -63,7 +63,7 @@
 | BUG-025 | Bug | P1 | Pipeline 集合在 4 处各自硬编码（orchestrator/registry/cli/sdk），registry 抽象只被 runs.py 单独使用 | 待修 |
 | BUG-026 | Bug | P1 | DCF/DDM seed 用「最近 2 年」中位数，却在 provenance 和 docstring 里全程标注「过去 3 年中位数」——给分析师看的口径说明是假的 | 待修 |
 | BUG-027 | Bug | P1 | POST /api/compute/dcf-sensitivity 的 wacc_range/tg_range 无 max_length 上限 → 巨网格阻塞事件循环 | 待修 |
-| BUG-028 | Bug | P1 | No ErrorBoundary in the live app tree — any render crash blanks the whole desktop app | 待修 |
+| BUG-028 | Bug | P1 | No ErrorBoundary in the live app tree — any render crash blanks the whole desktop app | 已修 |
 | BUG-029 | Bug | P1 | Competitive table renders unguarded gross/operating margin → fabricated 0.0% or literal NaN% when backend value is null | 待修 |
 | BUG-030 | Bug | P1 | 13 章研报全程硬编码 $，而 Coverage 是币种感知——非美元标的会印错币种符号 | 待修 |
 | BUG-031 | Bug | P1 | Coverage 批量运行 >6 个 ticker 时耗尽浏览器 HTTP/1.1 连接池，多余的 SSE 与所有普通 API 轮询被无限阻塞 | 待修 |
@@ -100,6 +100,8 @@
 | BUG-055 | Bug | P2 | 归档（30天自动 stale）的研报混进所有版本列表且零视觉标识——用户分不清『还在跟踪』和『已作废』的版本 | 待修 |
 | BUG-056 | Bug | P2 | 研报版本切换器/时间线/Diff 候选只取 timeline 默认 50 条，与 Inspector History(200) 不一致——重度跟踪的 ticker 老版本在报告页内不可达 | 待修 |
 | BUG-057 | Bug | P2 | Compare 表把不同时间跑出的 DCF 混在同一张表,且不显任何 vintage/as_of——用户无法判断哪行是今天的、哪行是三周前的 | 待修 |
+| BUG-068 | Bug | P2 | 回测对 A股标的零适配(T+1/涨跌停/印花税/停牌全缺)却照常产出净值曲线——A股结果根本不可信,应在入口直接 raise 拒跑而非 warn | 待修 |
+| BUG-070 | Bug | P2 | artifact 盖 git_commit 戳的 subprocess except 抓错异常类型(只抓 ImportError/Attr/Type/Value)——git 缺失(FileNotFoundError)/超时(TimeoutExpired)未捕获,无 git 环境(pip 安装用户/Docker slim/CI)研报落地最后一步直接崩 | 待修 |
 | UX-008 | 产品 | P2 | HotState 裁决为 REVIEW 时目标价静默消失，不解释『为什么扣留』 | 待修 |
 | UX-009 | 产品 | P2 | 一支股票→多份历史研报的下钻要 3+ 步且断裂——卡片『N 份研报』不可点，发现历史得先进 workspace 再滚到底 | 待修 |
 | UX-010 | 产品 | P2 | Compare 必须回 Coverage 多选才能发起——workspace/研报页内无"加入对比"入口 | 待修 |
@@ -117,6 +119,7 @@
 | BUG-065 | Bug | P3 | 镜像列(verdict/entry/target/tagline)在 extractor 逻辑演进后无回填路径，旧行永久陈旧 | 待修 |
 | BUG-066 | Bug | P3 | 禁用态按钮的『为什么不可用』只靠 title tooltip：disabled 元素不触发 hover、tooltip 鼠标专属，键盘/触屏用户拿不到原因（IC 辩论 & Compare） | 待修 |
 | BUG-067 | Bug | P3 | 退役路由的「已合并」提示 toast 写进 sessionStorage 但全代码无人读取——功能彻底失效且 router 注释撒谎 | 待修 |
+| BUG-069 | Bug | P3 | 回测渲染图时弹出 matplotlib GUI 窗口(Figure 0)并泄漏 figure——模块级 use("Agg") 时机太晚未生效 | 待修 |
 | UX-015 | 产品 | P3 | 最高曝光的 Run CTA / Pipeline 徽章用字面量 color:'white' 与裸数字圆角，绕过已存在的 token | 待修 |
 | UX-016 | 产品 | P3 | prefers-reduced-motion 只关了星空一种动效，shimmer/pulse/halo/skeleton 等仍全速运行 | 待修 |
 | UX-017 | 产品 | P3 | 右侧 AI 抽屉与 CmdK 的 "Ask AI" 是两条并存的对话入口，语义重叠且互不打通 | 待修 |
@@ -491,7 +494,7 @@
 - **修复方案**：In ui/src/main.tsx, import { ErrorBoundary } and wrap <RouterProvider> with it inside QueryClientProvider: `<ErrorBoundary><RouterProvider router={router}/></ErrorBoundary>`. Stronger: also place an ErrorBoundary inside AppShell around the <Outlet/> so a crashed route keeps the Sidebar/TitleBar usable (lets the user navigate away instead of reloading). Confirm shell.error.renderFailed and common.retry exist in both i18n catalogs (they already back the export viewer). No structural change to ErrorBoundary needed — it is ready to mount.
 - **验证补充**：Fix is correct and ready to mount as-is. Recommend BOTH layers as the author suggests: wrap <RouterProvider> in main.tsx AND add an inner ErrorBoundary around <Outlet/> in AppShell so a crashed route keeps Sidebar/TitleBar navigable. React-router also supports an errorElement on the root route as an alternative inner-catch — either approach is acceptable; the AppShell-Outlet wrap is simpler and keeps chrome alive.
 - **影响面/回归风险**：Pure robustness win, near-zero regression risk (adding a wrapper that is a no-op until something throws). Converts every white-screen-of-death into a recoverable error card. StrictMode double-invoke in dev is unaffected.
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（改 ui/src/main.tsx 用 ErrorBoundary 包 RouterProvider（在 QueryClientProvider 内）；ui/src/layout/AppShell.tsx 在 <main> 内只包 <Outlet/>，崩溃路由仍保 Sidebar/TitleBar/StatusBar 可用。i18n shell.error.renderFailed/common.retry 两 catalog 均已存在。验证 npm run lint 零报错 + npm run build(tsc) 通过）
 
 #### [BUG-029] Competitive table renders unguarded gross/operating margin → fabricated 0.0% or literal NaN% when backend value is null
 
@@ -1004,6 +1007,42 @@
 - **修复方案**：在 AppShell.tsx 加一个挂载时 useEffect：读取 REDIRECT_TOAST_KEY，非空则 useToastStore.addToast({type:'info',title:该文案}) 并 sessionStorage.removeItem。从 router.tsx export 的 REDIRECT_TOAST_KEY 已可直接 import。注意：必须在路由跳转后的目标页 mount 时机读取，AppShell 是所有路由的父壳，挂载早于 Outlet 内容，时序正确。若决定不要这个 banner，则反向删干净：移除 RedirectWithToast 里的 sessionStorage 写入 + line 6-9 注释，别留半截。二选一，不要保留现状。改动量：~10 行单文件（接上）或 ~5 行（删）。
 - **验证补充**：Both fix options valid (wire AppShell consumer OR delete the write+comment). Given finding #3's direction also touches these redirects, prefer the DELETE option — the merged-route toasts add little value and the i18n strings (shell.router.*) can be dropped too. Don't leave the half-built mechanism.
 - **影响面/回归风险**：影响所有从旧链接/书签进来的用户——他们被静默重定向、毫无解释。接上后回归风险低（新增一个 toast）；删除方向需同步改 router 头注释避免再次误导。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-068] 回测对 A股标的零适配(T+1/涨跌停/印花税/停牌全缺)却照常产出净值曲线——A股结果根本不可信,应在入口直接 raise 拒跑
+
+- **类别**：Bug
+- **严重度**：P2
+- **位置**：finrobot/engine/backtest/backtrader_adapter.py:_run_sync(:103-178,全程无 setcommission/无微观结构约束)+ SMACrossOver.next(:77-82,T+0 当日买卖)+ engine.py BacktestConfig(:17-55,无 market/交易规则字段)
+- **现象/问题**：backtrader 回测完全按"美股 T+0、零摩擦"撮合,对 A股标的的四条核心约束一条都没建模:(1) `cerebro.broker.setcommission` 全仓从未调用 → 无佣金、无 A股卖方 0.05% 印花税;(2) SMACrossOver.next 金叉当日 `buy()`、死叉当日 `close()` 是 T+0,而 A股 T+1 下当日买入不可卖 → 系统性高估收益;(3) 无涨跌停约束 → 涨停封板时买单本不可成交,回测却按收盘价虚构成交;(4) 无停牌处理。数据走 DataLayer(FMP/finnhub/yfinance,美股向 provider),A股覆盖与复权口径亦存疑。净结果:对 A股 ticker 能跑出一条漂亮但根本不可信的曲线,而手敲 SDK/CLI 的人很容易只看曲线、自动略过 warning。
+- **证据**：grep 整个 backtest 模块 `commission/印花/T+1/涨跌停/停牌/akshare/tushare` 仅命中一条自承认的 warning 文案 `"assumes zero commission and zero slippage"`(backtrader_adapter.py:163);`setcommission` 全仓零调用;SMACrossOver.next(backtrader_adapter.py:77-82)的 buy/close 无任何 T+1 持仓锁。回测无 route/agent/pipeline/UI 触达,仅 SDK(abacktest/aauto_backtest)+ CLI 暴露(grep routes/orchestrator/agents/pipelines 为空)。
+- **根因**：回测引擎只实现了美股 T+0 零摩擦撮合,从未建模任何 A股市场微观结构;BacktestConfig 也无字段可区分标的所属市场。按"宁可说我需要核对、绝不编一个数字"的信条,第一道闸应在入口拒绝非美股标的,而不是产出一条不可信曲线——能跑出来的图本身就是诱惑。
+- **修复方案**：按 boss 裁决——回测定位为"附带功能,不投入扩 A股撮合规则",故走**拒跑(raise)而非 warn**(警告会被忽略,拒跑=物理上不可能被骗):在 BackTraderAdapter.run 起始处(或 BacktestConfig 入口校验)对非美股标的 `raise ValueError("Backtest models US-equity T+0 zero-friction execution only; A-share/HK tickers (T+1, price limits, stamp duty, halts unmodeled) are rejected to avoid producing untrustworthy curves. ticker=…")`。市场判定复用现有 ticker 正则/约定(A股 6 位纯数字代码、`.SS/.SZ/.HK` 后缀);**不要保留"顶格警告"后路**。美股那条零佣金零滑点 warning(:163)保留——那是程度问题不是真假问题。补测试:tests/unit/test_backtrader_adapter 断言 A股 ticker(如 `600519` / `600519.SS`)→ run raise ValueError。
+- **影响面/回归风险**：仅影响 CLI 回测 / SDK abacktest/aauto_backtest 的 A股调用;美股路径零影响。拒跑是行为收紧:曾经/将要用本回测跑 A股的脚本会从"拿到假数字"变成"明确报错"——这正是目的,回归风险低。关联:策略库扩充(动量/RSI/均值回归等多策略)经 boss 裁决为"附带功能不投入",**不作为 bug**,如后续要做另立 OPP 备案。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-069] 回测渲染图时弹出 matplotlib GUI 窗口(Figure 0)并泄漏 figure——模块级 use("Agg") 时机太晚未生效
+
+- **类别**：Bug
+- **严重度**：P3
+- **位置**：finrobot/engine/backtest/backtrader_adapter.py:38-43(模块级 `matplotlib.use("Agg")` in try)+ :280-296(_render_chart 调 cerebro.plot)
+- **现象/问题**：跑回测(CLI/SDK)时 _render_chart 调 `cerebro.plot(style="candlestick")`(:287)会弹出一个交互式 matplotlib 窗口(标题 Figure 0,含 Broker value/cash 曲线、Trades Net Profit/Loss、BuySell 信号、K线+成交量)。本意是后台 savefig 成 base64 PNG、绝不弹窗——模块顶部已写 `matplotlib.use("Agg")`(:41)兜底,但未生效:实测本机默认 backend 仍是 macosx(交互式)。同时 cerebro.plot 内部可能新建多个 figure,_render_chart 只 `plt.close` 取到的 `fig[0][0]`(:290),其余在异常/多图路径下不被回收,长跑泄漏。
+- **证据**：`python -c "import matplotlib; print(matplotlib.get_backend())"` → `macosx`(交互式);backtrader_adapter.py:41 的 `use("Agg")` 无 `force=True`,若有别的模块先 import matplotlib.pyplot 把 backend 锁成 macosx,此处静默不切换,等回测 plot 时拿交互 backend 弹窗。
+- **根因**：模块级 `matplotlib.use("Agg")` 时机太晚且无 force——backend 在更早的 import 处已被 macosx 占用。第一出错位置是 backtrader_adapter.py:41(use 调用),非 _render_chart。
+- **修复方案**：在 _render_chart 渲染前显式 `plt.switch_backend("Agg")`(或模块级改 `matplotlib.use("Agg", force=True)`),确保 cerebro.plot 永远走无 GUI 后端;并把 cerebro.plot 返回的**所有** figure 都 `plt.close`(遍历返回列表而非只 close `[0][0]`)防泄漏。补测试:断言渲染后 `get_backend()` 为 agg 系且无新增打开的 figure(或 mock cerebro.plot 验证 close 调用覆盖全部 fig)。
+- **影响面/回归风险**：仅影响跑回测时的渲染副作用(弹窗骚扰 + figure 泄漏);chart_base64 内容不变,零数字影响。回归风险低——只收紧 backend 选择与 figure 回收。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-070] artifact git_commit 盖戳的 subprocess except 抓错异常类型——无 git 环境(FileNotFoundError)/超时(TimeoutExpired)未捕获,研报落地最后一步崩
+
+- **类别**：Bug
+- **严重度**：P2
+- **位置**：finrobot/artifact/builders.py:54-66(_get_git_commit)→ :112-121(_make_base_compute_version)→ 盖在每个 compute artifact 的 ArtifactComputeVersion 上
+- **现象/问题**：`_get_git_commit()` 用 `subprocess.run(["git","rev-parse","--short","HEAD"], timeout=2)` 给 artifact 盖代码版本戳,意图是"取不到就返回 None",但 `except (ImportError, AttributeError, TypeError, ValueError)`(:64)抓的全是错的异常类型——subprocess 在这两个最常见失败模式下抛的根本不是它们:(1) **git 不在 PATH** → `FileNotFoundError`(OSError 子类);(2) **git 卡住超过 2s**(大仓 / 慢盘 / index.lock) → `subprocess.TimeoutExpired`(SubprocessError 子类)。两者都不被现有 except 捕获 → 异常穿透 `_make_base_compute_version` → **artifact 落地直接崩**。这是个典型"静态审查盲区":审 agent 看到 `try/except` + `timeout=2` 就判定已兜底,但 except 列表里没有一个能接住 subprocess 真正抛的异常。
+- **证据**：实测确认 `subprocess.run(['no_such_binary'], timeout=2)` → `FileNotFoundError`(被现有 except 捕获? **False**);`subprocess.run(['sleep','5'], timeout=0.3)` → `TimeoutExpired`(被捕获? **False**)。调用链:builders.py:118 `git_commit=_get_git_commit()` 在 `_make_base_compute_version` 内,给所有 compute artifact 盖 ArtifactComputeVersion 溯源戳——主路径,非边缘。
+- **根因**：第一出错位置=builders.py:64 的 except 元组。写代码时凭直觉填了 import/attr/type/value(import 一个模块时的常见错),但本函数根本没 import 动作,真正的失败源是外部进程缺失/超时。属"防御性 except 抓了一组与实际失败模式无关的异常"。
+- **修复方案**：把 except 改成实际会抛的:`except (FileNotFoundError, subprocess.SubprocessError, OSError):`(SubprocessError 覆盖 TimeoutExpired/CalledProcessError,FileNotFoundError/OSError 覆盖缺二进制与权限)→ 返回 None,让 git_commit 优雅缺省(字段本就是 `str | None`)。注意 ImportError 在这里根本到不了(无 import),可删;若想极稳可叠 `except Exception` 兜底但要 log.warning 不静默。补测试:tests 里 monkeypatch `subprocess.run` 抛 FileNotFoundError 与 TimeoutExpired,断言 `_get_git_commit()` 返回 None 且 `_make_base_compute_version(...)` 不抛、git_commit=None。
+- **影响面/回归风险**：影响所有**无 git 或 git 慢**的运行环境——`pip install finrobot` 的终端用户(很可能没装 git 或不在仓库内)、Docker slim 镜像、CI without git、打包发行版。对一个 KPI=GitHub Stars、靠 `pip install` 跑起来的开源项目,这是高频首跑翻车点:用户跑完一条 30s 研报管线,在存 artifact 的最后一步崩。开发机有 git 且快,所以本地永不复现——这正是它躲过审查的原因。修复零行为变更(只是把"本该缺省"的路径真正接住),回归风险低。
 - **置信度**：high　|　**状态**：待修
 
 ### 详细条目（产品）

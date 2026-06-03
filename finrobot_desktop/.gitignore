@@ -84,3 +84,6 @@ src-tauri/binaries/finrobot-server-*
 # understand-anything — local codebase-analysis tool cache (graph/batches/tmp).
 # Regenerated on demand; never part of the project source.
 .understand-anything/
+
+# design-demos — UI 重设计探索的临时产物（HTML mockup + 截图），本地参考用，不进仓库
+design-demos/

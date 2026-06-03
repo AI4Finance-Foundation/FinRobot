@@ -25,6 +25,7 @@ import { markArtifactViewed } from '../api/client'
 import { queryClient } from '../api/queryClient'
 import { saveTextFile } from '../lib/tauri'
 import { reportFileStem } from '../lib/exportReport'
+import { missingExportBlocksMessage } from '../export/reportExportQueries'
 
 import { ReportToolbar } from './artifact-detail/shell/ReportToolbar'
 import { ReportTOC } from './artifact-detail/shell/ReportTOC'
@@ -159,13 +160,35 @@ export function ArtifactDetailPage(): React.ReactElement {
       ?.parent_artifact_id ?? null
 
   // Export the report as a self-contained interactive HTML. The viewer bundle is
-  // multi-hundred-KB, so it's a lazy chunk pulled in only on click. The live
-  // query cache (queryClient) is dehydrated into the file so the offline viewer
-  // renders charts/tables from inlined data without any network.
+  // multi-hundred-KB, so it's a lazy chunk pulled in only on click.
+  //
+  // The exported file renders <ReportChapters> against a DEHYDRATED query cache
+  // with refetch disabled — so whatever isn't in the cache at click time would
+  // be silently missing offline (football field, historical charts, earnings
+  // call, technical KV). To make the file deterministic (same artifact ⇒ same
+  // export), we explicitly prefetch every chapter read model into the cache
+  // BEFORE dehydrating. A block that fails to prefetch doesn't abort the export;
+  // we warn precisely which section will be missing (BUG-20260602-028).
   async function handleExportHtml(): Promise<void> {
     if (!data) return
+    // Transient "preparing" toast — the prefetch + dehydrate can take a beat on
+    // a cold cache, so the click gives immediate feedback instead of a silent
+    // hang. Auto-dismisses; the result toast lands after.
+    addToast({
+      type: 'info',
+      title: locale === 'zh' ? '正在准备研报数据…' : 'Preparing report data…',
+      description:
+        locale === 'zh'
+          ? '正在准备图表 / 电话会 / 估值数据'
+          : 'Fetching charts / earnings call / valuation data',
+    })
     try {
-      const { buildInteractiveReportHtml } = await import('../export/bundle')
+      const { buildInteractiveReportHtml, prepareReportExport } = await import('../export/bundle')
+
+      // Seed the cache with the chapters' read models, then dehydrate a complete
+      // snapshot. `missing` = blocks the backend couldn't serve right now.
+      const missing = await prepareReportExport(queryClient, symbol)
+
       const html = buildInteractiveReportHtml({
         artifact: data,
         timeline: timeline ?? [],
@@ -176,7 +199,19 @@ export function ArtifactDetailPage(): React.ReactElement {
       const saved = await saveTextFile(`${reportFileStem(symbol, versionLabel)}.html`, html, [
         { name: 'HTML', extensions: ['html'] },
       ])
-      if (saved) addToast({ type: 'success', title: t('report.toolbar.exportHtmlDone') })
+      if (!saved) return
+      if (missing.length > 0) {
+        // Exported what we have; tell the user which sections are absent rather
+        // than letting them discover a half-empty offline file later.
+        addToast({
+          type: 'info',
+          title:
+            locale === 'zh' ? '研报已导出（部分数据缺失）' : 'Report exported (some data missing)',
+          description: missingExportBlocksMessage(missing, locale),
+        })
+      } else {
+        addToast({ type: 'success', title: t('report.toolbar.exportHtmlDone') })
+      }
     } catch (err) {
       addToast({
         type: 'error',

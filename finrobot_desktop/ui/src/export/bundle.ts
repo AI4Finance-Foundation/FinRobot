@@ -14,6 +14,12 @@ import type { ArtifactDetail } from '../hooks/useV5Artifacts'
 import type { ArtifactSummaryV5 } from '../types/v5'
 import type { Locale } from '../i18n'
 
+// prepareReportExport (cache-seeding) lives in reportExportQueries.ts so it's
+// unit-testable WITHOUT pulling the multi-hundred-KB viewer ?raw imports above
+// into the test module graph. Re-exported here so the export handler imports
+// both from the same lazy chunk.
+export { prepareReportExport } from './reportExportQueries'
+
 export function buildInteractiveReportHtml(opts: {
   artifact: ArtifactDetail
   timeline: ArtifactSummaryV5[]

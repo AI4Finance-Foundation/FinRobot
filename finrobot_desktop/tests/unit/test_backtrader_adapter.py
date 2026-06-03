@@ -117,6 +117,44 @@ class TestExtractAnalyzers:
         warnings: list[str] = []
         result = adapter._extract_drawdown(strat, warnings)
         assert result == pytest.approx(-0.155)
+        assert not warnings
+
+    def test_extract_drawdown_none_warns(self) -> None:
+        """BUG-064: a missing drawdown must warn like its sibling extractors.
+
+        A zero-trade backtest yields no 'max'/'drawdown', so max_dd is None;
+        previously the warnings accumulator was carried but never appended to,
+        leaving the result silently None while Sharpe warned. Now it mirrors
+        _extract_sharpe and records why the metric is unavailable.
+        """
+        adapter = BackTraderAdapter(MagicMock())
+        strat = MagicMock()
+        strat.analyzers.drawdown.get_analysis.return_value = {}
+        warnings: list[str] = []
+        result = adapter._extract_drawdown(strat, warnings)
+        assert result is None
+        assert warnings == ["Insufficient data for max drawdown calculation"]
+
+    def test_extract_returns(self) -> None:
+        """BUG-040: the Returns analyzer's rnorm100 is read as an annualized fraction."""
+        adapter = BackTraderAdapter(MagicMock())
+        strat = MagicMock()
+        # rnorm100 is a percent (e.g. 11.0 == 11%/yr); we surface a fraction so
+        # it sits on the same basis as total_return.
+        strat.analyzers.returns.get_analysis.return_value = {"rnorm100": 11.0}
+        warnings: list[str] = []
+        result = adapter._extract_returns(strat, warnings)
+        assert result == pytest.approx(0.11)
+        assert not warnings
+
+    def test_extract_returns_none_warns(self) -> None:
+        adapter = BackTraderAdapter(MagicMock())
+        strat = MagicMock()
+        strat.analyzers.returns.get_analysis.return_value = {}
+        warnings: list[str] = []
+        result = adapter._extract_returns(strat, warnings)
+        assert result is None
+        assert warnings == ["Insufficient data for annualized return calculation"]
 
     def test_extract_trades_closed(self) -> None:
         adapter = BackTraderAdapter(MagicMock())
@@ -318,3 +356,7 @@ class TestSharpeOnDailyBars:
         assert abs(result.sharpe_ratio) < 5
         # The misleading "insufficient data" warning must not appear.
         assert not any("insufficient" in w.lower() for w in result.warnings)
+        # BUG-040: the Returns analyzer is now consumed, not dead — a real
+        # annualized return is surfaced alongside the cumulative total_return.
+        assert result.annualized_return is not None
+        assert math.isfinite(result.annualized_return)

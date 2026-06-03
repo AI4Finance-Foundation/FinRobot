@@ -60,7 +60,8 @@ class BacktestResult(BaseModel):
 
     initial_value: float
     final_value: float
-    total_return: float
+    total_return: float  # cumulative return over the entire window
+    annualized_return: float | None = None  # rnorm, comparable to the annualized Sharpe
     sharpe_ratio: float | None = None
     max_drawdown: float | None = None
     total_trades: int = 0
@@ -81,8 +82,10 @@ class BacktestResult(BaseModel):
         lines = [
             f"Initial Value:  ${self.initial_value:,.2f}",
             f"Final Value:    ${self.final_value:,.2f}",
-            f"Total Return:   {self.total_return:+.2%}",
+            f"Total Return (cumulative): {self.total_return:+.2%}",
         ]
+        if self.annualized_return is not None:
+            lines.append(f"Annualized Return: {self.annualized_return:+.2%}")
         if self.sharpe_ratio is not None:
             lines.append(f"Sharpe Ratio:   {self.sharpe_ratio:.3f}")
         if self.max_drawdown is not None:

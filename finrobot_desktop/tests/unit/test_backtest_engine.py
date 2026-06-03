@@ -108,6 +108,7 @@ class TestBacktestResult:
             initial_value=100_000,
             final_value=120_000,
             total_return=0.20,
+            annualized_return=0.11,
             sharpe_ratio=1.5,
             max_drawdown=-0.08,
             total_trades=15,
@@ -121,6 +122,20 @@ class TestBacktestResult:
         assert "1.500" in summary
         assert "8.00%" in summary
         assert "10/5" in summary
+        # Cumulative and annualized returns are labelled on explicit, distinct
+        # bases so the +20% total can't be confused with the annualized Sharpe.
+        assert "Total Return (cumulative): +20.00%" in summary
+        assert "Annualized Return: +11.00%" in summary
+
+    def test_format_summary_annualized_return_omitted_when_none(self) -> None:
+        result = BacktestResult(
+            initial_value=100_000,
+            final_value=120_000,
+            total_return=0.20,
+        )
+        summary = result.format_summary()
+        assert "Total Return (cumulative): +20.00%" in summary
+        assert "Annualized Return" not in summary
 
     def test_format_summary_minimal(self) -> None:
         result = BacktestResult(

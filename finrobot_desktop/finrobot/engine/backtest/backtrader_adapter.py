@@ -150,6 +150,7 @@ class BackTraderAdapter(BacktestEngine):
         warnings: list[str] = []
         sharpe = self._extract_sharpe(strat, warnings)
         max_dd = self._extract_drawdown(strat, warnings)
+        annualized_return = self._extract_returns(strat, warnings)
         total_trades, winning, losing = self._extract_trades(strat, warnings)
 
         # Generate equity curve chart
@@ -168,6 +169,7 @@ class BackTraderAdapter(BacktestEngine):
             initial_value=initial_value,
             final_value=final_value,
             total_return=total_return,
+            annualized_return=annualized_return,
             sharpe_ratio=sharpe,
             max_drawdown=max_dd,
             total_trades=total_trades,
@@ -265,7 +267,24 @@ class BackTraderAdapter(BacktestEngine):
         max_dd: float | None = analysis.get("max", {}).get("drawdown")
         if max_dd is not None:
             return -abs(max_dd) / 100  # convert to negative fraction
+        warnings.append("Insufficient data for max drawdown calculation")
         return None
+
+    def _extract_returns(self, strat: Any, warnings: list[str]) -> float | None:
+        """Annualized normalized return (rnorm) from the Returns analyzer.
+
+        backtrader's Returns analyzer exposes ``rnorm100`` as the annualized
+        return expressed as a percent; divide by 100 to return a fraction so it
+        sits on the same basis as ``total_return`` (also a fraction). This makes
+        the cumulative-vs-annualized distinction explicit instead of leaving the
+        analyzer wired but unread (BUG-040).
+        """
+        analysis = strat.analyzers.returns.get_analysis()
+        rnorm100: float | None = analysis.get("rnorm100")
+        if rnorm100 is None:
+            warnings.append("Insufficient data for annualized return calculation")
+            return None
+        return rnorm100 / 100
 
     def _extract_trades(self, strat: Any, warnings: list[str]) -> tuple[int, int, int]:
         analysis = strat.analyzers.trades.get_analysis()

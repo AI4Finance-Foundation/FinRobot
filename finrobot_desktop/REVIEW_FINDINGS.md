@@ -97,7 +97,7 @@
 | BUG-037 | Bug | P2 | 外币 SEC 申报人的 XBRL 营收/净利未做 FX 换算即被当作 USD，35% 散度门可能漏掉近平价货币 | 待修 |
 | BUG-038 | Bug | P2 | peer 倍数白名单用未格式化原始 float 注入（median_pe/pe_ratio/market_cap），LLM 在 competitor_analysis 里复述时口径/精度无锚，且与前端表格显示口径不保证一致 | 待修 |
 | BUG-039 | Bug | P2 | `is_sampled` compares against GLOBAL store count, not the in-window / in-scope population → mislabels fully-covered windows as 'partial' | 已修 |
-| BUG-040 | Bug | P2 | Cumulative total_return shown beside annualized-intent Sharpe; annualized Returns analyzer added but never read | 待修 |
+| BUG-040 | Bug | P2 | Cumulative total_return shown beside annualized-intent Sharpe; annualized Returns analyzer added but never read | 已修 |
 | BUG-041 | Bug | P2 | run_strategy_selection tunes 3 iterations on one in-sample window and reports max(total_return) as a 'good' strategy — pure overfitting, no out-of-sample | 待修 |
 | BUG-042 | Bug | P2 | Sniper LONG mode: secondary_buy (20-day support) can sit BELOW stop_loss → incoherent trade row passes invariant guards | 已修 |
 | BUG-043 | Bug | P2 | Unauthenticated POST /chat, /api/runs and /api/coverage/groups/{id}/runs burn metered LLM credits with zero inbound rate limiting | 待修 |
@@ -141,7 +141,7 @@
 | BUG-061 | Bug | P3 | Earnings-call tab selection keyed by array index — duplicate/reordered transcripts collide keys and mis-select | 待修 |
 | BUG-062 | Bug | P3 | `is_sampled` / `sample_size` honesty disclosure is dropped at the API→frontend boundary (field absent from the TS contract) | 已修 |
 | BUG-063 | Bug | P3 | _resolve_strategy does importlib.import_module(user_string) + getattr before the bt.Strategy check — arbitrary module import with side effects | 待修 |
-| BUG-064 | Bug | P3 | _extract_drawdown accepts a warnings list but never uses it — silent None drawdown with no warning, inconsistent with siblings | 待修 |
+| BUG-064 | Bug | P3 | _extract_drawdown accepts a warnings list but never uses it — silent None drawdown with no warning, inconsistent with siblings | 已修 |
 | BUG-065 | Bug | P3 | 镜像列(verdict/entry/target/tagline)在 extractor 逻辑演进后无回填路径，旧行永久陈旧 | 待修 |
 | BUG-066 | Bug | P3 | 禁用态按钮的『为什么不可用』只靠 title tooltip：disabled 元素不触发 hover、tooltip 鼠标专属，键盘/触屏用户拿不到原因（IC 辩论 & Compare） | 待修 |
 | BUG-067 | Bug | P3 | 退役路由的「已合并」提示 toast 写进 sessionStorage 但全代码无人读取——功能彻底失效且 router 注释撒谎 | 待修 |
@@ -688,7 +688,7 @@
 - **修复方案**：Add to BacktestResult (engine.py) a field `annualized_return: float | None = None`. In backtrader_adapter._run_sync add `annualized_return = self._extract_returns(strat, warnings)` reading `strat.analyzers.returns.get_analysis().get('rnorm100')/100`. Pass it into BacktestResult. In engine.py format_summary print both with explicit basis, e.g. 'Total Return (cumulative): +X%' and 'Annualized Return: +Y%'. Either consume the Returns analyzer or remove line 130 — do not leave it dead. Note strategy_agent selects on total_return; consider whether selection should use annualized_return when windows differ (here windows are fixed per run so it is fine, but document it).
 - **验证补充**：Fix is correct: add annualized_return field + _extract_returns reading rnorm100/100, or remove the dead analyzer. Minor: rnorm100 is already a percent (e.g. 0.286 meaning 0.286%/... actually it is %); divide by 100 to get a fraction for consistency with total_return being a fraction — the proposed '/100' is right. Keep the explicit-basis labels.
 - **影响面/回归风险**：Display/clarity correctness; no change to underlying trade simulation. Adds one optional field (backward compatible). Low regression risk; format_summary string output changes (update any test pinning exact summary text).
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（Returns analyzer 已挂未读（死分析器）。BacktestResult 加 annualized_return；_extract_returns 读 rnorm100/100（与 total_return 同 basis），缺失时 warn。format_summary 显式标注 Total Return (cumulative) 与 Annualized Return 双口径。strategy_agent 选择逻辑不动（属 BUG-041）。与 BUG-064 同提交。）
 
 #### [BUG-041] run_strategy_selection tunes 3 iterations on one in-sample window and reports max(total_return) as a 'good' strategy — pure overfitting, no out-of-sample
 
@@ -1003,7 +1003,7 @@
 - **修复方案**：In the None branch add `warnings.append('Insufficient data for max drawdown calculation')` before returning None, mirroring _extract_sharpe. Trivial one-line change; no signature change. Optionally add a test asserting the warning is emitted when the analyzer yields no max.
 - **验证补充**：One-line fix as proposed is correct. Minor wording: a None drawdown on a zero-trade backtest is really 'no trades executed' more than 'insufficient data'; consider 'No trades executed; max drawdown unavailable' for accuracy, but mirroring the Sharpe phrasing for consistency is acceptable.
 - **影响面/回归风险**：Cosmetic/consistency; no numeric change. Zero regression risk. Makes degraded backtests honest about which metrics were unavailable.
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（_extract_drawdown 的 warnings 参数原本死参数——None 分支 append 「Insufficient data for max drawdown calculation」（镜像 _extract_sharpe 措辞），零交易/空分析现给用户警告而非静默 None。与 BUG-040 同提交。）
 
 #### [BUG-065] 镜像列(verdict/entry/target/tagline)在 extractor 逻辑演进后无回填路径，旧行永久陈旧
 

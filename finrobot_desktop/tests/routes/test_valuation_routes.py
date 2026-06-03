@@ -20,6 +20,7 @@ from finrobot.artifact.models import (
 )
 from finrobot.artifact.store import ArtifactStore
 from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.normalize.contracts import NormalizedFinancials, Provenance
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import (
     CompanyFinancials,
@@ -38,10 +39,17 @@ NOW = datetime(2026, 5, 21, tzinfo=UTC)
 
 class _StubDataLayer:
     """Returns a PRICE-shaped payload for everything except FORWARD_ESTIMATES,
-    which returns the injected analyst-estimate rows (or empty when None)."""
+    which returns the injected analyst-estimate rows (or empty when None).
 
-    def __init__(self, forward_rows: list[dict] | None = None) -> None:
+    ``fetch_canonical(FINANCIALS)`` returns a NormalizedFinancials carrying the
+    configured ``reporting_currency`` so the BUG-006 forward-EPS FX conversion
+    in ``routes/valuation._forward_to_usd`` can resolve the issuer's currency."""
+
+    def __init__(
+        self, forward_rows: list[dict] | None = None, *, reporting_currency: str = "USD"
+    ) -> None:
         self._forward_rows = forward_rows
+        self._reporting_currency = reporting_currency
 
     async def fetch(self, data_type: DataType | str, ticker: str, **_: object) -> DataResult:
         if DataType(data_type) == DataType.FORWARD_ESTIMATES:
@@ -60,13 +68,29 @@ class _StubDataLayer:
             timestamp=NOW,
         )
 
+    async def fetch_canonical(
+        self, data_type: DataType | str, ticker: str, **_: object
+    ) -> NormalizedFinancials:
+        return NormalizedFinancials(
+            ticker=ticker,
+            reporting_currency=self._reporting_currency,
+            as_of=NOW,
+            provenance=Provenance(provider="stub", as_of=NOW, fetched_at=NOW),
+        )
+
+
+class _StubSettings(BaseModel):
+    fmp_api_key: str = ""
+
 
 class _StubDeps(BaseModel):
-    """Mimics FinRobotDeps just enough that routes/valuation can read .data_layer."""
+    """Mimics FinRobotDeps just enough that routes/valuation can read
+    .data_layer and .settings.fmp_api_key."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     data_layer: _StubDataLayer
+    settings: _StubSettings = _StubSettings()
 
 
 def _dcf_artifact() -> Artifact:
@@ -215,7 +239,10 @@ def _comps_artifact() -> Artifact:
 
 
 async def _app_with_artifacts(
-    tmp_dir: Path, *artifacts: Artifact, forward_rows: list[dict] | None = None
+    tmp_dir: Path,
+    *artifacts: Artifact,
+    forward_rows: list[dict] | None = None,
+    reporting_currency: str = "USD",
 ) -> FastAPI:
     store = ArtifactStore(base_dir=tmp_dir)
     for art in artifacts:
@@ -223,7 +250,9 @@ async def _app_with_artifacts(
     app = FastAPI()
     app.include_router(router)
     app.state.artifact_store = store
-    app.state.deps = _StubDeps(data_layer=_StubDataLayer(forward_rows))
+    app.state.deps = _StubDeps(
+        data_layer=_StubDataLayer(forward_rows, reporting_currency=reporting_currency)
+    )
     return app
 
 
@@ -279,6 +308,40 @@ async def test_aggregate_endpoint_uses_forward_eps_when_estimates_available(
     assert comps["source"].startswith("peer_median_pe × forward_eps")
     assert "as-reported" in comps["source"]
     assert abs(comps["mid"] - 172.0) < 0.01
+
+
+@pytest.mark.asyncio
+async def test_aggregate_endpoint_converts_reporting_ccy_forward_eps_to_usd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BUG-006: an ADR's FMP forward EPS is in the reporting currency (TWD).
+    The aggregator multiplies it by a USD-normalized peer P/E, so the route MUST
+    convert forward EPS → USD first. With reporting_currency=TWD and a mocked
+    TWD→USD rate of 0.0313, EPS 98.89 (TWD) → ≈ $3.095 (USD), so the comps_pe
+    mid is 20 × 3.095 ≈ $61.9 — NOT 20 × 98.89 ≈ $1,978 (the un-converted bug)."""
+    twd_usd = 0.0313
+
+    async def _fake_fx(from_ccy: str, *, fmp_api_key: str | None = None) -> float:
+        assert from_ccy.upper() == "TWD"
+        return twd_usd
+
+    # Patch where routes/valuation imported the symbol.
+    monkeypatch.setattr("finrobot.routes.valuation.fetch_fx_rate_to_usd", _fake_fx)
+
+    forward_rows = [{"date": "2030-09-30", "estimatedEpsAvg": 98.89}]  # TWD per share
+    app = await _app_with_artifacts(
+        tmp_path, _comps_artifact(), forward_rows=forward_rows, reporting_currency="TWD"
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/valuation/aggregate/NVDA")
+    assert r.status_code == 200
+    body = r.json()
+    comps = next(m for m in body["methods"] if m["method"] == "comps_pe")
+    expected = 20.0 * (98.89 * twd_usd)  # ≈ 61.9
+    assert abs(comps["mid"] - expected) < 0.05
+    # The un-converted TWD result would have been ~1,978 — prove we're nowhere near it.
+    assert comps["mid"] < 200
 
 
 @pytest.mark.asyncio

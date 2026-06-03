@@ -33,6 +33,7 @@ from finrobot.engine.compute.catalyst import (
 )
 from finrobot.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
+from finrobot.engine.compute.extractor import normalize_financials_to_usd
 from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
 from finrobot.engine.compute.ownership import compute_ownership_governance
 from finrobot.engine.compute.technical_payload import (
@@ -429,6 +430,14 @@ async def _execute_financial_modeling(
                 cagr_revenue=None,
                 ticker=ticker,
             )
+
+    # FX-normalize a foreign issuer's financials to canonical USD before seeding
+    # so a TWD numerator (revenue/net_income/debt) never mixes with the USD
+    # market_cap — the cross-currency garbage that prints a TWD-per-share implied
+    # price as USD and corrupts the WACC debt-weight (BUG-073). No-op for US issuers.
+    financial_data = await normalize_financials_to_usd(
+        financial_data, fmp_api_key=getattr(deps.settings, "fmp_api_key", None)
+    )
 
     dcf_inputs = seed_dcf_inputs(financial_data, historical)
     try:

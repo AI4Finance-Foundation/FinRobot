@@ -6,8 +6,20 @@ import math
 
 import pytest
 
-from finrobot.engine.compute.fx_normalize import normalize_company_to_usd
-from finrobot.engine.models.financial import CompanyFinancials
+from datetime import datetime, timezone
+
+from finrobot.engine.compute.fx_normalize import (
+    normalize_company_to_usd,
+    normalize_financialdata_to_usd,
+)
+from finrobot.engine.models.financial import (
+    BalanceSheet,
+    CompanyFinancials,
+    FinancialData,
+    IncomeStatement,
+    MarketData,
+    ValuationMetrics,
+)
 
 
 def _peer(
@@ -193,6 +205,195 @@ class TestLocalListing:
             result.enterprise_value,
             rel_tol=1e-9,
         )
+
+
+def _fd(
+    *,
+    reporting_currency: str = "USD",
+    quote_currency: str = "USD",
+    revenue: float = 100e9,
+    ebitda: float | None = 30e9,
+    net_income: float | None = 20e9,
+    operating_income: float | None = 25e9,
+    income_tax_expense: float | None = 4e9,
+    interest_expense: float | None = 1e9,
+    da: float | None = 5e9,
+    total_debt: float = 10e9,
+    total_cash: float = 5e9,
+    market_cap: float = 500e9,
+    current_price: float = 100.0,
+    enterprise_value: float | None = None,
+) -> FinancialData:
+    return FinancialData(
+        ticker="X",
+        timestamp=datetime.now(tz=timezone.utc),
+        income=IncomeStatement(
+            revenue=revenue,
+            ebitda=ebitda,
+            net_income=net_income,
+            operating_income=operating_income,
+            income_tax_expense=income_tax_expense,
+            interest_expense=interest_expense,
+            depreciation_amortization=da,
+        ),
+        balance=BalanceSheet(total_debt=total_debt, total_cash=total_cash),
+        market=MarketData(
+            market_cap=market_cap,
+            shares_outstanding=5e9,
+            current_price=current_price,
+            price_52w_high=current_price * 1.2,
+            price_52w_low=current_price * 0.8,
+            beta=1.1,
+        ),
+        valuation=ValuationMetrics(enterprise_value=enterprise_value),
+        reporting_currency=reporting_currency,
+        quote_currency=quote_currency,
+    )
+
+
+class TestFinancialDataNoOp:
+    def test_pure_usd_returned_unchanged(self):
+        """US issuer (both currencies USD): same instance, no copy, no FX read."""
+        fd = _fd()
+        result = normalize_financialdata_to_usd(
+            fd, reporting_fx_rate_to_usd=999.0, quote_fx_rate_to_usd=999.0
+        )
+        assert result is fd
+
+    def test_us_issuer_numbers_unchanged_exact_noop(self):
+        """Regression: USD/USD must be a byte-for-byte no-op (numbers unchanged)."""
+        fd = _fd(
+            revenue=383_285e6,
+            net_income=96_995e6,
+            total_debt=111_088e6,
+            total_cash=29_965e6,
+            market_cap=2_900_000e6,
+            current_price=185.0,
+        )
+        result = normalize_financialdata_to_usd(fd, 0.0313, 0.0313)
+        assert result.income.revenue == 383_285e6
+        assert result.income.net_income == 96_995e6
+        assert result.balance.total_debt == 111_088e6
+        assert result.balance.total_cash == 29_965e6
+        assert result.market.market_cap == 2_900_000e6
+        assert result.market.current_price == 185.0
+        assert result.reporting_currency == "USD"
+        assert result.quote_currency == "USD"
+
+
+class TestFinancialDataAdr:
+    """TSM-shape: TWD reporting financials, USD quote (market_cap / price)."""
+
+    def test_is_bs_scaled_quote_untouched(self):
+        rate = 0.0313
+        fd = _fd(
+            reporting_currency="TWD",
+            quote_currency="USD",
+            revenue=4_536_412e6,  # TWD
+            ebitda=2_700_000e6,
+            net_income=1_500_000e6,
+            operating_income=1_900_000e6,
+            income_tax_expense=200_000e6,
+            interest_expense=6_000e6,
+            da=600_000e6,
+            total_debt=2_290_000e6,  # TWD
+            total_cash=2_000_000e6,
+            market_cap=2_290_000e6,  # USD — already quote ccy
+            current_price=441.4,  # USD
+        )
+        result = normalize_financialdata_to_usd(fd, rate, 1.0)
+        assert result is not fd
+        assert result.reporting_currency == "USD"
+        assert result.quote_currency == "USD"
+        # Reporting-currency items scaled by the reporting rate.
+        assert math.isclose(result.income.revenue, 4_536_412e6 * rate, rel_tol=1e-9)
+        assert math.isclose(result.income.net_income, 1_500_000e6 * rate, rel_tol=1e-9)
+        assert math.isclose(result.income.operating_income, 1_900_000e6 * rate, rel_tol=1e-9)
+        assert math.isclose(result.income.income_tax_expense, 200_000e6 * rate, rel_tol=1e-9)
+        assert math.isclose(result.income.depreciation_amortization, 600_000e6 * rate, rel_tol=1e-9)
+        assert math.isclose(result.balance.total_debt, 2_290_000e6 * rate, rel_tol=1e-9)
+        assert math.isclose(result.balance.total_cash, 2_000_000e6 * rate, rel_tol=1e-9)
+        # Quote-currency items untouched (quote rate = 1.0 since already USD).
+        assert result.market.market_cap == 2_290_000e6
+        assert result.market.current_price == 441.4
+
+    def test_effective_tax_ratio_currency_invariant(self):
+        """tax / (net_income + tax) must be identical pre/post normalization."""
+        rate = 0.0313
+        fd = _fd(
+            reporting_currency="TWD",
+            quote_currency="USD",
+            net_income=1_500_000e6,
+            income_tax_expense=200_000e6,
+        )
+        result = normalize_financialdata_to_usd(fd, rate, 1.0)
+        pre = fd.income.income_tax_expense / (fd.income.net_income + fd.income.income_tax_expense)
+        post = result.income.income_tax_expense / (
+            result.income.net_income + result.income.income_tax_expense
+        )
+        assert math.isclose(pre, post, rel_tol=1e-9)
+
+    def test_none_fields_stay_none(self):
+        fd = _fd(
+            reporting_currency="TWD",
+            quote_currency="USD",
+            ebitda=None,
+            net_income=None,
+            income_tax_expense=None,
+            da=None,
+        )
+        result = normalize_financialdata_to_usd(fd, 0.0313, 1.0)
+        assert result.income.ebitda is None
+        assert result.income.net_income is None
+        assert result.income.income_tax_expense is None
+        assert result.income.depreciation_amortization is None
+
+    def test_shares_outstanding_and_beta_unchanged(self):
+        """shares_outstanding is a count and beta is dimensionless — never scaled."""
+        fd = _fd(reporting_currency="TWD", quote_currency="USD")
+        result = normalize_financialdata_to_usd(fd, 0.0313, 1.0)
+        assert result.market.shares_outstanding == fd.market.shares_outstanding
+        assert result.market.beta == fd.market.beta
+
+    def test_mismatched_currency_drops_cached_ev(self):
+        """A cached EV mixed USD market_cap with TWD net debt — drop it."""
+        fd = _fd(reporting_currency="TWD", quote_currency="USD", enterprise_value=99_999e6)
+        result = normalize_financialdata_to_usd(fd, 0.0313, 1.0)
+        assert result.valuation.enterprise_value is None
+
+
+class TestFinancialDataLocalListing:
+    """2330.TW shape: both currencies TWD — market_cap and price also scale."""
+
+    def test_all_fields_including_quote_scaled(self):
+        rate = 0.0313
+        fd = _fd(
+            reporting_currency="TWD",
+            quote_currency="TWD",
+            revenue=4_536_412e6,
+            market_cap=73_000_000e6,  # TWD
+            current_price=14_100.0,  # TWD
+            total_debt=2_290_000e6,
+            enterprise_value=75_000_000e6,
+        )
+        result = normalize_financialdata_to_usd(fd, rate, rate)
+        assert math.isclose(result.market.market_cap, 73_000_000e6 * rate, rel_tol=1e-9)
+        assert math.isclose(result.market.current_price, 14_100.0 * rate, rel_tol=1e-9)
+        # When both tags match the cached EV is internally consistent — scale it.
+        assert result.valuation.enterprise_value is not None
+        assert math.isclose(result.valuation.enterprise_value, 75_000_000e6 * rate, rel_tol=1e-9)
+
+
+class TestFinancialDataRateValidation:
+    def test_zero_reporting_rate_raises(self):
+        fd = _fd(reporting_currency="TWD", quote_currency="USD")
+        with pytest.raises(ValueError, match="reporting_fx_rate_to_usd"):
+            normalize_financialdata_to_usd(fd, 0.0, 1.0)
+
+    def test_unused_rate_not_validated(self):
+        """USD/USD no-op must skip validation even with absurd rates."""
+        fd = _fd()
+        normalize_financialdata_to_usd(fd, -9.9, float("nan"))
 
 
 class TestRateValidation:

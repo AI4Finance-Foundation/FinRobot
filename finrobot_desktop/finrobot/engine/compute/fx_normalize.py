@@ -25,7 +25,7 @@ peer-spread noise floor.
 
 from __future__ import annotations
 
-from finrobot.engine.models.financial import CompanyFinancials
+from finrobot.engine.models.financial import CompanyFinancials, FinancialData
 
 
 def normalize_company_to_usd(
@@ -125,6 +125,137 @@ def normalize_company_to_usd(
             converted.enterprise_value = None
         else:
             converted.enterprise_value = company.enterprise_value * reporting_rate
+
+    converted.reporting_currency = "USD"
+    converted.quote_currency = "USD"
+    return converted
+
+
+def normalize_financialdata_to_usd(
+    financials: FinancialData,
+    reporting_fx_rate_to_usd: float,
+    quote_fx_rate_to_usd: float,
+) -> FinancialData:
+    """Return a copy of ``financials`` with all monetary fields converted to USD.
+
+    The ``FinancialData`` sibling of :func:`normalize_company_to_usd`. Used at the
+    DCF/DDM seed boundary so the absolute valuation models never mix a
+    reporting-currency numerator (TWD revenue/net_income/debt) with a
+    quote-currency denominator (USD market_cap/shares) — the cross-currency garbage
+    that prints a TWD-per-share implied price as USD and a meaningless WACC
+    debt-weight (BUG-073). Symmetric with the peer-comps path (BUG-018).
+
+    Field rules (identical caliber to the peer normalizer):
+
+    - **reporting-currency** (income statement + balance sheet line items) scaled by
+      ``reporting_fx_rate_to_usd``: ``income.revenue / ebitda / net_income /
+      operating_income / depreciation_amortization / rd_expense / sga_expense /
+      interest_expense / income_tax_expense`` and ``balance.total_debt /
+      total_cash``. ``None`` stays ``None`` (a missing figure is not 0).
+    - **quote-currency** (market quote) scaled by ``quote_fx_rate_to_usd``:
+      ``market.market_cap`` and the per-share price fields
+      ``current_price / price_52w_high / price_52w_low`` (all quoted in the quote
+      currency).
+    - **enterprise_value** mixes quote-currency market_cap with reporting-currency
+      net debt; when the two currencies disagree the cached value is meaningless,
+      so it is dropped (recomputed downstream from the now-USD inputs). When they
+      agree it scales by the (shared) rate.
+    - **untouched**: ``shares_outstanding`` (a count), ``beta`` and ``pe_ratio`` and
+      the margin fields (dimensionless ratios). Per-share *amounts* that are
+      already in the quote currency are handled above.
+
+    Args:
+        financials: A ticker's snapshot carrying ``reporting_currency`` and
+            ``quote_currency`` tags from the extractor layer.
+        reporting_fx_rate_to_usd: Multiplicative factor for IS/BS items —
+            ``USD_value = local_value × rate`` (TWD→USD at 32 TWD/USD ⇒
+            ``1/32 ≈ 0.0313``). Ignored when ``reporting_currency`` is USD.
+        quote_fx_rate_to_usd: Multiplicative factor for market_cap / EV and the
+            per-share price fields. Ignored when ``quote_currency`` is USD.
+
+    Returns:
+        A new ``FinancialData`` with both currency tags set to USD and every
+        monetary field scaled. Fast path: when both tags are already USD the input
+        is returned unchanged (no copy) — the common US-issuer no-op.
+
+    Raises:
+        ValueError: If a rate that will actually be applied (the corresponding
+            currency is non-USD) is non-positive or NaN.
+    """
+    reporting_src = financials.reporting_currency.upper()
+    quote_src = financials.quote_currency.upper()
+
+    if reporting_src == "USD" and quote_src == "USD":
+        return financials
+
+    if reporting_src != "USD":
+        _validate_rate(reporting_fx_rate_to_usd, financials.ticker, reporting_src, "reporting")
+        reporting_rate = reporting_fx_rate_to_usd
+    else:
+        reporting_rate = 1.0
+
+    if quote_src != "USD":
+        _validate_rate(quote_fx_rate_to_usd, financials.ticker, quote_src, "quote")
+        quote_rate = quote_fx_rate_to_usd
+    else:
+        quote_rate = 1.0
+
+    converted = financials.model_copy(deep=True)
+
+    # ----- income statement (reporting currency) ----------------------------
+    inc = financials.income
+    converted.income.revenue = inc.revenue * reporting_rate
+    converted.income.ebitda = inc.ebitda * reporting_rate if inc.ebitda is not None else None
+    converted.income.net_income = (
+        inc.net_income * reporting_rate if inc.net_income is not None else None
+    )
+    converted.income.operating_income = (
+        inc.operating_income * reporting_rate if inc.operating_income is not None else None
+    )
+    converted.income.depreciation_amortization = (
+        inc.depreciation_amortization * reporting_rate
+        if inc.depreciation_amortization is not None
+        else None
+    )
+    converted.income.rd_expense = (
+        inc.rd_expense * reporting_rate if inc.rd_expense is not None else None
+    )
+    converted.income.sga_expense = (
+        inc.sga_expense * reporting_rate if inc.sga_expense is not None else None
+    )
+    converted.income.interest_expense = (
+        inc.interest_expense * reporting_rate if inc.interest_expense is not None else None
+    )
+    # income_tax_expense scales with net_income so the effective tax rate
+    # tax/(net_income+tax) stays currency-invariant (mirrors the peer path).
+    converted.income.income_tax_expense = (
+        inc.income_tax_expense * reporting_rate if inc.income_tax_expense is not None else None
+    )
+
+    # ----- balance sheet (reporting currency) -------------------------------
+    converted.balance.total_debt = financials.balance.total_debt * reporting_rate
+    converted.balance.total_cash = financials.balance.total_cash * reporting_rate
+
+    # ----- market quote (quote currency) ------------------------------------
+    mkt = financials.market
+    converted.market.market_cap = mkt.market_cap * quote_rate
+    converted.market.current_price = mkt.current_price * quote_rate
+    converted.market.price_52w_high = (
+        mkt.price_52w_high * quote_rate if mkt.price_52w_high is not None else None
+    )
+    converted.market.price_52w_low = (
+        mkt.price_52w_low * quote_rate if mkt.price_52w_low is not None else None
+    )
+
+    # ----- enterprise_value (mixed) -----------------------------------------
+    ev = financials.valuation.enterprise_value
+    if ev is not None:
+        # EV = quote-ccy market_cap + reporting-ccy net debt. When the two
+        # currencies disagree the cached value is meaningless; drop it so any
+        # downstream consumer recomputes from the now-consistently-USD inputs.
+        converted.valuation.enterprise_value = (
+            None if reporting_src != quote_src else ev * quote_rate
+        )
 
     converted.reporting_currency = "USD"
     converted.quote_currency = "USD"

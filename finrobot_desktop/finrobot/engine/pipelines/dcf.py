@@ -26,6 +26,7 @@ from pydantic_ai import Agent
 
 from finrobot.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
+from finrobot.engine.compute.extractor import normalize_financials_to_usd
 from finrobot.engine.compute.wacc import calculate_wacc
 from finrobot.engine.compute.historical_extractor import (
     fetch_historical_metrics,
@@ -79,6 +80,13 @@ async def _execute_dcf_calc(
 
     # Multi-year history powers the 3y-median assumption derivation.
     historical = await fetch_historical_metrics(deps.data_layer, ticker)
+
+    # FX-normalize a foreign issuer's financials to canonical USD before seeding so
+    # a TWD numerator never mixes with the USD market_cap/shares (BUG-073). No-op
+    # for US issuers (both currency tags USD).
+    financial_data = await normalize_financials_to_usd(
+        financial_data, fmp_api_key=getattr(deps.settings, "fmp_api_key", None)
+    )
     dcf_inputs = seed_dcf_inputs(financial_data, historical)
 
     # Gordon Growth terminal value is undefined when terminal growth >= WACC,

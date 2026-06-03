@@ -25,7 +25,10 @@ from finrobot.engine.models.financial import (
     PriceHistory,
     CompanyFinancials,
 )
-from finrobot.engine.compute.fx_normalize import normalize_company_to_usd
+from finrobot.engine.compute.fx_normalize import (
+    normalize_company_to_usd,
+    normalize_financialdata_to_usd,
+)
 from finrobot.engine.compute.multiples import (
     calculate_ebitda_operating,
     calculate_ebitda_reported,
@@ -309,6 +312,40 @@ async def normalize_peer_to_usd(
     else:
         quote_rate = await fetch_fx_rate_to_usd(company.quote_currency, fmp_api_key=fmp_api_key)
     return normalize_company_to_usd(company, reporting_rate, quote_rate)
+
+
+async def normalize_financials_to_usd(
+    financials: FinancialData, *, fmp_api_key: str | None = None
+) -> FinancialData:
+    """Convert a ticker's IS/BS items (and market_cap/price if quoted non-USD) to
+    canonical USD using today's spot FX. No-op fast path when both currency tags
+    are already USD — the common US-issuer case.
+
+    The ``FinancialData`` sibling of :func:`normalize_peer_to_usd`: the single
+    async fetch-and-normalize recipe every absolute-valuation seed caller (DCF /
+    DDM / IC-memo pipelines + the dcf-seed route) runs BEFORE
+    ``seed_dcf_inputs`` / ``seed_ddm_inputs``, so a foreign issuer's TWD
+    revenue/net_income/debt never mixes with its USD market_cap (BUG-073). The
+    seed leaves stay pure/sync; the async FX read happens here.
+
+    ``fmp_api_key`` is forwarded to the FX layer as a fallback source so a
+    yfinance rate-limit storm doesn't strand an otherwise-fetchable foreign rate.
+    """
+    if financials.reporting_currency == "USD" and financials.quote_currency == "USD":
+        return financials
+    reporting_rate = (
+        1.0
+        if financials.reporting_currency == "USD"
+        else await fetch_fx_rate_to_usd(financials.reporting_currency, fmp_api_key=fmp_api_key)
+    )
+    if financials.quote_currency == "USD":
+        quote_rate = 1.0
+    elif financials.quote_currency == financials.reporting_currency:
+        # Local listing (e.g. 2330.TW): both tags equal, reuse the rate.
+        quote_rate = reporting_rate
+    else:
+        quote_rate = await fetch_fx_rate_to_usd(financials.quote_currency, fmp_api_key=fmp_api_key)
+    return normalize_financialdata_to_usd(financials, reporting_rate, quote_rate)
 
 
 def extract_price_history(price: NormalizedPrice) -> PriceHistory:

@@ -25,7 +25,10 @@ from pydantic_ai import Agent
 
 from finrobot.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
-from finrobot.engine.compute.extractor import extract_financial_data
+from finrobot.engine.compute.extractor import (
+    extract_financial_data,
+    normalize_financials_to_usd,
+)
 from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
 from finrobot.engine.compute.lbo import calculate_lbo
 from finrobot.engine.compute.lbo_seed import seed_lbo_inputs
@@ -105,6 +108,15 @@ async def _execute_ic_financials(
             cagr_revenue=None,
             ticker=ticker,
         )
+
+    # FX-normalize a foreign issuer's financials to canonical USD before seeding
+    # both models so a TWD revenue/EBITDA/debt never mixes with the USD
+    # market_cap (BUG-073). No-op for US issuers. Feeding the USD snapshot to the
+    # LBO seed keeps that model internally single-currency-consistent (now USD),
+    # not "forced FX" — it never mixed currencies internally to begin with.
+    financial_data = await normalize_financials_to_usd(
+        financial_data, fmp_api_key=getattr(deps.settings, "fmp_api_key", None)
+    )
 
     # --- DCF ---
     dcf_inputs = seed_dcf_inputs(financial_data, historical)

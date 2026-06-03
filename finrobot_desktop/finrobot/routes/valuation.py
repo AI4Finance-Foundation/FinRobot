@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from datetime import date, datetime, timezone
 from typing import Any, Literal
 
@@ -25,6 +26,7 @@ from finrobot.engine.data.historical_loaders import (
 )
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
+from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import (
     DCFResult,
@@ -55,7 +57,7 @@ async def aggregate_for_ticker(ticker: str, request: Request) -> ValuationAggreg
 
     dcf, peer_comps, ddm, lbo = await _gather_latest_results(store, ticker)
     shares = _shares_outstanding(dcf, lbo)
-    forward = await _forward_financials(ticker, data_layer)
+    forward = await _forward_financials(ticker, data_layer, fmp_api_key=_fmp_api_key(request))
     as_of = datetime.now(tz=timezone.utc)
 
     return aggregate_valuation(
@@ -75,7 +77,9 @@ async def aggregate_for_ticker(ticker: str, request: Request) -> ValuationAggreg
     )
 
 
-async def _forward_financials(ticker: str, data_layer: DataLayer | None) -> ForwardFinancials:
+async def _forward_financials(
+    ticker: str, data_layer: DataLayer | None, *, fmp_api_key: str | None = None
+) -> ForwardFinancials:
     """Resolve FY1 forward consensus via DataLayer → the red-line leaf.
 
     Fetches DataType.FORWARD_ESTIMATES (FMP /analyst-estimates) and hands the
@@ -84,6 +88,14 @@ async def _forward_financials(ticker: str, data_layer: DataLayer | None) -> Forw
     payload (no ``rows``); the leaf then degrades to ``unavailable`` (all None)
     so the aggregator hides the forward-multiple rows with a warning instead of
     inventing a number — matches the BACKLOG P0 acceptance criterion.
+
+    FMP analyst-estimates are denominated in the issuer's REPORTING currency
+    (TWD for TSM), but the aggregator multiplies forward EPS by a USD-normalized
+    peer P/E and compares the result against a USD current price. So for a foreign
+    issuer the forward EPS / EBITDA / FCF are converted to USD here, BEFORE the
+    pure aggregator multiplies them — otherwise a USD multiple × TWD EPS prints a
+    ~32x-inflated target (BUG-006). The reporting currency comes from the
+    canonical FINANCIALS snapshot (resolved via the country override).
     """
     payload: dict[str, Any] | None = None
     if data_layer is not None:
@@ -96,6 +108,7 @@ async def _forward_financials(ticker: str, data_layer: DataLayer | None) -> Forw
                 payload = result.data
 
     forward = get_forward_financials(ticker=ticker, yf_info=None, fmp_analyst_estimates=payload)
+    forward = await _forward_to_usd(forward, ticker, data_layer, fmp_api_key=fmp_api_key)
     if forward.fiscal_period is not None:
         logger.info(
             "forward estimates %s: FY-end %s eps=%s ebitda=%s fcf=%s (confidence=%s)",
@@ -109,6 +122,72 @@ async def _forward_financials(ticker: str, data_layer: DataLayer | None) -> Forw
     return forward
 
 
+async def _forward_to_usd(
+    forward: ForwardFinancials,
+    ticker: str,
+    data_layer: DataLayer | None,
+    *,
+    fmp_api_key: str | None = None,
+) -> ForwardFinancials:
+    """Convert reporting-currency forward EPS / EBITDA / FCF to USD.
+
+    No-op when the issuer reports in USD (US issuers) or there is nothing to
+    convert. The aggregator's forward path pairs a USD-normalized peer P/E with
+    forward EPS and a USD current price, so the forward numbers MUST be USD too
+    (BUG-006). EPS is per-share, EBITDA / FCF are absolute — all three are
+    reporting-currency amounts, so a single reporting→USD rate applies to each.
+    """
+    has_value = (
+        forward.forward_eps is not None
+        or forward.forward_ebitda is not None
+        or forward.forward_fcf is not None
+    )
+    if data_layer is None or not has_value:
+        return forward
+
+    try:
+        fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+    except (ProviderError, ValueError, KeyError) as exc:
+        logger.info("forward FX: reporting currency lookup failed for %s: %s", ticker, exc)
+        return forward
+
+    reporting_ccy = getattr(fin, "reporting_currency", "USD").upper()
+    if reporting_ccy == "USD":
+        return forward
+
+    try:
+        rate = await fetch_fx_rate_to_usd(reporting_ccy, fmp_api_key=fmp_api_key)
+    except ProviderError as exc:
+        # Can't get a rate — drop the un-convertible forward numbers rather than
+        # multiply a TWD EPS by a USD P/E. The aggregator then hides those rows.
+        logger.warning(
+            "forward FX: no %s→USD rate for %s (%s) — dropping forward numbers",
+            reporting_ccy,
+            ticker,
+            exc,
+        )
+        return replace(
+            forward,
+            forward_eps=None,
+            forward_ebitda=None,
+            forward_fcf=None,
+            warnings=[
+                *forward.warnings,
+                f"forward FX {reporting_ccy}→USD 不可得 — forward 行降级隐藏",
+            ],
+        )
+
+    return replace(
+        forward,
+        forward_eps=forward.forward_eps * rate if forward.forward_eps is not None else None,
+        forward_ebitda=(
+            forward.forward_ebitda * rate if forward.forward_ebitda is not None else None
+        ),
+        forward_fcf=forward.forward_fcf * rate if forward.forward_fcf is not None else None,
+        source=f"{forward.source} · {reporting_ccy}→USD @ {rate:.5f}",
+    )
+
+
 def _store(request: Request) -> ArtifactStore:
     store: ArtifactStore | None = getattr(request.app.state, "artifact_store", None)
     if store is None:
@@ -119,6 +198,15 @@ def _store(request: Request) -> ArtifactStore:
 def _data_layer(request: Request) -> DataLayer | None:
     deps = getattr(request.app.state, "deps", None)
     return getattr(deps, "data_layer", None) if deps is not None else None
+
+
+def _fmp_api_key(request: Request) -> str | None:
+    """FMP key threaded to the FX layer as a fallback source for forward-EPS
+    currency conversion (a yfinance rate-limit storm shouldn't strand the rate).
+    """
+    deps = getattr(request.app.state, "deps", None)
+    settings = getattr(deps, "settings", None) if deps is not None else None
+    return getattr(settings, "fmp_api_key", None) if settings is not None else None
 
 
 async def _current_price(ticker: str, data_layer: DataLayer | None) -> float | None:

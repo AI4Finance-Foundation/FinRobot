@@ -26,6 +26,8 @@ from pydantic_ai import Agent
 
 from finrobot.engine.compute.ddm import calculate_ddm, calculate_ddm_sensitivity
 from finrobot.engine.compute.ddm_seed import seed_ddm_inputs
+from finrobot.engine.compute.fx_normalize import normalize_financialdata_to_usd
+from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import DDMInputs, FinancialData, StepOutput
@@ -80,6 +82,47 @@ async def _execute_ddm_seed(
         )
 
     _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+
+    # FX-normalize to canonical USD before seeding so a foreign issuer's
+    # reporting-currency dividend / net income never mixes with its USD quote
+    # price — otherwise the DDM equity_value_per_share (built from a TWD DPS) is
+    # compared against a USD current_price and reads ~32x off (BUG-073). DPS and
+    # book value per share live on the NormalizedFinancials snapshot (not
+    # FinancialData), so they need the reporting rate applied alongside.
+    fmp_api_key = getattr(deps.settings, "fmp_api_key", None)
+    reporting_src = financial_data.reporting_currency.upper()
+    quote_src = financial_data.quote_currency.upper()
+    if reporting_src != "USD" or quote_src != "USD":
+        reporting_rate = (
+            1.0
+            if reporting_src == "USD"
+            else await fetch_fx_rate_to_usd(reporting_src, fmp_api_key=fmp_api_key)
+        )
+        if quote_src == "USD":
+            quote_rate = 1.0
+        elif quote_src == reporting_src:
+            quote_rate = reporting_rate
+        else:
+            quote_rate = await fetch_fx_rate_to_usd(quote_src, fmp_api_key=fmp_api_key)
+        financial_data = normalize_financialdata_to_usd(financial_data, reporting_rate, quote_rate)
+        # NormalizedFinancials per-share dividend amounts are reporting-currency.
+        _fin = _fin.model_copy(
+            update={
+                "dividend_per_share": (
+                    _fin.dividend_per_share * reporting_rate
+                    if _fin.dividend_per_share is not None
+                    else None
+                ),
+                "book_value_per_share": (
+                    _fin.book_value_per_share * reporting_rate
+                    if _fin.book_value_per_share is not None
+                    else None
+                ),
+                "reporting_currency": "USD",
+                "quote_currency": "USD",
+            }
+        )
+
     ddm_inputs = seed_ddm_inputs(financial_data, _fin)
 
     return StepOutput(text=ddm_inputs.model_dump_json(), structured=ddm_inputs)

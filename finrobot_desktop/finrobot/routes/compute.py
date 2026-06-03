@@ -219,7 +219,10 @@ async def _seed_dcf_inputs_for_ticker(
     through to Damodaran industry medians rather than raising.
     """
     from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
-    from finrobot.engine.compute.extractor import extract_financial_data
+    from finrobot.engine.compute.extractor import (
+        extract_financial_data,
+        normalize_financials_to_usd,
+    )
     from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
     from finrobot.engine.data.types import DataType
 
@@ -227,6 +230,13 @@ async def _seed_dcf_inputs_for_ticker(
     _fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
     _price = await data_layer.fetch_canonical(DataType.PRICE, ticker)
     financial_data = extract_financial_data(_fin, _price)
+
+    # FX-normalize a foreign issuer's financials to canonical USD before seeding so
+    # the implied price comes out in USD (not a ~32x-inflated TWD-per-share) and the
+    # WACC debt-weight isn't cross-currency garbage (BUG-073). No-op for US issuers.
+    financial_data = await normalize_financials_to_usd(
+        financial_data, fmp_api_key=getattr(deps.settings, "fmp_api_key", None)
+    )
 
     try:
         historical = await fetch_historical_metrics(data_layer, ticker)

@@ -20,7 +20,7 @@ import { Command } from 'cmdk'
 import { Title as DialogTitle, Description as DialogDescription } from '@radix-ui/react-dialog'
 import { useQuery } from '@tanstack/react-query'
 import { useDebounce } from 'use-debounce'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAppStore } from '../stores/appStore'
 import { useCoverageStore } from '../stores/coverageStore'
 import { useToastStore } from '../stores/toastStore'
@@ -53,6 +53,128 @@ const MAX_RECENT_SEARCHES = 10
 const SEARCH_DEBOUNCE_MS = 200
 const SEARCH_STALE_TIME_MS = 30_000
 const SEARCH_TIMEOUT_MS = 5_000
+
+// ---------------------------------------------------------------------------
+// Report section jump (BUG-016)
+//
+// When the user is on a report detail route (/stocks/:ticker/runs/:artifactId)
+// and types a section word, offer a LOCAL "jump to section" command that
+// navigates to the chapter anchor on the *current* artifact. Anchor ids are the
+// real <section id="..."> values rendered by ChapterBase — they ARE the
+// CHAPTER_ORDER ids in artifact-detail/chapters/labels.ts. Kept inline here
+// (not imported) so the global palette has no dependency on report internals;
+// a labels.test.ts guards the chapter ids, and this map's anchors must match.
+//
+// `risks/风险/论点` all live in the catalysts + thesis chapters: we route
+// `risks → catalysts` (Positive · Risks · Watch) and `thesis/论点 → thesis`.
+// ---------------------------------------------------------------------------
+
+/** Report detail anchor ids (mirror CHAPTER_ORDER in chapters/labels.ts). */
+type SectionAnchor =
+  | 'thesis'
+  | 'overview'
+  | 'financial'
+  | 'valuation'
+  | 'news'
+  | 'sensitivity'
+  | 'catalysts'
+  | 'technical'
+  | 'competitive'
+  | 'data'
+  | 'ownership'
+
+interface SectionDef {
+  anchor: SectionAnchor
+  /** Lower-cased match terms, English + 中文. */
+  terms: string[]
+  labelEn: string
+  labelZh: string
+}
+
+// `cover` and `disclaimer` are intentionally omitted — they have no analyst
+// vocabulary worth jumping to from the command palette.
+const SECTION_DEFS: SectionDef[] = [
+  {
+    anchor: 'thesis',
+    terms: ['thesis', 'recommendation', 'rating', '论点', '投资论点', '评级', '结论'],
+    labelEn: 'Investment Thesis',
+    labelZh: '投资论点',
+  },
+  {
+    anchor: 'overview',
+    terms: ['overview', 'company', 'business', 'moat', '概览', '公司概览', '业务', '护城河'],
+    labelEn: 'Company Overview',
+    labelZh: '公司概览',
+  },
+  {
+    anchor: 'financial',
+    terms: ['financial', 'financials', 'forecast', '财务', '财务分析', '预测'],
+    labelEn: 'Financial Analysis',
+    labelZh: '财务分析',
+  },
+  {
+    anchor: 'valuation',
+    terms: ['valuation', 'dcf', 'comps', 'ddm', 'football field', '估值', '估值分析'],
+    labelEn: 'Valuation Analysis',
+    labelZh: '估值分析',
+  },
+  {
+    anchor: 'news',
+    terms: ['news', 'events', 'sentiment', '新闻', '事件', '情绪'],
+    labelEn: 'Recent News & Events',
+    labelZh: '近期新闻与事件',
+  },
+  {
+    anchor: 'sensitivity',
+    terms: ['sensitivity', 'what-if', 'whatif', '敏感性', '敏感性分析'],
+    labelEn: 'Sensitivity Analysis',
+    labelZh: '敏感性分析',
+  },
+  {
+    anchor: 'catalysts',
+    terms: ['catalysts', 'catalyst', 'risks', 'risk', 'watch', '催化剂', '风险', '关键催化剂'],
+    labelEn: 'Key Catalysts',
+    labelZh: '关键催化剂',
+  },
+  {
+    anchor: 'technical',
+    terms: ['technical', 'montecarlo', 'monte carlo', 'sniper', '技术', '蒙特卡洛', '狙击'],
+    labelEn: 'Technical & Advanced',
+    labelZh: '技术与高阶分析',
+  },
+  {
+    anchor: 'competitive',
+    terms: ['competitive', 'competition', 'peers', 'peer', '竞争', '竞争格局', '同业'],
+    labelEn: 'Competitive Landscape',
+    labelZh: '竞争格局',
+  },
+  {
+    anchor: 'data',
+    terms: ['data', 'raw', 'audit', 'source', '数据', '财务数据', '审计'],
+    labelEn: 'Financial Data',
+    labelZh: '财务数据',
+  },
+  {
+    anchor: 'ownership',
+    terms: ['ownership', 'governance', 'insiders', 'institutions', '持股', '股权', '治理', '机构'],
+    labelEn: 'Ownership & Governance',
+    labelZh: '股权与治理',
+  },
+]
+
+/** Parse a report detail pathname into its ticker + artifact id, or null. */
+export function parseReportRoute(pathname: string): { ticker: string; artifactId: string } | null {
+  const m = pathname.match(/^\/stocks\/([^/]+)\/runs\/([^/]+)\/?$/)
+  if (!m) return null
+  return { ticker: decodeURIComponent(m[1]), artifactId: decodeURIComponent(m[2]) }
+}
+
+/** Section words matching the query (substring match against zh+en terms). */
+export function matchSections(query: string): SectionDef[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
+  return SECTION_DEFS.filter((s) => s.terms.some((term) => term.includes(q) || q.includes(term)))
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -234,6 +356,7 @@ export function CmdKOverlay() {
   const setCmdPaletteOpen = useAppStore((s) => s.setCmdPaletteOpen)
   const setCmdKQuery = useAppStore((s) => s.setCmdKQuery)
   const navigate = useNavigate()
+  const location = useLocation()
   const { t, locale } = useI18n()
 
   const abortRef = useRef<AbortController | null>(null)
@@ -449,6 +572,34 @@ export function CmdKOverlay() {
   }, [staticCommands, trimmedQuery])
 
   // ---------------------------------------------------------------------------
+  // In-report section jump (BUG-016) — only when on a report detail route.
+  // Typing a section word (valuation/估值, risks/风险, thesis/论点, …) offers a
+  // local command that navigates to `#<anchor>` on the *current* artifact. Local
+  // and always available (no backend), composing with the static commands above.
+  // ---------------------------------------------------------------------------
+  const reportContext = useMemo(() => parseReportRoute(location.pathname), [location.pathname])
+
+  const sectionCommands = useMemo(() => {
+    if (!reportContext || trimmedQuery.length === 0) return []
+    const base = `/stocks/${encodeURIComponent(reportContext.ticker)}/runs/${encodeURIComponent(
+      reportContext.artifactId,
+    )}`
+    return matchSections(trimmedQuery).map((s) => {
+      const label = locale === 'zh' ? s.labelZh : s.labelEn
+      return {
+        id: `section-${s.anchor}`,
+        anchor: s.anchor,
+        title: locale === 'zh' ? `跳转到「${label}」` : `Jump to ${label}`,
+        subtitle: `#${s.anchor}`,
+        run: () => {
+          navigate(`${base}#${s.anchor}`)
+          handleClose()
+        },
+      }
+    })
+  }, [reportContext, trimmedQuery, locale, navigate, handleClose])
+
+  // ---------------------------------------------------------------------------
   // Derived state
   // ---------------------------------------------------------------------------
   const hasRemoteResults = grouped.ticker.length > 0 || grouped.artifact.length > 0
@@ -616,6 +767,60 @@ export function CmdKOverlay() {
         style={{ maxHeight: '440px', overflowY: 'auto' }}
         aria-label={t('cmdk.results.aria')}
       >
+        {/* In-report section jump (BUG-016) — shown first when on a report page */}
+        {sectionCommands.length > 0 && (
+          <Command.Group
+            heading={locale === 'zh' ? '跳转到章节' : 'Jump to section'}
+            data-testid="section-jump-group"
+          >
+            {sectionCommands.map((c) => (
+              <Command.Item
+                key={c.id}
+                value={`section-jump:${c.anchor}`}
+                onSelect={c.run}
+                data-testid="section-jump-item"
+                data-anchor={c.anchor}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  borderRadius: '6px',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '14px',
+                    flexShrink: 0,
+                    width: '24px',
+                    textAlign: 'center',
+                  }}
+                  aria-hidden="true"
+                >
+                  §
+                </span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                    {c.title}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: 'var(--text-muted)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {c.subtitle}
+                  </div>
+                </div>
+              </Command.Item>
+            ))}
+          </Command.Group>
+        )}
+
         {/* Coverage commands — local actions, shown first */}
         {filteredStatic.length > 0 && (
           <Command.Group heading={t('cmdk.section.coverage')} data-testid="coverage-commands-group">

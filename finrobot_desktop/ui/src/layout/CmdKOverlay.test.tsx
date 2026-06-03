@@ -12,9 +12,15 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { CmdKOverlay, loadRecentSearches, saveRecentSearch } from './CmdKOverlay'
+import {
+  CmdKOverlay,
+  loadRecentSearches,
+  saveRecentSearch,
+  parseReportRoute,
+  matchSections,
+} from './CmdKOverlay'
 import { useAppStore } from '../stores/appStore'
 import { useUiStore } from '../stores/uiStore'
 import { useUiPrefs } from '../i18n'
@@ -518,6 +524,90 @@ describe('CmdKOverlay — exception paths', () => {
     expect(aaplCalls.length).toBeGreaterThanOrEqual(1)
     // Should NOT have fired for every intermediate value
     expect((fetchSpy as Mock).mock.calls.length).toBeLessThan(4)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 8b. BUG-016: in-report section jump
+// ---------------------------------------------------------------------------
+
+// Mirrors renderOverlay but also surfaces the live location so a section jump's
+// `#anchor` navigation can be asserted on the DOM.
+function LocationProbe() {
+  const loc = useLocation()
+  return <div data-testid="location-probe">{`${loc.pathname}${loc.hash}`}</div>
+}
+
+function renderOverlayWithLocation(initialPath: string) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <CmdKOverlay />
+        <LocationProbe />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
+
+const REPORT_PATH = '/stocks/AAPL/runs/art_001'
+
+describe('CmdKOverlay — report section jump (BUG-016)', () => {
+  it('parseReportRoute parses ticker + artifactId from a report detail path', () => {
+    expect(parseReportRoute(REPORT_PATH)).toEqual({ ticker: 'AAPL', artifactId: 'art_001' })
+    expect(parseReportRoute('/stocks/AAPL')).toBeNull()
+    expect(parseReportRoute('/coverage')).toBeNull()
+  })
+
+  it('matchSections maps English + Chinese section words to anchors', () => {
+    expect(matchSections('valuation').map((s) => s.anchor)).toContain('valuation')
+    expect(matchSections('估值').map((s) => s.anchor)).toContain('valuation')
+    expect(matchSections('风险').map((s) => s.anchor)).toContain('catalysts')
+    expect(matchSections('thesis').map((s) => s.anchor)).toContain('thesis')
+    expect(matchSections('论点').map((s) => s.anchor)).toContain('thesis')
+    expect(matchSections('').length).toBe(0)
+  })
+
+  it('typing "valuation" on a report page offers a jump item that navigates to #valuation', async () => {
+    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'valuation' })
+    mockFetch({ query: 'valuation', results: [] })
+    renderOverlayWithLocation(REPORT_PATH)
+    const item = await screen.findByTestId('section-jump-item')
+    expect(item.getAttribute('data-anchor')).toBe('valuation')
+    fireEvent.click(item)
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe')).toHaveTextContent(`${REPORT_PATH}#valuation`),
+    )
+    expect(useAppStore.getState().cmdPaletteOpen).toBe(false)
+  })
+
+  it('typing "估值" (zh) on a report page jumps to #valuation', async () => {
+    useUiPrefs.getState().setLocale('zh')
+    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '估值' })
+    mockFetch({ query: '估值', results: [] })
+    renderOverlayWithLocation(REPORT_PATH)
+    const item = await screen.findByTestId('section-jump-item')
+    expect(item.getAttribute('data-anchor')).toBe('valuation')
+    fireEvent.click(item)
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe')).toHaveTextContent(`${REPORT_PATH}#valuation`),
+    )
+  })
+
+  it('typing "风险" (zh) jumps to the catalysts chapter (#catalysts)', async () => {
+    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '风险' })
+    mockFetch({ query: '风险', results: [] })
+    renderOverlayWithLocation(REPORT_PATH)
+    const item = await screen.findByTestId('section-jump-item')
+    expect(item.getAttribute('data-anchor')).toBe('catalysts')
+  })
+
+  it('does NOT offer section jumps when not on a report detail route', async () => {
+    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'valuation' })
+    mockFetch({ query: 'valuation', results: [] })
+    renderOverlayWithLocation('/stocks')
+    await waitFor(() => expect(screen.getByTestId('cmdk-input')).toBeInTheDocument())
+    expect(screen.queryByTestId('section-jump-group')).not.toBeInTheDocument()
   })
 })
 

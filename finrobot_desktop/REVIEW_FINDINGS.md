@@ -62,7 +62,7 @@
 | BUG-024 | Bug | P1 | useAppStore (547 行) ~92% 死状态：仅 4 个 CmdK 字段有运行时消费方，其余全部无人读 | 待修 |
 | BUG-025 | Bug | P1 | Pipeline 集合在 4 处各自硬编码（orchestrator/registry/cli/sdk），registry 抽象只被 runs.py 单独使用 | 待修 |
 | BUG-026 | Bug | P1 | DCF/DDM seed 用「最近 2 年」中位数，却在 provenance 和 docstring 里全程标注「过去 3 年中位数」——给分析师看的口径说明是假的 | 待修 |
-| BUG-027 | Bug | P1 | POST /api/compute/dcf-sensitivity 的 wacc_range/tg_range 无 max_length 上限 → 巨网格阻塞事件循环 | 待修 |
+| BUG-027 | Bug | P1 | POST /api/compute/dcf-sensitivity 的 wacc_range/tg_range 无 max_length 上限 → 巨网格阻塞事件循环 | 已修 |
 | BUG-028 | Bug | P1 | No ErrorBoundary in the live app tree — any render crash blanks the whole desktop app | 已修 |
 | BUG-029 | Bug | P1 | Competitive table renders unguarded gross/operating margin → fabricated 0.0% or literal NaN% when backend value is null | 已修 |
 | BUG-030 | Bug | P1 | 13 章研报全程硬编码 $，而 Coverage 是币种感知——非美元标的会印错币种符号 | 待修 |
@@ -481,7 +481,7 @@
 - **修复方案**：改 finrobot/routes/compute.py：(1) DcfSensitivityRequest 的 wacc_range/tg_range 加 `max_length=25`（敏感性表 UI 最多渲染 ~7×7，25 已极宽松，与 build_sensitivity_ranges 实际产出量级一致）；(2) 把 compute_dcf_sensitivity 端点的 `calculate_sensitivity(...)` 包成 `await asyncio.to_thread(calculate_sensitivity, ...)`，与 monte-carlo 端点对称。注意：DcfSeedRequest 内部走 build_sensitivity_ranges 自产范围（已受控），不受此改影响。
 - **验证补充**：Fix is correct. build_sensitivity_ranges produces exactly 5×5=25 cells max, so max_length=25 per axis fits legit UI use and never breaks the internal seed path; max_length could even be 50 safely. Add the to_thread offload as proposed to match monte-carlo. Also worth hoisting pv_fcf out of the inner g-loop in dcf.py (it is WACC-dependent, TG-independent) to cut the constant factor, but that is an optimization not required for the fix.
 - **影响面/回归风险**：影响面：唯一可被任意客户端（含 Vite dev origin）直接 POST 的同步重计算端点；修复后行为对合法请求零变化（合法 range 远小于 25）。回归风险：极低，只收紧上界 + 卸载线程；需跑 tests/ 中 dcf-sensitivity 相关用例确认 25 上限不误伤现有夹具。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（routes/compute.py：DcfSensitivityRequest 的 wacc_range/tg_range 加 max_length=25（build_sensitivity_ranges 实产 ≤5×5，内部 seed 路径不受影响）；端点 calculate_sensitivity 包 asyncio.to_thread，与 monte-carlo 对称。新增 tests/routes/test_compute_dcf_sensitivity.py（25 接受/26 拒绝/空轴拒绝/happy 形状）。ruff+mypy --strict + 88 compute 用例通过）
 
 #### [BUG-028] No ErrorBoundary in the live app tree — any render crash blanks the whole desktop app
 

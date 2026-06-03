@@ -76,8 +76,8 @@ class WaccResponse(BaseModel):
 
 class DcfSensitivityRequest(BaseModel):
     inputs: DCFInputs
-    wacc_range: list[float] = Field(min_length=1)
-    tg_range: list[float] = Field(min_length=1)
+    wacc_range: list[float] = Field(min_length=1, max_length=25)
+    tg_range: list[float] = Field(min_length=1, max_length=25)
 
 
 class DcfSensitivityResult(BaseModel):
@@ -576,7 +576,8 @@ async def compute_dcf_equivalence_line(
 async def compute_dcf_sensitivity(
     request: DcfSensitivityRequest,
 ) -> DcfSensitivityResult:
-    raw = calculate_sensitivity(
+    raw = await asyncio.to_thread(
+        calculate_sensitivity,
         request.inputs,
         request.wacc_range,
         request.tg_range,

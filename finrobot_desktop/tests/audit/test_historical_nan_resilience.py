@@ -255,9 +255,11 @@ class TestMedianRatioNanSkip:
             [100.0, 100.0, 100.0],
             min_samples=3,
         )
-        # Only 10/100=0.10 and 12/100=0.12 counted → median 0.11
+        # Only 10/100=0.10 and 12/100=0.12 counted → median 0.11, count 2
         assert result is not None
-        assert pytest.approx(result, abs=0.01) == pytest.approx(0.11, abs=0.01)
+        median, count = result
+        assert pytest.approx(median, abs=0.01) == pytest.approx(0.11, abs=0.01)
+        assert count == 2
 
     def test_nan_denominator_skipped(self) -> None:
         result = _median_ratio(

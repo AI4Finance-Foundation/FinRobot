@@ -2,11 +2,13 @@
 
 What this code does that raw LLM cannot:
 - Deterministically derives every DCF assumption from real multi-year filings
-  (historical 3y medians) or Damodaran industry medians — never hardcoded
-  per-company defaults.
+  (historical medians over the most recent ``_MEDIAN_WINDOW_YEARS`` years) or
+  Damodaran industry medians — never hardcoded per-company defaults.
 - Records the *source* of each assumption in ``assumption_provenance`` so the
   UI can render "EBITDA 利润率 31.4%，过去 3 年财报中位数" instead of an
-  opaque number.
+  opaque number. The "N 年" in that label is the *actual* sample count used,
+  not a hardcoded window — a ticker with only 2 years of filings shows
+  "过去 2 年" so the provenance never overstates the data behind a number.
 - Falls back through a fixed precedence: ticker history → industry median →
   Total Market median. Never returns None / placeholder.
 
@@ -51,8 +53,17 @@ COST_OF_DEBT_FLOOR: Final[float] = 0.02
 COST_OF_DEBT_CAP: Final[float] = 0.20
 
 # Minimum historical samples required before we trust the ticker's own median.
-# Fewer than this ⇒ fall back to industry median.
+# Fewer than this ⇒ fall back to industry median. This is purely a THRESHOLD;
+# it does NOT bound how many years feed the median (that is _MEDIAN_WINDOW_YEARS).
 _MIN_HISTORY_SAMPLES: Final[int] = 2
+
+# How many of the most recent fiscal years feed each historical median. The
+# extractor pulls 5 years, but equity-research convention seeds off the trailing
+# ~3y so the number reflects the current regime rather than a stale half-decade.
+# Separate from _MIN_HISTORY_SAMPLES: a ticker with only 2 years of data still
+# passes the threshold and yields a 2-sample median sliced from this 3y window —
+# the provenance then honestly reports the real count (2), never the window (3).
+_MEDIAN_WINDOW_YEARS: Final[int] = 3
 
 logger = logging.getLogger(__name__)
 
@@ -63,25 +74,36 @@ logger = logging.getLogger(__name__)
 
 
 def _median_ratio(
-    numerator: list[float], denominator: list[float], min_samples: int = _MIN_HISTORY_SAMPLES
-) -> float | None:
-    """Median of numerator[i]/denominator[i] over the last *min_samples* years.
+    numerator: list[float],
+    denominator: list[float],
+    *,
+    window: int = _MEDIAN_WINDOW_YEARS,
+    min_samples: int = _MIN_HISTORY_SAMPLES,
+) -> tuple[float, int] | None:
+    """Median of numerator[i]/denominator[i] over the last *window* years.
 
-    Returns None when:
-      - either list is shorter than min_samples
+    ``window`` bounds how many recent years are sliced for the median; it is
+    *separate* from ``min_samples``, the minimum paired count below which we
+    don't trust the ticker's own history and the caller falls back to the
+    industry median. A short history (e.g. 2 years) sliced [-3:] still yields
+    only 2 points — the returned count reflects that real number, never the
+    window, so provenance never overstates the data behind the figure.
+
+    Returns ``(median, count)`` where ``count`` is the number of usable paired
+    samples that actually fed the median, or None when:
+      - the paired history is shorter than ``min_samples``
       - denominator has zeros in the recent window (would div by 0)
       - all paired ratios are 0 (cashflow row was zero-filled by extractor)
 
-    Skips index 0 (oldest) when more samples exist — we want the most recent
-    window since trailing ratios drift; for a stable seed we use the last
-    ``min_samples`` years.
+    Takes the most recent window since trailing ratios drift; for a stable seed
+    we use the last ``window`` years.
     """
     n = min(len(numerator), len(denominator))
     if n < min_samples:
         return None
     # Take the most recent window
-    nums = numerator[-min_samples:]
-    dens = denominator[-min_samples:]
+    nums = numerator[-window:]
+    dens = denominator[-window:]
     ratios: list[float] = []
     for num, den in zip(nums, dens):
         # Skip NaN in either operand — they come from partially-NaN cashflow rows
@@ -97,7 +119,7 @@ def _median_ratio(
         ratios.append(num / den)
     if not ratios:
         return None
-    return statistics.median(ratios)
+    return statistics.median(ratios), len(ratios)
 
 
 def _decay_growth_schedule(
@@ -201,7 +223,8 @@ def seed_dcf_inputs(
     """Build a complete DCFInputs from one ticker's financials + historical data.
 
     Field-by-field precedence:
-      ticker historical median (3y) → industry median (Damodaran) → market median
+      ticker historical median (most recent _MEDIAN_WINDOW_YEARS, default 3y) →
+      industry median (Damodaran) → market median
 
     Every field gets an entry in ``assumption_provenance`` so the UI can show
     a 散户-friendly Chinese sentence explaining where the number came from.
@@ -271,19 +294,24 @@ def seed_dcf_inputs(
         )
 
     # ----- ebitda_margin ----------------------------------------------------
+    ebitda_ticker, ebitda_value, ebitda_label = _ticker_median_with_label(
+        _median_recent(historical.ebitda_margin), "EBITDA 利润率中位数"
+    )
     ebitda_margin, ebitda_source = _pick_with_provenance(
-        ticker_value=_median_recent(historical.ebitda_margin),
-        ticker_label="过去 3 年 EBITDA 利润率中位数",
+        ticker_value=ebitda_value,
+        ticker_label=ebitda_label,
         industry_value=industry.ebitda_pct_revenue,
         industry_label=f"{industry.industry} 行业中位数",
     )
     prov["ebitda_margin"] = f"{ebitda_margin:.1%}（{ebitda_source}）"
 
     # ----- capex_pct_revenue -----------------------------------------------
-    capex_ticker = _median_ratio(historical.capital_expenditure, historical.revenue)
+    capex_ticker, capex_value, capex_label = _ticker_median_with_label(
+        _median_ratio(historical.capital_expenditure, historical.revenue), "CapEx / 营收 中位数"
+    )
     capex_pct, capex_source = _pick_with_provenance(
-        ticker_value=capex_ticker,
-        ticker_label="过去 3 年 CapEx / 营收 中位数",
+        ticker_value=capex_value,
+        ticker_label=capex_label,
         industry_value=industry.capex_pct_revenue,
         industry_label=f"{industry.industry} 行业中位数",
     )
@@ -305,9 +333,13 @@ def seed_dcf_inputs(
         prov["capex_pct_revenue"] = f"{capex_pct:.1%}（{capex_source}）"
 
     # ----- da_pct_revenue ---------------------------------------------------
+    _da_ticker, da_value, da_label = _ticker_median_with_label(
+        _median_ratio(historical.depreciation_amortization, historical.revenue),
+        "D&A / 营收 中位数",
+    )
     da_pct, da_source = _pick_with_provenance(
-        ticker_value=_median_ratio(historical.depreciation_amortization, historical.revenue),
-        ticker_label="过去 3 年 D&A / 营收 中位数",
+        ticker_value=da_value,
+        ticker_label=da_label,
         industry_value=industry.da_pct_revenue,
         industry_label=f"{industry.industry} 行业中位数",
     )
@@ -318,10 +350,13 @@ def seed_dcf_inputs(
     # = cash consumed. Negate so nwc_pct_revenue means "NWC build as % of revenue,
     # positive = cash drag" — the same convention as capex (stored absolute) — so
     # the FCF formula `- ΔNWC` reduces FCF when working capital grows.
-    nwc_median = _median_ratio(historical.change_in_working_capital, historical.revenue)
-    if nwc_median is not None:
+    nwc_result = _median_ratio(historical.change_in_working_capital, historical.revenue)
+    if nwc_result is not None:
+        nwc_median, nwc_n = nwc_result
         nwc_pct = max(-0.10, min(0.10, -nwc_median))
-        prov["nwc_pct_revenue"] = f"{nwc_pct:.1%}（过去 3 年 ΔNWC / 营收 中位数，正=占用现金）"
+        prov["nwc_pct_revenue"] = (
+            f"{nwc_pct:.1%}（过去 {nwc_n} 年 ΔNWC / 营收 中位数，正=占用现金）"
+        )
     else:
         nwc_pct = 0.01
         prov["nwc_pct_revenue"] = "1.0%（历史不可得，按通用基准）"
@@ -442,19 +477,49 @@ def seed_dcf_inputs(
 
 
 def _median_recent(
-    values: list[float | None], min_samples: int = _MIN_HISTORY_SAMPLES
-) -> float | None:
-    """Median of the most recent *min_samples* non-zero, non-None, non-NaN entries.
+    values: list[float | None],
+    *,
+    window: int = _MEDIAN_WINDOW_YEARS,
+    min_samples: int = _MIN_HISTORY_SAMPLES,
+) -> tuple[float, int] | None:
+    """Median of the most recent *window* non-zero, non-None, non-NaN entries.
+
+    ``window`` bounds the slice; ``min_samples`` is the minimum raw history
+    length below which we don't trust the ticker's own median (caller falls
+    back to industry). Returns ``(median, count)`` where ``count`` is how many
+    usable entries actually fed the median — a 2-year history sliced [-3:]
+    returns count=2, so provenance reports the real sample size, not the window.
 
     None entries (a year whose numerator the provider omitted) are skipped, not
     treated as 0 — a missing margin must not drag the historical median down.
     """
     if len(values) < min_samples:
         return None
-    recent = [v for v in values[-min_samples:] if v is not None and v != 0 and not math.isnan(v)]
+    recent = [v for v in values[-window:] if v is not None and v != 0 and not math.isnan(v)]
     if not recent:
         return None
-    return statistics.median(recent)
+    return statistics.median(recent), len(recent)
+
+
+def _ticker_median_with_label(
+    result: tuple[float, int] | None, suffix: str
+) -> tuple[tuple[float, int] | None, float | None, str]:
+    """Adapt a ``(median, count)`` helper result for ``_pick_with_provenance``.
+
+    Returns ``(raw_result, value, label)`` where:
+      - ``raw_result`` is the original tuple-or-None (so callers can still test
+        ``is None`` for the industry-fallback consistency guards),
+      - ``value`` is the median float (or None when the helper returned None),
+      - ``label`` is the ticker provenance string with the *actual* sample count
+        baked in — "过去 {n} 年 {suffix}" — so the UI never claims more years of
+        history than actually fed the median (BUG-026). When the helper returned
+        None the label falls back to the nominal window; it is never shown
+        because ``_pick_with_provenance`` takes the industry branch.
+    """
+    if result is None:
+        return None, None, f"过去 {_MEDIAN_WINDOW_YEARS} 年 {suffix}"
+    value, count = result
+    return result, value, f"过去 {count} 年 {suffix}"
 
 
 def _pick_with_provenance(

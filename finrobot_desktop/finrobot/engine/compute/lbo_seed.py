@@ -2,8 +2,9 @@
 
 What this code does that raw LLM cannot:
 - Deterministically derives every LBO assumption from real multi-year filings
-  (historical 3y medians) or Damodaran industry medians — never hardcoded
-  per-company defaults shipped from the frontend.
+  (historical medians over the most recent ``_MEDIAN_WINDOW_YEARS`` years) or
+  Damodaran industry medians — never hardcoded per-company defaults shipped
+  from the frontend. Provenance reports the actual sample count, not the window.
 - Records the *source* of each assumption in ``assumption_provenance`` so the
   UI can render "EBITDA 利润率 31.4%，过去 3 年财报中位数" instead of an opaque
   number, identical to the DCF seed UX.
@@ -30,6 +31,7 @@ from finrobot.engine.compute.dcf_seed import (
     _median_ratio,
     _median_recent,
     _pick_with_provenance,
+    _ticker_median_with_label,
 )
 from finrobot.engine.data.industry_defaults import (
     IndustryDefault,
@@ -64,7 +66,8 @@ def seed_lbo_inputs(
     """Build a complete LBOInputs from one ticker's financials + historical data.
 
     Field-by-field precedence:
-      ticker historical median (3y) → industry median (Damodaran) → convention
+      ticker historical median (most recent _MEDIAN_WINDOW_YEARS, default 3y) →
+      industry median (Damodaran) → convention
 
     Every operational field (margins, capex, growth, tax) gets an entry in
     ``assumption_provenance``. Deal-structure fields (multiples, leverage,
@@ -120,27 +123,37 @@ def seed_lbo_inputs(
         prov["revenue_growth_rate"] = "5.0%（历史增长率不可得，按 PE 行业承销基准）"
 
     # ----- ebitda_margin ----------------------------------------------------
+    _ebitda_ticker, ebitda_value, ebitda_label = _ticker_median_with_label(
+        _median_recent(historical.ebitda_margin), "EBITDA 利润率中位数"
+    )
     ebitda_margin, ebitda_source = _pick_with_provenance(
-        ticker_value=_median_recent(historical.ebitda_margin),
-        ticker_label="过去 3 年 EBITDA 利润率中位数",
+        ticker_value=ebitda_value,
+        ticker_label=ebitda_label,
         industry_value=industry.ebitda_pct_revenue,
         industry_label=f"{industry.industry} 行业中位数",
     )
     prov["ebitda_margin"] = f"{ebitda_margin:.1%}（{ebitda_source}）"
 
     # ----- capex_pct_revenue ------------------------------------------------
+    _capex_ticker, capex_value, capex_label = _ticker_median_with_label(
+        _median_ratio(historical.capital_expenditure, historical.revenue), "CapEx / 营收 中位数"
+    )
     capex_pct, capex_source = _pick_with_provenance(
-        ticker_value=_median_ratio(historical.capital_expenditure, historical.revenue),
-        ticker_label="过去 3 年 CapEx / 营收 中位数",
+        ticker_value=capex_value,
+        ticker_label=capex_label,
         industry_value=industry.capex_pct_revenue,
         industry_label=f"{industry.industry} 行业中位数",
     )
     prov["capex_pct_revenue"] = f"{capex_pct:.1%}（{capex_source}）"
 
     # ----- da_pct_revenue ---------------------------------------------------
+    _da_ticker, da_value, da_label = _ticker_median_with_label(
+        _median_ratio(historical.depreciation_amortization, historical.revenue),
+        "D&A / 营收 中位数",
+    )
     da_pct, da_source = _pick_with_provenance(
-        ticker_value=_median_ratio(historical.depreciation_amortization, historical.revenue),
-        ticker_label="过去 3 年 D&A / 营收 中位数",
+        ticker_value=da_value,
+        ticker_label=da_label,
         industry_value=industry.da_pct_revenue,
         industry_label=f"{industry.industry} 行业中位数",
     )
@@ -150,11 +163,12 @@ def seed_lbo_inputs(
     # FMP changeInWorkingCapital carries the cash-flow sign (negative = NWC grew =
     # cash consumed). Negate so nwc_change_pct_revenue is positive when working
     # capital grows with revenue, matching the LBO FCF formula `- ΔNWC`.
-    nwc_median = _median_ratio(historical.change_in_working_capital, historical.revenue)
-    if nwc_median is not None:
+    nwc_result = _median_ratio(historical.change_in_working_capital, historical.revenue)
+    if nwc_result is not None:
+        nwc_median, nwc_n = nwc_result
         nwc_pct = max(-0.10, min(0.10, -nwc_median))
         prov["nwc_change_pct_revenue"] = (
-            f"{nwc_pct:.1%}（过去 3 年 ΔNWC / 营收 中位数，正=占用现金）"
+            f"{nwc_pct:.1%}（过去 {nwc_n} 年 ΔNWC / 营收 中位数，正=占用现金）"
         )
     else:
         nwc_pct = DEFAULT_NWC_PCT_REVENUE

@@ -74,7 +74,7 @@
 | BUG-023 | Bug | P1 | Artifact PRIMARY KEY 用秒级时间戳，同票同类型同秒 run 静默覆盖前一份研报（审计链断档） | 已修 |
 | BUG-024 | Bug | P1 | useAppStore (547 行) ~92% 死状态：仅 4 个 CmdK 字段有运行时消费方，其余全部无人读 | 待修 |
 | BUG-025 | Bug | P1 | Pipeline 集合在 4 处各自硬编码（orchestrator/registry/cli/sdk），registry 抽象只被 runs.py 单独使用 | 待修 |
-| BUG-026 | Bug | P1 | DCF/DDM seed 用「最近 2 年」中位数，却在 provenance 和 docstring 里全程标注「过去 3 年中位数」——给分析师看的口径说明是假的 | 待修 |
+| BUG-026 | Bug | P1 | DCF/DDM seed 用「最近 2 年」中位数，却在 provenance 和 docstring 里全程标注「过去 3 年中位数」——给分析师看的口径说明是假的 | 已修 |
 | BUG-027 | Bug | P1 | POST /api/compute/dcf-sensitivity 的 wacc_range/tg_range 无 max_length 上限 → 巨网格阻塞事件循环 | 已修 |
 | BUG-028 | Bug | P1 | No ErrorBoundary in the live app tree — any render crash blanks the whole desktop app | 已修 |
 | BUG-029 | Bug | P1 | Competitive table renders unguarded gross/operating margin → fabricated 0.0% or literal NaN% when backend value is null | 已修 |
@@ -152,6 +152,9 @@
 | BUG-084 | Bug | P3 | PriceTrendChart 窗口首日收盘价为 0 时 1Y 涨跌幅药丸渲染成 'Infinity%'、Y 轴 domain 被 0 基准拉歪——后端 contracts/data.py 同一除法都有 prev==0 守卫,唯独前端图无(provider 停牌/稀疏日可能给 close=0) | 待修 |
 | BUG-085 | Bug | P3 | 已完成的 run 永不从 runStreamStore 清除(clear() 无调用方),StockWorkspace 是路由挂载组件、去重 key 是组件级 useRef——切走再回每次重弹『报告已生成』toast + 3 次 query invalidation 强制重拉 | 待修 |
 | BUG-088 | Bug | P3 | coverage 系统组 find-or-create 非原子 + coverage_groups 表 is_system 无唯一约束 → 冷启动并发(双标签页/首屏+开股同时)各建一条『Studied Tickers』,较新组里的 ticker 被永久孤立、用户看到两个同名组 | 待修 |
+| BUG-090 | Bug | P3 | 两个表都叫 `artifacts`(runs.db 链表 vs artifacts.db 规范库),撞名;且 runs.db 的 artifacts 表 `data BLOB`+`format` 是死列(唯一调用方只传 file_path 指针、从不传 data)——该表应改名 run_artifacts 并砍死列 | ✅ 已修 |
+| BUG-091 | Bug | P3 | JournalStore + journal.db 是整块死代码:完整实现 create/delete/list 但全仓零实例化、routes/cli/server/sdk 零引用(概念已被 artifacts.entry_price/target_price 吸收)——应删 | ✅ 已修 |
+| BUG-092 | Bug | P3 | [休眠·BUG-075 簇] holdings 主键含可空列 holder_cik,SQLite 把 PK 里的 NULL 当互不相同 → CIK 缺失的 13F filer(refresh 脚本确会喂 None)每次 refresh 累积重复持仓行,ON CONFLICT 去重失效 | ✅ 已修(schema) |
 | UX-015 | 产品 | P3 | 最高曝光的 Run CTA / Pipeline 徽章用字面量 color:'white' 与裸数字圆角，绕过已存在的 token | 待修 |
 | UX-016 | 产品 | P3 | prefers-reduced-motion 只关了星空一种动效，shimmer/pulse/halo/skeleton 等仍全速运行 | 待修 |
 | UX-017 | 产品 | P3 | 右侧 AI 抽屉与 CmdK 的 "Ask AI" 是两条并存的对话入口，语义重叠且互不打通 | 待修 |
@@ -500,7 +503,7 @@
 - **修复方案**：在 dcf_seed.py 拆分两个常量:保留 _MIN_HISTORY_SAMPLES=2 仅作门槛(`if n < _MIN_HISTORY_SAMPLES: return None`),新增 _MEDIAN_WINDOW_YEARS=3 用于切片(`nums = numerator[-_MEDIAN_WINDOW_YEARS:]`,_median_recent 同改)。_median_ratio/_median_recent 签名把 window 与 min_samples 分开传。注意:门槛仍是 2 时,只有 2 年历史的票切片 [-3:] 自然只拿到 2 个值——行为正确且文案应改为动态『过去 {len(used)} 年』。最稳妥是让两个函数返回实际用到的样本数,prov 串改用真实 n 而非硬编码『3』。改动量级:小(2 函数 + ~6 处 prov 文案,单文件),但需同步 ddm_seed(复用同名 helper)。
 - **验证补充**：Fix is correct: split the constant into _MIN_HISTORY_SAMPLES (threshold, keep 2) and a separate window (3), pass them independently to _median_ratio/_median_recent. Strongly prefer the finding's own better suggestion: have the helpers return the actual sample count used and render '过去 {n} 年' dynamically, since a 2y-history ticker sliced [-3:] still yields only 2 points — a hardcoded '3' would re-lie. Drop the claim that ddm_seed provenance strings need changing; they don't.
 - **影响面/回归风险**：影响每一份 DCF/DDM 研报的假设溯源展示与 seed 出的 fair value(窗口变化会改 ebitda_margin/capex 等中位数,进而改 implied_price)。回归风险:改窗口=改数字,需重跑金融测试(test 里若 mock 2 年数据期望值需更新);若只改文案不改窗口则零数字回归但承认是 2 年。建议改窗口对齐文案(3 年更稳),并核对 tests/ 中相关期望值。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（dcf_seed.py 拆常量：_MIN_HISTORY_SAMPLES=2 仅作门槛，新增 _MEDIAN_WINDOW_YEARS=3 仅作切片窗口；_median_ratio/_median_recent 加 keyword window+min_samples 并返回 (median, 实际样本数)；新增 _ticker_median_with_label 让 provenance 串渲染动态「过去 {真实 n} 年」（2 年历史切 [-3:] 得 2 → 标「过去 2 年」，不再硬编码 3 撒谎）。lbo_seed.py 共用同 helper、同红线谎言，一并修。ddm_seed 不用这两 helper（其 provenance 是 ROE/payout 公式带动态 projection_years），不动。新增 5y/2y 窗口测试（期望值手算）。注：≥3 年历史的票 seed 数字会变（NVDA 等），属预期正确性修复。全量 2020 通过。）
 
 #### [BUG-027] POST /api/compute/dcf-sensitivity 的 wacc_range/tg_range 无 max_length 上限 → 巨网格阻塞事件循环
 
@@ -1308,6 +1311,44 @@
 - **修复方案**：server.py:700 拿到 session_id 后立即用 SoT 校验器收口（同 ticker.py 模式）：只允许 `[A-Za-z0-9._-]`、拒绝含 `/`/`\`、以 `.` 开头(防 `..`/`.`)、绝对路径，非法即 422 或回退 'default'。同时在 audit/transcript.py 与 persistence.py 的 _session_path 内做 `(base / f"{sid}.jsonl").resolve()` 必须仍在 `base.resolve()` 之下的二次防御（读写两侧都加，defense-in-depth）。
 - **影响面/回归风险**：影响 /chat 落盘路径。修复收紧标识符（合法 session_id 不受影响），回归风险低。
 - **置信度**：high　|　**状态**：待修
+
+> **以下 BUG-090 ~ BUG-092 来自 2026-06-03 SQLite 存储结构 review**（结合业务流逐表核 DDL）。**结论先行：8 分库架构是合理的、刻意为本地多进程服务，不应合并；PRAGMA 已集中(busy_timeout 修了 BUG-022)、去规范化有据。** 这 3 条是遗留未清(撞名死列、死 store)+ 一处主键含空列的去重失效，无结构性大坑。
+
+#### [BUG-090] 两个表都叫 `artifacts` 撞名 + runs.db 的 artifacts 表有死列(data BLOB / format)
+
+- **类别**：Bug（架构/可维护性）
+- **严重度**：P3
+- **位置**：finrobot/run_store.py:58-68（runs.db 的 `artifacts` 表）vs finrobot/artifact/sqlite_store.py:56-73（artifacts.db 的 `artifacts` 表）；死列调用方 finrobot/routes/runs.py:343
+- **现象/问题**：两张表同名不同义——artifacts.db 的是**规范研报存储**（id TEXT `art_...` + payload + 去规范化 summary 列）；runs.db 的是 **run→artifact 链表**（id INTEGER autoincrement + run_id FK）。读代码的人看到"artifacts 表"无法判断是哪一个，是真实的认知陷阱。更糟：runs.db 的 `artifacts` 表有 `data BLOB` 与 `format` 两列，但唯一写入方 routes/runs.py:343 调 `add_artifact(run_id, artifact_type=…, format="json", file_path=f"/api/artifacts/{artifact_id}")` —— **只传 file_path 指针、从不传 data**（add_artifact 的 `data: bytes|None=None` 默认 None 一路落库）。BLOB 列永远为 NULL = 死列，遗留自"artifact 曾内联存 blob、后迁出到 artifacts.db"的历史。
+- **证据**：grep 确认 runs.py:343 是 add_artifact 唯一调用方且不传 data；两处 DDL 同名 `CREATE TABLE ... artifacts`。
+- **根因**：artifact 持久化从"runs.db 内联 BLOB"迁到独立 artifacts.db 后，runs.db 这张表退化成纯链表，但表名没改、死列没删。
+- **修复方案（改进后 schema）**：把 runs.db 的表改名 `run_artifacts`，列收敛为 `(id INTEGER PK, run_id TEXT REFERENCES runs(run_id), artifact_id TEXT, artifact_type TEXT, created_at TEXT)`——**删掉 data BLOB / format / file_path**，用一个明确的 `artifact_id` 列代替 `file_path="/api/artifacts/{id}"` 这种把 URL 当外键的反模式（artifact_id 才是跨库软外键）。迁移：建新表→`INSERT INTO run_artifacts SELECT id, run_id, replace(file_path,'/api/artifacts/',''), artifact_type, created_at FROM artifacts`→drop 旧表。同步改 add_artifact 签名与 list_artifacts 读取。
+- **影响面/回归风险**：建设期无数据，删库重建不迁移。仅影响 run→artifact 链的读取，artifacts.db 规范库不动。
+- **置信度**：high　|　**状态**：✅ 已修（2026-06-03，无迁移）。run_store.py：表改名 `artifacts`→`run_artifacts`、删死列 `data BLOB`、index 改 `idx_run_artifacts_run`、add_artifact 去掉 `data` 参数、list_artifacts 改读新表名。保守保留 format/file_path（API 契约字段，唯一调用方 routes/runs.py:343 不传 data 故安全）；`file_path` 存 URL 当软外键的更深清理留作单独契约变更。mypy --strict + 48 相关测试通过。
+
+#### [BUG-091] JournalStore + journal.db 是整块死代码（概念已被 artifacts 吸收）
+
+- **类别**：Bug（死代码清理）
+- **严重度**：P3
+- **位置**：finrobot/models/journal.py（整文件 JournalStore + journal 表 DDL）；finrobot/paths.py:93（JOURNAL_DB 路径常量）
+- **现象/问题**：models/journal.py 实现了完整的 `JournalStore`（create/delete/list + journal 表 DDL），但**全仓零实例化**——grep `JournalStore(` 在 class 定义外无任何命中，routes/cli/server/sdk 对 journal 零引用。artifact/models.py 里仅 docstring 写"Mirrors journal.entry_price/target_price semantics"，说明 journal 是**研报投资日志的前身概念，已被 Artifact 的 entry_price/target_price/verdict 列吸收**，旧实现忘了删。因为没人 `new` 它，journal.db 连文件都不生成——纯死 store + 死 DDL + 死路径常量。
+- **证据**：grep 确认 JournalStore 仅在自身 class 内被引用；paths.py:93 的 JOURNAL_DB 无任何消费方。
+- **根因**：功能演进（journal→artifact）后未清理被取代的旧模块。
+- **修复方案**：删除 finrobot/models/journal.py、paths.py:93 的 JOURNAL_DB 常量、以及 artifact/models.py docstring 里对 journal 的过时引用（改为自描述）。若想保留"投资日志"作为未来功能，则在 specs/ 立条目而非留一份无人调用的实现腐烂。
+- **影响面/回归风险**：纯删死代码，零运行时影响，回归风险极低（删前 grep 再确认一次无动态 import）。
+- **置信度**：high　|　**状态**：✅ 已修（2026-06-03）。删除 finrobot/models/journal.py（确认零外部 import、零测试、零 export）+ paths.py 的 JOURNAL_DB 常量 + artifact/models.py 两处 "Mirrors journal.* semantics" 过时 docstring 改为自描述。import 冒烟 + ruff + mypy --strict 通过。
+
+#### [BUG-092] holdings 主键含可空列 holder_cik → CIK 缺失的 13F filer 累积重复行（去重失效）
+
+- **类别**：Bug（数据完整性）
+- **严重度**：P3（休眠：当前被 BUG-075 列名 bug 挡住无数据写入；075 一修即显形，与 BUG-086 同簇）
+- **位置**：finrobot/engine/data/sec_holdings_cache.py:49-63（`PRIMARY KEY (cusip, holder_cik, period_end, title_of_class)` 而 `holder_cik TEXT` 可空）；NULL 来源 scripts/refresh_sec_holdings.py:191（`filer_cik=str(getattr(f,"cik",""))or None`）
+- **现象/问题**：holdings 表用复合自然键去重，但 `holder_cik` 列可空，且 refresh 脚本对没有 cik 属性的 filer 确会写入 `None`。**SQLite 在 PRIMARY KEY/UNIQUE 里把 NULL 视作互不相同**（与标准 SQL 一致但反直觉），所以两条 `(cusip, NULL, period_end, title)` 其余相同的行**不会冲突** → 每次 refresh 对无 CIK 的 filer **累积重复持仓行**，机构持仓汇总会把同一持仓重复计数。
+- **证据**：DDL 确认 holder_cik 无 NOT NULL 且在 PK 中；refresh 脚本确以 `or None` 喂 NULL。SQLite NULL-distinct-in-PK 是确定行为。当前因 BUG-075 列名不匹配无任何行写入 → 休眠。
+- **根因**：自然键里放了可空列，依赖了"NULL 会被去重"这一在 SQLite 不成立的假设。
+- **修复方案（改进后 schema）**：`holder_cik TEXT NOT NULL DEFAULT ''`——让缺失 CIK 落成空串这个**确定值**，PK 才能对它去重（空串两行会正常冲突）。或更强：用 holder_name 兜底做 holder 标识（CIK 缺失时回退 holder_name 的规范化值）。迁移：重建表（SQLite 不能改列约束）→`INSERT ... SELECT coalesce(holder_cik,'')...`去重导入。**与 BUG-075/086 同一次改**（列名对齐 + 删×1000 + 这条 PK 收口，一次把 13F 取数链修对）。
+- **影响面/回归风险**：影响无 CIK 的 13F filer（少数）的去重。建设期无数据，删库重建不迁移。回归风险低。
+- **置信度**：high　|　**状态**：✅ 已修（schema 部分，2026-06-03）。sec_holdings_cache.py：`holder_cik TEXT NOT NULL DEFAULT ''` + bulk_upsert_holdings 把 `r.get("holder_cik")` 改 `r.get("holder_cik") or ""`（coalesce None→''，使 PK 能去重 + 满足 NOT NULL）。mypy --strict + test_sec_holdings_cache/test_refresh_sec_holdings 等 48 测试通过。**注意：075（列名）/086（×1000）的逻辑修复仍待办——本条只修了表结构那一环。**
 
 ### 详细条目（产品）
 

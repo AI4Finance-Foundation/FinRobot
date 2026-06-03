@@ -113,36 +113,57 @@ def _aapl_historical() -> HistoricalMetrics:
 
 
 class TestMedianRatio:
-    def test_returns_median_of_pairs(self):
-        # 10/100=0.10, 20/100=0.20, 30/100=0.30 → median 0.20
-        assert _median_ratio([10, 20, 30], [100, 100, 100], min_samples=3) == pytest.approx(0.20)
+    def test_returns_median_and_count_of_pairs(self):
+        # 10/100=0.10, 20/100=0.20, 30/100=0.30 → median 0.20 over 3 samples
+        assert _median_ratio([10, 20, 30], [100, 100, 100]) == (pytest.approx(0.20), 3)
 
     def test_returns_none_when_too_few_samples(self):
-        assert _median_ratio([10], [100], min_samples=2) is None
+        assert _median_ratio([10], [100]) is None
 
     def test_returns_none_when_denominator_zero(self):
-        assert _median_ratio([10, 20], [0, 0], min_samples=2) is None
+        assert _median_ratio([10, 20], [0, 0]) is None
 
     def test_returns_none_when_all_numerator_zero(self):
         """zero-filled cashflow row should fall through to industry default."""
-        assert _median_ratio([0, 0, 0], [100, 100, 100], min_samples=3) is None
+        assert _median_ratio([0, 0, 0], [100, 100, 100]) is None
 
     def test_uses_most_recent_window(self):
-        """Older years shouldn't pull the median around — use last min_samples."""
-        # First two are weird outliers, last two are stable
-        result = _median_ratio([1000, -50, 30, 30], [100, 100, 100, 100], min_samples=2)
-        assert result == pytest.approx(0.30)
+        """BUG-026: window (3y) slices the recent years independently of the
+        min_samples threshold. A 5y history keeps only the newest 3 — the two
+        oldest outliers must not pull the median around."""
+        # First two are weird outliers; last three (30, 30, 30) are the window.
+        result = _median_ratio([1000, -50, 30, 30, 30], [100, 100, 100, 100, 100])
+        assert result == (pytest.approx(0.30), 3)
+
+    def test_window_3_picks_newest_three_not_two(self):
+        """Regression for BUG-026: the median must reflect the newest 3 years,
+        not the last 2. With 5 ascending samples the 2y median (0.40,0.50→0.45)
+        and the 3y median (0.30,0.40,0.50→0.40) differ — assert it's the 3y one."""
+        result = _median_ratio([10, 20, 30, 40, 50], [100, 100, 100, 100, 100])
+        assert result == (pytest.approx(0.40), 3)
+
+    def test_short_history_reports_real_count_not_window(self):
+        """A 2y history sliced [-3:] still yields only 2 samples — the returned
+        count is 2, never the 3y window, so provenance can't overstate the data."""
+        result = _median_ratio([20, 40], [100, 100])
+        assert result == (pytest.approx(0.30), 2)
 
 
 class TestMedianRecent:
-    def test_returns_median_of_recent_window(self):
-        assert _median_recent([0.20, 0.30, 0.32, 0.33], min_samples=2) == pytest.approx(0.325)
+    def test_returns_median_and_count_of_window(self):
+        # Newest 3 of [0.20,0.30,0.32,0.33] = 0.30,0.32,0.33 → median 0.32, count 3
+        assert _median_recent([0.20, 0.30, 0.32, 0.33]) == (pytest.approx(0.32), 3)
 
     def test_skips_zero_values(self):
-        assert _median_recent([0.0, 0.30], min_samples=2) == pytest.approx(0.30)
+        # 0.0 is skipped, only 0.30 survives → median 0.30, count 1
+        assert _median_recent([0.0, 0.30]) == (pytest.approx(0.30), 1)
 
     def test_returns_none_when_all_zero(self):
-        assert _median_recent([0.0, 0.0, 0.0], min_samples=2) is None
+        assert _median_recent([0.0, 0.0, 0.0]) is None
+
+    def test_short_history_reports_real_count(self):
+        """2y history sliced [-3:] yields 2 samples — count is the real 2."""
+        assert _median_recent([0.30, 0.34]) == (pytest.approx(0.32), 2)
 
 
 class TestDecayGrowthSchedule:
@@ -485,3 +506,116 @@ class TestCapexConsistencyCap:
         inputs = seed_dcf_inputs(_aapl_financials(), _aapl_historical())
         assert 0.02 <= inputs.capex_pct_revenue <= 0.04
         assert "过去 3 年 CapEx" in inputs.assumption_provenance["capex_pct_revenue"]
+
+
+# ---------------------------------------------------------------------------
+# BUG-026 — historical-median window is 3 years and provenance reports the
+# REAL sample count (never a hardcoded "3")
+# ---------------------------------------------------------------------------
+
+
+def _five_year_historical() -> HistoricalMetrics:
+    """5-year history (oldest first) where the newest-3 median differs from the
+    newest-2 median, so a window regression to 2y would be detectable."""
+    revenue = [100e9, 100e9, 100e9, 100e9, 100e9]
+    # capex/rev climbs each year: 1%,2%,3%,4%,5%. Newest-3 median = 4%; a 2y
+    # window would give 4.5% — the values diverge, pinning the window at 3.
+    capex = [1e9, 2e9, 3e9, 4e9, 5e9]
+    # D&A flat at 3% so da_pct is stable regardless of window.
+    da = [3e9, 3e9, 3e9, 3e9, 3e9]
+    # EBITDA margin climbs: newest-3 median = 33%; newest-2 would be 33.5%.
+    ebitda_margin = [0.30, 0.31, 0.32, 0.33, 0.34]
+    return HistoricalMetrics(
+        years=[2020, 2021, 2022, 2023, 2024],
+        revenue=revenue,
+        revenue_growth_yoy=[None, 0.0, 0.0, 0.0, 0.0],
+        cogs=[60e9] * 5,
+        gross_profit=[40e9] * 5,
+        gross_margin=[0.40] * 5,
+        sga=[10e9] * 5,
+        sga_ratio=[0.10] * 5,
+        ebitda=[m * 100e9 for m in ebitda_margin],
+        ebitda_margin=ebitda_margin,
+        operating_income=[25e9] * 5,
+        operating_margin=[0.25] * 5,
+        net_income=[20e9] * 5,
+        eps=[2.0] * 5,
+        pe_ratio=[None, None, None, None, 20.0],
+        cagr_revenue=0.0,
+        ticker="AAPL",
+        operating_cash_flow=[30e9] * 5,
+        investing_cash_flow=[-5e9] * 5,
+        financing_cash_flow=[-10e9] * 5,
+        depreciation_amortization=da,
+        capital_expenditure=capex,
+        change_in_working_capital=[-1e9, -1e9, -1e9, -1e9, -1e9],
+    )
+
+
+def _two_year_historical() -> HistoricalMetrics:
+    """Exactly 2 fiscal years of history — sliced [-3:] still yields only 2
+    samples, so provenance must honestly say "过去 2 年", never "过去 3 年"."""
+    revenue = [100e9, 100e9]
+    capex = [3e9, 5e9]  # 3%, 5% → median 4%, count 2
+    da = [3e9, 3e9]
+    ebitda_margin = [0.30, 0.34]  # median 0.32, count 2
+    return HistoricalMetrics(
+        years=[2023, 2024],
+        revenue=revenue,
+        revenue_growth_yoy=[None, 0.0],
+        cogs=[60e9, 60e9],
+        gross_profit=[40e9, 40e9],
+        gross_margin=[0.40, 0.40],
+        sga=[10e9, 10e9],
+        sga_ratio=[0.10, 0.10],
+        ebitda=[m * 100e9 for m in ebitda_margin],
+        ebitda_margin=ebitda_margin,
+        operating_income=[25e9, 25e9],
+        operating_margin=[0.25, 0.25],
+        net_income=[20e9, 20e9],
+        eps=[2.0, 2.0],
+        pe_ratio=[None, 20.0],
+        cagr_revenue=0.0,
+        ticker="AAPL",
+        operating_cash_flow=[30e9, 30e9],
+        investing_cash_flow=[-5e9, -5e9],
+        financing_cash_flow=[-10e9, -10e9],
+        depreciation_amortization=da,
+        capital_expenditure=capex,
+        change_in_working_capital=[-1e9, -1e9],
+    )
+
+
+class TestMedianWindowBug026:
+    """BUG-026: the seed slices the newest 3 fiscal years for every historical
+    median and the provenance string reports the ACTUAL sample count used."""
+
+    def test_five_year_history_uses_newest_three(self):
+        inputs = seed_dcf_inputs(_aapl_financials(), _five_year_historical())
+        # capex/rev over newest 3 years (3%,4%,5%) → median 4%, NOT the 2y 4.5%.
+        assert inputs.capex_pct_revenue == pytest.approx(0.04)
+        # ebitda margin over newest 3 (32%,33%,34%) → median 33%, not 2y 33.5%.
+        assert inputs.ebitda_margin == pytest.approx(0.33)
+
+    def test_five_year_provenance_says_three_years(self):
+        inputs = seed_dcf_inputs(_aapl_financials(), _five_year_historical())
+        prov = inputs.assumption_provenance
+        assert "过去 3 年 CapEx" in prov["capex_pct_revenue"]
+        assert "过去 3 年 D&A" in prov["da_pct_revenue"]
+        assert "过去 3 年 EBITDA" in prov["ebitda_margin"]
+        assert "过去 3 年 ΔNWC" in prov["nwc_pct_revenue"]
+
+    def test_two_year_history_works_and_provenance_says_two_years(self):
+        """Only 2 years of data: median still computed (count 2) and the label
+        reports the real "过去 2 年", never a hardcoded 3 (would re-lie)."""
+        inputs = seed_dcf_inputs(_aapl_financials(), _two_year_historical())
+        assert inputs.capex_pct_revenue == pytest.approx(0.04)  # median(3%,5%)
+        assert inputs.ebitda_margin == pytest.approx(0.32)  # median(30%,34%)
+        prov = inputs.assumption_provenance
+        assert "过去 2 年 CapEx" in prov["capex_pct_revenue"]
+        assert "过去 2 年 D&A" in prov["da_pct_revenue"]
+        assert "过去 2 年 EBITDA" in prov["ebitda_margin"]
+        assert "过去 2 年 ΔNWC" in prov["nwc_pct_revenue"]
+        # Must NOT claim 3 years of history it doesn't have.
+        assert "过去 3 年" not in prov["capex_pct_revenue"]
+        assert "过去 3 年" not in prov["ebitda_margin"]

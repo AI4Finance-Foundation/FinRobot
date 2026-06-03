@@ -55,7 +55,7 @@
 | BUG-004 | Bug | P1 | Entire FastAPI surface is unauthenticated and Host-header-unvalidated — DNS rebinding lets any web page drive secret-writing/quota-burning endpoints despite the CORS whitelist | 已修 |
 | BUG-005 | Bug | P1 | PUT /api/settings can silently delete or overwrite the user's live API keys (FMP/Anthropic/OpenAI) with no auth and no confirmation | 已修 |
 | BUG-006 | Bug | P1 | 跨境 forward 估值口径错币种:comps_pe 的 forward 路径用『USD 归一化同业 P/E × 申报币种 forward EPS』,ADR(TSM/ASML/BABA)目标价整体偏离一个汇率 | 已修 |
-| BUG-007 | Bug | P1 | DataLayer 跨 provider 仅 warn 不仲裁,且 cross_validate 容差(revenue 15%)结构性低于已知 FMP↔yfinance 25-80% 实差——分歧票静默采用 primary(FMP)原值进研报 | 待修 |
+| BUG-007 | Bug | P1 | DataLayer 跨 provider 仅 warn 不仲裁,且 cross_validate 容差(revenue 15%)结构性低于已知 FMP↔yfinance 25-80% 实差——分歧票静默采用 primary(FMP)原值进研报 | 已修 |
 | BUG-008 | Bug | P1 | Finnhub provider 把缺失的 total_debt/total_cash 用 `or 0` 伪造成 0 → 下游 EV 误算成「零净债」（违反 FMP 显式遵守的 None≠0 契约） | 已修 |
 | BUG-009 | Bug | P1 | xbrl_concept_snapshot 把所有年度营收硬编码成 us-gaap:Revenues，对绝大多数大盘股(ASC-606 口径)是错误的 concept 标签 | 已修 |
 | BUG-010 | Bug | P1 | XBRL TTM dict 丢弃 period_end/as_of_date 与 has_calculated_q4/warning，下游无法判定 TTM 截止季与质量 | 已修 |
@@ -251,7 +251,7 @@
 - **修复方案**：这是架构级、project-memory 已标 critical 且建议先 spec 的项,不应在本轮直接动代码——[金融待核] + 走专项 spec。最小可落地的诚实化:在 fetch_canonical 把 cross_validate 触发的『关键字段(revenue/net_income)超容差』标进 NormalizedFinancials.provenance.degraded(而非仅 warnings),让下游 dcf_seed/comps 能据此把对应 assumption 标 [金融待核] 或降 confidence,而不是当作可信硬数字。真正仲裁(定 SEC XBRL=SoT、按 fiscal date 对齐 TTM)需单独 spec(project-memory 已有此结论)。外部核对方案:取一只已知分歧票(如 project-memory 记录的样本),分别 curl FMP /v3/income-statement?period=quarter 求和 4 季 TTM net_income 与 yfinance info net_income,再对 SEC 10-Q XBRL us-gaap:NetIncomeLoss rolling-4Q,确认谁对、差在 TTM vs FY 口径还是单位。
 - **验证补充**：Agree with the finding's restraint: do NOT build SoT arbitration this round (needs a dedicated spec; project-memory already concludes this). The minimal honest improvement is correct and worth doing — when a key field (revenue/net_income) exceeds tolerance, push a structured marker into Provenance.degraded (the field exists, contracts.py:55) rather than only free-text warnings, so dcf_seed/comps can down-confidence or tag [金融待核] programmatically instead of relying on an LLM to read prose. Note Provenance.degraded is currently an enum-style list (contracts.py:36-55 'structured fallback markers'); adding a cross-provider-divergence marker means extending that enum, a small but real schema touch, not free.
 - **影响面/回归风险**：影响所有两源分歧票的 DCF/comps 数字可信度(用 primary=FMP 原值)。当前有 warning 兜底但不阻断。回归风险:若把关键字段超容差升级为 degraded/阻断,可能让一批边缘票从『出数+告警』变成『拒绝出数』,需 boss 确认产品取向(分析师宁可看到带标注的数 vs 宁可不看到错数)。属需 spec 项,不宜本轮硬改。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（最小诚实降级（非完整仲裁，仲裁延后 spec）。normalize/contracts.py 加 DEGRADED_PROVIDER_DIVERGENCE_PREFIX 常量 + builder（与既有 DEGRADED_* 字符串常量风格一致，字段后缀如 provider_divergence:revenue）。validator.py 加 key_field_divergences(primary,secondary)（仅 revenue/net_income，复用同一 _RELATIVE_FIELDS 容差不引第二阈值）。interface.py DataResult 加 key_field_divergences 字段。layer.py financials 分支在合 warnings 之外把超容差 KEY 字段推进 NormalizedFinancials.provenance.degraded（经 fetch_canonical）。**不改容差/不改 primary 胜出/不阻断 artifact**——数字照流，只多一个结构化标记让 dcf_seed/comps 可降可信度。新增 5+2 测试。）
 
 #### [BUG-008] Finnhub provider 把缺失的 total_debt/total_cash 用 `or 0` 伪造成 0 → 下游 EV 误算成「零净债」（违反 FMP 显式遵守的 None≠0 契约）
 

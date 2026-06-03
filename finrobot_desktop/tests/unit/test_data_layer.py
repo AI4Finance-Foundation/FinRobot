@@ -7,6 +7,10 @@ from finrobot.engine.data.cache import DataCache
 from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.normalize import NormalizedFinancials, NormalizedPrice
+from finrobot.engine.data.normalize.contracts import (
+    DEGRADED_PROVIDER_DIVERGENCE_PREFIX,
+    degraded_provider_divergence,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -158,10 +162,22 @@ def _range_result(provider: str, ticker: str = "AAPL") -> DataResult:
             "ticker": ticker,
             "interval": "1d",
             "bars": [
-                {"date": "2020-01-02", "open": 100.0, "high": 101.0, "low": 99.0,
-                 "close": 100.5, "volume": 1_000_000.0},
-                {"date": "2020-01-03", "open": 102.0, "high": 103.0, "low": 101.0,
-                 "close": 102.5, "volume": 1_100_000.0},
+                {
+                    "date": "2020-01-02",
+                    "open": 100.0,
+                    "high": 101.0,
+                    "low": 99.0,
+                    "close": 100.5,
+                    "volume": 1_000_000.0,
+                },
+                {
+                    "date": "2020-01-03",
+                    "open": 102.0,
+                    "high": 103.0,
+                    "low": 101.0,
+                    "close": 102.5,
+                    "volume": 1_100_000.0,
+                },
             ],
             "adjusted": True,
             "source_provider": provider,
@@ -454,9 +470,9 @@ class TestCrossValidationIntegration:
         layer = DataLayer([p1, p2, p3], cache)
         result = await layer.fetch("financials", "TEST")
         assert p3.fetch_called == 1, "Third provider was not called"
-        assert any(
-            "p3" in w for w in result.warnings
-        ), f"Third provider discrepancy not in warnings: {result.warnings}"
+        assert any("p3" in w for w in result.warnings), (
+            f"Third provider discrepancy not in warnings: {result.warnings}"
+        )
 
     async def test_empty_secondary_skipped_tries_next_provider(self, cache):
         """D5: empty secondary data → warning added, next provider tried."""
@@ -662,7 +678,9 @@ class TestFetchQuoteRaises:
 
     async def test_falls_through_on_provider_error(self, cache):
         p1 = MockProvider("fmp", ["quote"], raises=ProviderError("fmp down"))
-        p2 = MockProvider("yfinance", ["quote"], result=_make_result(data_type="quote", provider="yfinance"))
+        p2 = MockProvider(
+            "yfinance", ["quote"], result=_make_result(data_type="quote", provider="yfinance")
+        )
         layer = DataLayer([p1, p2], cache)
         result = await layer.fetch_quote("AAPL")
         assert result.provider == "yfinance"
@@ -683,7 +701,9 @@ class TestFetchQuoteRaises:
 
 class TestFetchPriceRaises:
     async def test_caches_success_and_returns(self, cache):
-        p = MockProvider("yfinance", ["price"], result=_make_result(data_type="price", provider="yfinance"))
+        p = MockProvider(
+            "yfinance", ["price"], result=_make_result(data_type="price", provider="yfinance")
+        )
         layer = DataLayer([p], cache)
         r1 = await layer.fetch_price("AAPL")
         assert r1.provider == "yfinance"
@@ -781,6 +801,62 @@ class TestFetchCanonical:
         )
         out = await layer.fetch_canonical("financials", "AAPL")
         assert any("revenue" in w and "discrepancy" in w for w in out.warnings)
+
+    async def test_key_field_divergence_stamps_structured_degraded_marker(self, cache):
+        # BUG-007: a KEY-field (revenue) cross-provider divergence beyond
+        # tolerance must reach NormalizedFinancials.provenance.degraded as a
+        # STRUCTURED marker (so dcf_seed/comps can react programmatically), IN
+        # ADDITION to the existing free-text warning.
+        r1 = DataResult(
+            data={"revenue": 100_000_000, "financial_currency": "USD"},
+            provider="fmp",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        r2 = DataResult(
+            data={"revenue": 150_000_000, "financial_currency": "USD"},  # 33% off
+            provider="finnhub",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        layer = DataLayer(
+            [MockProvider("fmp", ["financials"], r1), MockProvider("finnhub", ["financials"], r2)],
+            cache,
+        )
+        out = await layer.fetch_canonical("financials", "AAPL")
+        assert degraded_provider_divergence("revenue") in out.provenance.degraded
+        # Primary (FMP) value still flows — number not dropped, just flagged.
+        assert out.revenue == 100_000_000
+        # The free-text warning is STILL present alongside the structured marker.
+        assert any("revenue" in w and "discrepancy" in w for w in out.warnings)
+
+    async def test_key_field_agreement_no_divergence_marker(self, cache):
+        # Non-divergent case: providers agree within tolerance → no structured
+        # divergence marker on provenance.degraded.
+        r1 = DataResult(
+            data={"revenue": 100_000_000, "financial_currency": "USD"},
+            provider="fmp",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        r2 = DataResult(
+            data={"revenue": 105_000_000, "financial_currency": "USD"},  # ~5%, within 15%
+            provider="finnhub",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        layer = DataLayer(
+            [MockProvider("fmp", ["financials"], r1), MockProvider("finnhub", ["financials"], r2)],
+            cache,
+        )
+        out = await layer.fetch_canonical("financials", "AAPL")
+        assert not any(
+            m.startswith(f"{DEGRADED_PROVIDER_DIVERGENCE_PREFIX}:") for m in out.provenance.degraded
+        )
 
     async def test_unsupported_type_raises_value_error(self, cache):
         layer = DataLayer([MockProvider("mock", ["news"])], cache)

@@ -41,6 +41,19 @@ DEGRADED_CCY_INFERRED = "ccy_inferred"  # reporting currency inferred, not provi
 # provider gave no real-time current_price; using the latest bar's close as a
 # stand-in. Lets the UI avoid claiming a stale close is a live "实时" quote.
 DEGRADED_PRICE_FALLBACK_CLOSE = "price_fallback_close"
+# Two providers disagreed beyond tolerance on a KEY financials field
+# (revenue / net_income). The primary (FMP) value still flows — analysts prefer
+# a flagged number over no number — but this STRUCTURED marker lets dcf_seed /
+# comps programmatically down-confidence or tag [金融待核] instead of relying on
+# the free-text cross_validate warning. Field-suffixed (``provider_divergence:revenue``)
+# so consumers know which number to distrust; build with ``degraded_provider_divergence(field)``.
+DEGRADED_PROVIDER_DIVERGENCE_PREFIX = "provider_divergence"
+
+
+def degraded_provider_divergence(field: str) -> str:
+    """Structured ``Provenance.degraded`` marker for a cross-provider KEY-field
+    divergence, e.g. ``provider_divergence:revenue``."""
+    return f"{DEGRADED_PROVIDER_DIVERGENCE_PREFIX}:{field}"
 
 
 class Provenance(BaseModel):

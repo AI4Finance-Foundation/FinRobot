@@ -7,7 +7,7 @@ warning strings and thresholds rather than just "non-empty list".
 from datetime import datetime, timezone
 
 from finrobot.engine.data.interface import DataResult
-from finrobot.engine.data.validator import cross_validate
+from finrobot.engine.data.validator import cross_validate, key_field_divergences
 
 
 def _result(provider: str, data: dict) -> DataResult:
@@ -116,3 +116,40 @@ def test_cross_validate_empty_secondary_warns():
     assert len(warnings) == 1
     assert "empty data" in warnings[0].lower()
     assert "p2" in warnings[0]
+
+
+# BUG-007: structured KEY-field divergence channel (revenue / net_income).
+
+
+def test_key_field_divergences_revenue_over_tolerance():
+    """Revenue diverges 33% > 15% → revenue reported as a structured KEY field."""
+    p = _result("fmp", {"revenue": 100_000_000})
+    s = _result("finnhub", {"revenue": 150_000_000})
+    assert key_field_divergences(p, s) == ["revenue"]
+
+
+def test_key_field_divergences_net_income_over_tolerance():
+    p = _result("fmp", {"net_income": 10_000_000})
+    s = _result("finnhub", {"net_income": 13_000_000})  # 30% > 15%
+    assert key_field_divergences(p, s) == ["net_income"]
+
+
+def test_key_field_divergences_within_tolerance_empty():
+    """Revenue within 15% → no structured marker even though it's a key field."""
+    p = _result("fmp", {"revenue": 100_000_000})
+    s = _result("finnhub", {"revenue": 110_000_000})  # ~9%
+    assert key_field_divergences(p, s) == []
+
+
+def test_key_field_divergences_ignores_non_key_fields():
+    """A non-key field (market_cap) over its tolerance is NOT reported here —
+    that stays prose-only via cross_validate."""
+    p = _result("fmp", {"market_cap": 100_000_000, "revenue": 100_000_000})
+    s = _result("finnhub", {"market_cap": 150_000_000, "revenue": 101_000_000})
+    assert key_field_divergences(p, s) == []
+
+
+def test_key_field_divergences_empty_secondary():
+    p = _result("fmp", {"revenue": 100_000_000})
+    s = _result("finnhub", {})
+    assert key_field_divergences(p, s) == []

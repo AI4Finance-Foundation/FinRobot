@@ -12,7 +12,8 @@ from finrobot.engine.data.normalize import (
     normalize_price,
 )
 from finrobot.engine.data.types import DataType
-from finrobot.engine.data.validator import cross_validate
+from finrobot.engine.data.normalize.contracts import degraded_provider_divergence
+from finrobot.engine.data.validator import cross_validate, key_field_divergences
 
 logger = logging.getLogger(__name__)
 
@@ -125,8 +126,27 @@ class DataLayer:
                 merged = list(
                     dict.fromkeys([*primary_result.warnings, *result.warnings, *discrepancies])
                 )
-                if merged != list(primary_result.warnings):
-                    primary_result = primary_result.model_copy(update={"warnings": merged})
+                # BUG-007: in ADDITION to the prose warnings, carry a STRUCTURED
+                # list of KEY fields (revenue / net_income) the two providers
+                # disagree on, so fetch_canonical can stamp Provenance.degraded.
+                # The primary value still wins and flows — this only flags it.
+                merged_divergences = list(
+                    dict.fromkeys(
+                        [
+                            *primary_result.key_field_divergences,
+                            *key_field_divergences(primary_result, result),
+                        ]
+                    )
+                )
+                if merged != list(primary_result.warnings) or merged_divergences != list(
+                    primary_result.key_field_divergences
+                ):
+                    primary_result = primary_result.model_copy(
+                        update={
+                            "warnings": merged,
+                            "key_field_divergences": merged_divergences,
+                        }
+                    )
                 secondary_count += 1
                 if data_type != DataType.FINANCIALS or secondary_count >= 2:
                     break
@@ -218,6 +238,16 @@ class DataLayer:
         # onto the canonical object so they survive the normalization boundary.
         if raw.warnings:
             normalized.warnings = list(raw.warnings)
+        # BUG-007: promote the STRUCTURED key-field divergences to
+        # Provenance.degraded (in addition to the prose warning above) so
+        # dcf_seed / comps can programmatically down-confidence or tag [金融待核]
+        # the primary's number instead of parsing the free-text warning. The
+        # number still flows — this only flags it. Only meaningful for FINANCIALS;
+        # PRICE never populates key_field_divergences.
+        for field in raw.key_field_divergences:
+            marker = degraded_provider_divergence(field)
+            if marker not in normalized.provenance.degraded:
+                normalized.provenance.degraded.append(marker)
         await self._cache.set_canonical(data_type, ticker, normalized.model_dump_json())
         return normalized
 

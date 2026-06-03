@@ -37,6 +37,12 @@ _RELATIVE_FIELDS: dict[str, float] = {
     "total_cash": 0.15,
 }
 
+# KEY fundamentals that drive valuation (DCF numerator / comps base). An
+# over-tolerance divergence on these is escalated from a prose warning to a
+# STRUCTURED Provenance.degraded marker (BUG-007) so dcf_seed / comps can
+# react programmatically. The primary value still flows — this only flags it.
+_KEY_FIELDS: tuple[str, ...] = ("revenue", "net_income")
+
 # field -> absolute tolerance (in percentage points, since these are fractions)
 _ABSOLUTE_FIELDS: dict[str, float] = {
     "gross_margin": 0.10,
@@ -104,3 +110,40 @@ def cross_validate(primary: DataResult, secondary: DataResult) -> list[str]:
             )
 
     return warnings
+
+
+def key_field_divergences(primary: DataResult, secondary: DataResult) -> list[str]:
+    """KEY fields (revenue / net_income) that diverge beyond tolerance between
+    two financials providers.
+
+    Companion to :func:`cross_validate` for the BUG-007 structured-degradation
+    channel: ``cross_validate`` produces human-readable warnings for ALL fields,
+    while this returns just the over-tolerance KEY field NAMES so the caller can
+    stamp a ``provider_divergence:<field>`` marker onto ``Provenance.degraded``.
+    Same tolerances, same numeric guards — it does NOT introduce a second
+    threshold (CLAUDE.md: no parallel divergence definition).
+
+    Empty list when the providers agree within tolerance on the key fields, or
+    when the secondary returned empty data (no comparison possible).
+    """
+    diverged: list[str] = []
+    p, s = primary.data, secondary.data
+    if not s:
+        return diverged
+
+    for field in _KEY_FIELDS:
+        tolerance = _RELATIVE_FIELDS[field]
+        pv, sv = p.get(field), s.get(field)
+        if pv is None or sv is None:
+            continue
+        if not _is_number(pv) or not _is_number(sv):
+            continue
+        if pv == 0 and sv == 0:
+            continue
+        denominator = max(abs(pv), abs(sv))
+        if denominator == 0:
+            continue
+        if abs(pv - sv) / denominator > tolerance:
+            diverged.append(field)
+
+    return diverged

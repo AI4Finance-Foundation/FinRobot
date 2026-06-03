@@ -15,7 +15,13 @@ class DataResult(BaseModel):
     ticker: str
     data_type: str | DataType  # use DataType constants; str accepted for backwards-compat
     timestamp: datetime  # when this data was fetched
-    warnings: list[str] = []  # e.g. "stale data from cache"
+    warnings: list[str] = []  # e.g. "stale data from cache" — free-text, LLM-facing
+    # STRUCTURED (not prose) sibling of warnings: KEY financials fields
+    # (revenue / net_income) where two providers diverged beyond tolerance
+    # (BUG-007). cross_validate also appends a human-readable warning, but this
+    # list lets fetch_canonical stamp Provenance.degraded so dcf_seed / comps can
+    # programmatically down-confidence the primary's number instead of parsing prose.
+    key_field_divergences: list[str] = []
 
     def to_context_string(self) -> str:
         """Format data for LLM consumption. Human-readable, includes warnings."""

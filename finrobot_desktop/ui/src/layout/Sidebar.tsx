@@ -3,7 +3,7 @@
 // Vertical icon strip: top = primary nav, divider, bottom = settings.
 // Active state shows a 3px blue glowing left rail (spec §5.2).
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { IconDashboard, IconSettings } from '../lib/icons'
 import { useRunStreamStore } from '../stores/runStreamStore'
@@ -115,9 +115,19 @@ interface SideIconProps {
 
 function SideIcon({ item, active, badge, onClick }: SideIconProps): React.ReactElement {
   const { Icon, labelKey } = item
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const label = t(labelKey)
   const runningLabel = t('shell.sidebar.runningCount', { count: badge })
+  // Flyout reveals the nav name on hover/focus. The slim 64px icon-only rail
+  // (spec §5.2) otherwise leans on the native `title`, which has a ~1s OS delay
+  // and never fires on keyboard focus — leaving the primary nav undiscoverable
+  // (BUG-20260602-018). This in-component label appears instantly and on focus,
+  // so every destination is self-describing while keeping the icon-only look.
+  const [revealed, setRevealed] = useState(false)
+  const flyoutText =
+    badge > 0
+      ? `${label} · ${runningLabel}`
+      : `${label}${active ? (locale === 'zh' ? ' · 当前页' : ' · current') : ''}`
 
   return (
     <button
@@ -141,17 +151,21 @@ function SideIcon({ item, active, badge, onClick }: SideIconProps): React.ReactE
         transition: 'background 0.15s, color 0.15s',
       }}
       onMouseEnter={(e) => {
+        setRevealed(true)
         if (!active) {
           e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
           e.currentTarget.style.color = 'var(--text-primary)'
         }
       }}
       onMouseLeave={(e) => {
+        setRevealed(false)
         if (!active) {
           e.currentTarget.style.background = 'transparent'
           e.currentTarget.style.color = 'var(--text-secondary)'
         }
       }}
+      onFocus={() => setRevealed(true)}
+      onBlur={() => setRevealed(false)}
     >
       {/* Glowing active rail (spec §5.2: 3px blue) */}
       {active && (
@@ -182,7 +196,7 @@ function SideIcon({ item, active, badge, onClick }: SideIconProps): React.ReactE
             padding: '0 4px',
             borderRadius: 8,
             background: 'var(--primary)',
-            color: '#fff',
+            color: 'var(--text-primary)',
             fontFamily: 'var(--font-mono)',
             fontSize: 9,
             fontWeight: 700,
@@ -192,6 +206,33 @@ function SideIcon({ item, active, badge, onClick }: SideIconProps): React.ReactE
           }}
         >
           {badge}
+        </span>
+      )}
+      {/* Fast hover/focus flyout label (BUG-20260602-018): names the destination
+          instantly, including a keyboard-focus path the native title lacks. */}
+      {revealed && (
+        <span
+          role="tooltip"
+          style={{
+            position: 'absolute',
+            left: ICON_BOX + 6,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            whiteSpace: 'nowrap',
+            padding: '4px 8px',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border-soft)',
+            color: 'var(--text-primary)',
+            fontSize: 11,
+            fontWeight: 500,
+            lineHeight: 1.2,
+            boxShadow: 'var(--shadow-md)',
+            pointerEvents: 'none',
+            zIndex: 20,
+          }}
+        >
+          {flyoutText}
         </span>
       )}
     </button>

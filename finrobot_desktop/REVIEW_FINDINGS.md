@@ -122,8 +122,8 @@
 | BUG-075 | Bug | P2 | 13F refresh job 假设 edgartools 小写列名,实装 5.31.5 输出 PascalCase(Cusip/Issuer/Value)→ 每份 filing 被 schema gate 跳过,institutional_holdings 永久空(缓存 0 行),测试 mock 小写列所以 CI 绿 | 已修 |
 | BUG-078 | Bug | P2 | agent 工厂/orchestrator 用无 encoding 的 read_text() 读含中文的 .md 指令文件——非 UTF-8 locale(裸 Docker LANG=C/Windows)下 agent 创建即 UnicodeDecodeError 崩;同仓 skills/loader.py 已带 encoding,这两处漏写 | 待修 |
 | BUG-079 | Bug | P2 | semantic_diff.build_semantic_delta 对 data_fetched_at 裸做 datetime 相减,一新(tz-aware)一旧(naive)时抛 TypeError→版本对比端点 500;全 artifact/audit 面仅此处漏 _ensure_tz(同胞模块都防了) | 已修 |
-| BUG-080 | Bug | P2 | /{ticker}/earnings-calls 构造 EarningsCallTranscript 的循环在 try/except 外,FMP 真实 payload 的 quarter 缺失/为 0(年度会/特别会)触发 ValidationError 逃逸→裸 500,而非 per-item 跳过 | 待修 |
-| BUG-081 | Bug | P2 | /{ticker}/price 的 session_state 对所有标的硬编码美东 9:30-16:00 ET 判定→港股/A股/日股盘中被错标『已收盘』,freshness pill 把实时报价显示成上一交易日收盘(与 BUG-030 同源:平台多处默认美国市场) | 待修 |
+| BUG-080 | Bug | P2 | /{ticker}/earnings-calls 构造 EarningsCallTranscript 的循环在 try/except 外,FMP 真实 payload 的 quarter 缺失/为 0(年度会/特别会)触发 ValidationError 逃逸→裸 500,而非 per-item 跳过 | 已修 |
+| BUG-081 | Bug | P2 | /{ticker}/price 的 session_state 对所有标的硬编码美东 9:30-16:00 ET 判定→港股/A股/日股盘中被错标『已收盘』,freshness pill 把实时报价显示成上一交易日收盘(与 BUG-030 同源:平台多处默认美国市场) | 已修 |
 | BUG-082 | Bug | P2 | `finrobot dcf <ticker>` 默认路径死锁:_should_use_ddm 的 asyncio.run 把 DataCache 的 aiosqlite 连接绑到随后销毁的 loop,第二个 asyncio.run 复用同连接→worker 线程绑死锁,进程退出时永久 hang(单 loop 测试测不出) | 待修 |
 | BUG-086 | Bug | P2 | [休眠·须与 BUG-075 同修] 13F value 双倍 ×1000:edgartools 5.31.5 已把 Value 归一化成整美元,refresh 脚本 line 102 又无条件 ×1000→机构持仓金额 1000 倍高估($250M 显示成 $250B);当前被 BUG-075 列名 bug 挡住未触发,BUG-075 一修即吐错数 | 已修 |
 | BUG-087 | Bug | P2 | Prompt 注入:第三方可控的新闻标题(RSS/FMP &lt;title&gt;)未分隔/转义逐字流入 LLM prompt 两处(equity_research thesis + news_classifier)→可注入伪数字/翻转 importance/sentiment 污染研报叙事与 catalyst 选择 | 待修 |
@@ -1200,7 +1200,7 @@
 - **根因**：构造在 try 外 + 用了模型本身拒绝的哨兵默认 0；类型上 quarter 恒 int 故静态看不出 FMP 会喂 0/缺失。
 - **修复方案**：把构造循环移进 try 并 catch ValidationError，单条 transcript 失败做 per-item 跳过+累加 warning（而非整请求 500）；或构造前校验 quarter∈1..4，非法落 skipped。
 - **影响面/回归风险**：影响有年度会/特别会/pre-backfill quarter=0 的标的的逐字稿标签（FMP key 后）。修复让单条坏数据降级而非整页崩。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（routes/data.get_earnings_calls 的 EarningsCallTranscript 构造移进循环内 try/except ValidationError——FMP 年度/特别会 quarter=0/null（模型要求 1..4）的坏 item 现 per-item 跳过 + logger.warning，全坏→空列表而非裸 500。与 BUG-081 同提交。）
 
 #### [BUG-081] /{ticker}/price 的 session_state 对所有标的硬编码美东时段 → 港股/A股/日股盘中错标『已收盘』
 
@@ -1212,7 +1212,7 @@
 - **根因**：把"美国"当默认市场（与 BUG-030 同一类平台级假设）；唯有对照外部市场日历才看得出"交易所"假设对非美标的是错的。
 - **修复方案**：按标的所属交易所的时区+交易时段判定：从 yfinance 后缀(.HK/.SS/.SZ/.T/无=US)或 payload['exchange'] 解析市场，查对应 market calendar；无法判定时返 'unknown' 而非谎称 closed。
 - **影响面/回归风险**：影响所有非美标的的 /price 市场状态标签。修复需引入市场→时区映射，回归风险低（美股路径不变）。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（routes/data 的 session_state 不再对所有标的硬编码美东 9:30-16:00 ET。新增 _resolve_market_session + _SESSION_BY_SUFFIX（.HK/.SS/.SZ/.T/.L/.PA/.DE/.TO/.AX/.KS/.TW/.NS/.SI 等→各自交易所 tz+本地时段），按交易所时区判 live/closed；无后缀=美股（回归安全）；未映射外国后缀/未知非美交易所码→"unknown" 而非伪造 "closed"，UI 不会对外国报价撒谎。午休/半日延后（finding 最小修复）。与 BUG-080 同 US-市场默认族（同 BUG-030）。新增 3+7 路由测试。与 BUG-080 同提交。）
 
 #### [BUG-082] `finrobot dcf <ticker>` 死锁:_should_use_ddm 的 asyncio.run 把 cache 连接绑到随后销毁的 loop,第二个 asyncio.run 永久 hang
 

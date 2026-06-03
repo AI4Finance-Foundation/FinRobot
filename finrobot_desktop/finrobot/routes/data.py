@@ -8,6 +8,7 @@ from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException
+from pydantic import ValidationError
 from starlette.requests import Request
 
 from finrobot.engine.compute.catalyst import (
@@ -239,6 +240,7 @@ async def get_earnings_calls(
 
     raw_transcripts = result.data.get("transcripts", [])
     transcripts = []
+    skipped = 0
     for item in raw_transcripts:
         date_str = item.get("date", "")
         parsed_date = None
@@ -247,14 +249,37 @@ async def get_earnings_calls(
                 parsed_date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
             except (ValueError, TypeError):
                 pass
-        transcripts.append(
-            EarningsCallTranscript(
-                ticker=item.get("ticker", ticker.upper()),
-                quarter=item.get("quarter", 0),
-                year=item.get("year", 0),
-                date=parsed_date,
-                content=item.get("content", ""),
+        # Construct per-item inside try/except: FMP serves annual/special calls
+        # with a missing/zero/null quarter, but EarningsCallTranscript requires
+        # quarter ∈ 1..4. A single bad item must degrade to a skip + warning, not
+        # crash the whole endpoint with a bare 500 (the model rejects the 0
+        # sentinel _.get("quarter", 0)_ feeds it).
+        try:
+            transcripts.append(
+                EarningsCallTranscript(
+                    ticker=item.get("ticker", ticker.upper()),
+                    quarter=item.get("quarter", 0),
+                    year=item.get("year", 0),
+                    date=parsed_date,
+                    content=item.get("content", ""),
+                )
             )
+        except ValidationError:
+            skipped += 1
+            logger.warning(
+                "Skipped malformed earnings transcript for %s (quarter=%r, year=%r)",
+                ticker.upper(),
+                item.get("quarter"),
+                item.get("year"),
+            )
+
+    if skipped:
+        logger.warning(
+            "Returned %d/%d earnings transcripts for %s; %d skipped as malformed",
+            len(transcripts),
+            len(raw_transcripts),
+            ticker.upper(),
+            skipped,
         )
 
     return EarningsCallList(ticker=ticker.upper(), transcripts=transcripts)
@@ -330,7 +355,11 @@ async def _enrich_price_payload_from_financial_cache(
     here, so this is the one place to set them.
     """
     _stamp_as_of(payload)
-    payload["session_state"] = _compute_session_state(payload.get("as_of"))
+    payload["session_state"] = _compute_session_state(
+        payload.get("as_of"),
+        ticker=payload.get("ticker") or ticker,
+        exchange=payload.get("exchange"),
+    )
     # Technicals trend snapshot — computed here (the one choke point all /price
     # paths flow through: fetcher, provider-cache fast path, stale-cache
     # fallback) so every path carries it identically. The guard keeps any
@@ -374,28 +403,96 @@ def _stamp_as_of(payload: dict[str, Any]) -> None:
             payload["as_of"] = last_date
 
 
-_MARKET_TZ = ZoneInfo("America/New_York")
-_MARKET_OPEN = time(9, 30)
-_MARKET_CLOSE = time(16, 0)
+class _MarketSession:
+    """Regular-session window for one exchange, in that exchange's timezone."""
+
+    __slots__ = ("tz", "open", "close")
+
+    def __init__(self, tz: str, open_: time, close: time) -> None:
+        self.tz = ZoneInfo(tz)
+        self.open = open_
+        self.close = close
 
 
-def _compute_session_state(as_of: str | None, *, now_et: datetime | None = None) -> str:
+# Map yfinance ticker suffix → exchange regular session. US (no suffix) is the
+# fallback for US-listed names. Each window is in the exchange's local timezone;
+# lunch breaks (HK/CN/JP) are folded into a continuous span here — half-days and
+# lunch-break minutes can over-report "live", an acceptable minimal-fix tradeoff
+# (see BUG-081 note). Markets we can't map fall through to "unknown" rather than
+# falsely claiming "closed" on a real intraday quote.
+_US_SESSION = _MarketSession("America/New_York", time(9, 30), time(16, 0))
+_SESSION_BY_SUFFIX: dict[str, _MarketSession] = {
+    "HK": _MarketSession("Asia/Hong_Kong", time(9, 30), time(16, 0)),
+    "SS": _MarketSession("Asia/Shanghai", time(9, 30), time(15, 0)),
+    "SZ": _MarketSession("Asia/Shanghai", time(9, 30), time(15, 0)),
+    "T": _MarketSession("Asia/Tokyo", time(9, 0), time(15, 0)),
+    "L": _MarketSession("Europe/London", time(8, 0), time(16, 30)),
+    "PA": _MarketSession("Europe/Paris", time(9, 0), time(17, 30)),
+    "DE": _MarketSession("Europe/Berlin", time(9, 0), time(17, 30)),
+    "TO": _MarketSession("America/Toronto", time(9, 30), time(16, 0)),
+    "AX": _MarketSession("Australia/Sydney", time(10, 0), time(16, 0)),
+    "KS": _MarketSession("Asia/Seoul", time(9, 0), time(15, 30)),
+    "KQ": _MarketSession("Asia/Seoul", time(9, 0), time(15, 30)),
+    "TW": _MarketSession("Asia/Taipei", time(9, 0), time(13, 30)),
+    "NS": _MarketSession("Asia/Kolkata", time(9, 15), time(15, 30)),
+    "BO": _MarketSession("Asia/Kolkata", time(9, 15), time(15, 30)),
+    "SI": _MarketSession("Asia/Singapore", time(9, 0), time(17, 0)),
+}
+
+# US exchange codes (yfinance/FMP) — used when a ticker carries no suffix but
+# the provider reports an exchange, to confirm a US session vs. fall to unknown.
+_US_EXCHANGE_CODES = frozenset(
+    {"NMS", "NYQ", "NGM", "NCM", "NASDAQ", "NYSE", "AMEX", "PCX", "BATS", "ASE"}
+)
+
+
+def _resolve_market_session(ticker: str | None, exchange: str | None) -> _MarketSession | None:
+    """Pick the exchange session for ``ticker``, or ``None`` when undeterminable.
+
+    Resolution order: yfinance ticker suffix (``.HK`` / ``.SS`` / …) → US for a
+    suffix-less ticker carrying a known US exchange code → US for a suffix-less
+    ticker with no exchange hint (the common US case). Returns ``None`` for a
+    suffix we don't map, so the caller can honestly say "unknown" instead of
+    asserting a US session for a foreign listing.
+    """
+    if ticker:
+        _, dot, suffix = ticker.rpartition(".")
+        if dot:
+            return _SESSION_BY_SUFFIX.get(suffix.upper())  # unmapped suffix → None
+    # No dotted suffix: a local listing or a US name.
+    if exchange and exchange.upper() not in _US_EXCHANGE_CODES:
+        # Provider names a non-US exchange we don't recognize — don't fake US.
+        return None
+    return _US_SESSION
+
+
+def _compute_session_state(
+    as_of: str | None,
+    *,
+    ticker: str | None = None,
+    exchange: str | None = None,
+    now: datetime | None = None,
+) -> str:
     """Classify ``current_price`` as a live intraday quote or a session close.
 
-    Returns ``"live"`` only when the US regular session is in progress AND
-    today's bar is present; otherwise ``"closed"``.
+    Returns ``"live"`` only when the resolving exchange's regular session is in
+    progress AND today's bar is present; ``"closed"`` when the session is over
+    or no today-bar exists; and ``"unknown"`` when the market can't be resolved
+    (an unmapped foreign suffix / unrecognized non-US exchange) — never falsely
+    "closed" on a real foreign intraday quote (BUG-081).
 
-    Computed in the exchange's timezone (America/New_York) on purpose: the
-    client cannot derive session state from ``as_of`` alone, because its
-    notion of "today" is the viewer's local date. A viewer east of ET (e.g.
-    China, UTC+8) crosses local midnight while the US session is still live
-    (ET 12:00–16:00 = CN 00:00–04:00); a date-string comparison there would
-    mislabel a live quote as a prior-day close.
+    Computed in the *resolving* exchange's timezone (not always ET): a HK/A-share/
+    JP intraday quote sits in ET overnight, so the prior US-only logic stamped it
+    "closed" and the freshness pill showed a live quote as a prior-day close.
+    Resolving per-ticker fixes that; the US path (suffix-less ticker) is unchanged.
 
-    Holidays need no calendar: on a market holiday there is no bar for today,
-    so ``as_of < today_et`` → ``"closed"``. Not modeled: half-day early closes
-    (~13:00 ET, ~9 days/year) read ``"live"`` until 16:00 ET. Pre/post-market
-    quotes are reported ``"closed"`` (we only treat the regular session as live).
+    The client can't derive session state from ``as_of`` alone — its notion of
+    "today" is the viewer's local date, which drifts from the exchange date.
+
+    Holidays need no calendar: on a market holiday there is no bar for today, so
+    ``as_of < today`` → ``"closed"``. Not modeled: half-day early closes and
+    lunch-break minutes read ``"live"`` (continuous-span sessions). Pre/post-market
+    quotes report ``"closed"`` (only the regular session counts as live).
     """
     if not as_of:
         return "closed"
@@ -403,9 +500,14 @@ def _compute_session_state(as_of: str | None, *, now_et: datetime | None = None)
         as_of_date = date.fromisoformat(as_of[:10])
     except ValueError:
         return "closed"
-    now = now_et or datetime.now(tz=_MARKET_TZ)
-    in_regular_session = now.weekday() < 5 and _MARKET_OPEN <= now.time() < _MARKET_CLOSE
-    if in_regular_session and as_of_date >= now.date():
+    session = _resolve_market_session(ticker, exchange)
+    if session is None:
+        return "unknown"
+    now_local = now.astimezone(session.tz) if now else datetime.now(tz=session.tz)
+    in_regular_session = (
+        now_local.weekday() < 5 and session.open <= now_local.time() < session.close
+    )
+    if in_regular_session and as_of_date >= now_local.date():
         return "live"
     return "closed"
 

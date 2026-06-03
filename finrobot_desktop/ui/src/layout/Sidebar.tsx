@@ -153,7 +153,7 @@ function SideIcon({ item, active, badge, onClick }: SideIconProps): React.ReactE
       onMouseEnter={(e) => {
         setRevealed(true)
         if (!active) {
-          e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+          e.currentTarget.style.background = 'var(--secondary-hover)'
           e.currentTarget.style.color = 'var(--text-primary)'
         }
       }}

@@ -632,7 +632,7 @@ export function CmdKOverlay() {
       style={
         {
           // Override default cmdk dialog styles to match design system
-          '--cmdk-shadow': '0 16px 48px rgba(0,0,0,0.6)',
+          '--cmdk-shadow': '0 16px 48px color-mix(in srgb, var(--bg-void) 60%, transparent)',
         } as React.CSSProperties
       }
     >

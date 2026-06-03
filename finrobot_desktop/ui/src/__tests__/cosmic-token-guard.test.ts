@@ -1,0 +1,72 @@
+/**
+ * Cosmic-token guard (BUG-20260602-022).
+ *
+ * These five UI surfaces were reworked from a mix of hardcoded hex / rgba
+ * colors to cosmic `var(--*)` tokens. This test loads their *source* (via
+ * Vite's `?raw` import) and fails if a raw color literal sneaks back in, so
+ * the theming contract stays closed. Scoped to these files only — it does
+ * NOT police the whole repo.
+ *
+ * What counts as a violation:
+ *   - hex color literals:            #fff, #1a1207, #05050d, …
+ *   - rgb()/rgba() function calls:   rgba(255,255,255,0.04), rgb(…)
+ *   - legacy color aliases:          var(--red|green|blue|purple) — cosmic
+ *     spec wants semantic tokens (--danger / --success / --primary /
+ *     --secondary) instead of these raw color names.
+ *
+ * Allowed (NOT violations):
+ *   - color-mix(in srgb, var(--token) N%, transparent) — the project's
+ *     established pattern for token-derived translucency.
+ *   - any other var(--*) token.
+ *
+ * If a future change genuinely needs a raw literal (e.g. an inline SVG that
+ * truly cannot take a token), exclude that exact line with a trailing
+ * `// token-guard-allow` comment and explain why.
+ */
+import { describe, it, expect } from 'vitest'
+
+// Raw source of each guarded file. `?raw` gives us the verbatim text without
+// executing the module (and without needing Node's fs types in the web build).
+import cmdkOverlaySrc from '../layout/CmdKOverlay.tsx?raw'
+import sidebarSrc from '../layout/Sidebar.tsx?raw'
+import settingsViewSrc from '../views/SettingsView.tsx?raw'
+import versionDiffBannerSrc from '../components/VersionDiffBanner.tsx?raw'
+import aiChatTabSrc from '../layout/RightChatPanel/AiChatTab.tsx?raw'
+
+const GUARDED: Array<[string, string]> = [
+  ['layout/CmdKOverlay.tsx', cmdkOverlaySrc],
+  ['layout/Sidebar.tsx', sidebarSrc],
+  ['views/SettingsView.tsx', settingsViewSrc],
+  ['components/VersionDiffBanner.tsx', versionDiffBannerSrc],
+  ['layout/RightChatPanel/AiChatTab.tsx', aiChatTabSrc],
+]
+
+// 3-, 4-, 6- and 8-digit hex color literals (`#fff`, `#1a1207`, `#0a0a18ff`).
+// Anchored to a `#` followed by exactly 3/4/6/8 hex digits at a word boundary,
+// which avoids matching e.g. anchors (`#valuation`) or longer ids.
+const HEX_RE = /#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})\b/
+// rgb()/rgba() function calls.
+const RGB_RE = /\brgba?\s*\(/
+// Legacy raw-color aliases — use semantic tokens instead.
+const LEGACY_ALIAS_RE = /var\(\s*--(?:red|green|blue|purple)\s*\)/
+
+const ALLOW_MARKER = 'token-guard-allow'
+
+describe('cosmic token guard — BUG-20260602-022', () => {
+  it.each(GUARDED)('%s has no hardcoded color literals', (rel, source) => {
+    const offenders: string[] = []
+
+    source.split('\n').forEach((line, i) => {
+      if (line.includes(ALLOW_MARKER)) return
+      if (HEX_RE.test(line) || RGB_RE.test(line) || LEGACY_ALIAS_RE.test(line)) {
+        offenders.push(`  ${rel}:${i + 1}  ${line.trim()}`)
+      }
+    })
+
+    expect(
+      offenders,
+      `Hardcoded color literal(s) found — use cosmic var(--*) tokens ` +
+        `(or color-mix(in srgb, var(--token) N%, transparent)):\n${offenders.join('\n')}`,
+    ).toEqual([])
+  })
+})

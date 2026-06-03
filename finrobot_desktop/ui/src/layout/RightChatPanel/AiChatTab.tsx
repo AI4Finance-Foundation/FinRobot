@@ -1198,10 +1198,10 @@ function AiInputArea({
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '6px 10px',
-            background: 'rgba(248,113,113,0.1)',
+            background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
             borderRadius: '4px',
             fontSize: '11px',
-            color: 'var(--red)',
+            color: 'var(--danger)',
           }}
         >
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1253,7 +1253,7 @@ function AiInputArea({
             style={{
               padding: '0 12px 6px',
               fontSize: '11px',
-              color: 'var(--red)',
+              color: 'var(--danger)',
             }}
           >
             {t('chat.overlength', {
@@ -1274,9 +1274,9 @@ function AiInputArea({
               style={{
                 padding: '5px 11px',
                 borderRadius: '4px',
-                background: 'rgba(248,113,113,0.15)',
-                border: '1px solid rgba(248,113,113,0.3)',
-                color: 'var(--red)',
+                background: 'color-mix(in srgb, var(--danger) 15%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)',
+                color: 'var(--danger)',
                 fontSize: '10px',
                 fontFamily: 'var(--font-mono)',
                 cursor: 'pointer',

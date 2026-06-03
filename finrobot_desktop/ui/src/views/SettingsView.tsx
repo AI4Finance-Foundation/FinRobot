@@ -899,7 +899,7 @@ function ResetConfirmModal({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(5,5,13,0.72)',
+        background: 'color-mix(in srgb, var(--bg-void) 72%, transparent)',
         backdropFilter: 'blur(6px)',
         WebkitBackdropFilter: 'blur(6px)',
         display: 'grid',
@@ -916,7 +916,7 @@ function ResetConfirmModal({
           background: 'var(--bg-elevated)',
           border: '1px solid var(--border-soft)',
           borderRadius: 'var(--radius-md)',
-          boxShadow: '0 16px 40px rgba(0,0,0,0.4)',
+          boxShadow: '0 16px 40px color-mix(in srgb, var(--bg-void) 40%, transparent)',
           display: 'flex',
           flexDirection: 'column',
           gap: 14,
@@ -964,7 +964,7 @@ function ResetConfirmModal({
               borderRadius: 6,
               border: 'none',
               background: 'var(--warning)',
-              color: '#1a1207',
+              color: 'var(--bg-void)',
               cursor: 'pointer',
               fontWeight: 600,
             }}
@@ -1210,7 +1210,7 @@ function SecHoldingsConfirmModal({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(5,5,13,0.72)',
+        background: 'color-mix(in srgb, var(--bg-void) 72%, transparent)',
         backdropFilter: 'blur(6px)',
         WebkitBackdropFilter: 'blur(6px)',
         display: 'grid',
@@ -1227,7 +1227,7 @@ function SecHoldingsConfirmModal({
           background: 'var(--bg-elevated)',
           border: '1px solid var(--border-soft)',
           borderRadius: 'var(--radius-md)',
-          boxShadow: '0 16px 40px rgba(0,0,0,0.4)',
+          boxShadow: '0 16px 40px color-mix(in srgb, var(--bg-void) 40%, transparent)',
           display: 'flex',
           flexDirection: 'column',
           gap: 14,
@@ -1273,7 +1273,7 @@ function SecHoldingsConfirmModal({
               borderRadius: 6,
               border: 'none',
               background: 'var(--warning)',
-              color: '#1a1207',
+              color: 'var(--bg-void)',
               cursor: 'pointer',
               fontWeight: 600,
             }}

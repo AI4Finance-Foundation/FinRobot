@@ -102,10 +102,46 @@ describe('sortCoverageRows', () => {
   })
 })
 
+describe('derived sort keys', () => {
+  it('needs_action orders by priority score (run_failed > never_run > clean)', () => {
+    const rows = [
+      row({ ticker: 'CLEAN', run_count: 2 }),
+      row({
+        ticker: 'FAILED',
+        run_status: 'failed',
+        needs_refresh: [{ kind: 'run_failed', detail: 'boom', artifact_id: null }],
+      }),
+      row({
+        ticker: 'NEW',
+        needs_refresh: [{ kind: 'never_run', detail: 'never', artifact_id: null }],
+      }),
+    ]
+    expect(
+      sortCoverageRows(rows, { key: 'needs_action', dir: 'desc' }).map((r) => r.ticker),
+    ).toEqual(['FAILED', 'NEW', 'CLEAN'])
+  })
+
+  it('latest_report orders by report date, undated rows sink', () => {
+    const rows = [
+      row({ ticker: 'OLD', latest_at: '2026-01-01T00:00:00Z' }),
+      row({ ticker: 'NONE', latest_at: null }),
+      row({ ticker: 'NEW', latest_at: '2026-06-01T00:00:00Z' }),
+    ]
+    expect(
+      sortCoverageRows(rows, { key: 'latest_report', dir: 'desc' }).map((r) => r.ticker),
+    ).toEqual(['NEW', 'OLD', 'NONE'])
+  })
+})
+
 describe('nextSort / defaultDir', () => {
   it('tickers default ascending, numbers default descending', () => {
     expect(defaultDir('ticker')).toBe('asc')
     expect(defaultDir('pe')).toBe('desc')
+  })
+
+  it('needs_action and latest_report default descending (most urgent / newest first)', () => {
+    expect(defaultDir('needs_action')).toBe('desc')
+    expect(defaultDir('latest_report')).toBe('desc')
   })
 
   it('jumps to a new column at its natural direction', () => {

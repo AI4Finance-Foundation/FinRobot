@@ -23,6 +23,7 @@ import { useRunStreamStore, selectRunByTicker } from '../stores/runStreamStore'
 import { useToastStore } from '../stores/toastStore'
 import { useNavMemoryStore } from '../stores/navMemoryStore'
 import { useTickerPrice } from '../hooks/useTickerData'
+import { useAddStudiedTicker } from '../hooks/useCoverage'
 import { FetchHttpError, mapErrorToUserMessage } from '../utils/errorMessage'
 import { TickerNotFoundView } from './workspace/TickerNotFoundView'
 import { TickerHero } from './TickerHero'
@@ -112,6 +113,22 @@ export function StockWorkspace(): React.ReactElement {
   // render their own skeleton states, so a gate-level loading guard would
   // produce a double spinner.
   const priceQuery = useTickerPrice(symbol)
+
+  // Auto-enrol an opened ticker into the default Studied Tickers workspace
+  // (Coverage redesign §2). Gated on a *successful* price fetch — that's the
+  // signal the symbol is a real, tradeable name, so we never enrol the junk a
+  // 422 would reject. Idempotent server-side; the ref fires it once per symbol
+  // so a re-render / live re-poll doesn't re-POST. Best-effort onboarding —
+  // failures stay silent (no toast), the workspace never depends on it.
+  const addStudied = useAddStudiedTicker()
+  const lastStudiedRef = useRef<string | null>(null)
+  const priceOk = priceQuery.isSuccess
+  useEffect(() => {
+    if (!symbol || !priceOk) return
+    if (lastStudiedRef.current === symbol) return
+    lastStudiedRef.current = symbol
+    addStudied.mutate(symbol)
+  }, [symbol, priceOk, addStudied])
 
   if (!symbol) {
     return (

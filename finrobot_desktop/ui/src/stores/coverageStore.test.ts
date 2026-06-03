@@ -5,19 +5,22 @@ function reset() {
   useCoverageStore.setState({
     selectedGroupId: null,
     selectedTickers: [],
+    focusedTicker: null,
     sortByGroup: {},
-    hiddenColumns: [],
+    density: 'comfort',
   })
 }
 
 describe('coverageStore', () => {
   beforeEach(reset)
 
-  it('selecting a group clears the ticker selection', () => {
+  it('selecting a group clears BOTH the selection and the inspector focus', () => {
     useCoverageStore.getState().setSelected(['AAPL', 'MSFT'])
+    useCoverageStore.getState().setFocusedTicker('AAPL')
     useCoverageStore.getState().setSelectedGroup('cov_1')
     expect(useCoverageStore.getState().selectedGroupId).toBe('cov_1')
     expect(useCoverageStore.getState().selectedTickers).toEqual([])
+    expect(useCoverageStore.getState().focusedTicker).toBeNull()
   })
 
   it('toggleTicker adds then removes', () => {
@@ -35,12 +38,24 @@ describe('coverageStore', () => {
     expect(useCoverageStore.getState().selectedTickers).toEqual(['AAPL', 'MSFT'])
   })
 
-  it('clearSelection empties selection but keeps the group', () => {
+  it('focus and selection are independent — focusing never selects', () => {
+    useCoverageStore.getState().setSelected(['AAPL'])
+    useCoverageStore.getState().setFocusedTicker('MSFT')
+    expect(useCoverageStore.getState().focusedTicker).toBe('MSFT')
+    expect(useCoverageStore.getState().selectedTickers).toEqual(['AAPL'])
+    // …and toggling selection leaves focus put.
+    useCoverageStore.getState().toggleTicker('NVDA')
+    expect(useCoverageStore.getState().focusedTicker).toBe('MSFT')
+  })
+
+  it('clearSelection empties selection but keeps the group and focus', () => {
     useCoverageStore.getState().setSelectedGroup('cov_1')
     useCoverageStore.getState().setSelected(['AAPL'])
+    useCoverageStore.getState().setFocusedTicker('AAPL')
     useCoverageStore.getState().clearSelection()
     expect(useCoverageStore.getState().selectedTickers).toEqual([])
     expect(useCoverageStore.getState().selectedGroupId).toBe('cov_1')
+    expect(useCoverageStore.getState().focusedTicker).toBe('AAPL')
   })
 
   it('setSort stores per group; null clears it', () => {
@@ -50,13 +65,9 @@ describe('coverageStore', () => {
     expect(useCoverageStore.getState().sortByGroup['cov_1']).toBeUndefined()
   })
 
-  it('toggleColumn hides then shows a column', () => {
-    const { toggleColumn } = useCoverageStore.getState()
-    toggleColumn('pe')
-    expect(useCoverageStore.getState().hiddenColumns).toEqual(['pe'])
-    toggleColumn('ev_ebitda')
-    expect(useCoverageStore.getState().hiddenColumns).toEqual(['pe', 'ev_ebitda'])
-    toggleColumn('pe')
-    expect(useCoverageStore.getState().hiddenColumns).toEqual(['ev_ebitda'])
+  it('setDensity flips comfort / compact', () => {
+    expect(useCoverageStore.getState().density).toBe('comfort')
+    useCoverageStore.getState().setDensity('compact')
+    expect(useCoverageStore.getState().density).toBe('compact')
   })
 })

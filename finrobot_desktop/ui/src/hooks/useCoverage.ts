@@ -133,6 +133,25 @@ export function useRemoveMember() {
   })
 }
 
+/**
+ * Auto-add an opened ticker to the default Studied Tickers workspace.
+ * Fired once per successful /stocks/:ticker open (the search → workspace
+ * contract). Idempotent server-side, so re-opens are cheap no-ops. Invalidates
+ * the group list (member_count) + every overview (the studied group's table
+ * gains a row); we don't know the studied group's id here, so the broad
+ * `['coverage','overview']` prefix covers it without threading the id through.
+ */
+export function useAddStudiedTicker() {
+  const qc = useQueryClient()
+  return useMutation<CoverageGroupDetail, Error, string>({
+    mutationFn: (ticker) => coverageApi.addStudiedTicker(ticker),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.groups })
+      qc.invalidateQueries({ queryKey: ['coverage', 'overview'] })
+    },
+  })
+}
+
 export function useBatchRun() {
   const qc = useQueryClient()
   return useMutation<

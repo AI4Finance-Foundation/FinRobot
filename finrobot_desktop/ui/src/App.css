@@ -89,6 +89,7 @@
   --border-amber-soft: rgba(245, 158, 11, 0.25); /* amber 0.25 — zone header divider */
   --glow-amber-soft: rgba(245, 158, 11, 0.35); /* amber 0.35 — zone title glow */
   --border-cyan-soft: rgba(34, 211, 238, 0.3); /* cyan 0.3 — live-data badge border */
+  --accent-cyan-soft: rgba(34, 211, 238, 0.12); /* cyan 0.12 — live/fresh pill + active-filter fill */
   --bg-card-50: rgba(15, 15, 34, 0.5); /* bg-card at 50% — list-item / chip overlay */
 
   /* ── Translucent backgrounds for sticky bars (titlebar / report

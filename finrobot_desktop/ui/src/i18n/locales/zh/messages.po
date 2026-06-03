@@ -677,7 +677,6 @@ msgstr "当前"
 msgid "report.timeline.empty"
 msgstr "尚无历史版本 · 重跑分析后将累积"
 
-
 #. js-lingui-explicit-id
 msgid "landing.recentResearch.error"
 msgstr "数据加载失败，请检查网络连接后重试"
@@ -3287,10 +3286,6 @@ msgid "shell.router.stocksMergedCoverage"
 msgstr "「股票」首页已并入「覆盖」。"
 
 #. js-lingui-explicit-id
-msgid "coverage.table.selectAll"
-msgstr "全选"
-
-#. js-lingui-explicit-id
 msgid "coverage.col.ticker"
 msgstr "代码"
 
@@ -3307,32 +3302,8 @@ msgid "coverage.col.revttm"
 msgstr "营收 TTM"
 
 #. js-lingui-explicit-id
-msgid "coverage.col.verdict"
-msgstr "结论"
-
-#. js-lingui-explicit-id
 msgid "coverage.col.upside"
 msgstr "上行空间"
-
-#. js-lingui-explicit-id
-msgid "coverage.col.signal"
-msgstr "信号"
-
-#. js-lingui-explicit-id
-msgid "coverage.col.runs"
-msgstr "次数"
-
-#. js-lingui-explicit-id
-msgid "coverage.col.status"
-msgstr "状态"
-
-#. js-lingui-explicit-id
-msgid "coverage.sortBy"
-msgstr "按 {col} 排序"
-
-#. js-lingui-explicit-id
-msgid "coverage.columns"
-msgstr "列"
 
 #. js-lingui-explicit-id
 msgid "coverage.notRun"
@@ -3349,30 +3320,6 @@ msgstr "运行该股研究"
 #. js-lingui-explicit-id
 msgid "coverage.running"
 msgstr "运行中"
-
-#. js-lingui-explicit-id
-msgid "coverage.track.title"
-msgstr "命中率"
-
-#. js-lingui-explicit-id
-msgid "coverage.track.watching"
-msgstr "样本仍在观察中"
-
-#. js-lingui-explicit-id
-msgid "coverage.track.empty"
-msgstr "完成首份带目标价的研究后开始统计"
-
-#. js-lingui-explicit-id
-msgid "coverage.track.sample"
-msgstr "{closed}/{total} 已结算"
-
-#. js-lingui-explicit-id
-msgid "coverage.refresh.title"
-msgstr "待刷新"
-
-#. js-lingui-explicit-id
-msgid "coverage.refresh.empty"
-msgstr "暂无需要刷新的"
 
 #. js-lingui-explicit-id
 msgid "coverage.starter.defaultName"
@@ -3405,14 +3352,6 @@ msgstr "运行研究，生成第一份可追溯研报"
 #. js-lingui-explicit-id
 msgid "coverage.groupSelect"
 msgstr "覆盖组"
-
-#. js-lingui-explicit-id
-msgid "coverage.addPlaceholder"
-msgstr "添加股票到此组…"
-
-#. js-lingui-explicit-id
-msgid "coverage.addButton"
-msgstr "添加"
 
 #. js-lingui-explicit-id
 msgid "coverage.runSelected"
@@ -3473,14 +3412,6 @@ msgstr "重命名"
 #. js-lingui-explicit-id
 msgid "coverage.menu.delete"
 msgstr "删除分组"
-
-#. js-lingui-explicit-id
-msgid "coverage.row.remove"
-msgstr "从分组移除"
-
-#. js-lingui-explicit-id
-msgid "coverage.row.removeOne"
-msgstr "将 {ticker} 从分组移除"
 
 #. js-lingui-explicit-id
 msgid "coverage.confirm.cancel"
@@ -3549,3 +3480,223 @@ msgstr "打开 Coverage Desk"
 #. js-lingui-explicit-id
 msgid "cmdk.coverage.compare"
 msgstr "对比选中的 {n} 个 ticker"
+
+#. js-lingui-explicit-id
+msgid "coverage.workspace"
+msgstr "工作台"
+
+#. js-lingui-explicit-id
+msgid "coverage.filterEmpty"
+msgstr "没有符合该筛选的股票"
+
+#. js-lingui-explicit-id
+msgid "coverage.filter.all"
+msgstr "全部"
+
+#. js-lingui-explicit-id
+msgid "coverage.filter.needsAction"
+msgstr "待处理"
+
+#. js-lingui-explicit-id
+msgid "coverage.filter.running"
+msgstr "运行中"
+
+#. js-lingui-explicit-id
+msgid "coverage.filter.hasReports"
+msgstr "有研报"
+
+#. js-lingui-explicit-id
+msgid "coverage.filter.notRun"
+msgstr "未跑过"
+
+#. js-lingui-explicit-id
+msgid "coverage.density.comfort"
+msgstr "宽松"
+
+#. js-lingui-explicit-id
+msgid "coverage.density.compact"
+msgstr "紧凑"
+
+#. js-lingui-explicit-id
+msgid "coverage.import.open"
+msgstr "批量导入"
+
+#. js-lingui-explicit-id
+msgid "coverage.import.placeholder"
+msgstr "AAPL MSFT NVDA…"
+
+#. js-lingui-explicit-id
+msgid "coverage.import.add"
+msgstr "加入"
+
+#. js-lingui-explicit-id
+msgid "coverage.sort.label"
+msgstr "排序"
+
+#. js-lingui-explicit-id
+msgid "coverage.sort.needsAction"
+msgstr "待处理度"
+
+#. js-lingui-explicit-id
+msgid "coverage.sort.ticker"
+msgstr "代码"
+
+#. js-lingui-explicit-id
+msgid "coverage.sort.latestReport"
+msgstr "最新研报"
+
+#. js-lingui-explicit-id
+msgid "coverage.sort.upside"
+msgstr "实时空间"
+
+#. js-lingui-explicit-id
+msgid "coverage.sort.toggleDir"
+msgstr "切换排序方向"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.fresh"
+msgstr "数据新鲜"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.reports"
+msgstr "{n} 份研报 · 最新 {date}"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.noReports"
+msgstr "尚无研报"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.open"
+msgstr "打开 {ticker}"
+
+#. js-lingui-explicit-id
+msgid "coverage.row.selectOne"
+msgstr "选择 {ticker}"
+
+#. js-lingui-explicit-id
+msgid "coverage.batch.selected"
+msgstr "已选 {n}"
+
+#. js-lingui-explicit-id
+msgid "coverage.batch.clear"
+msgstr "清空"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.title"
+msgstr "股票详情"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.empty"
+msgstr "点选卡片查看详情"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.tab.live"
+msgstr "实时"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.tab.report"
+msgstr "最新研报"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.tab.history"
+msgstr "历史"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.tab.quality"
+msgstr "数据质量"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.liveTitle"
+msgstr "实时行情快照"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.reportTitle"
+msgstr "最新研报快照"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.historyTitle"
+msgstr "研报历史"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.qualityTitle"
+msgstr "数据质量"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.provider"
+msgstr "数据源"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.asOf"
+msgstr "更新于"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.reportDate"
+msgstr "研报日期"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.atRunPrice"
+msgstr "研报时价格"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.targetPrice"
+msgstr "目标价"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.liveUpside"
+msgstr "实时空间"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.upsideVsLatest"
+msgstr "{pct}（对最新价）"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.noReport"
+msgstr "尚无研报"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.historyError"
+msgstr "历史加载失败"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.openArtifact"
+msgstr "打开研报"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.currency"
+msgstr "币种"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.revenueBasis"
+msgstr "营收口径"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.priceAsOf"
+msgstr "价格更新于"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.warning"
+msgstr "警告"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.noWarning"
+msgstr "无"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.runResearch"
+msgstr "跑研报"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.openStock"
+msgstr "打开股票页"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.compare"
+msgstr "对比"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.remove"
+msgstr "移出"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.removeNote"
+msgstr "移出只把它从工作台拿掉；该股票的历史研报仍保留在股票页。"

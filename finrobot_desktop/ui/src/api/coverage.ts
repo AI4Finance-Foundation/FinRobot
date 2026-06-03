@@ -165,6 +165,12 @@ export const coverageApi = {
       method: 'DELETE',
     }),
 
+  // Auto-add: enrol an opened ticker into the default Studied Tickers workspace
+  // (find-or-create, idempotent). The write side of "opening /stocks/:ticker
+  // enrols it" — distinct from addMembers (which targets a chosen group).
+  addStudiedTicker: (ticker: string) =>
+    req<CoverageGroupDetail>('/api/coverage/studied-tickers/members', jsonInit('POST', { ticker })),
+
   overview: (id: string, refresh = false, fast = false) => {
     const qs = new URLSearchParams()
     if (refresh) qs.set('refresh', 'true')

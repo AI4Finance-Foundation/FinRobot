@@ -677,7 +677,6 @@ msgstr "current"
 msgid "report.timeline.empty"
 msgstr "No history yet. Run analysis again to build a timeline."
 
-
 #. js-lingui-explicit-id
 msgid "landing.recentResearch.error"
 msgstr "Could not load research history. Check your connection and retry."
@@ -3287,10 +3286,6 @@ msgid "shell.router.stocksMergedCoverage"
 msgstr "Stocks landing merged into Coverage."
 
 #. js-lingui-explicit-id
-msgid "coverage.table.selectAll"
-msgstr "Select all"
-
-#. js-lingui-explicit-id
 msgid "coverage.col.ticker"
 msgstr "Ticker"
 
@@ -3307,32 +3302,8 @@ msgid "coverage.col.revttm"
 msgstr "Rev TTM"
 
 #. js-lingui-explicit-id
-msgid "coverage.col.verdict"
-msgstr "Verdict"
-
-#. js-lingui-explicit-id
 msgid "coverage.col.upside"
 msgstr "Upside"
-
-#. js-lingui-explicit-id
-msgid "coverage.col.signal"
-msgstr "Signal"
-
-#. js-lingui-explicit-id
-msgid "coverage.col.runs"
-msgstr "Runs"
-
-#. js-lingui-explicit-id
-msgid "coverage.col.status"
-msgstr "Status"
-
-#. js-lingui-explicit-id
-msgid "coverage.sortBy"
-msgstr "Sort by {col}"
-
-#. js-lingui-explicit-id
-msgid "coverage.columns"
-msgstr "Columns"
 
 #. js-lingui-explicit-id
 msgid "coverage.notRun"
@@ -3349,30 +3320,6 @@ msgstr "Run research for this ticker"
 #. js-lingui-explicit-id
 msgid "coverage.running"
 msgstr "Running"
-
-#. js-lingui-explicit-id
-msgid "coverage.track.title"
-msgstr "Track Record"
-
-#. js-lingui-explicit-id
-msgid "coverage.track.watching"
-msgstr "Sample still building"
-
-#. js-lingui-explicit-id
-msgid "coverage.track.empty"
-msgstr "Starts after your first target-price research"
-
-#. js-lingui-explicit-id
-msgid "coverage.track.sample"
-msgstr "{closed}/{total} closed"
-
-#. js-lingui-explicit-id
-msgid "coverage.refresh.title"
-msgstr "Needs Refresh"
-
-#. js-lingui-explicit-id
-msgid "coverage.refresh.empty"
-msgstr "Everything's current"
 
 #. js-lingui-explicit-id
 msgid "coverage.starter.defaultName"
@@ -3405,14 +3352,6 @@ msgstr "Run research → your first traceable report"
 #. js-lingui-explicit-id
 msgid "coverage.groupSelect"
 msgstr "Coverage group"
-
-#. js-lingui-explicit-id
-msgid "coverage.addPlaceholder"
-msgstr "Add to this group…"
-
-#. js-lingui-explicit-id
-msgid "coverage.addButton"
-msgstr "Add"
 
 #. js-lingui-explicit-id
 msgid "coverage.runSelected"
@@ -3479,14 +3418,6 @@ msgid "coverage.menu.delete"
 msgstr "Delete group"
 
 #. js-lingui-explicit-id
-msgid "coverage.row.remove"
-msgstr "Remove from group"
-
-#. js-lingui-explicit-id
-msgid "coverage.row.removeOne"
-msgstr "Remove {ticker} from group"
-
-#. js-lingui-explicit-id
 msgid "coverage.confirm.cancel"
 msgstr "Cancel"
 
@@ -3549,3 +3480,223 @@ msgstr "Open Coverage Desk"
 #. js-lingui-explicit-id
 msgid "cmdk.coverage.compare"
 msgstr "Compare {n} selected tickers"
+
+#. js-lingui-explicit-id
+msgid "coverage.workspace"
+msgstr "Workspace"
+
+#. js-lingui-explicit-id
+msgid "coverage.filterEmpty"
+msgstr "No tickers match this filter"
+
+#. js-lingui-explicit-id
+msgid "coverage.filter.all"
+msgstr "All"
+
+#. js-lingui-explicit-id
+msgid "coverage.filter.needsAction"
+msgstr "Needs Action"
+
+#. js-lingui-explicit-id
+msgid "coverage.filter.running"
+msgstr "Running"
+
+#. js-lingui-explicit-id
+msgid "coverage.filter.hasReports"
+msgstr "Has Reports"
+
+#. js-lingui-explicit-id
+msgid "coverage.filter.notRun"
+msgstr "Not Run"
+
+#. js-lingui-explicit-id
+msgid "coverage.density.comfort"
+msgstr "Comfort"
+
+#. js-lingui-explicit-id
+msgid "coverage.density.compact"
+msgstr "Compact"
+
+#. js-lingui-explicit-id
+msgid "coverage.import.open"
+msgstr "Batch Import"
+
+#. js-lingui-explicit-id
+msgid "coverage.import.placeholder"
+msgstr "AAPL MSFT NVDA…"
+
+#. js-lingui-explicit-id
+msgid "coverage.import.add"
+msgstr "Add"
+
+#. js-lingui-explicit-id
+msgid "coverage.sort.label"
+msgstr "Sort"
+
+#. js-lingui-explicit-id
+msgid "coverage.sort.needsAction"
+msgstr "Needs Action"
+
+#. js-lingui-explicit-id
+msgid "coverage.sort.ticker"
+msgstr "Ticker"
+
+#. js-lingui-explicit-id
+msgid "coverage.sort.latestReport"
+msgstr "Latest Report"
+
+#. js-lingui-explicit-id
+msgid "coverage.sort.upside"
+msgstr "Live Upside"
+
+#. js-lingui-explicit-id
+msgid "coverage.sort.toggleDir"
+msgstr "Toggle sort direction"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.fresh"
+msgstr "fresh"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.reports"
+msgstr "{n} reports · latest {date}"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.noReports"
+msgstr "No reports yet"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.open"
+msgstr "Open {ticker}"
+
+#. js-lingui-explicit-id
+msgid "coverage.row.selectOne"
+msgstr "Select {ticker}"
+
+#. js-lingui-explicit-id
+msgid "coverage.batch.selected"
+msgstr "{n} selected"
+
+#. js-lingui-explicit-id
+msgid "coverage.batch.clear"
+msgstr "Clear"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.title"
+msgstr "Ticker inspector"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.empty"
+msgstr "Select a card to inspect"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.tab.live"
+msgstr "Live"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.tab.report"
+msgstr "Latest Report"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.tab.history"
+msgstr "History"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.tab.quality"
+msgstr "Quality"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.liveTitle"
+msgstr "Live Market Snapshot"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.reportTitle"
+msgstr "Latest Research Artifact"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.historyTitle"
+msgstr "Artifact History"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.qualityTitle"
+msgstr "Data Quality"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.provider"
+msgstr "Provider"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.asOf"
+msgstr "As of"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.reportDate"
+msgstr "Report date"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.atRunPrice"
+msgstr "At-run price"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.targetPrice"
+msgstr "Target price"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.liveUpside"
+msgstr "Live upside"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.upsideVsLatest"
+msgstr "{pct} vs latest price"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.noReport"
+msgstr "No research artifact yet"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.historyError"
+msgstr "Failed to load history"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.openArtifact"
+msgstr "Open report"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.currency"
+msgstr "Currency"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.revenueBasis"
+msgstr "Revenue basis"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.priceAsOf"
+msgstr "Price as of"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.warning"
+msgstr "Warnings"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.noWarning"
+msgstr "none"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.runResearch"
+msgstr "Run Research"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.openStock"
+msgstr "Open Stock"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.compare"
+msgstr "Compare"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.remove"
+msgstr "Remove"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.removeNote"
+msgstr "Remove only drops it from the workspace; the ticker's research artifacts stay on its stock page."

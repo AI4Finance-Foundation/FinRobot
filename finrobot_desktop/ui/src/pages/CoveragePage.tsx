@@ -1,10 +1,17 @@
-// CoveragePage — the desktop's first screen (route `/coverage`). Manages the
-// user's research coverage universe: pick a group, see the Coverage Table
-// (live market + latest research + signal + refresh reasons), add tickers,
-// batch-run research, jump to Compare. Server state via useCoverage (TanStack
-// Query); selection in coverageStore. Drill-down stays at /stocks/:ticker.
+// CoveragePage — the desktop's first screen (route `/coverage`). The user's
+// research workspace: a hero search (drill into one name + auto-enrol it), a
+// command toolbar (workspace switch / filters / density / import / sort), a wall
+// of fixed-height ticker cards, and a right Inspector scoped to the focused
+// ticker. Server state via useCoverage (TanStack Query); view-state (selection,
+// focus, density, sort) in coverageStore. Drill-down stays at /stocks/:ticker.
+//
+// A ticker is the primary object: it has a live market snapshot AND many
+// research artifacts. The card shows the live snapshot + latest verdict +
+// report count; the inspector splits Live Market from the Latest Research
+// Artifact (at-run price frozen, never overwritten by live) and lists the full
+// artifact history. Remove drops only workspace membership — never artifacts.
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useI18n } from '../i18n'
 import { useCoverageStore } from '../stores/coverageStore'
@@ -18,15 +25,23 @@ import {
   useRemoveMember,
   useUpdateGroup,
 } from '../hooks/useCoverage'
-import { CoverageTable } from '../components/coverage/CoverageTable'
-import { CoverageGroupMenu } from '../components/coverage/CoverageGroupMenu'
-import { CoverageRail } from '../components/coverage/CoverageRail'
 import { CoverageEmptyState } from '../components/coverage/CoverageEmptyState'
 import { CoverageHero } from '../components/coverage/CoverageHero'
-import { ColumnMenu } from '../components/coverage/ColumnMenu'
-import { nextSort, sortCoverageRows } from '../components/coverage/coverageSort'
+import { CoverageToolbar } from '../components/coverage/CoverageToolbar'
+import { CoverageCardGrid } from '../components/coverage/CoverageCardGrid'
+import { CoverageInspector } from '../components/coverage/CoverageInspector'
+import { sortCoverageRows, type CoverageSort } from '../components/coverage/coverageSort'
+import {
+  COVERAGE_FILTERS,
+  filterRows,
+  matchesFilter,
+  type CoverageFilter,
+} from '../components/coverage/coverageFilter'
 import { useToastStore } from '../stores/toastStore'
-import { isValidTicker } from '../utils/ticker'
+
+// Default applied sort when a group has none stored: most-urgent first, so the
+// names that need the analyst surface at the top of a cold desk.
+const DEFAULT_SORT: CoverageSort = { key: 'needs_action', dir: 'desc' }
 
 export function CoveragePage(): React.ReactElement {
   const { t } = useI18n()
@@ -40,12 +55,15 @@ export function CoveragePage(): React.ReactElement {
   const setSelectedGroup = useCoverageStore((s) => s.setSelectedGroup)
   const selectedTickers = useCoverageStore((s) => s.selectedTickers)
   const toggleTicker = useCoverageStore((s) => s.toggleTicker)
-  const setSelected = useCoverageStore((s) => s.setSelected)
   const clearSelection = useCoverageStore((s) => s.clearSelection)
+  const focusedTicker = useCoverageStore((s) => s.focusedTicker)
+  const setFocusedTicker = useCoverageStore((s) => s.setFocusedTicker)
   const sortByGroup = useCoverageStore((s) => s.sortByGroup)
   const setSort = useCoverageStore((s) => s.setSort)
-  const hiddenColumns = useCoverageStore((s) => s.hiddenColumns)
-  const toggleColumn = useCoverageStore((s) => s.toggleColumn)
+  const density = useCoverageStore((s) => s.density)
+  const setDensity = useCoverageStore((s) => s.setDensity)
+
+  const [filter, setFilter] = useState<CoverageFilter>('all')
 
   // Resolve the active group: stored choice if still present, else first.
   const activeGroupId =
@@ -54,14 +72,40 @@ export function CoveragePage(): React.ReactElement {
     null
 
   const overviewQuery = useCoverageOverview(activeGroupId)
-  // Stable ref (the `?? []` would otherwise be a fresh array each render and
-  // defeat the sort useMemo below).
   const rows = useMemo(() => overviewQuery.data?.rows ?? [], [overviewQuery.data])
 
-  // Per-group sort (persisted in coverageStore). Sort here so the Table stays
-  // presentational and the Rail keeps the backend (member) order.
   const activeSort = activeGroupId ? (sortByGroup[activeGroupId] ?? null) : null
-  const sortedRows = useMemo(() => sortCoverageRows(rows, activeSort), [rows, activeSort])
+  const effectiveSort = activeSort ?? DEFAULT_SORT
+
+  const visibleRows = useMemo(
+    () => sortCoverageRows(filterRows(rows, filter), effectiveSort),
+    [rows, filter, effectiveSort],
+  )
+
+  // Counts per filter — computed over the full row set so each badge reflects
+  // the real universe, not the currently-filtered view.
+  const filterCounts = useMemo(() => {
+    const counts = {} as Record<CoverageFilter, number>
+    for (const f of COVERAGE_FILTERS) counts[f] = rows.filter((r) => matchesFilter(r, f)).length
+    return counts
+  }, [rows])
+
+  // Focus management: keep the inspector on a real, currently-visible card.
+  // Resets to the first visible card when focus is empty (group switch nulls it)
+  // or when the focused ticker dropped out of view (filtered out / removed).
+  useEffect(() => {
+    if (visibleRows.length === 0) {
+      if (focusedTicker !== null) setFocusedTicker(null)
+      return
+    }
+    const stillVisible = focusedTicker && visibleRows.some((r) => r.ticker === focusedTicker)
+    if (!stillVisible) setFocusedTicker(visibleRows[0].ticker)
+  }, [visibleRows, focusedTicker, setFocusedTicker])
+
+  const focusedRow = useMemo(
+    () => rows.find((r) => r.ticker === focusedTicker) ?? null,
+    [rows, focusedTicker],
+  )
 
   const createGroup = useCreateGroup()
   const addMembers = useAddMembers()
@@ -70,13 +114,9 @@ export function CoveragePage(): React.ReactElement {
   const deleteGroup = useDeleteGroup()
   const removeMember = useRemoveMember()
 
-  const [addInput, setAddInput] = useState('')
-
   const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null
 
   // ── Groups request failed → error state, NOT the starter ──────────────────
-  // Falling through to the empty check would show the "create your first
-  // group" starter on a 503, hiding existing groups and inviting duplicates.
   if (groupsQuery.isError) {
     return (
       <ErrorState
@@ -114,32 +154,21 @@ export function CoveragePage(): React.ReactElement {
     )
   }
 
-  function handleAdd() {
+  // ── Handlers ──────────────────────────────────────────────────────────────
+
+  function handleImport(tickers: string[]) {
     if (!activeGroupId) return
-    // Split on whitespace / comma / semicolon, then validate each symbol so we
-    // never persist junk ("苹果", "BRK/B", over-long) that would fan out to
-    // providers forever (BUG-053). Invalid tokens are reported, not silently
-    // dropped; only valid ones are sent (backend re-validates → 422 safety net).
-    const tokens = addInput
-      .split(/[\s,;]+/)
-      .map((s) => s.trim().toUpperCase())
-      .filter(Boolean)
-    const valid = tokens.filter(isValidTicker)
-    const invalid = tokens.filter((s) => !isValidTicker(s))
-    if (invalid.length > 0) {
-      toast({
-        type: 'error',
-        title: t('coverage.error.invalidTickers', { tickers: invalid.join(', ') }),
-      })
-    }
-    if (valid.length === 0) return
     addMembers.mutate(
-      { id: activeGroupId, tickers: valid },
-      {
-        onSuccess: () => setAddInput(''),
-        onError: () => toast({ type: 'error', title: t('coverage.error.addFailed') }),
-      },
+      { id: activeGroupId, tickers },
+      { onError: () => toast({ type: 'error', title: t('coverage.error.addFailed') }) },
     )
+  }
+
+  function handleInvalidImport(invalid: string[]) {
+    toast({
+      type: 'error',
+      title: t('coverage.error.invalidTickers', { tickers: invalid.join(', ') }),
+    })
   }
 
   function handleRun(tickers: string[]) {
@@ -148,9 +177,6 @@ export function CoveragePage(): React.ReactElement {
       { id: activeGroupId, tickers },
       {
         onSuccess: (res) => {
-          // All skipped → the batch did nothing (e.g. every ticker rejected).
-          // A 200 with zero runs is NOT success — surface it as an error with
-          // the first reason so the user doesn't think research was launched.
           if (res.runs.length === 0 && res.skipped.length > 0) {
             toast({
               type: 'error',
@@ -175,12 +201,13 @@ export function CoveragePage(): React.ReactElement {
     )
   }
 
-  function handleCompare() {
-    if (selectedTickers.length < 2) {
+  function handleCompare(tickers: string[]) {
+    const unique = [...new Set(tickers)]
+    if (unique.length < 2) {
       toast({ type: 'info', title: t('coverage.toast.compareNeedsTwo') })
       return
     }
-    navigate(`/compare?tickers=${encodeURIComponent(selectedTickers.join(','))}`)
+    navigate(`/compare?tickers=${encodeURIComponent(unique.join(','))}`)
   }
 
   function handleRename(name: string) {
@@ -196,11 +223,7 @@ export function CoveragePage(): React.ReactElement {
     const deletingId = activeGroupId
     deleteGroup.mutate(deletingId, {
       onSuccess: () => {
-        // Move the selection off the now-gone group: next remaining group, else
-        // let activeGroupId fall back to the first (or the starter if none).
         const next = groups.find((g) => g.id !== deletingId)
-        // setSelectedGroup already clears the multi-select; passing null lets
-        // activeGroupId fall back to the first remaining group (or the starter).
         setSelectedGroup(next ? next.id : null)
       },
       onError: () => toast({ type: 'error', title: t('coverage.error.deleteGroupFailed') }),
@@ -212,150 +235,83 @@ export function CoveragePage(): React.ReactElement {
     removeMember.mutate(
       { id: activeGroupId, ticker },
       {
-        onSuccess: () => toggleTickerOff(ticker),
+        // Drop the removed ticker from the multi-select so a stale id can't be
+        // batch-run. Focus is re-resolved by the effect once the row vanishes.
+        onSuccess: () => {
+          if (selectedTickers.includes(ticker)) toggleTicker(ticker)
+        },
         onError: () => toast({ type: 'error', title: t('coverage.error.removeFailed') }),
       },
     )
   }
 
-  // Drop a removed ticker from the multi-select so a stale id can't be batch-run.
-  function toggleTickerOff(ticker: string) {
-    if (selectedTickers.includes(ticker)) toggleTicker(ticker)
-  }
+  const hasSelection = selectedTickers.length > 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px 24px' }}>
-      {/* Hero band — robot backdrop + big ticker search (drill-down into a
-          single name). Sits above the Coverage tool so the first screen reads
-          as a product, not a bare table. */}
       <CoverageHero />
 
-      {/* Command bar */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 12,
-          alignItems: 'center',
-          marginBottom: 16,
-          flexWrap: 'wrap',
-        }}
-      >
-        <select
-          value={activeGroupId ?? ''}
-          onChange={(e) => setSelectedGroup(e.target.value)}
-          aria-label={t('coverage.groupSelect')}
-          style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-soft)',
-            borderRadius: 'var(--radius-md)',
-            color: 'var(--text-primary)',
-            fontSize: 14,
-            padding: '7px 12px',
-          }}
-        >
-          {groups.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.name} ({g.member_count})
-            </option>
-          ))}
-        </select>
+      <CoverageToolbar
+        groups={groups}
+        activeGroupId={activeGroupId}
+        activeGroupName={activeGroup?.name ?? null}
+        groupBusy={updateGroup.isPending || deleteGroup.isPending}
+        onSelectGroup={setSelectedGroup}
+        onRenameGroup={handleRename}
+        onDeleteGroup={handleDeleteGroup}
+        filter={filter}
+        filterCounts={filterCounts}
+        onFilter={setFilter}
+        density={density}
+        onDensity={setDensity}
+        sort={effectiveSort}
+        onSort={(s) => activeGroupId && setSort(activeGroupId, s)}
+        onImport={handleImport}
+        importBusy={addMembers.isPending}
+        onInvalidImport={handleInvalidImport}
+      />
 
-        {activeGroup && (
-          <CoverageGroupMenu
-            groupName={activeGroup.name}
-            busy={updateGroup.isPending || deleteGroup.isPending}
-            onRename={handleRename}
-            onDelete={handleDeleteGroup}
-          />
-        )}
-
-        {/* Add-to-group control — NOT a second search. The hero search drills
-            into a single stock (/stocks/:ticker); this adds a ticker to THIS
-            coverage group (a row in the table below). The leading "+" and the
-            explicit Add button keep the two from reading as the same thing. */}
+      {/* Batch action bar — only when a multi-select exists. Keeps batch ops
+          (Run / Compare) out of the toolbar's single-ticker flow. */}
+      {hasSelection && (
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            flex: '1 1 220px',
-            minWidth: 200,
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-soft)',
+            gap: 12,
+            marginBottom: 12,
+            padding: '8px 14px',
+            border: '1px solid var(--border-glow)',
             borderRadius: 'var(--radius-md)',
-            paddingLeft: 10,
+            background: 'var(--primary-soft)',
           }}
         >
-          <span style={{ color: 'var(--text-muted)', fontSize: 14, lineHeight: 1 }} aria-hidden>
-            +
-          </span>
-          <input
-            value={addInput}
-            onChange={(e) => setAddInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-            placeholder={t('coverage.addPlaceholder')}
-            aria-label={t('coverage.addPlaceholder')}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              color: 'var(--text-primary)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 13,
-              padding: '7px 10px',
-            }}
-          />
-          <button
-            type="button"
-            onClick={handleAdd}
-            disabled={!addInput.trim() || addMembers.isPending}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              borderLeft: '1px solid var(--border-soft)',
-              color: addInput.trim() ? 'var(--primary)' : 'var(--text-muted)',
-              cursor: addInput.trim() ? 'pointer' : 'not-allowed',
-              fontSize: 12,
-              padding: '7px 12px',
-              whiteSpace: 'nowrap',
-            }}
+          <span
+            style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: 12 }}
           >
-            {t('coverage.addButton')}
-          </button>
+            {t('coverage.batch.selected', { n: selectedTickers.length })}
+          </span>
+          <BarButton
+            label={t('coverage.runSelected', { n: selectedTickers.length })}
+            onClick={() => handleRun(selectedTickers)}
+            disabled={batchRun.isPending}
+            primary
+          />
+          <BarButton
+            label={t('coverage.compareSelected')}
+            onClick={() => handleCompare(selectedTickers)}
+            disabled={selectedTickers.length < 2}
+          />
+          <BarButton label={t('coverage.batch.clear')} onClick={clearSelection} />
         </div>
+      )}
 
-        <ToolbarButton
-          label={t('coverage.runSelected', { n: selectedTickers.length })}
-          onClick={() => handleRun(selectedTickers)}
-          disabled={selectedTickers.length === 0 || batchRun.isPending}
-          primary
-        />
-        <ToolbarButton
-          label={t('coverage.compareSelected')}
-          onClick={handleCompare}
-          disabled={selectedTickers.length < 2}
-        />
-        <div style={{ marginLeft: 'auto' }}>
-          <ColumnMenu hiddenColumns={hiddenColumns} onToggle={toggleColumn} />
-        </div>
-      </div>
-
-      {/* Table + rail */}
-      <div style={{ display: 'flex', gap: 20, flex: 1, minHeight: 0 }}>
-        <div
-          style={{
-            flex: 1,
-            minWidth: 0,
-            background: 'rgba(15,15,34,0.4)',
-            border: '1px solid var(--border-faint)',
-            borderRadius: 'var(--radius-lg)',
-          }}
-        >
+      {/* Card wall + inspector */}
+      <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           {overviewQuery.isLoading ? (
             <Placeholder text={t('coverage.loading')} />
           ) : overviewQuery.isError ? (
-            // 503 / store-not-initialised must not render as "empty group".
             <ErrorState
               message={t('coverage.error.overviewFailed')}
               retryLabel={t('coverage.error.retry')}
@@ -364,32 +320,32 @@ export function CoveragePage(): React.ReactElement {
           ) : rows.length === 0 ? (
             <Placeholder text={t('coverage.emptyGroup')} />
           ) : (
-            <CoverageTable
-              rows={sortedRows}
+            <CoverageCardGrid
+              rows={visibleRows}
+              density={density}
+              focusedTicker={focusedTicker}
               selected={selectedTickers}
               marketPending={overviewQuery.marketPending}
-              hiddenColumns={hiddenColumns}
-              sort={activeSort}
-              onSort={(key) => activeGroupId && setSort(activeGroupId, nextSort(activeSort, key))}
-              onToggle={toggleTicker}
-              onToggleAll={() =>
-                selectedTickers.length === rows.length
-                  ? clearSelection()
-                  : setSelected(rows.map((r) => r.ticker))
-              }
-              onOpenTicker={(ticker) => navigate(`/stocks/${ticker}`)}
-              onRunOne={(ticker) => handleRun([ticker])}
-              onRemove={handleRemoveMember}
+              onFocus={setFocusedTicker}
+              onToggleSelect={toggleTicker}
+              onRun={(ticker) => handleRun([ticker])}
+              onOpen={(ticker) => navigate(`/stocks/${ticker}`)}
             />
           )}
         </div>
-        <CoverageRail rows={rows} />
+        <CoverageInspector
+          row={focusedRow}
+          onRun={(ticker) => handleRun([ticker])}
+          onOpen={(ticker) => navigate(`/stocks/${ticker}`)}
+          onCompare={(ticker) => handleCompare([ticker, ...selectedTickers])}
+          onRemove={handleRemoveMember}
+        />
       </div>
     </div>
   )
 }
 
-function ToolbarButton({
+function BarButton({
   label,
   onClick,
   disabled,
@@ -406,9 +362,9 @@ function ToolbarButton({
       onClick={onClick}
       disabled={disabled}
       style={{
-        padding: '7px 16px',
+        padding: '6px 14px',
         borderRadius: 'var(--radius-md)',
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: 500,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.45 : 1,
@@ -442,10 +398,8 @@ function Placeholder({ text }: { text: string }): React.ReactElement {
   )
 }
 
-// Error state — distinct from the empty state on purpose. A request FAILURE
-// (503 / network / store not initialised) must never look like "no data"
-// (BUG-051): for an analyst, "the service is down" and "this group is empty"
-// are opposite conclusions. Offers a retry.
+// Error state — distinct from the empty state on purpose (BUG-051): a request
+// FAILURE must never look like "no data". Offers a retry.
 function ErrorState({
   message,
   retryLabel,

@@ -34,7 +34,11 @@ from finrobot.engine.compute.dcf import calculate_dcf, calculate_sensitivity
 from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
 from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
 from finrobot.engine.compute.ownership import compute_ownership_governance
-from finrobot.engine.compute.technical_payload import build_technical_analysis
+from finrobot.engine.compute.technical_payload import (
+    TECHNICAL_DCF_UNAVAILABLE_MARKER,
+    TechnicalAnalysis,
+    build_technical_analysis,
+)
 from finrobot.engine.compute.xbrl_aligned_comps import (
     xbrl_concept_snapshot,
 )
@@ -503,9 +507,28 @@ async def _execute_technical_analysis(
     dcf = structured_context.get("financial_modeling")
     financial_data = structured_context.get("data_collection")
     if not isinstance(dcf, DCFResult):
-        raise ValueError(
-            "technical_analysis requires DCFResult from financial_modeling step "
-            "but received: " + type(dcf).__name__
+        # financial_modeling degraded gracefully (DCF not applicable for this
+        # profile — e.g. terminal_growth ≥ WACC, Gordon undefined). It returned
+        # StepOutput(structured=None) and never wrote a DCFResult here. The
+        # quant overlays (Monte Carlo / Sniper / Bands) all seed off DCF inputs,
+        # so chapter 09 has nothing to compute — but that's an expected
+        # degrade, NOT a run-ending error. Mirror financial_modeling: skip the
+        # chapter, emit a degraded payload with all branches None and an
+        # explicit marker the validator recognizes, and let the run continue to
+        # a relative-valuation report.
+        return StepOutput(
+            text=(
+                "技术面 / 量化叠加（蒙特卡洛、狙击点位、历史估值带）已跳过："
+                "本章的所有指标均以 DCF 输入为种子，而 DCF 估值对本标的不适用"
+                "（资本成本与永续增长率假设使 Gordon 永续增长模型无定义）。"
+                "估值结论以相对估值为准。"
+            ),
+            structured=TechnicalAnalysis(
+                monte_carlo=None,
+                sniper=None,
+                historical_bands=None,
+                warnings=[TECHNICAL_DCF_UNAVAILABLE_MARKER],
+            ),
         )
     if not isinstance(financial_data, FinancialData):
         raise ValueError(
@@ -827,7 +850,15 @@ async def _execute_thesis(
     try:
         result = await synthesis_agent.run(thesis_prompt, deps=deps)  # type: ignore[call-overload]
         thesis = result.output
-    except (AgentRunError, ValidationError, ValueError) as e:
+    except AgentRunError:
+        # Recoverable by type (rate-limit / transient LLM error). base.py
+        # retries these 3× with backoff — re-wrapping into ValueError would
+        # mark it non-recoverable and abort the whole run with zero retries.
+        raise
+    except (ValidationError, ValueError) as e:
+        # Structured-output schema failure is deterministically non-recoverable:
+        # the same prompt yields the same invalid shape, so retrying is wasted
+        # budget. Keep it wrapped as a non-recoverable ValueError.
         raise ValueError(f"LLM failed to produce valid thesis: {e}") from e
 
     # Hard-enforce the deterministic target + verdict — same inputs always

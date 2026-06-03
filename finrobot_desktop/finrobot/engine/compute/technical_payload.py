@@ -41,6 +41,16 @@ from finrobot.engine.models.financial import DCFInputs
 logger = logging.getLogger(__name__)
 
 
+# Sentinel warning emitted when the equity_research technical_analysis step is
+# skipped because the upstream DCF degraded gracefully (no DCFResult to seed the
+# quant overlays). Lives on the model's module so both the producer
+# (equity_research._execute_technical_analysis) and the validator
+# (pipelines.validators.validate_technical_analysis) reference one constant and
+# can never drift. An all-None TechnicalAnalysis carrying this marker is an
+# honest, expected degrade — the validator PASSES on it.
+TECHNICAL_DCF_UNAVAILABLE_MARKER = "technical_analysis skipped: DCF not applicable (no DCFResult)"
+
+
 # Default Monte Carlo budget. 10K antithetic simulations finish in ~10ms and
 # are dense enough for a stable 5/95 percentile estimate (Glasserman §4.1).
 _MC_SIMULATIONS = 10_000

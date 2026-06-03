@@ -44,14 +44,25 @@ def validate_technical_analysis(output: object) -> ValidationResult:
     individual computes fail), so we only fail when none of the three
     branches produced anything — that means the artifact would have a
     chapter-09 placeholder forever.
+
+    Exception: when the upstream DCF degraded gracefully (no DCFResult to seed
+    the overlays), the step emits an all-None payload carrying
+    ``TECHNICAL_DCF_UNAVAILABLE_MARKER``. That is an honest, expected degrade —
+    we PASS so the run continues to a relative-valuation report instead of
+    re-triggering a non-critical degrade and stamping a misleading green check.
     """
-    from finrobot.engine.compute.technical_payload import TechnicalAnalysis
+    from finrobot.engine.compute.technical_payload import (
+        TECHNICAL_DCF_UNAVAILABLE_MARKER,
+        TechnicalAnalysis,
+    )
 
     if not isinstance(output, TechnicalAnalysis):
         return ValidationResult(
             passed=False,
             error=f"technical_analysis output must be TechnicalAnalysis, got {type(output).__name__}",
         )
+    if TECHNICAL_DCF_UNAVAILABLE_MARKER in output.warnings:
+        return ValidationResult(passed=True)
     if output.monte_carlo is None and output.sniper is None and output.historical_bands is None:
         joined = "; ".join(output.warnings) or "no diagnostics"
         return ValidationResult(

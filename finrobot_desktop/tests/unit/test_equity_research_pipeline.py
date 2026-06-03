@@ -469,8 +469,11 @@ async def test_peer_analysis_raises_when_target_financials_missing(mock_deps):
     # XBRL is still a raw fetch
     mock_deps.data_layer.fetch = AsyncMock(
         return_value=DataResult(
-            data={}, provider="fake", ticker="MSFT",
-            data_type="xbrl_facts", timestamp=datetime.now(tz=timezone.utc),
+            data={},
+            provider="fake",
+            ticker="MSFT",
+            data_type="xbrl_facts",
+            timestamp=datetime.now(tz=timezone.utc),
         )
     )
 
@@ -1090,3 +1093,214 @@ def test_validate_catalyst_analysis_fails_empty_events():
     result = validate_catalyst_analysis(analysis)
     assert result.passed is False
     assert "No catalyst events" in result.error
+
+
+# ---------------------------------------------------------------------------
+# BUG-014: DCF graceful-degrade must not be self-defeated by technical_analysis
+# ---------------------------------------------------------------------------
+
+
+def _low_wacc_financial_data():
+    """FinancialData whose seeded DCF degrades (terminal_growth ≥ WACC).
+
+    A low-beta, cash-rich, low-debt profile pushes WACC toward the risk-free
+    floor while seed_dcf_inputs picks a terminal growth that meets/exceeds it,
+    so calculate_dcf raises (Gordon undefined) and financial_modeling degrades.
+    """
+    from finrobot.engine.models.financial import (
+        BalanceSheet,
+        FinancialData,
+        IncomeStatement,
+        MarketData,
+        ValuationMetrics,
+    )
+
+    return FinancialData(
+        ticker="LOWW",
+        company_name="Low WACC Co.",
+        timestamp=datetime.now(tz=timezone.utc),
+        income=IncomeStatement(
+            revenue=10e9,
+            ebitda=4e9,
+            net_income=3e9,
+            gross_margin=0.60,
+            operating_margin=0.40,
+            interest_expense=1e6,
+        ),
+        balance=BalanceSheet(total_debt=1e6, total_cash=5e9),
+        market=MarketData(
+            market_cap=100e9,
+            shares_outstanding=1e9,
+            current_price=100.0,
+            industry="Utilities—Regulated Electric",
+            beta=0.05,
+        ),
+        valuation=ValuationMetrics(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_technical_analysis_degrades_when_dcf_unavailable(mock_deps):
+    """BUG-014: when financial_modeling degraded (no DCFResult), technical_analysis
+    must NOT raise — it returns a degraded TechnicalAnalysis carrying the
+    DCF-unavailable marker, so the run continues to a relative-valuation report.
+    """
+    from finrobot.engine.compute.technical_payload import (
+        TECHNICAL_DCF_UNAVAILABLE_MARKER,
+        TechnicalAnalysis,
+    )
+    from finrobot.engine.models.financial import StepOutput
+    from finrobot.engine.pipelines.equity_research import _execute_technical_analysis
+    from finrobot.engine.pipelines.validators import validate_technical_analysis
+
+    # Mirror the degrade path: financial_modeling returned structured=None and
+    # never wrote a DCFResult into structured_context.
+    ctx: dict[str, object] = {"data_collection": _low_wacc_financial_data()}
+
+    mock_agent = MagicMock()
+    output = await _execute_technical_analysis(mock_agent, mock_deps, "prompt", ctx, "LOWW")
+
+    assert isinstance(output, StepOutput)
+    assert isinstance(output.structured, TechnicalAnalysis)
+    payload = output.structured
+    # All three quant overlays skipped (they seed off DCF inputs).
+    assert payload.monte_carlo is None
+    assert payload.sniper is None
+    assert payload.historical_bands is None
+    # Explicit marker present, and the validator PASSES on it (no misleading
+    # green check, no re-triggered degrade).
+    assert TECHNICAL_DCF_UNAVAILABLE_MARKER in payload.warnings
+    assert validate_technical_analysis(payload).passed is True
+
+
+@pytest.mark.asyncio
+async def test_low_wacc_run_degrades_to_relative_valuation(mock_deps):
+    """BUG-014 integration: when calculate_dcf raises ValueError (the tg≥WACC
+    Gordon-undefined case for low-WACC profiles), financial_modeling degrades
+    (structured=None, nothing written to ctx) AND the follow-on
+    technical_analysis degrades gracefully rather than crashing the run —
+    producing a usable (validator-passing) chapter-09 payload off the SAME ctx.
+    """
+    from finrobot.engine.models.financial import HistoricalMetrics, StepOutput
+    from finrobot.engine.pipelines.equity_research import (
+        _execute_financial_modeling,
+        _execute_technical_analysis,
+    )
+    from finrobot.engine.pipelines.validators import validate_technical_analysis
+
+    fd = _low_wacc_financial_data()
+    hm = HistoricalMetrics(
+        years=[],
+        revenue=[],
+        revenue_growth_yoy=[],
+        cogs=[],
+        gross_profit=[],
+        gross_margin=[],
+        sga=[],
+        sga_ratio=[],
+        ebitda=[],
+        ebitda_margin=[],
+        operating_income=[],
+        operating_margin=[],
+        net_income=[],
+        eps=[],
+        pe_ratio=[],
+        cagr_revenue=None,
+        ticker="LOWW",
+    )
+    ctx: dict[str, object] = {"data_collection": fd, "historical_metrics": hm}
+
+    mock_agent = MagicMock()
+
+    # Force the Gordon-undefined degrade exactly as a tg≥WACC seed would: the
+    # equity_research module calls calculate_dcf, which raises ValueError.
+    with patch(
+        "finrobot.engine.pipelines.equity_research.calculate_dcf",
+        side_effect=ValueError(
+            "Terminal growth 0.043 must be less than WACC 0.043 "
+            "(Gordon Growth Model perpetuity is undefined when tg >= wacc)"
+        ),
+    ):
+        fm_out = await _execute_financial_modeling(mock_agent, mock_deps, "prompt", ctx, "LOWW")
+
+    # DCF degraded: no DCFResult emitted, nothing written into ctx.
+    assert isinstance(fm_out, StepOutput)
+    assert fm_out.structured is None
+    assert "financial_modeling" not in ctx
+
+    # The next step must NOT crash on the missing DCFResult — it degrades and
+    # the validator passes (run continues to a relative-valuation report).
+    tech_out = await _execute_technical_analysis(mock_agent, mock_deps, "prompt", ctx, "LOWW")
+    assert isinstance(tech_out, StepOutput)
+    assert validate_technical_analysis(tech_out.structured).passed is True
+
+
+# ---------------------------------------------------------------------------
+# BUG-015: recoverable AgentRunError must propagate (not be wrapped into
+# non-recoverable ValueError that defeats base.py's retry-by-type)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_thesis_propagates_agent_run_error(mock_deps):
+    """BUG-015: an AgentRunError inside _execute_thesis propagates as
+    AgentRunError (recoverable), NOT re-wrapped into ValueError."""
+    from pydantic_ai.exceptions import AgentRunError
+
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
+
+    mock_agent_instance = MagicMock()
+    mock_agent_instance.run = AsyncMock(side_effect=AgentRunError("rate limit (429)"))
+    mock_agent = MagicMock()
+
+    with patch(
+        "finrobot.engine.pipelines.equity_research.Agent",
+        return_value=mock_agent_instance,
+    ):
+        with pytest.raises(AgentRunError):
+            await _execute_thesis(mock_agent, mock_deps, "base prompt", {}, "AAPL")
+
+
+@pytest.mark.asyncio
+async def test_thesis_wraps_validation_error_as_value_error(mock_deps):
+    """BUG-015: a ValidationError (deterministic schema failure) stays wrapped as
+    a non-recoverable ValueError — retrying it would only burn budget."""
+    from pydantic import ValidationError
+
+    from finrobot.engine.models.financial import ThesisResult
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
+
+    try:
+        ThesisResult(recommendation="Buy")  # missing required fields → ValidationError
+    except ValidationError as ve:
+        validation_error = ve
+
+    mock_agent_instance = MagicMock()
+    mock_agent_instance.run = AsyncMock(side_effect=validation_error)
+    mock_agent = MagicMock()
+
+    with patch(
+        "finrobot.engine.pipelines.equity_research.Agent",
+        return_value=mock_agent_instance,
+    ):
+        with pytest.raises(ValueError, match="failed to produce valid thesis"):
+            await _execute_thesis(mock_agent, mock_deps, "base prompt", {}, "AAPL")
+
+
+@pytest.mark.asyncio
+async def test_peer_selection_propagates_agent_run_error(mock_deps):
+    """BUG-015: an AgentRunError inside _llm_select_peers propagates as
+    AgentRunError (recoverable), NOT re-wrapped into ValueError."""
+    from pydantic_ai.exceptions import AgentRunError
+
+    from finrobot.engine.pipelines._helpers import _llm_select_peers
+
+    mock_agent_instance = MagicMock()
+    mock_agent_instance.run = AsyncMock(side_effect=AgentRunError("timeout"))
+
+    with patch(
+        "finrobot.engine.pipelines._helpers.Agent",
+        return_value=mock_agent_instance,
+    ):
+        with pytest.raises(AgentRunError):
+            await _llm_select_peers(mock_deps, "select peers prompt")

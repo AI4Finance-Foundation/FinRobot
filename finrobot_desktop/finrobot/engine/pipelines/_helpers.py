@@ -123,7 +123,15 @@ async def _llm_select_peers(deps: FinRobotDeps, prompt: str) -> PeerSelection:
     try:
         peer_result = await peer_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
         return peer_result.output  # type: ignore[no-any-return]
-    except (AgentRunError, ValidationError, ValueError) as e:
+    except AgentRunError:
+        # Recoverable by type (rate-limit / transient LLM error). base.py
+        # retries these 3× with backoff — re-wrapping into ValueError would
+        # mark it non-recoverable and abort the whole run with zero retries.
+        raise
+    except (ValidationError, ValueError) as e:
+        # Structured-output schema failure is deterministically non-recoverable:
+        # the same prompt yields the same invalid shape, so retrying is wasted
+        # budget. Keep it wrapped as a non-recoverable ValueError.
         raise ValueError(f"Failed to select peer companies: {e}") from e
 
 

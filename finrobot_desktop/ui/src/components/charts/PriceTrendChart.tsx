@@ -44,7 +44,11 @@ function windowOneYear(points: PricePoint[]): PricePoint[] {
     0,
     points.findIndex((p) => new Date(p.date) >= cutoff),
   )
-  return points.slice(startIdx)
+  const windowed = points.slice(startIdx)
+  // Drop leading non-finite / non-positive closes (provider halt/sparse day):
+  // a 0 first close skews the Y domain and makes the 1Y change Infinity.
+  const firstValid = windowed.findIndex((p) => Number.isFinite(p.close) && p.close > 0)
+  return firstValid > 0 ? windowed.slice(firstValid) : windowed
 }
 
 function fmtPrice(v: number): string {
@@ -121,8 +125,10 @@ export function PriceTrendChart({ points }: Props): React.ReactElement {
   const pad = (max - min) * 0.08 || 1
   const last = data[data.length - 1]
   const first = closes[0]
-  const pct = ((last.close - first) / first) * 100
-  const up = pct >= 0
+  // Guard first===0 (provider halt/sparse day): mirrors the backend prev==0
+  // guards (contracts.py trailing_1y_return_pct / routes/data.py:429). null → '—'.
+  const pct = first > 0 ? ((last.close - first) / first) * 100 : null
+  const up = pct !== null && pct >= 0
 
   const spanDays = Math.round(
     (new Date(last.date).getTime() - new Date(data[0].date).getTime()) / 86_400_000,
@@ -216,9 +222,12 @@ export function PriceTrendChart({ points }: Props): React.ReactElement {
           {spanLabel} {t('chart.priceTrend.trend')} · {t('chart.priceTrend.last')}{' '}
           {fmtPrice(last.close)}
         </span>
-        <span style={{ color: up ? 'var(--success)' : 'var(--danger)' }}>
-          {up ? '+' : ''}
-          {pct.toFixed(1)}%
+        <span
+          style={{
+            color: pct === null ? 'var(--text-muted)' : up ? 'var(--success)' : 'var(--danger)',
+          }}
+        >
+          {pct === null ? '—' : `${up ? '+' : ''}${pct.toFixed(1)}%`}
         </span>
       </div>
     </div>

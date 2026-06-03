@@ -670,6 +670,10 @@ msgid "errors.dataLoad.historical"
 msgstr "无法加载多年财务数据"
 
 #. js-lingui-explicit-id
+msgid "report.timeline.archived"
+msgstr "已归档"
+
+#. js-lingui-explicit-id
 msgid "report.timeline.current"
 msgstr "当前"
 
@@ -1998,26 +2002,6 @@ msgid "shell.error.renderFailed"
 msgstr "页面渲染出错"
 
 #. js-lingui-explicit-id
-msgid "shell.router.dashboardMerged"
-msgstr "工作台已合并到「个股」首页"
-
-#. js-lingui-explicit-id
-msgid "shell.router.libraryMerged"
-msgstr "报告库已合并到 ticker 的「我的研究」section"
-
-#. js-lingui-explicit-id
-msgid "shell.router.libraryMergedShort"
-msgstr "报告库已合并到「我的研究」section"
-
-#. js-lingui-explicit-id
-msgid "shell.router.journalRedesign"
-msgstr "决策日记 v3 重新设计中"
-
-#. js-lingui-explicit-id
-msgid "shell.router.playgroundRedesign"
-msgstr "估值假设调节 v2.1 重新设计"
-
-#. js-lingui-explicit-id
 msgid "landing.hero.tagline1"
 msgstr "确定性计算 · LLM 叙事"
 
@@ -3178,10 +3162,6 @@ msgid "report.toolbar.icDebate"
 msgstr "投委会"
 
 #. js-lingui-explicit-id
-msgid "report.toolbar.icDebateOnlyEquity"
-msgstr "仅支持股票研报（Equity Research）"
-
-#. js-lingui-explicit-id
 msgid "report.toolbar.icDebateTitle"
 msgstr "在投委会对此研报进行多空辩论"
 
@@ -3280,10 +3260,6 @@ msgstr "超出区间"
 #. js-lingui-explicit-id
 msgid "chart.footballField.mid"
 msgstr "中值"
-
-#. js-lingui-explicit-id
-msgid "shell.router.stocksMergedCoverage"
-msgstr "「股票」首页已并入「覆盖」。"
 
 #. js-lingui-explicit-id
 msgid "coverage.col.ticker"

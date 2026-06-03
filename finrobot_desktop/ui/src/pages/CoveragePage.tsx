@@ -39,6 +39,7 @@ import {
   type CoverageFilter,
 } from '../components/coverage/coverageFilter'
 import { useToastStore } from '../stores/toastStore'
+import { mapErrorToUserMessage } from '../utils/errorMessage'
 
 // Default applied sort when none is stored: most-urgent first, so the names that
 // need the analyst surface at the top.
@@ -225,11 +226,21 @@ export function CoveragePage(): React.ReactElement {
                   addMembers.mutate(
                     { id: group.id, tickers },
                     {
-                      onError: () => toast({ type: 'error', title: t('coverage.error.addFailed') }),
+                      onError: (err) =>
+                        toast({
+                          type: 'error',
+                          title: t('coverage.error.addFailed'),
+                          description: mapErrorToUserMessage(err),
+                        }),
                     },
                   )
               },
-              onError: () => toast({ type: 'error', title: t('coverage.error.createFailed') }),
+              onError: (err) =>
+                toast({
+                  type: 'error',
+                  title: t('coverage.error.createFailed'),
+                  description: mapErrorToUserMessage(err),
+                }),
             },
           )
         }}
@@ -275,7 +286,12 @@ export function CoveragePage(): React.ReactElement {
           })
           clearSelection()
         },
-        onError: () => toast({ type: 'error', title: t('coverage.toast.runFailed') }),
+        onError: (err) =>
+          toast({
+            type: 'error',
+            title: t('coverage.toast.runFailed'),
+            description: mapErrorToUserMessage(err),
+          }),
       },
     )
   }
@@ -299,7 +315,12 @@ export function CoveragePage(): React.ReactElement {
         onSuccess: () => {
           if (selectedTickers.includes(ticker)) toggleTicker(ticker)
         },
-        onError: () => toast({ type: 'error', title: t('coverage.error.removeFailed') }),
+        onError: (err) =>
+          toast({
+            type: 'error',
+            title: t('coverage.error.removeFailed'),
+            description: mapErrorToUserMessage(err),
+          }),
       },
     )
   }

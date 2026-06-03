@@ -10,6 +10,13 @@ describe('FetchHttpError', () => {
     expect(err.statusText).toBe('Service Unavailable')
     expect(err.name).toBe('FetchHttpError')
     expect(err.message).toContain('503')
+    expect(err.detail).toBe('')
+  })
+
+  it('carries an optional backend detail', () => {
+    const err = new FetchHttpError(422, 'Unprocessable Entity', 'ticker XYZ 不存在')
+    expect(err.status).toBe(422)
+    expect(err.detail).toBe('ticker XYZ 不存在')
   })
 })
 
@@ -28,6 +35,13 @@ describe('mapErrorToUserMessage (zh)', () => {
   it('4xx (non-404) → 请求异常', () => {
     expect(mapErrorToUserMessage(new FetchHttpError(400))).toBe('请求异常，请刷新页面')
     expect(mapErrorToUserMessage(new FetchHttpError(422))).toBe('请求异常，请刷新页面')
+  })
+
+  it('backend detail is preferred over the generic status bucket', () => {
+    expect(mapErrorToUserMessage(new FetchHttpError(422, '', 'ticker XYZ 不存在'))).toBe(
+      'ticker XYZ 不存在',
+    )
+    expect(mapErrorToUserMessage(new FetchHttpError(409, '', '分组名已存在'))).toBe('分组名已存在')
   })
 
   it('network TypeError → offline message', () => {

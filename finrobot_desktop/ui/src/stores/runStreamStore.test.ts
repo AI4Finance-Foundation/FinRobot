@@ -270,3 +270,46 @@ describe('trackBatchRuns — aggregated SSE for Coverage batch (BUG-031)', () =>
     expect(es.closed).toBe(true)
   })
 })
+
+describe('terminal-side-effect dedupe (BUG-085)', () => {
+  it('markTerminalNotified returns true once per runId, then false on replay', () => {
+    const store = useRunStreamStore.getState()
+    // First claim wins (the run-completion effect fires its toast + invalidations).
+    expect(store.markTerminalNotified('run-1')).toBe(true)
+    // A route remount re-runs the effect against the still-resident completed
+    // run — the store-level Set must suppress the duplicate.
+    expect(store.markTerminalNotified('run-1')).toBe(false)
+    expect(store.markTerminalNotified('run-1')).toBe(false)
+    // A different run (e.g. a re-run, which gets a fresh runId) fires once again.
+    expect(store.markTerminalNotified('run-2')).toBe(true)
+    expect(store.markTerminalNotified('run-2')).toBe(false)
+  })
+
+  it('clear() forgets the runId so a later same-id run can notify again', () => {
+    const store = useRunStreamStore.getState()
+    // Seed a completed run for the ticker via the SSE path, then claim it.
+    expect(store.markTerminalNotified('run-clear')).toBe(true)
+    // Drive a run for the ticker so clear() has something to read the runId from.
+    useRunStreamStore.setState((s) => ({
+      runs: {
+        ...s.runs,
+        [TICKER]: {
+          runId: 'run-clear',
+          ticker: TICKER,
+          pipelineType: 'research',
+          steps: [],
+          status: 'completed',
+          progress: 1,
+          error: null,
+          startedAt: Date.now(),
+          dismissed: false,
+          artifactId: null,
+          artifactType: null,
+        },
+      },
+    }))
+    useRunStreamStore.getState().clear(TICKER)
+    // clear dropped run-clear from the dedupe Set — it can notify once more.
+    expect(useRunStreamStore.getState().markTerminalNotified('run-clear')).toBe(true)
+  })
+})

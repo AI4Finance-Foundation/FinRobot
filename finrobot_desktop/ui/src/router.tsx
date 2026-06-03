@@ -3,10 +3,11 @@
 // to its v5 equivalent for one release so links shared in chat / docs don't
 // 404 overnight. v5+1 will remove the redirect block.
 //
-// `RedirectWithToast` writes a single-shot message into sessionStorage so the
-// destination page can surface a banner like "工作台已合并到「个股」首页"
-// without us building a global toast queue. AppShell reads + clears the slot
-// on mount.
+// `RetiredRouteRedirect` does a silent `replace` navigation, optionally
+// carrying the trailing :ticker segment over to the new path. It shows no
+// banner — the redirect is transparent by design (an earlier
+// sessionStorage-backed "merged" toast was never read by any consumer, so it
+// was removed rather than wired up; BUG-067).
 
 import { createBrowserRouter, Navigate, useNavigate } from 'react-router-dom'
 import { lazy, Suspense, useEffect } from 'react'
@@ -14,7 +15,6 @@ import { AppShell } from './layout/AppShell'
 import { CoveragePage } from './pages/CoveragePage'
 import { ComparePage } from './pages/ComparePage'
 import { StockWorkspace } from './views/StockWorkspace'
-import { tSync } from './i18n'
 
 // Lazy-routed: ArtifactDetailPage pulls 13 chapter components + the 4-panel
 // chrome, and Settings imports the full provider/channel matrix. Loading them
@@ -54,20 +54,15 @@ function RouteSuspense({ children }: { children: React.ReactNode }) {
   )
 }
 
-export const REDIRECT_TOAST_KEY = 'finrobot.redirect_toast'
-
-interface RedirectWithToastProps {
+interface RetiredRouteRedirectProps {
   to: string
-  /** i18n key for the destination banner message; resolved at navigation time. */
-  messageKey: string
   /** When true, preserves the :ticker URL segment by interpolating it into `to`. */
   preserveTicker?: boolean
 }
 
-function RedirectWithToast({ to, messageKey, preserveTicker = false }: RedirectWithToastProps) {
+function RetiredRouteRedirect({ to, preserveTicker = false }: RetiredRouteRedirectProps) {
   const navigate = useNavigate()
   useEffect(() => {
-    sessionStorage.setItem(REDIRECT_TOAST_KEY, tSync(messageKey))
     let target = to
     if (preserveTicker) {
       // The retired routes (/library/:ticker, /playground/:ticker) share their
@@ -81,7 +76,7 @@ function RedirectWithToast({ to, messageKey, preserveTicker = false }: RedirectW
       }
     }
     navigate(target, { replace: true })
-  }, [to, messageKey, preserveTicker, navigate])
+  }, [to, preserveTicker, navigate])
   return null
 }
 
@@ -100,9 +95,7 @@ export const router = createBrowserRouter([
       // drill-down (StockWorkspace) and report detail keep their routes.
       {
         path: 'stocks',
-        element: (
-          <RedirectWithToast to="/coverage" messageKey="shell.router.stocksMergedCoverage" />
-        ),
+        element: <RetiredRouteRedirect to="/coverage" />,
       },
       { path: 'stocks/:ticker', element: <StockWorkspace /> },
       {
@@ -135,39 +128,27 @@ export const router = createBrowserRouter([
       // v5 deprecation redirects (one release window) — spec §11.4
       {
         path: 'dashboard',
-        element: <RedirectWithToast to="/stocks" messageKey="shell.router.dashboardMerged" />,
+        element: <RetiredRouteRedirect to="/stocks" />,
       },
       {
         path: 'library',
-        element: <RedirectWithToast to="/stocks" messageKey="shell.router.libraryMerged" />,
+        element: <RetiredRouteRedirect to="/stocks" />,
       },
       {
         path: 'library/:ticker',
-        element: (
-          <RedirectWithToast
-            to="/stocks"
-            messageKey="shell.router.libraryMergedShort"
-            preserveTicker
-          />
-        ),
+        element: <RetiredRouteRedirect to="/stocks" preserveTicker />,
       },
       {
         path: 'journal',
-        element: <RedirectWithToast to="/stocks" messageKey="shell.router.journalRedesign" />,
+        element: <RetiredRouteRedirect to="/stocks" />,
       },
       {
         path: 'playground',
-        element: <RedirectWithToast to="/stocks" messageKey="shell.router.playgroundRedesign" />,
+        element: <RetiredRouteRedirect to="/stocks" />,
       },
       {
         path: 'playground/:ticker',
-        element: (
-          <RedirectWithToast
-            to="/stocks"
-            messageKey="shell.router.playgroundRedesign"
-            preserveTicker
-          />
-        ),
+        element: <RetiredRouteRedirect to="/stocks" preserveTicker />,
       },
     ],
   },

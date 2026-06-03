@@ -53,15 +53,19 @@ export function StockWorkspace(): React.ReactElement {
   //      `useV5ArtifactTimeline` (staleTime: Infinity, immutable artifacts)
   //      keeps serving the pre-run snapshot forever.
   const runState = useRunStreamStore(selectRunByTicker(symbol))
+  const markTerminalNotified = useRunStreamStore((s) => s.markTerminalNotified)
   const addToast = useToastStore((s) => s.addToast)
   const queryClient = useQueryClient()
-  const lastNotifiedRunIdRef = useRef<string | null>(null)
   useEffect(() => {
     const runId = runState?.runId
     if (!runId) return
-    if (lastNotifiedRunIdRef.current === runId) return
+    // Dedupe at the STORE level, not via a component ref: this view is
+    // route-mounted, so a useRef resets on every navigate-away/back and would
+    // re-fire the toast + invalidations against the still-resident completed
+    // run (BUG-085). markTerminalNotified returns true once per runId, ever.
+    if (runState.status !== 'completed' && runState.status !== 'failed') return
+    if (!markTerminalNotified(runId)) return
     if (runState.status === 'completed') {
-      lastNotifiedRunIdRef.current = runId
       // Refetch every read model that an equity_research artifact touches.
       // Artifacts are immutable per-id but the *list* of artifacts for a
       // ticker grows on every run, so the timeline / studied-tickers /
@@ -81,7 +85,6 @@ export function StockWorkspace(): React.ReactElement {
         description: t('workspace.toast.reportDoneDesc'),
       })
     } else if (runState.status === 'failed') {
-      lastNotifiedRunIdRef.current = runId
       // runState.error is the raw SSE `run.failed` payload (or our SSE-dropout
       // message) — route it through mapErrorToUserMessage so a leaked "HTTP
       // 500" / dev string becomes friendly copy (BUG-027). Pre-localised
@@ -94,7 +97,16 @@ export function StockWorkspace(): React.ReactElement {
           : t('workspace.toast.retryLater'),
       })
     }
-  }, [runState?.runId, runState?.status, runState?.error, symbol, addToast, queryClient, t])
+  }, [
+    runState?.runId,
+    runState?.status,
+    runState?.error,
+    symbol,
+    addToast,
+    markTerminalNotified,
+    queryClient,
+    t,
+  ])
 
   // Gate: validate ticker via useTickerPrice before rendering the workspace
   // shell. Status code is the protocol; UI never matches on Chinese detail.

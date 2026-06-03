@@ -19,6 +19,7 @@ import { mapErrorToUserMessage } from '../../utils/errorMessage'
 import { useI18n, tSync, type Locale } from '../../i18n'
 import { allChapterLabels } from '../../pages/artifact-detail/chapters/labels'
 import type { ArtifactSummaryV5 } from '../../types/v5'
+import { ArchivedPill } from '../../components/ArchivedPill'
 
 // Display label per non-research artifact type (dcf / lbo / comps / …). Kept
 // inline (not in .po) per the VersionDiffBanner precedent — these are short,
@@ -86,7 +87,10 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
     isLoading: timelineLoading,
     isError: timelineError,
     refetch: timelineRefetch,
-  } = useV5ArtifactTimeline(ticker)
+    // limit 200 to match the report page / Coverage Inspector ceiling so this
+    // preview reads from the same cached "full history" page rather than its own
+    // truncated default-50 slice for the same ticker (BUG-056).
+  } = useV5ArtifactTimeline(ticker, 200)
   const startRun = useRunStreamStore((s) => s.startRun)
   const runState = useRunStreamStore(selectRunByTicker(ticker))
   const addToast = useToastStore((s) => s.addToast)
@@ -1025,6 +1029,8 @@ function HotState({
                     fontSize: 11.5,
                     textAlign: 'left',
                     color: 'var(--text-primary)',
+                    // Dim retired (stale-archived) versions (BUG-055).
+                    opacity: a.archived ? 0.6 : 1,
                   }}
                 >
                   <span style={{ fontWeight: 600 }}>{current ? 'current' : ''}</span>
@@ -1037,8 +1043,17 @@ function HotState({
                   <span style={{ color: 'var(--text-dim)', fontSize: 10.5 }}>
                     {formatDate(a.created_at, locale, 'short')} · {ageLabel(a.created_at)}
                   </span>
-                  <span style={{ color: 'var(--secondary)', textDecoration: 'underline' }}>
-                    {t('workspace.ai.hot.openArrow')}
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-end',
+                    }}
+                  >
+                    {a.archived && <ArchivedPill />}
+                    <span style={{ color: 'var(--secondary)', textDecoration: 'underline' }}>
+                      {t('workspace.ai.hot.openArrow')}
+                    </span>
                   </span>
                 </button>
               )

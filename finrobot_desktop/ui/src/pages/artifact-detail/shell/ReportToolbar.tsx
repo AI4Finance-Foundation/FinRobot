@@ -154,7 +154,10 @@ export function ReportToolbar({
           {ticker}
         </button>
         <Sep />
-        <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+        <span
+          className="version-switch"
+          style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
+        >
           <span style={{ color: 'var(--secondary)' }}>{reportVersionLabel}</span>
           {sameTypeTimeline.length > 1 && (
             <>
@@ -173,6 +176,8 @@ export function ReportToolbar({
                     {formatDate(a.created_at, locale, 'short')}
                     {' · '}
                     {(a.signal ?? 'pending').toUpperCase()}
+                    {/* Mark retired (stale-archived) versions (BUG-055). */}
+                    {a.archived ? ` · ${t('report.timeline.archived')}` : ''}
                   </option>
                 ))}
               </select>
@@ -236,18 +241,16 @@ export function ReportToolbar({
       {/* Version comparison moved inline: the VersionDiffBanner at the top of the
           report body shows "what changed vs a prior version" with a base selector,
           replacing the old modal diff button. */}
-      {/* IC Debate entry — only surfaces for equity_research reports */}
-      <ToolbarButton
-        onClick={onOpenIcDebate}
-        disabled={reportType !== 'equity_research' || !onOpenIcDebate}
-        title={
-          reportType !== 'equity_research'
-            ? t('report.toolbar.icDebateOnlyEquity')
-            : t('report.toolbar.icDebateTitle')
-        }
-      >
-        ⚖ {t('report.toolbar.icDebate')}
-      </ToolbarButton>
+      {/* IC Debate entry — only surfaces for equity_research reports. Rendered
+          conditionally (not disabled+title) because a disabled element fires no
+          hover and title tooltips are mouse-only, so keyboard/touch users would
+          get no reason it is unavailable. The handler is already undefined off
+          equity, so off-equity reports simply omit the button. */}
+      {reportType === 'equity_research' && onOpenIcDebate && (
+        <ToolbarButton onClick={onOpenIcDebate} title={t('report.toolbar.icDebateTitle')}>
+          ⚖ {t('report.toolbar.icDebate')}
+        </ToolbarButton>
+      )}
     </div>
   )
 }

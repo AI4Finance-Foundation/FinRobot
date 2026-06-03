@@ -108,12 +108,12 @@
 | BUG-048 | Bug | P2 | archive_stale 全表 get()+save() 逐行重写整份 payload，O(N) 次完整 JSON 反序列化+序列化 | 待修 |
 | BUG-049 | Bug | P2 | data_cache.cache 表永不淘汰,只增不减(无 TTL 清理/容量上限) | 待修 |
 | BUG-050 | Bug | P2 | run_events 无限增长 + SSE 0.2s 轮询单连接 → 批跑下打满单库单锁 | 待修 |
-| BUG-051 | Bug | P2 | 前端 pipeline 类型清单三处不一致：appStore 缺 ddm，runStreamStore/后端 registry 含 ddm | 待修 |
+| BUG-051 | Bug | P2 | 前端 pipeline 类型清单三处不一致：appStore 缺 ddm，runStreamStore/后端 registry 含 ddm | 已修 |
 | BUG-052 | Bug | P2 | query_financial_data raises an unguarded ValueError on a bad data_type, crashing the live chat SSE stream | 待修 |
-| BUG-053 | Bug | P2 | coverage.ts 的 req() 丢弃后端中文 detail 错误体，分组/成员操作失败时用户拿不到具体原因 | 待修 |
-| BUG-054 | Bug | P2 | 研报版本切换 <select> 用 opacity:0 覆盖层实现：键盘 Tab 落上去零可见焦点指示，用户看不到焦点在哪 | 待修 |
-| BUG-055 | Bug | P2 | 归档（30天自动 stale）的研报混进所有版本列表且零视觉标识——用户分不清『还在跟踪』和『已作废』的版本 | 待修 |
-| BUG-056 | Bug | P2 | 研报版本切换器/时间线/Diff 候选只取 timeline 默认 50 条，与 Inspector History(200) 不一致——重度跟踪的 ticker 老版本在报告页内不可达 | 待修 |
+| BUG-053 | Bug | P2 | coverage.ts 的 req() 丢弃后端中文 detail 错误体，分组/成员操作失败时用户拿不到具体原因 | 已修 |
+| BUG-054 | Bug | P2 | 研报版本切换 <select> 用 opacity:0 覆盖层实现：键盘 Tab 落上去零可见焦点指示，用户看不到焦点在哪 | 已修 |
+| BUG-055 | Bug | P2 | 归档（30天自动 stale）的研报混进所有版本列表且零视觉标识——用户分不清『还在跟踪』和『已作废』的版本 | 已修 |
+| BUG-056 | Bug | P2 | 研报版本切换器/时间线/Diff 候选只取 timeline 默认 50 条，与 Inspector History(200) 不一致——重度跟踪的 ticker 老版本在报告页内不可达 | 已修 |
 | BUG-057 | Bug | P2 | Compare 表把不同时间跑出的 DCF 混在同一张表,且不显任何 vintage/as_of——用户无法判断哪行是今天的、哪行是三周前的 | 待修 |
 | BUG-068 | Bug | P2 | 回测对 A股标的零适配(T+1/涨跌停/印花税/停牌全缺)却照常产出净值曲线——A股结果根本不可信,应在入口直接 raise 拒跑而非 warn | 待修 |
 | BUG-070 | Bug | P2 | artifact 盖 git_commit 戳的 subprocess except 抓错异常类型(只抓 ImportError/Attr/Type/Value)——git 缺失(FileNotFoundError)/超时(TimeoutExpired)未捕获,无 git 环境(pip 安装用户/Docker slim/CI)研报落地最后一步直接崩 | 已修 |
@@ -138,19 +138,19 @@
 | BUG-058 | Bug | P3 | Non-critical steps emit a misleading step.completed (green ✓) after exhausting all retries on a real failure | 待修 |
 | BUG-059 | Bug | P3 | Validation-failure retries re-run deterministic executors unchanged, burning the full retry budget on identical failing output | 待修 |
 | BUG-060 | Bug | P3 | DCF/Monte Carlo 把 Gordon 终值在中年法下按 (n-0.5) 折现——终值『定价日』应是年末 n,这里多折了半年,系统性高估 fair value | 待修 |
-| BUG-061 | Bug | P3 | Earnings-call tab selection keyed by array index — duplicate/reordered transcripts collide keys and mis-select | 待修 |
+| BUG-061 | Bug | P3 | Earnings-call tab selection keyed by array index — duplicate/reordered transcripts collide keys and mis-select | 已修 |
 | BUG-062 | Bug | P3 | `is_sampled` / `sample_size` honesty disclosure is dropped at the API→frontend boundary (field absent from the TS contract) | 已修 |
 | BUG-063 | Bug | P3 | _resolve_strategy does importlib.import_module(user_string) + getattr before the bt.Strategy check — arbitrary module import with side effects | 待修 |
 | BUG-064 | Bug | P3 | _extract_drawdown accepts a warnings list but never uses it — silent None drawdown with no warning, inconsistent with siblings | 已修 |
 | BUG-065 | Bug | P3 | 镜像列(verdict/entry/target/tagline)在 extractor 逻辑演进后无回填路径，旧行永久陈旧 | 待修 |
-| BUG-066 | Bug | P3 | 禁用态按钮的『为什么不可用』只靠 title tooltip：disabled 元素不触发 hover、tooltip 鼠标专属，键盘/触屏用户拿不到原因（IC 辩论 & Compare） | 待修 |
-| BUG-067 | Bug | P3 | 退役路由的「已合并」提示 toast 写进 sessionStorage 但全代码无人读取——功能彻底失效且 router 注释撒谎 | 待修 |
+| BUG-066 | Bug | P3 | 禁用态按钮的『为什么不可用』只靠 title tooltip：disabled 元素不触发 hover、tooltip 鼠标专属，键盘/触屏用户拿不到原因（IC 辩论 & Compare） | 已修 |
+| BUG-067 | Bug | P3 | 退役路由的「已合并」提示 toast 写进 sessionStorage 但全代码无人读取——功能彻底失效且 router 注释撒谎 | 已修 |
 | BUG-069 | Bug | P3 | 回测渲染图时弹出 matplotlib GUI 窗口(Figure 0)并泄漏 figure——模块级 use("Agg") 时机太晚未生效 | 待修 |
 | BUG-072 | Bug | P3 | NewsAggregatorProvider 唯一免 key 源 Yahoo RSS headline feed 已被雅虎下线(404),默认无 AV key 配置下该 provider 100% 抛错(被 FMP NEWS 兜住故非必现),工厂注释『uses Yahoo RSS (free, no key)』撒谎 | 待修 |
 | BUG-076 | Bug | P3 | Sniper coherence gate 比的是原始 float、ship 的是 round(2) 值——target 与现价相差 <$0.005 时 ideal_buy==take_profit、R/R=0、warning 印出『$372.80 < $372.80』自相矛盾的退化交易行,gate 不 raise 故 _safe_sniper 接不住 | 待修 |
 | BUG-083 | Bug | P3 | ~/.finrobot/.secrets 权限偏离 0600(备份还原/编辑器重写/umask 漂移)时,严格等值校验抛未捕获 PermissionError→server 启动崩,无自愈无降级(明文 FileSecretStore 兜底路径:headless/CI/Docker/dev) | 待修 |
-| BUG-084 | Bug | P3 | PriceTrendChart 窗口首日收盘价为 0 时 1Y 涨跌幅药丸渲染成 'Infinity%'、Y 轴 domain 被 0 基准拉歪——后端 contracts/data.py 同一除法都有 prev==0 守卫,唯独前端图无(provider 停牌/稀疏日可能给 close=0) | 待修 |
-| BUG-085 | Bug | P3 | 已完成的 run 永不从 runStreamStore 清除(clear() 无调用方),StockWorkspace 是路由挂载组件、去重 key 是组件级 useRef——切走再回每次重弹『报告已生成』toast + 3 次 query invalidation 强制重拉 | 待修 |
+| BUG-084 | Bug | P3 | PriceTrendChart 窗口首日收盘价为 0 时 1Y 涨跌幅药丸渲染成 'Infinity%'、Y 轴 domain 被 0 基准拉歪——后端 contracts/data.py 同一除法都有 prev==0 守卫,唯独前端图无(provider 停牌/稀疏日可能给 close=0) | 已修 |
+| BUG-085 | Bug | P3 | 已完成的 run 永不从 runStreamStore 清除(clear() 无调用方),StockWorkspace 是路由挂载组件、去重 key 是组件级 useRef——切走再回每次重弹『报告已生成』toast + 3 次 query invalidation 强制重拉 | 已修 |
 | BUG-088 | Bug | P3 | coverage 系统组 find-or-create 非原子 + coverage_groups 表 is_system 无唯一约束 → 冷启动并发(双标签页/首屏+开股同时)各建一条『Studied Tickers』,较新组里的 ticker 被永久孤立、用户看到两个同名组 | 待修 |
 | BUG-090 | Bug | P3 | 两个表都叫 `artifacts`(runs.db 链表 vs artifacts.db 规范库),撞名;且 runs.db 的 artifacts 表 `data BLOB`+`format` 是死列(唯一调用方只传 file_path 指针、从不传 data)——该表应改名 run_artifacts 并砍死列 | ✅ 已修 |
 | BUG-091 | Bug | P3 | JournalStore + journal.db 是整块死代码:完整实现 create/delete/list 但全仓零实例化、routes/cli/server/sdk 零引用(概念已被 artifacts.entry_price/target_price 吸收)——应删 | ✅ 已修 |
@@ -832,7 +832,7 @@
 - **修复方案**：与上一条收敛同源：后端 registry 暴露一个 `/api/pipelines` 或在 OpenAPI schema 里导出 pipeline key 枚举，前端 PipelineType 改为从 `schema.d.ts` 生成的 union 派生（generate:api 已有 codegen 管线），删掉 appStore.ts:11 的手写 union；PIPELINE_STEP_NAMES 仍需手维护步名（步名是前端镜像，注释已说明），但 key 集合应来自同一 union 以触发『缺 ddm 即编译红』。若不想接后端，至少把 PipelineType 与 PIPELINE_STEP_NAMES 的 key 用一个 `satisfies Record<PipelineType, ...>` 绑定，让缺项编译期报错。注意 appStore 若按 finding-1 删除，则 PipelineType 须迁到 types 文件再做绑定。
 - **验证补充**：Severity P2 is fair but note this is partly a SYMPTOM of F0+F1: once appStore is deleted (F0) and pipeline keys are sourced from registry (F1), the appStore.PipelineType union vanishes and the only remaining frontend mirror is PIPELINE_STEP_NAMES. Best fix is the F1/F2 combined: export pipeline keys via OpenAPI/`/api/pipelines` so the union is codegen-derived (generate:api pipeline exists), and bind PIPELINE_STEP_NAMES with `satisfies Record<PipelineKey,...>` so a missing key is a compile error. Don't fix F2 standalone — fold into F0/F1 to avoid re-introducing a hand-maintained union.
 - **影响面/回归风险**：影响面：触发 run 的类型安全。当前因 appStore.PipelineType 无消费方故无运行时 bug，属潜伏隐患（任何复用此 union 的新代码会静默缺 ddm 分支）。回归风险低。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（由 BUG-024 删除 appStore 顺带根治：appStore 那份缺 ddm 的手写 PipelineType union 已随文件删除。核验现状——runStreamStore.PIPELINE_STEP_NAMES（7 键含 ddm）与后端 registry.py（7 键含 ddm）一致，ReportToolbar.reportTypeToPipelineType 也含全 7 键；前端现单一真源、与后端一致，三处漂移不复存在。无需额外代码改动。）
 
 #### [BUG-052] query_financial_data raises an unguarded ValueError on a bad data_type, crashing the live chat SSE stream
 
@@ -859,7 +859,7 @@
 - **修复方案**：改 ui/src/api/coverage.ts:135-140 的 req()：!r.ok 时先 const detail = await extractErrorDetail(r, '') （复用 ui/src/api/errors.ts），detail 非空则 throw new FetchHttpError(r.status, r.statusText) 的同时把 detail 作为 message（可给 FetchHttpError 加可选第三参 detail 并让 mapErrorToUserMessage 优先返回它），或直接 throw new Error(detail) 当 detail 存在。配套：CoveragePage 的 onError 改成优先显示 mapErrorToUserMessage(err) 而非写死 coverage.error.*。注意事项：extractErrorDetail 会 consume body，调用一次即可；req 的 204 分支保持。改动量级：小（约 10-20 行）。
 - **验证补充**：Fix is right; two refinements: (1) extractErrorDetail consumes the body once — call it exactly once in req() and pass detail into FetchHttpError (add optional 3rd param) so mapErrorToUserMessage can prefer it; throwing a plain Error(detail) also works but loses err.status for any status-based branching. (2) Must also update ALL four CoveragePage onError sites (addFailed/createFailed/runFailed/removeFailed) to mapErrorToUserMessage(err), else the read detail still gets overwritten by the hardcoded toast.
 - **影响面/回归风险**：影响所有 Coverage CRUD/批量操作的错误可读性。回归风险低，仅丰富错误信息，不改成功路径。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（errorMessage.ts:FetchHttpError 加 detail 字段（第3构造参数默认空串，旧调用点不受影响），mapErrorToUserMessage 优先返回 detail；coverage.ts req() 在 !r.ok 时 extractErrorDetail 读一次 body 传入；CoveragePage 4 个 onError 用 mapErrorToUserMessage 把后端中文 detail 作为 toast description。与 startRun/startDebate 对齐。新增 2 测试。）
 
 #### [BUG-054] 研报版本切换 <select> 用 opacity:0 覆盖层实现：键盘 Tab 落上去零可见焦点指示，用户看不到焦点在哪
 
@@ -872,7 +872,7 @@
 - **修复方案**：改 ReportToolbar.tsx：给包裹的 <span>（157）加 :focus-within 样式（用 CSS 类而非 inline，因 inline 无法表达 :focus-within），让 select 获焦时可见标签描边/变色（border 或 outline 用 var(--accent-cyan)，禁硬编码）；或更稳妥——把透明 select 换成可见的轻样式 select / 一个 role=combobox 的真按钮+菜单。最小修复：在 App.css 加 .version-switch:focus-within{outline:2px solid var(--accent-cyan);border-radius:...} 并给 157 的 span 挂该 class。注意保留 aria-label（167）。
 - **验证补充**：Fix valid. :focus-within must be a CSS class (inline can't express it) on the span(157) — author already notes this. Use var(--accent-cyan), keep aria-label(167). P2 is on the high side for a still-operable control but acceptable.
 - **影响面/回归风险**：仅影响键盘用户对版本切换的可发现性，范围小；回归风险极低（纯增焦点样式）。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（App.css 加 .version-switch:focus-within 可见焦点环（var(--accent-cyan)，无硬编码 hex）；ReportToolbar 给包裹 opacity:0 <select> 的 <span> 加 class，键盘 Tab 落上有可见环。）
 
 #### [BUG-055] 归档（30天自动 stale）的研报混进所有版本列表且零视觉标识——用户分不清『还在跟踪』和『已作废』的版本
 
@@ -886,7 +886,7 @@
 - **验证补充**：Fix is correct and low-risk. Note markArtifactViewed un-archives on open (artifacts.py:290-303) and ArtifactDetailPage L117 already invalidates the timeline query, so the pill self-clears — finding acknowledges this correctly.
 - **影响面/回归风险**：纯展示增强，无逻辑回归。让『最新 vs 历史/作废』对用户透明，直接回应审查聚焦点。
 - **合并自**：ux-onetomany#2, ux-onetomany#5（2 条同源发现）
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（新增共享 ArchivedPill 组件（var(--text-dim) 暗色 pill）+ i18n report.timeline.archived；5 处版本列表渲染（ReportRightRail/AIZone/CoverageInspector 行 + VersionDiffBanner/ReportToolbar 的 <option> 后缀）标注「已归档」+ 行 opacity 0.6；重开时 markArtifactViewed 解归档自动清除。）
 
 #### [BUG-056] 研报版本切换器/时间线/Diff 候选只取 timeline 默认 50 条，与 Inspector History(200) 不一致——重度跟踪的 ticker 老版本在报告页内不可达
 
@@ -899,7 +899,7 @@
 - **修复方案**：ArtifactDetailPage.tsx:63 改为 `useV5ArtifactTimeline(symbol, 200)`，与 Inspector 对齐。注意 useV5Artifacts.ts:28 注释已说明 limit 进 queryKey，不会和无 limit 的其它调用方串缓存——但 AIZone.tsx:89 也用无 limit 调同 ticker，会各自缓存一份（200 那份多拉数据）。可接受；若想省一次请求，把 AIZone 也统一成 200。量级：低（1 行，含考虑统一 AIZone）。
 - **验证补充**：One-line fix useV5ArtifactTimeline(symbol, 200) is correct. limit is in the query key (useV5Artifacts L28) so no cache crosstalk. AIZone L89 also calls with no limit (50) for the same ticker — for true consistency unify AIZone to 200 too, else AIZone's slice(0,5) preview and the report page derive from a different cached page (harmless given the slice but inconsistent). Finding flags this correctly.
 - **影响面/回归风险**：边缘场景（单 ticker >50 artifacts）；多数 ticker 无感。回归面极小。修后报告页与 Inspector 的『全部历史』口径一致。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（ArtifactDetailPage 的 useV5ArtifactTimeline(symbol) 与 AIZone 的同 hook 都改 limit=200，对齐 Coverage Inspector HISTORY_LIMIT=200；重度跟踪 ticker 老版本在报告页内可达。limit 入 query key 无缓存串扰。同步修 StockWorkspace.test 的 timeline URL 匹配。）
 
 #### [BUG-057] Compare 表把不同时间跑出的 DCF 混在同一张表,且不显任何 vintage/as_of——用户无法判断哪行是今天的、哪行是三周前的
 
@@ -964,7 +964,7 @@
 - **修复方案**：ChapterFinancialData.tsx — store the selected transcript's identity instead of its index: `const [selectedKey, setSelectedKey] = useState<string|null>(null)` keyed by `${tx.year}-Q${tx.quarter}-${idx}` (idx in the key disambiguates true duplicates), derive `const selected = transcripts.find(...) ?? transcripts[0]`, and set on click from the same composite key. Use that composite key for the button `key` too so it is unique even on duplicate quarters. ~10 lines.
 - **验证补充**：Fix direction is sound (identity-based selection). Store a composite key including idx to disambiguate true duplicates, derive `selected = transcripts.find(...) ?? transcripts[0]`, and use the same composite key for the button `key`. Cleaner still: dedup/normalize (year,quarter) at the backend route (data.py:242) so the provider's amended filings don't reach the client duplicated — that removes the root cause rather than only the symptom, but the frontend identity fix is the minimal correct change for this file's scope.
 - **影响面/回归风险**：Rare (needs duplicate or reordered transcripts); worst case is a React key warning + the user's tab selection jumping. No data fabrication. Low blast radius.
-- **置信度**：medium　|　**状态**：待修
+- **置信度**：medium　|　**状态**：已修（ChapterFinancialData 的 EarningsCallSection 选中从数组下标改为稳定 composite key ${year}-Q${quarter}-${idx}（trailing idx 消歧真重复季度如修正申报）；React key 同改，后台 refetch 重排/缩短后选中不丢、key 不撞。）
 
 #### [BUG-062] `is_sampled` / `sample_size` honesty disclosure is dropped at the API→frontend boundary (field absent from the TS contract)
 
@@ -1029,7 +1029,7 @@
 - **修复方案**：两选一：(a) 非 equity_research 时干脆不渲染 IC 按钮（与 onOpenIcDebate 仅对 equity 传入的现状一致，最简单，去掉 disabled 分支）；(b) 若要保留以示能力存在，则在按钮旁渲染可见的小字说明或改用 aria-disabled+可聚焦+点击弹 toast 说明，而非 disabled+title。推荐 (a)：删 ReportToolbar.tsx:242 的 disabled 表达式分支，改为 {reportType==='equity_research' && onOpenIcDebate && <ToolbarButton.../>}。注意同步删除现已无用的 t('report.toolbar.icDebateOnlyEquity') 文案引用。
 - **验证补充**：Fix (a) is correct and cleanest: render {reportType==='equity_research' && onOpenIcDebate && <ToolbarButton.../>} since the handler is already undefined off-equity. Remember to drop the now-unused t('report.toolbar.icDebateOnlyEquity') key (present in en/zh .po+.mjs per grep). P3 appropriate.
 - **影响面/回归风险**：影响触屏/键盘用户对该能力的理解，范围限于非 equity 报告页；回归风险低。若选 (a) 需确认产品是否希望在其它报告类型上『展示但禁用』来暗示功能存在——这是产品取舍，倾向 (a) 因当前 tooltip 已是失效解释。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（ReportToolbar 的 IC 辩论按钮从 disabled+title 改为条件渲染（仅 equity_research+有 onOpenIcDebate 才显），非 equity 报告直接不显该控件——无 disabled 元素、无鼠标专属 tooltip，键盘/触屏用户不再面对无解释的灰按钮。删除不再用的 i18n key。）
 
 #### [BUG-067] 退役路由的「已合并」提示 toast 写进 sessionStorage 但全代码无人读取——功能彻底失效且 router 注释撒谎
 
@@ -1042,7 +1042,7 @@
 - **修复方案**：在 AppShell.tsx 加一个挂载时 useEffect：读取 REDIRECT_TOAST_KEY，非空则 useToastStore.addToast({type:'info',title:该文案}) 并 sessionStorage.removeItem。从 router.tsx export 的 REDIRECT_TOAST_KEY 已可直接 import。注意：必须在路由跳转后的目标页 mount 时机读取，AppShell 是所有路由的父壳，挂载早于 Outlet 内容，时序正确。若决定不要这个 banner，则反向删干净：移除 RedirectWithToast 里的 sessionStorage 写入 + line 6-9 注释，别留半截。二选一，不要保留现状。改动量：~10 行单文件（接上）或 ~5 行（删）。
 - **验证补充**：Both fix options valid (wire AppShell consumer OR delete the write+comment). Given finding #3's direction also touches these redirects, prefer the DELETE option — the merged-route toasts add little value and the i18n strings (shell.router.*) can be dropped too. Don't leave the half-built mechanism.
 - **影响面/回归风险**：影响所有从旧链接/书签进来的用户——他们被静默重定向、毫无解释。接上后回归风险低（新增一个 toast）；删除方向需同步改 router 头注释避免再次误导。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（采用 finding 首选 DELETE 方案：router.tsx 删除 REDIRECT_TOAST_KEY/sessionStorage 写入/messageKey/tSync，RedirectWithToast 改名 RetiredRouteRedirect（静默 replace 跳转、保 preserveTicker），改写撒谎的文件头注释。删 6 个孤立 shell.router.* i18n 串并 lingui compile 重生成 .mjs。）
 
 #### [BUG-068] 回测对 A股标的零适配(T+1/涨跌停/印花税/停牌全缺)却照常产出净值曲线——A股结果根本不可信,应在入口直接 raise 拒跑
 
@@ -1248,7 +1248,7 @@
 - **根因**：前端是唯一未防的除数;只有真实 payload 含 0 收盘价(停牌/退市/稀疏日)才触发。
 - **修复方案**：`const pct = first>0 ? ((last.close-first)/first)*100 : null`，null 时渲染 '—'（与组件其他 null 处理一致，镜像后端 prev==0 行为）；并在 windowOneYear 丢弃前导 0/非有限 close。
 - **影响面/回归风险**：极低触发率；修复零回归。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（PriceTrendChart：1Y 涨跌幅 const pct = first>0 ? ((last-first)/first)*100 : null，null 渲染 — 静默（镜像后端 contracts.py/routes/data.py 的 prev==0 守卫）；并在 windowOneYear 丢弃前导非有限/非正 close 防 Y 轴被 0 拉歪。双层兜底。）
 
 #### [BUG-085] 已完成 run 永不从 runStreamStore 清除 → StockWorkspace 每次回访重弹『报告已生成』toast + 3 次 query invalidation
 
@@ -1260,7 +1260,7 @@
 - **根因**：跨生命周期运行时交互——(store 存活>组件) ×(去重 key 限组件) ×(run 永不清)；每个文件本地都对，只在运行时交点出 bug。
 - **修复方案**：让完成副作用在 **store 级**幂等而非组件级——(a) run.completed/failed 后在被消费视图 dismiss 时真的从 s.runs 删终态 run；或 (b) 把去重 key 移出组件、放进 runStreamStore 模块级 `notifiedTerminal: Set<runId>`（store action 内 check/mark），remount 无法重放 toast/invalidation。推荐 (b)。
 - **影响面/回归风险**：影响每次回访已跑过研报的 ticker（骚扰 + 多余重拉）。修复零数据影响。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（采用方案 b（store 级去重）：runStreamStore 加模块级 notifiedTerminal Set + markTerminalNotified(runId)（每 runId 仅 true 一次），clear(ticker) 时删除其 runId 允许重跑再通知；StockWorkspace 删组件级 lastNotifiedRunIdRef 改用 markTerminalNotified——切走再回不再重弹「报告已生成」+ 3 次 query 失效。attachMultiplexed(BUG-031)/attachSse 单批 SSE 路径不变。新增 2 测试。）
 
 #### [BUG-086] [休眠·须与 BUG-075 同修] 13F value 双倍 ×1000 → 机构持仓金额 1000 倍高估
 

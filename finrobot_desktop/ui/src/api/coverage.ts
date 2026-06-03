@@ -6,6 +6,7 @@
 import { BASE_URL } from './client'
 import { fetchWithTimeout } from './fetch'
 import { FetchHttpError } from '../utils/errorMessage'
+import { extractErrorDetail } from './errors'
 import type { NumberSource } from '../components/SourcedNumber'
 
 // ── Types (mirror finrobot/coverage/models.py + compute/compare.py) ──────────
@@ -134,7 +135,15 @@ export interface ComparisonResult {
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetchWithTimeout(`${BASE_URL}${path}`, init)
-  if (!r.ok) throw new FetchHttpError(r.status, r.statusText)
+  if (!r.ok) {
+    // FastAPI ships a 中文 user-facing `detail` on coverage errors (422 ticker
+    // 非法 / 已在组内 / 分组名重复, 502 provider 失败, 503 能力未配置). statusText
+    // is empty/English under HTTP/2 — read the body once and carry detail into
+    // the typed error so mapErrorToUserMessage surfaces the real reason instead
+    // of a generic "添加失败" (BUG-053).
+    const detail = await extractErrorDetail(r, '')
+    throw new FetchHttpError(r.status, r.statusText, detail)
+  }
   if (r.status === 204) return undefined as T
   return r.json() as Promise<T>
 }

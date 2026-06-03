@@ -1040,6 +1040,17 @@ input[type='range']::-moz-range-thumb {
   outline-offset: 2px;
 }
 
+/* Report toolbar version switcher: the interactive control is a transparent
+   (opacity:0) native <select> overlaid on a decorative label + chevron. The
+   label is a separate <span>, so keyboard Tab onto the select left zero visible
+   focus on screen. Project to the wrapping span via :focus-within (inline
+   styles can't express it) so keyboard users see where focus landed (BUG-054). */
+.version-switch:focus-within {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
 /* heatmap color classes */
 .hm-5 {
   background: rgba(16, 185, 129, 0.3);

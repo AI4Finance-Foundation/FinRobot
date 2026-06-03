@@ -21,18 +21,25 @@ import { RequestTimeoutError } from '../api/fetch'
  * so mapErrorToUserMessage can return the right user copy.
  *
  *   if (!resp.ok) throw new FetchHttpError(resp.status, resp.statusText)
+ *
+ * When the backend ships a human-readable `detail` (FastAPI's 中文 error copy),
+ * pass it as the 3rd arg so mapErrorToUserMessage surfaces it verbatim instead
+ * of the generic status-bucket fallback — and err.status is still preserved for
+ * any status-based branching.
  */
 export class FetchHttpError extends Error {
   readonly status: number
   readonly statusText: string
+  readonly detail: string
 
-  constructor(status: number, statusText = '') {
+  constructor(status: number, statusText = '', detail = '') {
     // The dev-facing message is fine to keep technical; the UI never reads
     // err.message directly when going through mapErrorToUserMessage.
     super(`HTTP ${status}${statusText ? ` ${statusText}` : ''}`)
     this.name = 'FetchHttpError'
     this.status = status
     this.statusText = statusText
+    this.detail = detail
   }
 }
 
@@ -58,8 +65,11 @@ export function mapErrorToUserMessage(err: unknown): string {
     return tSync('errors.cancelled')
   }
 
-  // Typed HTTP error.
+  // Typed HTTP error. A backend-supplied `detail` is already user-facing 中文
+  // copy (e.g. "ticker XYZ 不存在" / "分组名已存在") — prefer it over the
+  // generic status bucket so the analyst sees the actual reason.
   if (err instanceof FetchHttpError) {
+    if (err.detail.trim()) return err.detail
     if (err.status >= 500) return tSync('errors.server.unavailable')
     if (err.status === 404) return tSync('errors.notfound')
     if (err.status >= 400) return tSync('errors.client.invalid')

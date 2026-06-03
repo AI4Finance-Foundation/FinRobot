@@ -90,6 +90,15 @@ interface RunStreamState {
   trackBatchRuns: (runs: { runId: string; ticker: string }[], pipelineType: string) => void
   dismiss: (ticker: string) => void
   clear: (ticker: string) => void
+  /** Store-level dedupe for a run's terminal (completed/failed) side-effects
+   *  (success toast + the 3 query invalidations). Returns true exactly ONCE per
+   *  runId — the first caller to claim it — and false forever after. The
+   *  consuming view (StockWorkspace) is route-mounted, so a component-level
+   *  useRef resets on every navigate-away/back and re-fires the toast +
+   *  invalidations against the still-resident completed run (BUG-085). Moving
+   *  the dedupe key to this module-level Set makes the effect idempotent across
+   *  remounts. */
+  markTerminalNotified: (runId: string) => boolean
   /** Close the aggregated batch connection (if any). Called on Coverage
    *  unmount / navigate-away so the long-lived stream doesn't leak. Does NOT
    *  touch per-ticker single-run streams or the runs state — those survive a
@@ -174,6 +183,13 @@ const MULTIPLEXED_KEY = '__multiplexed__'
 // we force-fail the run so the UI doesn't spin indefinitely.
 const SSE_ERROR_LIMIT = 8
 const sseErrorCounts = new Map<string, number>()
+
+// Module-level dedupe for terminal-run side-effects (BUG-085). A completed run
+// stays resident in `runs` for the badge/history; its consuming view is
+// route-mounted, so without a dedupe key that outlives the component the
+// success toast + query invalidations re-fire on every navigate-back. Keyed by
+// runId (a re-run gets a fresh runId, so its effect fires once again — correct).
+const notifiedTerminal = new Set<string>()
 
 function closeMultiplexed(): void {
   if (multiplexedSource) {
@@ -585,11 +601,19 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
 
     clear: (ticker) => {
       closeAndForget(ticker)
+      const runId = get().runs[ticker]?.runId
+      if (runId) notifiedTerminal.delete(runId)
       set((s) => {
         const next = { ...s.runs }
         delete next[ticker]
         return { runs: next }
       })
+    },
+
+    markTerminalNotified: (runId) => {
+      if (notifiedTerminal.has(runId)) return false
+      notifiedTerminal.add(runId)
+      return true
     },
 
     closeBatchStream: () => {

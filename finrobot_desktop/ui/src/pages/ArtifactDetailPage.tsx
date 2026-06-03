@@ -60,7 +60,11 @@ export function ArtifactDetailPage(): React.ReactElement {
   // ticker as the source of truth for ALL chrome too (BUG-014).
   const artifactSymbol = (data?.ticker ?? '').toUpperCase()
   const symbol = artifactSymbol || urlSymbol
-  const { data: timeline } = useV5ArtifactTimeline(symbol)
+  // limit 200 to match Coverage Inspector History's ceiling so a heavily-run
+  // ticker's older versions stay reachable here too — this one timeline feeds
+  // the toolbar version switcher, right-rail timeline, and diff candidates, all
+  // of which would otherwise truncate at the backend default 50 (BUG-056).
+  const { data: timeline } = useV5ArtifactTimeline(symbol, 200)
   const { locale, t } = useI18n()
   const addToast = useToastStore((s) => s.addToast)
 

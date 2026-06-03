@@ -444,7 +444,7 @@ function EarningsCallSection({
   ticker: string
   locale: Locale
 }): React.ReactElement {
-  const [selectedIdx, setSelectedIdx] = useState(0)
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['earnings-calls', ticker],
@@ -493,7 +493,13 @@ function EarningsCallSection({
       </p>
     )
   }
-  const selected = transcripts[selectedIdx] ?? transcripts[0]
+  // Identity-based selection: a composite key (year+quarter+index) survives
+  // background refetches that reorder/shorten the list, and the trailing index
+  // disambiguates genuine duplicate (year,quarter) pairs (amended filings).
+  const keyOf = (tx: EarningsCallTranscript, idx: number): string =>
+    `${tx.year}-Q${tx.quarter}-${idx}`
+  const selected =
+    transcripts.find((tx, i) => keyOf(tx, i) === selectedKey) ?? transcripts[0]
 
   return (
     <div>
@@ -506,12 +512,13 @@ function EarningsCallSection({
         }}
       >
         {transcripts.map((tx, i) => {
-          const active = i === selectedIdx
+          const key = keyOf(tx, i)
+          const active = key === (selectedKey ?? keyOf(transcripts[0], 0))
           return (
             <button
-              key={`${tx.year}-Q${tx.quarter}`}
+              key={key}
               type="button"
-              onClick={() => setSelectedIdx(i)}
+              onClick={() => setSelectedKey(key)}
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 11,

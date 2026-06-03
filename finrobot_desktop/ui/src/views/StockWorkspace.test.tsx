@@ -31,6 +31,9 @@ vi.mock('../lib/tauri', () => ({
 // Mock runStreamStore so we can drive states without a live SSE source.
 const startRunMock = vi.fn().mockResolvedValue('run-stub-1')
 const addToastMock = vi.fn()
+// Returns true the first time per runId (the completion effect fires); reset in
+// beforeEach so each test starts with a clean "first-notify" slate.
+const markTerminalNotifiedMock = vi.fn().mockReturnValue(true)
 let mockRunState: ReturnType<typeof makeRunState> | undefined
 
 function makeRunState(overrides: Record<string, unknown> = {}) {
@@ -62,6 +65,10 @@ vi.mock('../stores/runStreamStore', () => ({
       startRun: startRunMock,
       dismiss: vi.fn(),
       clear: vi.fn(),
+      // BUG-085: terminal side-effects (toast + invalidations) dedupe at the
+      // store level. Default to "first time" so the completion effect runs;
+      // the dedupe-across-remount behaviour is covered in runStreamStore.test.
+      markTerminalNotified: markTerminalNotifiedMock,
     }),
   selectRunByTicker: (ticker: string) => (s: { runs?: Record<string, unknown> }) =>
     s.runs?.[ticker],
@@ -80,7 +87,7 @@ vi.mock('../stores/toastStore', () => ({
 beforeEach(() => {
   vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
     const url = typeof input === 'string' ? input : (input as Request).url
-    if (url.endsWith('/api/artifacts/by-ticker/NVDA/timeline')) {
+    if (url.includes('/api/artifacts/by-ticker/NVDA/timeline')) {
       return jsonResponse([
         {
           id: 'art_2026-05-21T00:00:00_NVDA_equity_research',
@@ -228,6 +235,9 @@ afterEach(() => {
   mockRunState = undefined
   startRunMock.mockClear()
   addToastMock.mockClear()
+  // restoreAllMocks() wipes the implementation — re-arm the default so the next
+  // test's completion effect still sees a "first notify".
+  markTerminalNotifiedMock.mockClear().mockReturnValue(true)
 })
 
 function jsonResponse(body: unknown, status = 200): Promise<Response> {
@@ -355,7 +365,7 @@ describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
 function mockTimeline(artifacts: unknown[]) {
   vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
     const url = typeof input === 'string' ? input : (input as Request).url
-    if (url.endsWith('/api/artifacts/by-ticker/NVDA/timeline')) {
+    if (url.includes('/api/artifacts/by-ticker/NVDA/timeline')) {
       return jsonResponse(artifacts)
     }
     if (url.includes('/api/health/quotes-warmed')) {
@@ -425,7 +435,7 @@ describe('run preflight + friendly errors (BUG-027)', () => {
   it('disables the run CTA and shows a settings affordance when no provider is configured', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
       const url = typeof input === 'string' ? input : (input as Request).url
-      if (url.endsWith('/api/artifacts/by-ticker/NVDA/timeline')) return jsonResponse([])
+      if (url.includes('/api/artifacts/by-ticker/NVDA/timeline')) return jsonResponse([])
       if (url.includes('/api/health/quotes-warmed')) {
         return jsonResponse({ warmed: true, studied_ticker_count: 0 })
       }

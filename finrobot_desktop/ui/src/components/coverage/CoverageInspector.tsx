@@ -21,6 +21,7 @@ import {
 } from '../../utils/format'
 import { useV5ArtifactTimeline } from '../../hooks/useV5Artifacts'
 import type { CoverageRow } from '../../api/coverage'
+import { ArchivedPill } from '../ArchivedPill'
 
 type Tab = 'live' | 'report' | 'history'
 
@@ -356,19 +357,25 @@ function HistoryPanel({ row }: { row: CoverageRow }): React.ReactElement {
               gap: 10,
               padding: '8px 0',
               borderTop: i === 0 ? 'none' : '1px solid var(--border-faint)',
+              // Dim retired (stale-archived) versions (BUG-055).
+              opacity: a.archived ? 0.6 : 1,
             }}
           >
             <span style={{ minWidth: 0 }}>
               <strong
                 style={{
-                  display: 'block',
+                  display: 'flex',
+                  alignItems: 'center',
                   color: 'var(--text-primary)',
                   fontFamily: 'var(--font-mono)',
                   fontSize: 12,
                 }}
               >
-                {formatDate(a.created_at, locale, 'short')}
-                {a.verdict ? ` · ${a.verdict}` : ''}
+                <span>
+                  {formatDate(a.created_at, locale, 'short')}
+                  {a.verdict ? ` · ${a.verdict}` : ''}
+                </span>
+                {a.archived && <ArchivedPill />}
               </strong>
               <span
                 style={{

@@ -670,6 +670,10 @@ msgid "errors.dataLoad.historical"
 msgstr "Failed to load multi-year financials"
 
 #. js-lingui-explicit-id
+msgid "report.timeline.archived"
+msgstr "archived"
+
+#. js-lingui-explicit-id
 msgid "report.timeline.current"
 msgstr "current"
 
@@ -1998,26 +2002,6 @@ msgid "shell.error.renderFailed"
 msgstr "Page render error"
 
 #. js-lingui-explicit-id
-msgid "shell.router.dashboardMerged"
-msgstr "Dashboard has been merged into the Stocks home"
-
-#. js-lingui-explicit-id
-msgid "shell.router.libraryMerged"
-msgstr "The report library has been merged into the ticker's \"My Research\" section"
-
-#. js-lingui-explicit-id
-msgid "shell.router.libraryMergedShort"
-msgstr "The report library has been merged into the \"My Research\" section"
-
-#. js-lingui-explicit-id
-msgid "shell.router.journalRedesign"
-msgstr "Decision Journal v3 is being redesigned"
-
-#. js-lingui-explicit-id
-msgid "shell.router.playgroundRedesign"
-msgstr "Valuation assumption tuning v2.1 is being redesigned"
-
-#. js-lingui-explicit-id
 msgid "landing.hero.tagline1"
 msgstr "DETERMINISTIC COMPUTE · LLM NARRATIVE"
 
@@ -3178,10 +3162,6 @@ msgid "report.toolbar.icDebate"
 msgstr "IC Debate"
 
 #. js-lingui-explicit-id
-msgid "report.toolbar.icDebateOnlyEquity"
-msgstr "Only available for equity research reports"
-
-#. js-lingui-explicit-id
 msgid "report.toolbar.icDebateTitle"
 msgstr "Run a bull/bear debate on this report in the IC"
 
@@ -3280,10 +3260,6 @@ msgstr "off-scale"
 #. js-lingui-explicit-id
 msgid "chart.footballField.mid"
 msgstr "Mid"
-
-#. js-lingui-explicit-id
-msgid "shell.router.stocksMergedCoverage"
-msgstr "Stocks landing merged into Coverage."
 
 #. js-lingui-explicit-id
 msgid "coverage.col.ticker"

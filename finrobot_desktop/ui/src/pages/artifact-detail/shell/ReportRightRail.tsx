@@ -6,6 +6,7 @@ import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../../../api/fetch'
 import type { ArtifactSummaryV5 } from '../../../types/v5'
 import { useI18n } from '../../../i18n'
 import { formatDate } from '../../../utils/format'
+import { ArchivedPill } from '../../../components/ArchivedPill'
 
 interface ReportRightRailProps {
   ticker: string
@@ -110,6 +111,9 @@ export function ReportRightRail({
                     fontFamily: 'var(--font-mono)',
                     fontSize: 11.5,
                     color: 'var(--text-primary)',
+                    // Dim retired (stale-archived) versions so they read as
+                    // history, not as the current track record (BUG-055).
+                    opacity: a.archived ? 0.6 : 1,
                   }}
                 >
                   <span style={{ fontWeight: 600 }}>
@@ -123,6 +127,7 @@ export function ReportRightRail({
                     </span>
                   )}
                   <SignalBadge signal={a.signal} />
+                  {a.archived && <ArchivedPill />}
                   <div style={{ color: 'var(--text-dim)', fontSize: 10, marginTop: 2 }}>
                     {formatDate(a.created_at, locale, 'short')}
                   </div>

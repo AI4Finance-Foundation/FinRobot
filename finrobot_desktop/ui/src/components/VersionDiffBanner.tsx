@@ -115,6 +115,7 @@ const CHROME = {
     override: '手改',
     loading: '加载对比…',
     loadError: '加载对比失败',
+    archived: '已归档',
   },
   en: {
     base: 'Compare against',
@@ -130,6 +131,7 @@ const CHROME = {
     override: 'override',
     loading: 'Loading comparison…',
     loadError: 'Failed to load comparison',
+    archived: 'archived',
   },
 } as const
 
@@ -284,6 +286,8 @@ export function VersionDiffBanner({
             <option key={a.id} value={a.id}>
               {formatDate(a.created_at, locale, 'short')}
               {a.verdict ? ` · ${a.verdict}` : ''}
+              {/* Mark retired (stale-archived) base candidates (BUG-055). */}
+              {a.archived ? ` · ${c.archived}` : ''}
             </option>
           ))}
         </select>

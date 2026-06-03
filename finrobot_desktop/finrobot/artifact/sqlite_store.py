@@ -319,18 +319,48 @@ class SqliteArtifactStore:
             rows = await cur.fetchall()
         return [_row_to_summary(tuple(r)) for r in rows]
 
-    async def count(self, *, include_archived: bool = False) -> int:
-        """Total artifact count in the store (honest full-store aggregate).
+    async def count(
+        self,
+        *,
+        include_archived: bool = False,
+        tickers: set[str] | None = None,
+        created_after: datetime | None = None,
+    ) -> int:
+        """Artifact count, optionally scoped to a ticker set and/or time window.
 
         Unlike ``list_by_ticker`` this never caps — the dashboard needs the
         true total to label "N reports in store", which a LIMIT-500 page
         silently misrepresents once the store grows past the cap.
+
+        ``tickers`` (a coverage-group set) and ``created_after`` mirror the
+        filters ``list_by_ticker`` / the hit-rate aggregation apply, so the
+        caller can ask "how many artifacts fall in THIS scope+window" — the
+        population the buckets actually describe (BUG-039). An empty ``tickers``
+        set yields 0 (an empty group has no track record). ``created_after``
+        compares against ``created_at`` because the aggregation's window cut
+        filters on ``entry_date == created_at``.
         """
         conn = await self._conn_ready()
-        sql = "SELECT COUNT(*) FROM artifacts"
+        where: list[str] = []
+        params: list[Any] = []
         if not include_archived:
-            sql += " WHERE archived = 0"
-        async with conn.execute(sql) as cur:
+            where.append("archived = 0")
+        if tickers is not None:
+            upper = sorted({t.upper() for t in tickers})
+            if not upper:
+                return 0
+            placeholders = ", ".join("?" for _ in upper)
+            where.append(f"ticker IN ({placeholders})")
+            params.extend(upper)
+        if created_after is not None:
+            # Stored as ``created_at.isoformat()`` (UTC, ``+00:00`` suffix);
+            # the route passes a tz-aware UTC cutoff so the ISO strings sort
+            # lexicographically the same as chronologically.
+            where.append("created_at >= ?")
+            params.append(created_after.isoformat())
+        clause = ("WHERE " + " AND ".join(where)) if where else ""
+        sql = f"SELECT COUNT(*) FROM artifacts {clause}"
+        async with conn.execute(sql, params) as cur:
             row = await cur.fetchone()
         return int(row[0]) if row else 0
 

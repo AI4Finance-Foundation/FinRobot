@@ -23,6 +23,24 @@ export interface HitRateOverview {
   overall: HitRateBucket
   by_verdict: Record<'BUY' | 'HOLD' | 'SELL', HitRateBucket>
   generated_at: string
+  // Honesty disclosure (BUG-039/BUG-062): true when the IN-scope, IN-window
+  // artifact count exceeded `sample_size`, so the buckets cover only the latest
+  // `sample_size` artifacts rather than the full track record. Consumers must
+  // surface this (e.g. a "基于最近 N 条样本" caption) so the analyst never reads
+  // a truncated hit-rate as the complete record. Backend default is false.
+  is_sampled: boolean
+  sample_size: number
+}
+
+/**
+ * Human-readable disclosure caption for a sampled hit-rate, or `null` when the
+ * buckets cover the full in-scope/in-window record. Kept here (not in a
+ * component) so every banner that renders `HitRateOverview` discloses sampling
+ * consistently.
+ */
+export function hitRateSampleCaption(overview: HitRateOverview | undefined): string | null {
+  if (!overview?.is_sampled) return null
+  return `基于最近 ${overview.sample_size} 条样本（非完整记录）`
 }
 
 /**

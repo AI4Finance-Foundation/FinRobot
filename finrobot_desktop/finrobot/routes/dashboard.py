@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -174,13 +174,27 @@ async def hit_rate(
     store = deps.artifact_store
 
     inputs = await _collect_signal_inputs(store, deps.data_layer, ticker_set)
-    # Disclose sampling: when the store holds more than the cap, the buckets
-    # only cover the latest _HIT_RATE_SAMPLE_CAP artifacts. Scoped (group)
-    # queries filter the same capped page, so they're sampled too if the
-    # global store exceeded the cap.
-    store_count = await store.count(include_archived=False)
-    is_sampled = store_count > _HIT_RATE_SAMPLE_CAP
-    from finrobot.engine.aggregations.hit_rate_overview import compute_hit_rate_overview
+    # Disclose sampling honestly (BUG-039): the cap only loses data when the
+    # IN-scope, IN-window artifact count exceeds it. Compare against the SAME
+    # population the buckets describe — scoped to `ticker_set` and cut to
+    # `window` — not the global all-time COUNT(*). A fully-captured 30d window
+    # (e.g. 40 in-window artifacts, 700 in store) is then honestly is_sampled=
+    # False instead of being mislabeled 'partial'.
+    from finrobot.engine.aggregations.hit_rate_overview import (
+        _WINDOW_DAYS,
+        compute_hit_rate_overview,
+    )
+
+    window_days = _WINDOW_DAYS[window]  # type: ignore[index]
+    cutoff = (
+        datetime.now(tz=timezone.utc) - timedelta(days=window_days)
+        if window_days is not None
+        else None
+    )
+    scoped_windowed_count = await store.count(
+        include_archived=False, tickers=ticker_set, created_after=cutoff
+    )
+    is_sampled = scoped_windowed_count > _HIT_RATE_SAMPLE_CAP
 
     stats = compute_hit_rate_overview(
         artifacts=inputs,

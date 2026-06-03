@@ -96,7 +96,7 @@
 | BUG-036 | Bug | P2 | Football Field 的 DCF 区间永远是装饰性 ±20%:_dcf_band 读错字段,Monte Carlo P10/P90 分支是死代码,source 标签可误导 | 待修 |
 | BUG-037 | Bug | P2 | 外币 SEC 申报人的 XBRL 营收/净利未做 FX 换算即被当作 USD，35% 散度门可能漏掉近平价货币 | 待修 |
 | BUG-038 | Bug | P2 | peer 倍数白名单用未格式化原始 float 注入（median_pe/pe_ratio/market_cap），LLM 在 competitor_analysis 里复述时口径/精度无锚，且与前端表格显示口径不保证一致 | 待修 |
-| BUG-039 | Bug | P2 | `is_sampled` compares against GLOBAL store count, not the in-window / in-scope population → mislabels fully-covered windows as 'partial' | 待修 |
+| BUG-039 | Bug | P2 | `is_sampled` compares against GLOBAL store count, not the in-window / in-scope population → mislabels fully-covered windows as 'partial' | 已修 |
 | BUG-040 | Bug | P2 | Cumulative total_return shown beside annualized-intent Sharpe; annualized Returns analyzer added but never read | 待修 |
 | BUG-041 | Bug | P2 | run_strategy_selection tunes 3 iterations on one in-sample window and reports max(total_return) as a 'good' strategy — pure overfitting, no out-of-sample | 待修 |
 | BUG-042 | Bug | P2 | Sniper LONG mode: secondary_buy (20-day support) can sit BELOW stop_loss → incoherent trade row passes invariant guards | 已修 |
@@ -139,7 +139,7 @@
 | BUG-059 | Bug | P3 | Validation-failure retries re-run deterministic executors unchanged, burning the full retry budget on identical failing output | 待修 |
 | BUG-060 | Bug | P3 | DCF/Monte Carlo 把 Gordon 终值在中年法下按 (n-0.5) 折现——终值『定价日』应是年末 n,这里多折了半年,系统性高估 fair value | 待修 |
 | BUG-061 | Bug | P3 | Earnings-call tab selection keyed by array index — duplicate/reordered transcripts collide keys and mis-select | 待修 |
-| BUG-062 | Bug | P3 | `is_sampled` / `sample_size` honesty disclosure is dropped at the API→frontend boundary (field absent from the TS contract) | 待修 |
+| BUG-062 | Bug | P3 | `is_sampled` / `sample_size` honesty disclosure is dropped at the API→frontend boundary (field absent from the TS contract) | 已修 |
 | BUG-063 | Bug | P3 | _resolve_strategy does importlib.import_module(user_string) + getattr before the bt.Strategy check — arbitrary module import with side effects | 待修 |
 | BUG-064 | Bug | P3 | _extract_drawdown accepts a warnings list but never uses it — silent None drawdown with no warning, inconsistent with siblings | 待修 |
 | BUG-065 | Bug | P3 | 镜像列(verdict/entry/target/tagline)在 extractor 逻辑演进后无回填路径，旧行永久陈旧 | 待修 |
@@ -675,7 +675,7 @@
 - **验证补充**：Sound. Simplest correct fix: have _collect_signal_inputs return the true scoped+windowed COUNT(*) and derive is_sampled from that. Note the window cut currently lives inside the aggregation, not in SQL, so adding a created_at>=cutoff clause to count() must mirror the aggregation's entry_date semantics exactly (it filters on entry_date==created_at) to stay consistent.
 - **影响面/回归风险**：Makes the only 'is this number trustworthy' flag on a first-screen analyst statistic actually correct. Pairs with the scoped-truncation fix (same store method touched). Regression risk: low; affects only the boolean flag value, not bucket math.
 - **合并自**：gap-r1-4#2, gap-r1-4#3（2 条同源发现）
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（is_sampled 之前比全局 store.count()（全时全表）误把完整覆盖窗口标成 partial。artifact/sqlite_store.count() 加 tickers+created_after 参数（IN 子句 + created_at>=cutoff，ISO 字典序=时序），store.py facade 转发；dashboard 用 _WINDOW_DAYS 算 cutoff，is_sampled = count(scoped+windowed) > cap。新增 store/route 回归测试。与 BUG-062 同提交。）
 
 #### [BUG-040] Cumulative total_return shown beside annualized-intent Sharpe; annualized Returns analyzer added but never read
 
@@ -977,7 +977,7 @@
 - **修复方案**：Add `is_sampled: boolean` and `sample_size: number` to `HitRateOverview` in useDashboardHitRate.ts and render a '基于最近 N 条样本' caption when `is_sampled` is true wherever the banner is shown. Better: drop the hand-written interface and consume the generated `components['schemas']['HitRateOverview']` so it can't drift again. Note: currently latent because the hook has no live caller (see related Product finding) — but must be fixed before re-wiring or the analyst sees an undisclosed sampled stat. Change size: ~5 lines + caption.
 - **验证补充**：Important: proposed fix (b) 'consume the generated components[schemas][HitRateOverview]' will NOT surface the fields until the OpenAPI schema is regenerated (current schema.d.ts is stale and lacks them). Correct order: regenerate schema FIRST, then either hand-add the two fields or switch to the generated type. This is only worth doing as part of re-homing the panel ([3]); fixing it in isolation has no user-visible effect.
 - **影响面/回归风险**：Restores the honest-sampling UX the backend already pays for. No backend change. Regression risk: none (additive fields).
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（is_sampled/sample_size 诚实披露字段在 API→前端边界丢失。useDashboardHitRate.ts 的 HitRateOverview 接口补 is_sampled/sample_size + hitRateSampleCaption() 助手（sampled 时显「基于最近 N 条样本（非完整记录）」）；schema.d.ts 定向补两字段对齐后端模型。新增 hook 测试。与 BUG-039 同提交。）
 
 #### [BUG-063] _resolve_strategy does importlib.import_module(user_string) + getattr before the bt.Strategy check — arbitrary module import with side effects
 

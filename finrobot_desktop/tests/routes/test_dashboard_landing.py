@@ -485,7 +485,12 @@ def test_recent_research_total_reflects_true_store_past_cap(
         ),
     )
 
-    async def fake_count(*, include_archived: bool = False) -> int:
+    async def fake_count(
+        *,
+        include_archived: bool = False,
+        tickers: set[str] | None = None,
+        created_after: object | None = None,
+    ) -> int:
         return 1234
 
     async def fake_distinct(*, include_archived: bool = False) -> int:
@@ -506,7 +511,7 @@ def test_hit_rate_discloses_sampling_past_cap(
     store: ArtifactStore,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``is_sampled`` flips True once the store exceeds the 500 sample cap."""
+    """``is_sampled`` flips True once the IN-SCOPE/IN-WINDOW count exceeds the cap."""
     _set_quotes({"AAPL": 128.0})
     _save(
         store,
@@ -525,10 +530,15 @@ def test_hit_rate_discloses_sampling_past_cap(
     assert not_sampled["is_sampled"] is False
     assert not_sampled["sample_size"] == dashboard_mod._HIT_RATE_SAMPLE_CAP
 
-    # Bust the cache, then simulate a store larger than the cap.
+    # Bust the cache, then simulate a scoped+windowed population beyond the cap.
     dashboard_mod._HIT_RATE_CACHE.clear()
 
-    async def fake_count(*, include_archived: bool = False) -> int:
+    async def fake_count(
+        *,
+        include_archived: bool = False,
+        tickers: set[str] | None = None,
+        created_after: object | None = None,
+    ) -> int:
         return dashboard_mod._HIT_RATE_SAMPLE_CAP + 1
 
     monkeypatch.setattr(store, "count", fake_count)
@@ -536,6 +546,117 @@ def test_hit_rate_discloses_sampling_past_cap(
     sampled = client.get("/api/dashboard/hit-rate").json()
     assert sampled["is_sampled"] is True
     assert sampled["sample_size"] == dashboard_mod._HIT_RATE_SAMPLE_CAP
+
+
+def test_hit_rate_is_sampled_uses_scoped_windowed_count_not_global(
+    client: TestClient,
+    store: ArtifactStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BUG-039: a fully-captured window/scope must NOT be labeled sampled even
+    when the GLOBAL store dwarfs the cap.
+
+    The honesty flag answers "did the cap drop in-scope/in-window data?" — so it
+    must compare against the SAME population the buckets describe (scoped to the
+    requested tickers AND cut to the window), not the all-time global COUNT(*).
+    A 30d window with 40 in-window artifacts out of 700 in store is fully
+    captured → is_sampled=False.
+    """
+    _set_quotes({"AAPL": 128.0})
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_AAPL",
+            ticker="AAPL",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=30,
+        ),
+    )
+
+    seen: list[dict[str, object]] = []
+
+    async def fake_count(
+        *,
+        include_archived: bool = False,
+        tickers: set[str] | None = None,
+        created_after: object | None = None,
+    ) -> int:
+        seen.append({"tickers": tickers, "created_after": created_after})
+        # Global all-time (no scope, no window) is huge; the scoped+windowed
+        # population is well under the cap. The OLD code read the global count
+        # and would wrongly report is_sampled=True.
+        if tickers is None and created_after is None:
+            return dashboard_mod._HIT_RATE_SAMPLE_CAP + 200
+        return 40
+
+    monkeypatch.setattr(store, "count", fake_count)
+
+    # 30d window scoped to a group: fully captured → honest is_sampled=False.
+    scoped_windowed = client.get("/api/dashboard/hit-rate?window=30d&tickers=AAPL").json()
+    assert scoped_windowed["is_sampled"] is False
+    # The route must have asked count() the scoped+windowed question.
+    assert seen, "store.count was never called"
+    last = seen[-1]
+    assert last["tickers"] == {"AAPL"}
+    assert last["created_after"] is not None  # 30d → a cutoff was applied
+
+
+def test_hit_rate_count_signature_threads_window_and_scope(
+    store: ArtifactStore,
+) -> None:
+    """BUG-039: ``ArtifactStore.count`` honors ``tickers`` + ``created_after`` so
+    the route can ask for the scoped+windowed population. Empty ticker set → 0.
+    """
+    import asyncio
+
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_old_AAPL",
+            ticker="AAPL",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=120,
+        ),
+    )
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_new_MSFT",
+            ticker="MSFT",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=2,
+        ),
+    )
+
+    async def checks() -> None:
+        # Unscoped, no window → both rows.
+        assert await store.count(include_archived=False) == 2
+        # Ticker scope → only MSFT.
+        assert await store.count(include_archived=False, tickers={"MSFT"}) == 1
+        # Empty scope → 0 (an empty group has no track record).
+        assert await store.count(include_archived=False, tickers=set()) == 0
+        # created_after cutoff between the two rows → only the recent one.
+        cutoff = NOW - timedelta(days=30)
+        assert await store.count(include_archived=False, created_after=cutoff) == 1
+        # Scope + window together → MSFT is recent, AAPL is old → MSFT only.
+        assert (
+            await store.count(
+                include_archived=False, tickers={"AAPL", "MSFT"}, created_after=cutoff
+            )
+            == 1
+        )
+
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(checks())
+    finally:
+        loop.close()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

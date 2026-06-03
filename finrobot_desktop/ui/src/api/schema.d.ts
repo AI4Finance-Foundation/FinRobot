@@ -1930,6 +1930,18 @@ export interface components {
        * Format: date-time
        */
       generated_at: string
+      /**
+       * Is Sampled
+       * @description True when the store exceeded the sample cap, so buckets cover only the latest sample_size artifacts rather than the full track record.
+       * @default false
+       */
+      is_sampled?: boolean
+      /**
+       * Sample Size
+       * @description The cap applied to the underlying summary scan (compute-cost bound).
+       * @default 500
+       */
+      sample_size?: number
     }
     /**
      * IncomeStatement

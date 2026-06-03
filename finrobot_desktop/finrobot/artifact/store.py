@@ -14,6 +14,7 @@ Args:
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 from finrobot.artifact.models import Artifact, ArtifactSummary, ArtifactType
@@ -63,8 +64,18 @@ class ArtifactStore:
             tickers=tickers,
         )
 
-    async def count(self, *, include_archived: bool = False) -> int:
-        return await self._impl.count(include_archived=include_archived)
+    async def count(
+        self,
+        *,
+        include_archived: bool = False,
+        tickers: set[str] | None = None,
+        created_after: datetime | None = None,
+    ) -> int:
+        return await self._impl.count(
+            include_archived=include_archived,
+            tickers=tickers,
+            created_after=created_after,
+        )
 
     async def distinct_ticker_count(self, *, include_archived: bool = False) -> int:
         return await self._impl.distinct_ticker_count(include_archived=include_archived)

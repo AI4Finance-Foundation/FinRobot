@@ -730,13 +730,13 @@ class EarningsSurprise(BaseModel):
     """Single quarter earnings surprise. All computed by code from raw provider data."""
 
     date: str
-    eps_actual: float
-    eps_estimated: float
-    eps_surprise_pct: float | None  # (actual - est) / |est| × 100; None if est == 0
+    eps_actual: float | None  # None when provider omits the value (None ≠ 0)
+    eps_estimated: float | None
+    eps_surprise_pct: float | None  # (actual - est) / |est| × 100; None if est == 0 or input missing
     eps_direction: str  # "beat" | "miss" | "inline" | "n/a" (n/a = undefined, est == 0)
-    revenue_actual: float
-    revenue_estimated: float
-    revenue_surprise_pct: float | None  # None if estimate == 0 (undefined surprise)
+    revenue_actual: float | None  # None ≠ 0: missing revenue stays None, never fabricated $0
+    revenue_estimated: float | None
+    revenue_surprise_pct: float | None  # None if estimate == 0 or input missing (undefined surprise)
     revenue_direction: str  # "beat" | "miss" | "inline" | "n/a"
 
 

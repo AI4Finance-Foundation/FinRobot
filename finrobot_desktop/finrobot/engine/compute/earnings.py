@@ -37,10 +37,15 @@ def calculate_earnings_surprises(
 
     surprises: list[EarningsSurprise] = []
     for row in earnings_history:
-        eps_actual = float(row.get("eps_actual", 0))
-        eps_est = float(row.get("eps_estimated", 0))
-        rev_actual = float(row.get("revenue_actual", 0))
-        rev_est = float(row.get("revenue_estimated", 0))
+        # None ≠ 0: a missing actual/estimate must stay None, never default to 0.
+        # dict.get(key, 0) does NOT help here — the provider always sets the key
+        # (to None when FMP omits the value), so the default never fires and
+        # float(None) would raise TypeError. A fabricated $0 actual against a real
+        # estimate would also print a false -100% surprise (砸招牌).
+        eps_actual = _opt_float(row.get("eps_actual"))
+        eps_est = _opt_float(row.get("eps_estimated"))
+        rev_actual = _opt_float(row.get("revenue_actual"))
+        rev_est = _opt_float(row.get("revenue_estimated"))
 
         eps_pct = _surprise_pct(eps_actual, eps_est)
         rev_pct = _surprise_pct(rev_actual, rev_est)
@@ -82,16 +87,27 @@ def calculate_earnings_surprises(
     )
 
 
-def _surprise_pct(actual: float, estimated: float) -> float | None:
+def _opt_float(value: object) -> float | None:
+    """Coerce a provider value to float, preserving None (None ≠ 0).
+
+    A missing actual/estimate arrives as None (provider sets the key explicitly);
+    it must stay None so the surprise is reported as "n/a" rather than fabricated
+    as a $0 value or crashing float(None).
+    """
+    return float(value) if value is not None else None  # type: ignore[arg-type]
+
+
+def _surprise_pct(actual: float | None, estimated: float | None) -> float | None:
     """Compute surprise as (actual - estimated) / |estimated| × 100.
 
-    Returns None when ``estimated`` is zero: the surprise is mathematically
-    undefined (division by zero), and a beat/miss against a zero consensus
-    (e.g. expected breakeven, actual +$0.10) is a genuine earnings event — not
-    a 0% "inline". Returning 0.0 here masked it and polluted beat_rate / averages
-    (BUG-026). Callers treat None as "n/a" and exclude it from aggregates.
+    Returns None when either side is missing (None) or when ``estimated`` is zero:
+    the surprise is then mathematically undefined (division by zero / unknown
+    input), and a beat/miss against a zero consensus (e.g. expected breakeven,
+    actual +$0.10) is a genuine earnings event — not a 0% "inline". Returning 0.0
+    here masked it and polluted beat_rate / averages (BUG-026). Callers treat None
+    as "n/a" and exclude it from aggregates.
     """
-    if estimated == 0:
+    if actual is None or estimated is None or estimated == 0:
         return None
     return (actual - estimated) / abs(estimated) * 100.0
 

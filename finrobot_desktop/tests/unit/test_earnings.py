@@ -127,6 +127,31 @@ class TestSurpriseFormula:
         assert result.beat_rate == pytest.approx(1.0)
         assert result.avg_eps_surprise_pct == pytest.approx(3.0, rel=1e-4)
 
+    def test_none_revenue_preserved_not_fabricated_zero(self):
+        """BUG-013: a present-but-None revenue must NOT crash (float(None)) nor be
+        fabricated as $0 (false -100% surprise). It stays None / 'n/a' and is
+        excluded from the revenue-surprise average."""
+        result = calculate_earnings_surprises(
+            "TEST",
+            [
+                {
+                    "date": "Q1",
+                    "eps_actual": 1.10,
+                    "eps_estimated": 1.00,
+                    "revenue_actual": None,  # provider omitted revenue
+                    "revenue_estimated": 1e9,
+                },
+            ],
+        )
+        s = result.surprises[0]
+        assert s.revenue_actual is None
+        assert s.revenue_surprise_pct is None  # not -100%
+        assert s.revenue_direction == "n/a"
+        # eps side still computes normally
+        assert s.eps_surprise_pct == pytest.approx(10.0, rel=1e-4)
+        # undefined revenue quarter excluded → avg stays 0.0 (no defined samples)
+        assert result.avg_revenue_surprise_pct == 0.0
+
 
 class TestClassifySurprise:
     def test_positive_above_threshold(self):

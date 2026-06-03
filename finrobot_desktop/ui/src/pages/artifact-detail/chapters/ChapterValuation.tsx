@@ -5,6 +5,7 @@ import { BASE_URL } from '../../../api/client'
 import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../../../api/fetch'
 import { useI18n } from '../../../i18n'
 import { TermTip } from '../../../components/TermTip'
+import { formatCurrency, formatCurrencyCompact } from '../../../utils/format'
 import { Chapter, KvGrid, Narrative, SubChapter } from './ChapterBase'
 import type { DcfShape, ThesisShape } from './types'
 
@@ -49,14 +50,20 @@ interface ChapterValuationProps {
   dcf: DcfShape | null
   thesis: ThesisShape | null
   ticker: string
+  // quote → DCF implied price & price target (per-share); reporting → EV &
+  // equity value (absolutes). Differ for foreign ADRs (BUG-030).
+  quoteCurrency: string
+  reportingCurrency: string
 }
 
 export function ChapterValuation({
   dcf,
   thesis,
   ticker,
+  quoteCurrency,
+  reportingCurrency,
 }: ChapterValuationProps): React.ReactElement {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const overview = thesis?.valuation_overview ?? null
   const wacc = dcf?.wacc ?? null
   const terminalGrowth = dcf?.inputs?.terminal_growth_rate ?? null
@@ -124,7 +131,8 @@ export function ChapterValuation({
     implied !== null &&
       ({
         label: t('chapter.valuation.kv.dcfImplied'),
-        value: `$${implied.toFixed(2)}`,
+        // Per-share → quote currency.
+        value: formatCurrency(implied, quoteCurrency, locale, 2),
         tone: (thesis?.price_target && implied >= thesis.price_target ? 'up' : undefined) as
           | 'up'
           | undefined,
@@ -132,10 +140,14 @@ export function ChapterValuation({
     ev !== null &&
       ({
         label: <TermTip term="EV">{t('chapter.valuation.kv.enterpriseValue')}</TermTip>,
-        value: fmtTrillions(ev),
+        // Absolute IS/BS-caliber → reporting currency.
+        value: formatCurrencyCompact(ev, reportingCurrency, locale),
       } as Cell),
     eq !== null &&
-      ({ label: t('chapter.valuation.kv.equityValue'), value: fmtTrillions(eq) } as Cell),
+      ({
+        label: t('chapter.valuation.kv.equityValue'),
+        value: formatCurrencyCompact(eq, reportingCurrency, locale),
+      } as Cell),
   ].filter((c): c is Cell => Boolean(c))
 
   return (
@@ -193,7 +205,7 @@ export function ChapterValuation({
             <TermTip term="Target Price">{t('chapter.valuation.target12m')}</TermTip>
           </span>{' '}
           <span style={{ color: 'var(--accent-cyan)', fontSize: 14 }}>
-            ${thesis.price_target.toFixed(2)}
+            {formatCurrency(thesis.price_target, quoteCurrency, locale, 2)}
           </span>
           {thesis.price_target_basis && (
             <span style={{ color: 'var(--text-muted)', marginLeft: 10 }}>
@@ -204,10 +216,4 @@ export function ChapterValuation({
       )}
     </Chapter>
   )
-}
-
-function fmtTrillions(v: number): string {
-  if (Math.abs(v) >= 1e12) return `$${(v / 1e12).toFixed(2)}T`
-  if (Math.abs(v) >= 1e9) return `$${(v / 1e9).toFixed(2)}B`
-  return `$${v.toFixed(0)}`
 }

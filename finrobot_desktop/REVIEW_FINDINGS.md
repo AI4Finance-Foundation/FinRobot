@@ -78,7 +78,7 @@
 | BUG-027 | Bug | P1 | POST /api/compute/dcf-sensitivity 的 wacc_range/tg_range 无 max_length 上限 → 巨网格阻塞事件循环 | 已修 |
 | BUG-028 | Bug | P1 | No ErrorBoundary in the live app tree — any render crash blanks the whole desktop app | 已修 |
 | BUG-029 | Bug | P1 | Competitive table renders unguarded gross/operating margin → fabricated 0.0% or literal NaN% when backend value is null | 已修 |
-| BUG-030 | Bug | P1 | 13 章研报全程硬编码 $，而 Coverage 是币种感知——非美元标的会印错币种符号 | 待修 |
+| BUG-030 | Bug | P1 | 13 章研报全程硬编码 $，而 Coverage 是币种感知——非美元标的会印错币种符号 | 已修 |
 | BUG-031 | Bug | P1 | Coverage 批量运行 >6 个 ticker 时耗尽浏览器 HTTP/1.1 连接池，多余的 SSE 与所有普通 API 轮询被无限阻塞 | 待修 |
 | BUG-032 | Bug | P1 | Coverage overview 全量 fetch 失败但 fast skeleton 成功时，卡片市场列永久空白——无错误态、无 shimmer、无重试入口 | 已修 |
 | BUG-033 | Bug | P1 | Chat tools and /api/runs accept unvalidated ticker strings while a SoT ticker validator already exists in coverage — junk symbols fan out to live providers | 已修 |
@@ -555,7 +555,7 @@
 - **修复方案**：分两步。① 后端/类型：在 artifact 的 market/financial shape 与 chapters/types.ts 增 reporting_currency（来源同 Coverage 的口径，对齐 coverage.service 取 currency 的字段），ArtifactDetailPage 把它透传给各 Chapter。② 前端：把散落的 `$${x}`、fmtMoney/fmtPrice/fmtTrillions 统一替换为 utils/format.ts 的 formatCurrency(x, currency, locale)（已存在，签名见 format.ts:85），fmtTrillions 改成接收 currency 参数的 compact 版。注意：[金融待核] 当前是否真有非美元标的进研报需对外部源确认——拿一个港股 ticker（如 0700.HK）跑研报，核对『DCF 隐含价/目标价』的币种应为 HKD 而非 $；若产品当前仅支持美股，此条降级为'未来防雷+一致性'但仍应做，因为 Coverage 已经币种感知、研报落后形成内部不一致。
 - **验证补充**：Fix direction correct. Refinement: there are TWO currency tags in the backend (reporting_currency for IS/BS line items: revenue/ebitda/debt/cash/comp; quote_currency for market price/market_cap). Per-share prices (DCF implied, 52w, Sniper, target) follow QUOTE currency; revenue/EV/comp follow REPORTING currency. A single 'reporting_currency' passthrough as proposed would mislabel price fields for ADRs where the two differ (TSM: quote=USD, reporting=TWD). The chapter shape must carry BOTH and each field must pick the right one — otherwise the fix introduces a new mislabel. Verify each `$${` site against which tag applies before swapping to formatCurrency.
 - **影响面/回归风险**：影响所有非美元标的研报的金额可信度；改动面=7 个 chapter 文件统一替换 + types 加字段 + 透传，纯展示层无计算回归；风险是 formatCurrency 对未知币种的 fallback 行为需测（应回退到币种代码前缀如 'HKD 1.23B' 而非崩）。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（后端 artifact/builders.py（非 artifact/models.py，避开热区）把 quote_currency+reporting_currency 注入 structured.currency（源自 FinancialData 既有币种 tag，BUG-073 同源，无 schema 改）。前端：format.ts 的 formatCurrency 加未知币种兜底（CODE amount 不崩不印 $）+ 新增 formatCurrencyCompact（币种感知 compact，USD 仍裸 $ 保字节一致）；types.ts/reportData.ts/ReportChapters 透传两个币种；7 个 chapter 的硬编码 $ 改 formatCurrency。**逐字段 quote vs reporting 分类**：每股价/市值/DCF 隐含/52w/Sniper/敏感性=quote；营收/EBITDA/EV/债现/CEO 薪酬=reporting；ChapterCompetitive 因 comps 已 FX 归一到 USD 故显式 USD（避免误标）；SEC value_usd/Form4 显式 USD。缺 tag→USD，US 票字节一致。新增 test_currency_passthrough + format 测试。mypy/ruff + ui build/419 测试通过。）
 
 #### [BUG-031] Coverage 批量运行 >6 个 ticker 时耗尽浏览器 HTTP/1.1 连接池，多余的 SSE 与所有普通 API 轮询被无限阻塞
 

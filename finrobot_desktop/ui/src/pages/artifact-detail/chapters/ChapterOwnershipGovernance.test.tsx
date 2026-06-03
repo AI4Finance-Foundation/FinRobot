@@ -30,7 +30,7 @@ const baseProv = (form: string): FilingProvenanceShape => ({
 
 describe('ChapterOwnershipGovernance', () => {
   it('renders settings CTA when ownership_governance is absent', () => {
-    render(wrap(<ChapterOwnershipGovernance ownership={null} />))
+    render(wrap(<ChapterOwnershipGovernance ownership={null} reportingCurrency="USD" />))
     expect(screen.getByText(/SEC EDGAR identity required/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Open Settings/i })).toHaveAttribute(
       'href',
@@ -56,7 +56,7 @@ describe('ChapterOwnershipGovernance', () => {
       generated_at: '2026-05-27T09:00:00Z',
       degraded_sections: [],
     }
-    render(wrap(<ChapterOwnershipGovernance ownership={ownership} />))
+    render(wrap(<ChapterOwnershipGovernance ownership={ownership} reportingCurrency="USD" />))
     expect(screen.getByText('Jensen Huang')).toBeInTheDocument()
     expect(screen.getByText(/Insider Transactions/i)).toBeInTheDocument()
     // Sale label rendered from i18n catalog (en), not raw "sale"
@@ -88,7 +88,7 @@ describe('ChapterOwnershipGovernance', () => {
       generated_at: '2026-05-27T09:00:00Z',
       degraded_sections: [],
     }
-    render(wrap(<ChapterOwnershipGovernance ownership={ownership} />))
+    render(wrap(<ChapterOwnershipGovernance ownership={ownership} reportingCurrency="USD" />))
     const rows = screen.getAllByRole('row')
     // First row = header; second row = highest-value (BlackRock)
     expect(rows[1].textContent).toContain('BlackRock')
@@ -101,7 +101,7 @@ describe('ChapterOwnershipGovernance', () => {
       generated_at: '2026-05-27T09:00:00Z',
       degraded_sections: ['institutional_holdings'],
     }
-    render(wrap(<ChapterOwnershipGovernance ownership={ownership} />))
+    render(wrap(<ChapterOwnershipGovernance ownership={ownership} reportingCurrency="USD" />))
     // Honest cold-state copy: the old text promised a "background sync" that
     // never runs (auto-refresh is off by default). It now tells the user the
     // sync must be enabled/triggered in Settings, with a CTA to get there.
@@ -125,7 +125,7 @@ describe('ChapterOwnershipGovernance', () => {
       generated_at: '2026-05-27T09:00:00Z',
       degraded_sections: [],
     }
-    render(wrap(<ChapterOwnershipGovernance ownership={ownership} />))
+    render(wrap(<ChapterOwnershipGovernance ownership={ownership} reportingCurrency="USD" />))
     expect(screen.getByText('Tim Cook')).toBeInTheDocument()
     expect(screen.getByText('1447:1')).toBeInTheDocument()
     expect(screen.getByText('92th')).toBeInTheDocument()
@@ -144,7 +144,7 @@ describe('ChapterOwnershipGovernance', () => {
       generated_at: '2026-05-28T01:21:46Z',
       degraded_sections: [],
     }
-    render(wrap(<ChapterOwnershipGovernance ownership={ownership} />))
+    render(wrap(<ChapterOwnershipGovernance ownership={ownership} reportingCurrency="USD" />))
     expect(screen.queryByText('Chief Executive Officer')).not.toBeInTheDocument()
     expect(screen.queryByText(/\$416/)).not.toBeInTheDocument()
     expect(screen.getByText(/DEF 14A parse failed/i)).toBeInTheDocument()
@@ -161,7 +161,7 @@ describe('ChapterOwnershipGovernance', () => {
       degraded_sections: ['insider_transactions'],
       degraded_reasons: { insider_transactions: 'no_recent_filings' },
     }
-    render(wrap(<ChapterOwnershipGovernance ownership={ownership} />))
+    render(wrap(<ChapterOwnershipGovernance ownership={ownership} reportingCurrency="USD" />))
     expect(
       screen.getByText(/no insider transactions filed in the past 90 days/i),
     ).toBeInTheDocument()
@@ -174,7 +174,7 @@ describe('ChapterOwnershipGovernance', () => {
       degraded_sections: ['insider_transactions'],
       // No degraded_reasons supplied → fallback to generic message
     }
-    render(wrap(<ChapterOwnershipGovernance ownership={ownership} />))
+    render(wrap(<ChapterOwnershipGovernance ownership={ownership} reportingCurrency="USD" />))
     expect(screen.getByText(/older report has no specific reason/i)).toBeInTheDocument()
     expect(screen.queryByText(/verify SEC identity/i)).not.toBeInTheDocument()
   })
@@ -194,7 +194,7 @@ describe('ChapterOwnershipGovernance', () => {
       generated_at: '2026-05-27T09:00:00Z',
       degraded_sections: [],
     }
-    render(wrap(<ChapterOwnershipGovernance ownership={ownership} />))
+    render(wrap(<ChapterOwnershipGovernance ownership={ownership} reportingCurrency="USD" />))
     expect(screen.getByText('Pershing Square')).toBeInTheDocument()
     expect(screen.getByText('13D')).toBeInTheDocument()
     expect(screen.getByText(/Activist position/)).toBeInTheDocument()

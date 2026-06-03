@@ -305,8 +305,20 @@ export interface SecFilingsShape {
 // specific tag dig in by name.
 export type XbrlFactsSnapshotShape = Record<string, unknown>
 
+// Two currency tags carried by the equity_research structured payload (BUG-030).
+// quote_currency labels per-share & market-cap fields (price, 52w hi/lo, DCF
+// implied price, sniper levels, price target, market_cap); reporting_currency
+// labels income-statement / balance-sheet absolutes (revenue, EBITDA, EV, debt,
+// cash, CEO comp). They DISAGREE for foreign-listed ADRs (TSM: USD / TWD).
+// Absent on older artifacts → callers default to USD so US reports are unchanged.
+export interface CurrencyTagsShape {
+  quote_currency?: string
+  reporting_currency?: string
+}
+
 export interface ArtifactStructured {
   thesis?: ThesisShape
+  currency?: CurrencyTagsShape
   financial_modeling?: DcfShape
   peer_analysis?: PeerCompsShape
   catalyst_analysis?: CatalystAnalysisShape

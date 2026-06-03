@@ -39,7 +39,13 @@ function renderChapter() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <ChapterValuation dcf={DCF} thesis={null} ticker="AAPL" />
+      <ChapterValuation
+        dcf={DCF}
+        thesis={null}
+        ticker="AAPL"
+        quoteCurrency="USD"
+        reportingCurrency="USD"
+      />
     </QueryClientProvider>,
   )
 }

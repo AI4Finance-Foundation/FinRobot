@@ -7,7 +7,14 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { NumberSource } from '../../../components/SourcedNumber'
 import { Chapter, KvGrid, SubChapter } from './ChapterBase'
-import { formatDate, formatCompactNumber, formatNumber, formatPercent } from '../../../utils/format'
+import {
+  formatDate,
+  formatCompactNumber,
+  formatCurrency,
+  formatCurrencyCompact,
+  formatNumber,
+  formatPercent,
+} from '../../../utils/format'
 import { useI18n, type Locale } from '../../../i18n'
 import { BASE_URL } from '../../../api/client'
 import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../../../api/fetch'
@@ -18,6 +25,10 @@ interface ChapterFinancialDataProps {
   dataSource: string | null
   fetchedAt: string | null
   ticker: string
+  // quote → market_cap & per-share prices (price, 52w hi/lo); reporting →
+  // income / balance / EV absolutes (BUG-030).
+  quoteCurrency: string
+  reportingCurrency: string
 }
 
 interface EarningsCallTranscript {
@@ -111,6 +122,7 @@ function buildCompanyCells(
 function buildIncomeCells(
   income: IncomeShape | undefined,
   locale: Locale,
+  reportingCurrency: string,
   source?: NumberSource,
 ): Cell[] {
   if (!income) return []
@@ -119,7 +131,11 @@ function buildIncomeCells(
     const v = income[key]
     if (v === null || v === undefined) return
     if (mode === 'currency') {
-      cells.push({ label, value: `$${formatCompactNumber(v as number, locale)}`, source })
+      cells.push({
+        label,
+        value: formatCurrencyCompact(v as number, reportingCurrency, locale),
+        source,
+      })
     } else {
       cells.push({ label, value: formatPercent(v as number, locale), source })
     }
@@ -140,27 +156,31 @@ function buildBalanceCells(
   balance: BalanceShape | undefined,
   market: MarketShape,
   locale: Locale,
+  quoteCurrency: string,
+  reportingCurrency: string,
   source?: NumberSource,
 ): Cell[] {
   const cells: Cell[] = []
   if (balance?.total_debt !== undefined && balance.total_debt !== null) {
     cells.push({
       label: tr('总负债', 'Total Debt', locale),
-      value: `$${formatCompactNumber(balance.total_debt, locale)}`,
+      // Balance-sheet absolute → reporting currency.
+      value: formatCurrencyCompact(balance.total_debt, reportingCurrency, locale),
       source,
     })
   }
   if (balance?.total_cash !== undefined && balance.total_cash !== null) {
     cells.push({
       label: tr('现金', 'Total Cash', locale),
-      value: `$${formatCompactNumber(balance.total_cash, locale)}`,
+      value: formatCurrencyCompact(balance.total_cash, reportingCurrency, locale),
       source,
     })
   }
   if (market.market_cap !== undefined && market.market_cap !== null) {
     cells.push({
       label: tr('市值', 'Market Cap', locale),
-      value: `$${formatCompactNumber(market.market_cap, locale)}`,
+      // Market cap is a quote-currency figure.
+      value: formatCurrencyCompact(market.market_cap, quoteCurrency, locale),
       source,
     })
   }
@@ -178,13 +198,16 @@ function buildValuationCells(
   market: MarketShape,
   valuation: ValuationShape | undefined,
   locale: Locale,
+  quoteCurrency: string,
+  reportingCurrency: string,
   source?: NumberSource,
 ): Cell[] {
   const cells: Cell[] = []
   if (market.current_price !== undefined && market.current_price !== null) {
     cells.push({
       label: tr('现价', 'Price', locale),
-      value: `$${formatNumber(market.current_price, locale, 2)}`,
+      // Per-share quote → quote currency.
+      value: formatCurrency(market.current_price, quoteCurrency, locale, 2),
       source,
     })
   }
@@ -198,7 +221,8 @@ function buildValuationCells(
   if (valuation?.enterprise_value !== undefined && valuation.enterprise_value !== null) {
     cells.push({
       label: 'EV',
-      value: `$${formatCompactNumber(valuation.enterprise_value, locale)}`,
+      // EV is an absolute reporting-currency figure.
+      value: formatCurrencyCompact(valuation.enterprise_value, reportingCurrency, locale),
       source,
     })
   }
@@ -219,14 +243,14 @@ function buildValuationCells(
   if (market.price_52w_high !== undefined && market.price_52w_high !== null) {
     cells.push({
       label: tr('52 周高', '52W High', locale),
-      value: `$${formatNumber(market.price_52w_high, locale, 2)}`,
+      value: formatCurrency(market.price_52w_high, quoteCurrency, locale, 2),
       source,
     })
   }
   if (market.price_52w_low !== undefined && market.price_52w_low !== null) {
     cells.push({
       label: tr('52 周低', '52W Low', locale),
-      value: `$${formatNumber(market.price_52w_low, locale, 2)}`,
+      value: formatCurrency(market.price_52w_low, quoteCurrency, locale, 2),
       source,
     })
   }
@@ -245,6 +269,8 @@ export function ChapterFinancialData({
   dataSource,
   fetchedAt,
   ticker,
+  quoteCurrency,
+  reportingCurrency,
 }: ChapterFinancialDataProps): React.ReactElement {
   const { locale } = useI18n()
   const [showRaw, setShowRaw] = useState(false)
@@ -266,9 +292,23 @@ export function ChapterFinancialData({
       : undefined
 
   const companyCells = buildCompanyCells(data, market, locale)
-  const incomeCells = buildIncomeCells(income, locale, numberSource)
-  const balanceCells = buildBalanceCells(balance, market, locale, numberSource)
-  const valuationCells = buildValuationCells(market, valuation, locale, numberSource)
+  const incomeCells = buildIncomeCells(income, locale, reportingCurrency, numberSource)
+  const balanceCells = buildBalanceCells(
+    balance,
+    market,
+    locale,
+    quoteCurrency,
+    reportingCurrency,
+    numberSource,
+  )
+  const valuationCells = buildValuationCells(
+    market,
+    valuation,
+    locale,
+    quoteCurrency,
+    reportingCurrency,
+    numberSource,
+  )
 
   return (
     <Chapter id="data">

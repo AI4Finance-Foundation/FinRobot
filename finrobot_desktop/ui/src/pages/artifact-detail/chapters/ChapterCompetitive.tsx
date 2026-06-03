@@ -4,7 +4,7 @@ import { compsResultToPeerChartData, compsResultToRadarData } from '../../../uti
 import type { CompsResult } from '../../../types/finance'
 import { useI18n } from '../../../i18n'
 import { TermTip } from '../../../components/TermTip'
-import { formatCompactNumber } from '../../../utils/format'
+import { formatCurrencyCompact } from '../../../utils/format'
 import { Chapter, Narrative, SubChapter, tableStyle } from './ChapterBase'
 import type { PeerCompsShape, ThesisShape } from './types'
 
@@ -131,9 +131,14 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
                     )}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {/* USD assumed — peer comps are US-listed; PeerCompShape
-                        carries no currency field. Locale-aware compact units. */}
-                    {`$${formatCompactNumber(c.revenue, locale)}`}
+                    {/* Canonical USD: the comps pipeline FX-normalizes BOTH the
+                        target and every peer to USD before computing multiples
+                        (fx_normalize.normalize_company_to_usd sets
+                        reporting_currency='USD'), so this column is USD even for
+                        a TWD-reporting ADR target. We pass 'USD' explicitly
+                        rather than the report's reporting_currency, which would
+                        mislabel the normalized values (BUG-030). */}
+                    {formatCurrencyCompact(c.revenue, 'USD', locale)}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
                     {c.pe_ratio !== null && c.pe_ratio !== undefined ? c.pe_ratio.toFixed(1) : '—'}

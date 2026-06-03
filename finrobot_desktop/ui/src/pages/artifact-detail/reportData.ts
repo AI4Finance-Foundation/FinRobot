@@ -63,6 +63,10 @@ export interface DerivedReportData {
   totalVersions: number
   versionNumber: number | null
   versionLabel: string
+  // Currency tags (BUG-030). quote → per-share & market-cap; reporting → IS/BS
+  // absolutes. Default 'USD' so legacy (untagged) artifacts render identically.
+  quoteCurrency: string
+  reportingCurrency: string
 }
 
 export function deriveReportData(
@@ -88,6 +92,22 @@ export function deriveReportData(
   const createdAt = meta.created_at ?? null
   const computeVersionStr = compute_version?.version ?? null
   const reportLang: 'en' | 'zh' = meta.language ?? 'zh'
+
+  // Currency: canonical source is structured.currency (the BUG-030 backend tag);
+  // fall back to the raw_data snapshot tags, then USD for legacy artifacts.
+  const rawData = (inputs.raw_data ?? {}) as Record<string, unknown>
+  const quoteCurrency =
+    structured.currency?.quote_currency ??
+    (typeof rawData['quote_currency'] === 'string'
+      ? (rawData['quote_currency'] as string)
+      : null) ??
+    'USD'
+  const reportingCurrency =
+    structured.currency?.reporting_currency ??
+    (typeof rawData['reporting_currency'] === 'string'
+      ? (rawData['reporting_currency'] as string)
+      : null) ??
+    'USD'
 
   // Version number (v1/v2/…) from the timeline (newest→oldest; oldest is v1).
   const sameTypeTimeline = timeline.filter((a) => a.type === artifact.type)
@@ -119,5 +139,7 @@ export function deriveReportData(
     totalVersions,
     versionNumber,
     versionLabel,
+    quoteCurrency,
+    reportingCurrency,
   }
 }

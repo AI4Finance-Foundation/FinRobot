@@ -5,6 +5,7 @@ import {
   formatCompactNumber,
   formatPercent,
   formatCurrency,
+  formatCurrencyCompact,
   formatDate,
   formatRelativeTime,
 } from '../format'
@@ -73,6 +74,37 @@ describe('format / formatCurrency', () => {
   it('CNY shows ¥', () => {
     const out = formatCurrency(1234.5, 'CNY', 'zh')
     expect(out).toMatch(/[¥￥]/)
+  })
+  it('falls back to a `CODE amount` prefix for an unknown currency (never $)', () => {
+    // ICU renders an unknown 3-letter code as "XYZ<nbsp>1,234.50"; normalize the
+    // separator before comparing. The contract that matters: code prefix, no '$'.
+    const out = formatCurrency(1234.5, 'XYZ', 'en').replace(/\u00A0/g, ' ')
+    expect(out).toBe('XYZ 1,234.50')
+    expect(out).not.toContain('$')
+  })
+})
+
+describe('format / formatCurrencyCompact', () => {
+  it('USD renders byte-identically to the legacy `$` + compact convention', () => {
+    expect(formatCurrencyCompact(1_230_000_000, 'USD', 'en')).toBe('$1.23B')
+    expect(formatCurrencyCompact(4_500_000, 'USD', 'en')).toBe('$4.50M')
+    expect(formatCurrencyCompact(123_000_000, 'USD', 'zh')).toBe('$1.23 亿')
+  })
+  it('honours non-USD symbols (HKD → HK$, never $)', () => {
+    const out = formatCurrencyCompact(1_230_000_000, 'HKD', 'en')
+    expect(out).toBe('HK$1.23B')
+  })
+  it('falls back to a `CODE compact` prefix for an unknown currency (never $)', () => {
+    const out = formatCurrencyCompact(1_230_000_000, 'XYZ', 'en')
+    expect(out).toBe('XYZ 1.23B')
+    expect(out).not.toContain('$')
+  })
+  it('defers to plain currency formatter below the compact threshold', () => {
+    expect(formatCurrencyCompact(950, 'USD', 'en')).toBe('$950')
+  })
+  it('returns em-dash for null/undefined/NaN', () => {
+    expect(formatCurrencyCompact(null, 'USD', 'en')).toBe('—')
+    expect(formatCurrencyCompact(NaN, 'HKD', 'zh')).toBe('—')
   })
 })
 

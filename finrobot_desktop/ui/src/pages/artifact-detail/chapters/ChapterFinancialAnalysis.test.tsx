@@ -42,7 +42,14 @@ const RAW_DATA = {
 
 describe('ChapterFinancialAnalysis KV cards', () => {
   it('reads money line items from income.* (not the top level)', () => {
-    render(<ChapterFinancialAnalysis ticker="AAPL" dcf={null} rawData={RAW_DATA} />)
+    render(
+      <ChapterFinancialAnalysis
+        ticker="AAPL"
+        dcf={null}
+        rawData={RAW_DATA}
+        reportingCurrency="USD"
+      />,
+    )
     // EBITDA card only renders when baseEbitda !== null — i.e. when income.ebitda
     // is read correctly. Pre-fix (top-level read) this card was always absent.
     expect(screen.getByText('EBITDA')).toBeInTheDocument()
@@ -53,7 +60,9 @@ describe('ChapterFinancialAnalysis KV cards', () => {
   })
 
   it('does NOT surface cards when income bucket is absent', () => {
-    render(<ChapterFinancialAnalysis ticker="AAPL" dcf={null} rawData={{}} />)
+    render(
+      <ChapterFinancialAnalysis ticker="AAPL" dcf={null} rawData={{}} reportingCurrency="USD" />,
+    )
     expect(screen.queryByText('EBITDA')).not.toBeInTheDocument()
   })
 })

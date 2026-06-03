@@ -2,6 +2,7 @@ import SensitivityHeatmap from '../../../components/charts/SensitivityHeatmap'
 import { Chapter, SubChapter } from './ChapterBase'
 import type { DcfShape } from './types'
 import { useI18n } from '../../../i18n'
+import { formatCurrency } from '../../../utils/format'
 
 interface SensitivityTableShape {
   wacc_values?: number[]
@@ -81,10 +82,16 @@ function computeAxisSwing(table: Record<string, unknown> | null | undefined): Ax
   }
 }
 
-const fmtPrice = (v: number): string => `$${v.toFixed(v >= 100 ? 0 : 2)}`
-
-export function ChapterSensitivity({ dcf }: { dcf: DcfShape | null }): React.ReactElement {
-  const { t } = useI18n()
+export function ChapterSensitivity({
+  dcf,
+  // Sensitivity-grid implied prices are per-share → quote currency (BUG-030).
+  quoteCurrency,
+}: {
+  dcf: DcfShape | null
+  quoteCurrency: string
+}): React.ReactElement {
+  const { t, locale } = useI18n()
+  const fmtPrice = (v: number): string => formatCurrency(v, quoteCurrency, locale, v >= 100 ? 0 : 2)
   const table = dcf?.sensitivity_table ?? null
   const inputs = dcf?.inputs
   const heatmapRows = flattenSensitivity(table)

@@ -416,6 +416,21 @@ def build_equity_research_artifact(
     if ownership is not None:
         structured_out["ownership_governance"] = _safe_dump(ownership)
 
+    # Surface the two currency tags so the report chapters can label every
+    # amount in its true currency instead of a hardcoded '$' (BUG-030). They
+    # ride inside the generic structured dict (no Artifact model change):
+    #   - quote_currency    → per-share & market-cap fields (price, 52w hi/lo,
+    #     DCF implied price, sniper levels, price target, market_cap)
+    #   - reporting_currency → income-statement / balance-sheet absolutes
+    #     (revenue, EBITDA, EV, debt, cash, CEO comp)
+    # They DISAGREE for foreign-listed ADRs (TSM: quote=USD, reporting=TWD).
+    # Sourced from FinancialData.model_dump (raw_data) which carries both tags
+    # at top level; default to USD when absent so US reports are unchanged.
+    structured_out["currency"] = {
+        "quote_currency": str(raw_data.get("quote_currency") or "USD"),
+        "reporting_currency": str(raw_data.get("reporting_currency") or "USD"),
+    }
+
     # Mirror the LLM-authored narrative fields into outputs.llm_narrative so
     # that AGENTS.md consumers can read from a semantically named top-level key
     # instead of drilling into structured.thesis.*.  structured.thesis remains

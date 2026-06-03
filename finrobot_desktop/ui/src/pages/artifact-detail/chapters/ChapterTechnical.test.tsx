@@ -19,7 +19,7 @@ import { ChapterTechnical } from './ChapterTechnical'
 import type { TechnicalAnalysisShape } from './types'
 
 function renderChapter(technical: TechnicalAnalysisShape | null) {
-  return render(<ChapterTechnical ticker="AAPL" technical={technical} />)
+  return render(<ChapterTechnical ticker="AAPL" technical={technical} quoteCurrency="USD" />)
 }
 
 beforeEach(() => {

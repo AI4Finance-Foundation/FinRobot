@@ -29,13 +29,25 @@ import type {
 } from './types'
 import { useI18n } from '../../../i18n'
 import { TermTip } from '../../../components/TermTip'
-import { formatCompactNumber, formatDate, formatPercent } from '../../../utils/format'
+import {
+  formatCompactNumber,
+  formatCurrencyCompact,
+  formatDate,
+  formatPercent,
+} from '../../../utils/format'
 
 interface Props {
   ownership: OwnershipGovernanceShape | null
+  // CEO compensation → reporting currency (BUG-030). Insider Form-4 / 13F
+  // values stay USD (SEC EDGAR is USD-denominated; the holding field is even
+  // named value_usd), so those use a literal 'USD' at their call sites.
+  reportingCurrency: string
 }
 
-export function ChapterOwnershipGovernance({ ownership }: Props): React.ReactElement {
+export function ChapterOwnershipGovernance({
+  ownership,
+  reportingCurrency,
+}: Props): React.ReactElement {
   const { t, locale } = useI18n()
 
   // No ownership_governance block at all → SEC identity unconfigured or this
@@ -117,7 +129,12 @@ export function ChapterOwnershipGovernance({ ownership }: Props): React.ReactEle
         {degraded.has('proxy_compensation') || compensationInvalid ? (
           <DegradedPlaceholder reason={t(compensationReason)} />
         ) : compensation ? (
-          <CompensationGrid comp={compensation} locale={locale} t={t} />
+          <CompensationGrid
+            comp={compensation}
+            locale={locale}
+            t={t}
+            reportingCurrency={reportingCurrency}
+          />
         ) : (
           <EmptyNote>{t('chapter.ownership.empty.compensation')}</EmptyNote>
         )}
@@ -256,7 +273,8 @@ function InsiderTable({
                 {formatCompactNumber(r.shares, locale)}
               </td>
               <td style={{ ...tdStyle, textAlign: 'right' }}>
-                {r.value > 0 ? `$${formatCompactNumber(r.value, locale)}` : '—'}
+                {/* Form 4 transaction value — SEC EDGAR, USD-denominated. */}
+                {r.value > 0 ? formatCurrencyCompact(r.value, 'USD', locale) : '—'}
               </td>
             </tr>
           )
@@ -338,7 +356,8 @@ function InstitutionTable({
               {formatCompactNumber(r.shares, locale)}
             </td>
             <td style={{ ...tdStyle, textAlign: 'right' }}>
-              ${formatCompactNumber(r.value_usd, locale)}
+              {/* 13F value_usd — the field is USD by definition. */}
+              {formatCurrencyCompact(r.value_usd, 'USD', locale)}
             </td>
             <td
               style={{
@@ -376,10 +395,12 @@ function CompensationGrid({
   comp,
   locale,
   t,
+  reportingCurrency,
 }: {
   comp: ProxyCompensationShape
   locale: 'zh' | 'en'
   t: Translator
+  reportingCurrency: string
 }): React.ReactElement {
   const cells: {
     label: React.ReactNode
@@ -395,7 +416,7 @@ function CompensationGrid({
       label: t('chapter.ownership.kv.ceoComp'),
       value:
         comp.ceo_total_compensation !== null && comp.ceo_total_compensation !== undefined
-          ? `$${formatCompactNumber(comp.ceo_total_compensation, locale)}`
+          ? formatCurrencyCompact(comp.ceo_total_compensation, reportingCurrency, locale)
           : '—',
       delta:
         comp.ceo_yoy_change_pct !== null && comp.ceo_yoy_change_pct !== undefined

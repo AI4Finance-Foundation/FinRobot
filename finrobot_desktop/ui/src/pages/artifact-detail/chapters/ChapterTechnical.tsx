@@ -7,6 +7,7 @@
 import { Chapter, KvGrid, SubChapter } from './ChapterBase'
 import { useTickerPrice, useTickerFinancials } from '../../../hooks/useTickerData'
 import { useI18n } from '../../../i18n'
+import { formatCurrency } from '../../../utils/format'
 import type {
   HistoricalBandShape,
   MonteCarloShape,
@@ -17,10 +18,18 @@ import type {
 interface ChapterTechnicalProps {
   ticker: string
   technical: TechnicalAnalysisShape | null
+  // Every amount in this chapter is a per-share price (current/52w/MC/sniper)
+  // → quote currency (BUG-030).
+  quoteCurrency: string
 }
 
-export function ChapterTechnical({ ticker, technical }: ChapterTechnicalProps): React.ReactElement {
-  const { t } = useI18n()
+export function ChapterTechnical({
+  ticker,
+  technical,
+  quoteCurrency,
+}: ChapterTechnicalProps): React.ReactElement {
+  const { t, locale } = useI18n()
+  const fmtPx = (v: number): string => formatCurrency(v, quoteCurrency, locale, 2)
   const { data: price } = useTickerPrice(ticker)
   const { data: fin } = useTickerFinancials(ticker)
   const current = price?.current_price ?? null
@@ -36,15 +45,15 @@ export function ChapterTechnical({ ticker, technical }: ChapterTechnicalProps): 
   const cells = [
     current !== null && {
       label: t('chapter.technical.kv.currentPrice'),
-      value: `$${current.toFixed(2)}`,
+      value: fmtPx(current),
       tone: typeof changePct === 'number' && changePct >= 0 ? ('up' as const) : ('down' as const),
       delta:
         typeof changePct === 'number'
           ? `${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%`
           : undefined,
     },
-    low52 !== null && { label: t('chapter.technical.kv.low52w'), value: `$${low52.toFixed(2)}` },
-    high52 !== null && { label: t('chapter.technical.kv.high52w'), value: `$${high52.toFixed(2)}` },
+    low52 !== null && { label: t('chapter.technical.kv.low52w'), value: fmtPx(low52) },
+    high52 !== null && { label: t('chapter.technical.kv.high52w'), value: fmtPx(high52) },
     range52Position !== null && {
       label: t('chapter.technical.kv.position52w'),
       value: `${range52Position.toFixed(0)}%`,
@@ -85,13 +94,13 @@ export function ChapterTechnical({ ticker, technical }: ChapterTechnicalProps): 
 
       {mc !== null && (
         <SubChapter heading={t('chapter.technical.subheading.monteCarlo')}>
-          <MonteCarloPanel mc={mc} current={current} t={t} />
+          <MonteCarloPanel mc={mc} current={current} t={t} fmtPx={fmtPx} />
         </SubChapter>
       )}
 
       {sniper !== null && (
         <SubChapter heading={t('chapter.technical.subheading.sniper')}>
-          <SniperPanel sniper={sniper} t={t} />
+          <SniperPanel sniper={sniper} t={t} fmtPx={fmtPx} />
         </SubChapter>
       )}
 
@@ -112,10 +121,12 @@ function MonteCarloPanel({
   mc,
   current,
   t,
+  fmtPx,
 }: {
   mc: MonteCarloShape
   current: number | null
   t: (key: string, params?: Record<string, string | number>) => string
+  fmtPx: (v: number) => string
 }): React.ReactElement {
   const bins = mc.histogram_bins ?? []
   const counts = mc.histogram_counts ?? []
@@ -143,23 +154,17 @@ function MonteCarloPanel({
       <div style={statRow}>
         <Stat
           label={t('chapter.technical.mc.mean')}
-          value={mean !== undefined ? `$${mean.toFixed(2)}` : '—'}
+          value={mean !== undefined ? fmtPx(mean) : '—'}
         />
-        <Stat
-          label={t('chapter.technical.mc.std')}
-          value={std !== undefined ? `$${std.toFixed(2)}` : '—'}
-        />
-        <Stat
-          label="P5"
-          value={percentiles['5'] !== undefined ? `$${percentiles['5'].toFixed(2)}` : '—'}
-        />
+        <Stat label={t('chapter.technical.mc.std')} value={std !== undefined ? fmtPx(std) : '—'} />
+        <Stat label="P5" value={percentiles['5'] !== undefined ? fmtPx(percentiles['5']) : '—'} />
         <Stat
           label="P50"
-          value={percentiles['50'] !== undefined ? `$${percentiles['50'].toFixed(2)}` : '—'}
+          value={percentiles['50'] !== undefined ? fmtPx(percentiles['50']) : '—'}
         />
         <Stat
           label="P95"
-          value={percentiles['95'] !== undefined ? `$${percentiles['95'].toFixed(2)}` : '—'}
+          value={percentiles['95'] !== undefined ? fmtPx(percentiles['95']) : '—'}
         />
         <Stat
           label={t('chapter.technical.mc.currentPct')}
@@ -282,9 +287,11 @@ function Marker({
 function SniperPanel({
   sniper,
   t,
+  fmtPx,
 }: {
   sniper: SniperShape
   t: (key: string, params?: Record<string, string | number>) => string
+  fmtPx: (v: number) => string
 }): React.ReactElement {
   type Cell = { label: string; value: string; delta?: string; tone?: 'up' | 'down' }
   const cells: Cell[] = []
@@ -299,7 +306,7 @@ function SniperPanel({
       label: isShort
         ? t('chapter.technical.sniper.idealShort')
         : t('chapter.technical.sniper.idealBuy'),
-      value: `$${sniper.ideal_buy.toFixed(2)}`,
+      value: fmtPx(sniper.ideal_buy),
       tone: isShort ? undefined : 'up',
       delta:
         !isShort && sniper.safety_margin !== undefined
@@ -314,7 +321,7 @@ function SniperPanel({
       label: isShort
         ? t('chapter.technical.sniper.secondaryShort')
         : t('chapter.technical.sniper.secondaryBuy'),
-      value: `$${sniper.secondary_buy.toFixed(2)}`,
+      value: fmtPx(sniper.secondary_buy),
       delta: isShort
         ? t('chapter.technical.sniper.atResistance')
         : t('chapter.technical.sniper.atSupport'),
@@ -323,7 +330,7 @@ function SniperPanel({
   if (sniper.stop_loss !== undefined) {
     cells.push({
       label: t('chapter.technical.sniper.stopLoss'),
-      value: `$${sniper.stop_loss.toFixed(2)}`,
+      value: fmtPx(sniper.stop_loss),
       tone: 'down',
     })
   }
@@ -332,7 +339,7 @@ function SniperPanel({
       label: isShort
         ? t('chapter.technical.sniper.coverTarget')
         : t('chapter.technical.sniper.takeProfit'),
-      value: `$${sniper.take_profit.toFixed(2)}`,
+      value: fmtPx(sniper.take_profit),
       tone: 'up',
       delta: isShort
         ? t('chapter.technical.sniper.dcfCover')
@@ -342,13 +349,13 @@ function SniperPanel({
   if (sniper.support_level !== undefined) {
     cells.push({
       label: t('chapter.technical.sniper.support20d'),
-      value: `$${sniper.support_level.toFixed(2)}`,
+      value: fmtPx(sniper.support_level),
     })
   }
   if (sniper.resistance_level !== undefined) {
     cells.push({
       label: t('chapter.technical.sniper.resistance20d'),
-      value: `$${sniper.resistance_level.toFixed(2)}`,
+      value: fmtPx(sniper.resistance_level),
     })
   }
   if (sniper.risk_reward_ratio !== undefined) {

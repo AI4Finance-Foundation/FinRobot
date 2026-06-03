@@ -81,20 +81,33 @@ export function ReportChapters({
       />
       <ChapterThesis thesis={d.thesis} />
       <ChapterCompanyOverview thesis={d.thesis} />
-      <ChapterFinancialAnalysis ticker={d.symbol} dcf={d.dcf} rawData={d.inputs.raw_data ?? null} />
-      <ChapterValuation dcf={d.dcf} thesis={d.thesis} ticker={d.symbol} />
+      <ChapterFinancialAnalysis
+        ticker={d.symbol}
+        dcf={d.dcf}
+        rawData={d.inputs.raw_data ?? null}
+        reportingCurrency={d.reportingCurrency}
+      />
+      <ChapterValuation
+        dcf={d.dcf}
+        thesis={d.thesis}
+        ticker={d.symbol}
+        quoteCurrency={d.quoteCurrency}
+        reportingCurrency={d.reportingCurrency}
+      />
       <ChapterNews thesis={d.thesis} />
-      <ChapterSensitivity dcf={d.dcf} />
+      <ChapterSensitivity dcf={d.dcf} quoteCurrency={d.quoteCurrency} />
       <ChapterCatalysts catalysts={d.catalysts} thesis={d.thesis} />
-      <ChapterTechnical ticker={d.symbol} technical={d.technical} />
+      <ChapterTechnical ticker={d.symbol} technical={d.technical} quoteCurrency={d.quoteCurrency} />
       <ChapterCompetitive peers={d.peers} thesis={d.thesis} />
       <ChapterFinancialData
         rawData={d.inputs.raw_data ?? null}
         dataSource={d.inputs.data_source ?? null}
         fetchedAt={d.inputs.data_fetched_at ?? null}
         ticker={d.symbol}
+        quoteCurrency={d.quoteCurrency}
+        reportingCurrency={d.reportingCurrency}
       />
-      <ChapterOwnershipGovernance ownership={d.ownership} />
+      <ChapterOwnershipGovernance ownership={d.ownership} reportingCurrency={d.reportingCurrency} />
       <ChapterDisclaimer
         artifactId={artifact.id}
         createdAt={d.createdAt}

@@ -81,6 +81,11 @@ export function formatPercent(
 /**
  * Currency formatter. Pass ISO code ('USD', 'CNY', 'HKD').
  * For ticker-aware contexts the caller decides the currency.
+ *
+ * Graceful fallback: an unknown / non-ISO-4217 code makes Intl throw, so we
+ * catch and degrade to a `CODE 1,234.56` prefix (e.g. `XYZ 1,234.56`). We never
+ * silently emit '$' for a non-USD currency. Missing currency defaults to USD at
+ * the call site (older artifacts), so US reports render byte-identically.
  */
 export function formatCurrency(
   n: number | null | undefined,
@@ -89,12 +94,63 @@ export function formatCurrency(
   digits = 2,
 ): string {
   if (n === null || n === undefined || Number.isNaN(n)) return '—'
-  return new Intl.NumberFormat(NF_LOCALE[locale], {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  }).format(n)
+  try {
+    return new Intl.NumberFormat(NF_LOCALE[locale], {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(n)
+  } catch {
+    return `${currency} ${formatNumber(n, locale, digits)}`
+  }
+}
+
+/**
+ * Compact currency formatter — the currency-aware sibling of
+ * formatCompactNumber. Renders large amounts with the active currency symbol
+ * and compact units:
+ *   en + USD → $1.23B / $4.5M / $12.3K
+ *   zh + USD → $1.23 亿 / $4500 万
+ *   HKD      → HK$1.23B (Intl symbol) ; unknown code → `XYZ 1.23B` fallback.
+ *
+ * Built by suffixing the compact magnitude onto the formatted symbol so the
+ * currency symbol placement still honours the locale, then swapping the
+ * grouped number for the compact one. Falls through to formatCurrency for
+ * sub-thousand values (no compacting needed there).
+ */
+export function formatCurrencyCompact(
+  n: number | null | undefined,
+  currency: string,
+  locale: Locale,
+): string {
+  if (n === null || n === undefined || Number.isNaN(n)) return '—'
+  const abs = Math.abs(n)
+  // Below the first compact threshold, defer to the plain currency formatter
+  // (locale + symbol placement) — no unit suffix needed.
+  const firstThreshold = locale === 'zh' ? 1e4 : 1e3
+  if (abs < firstThreshold) return formatCurrency(n, currency, locale, 0)
+
+  const compact = formatCompactNumber(n, locale) // e.g. "1.23B" / "1.23 亿"
+  // USD always renders as a bare "$" so existing US reports stay byte-identical
+  // (the default `symbol` display would localize it to "US$" under zh).
+  if (currency.toUpperCase() === 'USD') return `$${compact}`
+  // Extract the currency symbol via formatToParts (ICU-stable, unlike stripping
+  // a formatted string). Default `symbol` display keeps "HK$" distinct from "$"
+  // — narrowSymbol would collapse HK$→$, re-introducing the very mislabel
+  // BUG-030 fixes. An unknown code surfaces as its raw ISO code, which we space
+  // off into a `CODE compact` fallback. Never silently prints "$".
+  try {
+    const parts = new Intl.NumberFormat(NF_LOCALE[locale], {
+      style: 'currency',
+      currency,
+    }).formatToParts(1)
+    const sym = parts.find((p) => p.type === 'currency')?.value ?? currency
+    if (sym.toUpperCase() === currency.toUpperCase()) return `${currency} ${compact}`
+    return `${sym}${compact}`
+  } catch {
+    return `${currency} ${compact}`
+  }
 }
 
 /**

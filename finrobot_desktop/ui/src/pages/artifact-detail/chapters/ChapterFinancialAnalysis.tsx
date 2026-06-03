@@ -14,7 +14,7 @@ import type { DCFResult } from '../../../types/finance'
 import { useHistoricalData } from '../../../hooks/useHistoricalData'
 import { useI18n } from '../../../i18n'
 import { TermTip } from '../../../components/TermTip'
-import { formatCompactNumber } from '../../../utils/format'
+import { formatCurrencyCompact } from '../../../utils/format'
 import { Chapter, KvGrid, SubChapter, tableStyle, type KvCell } from './ChapterBase'
 import type { NumberSource } from '../../../components/SourcedNumber'
 import type { DcfShape } from './types'
@@ -23,17 +23,21 @@ interface ChapterFinancialAnalysisProps {
   ticker: string
   dcf: DcfShape | null
   rawData: Record<string, unknown> | null
+  // All amounts here are income-statement absolutes (revenue / EBITDA /
+  // net income / projected FCF) → reporting currency (BUG-030).
+  reportingCurrency: string
 }
 
 export function ChapterFinancialAnalysis({
   ticker,
   dcf,
   rawData,
+  reportingCurrency,
 }: ChapterFinancialAnalysisProps): React.ReactElement {
   const { t, locale } = useI18n()
-  // Locale-aware compact currency: en → $1.23B / $4.5M, zh → $1.23 亿 / $4500 万.
-  // Mirrors the `$` + formatCompactNumber convention used in ChapterOwnershipGovernance.
-  const fmtMoney = (v: number): string => `$${formatCompactNumber(v, locale)}`
+  // Currency-aware compact: en → $1.23B / $4.5M, zh → $1.23 亿; non-USD →
+  // HK$1.23B / TWD 1.23B. Reporting currency (IS-caliber line items).
+  const fmtMoney = (v: number): string => formatCurrencyCompact(v, reportingCurrency, locale)
   const { data: historical } = useHistoricalData(ticker)
   // raw_data is FinancialData.model_dump() — the money line items live under
   // `income.*`, NOT at the top level (the sibling ChapterFinancialData reads

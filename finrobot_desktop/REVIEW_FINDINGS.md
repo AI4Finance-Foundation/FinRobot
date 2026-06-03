@@ -64,7 +64,7 @@
 | BUG-026 | Bug | P1 | DCF/DDM seed 用「最近 2 年」中位数，却在 provenance 和 docstring 里全程标注「过去 3 年中位数」——给分析师看的口径说明是假的 | 待修 |
 | BUG-027 | Bug | P1 | POST /api/compute/dcf-sensitivity 的 wacc_range/tg_range 无 max_length 上限 → 巨网格阻塞事件循环 | 待修 |
 | BUG-028 | Bug | P1 | No ErrorBoundary in the live app tree — any render crash blanks the whole desktop app | 已修 |
-| BUG-029 | Bug | P1 | Competitive table renders unguarded gross/operating margin → fabricated 0.0% or literal NaN% when backend value is null | 待修 |
+| BUG-029 | Bug | P1 | Competitive table renders unguarded gross/operating margin → fabricated 0.0% or literal NaN% when backend value is null | 已修 |
 | BUG-030 | Bug | P1 | 13 章研报全程硬编码 $，而 Coverage 是币种感知——非美元标的会印错币种符号 | 待修 |
 | BUG-031 | Bug | P1 | Coverage 批量运行 >6 个 ticker 时耗尽浏览器 HTTP/1.1 连接池，多余的 SSE 与所有普通 API 轮询被无限阻塞 | 待修 |
 | BUG-032 | Bug | P1 | Coverage overview 全量 fetch 失败但 fast skeleton 成功时，卡片市场列永久空白——无错误态、无 shimmer、无重试入口 | 待修 |
@@ -507,7 +507,7 @@
 - **修复方案**：1) types.ts:73-74 — change to `gross_margin: number | null` and `operating_margin: number | null` to match the backend contract. 2) ChapterCompetitive.tsx:157-162 — guard like the sibling cells: render `c.gross_margin != null ? (c.gross_margin*100).toFixed(1)+'%' : '—'` and same for operating_margin. Note: margins are ratios (0.43) so keep the *100; do NOT route through formatPercent without the alreadyPercent flag. Also audit ChapterFinancialData buildIncomeCells (already guards None) for consistency — it is fine. Mechanical, ~6 lines.
 - **验证补充**：Fix is correct. Confirm both: (1) types.ts:73-74 → `number | null`; (2) guard render with `c.gross_margin != null ? (c.gross_margin*100).toFixed(1)+'%' : '—'`. Keep the *100 (margins are ratios ~0.43); do NOT route through formatPercent without alreadyPercent. ~6 lines, mechanical, no behavioral risk.
 - **影响面/回归风险**：Removes a fabricated/garbage financial number from the flagship investment-bank report — directly serves the data-integrity red line. Affects any ticker whose peer set has a member with a provider that omits margins (foreign listings, thin coverage). Zero risk to the happy path (full data still renders identically).
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（改 ui/.../chapters/types.ts 把 gross_margin/operating_margin 改 number|null（对齐后端 None≠0 契约）；ChapterCompetitive.tsx 两 margin 单元格加 != null 守卫，保留 *100，缺失渲染 — 与同排 pe/ev_ebitda 一致。lint + build(tsc) 通过）
 
 #### [BUG-030] 13 章研报全程硬编码 $，而 Coverage 是币种感知——非美元标的会印错币种符号
 

@@ -70,8 +70,8 @@ export interface CompanyFinancialsShape {
   ebitda: number
   net_income: number
   market_cap: number
-  gross_margin: number
-  operating_margin: number
+  gross_margin: number | null
+  operating_margin: number | null
   pe_ratio?: number | null
   ev_ebitda?: number | null
   ev_revenue?: number | null

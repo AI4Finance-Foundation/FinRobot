@@ -155,10 +155,10 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
                       : '—'}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {(c.gross_margin * 100).toFixed(1)}%
+                    {c.gross_margin != null ? (c.gross_margin * 100).toFixed(1) + '%' : '—'}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {(c.operating_margin * 100).toFixed(1)}%
+                    {c.operating_margin != null ? (c.operating_margin * 100).toFixed(1) + '%' : '—'}
                   </td>
                 </tr>
               )

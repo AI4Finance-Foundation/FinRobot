@@ -307,6 +307,10 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   // settings.json override back to the .env default. Set by handleResetField,
   // cleared by the inline confirm modal.
   const [pendingReset, setPendingReset] = useState<string[] | null>(null)
+  // Pending SECRET field awaiting confirmation before its stored keychain key
+  // is deleted via POST /api/settings/clear-secret (BUG-005). Separate from
+  // pendingReset because clearing a secret is a distinct, explicit action.
+  const [pendingClearSecret, setPendingClearSecret] = useState<string | null>(null)
 
   // ── Save indicator ───────────────────────────────────────────────────────
   const [saveState, setSaveState] = useState<SaveState>('idle')
@@ -385,6 +389,51 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       setLlmApiKey('')
       // Re-initialize from response so model_name / sec_user_agent reflect
       // whatever .env contains.
+      const r = data as { model_name?: string; sec_user_agent?: string }
+      if (r?.model_name) setModelName(r.model_name)
+      if (r?.sec_user_agent !== undefined) setSecUserAgent(r.sec_user_agent ?? '')
+      addToast({
+        type: 'success',
+        title: t('settings.reset.doneTitle'),
+        description: t('settings.reset.doneBody'),
+      })
+    },
+    onError: (err: Error) => {
+      addToast({
+        type: 'error',
+        title: t('settings.reset.failTitle'),
+        description: mapErrorToUserMessage(err),
+      })
+    },
+  })
+
+  // ── POST /api/settings/clear-secret mutation ─────────────────────────────
+  // Explicit "wipe this stored API key" for keychain-sourced secrets. The
+  // backend PUT no longer deletes a secret on an empty value (BUG-005), so
+  // removing a stored key is a deliberate call to this dedicated endpoint —
+  // it deletes from the keychain then rebuilds runtime settings from .env.
+  // Used in place of /reset for SECRET fields (source === 'keychain'); /reset
+  // stays for non-secret settings.json overrides (model_name, sec_user_agent).
+  const clearSecretMutation = useMutation({
+    mutationFn: async (field: string) => {
+      const resp = await fetch(`${BASE_URL}/api/settings/clear-secret`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field }),
+      })
+      if (!resp.ok) {
+        const j = await resp.json().catch(() => ({}))
+        if (j?.detail) throw new Error(j.detail)
+        throw new FetchHttpError(resp.status, resp.statusText)
+      }
+      return (await resp.json()) as never
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['settings'], data)
+      // Drop local edits so inputs re-bind to server values (key now gone).
+      setFmpKey('')
+      setFinnhubKey('')
+      setLlmApiKey('')
       const r = data as { model_name?: string; sec_user_agent?: string }
       if (r?.model_name) setModelName(r.model_name)
       if (r?.sec_user_agent !== undefined) setSecUserAgent(r.sec_user_agent ?? '')
@@ -523,6 +572,14 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   const handleResetField = (fields: string[]) => {
     if (!fields.length) return
     setPendingReset(fields)
+  }
+
+  // Clearing a keychain-stored secret: route to the explicit clear-secret
+  // endpoint instead of /reset so the destructive delete is its own intent
+  // (BUG-005). Same confirm-modal UX as a settings.json reset.
+  const handleClearSecret = (field: string) => {
+    if (!field) return
+    setPendingClearSecret(field)
   }
 
   if (isLoading) {
@@ -693,7 +750,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               {sourceOf('fmp_api_key') === 'keychain' && (
                 <button
                   style={ghostBtnStyle}
-                  onClick={() => handleResetField(['fmp_api_key'])}
+                  onClick={() => handleClearSecret('fmp_api_key')}
                   title={t('settings.resetToEnv.titleKeychain')}
                 >
                   {t('settings.resetToEnv')}
@@ -724,7 +781,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               {sourceOf('finnhub_api_key') === 'keychain' && (
                 <button
                   style={ghostBtnStyle}
-                  onClick={() => handleResetField(['finnhub_api_key'])}
+                  onClick={() => handleClearSecret('finnhub_api_key')}
                   title={t('settings.resetToEnv.titleKeychain')}
                 >
                   {t('settings.resetToEnv')}
@@ -844,7 +901,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               {sourceOf(`${currentProvider}_api_key`) === 'keychain' && (
                 <button
                   style={ghostBtnStyle}
-                  onClick={() => handleResetField([`${currentProvider}_api_key`])}
+                  onClick={() => handleClearSecret(`${currentProvider}_api_key`)}
                   title={t('settings.resetToEnv.titleKeychain')}
                 >
                   {t('settings.resetToEnv')}
@@ -874,6 +931,18 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
             const f = pendingReset
             setPendingReset(null)
             resetMutation.mutate(f)
+          }}
+        />
+      )}
+
+      {pendingClearSecret && (
+        <ResetConfirmModal
+          fields={[pendingClearSecret]}
+          onCancel={() => setPendingClearSecret(null)}
+          onConfirm={() => {
+            const f = pendingClearSecret
+            setPendingClearSecret(null)
+            clearSecretMutation.mutate(f)
           }}
         />
       )}

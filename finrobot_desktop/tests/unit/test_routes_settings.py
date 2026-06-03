@@ -12,6 +12,7 @@ error visibility + startup validate" change:
 5. ``_write_non_secret_settings`` is the deprecated alias that explicitly
    refuses to run, so a regression to "write every field" cannot happen.
 """
+
 from __future__ import annotations
 
 import json
@@ -103,9 +104,7 @@ def test_merge_writes_only_changed_fields(tmp_path: Path) -> None:
 def test_merge_preserves_existing_fields(tmp_path: Path) -> None:
     """Existing settings.json entries survive an unrelated update."""
     path = tmp_path / "settings.json"
-    path.write_text(
-        json.dumps({"sec_user_agent": "MyCo me@example.com", "log_level": "DEBUG"})
-    )
+    path.write_text(json.dumps({"sec_user_agent": "MyCo me@example.com", "log_level": "DEBUG"}))
 
     _merge_non_secret_settings(path, {"model_name": "openai:gpt-4o"})
 
@@ -272,14 +271,10 @@ async def test_get_settings_reports_adanos_key_set(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_reset_strips_field_from_settings_json(
-    tmp_path: Path, monkeypatch: Any
-) -> None:
+async def test_reset_strips_field_from_settings_json(tmp_path: Path, monkeypatch: Any) -> None:
     """Reset removes the listed field from settings.json (does NOT copy .env in)."""
     settings_path = tmp_path / "settings.json"
-    settings_path.write_text(
-        json.dumps({"model_name": "openai:gpt-4o", "sec_user_agent": "X"})
-    )
+    settings_path.write_text(json.dumps({"model_name": "openai:gpt-4o", "sec_user_agent": "X"}))
 
     settings = FinRobotSettings(
         model_name="openai:gpt-4o",
@@ -299,9 +294,7 @@ async def test_reset_strips_field_from_settings_json(
     )
 
     async with _client(app) as c:
-        resp = await c.post(
-            "/api/settings/reset", json={"fields": ["model_name"]}
-        )
+        resp = await c.post("/api/settings/reset", json={"fields": ["model_name"]})
     assert resp.status_code == 200, resp.text
 
     content = json.loads(settings_path.read_text())
@@ -311,9 +304,7 @@ async def test_reset_strips_field_from_settings_json(
 
 
 @pytest.mark.asyncio
-async def test_reset_deletes_keychain_for_secrets(
-    tmp_path: Path, monkeypatch: Any
-) -> None:
+async def test_reset_deletes_keychain_for_secrets(tmp_path: Path, monkeypatch: Any) -> None:
     """Reset of a secret field clears it from the keychain."""
     secret_store = AsyncMock()
     secret_store.has = AsyncMock(return_value=True)
@@ -325,9 +316,7 @@ async def test_reset_deletes_keychain_for_secrets(
         anthropic_api_key="keychain-value",
     )
     app = _make_app(tmp_path, settings=settings, secret_store=secret_store)
-    monkeypatch.setattr(
-        "finrobot.routes.settings._replace_runtime_settings", AsyncMock()
-    )
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
     monkeypatch.setattr(
         "finrobot.server.hydrate_settings_from_secrets",
         AsyncMock(side_effect=lambda s, _store: s),
@@ -346,9 +335,7 @@ async def test_reset_deletes_keychain_for_secrets(
 async def test_reset_rejects_unknown_field(tmp_path: Path) -> None:
     app = _make_app(tmp_path)
     async with _client(app) as c:
-        resp = await c.post(
-            "/api/settings/reset", json={"fields": ["definitely_not_a_setting"]}
-        )
+        resp = await c.post("/api/settings/reset", json={"fields": ["definitely_not_a_setting"]})
     assert resp.status_code == 400
 
 
@@ -366,9 +353,7 @@ async def test_reset_with_empty_fields_400(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_put_settings_does_not_pin_unchanged_fields(
-    tmp_path: Path, monkeypatch: Any
-) -> None:
+async def test_put_settings_does_not_pin_unchanged_fields(tmp_path: Path, monkeypatch: Any) -> None:
     """Submitting only model_name must not also write sec_user_agent etc."""
     settings = FinRobotSettings(
         model_name="deepseek:deepseek-chat",
@@ -376,9 +361,7 @@ async def test_put_settings_does_not_pin_unchanged_fields(
         sec_user_agent="FromDotEnv me@example.com",
     )
     app = _make_app(tmp_path, settings=settings)
-    monkeypatch.setattr(
-        "finrobot.routes.settings._replace_runtime_settings", AsyncMock()
-    )
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
 
     async with _client(app) as c:
         resp = await c.put(
@@ -399,9 +382,7 @@ async def test_put_settings_does_not_pin_unchanged_fields(
 
 
 @pytest.mark.asyncio
-async def test_put_persists_only_changed_keys(
-    tmp_path: Path, monkeypatch: Any
-) -> None:
+async def test_put_persists_only_changed_keys(tmp_path: Path, monkeypatch: Any) -> None:
     """Successful PUT writes ONLY the field the user changed."""
     settings = FinRobotSettings(
         model_name="deepseek:deepseek-chat",
@@ -409,9 +390,7 @@ async def test_put_persists_only_changed_keys(
         sec_user_agent="FromDotEnv me@example.com",
     )
     app = _make_app(tmp_path, settings=settings)
-    monkeypatch.setattr(
-        "finrobot.routes.settings._replace_runtime_settings", AsyncMock()
-    )
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
 
     async with _client(app) as c:
         resp = await c.put("/api/settings", json={"log_level": "DEBUG"})
@@ -453,19 +432,16 @@ async def test_get_settings_returns_sec_identity_dismissed_at_null(
 
 
 @pytest.mark.asyncio
-async def test_put_persists_sec_identity_dismissed_at(
-    tmp_path: Path, monkeypatch: Any
-) -> None:
+async def test_put_persists_sec_identity_dismissed_at(tmp_path: Path, monkeypatch: Any) -> None:
     """PUT writes the timestamp to settings.json (ISO string, json-serializable)."""
     app = _make_app(tmp_path)
-    monkeypatch.setattr(
-        "finrobot.routes.settings._replace_runtime_settings", AsyncMock()
-    )
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
 
     iso = "2026-05-27T15:30:00+00:00"
     async with _client(app) as c:
         resp = await c.put(
-            "/api/settings", json={"sec_identity_dismissed_at": iso},
+            "/api/settings",
+            json={"sec_identity_dismissed_at": iso},
         )
     assert resp.status_code == 200, resp.text
 
@@ -486,9 +462,7 @@ async def test_load_non_secret_settings_coerces_dismissed_at(
     from finrobot.routes.settings import load_non_secret_settings
 
     iso_str = "2026-05-27T15:30:00+00:00"
-    (tmp_path / "settings.json").write_text(
-        json.dumps({"sec_identity_dismissed_at": iso_str})
-    )
+    (tmp_path / "settings.json").write_text(json.dumps({"sec_identity_dismissed_at": iso_str}))
     raw = load_non_secret_settings(tmp_path / "settings.json")
     # raw dict carries the ISO string; pydantic-settings coerces on
     # FinRobotSettings(**raw)
@@ -506,9 +480,7 @@ async def test_load_non_secret_settings_coerces_dismissed_at(
 @pytest.mark.asyncio
 async def test_put_persists_sec_holdings_auto_refresh(tmp_path: Path, monkeypatch: Any) -> None:
     app = _make_app(tmp_path)
-    monkeypatch.setattr(
-        "finrobot.routes.settings._replace_runtime_settings", AsyncMock()
-    )
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
 
     async with _client(app) as c:
         resp = await c.put("/api/settings", json={"sec_holdings_auto_refresh": False})
@@ -592,9 +564,7 @@ async def test_settings_update_logging_fields(tmp_path: Path, monkeypatch: Any) 
     async def _fake_replace(request: Any, candidate: Any) -> None:
         request.app.state.deps.settings = candidate
 
-    monkeypatch.setattr(
-        "finrobot.routes.settings._replace_runtime_settings", _fake_replace
-    )
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", _fake_replace)
     async with _client(app) as c:
         resp = await c.put("/api/settings", json={"log_retention_days": 14, "log_to_file": False})
     assert resp.status_code == 200, resp.text
@@ -619,9 +589,7 @@ async def test_settings_update_logging_fields_reapplies_logging(
     async def _fake_replace(request: Any, candidate: Any) -> None:
         request.app.state.deps.settings = candidate
 
-    monkeypatch.setattr(
-        "finrobot.routes.settings._replace_runtime_settings", _fake_replace
-    )
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", _fake_replace)
     calls: list[Any] = []
 
     def _fake_setup_logging(candidate: Any, *, force: bool = False) -> None:
@@ -633,6 +601,106 @@ async def test_settings_update_logging_fields_reapplies_logging(
         resp = await c.put("/api/settings", json={"log_level": "DEBUG"})
     assert resp.status_code == 200, resp.text
     assert calls == [("DEBUG", True)]
+
+
+# ---------------------------------------------------------------------------
+# BUG-005 — PUT must NOT delete a secret on an empty value; clearing is explicit
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_put_empty_secret_does_not_delete_keychain(tmp_path: Path, monkeypatch: Any) -> None:
+    """An empty-string secret in a PUT is a no-op, never a keychain delete.
+
+    Regression for BUG-005: submitting the settings form with a blank password
+    field used to wipe a stored API key. The PUT must leave the keychain alone.
+    """
+    secret_store = AsyncMock()
+    secret_store.has = AsyncMock(return_value=True)
+    secret_store.get = AsyncMock(return_value="stored-key")
+    secret_store.set = AsyncMock()
+    secret_store.delete = AsyncMock()
+
+    settings = FinRobotSettings(
+        model_name="deepseek:deepseek-chat",
+        deepseek_api_key="stored-key",
+    )
+    app = _make_app(tmp_path, settings=settings, secret_store=secret_store)
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
+
+    async with _client(app) as c:
+        resp = await c.put("/api/settings", json={"deepseek_api_key": ""})
+    assert resp.status_code == 200, resp.text
+    # The key MUST survive — empty value means "no change", not "delete".
+    secret_store.delete.assert_not_awaited()
+    secret_store.set.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_put_nonempty_secret_still_writes(tmp_path: Path, monkeypatch: Any) -> None:
+    """A real (truthy) secret in a PUT is still written to the keychain."""
+    secret_store = AsyncMock()
+    secret_store.has = AsyncMock(return_value=False)
+    secret_store.get = AsyncMock(return_value=None)
+    secret_store.set = AsyncMock()
+    secret_store.delete = AsyncMock()
+
+    settings = FinRobotSettings(
+        model_name="deepseek:deepseek-chat",
+        deepseek_api_key="x",
+    )
+    app = _make_app(tmp_path, settings=settings, secret_store=secret_store)
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
+
+    async with _client(app) as c:
+        resp = await c.put("/api/settings", json={"deepseek_api_key": "new-key"})
+    assert resp.status_code == 200, resp.text
+    secret_store.set.assert_awaited_with("deepseek_api_key", "new-key")
+    secret_store.delete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_clear_secret_deletes_keychain(tmp_path: Path, monkeypatch: Any) -> None:
+    """POST /api/settings/clear-secret is the explicit keychain delete path."""
+    secret_store = AsyncMock()
+    secret_store.has = AsyncMock(return_value=False)
+    secret_store.get = AsyncMock(return_value=None)
+    secret_store.delete = AsyncMock()
+
+    settings = FinRobotSettings(
+        model_name="deepseek:deepseek-chat",
+        deepseek_api_key="dev-key",
+    )
+    app = _make_app(tmp_path, settings=settings, secret_store=secret_store)
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
+    monkeypatch.setattr(
+        "finrobot.server.hydrate_settings_from_secrets",
+        AsyncMock(side_effect=lambda s, _store: s),
+    )
+
+    async with _client(app) as c:
+        resp = await c.post("/api/settings/clear-secret", json={"field": "fmp_api_key"})
+    assert resp.status_code == 200, resp.text
+    secret_store.delete.assert_awaited_with("fmp_api_key")
+
+
+@pytest.mark.asyncio
+async def test_clear_secret_rejects_non_secret_field(tmp_path: Path) -> None:
+    """Only secret fields are clearable — a non-secret field is a 400."""
+    app = _make_app(tmp_path)
+    async with _client(app) as c:
+        resp = await c.post("/api/settings/clear-secret", json={"field": "model_name"})
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_clear_secret_rejects_unknown_field(tmp_path: Path) -> None:
+    app = _make_app(tmp_path)
+    async with _client(app) as c:
+        resp = await c.post(
+            "/api/settings/clear-secret", json={"field": "definitely_not_a_setting"}
+        )
+    assert resp.status_code == 400
 
 
 @pytest.mark.asyncio
@@ -649,13 +717,9 @@ async def test_settings_update_non_logging_field_skips_reapply(
     async def _fake_replace(request: Any, candidate: Any) -> None:
         request.app.state.deps.settings = candidate
 
-    monkeypatch.setattr(
-        "finrobot.routes.settings._replace_runtime_settings", _fake_replace
-    )
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", _fake_replace)
     calls: list[Any] = []
-    monkeypatch.setattr(
-        "finrobot.obs.setup_logging", lambda *a, **k: calls.append((a, k))
-    )
+    monkeypatch.setattr("finrobot.obs.setup_logging", lambda *a, **k: calls.append((a, k)))
 
     async with _client(app) as c:
         resp = await c.put("/api/settings", json={"sec_holdings_auto_refresh": True})

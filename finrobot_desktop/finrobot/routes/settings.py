@@ -132,6 +132,19 @@ class SettingsResetRequest(BaseModel):
     fields: list[str] = Field(default_factory=list)
 
 
+class ClearSecretRequest(BaseModel):
+    """A single secret field to delete from the keychain.
+
+    Distinct from ``/reset``: ``/reset`` re-empowers .env (clears settings.json
+    AND keychain), whereas ``clear-secret`` is the explicit "wipe this stored
+    API key" action. It exists so deleting a secret can NEVER happen as a side
+    effect of an empty value in a PUT (BUG-005) — the destructive path is its
+    own endpoint with its own intent.
+    """
+
+    field: str
+
+
 @router.get("", response_model=SettingsResponse)
 async def get_settings_route(request: Request) -> SettingsResponse:
     return await _build_response(request)
@@ -149,12 +162,16 @@ async def put_settings_route(update: SettingsUpdate, request: Request) -> Settin
     secret_merge: dict[str, str] = {}
     for key in _SECRET_FIELDS:
         value = secret_updates.get(key)
-        if value is None:
+        # A falsy incoming value (absent OR empty string) means "no change":
+        # fall back to the stored keychain value, then the current effective
+        # value (loaded from .env at boot). An empty password field in the
+        # settings form must NEVER null out the merge candidate — otherwise
+        # validate_runtime_config below would 400 a user who only edited an
+        # unrelated field, and a write of "" would wipe the stored key
+        # (BUG-005). Clearing a secret is the explicit clear-secret endpoint.
+        if not value:
             value = await secret_store.get(key)
             if value is None:
-                # Fall back to the current effective value (loaded from .env
-                # at boot) so validation can still succeed for fields the
-                # user has never touched via the UI.
                 value = getattr(current, key, "") or ""
         secret_merge[key] = value or ""
     candidate = current.model_copy(update={**non_secret_updates, **secret_merge})
@@ -164,11 +181,15 @@ async def put_settings_route(update: SettingsUpdate, request: Request) -> Settin
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
+    # Only WRITE secrets that arrived with a truthy value. A falsy/empty value
+    # in a PUT is treated as "no change", NOT "delete" — a client that submits
+    # the settings form with a blank password field (the common case: the user
+    # edited an unrelated field, leaving the masked key input empty) must never
+    # silently wipe a stored API key (BUG-005). Deleting a secret is now an
+    # explicit, separate action — POST /api/settings/clear-secret.
     for key, value in secret_updates.items():
         if value:
             await secret_store.set(key, value)
-        else:
-            await secret_store.delete(key)
 
     _merge_non_secret_settings(
         request.app.state.settings_path,
@@ -255,6 +276,54 @@ async def reset_settings_route(body: SettingsResetRequest, request: Request) -> 
     await _replace_runtime_settings(request, rebuilt)
 
     # Re-run validation; clear the banner if config is now coherent.
+    try:
+        rebuilt.validate_runtime_config()
+        request.app.state.startup_error = None
+    except ValueError as e:
+        request.app.state.startup_error = str(e)
+
+    return await _build_response(request)
+
+
+@router.post("/clear-secret", response_model=SettingsResponse)
+async def clear_secret_route(body: ClearSecretRequest, request: Request) -> SettingsResponse:
+    """Explicitly delete one secret field from the keychain.
+
+    This is the ONLY path that deletes a stored API key. Splitting it out of the
+    PUT endpoint means an empty value in a settings form can never silently wipe
+    a key (BUG-005) — a destructive action requires a deliberate call here.
+
+    After deletion we rebuild runtime settings from scratch (settings.json +
+    .env, then re-hydrate the remaining keychain secrets) so the in-memory
+    FinRobotSettings stops carrying the cleared value. If clearing the key
+    leaves the runtime config invalid (e.g. the active LLM provider lost its
+    key), the startup_error banner is set so the UI tells the user.
+    """
+    if body.field not in _SECRET_FIELDS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown or non-secret field: {body.field}. "
+            f"Clearable secrets: {sorted(_SECRET_FIELDS)}",
+        )
+
+    secret_store = request.app.state.secret_store
+    settings_path: Path = request.app.state.settings_path
+
+    await secret_store.delete(body.field)
+
+    # Rebuild settings so the cleared secret is dropped from the in-memory
+    # object. Mirrors /reset: pydantic-settings only re-reads .env on
+    # construction, so we reconstruct rather than patch.
+    from finrobot.config import get_settings
+
+    rebuilt = get_settings(**load_non_secret_settings(settings_path))
+    from finrobot.server import hydrate_settings_from_secrets
+
+    rebuilt = await hydrate_settings_from_secrets(rebuilt, secret_store)
+
+    await _replace_runtime_settings(request, rebuilt)
+
+    # Re-validate: clearing a key may have broken (or, rarely, fixed) the config.
     try:
         rebuilt.validate_runtime_config()
         request.app.state.startup_error = None

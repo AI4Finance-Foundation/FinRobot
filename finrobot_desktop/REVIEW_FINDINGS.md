@@ -53,7 +53,7 @@
 | BUG-002 | Bug | P0 | Coverage 卡片墙纯鼠标可达：<article> 无 tabIndex/role/onKeyDown，键盘用户无法聚焦任何卡片，连带整个 Inspector（研报/历史/Run 动作）对键盘/读屏完全不可达 | 已修 |
 | BUG-003 | Bug | P1 | Live API key persisted in plaintext to session JSONL via provider warning → tool_result transcript | 已修 |
 | BUG-004 | Bug | P1 | Entire FastAPI surface is unauthenticated and Host-header-unvalidated — DNS rebinding lets any web page drive secret-writing/quota-burning endpoints despite the CORS whitelist | 待修 |
-| BUG-005 | Bug | P1 | PUT /api/settings can silently delete or overwrite the user's live API keys (FMP/Anthropic/OpenAI) with no auth and no confirmation | 待修 |
+| BUG-005 | Bug | P1 | PUT /api/settings can silently delete or overwrite the user's live API keys (FMP/Anthropic/OpenAI) with no auth and no confirmation | 已修 |
 | BUG-006 | Bug | P1 | 跨境 forward 估值口径错币种:comps_pe 的 forward 路径用『USD 归一化同业 P/E × 申报币种 forward EPS』,ADR(TSM/ASML/BABA)目标价整体偏离一个汇率 | 已修 |
 | BUG-007 | Bug | P1 | DataLayer 跨 provider 仅 warn 不仲裁,且 cross_validate 容差(revenue 15%)结构性低于已知 FMP↔yfinance 25-80% 实差——分歧票静默采用 primary(FMP)原值进研报 | 待修 |
 | BUG-008 | Bug | P1 | Finnhub provider 把缺失的 total_debt/total_cash 用 `or 0` 伪造成 0 → 下游 EV 误算成「零净债」（违反 FMP 显式遵守的 None≠0 契约） | 已修 |
@@ -225,7 +225,7 @@
 - **修复方案**：Primary fix is the global auth token from finding 1 — once present this endpoint is no longer reachable by hostile callers. Independently, in settings.py harden the delete path: require an explicit sentinel (e.g. a separate POST /api/settings/clear-secret with the field name, as the existing /reset pattern at :198 already does for non-secrets) rather than overloading empty-string-in-PUT to mean delete; this prevents accidental client wipes.注意: don't break the legitimate 'user cleared the field in SettingsView to remove a key' UX — route that through the explicit clear endpoint and update ui SettingsView accordingly.
 - **验证补充**：Both fixes valid. Primary fix is finding-0 auth. The secondary 'explicit clear endpoint instead of empty-string-means-delete' is a genuine UX/safety hardening (prevents accidental client wipes) and mirrors the existing /reset pattern at settings.py:198 — good. Ensure ui SettingsView's 'clear field to remove key' flow is rerouted, as the finding notes.
 - **影响面/回归风险**：Affects key management only. Regression risk: SettingsView's current 'clear field to delete key' interaction must move to the explicit endpoint or it stops working; covered by existing settings route tests which must be updated.
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（routes/settings.py:put_settings_route 不再把空串/缺省 secret 当删除——falsy 视为「不变」回退已存值（顺带修一个潜伏 bug：空串曾把校验候选也置空，编辑无关字段会 400）；删除 else: delete() 分支。新增 POST /api/settings/clear-secret（镜像 /reset 模式，显式清单个 secret，校验字段∈secrets）。UI SettingsView 的 keychain 来源「清除」按钮改走 clear-secret（settings_json 来源仍走 /reset）。注：全局 token auth 随 BUG-004 token 半部延后；本条是独立的误删硬化。新增 5 settings 路由测试 + 12 SettingsView 测试通过。）
 
 #### [BUG-006] 跨境 forward 估值口径错币种:comps_pe 的 forward 路径用『USD 归一化同业 P/E × 申报币种 forward EPS』,ADR(TSM/ASML/BABA)目标价整体偏离一个汇率
 

@@ -10,9 +10,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from pydantic_ai.exceptions import ModelHTTPError
+
 from finrobot.config import FinRobotSettings
 from finrobot.engine.backtest.engine import BacktestConfig, BacktestResult
 from finrobot.engine.backtest.strategy_agent import (
+    _FALLBACK_WARNING,
     MAX_ITERATIONS,
     _AdjustmentDecision,
     run_strategy_selection,
@@ -82,7 +85,9 @@ class TestRunStrategySelection:
 
             mock_adapter_cls.return_value.run = mock_engine_run
 
-            result = await run_strategy_selection(settings, "AAPL", "2023-01-01", "2024-01-01", MagicMock())
+            result = await run_strategy_selection(
+                settings, "AAPL", "2023-01-01", "2024-01-01", MagicMock()
+            )
 
         assert result.total_return == pytest.approx(0.15)
         # Engine should run exactly once (early stop after iter 1)
@@ -131,7 +136,9 @@ class TestRunStrategySelection:
             ]
             mock_adapter_cls.return_value.run = mock_engine_run
 
-            result = await run_strategy_selection(settings, "AAPL", "2023-01-01", "2024-01-01", MagicMock())
+            result = await run_strategy_selection(
+                settings, "AAPL", "2023-01-01", "2024-01-01", MagicMock()
+            )
 
         # Best is iteration 2 with 0.20 return
         assert result.total_return == pytest.approx(0.20)
@@ -178,7 +185,9 @@ class TestRunStrategySelection:
             ]
             mock_adapter_cls.return_value.run = mock_engine_run
 
-            result = await run_strategy_selection(settings, "AAPL", "2023-01-01", "2024-01-01", MagicMock())
+            result = await run_strategy_selection(
+                settings, "AAPL", "2023-01-01", "2024-01-01", MagicMock()
+            )
 
         # Best result is 0.25 from iteration 1
         assert result.total_return == pytest.approx(0.25)
@@ -235,6 +244,54 @@ class TestRunStrategySelection:
         # But strategy params should come from LLM
         assert used_config.strategy_params == {"fast": 15, "slow": 45}
         assert result.total_return == pytest.approx(0.10)
+
+    @pytest.mark.asyncio
+    async def test_llm_failure_falls_back_to_default_sma(self) -> None:
+        """LLM auth/HTTP failure -> deterministic SMA backtest, not a crash.
+
+        Uses ModelHTTPError (an AgentRunError subclass in pydantic-ai 1.73,
+        modelling an auth/rate-limit failure) to confirm the except tuple
+        catches real provider errors and degrades gracefully.
+        """
+        settings = FinRobotSettings(model_name="test:test")
+
+        bt_result = _make_result(0.07)
+
+        # config_agent.run blows up like an unauthorised / rate-limited provider.
+        config_agent_mock = MagicMock()
+        config_agent_mock.run = AsyncMock(
+            side_effect=ModelHTTPError(status_code=401, model_name="test:test", body="no key")
+        )
+        # adjust_agent should never be reached on the fallback path.
+        adjust_agent_mock = MagicMock()
+        adjust_agent_mock.run = AsyncMock()
+
+        mock_engine_run = AsyncMock(return_value=bt_result)
+
+        with (
+            patch("finrobot.engine.backtest.strategy_agent.Agent") as mock_agent_cls,
+            patch("finrobot.engine.backtest.strategy_agent.BackTraderAdapter") as mock_adapter_cls,
+        ):
+            mock_agent_cls.side_effect = [config_agent_mock, adjust_agent_mock]
+            mock_adapter_cls.return_value.run = mock_engine_run
+
+            result = await run_strategy_selection(
+                settings, "AAPL", "2023-01-01", "2024-01-01", MagicMock()
+            )
+
+        # Non-None deterministic result so downstream save_chart works.
+        assert result is not None
+        assert result.total_return == pytest.approx(0.07)
+        # Degrade warning is present and leads the warning block.
+        assert result.warnings[0] == _FALLBACK_WARNING
+        assert _FALLBACK_WARNING in result.format_summary()
+        # Exactly one deterministic backtest ran with the default SMA strategy.
+        assert mock_engine_run.call_count == 1
+        used_config: BacktestConfig = mock_engine_run.call_args[0][0]
+        assert used_config.strategy == "sma_crossover"
+        assert used_config.ticker == "AAPL"
+        # No tuning was attempted after the initial-selection failure.
+        adjust_agent_mock.run.assert_not_called()
 
 
 class TestMaxIterationsConstant:

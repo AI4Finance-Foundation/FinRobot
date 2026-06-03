@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import logging
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from pydantic_ai import Agent
+from pydantic_ai.exceptions import AgentRunError
 
 from finrobot.config import FinRobotSettings
 from finrobot.engine.backtest.backtrader_adapter import BackTraderAdapter
@@ -23,6 +24,16 @@ from finrobot.engine.data.layer import DataLayer
 logger = logging.getLogger(__name__)
 
 MAX_ITERATIONS = 3
+
+# Surfaced at the top of the summary when the LLM is unreachable and we degrade
+# to a single deterministic backtest instead of crashing.
+_FALLBACK_WARNING = "LLM unavailable, fell back to default SMA strategy"
+
+# LLM-failure exceptions we degrade on. In pydantic-ai 1.73 both ModelAPIError
+# and ModelHTTPError (auth / rate-limit / HTTP) subclass AgentRunError, so the
+# base class covers all transport/provider failures; ValidationError (pydantic)
+# is separate and fires when the model's structured output fails schema checks.
+_LLM_FAILURES = (AgentRunError, ValidationError)
 
 _SYSTEM_PROMPT = """\
 You are a quantitative strategy selector for backtesting.
@@ -60,6 +71,31 @@ class _AdjustmentDecision(BaseModel):
     config: BacktestConfig
 
 
+async def _deterministic_fallback(
+    engine: BackTraderAdapter,
+    ticker: str,
+    start_date: str,
+    end_date: str,
+    initial_cash: float,
+) -> BacktestResult:
+    """Run one default SMA-crossover backtest when the LLM is unavailable.
+
+    Honours the project's deterministic-fallback creed: a flaky / unauthorised /
+    rate-limited LLM degrades to a real (non-None) backtest result with a
+    clearly-labelled warning, rather than surfacing a bare traceback.
+    """
+    config = BacktestConfig(
+        ticker=ticker,
+        start_date=start_date,
+        end_date=end_date,
+        strategy="sma_crossover",
+        initial_cash=initial_cash,
+    )
+    result = await engine.run(config)
+    # Prepend so the degrade notice leads the summary's warning block.
+    return result.model_copy(update={"warnings": [_FALLBACK_WARNING, *result.warnings]})
+
+
 async def run_strategy_selection(
     settings: FinRobotSettings,
     ticker: str,
@@ -91,7 +127,11 @@ async def run_strategy_selection(
         f"from {start_date} to {end_date} with initial cash ${initial_cash:,.0f}."
     )
 
-    config_result = await config_agent.run(initial_prompt)
+    try:
+        config_result = await config_agent.run(initial_prompt)
+    except _LLM_FAILURES as e:
+        logger.warning("LLM strategy selection failed (%s); using default SMA strategy.", e)
+        return await _deterministic_fallback(engine, ticker, start_date, end_date, initial_cash)
     config = config_result.output
 
     # Force the caller's immutable fields onto the LLM-chosen config.
@@ -141,7 +181,13 @@ async def run_strategy_selection(
             best_return=best_result.total_return,
         )
 
-        decision_result = await adjust_agent.run(adjust_prompt)
+        try:
+            decision_result = await adjust_agent.run(adjust_prompt)
+        except _LLM_FAILURES as e:
+            # We already have a real backtest result; the LLM just can't tune
+            # further. Stop iterating and keep the best run rather than crash.
+            logger.warning("LLM parameter tuning failed (%s); keeping best result so far.", e)
+            break
         decision = decision_result.output
 
         if not decision.should_continue:

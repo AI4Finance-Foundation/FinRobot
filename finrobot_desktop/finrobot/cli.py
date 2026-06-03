@@ -573,6 +573,14 @@ def backtest(
 
         settings = get_settings(model_name=model)
 
+        # Catch a missing/invalid LLM key up front (same check _build_deps runs)
+        # so --auto fails with a clean message instead of a late traceback from
+        # the first LLM call. Mirrors _build_deps' ValueError -> ClickException.
+        try:
+            settings.validate_runtime_config()
+        except ValueError as e:
+            raise click.ClickException(str(e)) from e
+
         async def _run_auto() -> BacktestResult:
             data_layer = build_data_layer(settings)
             try:

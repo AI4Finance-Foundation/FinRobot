@@ -69,7 +69,7 @@
 | BUG-018 | Bug | P1 | Scoped coverage-group hit-rate silently truncates to the GLOBAL newest-500 page → groups show null track record despite having one | 待修 |
 | BUG-019 | Bug | P1 | Sharpe ratio uses backtrader default timeframe=Years on daily bars → None for ~1yr windows, meaningless for multi-year | 已修 |
 | BUG-020 | Bug | P1 | CLI 全部 pipeline 命令零 ticker 校验/归一化：脏 ticker 直灌 provider + 污染缓存与 artifact | 已修 |
-| BUG-021 | Bug | P1 | backtest --auto 对 LLM 失败无任何兜底：直接裸崩，也不回退确定性策略 | 待修 |
+| BUG-021 | Bug | P1 | backtest --auto 对 LLM 失败无任何兜底：直接裸崩，也不回退确定性策略 | 已修 |
 | BUG-022 | Bug | P1 | 零 busy_timeout + 多进程写同一 data_cache.db → SQLITE_BUSY 直接抛到调用方 | 已修 |
 | BUG-023 | Bug | P1 | Artifact PRIMARY KEY 用秒级时间戳，同票同类型同秒 run 静默覆盖前一份研报（审计链断档） | 已修 |
 | BUG-024 | Bug | P1 | useAppStore (547 行) ~92% 死状态：仅 4 个 CmdK 字段有运行时消费方，其余全部无人读 | 待修 |
@@ -432,7 +432,7 @@
 - **验证补充**：Both fix steps valid. Step (1) pre-flight validate_runtime_config()→ClickException is unambiguously correct and high-value. Step (2) fallback to deterministic sma_crossover matches the project's '确定性兜底' creed and is the better choice — but verify the fallback path also closes the data_layer (the existing finally already does) and that run_strategy_selection's signature lets the catch happen at the cli or agent layer cleanly. Catch (AgentRunError, ValidationError) — also consider ModelHTTPError/ModelAPIError (pydantic_ai.exceptions has them) for auth/rate-limit which may not all subclass AgentRunError; verify the actual exception hierarchy before narrowing the except.
 - **影响面/回归风险**：影响 --auto 用户在 LLM 故障下的体验；正常 LLM 路径零影响。fallback 方案需确保回退结果的 warnings 明确标注降级，避免分析师误以为是 LLM 调优结果。回归风险低。
 - **合并自**：gap-r2-5#2, gap-r2-5#3（2 条同源发现）
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（cli.py backtest --auto 分支先 settings.validate_runtime_config() 包 try/except ValueError→click.ClickException（复用 _build_deps 逻辑），缺 key 立刻干净报错而非晚崩。strategy_agent.run_strategy_selection 的 config_agent.run/adjust_agent.run 包异常：失败时回退确定性 sma_crossover 跑一次并在 summary 顶标降级警告（best_result 非 None，save_chart 正常）。except 元组 (AgentRunError, ValidationError)——已核 pydantic_ai 1.73 异常树：ModelHTTPError/ModelAPIError/UsageLimitExceeded 等全部 subclass AgentRunError，基类已覆盖。ruff+mypy --strict + 59 例通过。）
 
 #### [BUG-022] 零 busy_timeout + 多进程写同一 data_cache.db → SQLITE_BUSY 直接抛到调用方
 

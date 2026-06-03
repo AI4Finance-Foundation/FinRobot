@@ -128,12 +128,12 @@ def _money_from_text(text: str) -> float | None:
     """Extract a dollar amount from proxy prose/table text."""
     if not text:
         return None
-    match = re.search(r"\$\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*(million|m|billion|bn)?", text, re.I)
+    match = re.search(r"\$\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*(million|billion|bn)?\b", text, re.I)
     if not match:
         return None
     value = float(match.group(1).replace(",", ""))
     scale = (match.group(2) or "").lower()
-    if scale in {"million", "m"}:
+    if scale == "million":
         value *= 1_000_000
     elif scale in {"billion", "bn"}:
         value *= 1_000_000_000
@@ -271,27 +271,46 @@ def _ceo_comp_and_ratio_from_disclosure(text: str) -> tuple[float | None, int | 
             compact,
             re.I,
         )
+    comp_match_end: int | None = None
     if m is not None:
         val = float(m.group(1).replace(",", ""))
         if _CEO_COMP_MIN <= val <= _CEO_COMP_MAX:
             comp = val
+            comp_match_end = m.end()
 
     ratio: int | None = None
     # Issuers phrase the Item 402(u) ratio several ways:
     #   "...pay ratio was 129:1"            (NVDA)
     #   "...pay ratio of 533 to 1"          (AAPL)
     #   "...resulting in a ratio of 363 to 1" (JPM — no literal "pay ratio")
-    for ratio_pat in (
+    #
+    # The 402(u) disclosure states the *current-year* comp then its matching
+    # ratio in the same sentence/paragraph. When we anchored a comp, search
+    # for the ratio from that comp onward so the returned (comp, ratio) is a
+    # genuine same-paragraph pair — a plain first-match would grab a prior-year
+    # ratio quoted earlier ("Last year, our CEO pay ratio was 250 to 1. For
+    # fiscal 2025 ... 312 to 1.") that does not belong to this comp. If no
+    # paired ratio follows the comp, fall back to a document-wide first match.
+    ratio_patterns = (
         r"pay\s+ratio\s+(?:of\s+)?(?:was|is|equal to|:)?\s*(?:approximately\s+)?"
         r"([0-9][0-9,]*)\s*(?:to|:)\s*1\b",
         r"ratio\s+of\s+(?:approximately\s+)?([0-9][0-9,]*)\s*(?:to|:)\s*1\b",
-    ):
-        rm = re.search(ratio_pat, compact, re.I)
-        if rm is not None:
-            ratio = int(rm.group(1).replace(",", ""))
-            break
+    )
+    if comp_match_end is not None:
+        ratio = _first_ratio_match(ratio_patterns, compact, comp_match_end)
+    if ratio is None:
+        ratio = _first_ratio_match(ratio_patterns, compact, 0)
 
     return comp, ratio
+
+
+def _first_ratio_match(patterns: tuple[str, ...], text: str, start: int) -> int | None:
+    """Return the first pay-ratio integer matched at or after ``start``."""
+    for pattern in patterns:
+        match = re.compile(pattern, re.I).search(text, start)
+        if match is not None:
+            return int(match.group(1).replace(",", ""))
+    return None
 
 
 # Words that look like a proper-noun name regex match but are actually titles/roles.
@@ -655,11 +674,19 @@ def build_proxy_compensation(raw_proxy: dict[str, Any]) -> ProxyCompensation | N
     if raw_comp is not None and _CEO_COMP_MIN <= raw_comp <= _CEO_COMP_MAX:
         ceo_total_compensation = raw_comp
 
-    # Ratio: the dedicated extractor handles "CEO pay ratio" phrasings; the
-    # disclosure parser catches "CEO to median employee pay ratio was N:1".
-    ceo_pay_ratio = _extract_ceo_pay_ratio(text)
-    if ceo_pay_ratio is None:
-        ceo_pay_ratio = disclosure_ratio
+    # Ratio: prefer the (comp, ratio) pair parsed from the SAME 402(u)
+    # paragraph by _ceo_comp_and_ratio_from_disclosure. When that paragraph
+    # gives us the comp we're using, its ratio is the matching current-year
+    # figure and must win as a unit — otherwise the global first-match
+    # _extract_ceo_pay_ratio can grab a prior-year ratio from an earlier
+    # sentence ("Last year, our CEO pay ratio was 250 to 1. For fiscal 2025
+    # ... 312 to 1.") and override the paired current-year value.
+    # _extract_ceo_pay_ratio is only a fallback when the disclosure paragraph
+    # yields no ratio.
+    if disclosure_ratio is not None:
+        ceo_pay_ratio: int | None = disclosure_ratio
+    else:
+        ceo_pay_ratio = _extract_ceo_pay_ratio(text)
 
     return ProxyCompensation(
         filing_date=_parse_date(raw_proxy["filing_date"]),

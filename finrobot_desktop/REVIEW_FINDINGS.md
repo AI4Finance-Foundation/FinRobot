@@ -46,8 +46,8 @@
 | BUG-008 | Bug | P1 | Finnhub provider 把缺失的 total_debt/total_cash 用 `or 0` 伪造成 0 → 下游 EV 误算成「零净债」（违反 FMP 显式遵守的 None≠0 契约） | 已修 |
 | BUG-009 | Bug | P1 | xbrl_concept_snapshot 把所有年度营收硬编码成 us-gaap:Revenues，对绝大多数大盘股(ASC-606 口径)是错误的 concept 标签 | 待修 |
 | BUG-010 | Bug | P1 | XBRL TTM dict 丢弃 period_end/as_of_date 与 has_calculated_q4/warning，下游无法判定 TTM 截止季与质量 | 待修 |
-| BUG-011 | Bug | P1 | _money_from_text 把孤立的 'm' 当成 million 乘子(无词边界),$96 measured→$96M,且 ×1e6 可把 sub-$1M 原值抬过合理性闸门 | 待修 |
-| BUG-012 | Bug | P1 | CEO 姓名/总薪酬/pay-ratio 三字段各自独立 first-match 抽取,无任何一致性勾稽,可把张冠李戴/跨年度/口径不符的三元组当权威披露并排展示 | 待修 |
+| BUG-011 | Bug | P1 | _money_from_text 把孤立的 'm' 当成 million 乘子(无词边界),$96 measured→$96M,且 ×1e6 可把 sub-$1M 原值抬过合理性闸门 | 已修 |
+| BUG-012 | Bug | P1 | CEO 姓名/总薪酬/pay-ratio 三字段各自独立 first-match 抽取,无任何一致性勾稽,可把张冠李戴/跨年度/口径不符的三元组当权威披露并排展示 | 已修 |
 | BUG-013 | Bug | P1 | earnings.py float(row.get('revenue_actual',0)) crashes (TypeError) on present-but-None revenue, and otherwise fabricates $0 revenue → false -100% surprise | 已修 |
 | BUG-014 | Bug | P1 | DCF graceful-degrade (tg≥WACC) self-defeats: technical_analysis hard-requires DCFResult and crashes the whole equity_research run one step later | 待修 |
 | BUG-015 | Bug | P1 | Thesis & peer-selection wrap recoverable AgentRunError into ValueError, defeating the retry/back-off system and aborting the whole run on the first transient LLM hiccup | 待修 |
@@ -269,7 +269,7 @@
 - **修复方案**：改 ownership.py:131 正则为 r"\$\s*([0-9][0-9]*(?:\.[0-9]+)?)\s*(million|billion|bn)?\b"——删掉裸 'm'(保留 million/billion/bn 全词+\b),DEF 14A 金额几乎都写完整 'million'/带逗号全额数字,删 'm' 不会漏真实用例;若要保留 '$96 m' 这类简写,把 'm' 改成 r"m(?=illion\b|\b)" 之类带边界写法并加单测。注意 _money_from_text 还服务别处需回归。
 - **验证补充**：Fix is correct: r'\$\s*([0-9][0-9]*(?:\.[0-9]+)?)\s*(million|billion|bn)?\b' verified — '$96 measured'→96 (raw, gate kills it), '$96 million'→96M, '$1.5 billion'→1.5e9, '$96bn'→9.6e10 all correct; only loses bare '$96 m' shorthand which DEF 14A rarely uses. Finding's 'still serves other places, needs regression' is overstated — grep confirms _money_from_text has exactly ONE caller in the whole repo (line 235), so no external regression surface.
 - **影响面/回归风险**：影响所有走第三优先级兜底取 CEO 薪酬的 ticker(DEF 14A 无标准 SCT 表/无 402(u) 明文披露时);回归风险低,正则收紧只会少匹配垃圾。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（ownership.py:_money_from_text 正则去掉无边界的裸 m 乘子，改 (million|billion|bn)?\b；scale 分支改 ==million。验证 $96 measured→96(被闸门杀)、$96 million→96M、$1.5 billion→1.5e9、$96bn→9.6e10。新增单测。与 BUG-012 同提交。）
 
 #### [BUG-012] CEO 姓名/总薪酬/pay-ratio 三字段各自独立 first-match 抽取,无任何一致性勾稽,可把张冠李戴/跨年度/口径不符的三元组当权威披露并排展示
 
@@ -283,7 +283,7 @@
 - **验证补充**：Core fix is right: prefer the paired (disclosure_comp, disclosure_ratio) since _ceo_comp_and_ratio_from_disclosure already returns them from the same 402(u) paragraph — reorder so disclosure ratio wins when disclosure comp is also taken, instead of letting global first-match _extract_ceo_pay_ratio override it. Caveat on the proposed name-comp same-source meta-field: that overlaps finding [3]; do it once, not twice. The comp/median≈ratio numeric self-consistency check is sound but median-employee comp isn't currently extracted, so it can only gate when disclosure prose carries the median figure — scope it accordingly.
 - **影响面/回归风险**：影响所有 DEF 14A 同段落含多年/对比表(TSLA proxy 嵌 Apple/Tim Cook 对比表的坑代码注释已记)的 ticker;回归风险中,需补黄金样本(NVDA/AAPL/JPM 真 proxy 片段)断言。
 - **合并自**：gap-r2-2#2, gap-r2-2#3（2 条同源发现）
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（ownership.py:build_proxy_compensation 重排——disclosure 成对 (comp,ratio) 存在时 ratio 作为整体优先，_extract_ceo_pay_ratio 仅兜底；并把 _ceo_comp_and_ratio_from_disclosure 改为真正成对（ratio 从 comp 匹配位起搜，避免文档级 first-match 抓上一年）。复现「上一年 250 / 本年 312」现返回 312。未做 name-comp 同源元字段与 comp/median 数值自洽（按指示延后/属他条）。ruff+mypy --strict + 22 例通过。与 BUG-011 同提交。）
 
 #### [BUG-013] earnings.py float(row.get('revenue_actual',0)) crashes (TypeError) on present-but-None revenue, and otherwise fabricates $0 revenue → false -100% surprise
 

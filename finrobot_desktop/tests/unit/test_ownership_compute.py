@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from finrobot.engine.compute.ownership import (
     _canonical_transaction_type,
+    _money_from_text,
     build_proxy_compensation,
     build_schedule13_alerts,
     compute_ownership_governance,
@@ -195,6 +196,35 @@ def test_proxy_compensation_pay_ratio_disclosure_is_comp_fallback() -> None:
     assert comp is not None
     assert comp.ceo_total_compensation == 36_343_830.0
     assert comp.ceo_pay_ratio == 129
+
+
+def test_money_from_text_bare_m_is_not_a_million_multiplier() -> None:
+    """BUG-011: the scale regex matched a bare 'm' with no word boundary, so
+    "$96 measured over the period" parsed as 96 x 1e6 = $96,000,000 and the
+    garbage cleared the [1M, 500M] CEO-comp gate. A raw $96 must stay $96 so
+    the gate drops it. The real million/billion/bn suffixes still scale."""
+    assert _money_from_text("$96 measured over the period") == 96.0
+    assert _money_from_text("$96 million") == 96_000_000.0
+    assert _money_from_text("$1.5 billion") == 1_500_000_000.0
+    assert _money_from_text("$96bn") == 96_000_000_000.0
+
+
+def test_proxy_pay_ratio_ignores_prior_year_ratio_for_current_year_pair() -> None:
+    """BUG-012: the disclosure parser must return the (comp, ratio) pair from
+    the SAME current-year 402(u) sentence. A prior-year ratio quoted earlier
+    ("Last year, our CEO pay ratio was 250 to 1") must NOT override the
+    current-year ratio (312) paired with the current-year CEO total comp."""
+    text = (
+        "Our median employee total compensation for fiscal 2025 was $96,000. "
+        "Last year, our CEO pay ratio was 250 to 1. For fiscal 2025, our CEO "
+        "total compensation was $30,000,000 and our CEO pay ratio was 312 to 1."
+    )
+    comp = build_proxy_compensation(
+        {"filing_date": "2025-03-01", "accession_no": "x", "text": text}
+    )
+    assert comp is not None
+    assert comp.ceo_total_compensation == 30_000_000.0
+    assert comp.ceo_pay_ratio == 312
 
 
 def test_form4_code_M_derivative_side_is_exercise_not_sale() -> None:

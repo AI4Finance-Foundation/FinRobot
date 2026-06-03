@@ -23,12 +23,21 @@ Usage:
 Idempotent: PRIMARY KEY upsert in sec_holdings_cache.bulk_upsert_holdings.
 
 NOTE: This script's 13F XML parsing path depends on edgartools 5.31.5's
-ThirteenF.holdings DataFrame schema. The exact column names are confirmed
-via probe (``tests/fixtures/edgar/thirteenf_probe.json`` records that one
-13F-HR contains ~386 holdings rows; we read those rows' column structure
-from a live filing on first run and emit a structured warning if the
-schema drifted under us — the cache stays consistent until the schema
-fix lands.
+``ThirteenF.holdings`` DataFrame schema, which emits **PascalCase** columns
+``['Issuer', 'Class', 'Cusip', 'Ticker', 'SharesPrnAmount', 'Value', ...]``
+(confirmed by inspecting ``edgar.thirteenf.ThirteenF.holdings`` source).
+We lowercase the columns on ingest (``rename(columns=str.lower)``) so the
+rest of the code is casing-agnostic, then read the lowercased names. If a
+future edgartools renames a column outright (not just recases it), the
+schema gate logs + skips and emits a structured warning so the cache stays
+consistent until the mapping is fixed.
+
+edgartools' ``holdings.Value`` is already in **whole US dollars** for every
+filing era: ``ThirteenF.infotable`` internally converts pre-Q4-2022
+thousands values to dollars (``if self._value_in_thousands: Value *= 1000``).
+So we do NOT multiply by 1000 here — doing so would overstate every position
+1000x (verified: Berkshire's Apple stake reads 57,843,260,493 = $57.8B, not
+$57.8T).
 """
 
 from __future__ import annotations
@@ -44,10 +53,16 @@ logger = logging.getLogger("refresh_sec_holdings")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
-# Common 13F holdings DataFrame columns we expect from edgartools 5.31.
-# If a column is missing we log + skip the row (don't crash the job).
+# edgartools 5.31.5 ThirteenF.holdings emits PascalCase columns
+# ['Issuer', 'Class', 'Cusip', 'Ticker', 'SharesPrnAmount', 'Value', ...].
+# We rename(columns=str.lower) on ingest, so the gate checks the LOWERCASED
+# names below. If a column is missing we log + skip the filing (don't crash).
 _EXPECTED_COLUMNS = {
-    "cusip", "nameOfIssuer", "titleOfClass", "value", "sshPrnamt",
+    "cusip",
+    "issuer",
+    "class",
+    "sharesprnamount",
+    "value",
 }
 
 
@@ -91,15 +106,17 @@ def _normalise_holding_row(
             # legal name, so rows remain queryable without a licensed CUSIP map.
             "ticker": None,
             "cusip": cusip,
-            "name_of_issuer": str(df_row.get("nameOfIssuer") or ""),
-            "title_of_class": str(df_row.get("titleOfClass") or "COM"),
+            # Lowercased edgartools names: Issuer->issuer, Class->class,
+            # SharesPrnAmount->sharesprnamount, Value->value.
+            "name_of_issuer": str(df_row.get("issuer") or ""),
+            "title_of_class": str(df_row.get("class") or "COM"),
             "holder_name": filer_name,
             "holder_cik": filer_cik,
-            "shares": int(df_row.get("sshPrnamt") or 0),
-            # 13F-HR reports `value` in THOUSANDS of USD (per SEC schema);
-            # normalise to whole dollars to match every other money field
-            # in FinRobot.
-            "value_usd": float(df_row.get("value") or 0) * 1000.0,
+            "shares": int(df_row.get("sharesprnamount") or 0),
+            # edgartools' Value is already whole US dollars (it normalises
+            # pre-Q4-2022 thousands internally). NO ×1000 here — that would
+            # overstate every position 1000x.
+            "value_usd": float(df_row.get("value") or 0),
             "period_end": period_end,
             "filing_date": filing_date,
             "accession_no": accession_no,
@@ -118,7 +135,9 @@ async def _refresh_quarter(period_end: date, *, max_filings: int | None = None) 
     from edgar import get_filings  # local import: scripts shouldn't fail to load
     from finrobot.engine.data.sec_holdings_cache import bulk_upsert_holdings, cache_status
 
-    logger.info("refreshing 13F holdings for period_end=%s (max_filings=%s)", period_end, max_filings)
+    logger.info(
+        "refreshing 13F holdings for period_end=%s (max_filings=%s)", period_end, max_filings
+    )
 
     # 13F-HR filings whose period_of_report == this quarter end. EdgarTools
     # exposes `get_filings(form="13F-HR")` — we filter by period_of_report
@@ -152,14 +171,17 @@ async def _refresh_quarter(period_end: date, *, max_filings: int | None = None) 
             holdings_df = getattr(thirteenf, "holdings", None)
             if holdings_df is None:
                 continue
+            # edgartools 5.31.5 emits PascalCase columns (Issuer, Cusip,
+            # SharesPrnAmount, Value, ...). Lowercase them so the rest of the
+            # code is casing-agnostic and the schema gate / row mapping below
+            # read stable lowercased names.
+            holdings_df = holdings_df.rename(columns=str.lower)
             cols = set(getattr(holdings_df, "columns", []))
             missing = _EXPECTED_COLUMNS - cols
             if missing:
                 filings_skipped_schema += 1
                 if len(skipped_schema_examples) < 5:
-                    skipped_schema_examples.append(
-                        f"{f.accession_no} missing {sorted(missing)}"
-                    )
+                    skipped_schema_examples.append(f"{f.accession_no} missing {sorted(missing)}")
                 continue
             normalised_rows: list[dict[str, Any]] = []
             for record in holdings_df.to_dict("records"):
@@ -177,8 +199,11 @@ async def _refresh_quarter(period_end: date, *, max_filings: int | None = None) 
                 rows_inserted += await bulk_upsert_holdings(normalised_rows)
             filings_processed += 1
             if filings_processed % 50 == 0:
-                logger.info("processed %d filings, %d rows inserted so far",
-                            filings_processed, rows_inserted)
+                logger.info(
+                    "processed %d filings, %d rows inserted so far",
+                    filings_processed,
+                    rows_inserted,
+                )
         except (OSError, RuntimeError, ValueError, TypeError, AttributeError, KeyError) as e:
             logger.exception("13F %s failed: %s", getattr(f, "accession_no", "?"), e)
 
@@ -203,10 +228,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--period", help="Quarter end ISO date, e.g. 2026-03-31")
-    group.add_argument("--latest", action="store_true",
-                       help="Most recent completed quarter (45+ days past period end)")
-    parser.add_argument("--max-filings", type=int, default=None,
-                        help="Cap total 13F filings processed (dev only)")
+    group.add_argument(
+        "--latest",
+        action="store_true",
+        help="Most recent completed quarter (45+ days past period end)",
+    )
+    parser.add_argument(
+        "--max-filings", type=int, default=None, help="Cap total 13F filings processed (dev only)"
+    )
     parser.add_argument(
         "--identity",
         default=None,
@@ -220,6 +249,7 @@ def main() -> int:
         return 2
 
     from edgar import set_identity
+
     set_identity(identity)
 
     if args.latest:

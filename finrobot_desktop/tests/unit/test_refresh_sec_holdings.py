@@ -5,17 +5,53 @@ import types
 from datetime import date
 from typing import Any
 
+import pandas as pd
 import pytest
 
 from scripts.refresh_sec_holdings import _refresh_quarter
 
+# This fixture mirrors the REAL edgartools 5.31.5 ThirteenF.holdings schema:
+#   id_cols  = ['Issuer', 'Class', 'Cusip', 'Ticker']
+#   sum_cols = ['SharesPrnAmount', 'Value', 'SoleVoting', 'SharedVoting', 'NonVoting']
+# (confirmed via inspect.getsource(edgar.thirteenf.ThirteenF.holdings)).
+# edgartools' Value column is ALREADY whole US dollars for every filing era.
+EDGARTOOLS_VERSION_EXPECTATION = "5.31.x"
 
-class _FakeHoldings:
-    columns = ["issuerName"]
+# A $250M position: 1,000,000 shares, Value reported in whole dollars.
+_FIXTURE_VALUE_WHOLE_DOLLARS = 250_000_000
+_FIXTURE_SHARES = 1_000_000
+
+
+def _real_schema_holdings() -> pd.DataFrame:
+    """A holdings DataFrame using edgartools 5.31.5 PascalCase columns."""
+    return pd.DataFrame(
+        [
+            {
+                "Issuer": "APPLE INC",
+                "Class": "COM",
+                "Cusip": "037833100",
+                "Ticker": "AAPL",
+                "SharesPrnAmount": _FIXTURE_SHARES,
+                "Value": _FIXTURE_VALUE_WHOLE_DOLLARS,
+                "SoleVoting": _FIXTURE_SHARES,
+                "SharedVoting": 0,
+                "NonVoting": 0,
+                "Type": "Shares",
+                "PutCall": "",
+            }
+        ]
+    )
+
+
+def _drifted_schema_holdings() -> pd.DataFrame:
+    """A holdings DataFrame whose columns were renamed outright (not just
+    recased) — the schema gate must skip it, not silently parse garbage."""
+    return pd.DataFrame([{"issuerName": "APPLE INC", "shares": 1}])
 
 
 class _FakeThirteenF:
-    holdings = _FakeHoldings()
+    def __init__(self, df: pd.DataFrame) -> None:
+        self.holdings = df
 
 
 class _FakeFiling:
@@ -24,44 +60,103 @@ class _FakeFiling:
     company = "Example Manager"
     cik = "0000000000"
 
-    def __init__(self, accession_no: str) -> None:
+    def __init__(self, accession_no: str, df: pd.DataFrame) -> None:
         self.accession_no = accession_no
+        self._df = df
 
     def obj(self) -> _FakeThirteenF:
-        return _FakeThirteenF()
+        return _FakeThirteenF(self._df)
+
+
+def _install_fakes(
+    monkeypatch: pytest.MonkeyPatch,
+    filings: list[_FakeFiling],
+    captured_rows: list[dict[str, Any]],
+) -> None:
+    fake_edgar = types.ModuleType("edgar")
+    fake_edgar.get_filings = lambda form: list(filings)  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "edgar", fake_edgar)
+
+    async def _capture_bulk_upsert(rows: list[dict[str, Any]]) -> int:
+        rows = list(rows)
+        captured_rows.extend(rows)
+        return len(rows)
+
+    async def _fake_cache_status() -> dict[str, Any]:
+        return {
+            "populated": bool(captured_rows),
+            "row_count": len(captured_rows),
+            "latest_period_end": None,
+            "distinct_tickers": 0,
+        }
+
+    fake_cache = types.ModuleType("finrobot.engine.data.sec_holdings_cache")
+    fake_cache.bulk_upsert_holdings = _capture_bulk_upsert  # type: ignore[attr-defined]
+    fake_cache.cache_status = _fake_cache_status  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "finrobot.engine.data.sec_holdings_cache", fake_cache)
 
 
 @pytest.mark.asyncio
-async def test_refresh_quarter_aggregates_schema_warnings(
+async def test_refresh_quarter_parses_real_edgartools_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression guard for BUG-075 + BUG-086.
+
+    The DataFrame uses real edgartools 5.31.5 PascalCase columns. Before the
+    fix, the schema gate looked for raw-XML lowercase names → every filing was
+    skipped as 'unexpected schema' → cache stayed empty. After the fix we
+    rename(columns=str.lower) on ingest, so rows are parsed.
+    """
+    captured: list[dict[str, Any]] = []
+    _install_fakes(
+        monkeypatch,
+        [_FakeFiling("a1", _real_schema_holdings())],
+        captured,
+    )
+
+    summary = await _refresh_quarter(date(2026, 3, 31))
+
+    # BUG-075: rows are now actually parsed, not all dropped.
+    assert summary["filings_skipped_schema"] == 0
+    assert summary["filings_processed"] == 1
+    assert summary["rows_inserted"] == 1
+    assert len(captured) == 1
+
+    row = captured[0]
+    assert row["cusip"] == "037833100"
+    assert row["name_of_issuer"] == "APPLE INC"
+    assert row["title_of_class"] == "COM"
+    assert row["shares"] == _FIXTURE_SHARES
+
+    # BUG-086: edgartools' Value is already whole dollars — must NOT be ×1000.
+    # A fixtured 250_000_000 stays 250_000_000, not 250_000_000_000.
+    assert row["value_usd"] == float(_FIXTURE_VALUE_WHOLE_DOLLARS)
+    assert row["value_usd"] != float(_FIXTURE_VALUE_WHOLE_DOLLARS) * 1000.0
+
+
+@pytest.mark.asyncio
+async def test_refresh_quarter_skips_genuinely_drifted_schema(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    fake_edgar = types.ModuleType("edgar")
-    fake_edgar.get_filings = lambda form: [_FakeFiling("a1"), _FakeFiling("a2")]  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "edgar", fake_edgar)
-
-    fake_cache = types.ModuleType("finrobot.engine.data.sec_holdings_cache")
-    fake_cache.bulk_upsert_holdings = _unused_bulk_upsert  # type: ignore[attr-defined]
-    fake_cache.cache_status = _fake_cache_status  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "finrobot.engine.data.sec_holdings_cache", fake_cache)
+    """A column rename that survives lowercasing (real drift) still skips."""
+    captured: list[dict[str, Any]] = []
+    _install_fakes(
+        monkeypatch,
+        [
+            _FakeFiling("a1", _drifted_schema_holdings()),
+            _FakeFiling("a2", _drifted_schema_holdings()),
+        ],
+        captured,
+    )
 
     caplog.set_level("WARNING", logger="refresh_sec_holdings")
     summary = await _refresh_quarter(date(2026, 3, 31))
 
     assert summary["filings_skipped_schema"] == 2
+    assert summary["rows_inserted"] == 0
+    assert not captured
     messages = [record.message for record in caplog.records]
-    assert not any("13F a1 has unexpected schema" in message for message in messages)
-    assert any("skipped 2 13F filings with unexpected holdings schema" in message for message in messages)
-
-
-async def _unused_bulk_upsert(_rows: list[dict[str, Any]]) -> int:
-    raise AssertionError("schema-skipped filings must not upsert rows")
-
-
-async def _fake_cache_status() -> dict[str, Any]:
-    return {
-        "populated": False,
-        "row_count": 0,
-        "latest_period_end": None,
-        "distinct_tickers": 0,
-    }
+    assert any(
+        "skipped 2 13F filings with unexpected holdings schema" in message for message in messages
+    )

@@ -119,13 +119,13 @@
 | BUG-070 | Bug | P2 | artifact 盖 git_commit 戳的 subprocess except 抓错异常类型(只抓 ImportError/Attr/Type/Value)——git 缺失(FileNotFoundError)/超时(TimeoutExpired)未捕获,无 git 环境(pip 安装用户/Docker slim/CI)研报落地最后一步直接崩 | 待修 |
 | BUG-071 | Bug | P2 | FMP _fetch_price 的 price_history 用未复权原始 close(没走 _adjust_fmp_bar),而 _fetch_price_range/yfinance 都已复权——FMP 当 PRICE 主源时 52周高低/SMA 落在名义价上,近一年有拆股的标的 52周高直接 ×拆股比 | 待修 |
 | BUG-074 | Bug | P2 | DCF 末年 FCF 为负时 Gordon 终值把负现金流资本化成永续负值→产出负的『每股公允价值』,degrade 分支只防 tg≥WACC 接不住,负价无 guard 直接进研报叙事+LLM prompt | 待修 |
-| BUG-075 | Bug | P2 | 13F refresh job 假设 edgartools 小写列名,实装 5.31.5 输出 PascalCase(Cusip/Issuer/Value)→ 每份 filing 被 schema gate 跳过,institutional_holdings 永久空(缓存 0 行),测试 mock 小写列所以 CI 绿 | 待修 |
+| BUG-075 | Bug | P2 | 13F refresh job 假设 edgartools 小写列名,实装 5.31.5 输出 PascalCase(Cusip/Issuer/Value)→ 每份 filing 被 schema gate 跳过,institutional_holdings 永久空(缓存 0 行),测试 mock 小写列所以 CI 绿 | 已修 |
 | BUG-078 | Bug | P2 | agent 工厂/orchestrator 用无 encoding 的 read_text() 读含中文的 .md 指令文件——非 UTF-8 locale(裸 Docker LANG=C/Windows)下 agent 创建即 UnicodeDecodeError 崩;同仓 skills/loader.py 已带 encoding,这两处漏写 | 待修 |
 | BUG-079 | Bug | P2 | semantic_diff.build_semantic_delta 对 data_fetched_at 裸做 datetime 相减,一新(tz-aware)一旧(naive)时抛 TypeError→版本对比端点 500;全 artifact/audit 面仅此处漏 _ensure_tz(同胞模块都防了) | 待修 |
 | BUG-080 | Bug | P2 | /{ticker}/earnings-calls 构造 EarningsCallTranscript 的循环在 try/except 外,FMP 真实 payload 的 quarter 缺失/为 0(年度会/特别会)触发 ValidationError 逃逸→裸 500,而非 per-item 跳过 | 待修 |
 | BUG-081 | Bug | P2 | /{ticker}/price 的 session_state 对所有标的硬编码美东 9:30-16:00 ET 判定→港股/A股/日股盘中被错标『已收盘』,freshness pill 把实时报价显示成上一交易日收盘(与 BUG-030 同源:平台多处默认美国市场) | 待修 |
 | BUG-082 | Bug | P2 | `finrobot dcf <ticker>` 默认路径死锁:_should_use_ddm 的 asyncio.run 把 DataCache 的 aiosqlite 连接绑到随后销毁的 loop,第二个 asyncio.run 复用同连接→worker 线程绑死锁,进程退出时永久 hang(单 loop 测试测不出) | 待修 |
-| BUG-086 | Bug | P2 | [休眠·须与 BUG-075 同修] 13F value 双倍 ×1000:edgartools 5.31.5 已把 Value 归一化成整美元,refresh 脚本 line 102 又无条件 ×1000→机构持仓金额 1000 倍高估($250M 显示成 $250B);当前被 BUG-075 列名 bug 挡住未触发,BUG-075 一修即吐错数 | 待修 |
+| BUG-086 | Bug | P2 | [休眠·须与 BUG-075 同修] 13F value 双倍 ×1000:edgartools 5.31.5 已把 Value 归一化成整美元,refresh 脚本 line 102 又无条件 ×1000→机构持仓金额 1000 倍高估($250M 显示成 $250B);当前被 BUG-075 列名 bug 挡住未触发,BUG-075 一修即吐错数 | 已修 |
 | BUG-087 | Bug | P2 | Prompt 注入:第三方可控的新闻标题(RSS/FMP &lt;title&gt;)未分隔/转义逐字流入 LLM prompt 两处(equity_research thesis + news_classifier)→可注入伪数字/翻转 importance/sentiment 污染研报叙事与 catalyst 选择 | 待修 |
 | BUG-089 | Bug | P2 | POST /chat 的 session_id 未校验即当文件名 stem→含 ../或绝对路径时 .jsonl 写出 sessions 目录(任意路径写、内容攻击者可控);读写两侧 audit/transcript+persistence 都无清洗 | 待修 |
 | UX-008 | 产品 | P2 | HotState 裁决为 REVIEW 时目标价静默消失，不解释『为什么扣留』 | 待修 |
@@ -1137,7 +1137,7 @@
 - **根因**：依赖库列名约定与脚本假设漂移（库升级后大小写变了），mock 用了假设的列名所以测试测不出。
 - **修复方案**：抓取后立即 `holdings_df.rename(columns=str.lower)` 统一小写再消费（不硬编码大小写）；或 _EXPECTED_COLUMNS 与读取改 PascalCase。补一条**用真实 edgartools 5.31.x 列名**的测试并 pin 版本，杜绝再次悄悄腐烂；更新过期的"edgartools 5.31"注释。
 - **影响面/回归风险**：影响所有 ownership/governance 分析的机构持仓段（当前全空）。**注意：修此 bug 会激活 BUG-086（×1000 双倍放大），两条必须一起修**，否则机构金额立刻 1000 倍高估。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（scripts/refresh_sec_holdings.py：抓 ThirteenF.holdings 后立刻 rename(columns=str.lower) 统一小写（inspect 确认实装 edgartools 5.31.5 列为 PascalCase Issuer/Class/Cusip/Ticker/SharesPrnAmount/Value）；_EXPECTED_COLUMNS 与 _normalise_holding_row 读 issuer/class/cusip/sharesprnamount/value（旧 nameOfIssuer/sshPrnamt 等原始 XML 名从不出现，故每份 filing 都被 schema gate 跳过→缓存恒 0 行）。测试改用真实 PascalCase 列（旧 mock 小写所以 CI 绿生产死），断言 filings_skipped_schema==0/rows_inserted。pin edgartools 5.31.x。与 BUG-086 原子同修。）
 
 #### [BUG-076] Sniper coherence gate 比原始 float、ship round(2) 值 → target 与现价差 <$0.005 时产出 R/R=0 的退化交易行
 
@@ -1269,7 +1269,7 @@
 - **根因**：误以为 edgartools 返回的是原始 XML 的 thousands 口径，重复了库已做的归一化；被另一个未修 bug(列名)掩盖处于休眠。
 - **修复方案**：删掉 `* 1000.0`，直接 `float(df_row.get('Value') or 0)`（edgartools 已返整美元、legacy thousands 它自己回填）。补**外部基准断言测试**：取一个已知 holder/issuer/季度（如 Vanguard 的 AAPL 持仓），value_usd 对 SEC EDGAR 实际 13F 值在容差内匹配，gate refresh。
 - **影响面/回归风险**：**必须和 BUG-075 同一次修**——单修 BUG-075 不修本条 = 机构金额 1000 倍错进 artifact。两条一起修：列名对齐(取数能进) + 删 ×1000(口径对) + 外部基准测试(防回归)。
-- **置信度**：high（技术判定确证，验证者唯一保留是"当前休眠不可达"，已如实标注）　|　**状态**：待修
+- **置信度**：high（技术判定确证，验证者唯一保留是"当前休眠不可达"，已如实标注）　|　**状态**：已修（scripts/refresh_sec_holdings.py:value 去掉 ×1000——inspect ThirteenF.infotable 确认 edgartools 5.31.5 已把 13F Value 归一成整美元（_value_in_thousands 内部已乘）。外部基准：Berkshire 2026Q1 13F AAPL=227.9M 股 × Value 57,843,260,493=$57.8B（×1000 会变 $57.8T>全球 GDP）；Brown Financial 201,715 股 Value 12,909,756=$12.9M。测试断言 value 250_000_000 不被 ×1000。被 BUG-075 列名 bug 挡住故 dormant，必与 BUG-075 同修。）
 
 > **以下 BUG-087 ~ BUG-089 来自 2026-06-03 第三轮『敌对输入/二阶/序列化-导出』红队审计**（10 个对抗透镜扇出 → Bash 构造恶意/异形输入实测复现 → 对抗验证者默认 refute → 12 候选中 4 条 real，已合并 prompt 注入双站点为 BUG-087）。威胁模型=本地单用户分析师分析公开公司；多租户鉴权类不重报。**值得注意：export 公式注入 / NaN-JSON / ReDoS / 缓存键 / Python 脚枪 / XSS 这些假设都被实测验证后 refuted——这些面项目其实防住了。**
 

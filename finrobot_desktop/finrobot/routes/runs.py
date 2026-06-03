@@ -17,6 +17,7 @@ from starlette.requests import Request
 from starlette.responses import StreamingResponse
 
 from finrobot.engine.data.interface import ProviderError
+from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.pipelines.base import PipelineResult
 from finrobot.engine.pipelines.registry import get_pipeline_factories
 from finrobot.events import (
@@ -60,7 +61,9 @@ class CreateRunRequest(BaseModel):
 
 
 def _normalise_ticker(t: str) -> str:
-    return t.strip().upper()
+    # Shared validator: strips + upper-cases + rejects junk. The ValueError it
+    # raises on a bad symbol is mapped to a 400 at create_run().
+    return validate_ticker(t)
 
 
 class CreateRunResponse(BaseModel):
@@ -124,9 +127,9 @@ async def spawn_run(
     factories = get_pipeline_factories()
     if pipeline_type not in factories:
         raise ValueError(f"Invalid pipeline: {pipeline_type}. Valid: {sorted(factories.keys())}")
+    # Raises ValueError (→ 400) on blank or syntactically invalid ticker; the
+    # shared validator subsumes the old `if not norm: raise` blank check.
     norm = _normalise_ticker(ticker)
-    if not norm:
-        raise ValueError("ticker is required")
 
     store: RunStore = request.app.state.run_store
     record = await store.create_run(

@@ -5,25 +5,25 @@ Routes:
       → SearchResponse with typed results (ticker / artifact)
 
 Routing logic for ``q``:
-  - Looks like a ticker (``^[A-Z0-9.\\-]{1,10}$``) → emit ticker navigation suggestion
-  - Otherwise                                        → substring search across artifacts
+  - Looks like a ticker (shared ``validate_ticker`` syntax) → emit ticker
+    navigation suggestion
+  - Otherwise → substring search across artifacts
 """
 
 from __future__ import annotations
 
-import re
 from typing import Literal
 
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
+
+from finrobot.engine.data.ticker import validate_ticker
 
 router = APIRouter()
 
 # ---------------------------------------------------------------------------
 # Schema
 # ---------------------------------------------------------------------------
-
-_TICKER_RE = re.compile(r"^[A-Z0-9.\-]{1,10}$")
 
 
 class SearchResult(BaseModel):
@@ -51,7 +51,11 @@ class SearchResponse(BaseModel):
 
 
 def _looks_like_ticker(q: str) -> bool:
-    return bool(_TICKER_RE.match(q.upper()))
+    try:
+        validate_ticker(q)
+    except ValueError:
+        return False
+    return True
 
 
 def _matches(q: str, *fields: str) -> bool:

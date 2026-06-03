@@ -9,6 +9,7 @@ import click
 
 from finrobot.config import get_settings
 from finrobot.engine.analysis.prompts import ANALYSIS_TYPES
+from finrobot.engine.data.ticker import validate_ticker
 
 if TYPE_CHECKING:
     from finrobot.engine.deps import FinRobotDeps
@@ -21,6 +22,20 @@ _HTML_REPORT_NOTE = (
     "then trigger the analysis via the /chat API or Desktop app. "
     "CLI results are not shared with the server (separate processes)."
 )
+
+
+def _validate_ticker_arg(raw: str) -> str:
+    """Normalise a CLI ``ticker`` argument or abort with a clean CLI error.
+
+    Wraps the shared :func:`validate_ticker` so cache keys stay consistent and
+    junk symbols are rejected before a pipeline ever runs. A raised ValueError
+    becomes a ``ClickException`` (clean one-line stderr, exit 1) instead of a
+    traceback.
+    """
+    try:
+        return validate_ticker(raw)
+    except ValueError as e:
+        raise click.ClickException(str(e)) from e
 
 
 def _build_deps(model: str | None = None) -> "FinRobotDeps":
@@ -192,6 +207,7 @@ def research(ticker: str, model: str | None, lang: str | None) -> None:
     Calls pipeline.execute() directly — does NOT rely on LLM tool selection.
     This is deterministic: the pipeline always runs all 5 steps regardless of model.
     """
+    ticker = _validate_ticker_arg(ticker)
     deps = _build_deps(model)
 
     from finrobot.engine.agents.factory import create_sub_agents
@@ -222,6 +238,7 @@ def research(ticker: str, model: str | None, lang: str | None) -> None:
 )
 def comps(ticker: str, model: str | None, lang: str | None, peers: str | None) -> None:
     """Run comparable company analysis pipeline."""
+    ticker = _validate_ticker_arg(ticker)
     deps = _build_deps(model)
 
     from finrobot.engine.agents.factory import create_sub_agents
@@ -263,6 +280,7 @@ def dcf(ticker: str, model: str | None, force_dcf: bool, lang: str | None) -> No
     For banks (detected via industry/sector), automatically uses DDM
     (Dividend Discount Model) instead of FCF-DCF. Use --force-dcf to override.
     """
+    ticker = _validate_ticker_arg(ticker)
     deps = _build_deps(model)
 
     from finrobot.engine.agents.factory import create_sub_agents
@@ -312,6 +330,7 @@ def ddm(ticker: str, model: str | None, lang: str | None) -> None:
     Appropriate for banks, utilities, and dividend-paying stocks where
     traditional free cash flow is not meaningful.
     """
+    ticker = _validate_ticker_arg(ticker)
     deps = _build_deps(model)
 
     from finrobot.engine.agents.factory import create_sub_agents
@@ -339,6 +358,7 @@ def lbo(ticker: str, model: str | None, lang: str | None) -> None:
 
     Deterministic IRR/MOIC arithmetic — LLM selects assumptions, code computes returns.
     """
+    ticker = _validate_ticker_arg(ticker)
     deps = _build_deps(model)
 
     from finrobot.engine.agents.factory import create_sub_agents
@@ -366,6 +386,7 @@ def earnings(ticker: str, model: str | None, lang: str | None) -> None:
 
     Requires FMP API key for earnings surprise data (set FINROBOT_FMP_API_KEY).
     """
+    ticker = _validate_ticker_arg(ticker)
     deps = _build_deps(model)
 
     from finrobot.engine.agents.factory import create_sub_agents
@@ -392,6 +413,7 @@ def ic_memo(ticker: str, model: str | None, lang: str | None) -> None:
 
     Runs DCF + LBO inline and applies IRR hurdle gate (PASS if IRR < 15%).
     """
+    ticker = _validate_ticker_arg(ticker)
     deps = _build_deps(model)
 
     from finrobot.engine.agents.factory import create_sub_agents
@@ -421,6 +443,10 @@ def compare(tickers: tuple[str, ...], model: str | None) -> None:
         raise click.ClickException("At least 2 tickers required for comparison.")
     if len(tickers) > 10:
         raise click.ClickException("Maximum 10 tickers supported.")
+
+    # Validate + normalise every symbol before any pipeline runs, so one junk
+    # ticker fails fast instead of producing a per-company error row.
+    norm_tickers = tuple(_validate_ticker_arg(t) for t in tickers)
 
     deps = _build_deps(model)
 
@@ -480,7 +506,7 @@ def compare(tickers: tuple[str, ...], model: str | None) -> None:
             return CompanyValuation(ticker=ticker, error=str(e)[:200])
 
     async def _run_all() -> ComparisonResult:
-        tasks = [_run_one(t.upper()) for t in tickers]
+        tasks = [_run_one(t) for t in norm_tickers]
         companies = await asyncio.gather(*tasks)
         return ComparisonResult(companies=list(companies))
 
@@ -537,6 +563,8 @@ def backtest(
     With --auto, the LLM picks and iteratively tunes strategy parameters:
         finrobot backtest AAPL --start 2023-01-01 --end 2024-01-01 --auto
     """
+    ticker = _validate_ticker_arg(ticker)
+
     from finrobot.data_layer_factory import build_data_layer
     from finrobot.engine.backtest.engine import BacktestConfig, BacktestResult
 
@@ -608,6 +636,8 @@ def ask(ticker: str, question: str, model: str | None, top_k: int) -> None:
     Fetches the latest 10-K from SEC EDGAR, retrieves relevant passages
     via BM25, and answers the question with source citations.
     """
+    ticker = _validate_ticker_arg(ticker)
+
     from finrobot.engine.analysis.qa import run_qa
 
     deps = _build_deps(model)
@@ -630,6 +660,8 @@ def analyze(ticker: str, analysis_type: str, model: str | None) -> None:
 
     ANALYSIS_TYPE: balance | cashflow | competitors | income | overview | risk
     """
+    ticker = _validate_ticker_arg(ticker)
+
     from finrobot.engine.analysis.prompts import run_analysis
 
     deps = _build_deps(model)

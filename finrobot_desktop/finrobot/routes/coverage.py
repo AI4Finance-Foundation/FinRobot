@@ -19,7 +19,6 @@ endpoint seeds the State-D ``Studied Tickers`` group on first visit.
 from __future__ import annotations
 
 import logging
-import re
 import time
 from typing import Literal
 
@@ -40,31 +39,32 @@ from finrobot.coverage.service import (
 )
 from finrobot.coverage.sqlite_store import CoverageStore
 from finrobot.engine.data.layer import DataLayer
+from finrobot.engine.data.ticker import validate_ticker
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/coverage", tags=["coverage"])
 
-# Single backend source of truth for a coverage ticker symbol. MIRROR of
-# ui/src/utils/ticker.ts TICKER_RE — keep the two in sync. 1–12 chars,
-# upper-case A–Z / digits / '.' / '-' (BRK-B, BRK.B, RDS.A…). Stops junk like
-# "苹果", "AAPL;MSFT", or over-long strings from being persisted and then
-# fanned out to providers forever (BUG-053).
-_TICKER_RE = re.compile(r"^[A-Z0-9.\-]{1,12}$")
-
 
 def _clean_tickers(raw: list[str]) -> list[str]:
-    """Upper-case + dedupe valid symbols; raise ValueError listing any invalid."""
+    """Upper-case + dedupe valid symbols; raise ValueError listing any invalid.
+
+    Per-symbol syntax is the shared :func:`validate_ticker` (the one backend
+    source of truth); this wrapper adds the batch concerns: dedupe, skip
+    blanks, and collect every bad symbol into one message.
+    """
     cleaned: list[str] = []
     bad: list[str] = []
     seen: set[str] = set()
     for t in raw:
-        s = t.strip().upper()
-        if not s:
+        if not t.strip():
             continue
-        if not _TICKER_RE.match(s):
+        try:
+            s = validate_ticker(t)
+        except ValueError:
             bad.append(t)
-        elif s not in seen:
+            continue
+        if s not in seen:
             seen.add(s)
             cleaned.append(s)
     if bad:
@@ -109,10 +109,7 @@ class StudiedMemberRequest(BaseModel):
     @field_validator("ticker")
     @classmethod
     def _validate(cls, v: str) -> str:
-        s = v.strip().upper()
-        if not _TICKER_RE.match(s):
-            raise ValueError(f"Invalid ticker symbol: {v}")
-        return s
+        return validate_ticker(v)
 
 
 class BatchRunRequest(BaseModel):

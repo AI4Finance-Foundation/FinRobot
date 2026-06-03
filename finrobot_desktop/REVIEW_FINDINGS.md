@@ -68,7 +68,7 @@
 | BUG-017 | Bug | P1 | Chat-triggered pipelines bypass the app-wide concurrency semaphore — LLM can fire unbounded parallel heavy runs | 待修 |
 | BUG-018 | Bug | P1 | Scoped coverage-group hit-rate silently truncates to the GLOBAL newest-500 page → groups show null track record despite having one | 待修 |
 | BUG-019 | Bug | P1 | Sharpe ratio uses backtrader default timeframe=Years on daily bars → None for ~1yr windows, meaningless for multi-year | 已修 |
-| BUG-020 | Bug | P1 | CLI 全部 pipeline 命令零 ticker 校验/归一化：脏 ticker 直灌 provider + 污染缓存与 artifact | 待修 |
+| BUG-020 | Bug | P1 | CLI 全部 pipeline 命令零 ticker 校验/归一化：脏 ticker 直灌 provider + 污染缓存与 artifact | 已修 |
 | BUG-021 | Bug | P1 | backtest --auto 对 LLM 失败无任何兜底：直接裸崩，也不回退确定性策略 | 待修 |
 | BUG-022 | Bug | P1 | 零 busy_timeout + 多进程写同一 data_cache.db → SQLITE_BUSY 直接抛到调用方 | 待修 |
 | BUG-023 | Bug | P1 | Artifact PRIMARY KEY 用秒级时间戳，同票同类型同秒 run 静默覆盖前一份研报（审计链断档） | 待修 |
@@ -81,7 +81,7 @@
 | BUG-030 | Bug | P1 | 13 章研报全程硬编码 $，而 Coverage 是币种感知——非美元标的会印错币种符号 | 待修 |
 | BUG-031 | Bug | P1 | Coverage 批量运行 >6 个 ticker 时耗尽浏览器 HTTP/1.1 连接池，多余的 SSE 与所有普通 API 轮询被无限阻塞 | 待修 |
 | BUG-032 | Bug | P1 | Coverage overview 全量 fetch 失败但 fast skeleton 成功时，卡片市场列永久空白——无错误态、无 shimmer、无重试入口 | 待修 |
-| BUG-033 | Bug | P1 | Chat tools and /api/runs accept unvalidated ticker strings while a SoT ticker validator already exists in coverage — junk symbols fan out to live providers | 待修 |
+| BUG-033 | Bug | P1 | Chat tools and /api/runs accept unvalidated ticker strings while a SoT ticker validator already exists in coverage — junk symbols fan out to live providers | 已修 |
 | BUG-073 | Bug | P1 | DCF/DDM 绝对估值对外币 ADR 零 FX 归一化:营收(申报币 TWD/EUR)与市值/股本(USD)混算,implied_price 本币计价却当 USD 印出并比价(TSM ~32x 高估)——comps 路径已修,绝对估值路径漏修 | 待修 |
 | BUG-077 | Bug | P1 | SkillRegistry._load_all 只 catch SkillLoadError 不 catch pydantic ValidationError——一个字段类型写错的 SKILL.md(外部/partner 技能常见)使 server/SDK/CLI 启动整体崩,违背其 fail-soft 设计 | 待修 |
 | UX-001 | 产品 | P1 | 冷启动首份研报动线被拆成两条不相通的入口，且 Starter 终点是空墙而非一份研报 | 待修 |
@@ -418,7 +418,7 @@
 - **修复方案**：在 cli.py 顶部把 routes/coverage.py 的 _TICKER_RE 提到共享位置(如 finrobot/engine/data/types.py 或新 finrobot/tickers.py)，写一个 normalize_cli_ticker(raw)->str：strip+upper+_TICKER_RE.match，不匹配 raise click.ClickException(f"Invalid ticker '{raw}'. Use A-Z/0-9/./- up to 12 chars, e.g. AAPL or BRK.B")。在 research/comps/dcf/ddm/lbo/earnings/ic_memo/ask/analyze 入口、compare 的 tickers 循环、backtest 的 ticker 全部先归一再用。注意：与 routes/coverage.py:53 和 ui/src/utils/ticker.ts 保持同一正则(已是手工同步点，趁此抽公共常量消除三处漂移)。改动量小(~15 行 + 1 工具函数)。
 - **验证补充**：Fix direction is right. One sharpening: there are already THREE divergent _TICKER_RE — coverage.py:53 ({1,12}), search.py:26 ({1,10}), validators.py:140 (a different word-boundary regex). Extracting ONE shared constant should reconcile the coverage/search 10-vs-12 drift too, not just add a CLI copy. Note: FMP is case-insensitive in practice so live data still returns; the concrete harm is cache duplication + artifact ticker mismatch + unvalidated junk reaching providers, not a hard fetch failure for lowercase.
 - **影响面/回归风险**：影响所有 CLI pipeline 命令；消除缓存大小写碎片化与脏 ticker fan-out。回归风险低——只收紧入口，合法 ticker 行为不变；唯一行为变更是非法输入从'静默跑/拖累 provider'变为'立刻报错'，符合预期。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（新建共享 finrobot/engine/data/ticker.py（_TICKER_RE {1,12} + validate_ticker 抽 strip+upper+regex）。cli.py 全部 pipeline 命令（research/comps/dcf/ddm/lbo/earnings/ic-memo/ask/analyze/compare/backtest）入口经 _validate_ticker_arg 归一，非法→click.ClickException。消除缓存大小写碎片 + 脏 ticker fan-out。与 BUG-033 同提交。）
 
 #### [BUG-021] backtest --auto 对 LLM 失败无任何兜底：直接裸崩，也不回退确定性策略
 
@@ -589,7 +589,7 @@
 - **验证补充**：Lift _TICKER_RE + validate_ticker() into a shared module (engine/data/ticker.py) and call from all three entry points. Important boundary nuance: in orchestrator tools, RETURN a clean string ('Invalid ticker: X') rather than raise — a raised ValueError there crashes the SSE stream exactly like #3 (the fix text says this; enforce it). Keep ui/src/utils/ticker.ts mirror in sync. P2 is right (waste/abuse, not data corruption of a real ticker).
 - **影响面/回归风险**：Stops wasted pipeline runs and provider quota burn on garbage symbols across all three entry points; prevents garbage-keyed artifacts/cache rows. Regression risk: legitimate exotic symbols must still pass — the regex already allows BRK.B/RDS.A style (dots, hyphens, digits, 1-12 chars); verify any real ticker in current coverage still matches before shipping.
 - **合并自**：bug-routes-api#3, gap-r1-3#3, arch-datamodel#3（3 条同源发现）
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（routes/runs._normalise_ticker、orchestrator 的 run_* 工具与 query_financial_data、routes/coverage、routes/search 全部改用共享 validate_ticker。关键边界：orchestrator 在坏 ticker 时 RETURN 干净字符串（"Invalid ticker symbol: X"）而非 raise，避免崩 SSE 流。reconcile coverage{1,12}/search{1,10} 漂移。验证 BRK.B/RDS.A 通过、苹果/AAPL;DROP/TESLA INC 拒绝。未动 validators.py:140（留后续）。ui/utils/ticker.ts 已是 {1,12} 无漂移。与 BUG-020 同提交。）
 
 #### [BUG-034] SSE run.completed / run.failed can be lost: status flips to terminal in the DB before the terminal event is appended, so the poll loop may break and never emit it
 

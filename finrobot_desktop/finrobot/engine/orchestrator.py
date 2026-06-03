@@ -6,6 +6,7 @@ from pydantic_ai import Agent, RunContext
 
 from finrobot.config import FinRobotSettings
 from finrobot.engine.agents.factory import create_sub_agents
+from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.pipelines.base import Pipeline
@@ -23,18 +24,27 @@ logger = logging.getLogger(__name__)
 
 async def _run_pipeline_tool(
     ctx: RunContext[FinRobotDeps], ticker: str, pipeline: Pipeline
-) -> dict[str, Any]:
+) -> dict[str, Any] | str:
     """Execute a pipeline and return the tool summary dict.
 
     Shared dispatch for every @agent.tool that wraps a Pipeline — every result
     is persisted to ArtifactStore by the pipeline itself; the tool returns the
     artifact_id so the caller can route to the detail page.
+
+    On a syntactically invalid ticker this RETURNS a plain error string rather
+    than raising: a raised ValueError inside a tool propagates out of the
+    PydanticAI run and crashes the live chat SSE stream. Returning lets the LLM
+    see the error and ask the user to correct the symbol.
     """
-    result = await pipeline.execute(ctx.deps, ticker)
+    try:
+        norm = validate_ticker(ticker)
+    except ValueError:
+        return f"Invalid ticker symbol: {ticker}"
+    result = await pipeline.execute(ctx.deps, norm)
     return {
         "summary": result.format_summary(),
         "artifact_id": result.artifact_id,
-        "ticker": ticker.upper(),
+        "ticker": norm,
     }
 
 
@@ -70,7 +80,13 @@ def create_lead_agent(
     ) -> str:
         """Fetch financial data for quick questions.
         data_type: one of DataType values (financials, price, news, earnings, filings, 10k_rag)"""
-        result = await ctx.deps.data_layer.fetch(data_type, ticker)
+        # RETURN (not raise) on bad ticker — a raised ValueError here crashes
+        # the live chat SSE stream; a returned string lets the LLM recover.
+        try:
+            norm = validate_ticker(ticker)
+        except ValueError:
+            return f"Invalid ticker symbol: {ticker}"
+        result = await ctx.deps.data_layer.fetch(data_type, norm)
         return result.to_context_string()
 
     @agent.tool
@@ -89,7 +105,9 @@ def create_lead_agent(
     equity_pipeline = create_equity_research_pipeline(sub_agents)
 
     @agent.tool
-    async def run_equity_research(ctx: RunContext[FinRobotDeps], ticker: str) -> dict[str, Any]:
+    async def run_equity_research(
+        ctx: RunContext[FinRobotDeps], ticker: str
+    ) -> dict[str, Any] | str:
         """Generate a comprehensive equity research report.
         Uses a multi-step enforced pipeline. Takes 30-120 seconds.
         Use this when the user asks for: equity research, initiating coverage,
@@ -99,7 +117,9 @@ def create_lead_agent(
     comps_pipeline = create_comps_pipeline(sub_agents)
 
     @agent.tool
-    async def run_comps_analysis(ctx: RunContext[FinRobotDeps], ticker: str) -> dict[str, Any]:
+    async def run_comps_analysis(
+        ctx: RunContext[FinRobotDeps], ticker: str
+    ) -> dict[str, Any] | str:
         """Build a comparable company analysis.
         Uses a multi-step enforced pipeline.
         Use when user asks for: comps, comparable companies, peer analysis,
@@ -109,7 +129,7 @@ def create_lead_agent(
     dcf_pipeline = create_dcf_pipeline(sub_agents)
 
     @agent.tool
-    async def run_dcf_valuation(ctx: RunContext[FinRobotDeps], ticker: str) -> dict[str, Any]:
+    async def run_dcf_valuation(ctx: RunContext[FinRobotDeps], ticker: str) -> dict[str, Any] | str:
         """Run a DCF valuation model.
         Uses a multi-step enforced pipeline.
         Use when user asks for: DCF, discounted cash flow, intrinsic value,
@@ -119,7 +139,7 @@ def create_lead_agent(
     lbo_pipeline = create_lbo_pipeline(sub_agents)
 
     @agent.tool
-    async def run_lbo_analysis(ctx: RunContext[FinRobotDeps], ticker: str) -> dict[str, Any]:
+    async def run_lbo_analysis(ctx: RunContext[FinRobotDeps], ticker: str) -> dict[str, Any] | str:
         """Run an LBO (leveraged buyout) analysis.
         Uses a multi-step enforced pipeline with deterministic IRR/MOIC math.
         Use when user asks for: LBO, leveraged buyout, private equity analysis,
@@ -129,7 +149,7 @@ def create_lead_agent(
     ddm_pipeline = create_ddm_pipeline(sub_agents)
 
     @agent.tool
-    async def run_ddm_valuation(ctx: RunContext[FinRobotDeps], ticker: str) -> dict[str, Any]:
+    async def run_ddm_valuation(ctx: RunContext[FinRobotDeps], ticker: str) -> dict[str, Any] | str:
         """Run a DDM (Dividend Discount Model) valuation.
         Uses a multi-step enforced pipeline with deterministic dividend-based math.
         Use when user asks for: DDM, dividend discount model, bank valuation,
@@ -140,7 +160,9 @@ def create_lead_agent(
     earnings_pipeline = create_earnings_analysis_pipeline(sub_agents)
 
     @agent.tool
-    async def run_earnings_analysis(ctx: RunContext[FinRobotDeps], ticker: str) -> dict[str, Any]:
+    async def run_earnings_analysis(
+        ctx: RunContext[FinRobotDeps], ticker: str
+    ) -> dict[str, Any] | str:
         """Run an earnings quality analysis (beat rate, surprise trends, streak).
         Uses a multi-step enforced pipeline with deterministic beat/miss classification.
         Use when user asks for: earnings analysis, earnings quality, beat rate,
@@ -150,7 +172,7 @@ def create_lead_agent(
     ic_memo_pipeline = create_ic_memo_pipeline(sub_agents)
 
     @agent.tool
-    async def run_ic_memo(ctx: RunContext[FinRobotDeps], ticker: str) -> dict[str, Any]:
+    async def run_ic_memo(ctx: RunContext[FinRobotDeps], ticker: str) -> dict[str, Any] | str:
         """Generate an Investment Committee (IC) memo with DCF + LBO analysis.
         Uses a multi-step pipeline with IRR hurdle gate (PASS if IRR < 15%).
         Use when user asks for: IC memo, investment committee memo, PE analysis,

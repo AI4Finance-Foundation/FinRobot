@@ -4,10 +4,30 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from finrobot.engine.data.provider_health import ProviderHealth
+from finrobot.engine.data import interface
+from finrobot.engine.data.provider_health import ProviderHealth, is_rate_limit_error
 
 UTC = timezone.utc
 T0 = datetime(2026, 5, 30, 12, 0, 0, tzinfo=UTC)
+
+
+def test_is_rate_limit_error_is_single_consolidated_copy() -> None:
+    """BUG-045: provider_health re-exports interface's classifier — one source
+    of truth, so the same 429 text can't be classified two different ways."""
+    assert is_rate_limit_error is interface.is_rate_limit_error
+
+
+def test_marker_union_covers_all_variants() -> None:
+    """BUG-045: the merged marker set is the union of both former copies, so
+    'throttl' (yfinance) AND 'rate-limit' (FMP) both trip the breaker."""
+    for msg in (
+        "429 Too Many Requests",
+        "rate limit exceeded",
+        "rate-limited by upstream",
+        "request was throttled",
+    ):
+        assert is_rate_limit_error(Exception(msg)) is True
+    assert is_rate_limit_error(Exception("Symbol delisted")) is False
 
 
 def test_unknown_provider_is_available() -> None:

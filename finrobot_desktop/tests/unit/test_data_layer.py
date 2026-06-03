@@ -6,6 +6,7 @@ import pytest
 from finrobot.engine.data.cache import DataCache
 from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
 from finrobot.engine.data.layer import DataLayer
+from finrobot.engine.data.provider_health import ProviderHealth
 from finrobot.engine.data.normalize import NormalizedFinancials, NormalizedPrice
 from finrobot.engine.data.normalize.contracts import (
     DEGRADED_PROVIDER_DIVERGENCE_PREFIX,
@@ -868,3 +869,98 @@ class TestFetchCanonical:
         layer = DataLayer([failing], cache)
         with pytest.raises(ProviderError, match="所有 provider 失败"):
             await layer.fetch_canonical("financials", "AAPL")
+
+
+# ---------------------------------------------------------------------------
+# BUG-045: the ProviderHealth circuit breaker is actually wired into every
+# provider loop, so a tripped (rate-limited / repeatedly-failing) provider is
+# skipped on the NEXT call instead of paying its full timeout again.
+# ---------------------------------------------------------------------------
+
+
+class TestCircuitBreakerWiring:
+    async def test_default_layer_has_a_breaker(self, cache):
+        """No explicit ``health`` arg → DataLayer still owns a breaker."""
+        layer = DataLayer([MockProvider("fmp", ["price"])], cache)
+        assert isinstance(layer._health, ProviderHealth)
+
+    async def test_rate_limited_provider_is_skipped_next_call(self, cache):
+        """A 429 trips the breaker immediately; the next PRICE call skips the
+        rate-limited provider entirely (no second timeout) and the chain's next
+        provider serves the request."""
+        health = ProviderHealth(failure_threshold=3, base_cooldown_s=600)
+        yf = MockProvider(
+            "yfinance", ["price"], raises=ProviderError("Too Many Requests. Rate limited.")
+        )
+        fmp = MockProvider("fmp", ["price"], result=_make_result(data_type="price", provider="fmp"))
+        layer = DataLayer([yf, fmp], cache, health=health)
+
+        # Call 1: yfinance 429s (1 attempt), FMP serves it. Breaker now open on yfinance.
+        r1 = await layer.fetch("price", "NVDA")
+        assert r1.provider == "fmp"
+        assert yf.fetch_called == 1
+
+        # Call 2 (fresh ticker so cache is cold): yfinance is in cooldown and is
+        # NOT re-attempted — that's the whole point of BUG-045.
+        r2 = await layer.fetch("price", "TSLA")
+        assert r2.provider == "fmp"
+        assert yf.fetch_called == 1  # still 1 — skipped, did not pay the timeout
+        assert fmp.fetch_called == 2
+
+    async def test_consecutive_failures_trip_breaker(self, cache):
+        """Below threshold the provider is retried; at threshold it trips and is
+        skipped on the next call."""
+        health = ProviderHealth(failure_threshold=2, base_cooldown_s=600)
+        bad = MockProvider("bad", ["price"], raises=ProviderError("network error"))
+        good = MockProvider(
+            "good", ["price"], result=_make_result(data_type="price", provider="good")
+        )
+        layer = DataLayer([bad, good], cache, health=health)
+
+        await layer.fetch("price", "AAA")  # bad fails (1), good serves
+        assert bad.fetch_called == 1
+        await layer.fetch("price", "BBB")  # bad fails (2 == threshold → trips), good serves
+        assert bad.fetch_called == 2
+        await layer.fetch("price", "CCC")  # bad in cooldown → skipped
+        assert bad.fetch_called == 2
+        assert good.fetch_called == 3
+
+    async def test_success_closes_circuit_and_resets(self, cache):
+        """A success between failures resets the consecutive-failure counter, so
+        the breaker does not trip mid-way."""
+        health = ProviderHealth(failure_threshold=2, base_cooldown_s=600)
+        layer = DataLayer([MockProvider("p", ["price"])], cache, health=health)
+        # Pre-seed one failure, then a real successful fetch should reset it.
+        health.record_failure("p", rate_limited=False)
+        assert health.snapshot("p").consecutive_failures == 1
+        await layer.fetch("price", "AAA")
+        assert health.snapshot("p").consecutive_failures == 0
+
+    async def test_lone_healthy_provider_never_gated(self, cache):
+        """Safety: the breaker must never skip the only available provider — a
+        healthy provider's ``is_available`` is always True, so a single-provider
+        chain is unaffected by the breaker."""
+        only = MockProvider(
+            "only", ["price"], result=_make_result(data_type="price", provider="only")
+        )
+        layer = DataLayer([only], cache)
+        r = await layer.fetch("price", "AAA")
+        assert r.provider == "only"
+        assert only.fetch_called == 1
+
+    async def test_breaker_shared_across_fetch_methods(self, cache):
+        """A trip recorded via fetch() also gates fetch_quote()/fetch_price() —
+        the breaker is one instance shared by every loop."""
+        health = ProviderHealth(failure_threshold=1, base_cooldown_s=600)
+        # Trip 'fmp' directly (as a rate-limit) before any call.
+        health.record_failure("fmp", rate_limited=True)
+
+        fmp = MockProvider("fmp", ["price", "quote"], result=_make_result(provider="fmp"))
+        yf = MockProvider("yfinance", ["price", "quote"], result=_make_result(provider="yfinance"))
+        layer = DataLayer([fmp, yf], cache, health=health)
+
+        price = await layer.fetch("price", "AAA")
+        assert price.provider == "yfinance"
+        quote = await layer.fetch_quote("AAA")
+        assert quote.provider == "yfinance"
+        assert fmp.fetch_called == 0  # gated on both paths

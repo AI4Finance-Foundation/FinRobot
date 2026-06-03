@@ -8,8 +8,14 @@ skips a known-down provider until it's likely recovered, then closes the
 circuit on the next success.
 
 Pure + deterministic: every method takes an optional ``now`` so the breaker
-policy is unit-testable without sleeping. No I/O, no provider imports — the
-DataLayer owns the wiring (calls record_* / is_available around provider.fetch).
+policy is unit-testable without sleeping. No I/O, no provider imports. The
+DataLayer owns the wiring: it calls ``is_available`` to skip a provider in an
+open cooldown window, ``record_success`` on a successful fetch, and
+``record_failure`` (with ``rate_limited=is_rate_limit_error(exc)``) on a
+``ProviderError`` — see ``DataLayer.__init__`` / its provider loops.
+
+The rate-limit classifier lives in ``interface`` (one shared copy across the
+data layer); re-exported here for the breaker's historical call sites.
 """
 
 from __future__ import annotations
@@ -17,16 +23,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-# Substrings (case-insensitive) that mark a failure as a rate-limit / throttle,
-# which opens the breaker immediately rather than waiting for the failure
-# threshold. Mirrors the keywords services/market_data.py uses to map 502s.
-_RATE_LIMIT_MARKERS: tuple[str, ...] = ("429", "rate limit", "too many requests", "throttl")
+from finrobot.engine.data.interface import is_rate_limit_error
 
-
-def is_rate_limit_error(exc: Exception) -> bool:
-    """True iff the error message indicates upstream rate-limiting/throttling."""
-    msg = str(exc).lower()
-    return any(m in msg for m in _RATE_LIMIT_MARKERS)
+__all__ = ["ProviderHealth", "ProviderState", "is_rate_limit_error"]
 
 
 def _utcnow() -> datetime:

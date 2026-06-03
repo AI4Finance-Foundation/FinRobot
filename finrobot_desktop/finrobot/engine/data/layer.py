@@ -3,7 +3,13 @@ from datetime import datetime, timezone
 from typing import Any, Literal, overload
 
 from finrobot.engine.data.cache import DataCache, cached_fetch
-from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
+from finrobot.engine.data.interface import (
+    DataProvider,
+    DataResult,
+    ProviderError,
+    is_rate_limit_error,
+)
+from finrobot.engine.data.provider_health import ProviderHealth
 from finrobot.engine.data.normalize import (
     NormalizedFinancials,
     NormalizedPrice,
@@ -19,9 +25,32 @@ logger = logging.getLogger(__name__)
 
 
 class DataLayer:
-    def __init__(self, providers: list[DataProvider], cache: DataCache) -> None:
+    def __init__(
+        self,
+        providers: list[DataProvider],
+        cache: DataCache,
+        health: ProviderHealth | None = None,
+    ) -> None:
         self._providers = providers
         self._cache = cache
+        # Per-provider circuit breaker (BUG-045). A provider that rate-limits
+        # us or fails repeatedly enters a cooldown window; every provider loop
+        # below skips it via ``is_available`` for the duration so a slow/429
+        # provider stops costing the full _TIMEOUT on each subsequent call.
+        # Shared across all fetch_* methods so a trip in one path protects them
+        # all. Defaults to a fresh breaker; injectable for tests.
+        self._health = health if health is not None else ProviderHealth()
+
+    def _health_gated(self, provider: DataProvider) -> bool:
+        """True if ``provider`` is in an open cooldown window and should be skipped.
+
+        Logs once at skip-time so a tripped provider is visible in logs without
+        being silently absent from the chain.
+        """
+        if self._health.is_available(provider.name):
+            return False
+        logger.info("Provider '%s' in cooldown (circuit open) — skipping", provider.name)
+        return True
 
     @property
     def cache(self) -> DataCache:
@@ -83,11 +112,15 @@ class DataLayer:
         for provider in self._providers:
             if data_type not in provider.capabilities():
                 continue
+            if self._health_gated(provider):
+                continue
             try:
                 result = await provider.fetch(ticker, data_type, **kwargs)
             except ProviderError as e:
+                self._health.record_failure(provider.name, rate_limited=is_rate_limit_error(e))
                 logger.warning(f"Provider '{provider.name}' failed for {ticker}/{data_type}: {e}")
                 continue
+            self._health.record_success(provider.name)
 
             if primary_result is None:
                 primary_result = result
@@ -283,15 +316,19 @@ class DataLayer:
         for provider in self._providers:
             if data_type not in provider.capabilities():
                 continue
+            if self._health_gated(provider):
+                continue
             try:
                 result = await provider.fetch(ticker, data_type, years=years, **kwargs)
-                return self._split_yearly(result)
             except ProviderError as e:
+                self._health.record_failure(provider.name, rate_limited=is_rate_limit_error(e))
                 logger.warning(
                     f"Provider '{provider.name}' failed for {ticker}/{data_type} "
                     f"(historical, {years}y): {e}"
                 )
                 continue
+            self._health.record_success(provider.name)
+            return self._split_yearly(result)
 
         msg = f"Historical data unavailable for {ticker}/{data_type}: all providers failed."
         logger.error(msg)
@@ -313,12 +350,17 @@ class DataLayer:
         for provider in self._providers:
             if DataType.QUOTE not in provider.capabilities():
                 continue
+            if self._health_gated(provider):
+                continue
             try:
-                return await provider.fetch(ticker, DataType.QUOTE)
+                result = await provider.fetch(ticker, DataType.QUOTE)
             except ProviderError as e:
+                self._health.record_failure(provider.name, rate_limited=is_rate_limit_error(e))
                 logger.warning(f"Provider '{provider.name}' QUOTE failed for {ticker}: {e}")
                 last_error = e
                 continue
+            self._health.record_success(provider.name)
+            return result
         if last_error is not None:
             raise last_error
         raise ProviderError(f"No QUOTE-capable provider available for {ticker}")
@@ -345,18 +387,22 @@ class DataLayer:
             for provider in self._providers:
                 if DataType.PRICE_RANGE not in provider.capabilities():
                     continue
+                if self._health_gated(provider):
+                    continue
                 try:
                     result = await provider.fetch(
                         ticker, DataType.PRICE_RANGE, start=start, end=end, interval=interval
                     )
-                    return result.data
                 except ProviderError as e:
+                    self._health.record_failure(provider.name, rate_limited=is_rate_limit_error(e))
                     logger.warning(
                         f"Provider '{provider.name}' PRICE_RANGE failed for "
                         f"{ticker} {start}..{end}: {e}"
                     )
                     last_error = e
                     continue
+                self._health.record_success(provider.name)
+                return result.data
             if last_error is not None:
                 raise last_error
             raise ProviderError(f"No PRICE_RANGE-capable provider available for {ticker}")
@@ -389,12 +435,16 @@ class DataLayer:
         for provider in self._providers:
             if DataType.PRICE not in provider.capabilities():
                 continue
+            if self._health_gated(provider):
+                continue
             try:
                 result = await provider.fetch(ticker, DataType.PRICE)
             except ProviderError as e:
+                self._health.record_failure(provider.name, rate_limited=is_rate_limit_error(e))
                 logger.warning(f"Provider '{provider.name}' PRICE failed for {ticker}: {e}")
                 last_error = e
                 continue
+            self._health.record_success(provider.name)
             await self._cache.set(DataType.PRICE, ticker, result)
             return result
         if cached is not None:

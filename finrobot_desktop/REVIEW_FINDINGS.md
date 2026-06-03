@@ -102,7 +102,7 @@
 | BUG-042 | Bug | P2 | Sniper LONG mode: secondary_buy (20-day support) can sit BELOW stop_loss → incoherent trade row passes invariant guards | 已修 |
 | BUG-043 | Bug | P2 | Unauthenticated POST /chat, /api/runs and /api/coverage/groups/{id}/runs burn metered LLM credits with zero inbound rate limiting | 待修 |
 | BUG-044 | Bug | P2 | Unauthenticated DELETE /api/artifacts/{id} and DELETE /api/coverage/groups/{id} permanently destroy stored research | 待修 |
-| BUG-045 | Bug | P2 | ProviderHealth 熔断器是完全未接线的死代码，docstring 谎称「DataLayer owns the wiring」——慢/限流 provider 每次仍付满超时 | 待修 |
+| BUG-045 | Bug | P2 | ProviderHealth 熔断器是完全未接线的死代码，docstring 谎称「DataLayer owns the wiring」——慢/限流 provider 每次仍付满超时 | 已修 |
 | BUG-046 | Bug | P2 | 硬编码中文数据层告警混入英文 CLI 输出(--lang en 不生效于 provider 告警) | 待修 |
 | BUG-047 | Bug | P2 | comps --peers 校验滞后且不验格式：错峰到管线中段(已耗 ~30s)才裸崩 | 待修 |
 | BUG-048 | Bug | P2 | archive_stale 全表 get()+save() 逐行重写整份 payload，O(N) 次完整 JSON 反序列化+序列化 | 待修 |
@@ -753,7 +753,7 @@
 - **修复方案**：二选一、择一即做到位：(A) 真接线——在 DataLayer.__init__ 持一个 ProviderHealth 实例，provider 循环里 `if not health.is_available(provider.name): continue`，成功调 record_success，ProviderError 调 record_failure(name, is_rate_limit_error(e))；fetch_quote/fetch_price/fetch_historical/fetch_price_range 四处循环都要接（对称性）。同时把 is_rate_limit_error 收口到 interface.py 一份，删 provider_health.py:26-29 的副本，统一 marker 集（合并为 429/too many requests/rate limit/rate-limit/throttl）。(B) 若暂不接线，则删除 provider_health.py 并修正 interface.py:78 误导注释——但 CLAUDE.md 建设期红线倾向「现在做对」，推荐 A。改动量级：A 约 60-80 行 + 测试；B 删文件。
 - **验证补充**：Recommendation A (wire it) aligns with CLAUDE.md建设期 red line and is correct; must wire all four loops (fetch/fetch_quote/fetch_price/fetch_historical+range) for symmetry, consolidate is_rate_limit_error to interface.py's one copy, and merge marker sets to the union {429, too many requests, rate limit, rate-limit, throttl}. Also fix the stale BACKLOG:52 ('没有 ProviderHealth') since the registry does exist. P2 is right: real latency/throughput cost under throttling + maintainer-misleading docstring, but not a data-correctness/security issue.
 - **影响面/回归风险**：A 影响所有 provider 失败/限流路径的性能与正确降级，回归风险中（需测：熔断打开后 DataLayer 跳过该 provider、冷却后恢复；不能因熔断把唯一可用 provider 也跳过导致全失败）。B 零功能风险。当前现状下用户感知=批量行情/研报在某 provider 抽风时整体变慢。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（采用方案 A（接线）。layer.py DataLayer 持有 ProviderHealth 实例（health 参数默认新建可注入），加 _health_gated() 跳过冷却中 provider；全部 5 个 provider 循环（fetch/fetch_historical/fetch_quote/fetch_price_range/fetch_price）接线：gated 则跳、ProviderError 时 record_failure(rate_limited=is_rate_limit_error(e))、成功 record_success。is_rate_limit_error 收敛到 interface.py 单一副本（marker 并集 429/too many requests/rate limit/rate-limit/throttl），provider_health.py 删重复改 re-export 并改写撒谎的 docstring（现 DataLayer 确实 own wiring）。lone healthy provider 永不 gated（安全）。新增 6+2 测试。（specs/BACKLOG.md 同步更新但该文件 gitignore 不入提交））
 
 #### [BUG-046] 硬编码中文数据层告警混入英文 CLI 输出(--lang en 不生效于 provider 告警)
 

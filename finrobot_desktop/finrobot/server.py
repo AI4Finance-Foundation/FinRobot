@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
@@ -131,11 +132,25 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     sub_agents = create_sub_agents(settings, skill_registry=registry)
     agent = create_lead_agent(settings, skill_registry=registry, sub_agents=sub_agents)
+
+    # Cap concurrent pipelines app-wide (Coverage Phase 2/M4c): batch coverage
+    # runs spawn one task per ticker, but only this many execute at once — the
+    # rest stay "created" until a slot frees, so a 20-ticker batch can't blow
+    # the provider / LLM rate limits. Single runs share the same pool.
+    #
+    # Built BEFORE deps so the same Semaphore is carried on FinRobotDeps. That
+    # closes BUG-017: chat-triggered pipelines (orchestrator → pipeline.execute
+    # with ctx.deps) and Coverage-batch runs both reach the cap through
+    # deps.run_semaphore inside Pipeline.execute — there is no longer an
+    # un-gated path that bypasses the shared pool.
+    run_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_RUNS)
+
     deps = FinRobotDeps(
         data_layer=data_layer,
         settings=settings,
         skill_runtime=registry,
         artifact_store=artifact_store,
+        run_semaphore=run_semaphore,
     )
 
     app.state.agent = agent
@@ -145,11 +160,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.settings_path = settings_path
     app.state.run_store = RunStore()
     app.state.run_tasks = {}
-    # Cap concurrent pipelines app-wide (Coverage Phase 2/M4c): batch coverage
-    # runs spawn one task per ticker, but only this many execute at once — the
-    # rest stay "created" until a slot frees, so a 20-ticker batch can't blow
-    # the provider / LLM rate limits. Single runs share the same pool.
-    app.state.run_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_RUNS)
+    # Same Semaphore instance that deps carries (built above). The REST path
+    # (routes/runs.py) no longer wraps the pipeline in its own `async with`;
+    # instead every run acquires the cap exactly once inside Pipeline.execute
+    # via deps.run_semaphore, so chat / REST / coverage-batch all share this
+    # single pool and a run can never double-acquire.
+    app.state.run_semaphore = run_semaphore
     # Fail runs abandoned by a previous process (run_tasks is in-memory, so a
     # restart orphans every running row → wedged SSE + phantom in-progress in
     # the Coverage overview). M4b.
@@ -329,6 +345,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 # Do not expose to public network without adding auth middleware.
 app = FastAPI(title="FinRobot", lifespan=lifespan)
 
+# Host-header allowlist for TrustedHostMiddleware (BUG-004, DNS-rebinding guard).
+# The desktop server only ever binds loopback (cli `serve --host` defaults to
+# 127.0.0.1), so every legitimate request to the backend carries a loopback
+# Host header. Rejecting anything else 400s a DNS-rebinding attack, where a
+# malicious page resolves an attacker-controlled domain to 127.0.0.1 and then
+# talks to this server with that domain in the Host header.
+#
+# NOTE: this validates the *Host* header of requests TO the backend, not the
+# CORS Origin. The Vite dev server proxies UI calls to http://127.0.0.1:<port>,
+# so the Host the backend sees is still a loopback name — dev is unaffected.
+#
+# `testserver` / `test` are the ASGI sentinels Starlette's TestClient and the
+# httpx ASGITransport set as Host in-process; they are not registrable names a
+# DNS-rebinding attacker could point at us, so allowing them keeps the test
+# harness green without weakening the real-world guarantee (arbitrary attacker
+# domains are still rejected).
+_ALLOWED_HOSTS = ["127.0.0.1", "localhost", "testserver", "test"]
+
 # CORS: allow Vite dev server origin (electron dev mode uses http://localhost:5173).
 # Production Electron loads from file:// so this has no effect on packaged builds.
 app.add_middleware(RequestTraceMiddleware)
@@ -338,6 +372,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# DNS-rebinding / Host-header validation. Added last so it runs FIRST on the
+# inbound path (Starlette applies middleware in reverse add order) — a request
+# with a forged Host is 400'd before it touches CORS, tracing, or any route.
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=_ALLOWED_HOSTS)
 
 app.include_router(compute_router)
 app.include_router(data_router)

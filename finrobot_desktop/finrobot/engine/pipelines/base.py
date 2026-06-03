@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import time
@@ -317,6 +318,33 @@ class Pipeline:
     """
 
     async def execute(
+        self,
+        deps: "FinRobotDeps",
+        ticker: str,
+        progress: ProgressCallback | None = None,
+        lang: str | None = None,
+        source_artifact_id: str | None = None,
+        **kwargs: object,
+    ) -> "PipelineResult":
+        # Gate the WHOLE run on the app-wide concurrency cap when deps carries
+        # one (BUG-017). Acquiring here — not in routes/runs.py — means EVERY
+        # caller that passes deps with a semaphore is capped: the REST runner,
+        # the chat orchestrator (ctx.deps), and the Coverage batch all funnel
+        # through this single acquire, and each run acquires exactly once (no
+        # double-acquire / deadlock risk). deps.run_semaphore is None for
+        # single-invocation CLI/SDK processes → nullcontext → no cap.
+        semaphore = getattr(deps, "run_semaphore", None)
+        async with semaphore if semaphore is not None else contextlib.nullcontext():
+            return await self._execute_steps(
+                deps,
+                ticker,
+                progress=progress,
+                lang=lang,
+                source_artifact_id=source_artifact_id,
+                **kwargs,
+            )
+
+    async def _execute_steps(
         self,
         deps: "FinRobotDeps",
         ticker: str,

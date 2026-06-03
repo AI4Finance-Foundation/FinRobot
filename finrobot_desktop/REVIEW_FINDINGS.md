@@ -52,7 +52,7 @@
 | BUG-001 | Bug | P0 | FMP earnings provider calls wrong endpoint / reads wrong field names → earnings_history is ALWAYS empty for every ticker (silent dead feature) | 已修 |
 | BUG-002 | Bug | P0 | Coverage 卡片墙纯鼠标可达：<article> 无 tabIndex/role/onKeyDown，键盘用户无法聚焦任何卡片，连带整个 Inspector（研报/历史/Run 动作）对键盘/读屏完全不可达 | 已修 |
 | BUG-003 | Bug | P1 | Live API key persisted in plaintext to session JSONL via provider warning → tool_result transcript | 已修 |
-| BUG-004 | Bug | P1 | Entire FastAPI surface is unauthenticated and Host-header-unvalidated — DNS rebinding lets any web page drive secret-writing/quota-burning endpoints despite the CORS whitelist | 待修 |
+| BUG-004 | Bug | P1 | Entire FastAPI surface is unauthenticated and Host-header-unvalidated — DNS rebinding lets any web page drive secret-writing/quota-burning endpoints despite the CORS whitelist | 已修 |
 | BUG-005 | Bug | P1 | PUT /api/settings can silently delete or overwrite the user's live API keys (FMP/Anthropic/OpenAI) with no auth and no confirmation | 已修 |
 | BUG-006 | Bug | P1 | 跨境 forward 估值口径错币种:comps_pe 的 forward 路径用『USD 归一化同业 P/E × 申报币种 forward EPS』,ADR(TSM/ASML/BABA)目标价整体偏离一个汇率 | 已修 |
 | BUG-007 | Bug | P1 | DataLayer 跨 provider 仅 warn 不仲裁,且 cross_validate 容差(revenue 15%)结构性低于已知 FMP↔yfinance 25-80% 实差——分歧票静默采用 primary(FMP)原值进研报 | 待修 |
@@ -65,7 +65,7 @@
 | BUG-014 | Bug | P1 | DCF graceful-degrade (tg≥WACC) self-defeats: technical_analysis hard-requires DCFResult and crashes the whole equity_research run one step later | 已修 |
 | BUG-015 | Bug | P1 | Thesis & peer-selection wrap recoverable AgentRunError into ValueError, defeating the retry/back-off system and aborting the whole run on the first transient LLM hiccup | 已修 |
 | BUG-016 | Bug | P1 | 自由文本叙事字段（valuation_overview/tagline/key_takeaways/competitor_analysis）无 code 级与 canonical target/verdict 对账，结构化标量被强制覆盖而散文不被——表格与散文可冲突 | 已修 |
-| BUG-017 | Bug | P1 | Chat-triggered pipelines bypass the app-wide concurrency semaphore — LLM can fire unbounded parallel heavy runs | 待修 |
+| BUG-017 | Bug | P1 | Chat-triggered pipelines bypass the app-wide concurrency semaphore — LLM can fire unbounded parallel heavy runs | 已修 |
 | BUG-018 | Bug | P1 | Scoped coverage-group hit-rate silently truncates to the GLOBAL newest-500 page → groups show null track record despite having one | 已修 |
 | BUG-019 | Bug | P1 | Sharpe ratio uses backtrader default timeframe=Years on daily bars → None for ~1yr windows, meaningless for multi-year | 已修 |
 | BUG-020 | Bug | P1 | CLI 全部 pipeline 命令零 ticker 校验/归一化：脏 ticker 直灌 provider + 污染缓存与 artifact | 已修 |
@@ -212,7 +212,7 @@
 - **修复方案**：Two-layer defense in server.py. (1) Add Starlette TrustedHostMiddleware with allowed_hosts=['127.0.0.1','localhost'] (and the chosen --host) so any request whose Host header isn't a loopback name is 400'd — this kills DNS rebinding because the rebind request still carries Host: evil.com. (2) Add a startup-generated capability token: cli.py generates a random token at sidecar launch, passes it to the Tauri shell (it already passes --parent-pid via a private channel) and the shell injects it as a header into every fetch; server.py adds one global dependency (app-level `dependencies=[Depends(verify_local_token)]` on include_router, or a tiny ASGI middleware) that 401s requests lacking the header. This is the real auth the 'only-localhost' note at server.py:328 has been deferring. Note: do NOT rely on CORS for this — preflight is defeated by rebind and absent for non-browser callers. Scope: ~1 new middleware + token plumbing through cli.py↔Tauri (~60-100 LoC across server.py, cli.py, ui/src-tauri sidecar spawn, and ui/src/api/client.ts to attach the header).
 - **验证补充**：Fix is sound. Caveat on the token-plumbing half: I could NOT locate the Tauri sidecar spawn (no .rs files surfaced, no externalBin in tauri.conf at the expected path); cli.py accepts --parent-pid but the UI-side passing of it as a 'private channel' is unverified, so the ui-side LoC for the token is less certain than 60-100. TrustedHostMiddleware alone is cheap, verifiable, and kills the rebind vector — land that first independent of token plumbing.
 - **影响面/回归风险**：Affects every endpoint (16 routers). Regression risk on the token layer: the Vite dev server (5173) and any test/SDK caller must learn to send the token, or they 401 — must update ui/src/api/client.ts, the dev proxy, and conftest test clients. TrustedHostMiddleware alone is low-risk (loopback names already in use) and can ship independently as the high-value/low-cost half.
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（server.py 加 Starlette TrustedHostMiddleware allowed_hosts=[127.0.0.1, localhost, testserver, test]（最后加=最先入站执行），非 loopback Host 头 400，杀掉 DNS rebinding。dev 不受影响（Vite 代理到 127.0.0.1，守的是 Host 不是 Origin）。按批准只做 TrustedHost；capability token 跨 Tauri sidecar 半部延后。新增 TestTrustedHostMiddleware（loopback 放行/外域 400）。架构红线测试全过。与 BUG-017 同提交（共用 server.py）。）
 
 #### [BUG-005] PUT /api/settings can silently delete or overwrite the user's live API keys (FMP/Anthropic/OpenAI) with no auth and no confirmation
 
@@ -385,7 +385,7 @@
 - **验证补充**：Fix is sound (thread semaphore into deps + acquire inside Pipeline.execute, delete runs.py wrapper). Two notes: (1) acquiring inside execute changes the REST 'created-while-queued' status semantics the runs.py docstring relies on — author already flagged this, keep that behaviour by acquiring before update_run('running') or document the change; (2) CLI/SDK building their own Semaphore(4) yields independent caps per process — fine for a single desktop process but not a truly global cap. Acceptable for this architecture.
 - **影响面/回归风险**：Affects every pipeline caller. Closes the rate-limit / resource-exhaustion hole on the unauthenticated localhost chat endpoint. Regression risk: REST run 'created→running' timing semantics shift slightly; coverage batch still capped (already goes through spawn_run→execute). Must re-verify the 4-slot cap still holds for coverage after the wrapper is removed.
 - **合并自**：gap-r1-3#1, gap-r1-3#2（2 条同源发现）
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（semaphore 接进 deps：deps.py 加 run_semaphore: asyncio.Semaphore|None=None；base.py Pipeline.execute 用 async with (sem or contextlib.nullcontext()) 包步骤循环——所有传 deps 的调用方统一受限。server.py lifespan 把同一个 Semaphore(4) 同时给 app.state.deps，于是 chat orchestrator（经 ctx.deps）、REST(_run_pipeline 经 app.state.deps)、coverage 批跑(spawn_run→execute) 共用同一闸门；删除 runs.py 冗余 wrapper 避免双获取（恰好一次获取，无死锁）。按批准与协调约束未碰 cli.py/sdk.py/orchestrator.py——CLI/SDK 自建 deps 传 None=nullcontext 无 cap（单次进程可接受）。REST created→running 现含排队等待（注释说明）。保 Mode A/B 行为不变。新增 TestRunSemaphoreGating。与 BUG-004 同提交。）
 
 #### [BUG-018] Scoped coverage-group hit-rate silently truncates to the GLOBAL newest-500 page → groups show null track record despite having one
 

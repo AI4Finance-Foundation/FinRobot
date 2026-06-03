@@ -911,3 +911,105 @@ async def test_step_data_is_truncated_to_cap():
     assert "truncated" in prompt
     # The raw payload was 3x the cap; the prompt must be far smaller than that.
     assert len(prompt) < _PROMPT_MAX_STEP_DATA_CHARS * 2
+
+
+# ---------------------------------------------------------------------------
+# BUG-017 — Pipeline.execute honours deps.run_semaphore (app-wide concurrency)
+# ---------------------------------------------------------------------------
+
+
+class TestRunSemaphoreGating:
+    """Every caller that passes deps.run_semaphore gets capped inside execute,
+    so chat-triggered and Coverage-batch runs share the same bound as REST."""
+
+    @pytest.mark.asyncio
+    async def test_execute_acquires_semaphore_when_present(self):
+        """A run holds the semaphore for its whole body (1 slot consumed)."""
+        import asyncio
+
+        sem = asyncio.Semaphore(1)
+
+        @dataclass
+        class DepsWithSem:
+            data_layer: FakeDataLayer
+            skill_runtime: object
+            run_semaphore: asyncio.Semaphore
+
+        observed: list[int] = []
+
+        async def slot_observing_executor(agent, deps, prompt, structured_context, ticker):
+            # While this step runs the slot must be held → semaphore exhausted.
+            observed.append(sem._value)  # 0 means the one slot is taken
+            return "ok"
+
+        step = PipelineStep(
+            name="s",
+            agent=_make_agent("ok"),
+            validator=TextValidator(validate_is_non_empty),
+            executor=slot_observing_executor,
+        )
+        deps = DepsWithSem(FakeDataLayer(), None, sem)
+        await Pipeline(steps=[step]).execute(deps, "AAPL")
+
+        assert observed == [0]  # the slot was held during step execution
+        assert sem._value == 1  # and released after the run completed
+
+    @pytest.mark.asyncio
+    async def test_semaphore_bounds_concurrent_runs(self):
+        """With a 1-slot semaphore, two concurrent runs never overlap."""
+        import asyncio
+
+        sem = asyncio.Semaphore(1)
+
+        @dataclass
+        class DepsWithSem:
+            data_layer: FakeDataLayer
+            skill_runtime: object
+            run_semaphore: asyncio.Semaphore
+
+        active = 0
+        max_active = 0
+
+        async def blocking_executor(agent, deps, prompt, structured_context, ticker):
+            nonlocal active, max_active
+            active += 1
+            max_active = max(max_active, active)
+            # Yield so a second run gets a chance to start if the cap allowed it.
+            await asyncio.sleep(0.02)
+            active -= 1
+            return "ok"
+
+        def make_pipeline() -> Pipeline:
+            step = PipelineStep(
+                name="s",
+                agent=_make_agent("ok"),
+                validator=TextValidator(validate_is_non_empty),
+                executor=blocking_executor,
+            )
+            return Pipeline(steps=[step])
+
+        deps = DepsWithSem(FakeDataLayer(), None, sem)
+        await asyncio.gather(
+            make_pipeline().execute(deps, "AAPL"),
+            make_pipeline().execute(deps, "MSFT"),
+        )
+        # The 1-slot cap must serialise them: never two in flight at once.
+        assert max_active == 1
+
+    @pytest.mark.asyncio
+    async def test_execute_runs_without_semaphore(self):
+        """deps.run_semaphore = None (CLI/SDK) → nullcontext, no cap, runs fine."""
+
+        @dataclass
+        class DepsNoSem:
+            data_layer: FakeDataLayer
+            skill_runtime: object
+            run_semaphore: object = None
+
+        step = PipelineStep(
+            name="s",
+            agent=_make_agent("ok"),
+            validator=TextValidator(validate_is_non_empty),
+        )
+        result = await Pipeline(steps=[step]).execute(DepsNoSem(FakeDataLayer(), None), "AAPL")
+        assert "s" in result.steps

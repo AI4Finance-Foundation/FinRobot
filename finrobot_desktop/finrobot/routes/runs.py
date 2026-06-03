@@ -244,18 +244,16 @@ async def stream_run_events(run_id: str, request: Request) -> StreamingResponse:
 
 
 async def _run_pipeline(run_id: str, request: Request) -> None:
+    # Concurrency is no longer gated here. The app-wide cap (Semaphore(4),
+    # built in server.lifespan) is carried on app.state.deps.run_semaphore and
+    # acquired INSIDE Pipeline.execute, so every run path — REST, chat
+    # orchestrator, Coverage batch — acquires it exactly once with no risk of a
+    # single run grabbing two slots (BUG-017). Acquiring inside execute means
+    # the run is marked "running" by _run_pipeline_impl BEFORE it blocks on the
+    # slot, so the "created → running" window now INCLUDES the queue wait while
+    # the run waits for a free slot; only the per-step pipeline work follows.
     with bind_run(run_id):
-        semaphore = getattr(request.app.state, "run_semaphore", None)
-        if semaphore is None:
-            await _run_pipeline_impl(run_id, request)
-        else:
-            # Bound concurrent pipelines app-wide: a batch of N coverage runs
-            # must not fire N LLM pipelines at once and blow provider/LLM rate
-            # limits (Coverage Phase 2/M4c). The whole impl runs inside the
-            # slot, so a queued run stays "created" (status reflects reality
-            # for the overview) and its duration excludes queue time.
-            async with semaphore:
-                await _run_pipeline_impl(run_id, request)
+        await _run_pipeline_impl(run_id, request)
 
 
 async def _run_pipeline_impl(run_id: str, request: Request) -> None:

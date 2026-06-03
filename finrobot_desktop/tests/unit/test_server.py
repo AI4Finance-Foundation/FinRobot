@@ -121,9 +121,7 @@ class TestArchitecturalRedLines:
         """
         from pathlib import Path
 
-        entry_path = (
-            Path(__file__).resolve().parents[2] / "src-tauri" / "sidecar" / "entry.py"
-        )
+        entry_path = Path(__file__).resolve().parents[2] / "src-tauri" / "sidecar" / "entry.py"
         source = entry_path.read_text()
         assert '"serve"' in source  # the serve subcommand is injected
         assert "--reload" not in source  # the dev-only reloader is never enabled
@@ -189,6 +187,30 @@ class TestTranscriptWriterLRU:
         assert writer.session_id == "s1"
 
 
+class TestTrustedHostMiddleware:
+    """BUG-004: Host-header validation 400s DNS-rebinding attempts."""
+
+    async def test_loopback_host_allowed(self):
+        # base_url 'http://test' is one of the ASGI sentinels in _ALLOWED_HOSTS.
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            resp = await c.get("/health")
+        assert resp.status_code == 200
+
+    async def test_localhost_host_allowed(self):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://localhost") as c:
+            resp = await c.get("/health")
+        assert resp.status_code == 200
+
+    async def test_foreign_host_rejected(self):
+        """A forged Host (DNS-rebinding domain) is 400'd before any route."""
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://evil.attacker.com") as c:
+            resp = await c.get("/health")
+        assert resp.status_code == 400
+
+
 class TestRequestTraceMiddleware:
     def test_response_has_request_id_header(self) -> None:
         from fastapi.testclient import TestClient
@@ -220,9 +242,7 @@ class TestSubAgentsCaching:
         import ast
         from pathlib import Path
 
-        runs_path = (
-            Path(__file__).resolve().parents[2] / "finrobot" / "routes" / "runs.py"
-        )
+        runs_path = Path(__file__).resolve().parents[2] / "finrobot" / "routes" / "runs.py"
         tree = ast.parse(runs_path.read_text())
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):

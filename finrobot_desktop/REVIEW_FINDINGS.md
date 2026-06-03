@@ -91,7 +91,7 @@
 | UX-005 | 产品 | P1 | "待处理"分诊是首屏，但卡片不说"为什么需要我"——理由被挤进一个截断的小药丸 | 待修 |
 | UX-006 | 产品 | P1 | 无法删除/归档单份历史研报——后端有 DELETE 端点，前端零入口，跑错/作废的研报永久堆积 | 待修 |
 | UX-007 | 产品 | P1 | 冷启动时已有覆盖的老用户会闪现「还没有 ticker——在上方添加」假空态 | 待修 |
-| BUG-034 | Bug | P2 | SSE run.completed / run.failed can be lost: status flips to terminal in the DB before the terminal event is appended, so the poll loop may break and never emit it | 待修 |
+| BUG-034 | Bug | P2 | SSE run.completed / run.failed can be lost: status flips to terminal in the DB before the terminal event is appended, so the poll loop may break and never emit it | 已修 |
 | BUG-035 | Bug | P2 | SDK 的 provider 链漏注册 NewsAggregatorProvider，与 build_data_layer 漂移 | 待修 |
 | BUG-036 | Bug | P2 | Football Field 的 DCF 区间永远是装饰性 ±20%:_dcf_band 读错字段,Monte Carlo P10/P90 分支是死代码,source 标签可误导 | 待修 |
 | BUG-037 | Bug | P2 | 外币 SEC 申报人的 XBRL 营收/净利未做 FX 换算即被当作 USD，35% 散度门可能漏掉近平价货币 | 待修 |
@@ -99,7 +99,7 @@
 | BUG-039 | Bug | P2 | `is_sampled` compares against GLOBAL store count, not the in-window / in-scope population → mislabels fully-covered windows as 'partial' | 待修 |
 | BUG-040 | Bug | P2 | Cumulative total_return shown beside annualized-intent Sharpe; annualized Returns analyzer added but never read | 待修 |
 | BUG-041 | Bug | P2 | run_strategy_selection tunes 3 iterations on one in-sample window and reports max(total_return) as a 'good' strategy — pure overfitting, no out-of-sample | 待修 |
-| BUG-042 | Bug | P2 | Sniper LONG mode: secondary_buy (20-day support) can sit BELOW stop_loss → incoherent trade row passes invariant guards | 待修 |
+| BUG-042 | Bug | P2 | Sniper LONG mode: secondary_buy (20-day support) can sit BELOW stop_loss → incoherent trade row passes invariant guards | 已修 |
 | BUG-043 | Bug | P2 | Unauthenticated POST /chat, /api/runs and /api/coverage/groups/{id}/runs burn metered LLM credits with zero inbound rate limiting | 待修 |
 | BUG-044 | Bug | P2 | Unauthenticated DELETE /api/artifacts/{id} and DELETE /api/coverage/groups/{id} permanently destroy stored research | 待修 |
 | BUG-045 | Bug | P2 | ProviderHealth 熔断器是完全未接线的死代码，docstring 谎称「DataLayer owns the wiring」——慢/限流 provider 每次仍付满超时 | 待修 |
@@ -609,7 +609,7 @@
 - **验证补充**：Fix correct and minimal: move _append(RunCompleted) ABOVE update_run(status='completed'), and _append(RunFailed) ABOVE update_run(status='failed'). Then any reader seeing a terminal status is guaranteed the terminal event already exists. Note severity is genuinely P2 not P1: frontend already has SSE reconnect (SSE_ERROR_LIMIT=8) and on reconnect the trailing get_events_after replays the now-committed terminal event, so the user-visible failure is a transient reconnect, not a permanent hang — still worth fixing but not data-loss-permanent.
 - **影响面/回归风险**：Affects all runs but only on a narrow timing window — low frequency, high annoyance when it hits (UI shows a stuck spinner / spurious reconnect storm, and the completion CTA never fires). Fix is a 2-line reorder per branch, no schema change; regression risk minimal. Recommend a test that asserts run_events contains the terminal event whenever runs.status is terminal.
 - **合并自**：bug-pipeline#3, bug-routes-api#4（2 条同源发现）
-- **置信度**：medium　|　**状态**：待修
+- **置信度**：medium　|　**状态**：已修（routes/runs.py:_run_pipeline_impl 把 _append(RunCompleted)/_append(RunFailed) 移到 update_run(status=terminal) 之前（两分支），使「读到终态 status 的 reader 必然已能读到终态 event」不变式成立，消除 SSE poll 漏发终态事件→前端误判 reconnect。ArtifactReady 原本顺序已正确未动。未改 run_store 签名。新增 _OrderRecordingStore + 两测试断言 event 先于 status 写入（completed/failed 双分支）。mypy/ruff + 86 例通过。）
 
 #### [BUG-035] SDK 的 provider 链漏注册 NewsAggregatorProvider，与 build_data_layer 漂移
 
@@ -714,7 +714,7 @@
 - **修复方案**：In sniper.py LONG branch, after computing stop_loss, clamp secondary_buy to not fall below stop_loss: `secondary_buy = max(support, stop_loss)` OR, if support<stop_loss, drop the secondary level and add an invariant_warning ('20-day support below stop; no secondary entry'). Add the coherence check to the invariant block (lines 193-203): for LONG assert stop_loss < secondary_buy <= take_profit (or secondary_buy is None). Add a unit test in tests/unit covering a price series whose 20-day min is far below current. Small change (~5 lines + test).
 - **验证补充**：Fix is sound. Prefer the 'drop secondary level + invariant_warning' variant over silently clamping secondary_buy=max(support,stop_loss), because clamping would collapse secondary_buy onto stop_loss (a degenerate entry==stop), mirroring the same degeneracy the SHORT branch already warns against (sniper.py:121-126). Add the invariant assertion stop_loss < secondary_buy <= take_profit (or secondary_buy is None) to the LONG guard, and a unit test with a crash-low series.
 - **影响面/回归风险**：Edge-case only (requires a deep recent drawdown in the trailing-20 window), but removes a visibly wrong trade ladder. Regression risk low; verify the UI sniper card / SHORT branch (which uses different anchors) is unaffected — SHORT sets secondary_buy=max(resistance,current) and is already coherent.
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（sniper.py LONG 模式：当 20 日 support<=stop_loss 时 secondary_buy 置 None 并加 invariant_warning（采用 finding 首选「丢弃 secondary」而非夹到 stop 上的退化），secondary_buy 字段改 float|None；不变式块加 LONG 守卫 stop_loss<secondary_buy<=take_profit（或 None）。下游 equity_research summary 只用 ideal_buy/stop/tp，UI 已 optional 处理，无回归。新增 2 测试（崩低 support 丢 secondary / 正常保留）。mypy/ruff + 64 例通过。）
 
 #### [BUG-043] Unauthenticated POST /chat, /api/runs and /api/coverage/groups/{id}/runs burn metered LLM credits with zero inbound rate limiting
 

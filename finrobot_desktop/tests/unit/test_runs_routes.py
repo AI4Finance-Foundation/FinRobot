@@ -397,3 +397,117 @@ async def test_aggregated_stream_404_when_all_ids_unknown() -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         resp = await c.get("/api/runs/events?ids=nope-1,nope-2")
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# BUG-034 — the terminal status flip must NOT become visible to readers before
+# the terminal event (run.completed / run.failed) is in run_events. Otherwise
+# the SSE poll loop can observe a terminal status, fetch trailing events that
+# don't yet contain the terminal event, and break without ever emitting it.
+# The fix appends the terminal event BEFORE update_run(status=terminal), so the
+# invariant "status terminal ⇒ terminal event already exists" always holds.
+# ---------------------------------------------------------------------------
+
+
+class _OrderRecordingStore:
+    """Wraps a real RunStore and records the order in which the terminal status
+    flip and the terminal event append happen, so a test can assert the event
+    was committed BEFORE the status became terminal (the BUG-034 invariant)."""
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+        self.order: list[str] = []
+
+    async def append_event(self, run_id: str, event: Any) -> int:
+        ev = event.get("event") if isinstance(event, dict) else getattr(event, "event", None)
+        if ev in {"run.completed", "run.failed"}:
+            self.order.append(f"event:{ev}")
+        return await self._inner.append_event(run_id, event)
+
+    async def update_run(self, run_id: str, **kwargs: Any) -> Any:
+        status = kwargs.get("status")
+        if status in {"completed", "failed"}:
+            self.order.append(f"status:{status}")
+        return await self._inner.update_run(run_id, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._inner, name)
+
+
+def _make_request_for_impl(store: Any) -> MagicMock:
+    request = MagicMock()
+    request.app.state.run_store = store
+    request.app.state.run_semaphore = None
+    request.app.state.artifact_store = None
+    request.app.state.run_tasks = {}
+    request.app.state.sub_agents = {}
+    request.app.state.deps = MagicMock()
+    return request
+
+
+@pytest.mark.asyncio
+async def test_completed_event_appended_before_status_flip(tmp_path: Any, monkeypatch: Any) -> None:
+    """Success path: run.completed must be in run_events BEFORE the run row
+    flips to status='completed', and the event must exist whenever the status
+    is terminal."""
+    from finrobot.engine.pipelines.base import PipelineResult
+    from finrobot.routes import runs as runs_mod
+    from finrobot.run_store import RunStore
+
+    inner = RunStore(tmp_path / "runs.db")
+    record = await inner.create_run("research", "AAPL")
+
+    pipeline = MagicMock()
+    pipeline.steps = [MagicMock()]
+    result = PipelineResult(steps={"report": "done"}, structured_data={})
+    result.artifact_id = None  # no artifact → no artifact.ready, isolates the swap
+    pipeline.execute = AsyncMock(return_value=result)
+    pipeline.format_summary = MagicMock(return_value="summary")
+    monkeypatch.setattr(
+        runs_mod, "get_pipeline_factories", lambda: {"research": lambda agents: pipeline}
+    )
+
+    store = _OrderRecordingStore(inner)
+    await runs_mod._run_pipeline_impl(record.run_id, _make_request_for_impl(store))
+
+    # The terminal event was committed BEFORE the terminal status flip.
+    assert store.order == ["event:run.completed", "status:completed"]
+
+    # Invariant: status is terminal AND the terminal event exists in run_events.
+    final = await inner.get_run(record.run_id)
+    assert final is not None and final.status == "completed"
+    events = await inner.get_events_after(record.run_id, 0)
+    assert any(e.event.get("event") == "run.completed" for e in events)
+    await inner.close()
+
+
+@pytest.mark.asyncio
+async def test_failed_event_appended_before_status_flip(tmp_path: Any, monkeypatch: Any) -> None:
+    """Failure path: run.failed must be in run_events BEFORE the run row flips
+    to status='failed', and the event must exist whenever the status is
+    terminal."""
+    from finrobot.routes import runs as runs_mod
+    from finrobot.run_store import RunStore
+
+    inner = RunStore(tmp_path / "runs.db")
+    record = await inner.create_run("research", "AAPL")
+
+    pipeline = MagicMock()
+    pipeline.steps = [MagicMock()]
+    pipeline.execute = AsyncMock(side_effect=ValueError("boom"))
+    monkeypatch.setattr(
+        runs_mod, "get_pipeline_factories", lambda: {"research": lambda agents: pipeline}
+    )
+
+    store = _OrderRecordingStore(inner)
+    await runs_mod._run_pipeline_impl(record.run_id, _make_request_for_impl(store))
+
+    # The terminal event was committed BEFORE the terminal status flip.
+    assert store.order == ["event:run.failed", "status:failed"]
+
+    # Invariant: status is terminal AND the terminal event exists in run_events.
+    final = await inner.get_run(record.run_id)
+    assert final is not None and final.status == "failed"
+    events = await inner.get_events_after(record.run_id, 0)
+    assert any(e.event.get("event") == "run.failed" for e in events)
+    await inner.close()

@@ -484,14 +484,15 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
                     artifact_id=artifact_id,
                 ),
             )
-        await store.update_run(
-            run_id,
-            status="completed",
-            completed_at=_iso_now(),
-            duration_s=duration_s,
-            result_text=result.format_summary(),
-            result_json=result_json,
-        )
+        # Append the terminal event BEFORE flipping the run status to a
+        # terminal value (BUG-034). The status column and its terminal event
+        # are two separate awaited commits; the SSE poll loop breaks the moment
+        # it observes status∈{completed,failed} and then fetches trailing
+        # events. If the status flip committed first, a poll iteration could
+        # land in the gap, see "completed", fetch trailing events that don't yet
+        # include run.completed, and break without ever emitting it. Writing the
+        # event first makes the invariant hold: any reader that sees a terminal
+        # status is guaranteed run.completed already exists in run_events.
         await _append(
             store,
             RunCompleted(
@@ -508,6 +509,14 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
                 artifact_id=artifact_id,
                 artifact_type=artifact_type,
             ),
+        )
+        await store.update_run(
+            run_id,
+            status="completed",
+            completed_at=_iso_now(),
+            duration_s=duration_s,
+            result_text=result.format_summary(),
+            result_json=result_json,
         )
         if artifact_id:
             # A new artifact just landed in the store. Drop the dashboard's
@@ -544,13 +553,11 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
         # `except Exception`); CancelledError stays unaffected so shutdown
         # still propagates cleanly.
         logger.exception("Pipeline %s failed unexpectedly", run_id)
-        await store.update_run(
-            run_id,
-            status="failed",
-            completed_at=_iso_now(),
-            duration_s=round(time.monotonic() - started, 1),
-            error=str(e)[:500] or type(e).__name__,
-        )
+        # Append run.failed BEFORE flipping status to "failed" — same ordering
+        # invariant as the success branch (BUG-034). A reader that sees a
+        # terminal status must be guaranteed the terminal event already exists,
+        # otherwise the SSE poll loop can break in the gap and never emit
+        # run.failed.
         await _append(
             store,
             RunFailed(
@@ -558,6 +565,13 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
                 run_id=run_id,
                 error=str(e)[:500] or type(e).__name__,
             ),
+        )
+        await store.update_run(
+            run_id,
+            status="failed",
+            completed_at=_iso_now(),
+            duration_s=round(time.monotonic() - started, 1),
+            error=str(e)[:500] or type(e).__name__,
         )
     finally:
         request.app.state.run_tasks.pop(run_id, None)

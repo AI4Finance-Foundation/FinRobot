@@ -23,7 +23,7 @@ import { useRunStreamStore, selectRunByTicker } from '../stores/runStreamStore'
 import { useToastStore } from '../stores/toastStore'
 import { useNavMemoryStore } from '../stores/navMemoryStore'
 import { useTickerPrice } from '../hooks/useTickerData'
-import { FetchHttpError } from '../utils/errorMessage'
+import { FetchHttpError, mapErrorToUserMessage } from '../utils/errorMessage'
 import { TickerNotFoundView } from './workspace/TickerNotFoundView'
 import { TickerHero } from './TickerHero'
 import { MarketDataZone } from './workspace/MarketDataZone'
@@ -81,10 +81,16 @@ export function StockWorkspace(): React.ReactElement {
       })
     } else if (runState.status === 'failed') {
       lastNotifiedRunIdRef.current = runId
+      // runState.error is the raw SSE `run.failed` payload (or our SSE-dropout
+      // message) — route it through mapErrorToUserMessage so a leaked "HTTP
+      // 500" / dev string becomes friendly copy (BUG-027). Pre-localised
+      // messages (Chinese sentences) pass through untouched.
       addToast({
         type: 'error',
         title: t('workspace.toast.reportFailed', { ticker: symbol }),
-        description: runState.error ?? t('workspace.toast.retryLater'),
+        description: runState.error
+          ? mapErrorToUserMessage(new Error(runState.error))
+          : t('workspace.toast.retryLater'),
       })
     }
   }, [runState?.runId, runState?.status, runState?.error, symbol, addToast, queryClient, t])

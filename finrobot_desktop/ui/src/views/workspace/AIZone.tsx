@@ -11,12 +11,61 @@ import { useNavigate } from 'react-router-dom'
 import { useLatestArtifact, useV5ArtifactTimeline } from '../../hooks/useV5Artifacts'
 import { useRunStreamStore, selectRunByTicker } from '../../stores/runStreamStore'
 import { useToastStore } from '../../stores/toastStore'
+import { useHealth } from '../../hooks/useHealth'
 import { PipelineProgressPanel } from '../PipelineProgressPanel'
 import { verdictLabel } from '../../utils/verdict'
 import { formatDate } from '../../utils/format'
 import { mapErrorToUserMessage } from '../../utils/errorMessage'
-import { useI18n, tSync } from '../../i18n'
+import { useI18n, tSync, type Locale } from '../../i18n'
 import { allChapterLabels } from '../../pages/artifact-detail/chapters/labels'
+import type { ArtifactSummaryV5 } from '../../types/v5'
+
+// Display label per non-research artifact type (dcf / lbo / comps / …). Kept
+// inline (not in .po) per the VersionDiffBanner precedent — these are short,
+// stable model names. Mirror of CompactArtifactViewer's TYPE_LABEL so the
+// workspace and the detail page name the same artifact identically.
+const ARTIFACT_TYPE_LABEL: Record<string, { zh: string; en: string }> = {
+  dcf: { zh: 'DCF 估值', en: 'DCF Valuation' },
+  lbo: { zh: 'LBO 模型', en: 'LBO Model' },
+  ddm: { zh: 'DDM 股利贴现', en: 'DDM Valuation' },
+  comps: { zh: '可比公司', en: 'Comparable Companies' },
+  earnings: { zh: '财报质量', en: 'Earnings Quality' },
+  ic_memo: { zh: '投委会备忘录', en: 'IC Memo' },
+  peer_research: { zh: '同业研究', en: 'Peer Research' },
+  ad_hoc: { zh: '即席分析', en: 'Ad-hoc Analysis' },
+}
+
+function artifactTypeLabel(type: string, locale: Locale): string {
+  const m = ARTIFACT_TYPE_LABEL[type]
+  if (m) return locale === 'zh' ? m.zh : m.en
+  return type
+}
+
+// Friendly, actionable copy for each preflight failure (BUG-027) — what's
+// wrong + that Settings is where to fix it. Inline literals per the
+// VersionDiffBanner precedent.
+function preflightDescription(
+  reason: 'offline' | 'config' | 'providers' | null,
+  locale: Locale,
+): string {
+  const zh = locale === 'zh'
+  switch (reason) {
+    case 'offline':
+      return zh
+        ? '后端服务未连接。请确认 finrobot serve 正在运行后重试。'
+        : 'Backend is offline. Make sure finrobot serve is running, then retry.'
+    case 'config':
+      return zh
+        ? '后端配置有误(LLM / 数据源密钥)。请到设置补全后重试。'
+        : 'Backend config error (LLM / data-source keys). Fix it in Settings, then retry.'
+    case 'providers':
+      return zh
+        ? '尚未配置任何数据源(FMP / yfinance)。请到设置添加数据源密钥。'
+        : 'No data provider configured (FMP / yfinance). Add a key in Settings.'
+    default:
+      return zh ? '请到设置检查后端配置。' : 'Check the backend config in Settings.'
+  }
+}
 
 interface AIZoneProps {
   ticker: string
@@ -24,7 +73,7 @@ interface AIZoneProps {
 
 export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
   const navigate = useNavigate()
-  const { t } = useI18n()
+  const { locale, t } = useI18n()
   const {
     latest,
     isLoading: artifactLoading,
@@ -41,9 +90,51 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
   const startRun = useRunStreamStore((s) => s.startRun)
   const runState = useRunStreamStore(selectRunByTicker(ticker))
   const addToast = useToastStore((s) => s.addToast)
+  // Preflight signal (BUG-027): the backend's honest health/config snapshot.
+  // Used to gate the "run report" CTA — no point letting the user fire a run
+  // that the backend will 503/500 because it has no LLM/data provider or a
+  // boot-time config error. `isPlaceholderData` is true while the very first
+  // probe is in flight (useHealth seeds OFFLINE as placeholderData); we must NOT
+  // block on that seed or every cold load would flash "去设置" before the real
+  // health lands. Only a RESOLVED bad health blocks.
+  const { data: healthData, isPlaceholderData: healthPlaceholder } = useHealth()
+  const health = healthPlaceholder ? null : healthData
 
   const sameTypeTimeline = (timeline ?? []).filter((a) => a.type === 'equity_research')
+  // BUG-040: all NON-equity_research artifacts (dcf / lbo / comps / earnings /
+  // ic_memo / …). The landing recent strip counts ALL artifact types, so a
+  // ticker that only has these must NOT fall through to the cold "run research"
+  // empty state — that buries reachable model results. Surface them in their
+  // own labelled section, newest first.
+  const otherArtifacts = (timeline ?? []).filter((a) => a.type !== 'equity_research')
+  const hasOtherArtifacts = otherArtifacts.length > 0
   const isRunning = runState?.status === 'running'
+
+  // ── Run preflight (BUG-027) ───────────────────────────────────────────────
+  // Block the report CTA when a key precondition is known-bad, so the user gets
+  // an actionable "去设置" affordance instead of a raw "Run creation failed
+  // (500)" toast after the POST. Only block on signals we're CONFIDENT about:
+  //   - backend offline (reachability probe failed)
+  //   - boot-time config error (startup_error → /api/runs returns 503, BUG-056)
+  //   - no data provider configured at all (no FMP/yfinance → pipeline can't run)
+  // We do NOT block on `degraded` alone (quotes still warming is transient) nor
+  // on a market-data card outage (a yfinance hiccup shouldn't lock research).
+  // `undefined` health (still loading) never blocks — don't punish a cold load.
+  const preflightBlocked =
+    health != null &&
+    (!health.backendReachable ||
+      health.startupError != null ||
+      health.availableProviders.length === 0)
+  const preflightReason: 'offline' | 'config' | 'providers' | null =
+    health == null
+      ? null
+      : !health.backendReachable
+        ? 'offline'
+        : health.startupError != null
+          ? 'config'
+          : health.availableProviders.length === 0
+            ? 'providers'
+            : null
   // A completed run whose artifact is NOT equity_research (DCF/LBO/comps/
   // earnings/…). Its result lives behind the PipelineProgressPanel's CTA
   // (run.artifactId), so we must not fall through to ColdState and bury it.
@@ -71,6 +162,19 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
         title: t('workspace.ai.toast.alreadyRunning', { ticker }),
         description: t('workspace.ai.toast.alreadyRunningDesc'),
       })
+      return
+    }
+    // Preflight guard (BUG-027): never POST /api/runs when a precondition is
+    // known-bad — the run would 503/500 and we'd leak a raw HTTP toast. Route
+    // the user to Settings instead. (The CTA is also disabled, so this is a
+    // belt-and-braces guard for any non-button caller like onRerun.)
+    if (preflightBlocked) {
+      addToast({
+        type: 'error',
+        title: locale === 'zh' ? '无法启动研报' : 'Can’t start the report',
+        description: preflightDescription(preflightReason, locale),
+      })
+      navigate('/settings')
       return
     }
     try {
@@ -174,6 +278,19 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
           onRerun={launchResearch}
           onOpen={(id) => navigate(`/stocks/${ticker}/runs/${id}`)}
         />
+      ) : !isRunning && !latest && hasOtherArtifacts ? (
+        // BUG-040: ticker has model artifacts (DCF/LBO/comps/…) but no full
+        // equity_research report. Don't pretend it's empty — surface those
+        // artifacts (reachable via the detail page's type router, BUG-039) plus
+        // a slimmer prompt to run a full report. The cold "还没跑 AI 研报"
+        // empty state is reserved for tickers with genuinely zero artifacts.
+        <NoReportYetState
+          ticker={ticker}
+          preflightBlocked={preflightBlocked}
+          preflightReason={preflightReason}
+          isRunning={isRunning}
+          onLaunch={launchResearch}
+        />
       ) : !isRunning && !latest && !nonResearchResult ? (
         // Don't drop a just-finished non-research run (DCF/LBO/comps/earnings)
         // into ColdState's "run research" prompt — that buries the result the
@@ -184,10 +301,188 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
           ticker={ticker}
           isRunning={isRunning}
           isQuerying={isQuerying}
+          preflightBlocked={preflightBlocked}
+          preflightReason={preflightReason}
           onLaunch={launchResearch}
         />
       ) : null}
+
+      {/* BUG-040: full model-artifact timeline (non-equity_research). Always
+          rendered when present — whether or not a full report exists — so DCF /
+          LBO / comps / earnings runs the landing strip counts are reachable
+          from the workspace. Each row routes to the detail page's type router. */}
+      {!isRunning && otherArtifacts.length > 0 && (
+        <OtherArtifacts
+          artifacts={otherArtifacts}
+          locale={locale}
+          onOpen={(id) => navigate(`/stocks/${ticker}/runs/${id}`)}
+        />
+      )}
     </section>
+  )
+}
+
+// Shown when the ticker has model artifacts but no full equity_research report
+// (BUG-040). Replaces the misleading "还没跑 AI 研报" cold state — the user DOES
+// have research here, just not a 13-chapter report. The OtherArtifacts list
+// below this surfaces the actual artifacts; this card only nudges toward a full
+// report and routes broken-config users to Settings.
+function NoReportYetState({
+  ticker,
+  preflightBlocked,
+  preflightReason,
+  isRunning,
+  onLaunch,
+}: {
+  ticker: string
+  preflightBlocked: boolean
+  preflightReason: 'offline' | 'config' | 'providers' | null
+  isRunning: boolean
+  onLaunch: () => void
+}): React.ReactElement {
+  const { locale } = useI18n()
+  const zh = locale === 'zh'
+  return (
+    <div
+      data-testid="ai-zone-no-report"
+      style={{
+        background: 'var(--bg-card-faint)',
+        border: '1px dashed var(--border-soft)',
+        borderRadius: 'var(--radius-md)',
+        padding: '20px 22px',
+        marginBottom: 14,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: 15,
+          letterSpacing: '1px',
+          color: 'var(--text-primary)',
+          marginBottom: 8,
+        }}
+      >
+        {zh ? `${ticker} 还没有完整 AI 研报` : `No full AI report for ${ticker} yet`}
+      </div>
+      <p
+        style={{
+          fontSize: 12.5,
+          color: 'var(--text-muted)',
+          lineHeight: 1.6,
+          marginBottom: 14,
+        }}
+      >
+        {zh
+          ? '该标的已有下方的模型产物。要生成 13 章完整研报,跑一次 AI 分析。'
+          : 'This ticker already has the model artifacts below. Run an AI analysis for the full 13-chapter report.'}
+      </p>
+      <RunCta
+        preflightBlocked={preflightBlocked}
+        preflightReason={preflightReason}
+        isRunning={isRunning}
+        onLaunch={onLaunch}
+        compact
+      />
+    </div>
+  )
+}
+
+// The non-research artifact timeline (BUG-040). DCF / LBO / comps / earnings /
+// ic_memo rows, newest first, each routing to the artifact detail type router.
+function OtherArtifacts({
+  artifacts,
+  locale,
+  onOpen,
+}: {
+  artifacts: ArtifactSummaryV5[]
+  locale: Locale
+  onOpen: (id: string) => void
+}): React.ReactElement {
+  const zh = locale === 'zh'
+  const sorted = [...artifacts].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  )
+  return (
+    <div
+      data-testid="ai-zone-other-artifacts"
+      style={{
+        background: 'var(--gradient-card-cosmic)',
+        border: '1px solid var(--secondary-strong)',
+        borderRadius: 'var(--radius-md)',
+        padding: '14px 16px',
+        marginTop: 14,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            color: 'var(--secondary)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+          }}
+        >
+          {zh ? '模型产物与工具运行' : 'Model Artifacts & Tool Runs'}
+        </span>
+        <span
+          style={{
+            marginLeft: 'auto',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'var(--text-muted)',
+          }}
+        >
+          {sorted.length}
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {sorted.map((a) => {
+          const v = readVerdict(a)
+          const tone = v === 'BUY' ? 'buy' : v === 'SELL' ? 'sell' : 'hold'
+          return (
+            <button
+              key={a.id}
+              type="button"
+              data-testid={`other-artifact-${a.type}`}
+              onClick={() => onOpen(a.id)}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '120px 60px 70px 1fr auto',
+                gap: 10,
+                alignItems: 'center',
+                padding: '8px 10px',
+                background: 'var(--bg-card-translucent)',
+                border: 'none',
+                borderLeft: '2px solid var(--border-soft)',
+                borderRadius: '0 6px 6px 0',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11.5,
+                textAlign: 'left',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <span style={{ color: 'var(--secondary)', fontWeight: 600 }}>
+                {artifactTypeLabel(a.type, locale)}
+              </span>
+              {v ? <VerdictPill tone={tone}>{v}</VerdictPill> : <span />}
+              <span style={{ color: 'var(--text-secondary)' }}>
+                {a.target_price !== null && a.target_price !== undefined
+                  ? `$${a.target_price.toFixed(0)}`
+                  : '—'}
+              </span>
+              <span style={{ color: 'var(--text-dim)', fontSize: 10.5 }}>
+                {formatDate(a.created_at, locale, 'short')} · {ageLabel(a.created_at)}
+              </span>
+              <span style={{ color: 'var(--secondary)', textDecoration: 'underline' }}>
+                {zh ? '打开 →' : 'Open →'}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -250,11 +545,15 @@ function ColdState({
   ticker,
   isRunning,
   isQuerying,
+  preflightBlocked,
+  preflightReason,
   onLaunch,
 }: {
   ticker: string
   isRunning: boolean
   isQuerying: boolean
+  preflightBlocked: boolean
+  preflightReason: 'offline' | 'config' | 'providers' | null
   onLaunch: () => void
 }): React.ReactElement {
   const { t } = useI18n()
@@ -308,28 +607,14 @@ function ColdState({
         <strong style={{ color: 'var(--accent-cyan)' }}>{t('workspace.ai.cold.descBold')}</strong>
         {t('workspace.ai.cold.descSuffix')}
       </p>
-      <button
-        type="button"
-        data-testid="run-analysis-trigger"
-        onClick={onLaunch}
-        disabled={isRunning}
-        style={{
-          padding: '17px 32px',
-          background: 'linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%)',
-          border: 'none',
-          borderRadius: 10,
-          color: 'white',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 14,
-          fontWeight: 600,
-          letterSpacing: '0.04em',
-          cursor: isRunning ? 'not-allowed' : 'pointer',
-          opacity: isRunning ? 0.5 : 1,
-          boxShadow: '0 0 22px var(--secondary-glow)',
-        }}
-      >
-        {isRunning ? t('workspace.ai.running') : t('workspace.ai.cold.launchBtn')}
-      </button>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <RunCta
+          preflightBlocked={preflightBlocked}
+          preflightReason={preflightReason}
+          isRunning={isRunning}
+          onLaunch={onLaunch}
+        />
+      </div>
       <p
         style={{
           fontFamily: 'var(--font-mono)',
@@ -341,6 +626,88 @@ function ColdState({
         {t('workspace.ai.cold.immutableNote')}
       </p>
     </div>
+  )
+}
+
+// The primary "run report" CTA, shared by ColdState and NoReportYetState.
+// BUG-027: when a preflight precondition is known-bad the button becomes a
+// "去设置" link instead of a run trigger — so the user never fires a run the
+// backend will reject with a raw HTTP error. `compact` shrinks it for the
+// inline NoReportYet card vs the big hero cold state.
+function RunCta({
+  preflightBlocked,
+  preflightReason,
+  isRunning,
+  onLaunch,
+  compact,
+}: {
+  preflightBlocked: boolean
+  preflightReason: 'offline' | 'config' | 'providers' | null
+  isRunning: boolean
+  onLaunch: () => void
+  compact?: boolean
+}): React.ReactElement {
+  const { locale, t } = useI18n()
+  const navigate = useNavigate()
+  const zh = locale === 'zh'
+  const pad = compact ? '11px 20px' : '17px 32px'
+  const fontSize = compact ? 12.5 : 14
+
+  if (preflightBlocked) {
+    const label =
+      preflightReason === 'offline'
+        ? zh
+          ? '⚠ 后端未连接 · 重试数据源'
+          : '⚠ Backend offline · retry data source'
+        : zh
+          ? '⚠ 去设置补全配置'
+          : '⚠ Fix config in Settings'
+    return (
+      <button
+        type="button"
+        data-testid="run-analysis-blocked"
+        onClick={() => navigate('/settings')}
+        style={{
+          padding: pad,
+          background: 'var(--warning-soft)',
+          border: '1px solid var(--warning)',
+          borderRadius: 10,
+          color: 'var(--warning)',
+          fontFamily: 'var(--font-mono)',
+          fontSize,
+          fontWeight: 600,
+          letterSpacing: '0.04em',
+          cursor: 'pointer',
+        }}
+      >
+        {label}
+      </button>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      data-testid="run-analysis-trigger"
+      onClick={onLaunch}
+      disabled={isRunning}
+      style={{
+        padding: pad,
+        background: 'linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%)',
+        border: 'none',
+        borderRadius: 10,
+        color: 'white',
+        fontFamily: 'var(--font-mono)',
+        fontSize,
+        fontWeight: 600,
+        letterSpacing: '0.04em',
+        cursor: isRunning ? 'not-allowed' : 'pointer',
+        opacity: isRunning ? 0.5 : 1,
+        boxShadow: '0 0 22px var(--secondary-glow)',
+      }}
+    >
+      {isRunning ? t('workspace.ai.running') : t('workspace.ai.cold.launchBtn')}
+    </button>
   )
 }
 

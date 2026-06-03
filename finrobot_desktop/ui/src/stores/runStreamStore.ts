@@ -19,6 +19,7 @@
 import { create } from 'zustand'
 import { BASE_URL } from '../api/client'
 import { fetchWithTimeout } from '../api/fetch'
+import { FetchHttpError } from '../utils/errorMessage'
 import { useUiPrefs } from '../i18n'
 
 export interface RunStep {
@@ -309,9 +310,15 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
         5_000,
       )
       if (!resp.ok) {
-        const body = await resp.json().catch(() => ({}))
-        const msg = body.detail || `Run creation failed (${resp.status})`
-        throw new Error(msg)
+        // Prefer the backend's human-readable `detail` (e.g. the 503 from
+        // BUG-056's startup_error gate carries an actionable message). When it's
+        // absent, throw a typed FetchHttpError so mapErrorToUserMessage renders
+        // a friendly localised string instead of leaking "Run creation failed
+        // (500)" to the toast (BUG-027).
+        const body = (await resp.json().catch(() => ({}))) as { detail?: string }
+        const detail = typeof body.detail === 'string' ? body.detail.trim() : ''
+        if (detail) throw new Error(detail)
+        throw new FetchHttpError(resp.status, resp.statusText)
       }
       const { run_id }: { run_id: string } = await resp.json()
 

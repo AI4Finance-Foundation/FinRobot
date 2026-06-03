@@ -208,6 +208,17 @@ beforeEach(() => {
     if (url.includes('/api/data/NVDA/financials')) {
       return jsonResponse({ market_cap: 2.1e12, pe_ratio: 42 })
     }
+    // Health preflight (BUG-027) — happy path: backend reachable, quotes warmed,
+    // providers configured, no startup error → run CTA enabled.
+    if (url.includes('/api/health/quotes-warmed')) {
+      return jsonResponse({ warmed: true, studied_ticker_count: 3 })
+    }
+    if (url.endsWith('/api/settings')) {
+      return jsonResponse({
+        available_providers: ['fmp', 'yfinance'],
+        startup_error: null,
+      })
+    }
     return jsonResponse({})
   })
 })
@@ -331,6 +342,126 @@ describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
     expect(screen.queryByTestId('ai-zone-cold')).not.toBeInTheDocument()
     // "Open full report" CTA wires to the artifact detail route.
     expect(screen.getByTestId('open-latest-report')).toBeInTheDocument()
+  })
+})
+
+// ── BUG-040: non-research artifacts must be reachable from the workspace ──────
+//
+// Landing recent counts ALL artifact types; a ticker that only has DCF/LBO/comps
+// must NOT show the cold "还没跑 AI 研报" empty state with its non-research
+// artifacts buried. It surfaces them in the OtherArtifacts list + a slimmer
+// "no full report yet" card.
+
+function mockTimeline(artifacts: unknown[]) {
+  vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+    const url = typeof input === 'string' ? input : (input as Request).url
+    if (url.endsWith('/api/artifacts/by-ticker/NVDA/timeline')) {
+      return jsonResponse(artifacts)
+    }
+    if (url.includes('/api/health/quotes-warmed')) {
+      return jsonResponse({ warmed: true, studied_ticker_count: 1 })
+    }
+    if (url.endsWith('/api/settings')) {
+      return jsonResponse({ available_providers: ['fmp', 'yfinance'], startup_error: null })
+    }
+    if (url.includes('/api/data/NVDA/price')) {
+      return jsonResponse({ current_price: 876.42, change_pct: 1.2, price_history: [] })
+    }
+    if (url.includes('/api/sentiment/NVDA')) {
+      return jsonResponse({ ticker: 'NVDA', days: 7, available: false, sources: [], warnings: [] })
+    }
+    return jsonResponse({})
+  })
+}
+
+describe('workspace surfaces all artifact types (BUG-040)', () => {
+  it('a ticker with only a dcf artifact shows the artifact, not the cold empty state', async () => {
+    mockTimeline([
+      {
+        id: 'art_2026-05-12T00:00:00_NVDA_dcf',
+        ticker: 'NVDA',
+        cross_tickers: [],
+        type: 'dcf',
+        created_at: '2026-05-12T00:00:00Z',
+        headline: 'DCF implied $890',
+        source: 'cli',
+        archived: false,
+        target_price: 890.0,
+      },
+    ])
+    renderWorkspace()
+    // The DCF artifact row is reachable.
+    expect(await screen.findByTestId('ai-zone-other-artifacts')).toBeInTheDocument()
+    expect(screen.getByTestId('other-artifact-dcf')).toBeInTheDocument()
+    // The "no full report yet" nudge replaces the misleading cold empty state.
+    expect(screen.getByTestId('ai-zone-no-report')).toBeInTheDocument()
+    // The big cold "还没跑 AI 研报" empty state must NOT show — the ticker has data.
+    expect(screen.queryByTestId('ai-zone-cold')).not.toBeInTheDocument()
+  })
+
+  it('clicking a non-research artifact routes to its detail page', async () => {
+    mockTimeline([
+      {
+        id: 'art_comps_1',
+        ticker: 'NVDA',
+        cross_tickers: [],
+        type: 'comps',
+        created_at: '2026-05-12T00:00:00Z',
+        headline: 'Comps',
+        source: 'pipeline:comps',
+        archived: false,
+      },
+    ])
+    renderWorkspace()
+    const row = await screen.findByTestId('other-artifact-comps')
+    expect(row).toBeInTheDocument()
+    expect(row).toHaveTextContent(/Comparable Companies|可比公司/)
+  })
+})
+
+// ── BUG-027: preflight gates the run CTA + run errors map to friendly copy ────
+
+describe('run preflight + friendly errors (BUG-027)', () => {
+  it('disables the run CTA and shows a settings affordance when no provider is configured', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      const url = typeof input === 'string' ? input : (input as Request).url
+      if (url.endsWith('/api/artifacts/by-ticker/NVDA/timeline')) return jsonResponse([])
+      if (url.includes('/api/health/quotes-warmed')) {
+        return jsonResponse({ warmed: true, studied_ticker_count: 0 })
+      }
+      // No providers configured + boot-time config error → preflight blocked.
+      if (url.endsWith('/api/settings')) {
+        return jsonResponse({ available_providers: [], startup_error: 'missing LLM key' })
+      }
+      if (url.includes('/api/data/NVDA/price')) {
+        return jsonResponse({ current_price: 1, change_pct: 0, price_history: [] })
+      }
+      return jsonResponse({})
+    })
+    renderWorkspace()
+    // The blocked affordance appears (routes to /settings), and the normal run
+    // trigger is gone.
+    expect(await screen.findByTestId('run-analysis-blocked')).toBeInTheDocument()
+    expect(screen.queryByTestId('run-analysis-trigger')).not.toBeInTheDocument()
+  })
+
+  it('a failed run surfaces a mapped message, not a raw HTTP string', async () => {
+    // Empty timeline → stable ColdState with the run trigger (no equity_research
+    // artifact to flip into HotState). Happy health keeps the CTA enabled.
+    mockTimeline([])
+    // startRun rejects with the dev-facing "HTTP 500" form; the toast must route
+    // it through mapErrorToUserMessage so the raw string never leaks.
+    startRunMock.mockRejectedValueOnce(new Error('HTTP 500 Internal Server Error'))
+    renderWorkspace()
+    fireEvent.click(await screen.findByTestId('run-analysis-trigger'))
+    await waitFor(() => expect(addToastMock).toHaveBeenCalled())
+    const errorToast = addToastMock.mock.calls
+      .map((c) => c[0])
+      .find((a: { type?: string }) => a.type === 'error')
+    expect(errorToast).toBeDefined()
+    // mapErrorToUserMessage turns "HTTP 500" into the friendly server-unavailable
+    // copy — the raw dev string must not leak.
+    expect(errorToast.description).not.toMatch(/HTTP 500/)
   })
 })
 

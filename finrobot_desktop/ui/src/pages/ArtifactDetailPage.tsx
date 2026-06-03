@@ -31,8 +31,18 @@ import { ReportTOC } from './artifact-detail/shell/ReportTOC'
 import { ReportRightRail } from './artifact-detail/shell/ReportRightRail'
 import { ReportStatusBar } from './artifact-detail/shell/ReportStatusBar'
 import { ReportChapters } from './artifact-detail/ReportChapters'
+import { CompactArtifactViewer } from './artifact-detail/CompactArtifactViewer'
 import { deriveReportData } from './artifact-detail/reportData'
 import { allChapterLabels } from './artifact-detail/chapters/labels'
+
+// Only equity_research is a 13-chapter long-scroll report. Every other artifact
+// type (dcf / lbo / ddm / comps / earnings / ic_memo / peer_research / ad_hoc)
+// is a single deterministic computation and renders through the compact viewer
+// — forcing them into the 13-chapter shell produced empty chapters + an
+// irrelevant TOC / IC debate / Ownership rail (BUG-20260602-039).
+function isEquityResearch(type: string): boolean {
+  return type === 'equity_research'
+}
 
 export function ArtifactDetailPage(): React.ReactElement {
   const { ticker, artifactId } = useParams<{ ticker: string; artifactId: string }>()
@@ -135,9 +145,13 @@ export function ArtifactDetailPage(): React.ReactElement {
     )
   }
 
+  const isResearch = isEquityResearch(data.type)
+
   // Chapter data + the values the surrounding chrome needs (toolbar target
   // price + version label, right-rail WACC, diff headline). deriveReportData is
-  // the single source of truth shared with the standalone export viewer.
+  // the single source of truth shared with the standalone export viewer. For
+  // non-research artifacts only `versionLabel`/`createdAt` are meaningful (the
+  // 13-chapter shapes resolve to null) — the body renders via CompactArtifactViewer.
   const { thesis, dcf, createdAt, versionLabel } = deriveReportData(data, timeline ?? [], locale)
 
   const parentArtifactId =
@@ -170,6 +184,39 @@ export function ArtifactDetailPage(): React.ReactElement {
         description: mapErrorToUserMessage(err),
       })
     }
+  }
+
+  // ── Non-research artifacts: compact single-column viewer ──────────────────
+  // No 13-chapter TOC, no IC-debate entry, no Ownership/What-if right rail, no
+  // chapter scroll-spy status bar. Just the toolbar (type-aware) + the focused
+  // compact body that shows the artifact's real inputs / result / audit trail.
+  if (!isResearch) {
+    return (
+      <div data-testid="artifact-detail-page" style={{ position: 'relative', minHeight: '100vh' }}>
+        <div
+          style={{
+            maxWidth: 940,
+            margin: '0 auto',
+            padding: '0 24px 80px',
+          }}
+        >
+          <div style={{ position: 'sticky', top: 0, zIndex: 30 }}>
+            <ReportToolbar
+              ticker={symbol}
+              artifactId={artifactId}
+              reportType={data.type}
+              reportVersionLabel={versionLabel}
+              targetPrice={null}
+              timeline={timeline ?? []}
+              onExportHtml={handleExportHtml}
+            />
+          </div>
+          <div style={{ minWidth: 0, paddingTop: 12 }}>
+            <CompactArtifactViewer artifact={data} />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

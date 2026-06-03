@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // BUG-014: the artifact id is the real identity; the URL ticker is only
@@ -52,11 +52,23 @@ vi.mock('./artifact-detail/reportData', () => ({
   deriveReportData: () => ({ thesis: null, dcf: null, createdAt: null, versionLabel: 'v1' }),
 }))
 vi.mock('../components/VersionDiffBanner', () => ({ VersionDiffBanner: () => null }))
-vi.mock('./artifact-detail/shell/ReportToolbar', () => ({ ReportToolbar: () => null }))
-vi.mock('./artifact-detail/shell/ReportTOC', () => ({ ReportTOC: () => null }))
-vi.mock('./artifact-detail/shell/ReportRightRail', () => ({ ReportRightRail: () => null }))
-vi.mock('./artifact-detail/shell/ReportStatusBar', () => ({ ReportStatusBar: () => null }))
-vi.mock('./artifact-detail/ReportChapters', () => ({ ReportChapters: () => null }))
+// Render identifiable sentinels (not null) so the type-branch test can assert
+// which chrome / body actually mounts for equity_research vs a dcf artifact.
+vi.mock('./artifact-detail/shell/ReportToolbar', () => ({
+  ReportToolbar: () => <div data-testid="mock-toolbar" />,
+}))
+vi.mock('./artifact-detail/shell/ReportTOC', () => ({
+  ReportTOC: () => <div data-testid="mock-toc" />,
+}))
+vi.mock('./artifact-detail/shell/ReportRightRail', () => ({
+  ReportRightRail: () => <div data-testid="mock-right-rail" />,
+}))
+vi.mock('./artifact-detail/shell/ReportStatusBar', () => ({
+  ReportStatusBar: () => <div data-testid="mock-status-bar" />,
+}))
+vi.mock('./artifact-detail/ReportChapters', () => ({
+  ReportChapters: () => <div data-testid="mock-report-chapters" />,
+}))
 vi.mock('./artifact-detail/chapters/labels', () => ({ allChapterLabels: () => [] }))
 
 import { ArtifactDetailPage } from './ArtifactDetailPage'
@@ -108,5 +120,76 @@ describe('ArtifactDetailPage ticker canonicalization (BUG-014)', () => {
     }
     renderPage()
     expect(navigateSpy).not.toHaveBeenCalled()
+  })
+})
+
+// BUG-20260602-039: only equity_research gets the 13-chapter shell. A dcf (or
+// any other) artifact must render the compact viewer — NOT the empty equity
+// shell with its TOC / right-rail (IC debate, Ownership, What-if) / scroll-spy.
+describe('ArtifactDetailPage type branch (BUG-039)', () => {
+  beforeEach(() => {
+    navigateSpy.mockClear()
+    params.ticker = 'AAPL'
+    params.artifactId = 'art-aapl-dcf'
+    detail.data = undefined
+    detail.isLoading = false
+    detail.isError = false
+  })
+
+  it('renders the compact viewer (inputs + result) for a dcf artifact, not the 13-chapter shell', () => {
+    params.ticker = 'AAPL'
+    detail.data = {
+      id: 'art-aapl-dcf',
+      ticker: 'AAPL',
+      type: 'dcf',
+      created_at: '2026-06-01T00:00:00Z',
+      outputs: {
+        structured: { implied_price: 187.4, wacc: 0.082, enterprise_value: 3.1e12 },
+        summary_text: 'DCF implied $187.40 / WACC 8.2%',
+        warnings: [],
+      },
+      inputs: { data_source: 'FMP', data_fetched_at: '2026-06-01T00:00:00Z', raw_data: {} },
+      assumptions: { parameters: { terminal_growth_rate: 0.025, tax_rate: 0.21 } },
+      meta: { created_at: '2026-06-01T00:00:00Z', source: 'pipeline:dcf' },
+    }
+
+    renderPage()
+
+    // Compact viewer mounts with the artifact's real numbers.
+    expect(screen.getByTestId('compact-artifact-viewer')).toBeTruthy()
+    expect(screen.getByText('DCF Implied Price')).toBeTruthy()
+    expect(screen.getByText('$187.40')).toBeTruthy()
+    // Inputs surfaced.
+    expect(screen.getByText('Terminal Growth Rate')).toBeTruthy()
+    // Audit trail surfaced.
+    expect(screen.getByText('pipeline:dcf')).toBeTruthy()
+
+    // The 13-chapter equity shell must be ABSENT.
+    expect(screen.queryByTestId('mock-report-chapters')).toBeNull()
+    expect(screen.queryByTestId('mock-toc')).toBeNull()
+    expect(screen.queryByTestId('mock-right-rail')).toBeNull()
+    expect(screen.queryByTestId('mock-status-bar')).toBeNull()
+  })
+
+  it('still renders the 13-chapter shell for equity_research', () => {
+    params.ticker = 'AAPL'
+    detail.data = {
+      id: 'art-aapl-eq',
+      ticker: 'AAPL',
+      type: 'equity_research',
+      created_at: '2026-06-01T00:00:00Z',
+      outputs: {},
+      inputs: {},
+      assumptions: {},
+      meta: {},
+    }
+    params.artifactId = 'art-aapl-eq'
+
+    renderPage()
+
+    expect(screen.getByTestId('mock-report-chapters')).toBeTruthy()
+    expect(screen.getByTestId('mock-toc')).toBeTruthy()
+    expect(screen.getByTestId('mock-right-rail')).toBeTruthy()
+    expect(screen.queryByTestId('compact-artifact-viewer')).toBeNull()
   })
 })

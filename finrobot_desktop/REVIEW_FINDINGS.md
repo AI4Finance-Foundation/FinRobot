@@ -37,7 +37,7 @@
 | ID | 类别 | 严重度 | 一句话问题 | 状态 |
 |---|---|---|---|---|
 | BUG-001 | Bug | P0 | FMP earnings provider calls wrong endpoint / reads wrong field names → earnings_history is ALWAYS empty for every ticker (silent dead feature) | 已修 |
-| BUG-002 | Bug | P0 | Coverage 卡片墙纯鼠标可达：<article> 无 tabIndex/role/onKeyDown，键盘用户无法聚焦任何卡片，连带整个 Inspector（研报/历史/Run 动作）对键盘/读屏完全不可达 | 待修 |
+| BUG-002 | Bug | P0 | Coverage 卡片墙纯鼠标可达：<article> 无 tabIndex/role/onKeyDown，键盘用户无法聚焦任何卡片，连带整个 Inspector（研报/历史/Run 动作）对键盘/读屏完全不可达 | 已修 |
 | BUG-003 | Bug | P1 | Live API key persisted in plaintext to session JSONL via provider warning → tool_result transcript | 待修 |
 | BUG-004 | Bug | P1 | Entire FastAPI surface is unauthenticated and Host-header-unvalidated — DNS rebinding lets any web page drive secret-writing/quota-burning endpoints despite the CORS whitelist | 待修 |
 | BUG-005 | Bug | P1 | PUT /api/settings can silently delete or overwrite the user's live API keys (FMP/Anthropic/OpenAI) with no auth and no confirmation | 待修 |
@@ -147,7 +147,7 @@
 - **修复方案**：改 CoverageCard.tsx 的 <article>（99-135）：加 role="button"、tabIndex={0}、aria-pressed={focused}、onKeyDown={(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); onFocus(row.ticker) } }}，并补一条 :focus-visible 描边（现有 border 已随 focused 变色，但键盘焦点需独立可见环——用 outline: 2px solid var(--border-glow) 或在 App.css 加全局 [role=button]:focus-visible 规则，禁硬编码 hex）。注意：checkbox(167) 和 IconButton(375/384) 已 stopPropagation，键盘 Enter 落在它们身上不会冒泡触发 onFocus，无冲突。进阶（中等改动量，约 40 行）：在 CoverageCardGrid.tsx 实现方向键 roving tabindex（↑↓←→ 在卡片间移动焦点 + 同步 onFocus），让分诊墙真正可键盘巡航；最小修复只做单卡可聚焦+Enter 激活即可解 P0。
 - **验证补充**：Fix is correct (role=button + tabIndex=0 + onKeyDown Enter/Space + aria-pressed + :focus-visible ring via token, no hardcoded hex). stopPropagation on checkbox(167)/IconButtons(376/385) confirmed, so no bubble conflict. Caveat on severity: for a no-live-users stars project the P0 label is aggressive, but given the explicitly professional-analyst target it is a legitimate full-blocker — keep P0.
 - **影响面/回归风险**：影响首屏全部键盘/读屏用户与可访问性合规；回归风险低——只新增 a11y 属性与键盘分支，不改鼠标路径与现有 stopPropagation 逻辑。需补一条 RTL/键盘测试断言卡片可 focus 且 Enter 改 focusedTicker。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（改了 `ui/src/components/coverage/CoverageCard.tsx` 的 `<article>`：加 `role="button"` / `tabIndex={0}` / `aria-pressed={focused}` / `onKeyDown` Enter|Space→`onFocus(row.ticker)`；`ui/src/App.css` 加全局 `[role='button']:focus-visible` 焦点环用 `var(--border-glow)`（无硬编码 hex，独立于 focused 边框色）。**额外修正**：原方案假设 inner checkbox/IconButton 的 stopPropagation 能防双触发——那只挡 onClick，键盘 keydown 仍冒泡，故在 onKeyDown 加 `e.target !== e.currentTarget` 守卫，避免在 checkbox 上按 Space 同时切 Inspector 焦点。CoverageCardGrid 方向键 roving 因 `auto-fill` 响应式列数需运行时测量、有改选中逻辑风险，按方案『有风险即跳过』**跳过**（最小修复已清 P0：每张卡都是 tab stop + Enter 激活，键盘/读屏可达）。验证：`npm run lint` 零报错、`npm run build`（tsc）通过。)
 
 #### [BUG-003] Live API key persisted in plaintext to session JSONL via provider warning → tool_result transcript
 

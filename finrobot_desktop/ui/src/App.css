@@ -1031,6 +1031,15 @@ input[type='range']::-moz-range-thumb {
   font-weight: 700;
 }
 
+/* Keyboard focus ring for div/article-based custom buttons (e.g. Coverage Desk
+   cards expose role="button" tabIndex=0). Independent of any focused-state
+   border color so keyboard/screen-reader users always get a visible focus
+   indicator. Only fires for keyboard focus (:focus-visible), never mouse. */
+[role='button']:focus-visible {
+  outline: 2px solid var(--border-glow);
+  outline-offset: 2px;
+}
+
 /* heatmap color classes */
 .hm-5 {
   background: rgba(16, 185, 129, 0.3);

@@ -99,8 +99,23 @@ export const CoverageCard = memo(function CoverageCard({
     <article
       data-ticker={row.ticker}
       data-testid={`coverage-card-${row.ticker}`}
+      role="button"
+      tabIndex={0}
+      aria-pressed={focused}
       aria-current={focused || undefined}
       onClick={() => onFocus(row.ticker)}
+      onKeyDown={(e) => {
+        // Only act when the article itself holds focus — Enter/Space on the
+        // inner checkbox / run / open controls bubbles up as a keydown (their
+        // stopPropagation only guards onClick, not onKeyDown), so without this
+        // target guard pressing Space on the checkbox would both toggle it AND
+        // move the inspector focus (double-trigger).
+        if (e.target !== e.currentTarget) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onFocus(row.ticker)
+        }
+      }}
       style={{
         position: 'relative',
         display: 'flex',

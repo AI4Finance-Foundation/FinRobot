@@ -21,11 +21,45 @@ import asyncio
 import contextlib
 import json
 import logging
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+# Defense-in-depth secret scrubber. Even though providers no longer interpolate
+# raw httpx exceptions (whose str() leaks ``?apikey=<key>``), the transcript is
+# the last line before secrets become permanent on disk, so it scrubs every
+# event payload itself. Patterns are anchored on the *value* so the redacted
+# string still shows which credential was present.
+#   1. query-string keys:   ...?apikey=SECRET   ...&api_key=SECRET
+#   2. header-style keys:    "X-API-Key": "SECRET"  /  X-Finnhub-Token: SECRET
+_QUERY_KEY_RE = re.compile(r"(?i)(api[_-]?key=)[^&\s\"']+")
+_HEADER_KEY_RE = re.compile(r"(?i)(x-(?:api-key|finnhub-token)['\"]?\s*[:=]\s*['\"]?)[^&\s,}\"']+")
+
+
+def _scrub_secrets(text: str) -> str:
+    """Redact API-key-shaped substrings from a single string."""
+    text = _QUERY_KEY_RE.sub(r"\1[REDACTED]", text)
+    return _HEADER_KEY_RE.sub(r"\1[REDACTED]", text)
+
+
+def _scrub_data(value: Any) -> Any:
+    """Recursively walk ``str`` leaves of an event payload and scrub secrets.
+
+    Returns a scrubbed copy; containers are rebuilt so the original payload is
+    not mutated. Cheap: only ``str`` leaves are touched (regex with no match is
+    near-free), so large non-string blobs pass through untouched.
+    """
+    if isinstance(value, str):
+        return _scrub_secrets(value)
+    if isinstance(value, dict):
+        return {k: _scrub_data(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return type(value)(_scrub_data(v) for v in value)
+    return value
 
 
 # Tests monkey-patch this attribute to redirect writes. Production leaves
@@ -81,10 +115,16 @@ class TranscriptWriter:
         return json.dumps(record, ensure_ascii=False)
 
     async def _write_event(self, event: str, data: dict[str, Any]) -> None:
-        """Append one JSONL event line.  Never raises — errors are logged."""
+        """Append one JSONL event line.  Never raises — errors are logged.
+
+        Every payload is run through :func:`_scrub_data` first so an API key
+        that slipped into any nested string (e.g. a provider warning nested
+        under ``data['result']``) is redacted before it is written to disk.
+        """
         try:
             self._ensure_parent_dir()
-            line = self._build_line(event, data)
+            scrubbed: dict[str, Any] = _scrub_data(data)
+            line = self._build_line(event, scrubbed)
             async with self._lock:
                 with open(self._path, "a", encoding="utf-8") as fh:
                     fh.write(line + "\n")

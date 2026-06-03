@@ -687,21 +687,29 @@ class FMPProvider(DataProvider):
         Used by every public fetch path so each call site only needs to label
         the operation; message formatting and exception fanout live here.
         """
+        # Never interpolate the raw httpx exception: its str() includes the
+        # request URL, which carries ``?apikey=<live key>``. Use status code +
+        # sanitized context only; ``from e`` keeps the full detail for
+        # server-side logging without leaking it into the transcript.
         try:
             yield
         except httpx.TimeoutException as e:
-            raise ProviderError(f"FMP timeout during {op} for '{ticker}': {e}") from e
+            raise ProviderError(f"FMP timeout during {op} for '{ticker}'") from e
         except httpx.HTTPStatusError as e:
-            raise ProviderError(f"FMP API error during {op} for '{ticker}': {e}") from e
+            raise ProviderError(
+                f"FMP HTTP {e.response.status_code} during {op} for '{ticker}'"
+            ) from e
         except (
             httpx.ConnectError,
             httpx.RemoteProtocolError,
             httpx.ReadError,
             httpx.WriteError,
         ) as e:
-            raise ProviderError(f"FMP network error during {op} for '{ticker}': {e}") from e
+            raise ProviderError(
+                f"FMP network error ({type(e).__name__}) during {op} for '{ticker}'"
+            ) from e
         except (ValueError, KeyError, TypeError, AttributeError) as e:
-            raise ProviderError(f"FMP {op} failed for '{ticker}': {e}") from e
+            raise ProviderError(f"FMP {op} failed for '{ticker}' ({type(e).__name__})") from e
 
     async def _get(
         self, path: str, params: dict[str, Any] | None = None, *, base: str = _BASE_URL

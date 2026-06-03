@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
-from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.providers.news_aggregator import NewsAggregatorProvider
 from finrobot.engine.compute.news import (
     NewsItem,
     RawNewsItem,
@@ -235,3 +237,57 @@ class TestClassifyNews:
 
             with pytest.raises(RuntimeError, match="News classification failed"):
                 await classify_news(raw_items, mock_deps)
+
+
+class TestNewsAggregatorKeyDoesNotLeak:
+    """BUG-003: the Alpha Vantage request URL carries ?apikey=<live key>. An
+    HTTP error must surface status + ticker only, never the raw httpx str()."""
+
+    @pytest.mark.asyncio
+    async def test_alpha_vantage_http_error_omits_api_key(self):
+        provider = NewsAggregatorProvider(alpha_vantage_api_key="LIVEKEY_SHOULD_NOT_LEAK")
+
+        request = httpx.Request(
+            "GET",
+            "https://www.alphavantage.co/query?function=NEWS_SENTIMENT"
+            "&tickers=AAPL&apikey=LIVEKEY_SHOULD_NOT_LEAK",
+        )
+        response = httpx.Response(429, request=request)
+
+        async def _boom(*_args, **_kwargs):
+            raise httpx.HTTPStatusError(
+                f"429 for url {request.url}", request=request, response=response
+            )
+
+        with patch("httpx.AsyncClient") as MockClient:
+            client = MockClient.return_value.__aenter__.return_value
+            client.get = AsyncMock(side_effect=_boom)
+
+            with pytest.raises(ProviderError) as exc_info:
+                await provider._fetch_alpha_vantage("AAPL")
+
+        msg = str(exc_info.value)
+        assert "LIVEKEY_SHOULD_NOT_LEAK" not in msg
+        assert "apikey" not in msg.lower()
+        assert "429" in msg
+        assert "AAPL" in msg
+
+    @pytest.mark.asyncio
+    async def test_all_sources_failed_message_omits_api_key(self):
+        """When every source fails, the aggregate ProviderError joins each
+        failure string — none may carry the key."""
+        provider = NewsAggregatorProvider(alpha_vantage_api_key="LIVEKEY_SHOULD_NOT_LEAK")
+
+        av_err = ProviderError("Alpha Vantage HTTP 429 for 'AAPL'")
+        yahoo_err = ProviderError("Yahoo RSS HTTP error for 'AAPL'")
+
+        with (
+            patch.object(provider, "_fetch_yahoo_rss", AsyncMock(side_effect=yahoo_err)),
+            patch.object(provider, "_fetch_alpha_vantage", AsyncMock(side_effect=av_err)),
+        ):
+            with pytest.raises(ProviderError) as exc_info:
+                await provider.fetch("AAPL", "news")
+
+        msg = str(exc_info.value)
+        assert "LIVEKEY_SHOULD_NOT_LEAK" not in msg
+        assert "All news sources failed" in msg

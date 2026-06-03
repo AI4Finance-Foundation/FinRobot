@@ -105,6 +105,54 @@ async def test_writer_error_event(tmp_session_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Secret scrubbing (BUG-003): API keys must never reach the on-disk transcript
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_apikey_in_nested_string_is_redacted(tmp_session_dir: Path) -> None:
+    """A provider warning nested under data['result'] (itself a string) carries
+    the live key via ``?apikey=...``; the written JSONL must redact it."""
+    writer = TranscriptWriter("sess-redact", base_dir=tmp_session_dir)
+    leaky = (
+        "Alpha Vantage fetch failed: "
+        "GET https://www.alphavantage.co/query?tickers=AAPL&apikey=SECRET123 -> 500"
+    )
+    await writer.log_tool_result(
+        tool_use_id="tc-leak",
+        tool_name="get_news",
+        # result is a plain string here (to_context_string output), mirroring the
+        # real chat tool_result shape where warnings live nested in the string.
+        result=f"## News\n\nWarnings:\n- {leaky}",
+        is_error=True,
+    )
+
+    path = tmp_session_dir / "sess-redact.jsonl"
+    raw = path.read_text(encoding="utf-8")
+    assert "SECRET123" not in raw
+    assert "[REDACTED]" in raw
+    # surrounding context is preserved
+    assert "Alpha Vantage fetch failed" in raw
+
+
+@pytest.mark.asyncio
+async def test_header_style_api_key_is_redacted(tmp_session_dir: Path) -> None:
+    """X-API-Key / X-Finnhub-Token header-style values are scrubbed too."""
+    writer = TranscriptWriter("sess-redact-hdr", base_dir=tmp_session_dir)
+    await writer.log_error(
+        exception_class="ProviderError",
+        message='request used {"X-API-Key": "hdr-secret-77"}',
+        context={"raw": "X-Finnhub-Token: tok_abc123"},
+    )
+
+    path = tmp_session_dir / "sess-redact-hdr.jsonl"
+    raw = path.read_text(encoding="utf-8")
+    assert "hdr-secret-77" not in raw
+    assert "tok_abc123" not in raw
+    assert raw.count("[REDACTED]") == 2
+
+
+# ---------------------------------------------------------------------------
 # Concurrent safety: 100 parallel writes must not corrupt the file
 # ---------------------------------------------------------------------------
 

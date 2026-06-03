@@ -114,12 +114,33 @@ def _fmp_adj_historical_price_response() -> dict:
     return {
         "symbol": "AAPL",
         "historical": [
-            {"date": "2020-09-01", "open": 132.76, "high": 134.8, "low": 130.53,
-             "close": 134.18, "adjClose": 130.13, "volume": 151_948_100},
-            {"date": "2020-08-31", "open": 127.58, "high": 131.0, "low": 126.0,
-             "close": 129.04, "adjClose": 125.15, "volume": 225_702_700},
-            {"date": "2020-08-28", "open": 126.01, "high": 126.44, "low": 124.58,
-             "close": 124.81, "adjClose": 121.05, "volume": 187_630_000},
+            {
+                "date": "2020-09-01",
+                "open": 132.76,
+                "high": 134.8,
+                "low": 130.53,
+                "close": 134.18,
+                "adjClose": 130.13,
+                "volume": 151_948_100,
+            },
+            {
+                "date": "2020-08-31",
+                "open": 127.58,
+                "high": 131.0,
+                "low": 126.0,
+                "close": 129.04,
+                "adjClose": 125.15,
+                "volume": 225_702_700,
+            },
+            {
+                "date": "2020-08-28",
+                "open": 126.01,
+                "high": 126.44,
+                "low": 124.58,
+                "close": 124.81,
+                "adjClose": 121.05,
+                "volume": 187_630_000,
+            },
         ],
     }
 
@@ -143,7 +164,9 @@ class TestFMPPriceRange:
         auto_adjust — close=adjClose, O/H/L scaled by adjClose/close — never the
         raw nominal close that injects a 4x jump at a split."""
         with patch.object(
-            provider, "_get", AsyncMock(return_value=_mock_response(_fmp_adj_historical_price_response()))
+            provider,
+            "_get",
+            AsyncMock(return_value=_mock_response(_fmp_adj_historical_price_response())),
         ):
             result = await provider.fetch(
                 "AAPL", "price_range", start="2020-08-28", end="2020-09-01", interval="1d"
@@ -165,7 +188,9 @@ class TestFMPPriceRange:
     @pytest.mark.asyncio
     async def test_price_range_empty_raises(self, provider):
         with patch.object(
-            provider, "_get", AsyncMock(return_value=_mock_response({"symbol": "AAPL", "historical": []}))
+            provider,
+            "_get",
+            AsyncMock(return_value=_mock_response({"symbol": "AAPL", "historical": []})),
         ):
             with pytest.raises(ProviderError, match="no bars"):
                 await provider.fetch("AAPL", "price_range", start="1990-01-01", end="1990-01-02")
@@ -173,7 +198,9 @@ class TestFMPPriceRange:
     @pytest.mark.asyncio
     async def test_price_range_rejects_non_daily_interval(self, provider):
         with pytest.raises(ProviderError, match="interval"):
-            await provider.fetch("AAPL", "price_range", start="2020-01-01", end="2020-02-01", interval="1wk")
+            await provider.fetch(
+                "AAPL", "price_range", start="2020-01-01", end="2020-02-01", interval="1wk"
+            )
 
 
 class TestFMPFetch:
@@ -289,6 +316,34 @@ class TestFMPFetch:
         ):
             with pytest.raises(ProviderError, match="timeout"):
                 await provider.fetch("AAPL", "financials")
+
+    @pytest.mark.asyncio
+    async def test_http_error_message_does_not_leak_api_key(self, provider):
+        """BUG-003: the raw httpx exception's str() embeds the request URL with
+        ?apikey=<live key>; _wrap_errors must surface status + ticker only."""
+        request = httpx.Request(
+            "GET",
+            "https://financialmodelingprep.com/api/v3/income-statement/AAPL"
+            "?apikey=LIVEKEY_SHOULD_NOT_LEAK",
+        )
+        response = httpx.Response(403, request=request)
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(
+                side_effect=httpx.HTTPStatusError(
+                    f"403 for url {request.url}", request=request, response=response
+                )
+            ),
+        ):
+            with pytest.raises(ProviderError) as exc_info:
+                await provider.fetch("AAPL", "financials")
+
+        msg = str(exc_info.value)
+        assert "LIVEKEY_SHOULD_NOT_LEAK" not in msg
+        assert "apikey" not in msg.lower()
+        assert "403" in msg
+        assert "AAPL" in msg
 
 
 def _fmp_multi_year_income(ticker="AAPL", years=3):

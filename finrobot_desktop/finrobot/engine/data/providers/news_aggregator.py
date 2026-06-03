@@ -162,10 +162,16 @@ class NewsAggregatorProvider(DataProvider):
             async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
                 resp = await client.get(_ALPHA_VANTAGE_URL, params=params)
                 resp.raise_for_status()
+        # The Alpha Vantage request URL carries ``?apikey=<live key>``; the raw
+        # httpx exception's str() contains that URL, so never interpolate ``e``
+        # into the message (it ends up in DataResult.warnings → transcript).
+        # ``from e`` keeps the detail for server-side logging only.
         except httpx.TimeoutException as e:
-            raise ProviderError(f"Alpha Vantage timeout for '{ticker}': {e}") from e
+            raise ProviderError(f"Alpha Vantage timeout for '{ticker}'") from e
         except httpx.HTTPStatusError as e:
-            raise ProviderError(f"Alpha Vantage HTTP error for '{ticker}': {e}") from e
+            raise ProviderError(
+                f"Alpha Vantage HTTP {e.response.status_code} for '{ticker}'"
+            ) from e
 
         data = resp.json()
         if "feed" not in data:

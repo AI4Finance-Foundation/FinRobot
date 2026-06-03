@@ -9,6 +9,19 @@
 
 ---
 
+> ## 🚨 修复前必读 · 给按「状态」领活的会话
+>
+> **① BUG-075 与 BUG-086 是「原子对」，必须同一次改、一起验、一起标已修——中间不留任何窗口。**
+> - BUG-075（13F 列名 PascalCase 不匹配）现在让 `institutional_holdings` **全空**，恰好挡住了 BUG-086。
+> - BUG-086（取数脚本无条件再 `×1000`）一旦取数能进，机构持仓金额 **1000 倍高估**（$250M→$250B）。
+> - **若你只修了 075 就标已修、没同时修 086 → 立刻吐 1000 倍错的美元数进 artifact**，砸"不编数字"的招牌。两条放在同一个 commit 里改。
+>
+> **② BUG-071 ~ BUG-086 来自 2026-06-03 第二轮『运行时/环境/外部基准/领域口径』专项审计**（见下方对应区块的同名横幅），全部 `reproduced=True` 真复现过。
+>
+> **③ 多会话共享工作树：动手前先重新 Read 本文件**（拿到含 BUG-071~086 的最新版），状态翻转只用定点 Edit 改那一行 `待修`→`已修`，别整段覆盖。
+
+---
+
 ## 一、执行摘要
 
 ### 如果只做这几件事，产品就会发生质变
@@ -38,7 +51,7 @@
 |---|---|---|---|---|
 | BUG-001 | Bug | P0 | FMP earnings provider calls wrong endpoint / reads wrong field names → earnings_history is ALWAYS empty for every ticker (silent dead feature) | 已修 |
 | BUG-002 | Bug | P0 | Coverage 卡片墙纯鼠标可达：<article> 无 tabIndex/role/onKeyDown，键盘用户无法聚焦任何卡片，连带整个 Inspector（研报/历史/Run 动作）对键盘/读屏完全不可达 | 已修 |
-| BUG-003 | Bug | P1 | Live API key persisted in plaintext to session JSONL via provider warning → tool_result transcript | 待修 |
+| BUG-003 | Bug | P1 | Live API key persisted in plaintext to session JSONL via provider warning → tool_result transcript | 已修 |
 | BUG-004 | Bug | P1 | Entire FastAPI surface is unauthenticated and Host-header-unvalidated — DNS rebinding lets any web page drive secret-writing/quota-burning endpoints despite the CORS whitelist | 待修 |
 | BUG-005 | Bug | P1 | PUT /api/settings can silently delete or overwrite the user's live API keys (FMP/Anthropic/OpenAI) with no auth and no confirmation | 待修 |
 | BUG-006 | Bug | P1 | 跨境 forward 估值口径错币种:comps_pe 的 forward 路径用『USD 归一化同业 P/E × 申报币种 forward EPS』,ADR(TSM/ASML/BABA)目标价整体偏离一个汇率 | 待修 |
@@ -69,6 +82,8 @@
 | BUG-031 | Bug | P1 | Coverage 批量运行 >6 个 ticker 时耗尽浏览器 HTTP/1.1 连接池，多余的 SSE 与所有普通 API 轮询被无限阻塞 | 待修 |
 | BUG-032 | Bug | P1 | Coverage overview 全量 fetch 失败但 fast skeleton 成功时，卡片市场列永久空白——无错误态、无 shimmer、无重试入口 | 待修 |
 | BUG-033 | Bug | P1 | Chat tools and /api/runs accept unvalidated ticker strings while a SoT ticker validator already exists in coverage — junk symbols fan out to live providers | 待修 |
+| BUG-073 | Bug | P1 | DCF/DDM 绝对估值对外币 ADR 零 FX 归一化:营收(申报币 TWD/EUR)与市值/股本(USD)混算,implied_price 本币计价却当 USD 印出并比价(TSM ~32x 高估)——comps 路径已修,绝对估值路径漏修 | 待修 |
+| BUG-077 | Bug | P1 | SkillRegistry._load_all 只 catch SkillLoadError 不 catch pydantic ValidationError——一个字段类型写错的 SKILL.md(外部/partner 技能常见)使 server/SDK/CLI 启动整体崩,违背其 fail-soft 设计 | 待修 |
 | UX-001 | 产品 | P1 | 冷启动首份研报动线被拆成两条不相通的入口，且 Starter 终点是空墙而非一份研报 | 待修 |
 | UX-002 | 产品 | P1 | 首份研报跑完后还要手动点一次才能阅读——"第一次惊艳"被一次多余点击拦住 | 待修 |
 | UX-003 | 产品 | P1 | TickerNotFound 的「返回」按钮指向已退役的 /stocks，触发二次重定向 + 错误的合并提示 | 待修 |
@@ -102,6 +117,15 @@
 | BUG-057 | Bug | P2 | Compare 表把不同时间跑出的 DCF 混在同一张表,且不显任何 vintage/as_of——用户无法判断哪行是今天的、哪行是三周前的 | 待修 |
 | BUG-068 | Bug | P2 | 回测对 A股标的零适配(T+1/涨跌停/印花税/停牌全缺)却照常产出净值曲线——A股结果根本不可信,应在入口直接 raise 拒跑而非 warn | 待修 |
 | BUG-070 | Bug | P2 | artifact 盖 git_commit 戳的 subprocess except 抓错异常类型(只抓 ImportError/Attr/Type/Value)——git 缺失(FileNotFoundError)/超时(TimeoutExpired)未捕获,无 git 环境(pip 安装用户/Docker slim/CI)研报落地最后一步直接崩 | 待修 |
+| BUG-071 | Bug | P2 | FMP _fetch_price 的 price_history 用未复权原始 close(没走 _adjust_fmp_bar),而 _fetch_price_range/yfinance 都已复权——FMP 当 PRICE 主源时 52周高低/SMA 落在名义价上,近一年有拆股的标的 52周高直接 ×拆股比 | 待修 |
+| BUG-074 | Bug | P2 | DCF 末年 FCF 为负时 Gordon 终值把负现金流资本化成永续负值→产出负的『每股公允价值』,degrade 分支只防 tg≥WACC 接不住,负价无 guard 直接进研报叙事+LLM prompt | 待修 |
+| BUG-075 | Bug | P2 | 13F refresh job 假设 edgartools 小写列名,实装 5.31.5 输出 PascalCase(Cusip/Issuer/Value)→ 每份 filing 被 schema gate 跳过,institutional_holdings 永久空(缓存 0 行),测试 mock 小写列所以 CI 绿 | 待修 |
+| BUG-078 | Bug | P2 | agent 工厂/orchestrator 用无 encoding 的 read_text() 读含中文的 .md 指令文件——非 UTF-8 locale(裸 Docker LANG=C/Windows)下 agent 创建即 UnicodeDecodeError 崩;同仓 skills/loader.py 已带 encoding,这两处漏写 | 待修 |
+| BUG-079 | Bug | P2 | semantic_diff.build_semantic_delta 对 data_fetched_at 裸做 datetime 相减,一新(tz-aware)一旧(naive)时抛 TypeError→版本对比端点 500;全 artifact/audit 面仅此处漏 _ensure_tz(同胞模块都防了) | 待修 |
+| BUG-080 | Bug | P2 | /{ticker}/earnings-calls 构造 EarningsCallTranscript 的循环在 try/except 外,FMP 真实 payload 的 quarter 缺失/为 0(年度会/特别会)触发 ValidationError 逃逸→裸 500,而非 per-item 跳过 | 待修 |
+| BUG-081 | Bug | P2 | /{ticker}/price 的 session_state 对所有标的硬编码美东 9:30-16:00 ET 判定→港股/A股/日股盘中被错标『已收盘』,freshness pill 把实时报价显示成上一交易日收盘(与 BUG-030 同源:平台多处默认美国市场) | 待修 |
+| BUG-082 | Bug | P2 | `finrobot dcf <ticker>` 默认路径死锁:_should_use_ddm 的 asyncio.run 把 DataCache 的 aiosqlite 连接绑到随后销毁的 loop,第二个 asyncio.run 复用同连接→worker 线程绑死锁,进程退出时永久 hang(单 loop 测试测不出) | 待修 |
+| BUG-086 | Bug | P2 | [休眠·须与 BUG-075 同修] 13F value 双倍 ×1000:edgartools 5.31.5 已把 Value 归一化成整美元,refresh 脚本 line 102 又无条件 ×1000→机构持仓金额 1000 倍高估($250M 显示成 $250B);当前被 BUG-075 列名 bug 挡住未触发,BUG-075 一修即吐错数 | 待修 |
 | UX-008 | 产品 | P2 | HotState 裁决为 REVIEW 时目标价静默消失，不解释『为什么扣留』 | 待修 |
 | UX-009 | 产品 | P2 | 一支股票→多份历史研报的下钻要 3+ 步且断裂——卡片『N 份研报』不可点，发现历史得先进 workspace 再滚到底 | 待修 |
 | UX-010 | 产品 | P2 | Compare 必须回 Coverage 多选才能发起——workspace/研报页内无"加入对比"入口 | 待修 |
@@ -120,6 +144,11 @@
 | BUG-066 | Bug | P3 | 禁用态按钮的『为什么不可用』只靠 title tooltip：disabled 元素不触发 hover、tooltip 鼠标专属，键盘/触屏用户拿不到原因（IC 辩论 & Compare） | 待修 |
 | BUG-067 | Bug | P3 | 退役路由的「已合并」提示 toast 写进 sessionStorage 但全代码无人读取——功能彻底失效且 router 注释撒谎 | 待修 |
 | BUG-069 | Bug | P3 | 回测渲染图时弹出 matplotlib GUI 窗口(Figure 0)并泄漏 figure——模块级 use("Agg") 时机太晚未生效 | 待修 |
+| BUG-072 | Bug | P3 | NewsAggregatorProvider 唯一免 key 源 Yahoo RSS headline feed 已被雅虎下线(404),默认无 AV key 配置下该 provider 100% 抛错(被 FMP NEWS 兜住故非必现),工厂注释『uses Yahoo RSS (free, no key)』撒谎 | 待修 |
+| BUG-076 | Bug | P3 | Sniper coherence gate 比的是原始 float、ship 的是 round(2) 值——target 与现价相差 <$0.005 时 ideal_buy==take_profit、R/R=0、warning 印出『$372.80 < $372.80』自相矛盾的退化交易行,gate 不 raise 故 _safe_sniper 接不住 | 待修 |
+| BUG-083 | Bug | P3 | ~/.finrobot/.secrets 权限偏离 0600(备份还原/编辑器重写/umask 漂移)时,严格等值校验抛未捕获 PermissionError→server 启动崩,无自愈无降级(明文 FileSecretStore 兜底路径:headless/CI/Docker/dev) | 待修 |
+| BUG-084 | Bug | P3 | PriceTrendChart 窗口首日收盘价为 0 时 1Y 涨跌幅药丸渲染成 'Infinity%'、Y 轴 domain 被 0 基准拉歪——后端 contracts/data.py 同一除法都有 prev==0 守卫,唯独前端图无(provider 停牌/稀疏日可能给 close=0) | 待修 |
+| BUG-085 | Bug | P3 | 已完成的 run 永不从 runStreamStore 清除(clear() 无调用方),StockWorkspace 是路由挂载组件、去重 key 是组件级 useRef——切走再回每次重弹『报告已生成』toast + 3 次 query invalidation 强制重拉 | 待修 |
 | UX-015 | 产品 | P3 | 最高曝光的 Run CTA / Pipeline 徽章用字面量 color:'white' 与裸数字圆角，绕过已存在的 token | 待修 |
 | UX-016 | 产品 | P3 | prefers-reduced-motion 只关了星空一种动效，shimmer/pulse/halo/skeleton 等仍全速运行 | 待修 |
 | UX-017 | 产品 | P3 | 右侧 AI 抽屉与 CmdK 的 "Ask AI" 是两条并存的对话入口，语义重叠且互不打通 | 待修 |
@@ -164,7 +193,7 @@
 - **验证补充**：Fix is correct for news_aggregator + fmp_provider but OVERCLAIMS fx.py: fx._fmp_quote_price swallows httpx.HTTPError→None (lines 77-78) and fetch_fx_rate_to_usd's ProviderError (139-143) does NOT interpolate {e} (only currency/ticker names) — no leak there, so the fx.py edit is unnecessary/should be dropped. Also: when ALL news sources fail, news_aggregator raises ProviderError (line 91-92) carrying the same key, surfaced via the 'error' event not tool_result — so the layer-2 transcript scrubber must run on ALL event payloads (error/warnings nested), confirming the finding's own note. Layer-1 source fix (drop {e}) remains the primary, correct fix.
 - **影响面/回归风险**：Security/secret-handling. Affects every chat session that triggers a news/sentiment fetch failure while an Alpha Vantage (or any URL-param-keyed) provider key is configured. Regression risk low: removing `{e}` from ProviderError messages only reduces debug detail in warnings (full detail still goes to logger.warning at layer.py:88 path); the scrubber is additive. Verify existing provider-error tests don't assert on the exact `{e}` substring.
 - **合并自**：gap-r1-5#1, gap-r1-5#4, gap-r2-4#1（3 条同源发现）
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（Layer1（源头）：fmp_provider._wrap_errors 与 news_aggregator._fetch_alpha_vantage 去掉 raw httpx 异常 {e} 插值（含 ?apikey= 的 URL），改用 status code + ticker/type(e).__name__，保留 from e。Layer2（兜底）：audit/transcript.py 在唯一写入口 _write_event 前加递归 _scrub_data，对 str 叶子正则脱敏 apikey=、X-API-Key/X-Finnhub-Token（覆盖所有事件类型，含 error 事件的嵌套 warnings）。按 review 修正 fx.py 不动（已证不泄漏）。新增 transcript/provider/news 泄漏测试。ruff+mypy --strict + 全量 1986 通过）
 
 #### [BUG-004] Entire FastAPI surface is unauthenticated and Host-header-unvalidated — DNS rebinding lets any web page drive secret-writing/quota-burning endpoints despite the CORS whitelist
 
@@ -1044,6 +1073,200 @@
 - **修复方案**：把 except 改成实际会抛的:`except (FileNotFoundError, subprocess.SubprocessError, OSError):`(SubprocessError 覆盖 TimeoutExpired/CalledProcessError,FileNotFoundError/OSError 覆盖缺二进制与权限)→ 返回 None,让 git_commit 优雅缺省(字段本就是 `str | None`)。注意 ImportError 在这里根本到不了(无 import),可删;若想极稳可叠 `except Exception` 兜底但要 log.warning 不静默。补测试:tests 里 monkeypatch `subprocess.run` 抛 FileNotFoundError 与 TimeoutExpired,断言 `_get_git_commit()` 返回 None 且 `_make_base_compute_version(...)` 不抛、git_commit=None。
 - **影响面/回归风险**：影响所有**无 git 或 git 慢**的运行环境——`pip install finrobot` 的终端用户(很可能没装 git 或不在仓库内)、Docker slim 镜像、CI without git、打包发行版。对一个 KPI=GitHub Stars、靠 `pip install` 跑起来的开源项目,这是高频首跑翻车点:用户跑完一条 30s 研报管线,在存 artifact 的最后一步崩。开发机有 git 且快,所以本地永不复现——这正是它躲过审查的原因。修复零行为变更(只是把"本该缺省"的路径真正接住),回归风险低。
 - **置信度**：high　|　**状态**：待修
+
+> **以下 BUG-071 ~ BUG-086 来自 2026-06-03 第二轮『运行时/环境/外部基准/领域口径』透镜专项审计**（dynamic workflow 12 子系统扇出 → 每条 Bash 实跑/实算验证 → 对抗验证者默认 refute 亲自复现 → 16 条 real 留存）。全部 `reproduced=True`，补的是静态对抗式审查（BUG-001~067）系统性触不到的『只有真跑/换环境/对外部基准才暴露』那一类。
+
+#### [BUG-071] FMP _fetch_price 用未复权原始 close 作 price_history → 52周高低/SMA 与已复权路径口径分裂
+
+- **类别**：Bug
+- **严重度**：P2（finder P1，验证后按"被 yfinance 兜底 + 拆股标的才极端"降级）
+- **位置**：finrobot/engine/data/providers/fmp_provider.py:468-478（price_history 取原始 open/high/low/close/volume，未调 _adjust_fmp_bar:41-67）
+- **现象/问题**：FMP 是 PRICE 主源（sdk.py:109 / data_layer_factory.py:48 排在 yfinance 前，且 .env 有真 key）。_fetch_price 的 price_history 用**未复权** close，而同文件 _fetch_price_range(:523) 与 yfinance(auto_adjust=True) 都用复权基准。下游 extractor.fifty_two_week_high/low(extractor.py:124-125) 与 market.py 的 SMA20/50/200 全吃这条 history → 落在名义未复权价上。近 12 个月发生过拆股的标的（如 10:1），拆股前 K 线携带名义价（≈现价 10 倍），**52 周最高直接变成现价的 ~10 倍**；无拆股的分红股也有 0.5%–2% 系统漂移。同一标的同一天，研报 52 周高低会因"这次谁服务了 PRICE"而不同。
+- **证据**：live 真 key 跑底层 /historical-price-full('AAPL')：276 根 K 线 **259 根 close≠adjClose**（例 2025-04-29 close=211.21 vs adjClose=210.09）。grep 确认 _fetch_price 不调 _adjust_fmp_bar，_fetch_price_range/yfinance 都走复权基准；price_history → 52w/SMA 消费链确认。
+- **根因**：_fetch_price 漏调已存在的 _adjust_fmp_bar；两条价格路径各自文件内自洽，差异只在"谁复权"，静态读不出。
+- **修复方案**：_fetch_price 的 price_history 改走 _adjust_fmp_bar(p)（丢弃缺 adjClose 的行），或直接复用 _fetch_price_range 的 bar 构建，保证 PRICE / PRICE_RANGE / yfinance 三路同口径。补测试断言 close 用 adjClose 基准。
+- **影响面/回归风险**：影响 FMP 当 PRICE 活跃源时的 52w/SMA 数字（研报 MarketDataZone 直接展示）。修复改变这些数值（拆股标的差异巨大）——任何 pin 旧值的快照测试需更新。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-072] NewsAggregator 唯一免 key 源 Yahoo RSS 已 404 下线 → 默认配置该 provider 100% 抛错 + 工厂注释撒谎
+
+- **类别**：Bug
+- **严重度**：P3（被 FMP NEWS 兜住、DataLayer graceful-degrade，故非用户必现）
+- **位置**：finrobot/engine/data/providers/news_aggregator.py:36(_YAHOO_RSS_URL) + 91-92(全失败即 raise)；注册 finrobot/data_layer_factory.py:82-86
+- **现象/问题**：默认无 alpha_vantage_api_key（本机实测 None）时 news_aggregator 只剩 Yahoo RSS 一个源。`feeds.finance.yahoo.com/rss/2.0/headline` 现返回 404 HTML → raise_for_status 抛 → ProviderError → fetch() 全失败抛"All news sources failed"。即该 provider 在默认配置下**永远不可能成功**，是个"注册了但必抛错"的死源，工厂注释还写着"always registered; uses Yahoo RSS (free, no key)"。
+- **证据**：live httpx GET 该端点 ×3 ticker(AAPL/MSFT/TSLA) 全 404 + text/html；get_settings().alpha_vantage_api_key 实测 None。区别于 BUG-035(SDK 链注册漂移)。
+- **根因**：外部端点失效（雅虎停服）+ 唯一免 key fallback 失守；纯静态触不到网络。
+- **修复方案**：换 yfinance Ticker.news 或以 FMP/Finnhub 为 NEWS 主源；若无可用免 key 新闻源，删掉 Yahoo 分支并修正工厂的"free, no key"假承诺，别注册一个默认必抛错的 provider。
+- **影响面/回归风险**：当前被 FMP NEWS 掩盖；FMP/yfinance NEWS 都失败时回退它会失败（被 DataLayer 接住降级，非整请求崩）。修复降低误导 + 恢复一条真实 fallback。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-073] DCF/DDM 绝对估值对外币 ADR 零 FX 归一化 → 本币价当 USD 印出并比价
+
+- **类别**：Bug
+- **严重度**：P1
+- **位置**：finrobot/engine/compute/dcf_seed.py:226,387,403,406；finrobot/engine/compute/ddm_seed.py:92-109；调用方 finrobot/engine/pipelines/equity_research.py:428 与 finrobot/routes/compute.py:257（直接喂未归一化 FinancialData）
+- **现象/问题**：对 TSM/ASML/SAP 等美国上市 ADR，seed_dcf_inputs 直接读 income.revenue（申报币 TWD/EUR）与 market.market_cap / shares_outstanding（quote 币 USD）。EV∝TWD 营收 → equity_value(TWD)/shares → implied_price 实为"每股 TWD"，但 equity_research.py:465 `DCF base case implies $X per share` 当 USD 印出并与 USD 市价比出 BUY/SELL。TWD/USD≈0.031 → **价被放大 ~32x**；debt_ratio=total_debt(TWD)/(total_debt(TWD)+market_cap(USD)) 跨币种比值使 WACC 权重失真。DDM 的 payout×net_income(TWD)/shares 回退路径同样污染。
+- **证据**：grep dcf_seed/ddm_seed/lbo_seed 对 currency/fx **零命中**（三个 seed 完全不读币种 tag）；currency.py:resolve_reporting_currency 对无点号 ADR+country=Taiwan 返回 'TWD'（financial.py:130 注释明写"DISAGREE for ADRs: TSM TWD/USD"）；只有 comps 的 normalize_peer_to_usd 做 FX，绝对估值分支不做（BUG-018 只修了 comps）。数值复现：跨币 debt_ratio=0.526 vs 正确 0.034，价 ~32x。
+- **根因**：FX 归一化只在 comps 路径接线，DCF/DDM 绝对估值路径漏接；字段全是裸 float，需对照真实 ADR 申报币种事实才暴露。
+- **修复方案**：seed_dcf_inputs / seed_ddm_inputs 入口对 reporting_currency≠USD 或 ≠quote_currency 复用 fx_normalize.normalize_company_to_usd（fetch_fx_rate_to_usd 取 reporting/quote 双 rate），把营收/债务/现金与市值/股本统一折 USD 再 seed；或币种不一致直接 raise/标 [金融待核] 拒跑。LBO 全程单一申报币内部自洽，只需标注币种不强制 FX。
+- **影响面/回归风险**：影响所有外币 ADR 的 DCF/DDM 目标价与 verdict（研报核心数字）。区别于 BUG-006(comps forward)/BUG-037(XBRL 散度门)。修复改变 ADR 目标价（应当）。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-074] DCF 末年 FCF 为负时 Gordon 终值资本化成永续负值 → 负『每股公允价值』直接进研报+LLM prompt
+
+- **类别**：Bug
+- **严重度**：P2
+- **位置**：finrobot/engine/compute/dcf.py:61-67（terminal_value/pv_terminal/implied_price 无负值 guard）；finrobot/engine/pipelines/equity_research.py:431(degrade 只 except tg≥WACC),461(只过滤 sensitivity p>0),465/756(负价进叙事+prompt)
+- **现象/问题**：terminal_value=projected_fcf[-1]×(1+tg)/(wacc-tg)。seed 把 CAGR 下限钳到 -20%，叠加 capex/da/nwc 后末年 FCF 可为负；tg<wacc 仍成立 → 终值为大额负数 → implied_price 为负。pipeline 的 graceful-degrade 只 except "tg≥wacc" 的 ValueError，**接不住负终值**；第 461 行 p>0 过滤只作用于 sensitivity 表，base case 不过滤。结果：研报印出负"公允价值/股"，且第 756 行把它当权威可引用数喂进 LLM thesis prompt 白名单。
+- **证据**：python 跑真实衰退参数(revenue 1e11, growth=[-0.20]×5, ebitda 8%, capex 6%, da 5%, nwc 2%, tax 21%) → last fcf=-2.06e8 → terminal_value=-3.06e9 → implied_price=-$2.33（验证者复现到 -$24.03）。grep dcf.py/pipeline 无任何负终值/负价 guard。区别于 BUG-014(tg≥WACC)/BUG-026/060；valuation_aggregator.py:130 的 implied_price≤0 guard 只护 synthesis/football-field，不护叙事与 prompt。
+- **根因**：把暂时的负 FCF 谷底当永续，公式在 tg<wacc 下数学合法所以静态看不出；degrade 只防一种异常给"已兜底"错觉。
+- **修复方案**：calculate_dcf 算完 terminal_value 后对 projected_fcf[-1]≤0（或 terminal_value<0 / implied_price<0）显式处理：raise 独立异常让 degrade 接住跳过 DCF 章节（与 tg≥WACC 同等待遇），或用归一化稳态 FCF（末年营收×行业 FCF margin 下限）替代负末年 FCF 并在 provenance 标注；绝不让负公允价值落地或进 prompt。
+- **影响面/回归风险**：影响衰退/高 capex 谷底公司的 DCF 章节与 LLM 叙事。修复让这类标的 DCF 优雅跳过或用稳态基数，回归风险低。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-075] 13F refresh job 假设 edgartools 小写列名,实装 5.31.5 输出 PascalCase → institutional_holdings 永久空
+
+- **类别**：Bug
+- **严重度**：P2（finder P1，验证后按"机构持仓为分析增强非主数字"降级）
+- **位置**：scripts/refresh_sec_holdings.py:49-51,98-102,155-163
+- **现象/问题**：脚本 _EXPECTED_COLUMNS={cusip,nameOfIssuer,titleOfClass,value,sshPrnamt}（原始 XML 小写名），但实装 edgartools 5.31.5 的 ThirteenF.holdings DataFrame 输出 **PascalCase**（Cusip/Issuer/Value/SharesPrnAmount/Class）。schema gate(L155-163) 判每份 filing "unexpected schema" 全部 `continue`，_normalise_holding_row 读小写键全返回 None → 缓存恒 0 行 → compute_ownership_governance 的 institutional_holdings 永远 degraded（空）。
+- **证据**：importlib.metadata 确认装的就是 5.31.5；inspect.getsource(ThirteenF.holdings) 显示 id_cols=['Issuer','Class','Cusip','Ticker']、sum_cols=['SharesPrnAmount','Value',...]；喂真实 PascalCase row 给 _normalise_holding_row → None；live ~/.finrobot/sec_holdings_cache.db 存在(job 跑过)但 `SELECT COUNT(*) FROM holdings`=0。test_refresh_sec_holdings.py mock 的是小写列(line14 'issuerName')，所以 **CI 绿、生产死**——典型集成时盲区。
+- **根因**：依赖库列名约定与脚本假设漂移（库升级后大小写变了），mock 用了假设的列名所以测试测不出。
+- **修复方案**：抓取后立即 `holdings_df.rename(columns=str.lower)` 统一小写再消费（不硬编码大小写）；或 _EXPECTED_COLUMNS 与读取改 PascalCase。补一条**用真实 edgartools 5.31.x 列名**的测试并 pin 版本，杜绝再次悄悄腐烂；更新过期的"edgartools 5.31"注释。
+- **影响面/回归风险**：影响所有 ownership/governance 分析的机构持仓段（当前全空）。**注意：修此 bug 会激活 BUG-086（×1000 双倍放大），两条必须一起修**，否则机构金额立刻 1000 倍高估。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-076] Sniper coherence gate 比原始 float、ship round(2) 值 → target 与现价差 <$0.005 时产出 R/R=0 的退化交易行
+
+- **类别**：Bug
+- **严重度**：P3（需 DCF target 落在现价半美分内，低频）
+- **位置**：finrobot/engine/compute/sniper.py:182-204(gate 比未 round 值) vs 205-218(return 时 round(...,2))
+- **现象/问题**：DCF target 与现价相差 sub-cent 时，coherence gate 用未 round 的 ideal_buy/take_profit/stop_loss 比较通过，但实际 ship 的 SniperPoints 把每个价位 round 到 2 位 → ideal_buy==take_profit(如都 372.80)、risk_reward_ratio=0.0、invariant_warning 字面印出"DCF intrinsic $372.80 < current $372.80"（自相矛盾）。gate 不 raise → _safe_sniper(technical_payload.py:172) 只 catch ValueError 接不住 → 退化行直接进 artifact，/api/compute/sniper 原样返回。
+- **证据**：python 跑 calculate_sniper_points(current=372.80, dcf_target=372.799, hist=[372.80]×20) → **返回(非 raise)** ideal_buy=372.8/tp=372.8/rr=0.0/direction=SHORT/warning 含"$372.80 < $372.80"；current=50.00 dcf_target=49.997 同样 rr=0.0。区别于 BUG-042(LONG 模式 secondary_buy vs stop_loss)。
+- **根因**：gate 在 round 之前比、return 在 round 之后给，round 把价位塌缩成相等；唯有对近似相等输入执行才显形。
+- **修复方案**：对所有价位先 round(...,2) 再过 gate（或 gate 比 round 后的值），使 round 后塌缩(ideal_buy==take_profit / stop 落在入场 round 内 / R/R==0)被捕获 → raise ValueError(让 _safe_sniper 降级 None+warning) 或跳过 sniper 模块；并像 signal.py 拒绝 target==entry 那样在上游拒 |current−target|<1 tick。
+- **影响面/回归风险**：低频(需 DCF target 落现价半美分内)；修复只收紧退化行，回归风险低。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-077] SkillRegistry._load_all 只 catch SkillLoadError 不 catch pydantic ValidationError → 一个坏 SKILL.md 崩掉 server/SDK/CLI 启动
+
+- **类别**：Bug
+- **严重度**：P1（验证者从 P2 升级——是启动级崩溃，违背 fail-soft 设计）
+- **位置**：finrobot/engine/skills/registry.py:30-35(except SkillLoadError) + finrobot/server.py:114(SkillRegistry(skills_path) 在 startup try/except 之外)
+- **现象/问题**：frontmatter YAML 合法但字段类型写错的 SKILL.md（如 `triggers: comps-analysis` 字符串而非 list、`requires_data: [revenue, ebitda]` list-of-str 而非 list-of-dict）能过 _parse_frontmatter，但 load_skill 调 Skill(...) 抛 pydantic **ValidationError**——_load_all 的 `except SkillLoadError` 接不住 → 穿出 SkillRegistry.__init__。server.py:114 在 startup try/except 外建 registry → 一个坏技能文件**崩掉整个 FastAPI 启动**，正好复现 server.py:95-110 注释声称要防的"埋 stderr/60s hang"，且 registry docstring(L28-29)"don't crash on one bad skill" 对 ValidationError 是谎言。
+- **证据**：写一个 `triggers: comps-analysis` + list-of-str requires_data 的 SKILL.md，跑 SkillRegistry(Path) → "REGISTRY INIT CRASHED: pydantic ValidationError — 3 errors"。当前 56 个内置技能全 load 干净(latent)；skills/ 树已带 partner-lseg/partner-spglobal 外部命名空间——外部作者技能是预期输入面。
+- **根因**：except 列表漏了 ValidationError；load_skill 把裸 frontmatter 直喂 Skill(...) 无 coercion。
+- **修复方案**：_load_all 的 except 扩成 `(SkillLoadError, pydantic.ValidationError)`（或 `Exception`），单个坏技能 log-and-skip（兑现文档契约）；或 load_skill 把 ValidationError 包成 SkillLoadError。registry 永不准从 __init__ 抛。可选再硬化 server.py:114 / sdk.py:128 try→registry 降级 None。
+- **影响面/回归风险**：影响任何含一个类型错技能文件的部署（外部/partner 技能常见）。修复零行为变更（坏技能本就该 skip），回归风险低。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-078] agent 工厂/orchestrator 用无 encoding 的 read_text() 读含中文 .md → 非 UTF-8 locale 下 agent 创建崩
+
+- **类别**：Bug
+- **严重度**：P2
+- **位置**：finrobot/engine/agents/factory.py:27 + finrobot/engine/orchestrator.py:52
+- **现象/问题**：create_sub_agents()/create_lead_agent() 在建 Agent 前 read_text() 读 instructions/*.md（含 UTF-8 中文：bull_agent.md 1560 非 ASCII 字节、bear 1428、judge 1455 等）。Path.read_text() 不传 encoding 时用 locale.getpreferredencoding()。LANG=C/POSIX（裸 Docker、未配 locale 的 systemd service）下 =ascii → **UnicodeDecodeError** → lead/sub agent 创建失败 → serve 启动崩/chat 无法初始化。Windows cp1252 同样炸。macOS(UTF-8) 永不复现。
+- **证据**：grep 确认两处 read_text() 无 encoding；统计非 ASCII 字节(bull=1560 等)；`b.decode('ascii')` 对 bull/report/modeling 全 FAILS(0xe4/0xe2)，bull 连 cp1252 都 FAILS(0x81)；反证：同仓 skills/loader.py:29 `read_text(encoding="utf-8")` ——agents 路径漏写。
+- **根因**：read_text() 漏传 encoding，依赖部署机 locale；纯静态无法判定 preferredencoding 运行时取值。
+- **修复方案**：factory.py:27 与 orchestrator.py:52 补 `encoding="utf-8"`（与 skills/loader.py 对齐）；顺手 grep 全仓其余无 encoding 的文本 read_text()/open() 一并修齐。
+- **影响面/回归风险**：影响所有非 UTF-8 locale 部署（裸 Docker/CI/Windows）；macOS/已配 locale 零影响。修复零风险。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-079] semantic_diff 对 data_fetched_at 裸做 datetime 相减 → 一新一旧(tz-aware/naive)时版本对比端点 500
+
+- **类别**：Bug
+- **严重度**：P2（latent：当前 producer 全 tz-aware，旧/导入的 naive 数据才触发）
+- **位置**：finrobot/artifact/semantic_diff.py:542；reachable 自 finrobot/routes/artifacts.py:267(GET /api/artifacts/{a}/diff/{b})
+- **现象/问题**：L542 `gap_days = abs((b.inputs.data_fetched_at - a.inputs.data_fetched_at).days)` 无 tz 归一化。Pydantic 对无 offset 的 JSON 保留 naive datetime、有 `+00:00` 的为 UTC。当两个对比 artifact 一 naive 一 aware → `TypeError: can't subtract offset-naive and offset-aware` → 端点 500。全 artifact/audit/aggregations/analysis 面**只此一处**漏 _ensure_tz（同胞 hit_rate_overview/recent_research/compute/signal 都先归一化）。
+- **证据**：grep semantic_diff.py 的 _ensure_tz/tzinfo **0 命中**；python 复现 ArtifactInputs.model_validate_json 对无 offset → tzinfo=None、对 +00:00 → UTC；端到端跑 build_semantic_delta(naive, aware) → 抛 TypeError。routes/artifacts.py:260-267 无 tz guard。区别于 OPP-006(前端)。
+- **根因**：唯一漏做 _ensure_tz 的 datetime 减法；要真反序列化两个不同 vintage 的 artifact 才触发。
+- **修复方案**：减法前归一化：`_aware(dt)=dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)`，`gap_days=abs((_aware(b)-_aware(a)).days)`，与同胞 _ensure_tz 纪律一致；补 naive×aware 配对回归测试。
+- **影响面/回归风险**：影响旧/导入的 naive 时间戳 artifact 的版本对比；当前所有 producer tz-aware 故 latent。修复零行为变更。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-080] /{ticker}/earnings-calls 构造循环在 try/except 外 → FMP quarter 缺失/为 0 触发 ValidationError 逃逸成裸 500
+
+- **类别**：Bug
+- **严重度**：P2
+- **位置**：finrobot/routes/data.py:240-258（构造循环在 229-238 的 try/except 之外）
+- **现象/问题**：用户点开"财报电话会逐字稿"标签，若 FMP 该次 transcript 的 quarter 缺失（年度会/特别会）或为 0/null，整个 endpoint 返回 500 + traceback（Tauri 壳里面板崩、无可读错误），而非降级跳过该条或 422。EarningsCallTranscript(earnings_call.py:19) 要求 `quarter: int Field(ge=1,le=4)`，而 route/provider 用 `.get('quarter', 0)` 的哨兵默认 0——恰是模型拒绝的值。
+- **证据**：Read 确认 try/except(229-238) 只包 data_layer.fetch，构造循环(240-258)在外；python 跑 `EarningsCallTranscript(quarter=0,...)` → ValidationError(greater_than_equal)，quarter=None → ValidationError(int_type)。_data_http_error 只映射 ValueError/ProviderError，无全局 handler。区别于 BUG-013(/earnings history)/BUG-061(前端 React key)。
+- **根因**：构造在 try 外 + 用了模型本身拒绝的哨兵默认 0；类型上 quarter 恒 int 故静态看不出 FMP 会喂 0/缺失。
+- **修复方案**：把构造循环移进 try 并 catch ValidationError，单条 transcript 失败做 per-item 跳过+累加 warning（而非整请求 500）；或构造前校验 quarter∈1..4，非法落 skipped。
+- **影响面/回归风险**：影响有年度会/特别会/pre-backfill quarter=0 的标的的逐字稿标签（FMP key 后）。修复让单条坏数据降级而非整页崩。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-081] /{ticker}/price 的 session_state 对所有标的硬编码美东时段 → 港股/A股/日股盘中错标『已收盘』
+
+- **类别**：Bug
+- **严重度**：P2
+- **位置**：finrobot/routes/data.py:377-410（_compute_session_state，_MARKET_TZ=America/New_York 9:30-16:00 对所有 ticker 无差别套用）
+- **现象/问题**：非美股标的（yfinance 支持的 0700.HK / 600519.SS / 7203.T）在其本地交易时段内查 /price，session_state 恒为 'closed'，前端 freshness pill 把一笔真盘中报价显示成"上一交易日收盘"。ticker 仅 .upper() 无市场区分。
+- **证据**：python 复现：港股盘中 10:00 HKT(==周二 22:00 ET) → _compute_session_state → 'closed'；A 股同理。港/A/日股交易时段恰落 ET 盘后，永远判 closed。docstring 自称"故意用交易所时区"但默认了交易所=ET。区别于 BUG-030(研报硬编码 $)、BUG-068(A股回测)——同源但不同位置。
+- **根因**：把"美国"当默认市场（与 BUG-030 同一类平台级假设）；唯有对照外部市场日历才看得出"交易所"假设对非美标的是错的。
+- **修复方案**：按标的所属交易所的时区+交易时段判定：从 yfinance 后缀(.HK/.SS/.SZ/.T/无=US)或 payload['exchange'] 解析市场，查对应 market calendar；无法判定时返 'unknown' 而非谎称 closed。
+- **影响面/回归风险**：影响所有非美标的的 /price 市场状态标签。修复需引入市场→时区映射，回归风险低（美股路径不变）。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-082] `finrobot dcf <ticker>` 死锁:_should_use_ddm 的 asyncio.run 把 cache 连接绑到随后销毁的 loop,第二个 asyncio.run 永久 hang
+
+- **类别**：Bug
+- **严重度**：P2（finder P1，验证后确认为"进程退出时 hang"非"零输出"，按严重度持平）
+- **位置**：finrobot/cli.py:76(_should_use_ddm 内的 asyncio.run) + cli.py:285/294(dcf 命令第二个 asyncio.run)
+- **现象/问题**：`finrobot dcf AAPL`（默认路径，无 --force-dcf）永久 hang、不返回不报错。dcf 命令对**同一个 deps.data_layer 做两次 asyncio.run 且中间不 close**：L76 _should_use_ddm 里 fetch(FINANCIALS) 开 DataCache 的 aiosqlite 连接(cache.py:167)绑到 loop-1 后销毁 loop-1；L285/294 第二个 asyncio.run 在 loop-2 复用同连接 → aiosqlite worker 线程绑死在已关闭的 loop-1，解释器退出时主线程在 threading._shutdown join 这个孤儿 worker 线程上**永久阻塞**。只有 dcf 命令受影响（comps/lbo/earnings/ddm 各单次 asyncio.run，backtest 命令在两次 run 间正确 close）。
+- **证据**：独立 python 复现该模式(DataCache 在一个 asyncio.run 下打开、第二个 asyncio.run 复用且不 close) → 进程 hang 3+ 分钟(ps 显示仍在 R/S，强杀)；faulthandler 确认阻塞在解释器 shutdown 的线程 join；grep 确认 cli.py dcf 在 L76 与 L285/294 间无 data_layer.close()，backtest(cli.py:555/587)有。单 loop 测试(pytest-asyncio 单 loop)测不出跨 loop 连接复用。
+- **根因**：用一次性 asyncio.run 打开共享 cache 连接，连接(及 worker 线程)跨 loop 存活到第二个 loop。
+- **修复方案**：别用一次性 asyncio.run 开共享 cache——(a) 把 bank/DDM 探测折进跑 pipeline 的那个 asyncio.run（FINANCIALS fetch + is_bank 检查放进同一 async 入口），或 (b) 全程单 loop：`asyncio.run(_dcf_or_ddm(deps, ticker))`。去掉 _should_use_ddm 的独立 asyncio.run 即根除跨 loop 连接复用。
+- **影响面/回归风险**：影响默认 `finrobot dcf <ticker>`（这是 CLI 一等命令）。修复收敛到单 loop，回归风险低。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-083] ~/.finrobot/.secrets 权限偏离 0600 时严格等值校验抛未捕获 PermissionError → server 启动崩,无自愈
+
+- **类别**：Bug
+- **严重度**：P3（仅明文 FileSecretStore 兜底路径 + 需外部事件改 mode）
+- **位置**：finrobot/secret_store.py:166-169(FileSecretStore._ensure_file 严格等值 0600 校验) ← finrobot/server.py:73/88(startup hydrate_settings_from_secrets)
+- **现象/问题**：用明文 FileSecretStore 兜底的机器（headless/CI/Docker/WSL 或 FINROBOT_DEV_MODE=1），若 .secrets 的 mode 非**恰好** 0600，第一次 get() 即抛 PermissionError。server.py 在 lifespan startup(L88) 遍历每个 key 字段 get()(L73)，无 try/except → 整个 server 启动失败；CLI/SDK 同样崩。
+- **证据**：L166-169 `if S_IMODE != (S_IRUSR|S_IWUSR): raise PermissionError`，每次读经 _ensure_file 触发。python 复现：建 store 写 secret(0600)→ chmod 0644 → get() 抛 PermissionError。非 0600 漂移的现实诱因：备份/zip 还原(tar/zip 不保 0600)、编辑器以 umask 默认(0644)重写、同步工具重置权限、非默认 umask——都不罕见。区别于 BUG-003/OPP-010(泄漏/脱敏)。
+- **根因**：严格等值校验失败时崩而非自愈；happy path(O_EXCL 总建 0600)使单进程内永正确，要外部事件改 mode 才触发，无 in-repo 测试设此场景。
+- **修复方案**：读时自愈而非崩——mode≠0600 则 `os.chmod(path, 0o600)` 后继续（文件本就 user-owned 本地，收紧权限永远安全），仅 chmod 本身失败才 raise；或把 server.py 的 hydrate 循环包成降级 no-keys + 大声 warning 而非中止启动。
+- **影响面/回归风险**：影响明文 secret store 兜底 + 权限漂移的机器。自愈方案零安全损失（只会收紧权限），回归风险低。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-084] PriceTrendChart 窗口首日收盘价为 0 时 1Y 涨跌幅渲染成 'Infinity%' + Y 轴 domain 拉歪
+
+- **类别**：Bug
+- **严重度**：P3（FMP _adjust_fmp_bar 丢 falsy close，实际触发率近零）
+- **位置**：ui/src/components/charts/PriceTrendChart.tsx:123-124,221（ui_charts 与 ui_pages 两个 partition 独立各抓一次，同一 bug）
+- **现象/问题**：`first=closes[0]; pct=((last.close-first)/first)*100`，无 first===0 守卫。首根 K 线 close===0 时 pct=Infinity，header 药丸渲染字面量 'Infinity%'（红/绿），Y 轴 domain 也被 0 基准拉歪。后端 contracts.py:trailing_1y_return_pct 与 routes/data.py:429 对同一除法都有 `if first/prev==0: return None` 守卫，**唯独前端图无**。
+- **证据**：node 跑 closes=[0,10,20] → pct=Infinity，toFixed(1)==='Infinity'；后端 normalize/price.py 只丢 None close 不丢 0.0，故 0 首根可流到 closes[0]。组件已有 points.length<2 守卫但无 first===0 守卫。区别于 BUG-029(另一组件)。
+- **根因**：前端是唯一未防的除数;只有真实 payload 含 0 收盘价(停牌/退市/稀疏日)才触发。
+- **修复方案**：`const pct = first>0 ? ((last.close-first)/first)*100 : null`，null 时渲染 '—'（与组件其他 null 处理一致，镜像后端 prev==0 行为）；并在 windowOneYear 丢弃前导 0/非有限 close。
+- **影响面/回归风险**：极低触发率；修复零回归。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-085] 已完成 run 永不从 runStreamStore 清除 → StockWorkspace 每次回访重弹『报告已生成』toast + 3 次 query invalidation
+
+- **类别**：Bug
+- **严重度**：P3（finder P2，验证后按"骚扰+多余重拉非数据错"降级）
+- **位置**：ui/src/stores/runStreamStore.ts:248-258,383-390(run.completed 不清 run，clear() 无调用方) + ui/src/views/StockWorkspace.tsx:55-97(组件级 lastNotifiedRunIdRef)
+- **现象/问题**：AAPL 研报跑完后 run 永留 store(status:'completed')。弹成功 toast + invalidate 三棵 query(v5-artifacts-timeline / studied-tickers / dashboard) 的 effect 只靠组件级 useRef 去重。StockWorkspace 挂在路由 'stocks/:ticker'，导航去 /coverage 再回 /stocks/AAPL 会完全 remount → ref 重置 null → effect 重跑 → 看到仍在的 completed runState → (a) 重弹"报告已生成"toast (b) 重 invalidate 3 棵 query 强制重拉，**每次回访都来、无限**。
+- **证据**：grep 全 ui/src 对 run store 的 clear()/dismiss()：clear() 无生产调用方(仅 test)，dismiss() 只置 flag 不删 run → completed RunState 整 session 常驻。router.tsx:107 确认 StockWorkspace 是 route-element(导航 remount)。StockWorkspace.tsx:58 useRef 每次 mount 重置 null；effect deps 含 runState?.status 故 remount 即跑。无全局/常挂的 run watcher(Sidebar 零 invalidate 引用)。
+- **根因**：跨生命周期运行时交互——(store 存活>组件) ×(去重 key 限组件) ×(run 永不清)；每个文件本地都对，只在运行时交点出 bug。
+- **修复方案**：让完成副作用在 **store 级**幂等而非组件级——(a) run.completed/failed 后在被消费视图 dismiss 时真的从 s.runs 删终态 run；或 (b) 把去重 key 移出组件、放进 runStreamStore 模块级 `notifiedTerminal: Set<runId>`（store action 内 check/mark），remount 无法重放 toast/invalidation。推荐 (b)。
+- **影响面/回归风险**：影响每次回访已跑过研报的 ticker（骚扰 + 多余重拉）。修复零数据影响。
+- **置信度**：high　|　**状态**：待修
+
+#### [BUG-086] [休眠·须与 BUG-075 同修] 13F value 双倍 ×1000 → 机构持仓金额 1000 倍高估
+
+- **类别**：Bug
+- **严重度**：P2（休眠：当前被 BUG-075 列名 bug 挡住不执行；BUG-075 一修即激活吐错数）
+- **位置**：scripts/refresh_sec_holdings.py:99-102
+- **现象/问题**：edgartools 5.31.5 的 ThirteenF.holdings 已把 Value 列对现代(post-2022Q3)filing 归一化成**整美元**（仅 legacy thousands schema 内部 ×1000），即脚本拿到的 DataFrame 已是整美元。但 L102 `float(df_row.get('value') or 0) * 1000.0` 又**无条件再 ×1000** → InstitutionalHolding.value_usd 对所有现代 filing **1000 倍高估**（$250M 持仓显示成 $250B）。L99 注释"13F reports value in THOUSANDS"对原始 SEC XML 成立，但对 edgartools 返回的已归一化值**不成立**。给分析师看一个 1000 倍错的美元数 = 砸招牌。
+- **证据**：inspect ThirteenF 确认 `_value_in_thousands`(models.py:537-540) 仅对 period_of_report≤2022-09-30 才 ×1000，现代 filing 已是整美元；L102 的 ×1000 是第二次。**当前不可达**：因 BUG-075 的列名(小写)不匹配，schema gate 跳过每份 filing，_normalise_holding_row(含 L102)从不执行——所以今天不产出错数，但 BUG-075 修好后立即激活。
+- **根因**：误以为 edgartools 返回的是原始 XML 的 thousands 口径，重复了库已做的归一化；被另一个未修 bug(列名)掩盖处于休眠。
+- **修复方案**：删掉 `* 1000.0`，直接 `float(df_row.get('Value') or 0)`（edgartools 已返整美元、legacy thousands 它自己回填）。补**外部基准断言测试**：取一个已知 holder/issuer/季度（如 Vanguard 的 AAPL 持仓），value_usd 对 SEC EDGAR 实际 13F 值在容差内匹配，gate refresh。
+- **影响面/回归风险**：**必须和 BUG-075 同一次修**——单修 BUG-075 不修本条 = 机构金额 1000 倍错进 artifact。两条一起修：列名对齐(取数能进) + 删 ×1000(口径对) + 外部基准测试(防回归)。
+- **置信度**：high（技术判定确证，验证者唯一保留是"当前休眠不可达"，已如实标注）　|　**状态**：待修
 
 ### 详细条目（产品）
 

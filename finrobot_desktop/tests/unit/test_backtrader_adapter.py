@@ -17,6 +17,30 @@ from finrobot.engine.backtest.backtrader_adapter import (
 )
 from finrobot.engine.backtest.engine import BacktestConfig
 
+try:
+    import backtrader as _bt
+
+    class FullyInvestedStrategy(_bt.Strategy):  # type: ignore[misc]  # backtrader is untyped
+        """Buy ~95% of equity once and hold (regression fixture for BUG-019).
+
+        Resolved via this module's import path so the portfolio's daily-return
+        series actually tracks the asset; the default 1-share sizer would leave
+        ~99% in cash, making account-value returns a near-constant risk-free
+        drag and the Sharpe meaningless.
+        """
+
+        def __init__(self) -> None:
+            self.sizer = _bt.sizers.PercentSizer(percents=95)
+            self._entered = False
+
+        def next(self) -> None:
+            if not self._entered:
+                self.buy()
+                self._entered = True
+
+except ImportError:  # pragma: no cover - backtrader is a hard test dep
+    FullyInvestedStrategy = None  # type: ignore[assignment,misc]
+
 
 class TestCheckBacktrader:
     def test_available(self) -> None:
@@ -190,12 +214,20 @@ class TestLoadData:
 
         bars = [
             PriceBar(
-                date=date(2023, 1, 3), open=100.0, high=101.0, low=99.0,
-                close=100.5, volume=1_000_000.0,
+                date=date(2023, 1, 3),
+                open=100.0,
+                high=101.0,
+                low=99.0,
+                close=100.5,
+                volume=1_000_000.0,
             ),
             PriceBar(
-                date=date(2023, 1, 4), open=101.0, high=103.0, low=100.0,
-                close=102.5, volume=1_100_000.0,
+                date=date(2023, 1, 4),
+                open=101.0,
+                high=103.0,
+                low=100.0,
+                close=102.5,
+                volume=1_100_000.0,
             ),
         ]
         adapter = self._adapter_with_bars(bars)
@@ -206,3 +238,83 @@ class TestLoadData:
         adapter._data_layer.fetch_price_range.assert_awaited_once_with(
             "AAPL", "2023-01-01", "2023-02-01"
         )
+
+
+def _one_year_daily_bars(seed: int, mu: float = 0.0004, sigma: float = 0.012) -> list:
+    """~1yr of realistic daily bars: geometric random walk with drift.
+
+    A seeded GBM (≈10%/yr drift, ≈19%/yr vol) mimics a real equity's return
+    distribution — deterministic per ``seed`` so the resulting Sharpe is
+    reproducible. Deliberately NOT pure tiny noise: annualizing a near-zero-
+    variance series produces absurd Sharpe magnitudes.
+    """
+    import math
+    import random
+    from datetime import date, timedelta
+
+    from finrobot.engine.data.normalize import PriceBar
+
+    rng = random.Random(seed)
+    bars = []
+    d = date(2023, 1, 2)
+    price = 100.0
+    while d < date(2024, 1, 2):
+        # Skip weekends to mimic a trading calendar.
+        if d.weekday() < 5:
+            price *= math.exp(mu + sigma * rng.gauss(0.0, 1.0))
+            bars.append(
+                PriceBar(
+                    date=d,
+                    open=price,
+                    high=price * 1.005,
+                    low=price * 0.995,
+                    close=price,
+                    volume=1_000_000.0,
+                )
+            )
+        d += timedelta(days=1)
+    return bars
+
+
+class TestSharpeOnDailyBars:
+    """Regression for BUG-019: daily-timeframe annualized Sharpe.
+
+    Before the fix, SharpeRatio used backtrader's default timeframe=Years,
+    which resampled a ~1yr daily series to a single yearly return → Sharpe
+    undefined → None → misleading "insufficient data" warning. The fix
+    registers the analyzer with timeframe=Days, annualize=True, factor=252.
+    """
+
+    def test_sharpe_is_finite_on_one_year_daily(self) -> None:
+        import math
+
+        bars = _one_year_daily_bars(seed=42)
+        assert len(bars) > 200  # ~252 trading days
+
+        data_layer = MagicMock()
+        data_layer.fetch_price_range = AsyncMock(return_value=bars)
+        adapter = BackTraderAdapter(data_layer)
+        # Skip the matplotlib equity-curve render: it is slow on a 1yr candlestick
+        # and irrelevant to the Sharpe regression under test.
+        adapter._render_chart = lambda *a, **k: None  # type: ignore[method-assign]
+        # Resolve a fully-invested strategy via this module's import path so the
+        # portfolio carries real exposure (see FullyInvestedStrategy docstring).
+        config = BacktestConfig(
+            ticker="SYNTH",
+            start_date="2023-01-02",
+            end_date="2024-01-02",
+            strategy="tests.unit.test_backtrader_adapter:FullyInvestedStrategy",
+        )
+
+        result = adapter._run_sync(config)
+
+        # The core BUG-019 assertion: a real, finite annualized Sharpe — not None.
+        # With the old timeframe=Years default this was None on a 1yr window.
+        assert result.sharpe_ratio is not None
+        assert isinstance(result.sharpe_ratio, float)
+        assert math.isfinite(result.sharpe_ratio)
+        # Annualized daily Sharpe of a fully-invested ≈19%-vol series stays
+        # within single digits; pure-noise / cash-drag artifacts blow past this.
+        assert abs(result.sharpe_ratio) < 5
+        # The misleading "insufficient data" warning must not appear.
+        assert not any("insufficient" in w.lower() for w in result.warnings)

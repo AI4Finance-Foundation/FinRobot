@@ -54,7 +54,7 @@
 | BUG-016 | Bug | P1 | 自由文本叙事字段（valuation_overview/tagline/key_takeaways/competitor_analysis）无 code 级与 canonical target/verdict 对账，结构化标量被强制覆盖而散文不被——表格与散文可冲突 | 待修 |
 | BUG-017 | Bug | P1 | Chat-triggered pipelines bypass the app-wide concurrency semaphore — LLM can fire unbounded parallel heavy runs | 待修 |
 | BUG-018 | Bug | P1 | Scoped coverage-group hit-rate silently truncates to the GLOBAL newest-500 page → groups show null track record despite having one | 待修 |
-| BUG-019 | Bug | P1 | Sharpe ratio uses backtrader default timeframe=Years on daily bars → None for ~1yr windows, meaningless for multi-year | 待修 |
+| BUG-019 | Bug | P1 | Sharpe ratio uses backtrader default timeframe=Years on daily bars → None for ~1yr windows, meaningless for multi-year | 已修 |
 | BUG-020 | Bug | P1 | CLI 全部 pipeline 命令零 ticker 校验/归一化：脏 ticker 直灌 provider + 污染缓存与 artifact | 待修 |
 | BUG-021 | Bug | P1 | backtest --auto 对 LLM 失败无任何兜底：直接裸崩，也不回退确定性策略 | 待修 |
 | BUG-022 | Bug | P1 | 零 busy_timeout + 多进程写同一 data_cache.db → SQLITE_BUSY 直接抛到调用方 | 待修 |
@@ -376,7 +376,7 @@
 - **修复方案**：In backtrader_adapter.py addanalyzer for sharpe, pass `timeframe=bt.analyzers... ` — concretely: `cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe", riskfreerate=config.risk_free_rate, timeframe=bt.TimeFrame.Days, compression=1, annualize=True, factor=252)`. This makes Sharpe a proper annualized daily Sharpe consistent with the 'Sharpe assumes risk-free rate X%' annual framing. Note: data feed is daily (PandasData on daily index), so factor=252 trading days is correct; if intraday feeds are ever added, derive factor from feed timeframe. Update the docstring on line 6 and the warning text. Add a regression test in tests/unit/test_backtrader_adapter.py running a real (or fixtured) 1yr daily backtest and asserting sharpe_ratio is a finite float, not None.
 - **验证补充**：Fix direction correct. Two cautions: (1) backtrader's SharpeRatio with annualize=True and convertrate semantics interacts with factor — verify the regression test asserts a finite float AND a sane magnitude, since the synthetic-data repro above gave an extreme value (annualization of a tiny-noise series amplifies); test on a realistic price series not pure noise. (2) Keep convertrate handling consistent with riskfreerate being annual (4%). The proposed factor=252 + timeframe=Days + annualize=True is the standard correct config.
 - **影响面/回归风险**：Every Sharpe number the backtest has ever produced is either None (short windows) or computed on a handful of yearly points (long windows) — i.e. the headline risk-adjusted metric is effectively broken for the primary use case. Fix changes the numeric Sharpe value (regression risk: any snapshot test pinning the old None/value must be updated). No effect on total_return/drawdown/trades.
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（backtrader_adapter.py：SharpeRatio addanalyzer 显式传 timeframe=Days,compression=1,annualize=True,factor=252（修正 backtrader 默认 timeframe=Years 在日线上重采样到年频→1yr 窗口 Sharpe=None 的假象）；更新 docstring + 把误导的「Insufficient data」警告文案改诚实化。新增回归测试：~1yr 日线（真实几何随机游走，非纯噪声）下 sharpe 为有限浮点（实测 2.566，旧默认为 None）。ruff+mypy --strict + 19 例通过）
 
 #### [BUG-020] CLI 全部 pipeline 命令零 ticker 校验/归一化：脏 ticker 直灌 provider + 污染缓存与 artifact
 

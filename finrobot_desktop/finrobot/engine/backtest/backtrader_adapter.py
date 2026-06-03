@@ -5,6 +5,12 @@ callback-heavy API into a clean async interface with typed config/result.
 Handles SMA crossover strategy (built-in), dynamic strategy loading via
 module:ClassName, 4 analyzers (Sharpe, DrawDown, Returns, TradeAnalyzer),
 and equity curve PNG generation — all deterministic computation.
+
+The SharpeRatio analyzer is configured for DAILY bars (timeframe=Days,
+annualize=True, factor=252). backtrader's default timeframe=Years resamples
+daily returns to yearly before computing Sharpe, which yields ~1 point (and
+thus None) on a ~1yr window — see BUG-019. The explicit daily config produces
+a proper annualized Sharpe consistent with the annual risk-free framing.
 """
 
 from __future__ import annotations
@@ -125,6 +131,10 @@ class BackTraderAdapter(BacktestEngine):
             bt.analyzers.SharpeRatio,
             _name="sharpe",
             riskfreerate=config.risk_free_rate,
+            timeframe=bt.TimeFrame.Days,
+            compression=1,
+            annualize=True,
+            factor=252,
         )
         cerebro.addanalyzer(bt.analyzers.DrawDown, _name="drawdown")
         cerebro.addanalyzer(bt.analyzers.Returns, _name="returns")
@@ -242,7 +252,12 @@ class BackTraderAdapter(BacktestEngine):
         analysis = strat.analyzers.sharpe.get_analysis()
         ratio: float | None = analysis.get("sharperatio")
         if ratio is None:
-            warnings.append("Insufficient data for Sharpe ratio calculation")
+            # With daily timeframe + annualization (BUG-019), None means the
+            # window is too short to have any daily returns (zero/one bar) or
+            # returns had zero variance — not the old Years-resampling artifact.
+            warnings.append(
+                "Sharpe ratio unavailable: too few daily bars or zero-variance returns."
+            )
         return ratio
 
     def _extract_drawdown(self, strat: Any, warnings: list[str]) -> float | None:

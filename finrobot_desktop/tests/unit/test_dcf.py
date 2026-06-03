@@ -107,6 +107,45 @@ def test_terminal_growth_gte_wacc_raises():
         calculate_dcf(inputs, wacc_override=0.02)  # tg=0.025 >= wacc=0.02
 
 
+def test_negative_terminal_fcf_raises_no_negative_price():
+    """BUG-074: a recession/high-capex trough drives the terminal-year FCF
+    negative. With tg < WACC the Gordon formula is still mathematically defined,
+    but it would capitalize that trough into a perpetual NEGATIVE terminal value
+    and a negative implied price per share. calculate_dcf must refuse — raising
+    ValueError (mirroring the tg >= WACC degrade path) so the equity_research
+    pipeline skips the DCF chapter instead of printing a negative fair value.
+
+    Recession params from the finding's evidence: revenue 1e11, growth -20%×5,
+    EBITDA 8%, capex 6%, D&A 5%, NWC 2%, tax 21% → terminal-year FCF ≈ -$2.06e8.
+    """
+    inputs = _make_inputs(
+        revenue_base=1e11,
+        revenue_growth_rates=[-0.20] * 5,
+        ebitda_margin=0.08,
+        capex_pct_revenue=0.06,
+        da_pct_revenue=0.05,
+        nwc_pct_revenue=0.02,
+        terminal_growth_rate=0.025,  # tg < WACC: tg >= WACC guard does NOT fire
+    )
+
+    # Sanity: the terminal-year FCF really is negative for these inputs, so this
+    # test exercises the negative-FCF guard specifically (not the tg >= WACC one).
+    from finrobot.engine.compute.dcf import _project_full
+
+    _, _, projected_fcf = _project_full(inputs)
+    assert projected_fcf[-1] < 0
+
+    with pytest.raises(ValueError):
+        calculate_dcf(inputs)
+
+    # And no path silently returns a DCFResult carrying a negative implied price.
+    try:
+        result = calculate_dcf(inputs)
+    except ValueError:
+        result = None
+    assert result is None
+
+
 def test_zero_capex_zero_nwc():
     inputs = _make_inputs(capex_pct_revenue=0, nwc_pct_revenue=0)
     result = calculate_dcf(inputs)

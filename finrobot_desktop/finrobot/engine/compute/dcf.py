@@ -58,6 +58,24 @@ def calculate_dcf(
     pv_fcf_total = sum(pv_fcfs)
 
     # 6-7. Terminal value (Gordon Growth Model)
+    #
+    # Gordon capitalizes the terminal-year FCF into perpetuity. With tg < wacc the
+    # formula is mathematically defined even for a NEGATIVE terminal FCF — but then
+    # it capitalizes a trough cash flow into a perpetual negative value, yielding a
+    # negative terminal value and a negative implied price per share. That is a
+    # nonsense valuation (a temporary capex/recession trough is NOT a perpetual
+    # steady state), and a negative "fair value per share" must never reach the
+    # report narrative or the LLM thesis prompt. Degrade the same way the tg >= wacc
+    # case does: raise ValueError so the equity_research pipeline skips the DCF
+    # chapter and falls back to relative valuation (see BUG-074).
+    if projected_fcf[-1] <= 0:
+        raise ValueError(
+            f"Terminal-year FCF is non-positive ({projected_fcf[-1]:.3g}); the Gordon "
+            "Growth Model would capitalize a trough cash flow into a perpetual negative "
+            "terminal value and a negative implied price. DCF is not applicable — use "
+            "relative valuation instead."
+        )
+
     terminal_value = projected_fcf[-1] * (1 + tg) / (wacc - tg)
     pv_terminal = terminal_value / (1 + wacc) ** (n - offset)
 

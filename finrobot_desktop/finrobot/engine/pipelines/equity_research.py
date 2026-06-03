@@ -443,11 +443,14 @@ async def _execute_financial_modeling(
     try:
         dcf_result = calculate_dcf(dcf_inputs)
     except (ValueError, ArithmeticError) as e:
-        # Gordon terminal value is undefined when terminal growth >= WACC (very
-        # low-WACC profiles: low-beta, high-leverage utilities / REITs), or other
-        # degenerate arithmetic. Degrade gracefully — skip the DCF chapter instead
-        # of crashing the whole report, and still build the valuation synthesis
-        # from the remaining (relative) methods so the football field renders.
+        # The DCF is not applicable when the Gordon terminal value is undefined
+        # (terminal growth >= WACC — very low-WACC profiles: low-beta, high-leverage
+        # utilities / REITs) OR when the terminal-year FCF is non-positive, which
+        # would capitalize a trough cash flow into a perpetual negative value and a
+        # negative implied price per share (BUG-074). Degrade gracefully — skip the
+        # DCF chapter instead of crashing the whole report (and instead of printing a
+        # nonsense negative fair value), and still build the valuation synthesis from
+        # the remaining (relative) methods so the football field renders.
         logger.warning("DCF chapter not applicable for %s: %s", ticker, e)
         current_price = (
             financial_data.market.current_price if hasattr(financial_data, "market") else 0
@@ -460,8 +463,9 @@ async def _execute_financial_modeling(
                 structured_context["valuation_synthesis"] = vs
         return StepOutput(
             text=(
-                f"DCF 不适用：以本标的的资本成本与永续增长率假设，Gordon 永续增长模型无定义"
-                f"（{e}）。本章跳过 DCF 估值，估值结论以相对估值（可比公司倍数、历史估值区间）为准。"
+                f"DCF 不适用：以本标的的资本成本、永续增长率与末年自由现金流假设，Gordon 永续"
+                f"增长模型无法给出有意义的正值估值（{e}）。本章跳过 DCF 估值，估值结论以相对估值"
+                f"（可比公司倍数、历史估值区间）为准。"
             ),
             structured=None,
         )

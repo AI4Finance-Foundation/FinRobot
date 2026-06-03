@@ -260,6 +260,39 @@ _DISCRETE_QUARTER_LABELS: frozenset[str] = frozenset({"Q1", "Q2", "Q3", "Q4"})
 _TTM_RECENCY_DAYS = 200
 
 
+def _is_usd_unit(unit: Any) -> bool:
+    """True iff an XBRL fact's reporting unit is plain USD (BUG-037).
+
+    edgartools surfaces a fact's currency verbatim in ``FinancialFact.unit`` /
+    ``TTMMetric.unit`` (e.g. ``"USD"``, ``"EUR"``, ``"GBP"``). The library does
+    NOT FX-convert: a 20-F foreign private issuer (functional currency EUR/GBP/
+    CHF/JPY) returns its native-currency magnitude with the native unit. This
+    layer never introduces an FX source (that boundary lives in
+    ``normalize_peer_to_usd``); instead we admit a fact only when its unit is
+    USD and suppress everything else to None upstream, so the compute layer falls
+    back to the FX-normalized FMP base rather than comparing a native-currency
+    XBRL value against a USD peer (the 35% divergence gate can miss near-parity
+    currencies like GBP≈1.27 / CHF≈1.1).
+
+    A missing/empty unit is treated as USD: the vast majority of SEC filers are
+    domestic USD reporters and edgartools occasionally omits the unit on a
+    cleanly-typed currency fact; refusing those would needlessly drop good US
+    data. Foreign issuers DO carry an explicit non-USD unit, which is the case
+    this guard exists to catch.
+    """
+    if unit is None:
+        return True
+    text = str(unit).strip().upper()
+    if not text:
+        return True
+    # Currency facts may carry a compound numerator/denominator (e.g. a per-share
+    # unit "USD/SHARES"); the reporting currency is the leading token. Revenue /
+    # net income are plain currency, but split defensively so "USD-per-..." still
+    # reads as USD rather than failing the equality check.
+    head = text.replace("-PER-", "/").split("/", 1)[0].strip()
+    return head == "USD"
+
+
 def _validate_ttm_periods(periods: Any) -> bool:
     """True iff ``periods`` is a structurally valid TTM window.
 
@@ -332,6 +365,7 @@ def _select_recent_ttm(
     concepts: tuple[str, ...],
     *,
     today: date,
+    warnings: list[str] | None = None,
 ) -> dict[str, Any] | None:
     """Pick the live concept's TTM and return it as a typed dict, or None.
 
@@ -344,6 +378,14 @@ def _select_recent_ttm(
     when nothing qualifies (→ FMP fallback). ``period_end`` carries the TTM's
     latest-quarter date so downstream can show "TTM as of <quarter>";
     ``has_calculated_q4`` / ``warning`` surface edgartools' quarterization caveats.
+
+    BUG-037: a 20-F foreign private issuer reports TTM in its functional currency
+    (EUR/GBP/CHF/JPY) and edgartools returns the native magnitude with a non-USD
+    ``TTMMetric.unit`` — no FX is applied. We refuse such a window (skip the
+    candidate, append a warning to ``warnings``) so the compute layer falls back
+    to the FX-normalized FMP TTM base instead of overriding it with a native-
+    currency value the 35% divergence gate could wave through for a near-parity
+    currency. FX belongs to ``normalize_peer_to_usd``, not this provider.
     """
     best: dict[str, Any] | None = None
     best_end: date | None = None
@@ -355,6 +397,15 @@ def _select_recent_ttm(
         except LookupError:
             continue
         if metric is None:
+            continue
+        unit = getattr(metric, "unit", None)
+        if not _is_usd_unit(unit):
+            if warnings is not None:
+                warnings.append(
+                    f"SEC XBRL TTM {getattr(metric, 'concept', concept)} reported in "
+                    f"{unit}, not USD; suppressed (no FX in provider) — falling back "
+                    "to FX-normalized FMP TTM."
+                )
             continue
         latest_end = _metric_as_of_date(metric)
         if latest_end is None:
@@ -400,6 +451,7 @@ def _select_latest_fact(
     concepts: tuple[str, ...],
     *,
     annual: bool,
+    warnings: list[str] | None = None,
 ) -> dict[str, Any] | None:
     """Recover the matched ``FinancialFact`` for a point-in-time concept.
 
@@ -412,6 +464,13 @@ def _select_latest_fact(
     case that needs latest-period selection). Returns
     ``{"concept", "value", "period_end", "units"}`` aligned to ``XBRLFact``
     (concept/period_end/units required), or None when no concept matches.
+
+    BUG-037: a fact whose ``unit`` is a non-USD currency (a 20-F foreign private
+    issuer's native EUR/GBP/CHF/JPY) is rejected — edgartools applies no FX, so
+    surfacing the native magnitude as USD would corrupt the artifact snapshot and
+    any downstream comparison. We skip such a variant and record a warning;
+    suppression (→ FMP fallback) is the boundary-consistent choice (FX lives in
+    ``normalize_peer_to_usd``, not here).
     """
     get_annual = getattr(facts, "get_annual_fact", None)
     get_fact = getattr(facts, "get_fact", None)
@@ -443,11 +502,19 @@ def _select_latest_fact(
                     period_end = period_end.date()
                 if numeric is None or not isinstance(period_end, date):
                     continue
+                unit = getattr(fact, "unit", "USD")
+                if not _is_usd_unit(unit):
+                    if warnings is not None:
+                        warnings.append(
+                            f"SEC XBRL fact {getattr(fact, 'concept', variant)} reported in "
+                            f"{unit}, not USD; suppressed (no FX in provider)."
+                        )
+                    continue
                 return {
                     "concept": str(getattr(fact, "concept", variant)),
                     "value": float(numeric),
                     "period_end": period_end,
-                    "units": str(getattr(fact, "unit", "USD") or "USD"),
+                    "units": str(unit or "USD"),
                 }
     finally:
         facts._suppress_warnings = prev_suppress
@@ -1018,8 +1085,12 @@ class EdgarToolsProvider(DataProvider):
         # + gate on period structure, instead of edgartools' first-match-wins
         # getters that latch abandoned concepts (NVDA → FY2020 $10.918B). None
         # here → compute layer falls back to FMP TTM.
-        ttm_revenue = _select_recent_ttm(facts, _TTM_REVENUE_CONCEPTS, today=today)
-        ttm_net_income = _select_recent_ttm(facts, _TTM_NET_INCOME_CONCEPTS, today=today)
+        ttm_revenue = _select_recent_ttm(
+            facts, _TTM_REVENUE_CONCEPTS, today=today, warnings=warnings
+        )
+        ttm_net_income = _select_recent_ttm(
+            facts, _TTM_NET_INCOME_CONCEPTS, today=today, warnings=warnings
+        )
 
         # Surface edgartools' TTM quality caveats so downstream (and the UI)
         # can show "TTM as of <quarter>" honestly: a derived Q4 (FY−9M) is a
@@ -1053,24 +1124,26 @@ class EdgarToolsProvider(DataProvider):
             "facts_available": True,
             "ttm_revenue": ttm_revenue,
             "ttm_net_income": ttm_net_income,
-            "latest_revenue": _select_latest_fact(facts, _LATEST_REVENUE_CONCEPTS, annual=True),
+            "latest_revenue": _select_latest_fact(
+                facts, _LATEST_REVENUE_CONCEPTS, annual=True, warnings=warnings
+            ),
             "latest_net_income": _select_latest_fact(
-                facts, _LATEST_NET_INCOME_CONCEPTS, annual=True
+                facts, _LATEST_NET_INCOME_CONCEPTS, annual=True, warnings=warnings
             ),
             "latest_gross_profit": _select_latest_fact(
-                facts, _LATEST_GROSS_PROFIT_CONCEPTS, annual=True
+                facts, _LATEST_GROSS_PROFIT_CONCEPTS, annual=True, warnings=warnings
             ),
             "latest_operating_income": _select_latest_fact(
-                facts, _LATEST_OPERATING_INCOME_CONCEPTS, annual=True
+                facts, _LATEST_OPERATING_INCOME_CONCEPTS, annual=True, warnings=warnings
             ),
             "latest_total_assets": _select_latest_fact(
-                facts, _LATEST_TOTAL_ASSETS_CONCEPTS, annual=False
+                facts, _LATEST_TOTAL_ASSETS_CONCEPTS, annual=False, warnings=warnings
             ),
             "latest_total_liabilities": _select_latest_fact(
-                facts, _LATEST_TOTAL_LIABILITIES_CONCEPTS, annual=False
+                facts, _LATEST_TOTAL_LIABILITIES_CONCEPTS, annual=False, warnings=warnings
             ),
             "latest_shareholders_equity": _select_latest_fact(
-                facts, _LATEST_SHAREHOLDERS_EQUITY_CONCEPTS, annual=False
+                facts, _LATEST_SHAREHOLDERS_EQUITY_CONCEPTS, annual=False, warnings=warnings
             ),
         }, warnings
 

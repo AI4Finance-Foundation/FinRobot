@@ -281,6 +281,37 @@ def test_override_company_with_xbrl_flags_divergent_peer() -> None:
     assert "[待核]" in out.ttm_divergence_note
 
 
+def test_override_keeps_fmp_when_foreign_currency_xbrl_suppressed() -> None:
+    """BUG-037: for a 20-F foreign private issuer the provider drops the native-
+    currency XBRL TTM to None (no FX in the provider). The override must then keep
+    the FX-normalized FMP USD base untouched — no divergence note, no native-
+    currency value sneaking in under the 35% gate (near-parity GBP/EUR/CHF would
+    otherwise slip through). The XBRL keys are present-but-None, exactly the shape
+    ``edgar_provider._fetch_xbrl`` emits after suppressing a foreign-currency fact.
+    """
+    base = CompanyFinancials(
+        ticker="SHEL",
+        revenue=290_000_000_000.0,  # FMP TTM, already FX-normalized to USD
+        ebitda=60_000_000_000.0,
+        net_income=19_000_000_000.0,
+        market_cap=210_000_000_000.0,
+        total_debt=80_000_000_000.0,
+        total_cash=40_000_000_000.0,
+        gross_margin=0.2,
+        operating_margin=0.1,
+    )
+
+    out = override_company_with_xbrl(
+        base,
+        {"ttm_revenue": None, "ttm_net_income": None},
+    )
+
+    # FMP USD base survives verbatim; no spurious [待核] note.
+    assert out.revenue == 290_000_000_000.0
+    assert out.net_income == 19_000_000_000.0
+    assert out.ttm_divergence_note is None
+
+
 def test_xbrl_concept_snapshot_groups_ttm_and_latest_facts() -> None:
     snapshot = xbrl_concept_snapshot(
         {

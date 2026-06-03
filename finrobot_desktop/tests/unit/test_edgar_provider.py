@@ -741,6 +741,60 @@ async def test_fetch_xbrl_balance_sheet_prefers_latest_period_over_latest_annual
 
 
 @pytest.mark.asyncio
+async def test_fetch_xbrl_suppresses_foreign_currency_filer() -> None:
+    """BUG-037 end-to-end: a 20-F foreign private issuer (functional currency GBP)
+    files XBRL in its native currency and edgartools applies NO FX. ``_fetch_xbrl``
+    must NOT surface those native-GBP magnitudes as USD — both the TTM path and
+    the ``latest_*`` getters suppress non-USD facts to None (so the compute layer
+    falls back to the FX-normalized FMP base) and emit a warning. GBP≈1.27 is a
+    near-parity currency whose un-converted value would slip under the 35%
+    divergence gate, which is exactly why suppression must happen here, upstream
+    of the gate.
+    """
+    p = EdgarToolsProvider("Jane Doe jane@example.com")
+    recent = date.today() - timedelta(days=30)
+    facts = _FakeLatestFacts(
+        ttm={
+            # Structurally valid + recent, but reported in GBP — must be dropped.
+            "Revenues": _FakeTTMMetric(
+                "ifrs-full:Revenue",
+                40_000_000_000.0,  # £40B, NOT FX-converted
+                [(2025, "Q3"), (2025, "Q4"), (2026, "Q1"), (2026, "Q2")],
+                recent,
+                unit="GBP",
+            ),
+            "NetIncomeLoss": _FakeTTMMetric(
+                "ifrs-full:ProfitLoss",
+                5_000_000_000.0,
+                [(2025, "Q3"), (2025, "Q4"), (2026, "Q1"), (2026, "Q2")],
+                recent,
+                unit="GBP",
+            ),
+        },
+        annual={
+            "ifrs-full:Revenue": _FakeFinancialFact(
+                "ifrs-full:Revenue", 40_000_000_000.0, date(2025, 12, 31), unit="GBP"
+            ),
+            "us-gaap:NetIncomeLoss": _FakeFinancialFact(
+                "us-gaap:NetIncomeLoss", 5_000_000_000.0, date(2025, 12, 31), unit="GBP"
+            ),
+        },
+    )
+
+    c = MagicMock()
+    c.get_facts.return_value = facts
+    data, warnings = p._fetch_xbrl(c)
+
+    # No native-currency value leaks through as USD.
+    assert data["ttm_revenue"] is None
+    assert data["ttm_net_income"] is None
+    assert data["latest_revenue"] is None
+    assert data["latest_net_income"] is None
+    # The suppression is surfaced honestly so the analyst knows we fell back.
+    assert any("GBP" in w and "USD" in w for w in warnings)
+
+
+@pytest.mark.asyncio
 async def test_fetch_xbrl_periods_str_list_matches_model() -> None:
     """BUG-010: tuple periods → ``list[str]`` (e.g. "Q3 2025") matching
     ``XBRLTTMMetric.periods``, not a typed dict or repr tuple string."""
@@ -962,6 +1016,7 @@ class _FakeTTMMetric:
         *,
         has_calculated_q4: bool = False,
         warning: str | None = None,
+        unit: str = "USD",
     ) -> None:
         self.concept = concept
         self.value = value
@@ -970,6 +1025,7 @@ class _FakeTTMMetric:
         self.period_facts = [_FakePeriodFact(latest_end)]
         self.has_calculated_q4 = has_calculated_q4
         self.warning = warning
+        self.unit = unit
 
 
 class _FakeFacts:
@@ -1065,6 +1121,54 @@ class TestSelectRecentTTM:
         )
         out = _select_recent_ttm(facts, _TTM_REVENUE_CONCEPTS, today=_date(2026, 6, 1))
         assert out is None
+
+    def test_suppresses_foreign_currency_ttm_and_warns(self) -> None:
+        """BUG-037: a 20-F foreign private issuer reports TTM revenue in its
+        functional currency (EUR here) — edgartools returns the native magnitude
+        with a non-USD ``unit`` and applies no FX. ``_select_recent_ttm`` must
+        refuse it (→ None, so the compute layer falls back to the FX-normalized
+        FMP TTM) and surface a warning, rather than letting a near-parity EUR
+        value (EUR≈1.08) sail through the 35% divergence gate as if it were USD.
+        """
+        warnings: list[str] = []
+        facts = _FakeFacts(
+            {
+                # Structurally valid + recent — ONLY the non-USD unit must reject it.
+                "Revenues": _FakeTTMMetric(
+                    "ifrs-full:Revenue",
+                    50_000_000_000.0,  # €50B reported, NOT FX-converted
+                    [(2026, "Q1"), (2026, "Q2"), (2026, "Q3"), (2026, "Q4")],
+                    _date(2026, 4, 26),
+                    unit="EUR",
+                ),
+            }
+        )
+        out = _select_recent_ttm(
+            facts, _TTM_REVENUE_CONCEPTS, today=_date(2026, 6, 1), warnings=warnings
+        )
+        assert out is None
+        assert any("EUR" in w and "USD" in w for w in warnings)
+
+    def test_keeps_usd_ttm(self) -> None:
+        """The USD fast path is unaffected by the BUG-037 currency guard."""
+        warnings: list[str] = []
+        facts = _FakeFacts(
+            {
+                "Revenues": _FakeTTMMetric(
+                    "us-gaap:Revenues",
+                    253_491_000_000.0,
+                    [(2026, "Q1"), (2026, "Q2"), (2026, "Q3"), (2026, "Q4")],
+                    _date(2026, 4, 26),
+                    unit="USD",
+                ),
+            }
+        )
+        out = _select_recent_ttm(
+            facts, _TTM_REVENUE_CONCEPTS, today=_date(2026, 6, 1), warnings=warnings
+        )
+        assert out is not None
+        assert out["value"] == 253_491_000_000.0
+        assert warnings == []
 
 
 # ---------------------------------------------------------------------------

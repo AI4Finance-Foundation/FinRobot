@@ -75,6 +75,7 @@ _MARKET_DEGRADABLE = (
 )
 
 _SYSTEM_GROUP_NAME = "Studied Tickers"
+_SYSTEM_GROUP_DESC = "打开过的股票自动进这里；可改名、删 ticker 或删除整组。"
 
 # Artifact types that embed a DCF result, and the structured keys it may sit
 # under (equity_research nests it under financial_modeling; dcf at dcf_calc;
@@ -457,12 +458,47 @@ async def ensure_system_group(
         return None
     group = await store.create_group(
         _SYSTEM_GROUP_NAME,
-        "从你的历史研报自动生成；可改名、删 ticker 或删除整组。",
+        _SYSTEM_GROUP_DESC,
         is_system=True,
     )
     await store.add_members(group.id, tickers)
     logger.info("Seeded system coverage group %s with %d tickers", group.id, len(tickers))
     return group
+
+
+async def ensure_studied_membership(
+    store: CoverageStore,
+    ticker: str,
+) -> CoverageGroupDetail:
+    """Add ``ticker`` to the default ``Studied Tickers`` workspace (find-or-create).
+
+    The product contract (Coverage redesign §2): opening ``/stocks/:ticker``
+    auto-enrols that name into the default workspace. This is the write side of
+    that — idempotent, so re-opening a name is a no-op, and a name removed from
+    the workspace re-enters on the next open.
+
+    Distinct from :func:`ensure_system_group` (the State-D one-time backfill,
+    gated on "zero groups"): this targets the single ``is_system`` group
+    regardless of how many hand-built groups exist, creating it on first use if
+    the State-D seed never fired (e.g. a brand-new user with no prior artifacts).
+    """
+    group = await store.get_system_group()
+    if group is None:
+        group = CoverageGroupDetail(
+            **(
+                await store.create_group(_SYSTEM_GROUP_NAME, _SYSTEM_GROUP_DESC, is_system=True)
+            ).model_dump(),
+            members=[],
+        )
+    detail = await store.add_members(group.id, [ticker])
+    # add_members only returns None when the group vanished between the two
+    # awaits (another session deleted it) — re-seed once so the auto-add is
+    # never silently lost.
+    if detail is None:
+        fresh = await store.create_group(_SYSTEM_GROUP_NAME, _SYSTEM_GROUP_DESC, is_system=True)
+        detail = await store.add_members(fresh.id, [ticker])
+        assert detail is not None  # just created
+    return detail
 
 
 # ── Compare (H1) ─────────────────────────────────────────────────────────────

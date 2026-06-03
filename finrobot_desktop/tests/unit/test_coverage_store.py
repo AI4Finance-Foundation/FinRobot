@@ -102,3 +102,29 @@ async def test_system_group_flag_persists(store: CoverageStore) -> None:
     fetched = await store.get_group(g.id)
     assert fetched is not None
     assert fetched.is_system is True
+
+
+async def test_get_system_group_none_when_absent(store: CoverageStore) -> None:
+    await store.create_group("Mag7")  # a hand-built group is not a system group
+    assert await store.get_system_group() is None
+
+
+async def test_get_system_group_finds_seeded(store: CoverageStore) -> None:
+    # Even with hand-built groups present, the system group is found by flag.
+    await store.create_group("Mag7")
+    sys_g = await store.create_group("Studied Tickers", is_system=True)
+    await store.add_members(sys_g.id, ["AAPL"])
+    found = await store.get_system_group()
+    assert found is not None
+    assert found.id == sys_g.id
+    assert found.is_system is True
+    assert [m.ticker for m in found.members] == ["AAPL"]
+
+
+async def test_get_system_group_returns_oldest(store: CoverageStore) -> None:
+    # Only ever one in practice, but the query must be deterministic (oldest).
+    first = await store.create_group("Studied Tickers", is_system=True)
+    await store.create_group("Studied Tickers 2", is_system=True)
+    found = await store.get_system_group()
+    assert found is not None
+    assert found.id == first.id

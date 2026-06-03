@@ -177,6 +177,27 @@ async def test_add_members_to_missing_group_404(client: AsyncClient) -> None:
     assert r.status_code == 404
 
 
+async def test_studied_auto_add_creates_and_is_idempotent(client: AsyncClient) -> None:
+    # First open of a ticker seeds the Studied Tickers workspace and enrols it.
+    r = await client.post("/api/coverage/studied-tickers/members", json={"ticker": "tsla"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["name"] == "Studied Tickers"
+    assert body["is_system"] is True
+    assert [m["ticker"] for m in body["members"]] == ["TSLA"]  # upper-cased
+
+    # Re-opening is a no-op (no duplicate, still one group).
+    r = await client.post("/api/coverage/studied-tickers/members", json={"ticker": "TSLA"})
+    assert [m["ticker"] for m in r.json()["members"]] == ["TSLA"]
+    groups = (await client.get("/api/coverage/groups")).json()
+    assert sum(1 for g in groups if g["is_system"]) == 1
+
+
+async def test_studied_auto_add_rejects_junk_ticker(client: AsyncClient) -> None:
+    r = await client.post("/api/coverage/studied-tickers/members", json={"ticker": "苹果"})
+    assert r.status_code == 422
+
+
 async def test_patch_and_delete_group(client: AsyncClient) -> None:
     gid = (await client.post("/api/coverage/groups", json={"name": "Old"})).json()["id"]
     r = await client.patch(f"/api/coverage/groups/{gid}", json={"name": "New"})

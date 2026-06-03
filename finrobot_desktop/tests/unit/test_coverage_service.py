@@ -22,6 +22,7 @@ from finrobot.coverage.service import (
     _safe_signal,
     _upside,
     build_overview,
+    ensure_studied_membership,
     ensure_system_group,
 )
 from finrobot.engine.data.normalize.contracts import DEGRADED_CLOSE_ONLY, DEGRADED_TTM_LAG
@@ -506,3 +507,34 @@ async def test_ensure_system_group_noop_when_groups_exist(store: CoverageStore) 
 async def test_ensure_system_group_noop_without_studied_tickers(store: CoverageStore) -> None:
     assert await ensure_system_group(store, _StubArtifactStore({})) is None  # type: ignore[arg-type]
     assert await store.count_groups() == 0
+
+
+# ── ensure_studied_membership (search auto-add) ──────────────────────────────
+
+
+async def test_studied_membership_creates_group_on_first_open(store: CoverageStore) -> None:
+    # Brand-new user, no groups at all → opening a ticker seeds the system group.
+    detail = await ensure_studied_membership(store, "aapl")
+    assert detail.is_system is True
+    assert detail.name == "Studied Tickers"
+    assert [m.ticker for m in detail.members] == ["AAPL"]  # upper-cased
+
+
+async def test_studied_membership_is_idempotent(store: CoverageStore) -> None:
+    await ensure_studied_membership(store, "AAPL")
+    detail = await ensure_studied_membership(store, "AAPL")  # re-open → no dup
+    assert [m.ticker for m in detail.members] == ["AAPL"]
+    assert await store.count_groups() == 1
+
+
+async def test_studied_membership_reuses_existing_system_group(store: CoverageStore) -> None:
+    # State-D already seeded the system group; auto-add must target it, not
+    # create a second one — even with a hand-built group also present.
+    await store.create_group("Mag7")
+    seeded = await store.create_group("Studied Tickers", is_system=True)
+    await store.add_members(seeded.id, ["MSFT"])
+    detail = await ensure_studied_membership(store, "NVDA")
+    assert detail.id == seeded.id
+    assert sorted(m.ticker for m in detail.members) == ["MSFT", "NVDA"]
+    # No third group spawned.
+    assert await store.count_groups() == 2

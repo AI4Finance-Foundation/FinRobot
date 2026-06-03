@@ -8,6 +8,7 @@ Endpoints:
   DELETE /api/coverage/groups/{id}                    — delete a group
   POST   /api/coverage/groups/{id}/members            — add tickers (batch)
   DELETE /api/coverage/groups/{id}/members/{ticker}   — remove a ticker
+  POST   /api/coverage/studied-tickers/members        — auto-add opened ticker
   GET    /api/coverage/groups/{id}/overview           — Coverage Table payload
 
 Orchestration lives in :mod:`finrobot.coverage.service`; this layer only wires
@@ -32,7 +33,11 @@ from finrobot.coverage.models import (
     CoverageGroupSummary,
     CoverageOverview,
 )
-from finrobot.coverage.service import build_overview, ensure_system_group
+from finrobot.coverage.service import (
+    build_overview,
+    ensure_studied_membership,
+    ensure_system_group,
+)
 from finrobot.coverage.sqlite_store import CoverageStore
 from finrobot.engine.data.layer import DataLayer
 
@@ -90,6 +95,24 @@ class AddMembersRequest(BaseModel):
     @classmethod
     def _validate(cls, v: list[str]) -> list[str]:
         return _clean_tickers(v)
+
+
+class StudiedMemberRequest(BaseModel):
+    """Auto-add one opened ticker to the default ``Studied Tickers`` workspace.
+
+    Single ticker (not the batch ``AddMembersRequest``): this is the write side
+    of "opening /stocks/:ticker enrols it", fired once per successful open.
+    """
+
+    ticker: str
+
+    @field_validator("ticker")
+    @classmethod
+    def _validate(cls, v: str) -> str:
+        s = v.strip().upper()
+        if not _TICKER_RE.match(s):
+            raise ValueError(f"Invalid ticker symbol: {v}")
+        return s
 
 
 class BatchRunRequest(BaseModel):
@@ -244,6 +267,25 @@ async def remove_member(group_id: str, ticker: str, request: Request) -> Coverag
     _invalidate(group_id)
     detail = await store.get_group(group_id)
     assert detail is not None  # group existed (remove succeeded)
+    return detail
+
+
+# ── Studied Tickers auto-add (search → workspace) ────────────────────────────
+
+
+@router.post("/studied-tickers/members", response_model=CoverageGroupDetail)
+async def add_studied_member(request: Request, body: StudiedMemberRequest) -> CoverageGroupDetail:
+    """Enrol a ticker into the default ``Studied Tickers`` workspace.
+
+    Idempotent find-or-create: opening ``/stocks/:ticker`` calls this so the
+    name joins the default group (Coverage redesign §2). Re-opening is a no-op;
+    a name the user removed re-enters on the next open. Never the batch path —
+    one ticker, already validated.
+    """
+    detail = await ensure_studied_membership(_store(request), body.ticker)
+    # A new member changes the studied group's overview — drop its cache so the
+    # desk shows the freshly-opened card on next render.
+    _invalidate(detail.id)
     return detail
 
 

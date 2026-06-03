@@ -183,6 +183,26 @@ class CoverageStore:
             row = await cur.fetchone()
         return int(row[0]) if row else 0
 
+    async def get_system_group(self) -> CoverageGroupDetail | None:
+        """The machine-seeded ``Studied Tickers`` group, or None if absent.
+
+        Oldest system group wins (there is only ever one — the State-D seed and
+        the search auto-add both target this single ``is_system=1`` row). Unlike
+        :meth:`count_groups`-gated seeding, this lets the search-driven auto-add
+        find the studied group even when the user already has hand-built groups.
+        """
+        conn = await self._conn_ready()
+        async with conn.execute(
+            "SELECT id, name, description, is_system, created_at, updated_at "
+            "FROM coverage_groups WHERE is_system = 1 ORDER BY created_at ASC LIMIT 1"
+        ) as cur:
+            row = await cur.fetchone()
+        if row is None:
+            return None
+        group = _row_to_group(tuple(row))
+        members = await self.list_members(group.id)
+        return CoverageGroupDetail(**group.model_dump(), members=members)
+
     async def get_group(self, group_id: str) -> CoverageGroupDetail | None:
         conn = await self._conn_ready()
         async with conn.execute(

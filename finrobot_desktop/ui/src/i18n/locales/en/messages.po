@@ -1456,7 +1456,7 @@ msgstr "This report has no news-sentiment section — regenerate the report to p
 
 #. js-lingui-explicit-id
 msgid "chapter.news.snapshotNote"
-msgstr "Snapshot frozen at artifact creation · live news feed available on the workspace dashboard"
+msgstr "Snapshot frozen at artifact creation · compare across artifact versions to track how the narrative evolved"
 
 #. js-lingui-explicit-id
 msgid "chapter.competitive.empty"

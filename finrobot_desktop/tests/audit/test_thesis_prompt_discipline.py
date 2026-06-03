@@ -252,6 +252,87 @@ async def test_whitelist_contains_peer_medians() -> None:
 
 
 @pytest.mark.asyncio
+async def test_peer_whitelist_uses_frontend_caliber_formatting() -> None:
+    """BUG-038: peer multiples / market_cap injected to the LLM must be pre-formatted
+    to the SAME caliber the frontend peer table renders, not raw floats.
+
+    The frontend renders multiples as ".1fx" (PeerComparisonChart: v.toFixed(1)+'x')
+    and market_cap via formatCompactNumber (en: $T/$B with two decimals). If we
+    inject 28.736199… / 3411000000000 the LLM self-rounds / self-humanizes and the
+    competitor_analysis prose can diverge from the table the analyst sees.
+    """
+    # Peer with un-round raw floats + a humanizable market cap, mirroring real provider data.
+    raw_peer = CompanyFinancials(
+        ticker="NVDA",
+        name="NVIDIA",
+        revenue=60_000_000_000,
+        ebitda=33_000_000_000,
+        net_income=29_000_000_000,
+        market_cap=3_411_000_000_000,  # → "$3.41T"
+        total_debt=10_000_000_000,
+        total_cash=26_000_000_000,
+        pe_ratio=28.736199,  # → "28.7x"
+        ev_ebitda=19.149,  # → "19.1x"
+    )
+    comps = PeerComps(
+        target=_PEER_COMPS.target,
+        peers=[raw_peer],
+        median_ev_ebitda=21.44,  # → "21.4x"
+        median_pe=35.21,  # → "35.2x"
+        median_ev_revenue=10.06,  # → "10.1x"
+    )
+    ctx = _make_structured_context(peer_analysis=comps)
+    prompt = await _capture_thesis_prompt(ctx)
+    discipline = prompt[prompt.find("严格数字纪律") :]
+
+    # Multiples formatted with one decimal + 'x', not raw floats.
+    assert "28.7x" in discipline
+    assert "19.1x" in discipline
+    assert "35.2x" in discipline  # median_pe
+    assert "10.1x" in discipline  # median_ev_revenue
+    # The raw float must NOT leak — the LLM must not see the unrounded tail.
+    assert "28.736199" not in discipline
+    assert "19.149" not in discipline
+
+    # market_cap humanized exactly like the UI's formatCompactNumber, not a raw integer.
+    assert "$3.41T" in discipline
+    assert "3411000000000" not in discipline
+
+
+@pytest.mark.asyncio
+async def test_peer_whitelist_renders_none_as_na_not_literal_none() -> None:
+    """BUG-038: a None multiple must render 'n/a（未取得）' to the LLM, never the
+    literal 'None' which the LLM could misread as a real value."""
+    peer_with_gaps = CompanyFinancials(
+        ticker="GOOG",
+        name="Alphabet",
+        revenue=300_000_000_000,
+        market_cap=2_000_000_000_000,  # → "$2.00T"
+        pe_ratio=None,  # provider omitted
+        ev_ebitda=None,
+    )
+    comps = PeerComps(
+        target=_PEER_COMPS.target,
+        peers=[peer_with_gaps],
+        median_ev_ebitda=None,
+        median_pe=None,
+        median_ev_revenue=None,
+    )
+    ctx = _make_structured_context(peer_analysis=comps)
+    prompt = await _capture_thesis_prompt(ctx)
+    discipline = prompt[prompt.find("严格数字纪律") :]
+
+    # The peer bullets must contain the n/a sentinel, never a bare "None" token in
+    # a field= position (e.g. "pe_ratio=None").
+    assert "n/a（未取得）" in discipline
+    assert "pe_ratio=None" not in discipline
+    assert "ev_ebitda=None" not in discipline
+    assert "median_pe: None" not in discipline
+    # market_cap still humanized.
+    assert "$2.00T" in discipline
+
+
+@pytest.mark.asyncio
 async def test_whitelist_contains_valuation_synthesis_weighted_price() -> None:
     """Whitelist must expose weighted_price so LLM can cite it in valuation_overview."""
     ctx = _make_structured_context()

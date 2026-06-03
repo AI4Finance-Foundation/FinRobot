@@ -14,7 +14,49 @@ from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.financials import normalize_financials
 from finrobot.engine.data.normalize.price import normalize_price
 from finrobot.engine.data.types import DataType
-from finrobot.engine.pipelines._helpers import execute_financial_data_step
+from finrobot.engine.pipelines._helpers import (
+    execute_financial_data_step,
+    fmt_market_cap,
+    fmt_multiple,
+)
+
+
+# ---------------------------------------------------------------------------
+# Whitelist formatters (BUG-038) — must mirror the frontend SourcedNumber render.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (28.736199, "28.7x"),  # raw float self-rounds to one decimal + 'x'
+        (19.149, "19.1x"),
+        (21.44, "21.4x"),
+        (0.0, "0.0x"),
+        (None, "n/a（未取得）"),  # never the literal "None"
+    ],
+)
+def test_fmt_multiple_matches_frontend_caliber(value: float | None, expected: str) -> None:
+    """PeerComparisonChart renders multiples as v.toFixed(1)+'x'."""
+    assert fmt_multiple(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (3_411_000_000_000, "$3.41T"),  # formatCompactNumber en: T = .2f
+        (2_000_000_000_000, "$2.00T"),
+        (3_100_000_000_000, "$3.10T"),
+        (850_000_000_000, "$850.00B"),  # B = .2f
+        (12_300_000, "$12.30M"),  # M = .2f
+        (4_500, "$4.5K"),  # K = .1f
+        (920, "$920"),  # below K → plain integer
+        (None, "n/a（未取得）"),
+    ],
+)
+def test_fmt_market_cap_matches_frontend_caliber(value: float | None, expected: str) -> None:
+    """formatCompactNumber (ui/src/utils/format.ts, en): T/B/M=.2f, K=.1f."""
+    assert fmt_market_cap(value) == expected
 
 
 def _financials_raw(warnings: list[str] | None = None) -> DataResult:

@@ -56,6 +56,8 @@ from finrobot.engine.pipelines._helpers import (
     build_sensitivity_ranges,
     execute_financial_data_step,
     execute_peer_analysis,
+    fmt_market_cap,
+    fmt_multiple,
 )
 from finrobot.engine.pipelines.validators import (
     validate_catalyst_analysis,
@@ -863,18 +865,24 @@ async def _execute_thesis(
                 f"  - valuation_synthesis.weighted_price: ${vs_for_prompt.weighted_price:.2f}"
             )
     if isinstance(pa_for_prompt, PeerComps):
+        # Pre-format to the SAME caliber the frontend peer table renders (multiples
+        # as ".1fx", market_cap humanized to $T/$B) so the LLM restates these in
+        # competitor_analysis identically to what the analyst sees — and never sees
+        # a raw float to self-round or a literal "None" to misread (BUG-038).
         _whitelist_parts.append(
-            f"  - peer_analysis.median_ev_ebitda: {pa_for_prompt.median_ev_ebitda}"
+            f"  - peer_analysis.median_ev_ebitda: {fmt_multiple(pa_for_prompt.median_ev_ebitda)}"
         )
-        _whitelist_parts.append(f"  - peer_analysis.median_pe: {pa_for_prompt.median_pe}")
         _whitelist_parts.append(
-            f"  - peer_analysis.median_ev_revenue: {pa_for_prompt.median_ev_revenue}"
+            f"  - peer_analysis.median_pe: {fmt_multiple(pa_for_prompt.median_pe)}"
+        )
+        _whitelist_parts.append(
+            f"  - peer_analysis.median_ev_revenue: {fmt_multiple(pa_for_prompt.median_ev_revenue)}"
         )
         for p in pa_for_prompt.peers[:8]:
             _whitelist_parts.append(
                 f"  - peer_analysis.peers['{p.ticker}']: "
-                f"ev_ebitda={p.ev_ebitda}, pe_ratio={p.pe_ratio}, "
-                f"market_cap={p.market_cap}"
+                f"ev_ebitda={fmt_multiple(p.ev_ebitda)}, pe_ratio={fmt_multiple(p.pe_ratio)}, "
+                f"market_cap={fmt_market_cap(p.market_cap)}"
             )
     if isinstance(fm_for_prompt, DCFResult):
         dcf_for_prompt: DCFResult = fm_for_prompt

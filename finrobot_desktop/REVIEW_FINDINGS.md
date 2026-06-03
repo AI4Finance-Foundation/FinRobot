@@ -95,7 +95,7 @@
 | BUG-035 | Bug | P2 | SDK 的 provider 链漏注册 NewsAggregatorProvider，与 build_data_layer 漂移 | 待修 |
 | BUG-036 | Bug | P2 | Football Field 的 DCF 区间永远是装饰性 ±20%:_dcf_band 读错字段,Monte Carlo P10/P90 分支是死代码,source 标签可误导 | 已修 |
 | BUG-037 | Bug | P2 | 外币 SEC 申报人的 XBRL 营收/净利未做 FX 换算即被当作 USD，35% 散度门可能漏掉近平价货币 | 已修 |
-| BUG-038 | Bug | P2 | peer 倍数白名单用未格式化原始 float 注入（median_pe/pe_ratio/market_cap），LLM 在 competitor_analysis 里复述时口径/精度无锚，且与前端表格显示口径不保证一致 | 待修 |
+| BUG-038 | Bug | P2 | peer 倍数白名单用未格式化原始 float 注入（median_pe/pe_ratio/market_cap），LLM 在 competitor_analysis 里复述时口径/精度无锚，且与前端表格显示口径不保证一致 | 已修 |
 | BUG-039 | Bug | P2 | `is_sampled` compares against GLOBAL store count, not the in-window / in-scope population → mislabels fully-covered windows as 'partial' | 已修 |
 | BUG-040 | Bug | P2 | Cumulative total_return shown beside annualized-intent Sharpe; annualized Returns analyzer added but never read | 已修 |
 | BUG-041 | Bug | P2 | run_strategy_selection tunes 3 iterations on one in-sample window and reports max(total_return) as a 'good' strategy — pure overfitting, no out-of-sample | 已修 |
@@ -661,7 +661,7 @@
 - **修复方案**：在 equity_research.py:739-752 给 peer 段加与 valuation 段一致的格式化：median_pe/pe_ratio 用 :.1f 或 :.2f 并显式标 'x'（倍），market_cap 用确定性 humanize（如 _fmt_market_cap → '$3.41T'）后再注入，None 值显式写 'n/a（未取得）'而非裸 None。注意要和前端 SourcedNumber 的渲染口径对齐（同一 humanize 规则），否则只是把不一致从 prompt 端搬到渲染端。属小改，<30 行。
 - **验证补充**：Fix is correct and the author's own caveat is the load-bearing one: the humanize rule MUST match the frontend SourcedNumber render (ev_ebitda/pe rendered as 'x', market_cap as $T/$B) or you just relocate the inconsistency. Verify the exact ui render format before picking :.1f vs :.2f. Also guard None explicitly so 'None' never reaches the LLM. <30 lines is realistic.
 - **影响面/回归风险**：影响 competitor_analysis 叙事与前端 peer 表的数字一致性观感。回归低，仅改 prompt 文本格式；需顺手核对前端 market_cap/PE 的格式化函数取同一口径。
-- **置信度**：medium　|　**状态**：待修
+- **置信度**：medium　|　**状态**：已修（_helpers.py 加纯确定性 fmt_multiple(→"28.7x"/"n/a（未取得）") 与 fmt_market_cap(→"$3.41T"/.../"n/a（未取得）")，与前端 SourcedNumber 渲染口径对齐（PeerComparisonChart 倍数 .1f+x、formatCompactNumber 的 $T/$B/$M）。equity_research.py peer 白名单（committed 后移到 865-878）的 median_*/peer ev_ebitda/pe_ratio/market_cap 改注入格式化值而非裸 float，None 显式 "n/a（未取得）" 不让字面 None 进 LLM。新增 helpers 单测 + thesis prompt 端到端断言（28.7x/$3.41T present、裸 28.736199/3411000000000 absent）。）
 
 #### [BUG-039] `is_sampled` compares against GLOBAL store count, not the in-window / in-scope population → mislabels fully-covered windows as 'partial'
 

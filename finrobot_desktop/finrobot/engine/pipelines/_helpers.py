@@ -57,6 +57,49 @@ _PEER_COMP_SET_MIN = 3
 _PEER_COMP_SET_MAX = 6
 
 
+# ── Whitelist formatting (must mirror the frontend SourcedNumber render) ──────
+# The numeric-discipline whitelist injected into the thesis prompt restates peer
+# multiples and market caps so the LLM can cite them in competitor_analysis. If
+# we inject raw floats (28.736199…, 3411000000000) the LLM self-rounds / self-
+# humanizes and the prose can diverge from the peer table the analyst sees. So
+# we pre-format to the EXACT same caliber the UI uses, then inject that string:
+#   - multiples (P/E, EV/EBITDA, EV/Rev) → "28.7x"   (PeerComparisonChart: v.toFixed(1)+'x')
+#   - market_cap                          → "$3.41T"  (formatCompactNumber en: T/B/M=.2f, K=.1f)
+# None must never reach the LLM as the literal "None"; it renders "n/a（未取得）".
+_WHITELIST_NA = "n/a（未取得）"
+
+
+def fmt_multiple(value: float | None) -> str:
+    """Format a valuation multiple as the UI does — one decimal + 'x'.
+
+    Mirrors ``PeerComparisonChart`` (``v.toFixed(1) + 'x'``) so a P/E of
+    28.7361… injected to the LLM reads identically to the peer table cell.
+    """
+    if value is None:
+        return _WHITELIST_NA
+    return f"{value:.1f}x"
+
+
+def fmt_market_cap(value: float | None) -> str:
+    """Humanize a USD market cap as the UI does — ``formatCompactNumber`` (en).
+
+    T/B/M use two decimals, K uses one, matching ``ui/src/utils/format.ts`` so a
+    raw 3_411_000_000_000 reads "$3.41T" in both the prose and the peer table.
+    """
+    if value is None:
+        return _WHITELIST_NA
+    abs_v = abs(value)
+    if abs_v >= 1e12:
+        return f"${value / 1e12:.2f}T"
+    if abs_v >= 1e9:
+        return f"${value / 1e9:.2f}B"
+    if abs_v >= 1e6:
+        return f"${value / 1e6:.2f}M"
+    if abs_v >= 1e3:
+        return f"${value / 1e3:.1f}K"
+    return f"${value:,.0f}"
+
+
 def _find_target_financial_data(structured_context: dict[str, object]) -> FinancialData | None:
     """Locate the target's FinancialData regardless of which step produced it.
 

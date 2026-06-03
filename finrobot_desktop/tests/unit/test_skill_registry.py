@@ -25,6 +25,27 @@ class TestRegistryLoading:
         assert registry.count == 1
         assert "Skipping bad skill" in caplog.text
 
+    def test_skips_skill_with_wrong_typed_field(self, tmp_path, caplog):
+        # Frontmatter YAML is valid and has required fields, but `triggers` is a
+        # bare string instead of a list — passes _parse_frontmatter but the
+        # Skill(...) constructor raises pydantic ValidationError. The registry
+        # must skip it, not crash __init__ (BUG-077).
+        good_dir = tmp_path / "domain" / "good-skill"
+        good_dir.mkdir(parents=True)
+        (good_dir / "SKILL.md").write_text("---\nid: good\nname: Good\n---\n# Good skill body\n")
+
+        bad_dir = tmp_path / "domain" / "bad-typed-skill"
+        bad_dir.mkdir(parents=True)
+        (bad_dir / "SKILL.md").write_text(
+            "---\nid: bad\nname: Bad\ntriggers: comps-analysis\n---\n# Bad skill body\n"
+        )
+
+        registry = SkillRegistry(tmp_path)
+        assert registry.count == 1
+        assert registry.get("good") is not None
+        assert registry.get("bad") is None
+        assert "Skipping bad skill" in caplog.text
+
 
 class TestGet:
     def test_returns_correct_skill_by_id(self):

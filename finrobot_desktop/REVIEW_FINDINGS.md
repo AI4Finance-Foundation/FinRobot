@@ -83,7 +83,7 @@
 | BUG-032 | Bug | P1 | Coverage overview 全量 fetch 失败但 fast skeleton 成功时，卡片市场列永久空白——无错误态、无 shimmer、无重试入口 | 已修 |
 | BUG-033 | Bug | P1 | Chat tools and /api/runs accept unvalidated ticker strings while a SoT ticker validator already exists in coverage — junk symbols fan out to live providers | 已修 |
 | BUG-073 | Bug | P1 | DCF/DDM 绝对估值对外币 ADR 零 FX 归一化:营收(申报币 TWD/EUR)与市值/股本(USD)混算,implied_price 本币计价却当 USD 印出并比价(TSM ~32x 高估)——comps 路径已修,绝对估值路径漏修 | 待修 |
-| BUG-077 | Bug | P1 | SkillRegistry._load_all 只 catch SkillLoadError 不 catch pydantic ValidationError——一个字段类型写错的 SKILL.md(外部/partner 技能常见)使 server/SDK/CLI 启动整体崩,违背其 fail-soft 设计 | 待修 |
+| BUG-077 | Bug | P1 | SkillRegistry._load_all 只 catch SkillLoadError 不 catch pydantic ValidationError——一个字段类型写错的 SKILL.md(外部/partner 技能常见)使 server/SDK/CLI 启动整体崩,违背其 fail-soft 设计 | 已修 |
 | UX-001 | 产品 | P1 | 冷启动首份研报动线被拆成两条不相通的入口，且 Starter 终点是空墙而非一份研报 | 待修 |
 | UX-002 | 产品 | P1 | 首份研报跑完后还要手动点一次才能阅读——"第一次惊艳"被一次多余点击拦住 | 待修 |
 | UX-003 | 产品 | P1 | TickerNotFound 的「返回」按钮指向已退役的 /stocks，触发二次重定向 + 错误的合并提示 | 待修 |
@@ -1158,7 +1158,7 @@
 - **根因**：except 列表漏了 ValidationError；load_skill 把裸 frontmatter 直喂 Skill(...) 无 coercion。
 - **修复方案**：_load_all 的 except 扩成 `(SkillLoadError, pydantic.ValidationError)`（或 `Exception`），单个坏技能 log-and-skip（兑现文档契约）；或 load_skill 把 ValidationError 包成 SkillLoadError。registry 永不准从 __init__ 抛。可选再硬化 server.py:114 / sdk.py:128 try→registry 降级 None。
 - **影响面/回归风险**：影响任何含一个类型错技能文件的部署（外部/partner 技能常见）。修复零行为变更（坏技能本就该 skip），回归风险低。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（skills/loader.py:load_skill 把 Skill(...) 构造的 pydantic.ValidationError 包成 SkillLoadError（与既有 yaml.YAMLError→SkillLoadError 同模式），_load_all 的 except SkillLoadError 即可 log-and-skip，registry 永不从 __init__ 抛。新增测试：一个字段类型写错的 SKILL.md + 一个合法 → SkillRegistry 不崩、加载合法、跳过坏的。注：agent 顺手加的 server.py/sdk.py except Exception 兜底违反「无裸 except Exception」架构红线（test_architecture 拦截），已回退——loader 包裹已足够，那层冗余。ruff+mypy --strict + 全量 1996 通过。）
 
 #### [BUG-078] agent 工厂/orchestrator 用无 encoding 的 read_text() 读含中文 .md → 非 UTF-8 locale 下 agent 创建崩
 

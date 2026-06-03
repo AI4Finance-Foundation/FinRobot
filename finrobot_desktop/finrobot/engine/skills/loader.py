@@ -2,6 +2,8 @@ import yaml  # type: ignore[import-untyped]
 from pathlib import Path
 from typing import Any
 
+import pydantic
+
 from finrobot.engine.skills.spec import Skill
 
 
@@ -36,21 +38,24 @@ def load_skill(path: Path) -> Skill:
 
     description = _extract_description(frontmatter, body)
 
-    return Skill(
-        id=frontmatter["id"],
-        name=frontmatter["name"],
-        version=frontmatter.get("version", "1.0.0"),
-        author=frontmatter.get("author", "unknown"),
-        domain=frontmatter.get("domain", "general"),
-        description=description,
-        triggers=frontmatter.get("triggers", []),
-        requires_data=frontmatter.get("requires_data", []),
-        requires_tools=frontmatter.get("requires_tools", []),
-        requires_skills=frontmatter.get("requires_skills", []),
-        compatible_models=frontmatter.get("compatible_models", []),
-        full_content=body,
-        source_path=str(path),
-    )
+    try:
+        return Skill(
+            id=frontmatter["id"],
+            name=frontmatter["name"],
+            version=frontmatter.get("version", "1.0.0"),
+            author=frontmatter.get("author", "unknown"),
+            domain=frontmatter.get("domain", "general"),
+            description=description,
+            triggers=frontmatter.get("triggers", []),
+            requires_data=frontmatter.get("requires_data", []),
+            requires_tools=frontmatter.get("requires_tools", []),
+            requires_skills=frontmatter.get("requires_skills", []),
+            compatible_models=frontmatter.get("compatible_models", []),
+            full_content=body,
+            source_path=str(path),
+        )
+    except pydantic.ValidationError as e:
+        raise SkillLoadError(f"Invalid frontmatter field types in {path}: {e}") from e
 
 
 def _parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:

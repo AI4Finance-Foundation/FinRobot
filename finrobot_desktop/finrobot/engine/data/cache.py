@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.contracts import CANONICAL_CONTRACT_VERSION
 from finrobot.engine.data.types import DataType
+from finrobot.paths import configure_connection
 
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS cache (
@@ -165,8 +166,7 @@ class DataCache:
         async with self._conn_lock:
             if self._conn is None:
                 self._conn = await aiosqlite.connect(self._db_path)
-                await self._conn.execute("PRAGMA journal_mode=WAL")
-                await self._conn.execute("PRAGMA synchronous=NORMAL")
+                await configure_connection(self._conn)
                 await self._conn.execute(_CREATE_TABLE)
                 await self._conn.commit()
         return self._conn

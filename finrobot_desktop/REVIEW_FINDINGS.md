@@ -70,7 +70,7 @@
 | BUG-019 | Bug | P1 | Sharpe ratio uses backtrader default timeframe=Years on daily bars → None for ~1yr windows, meaningless for multi-year | 已修 |
 | BUG-020 | Bug | P1 | CLI 全部 pipeline 命令零 ticker 校验/归一化：脏 ticker 直灌 provider + 污染缓存与 artifact | 已修 |
 | BUG-021 | Bug | P1 | backtest --auto 对 LLM 失败无任何兜底：直接裸崩，也不回退确定性策略 | 待修 |
-| BUG-022 | Bug | P1 | 零 busy_timeout + 多进程写同一 data_cache.db → SQLITE_BUSY 直接抛到调用方 | 待修 |
+| BUG-022 | Bug | P1 | 零 busy_timeout + 多进程写同一 data_cache.db → SQLITE_BUSY 直接抛到调用方 | 已修 |
 | BUG-023 | Bug | P1 | Artifact PRIMARY KEY 用秒级时间戳，同票同类型同秒 run 静默覆盖前一份研报（审计链断档） | 待修 |
 | BUG-024 | Bug | P1 | useAppStore (547 行) ~92% 死状态：仅 4 个 CmdK 字段有运行时消费方，其余全部无人读 | 待修 |
 | BUG-025 | Bug | P1 | Pipeline 集合在 4 处各自硬编码（orchestrator/registry/cli/sdk），registry 抽象只被 runs.py 单独使用 | 待修 |
@@ -445,7 +445,7 @@
 - **修复方案**：在每个连接初始化块紧跟 journal_mode/synchronous 之后加 `await conn.execute('PRAGMA busy_timeout=5000')`(sqlite3 同步版 conn.execute 同理)。最干净的做法:在 paths.py 旁加一个 `configure_connection(conn)` 协程集中设 WAL+synchronous+busy_timeout,7 个 store 全部改调它(消除 6 处复制粘贴的 PRAGMA 三连)。注意:busy_timeout 不解决『同一进程内单连接写串行』,只解决跨进程/跨连接的瞬时锁等待;真要并发写还需每写者独立连接。改动量:小(7 文件各 +1 行 或 抽 1 函数 + 7 处替换)。
 - **验证补充**：Fix is correct. The centralized configure_connection(conn) helper in/near paths.py is the right call (kills 6 duplicated PRAGMA blocks too). Note busy_timeout only fixes transient cross-connection lock waits, not throughput under sustained concurrent writes — which the author correctly states. Apply it to journal.py's per-call _connect() as well (the grep shows it's also missing).
 - **影响面/回归风险**：影响所有写路径(研报落地、cache 写、quote 写、coverage CRUD)。回归风险低(busy_timeout 是纯增益,只会把『立即失败』变成『最多等 5s 再失败』)。不加则 SDK+server 并跑场景下偶发 database is locked,且因无重试直接打到用户。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（finrobot/paths.py 加共享 configure_connection（async aiosqlite）+ configure_connection_sync（sqlite3），集中设 WAL+synchronous+busy_timeout=5000。7 处连接初始化全部改调它：engine/data/cache.py、run_store.py、engine/data/quote_cache.py、coverage/sqlite_store.py、artifact/sqlite_store.py、engine/data/sec_holdings_cache.py、models/journal.py（sync _connect）。消除 6 处复制粘贴 PRAGMA。脚本实测两种连接 busy_timeout 均=5000、WAL 保留。ruff+mypy --strict + 全量 1986 通过。）
 
 #### [BUG-023] Artifact PRIMARY KEY 用秒级时间戳，同票同类型同秒 run 静默覆盖前一份研报（审计链断档）
 

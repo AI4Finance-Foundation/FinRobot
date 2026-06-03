@@ -14,10 +14,41 @@ separately. One module, one set of constants.
 from __future__ import annotations
 
 import logging
+import sqlite3
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import aiosqlite
 
 logger = logging.getLogger(__name__)
+
+# Shared SQLite connection tuning. Every store opens WAL (one-writer-many-readers)
+# + synchronous=NORMAL, but the default ``busy_timeout`` of 0 means a writer that
+# hits the single-writer lock fails *immediately* with SQLITE_BUSY. SDK/CLI run as
+# separate processes from the server against the same db files, so cross-process
+# writes collide constantly. A 5 s busy_timeout makes SQLite wait+retry the lock
+# instead of bubbling "database is locked" up to the caller (500 / failed run).
+# This only smooths transient lock waits, not sustained-concurrency throughput.
+SQLITE_BUSY_TIMEOUT_MS = 5000
+
+
+async def configure_connection(conn: aiosqlite.Connection) -> None:
+    """Apply the shared PRAGMA tuning to an aiosqlite connection.
+
+    Call this immediately after ``aiosqlite.connect`` and before creating tables.
+    """
+    await conn.execute("PRAGMA journal_mode=WAL")
+    await conn.execute("PRAGMA synchronous=NORMAL")
+    await conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
+
+
+def configure_connection_sync(conn: sqlite3.Connection) -> None:
+    """Apply the shared PRAGMA tuning to a synchronous sqlite3 connection."""
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
 
 
 def _home() -> Path:

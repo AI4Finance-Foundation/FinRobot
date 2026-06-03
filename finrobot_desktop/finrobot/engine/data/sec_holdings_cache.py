@@ -118,8 +118,7 @@ async def _conn() -> aiosqlite.Connection:
             Path(db).parent.mkdir(parents=True, exist_ok=True)
             c = await aiosqlite.connect(str(db))
             try:
-                await c.execute("PRAGMA journal_mode=WAL")
-                await c.execute("PRAGMA synchronous=NORMAL")
+                await _paths.configure_connection(c)
                 # executescript not supported across all aiosqlite paths;
                 # split into individual statements.
                 for stmt in [s.strip() for s in _SCHEMA.split(";") if s.strip()]:

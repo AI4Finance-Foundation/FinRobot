@@ -22,6 +22,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from finrobot.paths import configure_connection_sync
+
 logger = logging.getLogger(__name__)
 
 
@@ -74,8 +76,7 @@ class JournalStore:
     def _connect(self) -> sqlite3.Connection:
         """Open a per-call connection with WAL mode for concurrency safety."""
         conn = sqlite3.connect(self._db_path)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
+        configure_connection_sync(conn)
         conn.row_factory = sqlite3.Row
         return conn
 

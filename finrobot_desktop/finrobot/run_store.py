@@ -12,6 +12,7 @@ import aiosqlite
 from pydantic import BaseModel, Field
 
 from finrobot.events import RunEvent
+from finrobot.paths import configure_connection
 
 logger = logging.getLogger(__name__)
 
@@ -144,8 +145,7 @@ class RunStore:
                 Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
                 conn = await aiosqlite.connect(self._db_path)
                 try:
-                    await conn.execute("PRAGMA journal_mode=WAL")
-                    await conn.execute("PRAGMA synchronous=NORMAL")
+                    await configure_connection(conn)
                     await conn.execute(_CREATE_RUNS)
                     await conn.execute(_CREATE_RUN_EVENTS)
                     await conn.execute(_CREATE_ARTIFACTS)

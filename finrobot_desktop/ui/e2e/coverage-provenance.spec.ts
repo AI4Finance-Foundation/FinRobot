@@ -380,3 +380,61 @@ test('provenance popover escapes the card overflow (portaled, fully on-screen)',
   expect(onScreen).toBe(true)
   await page.screenshot({ path: 'e2e/_coverage-popover.png' })
 })
+
+test('many tickers: wall stays bounded + dock reachable, hero not squished (stacked)', async ({
+  page,
+}) => {
+  // 60-ticker group — the case that broke: in stacked mode an unbounded wall
+  // grew to ~10000px and shoved the inspector dock past it, and the hero got
+  // flex-shrunk to a sliver. The wall must scroll internally; the dock must sit
+  // right after it; the hero must keep its form.
+  const bigOverview = {
+    ...OVERVIEW,
+    rows: Array.from({ length: 60 }, (_, i) =>
+      row({ ticker: `T${String(i).padStart(2, '0')}`, company: `Co ${i}`, latest_at: null }),
+    ),
+  }
+  await page.route('**/api/coverage/groups', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(GROUPS) }),
+  )
+  await page.route('**/api/coverage/groups/*/overview**', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(bigOverview) }),
+  )
+  await page.route('**/api/artifacts/by-ticker/*/timeline**', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TIMELINE) }),
+  )
+
+  await page.setViewportSize({ width: 760, height: 820 })
+  await page.goto('/coverage')
+  await page.getByTestId('collapse-btn').first().click()
+  await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
+  await page.waitForTimeout(250) // let the ResizeObserver settle the stacked layout
+
+  // Stacked engaged: the inspector is a full-width dock, not the 300px side rail.
+  const dockW = await page.getByTestId('coverage-inspector').evaluate((el) => el.clientWidth)
+  expect(dockW).toBeGreaterThan(400)
+
+  // Hero keeps its form (not shrunk to a sliver).
+  const heroH = await page
+    .getByTestId('coverage-hero')
+    .evaluate((el) => el.getBoundingClientRect().height)
+  expect(heroH).toBeGreaterThan(180)
+
+  // The wall scrolls INTERNALLY — its layout height is bounded (not ~10000px),
+  // and its content overflows that box.
+  const grid = page.getByTestId('coverage-card-grid')
+  const gridClientH = await grid.evaluate((el) => el.clientHeight)
+  const gridScrollH = await grid.evaluate((el) => el.scrollHeight)
+  expect(gridClientH).toBeLessThan(900) // bounded, not the full 60-card stack
+  expect(gridScrollH).toBeGreaterThan(gridClientH) // genuinely scrollable
+
+  // The inspector dock is right after the bounded wall — reachable, not pushed
+  // thousands of px down by 60 cards.
+  const dockTop = await page.getByTestId('coverage-inspector').evaluate((el) => {
+    el.scrollIntoView()
+    return el.getBoundingClientRect().top + window.scrollY
+  })
+  expect(dockTop).toBeLessThan(1600)
+
+  await page.screenshot({ path: 'e2e/_coverage-many.png' })
+})

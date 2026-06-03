@@ -66,7 +66,11 @@ export function CoverageInspector({
 
   if (!row) {
     return (
-      <aside style={shell} aria-label={t('coverage.inspector.title')}>
+      <aside
+        data-testid="coverage-inspector"
+        style={shell}
+        aria-label={t('coverage.inspector.title')}
+      >
         <div
           style={{
             height: '100%',
@@ -87,7 +91,11 @@ export function CoverageInspector({
   }
 
   return (
-    <aside style={shell} aria-label={t('coverage.inspector.title')}>
+    <aside
+      data-testid="coverage-inspector"
+      style={shell}
+      aria-label={t('coverage.inspector.title')}
+    >
       {/* Header — ticker / company + verdict. */}
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>

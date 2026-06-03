@@ -49,6 +49,10 @@ export function CoverageHero(): React.ReactElement {
       data-testid="coverage-hero"
       style={{
         position: 'relative',
+        // Never let a flex parent shrink the hero — the robot + big search box
+        // are the redesign's required top form; in the narrow stacked layout a
+        // shrinkable hero collapsed to ~52px and clipped them.
+        flexShrink: 0,
         overflow: 'hidden',
         padding: '28px 32px 24px',
         marginBottom: 4,
@@ -150,7 +154,7 @@ export function CoverageHero(): React.ReactElement {
               alignItems: 'center',
               gap: 12,
               padding: '10px 18px',
-              background: 'var(--bg-input, rgba(10,10,24,0.7))',
+              background: 'var(--bg-input)',
               borderRadius: 'var(--radius-md)',
             }}
           >

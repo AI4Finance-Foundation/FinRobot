@@ -64,6 +64,12 @@ export interface RunState {
 interface RunStreamState {
   runs: Record<string, RunState>
   startRun: (pipelineType: string, ticker: string, sourceArtifactId?: string) => Promise<string>
+  /** Register a run that was already created elsewhere (e.g. the Coverage batch
+   *  endpoint, which POSTs `/api/coverage/groups/:id/runs` and returns run_ids)
+   *  so its SSE stream is attached and completion/failure drives the same store
+   *  state + downstream query invalidation. Without this a Coverage-launched run
+   *  is never tracked and the desk stalls on the pre-run snapshot. */
+  trackExistingRun: (runId: string, ticker: string, pipelineType: string) => void
   dismiss: (ticker: string) => void
   clear: (ticker: string) => void
 }
@@ -343,6 +349,31 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
 
       attachSse(run_id, ticker)
       return run_id
+    },
+
+    trackExistingRun: (runId, ticker, pipelineType) => {
+      // Already-created run (no POST): seed the same 'running' state startRun
+      // does, then attach the SSE so completion/failure flows through the store.
+      // Re-tracking the same ticker is safe — attachSse closes the prior stream.
+      set((s) => ({
+        runs: {
+          ...s.runs,
+          [ticker]: {
+            runId,
+            ticker,
+            pipelineType,
+            steps: [],
+            status: 'running',
+            progress: 0,
+            error: null,
+            startedAt: Date.now(),
+            dismissed: false,
+            artifactId: null,
+            artifactType: null,
+          },
+        },
+      }))
+      attachSse(runId, ticker)
     },
 
     dismiss: (ticker) => {

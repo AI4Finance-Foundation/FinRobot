@@ -91,7 +91,7 @@ export function CoverageEmptyState({ onCreate, busy }: Props): React.ReactElemen
                 fontSize: 13,
                 cursor: 'pointer',
                 background: on ? 'var(--primary)' : 'transparent',
-                color: on ? '#fff' : 'var(--text-secondary)',
+                color: on ? 'var(--text-on-primary)' : 'var(--text-secondary)',
                 border: `1px solid ${on ? 'var(--primary)' : 'var(--border-soft)'}`,
               }}
             >
@@ -110,7 +110,7 @@ export function CoverageEmptyState({ onCreate, busy }: Props): React.ReactElemen
           padding: '10px 28px',
           borderRadius: 'var(--radius-md)',
           background: 'linear-gradient(135deg, var(--primary), var(--secondary))',
-          color: '#fff',
+          color: 'var(--text-on-primary)',
           border: 'none',
           fontFamily: 'var(--font-display)',
           fontSize: 13,

@@ -160,3 +160,27 @@ describe('artifact identity on completion (BUG-034/043)', () => {
     expect(run.artifactType).toBeNull()
   })
 })
+
+describe('trackExistingRun — Coverage batch runs (no re-POST)', () => {
+  it('attaches the SSE stream for an already-created run id', () => {
+    // The Coverage batch endpoint creates the run and returns its id; tracking
+    // it must open /api/runs/:id/events WITHOUT a second POST. Regression: cards
+    // launched from Coverage stalled because no SSE was ever opened.
+    useRunStreamStore.getState().trackExistingRun('run-cov-9', TICKER, 'research')
+
+    const es = FakeEventSource.instances.at(-1)
+    expect(es).toBeTruthy()
+    expect(es!.url).toContain('/api/runs/run-cov-9/events')
+    expect(stepsState().status).toBe('running')
+    expect(stepsState().runId).toBe('run-cov-9')
+  })
+
+  it('completion flows through to the store so the desk can refresh', () => {
+    useRunStreamStore.getState().trackExistingRun('run-cov-9', TICKER, 'dcf')
+    const es = FakeEventSource.instances.at(-1)!
+    es.emit('run.completed', { run_id: 'run-cov-9', ticker: TICKER, artifact_id: 'art_x' })
+
+    expect(stepsState().status).toBe('completed')
+    expect(stepsState().artifactId).toBe('art_x')
+  })
+})

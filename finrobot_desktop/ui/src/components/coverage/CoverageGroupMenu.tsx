@@ -282,7 +282,7 @@ function ModalShell({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(5,5,13,0.72)',
+        background: 'var(--scrim)',
         backdropFilter: 'blur(6px)',
         WebkitBackdropFilter: 'blur(6px)',
         display: 'grid',
@@ -361,7 +361,7 @@ function ModalActions({
           borderRadius: 6,
           border: 'none',
           background: bg,
-          color: confirmTone === 'warning' ? '#1a1207' : '#fff',
+          color: confirmTone === 'warning' ? 'var(--text-on-warning)' : 'var(--text-on-primary)',
           cursor: confirmDisabled ? 'not-allowed' : 'pointer',
           opacity: confirmDisabled ? 0.45 : 1,
           fontWeight: 600,

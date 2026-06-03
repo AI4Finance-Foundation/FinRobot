@@ -119,6 +119,7 @@ export function CoveragePage(): React.ReactElement {
   // progress tick doesn't re-invalidate.
   const queryClient = useQueryClient()
   const runs = useRunStreamStore((s) => s.runs)
+  const trackRun = useRunStreamStore((s) => s.trackExistingRun)
   const notifiedRunsRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     for (const run of Object.values(runs)) {
@@ -241,6 +242,12 @@ export function CoveragePage(): React.ReactElement {
             })
             return
           }
+          // Register each spawned run's SSE stream so the desk refreshes on
+          // completion. The batch endpoint already created the runs and returned
+          // their ids; without tracking them no completion event ever arrives and
+          // cards stall on "running" (the run-completion effect below keys on the
+          // store's `runs`, which only this populates for Coverage-launched runs).
+          for (const r of res.runs) trackRun(r.run_id, r.ticker, res.pipeline_type)
           toast({
             type: res.skipped.length ? 'info' : 'success',
             title: t('coverage.toast.launched', {
@@ -317,25 +324,27 @@ export function CoveragePage(): React.ReactElement {
     >
       <CoverageHero />
 
-      <CoverageToolbar
-        groups={groups}
-        activeGroupId={activeGroupId}
-        activeGroupName={activeGroup?.name ?? null}
-        groupBusy={updateGroup.isPending || deleteGroup.isPending}
-        onSelectGroup={setSelectedGroup}
-        onRenameGroup={handleRename}
-        onDeleteGroup={handleDeleteGroup}
-        filter={filter}
-        filterCounts={filterCounts}
-        onFilter={setFilter}
-        density={density}
-        onDensity={setDensity}
-        sort={effectiveSort}
-        onSort={(s) => activeGroupId && setSort(activeGroupId, s)}
-        onImport={handleImport}
-        importBusy={addMembers.isPending}
-        onInvalidImport={handleInvalidImport}
-      />
+      <div style={{ flexShrink: 0 }}>
+        <CoverageToolbar
+          groups={groups}
+          activeGroupId={activeGroupId}
+          activeGroupName={activeGroup?.name ?? null}
+          groupBusy={updateGroup.isPending || deleteGroup.isPending}
+          onSelectGroup={setSelectedGroup}
+          onRenameGroup={handleRename}
+          onDeleteGroup={handleDeleteGroup}
+          filter={filter}
+          filterCounts={filterCounts}
+          onFilter={setFilter}
+          density={density}
+          onDensity={setDensity}
+          sort={effectiveSort}
+          onSort={(s) => activeGroupId && setSort(activeGroupId, s)}
+          onImport={handleImport}
+          importBusy={addMembers.isPending}
+          onInvalidImport={handleInvalidImport}
+        />
+      </div>
 
       {/* Batch action bar — only when a multi-select exists. Keeps batch ops
           (Run / Compare) out of the toolbar's single-ticker flow. */}
@@ -343,6 +352,7 @@ export function CoveragePage(): React.ReactElement {
         <div
           style={{
             display: 'flex',
+            flexShrink: 0,
             alignItems: 'center',
             gap: 12,
             marginBottom: 12,
@@ -380,8 +390,8 @@ export function CoveragePage(): React.ReactElement {
           display: 'flex',
           flexDirection: stacked ? 'column' : 'row',
           gap: 16,
-          // Side mode fills the remaining viewport (grid scrolls internally);
-          // stacked mode sizes to content and lets the PAGE scroll instead.
+          // Side mode fills the remaining viewport; stacked mode sizes to content
+          // (wall + dock) and lets the PAGE scroll to reach the dock.
           flex: stacked ? '0 0 auto' : 1,
           minHeight: 0,
         }}
@@ -391,9 +401,12 @@ export function CoveragePage(): React.ReactElement {
             flex: stacked ? '0 0 auto' : 1,
             minWidth: 0,
             minHeight: 0,
-            // Give the wall a usable height when stacked so cards aren't crushed;
-            // the grid's height:100% becomes content-height under this auto box.
-            height: stacked ? 'auto' : undefined,
+            // Stacked: the wall is a CONTROLLED-height viewport that scrolls
+            // INTERNALLY — so 100 tickers don't grow it to ~10000px and shove the
+            // inspector dock past the bottom. The dock sits right after this box.
+            // Side mode: flex:1 fills the column and the grid scrolls internally.
+            height: stacked ? 'clamp(280px, 55vh, 600px)' : undefined,
+            flexShrink: 0,
           }}
         >
           {overviewQuery.isLoading ? (

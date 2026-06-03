@@ -154,6 +154,97 @@ def _finnhub_multi_year_reported(ticker="AAPL", years=3):
     }
 
 
+def _finnhub_financials_missing_debt_cash() -> dict:
+    """SEC filing whose balance sheet omits LongTermDebt and Cash concepts.
+
+    XBRL omitting a concept must surface as None, never a fabricated 0 — a 0
+    would defeat extractor.py's EV guard (raw_debt/raw_cash is not None) and
+    fabricate a "zero net debt" enterprise value.
+    """
+    return {
+        "data": [
+            {
+                "year": 2025,
+                "endDate": "2025-09-27 00:00:00",
+                "filedDate": "2025-11-01 00:00:00",
+                "report": {
+                    "ic": [
+                        {"concept": "Revenues", "value": 394_328_000_000},
+                        {"concept": "OperatingIncomeLoss", "value": 123_216_000_000},
+                        {"concept": "NetIncomeLoss", "value": 96_995_000_000},
+                        {"concept": "DepreciationAndAmortization", "value": 11_519_000_000},
+                    ],
+                    # No LongTermDebt, no CashAndCashEquivalentsAtCarryingValue.
+                    "bs": [],
+                },
+            }
+        ]
+    }
+
+
+class TestFinnhubNonePreservation:
+    """Missing XBRL concepts must stay None (BUG-008), never fabricated 0."""
+
+    @pytest.mark.asyncio
+    async def test_missing_debt_cash_stay_none_not_zero(self, provider):
+        responses = [
+            _mock_response(_finnhub_profile_response()),
+            _mock_response(_finnhub_financials_missing_debt_cash()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials")
+
+        # None, not 0 — a fabricated 0 defeats extractor.py's EV guard.
+        assert result.data["total_debt"] is None
+        assert result.data["total_cash"] is None
+        assert result.data["total_debt"] != 0
+        assert result.data["total_cash"] != 0
+
+    @pytest.mark.asyncio
+    async def test_missing_debt_cash_survive_normalization_as_none(self, provider):
+        """None must propagate through normalize so extractor.py's EV guard
+        (raw_debt/raw_cash is not None) skips EV instead of fabricating
+        market_cap + 0 - 0."""
+        from finrobot.engine.data.normalize.financials import normalize_financials
+
+        responses = [
+            _mock_response(_finnhub_profile_response()),
+            _mock_response(_finnhub_financials_missing_debt_cash()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials")
+        norm = normalize_financials(result)
+        assert norm.total_debt is None
+        assert norm.total_cash is None
+
+    @pytest.mark.asyncio
+    async def test_missing_da_yields_none_ebitda_not_understated(self, provider):
+        """EBITDA must be None when D&A is missing, not a silent +0 understatement."""
+        profile = _mock_response(_finnhub_profile_response())
+        no_da = {
+            "data": [
+                {
+                    "year": 2025,
+                    "endDate": "2025-09-27 00:00:00",
+                    "report": {
+                        "ic": [
+                            {"concept": "Revenues", "value": 394_328_000_000},
+                            {"concept": "OperatingIncomeLoss", "value": 123_216_000_000},
+                            {"concept": "NetIncomeLoss", "value": 96_995_000_000},
+                            # No DepreciationAndAmortization.
+                        ],
+                        "bs": [],
+                    },
+                }
+            ]
+        }
+        with patch.object(
+            provider, "_get", AsyncMock(side_effect=[profile, _mock_response(no_da)])
+        ):
+            result = await provider.fetch("AAPL", "financials")
+        assert result.data["ebitda"] is None
+
+
 class TestFinnhubFetchHistorical:
     @pytest.mark.asyncio
     async def test_fetch_with_years_packs_yearly_data(self, provider):

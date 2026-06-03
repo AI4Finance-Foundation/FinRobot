@@ -43,7 +43,7 @@
 | BUG-005 | Bug | P1 | PUT /api/settings can silently delete or overwrite the user's live API keys (FMP/Anthropic/OpenAI) with no auth and no confirmation | 待修 |
 | BUG-006 | Bug | P1 | 跨境 forward 估值口径错币种:comps_pe 的 forward 路径用『USD 归一化同业 P/E × 申报币种 forward EPS』,ADR(TSM/ASML/BABA)目标价整体偏离一个汇率 | 待修 |
 | BUG-007 | Bug | P1 | DataLayer 跨 provider 仅 warn 不仲裁,且 cross_validate 容差(revenue 15%)结构性低于已知 FMP↔yfinance 25-80% 实差——分歧票静默采用 primary(FMP)原值进研报 | 待修 |
-| BUG-008 | Bug | P1 | Finnhub provider 把缺失的 total_debt/total_cash 用 `or 0` 伪造成 0 → 下游 EV 误算成「零净债」（违反 FMP 显式遵守的 None≠0 契约） | 待修 |
+| BUG-008 | Bug | P1 | Finnhub provider 把缺失的 total_debt/total_cash 用 `or 0` 伪造成 0 → 下游 EV 误算成「零净债」（违反 FMP 显式遵守的 None≠0 契约） | 已修 |
 | BUG-009 | Bug | P1 | xbrl_concept_snapshot 把所有年度营收硬编码成 us-gaap:Revenues，对绝大多数大盘股(ASC-606 口径)是错误的 concept 标签 | 待修 |
 | BUG-010 | Bug | P1 | XBRL TTM dict 丢弃 period_end/as_of_date 与 has_calculated_q4/warning，下游无法判定 TTM 截止季与质量 | 待修 |
 | BUG-011 | Bug | P1 | _money_from_text 把孤立的 'm' 当成 million 乘子(无词边界),$96 measured→$96M,且 ×1e6 可把 sub-$1M 原值抬过合理性闸门 | 待修 |
@@ -229,7 +229,7 @@
 - **修复方案**：finnhub_provider.py:135-136 改为 `total_debt = _find_concept("bs", "LongTermDebt")`、`total_cash = _find_concept("bs", "CashAndCashEquivalentsAtCarryingValue")`（去掉 ` or 0`，让缺失保持 None）。:141 ebitda 同理：da 缺失时不应 `+0` 静默低估，改成 `operating_income + da if (operating_income is not None and da is not None) else None`。:127-128 `marketCapitalization, 0` / `shareOutstanding, 0` 的 `, 0` 默认也应去掉（:147/:148 已有 `if mkt_cap_millions else None` 守卫，但 :127 的 `, 0` 让该守卫永远为真——一并修）。注意：LongTermDebt 只是总债的一部分，真正口径需对照（见下），但至少不能把缺失当 0。
 - **验证补充**：Drop `or 0` on :135-136 and gate ebitda on :141 — correct. The finding ALSO correctly flags (and defers) a real caliber issue: `LongTermDebt` alone undercounts total debt (excludes current portion / short-term debt / leases) vs FMP's `totalDebt` rollup — so even with None-preservation, when present the Finnhub total_debt is systematically too low. That is a separate [金融待核] item the finding rightly does not try to fully fix here. The :127-128 `, 0` cleanup is valid: `profile.get('marketCapitalization', 0)` makes the :147 `if mkt_cap_millions else None` guard reachable only via a real 0, which is fine, but removing the `, 0` default is the cleaner None-honest form. Severity raised P2→P1: silent fabrication of a core valuation input that enters the report unflagged is a砸招牌 data-correctness defect, same class as [0].
 - **影响面/回归风险**：影响所有未配 FMP、靠 Finnhub 出 FINANCIALS 的安装的 EV 类估值。回归风险：会让一些此前「错误地算出 EV」的 ticker 变成「EV 留空」——这是正确行为（宁缺毋滥），但前端需确认 EV=None 的降级展示已就绪（multiples.py:189 已支持 None）。加测试：Finnhub filing 缺 LongTermDebt → result.total_debt is None 且 enterprise_value is None。[金融待核] LongTermDebt 单概念是否等于公司总债（含短债/租赁）需对照 SEC 10-K 资产负债表（如 AAPL FY2023 10-K 的 Total term debt = Current portion of term debt + Non-current term debt），核 Finnhub financials-reported 返回的 bs 段是否还有 ShortTermBorrowings/CurrentPortionOfLongTermDebt 概念需合并。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（finnhub_provider.py：total_debt/total_cash 去掉 or 0（缺失保持 None）；ebitda 改 operating_income+da if 二者非 None else None；marketCapitalization/shareOutstanding 去掉 ,0 默认（让既有 if...else None 守卫可达）。新增 tests/unit/test_finnhub_provider.py::TestFinnhubNonePreservation 3 例（缺 debt/cash→None 经 normalize 仍 None→EV 守卫跳过；缺 D&A→ebitda None）。[金融待核] LongTermDebt 单概念欠总债口径，按指示不在本条修。ruff+mypy --strict + 20 例通过）
 
 #### [BUG-009] xbrl_concept_snapshot 把所有年度营收硬编码成 us-gaap:Revenues，对绝大多数大盘股(ASC-606 口径)是错误的 concept 标签
 

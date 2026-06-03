@@ -124,21 +124,21 @@ class FinnhubProvider(DataProvider):
                     return float(val) if val is not None else None
             return None
 
-        mkt_cap_millions = profile.get("marketCapitalization", 0)
-        shares_millions = profile.get("shareOutstanding", 0)
+        mkt_cap_millions = profile.get("marketCapitalization")
+        shares_millions = profile.get("shareOutstanding")
 
         revenue = _find_concept("ic", "Revenues")
         net_income = _find_concept("ic", "NetIncomeLoss")
         da = _find_concept("ic", "DepreciationAndAmortization")
         operating_income = _find_concept("ic", "OperatingIncomeLoss")
         cogs = _find_concept("ic", "CostOfGoodsAndServicesSold")
-        total_debt = _find_concept("bs", "LongTermDebt") or 0
-        total_cash = _find_concept("bs", "CashAndCashEquivalentsAtCarryingValue") or 0
+        total_debt = _find_concept("bs", "LongTermDebt")
+        total_cash = _find_concept("bs", "CashAndCashEquivalentsAtCarryingValue")
 
         return {
             "revenue": revenue,
             "ebitda": (
-                (operating_income or 0) + (da or 0) if operating_income is not None else None
+                operating_income + da if (operating_income is not None and da is not None) else None
             ),
             "net_income": net_income,
             "depreciation_amortization": da,

@@ -66,7 +66,7 @@
 | BUG-015 | Bug | P1 | Thesis & peer-selection wrap recoverable AgentRunError into ValueError, defeating the retry/back-off system and aborting the whole run on the first transient LLM hiccup | 已修 |
 | BUG-016 | Bug | P1 | 自由文本叙事字段（valuation_overview/tagline/key_takeaways/competitor_analysis）无 code 级与 canonical target/verdict 对账，结构化标量被强制覆盖而散文不被——表格与散文可冲突 | 待修 |
 | BUG-017 | Bug | P1 | Chat-triggered pipelines bypass the app-wide concurrency semaphore — LLM can fire unbounded parallel heavy runs | 待修 |
-| BUG-018 | Bug | P1 | Scoped coverage-group hit-rate silently truncates to the GLOBAL newest-500 page → groups show null track record despite having one | 待修 |
+| BUG-018 | Bug | P1 | Scoped coverage-group hit-rate silently truncates to the GLOBAL newest-500 page → groups show null track record despite having one | 已修 |
 | BUG-019 | Bug | P1 | Sharpe ratio uses backtrader default timeframe=Years on daily bars → None for ~1yr windows, meaningless for multi-year | 已修 |
 | BUG-020 | Bug | P1 | CLI 全部 pipeline 命令零 ticker 校验/归一化：脏 ticker 直灌 provider + 污染缓存与 artifact | 已修 |
 | BUG-021 | Bug | P1 | backtest --auto 对 LLM 失败无任何兜底：直接裸崩，也不回退确定性策略 | 已修 |
@@ -392,7 +392,7 @@
 - **修复方案**：In `_collect_signal_inputs`, push the ticker filter into SQL instead of post-filtering a global page. Either (a) add a `tickers: set[str]|None` param to `SqliteArtifactStore.list_by_ticker` that emits `ticker IN (?,?,...)` and apply the 500 cap to the SCOPED query, or (b) when `tickers` is non-None, loop `list_by_ticker(ticker=t, limit=_HIT_RATE_SAMPLE_CAP)` per member and concat (bounded: groups are small). Prefer (a) — one query, cap correctly scoped. Note: the `is_sampled` denominator must then become the scoped count (see related finding), and the `idx_artifacts_ticker_created` index already supports the IN-filter. Change size: ~25 lines (store method + route + 1 store test for the IN path).
 - **验证补充**：Fix (a) push ticker IN (?,...) into list_by_ticker and cap the scoped query is correct and preferred. is_sampled denominator must then become scoped+windowed count (finding [1]). Minor: also add a store test asserting the IN path returns rows a global-500 page would have evicted.
 - **影响面/回归风险**：Fixes the core 'coverage-group track record' feature (BUG-055). Affects only scoped (?tickers=) callers; unscoped landing unchanged. Regression risk: low — global path keeps current behavior; needs a store test for the IN-clause param binding.
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（artifact/sqlite_store.list_by_ticker 加 tickers 参数：非空时 emit ticker IN (?,...) 且 LIMIT 作用于 scoped 查询（绑定占位符防注入，命中 idx_artifacts_ticker_created）；空集返回 []；保持 ticker=None/单 ticker 行为不变。artifact/store.py shim 同步转发。dashboard._collect_signal_inputs 在 scoped 时改调 list_by_ticker(tickers=...) 删除全局 fetch+Python 后过滤。新增 3 store 测试（旧组行不被全局 cap 驱逐/空集/大小写）。未动 is_sampled 分母（另条）。ruff+mypy --strict + 248 例通过。）
 
 #### [BUG-019] Sharpe ratio uses backtrader default timeframe=Years on daily bars → None for ~1yr windows, meaningless for multi-year
 

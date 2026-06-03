@@ -281,13 +281,32 @@ class SqliteArtifactStore:
         type: ArtifactType | None = None,  # noqa: A002
         include_archived: bool = False,
         limit: int = 100,
+        tickers: set[str] | None = None,
     ) -> list[ArtifactSummary]:
+        """List artifact summaries, newest first, capped at ``limit``.
+
+        ``ticker`` (single) and ``tickers`` (a coverage-group set) are mutually
+        exclusive scopes. When ``tickers`` is given the filter is pushed into
+        SQL as ``ticker IN (?,?,...)`` so the LIMIT applies to the SCOPED page —
+        a group whose reports predate the global newest-``limit`` page is no
+        longer evicted before it can be seen (BUG-018). The empty set yields no
+        rows (an empty group has no track record). ``ticker=None`` and
+        ``tickers=None`` keep the global-page behavior unchanged.
+        """
         conn = await self._conn_ready()
         where: list[str] = []
         params: list[Any] = []
         if ticker is not None:
             where.append("ticker = ?")
             params.append(ticker.upper())
+        if tickers is not None:
+            upper = sorted({t.upper() for t in tickers})
+            if not upper:
+                # Empty scope → no rows (don't degrade to the global page).
+                return []
+            placeholders = ", ".join("?" for _ in upper)
+            where.append(f"ticker IN ({placeholders})")
+            params.extend(upper)
         if type is not None:
             where.append("type = ?")
             params.append(type)

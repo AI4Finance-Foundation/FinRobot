@@ -374,13 +374,19 @@ async def _collect_signal_inputs(
     from finrobot.engine.aggregations.hit_rate_overview import ArtifactSignalInput
     from finrobot.engine.data.quote_batch import fetch_quotes_batch_cached
 
-    summaries = await store.list_by_ticker(
-        ticker=None, include_archived=False, limit=_HIT_RATE_SAMPLE_CAP
-    )
     if tickers is not None:
-        # Scope to a coverage group's members (BUG-055). An EMPTY set (an empty
-        # group) correctly yields no inputs → null hit-rate, not the global one.
-        summaries = [s for s in summaries if s.ticker and s.ticker.upper() in tickers]
+        # Scope to a coverage group's members (BUG-055/BUG-018). Push the filter
+        # into SQL so the cap applies to the SCOPED page — a group whose reports
+        # predate the global newest-N page is no longer evicted before it can be
+        # seen. An EMPTY set (an empty group) yields no inputs → null hit-rate,
+        # not the global one.
+        summaries = await store.list_by_ticker(
+            tickers=tickers, include_archived=False, limit=_HIT_RATE_SAMPLE_CAP
+        )
+    else:
+        summaries = await store.list_by_ticker(
+            ticker=None, include_archived=False, limit=_HIT_RATE_SAMPLE_CAP
+        )
     if not summaries:
         return []
 

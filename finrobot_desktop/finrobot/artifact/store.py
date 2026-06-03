@@ -53,9 +53,14 @@ class ArtifactStore:
         type: ArtifactType | None = None,  # noqa: A002
         include_archived: bool = False,
         limit: int = 100,
+        tickers: set[str] | None = None,
     ) -> list[ArtifactSummary]:
         return await self._impl.list_by_ticker(
-            ticker=ticker, type=type, include_archived=include_archived, limit=limit
+            ticker=ticker,
+            type=type,
+            include_archived=include_archived,
+            limit=limit,
+            tickers=tickers,
         )
 
     async def count(self, *, include_archived: bool = False) -> int:

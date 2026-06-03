@@ -110,6 +110,67 @@ async def test_list_all_tickers(store: SqliteArtifactStore) -> None:
 
 
 @pytest.mark.asyncio
+async def test_list_by_tickers_in_clause_survives_global_cap(
+    store: SqliteArtifactStore,
+) -> None:
+    """Scoped ``tickers={...}`` push the filter into SQL so the LIMIT applies to
+    the SCOPED page (BUG-018). A small group whose reports are OLDER than the
+    global newest-N page must still come back, not be evicted by a
+    global-page-then-Python-filter.
+    """
+    now = datetime.now(tz=UTC)
+    # 8 newest rows belong to a noisy ticker; the group's 2 rows are oldest.
+    for i in range(8):
+        await store.save(
+            _make_artifact(
+                id=f"art_noise_{i}",
+                ticker="NVDA",
+                created_at=now - timedelta(hours=i),
+            )
+        )
+    await store.save(
+        _make_artifact(
+            id="art_grp_aapl",
+            ticker="AAPL",
+            created_at=now - timedelta(hours=100),
+        )
+    )
+    await store.save(
+        _make_artifact(
+            id="art_grp_msft",
+            ticker="MSFT",
+            created_at=now - timedelta(hours=101),
+        )
+    )
+
+    # A global newest-5 page is entirely NVDA → would evict the group.
+    global_page = await store.list_by_ticker(ticker=None, limit=5)
+    assert {s.ticker for s in global_page} == {"NVDA"}
+
+    # Scoped query with the same cap still returns the group's older rows.
+    scoped = await store.list_by_ticker(tickers={"AAPL", "MSFT"}, limit=5)
+    assert {s.id for s in scoped} == {"art_grp_aapl", "art_grp_msft"}
+
+
+@pytest.mark.asyncio
+async def test_list_by_tickers_empty_set_returns_no_rows(
+    store: SqliteArtifactStore,
+) -> None:
+    """An empty scope (empty coverage group) must not degrade to the global
+    page — it has no track record."""
+    await store.save(_make_artifact(id="art_a", ticker="AAPL"))
+    assert await store.list_by_ticker(tickers=set(), limit=10) == []
+
+
+@pytest.mark.asyncio
+async def test_list_by_tickers_case_insensitive(store: SqliteArtifactStore) -> None:
+    """Tickers are upper-cased before binding, matching single-ticker scope."""
+    await store.save(_make_artifact(id="art_a", ticker="AAPL"))
+    scoped = await store.list_by_ticker(tickers={"aapl"}, limit=10)
+    assert {s.id for s in scoped} == {"art_a"}
+
+
+@pytest.mark.asyncio
 async def test_list_filters_archived(store: SqliteArtifactStore) -> None:
     a = _make_artifact(id="art_archived")
     a.meta.archived = True

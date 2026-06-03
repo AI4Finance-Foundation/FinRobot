@@ -189,11 +189,22 @@ async function stub(page: import('@playwright/test').Page) {
   )
 }
 
+// The wall lands on the Needs Action triage lens, so clean names (AAPL/MSFT) are
+// hidden by default. Click the All segment when a test needs the full set.
+async function showAll(page: import('@playwright/test').Page) {
+  await page
+    .getByRole('button', { name: /全部|^All/ })
+    .first()
+    .click()
+  await page.waitForTimeout(120)
+}
+
 test('card wall renders with no horizontal overflow at 1600×1000', async ({ page }) => {
   await stub(page)
   await page.goto('/coverage')
-  await expect(page.getByTestId('coverage-card-AAPL')).toBeVisible({ timeout: 8000 })
-  await expect(page.getByTestId('coverage-card-grid')).toBeVisible()
+  await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
+  await showAll(page)
+  await expect(page.getByTestId('coverage-card-AAPL')).toBeVisible()
 
   // No page-level horizontal overflow (the grid scrolls internally; the document
   // must not).
@@ -205,21 +216,20 @@ test('card wall renders with no horizontal overflow at 1600×1000', async ({ pag
   await page.screenshot({ path: 'e2e/_coverage-comfort.png' })
 })
 
-test('density toggle switches comfort ↔ compact; card never clips its actions', async ({
-  page,
-}) => {
+test('card sizes to content — never clips its actions row', async ({ page }) => {
   await stub(page)
   await page.goto('/coverage')
-  await expect(page.getByTestId('coverage-card-AAPL')).toBeVisible({ timeout: 8000 })
+  await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
+  await showAll(page)
 
   const card = page.getByTestId('coverage-card-AAPL')
-  // minHeight floor, not a hard cap: the card is at least the floor and grows to
-  // fit content (a hard 244 cap used to slice off the actions row).
-  const comfortH = await card.evaluate((el) => el.getBoundingClientRect().height)
-  expect(comfortH).toBeGreaterThanOrEqual(244)
+  await expect(card).toBeVisible()
+  // minHeight floor, then sizes to content (a hard 244 cap used to slice the
+  // actions row off behind overflow:hidden).
+  const cardH = await card.evaluate((el) => el.getBoundingClientRect().height)
+  expect(cardH).toBeGreaterThanOrEqual(244)
 
-  // The run/open actions row must sit fully inside the card — a hard-capped
-  // height used to slice the bottom row off behind overflow:hidden.
+  // The run/open actions row must sit fully inside the card.
   const runBtn = card.getByRole('button', { name: /Run research|运行/ })
   await expect(runBtn).toBeVisible()
   const cardBox = await card.boundingBox()
@@ -227,13 +237,7 @@ test('density toggle switches comfort ↔ compact; card never clips its actions'
   expect(cardBox && runBox).toBeTruthy()
   expect(runBox!.y + runBox!.height).toBeLessThanOrEqual(cardBox!.y + cardBox!.height + 1)
 
-  await page.getByRole('button', { name: /Compact|紧凑/ }).click()
-  await page.waitForTimeout(150)
-  const compactH = await card.evaluate((el) => el.getBoundingClientRect().height)
-  expect(compactH).toBeGreaterThanOrEqual(196)
-  expect(compactH).toBeLessThan(comfortH)
-
-  await page.screenshot({ path: 'e2e/_coverage-compact.png' })
+  await page.screenshot({ path: 'e2e/_coverage-comfort2.png' })
 })
 
 test('cards never overlap — every action button stays clickable', async ({ page }) => {
@@ -254,6 +258,7 @@ test('cards never overlap — every action button stays clickable', async ({ pag
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/coverage')
   await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
+  await showAll(page)
 
   // No two cards overlap — a too-short grid row track once let a tall card bleed
   // over the next row and cover its run/open buttons.
@@ -289,9 +294,11 @@ test('cards never overlap — every action button stays clickable', async ({ pag
 test('clicking a card focuses it in the inspector', async ({ page }) => {
   await stub(page)
   await page.goto('/coverage')
-  await expect(page.getByTestId('coverage-card-AAPL')).toBeVisible({ timeout: 8000 })
+  await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
+  await showAll(page)
+  await expect(page.getByTestId('coverage-card-AAPL')).toBeVisible()
 
-  const inspector = page.getByRole('complementary')
+  const inspector = page.getByTestId('coverage-inspector')
   // Default focus = first visible card under the needs-action sort (NVDA: closed
   // signal outranks the clean rows).
   await expect(inspector.getByText('NVDA', { exact: true }).first()).toBeVisible()
@@ -317,25 +324,26 @@ test('clicking a card focuses it in the inspector', async ({ page }) => {
   await page.screenshot({ path: 'e2e/_coverage-inspector.png' })
 })
 
-test('Needs Action filter narrows the wall; metric popover still works', async ({ page }) => {
+test('default landing is the Needs Action queue; All reveals the rest', async ({ page }) => {
   await stub(page)
   await page.goto('/coverage')
-  await expect(page.getByTestId('coverage-card-AAPL')).toBeVisible({ timeout: 8000 })
+  await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
 
-  // 3 of 5 need action (NVDA signal_closed, TSLA + GOOGL never_run).
-  await page
-    .getByRole('button', { name: /Needs Action|待处理/ })
-    .first()
-    .click()
-  await page.waitForTimeout(150)
+  // Landing view = Needs Action: 3 of 5 qualify (NVDA signal_closed, TSLA +
+  // GOOGL never_run). The clean names (AAPL, MSFT) are NOT shown until 'All'.
   await expect(page.getByTestId('coverage-card-NVDA')).toBeVisible()
   await expect(page.getByTestId('coverage-card-AAPL')).toHaveCount(0)
+  await expect(page.getByTestId('coverage-card-MSFT')).toHaveCount(0)
 
   // A card number still carries provenance — hover the NVDA price popover.
   await page.getByTestId('coverage-card-NVDA').getByText('$1,024.50').hover()
   await page.waitForTimeout(350)
   await expect(page.getByRole('dialog').first()).toBeVisible()
   await page.screenshot({ path: 'e2e/_coverage-needsaction.png' })
+
+  // Switch to All → the clean names appear.
+  await showAll(page)
+  await expect(page.getByTestId('coverage-card-AAPL')).toBeVisible()
 })
 
 // The redesign's load-bearing responsive guarantee: the card grid uses auto-fill
@@ -377,6 +385,7 @@ for (const width of [1280, 1366, 1440, 1600, 1920]) {
     await page.goto('/coverage')
     await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
     await expect(page.getByTestId('right-chat-panel')).toBeVisible() // AI panel open
+    await showAll(page) // densest wall for the clip check
     await assertNoClip(page)
     await page.screenshot({ path: `e2e/_coverage-aiopen-w${width}.png` })
   })
@@ -395,6 +404,7 @@ for (const width of [1024, 820, 680]) {
     await page.getByTestId('collapse-btn').first().click()
     await page.waitForTimeout(200)
     await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
+    await showAll(page)
     await assertNoClip(page)
     await page.screenshot({ path: `e2e/_coverage-small-w${width}.png` })
   })
@@ -408,7 +418,9 @@ test('provenance popover escapes the card overflow (portaled, fully on-screen)',
   // clipped by the card's box — the portal must lift it to the viewport.
   await page.setViewportSize({ width: 980, height: 900 })
   await page.goto('/coverage')
-  await expect(page.getByTestId('coverage-card-AAPL')).toBeVisible({ timeout: 8000 })
+  await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
+  await showAll(page)
+  await expect(page.getByTestId('coverage-card-AAPL')).toBeVisible()
 
   await page.getByTestId('coverage-card-AAPL').getByText('$200.12').hover()
   await page.waitForTimeout(350)
@@ -457,6 +469,9 @@ test('many tickers: wall stays bounded + dock reachable, hero not squished (stac
   await page.setViewportSize({ width: 760, height: 820 })
   await page.goto('/coverage')
   await page.getByTestId('collapse-btn').first().click()
+  // The 60 seeded rows are clean (no needs-action) → show All before the wall
+  // populates (the default Needs Action queue would be empty for these).
+  await showAll(page)
   await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
   await page.waitForTimeout(250) // let the ResizeObserver settle the stacked layout
 

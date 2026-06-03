@@ -1,15 +1,16 @@
-// CoveragePage — the desktop's first screen (route `/coverage`). The user's
-// research workspace: a hero search (drill into one name + auto-enrol it), a
-// command toolbar (workspace switch / filters / density / import / sort), a wall
-// of fixed-height ticker cards, and a right Inspector scoped to the focused
-// ticker. Server state via useCoverage (TanStack Query); view-state (selection,
-// focus, density, sort) in coverageStore. Drill-down stays at /stocks/:ticker.
+// CoveragePage — the desktop's first screen (route `/coverage`). The analyst's
+// research desk: a hero search (drill into one name + auto-enrol on open), a
+// slim wall header (triage lens + sort), a wall of ticker cards, and a right
+// Inspector scoped to the focused ticker. There is ONE list — Studied Tickers
+// (the system coverage group) — surfaced; the multi-group machinery stays in the
+// backend but is not exposed (no switcher / rename / import chrome). Server
+// state via useCoverage; view-state (selection, focus, sort) in coverageStore.
 //
-// A ticker is the primary object: it has a live market snapshot AND many
-// research artifacts. The card shows the live snapshot + latest verdict +
-// report count; the inspector splits Live Market from the Latest Research
-// Artifact (at-run price frozen, never overwritten by live) and lists the full
-// artifact history. Remove drops only workspace membership — never artifacts.
+// A ticker is the primary object: a live market snapshot AND many research
+// artifacts. The card shows the snapshot + latest verdict + report count; the
+// inspector splits Market from the Latest Research Artifact (at-run price frozen)
+// and lists the full artifact history. Remove drops list membership, never
+// artifacts. Landing view = Needs Action — the triage queue IS the homepage.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -23,13 +24,11 @@ import {
   useCoverageGroups,
   useCoverageOverview,
   useCreateGroup,
-  useDeleteGroup,
   useRemoveMember,
-  useUpdateGroup,
 } from '../hooks/useCoverage'
 import { CoverageEmptyState } from '../components/coverage/CoverageEmptyState'
 import { CoverageHero } from '../components/coverage/CoverageHero'
-import { CoverageToolbar } from '../components/coverage/CoverageToolbar'
+import { WallHeader } from '../components/coverage/WallHeader'
 import { CoverageCardGrid } from '../components/coverage/CoverageCardGrid'
 import { CoverageInspector } from '../components/coverage/CoverageInspector'
 import { sortCoverageRows, type CoverageSort } from '../components/coverage/coverageSort'
@@ -41,8 +40,8 @@ import {
 } from '../components/coverage/coverageFilter'
 import { useToastStore } from '../stores/toastStore'
 
-// Default applied sort when a group has none stored: most-urgent first, so the
-// names that need the analyst surface at the top of a cold desk.
+// Default applied sort when none is stored: most-urgent first, so the names that
+// need the analyst surface at the top.
 const DEFAULT_SORT: CoverageSort = { key: 'needs_action', dir: 'desc' }
 
 export function CoveragePage(): React.ReactElement {
@@ -53,7 +52,6 @@ export function CoveragePage(): React.ReactElement {
   const groupsQuery = useCoverageGroups()
   const groups = groupsQuery.data ?? []
 
-  const storedGroupId = useCoverageStore((s) => s.selectedGroupId)
   const setSelectedGroup = useCoverageStore((s) => s.setSelectedGroup)
   const selectedTickers = useCoverageStore((s) => s.selectedTickers)
   const toggleTicker = useCoverageStore((s) => s.toggleTicker)
@@ -62,16 +60,18 @@ export function CoveragePage(): React.ReactElement {
   const setFocusedTicker = useCoverageStore((s) => s.setFocusedTicker)
   const sortByGroup = useCoverageStore((s) => s.sortByGroup)
   const setSort = useCoverageStore((s) => s.setSort)
+  // One shipped density (comfort). The toggle was cut; the store field stays so
+  // the card/grid sizing props keep working, pinned to comfort.
   const density = useCoverageStore((s) => s.density)
-  const setDensity = useCoverageStore((s) => s.setDensity)
 
-  const [filter, setFilter] = useState<CoverageFilter>('all')
+  // Landing view = the triage queue. The analyst's first question is "what needs
+  // me", so Needs Action is the homepage, not an unfiltered dump.
+  const [filter, setFilter] = useState<CoverageFilter>('needs_action')
 
-  // Resolve the active group: stored choice if still present, else first.
-  const activeGroupId =
-    (storedGroupId && groups.some((g) => g.id === storedGroupId) ? storedGroupId : null) ??
-    groups[0]?.id ??
-    null
+  // The single surfaced list is the system "Studied Tickers" group; there is no
+  // group switcher in the UX. Fall back to the first group only if the system
+  // flag isn't present (older seed).
+  const activeGroupId = (groups.find((g) => g.is_system) ?? groups[0])?.id ?? null
 
   const overviewQuery = useCoverageOverview(activeGroupId)
   const rows = useMemo(() => overviewQuery.data?.rows ?? [], [overviewQuery.data])
@@ -162,14 +162,13 @@ export function CoveragePage(): React.ReactElement {
     [focusedTicker, selectedTickers],
   )
 
+  // createGroup + addMembers are used ONLY by the cold-start empty state below
+  // (seed the first Studied Tickers list). batchRun / removeMember drive the
+  // card + inspector actions. Group rename/delete were removed with the switcher.
   const createGroup = useCreateGroup()
   const addMembers = useAddMembers()
   const batchRun = useBatchRun()
-  const updateGroup = useUpdateGroup()
-  const deleteGroup = useDeleteGroup()
   const removeMember = useRemoveMember()
-
-  const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null
 
   // ── Groups request failed → error state, NOT the starter ──────────────────
   if (groupsQuery.isError) {
@@ -210,21 +209,6 @@ export function CoveragePage(): React.ReactElement {
   }
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-
-  function handleImport(tickers: string[]) {
-    if (!activeGroupId) return
-    addMembers.mutate(
-      { id: activeGroupId, tickers },
-      { onError: () => toast({ type: 'error', title: t('coverage.error.addFailed') }) },
-    )
-  }
-
-  function handleInvalidImport(invalid: string[]) {
-    toast({
-      type: 'error',
-      title: t('coverage.error.invalidTickers', { tickers: invalid.join(', ') }),
-    })
-  }
 
   function handleRun(tickers: string[]) {
     if (!activeGroupId || tickers.length === 0) return
@@ -271,26 +255,6 @@ export function CoveragePage(): React.ReactElement {
     navigate(`/compare?tickers=${encodeURIComponent(unique.join(','))}`)
   }
 
-  function handleRename(name: string) {
-    if (!activeGroupId) return
-    updateGroup.mutate(
-      { id: activeGroupId, name },
-      { onError: () => toast({ type: 'error', title: t('coverage.error.renameFailed') }) },
-    )
-  }
-
-  function handleDeleteGroup() {
-    if (!activeGroupId) return
-    const deletingId = activeGroupId
-    deleteGroup.mutate(deletingId, {
-      onSuccess: () => {
-        const next = groups.find((g) => g.id !== deletingId)
-        setSelectedGroup(next ? next.id : null)
-      },
-      onError: () => toast({ type: 'error', title: t('coverage.error.deleteGroupFailed') }),
-    })
-  }
-
   function handleRemoveMember(ticker: string) {
     if (!activeGroupId) return
     removeMember.mutate(
@@ -324,27 +288,13 @@ export function CoveragePage(): React.ReactElement {
     >
       <CoverageHero />
 
-      <div style={{ flexShrink: 0 }}>
-        <CoverageToolbar
-          groups={groups}
-          activeGroupId={activeGroupId}
-          activeGroupName={activeGroup?.name ?? null}
-          groupBusy={updateGroup.isPending || deleteGroup.isPending}
-          onSelectGroup={setSelectedGroup}
-          onRenameGroup={handleRename}
-          onDeleteGroup={handleDeleteGroup}
-          filter={filter}
-          filterCounts={filterCounts}
-          onFilter={setFilter}
-          density={density}
-          onDensity={setDensity}
-          sort={effectiveSort}
-          onSort={(s) => activeGroupId && setSort(activeGroupId, s)}
-          onImport={handleImport}
-          importBusy={addMembers.isPending}
-          onInvalidImport={handleInvalidImport}
-        />
-      </div>
+      <WallHeader
+        filter={filter}
+        filterCounts={filterCounts}
+        onFilter={setFilter}
+        sort={effectiveSort}
+        onSort={(s) => activeGroupId && setSort(activeGroupId, s)}
+      />
 
       {/* Batch action bar — only when a multi-select exists. Keeps batch ops
           (Run / Compare) out of the toolbar's single-ticker flow. */}

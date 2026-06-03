@@ -3350,10 +3350,6 @@ msgid "coverage.starter.step3"
 msgstr "运行研究，生成第一份可追溯研报"
 
 #. js-lingui-explicit-id
-msgid "coverage.groupSelect"
-msgstr "覆盖组"
-
-#. js-lingui-explicit-id
 msgid "coverage.runSelected"
 msgstr "运行研究 ({n})"
 
@@ -3388,14 +3384,6 @@ msgstr "添加 ticker 失败"
 #. js-lingui-explicit-id
 msgid "coverage.error.invalidTickers"
 msgstr "已忽略非法代码：{tickers}"
-
-#. js-lingui-explicit-id
-msgid "coverage.error.renameFailed"
-msgstr "重命名分组失败"
-
-#. js-lingui-explicit-id
-msgid "coverage.error.deleteGroupFailed"
-msgstr "删除分组失败"
 
 #. js-lingui-explicit-id
 msgid "coverage.error.removeFailed"
@@ -3482,12 +3470,8 @@ msgid "cmdk.coverage.compare"
 msgstr "对比选中的 {n} 个 ticker"
 
 #. js-lingui-explicit-id
-msgid "coverage.workspace"
-msgstr "工作台"
-
-#. js-lingui-explicit-id
 msgid "coverage.filterEmpty"
-msgstr "没有符合该筛选的股票"
+msgstr "没有符合当前视图的股票 · 切到「全部」查看完整覆盖"
 
 #. js-lingui-explicit-id
 msgid "coverage.filter.all"
@@ -3500,34 +3484,6 @@ msgstr "待处理"
 #. js-lingui-explicit-id
 msgid "coverage.filter.running"
 msgstr "运行中"
-
-#. js-lingui-explicit-id
-msgid "coverage.filter.hasReports"
-msgstr "有研报"
-
-#. js-lingui-explicit-id
-msgid "coverage.filter.notRun"
-msgstr "未跑过"
-
-#. js-lingui-explicit-id
-msgid "coverage.density.comfort"
-msgstr "宽松"
-
-#. js-lingui-explicit-id
-msgid "coverage.density.compact"
-msgstr "紧凑"
-
-#. js-lingui-explicit-id
-msgid "coverage.import.open"
-msgstr "批量导入"
-
-#. js-lingui-explicit-id
-msgid "coverage.import.placeholder"
-msgstr "AAPL MSFT NVDA…"
-
-#. js-lingui-explicit-id
-msgid "coverage.import.add"
-msgstr "加入"
 
 #. js-lingui-explicit-id
 msgid "coverage.sort.label"
@@ -3638,10 +3594,6 @@ msgid "coverage.inspector.recordCounts"
 msgstr "研报 {research} · 全部记录 {artifact}"
 
 #. js-lingui-explicit-id
-msgid "coverage.inspector.qualityTitle"
-msgstr "数据质量"
-
-#. js-lingui-explicit-id
 msgid "coverage.inspector.provider"
 msgstr "数据源"
 
@@ -3688,10 +3640,6 @@ msgstr "币种"
 #. js-lingui-explicit-id
 msgid "coverage.inspector.revenueBasis"
 msgstr "营收口径"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.priceAsOf"
-msgstr "价格更新于"
 
 #. js-lingui-explicit-id
 msgid "coverage.inspector.warning"

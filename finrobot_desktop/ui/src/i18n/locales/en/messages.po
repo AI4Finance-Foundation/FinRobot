@@ -3350,10 +3350,6 @@ msgid "coverage.starter.step3"
 msgstr "Run research → your first traceable report"
 
 #. js-lingui-explicit-id
-msgid "coverage.groupSelect"
-msgstr "Coverage group"
-
-#. js-lingui-explicit-id
 msgid "coverage.runSelected"
 msgstr "Run Research ({n})"
 
@@ -3392,14 +3388,6 @@ msgstr "Failed to add tickers"
 #. js-lingui-explicit-id
 msgid "coverage.error.invalidTickers"
 msgstr "Ignored invalid symbol(s): {tickers}"
-
-#. js-lingui-explicit-id
-msgid "coverage.error.renameFailed"
-msgstr "Failed to rename group"
-
-#. js-lingui-explicit-id
-msgid "coverage.error.deleteGroupFailed"
-msgstr "Failed to delete group"
 
 #. js-lingui-explicit-id
 msgid "coverage.error.removeFailed"
@@ -3482,12 +3470,8 @@ msgid "cmdk.coverage.compare"
 msgstr "Compare {n} selected tickers"
 
 #. js-lingui-explicit-id
-msgid "coverage.workspace"
-msgstr "Workspace"
-
-#. js-lingui-explicit-id
 msgid "coverage.filterEmpty"
-msgstr "No tickers match this filter"
+msgstr "Nothing matches this view · switch to All for the full list"
 
 #. js-lingui-explicit-id
 msgid "coverage.filter.all"
@@ -3500,34 +3484,6 @@ msgstr "Needs Action"
 #. js-lingui-explicit-id
 msgid "coverage.filter.running"
 msgstr "Running"
-
-#. js-lingui-explicit-id
-msgid "coverage.filter.hasReports"
-msgstr "Has Reports"
-
-#. js-lingui-explicit-id
-msgid "coverage.filter.notRun"
-msgstr "Not Run"
-
-#. js-lingui-explicit-id
-msgid "coverage.density.comfort"
-msgstr "Comfort"
-
-#. js-lingui-explicit-id
-msgid "coverage.density.compact"
-msgstr "Compact"
-
-#. js-lingui-explicit-id
-msgid "coverage.import.open"
-msgstr "Batch Import"
-
-#. js-lingui-explicit-id
-msgid "coverage.import.placeholder"
-msgstr "AAPL MSFT NVDA…"
-
-#. js-lingui-explicit-id
-msgid "coverage.import.add"
-msgstr "Add"
 
 #. js-lingui-explicit-id
 msgid "coverage.sort.label"
@@ -3638,10 +3594,6 @@ msgid "coverage.inspector.recordCounts"
 msgstr "Reports {research} · all records {artifact}"
 
 #. js-lingui-explicit-id
-msgid "coverage.inspector.qualityTitle"
-msgstr "Data Quality"
-
-#. js-lingui-explicit-id
 msgid "coverage.inspector.provider"
 msgstr "Provider"
 
@@ -3688,10 +3640,6 @@ msgstr "Currency"
 #. js-lingui-explicit-id
 msgid "coverage.inspector.revenueBasis"
 msgstr "Revenue basis"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.priceAsOf"
-msgstr "Price as of"
 
 #. js-lingui-explicit-id
 msgid "coverage.inspector.warning"

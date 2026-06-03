@@ -22,7 +22,7 @@ import {
 import { useV5ArtifactTimeline } from '../../hooks/useV5Artifacts'
 import type { CoverageRow } from '../../api/coverage'
 
-type Tab = 'live' | 'report' | 'history' | 'quality'
+type Tab = 'live' | 'report' | 'history'
 
 interface Props {
   row: CoverageRow | null
@@ -144,7 +144,7 @@ export function CoverageInspector({
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 6, margin: '12px 0' }}>
-        {(['live', 'report', 'history', 'quality'] as const).map((tb) => {
+        {(['live', 'report', 'history'] as const).map((tb) => {
           const active = tab === tb
           return (
             <button
@@ -175,7 +175,6 @@ export function CoverageInspector({
         {tab === 'live' && <LivePanel row={row} />}
         {tab === 'report' && <ReportPanel row={row} />}
         {tab === 'history' && <HistoryPanel row={row} />}
-        {tab === 'quality' && <QualityPanel row={row} />}
       </div>
 
       {/* Actions — always visible. */}
@@ -250,6 +249,25 @@ function LivePanel({ row }: { row: CoverageRow }): React.ReactElement {
       <Kv label={t('coverage.inspector.asOf')}>
         {row.price_as_of ? formatAge(row.price_as_of) : '—'}
       </Kv>
+      {/* Data-quality lines fold in here (was a separate tab): the currency,
+          the TTM basis, and any provenance warnings are read in the same breath
+          as the snapshot they qualify. */}
+      <Kv label={t('coverage.inspector.currency')}>{row.currency ?? '—'}</Kv>
+      <Kv label={t('coverage.inspector.revenueBasis')}>TTM</Kv>
+      {row.warnings.length === 0 ? (
+        <Kv label={t('coverage.inspector.warning')}>{t('coverage.inspector.noWarning')}</Kv>
+      ) : (
+        <div style={{ paddingTop: 8 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 11, marginBottom: 4 }}>
+            {t('coverage.inspector.warning')}
+          </div>
+          {row.warnings.map((w, i) => (
+            <div key={i} style={{ color: 'var(--accent-amber)', fontSize: 11, lineHeight: 1.5 }}>
+              · {w}
+            </div>
+          ))}
+        </div>
+      )}
     </Panel>
   )
 }
@@ -387,33 +405,6 @@ function HistoryPanel({ row }: { row: CoverageRow }): React.ReactElement {
             </a>
           </div>
         ))
-      )}
-    </Panel>
-  )
-}
-
-function QualityPanel({ row }: { row: CoverageRow }): React.ReactElement {
-  const { t } = useI18n()
-  return (
-    <Panel title={t('coverage.inspector.qualityTitle')}>
-      <Kv label={t('coverage.inspector.currency')}>{row.currency ?? '—'}</Kv>
-      <Kv label={t('coverage.inspector.revenueBasis')}>TTM</Kv>
-      <Kv label={t('coverage.inspector.priceAsOf')}>
-        {row.sources?.price?.as_of ? formatAge(row.sources.price.as_of) : '—'}
-      </Kv>
-      {row.warnings.length === 0 ? (
-        <Kv label={t('coverage.inspector.warning')}>{t('coverage.inspector.noWarning')}</Kv>
-      ) : (
-        <div style={{ paddingTop: 6 }}>
-          <div style={{ color: 'var(--text-muted)', fontSize: 11, marginBottom: 4 }}>
-            {t('coverage.inspector.warning')}
-          </div>
-          {row.warnings.map((w, i) => (
-            <div key={i} style={{ color: 'var(--accent-amber)', fontSize: 11, lineHeight: 1.5 }}>
-              · {w}
-            </div>
-          ))}
-        </div>
       )}
     </Panel>
   )

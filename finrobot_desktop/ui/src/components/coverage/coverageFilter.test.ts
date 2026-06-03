@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { filterRows, matchesFilter } from './coverageFilter'
+import { COVERAGE_FILTERS, filterRows, matchesFilter } from './coverageFilter'
 import type { CoverageRow } from '../../api/coverage'
 
 function row(over: Partial<CoverageRow>): CoverageRow {
@@ -52,8 +52,6 @@ describe('coverageFilter', () => {
     needs_refresh: [{ kind: 'run_failed', detail: 'x', artifact_id: null }],
   })
   const notRun = row({ ticker: 'COLD', artifact_count: 0, research_count: 0 })
-  // Model-only ticker: has artifacts (DCF/LBO) but no thesis research yet.
-  const modelOnly = row({ ticker: 'MODEL', artifact_count: 3, research_count: 0 })
 
   it('all passes everything', () => {
     const rows = [clean, running, action, notRun]
@@ -71,13 +69,7 @@ describe('coverageFilter', () => {
     expect(matchesFilter(clean, 'running')).toBe(false)
   })
 
-  it('has_reports vs not_run split on research_count (not all artifacts)', () => {
-    expect(matchesFilter(clean, 'has_reports')).toBe(true)
-    expect(matchesFilter(notRun, 'has_reports')).toBe(false)
-    expect(matchesFilter(notRun, 'not_run')).toBe(true)
-    expect(matchesFilter(clean, 'not_run')).toBe(false)
-    // A model-only ticker (artifacts but no thesis research) counts as not_run.
-    expect(matchesFilter(modelOnly, 'has_reports')).toBe(false)
-    expect(matchesFilter(modelOnly, 'not_run')).toBe(true)
+  it('exposes only the three triage lenses (has_reports / not_run were cut)', () => {
+    expect(COVERAGE_FILTERS).toEqual(['all', 'needs_action', 'running'])
   })
 })

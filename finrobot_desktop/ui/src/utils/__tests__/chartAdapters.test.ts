@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { dcfResultToMarginData } from '../chartAdapters'
-import type { DCFResult } from '../../stores/appStore'
+import type { DCFResult } from '../../types/finance'
 
 function makeDcfResult(daPct: number | undefined): DCFResult {
   return {

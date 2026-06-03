@@ -10,7 +10,7 @@ import {
   dcfResultToRevenueEbitdaData,
   dcfResultToMarginData,
 } from '../../../utils/chartAdapters'
-import type { DCFResult } from '../../../stores/appStore'
+import type { DCFResult } from '../../../types/finance'
 import { useHistoricalData } from '../../../hooks/useHistoricalData'
 import { useI18n } from '../../../i18n'
 import { TermTip } from '../../../components/TermTip'

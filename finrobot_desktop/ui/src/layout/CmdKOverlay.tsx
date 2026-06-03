@@ -3,11 +3,11 @@
  *
  * Trigger paths:
  *   1. ⌘K / Ctrl+K  (global keydown listener)
- *   2. TopBar button dispatches `toggleCmdPalette()` via appStore
+ *   2. TopBar button dispatches `toggleCmdPalette()` via uiStore
  *   3. `window.dispatchEvent(new Event("finrobot:open-cmdk"))`
- *   4. `useAppStore.getState().toggleCmdPalette()`  (programmatic)
+ *   4. `useUiStore.getState().toggleCmdPalette()`  (programmatic)
  *
- * All four paths share the single `cmdPaletteOpen` flag in appStore.
+ * All four paths share the single `cmdPaletteOpen` flag in uiStore.
  */
 
 import { useEffect, useRef, useCallback, useMemo } from 'react'
@@ -21,7 +21,6 @@ import { Title as DialogTitle, Description as DialogDescription } from '@radix-u
 import { useQuery } from '@tanstack/react-query'
 import { useDebounce } from 'use-debounce'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useAppStore } from '../stores/appStore'
 import { useCoverageStore } from '../stores/coverageStore'
 import { useToastStore } from '../stores/toastStore'
 import { useUiStore } from '../stores/uiStore'
@@ -351,10 +350,10 @@ function ResultItem({ result, onSelect }: ResultItemProps) {
 // ---------------------------------------------------------------------------
 
 export function CmdKOverlay() {
-  const open = useAppStore((s) => s.cmdPaletteOpen)
-  const rawQuery = useAppStore((s) => s.cmdKQuery ?? '')
-  const setCmdPaletteOpen = useAppStore((s) => s.setCmdPaletteOpen)
-  const setCmdKQuery = useAppStore((s) => s.setCmdKQuery)
+  const open = useUiStore((s) => s.cmdPaletteOpen)
+  const rawQuery = useUiStore((s) => s.cmdKQuery ?? '')
+  const setCmdPaletteOpen = useUiStore((s) => s.setCmdPaletteOpen)
+  const setCmdKQuery = useUiStore((s) => s.setCmdKQuery)
   const navigate = useNavigate()
   const location = useLocation()
   const { t, locale } = useI18n()
@@ -382,20 +381,20 @@ export function CmdKOverlay() {
         // always respond (exception paths G6, G7).
         e.preventDefault()
         e.stopPropagation()
-        useAppStore.getState().toggleCmdPalette()
+        useUiStore.getState().toggleCmdPalette()
         // When toggling off, also clear the query
-        if (useAppStore.getState().cmdPaletteOpen === false) {
-          useAppStore.getState().setCmdKQuery('')
+        if (useUiStore.getState().cmdPaletteOpen === false) {
+          useUiStore.getState().setCmdKQuery('')
         }
         return
       }
       // Esc closes and clears
-      if (e.key === 'Escape' && useAppStore.getState().cmdPaletteOpen) {
+      if (e.key === 'Escape' && useUiStore.getState().cmdPaletteOpen) {
         handleClose()
       }
     }
     function onOpenEvent() {
-      useAppStore.getState().setCmdPaletteOpen(true)
+      useUiStore.getState().setCmdPaletteOpen(true)
     }
     window.addEventListener('keydown', onKeyDown, true /* capture, beats inputs */)
     window.addEventListener('finrobot:open-cmdk', onOpenEvent)

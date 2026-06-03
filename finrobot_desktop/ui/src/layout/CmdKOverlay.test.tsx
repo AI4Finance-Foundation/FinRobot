@@ -21,7 +21,6 @@ import {
   parseReportRoute,
   matchSections,
 } from './CmdKOverlay'
-import { useAppStore } from '../stores/appStore'
 import { useUiStore } from '../stores/uiStore'
 import { useUiPrefs } from '../i18n'
 
@@ -82,7 +81,7 @@ function renderOverlay(initialPath = '/stocks') {
 
 beforeEach(() => {
   // Reset store to closed state
-  useAppStore.setState({ cmdPaletteOpen: false, cmdKQuery: '' })
+  useUiStore.setState({ cmdPaletteOpen: false, cmdKQuery: '' })
   // Reset chat handoff channel (BUG-013) — Ask AI feeds uiStore.pendingChatPrompt
   useUiStore.setState({ pendingChatPrompt: null, aiPanelOpen: false })
   // Clear localStorage
@@ -107,7 +106,7 @@ describe('CmdKOverlay — closed state', () => {
   })
 
   it('renders the dialog when cmdPaletteOpen is true', () => {
-    useAppStore.setState({ cmdPaletteOpen: true })
+    useUiStore.setState({ cmdPaletteOpen: true })
     renderOverlay()
     expect(screen.getByTestId('cmdk-input')).toBeInTheDocument()
   })
@@ -133,7 +132,7 @@ describe('CmdKOverlay — trigger paths', () => {
 
   it('trigger 2: store.toggleCmdPalette opens overlay', async () => {
     renderOverlay()
-    act(() => useAppStore.getState().toggleCmdPalette())
+    act(() => useUiStore.getState().toggleCmdPalette())
     await waitFor(() => expect(screen.getByTestId('cmdk-input')).toBeInTheDocument())
   })
 
@@ -150,12 +149,12 @@ describe('CmdKOverlay — trigger paths', () => {
 
 describe('CmdKOverlay — Esc closes', () => {
   it('Esc key closes the overlay and clears query', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
     renderOverlay()
     expect(screen.getByTestId('cmdk-input')).toBeInTheDocument()
     fireEvent.keyDown(window, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByTestId('cmdk-input')).not.toBeInTheDocument())
-    expect(useAppStore.getState().cmdKQuery).toBe('')
+    expect(useUiStore.getState().cmdKQuery).toBe('')
   })
 })
 
@@ -165,7 +164,7 @@ describe('CmdKOverlay — Esc closes', () => {
 
 describe('CmdKOverlay — result groups', () => {
   it('renders ticker group', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
     mockFetch({
       query: 'AAPL',
       results: [makeSearchResult('ticker')],
@@ -177,7 +176,7 @@ describe('CmdKOverlay — result groups', () => {
   })
 
   it('renders artifact group', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
     mockFetch({
       query: 'AAPL',
       results: [makeSearchResult('artifact')],
@@ -187,7 +186,7 @@ describe('CmdKOverlay — result groups', () => {
   })
 
   it('renders both groups simultaneously', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
     mockFetch({
       query: 'AAPL',
       results: [makeSearchResult('ticker'), makeSearchResult('artifact')],
@@ -206,7 +205,7 @@ describe('CmdKOverlay — result groups', () => {
 
 describe('CmdKOverlay — action execution and close', () => {
   it('navigate action closes overlay and navigates', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
     mockFetch({
       query: 'AAPL',
       results: [makeSearchResult('ticker')],
@@ -214,7 +213,7 @@ describe('CmdKOverlay — action execution and close', () => {
     renderOverlay()
     const item = await screen.findByText('AAPL')
     fireEvent.click(item.closest("[data-testid='cmdk-result-item']")!)
-    await waitFor(() => expect(useAppStore.getState().cmdPaletteOpen).toBe(false))
+    await waitFor(() => expect(useUiStore.getState().cmdPaletteOpen).toBe(false))
   })
 })
 
@@ -224,7 +223,7 @@ describe('CmdKOverlay — action execution and close', () => {
 
 describe('CmdKOverlay — AI fallback', () => {
   it('shows AI fallback when 0 results and query non-empty', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'xyzzy random' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'xyzzy random' })
     mockFetch({ query: 'xyzzy random', results: [] })
     renderOverlay()
     await waitFor(() => expect(screen.getByTestId('ai-fallback')).toBeInTheDocument())
@@ -235,7 +234,7 @@ describe('CmdKOverlay — AI fallback', () => {
   // (pendingChatPrompt), NOT a dead sessionStorage key.
   it('AI fallback hands the query to uiStore.sendChatPrompt, opens AI panel, closes overlay', async () => {
     const sessionSpy = vi.spyOn(Storage.prototype, 'setItem')
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'why is NVDA up' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'why is NVDA up' })
     mockFetch({ query: 'why is NVDA up', results: [] })
     renderOverlay()
     const btn = await screen.findByTestId('ai-fallback-item')
@@ -248,7 +247,7 @@ describe('CmdKOverlay — AI fallback', () => {
     })
     // Panel opened + overlay closed
     expect(useUiStore.getState().aiPanelOpen).toBe(true)
-    expect(useAppStore.getState().cmdPaletteOpen).toBe(false)
+    expect(useUiStore.getState().cmdPaletteOpen).toBe(false)
     // No dead sessionStorage write
     expect(sessionSpy).not.toHaveBeenCalledWith('finrobot.cmdk_ai_query', expect.anything())
   })
@@ -261,7 +260,7 @@ describe('CmdKOverlay — AI fallback', () => {
 describe('CmdKOverlay — search failure keeps local commands (BUG-023)', () => {
   it('with /api/search returning 500, the Ask AI fallback still renders (not trapped behind the error)', async () => {
     mockFetch({ detail: 'boom' }, 500)
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'xyzzy random' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'xyzzy random' })
     renderOverlay()
     // Inline error note shows (small banner, not a takeover)
     await waitFor(() => expect(screen.getByTestId('search-error')).toBeInTheDocument())
@@ -274,7 +273,7 @@ describe('CmdKOverlay — search failure keeps local commands (BUG-023)', () => 
   it('matching local commands (Settings) still render under a search failure', async () => {
     mockFetch({ detail: 'boom' }, 500)
     // Query matches the Settings command title so client-side static filter keeps it.
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '设置' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: '设置' })
     renderOverlay()
     await waitFor(() => expect(screen.getByTestId('search-error')).toBeInTheDocument())
     expect(screen.getByTestId('coverage-commands-group')).toBeInTheDocument()
@@ -283,7 +282,7 @@ describe('CmdKOverlay — search failure keeps local commands (BUG-023)', () => 
 
   it('Ask AI is selectable after a 500 and still feeds sendChatPrompt', async () => {
     mockFetch({ detail: 'boom' }, 500)
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'explain the moat' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'explain the moat' })
     renderOverlay()
     const btn = await screen.findByTestId('ai-fallback-item')
     fireEvent.click(btn)
@@ -297,11 +296,11 @@ describe('CmdKOverlay — search failure keeps local commands (BUG-023)', () => 
 
   it('Settings command navigates and closes even when search failed', async () => {
     mockFetch({ detail: 'boom' }, 500)
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '设置' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: '设置' })
     renderOverlay()
     const settings = await screen.findByText('打开设置')
     fireEvent.click(settings.closest("[data-testid='coverage-command-item']")!)
-    await waitFor(() => expect(useAppStore.getState().cmdPaletteOpen).toBe(false))
+    await waitFor(() => expect(useUiStore.getState().cmdPaletteOpen).toBe(false))
   })
 })
 
@@ -313,7 +312,7 @@ describe('CmdKOverlay — a11y dialog title/description (BUG-024)', () => {
   it('renders a DialogTitle and Description node and logs no Radix a11y warning', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: '' })
     renderOverlay()
     await waitFor(() => expect(screen.getByTestId('cmdk-input')).toBeInTheDocument())
     // Accessible nodes exist
@@ -339,7 +338,7 @@ describe('CmdKOverlay — recent searches', () => {
   it('shows recent searches when query is empty and localStorage has entries', async () => {
     saveRecentSearch('NVDA')
     saveRecentSearch('MSFT')
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: '' })
     renderOverlay()
     await waitFor(() => expect(screen.getByTestId('recent-searches-group')).toBeInTheDocument())
     expect(screen.getByText('NVDA')).toBeInTheDocument()
@@ -348,7 +347,7 @@ describe('CmdKOverlay — recent searches', () => {
 
   it('does not show recent searches when query is non-empty', async () => {
     saveRecentSearch('NVDA')
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'A' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'A' })
     mockFetch({ query: 'A', results: [] })
     renderOverlay()
     await waitFor(() =>
@@ -358,11 +357,11 @@ describe('CmdKOverlay — recent searches', () => {
 
   it('clicking a recent search item populates the query', async () => {
     saveRecentSearch('TSLA')
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: '' })
     renderOverlay()
     const item = await screen.findByText('TSLA')
     fireEvent.click(item.closest("[data-testid='recent-search-item']")!)
-    await waitFor(() => expect(useAppStore.getState().cmdKQuery).toBe('TSLA'))
+    await waitFor(() => expect(useUiStore.getState().cmdKQuery).toBe('TSLA'))
   })
 
   it('saveRecentSearch stores up to 10 and deduplicates', () => {
@@ -393,7 +392,7 @@ describe('CmdKOverlay — exception paths', () => {
   // by the commands group — the invariant being guarded is "no fetch".
   it('G1: empty query fires no fetch and shows Coverage commands', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: '' })
     renderOverlay()
     await new Promise((r) => setTimeout(r, 300)) // wait past debounce
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -404,7 +403,7 @@ describe('CmdKOverlay — exception paths', () => {
   it('G2: query longer than 200 chars shows truncation warning', async () => {
     const longQ = 'A'.repeat(250)
     mockFetch({ query: longQ.slice(0, 200), results: [] })
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: longQ })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: longQ })
     renderOverlay()
     await waitFor(() => expect(screen.getByTestId('truncation-warning')).toBeInTheDocument())
   })
@@ -412,7 +411,7 @@ describe('CmdKOverlay — exception paths', () => {
   // G3: Network error 503 → error banner + retry button
   it('G3: 503 response shows error banner and retry button', async () => {
     mockFetch({ detail: 'service unavailable' }, 503)
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
     renderOverlay()
     await waitFor(() => expect(screen.getByTestId('search-error')).toBeInTheDocument())
     expect(screen.getByTestId('retry-button')).toBeInTheDocument()
@@ -422,7 +421,7 @@ describe('CmdKOverlay — exception paths', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(
       () => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 0)),
     )
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
     renderOverlay()
     await waitFor(() => expect(screen.getByTestId('search-error')).toBeInTheDocument(), {
       timeout: 2000,
@@ -433,7 +432,7 @@ describe('CmdKOverlay — exception paths', () => {
   // G5: 0 results + non-empty query → AI fallback shown (covered in section 6)
   it('G5: 0 results shows AI fallback (AI fallback section re-check)', async () => {
     mockFetch({ query: 'unknownfoo', results: [] })
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'unknownfoo' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'unknownfoo' })
     renderOverlay()
     await waitFor(() => expect(screen.getByTestId('ai-fallback')).toBeInTheDocument())
   })
@@ -445,35 +444,35 @@ describe('CmdKOverlay — exception paths', () => {
     document.body.appendChild(inp)
     inp.focus()
     fireEvent.keyDown(window, { key: 'k', metaKey: true })
-    await waitFor(() => expect(useAppStore.getState().cmdPaletteOpen).toBe(true))
+    await waitFor(() => expect(useUiStore.getState().cmdPaletteOpen).toBe(true))
     document.body.removeChild(inp)
   })
 
   // G7: ⌘K when already open → closes (toggle)
   it('G7: ⌘K when already open closes the overlay', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: '' })
     renderOverlay()
     fireEvent.keyDown(window, { key: 'k', metaKey: true })
-    await waitFor(() => expect(useAppStore.getState().cmdPaletteOpen).toBe(false))
+    await waitFor(() => expect(useUiStore.getState().cmdPaletteOpen).toBe(false))
   })
 
   // G8: Esc closes AND clears query
   it('G8: Esc closes overlay and clears query (duplicate check)', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'hello' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'hello' })
     renderOverlay()
     fireEvent.keyDown(window, { key: 'Escape' })
-    await waitFor(() => expect(useAppStore.getState().cmdPaletteOpen).toBe(false))
-    expect(useAppStore.getState().cmdKQuery).toBe('')
+    await waitFor(() => expect(useUiStore.getState().cmdPaletteOpen).toBe(false))
+    expect(useUiStore.getState().cmdKQuery).toBe('')
   })
 
   // G10: Click outside (onOpenChange false) closes
   it('G10: onOpenChange(false) from cmdk Dialog closes overlay', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: '' })
     renderOverlay()
     // Simulate cmdk calling onOpenChange(false) — the Dialog wraps in Radix Portal
     // We trigger it via store directly as a unit test proxy
-    act(() => useAppStore.getState().setCmdPaletteOpen(false))
-    await waitFor(() => expect(useAppStore.getState().cmdPaletteOpen).toBe(false))
+    act(() => useUiStore.getState().setCmdPaletteOpen(false))
+    await waitFor(() => expect(useUiStore.getState().cmdPaletteOpen).toBe(false))
   })
 
   // G11: navigate to non-existent path — action executor should still succeed
@@ -501,7 +500,7 @@ describe('CmdKOverlay — exception paths', () => {
   // G14: Chinese characters in query → encoded in URL properly
   it('G14: Chinese query is URI-encoded in fetch URL', async () => {
     const fetchSpy = mockFetch({ query: '苹果', results: [] })
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '苹果' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: '苹果' })
     renderOverlay()
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled())
     const url = (fetchSpy as Mock).mock.calls[0][0] as string
@@ -511,12 +510,12 @@ describe('CmdKOverlay — exception paths', () => {
   // G15: Paste large text → debounce still works (only one fetch)
   it('G15: rapid query changes debounce to a single fetch', async () => {
     const fetchSpy = mockFetch({ query: 'AAPL', results: [] })
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'A' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'A' })
     renderOverlay()
     // Simulate rapid changes
-    act(() => useAppStore.setState({ cmdKQuery: 'AA' }))
-    act(() => useAppStore.setState({ cmdKQuery: 'AAP' }))
-    act(() => useAppStore.setState({ cmdKQuery: 'AAPL' }))
+    act(() => useUiStore.setState({ cmdKQuery: 'AA' }))
+    act(() => useUiStore.setState({ cmdKQuery: 'AAP' }))
+    act(() => useUiStore.setState({ cmdKQuery: 'AAPL' }))
     // Wait for debounce to settle
     await new Promise((r) => setTimeout(r, 400))
     // Should have fetched at most once for "AAPL" (the final value)
@@ -569,7 +568,7 @@ describe('CmdKOverlay — report section jump (BUG-016)', () => {
   })
 
   it('typing "valuation" on a report page offers a jump item that navigates to #valuation', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'valuation' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'valuation' })
     mockFetch({ query: 'valuation', results: [] })
     renderOverlayWithLocation(REPORT_PATH)
     const item = await screen.findByTestId('section-jump-item')
@@ -578,12 +577,12 @@ describe('CmdKOverlay — report section jump (BUG-016)', () => {
     await waitFor(() =>
       expect(screen.getByTestId('location-probe')).toHaveTextContent(`${REPORT_PATH}#valuation`),
     )
-    expect(useAppStore.getState().cmdPaletteOpen).toBe(false)
+    expect(useUiStore.getState().cmdPaletteOpen).toBe(false)
   })
 
   it('typing "估值" (zh) on a report page jumps to #valuation', async () => {
     useUiPrefs.getState().setLocale('zh')
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '估值' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: '估值' })
     mockFetch({ query: '估值', results: [] })
     renderOverlayWithLocation(REPORT_PATH)
     const item = await screen.findByTestId('section-jump-item')
@@ -595,7 +594,7 @@ describe('CmdKOverlay — report section jump (BUG-016)', () => {
   })
 
   it('typing "风险" (zh) jumps to the catalysts chapter (#catalysts)', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '风险' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: '风险' })
     mockFetch({ query: '风险', results: [] })
     renderOverlayWithLocation(REPORT_PATH)
     const item = await screen.findByTestId('section-jump-item')
@@ -603,7 +602,7 @@ describe('CmdKOverlay — report section jump (BUG-016)', () => {
   })
 
   it('does NOT offer section jumps when not on a report detail route', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'valuation' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'valuation' })
     mockFetch({ query: 'valuation', results: [] })
     renderOverlayWithLocation('/stocks')
     await waitFor(() => expect(screen.getByTestId('cmdk-input')).toBeInTheDocument())
@@ -617,7 +616,7 @@ describe('CmdKOverlay — report section jump (BUG-016)', () => {
 
 describe('CmdKOverlay — footer', () => {
   it('footer hint is visible when overlay is open', async () => {
-    useAppStore.setState({ cmdPaletteOpen: true, cmdKQuery: '' })
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: '' })
     renderOverlay()
     expect(screen.getByTestId('cmdk-footer')).toBeInTheDocument()
   })

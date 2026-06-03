@@ -1,4 +1,4 @@
-import type { DCFResult, CompsResult, HistoricalMetrics } from '../stores/appStore'
+import type { DCFResult, CompsResult, HistoricalMetrics } from '../types/finance'
 import { tSync } from '../i18n'
 
 /**

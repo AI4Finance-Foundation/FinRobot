@@ -4,7 +4,6 @@
 // (overlay titleBarStyle). Centre: FINROBOT brandmark with blue brand-dot
 // and gradient logo word. Right: halo-input cmdK trigger + AI sparkle btn.
 
-import { useAppStore } from '../stores/appStore'
 import { useUiStore } from '../stores/uiStore'
 import { IconSparkle, IconCommand } from '../lib/icons'
 import { useI18n } from '../i18n'
@@ -12,7 +11,7 @@ import { useI18n } from '../i18n'
 export function TitleBar(): React.ReactElement {
   const aiPanelOpen = useUiStore((s) => s.aiPanelOpen)
   const toggleAiPanel = useUiStore((s) => s.toggleAiPanel)
-  const setCmdPaletteOpen = useAppStore((s) => s.setCmdPaletteOpen)
+  const setCmdPaletteOpen = useUiStore((s) => s.setCmdPaletteOpen)
   const { t, locale } = useI18n()
 
   // No existing .po key fits "open command palette"; use the inline

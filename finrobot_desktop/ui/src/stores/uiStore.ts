@@ -5,8 +5,11 @@
 // mode/model, ContextBundle, workspace path.
 //
 // Deliberately separate from:
-//   - useAppStore (stores/appStore.ts) → workspace data (ticker, DCF result, …)
 //   - useUiPrefs  (i18n/index.ts)      → persisted prefs (locale, legacy chatExpanded)
+//
+// Workspace research data (DCF result, comps, …) is NOT here — it lives in
+// TanStack Query (server-state). The ⌘K command palette is shell chrome, so
+// its open/query state lives here (session-scoped, not persisted).
 //
 // Persistence: only width/mode/model/workspacePath are persisted; tabs and
 // context are intentionally session-scoped.
@@ -93,6 +96,10 @@ interface UiStoreState {
    *  fallback renders. */
   splineEnabled: boolean
 
+  // Command palette (⌘K) — shell chrome, session-scoped
+  cmdPaletteOpen: boolean
+  cmdKQuery: string
+
   // Workspace
   workspacePath: string
 
@@ -114,6 +121,10 @@ interface UiStoreState {
 
   setCursorTrailEnabled: (on: boolean) => void
   setSplineEnabled: (on: boolean) => void
+
+  setCmdPaletteOpen: (open: boolean) => void
+  toggleCmdPalette: () => void
+  setCmdKQuery: (q: string) => void
 
   setWorkspacePath: (p: string) => void
 
@@ -168,6 +179,9 @@ export const useUiStore = create<UiStoreState>()(
       cursorTrailEnabled: false,
       splineEnabled: true,
 
+      cmdPaletteOpen: false,
+      cmdKQuery: '',
+
       workspacePath: DEFAULT_WORKSPACE_PATH,
 
       openTabs: [DASHBOARD_TAB],
@@ -184,6 +198,11 @@ export const useUiStore = create<UiStoreState>()(
       // Cosmic cursor trail
       setCursorTrailEnabled: (cursorTrailEnabled) => set({ cursorTrailEnabled }),
       setSplineEnabled: (splineEnabled) => set({ splineEnabled }),
+
+      // command palette (⌘K)
+      setCmdPaletteOpen: (cmdPaletteOpen) => set({ cmdPaletteOpen }),
+      toggleCmdPalette: () => set((s) => ({ cmdPaletteOpen: !s.cmdPaletteOpen })),
+      setCmdKQuery: (cmdKQuery) => set({ cmdKQuery }),
 
       // workspace
       setWorkspacePath: (workspacePath) =>

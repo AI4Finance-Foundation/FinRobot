@@ -1,7 +1,7 @@
 import PeerComparisonChart from '../../../components/charts/PeerComparisonChart'
 import CompanyRadarChart from '../../../components/charts/CompanyRadarChart'
 import { compsResultToPeerChartData, compsResultToRadarData } from '../../../utils/chartAdapters'
-import type { CompsResult } from '../../../stores/appStore'
+import type { CompsResult } from '../../../types/finance'
 import { useI18n } from '../../../i18n'
 import { TermTip } from '../../../components/TermTip'
 import { formatCompactNumber } from '../../../utils/format'

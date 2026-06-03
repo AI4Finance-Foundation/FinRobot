@@ -72,7 +72,7 @@
 | BUG-021 | Bug | P1 | backtest --auto 对 LLM 失败无任何兜底：直接裸崩，也不回退确定性策略 | 已修 |
 | BUG-022 | Bug | P1 | 零 busy_timeout + 多进程写同一 data_cache.db → SQLITE_BUSY 直接抛到调用方 | 已修 |
 | BUG-023 | Bug | P1 | Artifact PRIMARY KEY 用秒级时间戳，同票同类型同秒 run 静默覆盖前一份研报（审计链断档） | 已修 |
-| BUG-024 | Bug | P1 | useAppStore (547 行) ~92% 死状态：仅 4 个 CmdK 字段有运行时消费方，其余全部无人读 | 待修 |
+| BUG-024 | Bug | P1 | useAppStore (547 行) ~92% 死状态：仅 4 个 CmdK 字段有运行时消费方，其余全部无人读 | 已修 |
 | BUG-025 | Bug | P1 | Pipeline 集合在 4 处各自硬编码（orchestrator/registry/cli/sdk），registry 抽象只被 runs.py 单独使用 | 待修 |
 | BUG-026 | Bug | P1 | DCF/DDM seed 用「最近 2 年」中位数，却在 provenance 和 docstring 里全程标注「过去 3 年中位数」——给分析师看的口径说明是假的 | 已修 |
 | BUG-027 | Bug | P1 | POST /api/compute/dcf-sensitivity 的 wacc_range/tg_range 无 max_length 上限 → 巨网格阻塞事件循环 | 已修 |
@@ -477,7 +477,7 @@
 - **修复方案**：拆分 appStore.ts：①把仍被 import type 的纯类型（DCFResult/DCFInputs/CompsResult/CompanyFinancials/HistoricalMetrics/EarningsResult/LBOResult/...）抽到 ui/src/types/finance.ts（或就近 api/schema 派生），chartAdapters.ts、ChapterFinancialAnalysis.tsx 改 import 路径。②把活着的 4 个 CmdK 字段并入 uiStore（它已是 shell-chrome store，CmdK 属 shell）或新建 12 行的 cmdKStore。③删除 useAppStore 整个文件 + appStore.test.ts 中针对死字段的用例。注意：deriveScenario 的 bull/bear ±20% 派生逻辑若产品上还想要，需确认是否已在 server 端实现 scenario（grep 显示前端无消费方，大概率连功能都没接），未接则一并删。改动量级：重构（删 ~500 行 + 改 2 处 import + 迁 4 字段），但风险极低因死代码。
 - **验证补充**：Finding missed ChapterCompetitive.tsx (also `import type { CompsResult }`) — the type-extraction step must update 3 import sites, not 2. Otherwise plan sound: move 4 CmdK fields to uiStore (already the shell-chrome store), extract types to ui/src/types/finance.ts, delete file + dead test cases. appStore.test.ts dead cases to drop: 'sets ticker','sets phase','sets and resets DCF inputs','sets warnings' (keep nothing — showSettings also unused outside store). deriveScenario/scenario has no frontend consumer, delete with it.
 - **影响面/回归风险**：影响面：仅 3 个文件的 import 路径 + CmdK 接入点。回归风险低（删的是 0 消费方的状态）；唯一真实风险是 appStore.test.ts 里若有断言死字段初值的用例会红，需同步删。收益：新人 / AI 读 stores 目录时不再被一个 547 行、92% 是幽灵的 store 误导成『workspace 状态在这里』。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（删除 ~547 行死 store useAppStore（研报结果早已迁 TanStack Query，*Result/deriveScenario/setTicker 清场全 0 消费方）。① 5 个仍被 import type 的纯类型(DCFResult/DCFInputs/CompsResult/CompanyFinancials/HistoricalMetrics)抽到新 ui/src/types/finance.ts，4 处 type-import 改指向（含 review 漏掉的 chartAdapters.test.ts）。② 4 个活的 CmdK 字段(+toggleCmdPalette)并入 uiStore（shell-chrome store），CmdKOverlay/TitleBar/测试改读 uiStore。③ 删 appStore.ts + appStore.test.ts（仅测死字段）。grep 确认零残留 appStore 引用。npm lint/build(tsc)/vitest 409 测试通过。属批准的零风险技术债清理（BUG-025 registry 延后单独一轮、避开 orchestrator/cli/sdk）。）
 
 #### [BUG-025] Pipeline 集合在 4 处各自硬编码（orchestrator/registry/cli/sdk），registry 抽象只被 runs.py 单独使用
 

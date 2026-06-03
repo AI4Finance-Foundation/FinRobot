@@ -440,6 +440,74 @@ def test_sniper_invariant_raises_on_violation() -> None:
         )
 
 
+# ---------------------------------------------------------------------------
+# 13. BUG-042: LONG mode — 20-day support below the stop_loss floor
+#     When a recent crash low still sits in the trailing-20 window, the 20-day
+#     support can fall BELOW stop_loss. Rendering secondary_buy=support would be
+#     a "buy" price only reachable after being stopped out — incoherent. The fix
+#     drops the secondary level (secondary_buy=None) and records a warning.
+#
+#     Engineered: current=100, target=150 → LONG (upside 50% > 30% → margin
+#     0.15), ideal_buy = 150 * 0.85 = 127.5. One crash low of 70 still in the
+#     window → support = 70. With volatility_annual=0 → vol_buffer = 0, so
+#     stop_loss = max(70 - 0, 100*0.85) = max(70, 85) = 85. Since support (70) <
+#     stop_loss (85), secondary_buy is dropped to None.
+# ---------------------------------------------------------------------------
+
+def test_sniper_long_drops_secondary_when_support_below_stop() -> None:
+    """LONG: 20-day support below the stop floor → secondary_buy dropped to None.
+
+    A crash low of 70 lingers in the trailing-20 window while the stop floor
+    sits at current*0.85 = 85. Shipping secondary_buy=70 (below the 85 stop)
+    would render an incoherent ladder; the fix drops it and warns instead.
+    """
+    prices = [70.0] + [100.0] * 19  # support = 70, rest at current
+    result = calculate_sniper_points(
+        SniperRequest(
+            ticker="CRASH",
+            current_price=100.0,
+            dcf_target=150.0,
+            historical_prices=prices,
+            volatility_annual=0.0,
+        )
+    )
+    assert result.direction == "LONG"
+    assert result.support_level == pytest.approx(70.0, abs=0.01)
+    # stop floor at current*0.85 = 85, above the 70 support.
+    assert result.stop_loss == pytest.approx(85.0, abs=0.01)
+    # Secondary entry dropped — NOT clamped onto the stop, NOT shipped below it.
+    assert result.secondary_buy is None
+    # The drop is explained, not silent.
+    warns = result.invariant_warnings
+    assert any("support" in w and "no secondary entry" in w for w in warns), warns
+
+
+def test_sniper_long_keeps_secondary_when_support_above_stop() -> None:
+    """LONG: support above the stop → secondary_buy stays = support, coherent.
+
+    Guards the happy path against over-eager dropping. current=100, target=150,
+    support=92. With near-zero dispersion the stop lands just under support, so
+    the secondary entry survives and the LONG ladder stays coherent.
+    """
+    prices = [92.0] + [100.0] * 19  # support = 92, above the resulting stop
+    result = calculate_sniper_points(
+        SniperRequest(
+            ticker="OKSEC",
+            current_price=100.0,
+            dcf_target=150.0,
+            historical_prices=prices,
+        )
+    )
+    assert result.direction == "LONG"
+    assert result.support_level == pytest.approx(92.0, abs=0.01)
+    # support sits above the stop here, so the secondary entry is retained.
+    assert result.stop_loss < result.support_level
+    assert result.secondary_buy == pytest.approx(92.0, abs=0.01)
+    # Coherent LONG ladder: stop < secondary <= take_profit.
+    assert result.secondary_buy is not None
+    assert result.stop_loss < result.secondary_buy <= result.take_profit
+
+
 def test_sniper_short_cover_is_dcf_target_not_throttled_to_support() -> None:
     """Regression (decision 2026-05-29): a downtrending SELL pinned to its 20-day
     low (support == current). The old ``max(target, support)`` collapsed the

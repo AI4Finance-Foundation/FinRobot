@@ -36,7 +36,12 @@ class SniperPoints(BaseModel):
     # the *short-entry* levels (open the short here / add here on bounce).
     # Always interpret these together with ``direction`` — never assume LONG.
     ideal_buy: float
-    secondary_buy: float
+    # Optional second entry level. ``None`` when no coherent secondary entry
+    # exists — e.g. a LONG whose 20-day support sits below the stop_loss floor
+    # (a recent crash low still in the trailing window): rendering a "buy" you
+    # could only reach after being stopped out is incoherent, so we drop the
+    # level and record the reason in ``invariant_warnings``.
+    secondary_buy: float | None
     stop_loss: float
     take_profit: float
     position_size_pct: float  # suggested position as % of portfolio (1-5%)
@@ -59,7 +64,8 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
     LONG mode (target >= current):
     1. ideal_buy = dcf_target * (1 - safety_margin)
        safety_margin: 15% if upside > 30%, 10% if upside > 15%, 5% otherwise
-    2. secondary_buy = support_level (min of trailing 20-day window)
+    2. secondary_buy = support_level (min of trailing 20-day window), or None
+       when support sits at/below stop_loss (drop the incoherent second entry)
     3. stop_loss = max(support - 10-day-expected-move, current * 0.85)
        10-day expected move = daily_vol * sqrt(10) * current_price
     4. take_profit = dcf_target
@@ -158,12 +164,26 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
             safety_margin = 0.05
 
         ideal_buy = target * (1 - safety_margin)
-        secondary_buy = support
 
         # 10-day expected downside move: daily_vol * sqrt(10) * current_price
         vol_buffer = daily_vol * (10**0.5) * current
         # Floor at 15% below current to prevent absurdly tight stops
         stop_loss = max(support - vol_buffer, current * 0.85)
+
+        # Second entry = 20-day support. When a recent crash low still sits in
+        # the trailing-20 window, support can fall BELOW the stop_loss floor —
+        # a "buy" price you could only reach after already being stopped out.
+        # Drop the secondary level rather than ship an incoherent ladder, and
+        # record why. (Do NOT clamp secondary_buy=max(support, stop_loss): that
+        # collapses the entry onto the stop — a degenerate entry==stop, the same
+        # degeneracy the SHORT branch warns against.)
+        if support <= stop_loss:
+            secondary_buy = None
+            invariant_warnings.append(
+                f"20-day support ${support:.2f} below stop ${stop_loss:.2f}; no secondary entry."
+            )
+        else:
+            secondary_buy = support
 
         take_profit = target
 
@@ -201,10 +221,20 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
                 f"sniper invariant violated (LONG): stop_loss {stop_loss:.2f} "
                 f">= ideal_buy {ideal_buy:.2f}"
             )
+        # Secondary entry must sit strictly above the stop and at/below the
+        # target, or be absent. Guards against the incoherent "buy below stop"
+        # ladder (BUG-042); the LONG branch drops the level to None when the
+        # 20-day support breaches the stop floor, so a present value here is
+        # always coherent.
+        if secondary_buy is not None and not (stop_loss < secondary_buy <= take_profit):
+            raise ValueError(
+                f"sniper invariant violated (LONG): secondary_buy {secondary_buy:.2f} "
+                f"outside (stop_loss {stop_loss:.2f}, take_profit {take_profit:.2f}]"
+            )
 
     return SniperPoints(
         ideal_buy=round(ideal_buy, 2),
-        secondary_buy=round(secondary_buy, 2),
+        secondary_buy=round(secondary_buy, 2) if secondary_buy is not None else None,
         stop_loss=round(stop_loss, 2),
         take_profit=round(take_profit, 2),
         position_size_pct=round(position_size, 1),

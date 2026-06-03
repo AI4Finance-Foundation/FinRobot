@@ -173,21 +173,26 @@ def test_safe_signal_classifies_and_guards() -> None:
 
 
 def test_needs_refresh_never_run_and_signal_closed() -> None:
-    never = CoverageRow(ticker="X", run_count=0)
+    never = CoverageRow(ticker="X", research_count=0)
     assert [r.kind for r in _needs_refresh(never)] == ["never_run"]
 
-    hit = CoverageRow(ticker="X", run_count=2, signal="hit", latest_artifact_id="a1")
+    # Artifacts exist but none is thesis-bearing (only a standalone DCF) →
+    # still "never run Research", because research_count is the gate now.
+    dcf_only = CoverageRow(ticker="X", artifact_count=3, research_count=0)
+    assert [r.kind for r in _needs_refresh(dcf_only)] == ["never_run"]
+
+    hit = CoverageRow(ticker="X", research_count=1, signal="hit", latest_artifact_id="a1")
     reasons = _needs_refresh(hit)
     assert reasons[0].kind == "signal_closed"
     assert reasons[0].artifact_id == "a1"
 
-    watching = CoverageRow(ticker="X", run_count=2, signal="watching")
+    watching = CoverageRow(ticker="X", research_count=1, signal="watching")
     assert _needs_refresh(watching) == []
 
 
 def test_needs_refresh_run_failed_takes_precedence() -> None:
     # A failed run is more actionable than "never run" and precedes it.
-    row = CoverageRow(ticker="X", run_count=0, run_status="failed", run_error="boom")
+    row = CoverageRow(ticker="X", research_count=0, run_status="failed", run_error="boom")
     reasons = _needs_refresh(row)
     assert [r.kind for r in reasons] == ["run_failed"]
     assert "boom" in reasons[0].detail
@@ -223,7 +228,8 @@ async def test_overview_happy_path_fields() -> None:
     assert row.pe == pytest.approx(28.5)
     assert row.ev_ebitda is not None
     assert row.latest_verdict == "BUY"
-    assert row.run_count == 1
+    assert row.artifact_count == 1
+    assert row.research_count == 1  # the lone artifact carries a verdict
     assert row.upside_to_target_live == pytest.approx((240 - 200) / 200)
     assert row.signal in {"hit", "watching", "failed"}
     assert ov.partial is False
@@ -259,7 +265,9 @@ async def test_research_fields_ignore_newer_non_thesis_artifact() -> None:
     assert row.target_price == 240.0  # NOT the DCF's 99.0
     assert row.latest_type == "equity_research"
     assert row.latest_artifact_id == "art_eq"  # target/upside provenance is correct
-    assert row.run_count == 2  # but total activity still counts the DCF
+    # Total activity counts both; "研报" counts only the thesis-bearing one.
+    assert row.artifact_count == 2  # equity_research + dcf
+    assert row.research_count == 1  # only the equity_research carries a verdict
 
 
 def test_caveat_maps_only_attributable_degraded_codes() -> None:
@@ -323,7 +331,8 @@ async def test_overview_fast_skips_market_keeps_research() -> None:
     (row,) = ov.rows
     # research side present
     assert row.latest_verdict == "BUY"
-    assert row.run_count == 1
+    assert row.artifact_count == 1
+    assert row.research_count == 1
     assert row.target_price == 240.0
     # market side pending, not fabricated
     assert row.price is None
@@ -407,7 +416,8 @@ async def test_overview_degraded_market_keeps_research_and_flags_partial() -> No
     (row,) = ov.rows
     # research side survives the market outage
     assert row.latest_verdict == "HOLD"
-    assert row.run_count == 1
+    assert row.artifact_count == 1
+    assert row.research_count == 1
     # market side degraded, not fabricated
     assert row.price is None
     assert row.market_cap is None
@@ -473,7 +483,8 @@ async def test_overview_never_run_ticker() -> None:
         now=NOW,
     )
     (row,) = ov.rows
-    assert row.run_count == 0
+    assert row.artifact_count == 0
+    assert row.research_count == 0
     assert [r.kind for r in row.needs_refresh] == ["never_run"]
 
 

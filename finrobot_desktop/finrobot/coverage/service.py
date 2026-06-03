@@ -209,18 +209,22 @@ async def _assemble_row(
 
 
 def _apply_research_fields(row: CoverageRow, summaries: list[ArtifactSummary]) -> None:
-    """Verdict / target / entry / run_count / latest_* from the artifact store.
+    """Verdict / target / entry / artifact_count / research_count / latest_*.
 
     The research-conclusion columns (verdict / target / entry / target_date and
     the latest_* provenance triple) come ONLY from a thesis-bearing report —
     equity_research / ic_memo carry a verdict; a standalone DCF / LBO / comps /
     earnings artifact does not. Sourcing them from ``summaries[0]`` (newest of
     ANY type) let a freshly-run DCF blank the verdict and pass its implied_price
-    off as a research target (BUG-054). ``run_count`` still counts every
-    artifact so the row reflects total activity; ``signal`` is computed
+    off as a research target (BUG-054).
+
+    Two counts, deliberately split: ``artifact_count`` is every artifact (total
+    activity), ``research_count`` only the thesis-bearing ones (``verdict is not
+    None``) — the honest "N 份研报" the UI shows. ``signal`` is computed
     downstream against the live price.
     """
-    row.run_count = len(summaries)
+    row.artifact_count = len(summaries)
+    row.research_count = sum(1 for s in summaries if s.verdict is not None)
     # A verdict is only ever set on thesis-bearing artifacts, so it's the
     # reliable "is this a research conclusion?" gate. Newest such artifact wins
     # (store returns created_at DESC).
@@ -406,7 +410,10 @@ def _needs_refresh(row: CoverageRow) -> list[NeedsRefreshReason]:
             )
         )
         return reasons
-    if row.run_count == 0:
+    # "never_run" means no *thesis-bearing* research yet — a ticker with only a
+    # standalone DCF/LBO/comps (artifact_count > 0 but research_count == 0) still
+    # owes a Research run, which is exactly what the detail copy promises.
+    if row.research_count == 0:
         reasons.append(NeedsRefreshReason(kind="never_run", detail="覆盖池中但从未跑过 Research"))
         return reasons
     # Reuse the signal's own band logic — no second magic threshold. A closed

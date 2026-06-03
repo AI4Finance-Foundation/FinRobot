@@ -158,7 +158,14 @@ class CoverageRow(BaseModel):
     entry_price: float | None = None
     upside_to_target_live: float | None = None
     signal: str | None = None
-    run_count: int = 0
+    artifact_count: int = 0
+    """Total artifacts of ANY type for this ticker (dcf / lbo / comps / earnings /
+    equity_research …) — reflects total research activity."""
+    research_count: int = 0
+    """Thesis-bearing research artifacts only (``verdict is not None`` —
+    equity_research / ic_memo). The "N 份研报" the UI counts; distinct from
+    :attr:`artifact_count`, which includes standalone models that carry no
+    verdict."""
     latest_artifact_id: str | None = None
     latest_type: str | None = None
     latest_at: datetime | None = None

@@ -224,7 +224,8 @@ async def test_overview_assembles_rows(client: AsyncClient) -> None:
     assert row["market_cap"] == pytest.approx(3e12)
     assert row["revenue_ttm"] == pytest.approx(100e9)
     assert row["latest_verdict"] == "BUY"
-    assert row["run_count"] == 1
+    assert row["artifact_count"] == 1
+    assert row["research_count"] == 1  # the seeded artifact carries a verdict
     assert row["upside_to_target_live"] == pytest.approx(0.2)
     assert body["partial"] is False
 

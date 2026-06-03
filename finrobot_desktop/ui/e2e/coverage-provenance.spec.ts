@@ -236,6 +236,56 @@ test('density toggle switches comfort ↔ compact; card never clips its actions'
   await page.screenshot({ path: 'e2e/_coverage-compact.png' })
 })
 
+test('cards never overlap — every action button stays clickable', async ({ page }) => {
+  await stub(page)
+  // Stub the batch-run endpoint so the click below resolves end-to-end.
+  await page.route('**/api/coverage/groups/*/runs', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        group_id: 'cov_demo',
+        pipeline_type: 'research',
+        runs: [{ ticker: 'AAPL', run_id: 'run-x' }],
+        skipped: [],
+      }),
+    }),
+  )
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/coverage')
+  await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
+
+  // No two cards overlap — a too-short grid row track once let a tall card bleed
+  // over the next row and cover its run/open buttons.
+  const overlaps = await page.getByTestId('coverage-card-grid').evaluate((grid) => {
+    const rects = Array.from(grid.querySelectorAll('[data-ticker]')).map((c) =>
+      c.getBoundingClientRect(),
+    )
+    let n = 0
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i]
+        const b = rects[j]
+        if (
+          a.left < b.right - 1 &&
+          b.left < a.right - 1 &&
+          a.top < b.bottom - 1 &&
+          b.top < a.bottom - 1
+        )
+          n++
+      }
+    }
+    return n
+  })
+  expect(overlaps).toBe(0)
+
+  // The run button is genuinely clickable — Playwright's click fails if the
+  // element is obscured (e.g. by an overlapping card).
+  const card = page.getByTestId('coverage-card-AAPL')
+  await card.scrollIntoViewIfNeeded()
+  await card.getByRole('button', { name: /Run research|运行/ }).click()
+})
+
 test('clicking a card focuses it in the inspector', async ({ page }) => {
   await stub(page)
   await page.goto('/coverage')

@@ -3595,7 +3595,19 @@ msgstr "Select a card to inspect"
 
 #. js-lingui-explicit-id
 msgid "coverage.inspector.tab.live"
-msgstr "Live"
+msgstr "Market"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.marketState"
+msgstr "Market state"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.stateClose"
+msgstr "Last close (not live)"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.stateDelayed"
+msgstr "Delayed quote"
 
 #. js-lingui-explicit-id
 msgid "coverage.inspector.tab.report"
@@ -3611,7 +3623,7 @@ msgstr "Quality"
 
 #. js-lingui-explicit-id
 msgid "coverage.inspector.liveTitle"
-msgstr "Live Market Snapshot"
+msgstr "Market Snapshot"
 
 #. js-lingui-explicit-id
 msgid "coverage.inspector.reportTitle"

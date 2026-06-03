@@ -105,11 +105,10 @@ export const CoverageCard = memo(function CoverageCard({
         position: 'relative',
         display: 'flex',
         flexDirection: 'column',
-        // Size to content (clamped to the minHeight floor). Without this the card
-        // is a grid item with the default align-self:stretch, so the grid
-        // stretches it to the row track and locks its height at the floor (244) —
-        // taller content then overflowed and the actions row was clipped.
-        alignSelf: 'start',
+        // Default grid stretch is fine now that the grid uses
+        // gridAutoRows:'max-content' — the row track is sized to full content, so
+        // stretch makes every card in a row equal height (uniform wall) without
+        // clipping or overflowing into the next row. minHeight is just a floor.
         minHeight: compact ? 196 : 244,
         padding: compact ? 12 : 16,
         boxSizing: 'border-box',

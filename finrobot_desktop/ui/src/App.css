@@ -27,6 +27,7 @@
   --text-on-warning: #1a1207; /* dark text on an amber/warning fill */
   --bg-input: rgba(10, 10, 24, 0.7); /* translucent input field surface (over --bg-deep) */
   --scrim: rgba(5, 5, 13, 0.72); /* modal/overlay backdrop scrim */
+  --sheen: rgba(255, 255, 255, 0.28); /* moving highlight sweep on shimmer surfaces */
   --secondary: #8b5cf6;
   --secondary-soft: rgba(139, 92, 246, 0.16);
   --secondary-soft-alt: rgba(139, 92, 246, 0.06); /* gradient endpoint */
@@ -4897,14 +4898,14 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   left: -150%;
   width: 50%;
   height: 100%;
-  background: linear-gradient(110deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  background: linear-gradient(110deg, transparent, var(--sheen), transparent);
   animation: cosmic-shimmer 5s linear infinite;
 }
 
 /* ── Halo input — flowing border (search / cmdK) ─────────────── */
 .halo-input {
   position: relative;
-  background: rgba(10, 10, 24, 0.7);
+  background: var(--bg-input);
   border-radius: var(--radius-md);
   padding: 1px;
 }

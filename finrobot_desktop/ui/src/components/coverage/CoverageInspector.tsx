@@ -223,8 +223,20 @@ export function CoverageInspector({
 function LivePanel({ row }: { row: CoverageRow }): React.ReactElement {
   const { t, locale } = useI18n()
   const ccy = row.currency || 'USD'
+  // Honest market state — never claim "实时" when the figure is a last close or
+  // hours old. A price-level formula_warning means we fell back to the last
+  // close (DEGRADED_CLOSE_ONLY); otherwise the feed is the (15-min-delayed)
+  // quote. The panel title is "市场快照", not "实时", so the age below never
+  // contradicts a live claim.
+  const isClose = !!row.sources?.price?.formula_warning
+  const state = isClose
+    ? { text: t('coverage.inspector.stateClose'), tone: 'var(--accent-amber)' }
+    : { text: t('coverage.inspector.stateDelayed'), tone: 'var(--text-secondary)' }
   return (
     <Panel title={t('coverage.inspector.liveTitle')}>
+      <Kv label={t('coverage.inspector.marketState')} valueColor={state.tone}>
+        {state.text}
+      </Kv>
       <Kv label={t('coverage.col.price')}>{formatCurrency(row.price, ccy, locale)}</Kv>
       <Kv label="1D" valueColor={changeColor(row.change_pct_1d)}>
         {row.change_pct_1d == null

@@ -66,6 +66,11 @@ export function CoverageCardGrid({
         gridTemplateColumns: compact
           ? 'repeat(auto-fill, minmax(210px, 1fr))'
           : 'repeat(auto-fill, minmax(260px, 1fr))',
+        // Each row sizes to its tallest card's FULL content. Without this the
+        // implicit rows defaulted to `auto`, which sized a minHeight:244 flex
+        // card to 244 (not its ~330 content) — the card then overflowed its row
+        // track and overlapped the next row, covering the run/open buttons.
+        gridAutoRows: 'max-content',
         gap: 12,
         alignContent: 'start',
         height: '100%',

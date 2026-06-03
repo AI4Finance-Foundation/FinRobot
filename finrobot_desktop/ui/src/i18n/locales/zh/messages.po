@@ -3595,7 +3595,19 @@ msgstr "点选卡片查看详情"
 
 #. js-lingui-explicit-id
 msgid "coverage.inspector.tab.live"
-msgstr "实时"
+msgstr "市场快照"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.marketState"
+msgstr "行情状态"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.stateClose"
+msgstr "收盘价（非实时）"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.stateDelayed"
+msgstr "延迟行情"
 
 #. js-lingui-explicit-id
 msgid "coverage.inspector.tab.report"
@@ -3611,7 +3623,7 @@ msgstr "数据质量"
 
 #. js-lingui-explicit-id
 msgid "coverage.inspector.liveTitle"
-msgstr "实时行情快照"
+msgstr "市场快照"
 
 #. js-lingui-explicit-id
 msgid "coverage.inspector.reportTitle"

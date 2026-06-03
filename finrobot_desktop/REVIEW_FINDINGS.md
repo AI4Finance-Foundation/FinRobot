@@ -121,7 +121,7 @@
 | BUG-074 | Bug | P2 | DCF 末年 FCF 为负时 Gordon 终值把负现金流资本化成永续负值→产出负的『每股公允价值』,degrade 分支只防 tg≥WACC 接不住,负价无 guard 直接进研报叙事+LLM prompt | 已修 |
 | BUG-075 | Bug | P2 | 13F refresh job 假设 edgartools 小写列名,实装 5.31.5 输出 PascalCase(Cusip/Issuer/Value)→ 每份 filing 被 schema gate 跳过,institutional_holdings 永久空(缓存 0 行),测试 mock 小写列所以 CI 绿 | 已修 |
 | BUG-078 | Bug | P2 | agent 工厂/orchestrator 用无 encoding 的 read_text() 读含中文的 .md 指令文件——非 UTF-8 locale(裸 Docker LANG=C/Windows)下 agent 创建即 UnicodeDecodeError 崩;同仓 skills/loader.py 已带 encoding,这两处漏写 | 待修 |
-| BUG-079 | Bug | P2 | semantic_diff.build_semantic_delta 对 data_fetched_at 裸做 datetime 相减,一新(tz-aware)一旧(naive)时抛 TypeError→版本对比端点 500;全 artifact/audit 面仅此处漏 _ensure_tz(同胞模块都防了) | 待修 |
+| BUG-079 | Bug | P2 | semantic_diff.build_semantic_delta 对 data_fetched_at 裸做 datetime 相减,一新(tz-aware)一旧(naive)时抛 TypeError→版本对比端点 500;全 artifact/audit 面仅此处漏 _ensure_tz(同胞模块都防了) | 已修 |
 | BUG-080 | Bug | P2 | /{ticker}/earnings-calls 构造 EarningsCallTranscript 的循环在 try/except 外,FMP 真实 payload 的 quarter 缺失/为 0(年度会/特别会)触发 ValidationError 逃逸→裸 500,而非 per-item 跳过 | 待修 |
 | BUG-081 | Bug | P2 | /{ticker}/price 的 session_state 对所有标的硬编码美东 9:30-16:00 ET 判定→港股/A股/日股盘中被错标『已收盘』,freshness pill 把实时报价显示成上一交易日收盘(与 BUG-030 同源:平台多处默认美国市场) | 待修 |
 | BUG-082 | Bug | P2 | `finrobot dcf <ticker>` 默认路径死锁:_should_use_ddm 的 asyncio.run 把 DataCache 的 aiosqlite 连接绑到随后销毁的 loop,第二个 asyncio.run 复用同连接→worker 线程绑死锁,进程退出时永久 hang(单 loop 测试测不出) | 待修 |
@@ -1188,7 +1188,7 @@
 - **根因**：唯一漏做 _ensure_tz 的 datetime 减法；要真反序列化两个不同 vintage 的 artifact 才触发。
 - **修复方案**：减法前归一化：`_aware(dt)=dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)`，`gap_days=abs((_aware(b)-_aware(a)).days)`，与同胞 _ensure_tz 纪律一致；补 naive×aware 配对回归测试。
 - **影响面/回归风险**：影响旧/导入的 naive 时间戳 artifact 的版本对比；当前所有 producer tz-aware 故 latent。修复零行为变更。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（artifact/semantic_diff.build_semantic_delta 的 period-gap 块对 data_fetched_at 裸相减→naive×tz-aware 配对抛 TypeError 使 /diff 端点 500。复用 engine/compute/signal._ensure_tz（artifact.* 已依赖该模块，依赖方向干净）对两侧归一再相减。全 tz-aware 生产路径零行为变更。新增 TestMixedTzFetchedAt 两例（naive×aware 双序）断言不抛。mypy/ruff + 199 例通过。）
 
 #### [BUG-080] /{ticker}/earnings-calls 构造循环在 try/except 外 → FMP quarter 缺失/为 0 触发 ValidationError 逃逸成裸 500
 

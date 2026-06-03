@@ -241,6 +241,45 @@ class TestComparabilityGate:
             assert ev_items[0].pct_change is None
 
 
+class TestMixedTzFetchedAt:
+    """Regression: BUG-079 — a JSON-round-tripped artifact may carry a naive
+    ``data_fetched_at`` while its sibling carries a tz-aware one. The period-gap
+    subtraction must normalise both so it never raises
+    ``TypeError: can't subtract offset-naive and offset-aware``."""
+
+    def test_naive_vs_aware_fetched_at_does_not_raise(self) -> None:
+        naive = datetime(2026, 1, 1, 10, 0)  # tz-naive (no offset in JSON)
+        aware = datetime(2026, 1, 1, 10, 0, tzinfo=UTC) + timedelta(days=120)
+        a = _equity_artifact(
+            "art_v1", _inputs(), recommendation="BUY", current_price=170.0, fetched_at=naive
+        )
+        b = _equity_artifact(
+            "art_v2", _inputs(beta=1.3), recommendation="BUY", current_price=170.0, fetched_at=aware
+        )
+        assert a.inputs.data_fetched_at.tzinfo is None
+        assert b.inputs.data_fetched_at.tzinfo is not None
+
+        delta = build_semantic_delta(a, b)  # must not raise TypeError
+
+        # 120-day gap exceeds the period-drift threshold → flagged, sign-agnostic
+        # regardless of which side was naive.
+        assert any(f.kind == "period" for f in delta.comparability)
+
+    def test_aware_vs_naive_order_also_safe(self) -> None:
+        # Same pairing, opposite argument order — gap stays a sane positive day count.
+        aware = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+        naive = datetime(2026, 1, 5, 10, 0)  # 4 days later, naive
+        a = _equity_artifact(
+            "art_v1", _inputs(), recommendation="BUY", current_price=170.0, fetched_at=aware
+        )
+        b = _equity_artifact(
+            "art_v2", _inputs(), recommendation="BUY", current_price=170.0, fetched_at=naive
+        )
+        delta = build_semantic_delta(a, b)  # must not raise TypeError
+        # 4-day gap is below the 80-day drift threshold → no period flag.
+        assert not any(f.kind == "period" for f in delta.comparability)
+
+
 class TestDataFootnote:
     def test_currency_assumed_when_artifact_carries_no_tag(self) -> None:
         a = _equity_artifact("art_v1", _inputs(), recommendation="BUY", current_price=170.0)

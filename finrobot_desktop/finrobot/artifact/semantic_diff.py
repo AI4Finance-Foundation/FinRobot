@@ -28,6 +28,7 @@ from finrobot.artifact.summary_extractor import (
     extract_target_price,
     extract_verdict,
 )
+from finrobot.engine.compute.signal import _ensure_tz
 
 # Period gap (days) beyond which two TTM snapshots likely straddle an earnings
 # season and their absolute fundamentals are no longer like-for-like.
@@ -539,7 +540,12 @@ def build_semantic_delta(a: Artifact, b: Artifact) -> SemanticDelta:
                 ),
             )
         )
-    gap_days = abs((b.inputs.data_fetched_at - a.inputs.data_fetched_at).days)
+    # Normalise both timestamps before subtracting — JSON-round-tripped artifacts
+    # may carry a naive data_fetched_at while a sibling carries a tz-aware one;
+    # a bare subtraction would raise TypeError (offset-naive vs offset-aware).
+    gap_days = abs(
+        (_ensure_tz(b.inputs.data_fetched_at) - _ensure_tz(a.inputs.data_fetched_at)).days
+    )
     if gap_days > _PERIOD_DRIFT_DAYS:
         flags.append(
             ComparabilityFlag(

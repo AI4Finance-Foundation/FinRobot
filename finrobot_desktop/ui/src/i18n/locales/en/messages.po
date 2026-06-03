@@ -2415,6 +2415,58 @@ msgid "workspace.market.range"
 msgstr "Range {pct}%"
 
 #. js-lingui-explicit-id
+msgid "workspace.market.sentiment"
+msgstr "Retail Sentiment"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentDesc"
+msgstr "Retail bull/bear lean and buzz across Reddit / X.com / Polymarket (Adanos aggregate)."
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentUnconfigured"
+msgstr "Adanos not configured"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentUnconfiguredHint"
+msgstr "Add an Adanos API key in Settings to unlock retail sentiment."
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentGoSettings"
+msgstr "Settings →"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentCoverage"
+msgstr "{coverage} platforms covered"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentBullish"
+msgstr "Bullish"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentBearish"
+msgstr "Bearish"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentBuzz"
+msgstr "Avg buzz"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentAlignment.aligned"
+msgstr "Sources aligned"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentAlignment.split"
+msgstr "Sources split"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentAlignment.no_data"
+msgstr "No data"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentNoSources"
+msgstr "No platform returned data."
+
+#. js-lingui-explicit-id
 msgid "workspace.ai.zoneTitle"
 msgstr "🤖 AI Research"
 

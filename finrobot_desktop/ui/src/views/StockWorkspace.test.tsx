@@ -254,6 +254,19 @@ describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
     expect(screen.queryByTestId('anchor-nav')).not.toBeInTheDocument()
   })
 
+  it('Step 1b: retail sentiment card consumes /api/sentiment (BUG-044)', async () => {
+    // The mock for /api/sentiment/NVDA returns available:true, 67/33 bull/bear.
+    // This proves the section is actually wired (previously the endpoint was
+    // mocked but no UI consumed it).
+    renderWorkspace()
+    const card = await screen.findByTestId('sentiment-available')
+    expect(card).toBeInTheDocument()
+    expect(card).toHaveTextContent('67%')
+    expect(card).toHaveTextContent('33%')
+    // Unconfigured CTA must NOT show when the snapshot is available.
+    expect(screen.queryByTestId('sentiment-settings-cta')).not.toBeInTheDocument()
+  })
+
   it('Step 2: 运行完整分析 fires research; no alt-pipeline UI surface exists', async () => {
     renderWorkspace()
     // 1 ticker = 1 run = 1 equity_research artifact carrying the full

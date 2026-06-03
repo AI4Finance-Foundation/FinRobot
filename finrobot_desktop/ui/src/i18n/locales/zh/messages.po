@@ -2415,6 +2415,58 @@ msgid "workspace.market.range"
 msgstr "区间 {pct}%"
 
 #. js-lingui-explicit-id
+msgid "workspace.market.sentiment"
+msgstr "散户情绪"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentDesc"
+msgstr "Reddit / X.com / Polymarket 散户讨论的多空倾向与热度（Adanos 聚合）。"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentUnconfigured"
+msgstr "未配置 Adanos"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentUnconfiguredHint"
+msgstr "在设置中填入 Adanos API key 后即可解锁散户情绪。"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentGoSettings"
+msgstr "去设置 →"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentCoverage"
+msgstr "覆盖 {coverage} 平台"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentBullish"
+msgstr "看多"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentBearish"
+msgstr "看空"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentBuzz"
+msgstr "平均热度"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentAlignment.aligned"
+msgstr "各平台一致"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentAlignment.split"
+msgstr "各平台分歧"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentAlignment.no_data"
+msgstr "无数据"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentNoSources"
+msgstr "暂无平台返回数据。"
+
+#. js-lingui-explicit-id
 msgid "workspace.ai.zoneTitle"
 msgstr "🤖 AI 研报"
 

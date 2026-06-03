@@ -601,3 +601,63 @@ async def test_settings_update_logging_fields(tmp_path: Path, monkeypatch: Any) 
     body = resp.json()
     assert body["log_retention_days"] == 14
     assert body["log_to_file"] is False
+
+
+@pytest.mark.asyncio
+async def test_settings_update_logging_fields_reapplies_logging(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Changing a logging field re-runs setup_logging so the PUT takes effect
+    immediately instead of silently waiting for the next server restart.
+    """
+    settings = FinRobotSettings(
+        model_name="deepseek:deepseek-chat",
+        deepseek_api_key="dev-key",
+    )
+    app = _make_app(tmp_path, settings=settings)
+
+    async def _fake_replace(request: Any, candidate: Any) -> None:
+        request.app.state.deps.settings = candidate
+
+    monkeypatch.setattr(
+        "finrobot.routes.settings._replace_runtime_settings", _fake_replace
+    )
+    calls: list[Any] = []
+
+    def _fake_setup_logging(candidate: Any, *, force: bool = False) -> None:
+        calls.append((candidate.log_level, force))
+
+    monkeypatch.setattr("finrobot.obs.setup_logging", _fake_setup_logging)
+
+    async with _client(app) as c:
+        resp = await c.put("/api/settings", json={"log_level": "DEBUG"})
+    assert resp.status_code == 200, resp.text
+    assert calls == [("DEBUG", True)]
+
+
+@pytest.mark.asyncio
+async def test_settings_update_non_logging_field_skips_reapply(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A PUT that touches no logging field must NOT re-run setup_logging."""
+    settings = FinRobotSettings(
+        model_name="deepseek:deepseek-chat",
+        deepseek_api_key="dev-key",
+    )
+    app = _make_app(tmp_path, settings=settings)
+
+    async def _fake_replace(request: Any, candidate: Any) -> None:
+        request.app.state.deps.settings = candidate
+
+    monkeypatch.setattr(
+        "finrobot.routes.settings._replace_runtime_settings", _fake_replace
+    )
+    calls: list[Any] = []
+    monkeypatch.setattr(
+        "finrobot.obs.setup_logging", lambda *a, **k: calls.append((a, k))
+    )
+
+    async with _client(app) as c:
+        resp = await c.put("/api/settings", json={"sec_holdings_auto_refresh": True})
+    assert resp.status_code == 200, resp.text
+    assert calls == []

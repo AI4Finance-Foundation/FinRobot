@@ -175,6 +175,15 @@ async def put_settings_route(update: SettingsUpdate, request: Request) -> Settin
         non_secret_updates,
     )
     await _replace_runtime_settings(request, candidate)
+    # Logging is configured once at boot from these fields (finrobot.obs.setup
+    # reads log_level / log_to_file / log_retention_days). setup_logging is
+    # idempotent, so a settings change is otherwise inert until the next
+    # restart — re-apply it immediately when any logging field actually moved
+    # so the PUT does what it claims.
+    if non_secret_updates.keys() & {"log_level", "log_to_file", "log_retention_days"}:
+        from finrobot.obs import setup_logging
+
+        setup_logging(candidate, force=True)
     # A successful PUT means whatever validate-time error happened at boot
     # may now be resolved — clear the startup banner so the UI stops nagging.
     if getattr(request.app.state, "startup_error", None):

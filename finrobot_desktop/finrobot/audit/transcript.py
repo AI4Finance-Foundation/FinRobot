@@ -101,9 +101,33 @@ class TranscriptWriter:
     # Public logging API
     # ------------------------------------------------------------------
 
-    async def log_session_start(self, user_id: str, model: str) -> None:
-        """Emit a ``session_start`` event with user and model metadata."""
-        await self._write_event("session_start", {"user_id": user_id, "model": model})
+    async def log_session_start(
+        self,
+        user_id: str,
+        model: str,
+        ticker: str | None = None,
+        locale: str | None = None,
+    ) -> None:
+        """Emit a ``session_start`` event with user and model metadata.
+
+        ``ticker`` and ``locale`` are optional audit hints recorded so the
+        history UI can filter by symbol and so the language policy of a session
+        is reconstructable (BUG-20260602-045/048).
+        """
+        data: dict[str, Any] = {"user_id": user_id, "model": model}
+        if ticker:
+            data["ticker"] = ticker
+        if locale:
+            data["locale"] = locale
+        await self._write_event("session_start", data)
+
+    async def log_context(self, context: dict[str, Any]) -> None:
+        """Emit a ``context`` event recording the ContextBar bundle sent with a
+        turn (current route, artifact id, pinned items, selection, locale).
+
+        Keeps the audit trail honest: the transcript shows exactly what extra
+        context the model was given for a turn (BUG-20260602-038)."""
+        await self._write_event("context", {"context_bundle": context})
 
     async def log_user_message(self, text: str) -> None:
         """Emit a ``user_msg`` event for the latest user turn."""

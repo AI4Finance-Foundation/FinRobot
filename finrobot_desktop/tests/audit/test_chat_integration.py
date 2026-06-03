@@ -238,3 +238,98 @@ def test_transcript_file_without_filename_uses_default() -> None:
         }
     )
     assert result == "[attached: file]"
+
+
+# ---------------------------------------------------------------------------
+# BUG-20260602-038 / 048: /chat records locale + context_bundle in transcript
+# ---------------------------------------------------------------------------
+
+
+def _read_events(sess_dir: Path, session_id: str) -> list[dict[str, object]]:
+    path = sess_dir / f"{session_id}.jsonl"
+    assert path.exists(), f"Transcript file not found at {path}"
+    out: list[dict[str, object]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            out.append(json.loads(line))
+    return out
+
+
+async def test_chat_records_locale_and_ticker_in_session_start(
+    _reset_transcript_dir: Path,
+) -> None:
+    """A body carrying ``locale`` + ``ticker`` stamps both onto session_start."""
+    session_id = "ctx-session-start"
+    await _post_chat(
+        {
+            "id": session_id,
+            "model": "test-model",
+            "ticker": "AAPL",
+            "locale": "zh",
+            "messages": [{"role": "user", "parts": [{"type": "text", "text": "估值?"}]}],
+        }
+    )
+    events = _read_events(_reset_transcript_dir, session_id)
+    start = next(e for e in events if e["event"] == "session_start")
+    assert start["data"]["ticker"] == "AAPL"
+    assert start["data"]["locale"] == "zh"
+
+
+async def test_chat_records_context_bundle_event(_reset_transcript_dir: Path) -> None:
+    """A ``context_bundle`` in the body is written as a ``context`` event."""
+    session_id = "ctx-bundle"
+    bundle = {
+        "route": "/stocks/AAPL/runs/art_1",
+        "ticker": "AAPL",
+        "artifact_id": "art_1",
+        "pinned": [{"kind": "report", "id": "art_9", "label": "NVDA DCF"}],
+        "selected_text": "operating margin expanded 300bps",
+    }
+    await _post_chat(
+        {
+            "id": session_id,
+            "model": "test-model",
+            "context_bundle": bundle,
+            "messages": [{"role": "user", "parts": [{"type": "text", "text": "explain"}]}],
+        }
+    )
+    events = _read_events(_reset_transcript_dir, session_id)
+    ctx = next(e for e in events if e["event"] == "context")
+    recorded = ctx["data"]["context_bundle"]
+    assert recorded["artifact_id"] == "art_1"
+    assert recorded["pinned"][0]["label"] == "NVDA DCF"
+
+
+def test_build_runtime_instructions_locale_and_context() -> None:
+    """Locale + bundle compose into one instruction block; empty inputs → None."""
+    from finrobot.server import _build_runtime_instructions
+
+    assert _build_runtime_instructions(None, None) is None
+
+    out = _build_runtime_instructions(
+        "zh",
+        {
+            "route": "/stocks/AAPL/runs/art_1",
+            "ticker": "aapl",
+            "artifact_id": "art_1",
+            "pinned": [{"kind": "report", "id": "art_9", "label": "NVDA DCF"}],
+            "selected_text": "margin up 300bps",
+        },
+    )
+    assert out is not None
+    # Locale directive present, naming the target language.
+    assert "Chinese" in out
+    # Context surfaced for grounding.
+    assert "art_1" in out
+    assert "AAPL" in out  # ticker upper-cased
+    assert "NVDA DCF" in out
+    assert "margin up 300bps" in out
+
+
+def test_build_runtime_instructions_locale_only() -> None:
+    """Locale without a bundle still yields a language directive."""
+    from finrobot.server import _build_runtime_instructions
+
+    out = _build_runtime_instructions("en", None)
+    assert out is not None
+    assert "English" in out

@@ -27,6 +27,7 @@ from finrobot.artifact.store import ArtifactStore
 from finrobot.paths import SETTINGS_JSON, ensure_home
 from finrobot.audit.transcript import TranscriptWriter
 from finrobot.routes.artifacts import router as artifacts_router
+from finrobot.routes.chat_sessions import router as chat_sessions_router
 from finrobot.routes.compare import router as compare_router
 from finrobot.routes.compute import router as compute_router
 from finrobot.routes.coverage import router as coverage_router
@@ -344,6 +345,7 @@ app.include_router(health_router)
 app.include_router(settings_router)
 app.include_router(runs_router)
 app.include_router(artifacts_router)
+app.include_router(chat_sessions_router)
 app.include_router(coverage_router)
 app.include_router(compare_router)
 app.include_router(dashboard_router)
@@ -403,11 +405,85 @@ def _extract_user_text(message: dict[str, Any]) -> str:
     return "\n".join(text_fragments)
 
 
+_LOCALE_NAMES = {"zh": "Chinese (简体中文)", "en": "English"}
+
+
+def _build_runtime_instructions(
+    locale: str | None, context_bundle: dict[str, Any] | None
+) -> str | None:
+    """Compose per-request instructions from the UI locale + ContextBar bundle.
+
+    Returned as a single string layered on top of the agent's static
+    ``instructions.md`` via ``run_stream_native(instructions=...)``. Both inputs
+    are optional — back-compat clients that send neither get ``None`` and the
+    agent behaves exactly as before (BUG-20260602-038/048).
+    """
+    lines: list[str] = []
+
+    if locale:
+        lang = _LOCALE_NAMES.get(locale, locale)
+        lines.append(
+            f"The user's UI locale is '{locale}'. Respond in {lang}. "
+            "Financial term abbreviations and ticker symbols may stay in English."
+        )
+
+    if context_bundle:
+        ctx_lines = _format_context_bundle(context_bundle)
+        if ctx_lines:
+            lines.append(
+                "Active UI context the user is looking at (use it to ground your "
+                "answer; do not invent details that are not present):\n" + ctx_lines
+            )
+
+    return "\n\n".join(lines) if lines else None
+
+
+def _format_context_bundle(bundle: dict[str, Any]) -> str:
+    """Render the ContextBar bundle into a compact, human-readable block.
+
+    Only well-known keys are surfaced so a malformed/oversized bundle from the
+    client can never blow up the prompt. Unknown keys are ignored.
+    """
+    parts: list[str] = []
+    route = bundle.get("route")
+    if isinstance(route, str) and route:
+        parts.append(f"- Current view: {route}")
+    ticker = bundle.get("ticker")
+    if isinstance(ticker, str) and ticker:
+        parts.append(f"- Focused ticker: {ticker.upper()}")
+    artifact_id = bundle.get("artifact_id")
+    if isinstance(artifact_id, str) and artifact_id:
+        parts.append(
+            f"- Open report/artifact id: {artifact_id} "
+            "(the user is viewing this report; reference it when relevant)"
+        )
+    pinned = bundle.get("pinned")
+    if isinstance(pinned, list) and pinned:
+        labels: list[str] = []
+        for item in pinned[:10]:
+            if isinstance(item, dict):
+                label = item.get("label") or item.get("id")
+                kind = item.get("kind")
+                if label:
+                    labels.append(f"{label} ({kind})" if kind else str(label))
+        if labels:
+            parts.append("- Pinned context: " + "; ".join(labels))
+    selected = bundle.get("selected_text")
+    if isinstance(selected, str) and selected.strip():
+        snippet = selected.strip()[:1000]
+        parts.append(f"- User-selected text:\n  > {snippet}")
+    return "\n".join(parts)
+
+
 _TRANSCRIPT_WRITERS_MAX = 256
 
 
 async def _get_or_create_writer(
-    app_state: Any, session_id: str, model_hint: str
+    app_state: Any,
+    session_id: str,
+    model_hint: str,
+    ticker: str | None = None,
+    locale: str | None = None,
 ) -> TranscriptWriter:
     """Return an existing TranscriptWriter or create a new one with session_start.
 
@@ -429,7 +505,9 @@ async def _get_or_create_writer(
 
     writer = TranscriptWriter(session_id)
     try:
-        await writer.log_session_start(user_id="local", model=model_hint)
+        await writer.log_session_start(
+            user_id="local", model=model_hint, ticker=ticker, locale=locale
+        )
     except OSError:
         logger.exception("TranscriptWriter: failed to write session_start for %s", session_id)
 
@@ -523,9 +601,23 @@ async def _chat_impl(
     body_json: dict[str, Any],
     session_id: str,
     model_hint: str,
+    ticker: str | None = None,
+    locale: str | None = None,
+    context_bundle: dict[str, Any] | None = None,
 ) -> Response:
     # Log the user's latest message before streaming begins.
-    writer = await _get_or_create_writer(request.app.state, session_id, model_hint)
+    writer = await _get_or_create_writer(
+        request.app.state, session_id, model_hint, ticker=ticker, locale=locale
+    )
+
+    # Record the ContextBar bundle for this turn so the audit trail shows the
+    # exact extra context the model received (BUG-20260602-038).
+    if context_bundle:
+        try:
+            await writer.log_context(context_bundle)
+        except OSError:
+            logger.exception("TranscriptWriter: failed to log context for session %s", session_id)
+
     messages: list[Any] = body_json.get("messages", [])
     if messages:
         last_msg = messages[-1]
@@ -555,7 +647,13 @@ async def _chat_impl(
             status_code=422,
         )
 
-    native_stream = adapter.run_stream_native(deps=request.app.state.deps)
+    # Per-request instructions layered on top of instructions.md: UI locale +
+    # ContextBar bundle. None when the client sends neither (back-compat).
+    runtime_instructions = _build_runtime_instructions(locale, context_bundle)
+    native_stream = adapter.run_stream_native(
+        deps=request.app.state.deps,
+        instructions=runtime_instructions,
+    )
     instrumented_stream = _intercept_native_events(native_stream, writer)
     event_stream = adapter.transform_stream(instrumented_stream)
     return adapter.streaming_response(event_stream)
@@ -593,8 +691,29 @@ async def chat(request: Request) -> Response:
 
     session_id: str = body_json.get("id") or body_json.get("session_id") or "default"
     model_hint: str = str(body_json.get("model") or "unknown")
+
+    # Optional context fields — older clients omit these and the chat behaves
+    # exactly as before (BUG-20260602-038/048).
+    raw_ticker = body_json.get("ticker")
+    ticker: str | None = str(raw_ticker) if raw_ticker else None
+    raw_locale = body_json.get("locale")
+    locale: str | None = str(raw_locale) if raw_locale else None
+    raw_bundle = body_json.get("context_bundle")
+    context_bundle: dict[str, Any] | None = raw_bundle if isinstance(raw_bundle, dict) else None
+    # The context bundle is the authoritative ticker if present.
+    if context_bundle and isinstance(context_bundle.get("ticker"), str):
+        ticker = context_bundle["ticker"] or ticker
+
     with bind_session(session_id):
-        return await _chat_impl(request, body_json, session_id, model_hint)
+        return await _chat_impl(
+            request,
+            body_json,
+            session_id,
+            model_hint,
+            ticker=ticker,
+            locale=locale,
+            context_bundle=context_bundle,
+        )
 
 
 @app.get("/health")

@@ -18,8 +18,10 @@ import { useUiStore } from '../../stores/uiStore'
 import { ToolCard } from '../../components/ToolCard'
 import type { ToolResult } from '../../components/ToolCard'
 import { MarkdownLite } from '../../components/MarkdownLite'
-import { useI18n } from '../../i18n'
+import { useI18n, useUiPrefs } from '../../i18n'
 import { BASE_URL, api } from '../../api/client'
+import { fetchWithTimeout } from '../../api/fetch'
+import { IconClock } from '../../lib/icons'
 import { ContextBar } from '../AIPanel/ContextBar'
 
 // ──────────────────────────────────────────────────────────────
@@ -38,6 +40,20 @@ const MAX_INPUT_LENGTH = 20_000
 // generic ones.
 // Chips carry i18n keys; the literal prompt text is resolved per-locale in
 // the component (routeChips useMemo) so switching language re-renders them.
+//
+// HONESTY RULE (BUG-20260602-046): a chip may only suggest a workflow the lead
+// agent can actually perform. Chips are *prompt shortcuts*, not typed actions —
+// clicking one only fills the input box. So we keep chips whose intent the
+// agent can satisfy with its registered tools (run_dcf_valuation /
+// run_comps_analysis / run_equity_research → dcf / peers / catalysts) or with a
+// plain answer (apiStatus, general landing questions). We REMOVED chips that
+// implied a dedicated tool the agent does NOT have:
+//   - report "diff"          (no artifact-diff tool registered on /chat)
+//   - ticker "Monte Carlo"   (no monte-carlo tool on /chat)
+//   - ticker "10-K Q&A"      (RAG Q&A exists in qa.py but is NOT a /chat tool)
+//   - settings "coverage"    (no coverage-introspection tool)
+// so the UI never promises a workflow that silently degrades to "let the model
+// guess".
 const ROUTE_CHIP_PATTERNS: Array<{ test: (path: string) => boolean; chipKeys: string[] }> = [
   // /stocks/:ticker/runs/:artifactId — 13-chapter report detail
   {
@@ -46,18 +62,12 @@ const ROUTE_CHIP_PATTERNS: Array<{ test: (path: string) => boolean; chipKeys: st
       'chatpanel.chip.report.dcf',
       'chatpanel.chip.report.peers',
       'chatpanel.chip.report.catalysts',
-      'chatpanel.chip.report.diff',
     ],
   },
   // /stocks/:ticker — ticker workspace
   {
     test: (p) => /^\/stocks\/[^/]+$/.test(p),
-    chipKeys: [
-      'chatpanel.chip.ticker.dcf',
-      'chatpanel.chip.ticker.peers',
-      'chatpanel.chip.ticker.montecarlo',
-      'chatpanel.chip.ticker.tenk',
-    ],
+    chipKeys: ['chatpanel.chip.ticker.dcf', 'chatpanel.chip.ticker.peers'],
   },
   // /stocks landing
   {
@@ -71,9 +81,30 @@ const ROUTE_CHIP_PATTERNS: Array<{ test: (path: string) => boolean; chipKeys: st
   // /settings
   {
     test: (p) => p.startsWith('/settings'),
-    chipKeys: ['chatpanel.chip.settings.apiStatus', 'chatpanel.chip.settings.coverage'],
+    chipKeys: ['chatpanel.chip.settings.apiStatus'],
   },
 ]
+
+// ──────────────────────────────────────────────────────────────
+// Context bundle — the structured context the ContextBar shows is sent to
+// /chat on every turn so the model actually has the report/selection the user
+// thinks it does (BUG-20260602-038). Derived live (not memoised) inside the
+// transport `body` thunk so each send captures the current route + store.
+// ──────────────────────────────────────────────────────────────
+
+interface ChatContextBundle {
+  route: string
+  ticker: string | null
+  artifact_id: string | null
+  pinned: Array<{ kind: string; id: string; label: string }>
+  selected_text?: string
+}
+
+/** Pull the artifactId out of a /stocks/:ticker/runs/:artifactId path. */
+function artifactIdFromPath(pathname: string): string | null {
+  const m = /^\/stocks\/[^/]+\/runs\/([^/?#]+)/.exec(pathname)
+  return m ? m[1] : null
+}
 
 // ──────────────────────────────────────────────────────────────
 // Model badge — the chat runs on the SINGLE model configured in Settings
@@ -148,6 +179,10 @@ export function AiChatTab({
   const [sessionId, setSessionId] = useState<string>(() => getOrCreateSession(sessionKey))
   const [inputText, setInputText] = useState('')
 
+  // History drawer (BUG-20260602-045): past sessions are written to disk but
+  // had no UI to reopen them. This drawer lists them via /api/chat/sessions.
+  const [historyOpen, setHistoryOpen] = useState(false)
+
   // Track unread for collapsed state
   const [unreadCount, setUnreadCount] = useState(0)
   const lastSeenMessageCountRef = useRef(0)
@@ -170,11 +205,40 @@ export function AiChatTab({
   // required in Tauri prod builds (asset loads from `file://` so a
   // relative `/chat` resolves to a non-existent file scheme path and the
   // entire AI panel falls silent). Dev keeps `''` so Vite proxies it.
+  //
+  // `body` is a THUNK (resolved per-send by the AI SDK) so every turn carries
+  // the LIVE UI locale (BUG-20260602-048) and the LIVE ContextBar bundle —
+  // current route, open report artifact id, focused ticker, pinned items,
+  // selected text (BUG-20260602-038). A static object would freeze these at
+  // transport-construction time and the model would never see route/selection
+  // changes within a session.
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: `${BASE_URL}/chat`,
-        body: { ticker: ticker ?? null, model: configuredModel ?? 'unknown' },
+        body: () => {
+          const { pathname } = window.location
+          const store = useUiStore.getState()
+          const pinned = store.contextBundle.pinned.map((p) => ({
+            kind: p.kind,
+            id: p.id,
+            label: p.label,
+          }))
+          const selected = store.contextBundle.selected_text?.trim() || undefined
+          const context_bundle: ChatContextBundle = {
+            route: pathname,
+            ticker: ticker ?? null,
+            artifact_id: artifactIdFromPath(pathname),
+            pinned,
+            ...(selected ? { selected_text: selected } : {}),
+          }
+          return {
+            ticker: ticker ?? null,
+            model: configuredModel ?? 'unknown',
+            locale: useUiPrefs.getState().locale,
+            context_bundle,
+          }
+        },
       }),
     [ticker, configuredModel],
   )
@@ -376,8 +440,11 @@ export function AiChatTab({
         modelLabel={modelLabel(configuredModel)}
         onToggle={handleToggle}
         onNewSession={startNewSession}
+        onOpenHistory={() => setHistoryOpen(true)}
         ticker={ticker}
       />
+
+      {historyOpen && <HistoryDrawer ticker={ticker} onClose={() => setHistoryOpen(false)} />}
 
       <ContextBar />
 
@@ -402,6 +469,256 @@ export function AiChatTab({
       />
     </div>
   )
+}
+
+// ──────────────────────────────────────────────────────────────
+// HistoryDrawer — past chat sessions (BUG-20260602-045)
+//
+// Chat transcripts are side-logged to disk by /chat but had no read path. This
+// drawer lists them via GET /api/chat/sessions (filtered to the current ticker
+// when one is focused) and renders a selected session's transcript read-only
+// via GET /api/chat/sessions/{id}. Modest by design: list + view, no editing.
+// ──────────────────────────────────────────────────────────────
+
+interface SessionSummary {
+  session_id: string
+  title: string
+  created_at: string
+  last_active_at: string
+  turn_count: number
+  model: string
+  user_id: string
+  ticker: string | null
+}
+
+interface TranscriptEvent {
+  timestamp: string
+  session_id: string
+  event: string
+  data: Record<string, unknown>
+}
+
+async function fetchSessions(ticker: string | undefined): Promise<SessionSummary[]> {
+  const qs = ticker ? `?ticker=${encodeURIComponent(ticker)}` : ''
+  const res = await fetchWithTimeout(`${BASE_URL}/api/chat/sessions${qs}`)
+  if (!res.ok) throw new Error(`sessions ${res.status}`)
+  const body = (await res.json()) as { sessions: SessionSummary[] }
+  return body.sessions
+}
+
+async function fetchTranscript(sessionId: string): Promise<TranscriptEvent[]> {
+  const res = await fetchWithTimeout(
+    `${BASE_URL}/api/chat/sessions/${encodeURIComponent(sessionId)}`,
+  )
+  if (!res.ok) throw new Error(`transcript ${res.status}`)
+  const body = (await res.json()) as { events: TranscriptEvent[] }
+  return body.events
+}
+
+function HistoryDrawer({
+  ticker,
+  onClose,
+}: {
+  ticker: string | undefined
+  onClose: () => void
+}): React.ReactElement {
+  const { locale } = useI18n()
+  const zh = locale === 'zh'
+  const [selected, setSelected] = useState<string | null>(null)
+
+  const {
+    data: sessions,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ['chat-sessions', ticker ?? null],
+    queryFn: () => fetchSessions(ticker),
+    staleTime: 0,
+  })
+
+  const { data: transcript } = useQuery({
+    queryKey: ['chat-transcript', selected],
+    queryFn: () => fetchTranscript(selected as string),
+    enabled: selected != null,
+  })
+
+  const emptyStyle: React.CSSProperties = {
+    padding: '16px 12px',
+    fontSize: '11px',
+    color: 'var(--text-3)',
+    textAlign: 'center',
+  }
+
+  return (
+    <div
+      data-testid="history-drawer"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        maxHeight: '50%',
+        minHeight: 0,
+        borderBottom: '1px solid var(--line-bright)',
+        background: 'var(--bg-2)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '6px 10px',
+          borderBottom: '1px solid var(--line)',
+        }}
+      >
+        <span
+          style={{
+            flex: 1,
+            fontSize: '11px',
+            fontWeight: 600,
+            color: 'var(--text-2)',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {selected ? (zh ? '查看会话' : 'Viewing session') : zh ? '历史会话' : 'Chat history'}
+        </span>
+        {selected && (
+          <button
+            className="ai-icon-btn"
+            onClick={() => setSelected(null)}
+            type="button"
+            title={zh ? '返回列表' : 'Back to list'}
+          >
+            ←
+          </button>
+        )}
+        <button
+          data-testid="history-close-btn"
+          className="ai-icon-btn"
+          onClick={onClose}
+          type="button"
+          title={zh ? '关闭' : 'Close'}
+        >
+          ×
+        </button>
+      </div>
+
+      <div style={{ overflowY: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {selected ? (
+          <HistoryTranscript events={transcript ?? []} locale={locale} />
+        ) : isLoading ? (
+          <div style={emptyStyle}>{zh ? '加载中…' : 'Loading…'}</div>
+        ) : isError ? (
+          <div style={emptyStyle}>{zh ? '无法加载历史会话。' : 'Could not load chat history.'}</div>
+        ) : !sessions || sessions.length === 0 ? (
+          <div data-testid="history-empty" style={emptyStyle}>
+            {zh
+              ? '还没有历史会话。在右侧开始对话后会出现在这里。'
+              : 'No past sessions yet. Conversations you have here will show up in this list.'}
+          </div>
+        ) : (
+          <ul style={{ listStyle: 'none', margin: 0, padding: '4px' }}>
+            {sessions.map((s) => (
+              <li key={s.session_id}>
+                <button
+                  onClick={() => setSelected(s.session_id)}
+                  type="button"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px',
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '7px 8px',
+                    background: 'transparent',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    color: 'var(--text-1)',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      color: 'var(--text-1)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {s.title}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      color: 'var(--text-3)',
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                  >
+                    {s.ticker ? `${s.ticker} · ` : ''}
+                    {zh
+                      ? `${s.turn_count} 轮对话`
+                      : `${s.turn_count} ${s.turn_count === 1 ? 'turn' : 'turns'}`}
+                    {' · '}
+                    {formatHistoryDate(s.last_active_at, locale)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function HistoryTranscript({
+  events,
+  locale,
+}: {
+  events: TranscriptEvent[]
+  locale: string
+}): React.ReactElement {
+  const turns = events.filter((e) => e.event === 'user_msg' || e.event === 'assistant_text')
+  if (turns.length === 0) {
+    return (
+      <div
+        style={{
+          padding: '16px 12px',
+          fontSize: '11px',
+          color: 'var(--text-3)',
+          textAlign: 'center',
+        }}
+      >
+        {locale === 'zh' ? '该会话没有可显示的消息。' : 'No messages in this session.'}
+      </div>
+    )
+  }
+  return (
+    <div className="ai-messages" style={{ flex: 1 }}>
+      {turns.map((e, i) => {
+        const isUser = e.event === 'user_msg'
+        const text = typeof e.data.text === 'string' ? e.data.text : ''
+        return (
+          <div key={i} className={`msg ${isUser ? 'user' : 'agent'}`}>
+            <div className="msg-head">{isUser ? 'USER' : '● FINROBOT'}</div>
+            <div className="msg-body">{isUser ? text : <MarkdownLite text={text} />}</div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function formatHistoryDate(iso: string, locale: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -439,6 +756,7 @@ interface AiPanelHeaderProps {
   modelLabel: string
   onToggle: () => void
   onNewSession: () => void
+  onOpenHistory: () => void
   ticker: string | undefined
 }
 
@@ -446,9 +764,10 @@ function AiPanelHeader({
   modelLabel,
   onToggle,
   onNewSession,
+  onOpenHistory,
   ticker,
 }: AiPanelHeaderProps): React.ReactElement {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
 
   return (
     <div className="ai-header" data-testid="panel-header">
@@ -476,6 +795,17 @@ function AiPanelHeader({
       >
         {modelLabel}
       </span>
+
+      {/* History — past sessions */}
+      <button
+        data-testid="history-btn"
+        onClick={onOpenHistory}
+        title={locale === 'zh' ? '历史会话' : 'Chat history'}
+        className="ai-icon-btn"
+        type="button"
+      >
+        <IconClock size={13} />
+      </button>
 
       {/* New session */}
       <button

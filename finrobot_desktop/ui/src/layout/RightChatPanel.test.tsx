@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, act, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { UIMessage } from 'ai'
@@ -68,6 +68,14 @@ vi.mock('@ai-sdk/react', () => ({
 // isToolUIPart in the real library returns true for BOTH:
 //   - ToolUIPart (type = `tool-<name>`)
 //   - DynamicToolUIPart (type = `dynamic-tool`)
+// Capture the options the component passes to DefaultChatTransport so tests
+// can assert the resolved request body (locale + context_bundle — BUG 038/048).
+interface CapturedTransport {
+  api?: string
+  body?: unknown
+}
+const lastTransportOptions: { current: CapturedTransport | null } = { current: null }
+
 vi.mock('ai', () => {
   const isTextUIPart = (p: { type: string }): boolean => p.type === 'text'
   const isToolUIPart = (p: { type: string }): boolean =>
@@ -75,7 +83,9 @@ vi.mock('ai', () => {
   const isReasoningUIPart = (p: { type: string }): boolean => p.type === 'reasoning'
   return {
     DefaultChatTransport: class {
-      // minimal stub
+      constructor(opts: CapturedTransport) {
+        lastTransportOptions.current = opts
+      }
     },
     isTextUIPart,
     isToolUIPart,
@@ -756,8 +766,11 @@ describe('RightChatPanel — new session', () => {
 describe('RightChatPanel — panel header', () => {
   it('shows ticker in header when ticker is in URL', () => {
     renderPanel({ ticker: 'AAPL' })
-    expect(screen.getByTestId('panel-header')).toBeInTheDocument()
-    expect(screen.getByText('AAPL')).toBeInTheDocument()
+    const header = screen.getByTestId('panel-header')
+    expect(header).toBeInTheDocument()
+    // Scope to the header: the route-derived ContextBar chip also renders
+    // "AAPL", so a global getByText would match multiple nodes.
+    expect(within(header).getByText('AAPL')).toBeInTheDocument()
   })
 
   it('shows "探索" when no ticker', () => {
@@ -769,6 +782,79 @@ describe('RightChatPanel — panel header', () => {
 // ──────────────────────────────────────────────────────────────
 // Tests: icon column long-press menu
 // ──────────────────────────────────────────────────────────────
+
+// ──────────────────────────────────────────────────────────────
+// Tests: chat transport body carries locale + context_bundle
+// (BUG-20260602-038 / 048)
+// ──────────────────────────────────────────────────────────────
+
+import { useUiStore } from '../stores/uiStore'
+import { useUiPrefs } from '../i18n'
+
+describe('RightChatPanel — transport body context (038/048)', () => {
+  it('body thunk includes locale and a structured context_bundle', () => {
+    useUiPrefs.setState({ locale: 'zh' })
+    renderPanel({ ticker: 'AAPL' })
+
+    const opts = lastTransportOptions.current
+    expect(opts).not.toBeNull()
+    // The component passes a thunk (resolved per-send), not a static object.
+    expect(typeof opts?.body).toBe('function')
+    const body = (opts?.body as () => Record<string, unknown>)()
+
+    expect(body.locale).toBe('zh')
+    expect(body.ticker).toBe('AAPL')
+    expect(body.context_bundle).toBeTruthy()
+    const bundle = body.context_bundle as Record<string, unknown>
+    expect(bundle.ticker).toBe('AAPL')
+    expect(Array.isArray(bundle.pinned)).toBe(true)
+    expect(typeof bundle.route).toBe('string')
+  })
+
+  it('context_bundle carries pinned items from the uiStore', () => {
+    useUiPrefs.setState({ locale: 'en' })
+    useUiStore.getState().addPinned({ kind: 'report', id: 'art_42', label: 'NVDA DCF' })
+    renderPanel({ ticker: 'NVDA' })
+
+    const body = (lastTransportOptions.current?.body as () => Record<string, unknown>)()
+    const bundle = body.context_bundle as { pinned: Array<{ id: string; label: string }> }
+    expect(bundle.pinned.some((p) => p.id === 'art_42' && p.label === 'NVDA DCF')).toBe(true)
+
+    // cleanup so other tests start from a clean pinned list
+    useUiStore.getState().removePinned('art_42')
+  })
+})
+
+// ──────────────────────────────────────────────────────────────
+// Tests: suggestion chips are honest — no chip implies a tool the lead
+// agent does not have (BUG-20260602-046)
+// ──────────────────────────────────────────────────────────────
+
+describe('RightChatPanel — honest suggestion chips (046)', () => {
+  it('ticker workspace drops Monte Carlo / 10-K Q&A chips (no backing tool)', () => {
+    renderPanel({ ticker: 'AAPL' })
+    const chips = screen.getByTestId('suggestion-chips')
+    // Kept: dcf / peers (run_* tools exist)
+    expect(within(chips).getByText('Explain DCF assumptions')).toBeInTheDocument()
+    // Removed: no monte-carlo / 10-K-QA tool registered on /chat
+    expect(within(chips).queryByText('Monte Carlo simulation')).not.toBeInTheDocument()
+    expect(within(chips).queryByText('10-K Q&A')).not.toBeInTheDocument()
+  })
+})
+
+// ──────────────────────────────────────────────────────────────
+// Tests: history entry point (BUG-20260602-045)
+// ──────────────────────────────────────────────────────────────
+
+describe('RightChatPanel — history entry point (045)', () => {
+  it('renders a history button that opens the history drawer', () => {
+    renderPanel()
+    const btn = screen.getByTestId('history-btn')
+    expect(btn).toBeInTheDocument()
+    fireEvent.click(btn)
+    expect(screen.getByTestId('history-drawer')).toBeInTheDocument()
+  })
+})
 
 describe('RightChatPanel — icon column menu', () => {
   it('shows context menu after long press', async () => {

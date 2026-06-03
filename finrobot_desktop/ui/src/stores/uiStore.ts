@@ -297,10 +297,3 @@ export const useUiStore = create<UiStoreState>()(
     },
   ),
 )
-
-// ─── Selectors ────────────────────────────────────────────────────
-
-export const selectActiveTab = (s: UiStoreState): Tab | null => {
-  if (!s.activeTabId) return null
-  return s.openTabs.find((t) => t.id === s.activeTabId) ?? null
-}

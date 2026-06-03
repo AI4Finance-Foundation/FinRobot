@@ -5,10 +5,49 @@
 // "+ 添加" 按钮：展开固定列表 popover，选中后 addPinned
 
 import { useState, useRef, useEffect } from 'react'
-import { useUiStore, selectActiveTab } from '../../stores/uiStore'
+import { useLocation, useParams } from 'react-router-dom'
+import { useUiStore } from '../../stores/uiStore'
 import type { ContextItem } from '../../stores/uiStore'
 import { useI18n } from '../../i18n'
 import { IconDashboard, IconPipeline, IconFileText, IconStar } from '../../lib/icons'
+
+// ── Route-derived active context ─────────────────────────────────
+//
+// The old "active Tab" chip read uiStore.activeTabId, but AppShell removed the
+// tab system so it was frozen on the dashboard tab — a fake chip that lied
+// about what the user was looking at (BUG-20260602-038). We now derive the
+// auto-mounted chip from the URL so it matches EXACTLY what AiChatTab sends to
+// /chat as context_bundle (route / ticker / artifact_id). When the route
+// carries no analyst context (landing/settings), there is no fake chip at all.
+
+interface ActiveContext {
+  label: string
+  icon: React.ReactNode
+}
+
+function deriveActiveContext(
+  pathname: string,
+  ticker: string | undefined,
+  zh: boolean,
+): ActiveContext | null {
+  // /stocks/:ticker/runs/:artifactId — a report is open
+  if (/^\/stocks\/[^/]+\/runs\//.test(pathname) && ticker) {
+    return {
+      label: zh ? `${ticker.toUpperCase()} 研报` : `${ticker.toUpperCase()} report`,
+      icon: <IconFileText size={10} />,
+    }
+  }
+  // /stocks/:ticker — a ticker workspace
+  if (/^\/stocks\/[^/]+$/.test(pathname) && ticker) {
+    return { label: ticker.toUpperCase(), icon: <IconStar size={10} /> }
+  }
+  // /coverage* — coverage desk
+  if (pathname.startsWith('/coverage')) {
+    return { label: zh ? '研究覆盖' : 'Coverage', icon: <IconDashboard size={10} /> }
+  }
+  // landing / settings / etc. — no analyst context to pin honestly
+  return null
+}
 
 // ── 图标映射 ─────────────────────────────────────────────────────
 
@@ -138,8 +177,9 @@ function CtxPopover({ openTabs, onSelect, onClose }: PopoverProps): React.ReactE
 // ── ContextBar ────────────────────────────────────────────────────
 
 export function ContextBar(): React.ReactElement {
-  const { t } = useI18n()
-  const activeTab = useUiStore(selectActiveTab)
+  const { t, locale } = useI18n()
+  const { ticker } = useParams<{ ticker?: string }>()
+  const { pathname } = useLocation()
   const workspacePath = useUiStore((s) => s.workspacePath)
   const pinned = useUiStore((s) => s.contextBundle.pinned)
   const openTabs = useUiStore((s) => s.openTabs)
@@ -147,6 +187,9 @@ export function ContextBar(): React.ReactElement {
   const removePinned = useUiStore((s) => s.removePinned)
 
   const [popoverOpen, setPopoverOpen] = useState(false)
+
+  // Route-derived active context — matches what AiChatTab sends to /chat.
+  const activeContext = deriveActiveContext(pathname, ticker, locale === 'zh')
 
   // workspace_path 截短做 chip 标签：去掉 home 前缀只显示 16 字符，避免
   // 整条路径撑爆 ContextBar。
@@ -156,8 +199,8 @@ export function ContextBar(): React.ReactElement {
     <div className="ai-context">
       <span className="ctx-label">{t('chatpanel.context.label')}</span>
 
-      {/* 自动挂载：当前激活 Tab */}
-      {activeTab && <FixedChip label={activeTab.title} icon={<IconFileText size={10} />} />}
+      {/* 自动挂载：当前路由派生的上下文（report / ticker / coverage） */}
+      {activeContext && <FixedChip label={activeContext.label} icon={activeContext.icon} />}
 
       {/* 自动挂载：workspace_path */}
       <FixedChip label={wsLabel || 'workspace'} icon={<IconDashboard size={10} />} />

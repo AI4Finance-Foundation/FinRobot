@@ -39,6 +39,7 @@ class SessionSummary:
     turn_count: int
     model: str
     user_id: str
+    ticker: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -49,6 +50,7 @@ class SessionSummary:
             "turn_count": self.turn_count,
             "model": self.model,
             "user_id": self.user_id,
+            "ticker": self.ticker,
         }
 
 
@@ -58,12 +60,15 @@ def _session_path(session_id: str, base_dir: Path | None = None) -> Path:
 
 def list_sessions(
     user_id: str | None = None,
+    ticker: str | None = None,
     base_dir: Path | None = None,
 ) -> list[SessionSummary]:
     """Scan disk and return session summaries sorted newest-first.
 
     Args:
         user_id: If given, only return sessions that match this user_id.
+        ticker: If given, only return sessions tagged with this ticker
+            (case-insensitive).
         base_dir: Override the default session directory.
 
     Returns:
@@ -72,6 +77,7 @@ def list_sessions(
     base = base_dir or _default_dir()
     if not base.exists():
         return []
+    ticker_norm = ticker.upper() if ticker else None
     summaries: list[SessionSummary] = []
     for path in sorted(base.glob("*.jsonl")):
         try:
@@ -82,6 +88,8 @@ def list_sessions(
         if summary is None:
             continue
         if user_id is not None and summary.user_id != user_id:
+            continue
+        if ticker_norm is not None and (summary.ticker or "").upper() != ticker_norm:
             continue
         summaries.append(summary)
     summaries.sort(key=lambda s: s.last_active_at, reverse=True)
@@ -101,6 +109,7 @@ def _summarize_session_file(path: Path) -> SessionSummary | None:
     turn_count = 0
     model = "unknown"
     user_id = "local"
+    ticker: str | None = None
 
     with open(path, encoding="utf-8") as fh:
         for raw_line in fh:
@@ -120,6 +129,18 @@ def _summarize_session_file(path: Path) -> SessionSummary | None:
                 created_at = ts
                 model = str(data.get("model", model))
                 user_id = str(data.get("user_id", user_id))
+                start_ticker = data.get("ticker")
+                if start_ticker:
+                    ticker = str(start_ticker)
+            elif event_type == "context":
+                # ContextBar bundle: pick up the ticker if session_start didn't
+                # carry one (e.g. ticker selected mid-session).
+                if ticker is None:
+                    bundle = data.get("context_bundle")
+                    if isinstance(bundle, dict):
+                        bundle_ticker = bundle.get("ticker")
+                        if bundle_ticker:
+                            ticker = str(bundle_ticker)
             elif event_type == "user_msg":
                 turn_count += 1
                 if not title:
@@ -135,6 +156,7 @@ def _summarize_session_file(path: Path) -> SessionSummary | None:
         turn_count=turn_count,
         model=model,
         user_id=user_id,
+        ticker=ticker,
     )
 
 

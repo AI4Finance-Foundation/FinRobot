@@ -116,9 +116,9 @@
 | BUG-056 | Bug | P2 | 研报版本切换器/时间线/Diff 候选只取 timeline 默认 50 条，与 Inspector History(200) 不一致——重度跟踪的 ticker 老版本在报告页内不可达 | 待修 |
 | BUG-057 | Bug | P2 | Compare 表把不同时间跑出的 DCF 混在同一张表,且不显任何 vintage/as_of——用户无法判断哪行是今天的、哪行是三周前的 | 待修 |
 | BUG-068 | Bug | P2 | 回测对 A股标的零适配(T+1/涨跌停/印花税/停牌全缺)却照常产出净值曲线——A股结果根本不可信,应在入口直接 raise 拒跑而非 warn | 待修 |
-| BUG-070 | Bug | P2 | artifact 盖 git_commit 戳的 subprocess except 抓错异常类型(只抓 ImportError/Attr/Type/Value)——git 缺失(FileNotFoundError)/超时(TimeoutExpired)未捕获,无 git 环境(pip 安装用户/Docker slim/CI)研报落地最后一步直接崩 | 待修 |
+| BUG-070 | Bug | P2 | artifact 盖 git_commit 戳的 subprocess except 抓错异常类型(只抓 ImportError/Attr/Type/Value)——git 缺失(FileNotFoundError)/超时(TimeoutExpired)未捕获,无 git 环境(pip 安装用户/Docker slim/CI)研报落地最后一步直接崩 | 已修 |
 | BUG-071 | Bug | P2 | FMP _fetch_price 的 price_history 用未复权原始 close(没走 _adjust_fmp_bar),而 _fetch_price_range/yfinance 都已复权——FMP 当 PRICE 主源时 52周高低/SMA 落在名义价上,近一年有拆股的标的 52周高直接 ×拆股比 | 待修 |
-| BUG-074 | Bug | P2 | DCF 末年 FCF 为负时 Gordon 终值把负现金流资本化成永续负值→产出负的『每股公允价值』,degrade 分支只防 tg≥WACC 接不住,负价无 guard 直接进研报叙事+LLM prompt | 待修 |
+| BUG-074 | Bug | P2 | DCF 末年 FCF 为负时 Gordon 终值把负现金流资本化成永续负值→产出负的『每股公允价值』,degrade 分支只防 tg≥WACC 接不住,负价无 guard 直接进研报叙事+LLM prompt | 已修 |
 | BUG-075 | Bug | P2 | 13F refresh job 假设 edgartools 小写列名,实装 5.31.5 输出 PascalCase(Cusip/Issuer/Value)→ 每份 filing 被 schema gate 跳过,institutional_holdings 永久空(缓存 0 行),测试 mock 小写列所以 CI 绿 | 已修 |
 | BUG-078 | Bug | P2 | agent 工厂/orchestrator 用无 encoding 的 read_text() 读含中文的 .md 指令文件——非 UTF-8 locale(裸 Docker LANG=C/Windows)下 agent 创建即 UnicodeDecodeError 崩;同仓 skills/loader.py 已带 encoding,这两处漏写 | 待修 |
 | BUG-079 | Bug | P2 | semantic_diff.build_semantic_delta 对 data_fetched_at 裸做 datetime 相减,一新(tz-aware)一旧(naive)时抛 TypeError→版本对比端点 500;全 artifact/audit 面仅此处漏 _ensure_tz(同胞模块都防了) | 待修 |
@@ -1078,7 +1078,7 @@
 - **根因**：第一出错位置=builders.py:64 的 except 元组。写代码时凭直觉填了 import/attr/type/value(import 一个模块时的常见错),但本函数根本没 import 动作,真正的失败源是外部进程缺失/超时。属"防御性 except 抓了一组与实际失败模式无关的异常"。
 - **修复方案**：把 except 改成实际会抛的:`except (FileNotFoundError, subprocess.SubprocessError, OSError):`(SubprocessError 覆盖 TimeoutExpired/CalledProcessError,FileNotFoundError/OSError 覆盖缺二进制与权限)→ 返回 None,让 git_commit 优雅缺省(字段本就是 `str | None`)。注意 ImportError 在这里根本到不了(无 import),可删;若想极稳可叠 `except Exception` 兜底但要 log.warning 不静默。补测试:tests 里 monkeypatch `subprocess.run` 抛 FileNotFoundError 与 TimeoutExpired,断言 `_get_git_commit()` 返回 None 且 `_make_base_compute_version(...)` 不抛、git_commit=None。
 - **影响面/回归风险**：影响所有**无 git 或 git 慢**的运行环境——`pip install finrobot` 的终端用户(很可能没装 git 或不在仓库内)、Docker slim 镜像、CI without git、打包发行版。对一个 KPI=GitHub Stars、靠 `pip install` 跑起来的开源项目,这是高频首跑翻车点:用户跑完一条 30s 研报管线,在存 artifact 的最后一步崩。开发机有 git 且快,所以本地永不复现——这正是它躲过审查的原因。修复零行为变更(只是把"本该缺省"的路径真正接住),回归风险低。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（artifact/builders.py:_get_git_commit 把 except 从 (ImportError/AttributeError/TypeError/ValueError)（在此函数根本不可达）改成 (FileNotFoundError, subprocess.SubprocessError, OSError)——git 不在 PATH(pip 安装/Docker slim/CI)抛 FileNotFoundError、卡死仓库抛 TimeoutExpired(SubprocessError)，均降级 git_commit=None 并 logger.warning，不再崩研报落地最后一步。无裸 except Exception（红线测试过）。新增 3 测试（git 缺失/超时→None，compute_version 仍构建）。）
 
 > **以下 BUG-071 ~ BUG-086 来自 2026-06-03 第二轮『运行时/环境/外部基准/领域口径』透镜专项审计**（dynamic workflow 12 子系统扇出 → 每条 Bash 实跑/实算验证 → 对抗验证者默认 refute 亲自复现 → 16 条 real 留存）。全部 `reproduced=True`，补的是静态对抗式审查（BUG-001~067）系统性触不到的『只有真跑/换环境/对外部基准才暴露』那一类。
 
@@ -1128,7 +1128,7 @@
 - **根因**：把暂时的负 FCF 谷底当永续，公式在 tg<wacc 下数学合法所以静态看不出；degrade 只防一种异常给"已兜底"错觉。
 - **修复方案**：calculate_dcf 算完 terminal_value 后对 projected_fcf[-1]≤0（或 terminal_value<0 / implied_price<0）显式处理：raise 独立异常让 degrade 接住跳过 DCF 章节（与 tg≥WACC 同等待遇），或用归一化稳态 FCF（末年营收×行业 FCF margin 下限）替代负末年 FCF 并在 provenance 标注；绝不让负公允价值落地或进 prompt。
 - **影响面/回归风险**：影响衰退/高 capex 谷底公司的 DCF 章节与 LLM 叙事。修复让这类标的 DCF 优雅跳过或用稳态基数，回归风险低。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（compute/dcf.py:calculate_dcf 在算 Gordon 终值前加守卫：projected_fcf[-1]<=0 时 raise ValueError（与 tg≥WACC 同等待遇），绝不把负末年 FCF 资本化成永续负值/负 implied_price。equity_research._execute_financial_modeling 既有 except (ValueError, ArithmeticError) 降级分支接住→structured=None→不落 DCFResult；BUG-014 的 technical_analysis 降级正常接住；LLM prompt 白名单 isinstance(DCFResult) 门控故负价永不进 prompt（堵 756 砸招牌路径）。更新降级叙事文案不再只说「Gordon 无定义」。新增衰退参数测试断言 raise 且不产负价。）
 
 #### [BUG-075] 13F refresh job 假设 edgartools 小写列名,实装 5.31.5 输出 PascalCase → institutional_holdings 永久空
 

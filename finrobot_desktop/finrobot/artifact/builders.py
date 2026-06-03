@@ -62,8 +62,14 @@ def _get_git_commit() -> str | None:
         )
         if result.returncode == 0:
             return result.stdout.strip() or None
-    except (ImportError, AttributeError, TypeError, ValueError):
-        pass
+    except (FileNotFoundError, subprocess.SubprocessError, OSError) as exc:
+        # git absent from PATH (pip-installed users / Docker slim / CI) raises
+        # FileNotFoundError; a wedged/slow repo (large tree, index.lock) raises
+        # subprocess.TimeoutExpired (a SubprocessError). Both must degrade the
+        # provenance stamp to None instead of crashing the final artifact-landing
+        # step. The previous except (ImportError/AttributeError/TypeError/
+        # ValueError) caught none of these — see BUG-070.
+        logger.warning("git commit stamp unavailable, degrading to None: %s", exc)
     return None
 
 

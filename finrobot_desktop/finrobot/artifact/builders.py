@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
+import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
@@ -68,9 +69,16 @@ def _get_git_commit() -> str | None:
 
 def _make_artifact_id(ticker: str | None, type_: str) -> str:
     ts = _now().strftime("%Y-%m-%dT%H:%M:%S")
+    # Second-granularity ts collides under async concurrency (double-click Run,
+    # Coverage batch racing a manual run): same ticker+type in the same second
+    # yields an identical id, and the PRIMARY KEY upsert silently overwrites the
+    # first run's payload. Append a uuid suffix to make ids collision-proof;
+    # ms is not enough under the same event loop. Prefix + ticker/type columns
+    # are preserved so prefix-keyed readers/sorts still work. See BUG-023.
+    suffix = uuid.uuid4().hex[:6]
     if ticker:
-        return f"art_{ts}_{ticker.upper()}_{type_}"
-    return f"art_{ts}__cross_{type_}"
+        return f"art_{ts}_{ticker.upper()}_{type_}_{suffix}"
+    return f"art_{ts}__cross_{type_}_{suffix}"
 
 
 def _extract_financial_data_dump(

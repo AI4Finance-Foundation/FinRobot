@@ -170,7 +170,15 @@ export function VersionDiffBanner({
       (timeline ?? [])
         .filter((a) => a.type === reportType && a.id !== currentId)
         .slice()
-        .sort((x, y) => (x.created_at < y.created_at ? 1 : -1)),
+        // Sort by (created_at, id) so same-second ties are deterministic —
+        // a bare created_at sort leaves the 'compare vs previous' base unstable
+        // when two runs land in the same second. See BUG-023.
+        .sort((x, y) => {
+          if (x.created_at !== y.created_at) {
+            return x.created_at < y.created_at ? 1 : -1
+          }
+          return x.id < y.id ? 1 : -1
+        }),
     [timeline, reportType, currentId],
   )
 

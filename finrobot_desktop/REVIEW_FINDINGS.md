@@ -71,7 +71,7 @@
 | BUG-020 | Bug | P1 | CLI 全部 pipeline 命令零 ticker 校验/归一化：脏 ticker 直灌 provider + 污染缓存与 artifact | 已修 |
 | BUG-021 | Bug | P1 | backtest --auto 对 LLM 失败无任何兜底：直接裸崩，也不回退确定性策略 | 待修 |
 | BUG-022 | Bug | P1 | 零 busy_timeout + 多进程写同一 data_cache.db → SQLITE_BUSY 直接抛到调用方 | 已修 |
-| BUG-023 | Bug | P1 | Artifact PRIMARY KEY 用秒级时间戳，同票同类型同秒 run 静默覆盖前一份研报（审计链断档） | 待修 |
+| BUG-023 | Bug | P1 | Artifact PRIMARY KEY 用秒级时间戳，同票同类型同秒 run 静默覆盖前一份研报（审计链断档） | 已修 |
 | BUG-024 | Bug | P1 | useAppStore (547 行) ~92% 死状态：仅 4 个 CmdK 字段有运行时消费方，其余全部无人读 | 待修 |
 | BUG-025 | Bug | P1 | Pipeline 集合在 4 处各自硬编码（orchestrator/registry/cli/sdk），registry 抽象只被 runs.py 单独使用 | 待修 |
 | BUG-026 | Bug | P1 | DCF/DDM seed 用「最近 2 年」中位数，却在 provenance 和 docstring 里全程标注「过去 3 年中位数」——给分析师看的口径说明是假的 | 待修 |
@@ -458,7 +458,7 @@
 - **修复方案**：改 builders.py:69-73：id 末尾追加去碰撞后缀，建议 `art_{ts}_{ticker}_{type}_{uuid4().hex[:6]}`（毫秒不够，并发同毫秒仍可能撞；uuid 后缀彻底根治且不破坏既有 id 前缀可读性/排序）。注意:(1) created_at 仍独立来自 meta，版本排序应改用 id 唯一性兜底而非纯 created_at——前端 VersionDiffBanner candidates 排序加 id 二级键 `(x.created_at,x.id)` 防同秒不稳定；(2) 既有库里历史 id 不变，无需迁移；(3) parent_artifact_id 链不受影响（它存的是具体 id）。改动量级:小（id 生成一行 + 前端排序一处），但属正确性根治。
 - **验证补充**：Fix is correct. Prefer uuid4().hex[:6] suffix (ms still collides under async concurrency). Also add id as secondary sort key in VersionDiffBanner candidates sort. Note: parent_artifact_id chain (set in pipelines/base.py:418) stores a concrete id, so a collision could make a parent id point to an overwritten artifact — worth flagging but the suffix fix prevents it.
 - **影响面/回归风险**：影响所有 8 个 builder 的 id 生成 + 版本历史/diff 默认基准。回归风险低：新 id 仍以 `art_{ts}_` 开头，list_by_ticker/timeline/diff 全靠 ticker+type 列与具体 id，不解析 id 内嵌时间戳。需跑 tests/artifact/ 确认没有测试硬编码完整 id 字符串。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（builders.py:_make_artifact_id 末尾追加 uuid4().hex[:6] 去碰撞后缀（ms 在 async 并发下仍可能撞）；保留 art_{ts}_ 前缀，旧 id 不变无需迁移，parent_artifact_id 链存具体 id 不受影响。VersionDiffBanner.tsx candidates 排序加 id 二级键 (created_at,id) 防同秒不稳定。grep tests/ 无硬编码完整 id 断言。ruff+mypy + ui lint/build/116 测试通过。）
 
 #### [BUG-024] useAppStore (547 行) ~92% 死状态：仅 4 个 CmdK 字段有运行时消费方，其余全部无人读
 

@@ -14,6 +14,12 @@ from finrobot.engine.data.interface import DataProvider, DataResult, ProviderErr
 from finrobot.engine.data.types import DataType
 
 _BASE_URL = "https://financialmodelingprep.com/api/v3"
+# Some endpoints only exist on FMP's newer "stable" host (different base, not under
+# /api/v3). The legacy v3 /earnings-surprises endpoint carries a different schema
+# (actualEarningResult/estimatedEarning, no revenue) and silently yields zero usable
+# rows; stable/earnings is the one that exposes epsActual/epsEstimated/revenueActual/
+# revenueEstimated (live-verified).
+_STABLE_BASE = "https://financialmodelingprep.com/stable"
 _SUPPORTED = [
     DataType.FINANCIALS,
     DataType.PRICE,
@@ -577,9 +583,18 @@ class FMPProvider(DataProvider):
         )
 
     async def _fetch_earnings(self, ticker: str) -> DataResult:
-        """Fetch earnings surprises from FMP /earnings-surprises/{ticker}."""
+        """Fetch earnings surprises from FMP stable/earnings (eps + revenue).
+
+        Uses the ``stable`` host (not /api/v3): only this endpoint exposes
+        epsActual/epsEstimated/revenueActual/revenueEstimated. Future quarters are
+        returned with epsActual=null and are dropped by the eps None-filter below.
+        """
         with self._wrap_errors(ticker, "earnings fetch"):
-            resp = await self._get(f"/earnings-surprises/{ticker}")
+            resp = await self._get(
+                "/earnings",
+                params={"symbol": ticker, "limit": 40},
+                base=_STABLE_BASE,
+            )
         raw: list[dict[str, Any]] = resp.json()
         earnings_history = [
             {
@@ -688,11 +703,15 @@ class FMPProvider(DataProvider):
         except (ValueError, KeyError, TypeError, AttributeError) as e:
             raise ProviderError(f"FMP {op} failed for '{ticker}': {e}") from e
 
-    async def _get(self, path: str, params: dict[str, Any] | None = None) -> httpx.Response:
+    async def _get(
+        self, path: str, params: dict[str, Any] | None = None, *, base: str = _BASE_URL
+    ) -> httpx.Response:
         """Make authenticated, rate-limited GET request to FMP API.
 
         Serialises concurrent calls via asyncio.Lock and enforces a minimum
         inter-request interval (_MIN_INTERVAL) to avoid per-minute burst limits.
+        ``base`` selects the host (default v3; pass _STABLE_BASE for stable-only
+        endpoints like /earnings).
         """
         async with self._lock:
             elapsed = time.monotonic() - self._last_call
@@ -702,7 +721,7 @@ class FMPProvider(DataProvider):
             p: dict[str, Any] = {"apikey": self._api_key}
             if params:
                 p.update(params)
-            resp = await self._client.get(f"{_BASE_URL}{path}", params=p)
+            resp = await self._client.get(f"{base}{path}", params=p)
             resp.raise_for_status()
             return resp
 

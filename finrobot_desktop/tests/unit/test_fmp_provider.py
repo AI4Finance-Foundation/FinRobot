@@ -623,10 +623,9 @@ def _fmp_earnings_response(ticker="AAPL"):
 class TestFMPEarnings:
     @pytest.mark.asyncio
     async def test_fetch_earnings_returns_normalized_keys(self, provider):
-        """FMP earnings-surprises response is normalized to common format."""
-        with patch.object(
-            provider, "_get", AsyncMock(return_value=_mock_response(_fmp_earnings_response()))
-        ):
+        """FMP stable/earnings response is normalized to common format."""
+        get_mock = AsyncMock(return_value=_mock_response(_fmp_earnings_response()))
+        with patch.object(provider, "_get", get_mock):
             result = await provider.fetch("AAPL", "earnings")
         assert result.provider == "fmp"
         assert result.data_type == "earnings"
@@ -638,6 +637,41 @@ class TestFMPEarnings:
         assert first["eps_estimated"] == 1.60
         assert first["revenue_actual"] == 94_930_000_000
         assert first["revenue_estimated"] == 94_210_000_000
+
+    @pytest.mark.asyncio
+    async def test_fetch_earnings_hits_stable_endpoint(self, provider):
+        """Regression for BUG-001: must call stable/earnings (eps+revenue schema),
+        NOT the legacy v3 /earnings-surprises endpoint (which yields zero usable
+        rows because it carries actualEarningResult/estimatedEarning instead)."""
+        from finrobot.engine.data.providers.fmp_provider import _STABLE_BASE
+
+        get_mock = AsyncMock(return_value=_mock_response(_fmp_earnings_response()))
+        with patch.object(provider, "_get", get_mock):
+            await provider.fetch("AAPL", "earnings")
+        args, kwargs = get_mock.call_args
+        assert args[0] == "/earnings"
+        assert kwargs["params"]["symbol"] == "AAPL"
+        assert kwargs["base"] == _STABLE_BASE
+
+    @pytest.mark.asyncio
+    async def test_earnings_preserves_null_revenue(self, provider):
+        """BUG-013: a row with epsActual present but revenueActual null must pass
+        the eps filter and carry revenue_actual=None (not fabricated 0, not a crash)."""
+        raw = [
+            {
+                "date": "2024-10-31",
+                "epsActual": 1.64,
+                "epsEstimated": 1.60,
+                "revenueActual": None,
+                "revenueEstimated": 89e9,
+            }
+        ]
+        with patch.object(provider, "_get", AsyncMock(return_value=_mock_response(raw))):
+            result = await provider.fetch("AAPL", "earnings")
+        history = result.data["earnings_history"]
+        assert len(history) == 1
+        assert history[0]["eps_actual"] == 1.64
+        assert history[0]["revenue_actual"] is None
 
     @pytest.mark.asyncio
     async def test_earnings_in_capabilities(self, provider):

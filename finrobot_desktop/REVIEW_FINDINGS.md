@@ -36,7 +36,7 @@
 
 | ID | 类别 | 严重度 | 一句话问题 | 状态 |
 |---|---|---|---|---|
-| BUG-001 | Bug | P0 | FMP earnings provider calls wrong endpoint / reads wrong field names → earnings_history is ALWAYS empty for every ticker (silent dead feature) | 待修 |
+| BUG-001 | Bug | P0 | FMP earnings provider calls wrong endpoint / reads wrong field names → earnings_history is ALWAYS empty for every ticker (silent dead feature) | 已修 |
 | BUG-002 | Bug | P0 | Coverage 卡片墙纯鼠标可达：<article> 无 tabIndex/role/onKeyDown，键盘用户无法聚焦任何卡片，连带整个 Inspector（研报/历史/Run 动作）对键盘/读屏完全不可达 | 待修 |
 | BUG-003 | Bug | P1 | Live API key persisted in plaintext to session JSONL via provider warning → tool_result transcript | 待修 |
 | BUG-004 | Bug | P1 | Entire FastAPI surface is unauthenticated and Host-header-unvalidated — DNS rebinding lets any web page drive secret-writing/quota-burning endpoints despite the CORS whitelist | 待修 |
@@ -134,7 +134,7 @@
 - **修复方案**：In fmp_provider.py:_fetch_earnings switch the request to the stable earnings endpoint that exposes eps+revenue: change line 582 to call the stable host path `GET /stable/earnings?symbol={ticker}&limit=N` (note: stable is a different base than _BASE_URL='/api/v3', so either add a _STABLE_BASE constant + a host-aware _get, or use the full URL). Keep the eps None-filter (line 593) but ALSO None-guard revenue before float() — see the paired revenue-None finding. Add a unit test in test_fmp_provider.py mocking the stable response shape (with epsActual/revenueActual present) asserting earnings_history is populated, plus a live smoke note. Note: stable/earnings returns FUTURE quarters with epsActual=null,epsEstimated set — the existing eps None-filter correctly drops those.
 - **验证补充**：Fix is correct (point _fetch_earnings at stable/earnings, needs _STABLE_BASE since stable is not under /api/v3). Also update test_fmp_provider.py's _fmp_earnings_response/null-eps fixtures to the stable response shape (they currently already use the post-mapping eps*/revenue* keys, masking the bug); add a live smoke note. Verify httpx _get host handling: _get hardcodes _BASE_URL at line 705, so a host-aware _get or full-URL path is mandatory, not optional.
 - **影响面/回归风险**：Restores the entire earnings pipeline (1 of the registered pipelines). Regression risk low: change is isolated to one provider method + its (currently absent) test. Must verify the stable endpoint is in the account's plan tier; if not, fall back to v3 /historical/earning_calendar/{ticker} which also carries eps+revenue keys.
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（改了 `finrobot/engine/data/providers/fmp_provider.py`：新增 `_STABLE_BASE` 常量；`_get` 加 host-aware `base=` 参数（默认 v3）；`_fetch_earnings` 改调 `GET stable/earnings?symbol={ticker}&limit=40`，base=_STABLE_BASE，保留 eps None-filter 丢弃未来季。`tests/unit/test_fmp_provider.py`：新增 `test_fetch_earnings_hits_stable_endpoint`（断言命中 stable host + symbol param，防回退到 legacy /earnings-surprises）与 `test_earnings_preserves_null_revenue`。**Live-verified（仓库 .env FMP key）**：本账户 tier 有 stable/earnings 权限（200，schema 含 epsActual/revenueActual），无需 v3 fallback；端到端 `FMPProvider.fetch('AAPL','earnings')`→39 季真实数据，`calculate_earnings_surprises` 得 beat_rate=79% / avg_eps=+7.6% / consec_beats=4（修前全 0）。ruff+mypy --strict 通过。)
 
 #### [BUG-002] Coverage 卡片墙纯鼠标可达：<article> 无 tabIndex/role/onKeyDown，键盘用户无法聚焦任何卡片，连带整个 Inspector（研报/历史/Run 动作）对键盘/读屏完全不可达
 

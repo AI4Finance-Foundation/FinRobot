@@ -57,8 +57,8 @@
 | BUG-006 | Bug | P1 | 跨境 forward 估值口径错币种:comps_pe 的 forward 路径用『USD 归一化同业 P/E × 申报币种 forward EPS』,ADR(TSM/ASML/BABA)目标价整体偏离一个汇率 | 待修 |
 | BUG-007 | Bug | P1 | DataLayer 跨 provider 仅 warn 不仲裁,且 cross_validate 容差(revenue 15%)结构性低于已知 FMP↔yfinance 25-80% 实差——分歧票静默采用 primary(FMP)原值进研报 | 待修 |
 | BUG-008 | Bug | P1 | Finnhub provider 把缺失的 total_debt/total_cash 用 `or 0` 伪造成 0 → 下游 EV 误算成「零净债」（违反 FMP 显式遵守的 None≠0 契约） | 已修 |
-| BUG-009 | Bug | P1 | xbrl_concept_snapshot 把所有年度营收硬编码成 us-gaap:Revenues，对绝大多数大盘股(ASC-606 口径)是错误的 concept 标签 | 待修 |
-| BUG-010 | Bug | P1 | XBRL TTM dict 丢弃 period_end/as_of_date 与 has_calculated_q4/warning，下游无法判定 TTM 截止季与质量 | 待修 |
+| BUG-009 | Bug | P1 | xbrl_concept_snapshot 把所有年度营收硬编码成 us-gaap:Revenues，对绝大多数大盘股(ASC-606 口径)是错误的 concept 标签 | 已修 |
+| BUG-010 | Bug | P1 | XBRL TTM dict 丢弃 period_end/as_of_date 与 has_calculated_q4/warning，下游无法判定 TTM 截止季与质量 | 已修 |
 | BUG-011 | Bug | P1 | _money_from_text 把孤立的 'm' 当成 million 乘子(无词边界),$96 measured→$96M,且 ×1e6 可把 sub-$1M 原值抬过合理性闸门 | 已修 |
 | BUG-012 | Bug | P1 | CEO 姓名/总薪酬/pay-ratio 三字段各自独立 first-match 抽取,无任何一致性勾稽,可把张冠李戴/跨年度/口径不符的三元组当权威披露并排展示 | 已修 |
 | BUG-013 | Bug | P1 | earnings.py float(row.get('revenue_actual',0)) crashes (TypeError) on present-but-None revenue, and otherwise fabricates $0 revenue → false -100% surprise | 已修 |
@@ -272,7 +272,7 @@
 - **验证补充**：Fix direction correct (carry the matched concept). Tactical note: get_revenue_detailed() returns a UnitResult (unit_handling.py:49-58) which does NOT expose the matched concept name — only value/normalized_unit/original_unit. To recover the real concept use get_fact()/get_annual_fact() over the same concept_variants and read FinancialFact.concept (+period_end/unit/fiscal_period), or wrap the variant loop locally. Don't assume return_detailed alone yields the concept.
 - **影响面/回归风险**：影响所有研报的 company_overview/估值叙事里被 LLM 引用并标注来源的 SEC 营收数字——分析师会看到 "us-gaap:Revenues" 而真值出自另一 concept，属可溯源性失真(投行级研报的核心卖点)。回归风险低：仅改 concept 字符串与补字段，数值不变。
 - **合并自**：gap-r1-1#1, gap-r1-1#4（2 条同源发现）
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（edgar_provider._fetch_xbrl 不再丢弃命中 concept：新增 _select_latest_fact() 走 get_annual_fact/get_fact 遍历各 getter 的 concept_variants 优先级，返回 {concept,value,period_end,units}（对齐 sec.py XBRLFact）；7 个 latest_* 字段（P&L annual / BS 非 annual）都带真实 concept。xbrl_aligned_comps.xbrl_concept_snapshot 删除静态 concept 静态表，透传 provider 真实 concept，拒绝 legacy 裸 float。Live 验证 AAPL get_revenue 命中 us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax（非旧标的 Revenues），值 416.161B 对上 FY2025 10-K。与 BUG-010 同提交。）
 
 #### [BUG-010] XBRL TTM dict 丢弃 period_end/as_of_date 与 has_calculated_q4/warning，下游无法判定 TTM 截止季与质量
 
@@ -285,7 +285,7 @@
 - **修复方案**：在 edgar_provider.py:312 的 best dict 里加 "period_end": metric.as_of_date(已是 date)、"has_calculated_q4": getattr(metric,'has_calculated_q4',False)、"warning": getattr(metric,'warning',None)；recency gate 直接用 metric.as_of_date 替代 _metric_latest_period_end(可删该 helper)。下游 normalize_financials.period_end 与 xbrl_concept_snapshot 透传 period_end；若 has_calculated_q4/warning 非空则 append 进 DataResult.warnings。注意 _validate_ttm_periods 仍需保留(它防的是 NVDA 废弃 concept 的退化窗口)。改动量级：小-中。
 - **验证补充**：Fix is sound. Keep _validate_ttm_periods (it gates NVDA's dead-concept degenerate window — confirmed edgar_provider.py:188-202,219-252). Replacing _metric_latest_period_end with metric.as_of_date is safe since calculator sets it to ttm_quarters[-1].period_end. When threading period_end downstream, also fix the periods shape to match XBRLTTMMetric.periods: list[str] (or change the model) — the current dict shape never round-trips into the typed model.
 - **影响面/回归风险**：影响 TTM 口径的可溯源性与新鲜度可见性——分析师无法确认 comps/估值用的 TTM 截止季，也看不到 "Q4 系推导" 这类口径瑕疵。回归风险低(只增字段)。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（edgar_provider._select_recent_ttm 返回 dict 增 period_end(=metric.as_of_date)/has_calculated_q4/warning；recency gate 改用 metric.as_of_date（删 _metric_latest_period_end）；periods 形状改 list[str]("Q3 2025") 对齐 XBRLTTMMetric.periods 可 round-trip；has_calculated_q4/warning 非空时 append 进 DataResult.warnings。保留 _validate_ttm_periods（NVDA 废弃 concept 退化窗口门控）。范围说明：period_end 只透传到 snapshot（UI 读取处），未塞进 FMP 口径的 normalize_financials（那是另一 provider、无消费方、避免死路径）。与 BUG-009 同提交。）
 
 #### [BUG-011] _money_from_text 把孤立的 'm' 当成 million 乘子(无词边界),$96 measured→$96M,且 ×1e6 可把 sub-$1M 原值抬过合理性闸门
 

@@ -201,6 +201,50 @@ _TTM_REVENUE_CONCEPTS: tuple[str, ...] = (
 )
 _TTM_NET_INCOME_CONCEPTS: tuple[str, ...] = ("NetIncomeLoss", "NetIncome", "ProfitLoss")
 
+# Point-in-time / annual concept candidate lists, mirroring edgartools'
+# ``EntityFacts.get_*`` getters (entity_facts.py, 5.31.5). We replicate them so
+# we can recover the REAL matched concept the getter would have used instead of
+# a hardcoded label: post-ASC-606 issuers (AAPL/MSFT/GOOGL) report revenue under
+# ``RevenueFromContractWithCustomerExcludingAssessedTax``, not ``Revenues`` —
+# labelling the snapshot "us-gaap:Revenues" was provenance falsification (BUG-009).
+# Order = the getter's priority order; first concept with a usable fact wins,
+# exactly as ``_get_standardized_concept_value`` does.
+_LATEST_REVENUE_CONCEPTS: tuple[str, ...] = (
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "SalesRevenueNet",
+    "Revenues",
+    "Revenue",
+    "TotalRevenues",
+    "NetSales",
+)
+_LATEST_NET_INCOME_CONCEPTS: tuple[str, ...] = (
+    "NetIncomeLoss",
+    "ProfitLoss",
+    "NetIncome",
+    "NetEarnings",
+    "NetIncomeLossAttributableToParent",
+)
+_LATEST_GROSS_PROFIT_CONCEPTS: tuple[str, ...] = ("GrossProfit", "GrossMargin")
+_LATEST_OPERATING_INCOME_CONCEPTS: tuple[str, ...] = (
+    "OperatingIncomeLoss",
+    "OperatingIncome",
+    "IncomeLossFromOperations",
+    "OperatingProfit",
+)
+_LATEST_TOTAL_ASSETS_CONCEPTS: tuple[str, ...] = ("Assets", "TotalAssets", "AssetsCurrent")
+_LATEST_TOTAL_LIABILITIES_CONCEPTS: tuple[str, ...] = (
+    "Liabilities",
+    "TotalLiabilities",
+    "LiabilitiesAndStockholdersEquity",
+)
+_LATEST_SHAREHOLDERS_EQUITY_CONCEPTS: tuple[str, ...] = (
+    "StockholdersEquity",
+    "ShareholdersEquity",
+    "TotalEquity",
+    "PartnersCapital",
+    "MembersEquity",
+)
+
 # A legitimate TTM window is exactly four DISCRETE quarters. edgartools labels
 # discrete quarters Q1–Q4 and tags cumulative frames (annual / half-year /
 # nine-month) with other markers; any non-Qn label inside a TTM window means a
@@ -252,20 +296,35 @@ def _validate_ttm_periods(periods: Any) -> bool:
     return True
 
 
-def _metric_latest_period_end(metric: Any) -> date | None:
-    """Latest ``period_end`` across a TTMMetric's underlying period facts.
+def _metric_as_of_date(metric: Any) -> date | None:
+    """The TTM window's latest-quarter ``period_end`` (edgartools' ``as_of_date``).
 
-    Used both to rank candidate concepts (recency wins over list order) and to
-    enforce the recency gate. Returns None when no fact carries a usable date.
+    The ``TTMCalculator`` sets ``as_of_date = ttm_quarters[-1].period_end`` (the
+    most recent quarter in the window), so it IS the recency-gate value AND the
+    TTM "as of which quarter" date threaded downstream. Returns None when the
+    field is missing/malformed.
     """
-    latest: date | None = None
-    for pf in getattr(metric, "period_facts", None) or []:
-        pe = getattr(pf, "period_end", None)
-        if isinstance(pe, datetime):
-            pe = pe.date()
-        if isinstance(pe, date) and (latest is None or pe > latest):
-            latest = pe
-    return latest
+    pe = getattr(metric, "as_of_date", None)
+    if isinstance(pe, datetime):
+        pe = pe.date()
+    return pe if isinstance(pe, date) else None
+
+
+def _ttm_periods_as_str(periods: Any) -> list[str]:
+    """Render edgartools' ``[(year, quarter), ...]`` TTM window as ``["Q3 2025", ...]``.
+
+    Matches ``XBRLTTMMetric.periods: list[str]`` so the dict round-trips into the
+    typed model without a shape adapter. ``_validate_ttm_periods`` has already
+    confirmed the ``(int, str)`` tuple shape upstream; anything unexpected falls
+    back to ``str(p)`` rather than crashing.
+    """
+    out: list[str] = []
+    for p in periods or []:
+        if isinstance(p, tuple) and len(p) == 2:
+            out.append(f"{p[1]} {p[0]}")
+        else:
+            out.append(str(p))
+    return out
 
 
 def _select_recent_ttm(
@@ -276,11 +335,15 @@ def _select_recent_ttm(
 ) -> dict[str, Any] | None:
     """Pick the live concept's TTM and return it as a typed dict, or None.
 
-    Among ``concepts`` present in ``facts``, choose the one whose facts have the
-    latest ``period_end`` (NOT first-match-wins like edgartools' getters), then
+    Among ``concepts`` present in ``facts``, choose the one whose window ends
+    latest (``as_of_date``, NOT first-match-wins like edgartools' getters), then
     require the window to pass ``_validate_ttm_periods`` and end within
-    ``_TTM_RECENCY_DAYS``. Returns ``{"concept", "value", "periods"}`` shaped like
-    the old ``_ttm`` output, or None when nothing qualifies (→ FMP fallback).
+    ``_TTM_RECENCY_DAYS``. Returns
+    ``{"concept", "value", "periods", "period_end", "has_calculated_q4", "warning"}``
+    (``periods`` as ``list[str]`` to match ``XBRLTTMMetric.periods``), or None
+    when nothing qualifies (→ FMP fallback). ``period_end`` carries the TTM's
+    latest-quarter date so downstream can show "TTM as of <quarter>";
+    ``has_calculated_q4`` / ``warning`` surface edgartools' quarterization caveats.
     """
     best: dict[str, Any] | None = None
     best_end: date | None = None
@@ -293,7 +356,7 @@ def _select_recent_ttm(
             continue
         if metric is None:
             continue
-        latest_end = _metric_latest_period_end(metric)
+        latest_end = _metric_as_of_date(metric)
         if latest_end is None:
             continue
         # Recency gate: a window whose newest quarter predates the cutoff is a
@@ -303,19 +366,92 @@ def _select_recent_ttm(
         if not _validate_ttm_periods(getattr(metric, "periods", None)):
             continue
         if best_end is None or latest_end > best_end:
-            periods_typed: list[dict[str, Any]] = []
-            for p in metric.periods:
-                if isinstance(p, tuple) and len(p) == 2:
-                    periods_typed.append({"year": int(p[0]), "quarter": str(p[1])})
-                else:
-                    periods_typed.append({"raw": str(p)})
             best = {
                 "concept": getattr(metric, "concept", ""),
                 "value": float(getattr(metric, "value", 0) or 0),
-                "periods": periods_typed,
+                "periods": _ttm_periods_as_str(getattr(metric, "periods", None)),
+                "period_end": latest_end,
+                "has_calculated_q4": bool(getattr(metric, "has_calculated_q4", False)),
+                "warning": getattr(metric, "warning", None),
             }
             best_end = latest_end
     return best
+
+
+# ---------------------------------------------------------------------------
+# Point-in-time / annual fact selection WITH concept recovery (BUG-009)
+# ---------------------------------------------------------------------------
+#
+# edgartools' ``get_revenue()`` / ``get_net_income()`` / … return a bare float
+# and DISCARD which concept matched. We previously hardcoded the concept label
+# in the artifact snapshot ("us-gaap:Revenues"), but the number actually comes
+# from whichever variant in the getter's priority list had a fact — for AAPL/
+# MSFT/GOOGL that is ``RevenueFromContractWithCustomerExcludingAssessedTax``,
+# not ``Revenues``. Injecting the wrong concept to the LLM as an authoritative
+# SEC tag is provenance falsification. ``get_revenue_detailed()`` returns a
+# ``UnitResult`` that ALSO drops the concept, so we instead replicate the
+# getter's selection over ``FinancialFact`` objects (whose ``.concept`` IS the
+# real matched tag) using the public ``get_annual_fact`` / ``get_fact`` API,
+# exactly as ``_get_standardized_concept_value`` does internally.
+
+
+def _select_latest_fact(
+    facts: Any,
+    concepts: tuple[str, ...],
+    *,
+    annual: bool,
+) -> dict[str, Any] | None:
+    """Recover the matched ``FinancialFact`` for a point-in-time concept.
+
+    Walks ``concepts`` in priority order, trying each taxonomy-prefixed variant
+    (``us-gaap:`` / ``ifrs-full:``) and — when ``annual`` — preferring the FY
+    fact (``get_annual_fact``) before falling back to the most recent point
+    (``get_fact``), mirroring edgartools' ``_get_standardized_concept_value``.
+    The first variant with a usable ``numeric_value`` wins (first-match is
+    correct here: these are point/annual values, not the abandoned-concept TTM
+    case that needs latest-period selection). Returns
+    ``{"concept", "value", "period_end", "units"}`` aligned to ``XBRLFact``
+    (concept/period_end/units required), or None when no concept matches.
+    """
+    get_annual = getattr(facts, "get_annual_fact", None)
+    get_fact = getattr(facts, "get_fact", None)
+    if not callable(get_fact):
+        return None
+    # Probing taxonomy-prefix variants means most lookups intentionally miss
+    # (bare ``GrossProfit`` before ``us-gaap:GrossProfit``). edgartools' getters
+    # emit a UserWarning per miss; its own ``_get_standardized_concept_value``
+    # silences them via the same ``_suppress_warnings`` flag during synonym
+    # resolution. We do the same so a normal multi-variant walk isn't log spam.
+    prev_suppress = getattr(facts, "_suppress_warnings", False)
+    facts._suppress_warnings = True
+    try:
+        for concept in concepts:
+            for variant in (concept, f"us-gaap:{concept}", f"ifrs-full:{concept}"):
+                fact = None
+                try:
+                    if annual and callable(get_annual):
+                        fact = get_annual(variant)
+                    if fact is None:
+                        fact = get_fact(variant)
+                except _ADAPTER_CATCH:
+                    continue
+                if fact is None:
+                    continue
+                numeric = getattr(fact, "numeric_value", None)
+                period_end = getattr(fact, "period_end", None)
+                if isinstance(period_end, datetime):
+                    period_end = period_end.date()
+                if numeric is None or not isinstance(period_end, date):
+                    continue
+                return {
+                    "concept": str(getattr(fact, "concept", variant)),
+                    "value": float(numeric),
+                    "period_end": period_end,
+                    "units": str(getattr(fact, "unit", "USD") or "USD"),
+                }
+    finally:
+        facts._suppress_warnings = prev_suppress
+    return None
 
 
 # SEC Form 4 XML lets date fields (exerciseDate / expirationDate on
@@ -876,45 +1012,67 @@ class EdgarToolsProvider(DataProvider):
             return {"facts_available": False}, ["EntityFacts unavailable"]
 
         today = datetime.now(timezone.utc).date()
+        warnings: list[str] = []
 
-        def _float(getter_name: str, **kwargs: Any) -> float | None:
-            getter = getattr(facts, getter_name, None)
-            if not callable(getter):
-                return None
-            try:
-                v = getter(**kwargs)
-                return float(v) if v is not None else None
-            except _ADAPTER_CATCH:
-                return None
+        # Concept-aware TTM (ADR-0008): pick the live concept by latest period_end
+        # + gate on period structure, instead of edgartools' first-match-wins
+        # getters that latch abandoned concepts (NVDA → FY2020 $10.918B). None
+        # here → compute layer falls back to FMP TTM.
+        ttm_revenue = _select_recent_ttm(facts, _TTM_REVENUE_CONCEPTS, today=today)
+        ttm_net_income = _select_recent_ttm(facts, _TTM_NET_INCOME_CONCEPTS, today=today)
 
-        # Balance-sheet items are point-in-time, so "latest" must mean the
-        # most recent reporting period — not the latest *annual* point.
-        # ``annual=True`` (the edgar-python default on every standardized
-        # getter) prefers the 10-K fiscal-year value and silently lags by
-        # one quarter once a 10-Q is filed: on 2026-05-28 TSLA shipped a
-        # 10-Q for Q1 2026 (filed 2026-04-23) carrying assets $143.724B,
-        # but the artifact showed $137.806B — the FY2025 10-K snapshot.
-        # ``annual=False`` falls back to the most recent point regardless
-        # of form type, so 10-Q overrides 10-K once it lands.
+        # Surface edgartools' TTM quality caveats so downstream (and the UI)
+        # can show "TTM as of <quarter>" honestly: a derived Q4 (FY−9M) is a
+        # calculated value, not a reported quarter, and ``warning`` flags gaps /
+        # thin history. These ride DataResult.warnings → financial.warnings.
+        for label, metric in (("revenue", ttm_revenue), ("net income", ttm_net_income)):
+            if not isinstance(metric, dict):
+                continue
+            if metric.get("has_calculated_q4"):
+                warnings.append(
+                    f"SEC XBRL TTM {label} ({metric.get('concept')}) includes a "
+                    "calculated Q4 (derived from FY − 9M), not a reported quarter."
+                )
+            if metric.get("warning"):
+                warnings.append(f"SEC XBRL TTM {label}: {metric['warning']}")
+
+        # P&L "latest" is the latest annual point — TTM is the current-period
+        # caliber and lives in ``ttm_*`` above. Each latest_* now carries the
+        # REAL matched concept (BUG-009), not a hardcoded label, so the artifact
+        # snapshot's SEC provenance is honest.
+        #
+        # Balance-sheet items are point-in-time, so "latest" must mean the most
+        # recent reporting period — not the latest *annual* point. ``annual=True``
+        # (the getter default) prefers the 10-K fiscal-year value and silently
+        # lags by one quarter once a 10-Q is filed: on 2026-05-28 TSLA shipped a
+        # 10-Q for Q1 2026 (filed 2026-04-23) carrying assets $143.724B, but the
+        # artifact showed $137.806B — the FY2025 10-K snapshot. ``annual=False``
+        # falls back to the most recent point regardless of form type, so the
+        # 10-Q overrides the 10-K once it lands.
         return {
             "facts_available": True,
-            # Concept-aware TTM (ADR-0008): pick the live concept by latest
-            # period_end + gate on period structure, instead of edgartools'
-            # first-match-wins getters that latch abandoned concepts (NVDA →
-            # FY2020 $10.918B). None here → compute layer falls back to FMP TTM.
-            "ttm_revenue": _select_recent_ttm(facts, _TTM_REVENUE_CONCEPTS, today=today),
-            "ttm_net_income": _select_recent_ttm(facts, _TTM_NET_INCOME_CONCEPTS, today=today),
-            # P&L: "latest" remains the latest annual point — TTM is the
-            # current-period caliber and lives in ``ttm_*`` above.
-            "latest_revenue": _float("get_revenue"),
-            "latest_net_income": _float("get_net_income"),
-            "latest_gross_profit": _float("get_gross_profit"),
-            "latest_operating_income": _float("get_operating_income"),
-            # Balance sheet: include 10-Q in the "most recent" calculus.
-            "latest_total_assets": _float("get_total_assets", annual=False),
-            "latest_total_liabilities": _float("get_total_liabilities", annual=False),
-            "latest_shareholders_equity": _float("get_shareholders_equity", annual=False),
-        }, []
+            "ttm_revenue": ttm_revenue,
+            "ttm_net_income": ttm_net_income,
+            "latest_revenue": _select_latest_fact(facts, _LATEST_REVENUE_CONCEPTS, annual=True),
+            "latest_net_income": _select_latest_fact(
+                facts, _LATEST_NET_INCOME_CONCEPTS, annual=True
+            ),
+            "latest_gross_profit": _select_latest_fact(
+                facts, _LATEST_GROSS_PROFIT_CONCEPTS, annual=True
+            ),
+            "latest_operating_income": _select_latest_fact(
+                facts, _LATEST_OPERATING_INCOME_CONCEPTS, annual=True
+            ),
+            "latest_total_assets": _select_latest_fact(
+                facts, _LATEST_TOTAL_ASSETS_CONCEPTS, annual=False
+            ),
+            "latest_total_liabilities": _select_latest_fact(
+                facts, _LATEST_TOTAL_LIABILITIES_CONCEPTS, annual=False
+            ),
+            "latest_shareholders_equity": _select_latest_fact(
+                facts, _LATEST_SHAREHOLDERS_EQUITY_CONCEPTS, annual=False
+            ),
+        }, warnings
 
     # ------------------------------------------------------------------
     # 13F (local cache lookup; refresh job is scripts/refresh_sec_holdings.py)

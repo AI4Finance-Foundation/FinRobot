@@ -90,20 +90,43 @@ def _ttm_value(field: Any) -> float | None:
     return _num(field.get("value"))
 
 
+def _latest_fact_entry(field: Any) -> dict[str, Any] | None:
+    """Normalize a provider ``latest_*`` payload into a snapshot record.
+
+    ``edgar_provider._select_latest_fact`` returns ``{concept, value, period_end,
+    units}`` (the REAL matched us-gaap concept — BUG-009). We preserve every key
+    so the artifact snapshot carries the true SEC provenance, not a hardcoded
+    label. Legacy bare floats (or anything without a concept+value) are rejected
+    rather than re-tagged with a guessed concept.
+    """
+    if not isinstance(field, dict):
+        return None
+    concept = field.get("concept")
+    value = _num(field.get("value"))
+    if not concept or value is None:
+        return None
+    entry = dict(field)
+    entry["value"] = value
+    return entry
+
+
 def xbrl_concept_snapshot(raw_xbrl: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     """Return artifact-ready fact lists keyed by us-gaap concept.
+
+    Every record carries the REAL matched concept the provider recovered from
+    edgartools (BUG-009): a post-ASC-606 issuer's revenue is keyed under
+    ``us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax``, not a
+    hardcoded ``us-gaap:Revenues`` — so the SEC concept the LLM sees is honest.
 
     NetIncomeLoss is split into disambiguated keys to avoid two records
     colliding under the same concept:
       - ``us-gaap:NetIncomeLoss:ttm``    ← rolling 4-quarter TTM value+periods
-      - ``us-gaap:NetIncomeLoss:annual`` ← latest annual point (float only)
-    Revenue is not yet ambiguous (no TTM alt concept clash) so it keeps the
-    plain key.  If that changes, apply the same :ttm/:annual suffix pattern.
+      - ``us-gaap:NetIncomeLoss:annual`` ← latest annual point
     """
     snapshot: dict[str, list[dict[str, Any]]] = {}
 
     # TTM revenue — concept is typically a non-NetIncomeLoss variant, so no
-    # collision risk; keep plain concept key.
+    # collision risk; keep the provider's real concept key.
     ttm_revenue = raw_xbrl.get("ttm_revenue")
     if isinstance(ttm_revenue, dict) and ttm_revenue.get("concept"):
         snapshot.setdefault(str(ttm_revenue["concept"]), []).append(ttm_revenue)
@@ -115,25 +138,28 @@ def xbrl_concept_snapshot(raw_xbrl: dict[str, Any]) -> dict[str, list[dict[str, 
         ttm_entry["concept"] = "us-gaap:NetIncomeLoss:ttm"
         snapshot.setdefault("us-gaap:NetIncomeLoss:ttm", []).append(ttm_entry)
 
-    # Annual (latest period) point values.
-    for key, concept in (
-        ("latest_revenue", "us-gaap:Revenues"),
-        ("latest_gross_profit", "us-gaap:GrossProfit"),
-        ("latest_operating_income", "us-gaap:OperatingIncomeLoss"),
-        ("latest_total_assets", "us-gaap:Assets"),
-        ("latest_total_liabilities", "us-gaap:Liabilities"),
-        ("latest_shareholders_equity", "us-gaap:StockholdersEquity"),
+    # Annual (latest period) point values — keyed by the provider's real concept.
+    for key in (
+        "latest_revenue",
+        "latest_gross_profit",
+        "latest_operating_income",
+        "latest_total_assets",
+        "latest_total_liabilities",
+        "latest_shareholders_equity",
     ):
-        value = _num(raw_xbrl.get(key))
-        if value is not None:
-            snapshot.setdefault(concept, []).append({"concept": concept, "value": value})
+        entry = _latest_fact_entry(raw_xbrl.get(key))
+        if entry is not None:
+            snapshot.setdefault(str(entry["concept"]), []).append(entry)
 
-    # Annual net income — disambiguated key matches the TTM sibling above.
-    annual_net_income = _num(raw_xbrl.get("latest_net_income"))
-    if annual_net_income is not None:
-        snapshot.setdefault("us-gaap:NetIncomeLoss:annual", []).append(
-            {"concept": "us-gaap:NetIncomeLoss:annual", "value": annual_net_income}
-        )
+    # Annual net income — disambiguated key matches the TTM sibling above. The
+    # real concept is preserved inside the record (provenance field) while the
+    # snapshot KEY stays the stable :annual suffix so it never collides with the
+    # TTM record under the same us-gaap concept.
+    annual_ni = _latest_fact_entry(raw_xbrl.get("latest_net_income"))
+    if annual_ni is not None:
+        annual_ni["matched_concept"] = annual_ni["concept"]
+        annual_ni["concept"] = "us-gaap:NetIncomeLoss:annual"
+        snapshot.setdefault("us-gaap:NetIncomeLoss:annual", []).append(annual_ni)
 
     return snapshot
 

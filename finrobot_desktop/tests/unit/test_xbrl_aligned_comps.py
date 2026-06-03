@@ -288,7 +288,13 @@ def test_xbrl_concept_snapshot_groups_ttm_and_latest_facts() -> None:
                 "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
                 "value": 451.0,
             },
-            "latest_net_income": 97.0,
+            # BUG-009: latest_* is the provider's recovered-concept dict.
+            "latest_net_income": {
+                "concept": "us-gaap:NetIncomeLoss",
+                "value": 97.0,
+                "period_end": "2025-09-27",
+                "units": "USD",
+            },
         }
     )
 
@@ -298,3 +304,43 @@ def test_xbrl_concept_snapshot_groups_ttm_and_latest_facts() -> None:
         "bare NetIncomeLoss key must not exist; use :annual/:ttm suffixes"
     )
     assert snapshot["us-gaap:NetIncomeLoss:annual"][0]["value"] == 97.0
+
+
+def test_xbrl_concept_snapshot_uses_real_matched_concept_not_hardcoded() -> None:
+    """BUG-009: a post-ASC-606 issuer's latest revenue is keyed under the REAL
+    matched concept (``RevenueFromContractWithCustomerExcludingAssessedTax``),
+    never the old hardcoded ``us-gaap:Revenues`` — injecting the wrong SEC
+    concept to the LLM was provenance falsification."""
+    snapshot = xbrl_concept_snapshot(
+        {
+            "latest_revenue": {
+                "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+                "value": 416_161_000_000.0,
+                "period_end": "2025-09-27",
+                "units": "USD",
+            },
+            "latest_total_assets": {
+                "concept": "us-gaap:Assets",
+                "value": 364_980_000_000.0,
+                "period_end": "2026-03-29",
+                "units": "USD",
+            },
+        }
+    )
+
+    rev_key = "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax"
+    assert rev_key in snapshot
+    assert "us-gaap:Revenues" not in snapshot, "must not re-tag revenue as the hardcoded concept"
+    rev_entry = snapshot[rev_key][0]
+    assert rev_entry["value"] == 416_161_000_000.0
+    assert rev_entry["period_end"] == "2025-09-27"
+    assert rev_entry["units"] == "USD"
+    # Balance-sheet concept passes through as-is.
+    assert snapshot["us-gaap:Assets"][0]["value"] == 364_980_000_000.0
+
+
+def test_xbrl_concept_snapshot_rejects_legacy_bare_float() -> None:
+    """A bare float (legacy/malformed payload) is dropped rather than re-tagged
+    with a guessed concept — no fabricated provenance."""
+    snapshot = xbrl_concept_snapshot({"latest_revenue": 999.0, "latest_net_income": 50.0})
+    assert snapshot == {}

@@ -588,43 +588,117 @@ def test_slice_proxy_text_returns_intro_only_when_no_sct_found() -> None:
 # ---------------------------------------------------------------------------
 
 
+class _FakeFinancialFact:
+    """Minimal stand-in for edgartools ``FinancialFact``.
+
+    Only the fields ``_select_latest_fact`` reads: ``concept`` (the REAL matched
+    us-gaap tag — BUG-009), ``numeric_value``, ``period_end``, ``unit``.
+    """
+
+    def __init__(
+        self,
+        concept: str,
+        numeric_value: float,
+        period_end: date,
+        unit: str = "USD",
+    ) -> None:
+        self.concept = concept
+        self.numeric_value = numeric_value
+        self.period_end = period_end
+        self.unit = unit
+
+
+class _FakeLatestFacts:
+    """Fake EntityFacts serving ``get_ttm`` + ``get_annual_fact``/``get_fact``.
+
+    ``annual_by_concept`` / ``recent_by_concept`` map a taxonomy-prefixed concept
+    (e.g. ``us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax``) to a
+    ``_FakeFinancialFact``. ``get_annual_fact`` consults the annual map (FY pref);
+    ``get_fact`` consults the recent map. Absent concept → None (the getters'
+    not-found contract), so the provider walks to the next variant.
+    """
+
+    def __init__(
+        self,
+        *,
+        ttm: dict[str, _FakeTTMMetric] | None = None,
+        annual: dict[str, _FakeFinancialFact] | None = None,
+        recent: dict[str, _FakeFinancialFact] | None = None,
+    ) -> None:
+        self._ttm = ttm or {}
+        self._annual = annual or {}
+        self._recent = recent or {}
+
+    def get_ttm(self, concept: str) -> _FakeTTMMetric:
+        if concept not in self._ttm:
+            raise KeyError(concept)
+        return self._ttm[concept]
+
+    def get_annual_fact(self, concept: str) -> _FakeFinancialFact | None:
+        return self._annual.get(concept)
+
+    def get_fact(self, concept: str) -> _FakeFinancialFact | None:
+        return self._recent.get(concept)
+
+
 @pytest.mark.asyncio
 async def test_fetch_xbrl_selects_live_concept_via_get_ttm() -> None:
     """ADR-0008: _fetch_xbrl drives TTM through concept-aware ``get_ttm`` (latest
     period_end + structural gate), NOT the first-match ``get_ttm_revenue`` getter
     that latched abandoned concepts. A valid live-concept window is surfaced as a
-    typed dict; absent net-income concepts (KeyError) → None."""
+    typed dict; absent net-income concepts (KeyError) → None. BUG-009:
+    ``latest_revenue`` carries the REAL matched concept, not a bare float."""
     p = EdgarToolsProvider("Jane Doe jane@example.com")
-    facts = MagicMock()
-    rev_metric = _FakeTTMMetric(
-        "us-gaap:Revenues",
-        451_442_000_000,
-        [(2025, "Q3"), (2025, "Q4"), (2026, "Q1"), (2026, "Q2")],
-        date.today() - timedelta(days=30),  # recent → passes recency gate
+    pe = date(2025, 9, 27)
+    facts = _FakeLatestFacts(
+        ttm={
+            "Revenues": _FakeTTMMetric(
+                "us-gaap:Revenues",
+                451_442_000_000,
+                [(2025, "Q3"), (2025, "Q4"), (2026, "Q1"), (2026, "Q2")],
+                date.today() - timedelta(days=30),  # recent → passes recency gate
+            )
+        },
+        annual={
+            # Post-ASC-606: AAPL reports revenue under RFCWCEAT, NOT Revenues —
+            # the snapshot concept must reflect that, not a hardcoded label.
+            "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax": _FakeFinancialFact(
+                "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+                416_161_000_000,
+                pe,
+            ),
+            "us-gaap:NetIncomeLoss": _FakeFinancialFact(
+                "us-gaap:NetIncomeLoss", 96_995_000_000, pe
+            ),
+            "us-gaap:GrossProfit": _FakeFinancialFact("us-gaap:GrossProfit", 184_103_000_000, pe),
+            "us-gaap:OperatingIncomeLoss": _FakeFinancialFact(
+                "us-gaap:OperatingIncomeLoss", 123_216_000_000, pe
+            ),
+        },
+        recent={
+            "us-gaap:Assets": _FakeFinancialFact("us-gaap:Assets", 364_980_000_000, pe),
+            "us-gaap:Liabilities": _FakeFinancialFact("us-gaap:Liabilities", 308_030_000_000, pe),
+            "us-gaap:StockholdersEquity": _FakeFinancialFact(
+                "us-gaap:StockholdersEquity", 56_950_000_000, pe
+            ),
+        },
     )
-
-    def _get_ttm(concept: str) -> Any:
-        if concept == "Revenues":
-            return rev_metric
-        raise KeyError(concept)  # all net-income concepts absent
-
-    facts.get_ttm.side_effect = _get_ttm
-    facts.get_revenue.return_value = 416_161_000_000
-    facts.get_net_income.return_value = 96_995_000_000
-    facts.get_gross_profit.return_value = 184_103_000_000
-    facts.get_operating_income.return_value = 123_216_000_000
-    facts.get_total_assets.return_value = 364_980_000_000
-    facts.get_total_liabilities.return_value = 308_030_000_000
-    facts.get_shareholders_equity.return_value = 56_950_000_000
 
     c = MagicMock()
     c.get_facts.return_value = facts
     data, _ = p._fetch_xbrl(c)
     assert data["facts_available"] is True
-    assert data["latest_revenue"] == 416_161_000_000
+    # BUG-009: latest_revenue is now a dict carrying the REAL matched concept.
+    assert data["latest_revenue"]["value"] == 416_161_000_000
+    assert data["latest_revenue"]["concept"] == (
+        "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax"
+    )
+    assert data["latest_revenue"]["period_end"] == pe
+    assert data["latest_revenue"]["units"] == "USD"
     assert data["ttm_revenue"]["concept"] == "us-gaap:Revenues"
     assert data["ttm_revenue"]["value"] == 451_442_000_000
-    assert data["ttm_revenue"]["periods"][0] == {"year": 2025, "quarter": "Q3"}
+    # BUG-010: periods are list[str] matching XBRLTTMMetric.periods.
+    assert data["ttm_revenue"]["periods"][0] == "Q3 2025"
     assert data["ttm_net_income"] is None
 
 
@@ -632,70 +706,60 @@ async def test_fetch_xbrl_selects_live_concept_via_get_ttm() -> None:
 async def test_fetch_xbrl_balance_sheet_prefers_latest_period_over_latest_annual() -> None:
     """Reproduces the 2026-05-28 TSLA balance-sheet staleness bug: when the
     issuer has both a FY 10-K and a more recent 10-Q on file, the artifact
-    must surface the 10-Q values. ``edgar-python``'s standardized getters
-    default to ``annual=True`` (FY only). The provider passes ``annual=False``
-    for assets/liabilities/equity so the most recent point wins regardless
-    of form type — verified by mocking distinct annual vs non-annual
-    return values."""
+    must surface the 10-Q values. Balance-sheet getters use ``annual=False`` —
+    so ``_select_latest_fact`` consults the most-recent point (``get_fact``),
+    NOT the FY annual (``get_annual_fact``). Here only the recent map carries
+    the Q1 10-Q values; the annual map (FY 10-K) is never consulted for BS items."""
     p = EdgarToolsProvider("Jane Doe jane@example.com")
-    facts = MagicMock()
-    facts.get_ttm_revenue.return_value = None
-    facts.get_ttm_net_income.return_value = None
-    facts.get_revenue.return_value = None
-    facts.get_net_income.return_value = None
-    facts.get_gross_profit.return_value = None
-    facts.get_operating_income.return_value = None
-
-    # FY 10-K value vs. Q1 10-Q value — must pick the Q1 (annual=False) one.
-    # Numbers anchor to TSLA on 2026-05-28: 10-K $137.806B vs 10-Q $143.724B.
-    def _assets(annual: bool = True) -> float:
-        return 137_806_000_000 if annual else 143_724_000_000
-
-    def _liab(annual: bool = True) -> float:
-        return 54_941_000_000 if annual else 58_922_000_000
-
-    def _equity(annual: bool = True) -> float:
-        return 82_137_000_000 if annual else 84_116_000_000
-
-    facts.get_total_assets.side_effect = _assets
-    facts.get_total_liabilities.side_effect = _liab
-    facts.get_shareholders_equity.side_effect = _equity
+    q1_pe = date(2026, 3, 31)
+    facts = _FakeLatestFacts(
+        # No TTM, no P&L annuals — isolate the balance-sheet path.
+        annual={
+            # FY 10-K values present but MUST be ignored for BS (annual=False).
+            "us-gaap:Assets": _FakeFinancialFact(
+                "us-gaap:Assets", 137_806_000_000, date(2025, 12, 31)
+            ),
+        },
+        recent={
+            "us-gaap:Assets": _FakeFinancialFact("us-gaap:Assets", 143_724_000_000, q1_pe),
+            "us-gaap:Liabilities": _FakeFinancialFact("us-gaap:Liabilities", 58_922_000_000, q1_pe),
+            "us-gaap:StockholdersEquity": _FakeFinancialFact(
+                "us-gaap:StockholdersEquity", 84_116_000_000, q1_pe
+            ),
+        },
+    )
 
     c = MagicMock()
     c.get_facts.return_value = facts
     data, _ = p._fetch_xbrl(c)
 
     # Must surface the Q1 10-Q values, not the FY 10-K.
-    assert data["latest_total_assets"] == 143_724_000_000
-    assert data["latest_total_liabilities"] == 58_922_000_000
-    assert data["latest_shareholders_equity"] == 84_116_000_000
+    assert data["latest_total_assets"]["value"] == 143_724_000_000
+    assert data["latest_total_assets"]["period_end"] == q1_pe
+    assert data["latest_total_liabilities"]["value"] == 58_922_000_000
+    assert data["latest_shareholders_equity"]["value"] == 84_116_000_000
 
 
 @pytest.mark.asyncio
-async def test_fetch_xbrl_periods_tuple_produces_typed_dict() -> None:
-    """Tuple periods → {"year": int, "quarter": str} typed dict — not repr string."""
+async def test_fetch_xbrl_periods_str_list_matches_model() -> None:
+    """BUG-010: tuple periods → ``list[str]`` (e.g. "Q3 2025") matching
+    ``XBRLTTMMetric.periods``, not a typed dict or repr tuple string."""
     p = EdgarToolsProvider("Jane Doe jane@example.com")
-    facts = MagicMock()
-    ni_metric = _FakeTTMMetric(
-        "us-gaap:NetIncomeLoss",
-        96_995_000_000,
-        [(2025, "Q3"), (2025, "Q4"), (2026, "Q1"), (2026, "Q2")],
-        date.today() - timedelta(days=25),
+    facts = _FakeLatestFacts(
+        ttm={
+            "NetIncomeLoss": _FakeTTMMetric(
+                "us-gaap:NetIncomeLoss",
+                96_995_000_000,
+                [(2025, "Q3"), (2025, "Q4"), (2026, "Q1"), (2026, "Q2")],
+                date.today() - timedelta(days=25),
+            )
+        },
+        annual={
+            "us-gaap:NetIncomeLoss": _FakeFinancialFact(
+                "us-gaap:NetIncomeLoss", 96_995_000_000, date(2025, 9, 27)
+            )
+        },
     )
-
-    def _get_ttm(concept: str) -> Any:
-        if concept == "NetIncomeLoss":
-            return ni_metric
-        raise KeyError(concept)  # all revenue concepts absent
-
-    facts.get_ttm.side_effect = _get_ttm
-    facts.get_revenue.return_value = None
-    facts.get_net_income.return_value = 96_995_000_000
-    facts.get_gross_profit.return_value = None
-    facts.get_operating_income.return_value = None
-    facts.get_total_assets.return_value = None
-    facts.get_total_liabilities.return_value = None
-    facts.get_shareholders_equity.return_value = None
 
     c = MagicMock()
     c.get_facts.return_value = facts
@@ -703,15 +767,42 @@ async def test_fetch_xbrl_periods_tuple_produces_typed_dict() -> None:
 
     ni_ttm = data["ttm_net_income"]
     assert ni_ttm is not None
-    assert ni_ttm["periods"] == [
-        {"year": 2025, "quarter": "Q3"},
-        {"year": 2025, "quarter": "Q4"},
-        {"year": 2026, "quarter": "Q1"},
-        {"year": 2026, "quarter": "Q2"},
-    ]
-    # Must NOT be Python repr string
+    assert ni_ttm["periods"] == ["Q3 2025", "Q4 2025", "Q1 2026", "Q2 2026"]
+    # Must NOT be Python repr tuple string nor a dict.
     for period_entry in ni_ttm["periods"]:
-        assert "(" not in str(period_entry), "period must not be a Python repr tuple string"
+        assert isinstance(period_entry, str)
+        assert "(" not in period_entry, "period must not be a Python repr tuple string"
+
+
+@pytest.mark.asyncio
+async def test_fetch_xbrl_surfaces_ttm_calculated_q4_and_warning() -> None:
+    """BUG-010: edgartools' ``has_calculated_q4`` (Q4 derived from FY−9M) and
+    ``warning`` (gaps / thin history) must reach DataResult.warnings so the UI
+    can caveat the TTM honestly, plus ``period_end`` (as_of_date) is threaded."""
+    p = EdgarToolsProvider("Jane Doe jane@example.com")
+    as_of = date.today() - timedelta(days=20)
+    facts = _FakeLatestFacts(
+        ttm={
+            "Revenues": _FakeTTMMetric(
+                "us-gaap:Revenues",
+                100.0,
+                [(2025, "Q3"), (2025, "Q4"), (2026, "Q1"), (2026, "Q2")],
+                as_of,
+                has_calculated_q4=True,
+                warning="Gaps detected in quarterly data.",
+            )
+        },
+    )
+
+    c = MagicMock()
+    c.get_facts.return_value = facts
+    data, warnings = p._fetch_xbrl(c)
+
+    assert data["ttm_revenue"]["period_end"] == as_of
+    assert data["ttm_revenue"]["has_calculated_q4"] is True
+    assert data["ttm_revenue"]["warning"] == "Gaps detected in quarterly data."
+    assert any("calculated Q4" in w for w in warnings)
+    assert any("Gaps detected" in w for w in warnings)
 
 
 @pytest.mark.asyncio
@@ -723,9 +814,15 @@ async def test_xbrl_concept_snapshot_net_income_dual_key() -> None:
         "ttm_net_income": {
             "concept": "us-gaap:NetIncomeLoss",
             "value": 100_000_000,
-            "periods": [{"year": 2025, "quarter": "Q3"}, {"year": 2025, "quarter": "Q4"}],
+            "periods": ["Q3 2025", "Q4 2025"],
         },
-        "latest_net_income": 90_000_000,
+        # BUG-009: latest_* is now the provider's recovered-concept dict.
+        "latest_net_income": {
+            "concept": "us-gaap:NetIncomeLoss",
+            "value": 90_000_000,
+            "period_end": "2025-09-27",
+            "units": "USD",
+        },
     }
     snapshot = xbrl_concept_snapshot(raw_xbrl)
 
@@ -745,6 +842,8 @@ async def test_xbrl_concept_snapshot_net_income_dual_key() -> None:
     assert len(annual_entries) == 1
     assert annual_entries[0]["value"] == 90_000_000
     assert annual_entries[0]["concept"] == "us-gaap:NetIncomeLoss:annual"
+    # The REAL matched concept is preserved alongside the stable :annual key.
+    assert annual_entries[0]["matched_concept"] == "us-gaap:NetIncomeLoss"
 
 
 @pytest.mark.asyncio
@@ -846,15 +945,31 @@ class _FakePeriodFact:
 
 
 class _FakeTTMMetric:
-    """Mimics edgartools' TTMMetric: concept, value, periods, period_facts."""
+    """Mimics edgartools' TTMMetric: concept, value, periods, as_of_date + caveats.
 
-    def __init__(self, concept: str, value: float, periods: list[tuple[int, str]],
-                 latest_end: _date) -> None:
+    ``as_of_date`` is the TTM window's latest-quarter ``period_end`` (the
+    calculator sets it to ``ttm_quarters[-1].period_end``); the provider ranks
+    candidates and gates recency on it (BUG-010). ``has_calculated_q4`` / ``warning``
+    carry edgartools' quarterization quality caveats.
+    """
+
+    def __init__(
+        self,
+        concept: str,
+        value: float,
+        periods: list[tuple[int, str]],
+        latest_end: _date,
+        *,
+        has_calculated_q4: bool = False,
+        warning: str | None = None,
+    ) -> None:
         self.concept = concept
         self.value = value
         self.periods = periods
-        # one period_fact carrying the latest period_end is enough for ranking
+        self.as_of_date = latest_end
         self.period_facts = [_FakePeriodFact(latest_end)]
+        self.has_calculated_q4 = has_calculated_q4
+        self.warning = warning
 
 
 class _FakeFacts:
@@ -872,26 +987,18 @@ class _FakeFacts:
 
 class TestValidateTTMPeriods:
     def test_accepts_four_consecutive_distinct_quarters(self) -> None:
-        assert _validate_ttm_periods(
-            [(2026, "Q2"), (2026, "Q3"), (2026, "Q4"), (2027, "Q1")]
-        )
+        assert _validate_ttm_periods([(2026, "Q2"), (2026, "Q3"), (2026, "Q4"), (2027, "Q1")])
 
     def test_rejects_repeated_annual_frame(self) -> None:
         # NVDA's frozen dead concept: same FY period four times.
-        assert not _validate_ttm_periods(
-            [(2020, "FY"), (2020, "FY"), (2020, "FY"), (2020, "FY")]
-        )
+        assert not _validate_ttm_periods([(2020, "FY"), (2020, "FY"), (2020, "FY"), (2020, "FY")])
 
     def test_rejects_cumulative_ytd_frame(self) -> None:
         # An H1 (year-to-date) frame leaking in would double-count.
-        assert not _validate_ttm_periods(
-            [(2026, "Q1"), (2026, "H1"), (2026, "Q3"), (2026, "Q4")]
-        )
+        assert not _validate_ttm_periods([(2026, "Q1"), (2026, "H1"), (2026, "Q3"), (2026, "Q4")])
 
     def test_rejects_gap_in_quarters(self) -> None:
-        assert not _validate_ttm_periods(
-            [(2026, "Q1"), (2026, "Q2"), (2026, "Q4"), (2027, "Q1")]
-        )
+        assert not _validate_ttm_periods([(2026, "Q1"), (2026, "Q2"), (2026, "Q4"), (2027, "Q1")])
 
     def test_rejects_wrong_count(self) -> None:
         assert not _validate_ttm_periods([(2026, "Q1"), (2026, "Q2"), (2026, "Q3")])
@@ -1039,7 +1146,9 @@ def test_fetch_schedule13_parses_dedups_and_skips_self_filing() -> None:
         # BlackRock (kept)
         _mock_sched13_filing("SC 13D", date(2024, 1, 26), "a4", "BlackRock Inc.", "1364742", cover),
         # filing with no parseable share count (skipped — no fabricated 0)
-        _mock_sched13_filing("SC 13G", date(2023, 6, 1), "a5", "State Street Corp", "93751", no_shares),
+        _mock_sched13_filing(
+            "SC 13G", date(2023, 6, 1), "a5", "State Street Corp", "93751", no_shares
+        ),
     ]
     c = MagicMock()
     c.cik = "1045810"  # NVDA

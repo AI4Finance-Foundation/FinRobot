@@ -31,10 +31,16 @@ export interface CoverageOverviewState {
   data: CoverageOverview | undefined
   isLoading: boolean
   isError: boolean
-  /** Showing the fast skeleton while the full (market) fetch is in flight —
-   *  market cells render as loading, not as missing. */
+  /** Showing the fast skeleton while the full (market) fetch is unresolved —
+   *  in flight OR failed-with-fallback. Market cells render as loading, not as
+   *  missing; an outright '—' here would be indistinguishable from "no data". */
   marketPending: boolean
-  /** Re-run the full fetch — used by the error-state retry (BUG-051). */
+  /** The full (market) fetch FAILED while the fast skeleton stands in. Market
+   *  columns keep shimmering (marketPending stays true) and the page surfaces a
+   *  retry affordance wired to refetch() (BUG-032). */
+  marketError: boolean
+  /** Re-run the full fetch — used by the error-state retry (BUG-051) and the
+   *  market-degraded retry bar (BUG-032). */
   refetch: () => void
 }
 
@@ -65,7 +71,16 @@ export function useCoverageOverview(groupId: string | null): CoverageOverviewSta
     data,
     isLoading: !data && full.isLoading,
     isError: !data && full.isError,
-    marketPending: !full.data && !!fast.data && !full.isError,
+    // While the full fetch is unresolved (in flight OR failed) but the fast
+    // skeleton stands in, keep market cells shimmering rather than collapsing to
+    // '—'. Dropping the old `&& !full.isError` term is the whole BUG-032 fix:
+    // previously a full-fetch failure turned every market column into a silent
+    // '—' (looked like "no data"); now it stays a loading placeholder and the
+    // page offers a retry via marketError below.
+    marketPending: !full.data && !!fast.data,
+    // Full fetch failed but the fast skeleton kept the table alive — market data
+    // is unavailable (not merely slow). Drives the degraded retry bar.
+    marketError: !full.data && full.isError && !!fast.data,
     refetch: () => void full.refetch(),
   }
 }

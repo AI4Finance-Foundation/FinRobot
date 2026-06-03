@@ -68,6 +68,12 @@ export function CoveragePage(): React.ReactElement {
   // me", so Needs Action is the homepage, not an unfiltered dump.
   const [filter, setFilter] = useState<CoverageFilter>('needs_action')
 
+  // Market-degraded retry bar (BUG-032): the fast skeleton painted the table but
+  // the full (market) fetch failed, so price/market-cap/multiples columns keep
+  // shimmering. We surface a dismissible retry bar; dismissal is sticky until a
+  // fresh failure (the marketError → false → true transition re-shows it).
+  const [marketRetryDismissed, setMarketRetryDismissed] = useState(false)
+
   // The single surfaced list is the system "Studied Tickers" group; there is no
   // group switcher in the UX. Fall back to the first group only if the system
   // flag isn't present (older seed).
@@ -108,6 +114,15 @@ export function CoveragePage(): React.ReactElement {
     () => rows.find((r) => r.ticker === focusedTicker) ?? null,
     [rows, focusedTicker],
   )
+
+  // Re-arm the market-degraded retry bar on each fresh failure: when marketError
+  // flips false→true (e.g. a retry failed again, or a new group's full fetch
+  // fails), clear a prior dismissal so the user sees it again.
+  const prevMarketErrorRef = useRef(false)
+  useEffect(() => {
+    if (overviewQuery.marketError && !prevMarketErrorRef.current) setMarketRetryDismissed(false)
+    prevMarketErrorRef.current = overviewQuery.marketError
+  }, [overviewQuery.marketError])
 
   // ── Run completion → refresh the desk ────────────────────────────────────
   // Runs launched from a card / inspector are async (SSE-tracked in
@@ -295,6 +310,20 @@ export function CoveragePage(): React.ReactElement {
         sort={effectiveSort}
         onSort={(s) => activeGroupId && setSort(activeGroupId, s)}
       />
+
+      {/* Market-degraded retry bar (BUG-032): the table is alive (fast skeleton)
+          but the full market fetch failed, so the price/cap/multiples columns
+          are shimmering with no data behind them. Offer a retry on the FULL
+          query (not the fast skeleton) and let the user dismiss the bar. */}
+      {overviewQuery.marketError && !marketRetryDismissed && (
+        <MarketRetryBar
+          message={t('coverage.error.marketFailed')}
+          retryLabel={t('coverage.error.retry')}
+          dismissLabel={t('coverage.error.dismiss')}
+          onRetry={() => overviewQuery.refetch()}
+          onDismiss={() => setMarketRetryDismissed(true)}
+        />
+      )}
 
       {/* Batch action bar — only when a multi-select exists. Keeps batch ops
           (Run / Compare) out of the toolbar's single-ticker flow. */}
@@ -486,6 +515,81 @@ function ErrorState({
         style={{ padding: '6px 16px', fontSize: 11 }}
       >
         {retryLabel}
+      </button>
+    </div>
+  )
+}
+
+// Slim inline bar shown when the fast skeleton stands in but the full market
+// fetch failed (BUG-032). Retry re-runs the FULL query; dismiss hides the bar
+// (the columns keep their shimmer either way).
+function MarketRetryBar({
+  message,
+  retryLabel,
+  dismissLabel,
+  onRetry,
+  onDismiss,
+}: {
+  message: string
+  retryLabel: string
+  dismissLabel: string
+  onRetry: () => void
+  onDismiss: () => void
+}): React.ReactElement {
+  return (
+    <div
+      data-testid="coverage-market-retry"
+      style={{
+        display: 'flex',
+        flexShrink: 0,
+        alignItems: 'center',
+        gap: 12,
+        marginBottom: 12,
+        padding: '8px 14px',
+        border: '1px solid var(--danger)',
+        borderRadius: 'var(--radius-md)',
+        background: 'var(--danger-soft)',
+        color: 'var(--text-secondary)',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 12,
+      }}
+    >
+      <span style={{ flex: 1, minWidth: 0 }}>{message}</span>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="btn-shimmer"
+        style={{ padding: '4px 12px', fontSize: 11, flexShrink: 0 }}
+      >
+        {retryLabel}
+      </button>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label={dismissLabel}
+        title={dismissLabel}
+        style={{
+          flexShrink: 0,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 22,
+          height: 22,
+          padding: 0,
+          border: 'none',
+          background: 'transparent',
+          color: 'var(--text-secondary)',
+          cursor: 'pointer',
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <path
+            d="M2.5 2.5l7 7M9.5 2.5l-7 7"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+          />
+        </svg>
       </button>
     </div>
   )

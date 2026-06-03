@@ -3374,6 +3374,14 @@ msgid "coverage.error.retry"
 msgstr "重试"
 
 #. js-lingui-explicit-id
+msgid "coverage.error.marketFailed"
+msgstr "行情拉取失败，点击重试。"
+
+#. js-lingui-explicit-id
+msgid "coverage.error.dismiss"
+msgstr "关闭"
+
+#. js-lingui-explicit-id
 msgid "coverage.error.createFailed"
 msgstr "创建覆盖组失败"
 

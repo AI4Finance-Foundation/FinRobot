@@ -80,7 +80,7 @@
 | BUG-029 | Bug | P1 | Competitive table renders unguarded gross/operating margin → fabricated 0.0% or literal NaN% when backend value is null | 已修 |
 | BUG-030 | Bug | P1 | 13 章研报全程硬编码 $，而 Coverage 是币种感知——非美元标的会印错币种符号 | 待修 |
 | BUG-031 | Bug | P1 | Coverage 批量运行 >6 个 ticker 时耗尽浏览器 HTTP/1.1 连接池，多余的 SSE 与所有普通 API 轮询被无限阻塞 | 待修 |
-| BUG-032 | Bug | P1 | Coverage overview 全量 fetch 失败但 fast skeleton 成功时，卡片市场列永久空白——无错误态、无 shimmer、无重试入口 | 待修 |
+| BUG-032 | Bug | P1 | Coverage overview 全量 fetch 失败但 fast skeleton 成功时，卡片市场列永久空白——无错误态、无 shimmer、无重试入口 | 已修 |
 | BUG-033 | Bug | P1 | Chat tools and /api/runs accept unvalidated ticker strings while a SoT ticker validator already exists in coverage — junk symbols fan out to live providers | 已修 |
 | BUG-073 | Bug | P1 | DCF/DDM 绝对估值对外币 ADR 零 FX 归一化:营收(申报币 TWD/EUR)与市值/股本(USD)混算,implied_price 本币计价却当 USD 印出并比价(TSM ~32x 高估)——comps 路径已修,绝对估值路径漏修 | 待修 |
 | BUG-077 | Bug | P1 | SkillRegistry._load_all 只 catch SkillLoadError 不 catch pydantic ValidationError——一个字段类型写错的 SKILL.md(外部/partner 技能常见)使 server/SDK/CLI 启动整体崩,违背其 fail-soft 设计 | 待修 |
@@ -575,7 +575,7 @@
 - **修复方案**：改 ui/src/hooks/useCoverage.ts:64-70 的返回推导：新增一个 marketError 标志 = !full.data && full.isError && !!fast.data，并在 CoverageOverviewState 暴露；同时把 marketPending 改为 !full.data && !!fast.data && !full.isError（保持）。消费方两选一：(a) marketError 为真时，让 CoverageCard 的市场列继续渲染 Shimmer 并在卡片角标/inspector 显示一个小重试图标调 overviewQuery.refetch()；或 (b) 更简单：marketPending 的定义改成 !full.data && !!fast.data（去掉 !full.isError 这一项），这样 full 失败时市场列保持 Shimmer 而非塌成『—』，并在表头加一条可点重试的 degraded 提示条。注意事项：纯 (b) 会让 full 永久失败时 Shimmer 转圈不停，需配合一个表头级 retry，不能只 Shimmer。
 - **验证补充**：Fix direction correct. Note: the fast query has enabled:`!!groupId && !full.data`; on full.isError full.data stays undefined so fast stays enabled and its data persists — good for the shimmer-retain approach. Ensure the new header retry calls full.refetch() (not fast) so it re-attempts the market fetch.
 - **影响面/回归风险**：影响 Coverage Desk 的可信度（金融工具最忌『静默显示空数据』被误读为真值）。回归风险低：只改派生标志与卡片占位，不动数据流。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（useCoverage.useCoverageOverview 新增 marketError=!full.data && full.isError && !!fast.data；marketPending 去掉 !full.isError 项→full 失败时市场列保持 Shimmer 而非塌成 —。CoveragePage 加 MarketRetryBar（marketError 时显「行情拉取失败，点击重试」可关闭条，重试调 full.refetch 非 fast；token 化样式，新增 i18n coverage.error.marketFailed/dismiss）。区分「真没数据」与「拉取失败」。lint+build+116 测试通过。）
 
 #### [BUG-033] Chat tools and /api/runs accept unvalidated ticker strings while a SoT ticker validator already exists in coverage — junk symbols fan out to live providers
 

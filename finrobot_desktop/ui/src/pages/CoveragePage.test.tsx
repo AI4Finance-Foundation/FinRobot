@@ -13,6 +13,7 @@ const hooks = {
     isLoading: false,
     isError: false,
     marketPending: false,
+    marketError: false,
     refetch: vi.fn(),
   },
 }
@@ -49,6 +50,7 @@ describe('CoveragePage error states (BUG-051)', () => {
       isLoading: false,
       isError: false,
       marketPending: false,
+      marketError: false,
       refetch: vi.fn(),
     }
   })
@@ -73,6 +75,7 @@ describe('CoveragePage error states (BUG-051)', () => {
       isLoading: false,
       isError: true,
       marketPending: false,
+      marketError: false,
       refetch: vi.fn(),
     }
     renderPage()

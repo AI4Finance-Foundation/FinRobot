@@ -8,7 +8,14 @@
 //   - Two-column DebateColumn layout for bull / bear points
 //
 // v1 scope: no divergence panel (backend doesn't produce divergence values).
-// No save / history / export in this version.
+//
+// Ephemeral by design (BUG-20260602-015): a debate is NOT persisted as an
+// artifact — state lives only in the in-memory debateStore, and the backend
+// /api/debate route streams SSE without writing a record. It will not appear in
+// history/timeline and is lost on refresh/close. Until artifact persistence
+// ships, the page must say so out loud (EphemeralNotice below) rather than
+// silently dropping the analyst's debate. Do NOT add a save/export button here
+// that implies persistence — there is none yet.
 
 import { useCallback } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
@@ -24,7 +31,7 @@ export function IcDebatePage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const addToast = useToastStore((s) => s.addToast)
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
 
   const symbol = (ticker ?? '').toUpperCase()
   const artifactId = searchParams.get('artifact_id')
@@ -144,6 +151,10 @@ export function IcDebatePage() {
             reliable={debate.reliable}
             current_price={debate.current_price}
           />
+
+          {/* Ephemeral notice (BUG-20260602-015): this debate is not saved — be
+              honest about it instead of letting the analyst assume it persists. */}
+          <EphemeralNotice locale={locale} />
 
           {/* Re-debate: a completed verdict reflects one moment's data/assumptions.
               Let the analyst re-run against the same report to compare. */}
@@ -402,6 +413,40 @@ function StartPanel({ ticker, artifactId, onStart, onViewReport }: StartPanelPro
       >
         ⚖ {t('ic.start.cta')}
       </button>
+    </div>
+  )
+}
+
+// Tells the analyst the debate is ephemeral — not saved, not in history/timeline,
+// gone on refresh/close. Inline locale literals (precedent: VersionDiffBanner); no
+// .po entry until persistence ships and the copy stabilizes.
+function EphemeralNotice({ locale }: { locale: 'zh' | 'en' }) {
+  const text =
+    locale === 'zh'
+      ? '此辩论不会被保存——不会出现在历史 / 时间线中,刷新或关闭页面后即丢失。'
+      : 'This debate is not saved — it won’t appear in history/timeline and is lost on refresh or close.'
+  return (
+    <div
+      data-testid="ic-ephemeral-notice"
+      role="note"
+      style={{
+        margin: '4px 0 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '8px 12px',
+        background: 'color-mix(in srgb, var(--warning) 7%, transparent)',
+        border: '1px solid color-mix(in srgb, var(--warning) 24%, transparent)',
+        borderRadius: 'var(--radius-sm)',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11,
+        lineHeight: 1.5,
+        color: 'var(--warning)',
+        letterSpacing: '0.02em',
+      }}
+    >
+      <span aria-hidden>⚠</span>
+      <span>{text}</span>
     </div>
   )
 }

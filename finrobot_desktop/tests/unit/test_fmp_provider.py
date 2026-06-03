@@ -823,6 +823,11 @@ def _fmp_historical_price_response(days: int = 3) -> dict:
 
     FMP returns newest-first; the provider reverses to match yfinance's
     oldest-first ordering. We hand back newest-first here to exercise that.
+
+    adjClose == close here (no split/dividend over the window) so the PRICE
+    path's split/dividend adjustment is a no-op and these bars match their
+    nominal values — the split case lives in
+    ``test_fetch_price_history_is_split_adjusted``.
     """
     return {
         "symbol": "AAPL",
@@ -833,6 +838,7 @@ def _fmp_historical_price_response(days: int = 3) -> dict:
                 "high": 176.0,
                 "low": 173.5,
                 "close": 175.0,
+                "adjClose": 175.0,
                 "volume": 50_000_000,
             },
             {
@@ -841,6 +847,7 @@ def _fmp_historical_price_response(days: int = 3) -> dict:
                 "high": 174.5,
                 "low": 171.0,
                 "close": 174.0,
+                "adjClose": 174.0,
                 "volume": 48_000_000,
             },
             {
@@ -849,6 +856,7 @@ def _fmp_historical_price_response(days: int = 3) -> dict:
                 "high": 172.5,
                 "low": 169.5,
                 "close": 172.0,
+                "adjClose": 172.0,
                 "volume": 45_000_000,
             },
         ][:days],
@@ -938,6 +946,80 @@ class TestFMPPrice:
             result = await provider.fetch("NEW", "price")
         assert result.data["current_price"] == 10.0
         assert result.data["price_history"] == []
+
+    @pytest.mark.asyncio
+    async def test_fetch_price_history_is_split_adjusted(self, provider):
+        """BUG-071: PRICE history must be split/dividend-adjusted (close=adjClose,
+        O/H/L scaled by adjClose/close) like PRICE_RANGE and yfinance auto_adjust
+        — never the nominal raw close. Otherwise a name with a split in the
+        trailing year carries the pre-split nominal high (~10× spot for a 10:1
+        split) into the downstream 52-week high/low and SMA20/50/200, which read
+        the close column of this history.
+
+        Real AAPL 2020 4:1 split shape (verified live 2026-06-02 against yfinance
+        auto_adjust): pre-split rows carry the nominal ~129 close; the adjusted
+        basis is ~125. The 52-week high taken off close must land on the adjusted
+        ~130, not the nominal ~134.
+        """
+        responses = [
+            _mock_response(_fmp_quote_response("AAPL", price=130.13)),
+            _mock_response(_fmp_adj_historical_price_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "price")
+
+        history = result.data["price_history"]
+        # Oldest-first, every row kept (all carry adjClose).
+        assert [p["date"] for p in history] == ["2020-08-28", "2020-08-31", "2020-09-01"]
+        closes = [p["close"] for p in history]
+        # close == adjClose — the adjusted basis, NOT the nominal raw close.
+        assert closes == pytest.approx([121.05, 125.15, 130.13])
+        # The nominal closes (124.81 / 129.04 / 134.18) must NOT appear: a
+        # downstream 52w-high off the close column lands on adjusted 130.13,
+        # never the nominal 134.18 (≈ spot × split ratio for a split name).
+        assert max(closes) == pytest.approx(130.13)
+        assert all(c not in (124.81, 129.04, 134.18) for c in closes)
+        # O/H/L scaled by adjClose/close: 2020-08-31 open 127.58 × (125.15/129.04).
+        assert history[1]["open"] == pytest.approx(127.58 * (125.15 / 129.04), rel=1e-6)
+        assert history[1]["high"] == pytest.approx(131.0 * (125.15 / 129.04), rel=1e-6)
+        assert history[1]["volume"] == pytest.approx(225_702_700)
+
+    @pytest.mark.asyncio
+    async def test_fetch_price_drops_rows_missing_adjclose(self, provider):
+        """A bar lacking adjClose can't be put on the adjusted basis, so it's
+        dropped rather than emitted half-adjusted (mixing nominal + adjusted
+        closes in one history would corrupt the 52w window just as badly)."""
+        hist = {
+            "symbol": "AAPL",
+            "historical": [
+                {
+                    "date": "2026-05-23",
+                    "open": 174.0,
+                    "high": 176.0,
+                    "low": 173.5,
+                    "close": 175.0,
+                    "adjClose": 175.0,
+                    "volume": 50_000_000,
+                },
+                # No adjClose — must be dropped.
+                {
+                    "date": "2026-05-22",
+                    "open": 172.0,
+                    "high": 174.5,
+                    "low": 171.0,
+                    "close": 174.0,
+                    "volume": 48_000_000,
+                },
+            ],
+        }
+        responses = [
+            _mock_response(_fmp_quote_response("AAPL", price=175.0)),
+            _mock_response(hist),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "price")
+        history = result.data["price_history"]
+        assert [p["date"] for p in history] == ["2026-05-23"]
 
 
 class TestFMPNetworkErrors:

@@ -98,7 +98,7 @@
 | BUG-038 | Bug | P2 | peer 倍数白名单用未格式化原始 float 注入（median_pe/pe_ratio/market_cap），LLM 在 competitor_analysis 里复述时口径/精度无锚，且与前端表格显示口径不保证一致 | 待修 |
 | BUG-039 | Bug | P2 | `is_sampled` compares against GLOBAL store count, not the in-window / in-scope population → mislabels fully-covered windows as 'partial' | 已修 |
 | BUG-040 | Bug | P2 | Cumulative total_return shown beside annualized-intent Sharpe; annualized Returns analyzer added but never read | 已修 |
-| BUG-041 | Bug | P2 | run_strategy_selection tunes 3 iterations on one in-sample window and reports max(total_return) as a 'good' strategy — pure overfitting, no out-of-sample | 待修 |
+| BUG-041 | Bug | P2 | run_strategy_selection tunes 3 iterations on one in-sample window and reports max(total_return) as a 'good' strategy — pure overfitting, no out-of-sample | 已修 |
 | BUG-042 | Bug | P2 | Sniper LONG mode: secondary_buy (20-day support) can sit BELOW stop_loss → incoherent trade row passes invariant guards | 已修 |
 | BUG-043 | Bug | P2 | Unauthenticated POST /chat, /api/runs and /api/coverage/groups/{id}/runs burn metered LLM credits with zero inbound rate limiting | 待修 |
 | BUG-044 | Bug | P2 | Unauthenticated DELETE /api/artifacts/{id} and DELETE /api/coverage/groups/{id} permanently destroy stored research | 待修 |
@@ -117,7 +117,7 @@
 | BUG-057 | Bug | P2 | Compare 表把不同时间跑出的 DCF 混在同一张表,且不显任何 vintage/as_of——用户无法判断哪行是今天的、哪行是三周前的 | 待修 |
 | BUG-068 | Bug | P2 | 回测对 A股标的零适配(T+1/涨跌停/印花税/停牌全缺)却照常产出净值曲线——A股结果根本不可信,应在入口直接 raise 拒跑而非 warn | 待修 |
 | BUG-070 | Bug | P2 | artifact 盖 git_commit 戳的 subprocess except 抓错异常类型(只抓 ImportError/Attr/Type/Value)——git 缺失(FileNotFoundError)/超时(TimeoutExpired)未捕获,无 git 环境(pip 安装用户/Docker slim/CI)研报落地最后一步直接崩 | 已修 |
-| BUG-071 | Bug | P2 | FMP _fetch_price 的 price_history 用未复权原始 close(没走 _adjust_fmp_bar),而 _fetch_price_range/yfinance 都已复权——FMP 当 PRICE 主源时 52周高低/SMA 落在名义价上,近一年有拆股的标的 52周高直接 ×拆股比 | 待修 |
+| BUG-071 | Bug | P2 | FMP _fetch_price 的 price_history 用未复权原始 close(没走 _adjust_fmp_bar),而 _fetch_price_range/yfinance 都已复权——FMP 当 PRICE 主源时 52周高低/SMA 落在名义价上,近一年有拆股的标的 52周高直接 ×拆股比 | 已修 |
 | BUG-074 | Bug | P2 | DCF 末年 FCF 为负时 Gordon 终值把负现金流资本化成永续负值→产出负的『每股公允价值』,degrade 分支只防 tg≥WACC 接不住,负价无 guard 直接进研报叙事+LLM prompt | 已修 |
 | BUG-075 | Bug | P2 | 13F refresh job 假设 edgartools 小写列名,实装 5.31.5 输出 PascalCase(Cusip/Issuer/Value)→ 每份 filing 被 schema gate 跳过,institutional_holdings 永久空(缓存 0 行),测试 mock 小写列所以 CI 绿 | 已修 |
 | BUG-078 | Bug | P2 | agent 工厂/orchestrator 用无 encoding 的 read_text() 读含中文的 .md 指令文件——非 UTF-8 locale(裸 Docker LANG=C/Windows)下 agent 创建即 UnicodeDecodeError 崩;同仓 skills/loader.py 已带 encoding,这两处漏写 | 待修 |
@@ -701,7 +701,7 @@
 - **修复方案**：[重构, ~medium] Split the window: derive an in-sample sub-range (e.g. first 70% of the date span) for the 3 tuning iterations and an out-of-sample tail (last 30%) for the final reported result. Tune on in-sample (select best params by in-sample metric), then run ONCE on out-of-sample with those params and return THAT BacktestResult, with warnings noting 'params tuned on in-sample {is_start}-{is_end}, reported on out-of-sample {oos_start}-{oos_end}'. Also switch the selection metric from raw total_return to a risk-adjusted one (Sharpe, after the Sharpe fix) or at least annualized_return. If a hard split is too invasive now, the minimum non-band-aid change is to attach a prominent warning to the returned result: 'Parameters tuned and evaluated on the same window; result is in-sample and likely overfit — not a validated strategy.' Update strategy_agent docstring (lines 1-9, currently claims 'tuned strategy' framing). Note: changing return semantics is a behavior change to the --auto/aauto_backtest contract — flag as [破坏性] for CLI/SDK callers.
 - **验证补充**：70/30 IS/OOS split + report OOS result is the right direction and is correctly flagged [破坏性] for CLI/SDK callers. Implementation cautions: (1) the date range is just YYYY-MM-DD strings — splitting requires parsing to dates and picking a boundary; ensure the OOS window is long enough for the SMA slow period (default 30) to warm up or the OOS run yields zero trades. (2) Switching selection to Sharpe depends on fixing finding [0] first, else selection is on None; until then annualized_return (finding [1]) is the safer interim selection metric. (3) The fallback 'just attach a prominent overfit warning' is acceptable per house rules only if the full split is deferred with an explicit reason — but given build-phase 'do it right' discipline, prefer the real split.
 - **影响面/回归风险**：Affects CLI --auto and SDK auto_backtest/aauto_backtest only (not exposed via routes/agents). Behavior change: returned result reflects OOS not best-in-sample, so numbers drop — that is the point. Regression: tests in test_strategy_agent.py assert best-across-iterations semantics (lines 141,184) and would need rewrite. High product value: stops shipping overfit numbers to quant users.
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（strategy_agent.run_strategy_selection 加 70/30 样本内/外划分：_split_in_sample_oos 按日期跨度 70% 切界，3 次调参只见 in-sample，按 annualized_return（缺则 total_return）选最优参数，再用该参数在 out-of-sample 尾段跑一次并返回 THAT 结果，warning 标注「参数在 IS 调、结果报在 OOS holdout」。OOS 尾段 <60 天（SMA 预热不足）则全窗调参但前置 _NO_HOLDOUT_WARNING 诚实披露 in-sample/likely overfit。消除「3 次 in-sample 取 max(total_return) 当好策略」的过拟合。[破坏性] --auto/aauto 返回数字反映 OOS 会下降（正确），签名/返回类型不变无需改调用方（cli/sdk docstring 漂移因 do-not-touch 暂留）。重写测试。）
 
 #### [BUG-042] Sniper LONG mode: secondary_buy (20-day support) can sit BELOW stop_loss → incoherent trade row passes invariant guards
 
@@ -1092,7 +1092,7 @@
 - **根因**：_fetch_price 漏调已存在的 _adjust_fmp_bar；两条价格路径各自文件内自洽，差异只在"谁复权"，静态读不出。
 - **修复方案**：_fetch_price 的 price_history 改走 _adjust_fmp_bar(p)（丢弃缺 adjClose 的行），或直接复用 _fetch_price_range 的 bar 构建，保证 PRICE / PRICE_RANGE / yfinance 三路同口径。补测试断言 close 用 adjClose 基准。
 - **影响面/回归风险**：影响 FMP 当 PRICE 活跃源时的 52w/SMA 数字（研报 MarketDataZone 直接展示）。修复改变这些数值（拆股标的差异巨大）——任何 pin 旧值的快照测试需更新。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（fmp_provider._fetch_price 的 price_history 改走 _adjust_fmp_bar（close=adjClose、O/H/L 按 adjClose/close 缩放、缺 adjClose 的行丢弃），与 _fetch_price_range/yfinance auto_adjust 同一复权基准。FMP 当 PRICE 主源时 52周高低/SMA 不再落在名义价上（近一年有拆股的票 52周高不再 ×拆股比）。新增拆股形状测试断言用复权值。）
 
 #### [BUG-072] NewsAggregator 唯一免 key 源 Yahoo RSS 已 404 下线 → 默认配置该 provider 100% 抛错 + 工厂注释撒谎
 

@@ -462,20 +462,18 @@ class FMPProvider(DataProvider):
         # FMP /historical-price-full returns newest-first under "historical";
         # reverse so the price_history list matches yfinance's oldest-first
         # ordering that the rest of the codebase already assumes.
+        #
+        # Route every bar through _adjust_fmp_bar so price_history sits on the
+        # same split/dividend-adjusted basis as _fetch_price_range and yfinance
+        # (auto_adjust=True). FMP's raw ``close`` is the nominal quote — a
+        # pre-split day carries the unsplit price, so consuming it directly would
+        # blow up the downstream 52-week high/low and SMA20/50/200 for any name
+        # with a split in the trailing year (a 10:1 split → 52w high ≈ 10× spot).
+        # Bars lacking adjClose are dropped rather than emitted half-adjusted.
         raw_hist: list[dict[str, Any]] = []
         if isinstance(hist_resp, dict):
             raw_hist = list(reversed(hist_resp.get("historical", [])))
-        price_history = [
-            {
-                "date": p.get("date"),
-                "open": p.get("open"),
-                "high": p.get("high"),
-                "low": p.get("low"),
-                "close": p.get("close"),
-                "volume": p.get("volume"),
-            }
-            for p in raw_hist
-        ]
+        price_history = [b for p in raw_hist if (b := _adjust_fmp_bar(p)) is not None]
 
         return DataResult(
             data={

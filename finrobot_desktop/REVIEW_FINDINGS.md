@@ -79,7 +79,7 @@
 | BUG-028 | Bug | P1 | No ErrorBoundary in the live app tree — any render crash blanks the whole desktop app | 已修 |
 | BUG-029 | Bug | P1 | Competitive table renders unguarded gross/operating margin → fabricated 0.0% or literal NaN% when backend value is null | 已修 |
 | BUG-030 | Bug | P1 | 13 章研报全程硬编码 $，而 Coverage 是币种感知——非美元标的会印错币种符号 | 已修 |
-| BUG-031 | Bug | P1 | Coverage 批量运行 >6 个 ticker 时耗尽浏览器 HTTP/1.1 连接池，多余的 SSE 与所有普通 API 轮询被无限阻塞 | 待修 |
+| BUG-031 | Bug | P1 | Coverage 批量运行 >6 个 ticker 时耗尽浏览器 HTTP/1.1 连接池，多余的 SSE 与所有普通 API 轮询被无限阻塞 | 已修 |
 | BUG-032 | Bug | P1 | Coverage overview 全量 fetch 失败但 fast skeleton 成功时，卡片市场列永久空白——无错误态、无 shimmer、无重试入口 | 已修 |
 | BUG-033 | Bug | P1 | Chat tools and /api/runs accept unvalidated ticker strings while a SoT ticker validator already exists in coverage — junk symbols fan out to live providers | 已修 |
 | BUG-073 | Bug | P1 | DCF/DDM 绝对估值对外币 ADR 零 FX 归一化:营收(申报币 TWD/EUR)与市值/股本(USD)混算,implied_price 本币计价却当 USD 印出并比价(TSM ~32x 高估)——comps 路径已修,绝对估值路径漏修 | 已修 |
@@ -568,7 +568,7 @@
 - **修复方案**：两选一，推荐 A。A（根治）：为 Coverage 批量场景改用单条聚合 SSE——后端加 GET /api/runs/events?ids=a,b,c（或按 group 聚合）一条流推所有 run 的事件，前端 CoveragePage 只 open 1 条，runStreamStore 暴露 attachMultiplexed(runIds, tickerByRunId) 解析后分发到各 ticker 的 patch。改动量级：中（后端新增聚合 route + 前端新增 multiplex 解析，约 150-250 行）。B（缓解，非根治）：在 runStreamStore 加一个模块级 SSE 连接上限（如 5），attachSse 超限时把 runId 入队，等某条 closeAndForget 后再从队列取下一个连接；批量场景轮流连接。注意：B 仍让后 N 个 ticker 延迟显示进度，且不解决普通查询被挤占——只把『卡死』降级为『分批显示』。注意事项：无论哪条都要在 clear/卸载时 close 全部并清队列，避免泄漏。
 - **验证补充**：Fix is sound. Minor note: cleanup must close on component unmount too, not only clear() — CoveragePage never calls clear() on navigate-away, so the proposed queue/budget teardown should hook an unmount/visibility path or the connections persist. Also fix A's aggregated route still needs Last-Event-ID resume parity to keep the existing reconnect behavior.
 - **影响面/回归风险**：影响 Coverage Desk 批量运行（核心差异化功能）+ 批量期间的整个 app 响应性。回归风险：A 改动后端事件分发，需保证单 run 路径（/stocks 单跑）不受影响（可保留旧单 run SSE，仅 Coverage 用聚合）。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（采用 approach A（聚合 SSE）。后端 routes/runs.py 新增 GET /api/runs/events?ids=a,b,c（注册在 /{run_id} 之前），单连接复用 get_run/get_events_after 交错推所有 run 事件，每帧 data={run_id,ticker,event}、SSE event 名保持原样供前端复用监听；Last-Event-ID 编码 per-id id:seq 逗号拼接保多游标 resume；全部 id 终态后关流，未知 id 当已终态，空 ids→400/全未知→404；未改 run_store.py（只用其公共读 API）。前端 runStreamStore 抽共享 reduceRunEvent 给两条路；新增 attachMultiplexed/trackBatchRuns 单连接分发；attachSse 单跑路径不变；CoveragePage 批跑改单次 trackBatchRuns + 加卸载 teardown(closeBatchStream)。新增 4 路由测试 + 4 前端批跑测试。mypy/ruff + 全量 2044 + ui build/419 通过。）
 
 #### [BUG-032] Coverage overview 全量 fetch 失败但 fast skeleton 成功时，卡片市场列永久空白——无错误态、无 shimmer、无重试入口
 

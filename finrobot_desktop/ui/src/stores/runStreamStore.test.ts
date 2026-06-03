@@ -184,3 +184,89 @@ describe('trackExistingRun — Coverage batch runs (no re-POST)', () => {
     expect(stepsState().artifactId).toBe('art_x')
   })
 })
+
+describe('trackBatchRuns — aggregated SSE for Coverage batch (BUG-031)', () => {
+  const batch = [
+    { runId: 'run-a', ticker: 'AAPL' },
+    { runId: 'run-b', ticker: 'MSFT' },
+    { runId: 'run-c', ticker: 'NVDA' },
+  ]
+
+  function getRun(ticker: string) {
+    return useRunStreamStore.getState().runs[ticker]
+  }
+
+  afterEach(() => {
+    for (const { ticker } of batch) useRunStreamStore.getState().clear(ticker)
+  })
+
+  it('opens exactly ONE EventSource for the whole batch (not one per run)', () => {
+    FakeEventSource.instances = []
+    useRunStreamStore.getState().trackBatchRuns(batch, 'research')
+
+    expect(FakeEventSource.instances).toHaveLength(1)
+    const es = FakeEventSource.instances[0]
+    // The aggregated route carries all ids as a comma-separated query param.
+    expect(es.url).toContain('/api/runs/events?ids=')
+    expect(decodeURIComponent(es.url)).toContain('run-a,run-b,run-c')
+    // Every ticker is seeded 'running' so all cards paint at once.
+    for (const { ticker } of batch) expect(getRun(ticker).status).toBe('running')
+  })
+
+  it('routes a tagged frame to the right ticker via its reducer', () => {
+    FakeEventSource.instances = []
+    useRunStreamStore.getState().trackBatchRuns(batch, 'dcf')
+    const es = FakeEventSource.instances[0]
+
+    // Aggregated frame shape: { run_id, ticker, event: <inner event> }.
+    es.emit('run.started', {
+      run_id: 'run-b',
+      ticker: 'MSFT',
+      event: { event: 'run.started', total_steps: 3 },
+    })
+    es.emit('step.completed', {
+      run_id: 'run-b',
+      ticker: 'MSFT',
+      event: { event: 'step.completed', step: 1, total: 3, name: 'data_collection', duration_s: 2 },
+    })
+
+    // MSFT advanced; the others are untouched.
+    expect(getRun('MSFT').steps[0].name).toBe('data_collection')
+    expect(getRun('MSFT').steps[0].status).toBe('completed')
+    expect(getRun('AAPL').steps).toHaveLength(0)
+  })
+
+  it('closes the single connection only after EVERY run is terminal', () => {
+    FakeEventSource.instances = []
+    useRunStreamStore.getState().trackBatchRuns(batch, 'research')
+    const es = FakeEventSource.instances[0]
+
+    const complete = (runId: string, ticker: string) =>
+      es.emit('run.completed', {
+        run_id: runId,
+        ticker,
+        event: { event: 'run.completed', run_id: runId, ticker, artifact_id: `art_${ticker}` },
+      })
+
+    complete('run-a', 'AAPL')
+    complete('run-b', 'MSFT')
+    // Two of three done — the shared stream must stay open for NVDA.
+    expect(es.closed).toBe(false)
+    expect(getRun('AAPL').status).toBe('completed')
+
+    complete('run-c', 'NVDA')
+    // All terminal now — the aggregated connection is torn down.
+    expect(es.closed).toBe(true)
+    expect(getRun('NVDA').artifactId).toBe('art_NVDA')
+  })
+
+  it('closeBatchStream() tears down the connection (unmount teardown)', () => {
+    FakeEventSource.instances = []
+    useRunStreamStore.getState().trackBatchRuns(batch, 'research')
+    const es = FakeEventSource.instances[0]
+
+    expect(es.closed).toBe(false)
+    useRunStreamStore.getState().closeBatchStream()
+    expect(es.closed).toBe(true)
+  })
+})

@@ -37,6 +37,17 @@ export interface RunStep {
 
 export type RunStatus = 'running' | 'completed' | 'failed'
 
+/** The backend SSE event vocabulary both stream paths listen for. Pinned by
+ *  tests/audit/test_sse_event_contract.py against routes/runs.py. */
+type RunEventName =
+  | 'run.started'
+  | 'step.started'
+  | 'step.completed'
+  | 'step.retry'
+  | 'artifact.ready'
+  | 'run.completed'
+  | 'run.failed'
+
 export interface RunState {
   runId: string
   ticker: string
@@ -70,8 +81,20 @@ interface RunStreamState {
    *  state + downstream query invalidation. Without this a Coverage-launched run
    *  is never tracked and the desk stalls on the pre-run snapshot. */
   trackExistingRun: (runId: string, ticker: string, pipelineType: string) => void
+  /** Track a whole Coverage batch over ONE aggregated SSE connection
+   *  (/api/runs/events?ids=…) instead of one EventSource per run. Seeds each
+   *  ticker's 'running' state (like trackExistingRun) then attaches the single
+   *  multiplexed stream that routes every run's events back to its ticker.
+   *  Solves BUG-031: per-run streams saturate the browser's ~6-conn HTTP/1.1
+   *  pool, starving later runs and blocking all other polling. */
+  trackBatchRuns: (runs: { runId: string; ticker: string }[], pipelineType: string) => void
   dismiss: (ticker: string) => void
   clear: (ticker: string) => void
+  /** Close the aggregated batch connection (if any). Called on Coverage
+   *  unmount / navigate-away so the long-lived stream doesn't leak. Does NOT
+   *  touch per-ticker single-run streams or the runs state — those survive a
+   *  route change by design (the run keeps going on the backend). */
+  closeBatchStream: () => void
 }
 
 // ── Pipeline → real step names ─────────────────────────────────────────────
@@ -139,17 +162,41 @@ function setStepAt(steps: RunStep[], index: number, next: RunStep): RunStep[] {
 
 const sources = new Map<string, EventSource>()
 
+// The aggregated Coverage-batch EventSource (BUG-031): exactly one at a time,
+// shared by every ticker in the batch, so it lives outside the per-ticker
+// `sources` map. Tracked here so clear() / unmount teardown can close it.
+let multiplexedSource: EventSource | null = null
+let multiplexedTickers: string[] = []
+const MULTIPLEXED_KEY = '__multiplexed__'
+
 // Per-ticker onerror counts. Resets to 0 on any successful event.
 // After SSE_ERROR_LIMIT consecutive errors with status still 'running',
 // we force-fail the run so the UI doesn't spin indefinitely.
 const SSE_ERROR_LIMIT = 8
 const sseErrorCounts = new Map<string, number>()
 
+function closeMultiplexed(): void {
+  if (multiplexedSource) {
+    multiplexedSource.close()
+    multiplexedSource = null
+  }
+  multiplexedTickers = []
+  sseErrorCounts.delete(MULTIPLEXED_KEY)
+}
+
 function closeAndForget(ticker: string): void {
   const es = sources.get(ticker)
   if (es) {
     es.close()
     sources.delete(ticker)
+  }
+  // A ticker may be streamed by the shared aggregated connection rather than a
+  // dedicated one. If this was the last running ticker on that connection,
+  // close it too so it doesn't leak (e.g. clear() of the final batch ticker).
+  if (multiplexedSource && multiplexedTickers.includes(ticker)) {
+    const others = multiplexedTickers.filter((tk) => tk !== ticker)
+    const anyRunning = others.some((tk) => useRunStreamStore.getState().runs[tk]?.status === 'running')
+    if (!anyRunning) closeMultiplexed()
   }
   sseErrorCounts.delete(ticker)
 }
@@ -165,103 +212,140 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
     })
   }
 
+  // ── Per-event reducer (shared by single-run + aggregated streams) ──────────
+  //
+  // Both the single-run stream (/api/runs/{id}/events) and the aggregated
+  // Coverage stream (/api/runs/events?ids=…) carry the SAME event payloads —
+  // run.started / step.* / artifact.ready / run.completed / run.failed. The
+  // only difference is the transport: single-run dedicates one EventSource per
+  // ticker; aggregated multiplexes many over one connection and tags each
+  // frame with run_id + ticker. Keeping ONE reducer means a backend event
+  // shape change can't silently diverge between the two paths.
+  //
+  // `data` is the inner event object (the single-run path passes the raw SSE
+  // data; the aggregated path unwraps {run_id, ticker, event} → event first).
+  // Returns true when the event is terminal (completed/failed) so the caller
+  // can decide whether to tear down a dedicated connection.
+  function reduceRunEvent(
+    ticker: string,
+    eventName: string,
+    data: Record<string, unknown>,
+  ): { terminal: boolean } {
+    switch (eventName) {
+      case 'run.started': {
+        sseErrorCounts.set(ticker, 0)
+        const totalSteps = (data.total_steps as number) || 4
+        const cur = get().runs[ticker]
+        const pipelineType = cur?.pipelineType ?? 'research'
+        const names = stepNamesForPipeline(pipelineType, totalSteps)
+        patch(ticker, { steps: names.map((name) => ({ name, status: 'pending' as const })) })
+        return { terminal: false }
+      }
+      case 'step.started': {
+        sseErrorCounts.set(ticker, 0)
+        const cur = get().runs[ticker]
+        if (!cur) return { terminal: false }
+        const step = data.step as number
+        const startIdx = step - 1
+        const prev = cur.steps[startIdx]
+        patch(ticker, {
+          steps: setStepAt(cur.steps, startIdx, {
+            ...(prev ?? { status: 'pending' }),
+            name: data.name as string,
+            status: 'running',
+            startedAt: Date.now(),
+            attempt: undefined,
+          }),
+          progress: Math.max(0, (step - 1) / (data.total as number)),
+        })
+        return { terminal: false }
+      }
+      case 'step.completed': {
+        const cur = get().runs[ticker]
+        if (!cur) return { terminal: false }
+        const step = data.step as number
+        const doneIdx = step - 1
+        const prevDone = cur.steps[doneIdx]
+        patch(ticker, {
+          steps: setStepAt(cur.steps, doneIdx, {
+            ...(prevDone ?? { status: 'pending' }),
+            name: data.name as string,
+            status: 'completed',
+            duration_s: data.duration_s as number,
+          }),
+          progress: step / (data.total as number),
+        })
+        return { terminal: false }
+      }
+      case 'step.retry': {
+        const cur = get().runs[ticker]
+        if (!cur) return { terminal: false }
+        const retryIdx = (data.step as number) - 1
+        const prevRetry = cur.steps[retryIdx]
+        patch(ticker, {
+          steps: setStepAt(cur.steps, retryIdx, {
+            ...(prevRetry ?? { status: 'pending' }),
+            name: data.name as string,
+            status: 'retrying',
+            attempt: data.attempt as number,
+          }),
+        })
+        return { terminal: false }
+      }
+      case 'artifact.ready': {
+        sseErrorCounts.set(ticker, 0)
+        // artifact_id is optional (back-compat with pre-field stored events);
+        // only stamp identity when present so we never clobber a real id with null.
+        const update: Partial<RunState> = {}
+        if (data.artifact_id) update.artifactId = data.artifact_id as string
+        if (data.artifact_type) update.artifactType = data.artifact_type as string
+        if (Object.keys(update).length > 0) patch(ticker, update)
+        return { terminal: false }
+      }
+      case 'run.completed': {
+        sseErrorCounts.set(ticker, 0)
+        const update: Partial<RunState> = { status: 'completed', progress: 1 }
+        // Prefer the completion event's identity; artifact.ready may already have
+        // set it. Both optional for back-compat — keep any prior value if absent.
+        if (data.artifact_id) update.artifactId = data.artifact_id as string
+        if (data.artifact_type) update.artifactType = data.artifact_type as string
+        patch(ticker, update)
+        return { terminal: true }
+      }
+      case 'run.failed': {
+        patch(ticker, {
+          status: 'failed',
+          error: (data.error as string) || 'Pipeline failed',
+        })
+        return { terminal: true }
+      }
+      default:
+        return { terminal: false }
+    }
+  }
+
   function attachSse(runId: string, ticker: string): void {
     closeAndForget(ticker)
     const es = new EventSource(`${BASE_URL}/api/runs/${runId}/events`)
     sources.set(ticker, es)
 
-    es.addEventListener('run.started', (e) => {
-      sseErrorCounts.set(ticker, 0) // reset error counter on any successful event
+    // Explicit per-event `addEventListener('<name>', …)` calls (not a loop) so
+    // the SSE-contract audit (tests/audit/test_sse_event_contract.py) can
+    // statically pin that the frontend listens for every backend event. Each
+    // forwards to the shared reducer; terminal events tear down this dedicated
+    // connection. `single` binds the ticker + closes on terminal.
+    const single = (name: RunEventName) => (e: Event) => {
       const data = JSON.parse((e as MessageEvent).data)
-      const totalSteps = data.total_steps || 4
-      const cur = get().runs[ticker]
-      const pipelineType = cur?.pipelineType ?? 'research'
-      const names = stepNamesForPipeline(pipelineType, totalSteps)
-      patch(ticker, {
-        steps: names.map((name) => ({ name, status: 'pending' as const })),
-      })
-    })
-
-    es.addEventListener('step.started', (e) => {
-      sseErrorCounts.set(ticker, 0)
-      const data = JSON.parse((e as MessageEvent).data)
-      const cur = get().runs[ticker]
-      if (!cur) return
-      const startIdx = data.step - 1
-      const prev = cur.steps[startIdx]
-      patch(ticker, {
-        steps: setStepAt(cur.steps, startIdx, {
-          ...(prev ?? { status: 'pending' }),
-          name: data.name,
-          status: 'running',
-          startedAt: Date.now(),
-          attempt: undefined,
-        }),
-        progress: Math.max(0, (data.step - 1) / data.total),
-      })
-    })
-
-    es.addEventListener('step.completed', (e) => {
-      const data = JSON.parse((e as MessageEvent).data)
-      const cur = get().runs[ticker]
-      if (!cur) return
-      const doneIdx = data.step - 1
-      const prevDone = cur.steps[doneIdx]
-      patch(ticker, {
-        steps: setStepAt(cur.steps, doneIdx, {
-          ...(prevDone ?? { status: 'pending' }),
-          name: data.name,
-          status: 'completed',
-          duration_s: data.duration_s,
-        }),
-        progress: data.step / data.total,
-      })
-    })
-
-    es.addEventListener('step.retry', (e) => {
-      const data = JSON.parse((e as MessageEvent).data)
-      const cur = get().runs[ticker]
-      if (!cur) return
-      const retryIdx = data.step - 1
-      const prevRetry = cur.steps[retryIdx]
-      patch(ticker, {
-        steps: setStepAt(cur.steps, retryIdx, {
-          ...(prevRetry ?? { status: 'pending' }),
-          name: data.name,
-          status: 'retrying',
-          attempt: data.attempt,
-        }),
-      })
-    })
-
-    es.addEventListener('artifact.ready', (e) => {
-      sseErrorCounts.set(ticker, 0)
-      const data = JSON.parse((e as MessageEvent).data)
-      // artifact_id is optional (back-compat with pre-field stored events);
-      // only stamp identity when present so we never clobber a real id with null.
-      const update: Partial<RunState> = {}
-      if (data.artifact_id) update.artifactId = data.artifact_id
-      if (data.artifact_type) update.artifactType = data.artifact_type
-      if (Object.keys(update).length > 0) patch(ticker, update)
-    })
-
-    es.addEventListener('run.completed', (e) => {
-      sseErrorCounts.set(ticker, 0)
-      const data = JSON.parse((e as MessageEvent).data)
-      const update: Partial<RunState> = { status: 'completed', progress: 1 }
-      // Prefer the completion event's identity; artifact.ready may already have
-      // set it. Both optional for back-compat — keep any prior value if absent.
-      if (data.artifact_id) update.artifactId = data.artifact_id
-      if (data.artifact_type) update.artifactType = data.artifact_type
-      patch(ticker, update)
-      closeAndForget(ticker)
-    })
-
-    es.addEventListener('run.failed', (e) => {
-      const data = JSON.parse((e as MessageEvent).data)
-      patch(ticker, { status: 'failed', error: data.error || 'Pipeline failed' })
-      closeAndForget(ticker)
-    })
+      const { terminal } = reduceRunEvent(ticker, name, data)
+      if (terminal) closeAndForget(ticker)
+    }
+    es.addEventListener('run.started', single('run.started'))
+    es.addEventListener('step.started', single('step.started'))
+    es.addEventListener('step.completed', single('step.completed'))
+    es.addEventListener('step.retry', single('step.retry'))
+    es.addEventListener('artifact.ready', single('artifact.ready'))
+    es.addEventListener('run.completed', single('run.completed'))
+    es.addEventListener('run.failed', single('run.failed'))
 
     es.onerror = () => {
       const cur = get().runs[ticker]
@@ -288,6 +372,89 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
           error: `SSE 连接中断（连续 ${SSE_ERROR_LIMIT} 次错误）。请检查后端服务后重试。`,
         })
         closeAndForget(ticker)
+      }
+    }
+  }
+
+  // ── Aggregated stream (Coverage batch) ─────────────────────────────────────
+  //
+  // ONE EventSource for a whole batch (BUG-031): per-run EventSources saturate
+  // the browser's ~6-conn HTTP/1.1 pool, so a 10-ticker batch starved runs 7-10
+  // AND blocked ordinary polling (price/health/overview). The aggregated route
+  // tags each frame with {run_id, ticker, event}; we unwrap and route to the
+  // right ticker's reducer. Tracked in `sources` under a synthetic key so
+  // closeAndForget / clear can tear it down, and so it is closed on unmount.
+  function attachMultiplexed(runIds: string[], tickerByRunId: Record<string, string>): void {
+    if (runIds.length === 0) return
+    // One connection shared by every ticker in the batch. Key the registry
+    // entry per-ticker (pointing at the same shared ES) so the existing
+    // closeAndForget(ticker) / clear(ticker) teardown closes it, and so a
+    // single-run re-track of one of these tickers can supersede it.
+    closeMultiplexed()
+    const url = `${BASE_URL}/api/runs/events?ids=${encodeURIComponent(runIds.join(','))}`
+    const es = new EventSource(url)
+    multiplexedSource = es
+    multiplexedTickers = Object.values(tickerByRunId)
+
+    // Same explicit-listener style as attachSse: the aggregated route emits the
+    // SAME event names (run.started / step.* / …) — only the data is wrapped as
+    // {run_id, ticker, event}. Unwrap and route to the right ticker's reducer.
+    const multi = (name: RunEventName) => (e: Event) => {
+      const frame = JSON.parse((e as MessageEvent).data) as {
+        run_id?: string
+        ticker?: string
+        event?: Record<string, unknown>
+      }
+      // Prefer the frame's ticker (authoritative from the backend record);
+      // fall back to the batch map keyed by run_id.
+      const ticker = frame.ticker ?? (frame.run_id ? tickerByRunId[frame.run_id] : undefined)
+      if (!ticker || !frame.event) return
+      // Any frame means the connection is healthy — reset the shared counter.
+      sseErrorCounts.set(MULTIPLEXED_KEY, 0)
+      const { terminal } = reduceRunEvent(ticker, name, frame.event)
+      // The backend closes the aggregated stream once every run is terminal,
+      // but proactively tear it down on the client the moment the LAST tracked
+      // run finishes — don't wait for the server's close → onerror round-trip
+      // (which, on a flaky link, could instead read as a reconnect). Closing
+      // here also frees the HTTP/1.1 pool slot immediately.
+      if (terminal) {
+        const runs = get().runs
+        const anyRunning = multiplexedTickers.some((tk) => runs[tk]?.status === 'running')
+        if (!anyRunning) closeMultiplexed()
+      }
+    }
+    es.addEventListener('run.started', multi('run.started'))
+    es.addEventListener('step.started', multi('step.started'))
+    es.addEventListener('step.completed', multi('step.completed'))
+    es.addEventListener('step.retry', multi('step.retry'))
+    es.addEventListener('artifact.ready', multi('artifact.ready'))
+    es.addEventListener('run.completed', multi('run.completed'))
+    es.addEventListener('run.failed', multi('run.failed'))
+
+    es.onerror = () => {
+      // The aggregated route closes only when EVERY run is terminal, so an
+      // onerror here means the connection dropped (or all runs finished and the
+      // server closed it). If every tracked run already left 'running', the
+      // stream did its job — tear it down. Otherwise let EventSource
+      // auto-reconnect (Last-Event-ID resumes each run's cursor); only after
+      // SSE_ERROR_LIMIT consecutive failures with runs still 'running' do we
+      // force-fail the stragglers so the desk shows an actionable error.
+      const runs = get().runs
+      const stillRunning = multiplexedTickers.filter((tk) => runs[tk]?.status === 'running')
+      if (stillRunning.length === 0) {
+        closeMultiplexed()
+        return
+      }
+      const count = (sseErrorCounts.get(MULTIPLEXED_KEY) ?? 0) + 1
+      sseErrorCounts.set(MULTIPLEXED_KEY, count)
+      if (count >= SSE_ERROR_LIMIT) {
+        for (const tk of stillRunning) {
+          patch(tk, {
+            status: 'failed',
+            error: `SSE 连接中断（连续 ${SSE_ERROR_LIMIT} 次错误）。请检查后端服务后重试。`,
+          })
+        }
+        closeMultiplexed()
       }
     }
   }
@@ -376,6 +543,42 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
       attachSse(runId, ticker)
     },
 
+    trackBatchRuns: (batchRuns, pipelineType) => {
+      if (batchRuns.length === 0) return
+      // Seed every ticker's 'running' state in one set() so the desk paints all
+      // cards at once. A re-tracked ticker that had a dedicated single-run
+      // stream open gets its stream closed (closeAndForget) before joining the
+      // aggregated one, so it isn't double-streamed.
+      const tickerByRunId: Record<string, string> = {}
+      // Close any prior dedicated single-run stream for these tickers BEFORE
+      // seeding state, so the side-effect stays out of the set() reducer.
+      for (const { ticker } of batchRuns) closeAndForget(ticker)
+      set((s) => {
+        const next = { ...s.runs }
+        for (const { runId, ticker } of batchRuns) {
+          tickerByRunId[runId] = ticker
+          next[ticker] = {
+            runId,
+            ticker,
+            pipelineType,
+            steps: [],
+            status: 'running',
+            progress: 0,
+            error: null,
+            startedAt: Date.now(),
+            dismissed: false,
+            artifactId: null,
+            artifactType: null,
+          }
+        }
+        return { runs: next }
+      })
+      attachMultiplexed(
+        batchRuns.map((r) => r.runId),
+        tickerByRunId,
+      )
+    },
+
     dismiss: (ticker) => {
       patch(ticker, { dismissed: true })
     },
@@ -387,6 +590,10 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
         delete next[ticker]
         return { runs: next }
       })
+    },
+
+    closeBatchStream: () => {
+      closeMultiplexed()
     },
   }
 })

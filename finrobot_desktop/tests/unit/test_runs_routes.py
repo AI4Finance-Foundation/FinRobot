@@ -3,8 +3,10 @@
 B3 — get_run non-dict result_json defence
 B3 — create_run task-registration ordering
 """
+
 from __future__ import annotations
 
+import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -180,6 +182,7 @@ async def test_create_run_succeeds_when_no_startup_error(monkeypatch: Any) -> No
     monkeypatch.setattr(
         runs_mod, "get_pipeline_factories", lambda: {"full_analysis": lambda agents: MagicMock()}
     )
+
     # Stop the spawned task from actually running the pipeline impl.
     def _fake_create_task(coro: Any) -> Any:
         coro.close()  # avoid "coroutine was never awaited" warning
@@ -220,7 +223,9 @@ async def test_run_completion_emits_artifact_id_and_type(monkeypatch: Any) -> No
     pipeline.execute = AsyncMock(return_value=result)
     pipeline.format_summary = MagicMock(return_value="summary")
 
-    monkeypatch.setattr(runs_mod, "get_pipeline_factories", lambda: {"lbo": lambda agents: pipeline})
+    monkeypatch.setattr(
+        runs_mod, "get_pipeline_factories", lambda: {"lbo": lambda agents: pipeline}
+    )
 
     record = _make_run_record(status="created")
     record.pipeline_type = "lbo"
@@ -265,3 +270,130 @@ async def test_run_completion_emits_artifact_id_and_type(monkeypatch: Any) -> No
     # The persisted run-store artifact row also records the real type.
     add_call = store.add_artifact.await_args
     assert add_call.kwargs["artifact_type"] == "lbo"
+
+
+# ---------------------------------------------------------------------------
+# BUG-031 — aggregated SSE: one /api/runs/events?ids=… stream multiplexes many
+# runs (instead of one EventSource per run saturating the HTTP/1.1 pool).
+# ---------------------------------------------------------------------------
+
+
+def _parse_sse(raw: str) -> list[dict[str, str]]:
+    """Split an SSE response body into {id, event, data} frame dicts."""
+    frames: list[dict[str, str]] = []
+    for block in raw.split("\n\n"):
+        if not block.strip():
+            continue
+        frame: dict[str, str] = {}
+        for line in block.splitlines():
+            field, _, value = line.partition(": ")
+            frame[field] = value
+        frames.append(frame)
+    return frames
+
+
+async def _seed_completed_run(store: Any, ticker: str) -> str:
+    """Create a run, append a run.started + run.completed, mark it completed."""
+    from finrobot.events import RunCompleted, RunStarted
+
+    record = await store.create_run("research", ticker)
+    run_id = record.run_id
+    await store.append_event(
+        run_id,
+        RunStarted(
+            event="run.started",
+            run_id=run_id,
+            pipeline_type="research",
+            ticker=ticker,
+            total_steps=1,
+        ),
+    )
+    await store.append_event(
+        run_id,
+        RunCompleted(
+            event="run.completed",
+            run_id=run_id,
+            ticker=ticker,
+            duration_s=1.0,
+            result_url=f"/api/runs/{run_id}",
+        ),
+    )
+    await store.update_run(run_id, status="completed", completed_at="2026-06-04T00:00:00+00:00")
+    return run_id
+
+
+def _make_app_with_store(store: Any) -> FastAPI:
+    app = FastAPI()
+    app.include_router(runs_router)
+    app.state.run_store = store
+    app.state.run_tasks = {}
+    app.state.sub_agents = {}
+    app.state.startup_error = None
+    return app
+
+
+@pytest.mark.asyncio
+async def test_aggregated_stream_multiplexes_and_tags_runs(tmp_path: Any) -> None:
+    """Two terminal runs over ONE stream: every frame is tagged with its
+    run_id + ticker, and the stream closes once both are terminal."""
+    from finrobot.run_store import RunStore
+
+    store = RunStore(tmp_path / "runs.db")
+    rid_a = await _seed_completed_run(store, "AAPL")
+    rid_b = await _seed_completed_run(store, "MSFT")
+    app = _make_app_with_store(store)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.get(f"/api/runs/events?ids={rid_a},{rid_b}")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/event-stream")
+
+    frames = _parse_sse(resp.text)
+    # Each run emits run.started + run.completed = 4 frames total.
+    completed = [f for f in frames if f["event"] == "run.completed"]
+    assert len(completed) == 2
+    # Every frame carries its routing keys, and id: is a per-id cursor snapshot.
+    tickers_seen = set()
+    for f in frames:
+        payload = json.loads(f["data"])
+        assert payload["run_id"] in {rid_a, rid_b}
+        assert ":" in f["id"]  # multiplex cursor, e.g. "run_x:1,run_y:2"
+        tickers_seen.add(payload["ticker"])
+    assert tickers_seen == {"AAPL", "MSFT"}
+
+
+@pytest.mark.asyncio
+async def test_aggregated_stream_resumes_from_last_event_id(tmp_path: Any) -> None:
+    """Last-Event-ID with a per-id cursor at the final seq skips already-seen
+    events for that run (resume parity with the single-run stream)."""
+    from finrobot.run_store import RunStore
+
+    store = RunStore(tmp_path / "runs.db")
+    rid_a = await _seed_completed_run(store, "AAPL")
+    rid_b = await _seed_completed_run(store, "MSFT")
+    app = _make_app_with_store(store)
+
+    # rid_a has 2 events (seq 1,2). Resume past both → only rid_b's events stream.
+    header = {"Last-Event-ID": f"{rid_a}:2,{rid_b}:0"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.get(f"/api/runs/events?ids={rid_a},{rid_b}", headers=header)
+    assert resp.status_code == 200
+
+    run_ids = {json.loads(f["data"])["run_id"] for f in _parse_sse(resp.text)}
+    assert run_ids == {rid_b}  # rid_a fully resumed-past, only rid_b streams
+
+
+@pytest.mark.asyncio
+async def test_aggregated_stream_400_when_no_ids() -> None:
+    app = _make_app(_make_run_record())
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.get("/api/runs/events?ids=")
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_aggregated_stream_404_when_all_ids_unknown() -> None:
+    app = _make_app(None)  # store.get_run returns None for any id
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.get("/api/runs/events?ids=nope-1,nope-2")
+    assert resp.status_code == 404

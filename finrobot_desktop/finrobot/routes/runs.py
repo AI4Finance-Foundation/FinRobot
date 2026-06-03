@@ -164,6 +164,136 @@ async def create_run(request_body: CreateRunRequest, request: Request) -> Create
     )
 
 
+def _parse_multiplex_cursor(header: str | None) -> dict[str, int]:
+    """Decode the aggregated stream's Last-Event-ID into per-id cursors.
+
+    The single-run stream uses a bare integer seq as its event id. The
+    aggregated stream multiplexes N runs, so a single integer can't express
+    "where each run is up to". We encode the cursor as ``id:seq`` pairs joined
+    by commas (``aaa:5,bbb:3``) and emit that same shape as each SSE event's
+    ``id:`` line, so browser-native EventSource resume (Last-Event-ID) hands it
+    straight back on reconnect and every run resumes from its own last seq —
+    preserving the single-run stream's resume parity, per id. Malformed pairs
+    are skipped (treated as "from the start") rather than raising, so a stale
+    or truncated header can never 500 the stream.
+    """
+    cursors: dict[str, int] = {}
+    if not header:
+        return cursors
+    for pair in header.split(","):
+        run_id, _, raw_seq = pair.partition(":")
+        run_id = run_id.strip()
+        if run_id and raw_seq.strip().isdigit():
+            cursors[run_id] = int(raw_seq.strip())
+    return cursors
+
+
+def _encode_multiplex_cursor(cursors: dict[str, int]) -> str:
+    return ",".join(f"{rid}:{seq}" for rid, seq in cursors.items())
+
+
+def _format_multiplex_sse(
+    cursors: dict[str, int], run_id: str, ticker: str, event: RunEvent
+) -> str:
+    """Render one aggregated SSE frame.
+
+    The ``id:`` line carries the FULL per-id cursor snapshot (so reconnect
+    resumes every run, not just the one that emitted last). The data payload
+    wraps the stored event with its routing keys (``run_id`` + ``ticker``) so
+    the client can dispatch it to the right ticker's reducer without re-reading
+    the run. The SSE ``event:`` type stays the original event name
+    (run.started / step.completed / …) so the client reuses the exact same
+    per-event listeners the single-run path uses.
+    """
+    payload = {"run_id": run_id, "ticker": ticker, "event": event}
+    return (
+        f"id: {_encode_multiplex_cursor(cursors)}\n"
+        f"event: {event['event']}\n"
+        f"data: {json.dumps(payload)}\n\n"
+    )
+
+
+@router.get("/events")
+async def stream_runs_events(ids: str, request: Request) -> StreamingResponse:
+    """Aggregated SSE stream multiplexing the events of several runs.
+
+    ONE EventSource for a whole Coverage batch instead of one per run. The
+    browser caps ~6 concurrent HTTP/1.1 connections per origin, so opening an
+    EventSource per run for a 10-ticker batch saturated the pool: runs 7-10
+    never streamed AND ordinary polling (price/health/overview) was blocked, so
+    the app looked frozen (BUG-031). This route reuses the per-run read API
+    (``get_events_after`` / ``get_run``) but interleaves all ids over a single
+    connection, tagging each frame with its ``run_id`` + ``ticker`` for
+    client-side routing.
+
+    Registered BEFORE ``/{run_id}`` so the literal ``/events`` path wins over
+    the ``{run_id}`` capture (FastAPI matches in declaration order).
+
+    Resume: mirrors the single-run cursor handling, but per id — see
+    ``_parse_multiplex_cursor``. Terminal: the stream closes once EVERY id has
+    reached a terminal status (completed/failed) and its trailing events have
+    been flushed; an unknown id (treated as already-terminal) can't hold the
+    stream open forever.
+    """
+    raw_ids = [i.strip() for i in ids.split(",") if i.strip()]
+    # De-dup while preserving order — a caller passing the same id twice must
+    # not get double events or an inconsistent cursor.
+    run_ids = list(dict.fromkeys(raw_ids))
+    if not run_ids:
+        raise HTTPException(status_code=400, detail="No run ids provided")
+
+    store: RunStore = request.app.state.run_store
+
+    # Resolve each id's ticker up front (for routing) and which ids actually
+    # exist. A missing id is dropped from polling and counts as terminal.
+    tickers: dict[str, str] = {}
+    known_ids: list[str] = []
+    for run_id in run_ids:
+        record = await store.get_run(run_id)
+        if record is not None:
+            tickers[run_id] = record.ticker
+            known_ids.append(run_id)
+    if not known_ids:
+        raise HTTPException(status_code=404, detail=f"No runs found for ids: {ids}")
+
+    cursors = _parse_multiplex_cursor(request.headers.get("last-event-id"))
+    # Seed cursors for every known id (default 0 = from the start) so the id:
+    # line always carries a complete snapshot.
+    for run_id in known_ids:
+        cursors.setdefault(run_id, 0)
+
+    async def event_stream() -> AsyncIterator[str]:
+        terminal: set[str] = set()
+        while True:
+            if await request.is_disconnected():
+                logger.debug("Aggregated SSE client disconnected — stopping poll")
+                return
+
+            for run_id in known_ids:
+                if run_id in terminal:
+                    continue
+                events = await store.get_events_after(run_id, cursors[run_id])
+                for stored in events:
+                    cursors[run_id] = stored.seq
+                    yield _format_multiplex_sse(cursors, run_id, tickers[run_id], stored.event)
+
+                record = await store.get_run(run_id)
+                if record is None or record.status in {"completed", "failed"}:
+                    # Flush any trailing events that landed between the read
+                    # above and the status read, then mark this id done.
+                    trailing = await store.get_events_after(run_id, cursors[run_id])
+                    for stored in trailing:
+                        cursors[run_id] = stored.seq
+                        yield _format_multiplex_sse(cursors, run_id, tickers[run_id], stored.event)
+                    terminal.add(run_id)
+
+            if len(terminal) == len(known_ids):
+                break
+            await asyncio.sleep(0.2)
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
 @router.get("/{run_id}", response_model=RunDetail)
 async def get_run(run_id: str, request: Request) -> RunDetail:
     store: RunStore = request.app.state.run_store

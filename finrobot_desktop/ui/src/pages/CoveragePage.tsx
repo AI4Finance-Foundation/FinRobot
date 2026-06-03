@@ -134,7 +134,8 @@ export function CoveragePage(): React.ReactElement {
   // progress tick doesn't re-invalidate.
   const queryClient = useQueryClient()
   const runs = useRunStreamStore((s) => s.runs)
-  const trackRun = useRunStreamStore((s) => s.trackExistingRun)
+  const trackBatchRuns = useRunStreamStore((s) => s.trackBatchRuns)
+  const closeBatchStream = useRunStreamStore((s) => s.closeBatchStream)
   const notifiedRunsRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     for (const run of Object.values(runs)) {
@@ -150,6 +151,19 @@ export function CoveragePage(): React.ReactElement {
       queryClient.invalidateQueries({ queryKey: ['studied-tickers'] })
     }
   }, [runs, queryClient])
+
+  // ── Teardown the aggregated batch stream on unmount ───────────────────────
+  // The Coverage batch opens ONE long-lived SSE connection (BUG-031). Unlike
+  // single-run streams — which intentionally survive navigation so a 30-60s run
+  // keeps tracking — the batch connection is owned by THIS page: nothing else
+  // reads it, so leaving it open on navigate-away leaks a connection (and, on
+  // HTTP/1.1, a pool slot). Close it on unmount. The runs themselves keep going
+  // on the backend and their final state is already in the store for the badge;
+  // re-entering Coverage just won't live-stream the in-flight ones (acceptable —
+  // the overview's invalidation on the next completion still refreshes the desk).
+  useEffect(() => {
+    return () => closeBatchStream()
+  }, [closeBatchStream])
 
   // ── Responsive: side inspector vs bottom dock ─────────────────────────────
   // A fixed 300px right inspector + the card wall can't coexist once the AI
@@ -241,12 +255,17 @@ export function CoveragePage(): React.ReactElement {
             })
             return
           }
-          // Register each spawned run's SSE stream so the desk refreshes on
-          // completion. The batch endpoint already created the runs and returned
-          // their ids; without tracking them no completion event ever arrives and
-          // cards stall on "running" (the run-completion effect below keys on the
-          // store's `runs`, which only this populates for Coverage-launched runs).
-          for (const r of res.runs) trackRun(r.run_id, r.ticker, res.pipeline_type)
+          // Register the whole batch over ONE aggregated SSE connection
+          // (/api/runs/events?ids=…). Per-run EventSources saturate the browser's
+          // ~6-conn HTTP/1.1 pool, so a 10-ticker batch starved runs 7-10 AND
+          // blocked all other polling — the app froze (BUG-031). trackBatchRuns
+          // seeds each ticker's 'running' state and multiplexes every run's
+          // events back to its ticker, so the run-completion effect below still
+          // fires per ticker and the desk refreshes on each completion.
+          trackBatchRuns(
+            res.runs.map((r) => ({ runId: r.run_id, ticker: r.ticker })),
+            res.pipeline_type,
+          )
           toast({
             type: res.skipped.length ? 'info' : 'success',
             title: t('coverage.toast.launched', {

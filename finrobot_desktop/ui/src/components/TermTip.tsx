@@ -1,12 +1,13 @@
 /**
  * TermTip — hover tooltip for financial jargon, with optional "ask LLM" deep dive.
  *
- * 散户痛点：屏幕上一堆 WACC / P/E / EBITDA / FCF / DCF 看不懂。
- * 这里给 1 句话兜底解释 + 点击让 RightChatPanel 详细讲。
+ * 高要求但非投行背景的读者(分析师助理 / 跨界研究员)碰到密集的
+ * WACC / NOPAT / EV-EBITDA / FCFF / 13F / DEF 14A,需要就地一句话口径解释,
+ * 想深挖再点 "ask FinRobot" 让 RightChatPanel 展开。不做散户化简化,只补口径。
  *
  * Why a local glossary instead of always asking LLM?
- *   - 即时显示，hover 不需要网络
- *   - 一致性，每次都一样的简短解释
+ *   - 即时显示,hover 不需要网络
+ *   - 一致性,每次都一样的简短、口径准确的解释
  *   - 用户想深入时再点击触发 LLM 段
  */
 
@@ -14,47 +15,24 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useUiStore } from '../stores/uiStore'
 import { useI18n } from '../i18n'
+import { lookupTerm, isKnownTerm } from './termDictionary'
 
-// Each glossary entry maps a term to its i18n key suffix. The actual short
-// definition and "ask LLM" prompt live in the catalogs under
-// `term.<key>.short` / `term.<key>.ask`, so they translate + re-render on
-// locale change (resolved inside the component via useI18n).
-const GLOSSARY: Record<string, string> = {
-  DCF: 'dcf',
-  WACC: 'wacc',
-  'P/E': 'pe',
-  PE: 'pe',
-  EBITDA: 'ebitda',
-  FCF: 'fcf',
-  EV: 'ev',
-  IRR: 'irr',
-  LBO: 'lbo',
-  DDM: 'ddm',
-  Beta: 'beta',
-  ROE: 'roe',
-  'Terminal Value': 'terminalValue',
-  'PV of FCF': 'pvOfFcf',
-  'Enterprise Value': 'enterpriseValue',
-  'Equity Value': 'equityValue',
-  'EV/EBITDA': 'evEbitda',
-  Beat: 'beat',
-  Miss: 'miss',
-}
-
-export function isKnownTerm(term: string): boolean {
-  return term in GLOSSARY
-}
+// Short definitions + "ask LLM" prompts live in ./termDictionary (locale-keyed),
+// so the full zh/en pair for a term is one editable block a sell-side reviewer
+// can vet — rather than 4 scattered Lingui .po msgids. Only the tooltip chrome
+// (aria label, "ask more" link) stays in the .po catalog.
+export { isKnownTerm }
 
 interface Props {
-  /** Term to look up (case-sensitive, must be in GLOSSARY) */
+  /** Term to look up (case-sensitive, must be an alias in termDictionary) */
   term: string
   /** Optional display text — defaults to `term`. Useful for `WACC %` etc. */
   children?: React.ReactNode
 }
 
 export function TermTip({ term, children }: Props): React.ReactElement {
-  const keySuffix = GLOSSARY[term]
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
+  const def = lookupTerm(term, locale)
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState<{ x: number; y: number } | null>(null)
   const anchorRef = useRef<HTMLSpanElement>(null)
@@ -68,12 +46,12 @@ export function TermTip({ term, children }: Props): React.ReactElement {
   }, [open])
 
   // Unknown terms render plain text (no tooltip, no errors)
-  if (!keySuffix) {
+  if (!def) {
     return <span>{children ?? term}</span>
   }
 
-  const short = t(`term.${keySuffix}.short`)
-  const askPrompt = t(`term.${keySuffix}.ask`)
+  const short = def.short
+  const askPrompt = def.ask
 
   return (
     <>

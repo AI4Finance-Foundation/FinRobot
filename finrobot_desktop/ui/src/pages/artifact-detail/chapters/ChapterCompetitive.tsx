@@ -3,6 +3,7 @@ import CompanyRadarChart from '../../../components/charts/CompanyRadarChart'
 import { compsResultToPeerChartData, compsResultToRadarData } from '../../../utils/chartAdapters'
 import type { CompsResult } from '../../../stores/appStore'
 import { useI18n } from '../../../i18n'
+import { TermTip } from '../../../components/TermTip'
 import { formatCompactNumber } from '../../../utils/format'
 import { Chapter, Narrative, SubChapter, tableStyle } from './ChapterBase'
 import type { PeerCompsShape, ThesisShape } from './types'
@@ -71,14 +72,23 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
               <th style={{ ...thStyle, textAlign: 'right' }}>
                 {t('chapter.competitive.col.revenue')}
               </th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>P/E</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>
+                <TermTip term="P/E" />
+              </th>
+              {/* Core P/E keeps its bespoke comps-reconciliation gloss (the
+                  football-field "Comps (core P/E)" target is computed on this
+                  column's median). TermTip supplies the standard hover + "ask
+                  FinRobot" deep dive; the inline `title` stays as a quick
+                  reconciliation hint that the tooltip text spells out. */}
               <th
                 style={{ ...thStyle, textAlign: 'right', cursor: 'help' }}
                 title={coreLabel.tooltip}
               >
-                {coreLabel.header}
+                <TermTip term="Core P/E">{coreLabel.header}</TermTip>
               </th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>EV/EBITDA</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>
+                <TermTip term="EV/EBITDA" />
+              </th>
               <th style={{ ...thStyle, textAlign: 'right' }}>
                 {t('chapter.competitive.col.grossMargin')}
               </th>

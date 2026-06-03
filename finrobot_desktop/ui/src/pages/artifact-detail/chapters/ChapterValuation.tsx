@@ -4,6 +4,7 @@ import WaterfallChart from '../../../components/charts/WaterfallChart'
 import { BASE_URL } from '../../../api/client'
 import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../../../api/fetch'
 import { useI18n } from '../../../i18n'
+import { TermTip } from '../../../components/TermTip'
 import { Chapter, KvGrid, Narrative, SubChapter } from './ChapterBase'
 import type { DcfShape, ThesisShape } from './types'
 
@@ -94,17 +95,25 @@ export function ChapterValuation({
         ]
       : []
 
-  type Cell = { label: string; value: string; delta?: string; tone?: 'up' | 'down' }
+  type Cell = {
+    label: React.ReactNode
+    value: string
+    delta?: React.ReactNode
+    tone?: 'up' | 'down'
+  }
   const cells: Cell[] = [
     wacc !== null &&
       ({
-        label: 'WACC',
+        // Headline term explainers: WACC, terminal growth and EV are the DCF
+        // levers a non-IB reader most needs unpacked — wrap them in TermTip
+        // (hover gloss + "ask FinRobot" deep dive). One wrap per term per chapter.
+        label: <TermTip term="WACC" />,
         value: `${(wacc * 100).toFixed(2)}%`,
-        delta: beta !== null ? `β ${beta.toFixed(2)}` : undefined,
+        delta: beta !== null ? <TermTip term="β">{`β ${beta.toFixed(2)}`}</TermTip> : undefined,
       } as Cell),
     terminalGrowth !== null &&
       ({
-        label: t('chapter.valuation.kv.terminalGrowth'),
+        label: <TermTip term="Terminal Growth">{t('chapter.valuation.kv.terminalGrowth')}</TermTip>,
         value: `${(terminalGrowth * 100).toFixed(2)}%`,
       } as Cell),
     taxRate !== null &&
@@ -121,7 +130,10 @@ export function ChapterValuation({
           | undefined,
       } as Cell),
     ev !== null &&
-      ({ label: t('chapter.valuation.kv.enterpriseValue'), value: fmtTrillions(ev) } as Cell),
+      ({
+        label: <TermTip term="EV">{t('chapter.valuation.kv.enterpriseValue')}</TermTip>,
+        value: fmtTrillions(ev),
+      } as Cell),
     eq !== null &&
       ({ label: t('chapter.valuation.kv.equityValue'), value: fmtTrillions(eq) } as Cell),
   ].filter((c): c is Cell => Boolean(c))
@@ -177,7 +189,9 @@ export function ChapterValuation({
             marginTop: 12,
           }}
         >
-          <span style={{ color: 'var(--text-muted)' }}>{t('chapter.valuation.target12m')}</span>{' '}
+          <span style={{ color: 'var(--text-muted)' }}>
+            <TermTip term="Target Price">{t('chapter.valuation.target12m')}</TermTip>
+          </span>{' '}
           <span style={{ color: 'var(--accent-cyan)', fontSize: 14 }}>
             ${thesis.price_target.toFixed(2)}
           </span>

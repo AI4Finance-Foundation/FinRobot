@@ -28,6 +28,7 @@ import type {
   ScheduleThirteenAlertShape,
 } from './types'
 import { useI18n } from '../../../i18n'
+import { TermTip } from '../../../components/TermTip'
 import { formatCompactNumber, formatDate, formatPercent } from '../../../utils/format'
 
 interface Props {
@@ -90,7 +91,16 @@ export function ChapterOwnershipGovernance({ ownership }: Props): React.ReactEle
         )}
       </SubChapter>
 
-      <SubChapter heading={t('chapter.ownership.heading.institutions')}>
+      <SubChapter
+        heading={
+          <>
+            {t('chapter.ownership.heading.institutions')}{' '}
+            <span style={{ fontSize: 10, verticalAlign: 'middle' }}>
+              <TermTip term="13F" />
+            </span>
+          </>
+        }
+      >
         {degraded.has('institutional_holdings') ? (
           <DegradedPlaceholder
             reason={t(institutionsReason)}
@@ -371,7 +381,12 @@ function CompensationGrid({
   locale: 'zh' | 'en'
   t: Translator
 }): React.ReactElement {
-  const cells: { label: string; value: string; delta?: string; tone?: 'up' | 'down' }[] = [
+  const cells: {
+    label: React.ReactNode
+    value: string
+    delta?: string
+    tone?: 'up' | 'down'
+  }[] = [
     {
       label: t('chapter.ownership.kv.ceoName'),
       value: comp.ceo_name ?? '—',
@@ -394,7 +409,7 @@ function CompensationGrid({
           : undefined,
     },
     {
-      label: t('chapter.ownership.kv.payRatio'),
+      label: <TermTip term="Pay Ratio">{t('chapter.ownership.kv.payRatio')}</TermTip>,
       value:
         comp.ceo_pay_ratio !== null && comp.ceo_pay_ratio !== undefined
           ? `${comp.ceo_pay_ratio}:1`
@@ -414,7 +429,8 @@ function CompensationGrid({
       <p style={kvFooter}>
         <ProvenanceLink prov={makeProvenance(comp)} locale={locale} t={t}>
           {t('chapter.ownership.source.def14a', { date: formatDate(comp.filing_date, locale) })}
-        </ProvenanceLink>
+        </ProvenanceLink>{' '}
+        <TermTip term="DEF 14A" />
       </p>
     </>
   )

@@ -13,6 +13,7 @@ import {
 import type { DCFResult } from '../../../stores/appStore'
 import { useHistoricalData } from '../../../hooks/useHistoricalData'
 import { useI18n } from '../../../i18n'
+import { TermTip } from '../../../components/TermTip'
 import { formatCompactNumber } from '../../../utils/format'
 import { Chapter, KvGrid, SubChapter, tableStyle, type KvCell } from './ChapterBase'
 import type { NumberSource } from '../../../components/SourcedNumber'
@@ -93,7 +94,13 @@ export function ChapterFinancialAnalysis({
         : undefined,
       source: numberSource,
     },
-    baseEbitda !== null && { label: 'EBITDA', value: fmtMoney(baseEbitda), source: numberSource },
+    baseEbitda !== null && {
+      // EBITDA itself isn't in the glossary, but FCF (below, in the forecast
+      // table) is the headline cash term — wrap the first FCF occurrence there.
+      label: 'EBITDA',
+      value: fmtMoney(baseEbitda),
+      source: numberSource,
+    },
     baseNet !== null && {
       label: t('chapter.financial.kv.netIncome'),
       value: fmtMoney(baseNet),
@@ -178,7 +185,7 @@ export function ChapterFinancialAnalysis({
               {dcf.projected_fcf && dcf.projected_fcf.length > 0 && (
                 <tr>
                   <td style={{ ...tdStyle, color: 'var(--text-primary)', fontWeight: 500 }}>
-                    {t('chapter.financial.table.fcf')}
+                    <TermTip term="FCF">{t('chapter.financial.table.fcf')}</TermTip>
                   </td>
                   {dcf.projected_fcf.map((v, i) => (
                     <td

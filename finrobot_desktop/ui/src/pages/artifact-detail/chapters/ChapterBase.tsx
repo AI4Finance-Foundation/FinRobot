@@ -11,9 +11,9 @@ import { SourcedNumber, type NumberSource } from '../../../components/SourcedNum
  * (provider + fetched_at) so every provider-sourced number is traceable —
  * the headline "数字可溯源" contract (CLAUDE.md 数据正确性). */
 export interface KvCell {
-  label: string
+  label: ReactNode
   value: string
-  delta?: string
+  delta?: ReactNode
   tone?: 'up' | 'down'
   source?: NumberSource
 }
@@ -135,7 +135,7 @@ export function SubChapter({
   heading,
   children,
 }: {
-  heading: string
+  heading: ReactNode
   children: ReactNode
 }): React.ReactElement {
   return (

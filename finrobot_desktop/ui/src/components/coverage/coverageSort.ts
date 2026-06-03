@@ -20,7 +20,7 @@ export type CoverageSortKey =
   | 'revenue_ttm'
   | 'ev_ebitda'
   | 'pe'
-  | 'run_count'
+  | 'artifact_count'
 
 export type SortDir = 'asc' | 'desc'
 

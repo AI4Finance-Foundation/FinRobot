@@ -1,9 +1,12 @@
-// CoverageCard — one ticker in the workspace card wall. FIXED height (never
-// grows with field count — Coverage redesign): comfort 244 / compact 196, with
-// overflow clipped and long text ellipsised so a 3-name group and a 128-name
-// group read with the same rhythm. Every number renders through SourcedNumber
-// (provenance popover + inline amber warning), 涨绿跌红, mono digits, all colors
-// via cosmic tokens.
+// CoverageCard — one ticker in the workspace card wall. Uniform height via a
+// minHeight FLOOR (comfort 244 / compact 196), not a hard `height` cap: the
+// content (head · price · 2×2 metrics · quality row · report/actions row) is
+// fixed-shape — company names ellipsis, status text ellipsis — so every card
+// renders the same height anyway, but a hard cap shorter than that content
+// silently clipped the bottom actions row (run/open buttons + report count were
+// invisible). The floor keeps the rhythm without ever hiding a control. Every
+// number renders through SourcedNumber (provenance popover + inline amber
+// warning), 涨绿跌红, mono digits, all colors via cosmic tokens.
 //
 // Fields (locked by the redesign spec): ticker/company · price/1D · verdict ·
 // market cap · revenue TTM · EV/EBITDA-or-P/E · live upside · warning/freshness ·
@@ -102,10 +105,14 @@ export const CoverageCard = memo(function CoverageCard({
         position: 'relative',
         display: 'flex',
         flexDirection: 'column',
-        height: compact ? 196 : 244,
+        // Size to content (clamped to the minHeight floor). Without this the card
+        // is a grid item with the default align-self:stretch, so the grid
+        // stretches it to the row track and locks its height at the floor (244) —
+        // taller content then overflowed and the actions row was clipped.
+        alignSelf: 'start',
+        minHeight: compact ? 196 : 244,
         padding: compact ? 12 : 16,
         boxSizing: 'border-box',
-        overflow: 'hidden',
         cursor: 'pointer',
         borderRadius: 'var(--radius-lg)',
         border: `1px solid ${
@@ -119,11 +126,12 @@ export const CoverageCard = memo(function CoverageCard({
           ? 'var(--primary-soft)'
           : 'linear-gradient(180deg, var(--bg-card-deep), var(--bg-card-overlay))',
         boxShadow: focused ? '0 8px 32px var(--primary-soft)' : 'none',
-        // Native windowing for 100+ cards: off-screen cards skip layout/paint
-        // (audit §24 — no virtualization library). intrinsic size = the fixed
-        // card height so the scrollbar stays accurate before paint.
-        contentVisibility: 'auto',
-        containIntrinsicSize: `${compact ? 196 : 244}px`,
+        // NOTE: content-visibility:auto windowing was removed here. It reported
+        // contain-intrinsic-size as the card's grid-row height, capping the box
+        // shorter than its content and clipping the actions row (run/open) — the
+        // exact bug this card had. For a coverage desk (tens, low-hundreds of
+        // tickers) rendering every card is cheap; a true 1000+ wall would want
+        // real list virtualization, not a size hint that silently truncates.
       }}
     >
       {/* Head: ticker / company + batch-select checkbox (selection is separate
@@ -350,12 +358,17 @@ export const CoverageCard = memo(function CoverageCard({
             whiteSpace: 'nowrap',
           }}
         >
-          {row.run_count > 0
+          {/* Honest tally: "N 份研报" counts ONLY thesis-bearing research
+              (research_count). A ticker with just model runs (DCF/LBO/comps)
+              shows the model-record count, never inflated into a report count. */}
+          {row.research_count > 0
             ? t('coverage.card.reports', {
-                n: row.run_count,
+                n: row.research_count,
                 date: row.latest_at ? formatDate(row.latest_at, locale, 'short') : '—',
               })
-            : t('coverage.card.noReports')}
+            : row.artifact_count > 0
+              ? t('coverage.card.modelOnly', { n: row.artifact_count })
+              : t('coverage.card.noReports')}
         </span>
         <span style={{ display: 'inline-flex', gap: 4, flexShrink: 0 }}>
           <IconButton

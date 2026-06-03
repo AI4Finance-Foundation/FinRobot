@@ -1,7 +1,13 @@
 // CoverageCardGrid — the workspace's main surface: a responsive wall of fixed
-// height ticker cards. 3 columns in comfort, 4 in compact (redesign spec). The
-// grid only lays out + scrolls; each card self-windows via content-visibility
-// (CoverageCard), so 100+ tickers stay smooth without a virtualization library.
+// height ticker cards. Column count is auto-derived from the container's own
+// width via auto-fill + minmax (comfort floor 260, compact 210) — NOT a fixed
+// repeat(3/4). A fixed column count with a min track wider than the available
+// space forced horizontal clipping the moment the AI panel + inspector ate into
+// the width (BUG: GOOGL sliced off at the default 1200 window). auto-fill lets
+// the wall fall back to 1 column at any width, so it only ever scrolls
+// vertically. The grid lays out + scrolls; cards render in full (no windowing —
+// a coverage desk holds tens to low-hundreds of tickers; a true 1000+ wall would
+// want real list virtualization).
 
 import { useI18n } from '../../i18n'
 import { CoverageCard } from './CoverageCard'
@@ -58,8 +64,8 @@ export function CoverageCardGrid({
       style={{
         display: 'grid',
         gridTemplateColumns: compact
-          ? 'repeat(4, minmax(210px, 1fr))'
-          : 'repeat(3, minmax(260px, 1fr))',
+          ? 'repeat(auto-fill, minmax(210px, 1fr))'
+          : 'repeat(auto-fill, minmax(260px, 1fr))',
         gap: 12,
         alignContent: 'start',
         height: '100%',

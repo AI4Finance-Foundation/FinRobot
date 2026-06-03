@@ -11,10 +11,12 @@
 // Artifact (at-run price frozen, never overwritten by live) and lists the full
 // artifact history. Remove drops only workspace membership — never artifacts.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useI18n } from '../i18n'
 import { useCoverageStore } from '../stores/coverageStore'
+import { useRunStreamStore } from '../stores/runStreamStore'
 import {
   useAddMembers,
   useBatchRun,
@@ -105,6 +107,58 @@ export function CoveragePage(): React.ReactElement {
   const focusedRow = useMemo(
     () => rows.find((r) => r.ticker === focusedTicker) ?? null,
     [rows, focusedTicker],
+  )
+
+  // ── Run completion → refresh the desk ────────────────────────────────────
+  // Runs launched from a card / inspector are async (SSE-tracked in
+  // runStreamStore). Without this, a card fires off a run, shows "running",
+  // and then stays stuck on that snapshot — the overview's staleTime (30s,
+  // no refetch-on-focus) never re-pulls run_status / research_count / latest_at.
+  // Mirror StockWorkspace: when any tracked run transitions to completed /
+  // failed, invalidate the read models it touched. Deduped per runId so a
+  // progress tick doesn't re-invalidate.
+  const queryClient = useQueryClient()
+  const runs = useRunStreamStore((s) => s.runs)
+  const notifiedRunsRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    for (const run of Object.values(runs)) {
+      if (run.status !== 'completed' && run.status !== 'failed') continue
+      const key = `${run.runId}:${run.status}`
+      if (notifiedRunsRef.current.has(key)) continue
+      notifiedRunsRef.current.add(key)
+      // Key-prefix invalidation (TanStack matches by prefix), mirroring the
+      // hooks: overview (run_status / counts / latest_*), the ticker's artifact
+      // timeline (a new artifact appended), and the studied-tickers list.
+      queryClient.invalidateQueries({ queryKey: ['coverage', 'overview'] })
+      queryClient.invalidateQueries({ queryKey: ['v5-artifacts-timeline', run.ticker] })
+      queryClient.invalidateQueries({ queryKey: ['studied-tickers'] })
+    }
+  }, [runs, queryClient])
+
+  // ── Responsive: side inspector vs bottom dock ─────────────────────────────
+  // A fixed 300px right inspector + the card wall can't coexist once the AI
+  // panel eats the width (BUG: cards clipped at the default window). Below a
+  // workspace-width threshold the inspector stacks BELOW the wall as a capped
+  // dock, so the cards keep a full-width single column instead of being crushed.
+  const workspaceRef = useRef<HTMLDivElement>(null)
+  const [stacked, setStacked] = useState(false)
+  useEffect(() => {
+    const el = workspaceRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0
+      // ~360 min card column + 300 inspector + 16 gap ≈ 676; stack a touch above.
+      setStacked(w > 0 && w < 720)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // Compare needs ≥2 distinct tickers (focused + multi-select). Drives the
+  // inspector's Compare enabled-state so it never looks actionable then dead-ends.
+  const compareReady = useMemo(
+    () => new Set([focusedTicker, ...selectedTickers].filter(Boolean)).size >= 2,
+    [focusedTicker, selectedTickers],
   )
 
   const createGroup = useCreateGroup()
@@ -248,7 +302,19 @@ export function CoveragePage(): React.ReactElement {
   const hasSelection = selectedTickers.length > 0
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px 24px' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        // Stacked (narrow) mode scrolls vertically: the tall hero + wrapped
+        // toolbar + docked inspector can't all share a fixed viewport height
+        // without crushing the card wall to nothing, so let the page grow and
+        // scroll (spec: small windows are usable + scrollable, not pixel-tight).
+        overflowY: stacked ? 'auto' : undefined,
+        padding: '20px 24px',
+      }}
+    >
       <CoverageHero />
 
       <CoverageToolbar
@@ -306,9 +372,30 @@ export function CoveragePage(): React.ReactElement {
         </div>
       )}
 
-      {/* Card wall + inspector */}
-      <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
+      {/* Card wall + inspector — side-by-side when wide, inspector docks below
+          when the workspace is too narrow (so cards never get crushed). */}
+      <div
+        ref={workspaceRef}
+        style={{
+          display: 'flex',
+          flexDirection: stacked ? 'column' : 'row',
+          gap: 16,
+          // Side mode fills the remaining viewport (grid scrolls internally);
+          // stacked mode sizes to content and lets the PAGE scroll instead.
+          flex: stacked ? '0 0 auto' : 1,
+          minHeight: 0,
+        }}
+      >
+        <div
+          style={{
+            flex: stacked ? '0 0 auto' : 1,
+            minWidth: 0,
+            minHeight: 0,
+            // Give the wall a usable height when stacked so cards aren't crushed;
+            // the grid's height:100% becomes content-height under this auto box.
+            height: stacked ? 'auto' : undefined,
+          }}
+        >
           {overviewQuery.isLoading ? (
             <Placeholder text={t('coverage.loading')} />
           ) : overviewQuery.isError ? (
@@ -335,6 +422,8 @@ export function CoveragePage(): React.ReactElement {
         </div>
         <CoverageInspector
           row={focusedRow}
+          layout={stacked ? 'dock' : 'side'}
+          compareReady={compareReady}
           onRun={(ticker) => handleRun([ticker])}
           onOpen={(ticker) => navigate(`/stocks/${ticker}`)}
           onCompare={(ticker) => handleCompare([ticker, ...selectedTickers])}
@@ -372,7 +461,7 @@ function BarButton({
         background: primary
           ? 'linear-gradient(135deg, var(--primary), var(--secondary))'
           : 'transparent',
-        color: primary ? '#fff' : 'var(--text-secondary)',
+        color: primary ? 'var(--text-on-primary)' : 'var(--text-secondary)',
       }}
     >
       {label}

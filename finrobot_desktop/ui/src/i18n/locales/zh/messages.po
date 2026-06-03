@@ -3563,7 +3563,11 @@ msgstr "{n} 份研报 · 最新 {date}"
 
 #. js-lingui-explicit-id
 msgid "coverage.card.noReports"
-msgstr "尚无研报"
+msgstr "尚无分析记录"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.modelOnly"
+msgstr "暂无研报 · {n} 条模型记录"
 
 #. js-lingui-explicit-id
 msgid "coverage.card.open"
@@ -3615,7 +3619,11 @@ msgstr "最新研报快照"
 
 #. js-lingui-explicit-id
 msgid "coverage.inspector.historyTitle"
-msgstr "研报历史"
+msgstr "全部分析记录"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.recordCounts"
+msgstr "研报 {research} · 全部记录 {artifact}"
 
 #. js-lingui-explicit-id
 msgid "coverage.inspector.qualityTitle"
@@ -3692,6 +3700,10 @@ msgstr "打开股票页"
 #. js-lingui-explicit-id
 msgid "coverage.inspector.compare"
 msgstr "对比"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.compareHint"
+msgstr "选择另一个再对比"
 
 #. js-lingui-explicit-id
 msgid "coverage.inspector.remove"

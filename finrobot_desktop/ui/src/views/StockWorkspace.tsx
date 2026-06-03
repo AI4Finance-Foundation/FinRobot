@@ -115,20 +115,26 @@ export function StockWorkspace(): React.ReactElement {
   const priceQuery = useTickerPrice(symbol)
 
   // Auto-enrol an opened ticker into the default Studied Tickers workspace
-  // (Coverage redesign §2). Gated on a *successful* price fetch — that's the
-  // signal the symbol is a real, tradeable name, so we never enrol the junk a
-  // 422 would reject. Idempotent server-side; the ref fires it once per symbol
-  // so a re-render / live re-poll doesn't re-POST. Best-effort onboarding —
-  // failures stay silent (no toast), the workspace never depends on it.
+  // (Coverage redesign §2). Gated on the ticker being ACCEPTED — the exact same
+  // condition that renders the workspace below: anything except a 422
+  // (invalid-ticker) counts. Gating on price *success* alone dropped valid names
+  // during a provider outage (non-422 error): the user could open the page and
+  // run research, yet the name never entered Studied Tickers, so "跑过的东西"
+  // couldn't be found in the workspace. Idempotent server-side; the ref fires it
+  // once per symbol so a re-render / live re-poll doesn't re-POST. Best-effort
+  // onboarding — failures stay silent (no toast), the workspace never depends on it.
   const addStudied = useAddStudiedTicker()
   const lastStudiedRef = useRef<string | null>(null)
-  const priceOk = priceQuery.isSuccess
+  const accepted =
+    priceQuery.isSuccess ||
+    (priceQuery.isError &&
+      !(priceQuery.error instanceof FetchHttpError && priceQuery.error.status === 422))
   useEffect(() => {
-    if (!symbol || !priceOk) return
+    if (!symbol || !accepted) return
     if (lastStudiedRef.current === symbol) return
     lastStudiedRef.current = symbol
     addStudied.mutate(symbol)
-  }, [symbol, priceOk, addStudied])
+  }, [symbol, accepted, addStudied])
 
   if (!symbol) {
     return (

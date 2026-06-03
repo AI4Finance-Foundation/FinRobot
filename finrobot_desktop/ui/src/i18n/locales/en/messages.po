@@ -3563,7 +3563,11 @@ msgstr "{n} reports · latest {date}"
 
 #. js-lingui-explicit-id
 msgid "coverage.card.noReports"
-msgstr "No reports yet"
+msgstr "No records yet"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.modelOnly"
+msgstr "No report yet · {n} model records"
 
 #. js-lingui-explicit-id
 msgid "coverage.card.open"
@@ -3615,7 +3619,11 @@ msgstr "Latest Research Artifact"
 
 #. js-lingui-explicit-id
 msgid "coverage.inspector.historyTitle"
-msgstr "Artifact History"
+msgstr "All Records"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.recordCounts"
+msgstr "Reports {research} · all records {artifact}"
 
 #. js-lingui-explicit-id
 msgid "coverage.inspector.qualityTitle"
@@ -3692,6 +3700,10 @@ msgstr "Open Stock"
 #. js-lingui-explicit-id
 msgid "coverage.inspector.compare"
 msgstr "Compare"
+
+#. js-lingui-explicit-id
+msgid "coverage.inspector.compareHint"
+msgstr "Select another to compare"
 
 #. js-lingui-explicit-id
 msgid "coverage.inspector.remove"

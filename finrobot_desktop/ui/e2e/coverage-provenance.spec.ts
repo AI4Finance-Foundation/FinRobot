@@ -48,7 +48,8 @@ function row(over: Record<string, unknown> = {}) {
     entry_price: 180,
     upside_to_target_live: 0.1993,
     signal: 'watching',
-    run_count: 5,
+    artifact_count: 5,
+    research_count: 5,
     latest_artifact_id: 'art_aapl_eq',
     latest_type: 'equity_research',
     latest_at: '2026-04-01T00:00:00Z',
@@ -113,7 +114,8 @@ const OVERVIEW = {
       entry_price: null,
       upside_to_target_live: null,
       signal: null,
-      run_count: 0,
+      artifact_count: 0,
+      research_count: 0,
       latest_artifact_id: null,
       latest_at: null,
       needs_refresh: [
@@ -138,7 +140,8 @@ const OVERVIEW = {
       latest_verdict: null,
       target_price: null,
       upside_to_target_live: null,
-      run_count: 0,
+      artifact_count: 0,
+      research_count: 0,
       latest_at: null,
       needs_refresh: [
         { kind: 'never_run', detail: '覆盖池中但从未跑过 Research', artifact_id: null },
@@ -202,19 +205,32 @@ test('card wall renders with no horizontal overflow at 1600×1000', async ({ pag
   await page.screenshot({ path: 'e2e/_coverage-comfort.png' })
 })
 
-test('density toggle switches comfort ↔ compact', async ({ page }) => {
+test('density toggle switches comfort ↔ compact; card never clips its actions', async ({
+  page,
+}) => {
   await stub(page)
   await page.goto('/coverage')
   await expect(page.getByTestId('coverage-card-AAPL')).toBeVisible({ timeout: 8000 })
 
   const card = page.getByTestId('coverage-card-AAPL')
+  // minHeight floor, not a hard cap: the card is at least the floor and grows to
+  // fit content (a hard 244 cap used to slice off the actions row).
   const comfortH = await card.evaluate((el) => el.getBoundingClientRect().height)
-  expect(comfortH).toBeCloseTo(244, 0)
+  expect(comfortH).toBeGreaterThanOrEqual(244)
+
+  // The run/open actions row must sit fully inside the card — a hard-capped
+  // height used to slice the bottom row off behind overflow:hidden.
+  const runBtn = card.getByRole('button', { name: /Run research|运行/ })
+  await expect(runBtn).toBeVisible()
+  const cardBox = await card.boundingBox()
+  const runBox = await runBtn.boundingBox()
+  expect(cardBox && runBox).toBeTruthy()
+  expect(runBox!.y + runBox!.height).toBeLessThanOrEqual(cardBox!.y + cardBox!.height + 1)
 
   await page.getByRole('button', { name: /Compact|紧凑/ }).click()
   await page.waitForTimeout(150)
   const compactH = await card.evaluate((el) => el.getBoundingClientRect().height)
-  expect(compactH).toBeCloseTo(196, 0)
+  expect(compactH).toBeGreaterThanOrEqual(196)
   expect(compactH).toBeLessThan(comfortH)
 
   await page.screenshot({ path: 'e2e/_coverage-compact.png' })
@@ -270,4 +286,97 @@ test('Needs Action filter narrows the wall; metric popover still works', async (
   await page.waitForTimeout(350)
   await expect(page.getByRole('dialog').first()).toBeVisible()
   await page.screenshot({ path: 'e2e/_coverage-needsaction.png' })
+})
+
+// The redesign's load-bearing responsive guarantee: the card grid uses auto-fill
+// columns (not a fixed repeat(3/4) with a min track), so it falls back to fewer
+// columns and NEVER clips a card horizontally — the GOOGL-sliced-off bug.
+
+async function assertNoClip(page: import('@playwright/test').Page) {
+  // No document-level horizontal overflow.
+  const docOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  )
+  expect(docOverflow).toBeLessThanOrEqual(1)
+
+  // The grid scrolls vertically only — no internal horizontal scroll.
+  const gridOverflowX = await page
+    .getByTestId('coverage-card-grid')
+    .evaluate((el) => el.scrollWidth - el.clientWidth)
+  expect(gridOverflowX).toBeLessThanOrEqual(1)
+
+  // Every card's edges sit within the grid's content box — no card (GOOGL was
+  // the audit's victim) is sliced off the right.
+  const clipped = await page.getByTestId('coverage-card-grid').evaluate((grid) => {
+    const gr = grid.getBoundingClientRect()
+    return Array.from(grid.querySelectorAll('[data-ticker]')).filter((c) => {
+      const r = c.getBoundingClientRect()
+      return r.right > gr.right + 0.5 || r.left < gr.left - 0.5
+    }).length
+  })
+  expect(clipped).toBe(0)
+}
+
+// Hard requirement: 1280 / 1366 / 1440 / 1600 / 1920 with the AI panel OPEN
+// (the e2e default) must not clip a card. These are the widths the audit caught
+// GOOGL sliced off at, AI-panel-open being the trigger.
+for (const width of [1280, 1366, 1440, 1600, 1920]) {
+  test(`AI panel open: no card clipping at ${width}px`, async ({ page }) => {
+    await stub(page)
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/coverage')
+    await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
+    await expect(page.getByTestId('right-chat-panel')).toBeVisible() // AI panel open
+    await assertNoClip(page)
+    await page.screenshot({ path: `e2e/_coverage-aiopen-w${width}.png` })
+  })
+}
+
+// Small windows (AI panel collapsed — nobody keeps a 420px chat panel open in a
+// 700px window). The inspector docks below the wall; cards stay single/double
+// column, fully visible, vertical-scroll only. Spec: "不崩、不丢操作、可滚动".
+for (const width of [1024, 820, 680]) {
+  test(`small window (AI collapsed): no clipping, grid usable at ${width}px`, async ({ page }) => {
+    await stub(page)
+    await page.setViewportSize({ width, height: 768 })
+    await page.goto('/coverage')
+    // Collapse the AI panel FIRST — a real small-window session; with it open a
+    // 420px chat panel leaves almost no room and pushes the wall below the fold.
+    await page.getByTestId('collapse-btn').first().click()
+    await page.waitForTimeout(200)
+    await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
+    await assertNoClip(page)
+    await page.screenshot({ path: `e2e/_coverage-small-w${width}.png` })
+  })
+}
+
+test('provenance popover escapes the card overflow (portaled, fully on-screen)', async ({
+  page,
+}) => {
+  await stub(page)
+  // Narrow enough that an in-card absolute popover near the right edge would be
+  // clipped by the card's box — the portal must lift it to the viewport.
+  await page.setViewportSize({ width: 980, height: 900 })
+  await page.goto('/coverage')
+  await expect(page.getByTestId('coverage-card-AAPL')).toBeVisible({ timeout: 8000 })
+
+  await page.getByTestId('coverage-card-AAPL').getByText('$200.12').hover()
+  await page.waitForTimeout(350)
+  const dialog = page.getByRole('dialog').first()
+  await expect(dialog).toBeVisible()
+
+  // The popover lives at <body> level now: its full width/height is on-screen,
+  // not sliced by the card's clip. Assert it's within the viewport bounds.
+  const onScreen = await dialog.evaluate((el) => {
+    const r = el.getBoundingClientRect()
+    return (
+      r.left >= -0.5 &&
+      r.top >= -0.5 &&
+      r.right <= window.innerWidth + 0.5 &&
+      r.bottom <= window.innerHeight + 0.5 &&
+      r.width > 150 // not collapsed/halved
+    )
+  })
+  expect(onScreen).toBe(true)
+  await page.screenshot({ path: 'e2e/_coverage-popover.png' })
 })

@@ -20,7 +20,8 @@ function row(over: Partial<CoverageRow>): CoverageRow {
     entry_price: null,
     upside_to_target_live: null,
     signal: null,
-    run_count: 0,
+    artifact_count: 0,
+    research_count: 0,
     latest_artifact_id: null,
     latest_type: null,
     latest_at: null,
@@ -42,15 +43,17 @@ function row(over: Partial<CoverageRow>): CoverageRow {
 }
 
 describe('coverageFilter', () => {
-  const clean = row({ ticker: 'CLEAN', run_count: 2 })
-  const running = row({ ticker: 'RUN', run_status: 'running', run_count: 1 })
+  const clean = row({ ticker: 'CLEAN', artifact_count: 2, research_count: 2 })
+  const running = row({ ticker: 'RUN', run_status: 'running', research_count: 1 })
   const created = row({ ticker: 'NEW', run_status: 'created' })
   const action = row({
     ticker: 'ACT',
-    run_count: 1,
+    research_count: 1,
     needs_refresh: [{ kind: 'run_failed', detail: 'x', artifact_id: null }],
   })
-  const notRun = row({ ticker: 'COLD', run_count: 0 })
+  const notRun = row({ ticker: 'COLD', artifact_count: 0, research_count: 0 })
+  // Model-only ticker: has artifacts (DCF/LBO) but no thesis research yet.
+  const modelOnly = row({ ticker: 'MODEL', artifact_count: 3, research_count: 0 })
 
   it('all passes everything', () => {
     const rows = [clean, running, action, notRun]
@@ -68,10 +71,13 @@ describe('coverageFilter', () => {
     expect(matchesFilter(clean, 'running')).toBe(false)
   })
 
-  it('has_reports vs not_run split on run_count', () => {
+  it('has_reports vs not_run split on research_count (not all artifacts)', () => {
     expect(matchesFilter(clean, 'has_reports')).toBe(true)
     expect(matchesFilter(notRun, 'has_reports')).toBe(false)
     expect(matchesFilter(notRun, 'not_run')).toBe(true)
     expect(matchesFilter(clean, 'not_run')).toBe(false)
+    // A model-only ticker (artifacts but no thesis research) counts as not_run.
+    expect(matchesFilter(modelOnly, 'has_reports')).toBe(false)
+    expect(matchesFilter(modelOnly, 'not_run')).toBe(true)
   })
 })

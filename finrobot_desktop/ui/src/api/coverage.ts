@@ -73,7 +73,11 @@ export interface CoverageRow {
   entry_price: number | null
   upside_to_target_live: number | null
   signal: SignalStatus | null
-  run_count: number
+  // artifact_count = every artifact for the ticker (research + dcf/lbo/comps/…);
+  // research_count = only thesis-bearing research (verdict set). The card labels
+  // "研报" off research_count so a model run never inflates the report tally.
+  artifact_count: number
+  research_count: number
   latest_artifact_id: string | null
   latest_type: string | null
   latest_at: string | null

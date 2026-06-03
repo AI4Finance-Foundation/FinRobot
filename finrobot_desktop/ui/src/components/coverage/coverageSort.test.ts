@@ -20,7 +20,8 @@ function row(over: Partial<CoverageRow>): CoverageRow {
     entry_price: null,
     upside_to_target_live: null,
     signal: null,
-    run_count: 0,
+    artifact_count: 0,
+    research_count: 0,
     latest_artifact_id: null,
     latest_type: null,
     latest_at: null,
@@ -105,7 +106,7 @@ describe('sortCoverageRows', () => {
 describe('derived sort keys', () => {
   it('needs_action orders by priority score (run_failed > never_run > clean)', () => {
     const rows = [
-      row({ ticker: 'CLEAN', run_count: 2 }),
+      row({ ticker: 'CLEAN', artifact_count: 2, research_count: 2 }),
       row({
         ticker: 'FAILED',
         run_status: 'failed',

@@ -29,10 +29,13 @@ export function matchesFilter(row: CoverageRow, filter: CoverageFilter): boolean
       return coveragePriority(row).needsAction
     case 'running':
       return isRunning(row)
+    // "有研报" / "未跑过" key off research_count (thesis-bearing research), not
+    // artifact_count — a ticker with only a DCF model has no report yet, so it
+    // belongs in not_run. Mirrors the backend's never_run gate (research_count==0).
     case 'has_reports':
-      return row.run_count > 0
+      return row.research_count > 0
     case 'not_run':
-      return row.run_count === 0
+      return row.research_count === 0
   }
 }
 

@@ -16,15 +16,23 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return (await resp.json()) as T
 }
 
-/** Timeline of v5 ArtifactSummary entries for one ticker. */
-export function useV5ArtifactTimeline(ticker: string) {
+/** Timeline of v5 ArtifactSummary entries for one ticker.
+ *
+ * `limit` maps to the endpoint's `?limit=` (backend default 50). Pass it
+ * explicitly where the surface claims "full history" (Coverage Inspector) so a
+ * heavily-run ticker isn't silently truncated at 50 while the card reports a
+ * higher artifact_count — match the coverage service's own 200 ceiling. The
+ * limit is part of the query key so different callers don't share a cache. */
+export function useV5ArtifactTimeline(ticker: string, limit?: number) {
   return useQuery<ArtifactSummaryV5[], Error>({
-    queryKey: ['v5-artifacts-timeline', ticker],
-    queryFn: ({ signal }) =>
-      getJson<ArtifactSummaryV5[]>(
-        `${BASE_URL}/api/artifacts/by-ticker/${ticker}/timeline`,
+    queryKey: ['v5-artifacts-timeline', ticker, limit ?? null],
+    queryFn: ({ signal }) => {
+      const qs = limit != null ? `?limit=${limit}` : ''
+      return getJson<ArtifactSummaryV5[]>(
+        `${BASE_URL}/api/artifacts/by-ticker/${ticker}/timeline${qs}`,
         signal,
-      ),
+      )
+    },
     enabled: !!ticker,
     staleTime: 60_000,
     refetchOnMount: false,

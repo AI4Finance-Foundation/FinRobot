@@ -20,7 +20,8 @@ function row(over: Partial<CoverageRow>): CoverageRow {
     entry_price: null,
     upside_to_target_live: null,
     signal: null,
-    run_count: 0,
+    artifact_count: 0,
+    research_count: 0,
     latest_artifact_id: null,
     latest_type: null,
     latest_at: null,
@@ -45,7 +46,7 @@ const reason = (kind: string): NeedsRefreshReason => ({ kind, detail: kind, arti
 
 describe('coveragePriority', () => {
   it('a clean, run ticker needs no action and scores 0', () => {
-    const p = coveragePriority(row({ run_count: 3 }))
+    const p = coveragePriority(row({ artifact_count: 3, research_count: 3 }))
     expect(p.needsAction).toBe(false)
     expect(p.score).toBe(0)
     expect(p.reasons).toEqual([])

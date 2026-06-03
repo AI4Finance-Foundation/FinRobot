@@ -23,6 +23,7 @@
   /* ── Dual rail brand ─────────────────────────────────────────── */
   --primary: #3b82f6;
   --primary-soft: rgba(59, 130, 246, 0.14);
+  --text-on-primary: #ffffff; /* legible text on the primary/secondary gradient fill */
   --secondary: #8b5cf6;
   --secondary-soft: rgba(139, 92, 246, 0.16);
   --secondary-soft-alt: rgba(139, 92, 246, 0.06); /* gradient endpoint */

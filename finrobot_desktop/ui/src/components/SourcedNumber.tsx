@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams } from 'react-router-dom'
 import { useI18n } from '../i18n'
 
@@ -107,15 +108,30 @@ export function SourcedNumber({
   const hasWarning = !!source?.formula_warning
 
   // ── Position ────────────────────────────────────────────────────────────────
+  //
+  // The popover is portaled to <body> (below) so it's NEVER clipped by an
+  // overflow:hidden ancestor — Coverage cards clip their content, and an
+  // in-card absolute popover got sliced in half, breaking provenance (the
+  // product's load-bearing "every number is traceable" promise). Portaling
+  // means we position with `fixed` viewport coordinates captured from the
+  // trigger at open time, with the same edge-flip logic as before.
 
-  const [flipTop, setFlipTop] = useState(false)
-  const [flipRight, setFlipRight] = useState(false)
+  const [coords, setCoords] = useState<{
+    top?: number
+    bottom?: number
+    left?: number
+    right?: number
+  }>({})
 
   const recalcPosition = useCallback(() => {
     if (!triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
-    setFlipTop(window.innerHeight - rect.bottom < 180)
-    setFlipRight(window.innerWidth - rect.right < 220)
+    const flipTop = window.innerHeight - rect.bottom < 180
+    const flipRight = window.innerWidth - rect.right < 220
+    setCoords({
+      ...(flipTop ? { bottom: window.innerHeight - rect.top + 6 } : { top: rect.bottom + 6 }),
+      ...(flipRight ? { right: window.innerWidth - rect.right } : { left: rect.left }),
+    })
   }, [])
 
   // ── Hover handlers ──────────────────────────────────────────────────────────
@@ -184,7 +200,7 @@ export function SourcedNumber({
   // ── Render ───────────────────────────────────────────────────────────────────
 
   const popoverStyle: React.CSSProperties = {
-    position: 'absolute',
+    position: 'fixed',
     zIndex: 9999,
     minWidth: 200,
     maxWidth: 280,
@@ -192,14 +208,11 @@ export function SourcedNumber({
     borderRadius: 6,
     background: 'var(--elevated)',
     border: '1px solid var(--border)',
-    boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+    boxShadow: 'var(--shadow-md)',
     fontSize: '0.75rem',
     lineHeight: 1.5,
     color: 'var(--text-secondary)',
-    // Vertical positioning
-    ...(flipTop ? { bottom: '100%', marginBottom: 6 } : { top: '100%', marginTop: 6 }),
-    // Horizontal positioning
-    ...(flipRight ? { right: 0 } : { left: 0 }),
+    ...coords,
   }
 
   return (
@@ -237,46 +250,53 @@ export function SourcedNumber({
 
       {hasWarning && <WarningGlyph label={source?.formula_warning ?? ''} />}
 
-      {showPopover && open && source && (
-        <div
-          ref={popoverRef}
-          role="dialog"
-          aria-label={t('sourced.title')}
-          style={popoverStyle}
-          onMouseEnter={handlePopoverMouseEnter}
-          onMouseLeave={handlePopoverMouseLeave}
-        >
-          <ProvRow label={t('sourced.provider')} value={source.provider ?? t('sourced.unknown')} />
-          {source.as_of && (
-            <ProvRow label={t('sourced.asOf')} value={formatFetchedAt(source.as_of)} />
-          )}
-          {source.fetched_at && (
-            <ProvRow label={t('sourced.fetchedAt')} value={formatFetchedAt(source.fetched_at)} />
-          )}
-          {source.formula_id && (
-            <ProvRow label={t('sourced.formula')} value={source.formula_id} mono />
-          )}
-          {source.formula_warning && (
-            <ProvRow label={t('sourced.warning')} value={source.formula_warning} warn />
-          )}
-          {source.artifact_id && ticker && (
-            <div style={{ marginTop: 8 }}>
-              <a
-                href={`/stocks/${ticker}/runs/${source.artifact_id}`}
-                style={{
-                  color: 'var(--accent)',
-                  fontSize: '0.72rem',
-                  textDecoration: 'underline',
-                  cursor: 'pointer',
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {t('sourced.openReport')}
-              </a>
-            </div>
-          )}
-        </div>
-      )}
+      {showPopover &&
+        open &&
+        source &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            role="dialog"
+            aria-label={t('sourced.title')}
+            style={popoverStyle}
+            onMouseEnter={handlePopoverMouseEnter}
+            onMouseLeave={handlePopoverMouseLeave}
+          >
+            <ProvRow
+              label={t('sourced.provider')}
+              value={source.provider ?? t('sourced.unknown')}
+            />
+            {source.as_of && (
+              <ProvRow label={t('sourced.asOf')} value={formatFetchedAt(source.as_of)} />
+            )}
+            {source.fetched_at && (
+              <ProvRow label={t('sourced.fetchedAt')} value={formatFetchedAt(source.fetched_at)} />
+            )}
+            {source.formula_id && (
+              <ProvRow label={t('sourced.formula')} value={source.formula_id} mono />
+            )}
+            {source.formula_warning && (
+              <ProvRow label={t('sourced.warning')} value={source.formula_warning} warn />
+            )}
+            {source.artifact_id && ticker && (
+              <div style={{ marginTop: 8 }}>
+                <a
+                  href={`/stocks/${ticker}/runs/${source.artifact_id}`}
+                  style={{
+                    color: 'var(--accent)',
+                    fontSize: '0.72rem',
+                    textDecoration: 'underline',
+                    cursor: 'pointer',
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {t('sourced.openReport')}
+                </a>
+              </div>
+            )}
+          </div>,
+          document.body,
+        )}
     </span>
   )
 }

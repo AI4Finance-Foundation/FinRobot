@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -604,6 +605,95 @@ def _verdict_from_upside(upside: float) -> str:
     return "HOLD"
 
 
+# Matches a $-prefixed dollar figure: $276, $276.43, $1,234.50, $280.
+# Group 1 is the numeric body (with optional thousands separators / decimals).
+_DOLLAR_RE = re.compile(r"\$\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)")
+
+# A prose $-amount may legitimately differ from the canonical weighted target
+# when it is quoting a *per-method* mid (e.g. "DCF says $5.88, comps say $19.54").
+# Anything outside this band that is NOT a whitelisted per-method mid is drift.
+# Kept tight (1%) so a rounded restatement like "$276" against $276.43 passes,
+# but a contradicting headline like "$280" against $276.43 is caught — the exact
+# table-vs-prose desync this guard exists to neutralize.
+_NARRATIVE_DRIFT_TOLERANCE = 0.01
+
+
+def _reconcile_narrative_targets(
+    thesis: ThesisResult,
+    canonical_target: float,
+    allowed_mids: list[float],
+) -> tuple[ThesisResult, bool]:
+    """Code-only guard: neutralize prose $-amounts that contradict the canonical target.
+
+    After the deterministic override forces ``price_target`` to the canonical
+    weighted value, the headline-bearing free-text fields from the *same* LLM
+    call (``valuation_overview`` / ``tagline`` / ``key_takeaways``) can still
+    print a contradicting $ amount — e.g. the table says $276.43 while the prose
+    says "约 $280". This scans those fields for $-amounts that deviate
+    > ``_NARRATIVE_DRIFT_TOLERANCE`` from the canonical target AND do not match
+    any whitelisted per-method mid, then rewrites the offending "$X" token to the
+    canonical "$Y" in place (least-invasive neutralization — the sentence
+    structure is preserved). No second LLM call is made.
+
+    Returns the (possibly model_copied) thesis and whether any drift was found.
+    """
+    canonical_token = f"${canonical_target:.2f}"
+
+    def _is_allowed(value: float) -> bool:
+        if abs(value - canonical_target) <= abs(canonical_target) * _NARRATIVE_DRIFT_TOLERANCE:
+            return True
+        # A per-method mid is legitimately citable even if far from the target
+        # ("DCF $5.88 vs comps $19.54, they disagree" is the honest narrative).
+        return any(
+            abs(value - mid) <= abs(mid) * _NARRATIVE_DRIFT_TOLERANCE for mid in allowed_mids
+        )
+
+    drift_found = False
+
+    def _scan_text(text: str) -> str:
+        nonlocal drift_found
+
+        def _sub(match: re.Match[str]) -> str:
+            nonlocal drift_found
+            try:
+                value = float(match.group(1).replace(",", ""))
+            except ValueError:
+                return match.group(0)
+            if _is_allowed(value):
+                return match.group(0)
+            drift_found = True
+            logger.warning(
+                "narrative target drift: prose %s vs canonical %s — neutralizing",
+                match.group(0),
+                canonical_token,
+            )
+            return canonical_token
+
+        return _DOLLAR_RE.sub(_sub, text)
+
+    updates: dict[str, Any] = {}
+
+    if thesis.valuation_overview is not None:
+        scanned = _scan_text(thesis.valuation_overview)
+        if scanned != thesis.valuation_overview:
+            updates["valuation_overview"] = scanned
+
+    if thesis.tagline is not None:
+        scanned = _scan_text(thesis.tagline)
+        if scanned != thesis.tagline:
+            updates["tagline"] = scanned
+
+    if thesis.key_takeaways is not None:
+        scanned_list = [_scan_text(item) for item in thesis.key_takeaways]
+        if scanned_list != thesis.key_takeaways:
+            updates["key_takeaways"] = scanned_list
+
+    if updates:
+        thesis = thesis.model_copy(update=updates)
+
+    return thesis, drift_found
+
+
 async def _execute_thesis(
     agent: Agent[Any, Any],
     deps: FinRobotDeps,
@@ -905,6 +995,14 @@ async def _execute_thesis(
         if canonical_verdict is not None:
             updates["recommendation"] = canonical_verdict
         thesis = thesis.model_copy(update=updates)
+
+        # Free-text fields from the SAME LLM call are accepted verbatim and
+        # mirrored into outputs.llm_narrative — so prose can print a $ amount
+        # that contradicts the just-overwritten canonical target ("table $276.43,
+        # prose ~$280"). Scan the headline-bearing fields and neutralize any
+        # drifting $-amount to the canonical value (code only, no second LLM call).
+        allowed_mids = [m.mid for m in vs.methods] if isinstance(vs, ValuationSynthesis) else []
+        thesis, _ = _reconcile_narrative_targets(thesis, canonical_target, allowed_mids)
 
     target_str = (
         f"${thesis.price_target:.2f}" if thesis.price_target is not None else "N/A (under review)"

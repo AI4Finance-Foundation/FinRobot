@@ -64,7 +64,7 @@
 | BUG-013 | Bug | P1 | earnings.py float(row.get('revenue_actual',0)) crashes (TypeError) on present-but-None revenue, and otherwise fabricates $0 revenue → false -100% surprise | 已修 |
 | BUG-014 | Bug | P1 | DCF graceful-degrade (tg≥WACC) self-defeats: technical_analysis hard-requires DCFResult and crashes the whole equity_research run one step later | 已修 |
 | BUG-015 | Bug | P1 | Thesis & peer-selection wrap recoverable AgentRunError into ValueError, defeating the retry/back-off system and aborting the whole run on the first transient LLM hiccup | 已修 |
-| BUG-016 | Bug | P1 | 自由文本叙事字段（valuation_overview/tagline/key_takeaways/competitor_analysis）无 code 级与 canonical target/verdict 对账，结构化标量被强制覆盖而散文不被——表格与散文可冲突 | 待修 |
+| BUG-016 | Bug | P1 | 自由文本叙事字段（valuation_overview/tagline/key_takeaways/competitor_analysis）无 code 级与 canonical target/verdict 对账，结构化标量被强制覆盖而散文不被——表格与散文可冲突 | 已修 |
 | BUG-017 | Bug | P1 | Chat-triggered pipelines bypass the app-wide concurrency semaphore — LLM can fire unbounded parallel heavy runs | 待修 |
 | BUG-018 | Bug | P1 | Scoped coverage-group hit-rate silently truncates to the GLOBAL newest-500 page → groups show null track record despite having one | 已修 |
 | BUG-019 | Bug | P1 | Sharpe ratio uses backtrader default timeframe=Years on daily bars → None for ~1yr windows, meaningless for multi-year | 已修 |
@@ -365,7 +365,7 @@
 - **验证补充**：Fix is sound. Prefer fix (2)/finding-3 (code-render the headline line, LLM writes only qualitative why) as the durable fix; keep fix (1) regex+safe-template as the interim guard. Even with code-rendered numbers, a post-run scan is still warranted since prose can smuggle a number. Do not add a second LLM call — author correctly flags this.
 - **影响面/回归风险**：影响所有 equity_research artifact 的正文与分享卡片可信度（目标用户=分析师，表格-正文数字打架直接砸招牌）。回归风险低：纯 run 后处理，不改 pipeline 契约、不改 Mode A/B；若选模板化 valuation_overview 则 8-agent 叙事风格略变，需同步 instructions/synthesis_agent.md。
 - **合并自**：gap-r1-2#1, gap-r1-2#2（2 条同源发现）
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（equity_research.py override 块后加纯 code 级一致性闸 _reconcile_narrative_targets（无二次 LLM 调用）：扫 valuation_overview/tagline/key_takeaways 的 $ 金额，偏离 canonical_target 且不等于任何白名单 per-method mid（vs.methods[].mid）即判为漂移→logger.warning 并把该 $token 原地替换成 canonical 值（保句子完整）。builders.py 原样镜像 thesis.*，上游中和后自动修复，未改 builders。采用 review 的 fix(1) 兜底；deeper code-render headline（改 synthesis 指令/叙事契约）按指示延后。注：finding 写 >2% 容差但其指定验收例 $280 vs 276.43 仅差 1.29%，自相矛盾——agent 取 1% 容差以满足绑定验收例（已标注）。新增 5 测试。ruff+mypy --strict + 106 例通过。）
 
 #### [BUG-017] Chat-triggered pipelines bypass the app-wide concurrency semaphore — LLM can fire unbounded parallel heavy runs
 

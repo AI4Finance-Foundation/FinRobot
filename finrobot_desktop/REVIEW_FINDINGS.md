@@ -93,8 +93,8 @@
 | UX-007 | 产品 | P1 | 冷启动时已有覆盖的老用户会闪现「还没有 ticker——在上方添加」假空态 | 待修 |
 | BUG-034 | Bug | P2 | SSE run.completed / run.failed can be lost: status flips to terminal in the DB before the terminal event is appended, so the poll loop may break and never emit it | 已修 |
 | BUG-035 | Bug | P2 | SDK 的 provider 链漏注册 NewsAggregatorProvider，与 build_data_layer 漂移 | 待修 |
-| BUG-036 | Bug | P2 | Football Field 的 DCF 区间永远是装饰性 ±20%:_dcf_band 读错字段,Monte Carlo P10/P90 分支是死代码,source 标签可误导 | 待修 |
-| BUG-037 | Bug | P2 | 外币 SEC 申报人的 XBRL 营收/净利未做 FX 换算即被当作 USD，35% 散度门可能漏掉近平价货币 | 待修 |
+| BUG-036 | Bug | P2 | Football Field 的 DCF 区间永远是装饰性 ±20%:_dcf_band 读错字段,Monte Carlo P10/P90 分支是死代码,source 标签可误导 | 已修 |
+| BUG-037 | Bug | P2 | 外币 SEC 申报人的 XBRL 营收/净利未做 FX 换算即被当作 USD，35% 散度门可能漏掉近平价货币 | 已修 |
 | BUG-038 | Bug | P2 | peer 倍数白名单用未格式化原始 float 注入（median_pe/pe_ratio/market_cap），LLM 在 competitor_analysis 里复述时口径/精度无锚，且与前端表格显示口径不保证一致 | 待修 |
 | BUG-039 | Bug | P2 | `is_sampled` compares against GLOBAL store count, not the in-window / in-scope population → mislabels fully-covered windows as 'partial' | 已修 |
 | BUG-040 | Bug | P2 | Cumulative total_return shown beside annualized-intent Sharpe; annualized Returns analyzer added but never read | 已修 |
@@ -635,7 +635,7 @@
 - **修复方案**：决定要不要真接 Monte Carlo P10/P90:若要,在 dcf 管线跑完 calculate_dcf 后调 run_monte_carlo,把 result.percentiles['10']/['90'] 存进 DCFResult.sensitivity_table['p10']/['p90'](或新增专门字段),_dcf_band 保持读 p10/p90;若暂不接,则删掉 _dcf_band 的 MC 分支与 'monte_carlo_p10_p90' source 标签,只留 ±20% 并把 source 文案改成诚实的『implied_price ± 20%(占位区间,非真实分布)』,避免 UI 显示一个永不出现的来源名。倾向后者(删死代码)符合项目反占位红线。改动量级:小(单函数)。
 - **验证补充**：Both options viable; the finding's lean (delete the MC branch, keep honest ±20%, drop the never-emitted 'monte_carlo_p10_p90' label) is the right call for an anti-placeholder cleanup and is the lower-risk change. If instead wiring real MC is desired, note the percentile keys are '10'/'90' (str) not 'p10'/'p90' — the finding correctly catches this. Minor: the proposed honest source text '占位区间，非真实分布' is fine but the current 'implied_price ± 20%' is already honest, so the rename is optional polish, not a correctness fix.
 - **影响面/回归风险**：影响 Football Field 上 DCF 行的区间宽度与来源标注。当前无崩溃(有回退),但区间是固定 ±20% 的假精度,且代码暗示有 MC 分布支撑而实际没有。回归风险极低。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（采用 finding 倾向方案（删死代码）。valuation_aggregator._dcf_band 删掉读 sensitivity_table p10/p90 的死 Monte Carlo 分支与 monte_carlo_p10_p90 source（该表只存 WACC×TG 网格，MC P10/P90 从未接线），永远返回 mid×(1±0.20) 占位带；签名 _dcf_band(dcf,mid)→_dcf_band(mid)。financial.py ValuationMethodRange.source 描述例从 monte_carlo_p10_p90 改 implied_price ± 20%；source 文案诚实化为「implied_price ± 20%（占位区间，非真实分布）」。删假阳性测试 + 新增断言永不出 monte_carlo source。前端 FootballField 透传 source 字符串无需改。）
 
 #### [BUG-037] 外币 SEC 申报人的 XBRL 营收/净利未做 FX 换算即被当作 USD，35% 散度门可能漏掉近平价货币
 
@@ -648,7 +648,7 @@
 - **修复方案**：在 edgar_provider _fetch_xbrl 里对每个 getter 用 return_detailed 取 UnitResult，检查 normalized_unit；若 != 'USD' 则该字段返回 None(让下游回退 FMP)并 append warning "XBRL fact in {ccy}, not USD; suppressed"，绝不把外币值当 USD 透出。注意：这是保守丢弃而非现场 FX(现场 FX 需引入汇率源，超出本层职责)；与 normalize_peer_to_usd 的边界保持一致。改动量级：中。
 - **验证补充**：Fix (suppress foreign-unit facts to None + warn) is the right boundary-consistent choice vs introducing an FX source here. BUT the fix text targets only _fetch_xbrl getters (latest_*/snapshot). The HIGHER-risk path is the comps override which uses ttm_revenue/ttm_net_income from _select_recent_ttm/TTMCalculator — that path must ALSO be unit-guarded (check metric.unit, which calculator.py:185 sets to ttm_quarters[0].unit, and suppress when !=USD). Guarding only the getters leaves the comps override exposed.
 - **影响面/回归风险**：影响外国 SEC 申报人作为 target 或 peer 时的 comps/估值正确性；US 申报人(绝大多数路径)不受影响。当前占位 identity 下 Edgar provider 未注册故未触发，但配真 identity 后即为活口。回归风险低(US 票走原 USD 快路径不变)。
-- **置信度**：medium　|　**状态**：待修
+- **置信度**：medium　|　**状态**：已修（采用 finding 的 suppress-not-convert（FX 留在 normalize_peer_to_usd，不在 provider 引汇率）。edgar_provider 新增 _is_usd_unit；_select_recent_ttm 读 metric.unit、_select_latest_fact 读 fact.unit，非 USD 则该字段返回 None + warning「XBRL fact in {ccy}, not USD; suppressed」，绝不把外币当 USD 透出。覆盖 latest_* getter 与更高危的 TTM override 路径（override_company_with_xbrl 因 XBRL 侧为 None 保留已 FX 归一的 FMP USD base），近平价 GBP/EUR/CHF 不再 <35% 蒙混过门。新增 GBP 20-F 抑制测试。[金融待核]：需真实外国 20-F 发行人 live 探 unit 字符串格式（Edgar 未注册真身故 dormant）。）
 
 #### [BUG-038] peer 倍数白名单用未格式化原始 float 注入（median_pe/pe_ratio/market_cap），LLM 在 competitor_analysis 里复述时口径/精度无锚，且与前端表格显示口径不保证一致
 

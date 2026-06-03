@@ -130,13 +130,13 @@ def _dcf_method(dcf: DCFResult | None) -> ValuationMethodRange | None:
     if dcf is None or dcf.implied_price <= 0:
         return None
     mid = dcf.implied_price
-    p10, p90, source = _dcf_band(dcf, mid)
+    low, high, source = _dcf_band(mid)
     return ValuationMethodRange(
         method="dcf",
         method_type="valuation",
-        low=p10,
+        low=low,
         mid=mid,
-        high=p90,
+        high=high,
         confidence=0.85,
         source=source,
         assumptions=_dcf_assumptions(dcf),
@@ -162,14 +162,20 @@ def _dcf_assumptions(dcf: DCFResult) -> str:
     return f"WACC {dcf.wacc:.1%} · {growth} · β{dcf.inputs.beta:.2f}"
 
 
-def _dcf_band(dcf: DCFResult, mid: float) -> tuple[float, float, str]:
-    """Prefer monte-carlo P10/P90 when present; fall back to ±20% band."""
-    sensitivity = dcf.sensitivity_table or {}
-    p10 = sensitivity.get("p10") if isinstance(sensitivity, dict) else None
-    p90 = sensitivity.get("p90") if isinstance(sensitivity, dict) else None
-    if isinstance(p10, (int, float)) and isinstance(p90, (int, float)) and p10 > 0 and p90 > 0:
-        return float(p10), float(p90), "monte_carlo_p10_p90"
-    return mid * (1 - _DCF_BAND_WIDTH), mid * (1 + _DCF_BAND_WIDTH), "implied_price ± 20%"
+def _dcf_band(mid: float) -> tuple[float, float, str]:
+    """A flat ±20% band around the DCF implied price.
+
+    This is a deterministic placeholder spread, NOT a modelled distribution: no
+    Monte Carlo P10/P90 is ever wired into the pipeline (sensitivity_table only
+    ever holds the WACC×TG grid), so the band carries no real probability mass.
+    The source label says so explicitly to avoid implying false precision on the
+    Football Field chart.
+    """
+    return (
+        mid * (1 - _DCF_BAND_WIDTH),
+        mid * (1 + _DCF_BAND_WIDTH),
+        "implied_price ± 20%（占位区间，非真实分布）",
+    )
 
 
 def _comps_pe_method(

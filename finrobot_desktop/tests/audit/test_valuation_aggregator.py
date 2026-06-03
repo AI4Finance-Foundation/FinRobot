@@ -264,21 +264,7 @@ class TestAggregatorContract:
         assert not any(m.method == "lbo" for m in agg.methods)
         assert any("shares_outstanding" in w for w in agg.warnings)
 
-    def test_dcf_band_uses_monte_carlo_when_present(self) -> None:
-        dcf = _dcf()
-        dcf.sensitivity_table = {"p10": 800.0, "p90": 1040.0}
-        agg = aggregate_valuation(
-            ticker="NVDA",
-            current_price=876.42,
-            dcf=dcf,
-            as_of=AS_OF,
-        )
-        row = next(m for m in agg.methods if m.method == "dcf")
-        assert row.low == 800.0
-        assert row.high == 1040.0
-        assert "monte_carlo" in row.source
-
-    def test_dcf_band_falls_back_to_plus_minus_twenty_percent(self) -> None:
+    def test_dcf_band_is_flat_plus_minus_twenty_percent(self) -> None:
         agg = aggregate_valuation(
             ticker="NVDA",
             current_price=876.42,
@@ -288,6 +274,27 @@ class TestAggregatorContract:
         row = next(m for m in agg.methods if m.method == "dcf")
         assert row.low == 720.0  # 900 * 0.8
         assert row.high == 1080.0  # 900 * 1.2
+        # Honest placeholder label — no modelled distribution behind the band.
+        assert "± 20%" in row.source
+        assert "占位区间" in row.source
+
+    def test_dcf_band_never_emits_monte_carlo_source(self) -> None:
+        # The Monte Carlo P10/P90 branch was dead code: nothing in the pipeline
+        # ever writes p10/p90 into sensitivity_table (it only ever holds the
+        # WACC×TG grid). Even when those keys are present, the band must stay a
+        # flat ±20% placeholder and must not claim a 'monte_carlo' provenance.
+        dcf = _dcf(900.0)
+        dcf.sensitivity_table = {"p10": 800.0, "p90": 1040.0}
+        agg = aggregate_valuation(
+            ticker="NVDA",
+            current_price=876.42,
+            dcf=dcf,
+            as_of=AS_OF,
+        )
+        row = next(m for m in agg.methods if m.method == "dcf")
+        assert row.low == 720.0
+        assert row.high == 1080.0
+        assert "monte_carlo" not in row.source
 
     def test_multiple_rows_omitted_until_pr3_pr4c_inputs_arrive(self) -> None:
         agg = aggregate_valuation(

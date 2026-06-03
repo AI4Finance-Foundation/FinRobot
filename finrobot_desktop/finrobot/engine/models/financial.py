@@ -880,7 +880,7 @@ class ValuationMethodRange(BaseModel):
     mid: float = Field(gt=0)
     high: float = Field(gt=0)
     confidence: float = Field(ge=0, le=1)
-    source: str = Field(description="Human-readable provenance, e.g. 'monte_carlo_p10_p90'")
+    source: str = Field(description="Human-readable provenance, e.g. 'implied_price ± 20%'")
     assumptions: str | None = Field(
         default=None,
         description=(

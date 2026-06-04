@@ -511,3 +511,38 @@ async def test_failed_event_appended_before_status_flip(tmp_path: Any, monkeypat
     events = await inner.get_events_after(record.run_id, 0)
     assert any(e.event.get("event") == "run.failed" for e in events)
     await inner.close()
+
+
+# --- BUG-050: SSE idle-poll backoff -----------------------------------------
+
+
+def test_next_poll_interval_floors_when_events_arrive() -> None:
+    """Any event in a round snaps the interval back to the responsive floor."""
+    from finrobot.routes import runs as runs_mod
+
+    # Even from a backed-off interval, fresh events reset to the minimum.
+    assert (
+        runs_mod._next_poll_interval(runs_mod._SSE_POLL_MAX_INTERVAL, had_events=True)
+        == runs_mod._SSE_POLL_MIN_INTERVAL
+    )
+
+
+def test_next_poll_interval_backs_off_exponentially_to_ceiling() -> None:
+    """Empty rounds grow the interval geometrically, capped at the ceiling."""
+    from finrobot.routes import runs as runs_mod
+
+    interval = runs_mod._SSE_POLL_MIN_INTERVAL
+    seen = [interval]
+    for _ in range(10):
+        interval = runs_mod._next_poll_interval(interval, had_events=False)
+        seen.append(interval)
+
+    # Strictly increasing until it pins at the ceiling, never exceeding it.
+    assert seen[1] > seen[0]
+    assert max(seen) == runs_mod._SSE_POLL_MAX_INTERVAL
+    assert all(v <= runs_mod._SSE_POLL_MAX_INTERVAL for v in seen)
+    # Once at the ceiling, idle rounds keep it pinned (no overshoot).
+    assert (
+        runs_mod._next_poll_interval(runs_mod._SSE_POLL_MAX_INTERVAL, had_events=False)
+        == runs_mod._SSE_POLL_MAX_INTERVAL
+    )

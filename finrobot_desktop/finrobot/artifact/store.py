@@ -92,5 +92,8 @@ class ArtifactStore:
     async def rebuild_summaries(self) -> int:
         return await self._impl.rebuild_summaries()
 
+    async def rebuild_summaries_if_outdated(self) -> int:
+        return await self._impl.rebuild_summaries_if_outdated()
+
     async def close(self) -> None:
         await self._impl.close()

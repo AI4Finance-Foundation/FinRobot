@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
 
@@ -17,6 +17,15 @@ from finrobot.paths import configure_connection
 logger = logging.getLogger(__name__)
 
 RunStatus = Literal["created", "running", "completed", "failed"]
+
+# How long the per-run SSE event log is retained after a run reaches a terminal
+# state. run_events accumulates ~12-22 rows per run and was never cleaned, so a
+# long-lived desktop install grew the table without bound while every row past
+# the live stream's resume window is dead weight (Last-Event-ID resume only
+# matters for an *active* run). We keep the runs row itself (it's the history
+# the Coverage overview reads) and only drop the bulky event log of runs whose
+# completed_at is older than this many days. Pruned on startup (BUG-050).
+RUN_EVENT_RETENTION_DAYS = 7
 
 
 _CREATE_RUNS = """
@@ -272,6 +281,40 @@ class RunStore:
         await conn.commit()
         if count:
             logger.info("Reconciled %d orphaned run(s) to failed on startup", count)
+        return count
+
+    async def prune_run_events(self, retention_days: int = RUN_EVENT_RETENTION_DAYS) -> int:
+        """Delete the SSE event log of long-finished runs.
+
+        run_events grew unbounded: every run appended ~12-22 rows that were
+        never cleaned, so a single shared aiosqlite connection paid an
+        ever-larger ``run_events`` table on every ``get_events_after`` poll
+        (BUG-050). The events of a *terminal* run older than ``retention_days``
+        are pure dead weight — Last-Event-ID resume only matters while a run is
+        live. We drop those event rows but keep the ``runs`` rows themselves
+        (the Coverage overview's history). Returns the number of event rows
+        deleted.
+        """
+        cutoff = (datetime.now(tz=timezone.utc) - timedelta(days=retention_days)).isoformat()
+        conn = await self._ensure_connection()
+        async with conn.execute(
+            """
+            DELETE FROM run_events
+            WHERE run_id IN (
+                SELECT run_id FROM runs
+                WHERE status IN ('completed', 'failed')
+                  AND completed_at IS NOT NULL
+                  AND completed_at < ?
+            )
+            """,
+            (cutoff,),
+        ) as cursor:
+            count = cursor.rowcount
+        await conn.commit()
+        if count:
+            logger.info(
+                "Pruned %d run_events row(s) for runs terminal > %d days", count, retention_days
+            )
         return count
 
     async def list_runs(self, limit: int = 50) -> list[RunRecord]:

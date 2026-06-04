@@ -125,6 +125,56 @@ class TestClear:
         assert await cache.get("price", "TSLA") is None
 
 
+class TestEvictExpired:
+    """BUG-049: TTL only marks rows stale on read — evict_expired physically
+    deletes long-stale rows so data_cache.db stops growing unbounded."""
+
+    async def _backdate(self, cache, data_type: str, ticker: str, days: float) -> None:
+        import aiosqlite
+
+        old = (datetime.now(tz=timezone.utc) - timedelta(days=days)).isoformat()
+        from finrobot.engine.data.cache import raw_slot_key
+
+        async with aiosqlite.connect(cache._db_path) as conn:
+            await conn.execute(
+                "UPDATE cache SET cached_at = ? WHERE data_type = ? AND ticker = ?",
+                (old, raw_slot_key(data_type), ticker),
+            )
+            await conn.commit()
+
+    async def test_evicts_rows_past_absolute_age_cutoff(self, cache):
+        await cache.set("financials", "OLD", _result("OLD"))
+        await cache.set("financials", "NEW", _result("NEW"))
+        await self._backdate(cache, "financials", "OLD", days=45)  # > 30d cutoff
+
+        deleted = await cache.evict_expired()  # default 30 days
+        assert deleted == 1
+        assert await cache.get("financials", "OLD") is None  # physically gone
+        assert await cache.get("financials", "NEW") is not None  # kept
+
+    async def test_keeps_rows_within_cutoff_even_if_ttl_stale(self, cache):
+        """A row past its 15-min PRICE TTL but younger than the eviction cutoff
+        must NOT be deleted — reads still serve it (marked stale) until refetch."""
+        await cache.set("price", "AAPL", _result("AAPL", "price"))
+        await self._backdate(cache, "price", "AAPL", days=1)  # TTL-stale, age-fresh
+
+        deleted = await cache.evict_expired()
+        assert deleted == 0
+        assert await cache.get("price", "AAPL") is not None
+
+    async def test_custom_cutoff_enforced(self, cache):
+        await cache.set("financials", "AAPL", _result("AAPL"))
+        await self._backdate(cache, "financials", "AAPL", days=10)
+
+        # 30-day default keeps it; a 7-day cutoff reaps it.
+        assert await cache.evict_expired() == 0
+        assert await cache.evict_expired(max_age_days=7) == 1
+        assert await cache.get("financials", "AAPL") is None
+
+    async def test_evict_on_empty_table_is_noop(self, cache):
+        assert await cache.evict_expired() == 0
+
+
 class TestCanonicalSlot:
     """ADR-0006: canonical (normalized) payloads live in a separate, versioned
     cache slot so they never collide with the raw provider payload for the

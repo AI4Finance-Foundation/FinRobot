@@ -34,7 +34,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -86,6 +86,16 @@ _SUMMARY_COLUMNS = (
     "id, ticker, cross_tickers, type, verdict, created_at, archived, "
     "entry_price, target_price, target_date, source, headline, tagline"
 )
+
+# Version of the mirror-column projection (the summary_extractor rules behind
+# verdict/entry_price/target_price/target_date/tagline/headline). Bump this by
+# ONE whenever those extraction rules change so that the next startup re-runs
+# rebuild_summaries() over every already-stored row — otherwise old rows keep
+# the value the previous extractor produced forever, since the columns are only
+# written at save() time and are read as source-of-truth (BUG-065). The applied
+# version is persisted in the artifacts.db header via PRAGMA user_version, so
+# the backfill runs exactly once per bump, not on every boot.
+SUMMARY_PROJECTION_VERSION = 1
 
 
 def _now() -> datetime:
@@ -258,16 +268,26 @@ class SqliteArtifactStore:
     async def get(self, artifact_id: str) -> Artifact | None:
         conn = await self._conn_ready()
         async with conn.execute(
-            "SELECT payload FROM artifacts WHERE id = ?", (artifact_id,)
+            "SELECT payload, archived, last_viewed_at FROM artifacts WHERE id = ?",
+            (artifact_id,),
         ) as cur:
             row = await cur.fetchone()
         if row is None:
             return None
         try:
-            return Artifact.model_validate_json(row[0])
+            artifact = Artifact.model_validate_json(row[0])
         except (ValueError, TypeError, KeyError):
             logger.warning("Corrupt artifact payload for %s", artifact_id)
             return None
+        # The archived/last_viewed_at COLUMNS are authoritative — they are the
+        # mutable lifecycle fields list_by_ticker/count read and that
+        # archive_stale flips with a bare column UPDATE (no payload rewrite).
+        # The same values mirrored inside payload.meta are written only at
+        # save() time and would otherwise go stale after a column-only archive,
+        # so realign the payload to the columns at read time.
+        artifact.meta.archived = bool(row[1])
+        artifact.meta.last_viewed_at = _parse_dt(row[2])
+        return artifact
 
     async def delete(self, artifact_id: str) -> bool:
         conn = await self._conn_ready()
@@ -395,38 +415,140 @@ class SqliteArtifactStore:
         artifact.meta.archived = False
         await self.save(artifact)
 
-    async def rebuild_summaries(self) -> int:
-        """No-op: summary columns are populated at save time.
+    async def rebuild_summaries_if_outdated(self, version: int = SUMMARY_PROJECTION_VERSION) -> int:
+        """Backfill the mirror columns once per projection-version bump.
 
-        Kept for interface parity with the legacy filesystem store, where
-        ``index.json`` could drift behind the underlying artifact files.
+        The applied version lives in the db header (``PRAGMA user_version``).
+        When the code's ``SUMMARY_PROJECTION_VERSION`` is ahead of it (a fresh
+        bump after an extractor change, or a legacy db at version 0), this runs
+        the full :meth:`rebuild_summaries` re-projection and then records the
+        new version so it won't run again until the next bump. Returns the
+        number of rows re-projected (0 when already current). Called once on
+        startup (BUG-065).
         """
-        return 0
+        conn = await self._conn_ready()
+        async with conn.execute("PRAGMA user_version") as cur:
+            row = await cur.fetchone()
+        applied = int(row[0]) if row else 0
+        if applied >= version:
+            return 0
+        updated = await self.rebuild_summaries()
+        # PRAGMA user_version doesn't accept a bound parameter; the value is a
+        # validated int constant so interpolation is safe.
+        await conn.execute(f"PRAGMA user_version = {int(version)}")
+        await conn.commit()
+        logger.info(
+            "Mirror-column projection upgraded %d → %d (%d rows re-projected)",
+            applied,
+            version,
+            updated,
+        )
+        return updated
+
+    async def rebuild_summaries(self, batch_size: int = 500) -> int:
+        """Re-project the mirror columns from every stored payload.
+
+        The verdict / entry_price / target_price / target_date / tagline /
+        headline columns are written by :func:`_artifact_to_row` ONLY at
+        ``save()`` time, yet the dashboard hit-rate, recent-research strip and
+        coverage counts read them as source-of-truth and never fall back to the
+        payload. So whenever the ``summary_extractor`` rules evolve (a new
+        recommendation shape, a fixed target-price parse), every already-stored
+        row keeps the value the OLD extractor produced — permanently stale, and
+        invisibly wrong because the number still looks plausible (BUG-065).
+
+        This re-runs the current extractor over each row's payload and UPDATEs
+        ONLY the mirror columns — the payload itself is untouched (no O(N·MB)
+        rewrite of the raw_data snapshots) and the lifecycle columns
+        (``archived`` / ``last_viewed_at``) are left alone, so this stays
+        consistent with the column-only ``archive_stale`` / ``mark_viewed``
+        path. Rows whose payload fails to validate are skipped and logged,
+        never aborting the batch. Commits every ``batch_size`` rows so a large
+        store doesn't hold a write lock for the whole pass. Returns the number
+        of rows re-projected.
+
+        Gated behind ``SUMMARY_PROJECTION_VERSION`` at startup so it only runs
+        when the projection logic actually changed.
+        """
+        conn = await self._conn_ready()
+        async with conn.execute("SELECT id, payload FROM artifacts") as cur:
+            rows = await cur.fetchall()
+
+        updated = 0
+        pending = 0
+        for artifact_id, payload in rows:
+            try:
+                artifact = Artifact.model_validate_json(payload)
+            except (ValueError, TypeError, KeyError):
+                logger.warning("rebuild_summaries: skipping unparseable artifact %s", artifact_id)
+                continue
+            target_price = extract_target_price(artifact)
+            target_date = extract_target_date(artifact, target_price)
+            headline = (
+                (artifact.outputs.summary_text[:120] or artifact.id)
+                if artifact.outputs
+                else artifact.id
+            )
+            await conn.execute(
+                """
+                UPDATE artifacts SET
+                    verdict = ?,
+                    entry_price = ?,
+                    target_price = ?,
+                    target_date = ?,
+                    tagline = ?,
+                    headline = ?
+                WHERE id = ?
+                """,
+                (
+                    extract_verdict(artifact),
+                    extract_entry_price(artifact),
+                    target_price,
+                    target_date.isoformat() if target_date else None,
+                    extract_tagline(artifact),
+                    headline,
+                    artifact_id,
+                ),
+            )
+            updated += 1
+            pending += 1
+            if pending >= batch_size:
+                await conn.commit()
+                pending = 0
+        if pending:
+            await conn.commit()
+        if updated:
+            logger.info(
+                "rebuild_summaries: re-projected mirror columns for %d artifact(s)", updated
+            )
+        return updated
 
     async def archive_stale(self, hours: int = 24) -> int:
+        """Flip ``archived`` on every row unviewed for ``hours``, in one UPDATE.
+
+        Archiving is a single-column lifecycle flip, so it runs as a set-based
+        ``UPDATE … SET archived = 1`` over the matching rows rather than a
+        get()+save() that re-(de)serialises each full payload (raw_data
+        snapshots run to MB) just to toggle one bool. The payload's mirrored
+        ``meta.archived`` is realigned to the column lazily in :meth:`get`, so
+        skipping the rewrite is invisible to callers.
+
+        Staleness is ``COALESCE(last_viewed_at, created_at) <= cutoff`` where
+        ``cutoff = now - hours``. The timestamps are ISO-8601 UTC strings
+        (``+00:00`` suffix), so lexicographic comparison matches chronological
+        order, and the cutoff is rendered the same way for an apples-to-apples
+        string compare.
+        """
         conn = await self._conn_ready()
-        cutoff = _now()
-        async with conn.execute(
-            "SELECT id, created_at, last_viewed_at FROM artifacts WHERE archived = 0"
-        ) as cur:
-            rows = await cur.fetchall()
-        archived = 0
-        for id_, created_at, last_viewed_at in rows:
-            last_seen = _parse_dt(last_viewed_at) or _parse_dt(created_at) or cutoff
-            age_h = (cutoff - last_seen).total_seconds() / 3600
-            if age_h < hours:
-                continue
-            # Full re-save so the embedded payload's meta.archived stays in
-            # sync with the column; a bare UPDATE would leave callers of
-            # get() seeing archived=False inside the payload while
-            # list_by_ticker (column-driven) reports archived=True.
-            artifact = await self.get(id_)
-            if artifact is None:
-                continue
-            artifact.meta.archived = True
-            await self.save(artifact)
-            archived += 1
-        return archived
+        cutoff_iso = (_now() - timedelta(hours=hours)).isoformat()
+        cur = await conn.execute(
+            "UPDATE artifacts SET archived = 1 "
+            "WHERE archived = 0 "
+            "AND COALESCE(last_viewed_at, created_at) <= ?",
+            (cutoff_iso,),
+        )
+        await conn.commit()
+        return cur.rowcount
 
     async def close(self) -> None:
         if self._conn is not None:

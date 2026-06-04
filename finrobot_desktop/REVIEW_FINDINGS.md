@@ -105,9 +105,9 @@
 | BUG-045 | Bug | P2 | ProviderHealth 熔断器是完全未接线的死代码，docstring 谎称「DataLayer owns the wiring」——慢/限流 provider 每次仍付满超时 | 已修 |
 | BUG-046 | Bug | P2 | 硬编码中文数据层告警混入英文 CLI 输出(--lang en 不生效于 provider 告警) | 已修 |
 | BUG-047 | Bug | P2 | comps --peers 校验滞后且不验格式：错峰到管线中段(已耗 ~30s)才裸崩 | 已修 |
-| BUG-048 | Bug | P2 | archive_stale 全表 get()+save() 逐行重写整份 payload，O(N) 次完整 JSON 反序列化+序列化 | 待修 |
-| BUG-049 | Bug | P2 | data_cache.cache 表永不淘汰,只增不减(无 TTL 清理/容量上限) | 待修 |
-| BUG-050 | Bug | P2 | run_events 无限增长 + SSE 0.2s 轮询单连接 → 批跑下打满单库单锁 | 待修 |
+| BUG-048 | Bug | P2 | archive_stale 全表 get()+save() 逐行重写整份 payload，O(N) 次完整 JSON 反序列化+序列化 | 已修 |
+| BUG-049 | Bug | P2 | data_cache.cache 表永不淘汰,只增不减(无 TTL 清理/容量上限) | 已修 |
+| BUG-050 | Bug | P2 | run_events 无限增长 + SSE 0.2s 轮询单连接 → 批跑下打满单库单锁 | 已修 |
 | BUG-051 | Bug | P2 | 前端 pipeline 类型清单三处不一致：appStore 缺 ddm，runStreamStore/后端 registry 含 ddm | 已修 |
 | BUG-052 | Bug | P2 | query_financial_data raises an unguarded ValueError on a bad data_type, crashing the live chat SSE stream | 已修 |
 | BUG-053 | Bug | P2 | coverage.ts 的 req() 丢弃后端中文 detail 错误体，分组/成员操作失败时用户拿不到具体原因 | 已修 |
@@ -142,7 +142,7 @@
 | BUG-062 | Bug | P3 | `is_sampled` / `sample_size` honesty disclosure is dropped at the API→frontend boundary (field absent from the TS contract) | 已修 |
 | BUG-063 | Bug | P3 | _resolve_strategy does importlib.import_module(user_string) + getattr before the bt.Strategy check — arbitrary module import with side effects | 待修 |
 | BUG-064 | Bug | P3 | _extract_drawdown accepts a warnings list but never uses it — silent None drawdown with no warning, inconsistent with siblings | 已修 |
-| BUG-065 | Bug | P3 | 镜像列(verdict/entry/target/tagline)在 extractor 逻辑演进后无回填路径，旧行永久陈旧 | 待修 |
+| BUG-065 | Bug | P3 | 镜像列(verdict/entry/target/tagline)在 extractor 逻辑演进后无回填路径，旧行永久陈旧 | 已修 |
 | BUG-066 | Bug | P3 | 禁用态按钮的『为什么不可用』只靠 title tooltip：disabled 元素不触发 hover、tooltip 鼠标专属，键盘/触屏用户拿不到原因（IC 辩论 & Compare） | 已修 |
 | BUG-067 | Bug | P3 | 退役路由的「已合并」提示 toast 写进 sessionStorage 但全代码无人读取——功能彻底失效且 router 注释撒谎 | 已修 |
 | BUG-069 | Bug | P3 | 回测渲染图时弹出 matplotlib GUI 窗口(Figure 0)并泄漏 figure——模块级 use("Agg") 时机太晚未生效 | 待修 |
@@ -793,7 +793,7 @@
 - **验证补充**：Recommended Fix B (move archived/last_viewed_at out of payload.meta, keep as columns only) is the correct root-fix — these are lifecycle metadata, not part of the replayable compute snapshot, so storing them in the audit payload is modeling越界. archive_stale then collapses to one batch UPDATE, mark_viewed likewise. Needs: ArtifactMeta change + read-point migration + tolerate residual fields in legacy payloads (model_config extra='ignore' or keep field non-authoritative). Fix A is a valid cheaper interim but B is the建设期-correct choice.
 - **影响面/回归风险**：A 仅改 archive_stale + get；B 触及 ArtifactMeta 契约（archived/last_viewed_at 语义）。回归风险:B 需确认没有消费方依赖 payload.meta.archived 作权威（当前列才是权威，meta 那份本就是冗余镜像，故风险可控）。
 - **合并自**：arch-storage#2, arch-storage#5, arch-datamodel#5（3 条同源发现）
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（archive_stale 从逐行 get()(全 payload 反序列化)+save()(全列 UPSERT) 改单条 set-based UPDATE artifacts SET archived=1 WHERE archived=0 AND COALESCE(last_viewed_at,created_at)<=cutoff（ISO 字典序=时序）。get() 读时从 archived/last_viewed_at 列回填 meta（列本就是 list/count 的真源），跳过 payload 重写对调用方透明。新增 0-get/0-save + payload 字节不变断言。）
 
 #### [BUG-049] data_cache.cache 表永不淘汰,只增不减(无 TTL 清理/容量上限)
 
@@ -806,7 +806,7 @@
 - **修复方案**：在 server.py 的 startup background 加一个周期任务(复用 _archive_stale_background 的 asyncio.create_task 模式),调用新方法 `DataCache.evict_expired()`:`DELETE FROM cache WHERE cached_at < ?`(阈值取各 TTL 的保守上界,如 max(_TTL_SECONDS) 的 N 倍,或简单按 30 天硬上限删)。注意:别按 _get_ttl_seconds 精确删,因为 raw/canonical/period 槽的 data_type 列已带后缀,精确 TTL 反查复杂;粗粒度按绝对天数删最稳。删后可选 `PRAGMA incremental_vacuum` 或周期 VACUUM 回收文件。改动量:小(1 方法 + 1 background task)。
 - **验证补充**：Fix (background evict_expired with coarse absolute-age DELETE + optional VACUUM) is sound. Coarse absolute cutoff is the right call given raw/canonical/period suffixes make per-type TTL reverse-lookup messy. Keep P2 — slow leak, no correctness impact, single-user impact is gradual.
 - **影响面/回归风险**：影响磁盘占用与冷启动扫描成本,非正确性。回归风险低(删的都是过期行,读路径本就当 stale 重取)。当前 3.4MB 无感,属增长性技术债。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（DataCache.evict_expired(max_age_days=30)：DELETE FROM cache WHERE cached_at<cutoff（绝对年龄，远高于最大 7d 类型 TTL 故不误删 fresh 行）+ 删行后 best-effort VACUUM 缩文件（auto_vacuum=NONE）。server 启动 background task 接线（复用 _archive_stale_background 模式）。新增 4 测试。）
 
 #### [BUG-050] run_events 无限增长 + SSE 0.2s 轮询单连接 → 批跑下打满单库单锁
 
@@ -819,7 +819,7 @@
 - **修复方案**：两步:(a) 加事件保留:server.py background 周期 `DELETE FROM run_events WHERE run_id IN (SELECT run_id FROM runs WHERE completed_at < ?)`(终态 run 超 7 天清事件;runs 行可保留做历史)。(b) 降轮询压力:已完成 run 的 SSE 在发完 run.completed/failed 后立刻 break(确认 runs.py:233 trailing 逻辑已读完终态即停);把轮询间隔在『无新事件』时退避(0.2s→指数到 1s)。彻底解法是内存事件总线(asyncio.Queue per run_id,append_event 同时 put,SSE await queue.get())——但属 P3 重构,先做 (a)+退避。改动量:(a)(b) 小;内存总线 中。
 - **验证补充**：IMPORTANT correction to the prose: the terminal-state break (runs.py:232-237) AND the client-disconnect early-return (222-224) ALREADY EXIST — so the author's proposed step (b) 'confirm trailing logic breaks on terminal state' is already done, and completed/queued runs do NOT keep polling forever (disconnect stops them). The genuine gaps are just: (1) unbounded run_events growth, (2) 0.2s busy-poll on a single shared connection under batch fan-out. Fix (a) event retention DELETE + backoff on idle poll is correct; the asyncio.Queue pub/sub is the real fix but P3. Keep P2.
 - **影响面/回归风险**：批跑/长会话场景的库压与延迟,非正确性。回归风险低(清的是终态 run 的旧事件,resume via Last-Event-ID 只对活动 run 有意义)。当前 198 行无感。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（(a) run_store.prune_run_events(7d)：DELETE run_events WHERE run_id IN 终态且 completed_at<cutoff——删旧终态 run 的庞大事件日志、保留 runs 行(Coverage 历史)；server 启动调一次。(b) routes/runs.py 两个 SSE 轮询循环加 idle backoff：有事件即落回 0.2s、否则 ×2 涨到 1s 上限，不动 BUG-031/034 的终态 break/聚合逻辑。asyncio.Queue pub/sub 是 P3 终极方案、按 finding 延后。新增测试。）
 
 #### [BUG-051] 前端 pipeline 类型清单三处不一致：appStore 缺 ddm，runStreamStore/后端 registry 含 ddm
 
@@ -1016,7 +1016,7 @@
 - **修复方案**：把 rebuild_summaries 实现成真回填：遍历所有行 `SELECT id,payload`，对每行 `Artifact.model_validate_json`→`_artifact_to_row`→ 只 UPDATE 那批镜像列（不动 payload，避免无谓重写）。批量分页（如每 500 行一 commit）防大库锁表。再在 server.py startup（已有 reconcile_orphaned_runs/archive 背景任务那处）按一个 `SUMMARY_PROJECTION_VERSION` 常量 gate：版本 bump 时跑一次 rebuild。注意:(1) 与 mark_viewed 的 archived 同步逻辑一致——只更新列、payload.meta.archived 不在镜像列里所以无冲突；(2) extractor 抛错的行 skip 并 log，不中断整批。改动量级:中（一个方法 + 一处 startup gate + 一个版本常量）。
 - **验证补充**：Fix (real backfill in rebuild_summaries + SUMMARY_PROJECTION_VERSION gate at startup) is sound. Implement as UPDATE of mirror columns only (not payload) to avoid the same O(N·payload) cost flagged in finding 4. Batch-commit per N rows; skip+log rows that fail model_validate_json.
 - **影响面/回归风险**：影响 dashboard 命中率/recent-strip/coverage research_count 等所有读镜像列的聚合。回归风险低（纯增量回填，payload 不动）；需注意大库首启动一次性回填的耗时，故分页 + 仅版本变更时触发。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（rebuild_summaries 不再 no-op：逐行 model_validate_json→重跑当前 extractor→仅 UPDATE 镜像列(verdict/entry/target/target_date/tagline/headline)，payload 字节不动（避免 O(N·MB) 重写），坏行跳过+log。新增 SUMMARY_PROJECTION_VERSION + rebuild_summaries_if_outdated（PRAGMA user_version 门控，extractor 规则变就 +1，下次启动重投一次）；store.py shim + server 启动 background（排在 legacy migration 后）。新增 3 测试（重投/跳坏行/版本门控一次性）。）
 
 #### [BUG-066] 禁用态按钮的『为什么不可用』只靠 title tooltip：disabled 元素不触发 hover、tooltip 鼠标专属，键盘/触屏用户拿不到原因（IC 辩论 & Compare）
 

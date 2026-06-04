@@ -37,6 +37,23 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
+# SSE idle-poll backoff. Both event streams poll the single shared RunStore
+# connection; under a Coverage batch that means N coroutines hammering one
+# aiosqlite worker. While events are flowing we poll fast (responsive UI); once
+# a poll comes back empty we back off exponentially to a 1s ceiling, then snap
+# back to the floor the instant new events appear. This keeps live latency low
+# but collapses the steady-state QPS of idle/long-running streams (BUG-050).
+_SSE_POLL_MIN_INTERVAL = 0.2
+_SSE_POLL_MAX_INTERVAL = 1.0
+_SSE_POLL_BACKOFF_FACTOR = 2.0
+
+
+def _next_poll_interval(interval: float, *, had_events: bool) -> float:
+    """Floor the interval when events arrived, else grow it toward the ceiling."""
+    if had_events:
+        return _SSE_POLL_MIN_INTERVAL
+    return min(interval * _SSE_POLL_BACKOFF_FACTOR, _SSE_POLL_MAX_INTERVAL)
+
 
 class CreateRunRequest(BaseModel):
     pipeline_type: str
@@ -264,16 +281,19 @@ async def stream_runs_events(ids: str, request: Request) -> StreamingResponse:
 
     async def event_stream() -> AsyncIterator[str]:
         terminal: set[str] = set()
+        poll_interval = _SSE_POLL_MIN_INTERVAL
         while True:
             if await request.is_disconnected():
                 logger.debug("Aggregated SSE client disconnected — stopping poll")
                 return
 
+            had_events = False
             for run_id in known_ids:
                 if run_id in terminal:
                     continue
                 events = await store.get_events_after(run_id, cursors[run_id])
                 for stored in events:
+                    had_events = True
                     cursors[run_id] = stored.seq
                     yield _format_multiplex_sse(cursors, run_id, tickers[run_id], stored.event)
 
@@ -283,13 +303,15 @@ async def stream_runs_events(ids: str, request: Request) -> StreamingResponse:
                     # above and the status read, then mark this id done.
                     trailing = await store.get_events_after(run_id, cursors[run_id])
                     for stored in trailing:
+                        had_events = True
                         cursors[run_id] = stored.seq
                         yield _format_multiplex_sse(cursors, run_id, tickers[run_id], stored.event)
                     terminal.add(run_id)
 
             if len(terminal) == len(known_ids):
                 break
-            await asyncio.sleep(0.2)
+            poll_interval = _next_poll_interval(poll_interval, had_events=had_events)
+            await asyncio.sleep(poll_interval)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
@@ -346,18 +368,21 @@ async def stream_run_events(run_id: str, request: Request) -> StreamingResponse:
 
     async def event_stream() -> AsyncIterator[str]:
         current_seq = last_seq
+        poll_interval = _SSE_POLL_MIN_INTERVAL
         while True:
             # Stop polling as soon as the client disconnects.  Without this
-            # check the coroutine would keep polling the DB at 0.2 s intervals
-            # until the pipeline finished, even though no one is reading the
-            # stream.  request.is_disconnected() does not raise; it returns
-            # True once the underlying transport is gone.
+            # check the coroutine would keep polling the DB until the pipeline
+            # finished, even though no one is reading the stream.
+            # request.is_disconnected() does not raise; it returns True once
+            # the underlying transport is gone.
             if await request.is_disconnected():
                 logger.debug("SSE client disconnected for run %s — stopping poll", run_id)
                 return
 
+            had_events = False
             events = await store.get_events_after(run_id, current_seq)
             for stored in events:
+                had_events = True
                 current_seq = stored.seq
                 yield _format_sse(stored.seq, stored.event)
 
@@ -368,7 +393,8 @@ async def stream_run_events(run_id: str, request: Request) -> StreamingResponse:
                     current_seq = stored.seq
                     yield _format_sse(stored.seq, stored.event)
                 break
-            await asyncio.sleep(0.2)
+            poll_interval = _next_poll_interval(poll_interval, had_events=had_events)
+            await asyncio.sleep(poll_interval)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 

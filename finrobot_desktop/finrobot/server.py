@@ -175,6 +175,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             logger.info("Startup: reconciled %d orphaned run(s) to failed", reconciled)
     except (OSError, RuntimeError):
         logger.exception("Run reconcile on startup failed")
+    # Bound run_events growth: drop the SSE event log of runs that finished more
+    # than RUN_EVENT_RETENTION_DAYS ago (the runs rows stay as history). Without
+    # this the table grew unbounded and every SSE poll paid the larger scan on
+    # the single shared connection under batch fan-out (BUG-050).
+    try:
+        pruned = await app.state.run_store.prune_run_events()
+        if pruned:
+            logger.info("Startup: pruned %d stale run_events row(s)", pruned)
+    except (OSError, RuntimeError):
+        logger.exception("run_events prune on startup failed")
     app.state.artifact_store = artifact_store
     # Coverage Desk store — the user's research coverage universe (groups +
     # members). Own aiosqlite db at ~/.finrobot/coverage.db; the overview
@@ -205,6 +215,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 logger.info("Startup artifact archive: %d artifacts archived", count)
         except (OSError, ValueError, TypeError, RuntimeError):
             logger.exception("Startup artifact archive failed — non-fatal")
+
+    # Re-project the mirror columns (verdict/entry/target/tagline/headline) when
+    # the summary_extractor rules changed since the db was last projected. The
+    # columns are written only at save() time but read as source-of-truth by the
+    # dashboard/coverage aggregations, so without this old rows keep the value
+    # the OLD extractor produced forever (BUG-065). Gated on
+    # SUMMARY_PROJECTION_VERSION so it's a no-op unless the version was bumped.
+    async def _rebuild_summaries_background() -> None:
+        try:
+            count = await artifact_store.rebuild_summaries_if_outdated()
+            if count:
+                logger.info("Startup mirror-column backfill: %d artifacts re-projected", count)
+        except (OSError, ValueError, TypeError, RuntimeError):
+            logger.exception("Startup mirror-column backfill failed — non-fatal")
 
     # One-shot legacy migration: pull every ~/.finrobot-desktop/artifacts/
     # JSON file into the new SqliteArtifactStore. Idempotent (saves are
@@ -277,7 +301,25 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     async def _migrate_then_warm_background() -> None:
         await _migrate_legacy_artifacts_background()
+        # Sequenced AFTER the migration so freshly-migrated legacy rows are
+        # included in the projection version gate (BUG-065).
+        await _rebuild_summaries_background()
         await _warm_quote_cache_background()
+
+    # Background task: evict long-stale rows from the data cache (BUG-049).
+    # The TTL only marks rows stale at read time and never deletes, so
+    # data_cache.db grows monotonically with every (ticker × data_type ×
+    # raw/canonical × period) slot ever fetched. This coarse 30-day absolute
+    # eviction — far above the largest per-type TTL (7d) so it never reaps a
+    # row a read would still consider fresh — caps that growth and VACUUMs the
+    # freed space back to the filesystem. Runs at startup; non-fatal.
+    async def _evict_data_cache_background() -> None:
+        try:
+            deleted = await data_layer.cache.evict_expired()
+            if deleted:
+                logger.info("Startup data-cache eviction: %d stale rows removed", deleted)
+        except (OSError, ValueError, TypeError, RuntimeError):
+            logger.exception("Startup data-cache eviction failed — non-fatal")
 
     async def _refresh_sec_holdings_background() -> None:
         # Auto-refresh is OFF by default (heavy whole-quarter download). When
@@ -291,6 +333,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     app.state.background_tasks = [
         asyncio.create_task(_archive_stale_background()),
+        asyncio.create_task(_evict_data_cache_background()),
         asyncio.create_task(_migrate_then_warm_background()),
         asyncio.create_task(_refresh_sec_holdings_background()),
     ]

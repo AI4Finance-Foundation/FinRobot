@@ -1,7 +1,8 @@
 import asyncio
+import logging
 import weakref
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import aiosqlite
@@ -11,6 +12,8 @@ from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.contracts import CANONICAL_CONTRACT_VERSION
 from finrobot.engine.data.types import DataType
 from finrobot.paths import configure_connection
+
+logger = logging.getLogger(__name__)
 
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS cache (
@@ -119,6 +122,18 @@ _TTL_SECONDS: dict[str, int] = {
     DataType.FORWARD_ESTIMATES: 86400,
 }
 _DEFAULT_TTL_SECONDS: int = 3600  # 1 hour
+
+# Coarse absolute age (days) past which a cache row is physically deleted by
+# evict_expired(). This is NOT the freshness TTL — reads already mark anything
+# past its per-type TTL as stale and refetch. This is the housekeeping cutoff
+# that stops the table growing unbounded as research fans out across hundreds
+# of tickers × data types × raw/canonical/period slots (BUG-049). It is set
+# well above the largest per-type TTL (7 days for SEC filings / transcripts) so
+# evict_expired never reaps a row a read would still consider fresh — the
+# raw/canonical/period suffixes baked into the data_type column make exact
+# per-type TTL reverse-lookup messy, so a single conservative absolute cutoff
+# is the robust choice.
+_EVICT_AFTER_DAYS: int = 30
 
 
 def _get_ttl_seconds(data_type: str | DataType) -> int:  # noqa: D401
@@ -276,6 +291,45 @@ class DataCache:
         else:
             await conn.execute("DELETE FROM cache WHERE ticker = ?", (ticker,))
         await conn.commit()
+
+    async def evict_expired(self, *, max_age_days: int = _EVICT_AFTER_DAYS) -> int:
+        """Physically delete cache rows older than ``max_age_days``; reclaim file space.
+
+        The TTL machinery only marks rows stale at read time — it never deletes,
+        so the table grows monotonically with every (ticker × data_type ×
+        raw/canonical × period) slot ever fetched (BUG-049). This is the
+        housekeeping pass: a single coarse absolute-age DELETE (no per-type TTL
+        reverse-lookup, which the raw/canonical/period suffixes would make
+        fragile) followed by a VACUUM so the freed pages shrink the file rather
+        than just becoming reusable slack.
+
+        ``max_age_days`` is intentionally far above the largest per-type TTL, so
+        a row this evicts is guaranteed already stale to every reader.
+
+        Returns the number of rows deleted.
+        """
+        cutoff_iso = (datetime.now(tz=timezone.utc) - timedelta(days=max_age_days)).isoformat()
+        conn = await self._ensure_connection()
+        cur = await conn.execute("DELETE FROM cache WHERE cached_at < ?", (cutoff_iso,))
+        deleted = cur.rowcount
+        await conn.commit()
+        if deleted:
+            # Reclaim the freed pages so the .db file actually shrinks rather
+            # than leaving them as reusable slack. The DB is opened with the
+            # default auto_vacuum=NONE (see paths.configure_connection), so
+            # incremental_vacuum is a no-op — a full VACUUM is the only thing
+            # that returns space to the filesystem. It rewrites the file, but
+            # this runs as a periodic background pass only when rows were
+            # actually deleted, so the cost is amortised and off the hot path.
+            # Best-effort: a failed reclaim must not turn a successful eviction
+            # into an error (e.g. VACUUM cannot run inside a transaction or
+            # with an open cursor on some platforms).
+            try:
+                await conn.execute("VACUUM")
+                await conn.commit()
+            except aiosqlite.Error:
+                logger.warning("data_cache VACUUM after eviction failed — non-fatal")
+        return deleted
 
     async def close(self) -> None:
         """Close the connection. Call during shutdown."""

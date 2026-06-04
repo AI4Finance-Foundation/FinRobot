@@ -39,11 +39,12 @@ export function isTauri(): boolean {
 export function startWindowDrag(doubleClick: boolean): void {
   if (!isTauri()) return
   const win = getCurrentWindow()
-  if (doubleClick) {
-    void win.toggleMaximize()
-  } else {
-    void win.startDragging()
-  }
+  // Surface failures (e.g. a missing core:window:allow-start-dragging /
+  // allow-toggle-maximize capability denies the IPC call) instead of letting
+  // the rejected promise vanish — a silent denial reads exactly like "drag
+  // doesn't work".
+  const op = doubleClick ? win.toggleMaximize() : win.startDragging()
+  op.catch((err) => console.warn('[tauri] window drag failed:', err))
 }
 
 // ─── Shell ────────────────────────────────────────────────────────

@@ -603,12 +603,14 @@ export function CmdKOverlay() {
   // ---------------------------------------------------------------------------
   const hasRemoteResults = grouped.ticker.length > 0 || grouped.artifact.length > 0
 
-  // Ask-AI fallback is offered whenever the user typed a query that produced no
-  // remote results — whether the search returned empty OR failed. The command
-  // palette is a global surface: a failed /api/search must never strand the
-  // user, so Ask AI (and the local static commands above) stay available and
-  // the search failure shows only as a small inline note.
-  const showAiFallback = !isLoading && debouncedQuery.length > 0 && !hasRemoteResults
+  // Ask-AI is a first-class action, not a "search failed" consolation prize:
+  // whenever the user has typed a query it is offered (UX-017). It sits below
+  // any real search results so it never steals focus from a matching ticker /
+  // artifact, but a user who just wants to *ask* can pick it without first
+  // having to watch the search come up empty. The command palette is also a
+  // global surface — a failed /api/search must never strand a typed question,
+  // which this same always-on behaviour covers.
+  const showAiFallback = !isLoading && debouncedQuery.length > 0
 
   const showRecentSearches = trimmedQuery.length === 0 && recentSearches.length > 0
 
@@ -996,7 +998,9 @@ export function CmdKOverlay() {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {t('cmdk.results.nothing', { query: debouncedQuery })}
+                  {hasRemoteResults
+                    ? t('cmdk.results.askSubtitle', { query: debouncedQuery })
+                    : t('cmdk.results.nothing', { query: debouncedQuery })}
                 </div>
               </div>
             </Command.Item>

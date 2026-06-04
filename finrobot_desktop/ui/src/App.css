@@ -5061,3 +5061,27 @@ body.cursor-trail-on * {
   font-family: var(--font-display);
   letter-spacing: 2px;
 }
+
+/* ── Global prefers-reduced-motion fallback ──────────────────────────────
+   The earlier @media block only silenced .cosmic-stars; every other
+   keyframe (shimmer / pulse-ring / halo / btn-shimmer / cosmic-morph …)
+   kept running at full speed for users who asked for stillness. This
+   wildcard at end-of-file (so nothing later overrides it) collapses all
+   decorative animation and transition timing. Placed last on purpose. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Skeleton reads as "loading" purely via its moving gradient. Once the
+     shimmer is frozen, pin it to a flat, visible mid-tone so the block
+     doesn't collapse into a near-invisible sliver. */
+  .skeleton {
+    background: var(--border) !important;
+    background-size: auto !important;
+  }
+}

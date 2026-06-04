@@ -184,7 +184,7 @@ export function PipelineProgressPanel({
                 padding: '5px 11px',
                 borderRadius: 6,
                 background: 'linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%)',
-                color: 'white',
+                color: 'var(--text-on-primary)',
                 border: 'none',
                 cursor: 'pointer',
                 letterSpacing: '0.04em',

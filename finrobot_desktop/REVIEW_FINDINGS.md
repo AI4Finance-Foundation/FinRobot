@@ -155,9 +155,9 @@
 | BUG-090 | Bug | P3 | 两个表都叫 `artifacts`(runs.db 链表 vs artifacts.db 规范库),撞名;且 runs.db 的 artifacts 表 `data BLOB`+`format` 是死列(唯一调用方只传 file_path 指针、从不传 data)——该表应改名 run_artifacts 并砍死列 | ✅ 已修 |
 | BUG-091 | Bug | P3 | JournalStore + journal.db 是整块死代码:完整实现 create/delete/list 但全仓零实例化、routes/cli/server/sdk 零引用(概念已被 artifacts.entry_price/target_price 吸收)——应删 | ✅ 已修 |
 | BUG-092 | Bug | P3 | [休眠·BUG-075 簇] holdings 主键含可空列 holder_cik,SQLite 把 PK 里的 NULL 当互不相同 → CIK 缺失的 13F filer(refresh 脚本确会喂 None)每次 refresh 累积重复持仓行,ON CONFLICT 去重失效 | ✅ 已修(schema) |
-| UX-015 | 产品 | P3 | 最高曝光的 Run CTA / Pipeline 徽章用字面量 color:'white' 与裸数字圆角，绕过已存在的 token | 待修 |
-| UX-016 | 产品 | P3 | prefers-reduced-motion 只关了星空一种动效，shimmer/pulse/halo/skeleton 等仍全速运行 | 待修 |
-| UX-017 | 产品 | P3 | 右侧 AI 抽屉与 CmdK 的 "Ask AI" 是两条并存的对话入口，语义重叠且互不打通 | 待修 |
+| UX-015 | 产品 | P3 | 最高曝光的 Run CTA / Pipeline 徽章用字面量 color:'white' 与裸数字圆角，绕过已存在的 token | 已修 |
+| UX-016 | 产品 | P3 | prefers-reduced-motion 只关了星空一种动效，shimmer/pulse/halo/skeleton 等仍全速运行 | 已修 |
+| UX-017 | 产品 | P3 | 右侧 AI 抽屉与 CmdK 的 "Ask AI" 是两条并存的对话入口，语义重叠且互不打通 | 已修 |
 
 ### 详细条目（Bug）
 
@@ -1548,7 +1548,7 @@
 - **修复方案**：AIZone.tsx:699/888、PipelineProgressPanel.tsx:187 的 color:'white' → 'var(--text-on-primary)'；AIZone.tsx:674/698 的 borderRadius:10 → 'var(--radius-md)'。注意 PipelineProgressPanel:187 那处若文字压在动态进度色上，确认 --text-on-primary 在该背景下对比度仍足（pipeline 用 primary/secondary gradient，足够）。
 - **验证补充**：Fix is correct and safe. Minor: verify --radius-md actually equals 10 (or whatever the design intends) before swapping borderRadius:10 → var(--radius-md); if the token is e.g. 8 or 12, the swap silently changes the visual. Confirm token value first, else it's a stealth restyle.
 - **影响面/回归风险**：零视觉变化、零逻辑回归，纯 token 卫生；唯一价值是守住'零硬编码颜色'不变量，避免下次有人 grep 'no hardcoded color' 时漏网繁殖。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（AIZone RunCta/open-report 与 PipelineProgressPanel badge 的字面量 color:white 改 var(--text-on-primary)；borderRadius:8 改 var(--radius-sm)。延后：finding 要的 borderRadius:10→var(--radius-md) 未做——--radius-md 是 12px 非 10，无 10px token，按 finding 自身「token≠10 是 stealth restyle」告诫保零视觉变化不动（需设计决策）。）
 
 #### [UX-016] prefers-reduced-motion 只关了星空一种动效，shimmer/pulse/halo/skeleton 等仍全速运行
 
@@ -1561,7 +1561,7 @@
 - **修复方案**：在 App.css 扩一个全局 reduced-motion 兜底块：@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}} 再保留对 .cosmic-stars 的显式 none。注意：① 不要把它写在文件早处被后续规则覆盖，放末尾；② skeleton 关动画后要确保静态态仍有可辨底色（.skeleton 背景是 gradient，静止时给个中间色 background-position 即可，否则一片纯色看不出在加载）——这点要手验一次 loading 态截图。
 - **验证补充**：Global wildcard *{animation-duration:.01ms!important;...} is the standard pattern and fine, but the author's own caveat is the real risk: .skeleton uses an animated gradient to read as 'loading'; killing the animation can leave a flat near-invisible block. Must set an explicit static visible background for .skeleton inside the reduced-motion block (not rely on background-position of a paused gradient), and visually verify a loading-state screenshot. Place block at end of file to avoid override. Otherwise correct.
 - **影响面/回归风险**：无障碍/体贴度提升；风险点是 !important 全局压制可能误伤某个真正需要动的功能态（如 pipeline 进度条 width 过渡）——width transition 属信息性非装饰，可在该块用更克制的写法或给进度条加豁免 class。建议改完用 Playwright 在 emulateMedia reduced-motion 下截一张 loading + 一张 pipeline running 自验。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（App.css 末尾加全局 @media (prefers-reduced-motion: reduce) 把 animation/transition-duration 压到 .01ms（gate 全部 ~24 个此前未守的 keyframes：shimmer/pulse-ring/halo/btn-shimmer/cosmic-morph 等）；按 finding 告诫给 .skeleton 显式 pin 可见中间色 token 避免冻结后塌成隐形。cosmic-stars 原块保留。）
 
 #### [UX-017] 右侧 AI 抽屉与 CmdK 的 "Ask AI" 是两条并存的对话入口，语义重叠且互不打通
 
@@ -1574,7 +1574,7 @@
 - **修复方案**：两选一（建议 A）：A) 让 CmdK 的 Ask-AI 成为常驻一等项——query 非空时始终在列表底部显示"问 AI：<query>"（去掉 `!hasRemoteResults` 限制，改为始终可选，CmdKOverlay L612），这样"搜"和"问"在同一面板平权，用户不必先看到失败。B) 反向收敛：去掉 CmdK 的 AI fallback，在空结果区只放一句"按 ⌘L 问 AI"提示，把提问唯一化到抽屉。选 A：CmdK 已是全局命令面，让它直接承接提问比教用户记两个快捷键好。注意：sendChatPrompt 已会自动展开抽屉，A 不需要新通道。改动量级：小（改 showAiFallback 条件 + 文案，~10 行）。
 - **验证补充**：Fix A (drop !hasRemoteResults so 'Ask AI: <query>' is always offered when query non-empty, CmdKOverlay L612) is low-risk: sendChatPrompt already auto-opens the drawer (L520, no new channel). Reasonable. P3 severity is appropriate — pure polish, not blocking.
 - **影响面/回归风险**：影响"提问"这一高频动作的入口清晰度。回归风险：低——若选 A，需确认 query 同时有远程结果时 Ask-AI 项排在结果之后不抢焦点（cmdk loop 选中顺序）。
-- **置信度**：medium　|　**状态**：待修
+- **置信度**：medium　|　**状态**：已修（采用 finding 推荐 Fix A（最小调和）：CmdKOverlay 的 showAiFallback 去掉 !hasRemoteResults 条件→Ask-AI 永远作为一等项提供（渲在真实结果下方不抢焦点），不再是"搜索失败的安慰奖"；副标题上下文化（有结果时 cmdk.results.askSubtitle）。sendChatPrompt 已自动开抽屉无新通道。延后：完全统一右侧 ⌘L 抽屉与 CmdK 为单一对话面（option B 重设计）属产品 sign-off 级，未做。）
 
 ---
 

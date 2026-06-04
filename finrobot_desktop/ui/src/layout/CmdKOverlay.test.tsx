@@ -230,6 +230,20 @@ describe('CmdKOverlay — AI fallback', () => {
     expect(screen.getByTestId('ai-fallback-button')).toBeInTheDocument()
   })
 
+  // UX-017: Ask AI is a first-class action, not a "search failed" consolation
+  // prize — it must also be offered when remote results DO exist, so a user who
+  // just wants to ask doesn't have to watch the search come up empty first.
+  it('shows AI fallback even when remote results exist (query non-empty)', async () => {
+    useUiStore.setState({ cmdPaletteOpen: true, cmdKQuery: 'AAPL' })
+    mockFetch({ query: 'AAPL', results: [makeSearchResult('ticker')] })
+    renderOverlay()
+    // A real search result renders…
+    await screen.findByText('AAPL')
+    // …and the Ask-AI item is still offered alongside it.
+    expect(screen.getByTestId('ai-fallback')).toBeInTheDocument()
+    expect(screen.getByTestId('ai-fallback-item')).toBeInTheDocument()
+  })
+
   // BUG-013: Ask AI must feed the right-side AI panel via uiStore.sendChatPrompt
   // (pendingChatPrompt), NOT a dead sessionStorage key.
   it('AI fallback hands the query to uiStore.sendChatPrompt, opens AI panel, closes overlay', async () => {

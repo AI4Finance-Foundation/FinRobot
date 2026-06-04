@@ -111,3 +111,24 @@ def test_drift_scanned_across_tagline_and_takeaways() -> None:
     assert out.key_takeaways is not None
     assert all("$280" not in tk for tk in out.key_takeaways)
     assert any("$276.43" in tk for tk in out.key_takeaways)
+
+
+def test_drift_scanned_across_all_narrative_fields() -> None:
+    # BUG-087 ③: the guard previously only scanned valuation_overview / tagline /
+    # key_takeaways — an injected fake $ in company_overview / competitor_analysis
+    # / news_summary / narrative survived into the artifact. Now all are scanned.
+    thesis = _thesis(
+        narrative="Bottom line, we peg fair value at $280.",
+        company_overview="Apple's segments support a $280 valuation.",
+        competitor_analysis="Versus peers, AAPL warrants $280.",
+        news_summary="Headlines hint the Street sees $280.",
+    )
+
+    out, drift = _reconcile_narrative_targets(thesis, canonical_target=276.43, allowed_mids=[])
+
+    assert drift is True
+    for field in ("narrative", "company_overview", "competitor_analysis", "news_summary"):
+        value = getattr(out, field)
+        assert value is not None
+        assert "$280" not in value, f"{field} still contains the injected $280"
+        assert "$276.43" in value, f"{field} was not neutralized to canonical"

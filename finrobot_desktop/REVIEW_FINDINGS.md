@@ -101,7 +101,7 @@
 | BUG-041 | Bug | P2 | run_strategy_selection tunes 3 iterations on one in-sample window and reports max(total_return) as a 'good' strategy — pure overfitting, no out-of-sample | 已修 |
 | BUG-042 | Bug | P2 | Sniper LONG mode: secondary_buy (20-day support) can sit BELOW stop_loss → incoherent trade row passes invariant guards | 已修 |
 | BUG-043 | Bug | P2 | Unauthenticated POST /chat, /api/runs and /api/coverage/groups/{id}/runs burn metered LLM credits with zero inbound rate limiting | 已修 |
-| BUG-044 | Bug | P2 | Unauthenticated DELETE /api/artifacts/{id} and DELETE /api/coverage/groups/{id} permanently destroy stored research | 待修 |
+| BUG-044 | Bug | P2 | Unauthenticated DELETE /api/artifacts/{id} and DELETE /api/coverage/groups/{id} permanently destroy stored research | known-risk-accepted(归入 OPP-009) |
 | BUG-045 | Bug | P2 | ProviderHealth 熔断器是完全未接线的死代码，docstring 谎称「DataLayer owns the wiring」——慢/限流 provider 每次仍付满超时 | 已修 |
 | BUG-046 | Bug | P2 | 硬编码中文数据层告警混入英文 CLI 输出(--lang en 不生效于 provider 告警) | 已修 |
 | BUG-047 | Bug | P2 | comps --peers 校验滞后且不验格式：错峰到管线中段(已耗 ~30s)才裸崩 | 已修 |
@@ -137,7 +137,7 @@
 | UX-014 | 产品 | P2 | 首屏产品身份分裂：populated 态顶 FINROBOT 大字、empty 态顶 Coverage Desk，同一页两套品牌/心智 | 已修 |
 | BUG-058 | Bug | P3 | Non-critical steps emit a misleading step.completed (green ✓) after exhausting all retries on a real failure | 已修 |
 | BUG-059 | Bug | P3 | Validation-failure retries re-run deterministic executors unchanged, burning the full retry budget on identical failing output | 已修 |
-| BUG-060 | Bug | P3 | DCF/Monte Carlo 把 Gordon 终值在中年法下按 (n-0.5) 折现——终值『定价日』应是年末 n,这里多折了半年,系统性高估 fair value | 待修 |
+| BUG-060 | Bug | P3 | DCF/Monte Carlo 把 Gordon 终值在中年法下按 (n-0.5) 折现——终值『定价日』应是年末 n,这里多折了半年,系统性高估 fair value | 已核实-不修(误报) |
 | BUG-061 | Bug | P3 | Earnings-call tab selection keyed by array index — duplicate/reordered transcripts collide keys and mis-select | 已修 |
 | BUG-062 | Bug | P3 | `is_sampled` / `sample_size` honesty disclosure is dropped at the API→frontend boundary (field absent from the TS contract) | 已修 |
 | BUG-063 | Bug | P3 | _resolve_strategy does importlib.import_module(user_string) + getattr before the bt.Strategy check — arbitrary module import with side effects | 已修 |
@@ -740,7 +740,7 @@
 - **修复方案**：Covered by the finding-1 auth token (primary). Orthogonal hardening worth doing now for the analyst-work-product case: make artifact deletion a soft archive (set a deleted_at column in artifacts.db rather than hard DELETE) so an accidental or malicious delete is recoverable; the store already has archive_stale plumbing (artifact/store.py) to build on. ~20-40 LoC in artifact/sqlite_store.py + the route.
 - **验证补充**：Fix valid. Soft-archive (deleted_at column) is a reasonable orthogonal hardening for the work-product case; verify the claimed archive_stale plumbing in artifact/store.py actually exists before estimating 20-40 LoC (I did not confirm that specific helper this session). Auth from finding 0 remains the primary fix.
 - **影响面/回归风险**：Data-loss containment for the user's primary work product. Soft-delete change touches artifact store schema + list filters (must exclude soft-deleted rows); moderate regression surface, covered by artifact store tests.
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：known-risk-accepted（2026-06-04 用户决策：暂不修）。理由：localhost 单用户桌面 App，真实残余威胁面窄——DELETE 触发 CORS preflight 已基本挡住浏览器 drive-by，剩下的本地恶意进程在单用户机器上本就无所不能。正解是 BUG-004 后半 / OPP-009 的 capability-token auth seam（统一收口），属架构决策，待 OPP-009 一并做；soft-archive(deleted_at) 防误删可在彼时附带。当前优先 KPI 杠杆更高的 OPP。**重开条件**：若产品转向多用户/远程访问，或绑定非 loopback 地址，此项立即升回 P1 必修。
 
 #### [BUG-045] ProviderHealth 熔断器是完全未接线的死代码，docstring 谎称「DataLayer owns the wiring」——慢/限流 provider 每次仍付满超时
 
@@ -951,7 +951,15 @@
 - **修复方案**：[金融待核] 先与外部基准对齐再改:对照 Rosenbaum & Pearl 3e Ch.8 mid-year convention 对 Gordon TV 的折现期定义(以及 Macabacus / Damodaran spreadsheet 的实现)。若确认 Gordon TV 应按 n 折现,则把 dcf.py 4 处与 monte_carlo.py:194 的 `**(n - offset)` 改为 `**n`(只有显式 FCF 用 (i+1-offset)),并更新 docstring 说明 TV 不享受 mid-year 半年提前。注意 calculate_dcf、calculate_sensitivity、_price_for、solve_for_implied_wacc 内联折现、monte_carlo 需同步改,否则反推/敏感性与 headline 口径分裂。改动量级:小但需 5 处对称改 + 金融测试期望值重算。外部核对:挑一只票手算 mid_year=True 的 DCF,TV 分别用 ^n 与 ^(n-0.5) 折现,对比哪个与 Bloomberg/标准 DCF 模板一致。
 - **验证补充**：Do NOT change code on this finding's current evidence — it would risk introducing a deviation from the prevailing Macabacus/WSP/R&P mid-year-on-Gordon-TV convention that the code likely already follows. Correct next step is the finding's own [金融待核] path: pull the authoritative R&P 3e Ch.8 and Macabacus implementations, confirm whether Gordon TV under mid-year is discounted at n-0.5 (most templates) or n (exit-multiple TV only), and only then decide. If a change is ever made it must hit all 5 sites symmetrically (4 in dcf.py + monte_carlo.py) and re-baseline the finance test expected values, as the finding notes. The finding's quoted '+7.7%/+4-6%' overstatement is conditional on its premise being right, which is not established.
 - **影响面/回归风险**：仅在 mid_year=True 路径影响 implied_price(高估约 4-6%);默认 mid_year=False 不受影响——需确认管线默认是否开 mid_year。当前全代码内部一致,故无『反推≠正算』的自相矛盾,只是相对外部标准可能偏高。回归风险:改后所有开 mid_year 的 DCF 数字下移,金融测试期望值需重算。属口径核对项,不宜未对基准就硬改。
-- **置信度**：medium　|　**状态**：待修
+- **置信度**：medium　|　**状态**：已核实-不修（误报）。外部基准核对（2026-06-04，方法/口径核对，非数据字段）：代码 `pv_terminal = TV / (1+wacc)**(n-0.5)` 与 Macabacus / Wall Street Prep 主流 mid-year 口径**代数等价**——mid-year 下永续期现金流同样按年中到账，故 Gordon TV 享 `(1+wacc)^0.5` 上抬，等同于按 `n-0.5` 折现。算例（wacc=10% tg=2.5% n=5 FCF_n=100）：
+
+  | 口径 | 公式 | TV 现值 | 一致 |
+  |---|---|---|---|
+  | 我们的代码 | `TV/(1+w)^(n-0.5)` | 890.01 | — |
+  | Macabacus/WSP 标准 | `TV·(1+w)^0.5/(1+w)^n` | 890.01 | ✅ 完全相同 |
+  | 本 finding 的"修复" | `TV/(1+w)^n` | 848.59 | ❌ 偏低 4.65% |
+
+  一句话根因：finding 把「`n` 折现」当成 Gordon TV 的正确口径，但 `n` 折现**只适用于退出倍数 TV**（倍数施于年末指标），不适用 Gordon 永续；施其"修复"反而引入 ~4.6% 对标准的负偏离。finding 自带的验证补充已指出「Do NOT change code」。结论：代码正确，不动。
 
 #### [BUG-061] Earnings-call tab selection keyed by array index — duplicate/reordered transcripts collide keys and mis-select
 

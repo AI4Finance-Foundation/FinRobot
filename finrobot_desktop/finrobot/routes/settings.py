@@ -219,10 +219,14 @@ async def put_settings_route(update: SettingsUpdate, request: Request) -> Settin
             provider_key_merge[provider.id] = value
     candidate = candidate.with_provider_keys(provider_key_merge)
 
-    try:
-        candidate.validate_runtime_config()
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    # NB: we do NOT 400 on validate_runtime_config failure here. Saving an
+    # unrelated field (e.g. a data-source key) must never be blocked because the
+    # LLM model has no key yet — that chicken-and-egg made every save fail with
+    # "No API key configured for provider 'openai'". Instead we persist the
+    # change and reflect config validity in the non-blocking startup_error
+    # banner, exactly like the boot path. _replace_runtime_settings skips agent
+    # construction while the config is invalid, so nothing crashes. (Structural
+    # errors in custom_providers are still a hard 400 — see _validate_custom_providers.)
 
     # Only WRITE secrets that arrived with a truthy value. A falsy/empty value in a
     # PUT is "no change", NOT "delete" (BUG-005) — the common case is the user
@@ -249,14 +253,14 @@ async def put_settings_route(update: SettingsUpdate, request: Request) -> Settin
         from finrobot.obs import setup_logging
 
         setup_logging(candidate, force=True)
-    # A successful PUT means whatever validate-time error happened at boot
-    # may now be resolved — clear the startup banner so the UI stops nagging.
-    if getattr(request.app.state, "startup_error", None):
-        try:
-            candidate.validate_runtime_config()
-            request.app.state.startup_error = None
-        except ValueError:
-            pass  # keep the existing banner
+    # Reflect config validity in the startup_error banner: set it when the LLM
+    # config is incomplete/invalid (so LLM routes 503 with a clear message),
+    # clear it once the user has filled in what was missing.
+    try:
+        candidate.validate_runtime_config()
+        request.app.state.startup_error = None
+    except ValueError as e:
+        request.app.state.startup_error = str(e)
     return await _build_response(request)
 
 

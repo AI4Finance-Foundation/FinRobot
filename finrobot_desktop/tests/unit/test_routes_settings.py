@@ -254,15 +254,38 @@ async def test_put_settings_does_not_pin_unchanged_fields(tmp_path: Path, monkey
             json={"model_name": "anthropic:claude-sonnet-4-6"},
         )
 
-    # NB: switching to anthropic with no anthropic key configured will 400 at
-    # validate_runtime_config — a useful regression guard that the route does
-    # NOT silently fall through.
-    assert resp.status_code in (200, 400)
+    # Switching to anthropic with no anthropic key is saved (200) and surfaced as
+    # a non-blocking startup_error banner — it does NOT 400 (saving must never be
+    # blocked by an incomplete LLM config).
+    assert resp.status_code == 200, resp.text
 
-    if (tmp_path / "settings.json").exists():
-        content = json.loads((tmp_path / "settings.json").read_text())
-        # Only model_name should ever be persisted in this scenario.
-        assert set(content.keys()) <= {"model_name"}
+    content = json.loads((tmp_path / "settings.json").read_text())
+    # Only model_name should ever be persisted in this scenario.
+    assert set(content.keys()) == {"model_name"}
+
+
+@pytest.mark.asyncio
+async def test_put_data_key_succeeds_without_llm_key(tmp_path: Path, monkeypatch: Any) -> None:
+    """Regression: saving a data-source key must NOT 400 just because the active
+    LLM model has no API key yet (chicken-and-egg that blocked every save)."""
+    # openai model, NO provider key configured → validate_runtime_config fails.
+    settings = get_settings(model_name="openai:gpt-4o", provider_keys={})
+    secret_store = AsyncMock()
+    secret_store.has = AsyncMock(return_value=False)
+    secret_store.get = AsyncMock(return_value=None)
+    secret_store.set = AsyncMock()
+    secret_store.delete = AsyncMock()
+    app = _make_app(tmp_path, settings=settings, secret_store=secret_store)
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
+
+    async with _client(app) as c:
+        resp = await c.put("/api/settings", json={"fmp_api_key": "fmp-key-123"})
+
+    assert resp.status_code == 200, resp.text
+    # The FMP key was stored despite the invalid LLM config...
+    secret_store.set.assert_any_await("fmp_api_key", "fmp-key-123")
+    # ...and the missing-LLM-key surfaces as the non-blocking banner instead.
+    assert "No API key configured for provider 'openai'" in (app.state.startup_error or "")
 
 
 @pytest.mark.asyncio

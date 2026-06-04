@@ -16,7 +16,7 @@
 // chapters inside ArtifactDetailPage so the workspace serves as a clean
 // entry point rather than duplicating the report body.
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRunStreamStore, selectRunByTicker } from '../stores/runStreamStore'
@@ -29,6 +29,7 @@ import { TickerNotFoundView } from './workspace/TickerNotFoundView'
 import { TickerHero } from './TickerHero'
 import { MarketDataZone } from './workspace/MarketDataZone'
 import { AIZone } from './workspace/AIZone'
+import { CompareTargetPicker } from '../components/CompareTargetPicker'
 import { useI18n } from '../i18n'
 
 export function StockWorkspace(): React.ReactElement {
@@ -36,6 +37,7 @@ export function StockWorkspace(): React.ReactElement {
   const symbol = (ticker || '').toUpperCase()
   const location = useLocation()
   const { t } = useI18n()
+  const [comparePickerOpen, setComparePickerOpen] = useState(false)
 
   // Remember this path so the sidebar can restore context after the user
   // detours through /settings or any other top-level section.
@@ -178,6 +180,44 @@ export function StockWorkspace(): React.ReactElement {
           padding: '24px 32px 96px',
         }}
       >
+        {/* In-context compare entry (UX-010). Lets a user reading this ticker
+            pull a second name into /compare without detouring back to /coverage
+            to multi-select. The picker reuses /api/search (same endpoint as the
+            command palette) and validates the picked symbol before building the
+            URL. Right-aligned, anchored relative so the popover drops beneath. */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            marginBottom: 14,
+          }}
+        >
+          <span style={{ position: 'relative', display: 'inline-flex' }}>
+            <button
+              type="button"
+              data-testid="workspace-compare-trigger"
+              onClick={() => setComparePickerOpen((v) => !v)}
+              title={t('compare.addEntryTitle', { ticker: symbol })}
+              style={compareBtnStyle}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--secondary)'
+                e.currentTarget.style.color = 'var(--text-primary)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border-soft)'
+                e.currentTarget.style.color = 'var(--text-secondary)'
+              }}
+            >
+              ⇄ {t('compare.addEntry')}
+            </button>
+            {comparePickerOpen && (
+              <CompareTargetPicker
+                currentTicker={symbol}
+                onClose={() => setComparePickerOpen(false)}
+              />
+            )}
+          </span>
+        </div>
         <div
           style={{
             display: 'grid',
@@ -199,4 +239,18 @@ export function StockWorkspace(): React.ReactElement {
       </main>
     </div>
   )
+}
+
+const compareBtnStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  padding: '7px 13px',
+  borderRadius: 6,
+  border: '1px solid var(--border-soft)',
+  background: 'transparent',
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+  letterSpacing: '0.04em',
+  transition: 'all 0.18s',
+  whiteSpace: 'nowrap',
 }

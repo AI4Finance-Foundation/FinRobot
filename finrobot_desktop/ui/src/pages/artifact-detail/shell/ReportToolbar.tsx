@@ -7,7 +7,9 @@
 // 48px row so the chapter content gets the screen height. What-if
 // assumption editing lives in the right rail panel, not here.
 
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useTickerPrice } from '../../../hooks/useTickerData'
 import { useRunStreamStore } from '../../../stores/runStreamStore'
 import { useToastStore } from '../../../stores/toastStore'
@@ -15,6 +17,8 @@ import type { ArtifactSummaryV5 } from '../../../types/v5'
 import { useI18n } from '../../../i18n'
 import { formatDate } from '../../../utils/format'
 import { mapErrorToUserMessage } from '../../../utils/errorMessage'
+import { deleteArtifact } from '../../../api/client'
+import { CompareTargetPicker } from '../../../components/CompareTargetPicker'
 
 interface ReportToolbarProps {
   ticker: string
@@ -41,10 +45,13 @@ export function ReportToolbar({
   onOpenIcDebate,
 }: ReportToolbarProps): React.ReactElement {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { data: priceData } = useTickerPrice(ticker)
   const startRun = useRunStreamStore((s) => s.startRun)
   const addToast = useToastStore((s) => s.addToast)
   const { locale, t } = useI18n()
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const livePrice = priceData?.current_price ?? null
   const changePct = priceData?.change_pct ?? null
@@ -97,6 +104,40 @@ export function ReportToolbar({
   function handleVersionChange(targetArtifactId: string): void {
     if (targetArtifactId && targetArtifactId !== artifactId) {
       navigate(`/stocks/${ticker}/runs/${targetArtifactId}`)
+    }
+  }
+
+  async function handleDelete(): Promise<void> {
+    // Deletion is permanent and irreversible — confirm before touching the
+    // backend. No project ConfirmDialog component exists, so window.confirm is
+    // the honest last-resort gate (the copy states the irreversibility).
+    if (deleting) return
+    if (!window.confirm(t('report.deleteVersionConfirm', { version: reportVersionLabel }))) return
+    setDeleting(true)
+    // CRITICAL ORDER (avoid a 404 flash): the currently-viewed artifact is held
+    // by useArtifactDetail with staleTime:Infinity/retry:1, so any refetch on a
+    // just-deleted id 404s. Navigate AWAY from this artifact's route first, then
+    // delete, THEN invalidate the list read-models — so nothing re-queries the
+    // dead id while we're still mounted on it.
+    navigate(`/stocks/${ticker}`)
+    try {
+      await deleteArtifact(artifactId)
+      queryClient.invalidateQueries({ queryKey: ['v5-artifacts-timeline', ticker] })
+      queryClient.invalidateQueries({ queryKey: ['studied-tickers'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      addToast({
+        type: 'success',
+        title: t('report.deleteVersionDone', { ticker }),
+        description: t('report.deleteVersionDoneBody'),
+      })
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: t('report.deleteVersionFailed'),
+        description: mapErrorToUserMessage(err),
+      })
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -227,6 +268,33 @@ export function ReportToolbar({
 
       <span style={{ flex: 1, minWidth: 8 }} />
 
+      {/* Compare — in-context entry into /compare (UX-010). The picker reuses
+          /api/search (same endpoint the command palette calls) to name a second
+          ticker, so the user no longer has to detour back to /coverage and
+          multi-select. Anchored relative so the popover drops under the button. */}
+      <span style={{ position: 'relative', display: 'inline-flex' }}>
+        <ToolbarButton
+          onClick={() => setPickerOpen((v) => !v)}
+          title={t('compare.addEntryTitle', { ticker })}
+        >
+          ⇄ {t('compare.addEntry')}
+        </ToolbarButton>
+        {pickerOpen && (
+          <CompareTargetPicker currentTicker={ticker} onClose={() => setPickerOpen(false)} />
+        )}
+      </span>
+
+      {/* Delete this version — permanent, so a non-primary (transparent) button
+          kept LEFT of Export, away from the focal Re-run CTA. Confirms before
+          deleting and navigates away before invalidation (see handleDelete). */}
+      <ToolbarButton
+        onClick={() => void handleDelete()}
+        disabled={deleting}
+        title={t('report.deleteVersionTitle')}
+      >
+        <Trash /> {t('report.deleteVersion')}
+      </ToolbarButton>
+
       {/* Export HTML — page-faithful mirror (see handleExportHtml): same DOM,
           theme, charts, continuous scroll. The single export path. */}
       <ToolbarButton onClick={onExportHtml} title={t('report.toolbar.exportHtmlTitle')}>
@@ -328,10 +396,27 @@ function ToolbarButton({
         letterSpacing: '0.04em',
         transition: 'all 0.18s',
         whiteSpace: 'nowrap',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
       }}
     >
       {children}
     </button>
+  )
+}
+
+function Trash(): React.ReactElement {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a1 1 0 01-1 1H6a1 1 0 01-1-1V6m4 4v6m4-6v6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   )
 }
 

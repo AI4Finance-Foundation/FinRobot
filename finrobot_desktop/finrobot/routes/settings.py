@@ -151,6 +151,10 @@ def _validate_custom_providers(providers: list[ProviderConfig]) -> None:
         pid = provider.id.strip()
         if not pid:
             raise HTTPException(status_code=400, detail="Provider id must not be empty.")
+        if ":" in pid:
+            # The id is the "<id>:<model>" prefix in model_name — a colon would
+            # break that split (the UI uses the provider name as its id).
+            raise HTTPException(status_code=400, detail="Provider name must not contain ':'.")
         if pid in _BUILTIN_PROVIDER_IDS:
             raise HTTPException(
                 status_code=400,
@@ -326,28 +330,33 @@ class TestProviderRequest(BaseModel):
 
 class TestProviderResponse(BaseModel):
     ok: bool
-    message: str
+    # Stable code the UI localizes: ok | no_key | no_model | auth | connect |
+    # not_found | http | unknown. ``detail`` is the raw English message (shown
+    # verbatim for the http/unknown cases, useful for debugging).
+    code: str
+    detail: str = ""
 
 
-def _friendly_provider_error(exc: Exception) -> str:
-    """Map a provider call failure to a short, actionable message."""
+def _classify_provider_error(exc: Exception) -> tuple[str, str]:
+    """Map a provider call failure to (code, raw English detail)."""
     import httpx
     from pydantic_ai.exceptions import ModelHTTPError
 
+    detail = str(exc)[:200] or type(exc).__name__
     if isinstance(exc, ModelHTTPError):
         if exc.status_code in (401, 403):
-            return "Authentication failed — check the API key."
+            return "auth", detail
         if exc.status_code == 404:
-            return "Model not found — check the model id."
-        return f"Provider returned HTTP {exc.status_code}."
+            return "not_found", detail
+        return "http", detail
     if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout)):
-        return "Could not reach the endpoint — check the Base URL."
+        return "connect", detail
     low = str(exc).lower()
     if any(s in low for s in ("api key", "api_key", "unauthorized", "authentication")):
-        return "Authentication failed — check the API key."
+        return "auth", detail
     if any(s in low for s in ("not found", "does not exist", "no such model")):
-        return "Model not found — check the model id."
-    return str(exc)[:200] or type(exc).__name__
+        return "not_found", detail
+    return "unknown", detail
 
 
 @router.post("/test-provider", response_model=TestProviderResponse)
@@ -363,12 +372,10 @@ async def test_provider_route(body: TestProviderRequest, request: Request) -> Te
     if cfg is None:
         raise HTTPException(status_code=404, detail=f"Unknown provider '{body.provider_id}'.")
     if cfg.kind != "test" and not settings.provider_key(body.provider_id):
-        return TestProviderResponse(ok=False, message="No API key configured for this provider.")
+        return TestProviderResponse(ok=False, code="no_key")
     model_id = (body.model_id or "").strip() or (cfg.models[0] if cfg.models else "")
     if not model_id:
-        return TestProviderResponse(
-            ok=False, message="Enter a model id first, then test the connection."
-        )
+        return TestProviderResponse(ok=False, code="no_model")
 
     from pydantic_ai.direct import model_request
     from pydantic_ai.messages import ModelRequest, UserPromptPart
@@ -381,8 +388,9 @@ async def test_provider_route(body: TestProviderRequest, request: Request) -> Te
             model_settings={"max_tokens": 8},
         )
     except Exception as exc:  # noqa: BLE001 — surface any provider failure to the UI
-        return TestProviderResponse(ok=False, message=_friendly_provider_error(exc))
-    return TestProviderResponse(ok=True, message="Connection OK.")
+        code, detail = _classify_provider_error(exc)
+        return TestProviderResponse(ok=False, code=code, detail=detail)
+    return TestProviderResponse(ok=True, code="ok")
 
 
 async def _build_response(request: Request) -> SettingsResponse:

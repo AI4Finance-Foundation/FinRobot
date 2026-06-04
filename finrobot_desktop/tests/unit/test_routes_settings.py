@@ -735,7 +735,7 @@ async def test_test_provider_no_key_returns_not_ok(tmp_path: Path) -> None:
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["ok"] is False
-    assert "No API key" in body["message"]
+    assert body["code"] == "no_key"
 
 
 @pytest.mark.asyncio
@@ -748,12 +748,12 @@ async def test_test_provider_success(tmp_path: Path, monkeypatch: Any) -> None:
             "/api/settings/test-provider", json={"provider_id": "openai", "model_id": "gpt-4o"}
         )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["ok"] is True
+    assert resp.json() == {"ok": True, "code": "ok", "detail": ""}
 
 
 @pytest.mark.asyncio
 async def test_test_provider_maps_auth_error(tmp_path: Path, monkeypatch: Any) -> None:
-    """A 401 from the provider becomes a friendly 'check the API key' message."""
+    """A 401 from the provider is classified as code 'auth'."""
     from pydantic_ai.exceptions import ModelHTTPError
 
     monkeypatch.setattr(
@@ -770,4 +770,4 @@ async def test_test_provider_maps_auth_error(tmp_path: Path, monkeypatch: Any) -
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["ok"] is False
-    assert "API key" in body["message"]
+    assert body["code"] == "auth"

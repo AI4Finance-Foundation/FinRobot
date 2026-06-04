@@ -49,9 +49,11 @@ class FinRobot:
 
     Args:
         model: Model name override (e.g. ``"anthropic:claude-sonnet-4-6"``).
-            Falls back to ``FINROBOT_MODEL_NAME`` / config default when None.
-        **kwargs: Forwarded to :class:`FinRobotSettings` constructor, letting
-            callers override any setting (API keys, cache path, etc.).
+            Falls back to the config default when None.
+        **kwargs: Forwarded to :func:`get_settings`. Pass LLM provider API keys
+            as ``provider_keys={"deepseek": "sk-…"}`` (keyed by provider id);
+            data-source keys (``fmp_api_key`` …) and any other setting override
+            go through as-is.
     """
 
     def __init__(self, model: str | None = None, **kwargs: Any) -> None:

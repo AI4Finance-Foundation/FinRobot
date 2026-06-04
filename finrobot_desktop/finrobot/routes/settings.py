@@ -3,13 +3,18 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from starlette.requests import Request
 
-from finrobot.config import FinRobotSettings
+from finrobot.config import (
+    BUILTIN_PROVIDERS,
+    DATA_PROVIDER_SECRET_FIELDS,
+    FinRobotSettings,
+    ProviderConfig,
+)
 from finrobot.secret_store import SecretStorageMode
 from finrobot.data_layer_factory import build_data_layer
 from finrobot.engine.agents.factory import create_sub_agents
@@ -17,19 +22,21 @@ from finrobot.engine.orchestrator import create_lead_agent
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
-# Secret fields are stored in the OS keychain (or FileSecretStore fallback),
-# never in settings.json. ``adanos_api_key`` was historically missing from
-# both lists — that meant the PUT endpoint silently dropped updates to it
-# and the GET endpoint could not report it. Treat it as a secret.
-_SECRET_FIELDS: tuple[str, ...] = (
-    "anthropic_api_key",
-    "deepseek_api_key",
-    "openai_api_key",
-    "fmp_api_key",
-    "finnhub_api_key",
-    "alpha_vantage_api_key",
-    "adanos_api_key",
-)
+# DataProvider secrets (FMP / Finnhub / …) stored in the OS keychain (or
+# FileSecretStore fallback) under their own field name. LLM provider API keys
+# use the dynamic ``provider_key:<id>`` scheme instead — see _PROVIDER_KEY_PREFIX.
+_DATA_SECRET_FIELDS: tuple[str, ...] = DATA_PROVIDER_SECRET_FIELDS
+
+# Keychain key prefix for an LLM provider's API key: ``provider_key:<provider_id>``.
+_PROVIDER_KEY_PREFIX = "provider_key:"
+
+# Built-in provider ids cannot be deleted or shadowed by a custom provider.
+_BUILTIN_PROVIDER_IDS: frozenset[str] = frozenset(p.id for p in BUILTIN_PROVIDERS)
+
+
+def _provider_key_name(provider_id: str) -> str:
+    return f"{_PROVIDER_KEY_PREFIX}{provider_id}"
+
 
 # Non-secret fields are written into ``~/.finrobot/settings.json`` only when
 # the user explicitly changes them. A field the user never touched stays out
@@ -42,6 +49,7 @@ _NON_SECRET_FIELDS: tuple[str, ...] = (
     "model_modeling",
     "model_synthesis",
     "model_report",
+    "custom_providers",  # user-added LLM providers (registry); keys live in keychain
     "sec_user_agent",
     "sec_identity_dismissed_at",  # 2026-05 EdgarTools — landing banner dismiss state
     "sec_holdings_auto_refresh",
@@ -51,6 +59,19 @@ _NON_SECRET_FIELDS: tuple[str, ...] = (
 )
 
 
+class ProviderInfo(BaseModel):
+    """One provider as seen by the Settings UI: the registry config plus whether
+    its API key is stored and whether it's a built-in (non-deletable) provider."""
+
+    id: str
+    label: str
+    kind: str
+    base_url: str | None
+    models: list[str]
+    key_set: bool
+    is_builtin: bool
+
+
 class SettingsResponse(BaseModel):
     model_name: str
     model_data: str | None = None
@@ -58,9 +79,14 @@ class SettingsResponse(BaseModel):
     model_modeling: str | None = None
     model_synthesis: str | None = None
     model_report: str | None = None
-    anthropic_api_key_set: bool
-    deepseek_api_key_set: bool
-    openai_api_key_set: bool
+    # The effective LLM provider registry (built-ins + user customs), each with
+    # key_set / is_builtin so the UI can render provider cards, gate the API-key
+    # field, and disable delete on built-ins. Replaces the old hardcoded
+    # ``valid_model_providers`` literal.
+    providers: list[ProviderInfo]
+    # The user's own custom providers (subset of ``providers``), echoed back so
+    # the edit form can round-trip them.
+    custom_providers: list[ProviderConfig]
     fmp_api_key_set: bool
     finnhub_api_key_set: bool
     alpha_vantage_api_key_set: bool
@@ -80,7 +106,6 @@ class SettingsResponse(BaseModel):
     log_to_file: bool
     log_retention_days: int
     available_providers: list[str]
-    valid_model_providers: list[Literal["anthropic", "deepseek", "openai"]]
     # If validate_runtime_config() failed at server boot, the error message
     # is surfaced here so the UI can show a banner. None = config is valid.
     startup_error: str | None = None
@@ -97,6 +122,9 @@ class SettingsUpdate(BaseModel):
     model_modeling: str | None = None
     model_synthesis: str | None = None
     model_report: str | None = None
+    # Full replacement of the user's custom provider list (the UI sends the whole
+    # list on every add/edit/delete — no separate CRUD endpoints).
+    custom_providers: list[ProviderConfig] | None = None
     sec_user_agent: str | None = None
     sec_identity_dismissed_at: datetime | None = None
     sec_holdings_auto_refresh: bool | None = None
@@ -104,9 +132,10 @@ class SettingsUpdate(BaseModel):
     log_to_file: bool | None = None
     log_retention_days: int | None = None
 
-    anthropic_api_key: str | None = Field(default=None, repr=False)
-    deepseek_api_key: str | None = Field(default=None, repr=False)
-    openai_api_key: str | None = Field(default=None, repr=False)
+    # LLM provider API keys keyed by provider id ({"deepseek": "sk-…"}). Written
+    # to the keychain under provider_key:<id>. A blank value is "no change", not
+    # "delete" (BUG-005) — clearing is the explicit clear-secret endpoint.
+    provider_keys: dict[str, str] | None = Field(default=None, repr=False)
     fmp_api_key: str | None = Field(default=None, repr=False)
     finnhub_api_key: str | None = Field(default=None, repr=False)
     alpha_vantage_api_key: str | None = Field(default=None, repr=False)
@@ -125,6 +154,33 @@ class ClearSecretRequest(BaseModel):
     field: str
 
 
+def _validate_custom_providers(providers: list[ProviderConfig]) -> None:
+    """Reject custom providers that would corrupt the registry.
+
+    A custom provider must have a non-empty id that does not shadow a built-in
+    or duplicate another custom one, and an ``openai-compatible`` provider needs
+    a base_url (there is no canonical endpoint to fall back to). Raises HTTP 400.
+    """
+    seen: set[str] = set()
+    for provider in providers:
+        pid = provider.id.strip()
+        if not pid:
+            raise HTTPException(status_code=400, detail="Provider id must not be empty.")
+        if pid in _BUILTIN_PROVIDER_IDS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Provider id '{pid}' is built-in and cannot be redefined.",
+            )
+        if pid in seen:
+            raise HTTPException(status_code=400, detail=f"Duplicate provider id '{pid}'.")
+        seen.add(pid)
+        if provider.kind == "openai-compatible" and not (provider.base_url or "").strip():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Provider '{pid}' (openai-compatible) requires a base_url.",
+            )
+
+
 @router.get("", response_model=SettingsResponse)
 async def get_settings_route(request: Request) -> SettingsResponse:
     return await _build_response(request)
@@ -133,43 +189,66 @@ async def get_settings_route(request: Request) -> SettingsResponse:
 @router.put("", response_model=SettingsResponse)
 async def put_settings_route(update: SettingsUpdate, request: Request) -> SettingsResponse:
     secret_store = request.app.state.secret_store
-    current = request.app.state.deps.settings
+    current: FinRobotSettings = request.app.state.deps.settings
     payload = update.model_dump(exclude_unset=True)
 
     non_secret_updates = {k: v for k, v in payload.items() if k in _NON_SECRET_FIELDS}
-    secret_updates = {k: v for k, v in payload.items() if k in _SECRET_FIELDS}
+    data_secret_updates = {k: v for k, v in payload.items() if k in _DATA_SECRET_FIELDS}
+    provider_key_updates = update.provider_keys or {}
 
-    secret_merge: dict[str, str] = {}
-    for key in _SECRET_FIELDS:
-        value = secret_updates.get(key)
-        # A falsy incoming value (absent OR empty string) means "no change":
-        # fall back to the stored keychain value, then the current effective
-        # value (loaded from .env at boot). An empty password field in the
-        # settings form must NEVER null out the merge candidate — otherwise
-        # validate_runtime_config below would 400 a user who only edited an
-        # unrelated field, and a write of "" would wipe the stored key
-        # (BUG-005). Clearing a secret is the explicit clear-secret endpoint.
+    # Reject malformed / colliding custom providers before they reach the registry.
+    if update.custom_providers is not None:
+        _validate_custom_providers(update.custom_providers)
+
+    # DataProvider secret merge: a falsy incoming value (absent OR empty string)
+    # means "no change" — fall back to the stored keychain value, then the current
+    # effective value. An empty password field must NEVER null out the merge
+    # candidate, or validate_runtime_config below would 400 a user who only edited
+    # an unrelated field, and a write of "" would wipe the stored key (BUG-005).
+    data_secret_merge: dict[str, str] = {}
+    for key in _DATA_SECRET_FIELDS:
+        value = data_secret_updates.get(key)
         if not value:
             value = await secret_store.get(key)
             if value is None:
                 value = getattr(current, key, "") or ""
-        secret_merge[key] = value or ""
-    candidate = current.model_copy(update={**non_secret_updates, **secret_merge})
+        data_secret_merge[key] = value or ""
+
+    # Build the candidate. model_copy does NOT coerce dict -> ProviderConfig, so
+    # pass the parsed objects from ``update`` rather than the dumped payload.
+    candidate_update: dict[str, Any] = {**non_secret_updates, **data_secret_merge}
+    if update.custom_providers is not None:
+        candidate_update["custom_providers"] = update.custom_providers
+    candidate = current.model_copy(update=candidate_update)
+
+    # LLM provider key merge — same no-wipe semantics, for every provider in the
+    # candidate registry: incoming -> stored keychain -> current runtime value.
+    provider_key_merge: dict[str, str] = {}
+    for provider in candidate.providers:
+        value = provider_key_updates.get(provider.id)
+        if not value:
+            value = await secret_store.get(_provider_key_name(provider.id))
+            if value is None:
+                value = current.provider_key(provider.id) or ""
+        if value:
+            provider_key_merge[provider.id] = value
+    candidate = candidate.with_provider_keys(provider_key_merge)
 
     try:
         candidate.validate_runtime_config()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
-    # Only WRITE secrets that arrived with a truthy value. A falsy/empty value
-    # in a PUT is treated as "no change", NOT "delete" — a client that submits
-    # the settings form with a blank password field (the common case: the user
-    # edited an unrelated field, leaving the masked key input empty) must never
-    # silently wipe a stored API key (BUG-005). Deleting a secret is now an
-    # explicit, separate action — POST /api/settings/clear-secret.
-    for key, value in secret_updates.items():
+    # Only WRITE secrets that arrived with a truthy value. A falsy/empty value in a
+    # PUT is "no change", NOT "delete" (BUG-005) — the common case is the user
+    # editing an unrelated field with the masked key input left blank. Deleting a
+    # secret is the explicit POST /api/settings/clear-secret action.
+    for key, value in data_secret_updates.items():
         if value:
             await secret_store.set(key, value)
+    for provider_id, value in provider_key_updates.items():
+        if value:
+            await secret_store.set(_provider_key_name(provider_id), value)
 
     _merge_non_secret_settings(
         request.app.state.settings_path,
@@ -204,17 +283,22 @@ async def clear_secret_route(body: ClearSecretRequest, request: Request) -> Sett
     PUT endpoint means an empty value in a settings form can never silently wipe
     a key (BUG-005) — a destructive action requires a deliberate call here.
 
-    After deletion we rebuild runtime settings from scratch (settings.json +
-    .env, then re-hydrate the remaining keychain secrets) so the in-memory
-    FinRobotSettings stops carrying the cleared value. If clearing the key
-    leaves the runtime config invalid (e.g. the active LLM provider lost its
-    key), the startup_error banner is set so the UI tells the user.
+    Clearable fields: a DataProvider secret (``fmp_api_key`` …) or an LLM
+    provider key (``provider_key:<id>``).
+
+    After deletion we rebuild runtime settings from scratch (settings.json, then
+    re-hydrate the remaining keychain secrets) so the in-memory FinRobotSettings
+    stops carrying the cleared value. If clearing the key leaves the runtime
+    config invalid (e.g. the active LLM provider lost its key), the startup_error
+    banner is set so the UI tells the user.
     """
-    if body.field not in _SECRET_FIELDS:
+    is_data_secret = body.field in _DATA_SECRET_FIELDS
+    is_provider_key = body.field.startswith(_PROVIDER_KEY_PREFIX)
+    if not (is_data_secret or is_provider_key):
         raise HTTPException(
             status_code=400,
-            detail=f"Unknown or non-secret field: {body.field}. "
-            f"Clearable secrets: {sorted(_SECRET_FIELDS)}",
+            detail=f"Unknown or non-secret field: {body.field}. Clearable: "
+            f"{sorted(_DATA_SECRET_FIELDS)} or 'provider_key:<id>'.",
         )
 
     secret_store = request.app.state.secret_store
@@ -260,21 +344,41 @@ async def _build_response(request: Request) -> SettingsResponse:
 
     # Cache keychain lookups so we don't query the OS multiple times per field.
     keychain_presence: dict[str, bool] = {}
-    for key in _SECRET_FIELDS:
+    for key in _DATA_SECRET_FIELDS:
         keychain_presence[key] = await secret_store.has(key)
 
-    providers: list[str] = []
+    # Data layer providers that are actually available given configured keys.
+    available: list[str] = []
     if await _has_key("fmp_api_key", "fmp_api_key"):
-        providers.append("fmp")
+        available.append("fmp")
     if await _has_key("finnhub_api_key", "finnhub_api_key"):
-        providers.append("finnhub")
-    providers.extend(["yfinance", "sec_edgar"])
+        available.append("finnhub")
+    available.extend(["yfinance", "sec_edgar"])
     # News aggregator is always available (Yahoo RSS); Alpha Vantage is optional
-    providers.append("news_aggregator")
+    available.append("news_aggregator")
     if await _has_key("alpha_vantage_api_key", "alpha_vantage_api_key"):
-        providers.append("alpha_vantage")
+        available.append("alpha_vantage")
     if keychain_presence.get("adanos_api_key", False) or settings.adanos_api_key:
-        providers.append("adanos")
+        available.append("adanos")
+
+    # LLM provider registry: built-ins + user customs, each tagged with whether
+    # its key is stored and whether it's a (non-deletable) built-in.
+    provider_infos: list[ProviderInfo] = []
+    for provider in settings.providers:
+        key_set = await secret_store.has(_provider_key_name(provider.id)) or bool(
+            settings.provider_key(provider.id)
+        )
+        provider_infos.append(
+            ProviderInfo(
+                id=provider.id,
+                label=provider.label,
+                kind=provider.kind,
+                base_url=provider.base_url,
+                models=provider.models,
+                key_set=key_set,
+                is_builtin=provider.id in _BUILTIN_PROVIDER_IDS,
+            )
+        )
 
     return SettingsResponse(
         model_name=settings.model_name,
@@ -283,9 +387,8 @@ async def _build_response(request: Request) -> SettingsResponse:
         model_modeling=settings.model_modeling,
         model_synthesis=settings.model_synthesis,
         model_report=settings.model_report,
-        anthropic_api_key_set=await _has_key("anthropic_api_key", "anthropic_api_key"),
-        deepseek_api_key_set=await _has_key("deepseek_api_key", "deepseek_api_key"),
-        openai_api_key_set=await _has_key("openai_api_key", "openai_api_key"),
+        providers=provider_infos,
+        custom_providers=settings.custom_providers,
         fmp_api_key_set=await _has_key("fmp_api_key", "fmp_api_key"),
         finnhub_api_key_set=await _has_key("finnhub_api_key", "finnhub_api_key"),
         alpha_vantage_api_key_set=await _has_key("alpha_vantage_api_key", "alpha_vantage_api_key"),
@@ -298,8 +401,7 @@ async def _build_response(request: Request) -> SettingsResponse:
         log_level=settings.log_level,
         log_to_file=settings.log_to_file,
         log_retention_days=settings.log_retention_days,
-        available_providers=providers,
-        valid_model_providers=["deepseek", "anthropic", "openai"],
+        available_providers=available,
         startup_error=getattr(request.app.state, "startup_error", None),
         secret_storage_mode=getattr(request.app.state, "secret_storage_mode", "keychain"),
     )

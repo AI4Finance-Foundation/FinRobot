@@ -245,7 +245,7 @@ async def reset_settings_route(body: SettingsResetRequest, request: Request) -> 
     non_secret_to_clear = [f for f in body.fields if f in _NON_SECRET_FIELDS]
     if non_secret_to_clear and settings_path.exists():
         try:
-            current_json: dict[str, Any] = json.loads(settings_path.read_text())
+            current_json: dict[str, Any] = json.loads(settings_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             current_json = {}
         if isinstance(current_json, dict):
@@ -256,7 +256,10 @@ async def reset_settings_route(body: SettingsResetRequest, request: Request) -> 
                     mutated = True
             if mutated:
                 settings_path.parent.mkdir(parents=True, exist_ok=True)
-                settings_path.write_text(json.dumps(current_json, indent=2, sort_keys=True))
+                settings_path.write_text(
+                    json.dumps(current_json, indent=2, sort_keys=True),
+                    encoding="utf-8",
+                )
 
     # Clear secret fields from the keychain so .env wins on next reload.
     for field in body.fields:
@@ -347,7 +350,7 @@ async def _build_response(request: Request) -> SettingsResponse:
     settings_json: dict[str, Any] = {}
     if settings_path.exists():
         try:
-            raw = json.loads(settings_path.read_text())
+            raw = json.loads(settings_path.read_text(encoding="utf-8"))
             if isinstance(raw, dict):
                 settings_json = raw
         except (OSError, ValueError):
@@ -486,7 +489,7 @@ async def _replace_runtime_settings(request: Request, settings: FinRobotSettings
 def load_non_secret_settings(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
-    raw = json.loads(path.read_text())
+    raw = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError(f"Settings file {path} is malformed")
     return {k: v for k, v in raw.items() if k in _NON_SECRET_FIELDS}
@@ -514,7 +517,7 @@ def _merge_non_secret_settings(path: Path, updates: dict[str, Any]) -> None:
     existing: dict[str, Any] = {}
     if path.exists():
         try:
-            raw = json.loads(path.read_text())
+            raw = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(raw, dict):
                 existing = raw
         except (OSError, ValueError):
@@ -536,7 +539,10 @@ def _merge_non_secret_settings(path: Path, updates: dict[str, Any]) -> None:
     # the read side ``load_non_secret_settings`` returns the raw dict and
     # pydantic-settings coerces ISO strings back into ``datetime`` fields
     # (e.g. ``sec_identity_dismissed_at``) during ``FinRobotSettings(...)``.
-    path.write_text(json.dumps(existing, indent=2, sort_keys=True, default=str))
+    path.write_text(
+        json.dumps(existing, indent=2, sort_keys=True, default=str),
+        encoding="utf-8",
+    )
 
 
 # Kept as a deprecation-friendly alias because there may be importers in

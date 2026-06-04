@@ -109,7 +109,7 @@
 | BUG-049 | Bug | P2 | data_cache.cache 表永不淘汰,只增不减(无 TTL 清理/容量上限) | 待修 |
 | BUG-050 | Bug | P2 | run_events 无限增长 + SSE 0.2s 轮询单连接 → 批跑下打满单库单锁 | 待修 |
 | BUG-051 | Bug | P2 | 前端 pipeline 类型清单三处不一致：appStore 缺 ddm，runStreamStore/后端 registry 含 ddm | 已修 |
-| BUG-052 | Bug | P2 | query_financial_data raises an unguarded ValueError on a bad data_type, crashing the live chat SSE stream | 待修 |
+| BUG-052 | Bug | P2 | query_financial_data raises an unguarded ValueError on a bad data_type, crashing the live chat SSE stream | 已修 |
 | BUG-053 | Bug | P2 | coverage.ts 的 req() 丢弃后端中文 detail 错误体，分组/成员操作失败时用户拿不到具体原因 | 已修 |
 | BUG-054 | Bug | P2 | 研报版本切换 <select> 用 opacity:0 覆盖层实现：键盘 Tab 落上去零可见焦点指示，用户看不到焦点在哪 | 已修 |
 | BUG-055 | Bug | P2 | 归档（30天自动 stale）的研报混进所有版本列表且零视觉标识——用户分不清『还在跟踪』和『已作废』的版本 | 已修 |
@@ -120,7 +120,7 @@
 | BUG-071 | Bug | P2 | FMP _fetch_price 的 price_history 用未复权原始 close(没走 _adjust_fmp_bar),而 _fetch_price_range/yfinance 都已复权——FMP 当 PRICE 主源时 52周高低/SMA 落在名义价上,近一年有拆股的标的 52周高直接 ×拆股比 | 已修 |
 | BUG-074 | Bug | P2 | DCF 末年 FCF 为负时 Gordon 终值把负现金流资本化成永续负值→产出负的『每股公允价值』,degrade 分支只防 tg≥WACC 接不住,负价无 guard 直接进研报叙事+LLM prompt | 已修 |
 | BUG-075 | Bug | P2 | 13F refresh job 假设 edgartools 小写列名,实装 5.31.5 输出 PascalCase(Cusip/Issuer/Value)→ 每份 filing 被 schema gate 跳过,institutional_holdings 永久空(缓存 0 行),测试 mock 小写列所以 CI 绿 | 已修 |
-| BUG-078 | Bug | P2 | agent 工厂/orchestrator 用无 encoding 的 read_text() 读含中文的 .md 指令文件——非 UTF-8 locale(裸 Docker LANG=C/Windows)下 agent 创建即 UnicodeDecodeError 崩;同仓 skills/loader.py 已带 encoding,这两处漏写 | 待修 |
+| BUG-078 | Bug | P2 | agent 工厂/orchestrator 用无 encoding 的 read_text() 读含中文的 .md 指令文件——非 UTF-8 locale(裸 Docker LANG=C/Windows)下 agent 创建即 UnicodeDecodeError 崩;同仓 skills/loader.py 已带 encoding,这两处漏写 | 已修 |
 | BUG-079 | Bug | P2 | semantic_diff.build_semantic_delta 对 data_fetched_at 裸做 datetime 相减,一新(tz-aware)一旧(naive)时抛 TypeError→版本对比端点 500;全 artifact/audit 面仅此处漏 _ensure_tz(同胞模块都防了) | 已修 |
 | BUG-080 | Bug | P2 | /{ticker}/earnings-calls 构造 EarningsCallTranscript 的循环在 try/except 外,FMP 真实 payload 的 quarter 缺失/为 0(年度会/特别会)触发 ValidationError 逃逸→裸 500,而非 per-item 跳过 | 已修 |
 | BUG-081 | Bug | P2 | /{ticker}/price 的 session_state 对所有标的硬编码美东 9:30-16:00 ET 判定→港股/A股/日股盘中被错标『已收盘』,freshness pill 把实时报价显示成上一交易日收盘(与 BUG-030 同源:平台多处默认美国市场) | 已修 |
@@ -846,7 +846,7 @@
 - **验证补充**：Fix is correct: `try: dt=DataType(data_type) except ValueError: raise ModelRetry(...)` (ModelRetry import verified) feeds the error back so the model self-corrects. Use the coerced `dt` in the fetch call to avoid re-coercion. Also widen the docstring to the real common values. Same ModelRetry-not-raise discipline should be applied to the ticker validation in #2.
 - **影响面/回归风险**：Prevents a one-token model mistake from killing a live chat session. Low regression risk — ModelRetry is the framework-blessed path. Same defensive pattern should be applied wherever a chat tool can raise a non-ModelRetry exception (the 8 run_* tools can also throw from pipeline.execute — consider a shared guard in _run_pipeline_tool returning an error dict).
 - **合并自**：arch-coupling#4, gap-r1-3#4（2 条同源发现）
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（orchestrator.query_financial_data 对坏 data_type 不再裸 raise ValueError（会崩 /chat SSE 流）：try DataType(data_type) except→raise ModelRetry(列出合法值)让模型自纠（pydantic-ai 框架认可、不崩流）；坏 ticker 仍 RETURN "Invalid ticker symbol"。docstring 修正合法值列表。新增 4 测试。）
 
 #### [BUG-053] coverage.ts 的 req() 丢弃后端中文 detail 错误体，分组/成员操作失败时用户拿不到具体原因
 
@@ -1176,7 +1176,7 @@
 - **根因**：read_text() 漏传 encoding，依赖部署机 locale；纯静态无法判定 preferredencoding 运行时取值。
 - **修复方案**：factory.py:27 与 orchestrator.py:52 补 `encoding="utf-8"`（与 skills/loader.py 对齐）；顺手 grep 全仓其余无 encoding 的文本 read_text()/open() 一并修齐。
 - **影响面/回归风险**：影响所有非 UTF-8 locale 部署（裸 Docker/CI/Windows）；macOS/已配 locale 零影响。修复零风险。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（engine/agents/factory.py:27 与 orchestrator.py:62 的 read_text() 加 encoding="utf-8"（镜像 skills/loader.py），非 UTF-8 locale(Docker LANG=C/Windows) 读中文 .md 指令不再 UnicodeDecodeError 崩 agent 创建。顺手给 routes/settings.py 的 4 处 settings-JSON read_text + 2 处 write_text 补 encoding。LC_ALL=C 复现确认。新增 3 测试。）
 
 #### [BUG-079] semantic_diff 对 data_fetched_at 裸做 datetime 相减 → 一新一旧(tz-aware/naive)时版本对比端点 500
 

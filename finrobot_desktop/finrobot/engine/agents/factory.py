@@ -24,7 +24,7 @@ def create_sub_agents(
     agents = {}
 
     for role in SUB_AGENT_ROLES:
-        instructions = (INSTRUCTIONS_DIR / f"{role}_agent.md").read_text()
+        instructions = (INSTRUCTIONS_DIR / f"{role}_agent.md").read_text(encoding="utf-8")
 
         # Resolve per-role model override; falls back to global model_name
         # when settings.model_<role> is None.

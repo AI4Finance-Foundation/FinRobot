@@ -3713,37 +3713,17 @@ msgid "settings.customProvider.add"
 msgstr "Add provider"
 
 #. js-lingui-explicit-id
+msgid "settings.customProvider.addEntry"
+msgstr "Add a custom provider"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.modelsHint"
+msgstr "Optional — the model id field is free text, so you can run any model this endpoint serves."
+
+#. js-lingui-explicit-id
 msgid "settings.customProvider.incompleteTitle"
 msgstr "Provider id and Base URL are required"
-
-#. js-lingui-explicit-id
-msgid "settings.roleModels.title"
-msgstr "Advanced · per-role models"
-
-#. js-lingui-explicit-id
-msgid "settings.roleModels.intro"
-msgstr "Override the model for a single pipeline stage — a cheap model for data gathering, a stronger one for modeling. Leave it on Use global model to inherit the model above."
-
-#. js-lingui-explicit-id
-msgid "settings.roleModels.useGlobal"
-msgstr "Use global model"
-
-#. js-lingui-explicit-id
-msgid "settings.roleModels.data"
-msgstr "Data gathering"
-
-#. js-lingui-explicit-id
-msgid "settings.roleModels.analysis"
-msgstr "Analysis"
-
-#. js-lingui-explicit-id
-msgid "settings.roleModels.modeling"
-msgstr "Modeling"
-
-#. js-lingui-explicit-id
-msgid "settings.roleModels.synthesis"
-msgstr "Synthesis"
-
-#. js-lingui-explicit-id
-msgid "settings.roleModels.report"
-msgstr "Report writing"

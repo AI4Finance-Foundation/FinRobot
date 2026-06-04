@@ -125,6 +125,117 @@ function SecretInput({
   )
 }
 
+// ─── Provider dropdown (cosmic-styled, not a native <select>) ────────────────
+
+interface ProviderOption {
+  id: string
+  label: string
+  is_builtin: boolean
+}
+
+function ProviderDropdown({
+  options,
+  value,
+  onSelect,
+  onAddCustom,
+}: {
+  options: ProviderOption[]
+  value: string
+  onSelect: (id: string) => void
+  onAddCustom: () => void
+}) {
+  const { t } = useI18n()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [open])
+  const selected = options.find((o) => o.id === value)
+  return (
+    <div className="settings-dd" ref={ref}>
+      <button
+        type="button"
+        className="settings-dd-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span>{selected?.label ?? value}</span>
+        <svg
+          className={`settings-dd-caret${open ? ' is-open' : ''}`}
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="none"
+          aria-hidden
+        >
+          <path
+            d="M3 4.5 6 7.5 9 4.5"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+      {open && (
+        <ul className="settings-dd-menu" role="listbox">
+          {options.map((o) => (
+            <li
+              key={o.id}
+              role="option"
+              aria-selected={o.id === value}
+              className={`settings-dd-item${o.id === value ? ' is-selected' : ''}`}
+              onClick={() => {
+                onSelect(o.id)
+                setOpen(false)
+              }}
+            >
+              <span className="settings-dd-item-label">{o.label}</span>
+              {!o.is_builtin && (
+                <span className="settings-dd-tag">{t('settings.provider.customTag')}</span>
+              )}
+              {o.id === value && (
+                <svg
+                  className="settings-dd-check"
+                  width="13"
+                  height="13"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  aria-hidden
+                >
+                  <path
+                    d="M3 8.5 6.5 12 13 4"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+            </li>
+          ))}
+          <li
+            className="settings-dd-add"
+            onClick={() => {
+              onAddCustom()
+              setOpen(false)
+            }}
+          >
+            <span>＋</span>
+            <span>{t('settings.customProvider.addEntry')}</span>
+          </li>
+        </ul>
+      )}
+    </div>
+  )
+}
+
 // ─── Auto-save indicator ───────────────────────────────────────────────────
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
@@ -167,8 +278,9 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   const [secUserAgent, setSecUserAgent] = useState('')
   const [modelName, setModelName] = useState('')
   const [llmApiKey, setLlmApiKey] = useState('')
-  // Per-role model overrides ('' = use the global model). model_data / … fields.
-  const [roleModels, setRoleModels] = useState<Record<string, string>>({})
+  // When true, the AI Model section shows the "add a custom provider" form
+  // (triggered from the provider dropdown's "＋ add" entry).
+  const [addingCustom, setAddingCustom] = useState(false)
   // Draft for the "add custom provider" form.
   const [draftProvider, setDraftProvider] = useState({
     id: '',
@@ -198,13 +310,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     initializedRef.current = true
     if (settingsResp.model_name) setModelName(settingsResp.model_name)
     if (settingsResp.sec_user_agent) setSecUserAgent(settingsResp.sec_user_agent)
-    setRoleModels({
-      data: settingsResp.model_data ?? '',
-      analysis: settingsResp.model_analysis ?? '',
-      modeling: settingsResp.model_modeling ?? '',
-      synthesis: settingsResp.model_synthesis ?? '',
-      report: settingsResp.model_report ?? '',
-    })
   }, [settingsResp])
 
   // Highlight the nav item for whichever section is nearest the top.
@@ -341,8 +446,13 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   const currentProviderId = effectiveModelName.split(':')[0]
   const currentModelId = effectiveModelName.split(':').slice(1).join(':')
   const currentProviderInfo = providers.find((p) => p.id === currentProviderId)
-  // Flat suggestion list for the per-role overrides ("<provider>:<model>").
-  const allModelOptions = providers.flatMap((p) => p.models.map((m) => `${p.id}:${m}`))
+  const currentIsCustom = currentProviderInfo ? !currentProviderInfo.is_builtin : false
+  // Options for the provider dropdown.
+  const providerOptions: ProviderOption[] = providers.map((p) => ({
+    id: p.id,
+    label: p.label,
+    is_builtin: p.is_builtin,
+  }))
 
   const handleProviderChange = (providerId: string) => {
     const p = providers.find((x) => x.id === providerId)
@@ -355,6 +465,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     const next = `${providerId}:${nextModel}`
     setModelName(next)
     setLlmApiKey('')
+    setAddingCustom(false)
     scheduleStandardSave({ model_name: next })
   }
   const handleModelIdChange = (mid: string) => {
@@ -367,12 +478,8 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     if (!v.trim()) return
     scheduleStandardSave({ provider_keys: { [currentProviderId]: v.trim() } })
   }
-  const handleRoleModelChange = (role: string, v: string) => {
-    setRoleModels((m) => ({ ...m, [role]: v }))
-    scheduleStandardSave({ [`model_${role}`]: v || null })
-  }
 
-  // ── Custom provider add / delete (full-list replace) ──────────────────────
+  // ── Custom provider add / edit / delete (full-list replace) ───────────────
   const serializeCustomProviders = (list: typeof customProviders) =>
     list.map((p) => ({
       id: p.id,
@@ -402,14 +509,43 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
         models,
       },
     ]
-    const payload: Record<string, unknown> = { custom_providers: next }
+    const payload: Record<string, unknown> = { custom_providers: next, model_name: `${id}:` }
     if (draftProvider.apiKey.trim()) payload.provider_keys = { [id]: draftProvider.apiKey.trim() }
     scheduleStandardSave(payload)
+    setModelName(`${id}:`) // select the new provider
+    setLlmApiKey('')
     setDraftProvider({ id: '', label: '', baseUrl: '', models: '', apiKey: '' })
+    setAddingCustom(false)
+  }
+  // Inline-edit a field of the currently-selected custom provider.
+  const handleEditCustomField = (id: string, field: 'base_url' | 'models', value: string) => {
+    const next = serializeCustomProviders(customProviders).map((p) =>
+      p.id === id
+        ? {
+            ...p,
+            [field]:
+              field === 'models'
+                ? value
+                    .split(',')
+                    .map((m) => m.trim())
+                    .filter(Boolean)
+                : value.trim(),
+          }
+        : p,
+    )
+    scheduleStandardSave({ custom_providers: next })
   }
   const handleDeleteCustomProvider = (id: string) => {
     const next = serializeCustomProviders(customProviders.filter((p) => p.id !== id))
-    scheduleStandardSave({ custom_providers: next })
+    // Fall back to the first built-in provider after deleting the active one.
+    const fallback = providers.find((p) => p.is_builtin)
+    const nextModel = currentProviderId === id && fallback ? `${fallback.id}:` : undefined
+    const payload: Record<string, unknown> = { custom_providers: next }
+    if (nextModel) {
+      payload.model_name = nextModel
+      setModelName(nextModel)
+    }
+    scheduleStandardSave(payload)
   }
   const handleFmpKeyChange = (v: string) => {
     setFmpKey(v)
@@ -606,221 +742,232 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               )}
 
               <div className="settings-fields">
-                {/* Provider */}
+                {/* Provider — custom dropdown (built-ins + customs + "add") */}
                 <div className="settings-field">
                   <label className="settings-field-label">
                     <span className="label-text">{t('settings.provider.label')}</span>
                   </label>
-                  <select
-                    className="settings-input"
+                  <ProviderDropdown
+                    options={providerOptions}
                     value={currentProviderId}
-                    onChange={(e) => handleProviderChange(e.target.value)}
-                  >
-                    {providers.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label}
-                        {p.is_builtin ? '' : ` · ${t('settings.provider.customTag')}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Model (free-type with per-provider suggestions) */}
-                <div className="settings-field">
-                  <label className="settings-field-label">
-                    <span className="label-text">{t('settings.model.label')}</span>
-                  </label>
-                  <input
-                    className="settings-input"
-                    list="model-id-suggestions"
-                    value={currentModelId}
-                    onChange={(e) => handleModelIdChange(e.target.value)}
-                    placeholder={t('settings.model.idPlaceholder')}
-                    autoComplete="off"
-                    spellCheck={false}
+                    onSelect={handleProviderChange}
+                    onAddCustom={() => setAddingCustom(true)}
                   />
-                  <datalist id="model-id-suggestions">
-                    {(currentProviderInfo?.models ?? []).map((m) => (
-                      <option key={m} value={m} />
-                    ))}
-                  </datalist>
-                  {currentProviderInfo?.base_url && (
-                    <p className="settings-hint">{currentProviderInfo.base_url}</p>
-                  )}
                 </div>
 
-                {/* API key for the selected provider */}
-                <div className="settings-field">
-                  <label className="settings-field-label">
-                    <span className="label-text">
-                      {t('settings.llm.apiKeyLabelFor', {
-                        provider: currentProviderInfo?.label ?? currentProviderId,
-                      })}
-                    </span>
-                    {llmKeyConfigured ? (
-                      <span className="settings-badge is-ok">{t('settings.badge.configured')}</span>
-                    ) : (
-                      <span className="settings-badge is-required">
-                        {t('settings.badge.required')}
-                      </span>
-                    )}
-                    {llmKeyConfigured && (
+                {addingCustom ? (
+                  /* Add a custom OpenAI-compatible provider */
+                  <div className="settings-custom-box">
+                    <p className="settings-custom-box-title">
+                      {t('settings.customProvider.title')}
+                    </p>
+                    <div className="settings-field">
+                      <label className="settings-field-label">
+                        <span className="label-text">
+                          {t('settings.customProvider.labelField')}
+                        </span>
+                      </label>
+                      <input
+                        className="settings-input"
+                        value={draftProvider.label}
+                        onChange={(e) => setDraftProvider((d) => ({ ...d, label: e.target.value }))}
+                        placeholder="OpenRouter"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="settings-field">
+                      <label className="settings-field-label">
+                        <span className="label-text">{t('settings.customProvider.id')}</span>
+                      </label>
+                      <input
+                        className="settings-input"
+                        value={draftProvider.id}
+                        onChange={(e) =>
+                          setDraftProvider((d) => ({ ...d, id: e.target.value.trim() }))
+                        }
+                        placeholder="openrouter"
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                    </div>
+                    <div className="settings-field">
+                      <label className="settings-field-label">
+                        <span className="label-text">{t('settings.customProvider.baseUrl')}</span>
+                      </label>
+                      <input
+                        className="settings-input"
+                        value={draftProvider.baseUrl}
+                        onChange={(e) =>
+                          setDraftProvider((d) => ({ ...d, baseUrl: e.target.value.trim() }))
+                        }
+                        placeholder="https://openrouter.ai/api/v1"
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                    </div>
+                    <div className="settings-field">
+                      <label className="settings-field-label">
+                        <span className="label-text">{t('settings.customProvider.models')}</span>
+                      </label>
+                      <input
+                        className="settings-input"
+                        value={draftProvider.models}
+                        onChange={(e) =>
+                          setDraftProvider((d) => ({ ...d, models: e.target.value }))
+                        }
+                        placeholder={t('settings.customProvider.modelsPlaceholder')}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      <p className="settings-hint">{t('settings.customProvider.modelsHint')}</p>
+                    </div>
+                    <div className="settings-field">
+                      <label className="settings-field-label">
+                        <span className="label-text">{t('settings.customProvider.apiKey')}</span>
+                      </label>
+                      <SecretInput
+                        value={draftProvider.apiKey}
+                        onChange={(v) => setDraftProvider((d) => ({ ...d, apiKey: v }))}
+                        placeholder={t('settings.customProvider.apiKeyPlaceholder')}
+                      />
+                    </div>
+                    <div className="settings-form-actions">
                       <button
                         type="button"
-                        className="settings-clear-btn"
-                        onClick={() => handleClearSecret(`provider_key:${currentProviderId}`)}
+                        className="settings-btn is-primary"
+                        onClick={handleAddCustomProvider}
                       >
-                        {t('settings.clearKey.button')}
+                        {t('settings.customProvider.add')}
                       </button>
-                    )}
-                  </label>
-                  <SecretInput
-                    value={llmApiKey}
-                    onChange={handleLlmKeyChange}
-                    placeholder={
-                      llmKeyConfigured
-                        ? '••••••••'
-                        : t('settings.llm.apiKeyPlaceholder', {
-                            provider: currentProviderInfo?.label ?? currentProviderId,
+                      <button
+                        type="button"
+                        className="settings-btn"
+                        onClick={() => {
+                          setAddingCustom(false)
+                          setDraftProvider({
+                            id: '',
+                            label: '',
+                            baseUrl: '',
+                            models: '',
+                            apiKey: '',
                           })
-                    }
-                  />
-                </div>
-              </div>
+                        }}
+                      >
+                        {t('settings.customProvider.cancel')}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Model id — free text, with the provider's models as hints */}
+                    <div className="settings-field">
+                      <label className="settings-field-label">
+                        <span className="label-text">{t('settings.model.label')}</span>
+                      </label>
+                      <input
+                        className="settings-input"
+                        list="model-id-suggestions"
+                        value={currentModelId}
+                        onChange={(e) => handleModelIdChange(e.target.value)}
+                        placeholder={t('settings.model.idPlaceholder')}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      <datalist id="model-id-suggestions">
+                        {(currentProviderInfo?.models ?? []).map((m) => (
+                          <option key={m} value={m} />
+                        ))}
+                      </datalist>
+                    </div>
 
-              {/* Custom providers — any OpenAI-compatible endpoint */}
-              <details className="settings-advanced">
-                <summary className="settings-advanced-summary">
-                  {t('settings.customProvider.title')}
-                </summary>
-                <p className="settings-hint">{t('settings.customProvider.intro')}</p>
-
-                {customProviders.length > 0 && (
-                  <ul className="settings-provider-list">
-                    {customProviders.map((p) => (
-                      <li key={p.id} className="settings-provider-row">
-                        <div className="settings-provider-meta">
-                          <span className="settings-provider-name">{p.label}</span>
-                          <span className="settings-provider-url">{p.base_url}</span>
+                    {/* Custom provider: editable base_url + models + delete */}
+                    {currentIsCustom && currentProviderInfo && (
+                      <div className="settings-custom-box">
+                        <div className="settings-field">
+                          <label className="settings-field-label">
+                            <span className="label-text">
+                              {t('settings.customProvider.baseUrl')}
+                            </span>
+                          </label>
+                          <input
+                            className="settings-input"
+                            defaultValue={currentProviderInfo.base_url ?? ''}
+                            onBlur={(e) =>
+                              handleEditCustomField(currentProviderId, 'base_url', e.target.value)
+                            }
+                            autoComplete="off"
+                            spellCheck={false}
+                          />
+                        </div>
+                        <div className="settings-field">
+                          <label className="settings-field-label">
+                            <span className="label-text">
+                              {t('settings.customProvider.models')}
+                            </span>
+                          </label>
+                          <input
+                            className="settings-input"
+                            defaultValue={currentProviderInfo.models.join(', ')}
+                            onBlur={(e) =>
+                              handleEditCustomField(currentProviderId, 'models', e.target.value)
+                            }
+                            placeholder={t('settings.customProvider.modelsPlaceholder')}
+                            autoComplete="off"
+                            spellCheck={false}
+                          />
                         </div>
                         <button
                           type="button"
-                          className="settings-clear-btn"
-                          onClick={() => handleDeleteCustomProvider(p.id)}
+                          className="settings-delete-link"
+                          onClick={() => handleDeleteCustomProvider(currentProviderId)}
                         >
                           {t('settings.customProvider.remove')}
                         </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                <div className="settings-fields">
-                  <div className="settings-field">
-                    <label className="settings-field-label">
-                      <span className="label-text">{t('settings.customProvider.id')}</span>
-                    </label>
-                    <input
-                      className="settings-input"
-                      value={draftProvider.id}
-                      onChange={(e) =>
-                        setDraftProvider((d) => ({ ...d, id: e.target.value.trim() }))
-                      }
-                      placeholder="openrouter-pro"
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                  </div>
-                  <div className="settings-field">
-                    <label className="settings-field-label">
-                      <span className="label-text">{t('settings.customProvider.labelField')}</span>
-                    </label>
-                    <input
-                      className="settings-input"
-                      value={draftProvider.label}
-                      onChange={(e) => setDraftProvider((d) => ({ ...d, label: e.target.value }))}
-                      placeholder="OpenRouter Pro"
-                      autoComplete="off"
-                    />
-                  </div>
-                  <div className="settings-field">
-                    <label className="settings-field-label">
-                      <span className="label-text">{t('settings.customProvider.baseUrl')}</span>
-                    </label>
-                    <input
-                      className="settings-input"
-                      value={draftProvider.baseUrl}
-                      onChange={(e) =>
-                        setDraftProvider((d) => ({ ...d, baseUrl: e.target.value.trim() }))
-                      }
-                      placeholder="https://openrouter.ai/api/v1"
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                  </div>
-                  <div className="settings-field">
-                    <label className="settings-field-label">
-                      <span className="label-text">{t('settings.customProvider.models')}</span>
-                    </label>
-                    <input
-                      className="settings-input"
-                      value={draftProvider.models}
-                      onChange={(e) => setDraftProvider((d) => ({ ...d, models: e.target.value }))}
-                      placeholder={t('settings.customProvider.modelsPlaceholder')}
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                  </div>
-                  <div className="settings-field">
-                    <label className="settings-field-label">
-                      <span className="label-text">{t('settings.customProvider.apiKey')}</span>
-                    </label>
-                    <SecretInput
-                      value={draftProvider.apiKey}
-                      onChange={(v) => setDraftProvider((d) => ({ ...d, apiKey: v }))}
-                      placeholder={t('settings.customProvider.apiKeyPlaceholder')}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    className="settings-add-btn"
-                    onClick={handleAddCustomProvider}
-                  >
-                    {t('settings.customProvider.add')}
-                  </button>
-                </div>
-              </details>
-
-              {/* Advanced — per-role model overrides */}
-              <details className="settings-advanced">
-                <summary className="settings-advanced-summary">
-                  {t('settings.roleModels.title')}
-                </summary>
-                <p className="settings-hint">{t('settings.roleModels.intro')}</p>
-                <div className="settings-fields">
-                  {(['data', 'analysis', 'modeling', 'synthesis', 'report'] as const).map(
-                    (role) => (
-                      <div className="settings-field" key={role}>
-                        <label className="settings-field-label">
-                          <span className="label-text">{t(`settings.roleModels.${role}`)}</span>
-                        </label>
-                        <select
-                          className="settings-input"
-                          value={roleModels[role] ?? ''}
-                          onChange={(e) => handleRoleModelChange(role, e.target.value)}
-                        >
-                          <option value="">{t('settings.roleModels.useGlobal')}</option>
-                          {allModelOptions.map((opt) => (
-                            <option key={opt} value={opt}>
-                              {opt}
-                            </option>
-                          ))}
-                        </select>
                       </div>
-                    ),
-                  )}
-                </div>
-              </details>
+                    )}
+
+                    {/* API key for the selected provider */}
+                    <div className="settings-field">
+                      <label className="settings-field-label">
+                        <span className="label-text">
+                          {t('settings.llm.apiKeyLabelFor', {
+                            provider: currentProviderInfo?.label ?? currentProviderId,
+                          })}
+                        </span>
+                        {llmKeyConfigured ? (
+                          <span className="settings-badge is-ok">
+                            {t('settings.badge.configured')}
+                          </span>
+                        ) : (
+                          <span className="settings-badge is-required">
+                            {t('settings.badge.required')}
+                          </span>
+                        )}
+                        {llmKeyConfigured && (
+                          <button
+                            type="button"
+                            className="settings-clear-btn"
+                            onClick={() => handleClearSecret(`provider_key:${currentProviderId}`)}
+                          >
+                            {t('settings.clearKey.button')}
+                          </button>
+                        )}
+                      </label>
+                      <SecretInput
+                        value={llmApiKey}
+                        onChange={handleLlmKeyChange}
+                        placeholder={
+                          llmKeyConfigured
+                            ? '••••••••'
+                            : t('settings.llm.apiKeyPlaceholder', {
+                                provider: currentProviderInfo?.label ?? currentProviderId,
+                              })
+                        }
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
             </section>
 
             {/* ── Data Sources ── */}

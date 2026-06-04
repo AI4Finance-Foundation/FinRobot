@@ -1595,6 +1595,174 @@ select.settings-input {
   border-color: var(--danger-glow-soft);
 }
 
+/* Custom provider dropdown — replaces the native <select> for the model
+   provider so it matches the cosmic surface (no OS-rendered popup). */
+.settings-dd {
+  position: relative;
+}
+.settings-dd-trigger {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
+}
+.settings-dd-trigger:hover {
+  border-color: var(--border-glow);
+}
+.settings-dd-trigger[aria-expanded='true'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+  background: var(--bg-card);
+}
+.settings-dd-caret {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+}
+.settings-dd-caret.is-open {
+  transform: rotate(180deg);
+}
+.settings-dd-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--bg-1);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  max-height: 280px;
+  overflow-y: auto;
+  animation: cmd-scale-in 0.12s ease-out;
+}
+.settings-dd-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 9px 10px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.settings-dd-item:hover {
+  background: var(--secondary-hover);
+  color: var(--text-primary);
+}
+.settings-dd-item.is-selected {
+  color: var(--text-primary);
+}
+.settings-dd-item-label {
+  flex: 1;
+}
+.settings-dd-tag {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--bg-3);
+  color: var(--text-muted);
+}
+.settings-dd-check {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.settings-dd-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 9px 10px;
+  border-radius: var(--r-sm);
+  border-top: 1px solid var(--border-subtle);
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--accent);
+  transition: background 0.12s;
+}
+.settings-dd-add:hover {
+  background: var(--accent-dim);
+}
+
+/* Inline custom-provider editor (base_url / models / add / delete) */
+.settings-custom-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  margin-top: var(--sp-1);
+  border: 1px dashed var(--border-soft);
+  border-radius: var(--r-md);
+  background: var(--bg-input);
+}
+.settings-custom-box-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.settings-form-actions {
+  display: flex;
+  gap: var(--sp-2);
+}
+.settings-btn {
+  border-radius: var(--r-md);
+  padding: 8px 16px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  cursor: pointer;
+  border: 1px solid var(--border-soft);
+  background: transparent;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+.settings-btn:hover {
+  border-color: var(--border-glow);
+  color: var(--text-primary);
+}
+.settings-btn.is-primary {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  border: none;
+  color: #fff;
+}
+.settings-btn.is-primary:hover {
+  filter: brightness(1.08);
+}
+.settings-delete-link {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--danger);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 /* Onboarding callout (shown when no LLM key is configured) */
 .settings-onboard {
   display: flex;

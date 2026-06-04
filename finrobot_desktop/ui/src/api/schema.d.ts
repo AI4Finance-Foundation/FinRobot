@@ -3002,7 +3002,7 @@ export interface components {
        * Kind
        * @enum {string}
        */
-      kind: 'openai-compatible' | 'anthropic' | 'deepseek' | 'test'
+      kind: 'openai-compatible' | 'anthropic' | 'test'
       /** Base Url */
       base_url?: string | null
       /** Models */
@@ -3328,16 +3328,6 @@ export interface components {
     SettingsResponse: {
       /** Model Name */
       model_name: string
-      /** Model Data */
-      model_data?: string | null
-      /** Model Analysis */
-      model_analysis?: string | null
-      /** Model Modeling */
-      model_modeling?: string | null
-      /** Model Synthesis */
-      model_synthesis?: string | null
-      /** Model Report */
-      model_report?: string | null
       /** Providers */
       providers: components['schemas']['ProviderInfo'][]
       /** Custom Providers */
@@ -3379,16 +3369,6 @@ export interface components {
     SettingsUpdate: {
       /** Model Name */
       model_name?: string | null
-      /** Model Data */
-      model_data?: string | null
-      /** Model Analysis */
-      model_analysis?: string | null
-      /** Model Modeling */
-      model_modeling?: string | null
-      /** Model Synthesis */
-      model_synthesis?: string | null
-      /** Model Report */
-      model_report?: string | null
       /** Custom Providers */
       custom_providers?: components['schemas']['ProviderConfig'][] | null
       /** Sec User Agent */

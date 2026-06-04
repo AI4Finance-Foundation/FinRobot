@@ -1,33 +1,20 @@
 import { test } from '@playwright/test'
 
-// Visual self-check for the registry-driven model selection (ADR-0013).
-// Stubs /api/settings with a representative registry: built-ins + one custom
-// provider, deepseek key set, anthropic/openai not. Screenshots zh + en and
-// exercises the custom-provider + per-role panels.
+// Visual self-check for the registry-driven model selection (ADR-0013, redesign
+// 2026-06-04). Built-ins are Anthropic + OpenAI; everything else is a custom
+// provider. Provider picker is a cosmic dropdown (no native <select>); model id
+// is free text; no per-role overrides. Stubs /api/settings and screenshots
+// zh + en, exercising the dropdown and the add-custom form.
 
 const SETTINGS = {
-  model_name: 'deepseek:deepseek-chat',
-  model_data: null,
-  model_analysis: null,
-  model_modeling: 'anthropic:claude-opus-4-8',
-  model_synthesis: null,
-  model_report: null,
+  model_name: 'openai:gpt-4o',
   providers: [
-    {
-      id: 'deepseek',
-      label: 'DeepSeek',
-      kind: 'deepseek',
-      base_url: null,
-      models: ['deepseek-chat', 'deepseek-reasoner'],
-      key_set: true,
-      is_builtin: true,
-    },
     {
       id: 'anthropic',
       label: 'Anthropic',
       kind: 'anthropic',
       base_url: null,
-      models: ['claude-sonnet-4-6', 'claude-opus-4-8', 'claude-haiku-4-5-20251001'],
+      models: ['claude-sonnet-4-6', 'claude-opus-4-8'],
       key_set: false,
       is_builtin: true,
     },
@@ -37,25 +24,7 @@ const SETTINGS = {
       kind: 'openai-compatible',
       base_url: 'https://api.openai.com/v1',
       models: ['gpt-4o', 'gpt-4o-mini'],
-      key_set: false,
-      is_builtin: true,
-    },
-    {
-      id: 'moonshot',
-      label: 'Moonshot (Kimi)',
-      kind: 'openai-compatible',
-      base_url: 'https://api.moonshot.cn/v1',
-      models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
-      key_set: false,
-      is_builtin: true,
-    },
-    {
-      id: 'qwen',
-      label: 'Qwen (DashScope)',
-      kind: 'openai-compatible',
-      base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-      models: ['qwen-plus', 'qwen-max', 'qwen-turbo'],
-      key_set: false,
+      key_set: true,
       is_builtin: true,
     },
     {
@@ -63,27 +32,18 @@ const SETTINGS = {
       label: 'OpenRouter',
       kind: 'openai-compatible',
       base_url: 'https://openrouter.ai/api/v1',
-      models: [],
+      models: ['anthropic/claude-sonnet-4'],
       key_set: false,
-      is_builtin: true,
-    },
-    {
-      id: 'mygw',
-      label: 'My Gateway',
-      kind: 'openai-compatible',
-      base_url: 'https://gw.local/v1',
-      models: ['llama-3.1-70b'],
-      key_set: true,
       is_builtin: false,
     },
   ],
   custom_providers: [
     {
-      id: 'mygw',
-      label: 'My Gateway',
+      id: 'openrouter',
+      label: 'OpenRouter',
       kind: 'openai-compatible',
-      base_url: 'https://gw.local/v1',
-      models: ['llama-3.1-70b'],
+      base_url: 'https://openrouter.ai/api/v1',
+      models: ['anthropic/claude-sonnet-4'],
     },
   ],
   fmp_api_key_set: true,
@@ -113,28 +73,31 @@ async function gotoSettings(page: import('@playwright/test').Page, locale: 'zh' 
     r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SETTINGS) }),
   )
   await page.goto('/settings')
-  await page.getByText(/AI 模型|AI Model/).first().waitFor({ timeout: 12000 })
+  await page
+    .getByText(/AI 模型|AI Model/)
+    .first()
+    .waitFor({ timeout: 12000 })
 }
 
 test('model registry settings — zh', async ({ page }) => {
   await gotoSettings(page, 'zh')
   await page.screenshot({ path: 'e2e/_model-registry-zh.png', fullPage: true })
 
-  // Expand both advanced panels and screenshot.
-  for (const d of await page.locator('details.settings-advanced').all()) {
-    await d.locator('summary').click()
-  }
-  await page.waitForTimeout(300)
-  await page.screenshot({ path: 'e2e/_model-registry-zh-expanded.png', fullPage: true })
+  // Open the provider dropdown (custom-styled, not native).
+  await page.locator('.settings-dd-trigger').click()
+  await page.locator('.settings-dd-menu').waitFor()
+  await page.waitForTimeout(250) // let the open animation settle before the shot
+  await page.screenshot({ path: 'e2e/_model-registry-zh-dropdown.png', fullPage: true })
 })
 
-test('model registry settings — en + provider switch', async ({ page }) => {
+test('model registry settings — en + add custom', async ({ page }) => {
   await gotoSettings(page, 'en')
   await page.screenshot({ path: 'e2e/_model-registry-en.png', fullPage: true })
 
-  // Switch the provider to OpenAI → key field flips to "Required", base_url hint shows.
-  const providerSelect = page.locator('select').first()
-  await providerSelect.selectOption('openai')
-  await page.waitForTimeout(300)
-  await page.screenshot({ path: 'e2e/_model-registry-en-openai.png', fullPage: true })
+  // Open dropdown → click the "add custom provider" entry → form appears.
+  await page.locator('.settings-dd-trigger').click()
+  await page.locator('.settings-dd-add').click()
+  await page.locator('.settings-custom-box').waitFor()
+  await page.waitForTimeout(150)
+  await page.screenshot({ path: 'e2e/_model-registry-en-addcustom.png', fullPage: true })
 })

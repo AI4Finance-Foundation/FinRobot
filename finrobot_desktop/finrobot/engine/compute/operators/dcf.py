@@ -1,7 +1,7 @@
 from typing import Any
 
 from finrobot.engine.models.financial import DCFInputs, DCFResult
-from finrobot.engine.compute.wacc import calculate_wacc
+from finrobot.engine.compute.operators.wacc import calculate_wacc
 
 
 def calculate_dcf(

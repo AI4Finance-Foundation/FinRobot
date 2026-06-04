@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from finrobot.engine.compute.market import get_technicals, technical_payload
+from finrobot.engine.compute.coordinators.market import get_technicals, technical_payload
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.normalize.contracts import NormalizedPrice, PriceBar, Provenance
 

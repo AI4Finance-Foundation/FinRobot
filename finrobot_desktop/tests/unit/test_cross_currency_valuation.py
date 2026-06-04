@@ -22,9 +22,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from finrobot.engine.compute.dcf import calculate_dcf
-from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
-from finrobot.engine.compute.fx_normalize import normalize_financialdata_to_usd
+from finrobot.engine.compute.operators.dcf import calculate_dcf
+from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
+from finrobot.engine.compute.operators.fx_normalize import normalize_financialdata_to_usd
 from finrobot.engine.models.financial import (
     BalanceSheet,
     FinancialData,
@@ -201,7 +201,7 @@ class TestCompsForwardFxConversion:
     def test_twd_forward_eps_converted_before_multiply(self):
         """Replicates the route-layer conversion (routes/valuation._forward_to_usd):
         forward_eps in TWD (98.89) × USD peer P/E (22) must use the USD EPS."""
-        from finrobot.engine.compute.valuation_aggregator import _comps_pe_method
+        from finrobot.engine.compute.operators.valuation_aggregator import _comps_pe_method
 
         median_pe = 22.0
         forward_eps_twd = 98.89  # FMP estimatedEpsAvg FY2026 — TWD per share
@@ -226,7 +226,7 @@ class TestCompsForwardFxConversion:
         """A USD issuer's forward EPS is not scaled — the route-layer guard skips
         conversion when reporting_currency == USD, so the aggregator result for a
         given forward_eps is the plain USD P/E × USD EPS."""
-        from finrobot.engine.compute.valuation_aggregator import _comps_pe_method
+        from finrobot.engine.compute.operators.valuation_aggregator import _comps_pe_method
 
         median_pe = 30.0
         forward_eps_usd = 6.50  # already USD

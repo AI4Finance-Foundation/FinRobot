@@ -533,7 +533,7 @@ async def test_catalyst_analysis_produces_catalyst_analysis_output(mock_deps):
     """_execute_catalyst_analysis returns StepOutput with CatalystAnalysis."""
     from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
     from finrobot.engine.models.financial import CatalystAnalysis, StepOutput
-    from finrobot.engine.compute.news import NewsItem
+    from finrobot.engine.compute.coordinators.news import NewsItem
 
     _now = datetime.now(tz=timezone.utc)
     news_result = DataResult(
@@ -656,7 +656,7 @@ async def test_catalyst_analysis_empty_news(mock_deps):
 async def test_catalyst_analysis_net_sentiment_bullish(mock_deps):
     """Net sentiment > 0.5 maps to bullish overall_sentiment."""
     from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
-    from finrobot.engine.compute.news import NewsItem
+    from finrobot.engine.compute.coordinators.news import NewsItem
 
     _now = datetime.now(tz=timezone.utc)
     classified = [
@@ -696,7 +696,7 @@ async def test_catalyst_analysis_net_sentiment_bullish(mock_deps):
 async def test_catalyst_analysis_net_sentiment_bearish(mock_deps):
     """Net sentiment < -0.5 maps to bearish overall_sentiment."""
     from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
-    from finrobot.engine.compute.news import NewsItem
+    from finrobot.engine.compute.coordinators.news import NewsItem
 
     _now = datetime.now(tz=timezone.utc)
     classified = [
@@ -1145,7 +1145,7 @@ async def test_technical_analysis_degrades_when_dcf_unavailable(mock_deps):
     must NOT raise — it returns a degraded TechnicalAnalysis carrying the
     DCF-unavailable marker, so the run continues to a relative-valuation report.
     """
-    from finrobot.engine.compute.technical_payload import (
+    from finrobot.engine.compute.coordinators.technical_payload import (
         TECHNICAL_DCF_UNAVAILABLE_MARKER,
         TechnicalAnalysis,
     )

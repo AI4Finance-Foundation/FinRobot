@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
+from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
 from finrobot.engine.models.financial import (
     BalanceSheet,
     FinancialData,

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from finrobot.engine.compute.signal import (
+from finrobot.engine.compute.operators.signal import (
     ClosedReturn,
     Signal,
     compute_hit_rate,
@@ -239,7 +239,14 @@ class TestHitRateStats:
 # ---------------------------------------------------------------------------
 
 
-SIGNAL_PATH = Path(__file__).resolve().parents[2] / "finrobot" / "engine" / "compute" / "signal.py"
+SIGNAL_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "finrobot"
+    / "engine"
+    / "compute"
+    / "operators"
+    / "signal.py"
+)
 
 
 class TestSignalModuleIsolation:

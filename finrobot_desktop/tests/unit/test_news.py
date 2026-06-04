@@ -7,7 +7,7 @@ import pytest
 from finrobot.engine.data.interface import DataResult, ProviderError
 from finrobot.engine.data.providers.news_aggregator import NewsAggregatorProvider
 from finrobot.engine.data.types import DataType
-from finrobot.engine.compute.news import (
+from finrobot.engine.compute.coordinators.news import (
     NewsItem,
     RawNewsItem,
     fetch_news,

@@ -4,7 +4,7 @@ Leaf-layer rules:
 - Pure functions; no I/O.
 - No imports from `finrobot.engine.pipelines / agents / orchestrator`.
 - No imports from `finrobot.routes.*`.
-- Allowed: `finrobot.engine.compute.signal` (also leaf), `finrobot.artifact.models`
+- Allowed: `finrobot.engine.compute.operators.signal` (also leaf), `finrobot.artifact.models`
   read-only.
 
 Callers (FastAPI route handlers) own data fetching & timezone hygiene.

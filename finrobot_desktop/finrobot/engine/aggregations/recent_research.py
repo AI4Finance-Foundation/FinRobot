@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from finrobot.engine.compute.signal import Signal, compute_signal
+from finrobot.engine.compute.operators.signal import Signal, compute_signal
 
 # Max rows surfaced per ticker card. Tickers with more artifacts fall back
 # to the workspace's full timeline via the card footer.

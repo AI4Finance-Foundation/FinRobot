@@ -24,7 +24,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from finrobot.engine.compute.valuation_aggregator import aggregate_valuation
+from finrobot.engine.compute.operators.valuation_aggregator import aggregate_valuation
 from finrobot.engine.models.financial import (
     CompanyFinancials,
     DCFInputs,
@@ -41,6 +41,7 @@ AGG_SRC = (
     / "finrobot"
     / "engine"
     / "compute"
+    / "operators"
     / "valuation_aggregator.py"
 )
 UTC = timezone.utc
@@ -79,8 +80,8 @@ class TestAggregatorLeafIsolation:
         # Check for actual import or call sites — not docstring mentions of the rule.
         src = AGG_SRC.read_text()
         forbidden_call_patterns = (
-            re.compile(r"^\s*from\s+finrobot\.engine\.compute\.lbo\s+import", re.MULTILINE),
-            re.compile(r"^\s*import\s+finrobot\.engine\.compute\.lbo", re.MULTILINE),
+            re.compile(r"^\s*from\s+finrobot\.engine\.compute\.operators\.lbo\s+import", re.MULTILINE),
+            re.compile(r"^\s*import\s+finrobot\.engine\.compute\.operators\.lbo", re.MULTILINE),
             re.compile(r"\bcalculate_lbo\s*\("),
             re.compile(r"\bcalculate_lbo_sensitivity\s*\("),
         )

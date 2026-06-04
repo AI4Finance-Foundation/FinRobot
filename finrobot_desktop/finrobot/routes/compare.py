@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException
 from starlette.requests import Request
 
 from finrobot.coverage.service import build_comparison
-from finrobot.engine.compute.compare import ComparisonResult
+from finrobot.engine.compute.operators.compare import ComparisonResult
 
 router = APIRouter(prefix="/api/compare", tags=["compare"])
 

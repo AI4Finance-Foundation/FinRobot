@@ -9,9 +9,9 @@ All tests verify:
 
 import io
 import openpyxl
-from finrobot.engine.compute.dcf import calculate_dcf
-from finrobot.engine.compute.lbo import calculate_lbo
-from finrobot.engine.compute.spreadsheet_gen import (
+from finrobot.engine.compute.operators.dcf import calculate_dcf
+from finrobot.engine.compute.operators.lbo import calculate_lbo
+from finrobot.engine.compute.operators.spreadsheet_gen import (
     generate_dcf_excel,
     generate_lbo_excel,
     generate_comps_excel,
@@ -92,7 +92,7 @@ class TestGenerateDCFExcel:
     def test_sensitivity_sheet_has_data(self):
         inputs = _dcf_inputs()
         result = calculate_dcf(inputs, wacc_override=0.10)
-        from finrobot.engine.compute.dcf import calculate_sensitivity
+        from finrobot.engine.compute.operators.dcf import calculate_sensitivity
         from finrobot.engine.pipelines._helpers import build_sensitivity_ranges
 
         wacc_range, tg_range = build_sensitivity_ranges(

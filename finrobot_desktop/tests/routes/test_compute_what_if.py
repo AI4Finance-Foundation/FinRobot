@@ -33,7 +33,7 @@ from finrobot.artifact.models import (
     ArtifactOutputs,
 )
 from finrobot.artifact.store import ArtifactStore
-from finrobot.engine.compute.dcf import calculate_dcf
+from finrobot.engine.compute.operators.dcf import calculate_dcf
 from finrobot.engine.models.financial import DCFInputs
 from finrobot.routes.compute import router as compute_router
 

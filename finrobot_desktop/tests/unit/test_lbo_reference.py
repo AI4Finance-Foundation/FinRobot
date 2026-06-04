@@ -42,7 +42,7 @@ Exit (after Year 5):
 
 import pytest
 from finrobot.engine.models.financial import LBOInputs
-from finrobot.engine.compute.lbo import calculate_lbo
+from finrobot.engine.compute.operators.lbo import calculate_lbo
 
 
 def _valueco_inputs() -> LBOInputs:

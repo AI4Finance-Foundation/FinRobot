@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from typing import Final
 
-from finrobot.engine.compute.dcf_seed import (
+from finrobot.engine.compute.operators.dcf_seed import (
     _cost_of_debt,
     _median_ratio,
     _median_recent,

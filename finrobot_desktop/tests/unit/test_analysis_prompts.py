@@ -198,7 +198,7 @@ class TestPeerTableFxNormalization:
         target = _make_fin()
         with (
             patch("finrobot.engine.analysis.prompts.Agent", _StubAgent),
-            patch("finrobot.engine.compute.extractor.fetch_fx_rate_to_usd", _fake_fx),
+            patch("finrobot.engine.compute.coordinators.extractor.fetch_fx_rate_to_usd", _fake_fx),
         ):
             table = await _fetch_peer_table(_FakeDataLayer(), settings, "AAPL", target)
 

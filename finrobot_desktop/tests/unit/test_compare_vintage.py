@@ -8,7 +8,7 @@ table shows it, and a wide vintage spread is warned.
 
 from __future__ import annotations
 
-from finrobot.engine.compute.compare import (
+from finrobot.engine.compute.operators.compare import (
     CompanyValuation,
     ComparisonResult,
     build_company_valuation,

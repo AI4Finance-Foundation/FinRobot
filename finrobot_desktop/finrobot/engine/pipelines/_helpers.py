@@ -10,21 +10,21 @@ from pydantic_ai import Agent
 from pydantic_ai.exceptions import AgentRunError
 from pydantic import ValidationError
 
-from finrobot.engine.compute.data_processor import forecast_financials
-from finrobot.engine.compute.extractor import (
+from finrobot.engine.compute.operators.data_processor import forecast_financials
+from finrobot.engine.compute.coordinators.extractor import (
     extract_company_financials,
     extract_financial_data,
     normalize_peer_to_usd,
 )
-from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
-from finrobot.engine.compute.multiples import (
+from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
+from finrobot.engine.compute.operators.multiples import (
     calculate_core_pe,
     calculate_multiples,
     calculate_peer_statistics,
 )
-from finrobot.engine.compute.valuation_aggregator import aggregate_valuation
-from finrobot.engine.compute.valuation_synthesis import synthesize_valuations
-from finrobot.engine.compute.xbrl_aligned_comps import (
+from finrobot.engine.compute.operators.valuation_aggregator import aggregate_valuation
+from finrobot.engine.compute.operators.valuation_synthesis import synthesize_valuations
+from finrobot.engine.compute.operators.xbrl_aligned_comps import (
     build_xbrl_aligned_company,
     override_company_with_xbrl,
 )

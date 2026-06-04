@@ -20,7 +20,7 @@ import re
 from datetime import date
 from pathlib import Path
 
-from finrobot.engine.compute.forward_estimates import (
+from finrobot.engine.compute.operators.forward_estimates import (
     ForwardFinancials,
     get_forward_financials,
 )
@@ -29,7 +29,7 @@ from finrobot.engine.compute.forward_estimates import (
 AS_OF = date(2026, 6, 1)
 
 ROOT = Path(__file__).resolve().parents[2]
-LEAF_SRC = ROOT / "finrobot" / "engine" / "compute" / "forward_estimates.py"
+LEAF_SRC = ROOT / "finrobot" / "engine" / "compute" / "operators" / "forward_estimates.py"
 FINROBOT = ROOT / "finrobot"
 
 
@@ -76,13 +76,13 @@ class TestSingleEntryPoint:
 
     _ALLOWED_FILES = {
         # The leaf itself + its tests
-        Path("finrobot/engine/compute/forward_estimates.py"),
+        Path("finrobot/engine/compute/operators/forward_estimates.py"),
         Path("tests/audit/test_forward_estimates_red_lines.py"),
         Path("tests/unit/test_forward_estimates.py"),
         # Aggregator consumes the leaf's output by parameter, so a string
         # mention of `forward_eps=` etc. there is the contract surface — not
         # a violation. Listing it keeps the audit explicit instead of magic.
-        Path("finrobot/engine/compute/valuation_aggregator.py"),
+        Path("finrobot/engine/compute/operators/valuation_aggregator.py"),
         Path("tests/audit/test_valuation_aggregator.py"),
         Path("tests/routes/test_valuation_routes.py"),
         # routes/valuation.py wires the route handler to the aggregator —

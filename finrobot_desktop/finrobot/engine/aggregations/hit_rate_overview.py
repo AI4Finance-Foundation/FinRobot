@@ -1,6 +1,6 @@
 """Cross-ticker hit-rate roll-up powering the /stocks landing banner.
 
-Re-uses `finrobot.engine.compute.signal.compute_signal` per artifact, then
+Re-uses `finrobot.engine.compute.operators.signal.compute_signal` per artifact, then
 groups by verdict (BUY / HOLD / SELL) plus an overall bucket. Watching
 artifacts count toward n_total but not n_closed — same bias-corrected
 convention as the ticker-level `compute_hit_rate`.
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
-from finrobot.engine.compute.signal import Signal, compute_signal
+from finrobot.engine.compute.operators.signal import Signal, compute_signal
 
 Window = Literal["30d", "90d", "all"]
 """Time-window keys exposed to the route layer."""

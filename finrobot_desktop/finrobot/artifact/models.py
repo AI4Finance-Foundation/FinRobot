@@ -13,7 +13,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from finrobot.engine.compute.signal import Signal
+from finrobot.engine.compute.operators.signal import Signal
 
 ArtifactType = Literal[
     "dcf",
@@ -188,7 +188,7 @@ class ArtifactSummary(BaseModel):
         default=None,
         description=(
             "Lazy-computed realised-vs-target signal (hit / watching / failed) — "
-            "never persisted. Route handlers call finrobot.engine.compute.signal."
+            "never persisted. Route handlers call finrobot.engine.compute.operators.signal."
             "compute_signal at list time using a fresh quote. None when any of "
             "entry_price / target_price / current_price are unavailable. "
             "DO NOT confuse with `verdict` — signal is the post-trade outcome, "

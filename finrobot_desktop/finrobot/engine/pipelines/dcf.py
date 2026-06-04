@@ -24,11 +24,11 @@ from typing import Any
 
 from pydantic_ai import Agent
 
-from finrobot.engine.compute.dcf import calculate_dcf, calculate_sensitivity
-from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
-from finrobot.engine.compute.extractor import normalize_financials_to_usd
-from finrobot.engine.compute.wacc import calculate_wacc
-from finrobot.engine.compute.historical_extractor import (
+from finrobot.engine.compute.operators.dcf import calculate_dcf, calculate_sensitivity
+from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
+from finrobot.engine.compute.coordinators.extractor import normalize_financials_to_usd
+from finrobot.engine.compute.operators.wacc import calculate_wacc
+from finrobot.engine.compute.coordinators.historical_extractor import (
     fetch_historical_metrics,
 )
 from finrobot.engine.data.types import DataType

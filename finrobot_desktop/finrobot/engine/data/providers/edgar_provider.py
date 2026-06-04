@@ -16,7 +16,7 @@ Architectural rules sealed by spec v4 §5 + 门 1 probe:
     re-fetches ``get_filings("10-K", amendments=False)``.
   - Financial-institution MD&A may be < 1000 chars due to edgartools'
     parser limits → adapter falls back to ``filing.text()`` so downstream
-    BM25 (``engine/compute/rag.py``) still has something to index.
+    BM25 (``engine/primitives/rag.py``) still has something to index.
   - 13F reverse lookup goes through the local cache
     (``sec_holdings_cache``); never scans all 13F-HR filings on a request.
   - Exception class is ``DataObjectException + CompanyNotFoundError`` (no

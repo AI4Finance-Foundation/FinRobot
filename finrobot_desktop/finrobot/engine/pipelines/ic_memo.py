@@ -23,15 +23,15 @@ from typing import Any
 
 from pydantic_ai import Agent
 
-from finrobot.engine.compute.dcf import calculate_dcf, calculate_sensitivity
-from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
-from finrobot.engine.compute.extractor import (
+from finrobot.engine.compute.operators.dcf import calculate_dcf, calculate_sensitivity
+from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
+from finrobot.engine.compute.coordinators.extractor import (
     extract_financial_data,
     normalize_financials_to_usd,
 )
-from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
-from finrobot.engine.compute.lbo import calculate_lbo
-from finrobot.engine.compute.lbo_seed import seed_lbo_inputs
+from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
+from finrobot.engine.compute.operators.lbo import calculate_lbo
+from finrobot.engine.compute.operators.lbo_seed import seed_lbo_inputs
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import (

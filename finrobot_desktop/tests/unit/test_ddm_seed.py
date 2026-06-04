@@ -16,13 +16,13 @@ from datetime import datetime, timezone
 
 import pytest
 
-from finrobot.engine.compute.dcf_seed import (
+from finrobot.engine.compute.operators.dcf_seed import (
     DEFAULT_EQUITY_RISK_PREMIUM,
     DEFAULT_RISK_FREE_RATE,
     DEFAULT_TERMINAL_GROWTH,
 )
-from finrobot.engine.compute.ddm import calculate_ddm
-from finrobot.engine.compute.ddm_seed import seed_ddm_inputs
+from finrobot.engine.compute.operators.ddm import calculate_ddm
+from finrobot.engine.compute.operators.ddm_seed import seed_ddm_inputs
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials, Provenance
 from finrobot.engine.models.financial import (
     BalanceSheet,

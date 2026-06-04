@@ -2,7 +2,7 @@
 
 import pytest
 from finrobot.engine.models.financial import ValuationMethod
-from finrobot.engine.compute.valuation_synthesis import synthesize_valuations
+from finrobot.engine.compute.operators.valuation_synthesis import synthesize_valuations
 
 
 class TestSynthesizeValuations:

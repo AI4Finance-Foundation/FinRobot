@@ -1,4 +1,4 @@
-# finrobot/engine/compute/news.py
+# finrobot/engine/compute/coordinators/news.py
 """News data models and deterministic parsing.
 
 What this code does that raw LLM cannot:

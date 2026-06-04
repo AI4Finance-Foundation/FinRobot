@@ -32,7 +32,7 @@ because it over-taxes D&A). It's a test of the DCF arithmetic engine.
 """
 
 from finrobot.engine.models.financial import DCFInputs
-from finrobot.engine.compute.dcf import calculate_dcf
+from finrobot.engine.compute.operators.dcf import calculate_dcf
 
 
 def test_dcf_apple_fy2024_simplified():

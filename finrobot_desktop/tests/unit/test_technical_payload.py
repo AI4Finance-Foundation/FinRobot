@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from finrobot.engine.compute.technical_payload import (
+from finrobot.engine.compute.coordinators.technical_payload import (
     HistoricalBandSnapshot,
     TechnicalAnalysis,
     build_technical_analysis,

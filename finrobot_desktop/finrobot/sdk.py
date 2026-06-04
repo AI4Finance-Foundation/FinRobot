@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING, Any
 
 from finrobot.config import get_settings
 from finrobot.engine.deps import FinRobotDeps
-from finrobot.engine.compute.compare import ComparisonResult
+from finrobot.engine.compute.operators.compare import ComparisonResult
 from finrobot.engine.pipelines.base import PipelineResult
 
 if TYPE_CHECKING:
@@ -298,7 +298,7 @@ class FinRobot:
             tickers: List of ticker symbols (2-10).
             progress: Optional progress callback (applied to each pipeline).
         """
-        from finrobot.engine.compute.compare import (
+        from finrobot.engine.compute.operators.compare import (
             CompanyValuation,
             build_company_valuation,
         )

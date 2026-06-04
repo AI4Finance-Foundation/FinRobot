@@ -36,13 +36,13 @@ from finrobot.coverage.models import (
     NumberSource,
 )
 from finrobot.coverage.sqlite_store import CoverageStore
-from finrobot.engine.compute.compare import (
+from finrobot.engine.compute.operators.compare import (
     CompanyValuation,
     ComparisonResult,
     build_company_valuation,
 )
-from finrobot.engine.compute.extractor import extract_financial_data
-from finrobot.engine.compute.signal import Signal, compute_signal
+from finrobot.engine.compute.coordinators.extractor import extract_financial_data
+from finrobot.engine.compute.operators.signal import Signal, compute_signal
 from finrobot.engine.data.normalize.contracts import (
     DEGRADED_CLOSE_ONLY,
     DEGRADED_TTM_LAG,

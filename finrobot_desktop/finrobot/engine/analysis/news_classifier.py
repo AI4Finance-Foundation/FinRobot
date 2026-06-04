@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.exceptions import AgentRunError
 
-from finrobot.engine.compute.news import NewsItem, RawNewsItem, sanitize_untrusted_text
+from finrobot.engine.compute.coordinators.news import NewsItem, RawNewsItem, sanitize_untrusted_text
 
 if TYPE_CHECKING:
     from finrobot.engine.deps import FinRobotDeps

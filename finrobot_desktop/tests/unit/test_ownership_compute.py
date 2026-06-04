@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-from finrobot.engine.compute.ownership import (
+from finrobot.engine.compute.operators.ownership import (
     _canonical_transaction_type,
     _money_from_text,
     build_proxy_compensation,
@@ -274,7 +274,7 @@ def test_form4_build_insider_transactions_normalises_M_derivative_label() -> Non
     """End-to-end regression on the 2026-05-28 TSLA artifact bug: the
     derivative-leg row for a code-M exercise must read ``exercise``, not
     ``derivative_sale``. Mirrors the actual payload the artifact stored."""
-    from finrobot.engine.compute.ownership import build_insider_transactions
+    from finrobot.engine.compute.operators.ownership import build_insider_transactions
 
     rows = build_insider_transactions(
         {
@@ -325,7 +325,7 @@ def test_form4_missing_shares_value_become_none_not_zero() -> None:
     """A Form 4 leg whose provider omitted shares/value must carry None — a
     fabricated 0 makes a parse failure look like a real 0-share/$0 transaction,
     wasting analyst time. An *explicit* value=0 (forfeit/gift) stays 0 (None≠0)."""
-    from finrobot.engine.compute.ownership import build_insider_transactions
+    from finrobot.engine.compute.operators.ownership import build_insider_transactions
 
     rows = build_insider_transactions(
         {
@@ -424,7 +424,7 @@ def test_extract_ceo_name_rejects_paragraph_spanning_phrase() -> None:
     stay on one line, and any function-word token (Us, All, …) rejects
     the candidate.
     """
-    from finrobot.engine.compute.ownership import _extract_ceo_name
+    from finrobot.engine.compute.operators.ownership import _extract_ceo_name
 
     text = (
         "A More Profitable Future for Tesla and a Better Future for Us All\n\n"
@@ -447,7 +447,7 @@ def test_extract_ceo_name_rejects_section_heading_above_ceo_paragraph() -> None:
     additional tokens — i.e. a one-word "name". Real SCT table entries
     always carry at least "Firstname Lastname".
     """
-    from finrobot.engine.compute.ownership import _extract_ceo_name
+    from finrobot.engine.compute.operators.ownership import _extract_ceo_name
 
     text = (
         "Compensation Discussion and Analysis\n\n"
@@ -460,7 +460,7 @@ def test_extract_ceo_name_keeps_canonical_table_pattern() -> None:
     """The 'Name\\nCEO' table layout (Google/Alphabet proxy style) must
     still work — the regression test guards against tightening that
     breaks the high-confidence cases."""
-    from finrobot.engine.compute.ownership import _extract_ceo_name
+    from finrobot.engine.compute.operators.ownership import _extract_ceo_name
 
     text = "Sundar Pichai\nCEO Total Compensation $74M"
     assert _extract_ceo_name(text) == "Sundar Pichai"
@@ -468,7 +468,7 @@ def test_extract_ceo_name_keeps_canonical_table_pattern() -> None:
 
 def test_extract_ceo_name_keeps_honorific_pattern() -> None:
     """`Mr./Ms./Dr. Lastname` near a CEO anchor must still resolve."""
-    from finrobot.engine.compute.ownership import _extract_ceo_name
+    from finrobot.engine.compute.operators.ownership import _extract_ceo_name
 
     text = (
         "The Board reappointed Mr. Cook as Chief Executive Officer "

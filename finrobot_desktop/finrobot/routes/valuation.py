@@ -13,12 +13,12 @@ from starlette.requests import Request
 
 from finrobot.artifact.models import Artifact
 from finrobot.artifact.store import ArtifactStore
-from finrobot.engine.compute.forward_estimates import (
+from finrobot.engine.compute.operators.forward_estimates import (
     ForwardFinancials,
     get_forward_financials,
 )
 from finrobot.engine.primitives.historical_valuation import HistoricalMetricName
-from finrobot.engine.compute.valuation_aggregator import aggregate_valuation
+from finrobot.engine.compute.operators.valuation_aggregator import aggregate_valuation
 from finrobot.engine.data.cache import cached_fetch
 from finrobot.engine.data.historical_loaders import (
     classify_band,

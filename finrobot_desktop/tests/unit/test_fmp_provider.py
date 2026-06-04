@@ -281,7 +281,7 @@ class TestFMPFetch:
         # End-to-end: extract_company_financials must resolve reporting_currency
         # from the provider dict (the gap this fix closes — it used to default USD).
         # ADR-0006: extractor now accepts NormalizedFinancials; wrap with normalize_financials.
-        from finrobot.engine.compute.extractor import extract_company_financials
+        from finrobot.engine.compute.coordinators.extractor import extract_company_financials
         from finrobot.engine.data.normalize.financials import normalize_financials
 
         company = extract_company_financials(normalize_financials(result))

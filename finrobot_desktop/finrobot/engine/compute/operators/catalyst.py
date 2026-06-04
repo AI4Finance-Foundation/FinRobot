@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, cast
 
-from finrobot.engine.compute.news import NewsItem
+from finrobot.engine.compute.coordinators.news import NewsItem
 from finrobot.engine.models.financial import CatalystEvent
 
 

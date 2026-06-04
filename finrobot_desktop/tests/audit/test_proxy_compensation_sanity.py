@@ -13,7 +13,7 @@ Red-line contract (must all hold):
 
 from __future__ import annotations
 
-from finrobot.engine.compute.ownership import (
+from finrobot.engine.compute.operators.ownership import (
     _CEO_COMP_MAX,
     _CEO_COMP_MIN,
     _CEO_NAME_BLACKLIST,

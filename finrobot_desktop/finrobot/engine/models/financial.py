@@ -213,7 +213,7 @@ class CompanyFinancials(BaseModel):
 
     For US issuers both are USD. For TSM ADR they are TWD and USD
     respectively — that mismatch collapses EV/EBITDA to 0.158x without
-    normalization. See ``finrobot.engine.compute.fx_normalize`` for the
+    normalization. See ``finrobot.engine.compute.operators.fx_normalize`` for the
     canonical-USD pipeline applied before EV/EBITDA is computed.
     """
 

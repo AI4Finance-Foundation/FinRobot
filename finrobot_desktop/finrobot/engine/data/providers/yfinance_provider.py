@@ -379,7 +379,7 @@ class YFinanceProvider(DataProvider):
             "book_value_per_share": info.get("bookValue"),
             "return_on_equity": info.get("returnOnEquity"),
             # v5 PR4c forward-estimate inputs — required by
-            # engine/compute/forward_estimates.py. yfinance only carries
+            # engine/compute/operators/forward_estimates.py. yfinance only carries
             # forward EPS / PE (no consensus EBITDA / FCF), so the leaf has
             # to derive forward EBITDA/FCF from forward_revenue × TTM margin.
             "forward_eps": info.get("forwardEps"),

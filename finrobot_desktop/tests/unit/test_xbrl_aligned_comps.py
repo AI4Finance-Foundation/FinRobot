@@ -4,8 +4,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from finrobot.engine.compute import extractor as extractor_mod
-from finrobot.engine.compute.xbrl_aligned_comps import (
+from finrobot.engine.compute.coordinators import extractor as extractor_mod
+from finrobot.engine.compute.operators.xbrl_aligned_comps import (
     build_xbrl_aligned_company,
     override_company_with_xbrl,
     xbrl_concept_snapshot,

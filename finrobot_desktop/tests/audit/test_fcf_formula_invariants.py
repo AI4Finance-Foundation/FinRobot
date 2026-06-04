@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from finrobot.engine.compute.dcf import calculate_dcf
+from finrobot.engine.compute.operators.dcf import calculate_dcf
 from finrobot.engine.models.financial import DCFInputs, DCFResult
 
 

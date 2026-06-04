@@ -21,7 +21,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from finrobot.engine.compute.data_processor import calculate_cagr
+from finrobot.engine.compute.operators.data_processor import calculate_cagr
 from finrobot.engine.data.interface import DataResult, ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.types import DataType

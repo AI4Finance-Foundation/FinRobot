@@ -17,9 +17,9 @@ from typing import Any
 
 from pydantic_ai import Agent
 
-from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
-from finrobot.engine.compute.lbo import calculate_lbo
-from finrobot.engine.compute.lbo_seed import seed_lbo_inputs
+from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
+from finrobot.engine.compute.operators.lbo import calculate_lbo
+from finrobot.engine.compute.operators.lbo_seed import seed_lbo_inputs
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import (

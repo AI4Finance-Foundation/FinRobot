@@ -39,10 +39,10 @@ _ALLOWED: set[Path] = {
     ROOT / "finrobot" / "engine" / "data" / "normalize" / "window.py",
     ROOT / "finrobot" / "engine" / "data" / "normalize" / "currency.py",
     # historical_extractor reads yearly DataResult slices (not live snapshots)
-    COMPUTE / "historical_extractor.py",
+    COMPUTE / "coordinators" / "historical_extractor.py",
     # news.py parses DataType.NEWS (not PRICE/FINANCIALS) — no canonical contract
     # for NEWS by design (ADR-0006 §3 — only PRICE/FINANCIALS have contracts).
-    COMPUTE / "news.py",
+    COMPUTE / "coordinators" / "news.py",
 }
 
 _RAW_GET_PATTERN = re.compile(r"\.data\.get\(")
@@ -81,7 +81,7 @@ class TestNoRawDataGetInComputeOrServices:
 
     def test_extractor_no_raw_data_get(self) -> None:
         """extractor.py post-ADR-0006 must read only typed Normalized* fields."""
-        extractor = COMPUTE / "extractor.py"
+        extractor = COMPUTE / "coordinators" / "extractor.py"
         text = extractor.read_text()
         violations = [
             f"line {text[:m.start()].count(chr(10)) + 1}"

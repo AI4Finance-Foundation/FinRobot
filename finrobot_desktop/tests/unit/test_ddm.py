@@ -8,8 +8,8 @@ Cost of Equity = Risk-Free Rate + Beta * Equity Risk Premium  (CAPM)
 
 import pytest
 
-from finrobot.engine.compute.ddm import calculate_ddm, calculate_ddm_sensitivity
-from finrobot.engine.compute.industry import is_bank
+from finrobot.engine.compute.operators.ddm import calculate_ddm, calculate_ddm_sensitivity
+from finrobot.engine.compute.operators.industry import is_bank
 from finrobot.engine.models.financial import DDMInputs
 
 

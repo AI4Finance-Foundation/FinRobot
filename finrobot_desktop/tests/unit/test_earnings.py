@@ -10,7 +10,7 @@ Test cases:
 
 import pytest
 from finrobot.engine.models.financial import EarningsSurprise
-from finrobot.engine.compute.earnings import (
+from finrobot.engine.compute.operators.earnings import (
     calculate_earnings_surprises,
     _classify_surprise,
     _count_consecutive_beats,

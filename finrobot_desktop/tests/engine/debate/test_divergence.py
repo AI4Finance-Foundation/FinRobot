@@ -141,7 +141,7 @@ def test_wacc_divergence_true_value_matches_calculate_dcf() -> None:
       wacc=0.10  | wacc=0.10    | $303.64 (±$0.10)         | must match       | YES
       wacc=0.12  | wacc=0.12    | >0, < wacc=0.10 price    | must match       | YES
     """
-    from finrobot.engine.compute.dcf import calculate_dcf
+    from finrobot.engine.compute.operators.dcf import calculate_dcf
     from finrobot.engine.debate.divergence import recompute_divergence
 
     inputs = _make_inputs()
@@ -206,7 +206,7 @@ def test_terminal_growth_divergence_monotonicity() -> None:
 
 def test_terminal_growth_true_value_matches_calculate_dcf() -> None:
     """recompute_divergence with terminal_growth must equal calculate_dcf(tg_override=...)."""
-    from finrobot.engine.compute.dcf import calculate_dcf
+    from finrobot.engine.compute.operators.dcf import calculate_dcf
     from finrobot.engine.debate.divergence import recompute_divergence
 
     inputs = _make_inputs()

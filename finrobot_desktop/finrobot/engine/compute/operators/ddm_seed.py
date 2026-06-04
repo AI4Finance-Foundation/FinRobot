@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from typing import Final
 
-from finrobot.engine.compute.dcf_seed import (
+from finrobot.engine.compute.operators.dcf_seed import (
     DEFAULT_EQUITY_RISK_PREMIUM,
     DEFAULT_PROJECTION_YEARS,
     DEFAULT_RISK_FREE_RATE,

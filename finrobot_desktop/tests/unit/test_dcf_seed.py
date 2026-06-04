@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from finrobot.engine.compute.dcf_seed import (
+from finrobot.engine.compute.operators.dcf_seed import (
     COST_OF_DEBT_CAP,
     COST_OF_DEBT_FLOOR,
     _cost_of_debt,

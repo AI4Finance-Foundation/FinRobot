@@ -2,7 +2,7 @@
 # dev.sh — FinRobot 本地开发启动器（live 后端源码 + 前端，无打包）。
 #
 # 每次运行 = 干净重启：先杀掉旧的 live 后端 / vite，再把两端拉起来。
-# 后端跑 finrobot 源码（加载 .env、含 /api/debate、含 LLM key），改完后端代码重跑本脚本即生效。
+# 后端跑 finrobot 源码（含 /api/debate；LLM/数据 key 从 OS keychain 读，不读 .env），改完后端代码重跑本脚本即生效。
 # 前端 vite HMR，改完即时热更。
 #
 # 两种姿势（后端始终是 live 源码，区别只在前端壳子）：
@@ -80,7 +80,7 @@ for i in $(seq 1 60); do
     echo "✓ (pid $BACKEND_PID)"
     break
   fi
-  # 后端进程已死（多半 .env / key 问题）→ 直接报日志退出
+  # 后端进程已死（多半 key / 配置问题）→ 直接报日志退出
   if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
     echo "✗ 后端进程已退出"
     echo "──── $BACKEND_LOG 末尾 ────"

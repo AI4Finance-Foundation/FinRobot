@@ -25,11 +25,11 @@ from finrobot.engine.models.financial import (
     PriceHistory,
     CompanyFinancials,
 )
-from finrobot.engine.compute.fx_normalize import (
+from finrobot.engine.compute.operators.fx_normalize import (
     normalize_company_to_usd,
     normalize_financialdata_to_usd,
 )
-from finrobot.engine.compute.multiples import calculate_ev
+from finrobot.engine.compute.operators.multiples import calculate_ev
 from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.primitives.ebitda import (
     calculate_ebitda_operating,

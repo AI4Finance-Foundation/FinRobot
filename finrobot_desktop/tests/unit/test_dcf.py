@@ -1,6 +1,6 @@
 import pytest
 from finrobot.engine.models.financial import DCFInputs, DCFResult
-from finrobot.engine.compute.dcf import calculate_dcf, calculate_sensitivity
+from finrobot.engine.compute.operators.dcf import calculate_dcf, calculate_sensitivity
 
 
 def _make_inputs(**overrides):
@@ -130,7 +130,7 @@ def test_negative_terminal_fcf_raises_no_negative_price():
 
     # Sanity: the terminal-year FCF really is negative for these inputs, so this
     # test exercises the negative-FCF guard specifically (not the tg >= WACC one).
-    from finrobot.engine.compute.dcf import _project_full
+    from finrobot.engine.compute.operators.dcf import _project_full
 
     _, _, projected_fcf = _project_full(inputs)
     assert projected_fcf[-1] < 0

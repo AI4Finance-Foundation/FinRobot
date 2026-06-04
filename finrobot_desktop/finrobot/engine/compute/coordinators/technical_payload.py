@@ -23,8 +23,8 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from finrobot.engine.primitives.historical_valuation import HistoricalBand
-from finrobot.engine.compute.monte_carlo import MonteCarloResult, run_monte_carlo
-from finrobot.engine.compute.sniper import (
+from finrobot.engine.compute.operators.monte_carlo import MonteCarloResult, run_monte_carlo
+from finrobot.engine.compute.operators.sniper import (
     SniperPoints,
     SniperRequest,
     calculate_sniper_points,

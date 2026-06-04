@@ -249,7 +249,7 @@ class TestFetchNews:
     @pytest.mark.asyncio
     async def test_news_items_compatible_with_parse_raw_news(self):
         """Verify yfinance news format is parseable by parse_raw_news."""
-        from finrobot.engine.compute.news import RawNewsItem, parse_raw_news
+        from finrobot.engine.compute.coordinators.news import RawNewsItem, parse_raw_news
 
         provider = YFinanceProvider()
         raw_news = [

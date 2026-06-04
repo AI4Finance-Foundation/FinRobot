@@ -16,8 +16,15 @@ import logging
 from pydantic_ai import Agent
 
 from finrobot.config import FinRobotSettings
-from finrobot.engine.compute.extractor import extract_company_financials, normalize_peer_to_usd
-from finrobot.engine.compute.multiples import calculate_multiples, compute_ttm_fcf, fcf_yield
+from finrobot.engine.compute.coordinators.extractor import (
+    extract_company_financials,
+    normalize_peer_to_usd,
+)
+from finrobot.engine.compute.operators.multiples import (
+    calculate_multiples,
+    compute_ttm_fcf,
+    fcf_yield,
+)
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials

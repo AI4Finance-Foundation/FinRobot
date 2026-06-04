@@ -1,6 +1,6 @@
 """Divergence-point recomputation for the IC debate pipeline (ADR-0007, Task 4).
 
-Core invariant: all DCF arithmetic stays in engine/compute/dcf.py.
+Core invariant: all DCF arithmetic stays in engine/compute/operators/dcf.py.
 This module only maps DivergencePoint assumption names to the overrides dict
 and delegates computation to ``compute_dcf_implied_price``.  Zero DCF math
 lives here.
@@ -12,7 +12,7 @@ Supported assumption names (case-insensitive, stored lower-case in the model):
 
 from __future__ import annotations
 
-from finrobot.engine.compute.dcf import compute_dcf_implied_price
+from finrobot.engine.compute.operators.dcf import compute_dcf_implied_price
 from finrobot.engine.debate.models import DivergencePoint
 from finrobot.engine.models.financial import DCFInputs
 

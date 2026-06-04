@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from finrobot.engine.models.financial import CatalystEvent
-from finrobot.engine.compute.catalyst import (
+from finrobot.engine.compute.operators.catalyst import (
     rank_catalysts,
     filter_by_impact,
     classify_catalyst_type,
@@ -10,7 +10,7 @@ from finrobot.engine.compute.catalyst import (
     compute_expected_impact,
     summarize_catalyst_outlook,
 )
-from finrobot.engine.compute.news import NewsItem
+from finrobot.engine.compute.coordinators.news import NewsItem
 
 
 def _make_events() -> list[CatalystEvent]:

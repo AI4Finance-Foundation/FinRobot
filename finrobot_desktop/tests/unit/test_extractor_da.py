@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.financials import normalize_financials
 from finrobot.engine.data.normalize.price import normalize_price
-from finrobot.engine.compute.extractor import extract_financial_data
+from finrobot.engine.compute.coordinators.extractor import extract_financial_data
 
 
 def _make_fin(**overrides):

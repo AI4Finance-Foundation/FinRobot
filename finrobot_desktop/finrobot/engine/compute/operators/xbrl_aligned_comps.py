@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from finrobot.engine.compute.extractor import normalize_peer_to_usd
-from finrobot.engine.compute.multiples import calculate_multiples
+from finrobot.engine.compute.coordinators.extractor import normalize_peer_to_usd
+from finrobot.engine.compute.operators.multiples import calculate_multiples
 from finrobot.engine.models.financial import CompanyFinancials, FinancialData
 
 

@@ -18,7 +18,7 @@ from typing import Any
 
 import pytest
 
-from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
+from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
 from finrobot.engine.data.interface import DataResult, ProviderError
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import HistoricalMetrics

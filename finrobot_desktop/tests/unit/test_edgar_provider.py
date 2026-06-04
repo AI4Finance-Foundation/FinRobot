@@ -862,7 +862,7 @@ async def test_fetch_xbrl_surfaces_ttm_calculated_q4_and_warning() -> None:
 @pytest.mark.asyncio
 async def test_xbrl_concept_snapshot_net_income_dual_key() -> None:
     """xbrl_concept_snapshot splits NetIncomeLoss into :annual and :ttm keys."""
-    from finrobot.engine.compute.xbrl_aligned_comps import xbrl_concept_snapshot
+    from finrobot.engine.compute.operators.xbrl_aligned_comps import xbrl_concept_snapshot
 
     raw_xbrl = {
         "ttm_net_income": {

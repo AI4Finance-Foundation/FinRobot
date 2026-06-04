@@ -28,7 +28,7 @@ from finrobot.artifact.summary_extractor import (
     extract_target_price,
     extract_verdict,
 )
-from finrobot.engine.compute.signal import _ensure_tz
+from finrobot.engine.compute.operators.signal import _ensure_tz
 
 # Period gap (days) beyond which two TTM snapshots likely straddle an earnings
 # season and their absolute fundamentals are no longer like-for-like.
@@ -333,7 +333,7 @@ def _build_attribution(
     currency: str | None,
     assumptions_moved: bool,
 ) -> Attribution:
-    from finrobot.engine.compute.dcf import compute_dcf_implied_price
+    from finrobot.engine.compute.operators.dcf import compute_dcf_implied_price
     from finrobot.engine.models.financial import DCFInputs
 
     fair = REGISTRY["implied_price"]

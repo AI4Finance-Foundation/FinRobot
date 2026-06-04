@@ -1,6 +1,6 @@
 import pytest
 from finrobot.engine.models.financial import CompanyFinancials, PeerComps
-from finrobot.engine.compute.multiples import (
+from finrobot.engine.compute.operators.multiples import (
     calculate_core_pe,
     calculate_ev,
     calculate_multiples,

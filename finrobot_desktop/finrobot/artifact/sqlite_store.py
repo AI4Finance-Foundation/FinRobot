@@ -41,7 +41,7 @@ from typing import Any
 import aiosqlite
 
 from finrobot.artifact.models import Artifact, ArtifactSummary, ArtifactType
-from finrobot.engine.compute.signal import Signal  # noqa: F401 — used in ArtifactSummary
+from finrobot.engine.compute.operators.signal import Signal  # noqa: F401 — used in ArtifactSummary
 from finrobot.artifact.summary_extractor import (
     extract_entry_price,
     extract_tagline,

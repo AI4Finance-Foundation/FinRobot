@@ -108,7 +108,7 @@ async def _should_use_ddm(deps: "FinRobotDeps", ticker: str) -> bool:
     bound to the destroyed loop → the interpreter hung forever joining the
     orphan thread at shutdown. Keeping everything on one loop avoids that.
     """
-    from finrobot.engine.compute.industry import is_bank
+    from finrobot.engine.compute.operators.industry import is_bank
     from finrobot.engine.data.types import DataType
 
     try:
@@ -481,7 +481,7 @@ def compare(tickers: tuple[str, ...], model: str | None) -> None:
 
     deps = _build_deps(model)
 
-    from finrobot.engine.compute.compare import (
+    from finrobot.engine.compute.operators.compare import (
         CompanyValuation,
         ComparisonResult,
         build_company_valuation,

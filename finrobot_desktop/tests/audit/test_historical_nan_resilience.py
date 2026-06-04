@@ -22,9 +22,9 @@ from typing import Any
 
 import pytest
 
-from finrobot.engine.compute.data_processor import calculate_cagr
-from finrobot.engine.compute.dcf_seed import _median_ratio, seed_dcf_inputs
-from finrobot.engine.compute.historical_extractor import _build_from_yearly
+from finrobot.engine.compute.operators.data_processor import calculate_cagr
+from finrobot.engine.compute.operators.dcf_seed import _median_ratio, seed_dcf_inputs
+from finrobot.engine.compute.coordinators.historical_extractor import _build_from_yearly
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.types import DataType
 

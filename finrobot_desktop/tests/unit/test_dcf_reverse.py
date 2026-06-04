@@ -7,7 +7,7 @@ test_dcf.py and tests/audit/test_financial_sanity.py.
 """
 
 
-from finrobot.engine.compute.dcf import (
+from finrobot.engine.compute.operators.dcf import (
     _price_for,
     calculate_dcf,
     solve_for_implied_growth,

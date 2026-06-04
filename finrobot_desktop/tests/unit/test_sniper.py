@@ -1,4 +1,4 @@
-"""Unit tests for finrobot.engine.compute.sniper.calculate_sniper_points.
+"""Unit tests for finrobot.engine.compute.operators.sniper.calculate_sniper_points.
 
 External sources for expected values:
 - Safety margin thresholds (15%/10%/5%) are hardcoded in sniper.py — we test
@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import pytest
 
-from finrobot.engine.compute.sniper import SniperPoints, SniperRequest, calculate_sniper_points
+from finrobot.engine.compute.operators.sniper import SniperPoints, SniperRequest, calculate_sniper_points
 
 
 # ---------------------------------------------------------------------------
@@ -639,7 +639,7 @@ def test_sniper_safe_wrapper_catches_degenerate_target() -> None:
     None + warning instead of letting the degenerate row reach the artifact."""
     from types import SimpleNamespace
 
-    from finrobot.engine.compute.technical_payload import _safe_sniper
+    from finrobot.engine.compute.coordinators.technical_payload import _safe_sniper
 
     warnings: list[str] = []
     sniper = _safe_sniper(

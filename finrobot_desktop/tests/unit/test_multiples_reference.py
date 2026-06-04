@@ -25,7 +25,7 @@ Excel verification:
 """
 
 from finrobot.engine.models.financial import CompanyFinancials, PeerComps
-from finrobot.engine.compute.multiples import calculate_multiples, calculate_peer_statistics
+from finrobot.engine.compute.operators.multiples import calculate_multiples, calculate_peer_statistics
 
 
 def _make(ticker, rev, ebitda, ni, mcap, debt, cash):

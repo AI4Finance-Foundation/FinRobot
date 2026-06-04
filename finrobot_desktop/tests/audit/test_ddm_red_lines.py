@@ -16,8 +16,8 @@ from pathlib import Path
 
 import pytest
 
-from finrobot.engine.compute.ddm import calculate_ddm
-from finrobot.engine.compute.ddm_seed import seed_ddm_inputs
+from finrobot.engine.compute.operators.ddm import calculate_ddm
+from finrobot.engine.compute.operators.ddm_seed import seed_ddm_inputs
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials, Provenance
 from finrobot.engine.models.financial import (
     BalanceSheet,

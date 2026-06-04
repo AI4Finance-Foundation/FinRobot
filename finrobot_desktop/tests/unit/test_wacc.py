@@ -1,4 +1,4 @@
-from finrobot.engine.compute.wacc import calculate_wacc
+from finrobot.engine.compute.operators.wacc import calculate_wacc
 
 
 def test_wacc_hand_calculated():

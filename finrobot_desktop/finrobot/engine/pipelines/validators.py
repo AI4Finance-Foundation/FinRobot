@@ -4,7 +4,7 @@ from statistics import median as _median
 
 from pydantic import BaseModel
 
-from finrobot.engine.compute.multiples import (
+from finrobot.engine.compute.operators.multiples import (
     PEER_EV_EBITDA_SANITY_MAX,
     PEER_EV_EBITDA_SANITY_MIN,
     PEER_EV_REVENUE_SANITY_MAX,
@@ -51,7 +51,7 @@ def validate_technical_analysis(output: object) -> ValidationResult:
     we PASS so the run continues to a relative-valuation report instead of
     re-triggering a non-critical degrade and stamping a misleading green check.
     """
-    from finrobot.engine.compute.technical_payload import (
+    from finrobot.engine.compute.coordinators.technical_payload import (
         TECHNICAL_DCF_UNAVAILABLE_MARKER,
         TechnicalAnalysis,
     )
@@ -299,7 +299,7 @@ artifacts using mixed case (`Buy`/`Hold`/`Sell`) still validate.
 
 
 # Peer EV/EBITDA sanity range is owned by the compute layer
-# (``finrobot.engine.compute.multiples``); both layers reference the same
+# (``finrobot.engine.compute.operators.multiples``); both layers reference the same
 # constants so the silent floor and the loud validator can never drift out
 # of alignment.
 
@@ -384,7 +384,7 @@ def validate_peer_comps(comps: PeerComps) -> ValidationResult:
     Collects ALL range violations across the peer set (no short-circuit) so a
     single bad ticker doesn't mask other data issues. The EV/EBITDA range is a
     garbage filter, not a "meaningfulness" filter — see
-    ``finrobot.engine.compute.multiples`` for the cyclical-trough rationale.
+    ``finrobot.engine.compute.operators.multiples`` for the cyclical-trough rationale.
 
     Additionally emits non-fatal outlier warnings (> 5x from peer median) via
     ``comps.warnings`` so downstream consumers can surface data quality issues

@@ -24,9 +24,9 @@ from typing import Any
 
 from pydantic_ai import Agent
 
-from finrobot.engine.compute.ddm import calculate_ddm, calculate_ddm_sensitivity
-from finrobot.engine.compute.ddm_seed import seed_ddm_inputs
-from finrobot.engine.compute.fx_normalize import normalize_financialdata_to_usd
+from finrobot.engine.compute.operators.ddm import calculate_ddm, calculate_ddm_sensitivity
+from finrobot.engine.compute.operators.ddm_seed import seed_ddm_inputs
+from finrobot.engine.compute.operators.fx_normalize import normalize_financialdata_to_usd
 from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps

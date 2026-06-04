@@ -11,16 +11,16 @@ from fastapi import APIRouter, HTTPException
 from pydantic import ValidationError
 from starlette.requests import Request
 
-from finrobot.engine.compute.catalyst import (
+from finrobot.engine.compute.operators.catalyst import (
     compute_expected_impact,
     extract_catalysts_from_news,
     rank_catalysts,
 )
-from finrobot.engine.compute.extractor import extract_financial_data
-from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
-from finrobot.engine.compute.market import technical_payload
+from finrobot.engine.compute.coordinators.extractor import extract_financial_data
+from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
+from finrobot.engine.compute.coordinators.market import technical_payload
 from finrobot.engine.analysis.news_classifier import classify_news
-from finrobot.engine.compute.news import fetch_news
+from finrobot.engine.compute.coordinators.news import fetch_news
 from finrobot.engine.data.cache import cached_fetch
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer

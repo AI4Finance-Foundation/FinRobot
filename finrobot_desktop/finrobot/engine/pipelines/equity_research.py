@@ -25,27 +25,27 @@ from finrobot.engine.models.financial import (
     StepOutput,
     ValuationSynthesis,
 )
-from finrobot.engine.compute.catalyst import (
+from finrobot.engine.compute.operators.catalyst import (
     extract_catalysts_from_news,
     filter_fresh_news,
     compute_expected_impact,
     summarize_catalyst_outlook,
 )
-from finrobot.engine.compute.dcf import calculate_dcf, calculate_sensitivity
-from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
-from finrobot.engine.compute.extractor import normalize_financials_to_usd
-from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
-from finrobot.engine.compute.ownership import compute_ownership_governance
-from finrobot.engine.compute.technical_payload import (
+from finrobot.engine.compute.operators.dcf import calculate_dcf, calculate_sensitivity
+from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
+from finrobot.engine.compute.coordinators.extractor import normalize_financials_to_usd
+from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
+from finrobot.engine.compute.operators.ownership import compute_ownership_governance
+from finrobot.engine.compute.coordinators.technical_payload import (
     TECHNICAL_DCF_UNAVAILABLE_MARKER,
     TechnicalAnalysis,
     build_technical_analysis,
 )
-from finrobot.engine.compute.xbrl_aligned_comps import (
+from finrobot.engine.compute.operators.xbrl_aligned_comps import (
     xbrl_concept_snapshot,
 )
 from finrobot.engine.analysis.news_classifier import classify_news
-from finrobot.engine.compute.news import fetch_news, sanitize_untrusted_text
+from finrobot.engine.compute.coordinators.news import fetch_news, sanitize_untrusted_text
 from finrobot.engine.pipelines.base import (
     Pipeline,
     PipelineStep,

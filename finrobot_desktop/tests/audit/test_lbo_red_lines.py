@@ -32,7 +32,7 @@ from pathlib import Path
 
 import pytest
 
-from finrobot.engine.compute.lbo_seed import seed_lbo_inputs
+from finrobot.engine.compute.operators.lbo_seed import seed_lbo_inputs
 from finrobot.engine.models.financial import (
     BalanceSheet,
     FinancialData,

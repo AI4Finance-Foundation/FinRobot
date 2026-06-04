@@ -21,7 +21,7 @@ from finrobot.artifact.models import (
     ArtifactOutputs,
 )
 from finrobot.artifact.semantic_diff import build_semantic_delta
-from finrobot.engine.compute.dcf import calculate_dcf
+from finrobot.engine.compute.operators.dcf import calculate_dcf
 from finrobot.engine.models.financial import DCFInputs
 
 UTC = timezone.utc

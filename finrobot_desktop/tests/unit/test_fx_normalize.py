@@ -1,4 +1,4 @@
-"""Tests for engine/compute/fx_normalize.py — peer comps USD normalization."""
+"""Tests for engine/compute/operators/fx_normalize.py — peer comps USD normalization."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import pytest
 
 from datetime import datetime, timezone
 
-from finrobot.engine.compute.fx_normalize import (
+from finrobot.engine.compute.operators.fx_normalize import (
     normalize_company_to_usd,
     normalize_financialdata_to_usd,
 )

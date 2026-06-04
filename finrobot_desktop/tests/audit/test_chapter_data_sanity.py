@@ -22,13 +22,13 @@ from datetime import date, datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from finrobot.engine.compute.catalyst import extract_catalysts_from_news
-from finrobot.engine.compute.dcf import calculate_dcf
-from finrobot.engine.compute.multiples import calculate_multiples
-from finrobot.engine.compute.ownership import build_proxy_compensation
-from finrobot.engine.compute.sniper import SniperRequest, calculate_sniper_points
-from finrobot.engine.compute.valuation_synthesis import synthesize_valuations
-from finrobot.engine.compute.news import NewsItem
+from finrobot.engine.compute.operators.catalyst import extract_catalysts_from_news
+from finrobot.engine.compute.operators.dcf import calculate_dcf
+from finrobot.engine.compute.operators.multiples import calculate_multiples
+from finrobot.engine.compute.operators.ownership import build_proxy_compensation
+from finrobot.engine.compute.operators.sniper import SniperRequest, calculate_sniper_points
+from finrobot.engine.compute.operators.valuation_synthesis import synthesize_valuations
+from finrobot.engine.compute.coordinators.news import NewsItem
 from finrobot.engine.models.financial import (
     CompanyFinancials,
     DCFInputs,

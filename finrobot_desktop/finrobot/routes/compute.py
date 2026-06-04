@@ -8,25 +8,25 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from starlette.requests import Request
 
-from finrobot.engine.compute.dcf import (
+from finrobot.engine.compute.operators.dcf import (
     calculate_dcf,
     calculate_sensitivity,
     solve_for_implied_growth,
     solve_for_implied_horizon,
     solve_for_implied_wacc,
 )
-from finrobot.engine.compute.lbo import calculate_lbo
-from finrobot.engine.compute.monte_carlo import (
+from finrobot.engine.compute.operators.lbo import calculate_lbo
+from finrobot.engine.compute.operators.monte_carlo import (
     MonteCarloRequest,
     MonteCarloResult,
     run_monte_carlo,
 )
-from finrobot.engine.compute.sniper import (
+from finrobot.engine.compute.operators.sniper import (
     SniperPoints,
     SniperRequest,
     calculate_sniper_points,
 )
-from finrobot.engine.compute.wacc import calculate_wacc
+from finrobot.engine.compute.operators.wacc import calculate_wacc
 from finrobot.engine.models.financial import (
     DCFInputs,
     DCFResult,
@@ -218,12 +218,12 @@ async def _seed_dcf_inputs_for_ticker(
     variability), seeds from an empty HistoricalMetrics so seed_dcf_inputs falls
     through to Damodaran industry medians rather than raising.
     """
-    from finrobot.engine.compute.dcf_seed import seed_dcf_inputs
-    from finrobot.engine.compute.extractor import (
+    from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
+    from finrobot.engine.compute.coordinators.extractor import (
         extract_financial_data,
         normalize_financials_to_usd,
     )
-    from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
+    from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
     from finrobot.engine.data.types import DataType
 
     data_layer = deps.data_layer
@@ -613,9 +613,9 @@ async def compute_lbo_seed(body: LboSeedRequest, request: Request) -> LboSeedRes
     Everything returned in a single bundled response so the UI doesn't need
     follow-up calls to render the LBO panel.
     """
-    from finrobot.engine.compute.extractor import extract_financial_data
-    from finrobot.engine.compute.historical_extractor import fetch_historical_metrics
-    from finrobot.engine.compute.lbo_seed import seed_lbo_inputs
+    from finrobot.engine.compute.coordinators.extractor import extract_financial_data
+    from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
+    from finrobot.engine.compute.operators.lbo_seed import seed_lbo_inputs
     from finrobot.engine.data.types import DataType
     from finrobot.engine.models.financial import HistoricalMetrics
 

@@ -18,7 +18,7 @@ This expected value was computed in a spreadsheet independent of calculate_wacc(
 If the test fails, either the source data changed or calculate_wacc() has a bug.
 """
 
-from finrobot.engine.compute.wacc import calculate_wacc
+from finrobot.engine.compute.operators.wacc import calculate_wacc
 
 
 def test_wacc_apple_fy2024():

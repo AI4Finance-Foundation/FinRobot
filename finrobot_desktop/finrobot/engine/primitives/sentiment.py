@@ -1,4 +1,4 @@
-# finrobot/engine/compute/sentiment.py
+# finrobot/engine/primitives/sentiment.py
 """Keyword-based headline sentiment scoring.
 
 What this code does that raw LLM cannot:

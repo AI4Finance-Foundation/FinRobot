@@ -245,7 +245,7 @@ class InstitutionalHolding(BaseModel):
     value_usd: float  # 13F reports in thousands of USD; cache normalises to dollars
     period_end: date
     # Percentage units (4.2 means 4.2%, not 0.042), mirroring the convention
-    # in finrobot/engine/compute/market.py. UI calls formatPercent with
+    # in finrobot/engine/compute/coordinators/market.py. UI calls formatPercent with
     # `alreadyPercent=true` so the visual layer never has to guess.
     shares_change_pct: float | None = None  # computed by FinRobot vs prior quarter
     provenance: FilingProvenance

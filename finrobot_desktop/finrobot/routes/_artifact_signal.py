@@ -1,6 +1,6 @@
 """Route-layer adapter: lazily compute ArtifactSummary.signal against fresh quotes.
 
-The compute layer (`finrobot.engine.compute.signal`) is intentionally numeric
+The compute layer (`finrobot.engine.compute.operators.signal`) is intentionally numeric
 only — it knows nothing about ArtifactSummary or the DataLayer. This adapter
 bridges the two: group summaries by ticker, fetch one quote per ticker, run
 `compute_signal` per summary, and return the enriched list.
@@ -21,7 +21,7 @@ from collections.abc import Iterable
 from datetime import datetime, timezone
 
 from finrobot.artifact.models import ArtifactSummary
-from finrobot.engine.compute.signal import compute_signal
+from finrobot.engine.compute.operators.signal import compute_signal
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.types import DataType

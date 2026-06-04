@@ -27,7 +27,7 @@ describe('CoverageHero', () => {
   it('drills into /stocks/:ticker on a valid submit (upper-cased)', () => {
     renderHero()
     fireEvent.change(screen.getByLabelText('Ticker symbol'), { target: { value: 'aapl' } })
-    fireEvent.click(screen.getByLabelText('Load ticker'))
+    fireEvent.click(screen.getByLabelText('Analyze'))
     expect(mockNavigate).toHaveBeenCalledWith('/stocks/AAPL')
   })
 

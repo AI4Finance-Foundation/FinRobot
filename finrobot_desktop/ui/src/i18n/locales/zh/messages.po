@@ -2015,11 +2015,11 @@ msgstr "确定性计算 · LLM 叙事"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.tagline2"
-msgstr "NUMBER FIRST · NARRATIVE SECOND"
+msgstr "数字优先 · 叙事其次"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.tagline3"
-msgstr "AI ANALYST · 持续工作中"
+msgstr "AI 分析师 · 持续工作中"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.tagline4"
@@ -2048,6 +2048,42 @@ msgstr "函数轨迹"
 #. js-lingui-explicit-id
 msgid "landing.hero.chapterMatrix"
 msgstr "章节矩阵"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.online"
+msgstr "AI 分析师 · 在线"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.tickerAria"
+msgstr "股票代码"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.deckCaption"
+msgstr "按下「分析」后会跑什么"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.reportNode"
+msgstr "13 章投行级研报"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.traceableLabel"
+msgstr "每个数字可溯源"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.sourcedNote"
+msgstr "每个数字都是 SourcedNumber，可点开看 provider / 口径 / 公式"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.icDebate"
+msgstr "多空 IC 辩论 · 信念分"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.bull"
+msgstr "看多"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.bear"
+msgstr "看空"
 
 #. js-lingui-explicit-id
 msgid "landing.hitRate.window30d"

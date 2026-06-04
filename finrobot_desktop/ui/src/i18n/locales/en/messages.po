@@ -2050,6 +2050,42 @@ msgid "landing.hero.chapterMatrix"
 msgstr "Chapter matrix"
 
 #. js-lingui-explicit-id
+msgid "landing.hero.online"
+msgstr "AI analyst · online"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.tickerAria"
+msgstr "Ticker symbol"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.deckCaption"
+msgstr "What runs when you hit Analyze"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.reportNode"
+msgstr "13-chapter IB-grade report"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.traceableLabel"
+msgstr "Every number traceable"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.sourcedNote"
+msgstr "Every figure is a SourcedNumber — open it for provider / basis / formula"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.icDebate"
+msgstr "Bull / Bear IC debate · conviction"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.bull"
+msgstr "BULL"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.bear"
+msgstr "BEAR"
+
+#. js-lingui-explicit-id
 msgid "landing.hitRate.window30d"
 msgstr "30D"
 

@@ -215,7 +215,9 @@ function closeAndForget(ticker: string): void {
   // close it too so it doesn't leak (e.g. clear() of the final batch ticker).
   if (multiplexedSource && multiplexedTickers.includes(ticker)) {
     const others = multiplexedTickers.filter((tk) => tk !== ticker)
-    const anyRunning = others.some((tk) => useRunStreamStore.getState().runs[tk]?.status === 'running')
+    const anyRunning = others.some(
+      (tk) => useRunStreamStore.getState().runs[tk]?.status === 'running',
+    )
     if (!anyRunning) closeMultiplexed()
   }
   sseErrorCounts.delete(ticker)

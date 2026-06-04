@@ -498,8 +498,7 @@ function EarningsCallSection({
   // disambiguates genuine duplicate (year,quarter) pairs (amended filings).
   const keyOf = (tx: EarningsCallTranscript, idx: number): string =>
     `${tx.year}-Q${tx.quarter}-${idx}`
-  const selected =
-    transcripts.find((tx, i) => keyOf(tx, i) === selectedKey) ?? transcripts[0]
+  const selected = transcripts.find((tx, i) => keyOf(tx, i) === selectedKey) ?? transcripts[0]
 
   return (
     <div>

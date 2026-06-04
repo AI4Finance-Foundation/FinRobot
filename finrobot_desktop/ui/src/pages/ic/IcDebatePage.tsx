@@ -260,11 +260,7 @@ export function IcDebatePage() {
               <button type="button" onClick={() => navigate(reportPath)} style={primaryBtnStyle}>
                 ← {t('ic.action.backToReport')}
               </button>
-              <button
-                type="button"
-                onClick={() => navigate('/coverage')}
-                style={secondaryBtnStyle}
-              >
+              <button type="button" onClick={() => navigate('/coverage')} style={secondaryBtnStyle}>
                 {t('ic.action.backToCoverage')}
               </button>
             </div>

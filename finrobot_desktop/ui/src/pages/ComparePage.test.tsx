@@ -9,7 +9,11 @@ import type { CompanyValuation } from '../api/coverage'
 
 const DAY = 86_400_000
 
-function cv(ticker: string, dcf_as_of: string | null, error: string | null = null): CompanyValuation {
+function cv(
+  ticker: string,
+  dcf_as_of: string | null,
+  error: string | null = null,
+): CompanyValuation {
   return {
     ticker,
     company_name: '',

@@ -19,11 +19,9 @@ import { useI18n } from '../i18n'
 import { useCoverageStore } from '../stores/coverageStore'
 import { useRunStreamStore } from '../stores/runStreamStore'
 import {
-  useAddMembers,
   useBatchRun,
   useCoverageGroups,
   useCoverageOverview,
-  useCreateGroup,
   useRemoveMember,
 } from '../hooks/useCoverage'
 import { CoverageEmptyState } from '../components/coverage/CoverageEmptyState'
@@ -54,7 +52,6 @@ export function CoveragePage(): React.ReactElement {
   const groupsQuery = useCoverageGroups()
   const groups = groupsQuery.data ?? []
 
-  const setSelectedGroup = useCoverageStore((s) => s.setSelectedGroup)
   const selectedTickers = useCoverageStore((s) => s.selectedTickers)
   const toggleTicker = useCoverageStore((s) => s.toggleTicker)
   const clearSelection = useCoverageStore((s) => s.clearSelection)
@@ -214,11 +211,9 @@ export function CoveragePage(): React.ReactElement {
     [focusedTicker, selectedTickers],
   )
 
-  // createGroup + addMembers are used ONLY by the cold-start empty state below
-  // (seed the first Studied Tickers list). batchRun / removeMember drive the
-  // card + inspector actions. Group rename/delete were removed with the switcher.
-  const createGroup = useCreateGroup()
-  const addMembers = useAddMembers()
+  // batchRun / removeMember drive the card + inspector actions. Group
+  // create/add were removed with the cold-start "build a group" form: the empty
+  // state now leads with search and coverage auto-enrolls on /stocks/:ticker.
   const batchRun = useBatchRun()
   const removeMember = useRemoveMember()
 
@@ -247,42 +242,12 @@ export function CoveragePage(): React.ReactElement {
     )
   }
 
-  // ── No groups yet → Coverage Starter (State A) ────────────────────────────
-  // Loading + error are handled above, so reaching here means groups resolved.
+  // ── No coverage yet → search-first cold start (UX-001/UX-014) ─────────────
+  // Loading + error are handled above, so reaching here means groups resolved
+  // to empty. The empty state leads with the same search hero as the populated
+  // desk; opening a ticker auto-enrolls it, so coverage builds from research.
   if (groups.length === 0) {
-    return (
-      <CoverageEmptyState
-        busy={createGroup.isPending}
-        onCreate={(name, tickers) => {
-          createGroup.mutate(
-            { name },
-            {
-              onSuccess: (group) => {
-                setSelectedGroup(group.id)
-                if (tickers.length > 0)
-                  addMembers.mutate(
-                    { id: group.id, tickers },
-                    {
-                      onError: (err) =>
-                        toast({
-                          type: 'error',
-                          title: t('coverage.error.addFailed'),
-                          description: mapErrorToUserMessage(err),
-                        }),
-                    },
-                  )
-              },
-              onError: (err) =>
-                toast({
-                  type: 'error',
-                  title: t('coverage.error.createFailed'),
-                  description: mapErrorToUserMessage(err),
-                }),
-            },
-          )
-        }}
-      />
-    )
+    return <CoverageEmptyState />
   }
 
   // ── Handlers ──────────────────────────────────────────────────────────────

@@ -84,7 +84,7 @@
 | BUG-033 | Bug | P1 | Chat tools and /api/runs accept unvalidated ticker strings while a SoT ticker validator already exists in coverage — junk symbols fan out to live providers | 已修 |
 | BUG-073 | Bug | P1 | DCF/DDM 绝对估值对外币 ADR 零 FX 归一化:营收(申报币 TWD/EUR)与市值/股本(USD)混算,implied_price 本币计价却当 USD 印出并比价(TSM ~32x 高估)——comps 路径已修,绝对估值路径漏修 | 已修 |
 | BUG-077 | Bug | P1 | SkillRegistry._load_all 只 catch SkillLoadError 不 catch pydantic ValidationError——一个字段类型写错的 SKILL.md(外部/partner 技能常见)使 server/SDK/CLI 启动整体崩,违背其 fail-soft 设计 | 已修 |
-| UX-001 | 产品 | P1 | 冷启动首份研报动线被拆成两条不相通的入口，且 Starter 终点是空墙而非一份研报 | 待修 |
+| UX-001 | 产品 | P1 | 冷启动首份研报动线被拆成两条不相通的入口，且 Starter 终点是空墙而非一份研报 | 已修 |
 | UX-002 | 产品 | P1 | 首份研报跑完后还要手动点一次才能阅读——"第一次惊艳"被一次多余点击拦住 | 待修 |
 | UX-003 | 产品 | P1 | TickerNotFound 的「返回」按钮指向已退役的 /stocks，触发二次重定向 + 错误的合并提示 | 已修 |
 | UX-004 | 产品 | P1 | 投委会辩论跑完是死胡同：无任何 next-step CTA + 用完即焚 | 已修 |
@@ -134,7 +134,7 @@
 | UX-011 | 产品 | P2 | Coverage Desk（新首页）全程零 hover 反馈，质感跌破全 App 基准线 | 已修 |
 | UX-012 | 产品 | P2 | Coverage Inspector 的 Live/Report 面板丢失溯源——同一数字在卡上可溯、点进去不可溯 | 已修 |
 | UX-013 | 产品 | P2 | `/api/dashboard/hit-rate` + useDashboardHitRate are orphaned after the homepage declutter — track-record panel has no live caller | 已修 |
-| UX-014 | 产品 | P2 | 首屏产品身份分裂：populated 态顶 FINROBOT 大字、empty 态顶 Coverage Desk，同一页两套品牌/心智 | 待修 |
+| UX-014 | 产品 | P2 | 首屏产品身份分裂：populated 态顶 FINROBOT 大字、empty 态顶 Coverage Desk，同一页两套品牌/心智 | 已修 |
 | BUG-058 | Bug | P3 | Non-critical steps emit a misleading step.completed (green ✓) after exhausting all retries on a real failure | 已修 |
 | BUG-059 | Bug | P3 | Validation-failure retries re-run deterministic executors unchanged, burning the full retry budget on identical failing output | 已修 |
 | BUG-060 | Bug | P3 | DCF/Monte Carlo 把 Gordon 终值在中年法下按 (n-0.5) 折现——终值『定价日』应是年末 n,这里多折了半年,系统性高估 fair value | 待修 |
@@ -1364,7 +1364,7 @@
 - **验证补充**：Direction (single 'search one name → read report' funnel) is sound and aligns with the auto-enrol contract. Do NOT ship as silent behavior change — finding correctly tags it [需确认]/IA decision per CLAUDE.md. Drop to P2 and gate on boss sign-off + docs/UI设计.md authority before coding.
 - **影响面/回归风险**：影响 100% 新用户的第一印象与留存——首份研报是唯一的 aha。回归风险中：改了冷启动渲染分支，需确认『有 groups 但 needs_action 为空』『有 groups 有 rows』等其它态不受影响；Starter 删除后要确认没有别处依赖 coverage.starter.* 文案/onCreate 回调（CoveragePage.tsx:189-206 的 createGroup+addMembers 仅此处用，可一并清理）。
 - **合并自**：ux-IA-simplify#1, ux-firsttime#4（2 条同源发现）
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（CoverageEmptyState 重写为 search-first：复用 CoverageHero（与 populated 同一身份）+『搜股→研报→自动沉淀覆盖』引导文案 + 热门 quick-pick chips→/stocks/:ticker；删除强制建组表单（createGroup/addMembers/setSelectedGroup 一并拔除，无 dead code）。后端已验证：开 /stocks/:ticker 经 useAddStudiedTicker 自动入 Studied Tickers 系统组（懒创建），覆盖从研究自然沉淀、无需手动建组。cold-start e2e + 截图自验绿）
 
 #### [UX-002] 首份研报跑完后还要手动点一次才能阅读——"第一次惊艳"被一次多余点击拦住
 
@@ -1535,7 +1535,7 @@
 - **修复方案**：统一首屏标识：让空态复用 CoverageHero 的标题块（或反之），二选一保留一套品牌字号。最小修正：CoverageEmptyState.tsx:56 的『Coverage Desk』改为走 t()（新增 coverage.starter.title 键，zh/en 两份），并与 Hero 的视觉层级对齐。若采纳 finding#4 的『空态=放大 Hero』方案，本问题自然消解（空态直接用 CoverageHero）。注意硬编码英文违反项目 i18n 约定。改动量：低（接 finding#4 则 0 额外成本；独立修则 ~1 键 + 1 行）。
 - **验证补充**：Minimal correct fix: add coverage.starter.title (zh/en) and route line 56 through t(). The 'unify brand identity' part is optional polish, not a bug — don't conflate. If #3 is adopted (empty state → Hero), this dissolves for free. P3, not P2.
 - **影响面/回归风险**：影响首屏一致性观感。回归风险极低。建议与 finding#4 合并处理。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（空态与 populated 态统一为单一 CoverageHero 身份，消除 FINROBOT-vs-Coverage Desk 分裂；删除空态硬编码英文『Coverage Desk』h1；i18n 清掉 7 个废弃 coverage.starter.* 键、新增 4 个 search-first 键）
 
 #### [UX-015] 最高曝光的 Run CTA / Pipeline 徽章用字面量 color:'white' 与裸数字圆角，绕过已存在的 token
 

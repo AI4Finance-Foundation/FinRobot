@@ -3306,34 +3306,6 @@ msgid "coverage.running"
 msgstr "运行中"
 
 #. js-lingui-explicit-id
-msgid "coverage.starter.defaultName"
-msgstr "我的覆盖"
-
-#. js-lingui-explicit-id
-msgid "coverage.starter.subtitle"
-msgstr "你的研究覆盖池还没有 ticker。添加几个开始。"
-
-#. js-lingui-explicit-id
-msgid "coverage.starter.addPlaceholder"
-msgstr "添加 ticker（如 AAPL MSFT NVDA）…"
-
-#. js-lingui-explicit-id
-msgid "coverage.starter.cta"
-msgstr "创建覆盖组"
-
-#. js-lingui-explicit-id
-msgid "coverage.starter.step1"
-msgstr "添加 3-10 个 ticker"
-
-#. js-lingui-explicit-id
-msgid "coverage.starter.step2"
-msgstr "选择 ticker"
-
-#. js-lingui-explicit-id
-msgid "coverage.starter.step3"
-msgstr "运行研究，生成第一份可追溯研报"
-
-#. js-lingui-explicit-id
 msgid "coverage.runSelected"
 msgstr "运行研究 ({n})"
 
@@ -3808,5 +3780,22 @@ msgstr "90天"
 
 #. js-lingui-explicit-id
 msgid "coverage.trust.window.all"
-msgstr "全部"
+msgstr "全期"
+
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.searchFirstHint"
+msgstr "在上方搜索任意股票代码，生成第一份投行级研报——你研究过的标的会自动沉淀进覆盖台。"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.quickPick"
+msgstr "快速开始"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.autoCoverageNote"
+msgstr "无需手动建组。你研究过的每只股票都会自动加入覆盖。"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.researchTicker"
+msgstr "研究 {ticker}"
 

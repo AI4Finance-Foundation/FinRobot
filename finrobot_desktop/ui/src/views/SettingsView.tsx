@@ -281,14 +281,21 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   // When true, the AI Model section shows the "add a custom provider" form
   // (triggered from the provider dropdown's "＋ add" entry).
   const [addingCustom, setAddingCustom] = useState(false)
-  // Draft for the "add custom provider" form.
+  // Draft for the "add custom provider" form. The name doubles as the provider
+  // id (no separate id field); a single model id (no list).
   const [draftProvider, setDraftProvider] = useState({
-    id: '',
-    label: '',
+    name: '',
     baseUrl: '',
-    models: '',
+    modelId: '',
     apiKey: '',
   })
+  // Result of the most recent "Test connection" click for the selected provider.
+  const [testState, setTestState] = useState<{
+    status: 'idle' | 'testing' | 'done'
+    ok?: boolean
+    code?: string
+    detail?: string
+  }>({ status: 'idle' })
 
   // Pending SECRET field awaiting confirmation before its stored keychain key is
   // deleted via POST /api/settings/clear-secret (BUG-005).
@@ -466,20 +473,37 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     setModelName(next)
     setLlmApiKey('')
     setAddingCustom(false)
+    setTestState({ status: 'idle' })
     scheduleStandardSave({ model_name: next })
   }
   const handleModelIdChange = (mid: string) => {
     const next = `${currentProviderId}:${mid}`
     setModelName(next)
+    setTestState({ status: 'idle' })
     scheduleStandardSave({ model_name: next })
   }
   const handleLlmKeyChange = (v: string) => {
     setLlmApiKey(v)
+    setTestState({ status: 'idle' })
     if (!v.trim()) return
     scheduleStandardSave({ provider_keys: { [currentProviderId]: v.trim() } })
   }
+  const handleTestConnection = async () => {
+    setTestState({ status: 'testing' })
+    try {
+      const { data, error } = await api.POST('/api/settings/test-provider', {
+        body: { provider_id: currentProviderId, model_id: currentModelId || null },
+      })
+      if (error || !data) throw new Error('test failed')
+      setTestState({ status: 'done', ok: data.ok, code: data.code, detail: data.detail })
+    } catch {
+      setTestState({ status: 'done', ok: false, code: 'unknown' })
+    }
+  }
 
   // ── Custom provider add / edit / delete (full-list replace) ───────────────
+  // A custom provider's name doubles as its id (the "<id>:<model>" prefix), so
+  // we strip any ':' from it. models holds a single suggested model id.
   const serializeCustomProviders = (list: typeof customProviders) =>
     list.map((p) => ({
       id: p.id,
@@ -489,49 +513,39 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       models: p.models,
     }))
   const handleAddCustomProvider = () => {
-    const id = draftProvider.id.trim()
+    const name = draftProvider.name.trim().replace(/:/g, '')
     const baseUrl = draftProvider.baseUrl.trim()
-    if (!id || !baseUrl) {
+    if (!name || !baseUrl) {
       addToast({ type: 'error', title: t('settings.customProvider.incompleteTitle') })
       return
     }
-    const models = draftProvider.models
-      .split(',')
-      .map((m) => m.trim())
-      .filter(Boolean)
+    const modelId = draftProvider.modelId.trim()
     const next = [
       ...serializeCustomProviders(customProviders),
       {
-        id,
-        label: draftProvider.label.trim() || id,
+        id: name,
+        label: name,
         kind: 'openai-compatible' as const,
         base_url: baseUrl,
-        models,
+        models: modelId ? [modelId] : [],
       },
     ]
-    const payload: Record<string, unknown> = { custom_providers: next, model_name: `${id}:` }
-    if (draftProvider.apiKey.trim()) payload.provider_keys = { [id]: draftProvider.apiKey.trim() }
+    const payload: Record<string, unknown> = {
+      custom_providers: next,
+      model_name: `${name}:${modelId}`,
+    }
+    if (draftProvider.apiKey.trim()) payload.provider_keys = { [name]: draftProvider.apiKey.trim() }
     scheduleStandardSave(payload)
-    setModelName(`${id}:`) // select the new provider
+    setModelName(`${name}:${modelId}`) // select the new provider
     setLlmApiKey('')
-    setDraftProvider({ id: '', label: '', baseUrl: '', models: '', apiKey: '' })
+    setTestState({ status: 'idle' })
+    setDraftProvider({ name: '', baseUrl: '', modelId: '', apiKey: '' })
     setAddingCustom(false)
   }
-  // Inline-edit a field of the currently-selected custom provider.
-  const handleEditCustomField = (id: string, field: 'base_url' | 'models', value: string) => {
+  // Inline-edit the base_url of the currently-selected custom provider.
+  const handleEditCustomBaseUrl = (id: string, value: string) => {
     const next = serializeCustomProviders(customProviders).map((p) =>
-      p.id === id
-        ? {
-            ...p,
-            [field]:
-              field === 'models'
-                ? value
-                    .split(',')
-                    .map((m) => m.trim())
-                    .filter(Boolean)
-                : value.trim(),
-          }
-        : p,
+      p.id === id ? { ...p, base_url: value.trim() } : p,
     )
     scheduleStandardSave({ custom_providers: next })
   }
@@ -763,31 +777,14 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                     </p>
                     <div className="settings-field">
                       <label className="settings-field-label">
-                        <span className="label-text">
-                          {t('settings.customProvider.labelField')}
-                        </span>
+                        <span className="label-text">{t('settings.customProvider.name')}</span>
                       </label>
                       <input
                         className="settings-input"
-                        value={draftProvider.label}
-                        onChange={(e) => setDraftProvider((d) => ({ ...d, label: e.target.value }))}
+                        value={draftProvider.name}
+                        onChange={(e) => setDraftProvider((d) => ({ ...d, name: e.target.value }))}
                         placeholder="OpenRouter"
                         autoComplete="off"
-                      />
-                    </div>
-                    <div className="settings-field">
-                      <label className="settings-field-label">
-                        <span className="label-text">{t('settings.customProvider.id')}</span>
-                      </label>
-                      <input
-                        className="settings-input"
-                        value={draftProvider.id}
-                        onChange={(e) =>
-                          setDraftProvider((d) => ({ ...d, id: e.target.value.trim() }))
-                        }
-                        placeholder="openrouter"
-                        autoComplete="off"
-                        spellCheck={false}
                       />
                     </div>
                     <div className="settings-field">
@@ -807,19 +804,18 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                     </div>
                     <div className="settings-field">
                       <label className="settings-field-label">
-                        <span className="label-text">{t('settings.customProvider.models')}</span>
+                        <span className="label-text">{t('settings.model.label')}</span>
                       </label>
                       <input
                         className="settings-input"
-                        value={draftProvider.models}
+                        value={draftProvider.modelId}
                         onChange={(e) =>
-                          setDraftProvider((d) => ({ ...d, models: e.target.value }))
+                          setDraftProvider((d) => ({ ...d, modelId: e.target.value.trim() }))
                         }
-                        placeholder={t('settings.customProvider.modelsPlaceholder')}
+                        placeholder={t('settings.model.idPlaceholder')}
                         autoComplete="off"
                         spellCheck={false}
                       />
-                      <p className="settings-hint">{t('settings.customProvider.modelsHint')}</p>
                     </div>
                     <div className="settings-field">
                       <label className="settings-field-label">
@@ -844,13 +840,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                         className="settings-btn"
                         onClick={() => {
                           setAddingCustom(false)
-                          setDraftProvider({
-                            id: '',
-                            label: '',
-                            baseUrl: '',
-                            models: '',
-                            apiKey: '',
-                          })
+                          setDraftProvider({ name: '', baseUrl: '', modelId: '', apiKey: '' })
                         }}
                       >
                         {t('settings.customProvider.cancel')}
@@ -880,7 +870,8 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                       </datalist>
                     </div>
 
-                    {/* Custom provider: editable base_url + models + delete */}
+                    {/* Custom provider: editable base_url + delete (the model id
+                        is the shared input above). */}
                     {currentIsCustom && currentProviderInfo && (
                       <div className="settings-custom-box">
                         <div className="settings-field">
@@ -893,25 +884,8 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                             className="settings-input"
                             defaultValue={currentProviderInfo.base_url ?? ''}
                             onBlur={(e) =>
-                              handleEditCustomField(currentProviderId, 'base_url', e.target.value)
+                              handleEditCustomBaseUrl(currentProviderId, e.target.value)
                             }
-                            autoComplete="off"
-                            spellCheck={false}
-                          />
-                        </div>
-                        <div className="settings-field">
-                          <label className="settings-field-label">
-                            <span className="label-text">
-                              {t('settings.customProvider.models')}
-                            </span>
-                          </label>
-                          <input
-                            className="settings-input"
-                            defaultValue={currentProviderInfo.models.join(', ')}
-                            onBlur={(e) =>
-                              handleEditCustomField(currentProviderId, 'models', e.target.value)
-                            }
-                            placeholder={t('settings.customProvider.modelsPlaceholder')}
                             autoComplete="off"
                             spellCheck={false}
                           />
@@ -964,6 +938,29 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                               })
                         }
                       />
+                      <div className="settings-test-row">
+                        <button
+                          type="button"
+                          className="settings-btn"
+                          onClick={handleTestConnection}
+                          disabled={testState.status === 'testing'}
+                        >
+                          {testState.status === 'testing'
+                            ? t('settings.test.testing')
+                            : t('settings.test.button')}
+                        </button>
+                        {testState.status === 'done' && (
+                          <span
+                            className={`settings-test-result${testState.ok ? ' is-ok' : ' is-bad'}`}
+                          >
+                            {testState.ok ? '✓ ' : '✗ '}
+                            {t(`settings.test.result.${testState.code ?? 'unknown'}`)}
+                            {!testState.ok && testState.detail && testState.code === 'http'
+                              ? ` (${testState.detail})`
+                              : ''}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </>
                 )}

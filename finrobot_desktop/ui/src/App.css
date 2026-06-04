@@ -1763,6 +1763,25 @@ select.settings-input {
   text-decoration: underline;
 }
 
+/* "Test connection" row under the API key */
+.settings-test-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+.settings-test-result {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+.settings-test-result.is-ok {
+  color: var(--success);
+}
+.settings-test-result.is-bad {
+  color: var(--danger);
+}
+
 /* Onboarding callout (shown when no LLM key is configured) */
 .settings-onboard {
   display: flex;

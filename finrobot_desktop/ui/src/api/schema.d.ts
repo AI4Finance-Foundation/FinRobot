@@ -413,6 +413,30 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/settings/test-provider': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Test Provider Route
+     * @description Make a tiny live LLM call to verify a provider's key / base_url / model.
+     *
+     *     Uses the currently-saved runtime config (the key the user just stored). This
+     *     is how a wrong key / bad base_url / unknown model is caught with a clear
+     *     message at config time, instead of failing 60s later inside an analysis run.
+     */
+    post: operations['test_provider_route_api_settings_test_provider_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/runs': {
     parameters: {
       query?: never
@@ -3491,6 +3515,28 @@ export interface components {
       generated_at: string
     }
     /**
+     * TestProviderRequest
+     * @description Live connectivity check for a provider's saved key / base_url / model.
+     */
+    TestProviderRequest: {
+      /** Provider Id */
+      provider_id: string
+      /** Model Id */
+      model_id?: string | null
+    }
+    /** TestProviderResponse */
+    TestProviderResponse: {
+      /** Ok */
+      ok: boolean
+      /** Code */
+      code: string
+      /**
+       * Detail
+       * @default
+       */
+      detail: string
+    }
+    /**
      * TranscriptEvent
      * @description One JSONL transcript event. ``data`` is event-specific.
      */
@@ -4228,6 +4274,39 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['SettingsResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  test_provider_route_api_settings_test_provider_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['TestProviderRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TestProviderResponse']
         }
       }
       /** @description Validation Error */

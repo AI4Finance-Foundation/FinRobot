@@ -3670,35 +3670,19 @@ msgstr "{provider} API Key"
 
 #. js-lingui-explicit-id
 msgid "settings.customProvider.title"
-msgstr "Custom providers (OpenAI-compatible)"
+msgstr "Custom provider (OpenAI-compatible)"
 
 #. js-lingui-explicit-id
-msgid "settings.customProvider.intro"
-msgstr "Wire up any OpenAI-compatible endpoint — a gateway, OpenRouter, or a local server. The model picker above will then offer it."
+msgid "settings.customProvider.name"
+msgstr "Name"
 
 #. js-lingui-explicit-id
 msgid "settings.customProvider.remove"
 msgstr "Remove"
 
 #. js-lingui-explicit-id
-msgid "settings.customProvider.id"
-msgstr "Provider id"
-
-#. js-lingui-explicit-id
-msgid "settings.customProvider.labelField"
-msgstr "Display name"
-
-#. js-lingui-explicit-id
 msgid "settings.customProvider.baseUrl"
 msgstr "Base URL"
-
-#. js-lingui-explicit-id
-msgid "settings.customProvider.models"
-msgstr "Models"
-
-#. js-lingui-explicit-id
-msgid "settings.customProvider.modelsPlaceholder"
-msgstr "Comma-separated, e.g. model-a, model-b"
 
 #. js-lingui-explicit-id
 msgid "settings.customProvider.apiKey"
@@ -3721,9 +3705,45 @@ msgid "settings.customProvider.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
-msgid "settings.customProvider.modelsHint"
-msgstr "Optional — the model id field is free text, so you can run any model this endpoint serves."
+msgid "settings.customProvider.incompleteTitle"
+msgstr "Name and Base URL are required"
 
 #. js-lingui-explicit-id
-msgid "settings.customProvider.incompleteTitle"
-msgstr "Provider id and Base URL are required"
+msgid "settings.test.button"
+msgstr "Test connection"
+
+#. js-lingui-explicit-id
+msgid "settings.test.testing"
+msgstr "Testing…"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.ok"
+msgstr "Connection OK"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.no_key"
+msgstr "No API key set for this provider"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.no_model"
+msgstr "Enter a model id first"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.auth"
+msgstr "Authentication failed — check the API key"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.connect"
+msgstr "Could not reach the endpoint — check the Base URL"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.not_found"
+msgstr "Model not found — check the model id"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.http"
+msgstr "The provider returned an error"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.unknown"
+msgstr "Connection test failed"

@@ -3673,32 +3673,16 @@ msgid "settings.customProvider.title"
 msgstr "自定义服务商（OpenAI 兼容）"
 
 #. js-lingui-explicit-id
-msgid "settings.customProvider.intro"
-msgstr "接入任意 OpenAI 兼容端点——网关、OpenRouter 或本地服务。接入后上方模型选择即可选用。"
+msgid "settings.customProvider.name"
+msgstr "名称"
 
 #. js-lingui-explicit-id
 msgid "settings.customProvider.remove"
 msgstr "删除"
 
 #. js-lingui-explicit-id
-msgid "settings.customProvider.id"
-msgstr "服务商 id"
-
-#. js-lingui-explicit-id
-msgid "settings.customProvider.labelField"
-msgstr "显示名称"
-
-#. js-lingui-explicit-id
 msgid "settings.customProvider.baseUrl"
 msgstr "Base URL"
-
-#. js-lingui-explicit-id
-msgid "settings.customProvider.models"
-msgstr "模型列表"
-
-#. js-lingui-explicit-id
-msgid "settings.customProvider.modelsPlaceholder"
-msgstr "逗号分隔，如 model-a, model-b"
 
 #. js-lingui-explicit-id
 msgid "settings.customProvider.apiKey"
@@ -3721,9 +3705,45 @@ msgid "settings.customProvider.cancel"
 msgstr "取消"
 
 #. js-lingui-explicit-id
-msgid "settings.customProvider.modelsHint"
-msgstr "可选——模型 id 是自由输入，可填该端点支持的任意模型。"
+msgid "settings.customProvider.incompleteTitle"
+msgstr "名称和 Base URL 为必填"
 
 #. js-lingui-explicit-id
-msgid "settings.customProvider.incompleteTitle"
-msgstr "服务商 id 和 Base URL 为必填"
+msgid "settings.test.button"
+msgstr "测试连接"
+
+#. js-lingui-explicit-id
+msgid "settings.test.testing"
+msgstr "测试中…"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.ok"
+msgstr "连接正常"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.no_key"
+msgstr "该服务商未配置 API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.no_model"
+msgstr "请先填写模型 id"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.auth"
+msgstr "鉴权失败——请检查 API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.connect"
+msgstr "无法连接端点——请检查 Base URL"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.not_found"
+msgstr "模型不存在——请检查模型 id"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.http"
+msgstr "服务商返回错误"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.unknown"
+msgstr "连接测试失败"

@@ -26,7 +26,7 @@ from finrobot.engine.skills.registry import SkillRegistry
 from finrobot.artifact.migrate import migrate_filesystem_to_sqlite
 from finrobot.artifact.store import ArtifactStore
 from finrobot.paths import SETTINGS_JSON, ensure_home
-from finrobot.audit.transcript import TranscriptWriter
+from finrobot.audit.transcript import TranscriptWriter, is_valid_session_id
 from finrobot.routes.artifacts import router as artifacts_router
 from finrobot.routes.chat_sessions import router as chat_sessions_router
 from finrobot.routes.compare import router as compare_router
@@ -771,6 +771,15 @@ async def chat(request: Request) -> Response:
         body_json = {}
 
     session_id: str = body_json.get("id") or body_json.get("session_id") or "default"
+    # session_id becomes the stem of <sessions>/<session_id>.jsonl, so a
+    # body-supplied "../.." would write attacker-controlled JSONL outside the
+    # sessions dir (path traversal, BUG-089). Close the identifier off at the
+    # edge: an illegal one falls back to the shared 'default' session rather
+    # than 500-ing the chat. Defense-in-depth resolve() containment in the
+    # writer/reader is the second line.
+    if not is_valid_session_id(session_id):
+        logger.warning("Rejected unsafe chat session_id %r — falling back to 'default'", session_id)
+        session_id = "default"
     model_hint: str = str(body_json.get("model") or "unknown")
 
     # Optional context fields — older clients omit these and the chat behaves

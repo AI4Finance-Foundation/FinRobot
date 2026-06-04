@@ -127,7 +127,7 @@
 | BUG-082 | Bug | P2 | `finrobot dcf <ticker>` 默认路径死锁:_should_use_ddm 的 asyncio.run 把 DataCache 的 aiosqlite 连接绑到随后销毁的 loop,第二个 asyncio.run 复用同连接→worker 线程绑死锁,进程退出时永久 hang(单 loop 测试测不出) | 已修 |
 | BUG-086 | Bug | P2 | [休眠·须与 BUG-075 同修] 13F value 双倍 ×1000:edgartools 5.31.5 已把 Value 归一化成整美元,refresh 脚本 line 102 又无条件 ×1000→机构持仓金额 1000 倍高估($250M 显示成 $250B);当前被 BUG-075 列名 bug 挡住未触发,BUG-075 一修即吐错数 | 已修 |
 | BUG-087 | Bug | P2 | Prompt 注入:第三方可控的新闻标题(RSS/FMP &lt;title&gt;)未分隔/转义逐字流入 LLM prompt 两处(equity_research thesis + news_classifier)→可注入伪数字/翻转 importance/sentiment 污染研报叙事与 catalyst 选择 | 已修 |
-| BUG-089 | Bug | P2 | POST /chat 的 session_id 未校验即当文件名 stem→含 ../或绝对路径时 .jsonl 写出 sessions 目录(任意路径写、内容攻击者可控);读写两侧 audit/transcript+persistence 都无清洗 | 待修 |
+| BUG-089 | Bug | P2 | POST /chat 的 session_id 未校验即当文件名 stem→含 ../或绝对路径时 .jsonl 写出 sessions 目录(任意路径写、内容攻击者可控);读写两侧 audit/transcript+persistence 都无清洗 | 已修 |
 | UX-008 | 产品 | P2 | HotState 裁决为 REVIEW 时目标价静默消失，不解释『为什么扣留』 | 待修 |
 | UX-009 | 产品 | P2 | 一支股票→多份历史研报的下钻要 3+ 步且断裂——卡片『N 份研报』不可点，发现历史得先进 workspace 再滚到底 | 待修 |
 | UX-010 | 产品 | P2 | Compare 必须回 Coverage 多选才能发起——workspace/研报页内无"加入对比"入口 | 待修 |
@@ -1310,7 +1310,7 @@
 - **根因**：session_id 被当"纯标识符"，二阶变成文件路径 stem 的污点流；需顺 body→writer→Path 链才看得到。修复不是"加鉴权"，是收口标识符。
 - **修复方案**：server.py:700 拿到 session_id 后立即用 SoT 校验器收口（同 ticker.py 模式）：只允许 `[A-Za-z0-9._-]`、拒绝含 `/`/`\`、以 `.` 开头(防 `..`/`.`)、绝对路径，非法即 422 或回退 'default'。同时在 audit/transcript.py 与 persistence.py 的 _session_path 内做 `(base / f"{sid}.jsonl").resolve()` 必须仍在 `base.resolve()` 之下的二次防御（读写两侧都加，defense-in-depth）。
 - **影响面/回归风险**：影响 /chat 落盘路径。修复收紧标识符（合法 session_id 不受影响），回归风险低。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（POST /chat 的 session_id 直接当 .jsonl 文件名 stem 致路径穿越。audit/transcript.py 加 SoT is_valid_session_id/sanitize_session_id（正则 ^[A-Za-z0-9_-][A-Za-z0-9._-]*$、拒 / \、拒前导 .、≤128）+ _safe_session_path resolve 包含性守卫；persistence._session_path 走同守卫、load 端捕 ValueError 返 []（→干净 404 不读外部文件）；server.py chat 边界校验 session_id，非法回退 default + warning。读写双侧 defense-in-depth。新增校验/穿越 PoC 测试。）
 
 > **以下 BUG-090 ~ BUG-092 来自 2026-06-03 SQLite 存储结构 review**（结合业务流逐表核 DDL）。**结论先行：8 分库架构是合理的、刻意为本地多进程服务，不应合并；PRAGMA 已集中(busy_timeout 修了 BUG-022)、去规范化有据。** 这 3 条是遗留未清(撞名死列、死 store)+ 一处主键含空列的去重失效，无结构性大坑。
 

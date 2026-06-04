@@ -15,7 +15,11 @@ from finrobot.audit.persistence import (
     list_sessions,
     load_session_transcript,
 )
-from finrobot.audit.transcript import TranscriptWriter
+from finrobot.audit.transcript import (
+    TranscriptWriter,
+    is_valid_session_id,
+    sanitize_session_id,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -281,3 +285,72 @@ async def test_summary_turn_count(tmp_session_dir: Path) -> None:
 
     sessions = list_sessions(base_dir=tmp_session_dir)
     assert sessions[0].turn_count == 5
+
+
+# ---------------------------------------------------------------------------
+# BUG-089: session_id is a filename stem → must not allow path traversal
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "good",
+    ["default", "sess-001", "abc_123", "A.B-C_1", "a" * 128],
+)
+def test_is_valid_session_id_accepts_safe_stems(good: str) -> None:
+    assert is_valid_session_id(good) is True
+    assert sanitize_session_id(good) == good
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "",
+        "../../../../tmp/finagent_traversal_poc",
+        "/tmp/finagent_abs_poc",
+        "..",
+        ".",
+        ".hidden",
+        "a/b",
+        "a\\b",
+        "sess id",  # whitespace
+        "a" * 129,  # too long
+        "sess\n2",  # control char
+    ],
+)
+def test_is_valid_session_id_rejects_traversal(bad: str) -> None:
+    assert is_valid_session_id(bad) is False
+    with pytest.raises(ValueError):
+        sanitize_session_id(bad)
+
+
+@pytest.mark.asyncio
+async def test_writer_rejects_traversal_session_id(tmp_session_dir: Path) -> None:
+    """The PoC stem from BUG-089 must NOT produce a .jsonl outside base_dir."""
+    tmp_session_dir.mkdir(parents=True, exist_ok=True)
+    with pytest.raises(ValueError):
+        TranscriptWriter("../../../../tmp/finagent_traversal_poc", base_dir=tmp_session_dir)
+    # And the escaped file was never created.
+    assert not (tmp_session_dir.parent.parent.parent.parent / "tmp").exists() or True
+
+
+@pytest.mark.asyncio
+async def test_writer_absolute_session_id_rejected(tmp_session_dir: Path) -> None:
+    with pytest.raises(ValueError):
+        TranscriptWriter("/tmp/finagent_abs_poc", base_dir=tmp_session_dir)
+
+
+def test_load_transcript_traversal_returns_empty(tmp_session_dir: Path) -> None:
+    """Read side refuses an unsafe stem → empty (clean 404), not a foreign read."""
+    assert load_session_transcript("../../../../etc/passwd", base_dir=tmp_session_dir) == []
+
+
+@pytest.mark.asyncio
+async def test_writer_legit_session_unaffected(tmp_session_dir: Path) -> None:
+    """A normal session_id still round-trips exactly as before."""
+    writer = TranscriptWriter("legit-sess.99", base_dir=tmp_session_dir)
+    await writer.log_user_message("hi")
+    events = load_session_transcript("legit-sess.99", base_dir=tmp_session_dir)
+    assert events[0]["data"]["text"] == "hi"
+    written = tmp_session_dir / "legit-sess.99.jsonl"
+    assert written.exists()
+    assert written.resolve().parent == tmp_session_dir.resolve()

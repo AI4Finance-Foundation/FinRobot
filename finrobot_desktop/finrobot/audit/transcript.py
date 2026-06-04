@@ -77,6 +77,58 @@ def _default_dir() -> Path:
     return SESSIONS_DIR
 
 
+# The single source of truth for session-id syntax. ``session_id`` flows from
+# the POST /chat body straight into ``<base_dir>/<session_id>.jsonl`` as a
+# filename stem, so an unsanitised ``../`` or absolute path lets attacker-
+# controlled JSONL escape the sessions dir (path traversal, BUG-089). We allow
+# only ``[A-Za-z0-9._-]`` and forbid a leading ``.`` (kills ``.``/``..`` and
+# hidden-file stems) so a stem can never contain a separator or climb a level.
+# Both the writer (transcript.py) and the reader (persistence.py) gate on this.
+_SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-][A-Za-z0-9._-]*$")
+_MAX_SESSION_ID_LEN = 128
+
+
+def is_valid_session_id(session_id: str) -> bool:
+    """True iff ``session_id`` is a safe filename stem (no traversal)."""
+    if not session_id or len(session_id) > _MAX_SESSION_ID_LEN:
+        return False
+    if "/" in session_id or "\\" in session_id:
+        return False
+    return bool(_SESSION_ID_RE.match(session_id))
+
+
+def sanitize_session_id(session_id: str) -> str:
+    """Return ``session_id`` unchanged if safe, else raise ``ValueError``.
+
+    Used at the API edge (server.py) to reject a traversal attempt before it is
+    ever bound to a path. The defense-in-depth ``resolve()`` containment check
+    in :meth:`TranscriptWriter.__init__` / persistence ``_session_path`` is the
+    second line in case a future caller bypasses this one.
+    """
+    if not is_valid_session_id(session_id):
+        raise ValueError(
+            f"Invalid session_id {session_id!r}: use A-Za-z0-9._- (no '/', '\\', "
+            "or leading '.'), 1-128 chars."
+        )
+    return session_id
+
+
+def _safe_session_path(base_dir: Path, session_id: str) -> Path:
+    """Resolve ``<base_dir>/<session_id>.jsonl`` and confirm it stays inside base.
+
+    Second line of defense behind :func:`sanitize_session_id`: rejects any stem
+    (``../`` / absolute / separator) whose resolved path would escape
+    ``base_dir`` (BUG-089). Raises ``ValueError`` on containment violation.
+    """
+    base_resolved = base_dir.resolve()
+    candidate = (base_dir / f"{session_id}.jsonl").resolve()
+    if candidate != base_resolved and base_resolved not in candidate.parents:
+        raise ValueError(
+            f"session_id {session_id!r} escapes the sessions directory (path traversal)."
+        )
+    return candidate
+
+
 class TranscriptWriter:
     """One writer per session.  Concurrent-safe via asyncio.Lock.
 
@@ -92,7 +144,11 @@ class TranscriptWriter:
     def __init__(self, session_id: str, base_dir: Path | None = None) -> None:
         self.session_id = session_id
         self._base_dir = base_dir or _default_dir()
-        self._path = self._base_dir / f"{session_id}.jsonl"
+        # Defense-in-depth (BUG-089): even if a caller skipped the edge
+        # validator, the resolved path must stay inside base_dir — reject any
+        # traversal/absolute stem here so attacker-controlled JSONL can never
+        # land outside the sessions dir.
+        self._path = _safe_session_path(self._base_dir, session_id)
         self._lock = asyncio.Lock()
         self._first_write_done = False
 

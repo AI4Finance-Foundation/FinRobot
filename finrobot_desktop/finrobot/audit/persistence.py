@@ -11,6 +11,8 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+from finrobot.audit.transcript import _safe_session_path
+
 logger = logging.getLogger(__name__)
 
 
@@ -55,7 +57,10 @@ class SessionSummary:
 
 
 def _session_path(session_id: str, base_dir: Path | None = None) -> Path:
-    return (base_dir or _default_dir()) / f"{session_id}.jsonl"
+    # Defense-in-depth (BUG-089): the read side also refuses any session_id
+    # whose resolved path escapes the sessions dir, so a traversal stem can
+    # never read attacker-chosen files. Raises ValueError on violation.
+    return _safe_session_path(base_dir or _default_dir(), session_id)
 
 
 def list_sessions(
@@ -173,9 +178,15 @@ def load_session_transcript(
         base_dir: Override the default session directory.
 
     Returns:
-        List of event dicts in chronological order.  Empty list if file not found.
+        List of event dicts in chronological order.  Empty list if file not
+        found or if ``session_id`` is unsafe (traversal stem — BUG-089), so the
+        route surfaces a clean 404 rather than reading an attacker-chosen file.
     """
-    path = _session_path(session_id, base_dir)
+    try:
+        path = _session_path(session_id, base_dir)
+    except ValueError:
+        logger.warning("Rejected unsafe session_id for transcript read: %r", session_id)
+        return []
     if not path.exists():
         return []
     events: list[dict[str, object]] = []

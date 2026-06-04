@@ -11,6 +11,7 @@
 // price" so it's never mistaken for the report's entry-based upside.
 
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useI18n } from '../../i18n'
 import {
   formatAge,
@@ -20,6 +21,10 @@ import {
   formatPercent,
 } from '../../utils/format'
 import { useV5ArtifactTimeline } from '../../hooks/useV5Artifacts'
+import { deleteArtifact } from '../../api/client'
+import { useToastStore } from '../../stores/toastStore'
+import { mapErrorToUserMessage } from '../../utils/errorMessage'
+import { SourcedNumber } from '../SourcedNumber'
 import type { CoverageRow } from '../../api/coverage'
 import { ArchivedPill } from '../ArchivedPill'
 
@@ -39,6 +44,10 @@ interface Props {
   // stacked below the card wall with a capped height (narrow layout), so a
   // 300px rail never crushes the cards on a small / AI-panel-open window.
   layout: 'side' | 'dock'
+  // Which tab to open on first mount (UX-009). A card's "N reports" click opens
+  // the inspector straight on 'history'; the page remounts (key) so a fresh
+  // request re-seeds this even for an already-focused ticker. Defaults to 'live'.
+  initialTab?: Tab
 }
 
 const VERDICT_COLOR: Record<string, string> = {
@@ -60,9 +69,10 @@ export function CoverageInspector({
   onRemove,
   compareReady,
   layout,
+  initialTab = 'live',
 }: Props): React.ReactElement {
   const { t } = useI18n()
-  const [tab, setTab] = useState<Tab>('live')
+  const [tab, setTab] = useState<Tab>(initialTab)
   const shell = layout === 'dock' ? DOCK_SHELL : SHELL
 
   if (!row) {
@@ -151,6 +161,7 @@ export function CoverageInspector({
             <button
               key={tb}
               type="button"
+              className="coverage-hover-btn"
               onClick={() => setTab(tb)}
               aria-pressed={active}
               style={{
@@ -237,14 +248,28 @@ function LivePanel({ row }: { row: CoverageRow }): React.ReactElement {
       <Kv label={t('coverage.inspector.marketState')} valueColor={state.tone}>
         {state.text}
       </Kv>
-      <Kv label={t('coverage.col.price')}>{formatCurrency(row.price, ccy, locale)}</Kv>
+      {/* Wrapped in SourcedNumber so the inspector keeps the same provenance
+          popover the card shows (UX-012) — same row.sources?.<key> keys. */}
+      <Kv label={t('coverage.col.price')}>
+        <SourcedNumber
+          value={row.price}
+          source={row.sources?.price ?? undefined}
+          ticker={row.ticker}
+          format={(v) => formatCurrency(v, ccy, locale)}
+        />
+      </Kv>
       <Kv label="1D" valueColor={changeColor(row.change_pct_1d)}>
         {row.change_pct_1d == null
           ? '—'
           : `${row.change_pct_1d > 0 ? '+' : ''}${row.change_pct_1d.toFixed(2)}%`}
       </Kv>
       <Kv label={t('coverage.col.mcap')}>
-        {row.market_cap == null ? '—' : `${ccy} ${formatCompactNumber(row.market_cap, locale)}`}
+        <SourcedNumber
+          value={row.market_cap}
+          source={row.sources?.market_cap ?? undefined}
+          ticker={row.ticker}
+          format={(v) => `${ccy} ${formatCompactNumber(v, locale)}`}
+        />
       </Kv>
       <Kv label={t('coverage.inspector.provider')}>{row.sources?.price?.provider ?? '—'}</Kv>
       <Kv label={t('coverage.inspector.asOf')}>
@@ -295,22 +320,40 @@ function ReportPanel({ row }: { row: CoverageRow }): React.ReactElement {
         {row.latest_at ? formatDate(row.latest_at, locale, 'short') : '—'}
       </Kv>
       {/* At-run price = entry_price, frozen at report time — shown beside the
-          live price above and never overwritten by it (§5). */}
+          live price above and never overwritten by it (§5). entry_price /
+          target_price have no per-cell source slot in CoverageRowSources, so
+          they wrap source-less (no invented keys, UX-012): SourcedNumber then
+          just formats the value with no popover. */}
       <Kv label={t('coverage.inspector.atRunPrice')}>
-        {formatCurrency(row.entry_price, ccy, locale)}
+        <SourcedNumber
+          value={row.entry_price}
+          ticker={row.ticker}
+          format={(v) => formatCurrency(v, ccy, locale)}
+        />
       </Kv>
       <Kv label={t('coverage.inspector.targetPrice')}>
-        {formatCurrency(row.target_price, ccy, locale)}
+        <SourcedNumber
+          value={row.target_price}
+          ticker={row.ticker}
+          format={(v) => formatCurrency(v, ccy, locale)}
+        />
       </Kv>
       <Kv
         label={t('coverage.inspector.liveUpside')}
         valueColor={changeColor(row.upside_to_target_live)}
       >
-        {row.upside_to_target_live == null
-          ? '—'
-          : t('coverage.inspector.upsideVsLatest', {
-              pct: formatPercent(row.upside_to_target_live, locale, 1),
-            })}
+        {row.upside_to_target_live == null ? (
+          '—'
+        ) : (
+          <SourcedNumber
+            value={row.upside_to_target_live}
+            source={row.sources?.upside_to_target_live ?? undefined}
+            ticker={row.ticker}
+            format={(v) =>
+              t('coverage.inspector.upsideVsLatest', { pct: formatPercent(v, locale, 1) })
+            }
+          />
+        )}
       </Kv>
     </Panel>
   )
@@ -322,10 +365,41 @@ const HISTORY_LIMIT = 200
 
 function HistoryPanel({ row }: { row: CoverageRow }): React.ReactElement {
   const { t, locale } = useI18n()
+  const queryClient = useQueryClient()
+  const toast = useToastStore((s) => s.addToast)
   // Every artifact for this ticker (research + models), newest first — the full
   // timeline, archived included (audit §19). Explicit limit so a heavily-run
   // ticker isn't truncated at the endpoint default while the header counts more.
   const { data, isLoading, isError } = useV5ArtifactTimeline(row.ticker, HISTORY_LIMIT)
+
+  // Pending single-artifact delete: holds the artifact awaiting confirmation
+  // (null = no dialog). Deletion is PERMANENT (DELETE /api/artifacts/{id}), so
+  // it always goes through the confirm modal (UX-006).
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; label: string } | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  async function confirmDelete(): Promise<void> {
+    if (!pendingDelete) return
+    setDeleting(true)
+    try {
+      await deleteArtifact(pendingDelete.id)
+      // Refresh every read model the artifact fed: this ticker's timeline (row
+      // vanishes), the studied-tickers list, and the dashboard hit-rate /
+      // recent-research strips (the backend already busts its own TTL caches).
+      queryClient.invalidateQueries({ queryKey: ['v5-artifacts-timeline', row.ticker] })
+      queryClient.invalidateQueries({ queryKey: ['studied-tickers'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      setPendingDelete(null)
+    } catch (err) {
+      toast({
+        type: 'error',
+        title: t('coverage.history.deleteFailed'),
+        description: mapErrorToUserMessage(err),
+      })
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <Panel title={t('coverage.inspector.historyTitle')}>
@@ -390,30 +464,186 @@ function HistoryPanel({ row }: { row: CoverageRow }): React.ReactElement {
                 {a.tagline || a.type}
               </span>
             </span>
-            <a
-              href={`/stocks/${row.ticker}/runs/${a.id}`}
-              aria-label={t('coverage.inspector.openArtifact')}
-              title={t('coverage.inspector.openArtifact')}
-              style={{
-                flexShrink: 0,
-                width: 28,
-                height: 28,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: '1px solid var(--border-soft)',
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--bg-elevated)',
-                color: 'var(--text-secondary)',
-                textDecoration: 'none',
-              }}
-            >
-              ↗
-            </a>
+            <span style={{ display: 'inline-flex', gap: 4, flexShrink: 0 }}>
+              <a
+                href={`/stocks/${row.ticker}/runs/${a.id}`}
+                className="coverage-icon-btn"
+                aria-label={t('coverage.inspector.openArtifact')}
+                title={t('coverage.inspector.openArtifact')}
+                style={{
+                  width: 28,
+                  height: 28,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '1px solid var(--border-soft)',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-secondary)',
+                  textDecoration: 'none',
+                }}
+              >
+                ↗
+              </a>
+              <button
+                type="button"
+                className="coverage-icon-btn"
+                onClick={() =>
+                  setPendingDelete({
+                    id: a.id,
+                    label: `${formatDate(a.created_at, locale, 'short')}${a.verdict ? ` · ${a.verdict}` : ''}`,
+                  })
+                }
+                aria-label={t('coverage.history.delete')}
+                title={t('coverage.history.delete')}
+                style={{
+                  width: 28,
+                  height: 28,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '1px solid var(--border-soft)',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                <TrashIcon />
+              </button>
+            </span>
           </div>
         ))
       )}
+      {pendingDelete && (
+        <ConfirmDeleteModal
+          body={t('coverage.history.deleteConfirm', { label: pendingDelete.label })}
+          confirmLabel={t('coverage.history.delete')}
+          busy={deleting}
+          onCancel={() => !deleting && setPendingDelete(null)}
+          onConfirm={() => void confirmDelete()}
+        />
+      )}
     </Panel>
+  )
+}
+
+// Permanent-delete confirmation for a single artifact (UX-006). Mirrors the
+// CoverageGroupMenu modal pattern (scrim + centered card) but kept local to this
+// file to avoid cross-file coupling; copy states the action is irreversible.
+function ConfirmDeleteModal({
+  body,
+  confirmLabel,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  body: string
+  confirmLabel: string
+  busy: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}): React.ReactElement {
+  const { t } = useI18n()
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onCancel}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'var(--scrim)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+        display: 'grid',
+        placeItems: 'center',
+        zIndex: 200,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          minWidth: 320,
+          maxWidth: 420,
+          padding: '20px 22px',
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--border-soft)',
+          borderRadius: 'var(--radius-md)',
+          boxShadow: '0 16px 40px rgba(0,0,0,0.4)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            letterSpacing: '0.06em',
+            color: 'var(--danger)',
+          }}
+        >
+          {t('coverage.history.deleteTitle')}
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.55 }}>{body}</div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              padding: '7px 14px',
+              borderRadius: 6,
+              border: '1px solid var(--border-soft)',
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+              cursor: busy ? 'not-allowed' : 'pointer',
+              opacity: busy ? 0.45 : 1,
+            }}
+          >
+            {t('coverage.confirm.cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              padding: '7px 14px',
+              borderRadius: 6,
+              border: 'none',
+              background: 'var(--danger)',
+              color: 'var(--text-on-primary)',
+              cursor: busy ? 'not-allowed' : 'pointer',
+              opacity: busy ? 0.6 : 1,
+              fontWeight: 600,
+            }}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TrashIcon(): React.ReactElement {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" role="img" aria-hidden="true" fill="none">
+      <path
+        d="M3 4.5h10M6.5 4.5V3.2c0-.4.3-.7.7-.7h1.6c.4 0 .7.3.7.7v1.3M4.3 4.5l.5 8.2c0 .5.4.8.8.8h4.8c.5 0 .8-.4.8-.8l.5-8.2"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M6.7 7v4M9.3 7v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
   )
 }
 
@@ -523,6 +753,7 @@ function ActionButton({
   return (
     <button
       type="button"
+      className="coverage-hover-btn"
       onClick={onClick}
       disabled={disabled}
       style={{

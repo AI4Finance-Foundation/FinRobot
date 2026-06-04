@@ -35,10 +35,17 @@ interface Props {
   selected: boolean
   // Fast-skeleton phase: market cells render as a loading shimmer, not '—'.
   marketPending?: boolean
+  // True only in the Needs Action triage view — surfaces the full, un-truncated
+  // "why this card needs you" reason row (UX-005). Kept off the All view so it
+  // stays compact.
+  showReasons?: boolean
   onFocus: (ticker: string) => void
   onToggleSelect: (ticker: string) => void
   onRun: (ticker: string) => void
   onOpen: (ticker: string) => void
+  // Jump straight to this ticker's full artifact history (inspector History tab),
+  // skipping the workspace round-trip (UX-009).
+  onOpenHistory: (ticker: string) => void
 }
 
 const VERDICT: Record<string, { color: string; bg: string }> = {
@@ -72,17 +79,24 @@ export const CoverageCard = memo(function CoverageCard({
   focused,
   selected,
   marketPending = false,
+  showReasons = false,
   onFocus,
   onToggleSelect,
   onRun,
   onOpen,
+  onOpenHistory,
 }: Props): React.ReactElement {
   const { t, locale } = useI18n()
   const compact = density === 'compact'
   const ccy = row.currency || 'USD'
   const verdict = row.latest_verdict ? VERDICT[row.latest_verdict] : null
   const status = cardStatus(row, t)
-  const needsWarn = coveragePriority(row).needsAction
+  const priority = coveragePriority(row)
+  const needsWarn = priority.needsAction
+  // Up to two reasons, shown un-truncated (line-clamp:2) in the triage view so
+  // the analyst sees WHY each card needs them without opening the inspector
+  // (UX-005). Only in Needs Action — the All view stays compact.
+  const reasonRows = showReasons && needsWarn ? priority.reasons.slice(0, 2) : []
 
   const mc = (node: React.ReactNode): React.ReactNode => (marketPending ? <Shimmer /> : node)
 
@@ -250,6 +264,75 @@ export const CoverageCard = memo(function CoverageCard({
         </div>
       </div>
 
+      {/* Why this card needs action (UX-005) — un-truncated (line-clamp:2, NOT
+          nowrap-ellipsis: backend detail length is uncontrolled). Triage view
+          only; the card minHeight is a floor and the grid uses
+          gridAutoRows:'max-content', so a 2-line row grows the card, never clips
+          it. */}
+      {reasonRows.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+            marginTop: compact ? 8 : 10,
+          }}
+        >
+          {reasonRows.map((reason, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 6,
+                color: 'var(--accent-amber)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                lineHeight: 1.4,
+              }}
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                role="img"
+                aria-hidden="true"
+                style={{ flexShrink: 0, marginTop: 1 }}
+              >
+                <path
+                  d="M8 2 L14.5 13.5 H1.5 Z"
+                  fill="var(--warning-soft)"
+                  stroke="var(--warning)"
+                  strokeWidth="1.3"
+                  strokeLinejoin="round"
+                />
+                <line
+                  x1="8"
+                  y1="6.2"
+                  x2="8"
+                  y2="9.6"
+                  stroke="var(--warning)"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                />
+                <circle cx="8" cy="11.4" r="0.85" fill="var(--warning)" />
+              </svg>
+              <span
+                style={{
+                  minWidth: 0,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
+              >
+                {reason}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Metrics 2×2 — market cap / revenue TTM / EV-EBITDA-or-PE / live upside.
           Fixed four slots so the card height never depends on data. */}
       <div
@@ -362,8 +445,23 @@ export const CoverageCard = memo(function CoverageCard({
           marginTop: compact ? 8 : 10,
         }}
       >
-        <span
+        {/* Report tally doubles as a one-click jump to the full history list
+            (UX-009): clicking it focuses this ticker AND opens the inspector's
+            History tab — no workspace round-trip. */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpenHistory(row.ticker)
+          }}
+          aria-label={t('coverage.card.openHistory', { ticker: row.ticker })}
           style={{
+            minWidth: 0,
+            padding: 0,
+            border: 'none',
+            background: 'transparent',
+            textAlign: 'left',
+            cursor: 'pointer',
             color: 'var(--text-muted)',
             fontFamily: 'var(--font-mono)',
             fontSize: 10,
@@ -383,7 +481,7 @@ export const CoverageCard = memo(function CoverageCard({
             : row.artifact_count > 0
               ? t('coverage.card.modelOnly', { n: row.artifact_count })
               : t('coverage.card.noReports')}
-        </span>
+        </button>
         <span style={{ display: 'inline-flex', gap: 4, flexShrink: 0 }}>
           <IconButton
             label={t('coverage.runOne')}

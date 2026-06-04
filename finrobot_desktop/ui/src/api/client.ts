@@ -30,3 +30,20 @@ export async function markArtifactViewed(artifactId: string): Promise<string> {
   }
   return data.id
 }
+
+/**
+ * Permanently delete an artifact (DELETE /api/artifacts/{id}).
+ *
+ * Irreversible — the artifact and its index entry are removed, which also busts
+ * the dashboard hit-rate / recent-research caches server-side. Throws on any
+ * non-2xx (404 = already gone) so the caller can surface it; callers should
+ * confirm with the user FIRST (deletion can't be undone).
+ */
+export async function deleteArtifact(id: string): Promise<void> {
+  const { error, response } = await api.DELETE('/api/artifacts/{artifact_id}', {
+    params: { path: { artifact_id: id } },
+  })
+  if (error) {
+    throw new Error(`deleteArtifact failed (${response.status}): ${id}`)
+  }
+}

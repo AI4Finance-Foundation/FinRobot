@@ -94,7 +94,12 @@
   --border-amber-soft: rgba(245, 158, 11, 0.25); /* amber 0.25 — zone header divider */
   --glow-amber-soft: rgba(245, 158, 11, 0.35); /* amber 0.35 — zone title glow */
   --border-cyan-soft: rgba(34, 211, 238, 0.3); /* cyan 0.3 — live-data badge border */
-  --accent-cyan-soft: rgba(34, 211, 238, 0.12); /* cyan 0.12 — live/fresh pill + active-filter fill */
+  --accent-cyan-soft: rgba(
+    34,
+    211,
+    238,
+    0.12
+  ); /* cyan 0.12 — live/fresh pill + active-filter fill */
   --bg-card-50: rgba(15, 15, 34, 0.5); /* bg-card at 50% — list-item / chip overlay */
 
   /* ── Translucent backgrounds for sticky bars (titlebar / report
@@ -5060,6 +5065,39 @@ body.cursor-trail-on * {
 .cosmic-display {
   font-family: var(--font-display);
   letter-spacing: 2px;
+}
+
+/* ── Coverage Desk hover affordances (UX-011) ────────────────────────────
+   The Coverage cards / buttons are inline-styled, so they can't express
+   :hover from their own style object. These rules add the missing hover
+   feedback. IMPORTANT: hover is deliberately WEAKER than the focused state
+   (which uses border-glow + a boxShadow, set inline on the card) — hover is
+   border-only with no boxShadow, so a focused card always visually wins and
+   the two states never collide. Tokens only. Transition timing is collapsed
+   by the reduced-motion block below. */
+[data-testid^='coverage-card'] {
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+[data-testid^='coverage-card']:hover {
+  border-color: var(--border-glow);
+}
+
+/* Inspector tab / action buttons + history row icon buttons: subtle
+   border + text lift on hover. No boxShadow — stays below the active /
+   focused emphasis those buttons already carry inline. */
+.coverage-hover-btn,
+.coverage-icon-btn {
+  transition:
+    border-color 0.16s ease,
+    color 0.16s ease,
+    background 0.16s ease;
+}
+.coverage-hover-btn:hover:not(:disabled),
+.coverage-icon-btn:hover {
+  border-color: var(--border-hover);
+  color: var(--text-primary);
 }
 
 /* ── Global prefers-reduced-motion fallback ──────────────────────────────

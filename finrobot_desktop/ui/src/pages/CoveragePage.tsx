@@ -12,7 +12,7 @@
 // and lists the full artifact history. Remove drops list membership, never
 // artifacts. Landing view = Needs Action — the triage queue IS the homepage.
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useI18n } from '../i18n'
@@ -68,6 +68,16 @@ export function CoveragePage(): React.ReactElement {
   // Landing view = the triage queue. The analyst's first question is "what needs
   // me", so Needs Action is the homepage, not an unfiltered dump.
   const [filter, setFilter] = useState<CoverageFilter>('needs_action')
+
+  // A card's "N reports" click (UX-009) asks the inspector to open on its
+  // History tab. Carries the ticker + a monotonic nonce: the nonce makes every
+  // click a distinct request (so re-clicking the same already-focused card
+  // re-opens History even after the user manually switched tabs), while the
+  // ticker scopes the request so it only applies to its own card.
+  const [historyRequest, setHistoryRequest] = useState<{ ticker: string; nonce: number } | null>(
+    null,
+  )
+  const wantsHistory = historyRequest?.ticker === focusedTicker
 
   // Market-degraded retry bar (BUG-032): the fast skeleton painted the table but
   // the full (market) fetch failed, so price/market-cap/multiples columns keep
@@ -171,18 +181,26 @@ export function CoveragePage(): React.ReactElement {
   // panel eats the width (BUG: cards clipped at the default window). Below a
   // workspace-width threshold the inspector stacks BELOW the wall as a capped
   // dock, so the cards keep a full-width single column instead of being crushed.
-  const workspaceRef = useRef<HTMLDivElement>(null)
   const [stacked, setStacked] = useState(false)
-  useEffect(() => {
-    const el = workspaceRef.current
-    if (!el || typeof ResizeObserver === 'undefined') return
+  // Callback ref (not useRef + useEffect): the workspace node mounts AFTER the
+  // groups-loading gate below clears, so an effect with [] deps would attach the
+  // observer to a null ref on the placeholder frame and never re-run once the
+  // real layout mounts — leaving `stacked` stuck false (dock never engages). A
+  // callback ref fires on every attach/detach, so the observer always binds.
+  const roRef = useRef<ResizeObserver | null>(null)
+  const workspaceRef = useCallback((el: HTMLDivElement | null) => {
+    roRef.current?.disconnect()
+    if (!el || typeof ResizeObserver === 'undefined') {
+      roRef.current = null
+      return
+    }
     const ro = new ResizeObserver((entries) => {
       const w = entries[0]?.contentRect.width ?? 0
       // ~360 min card column + 300 inspector + 16 gap ≈ 676; stack a touch above.
       setStacked(w > 0 && w < 720)
     })
     ro.observe(el)
-    return () => ro.disconnect()
+    roRef.current = ro
   }, [])
 
   // Compare needs ≥2 distinct tickers (focused + multi-select). Drives the
@@ -200,6 +218,20 @@ export function CoveragePage(): React.ReactElement {
   const batchRun = useBatchRun()
   const removeMember = useRemoveMember()
 
+  // ── Groups still loading → full-page placeholder, NOT a false empty state ──
+  // Cold start: while groups load, activeGroupId is null → useCoverageOverview
+  // is disabled → in TanStack v5 a disabled query reports isLoading=false, so
+  // rows=[] would fall into the rows.length===0 empty state ("还没有 ticker")
+  // and flash "no coverage" to a user who actually has coverage (UX-007). Gate
+  // the whole page on the groups load instead.
+  if (groupsQuery.isLoading) {
+    return (
+      <div style={{ height: '100%', padding: '20px 24px' }}>
+        <Placeholder text={t('coverage.loading')} />
+      </div>
+    )
+  }
+
   // ── Groups request failed → error state, NOT the starter ──────────────────
   if (groupsQuery.isError) {
     return (
@@ -212,7 +244,8 @@ export function CoveragePage(): React.ReactElement {
   }
 
   // ── No groups yet → Coverage Starter (State A) ────────────────────────────
-  if (!groupsQuery.isLoading && groups.length === 0) {
+  // Loading + error are handled above, so reaching here means groups resolved.
+  if (groups.length === 0) {
     return (
       <CoverageEmptyState
         busy={createGroup.isPending}
@@ -303,6 +336,15 @@ export function CoveragePage(): React.ReactElement {
       return
     }
     navigate(`/compare?tickers=${encodeURIComponent(unique.join(','))}`)
+  }
+
+  // UX-009: a card's "N reports" click jumps straight to that ticker's history.
+  // Focus the ticker and flag a history request; the inspector is remounted
+  // (key below) so its tab state re-seeds to 'history' even if the ticker was
+  // already focused on another tab.
+  function handleOpenHistory(ticker: string) {
+    setFocusedTicker(ticker)
+    setHistoryRequest((prev) => ({ ticker, nonce: (prev?.nonce ?? 0) + 1 }))
   }
 
   function handleRemoveMember(ticker: string) {
@@ -445,17 +487,29 @@ export function CoveragePage(): React.ReactElement {
               focusedTicker={focusedTicker}
               selected={selectedTickers}
               marketPending={overviewQuery.marketPending}
+              showReasons={filter === 'needs_action'}
               onFocus={setFocusedTicker}
               onToggleSelect={toggleTicker}
               onRun={(ticker) => handleRun([ticker])}
               onOpen={(ticker) => navigate(`/stocks/${ticker}`)}
+              onOpenHistory={handleOpenHistory}
             />
           )}
         </div>
         <CoverageInspector
+          // Remount when a fresh history request fires (UX-009) so the inspector
+          // re-seeds its internal tab state to 'history' — even for an
+          // already-focused ticker. The ticker in the key keeps normal focus
+          // changes from needlessly remounting.
+          key={
+            wantsHistory
+              ? `history-${historyRequest?.ticker}-${historyRequest?.nonce}`
+              : (focusedTicker ?? 'none')
+          }
           row={focusedRow}
           layout={stacked ? 'dock' : 'side'}
           compareReady={compareReady}
+          initialTab={wantsHistory ? 'history' : undefined}
           onRun={(ticker) => handleRun([ticker])}
           onOpen={(ticker) => navigate(`/stocks/${ticker}`)}
           onCompare={(ticker) => handleCompare([ticker, ...selectedTickers])}

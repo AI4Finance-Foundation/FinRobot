@@ -34,8 +34,8 @@ from typing import Any
 
 import httpx
 
-from finrobot.engine.compute.sentiment import score_headline
 from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
+from finrobot.engine.primitives.sentiment import score_headline
 from finrobot.engine.data.providers.yfinance_provider import YFinanceProvider
 from finrobot.engine.data.types import DataType
 

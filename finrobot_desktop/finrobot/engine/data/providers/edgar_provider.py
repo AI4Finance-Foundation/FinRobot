@@ -936,7 +936,7 @@ class EdgarToolsProvider(DataProvider):
         if want_rag:
             # FinRobot's own BM25 — input switched from regex-strip chunks
             # to clean typed-section chunks.
-            from finrobot.engine.compute.rag import BM25Index, chunk_text
+            from finrobot.engine.primitives.rag import BM25Index, chunk_text
 
             merged = "\n\n".join(f"[{s['title']}]\n{s['text']}" for s in sections if s["text"])
             source_label = f"10-K/{filing.filing_date}"

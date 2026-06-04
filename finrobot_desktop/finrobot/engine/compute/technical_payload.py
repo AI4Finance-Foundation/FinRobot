@@ -22,7 +22,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from finrobot.engine.compute.historical_valuation import HistoricalBand
+from finrobot.engine.primitives.historical_valuation import HistoricalBand
 from finrobot.engine.compute.monte_carlo import MonteCarloResult, run_monte_carlo
 from finrobot.engine.compute.sniper import (
     SniperPoints,
@@ -57,7 +57,7 @@ _MC_SIMULATIONS = 10_000
 
 
 class HistoricalBandSnapshot(BaseModel):
-    """JSON-friendly mirror of compute.historical_valuation.HistoricalBand.
+    """JSON-friendly mirror of primitives.historical_valuation.HistoricalBand.
 
     The compute layer returns a frozen dataclass with `date` objects in the
     timeline; pydantic + the React side want ISO strings, so we flatten here.

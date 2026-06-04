@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[2]
 FINROBOT = ROOT / "finrobot"
 COMPUTE = FINROBOT / "engine" / "compute"
 MODELS = FINROBOT / "engine" / "models"
+PRIMITIVES = FINROBOT / "engine" / "primitives"
 PIPELINES = FINROBOT / "engine" / "pipelines"
 
 
@@ -65,9 +66,11 @@ FORBIDDEN_LLM = [
 
 
 class TestLeafLayerIsolation:
-    """compute/ and models/ must not import from upper layers or LLM libraries."""
+    """compute/, models/ and primitives/ must not import upper layers or LLM libs."""
 
-    @pytest.mark.parametrize("leaf", [COMPUTE, MODELS], ids=["compute", "models"])
+    @pytest.mark.parametrize(
+        "leaf", [COMPUTE, MODELS, PRIMITIVES], ids=["compute", "models", "primitives"]
+    )
     def test_no_upward_imports(self, leaf: Path) -> None:
         violations: list[str] = []
         for py in _py_files(leaf):
@@ -84,7 +87,9 @@ class TestLeafLayerIsolation:
             f"Leaf layer {leaf.name}/ has forbidden upward imports:\n" + "\n".join(violations)
         )
 
-    @pytest.mark.parametrize("leaf", [COMPUTE, MODELS], ids=["compute", "models"])
+    @pytest.mark.parametrize(
+        "leaf", [COMPUTE, MODELS, PRIMITIVES], ids=["compute", "models", "primitives"]
+    )
     def test_no_llm_imports(self, leaf: Path) -> None:
         violations: list[str] = []
         for py in _py_files(leaf):
@@ -99,6 +104,24 @@ class TestLeafLayerIsolation:
                         )
         assert not violations, f"Leaf layer {leaf.name}/ imports LLM libraries:\n" + "\n".join(
             violations
+        )
+
+    def test_primitives_never_import_data_or_compute(self) -> None:
+        """primitives/ is the shared floor BELOW both data/ and compute/.
+
+        It must depend only on stdlib / third-party math + models/. The moment a
+        primitive imports data/ or compute/, the data→compute→data cycle ADR-0005
+        §2.2 removed comes back silently (the providers reuse these primitives).
+        """
+        forbidden = ("finrobot.engine.data", "finrobot.engine.compute")
+        violations: list[str] = []
+        for py in _py_files(PRIMITIVES):
+            for lineno, module in _all_imports(py):
+                if any(module == f or module.startswith(f + ".") for f in forbidden):
+                    violations.append(f"  {py.relative_to(ROOT)}:{lineno} imports {module}")
+        assert not violations, (
+            "primitives/ must not import data/ or compute/ (would re-create the "
+            "data→compute cycle, ADR-0005 §2.2):\n" + "\n".join(violations)
         )
 
 

@@ -27,6 +27,7 @@ from httpx import ASGITransport, AsyncClient
 
 from finrobot.config import FinRobotSettings, get_settings
 from finrobot.routes.settings import (
+    _DATA_PROBES,
     _merge_non_secret_settings,
     router as settings_router,
 )
@@ -771,3 +772,88 @@ async def test_test_provider_maps_auth_error(tmp_path: Path, monkeypatch: Any) -
     body = resp.json()
     assert body["ok"] is False
     assert body["code"] == "auth"
+
+
+# ---------------------------------------------------------------------------
+# POST /api/settings/test-data-provider — data-source key connectivity check
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_test_data_provider_unknown_is_404(tmp_path: Path) -> None:
+    app = _make_app(tmp_path)
+    async with _client(app) as c:
+        resp = await c.post("/api/settings/test-data-provider", json={"provider": "nope"})
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_test_data_provider_no_key_returns_not_ok(tmp_path: Path) -> None:
+    """No FMP key stored → no_key, without ever calling the probe."""
+    app = _make_app(tmp_path, settings=_settings(fmp_api_key=""))
+    async with _client(app) as c:
+        resp = await c.post("/api/settings/test-data-provider", json={"provider": "fmp"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["ok"] is False
+    assert body["code"] == "no_key"
+
+
+@pytest.mark.asyncio
+async def test_test_data_provider_success(tmp_path: Path, monkeypatch: Any) -> None:
+    """A successful probe (mocked) returns ok=True."""
+    monkeypatch.setitem(_DATA_PROBES, "fmp", ("fmp_api_key", AsyncMock(return_value=None)))
+    app = _make_app(tmp_path, settings=_settings(fmp_api_key="fmp-key-123"))
+    async with _client(app) as c:
+        resp = await c.post("/api/settings/test-data-provider", json={"provider": "fmp"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"ok": True, "code": "ok", "detail": ""}
+
+
+@pytest.mark.asyncio
+async def test_test_data_provider_maps_auth_and_hides_key(tmp_path: Path, monkeypatch: Any) -> None:
+    """A 401 is classified 'auth', and the live key never leaks into ``detail``.
+
+    httpx bakes the request URL (``?apikey=<key>``) into HTTPStatusError.str();
+    _classify_data_provider_error must synthesise detail from the status only.
+    """
+    import httpx
+
+    secret = "super-secret-fmp-key"
+    request = httpx.Request("GET", f"https://financialmodelingprep.com/api/v3/profile/AAPL?apikey={secret}")
+    response = httpx.Response(401, request=request)
+    monkeypatch.setitem(
+        _DATA_PROBES,
+        "fmp",
+        (
+            "fmp_api_key",
+            AsyncMock(side_effect=httpx.HTTPStatusError("401", request=request, response=response)),
+        ),
+    )
+    app = _make_app(tmp_path, settings=_settings(fmp_api_key=secret))
+    async with _client(app) as c:
+        resp = await c.post("/api/settings/test-data-provider", json={"provider": "fmp"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["ok"] is False
+    assert body["code"] == "auth"
+    assert body["detail"] == "HTTP 401"
+    assert secret not in body["detail"]
+
+
+@pytest.mark.asyncio
+async def test_test_data_provider_maps_connect_error(tmp_path: Path, monkeypatch: Any) -> None:
+    import httpx
+
+    monkeypatch.setitem(
+        _DATA_PROBES,
+        "finnhub",
+        ("finnhub_api_key", AsyncMock(side_effect=httpx.ConnectError("no route"))),
+    )
+    app = _make_app(tmp_path, settings=_settings(finnhub_api_key="fh-key"))
+    async with _client(app) as c:
+        resp = await c.post("/api/settings/test-data-provider", json={"provider": "finnhub"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["ok"] is False
+    assert body["code"] == "connect"

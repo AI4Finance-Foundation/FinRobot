@@ -281,7 +281,7 @@ def test_ensure_deps_reuses_build_data_layer(monkeypatch):
     monkeypatch.setattr(sdk_mod, "build_data_layer", fake_build, raising=False)
     # build_data_layer is imported inside _ensure_deps; patch the source module
     # too so the deferred import resolves to our fake.
-    import finrobot.data_layer_factory as dlf
+    import finrobot.engine.data.factory as dlf
 
     monkeypatch.setattr(dlf, "build_data_layer", fake_build)
 

@@ -46,7 +46,7 @@ def _build_deps(model: str | None = None) -> "FinRobotDeps":
 
     setup_logging(get_settings())
 
-    from finrobot.data_layer_factory import build_data_layer
+    from finrobot.engine.data.factory import build_data_layer
     from finrobot.engine.deps import FinRobotDeps
     from finrobot.engine.skills.registry import SkillRegistry
 
@@ -602,7 +602,7 @@ def backtest(
     """
     ticker = _validate_ticker_arg(ticker)
 
-    from finrobot.data_layer_factory import build_data_layer
+    from finrobot.engine.data.factory import build_data_layer
     from finrobot.engine.backtest.engine import BacktestConfig, BacktestResult
 
     if auto:

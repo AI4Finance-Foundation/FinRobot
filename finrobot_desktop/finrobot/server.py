@@ -19,7 +19,7 @@ from pydantic_ai.ui.vercel_ai import VercelAIAdapter
 from finrobot.config import DATA_PROVIDER_SECRET_FIELDS, get_settings
 from finrobot.obs import bind_session, setup_logging
 from finrobot.obs.middleware import RequestTraceMiddleware
-from finrobot.data_layer_factory import build_data_layer
+from finrobot.engine.data.factory import build_data_layer
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.orchestrator import create_lead_agent
 from finrobot.engine.skills.registry import SkillRegistry

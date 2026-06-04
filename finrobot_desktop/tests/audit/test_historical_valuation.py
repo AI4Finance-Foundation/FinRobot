@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from finrobot.engine.compute.historical_valuation import (
+from finrobot.engine.primitives.historical_valuation import (
     PricePoint,
     YearlyFinancials,
     compute_historical_band,
@@ -34,7 +34,7 @@ SRC = (
     Path(__file__).resolve().parents[2]
     / "finrobot"
     / "engine"
-    / "compute"
+    / "primitives"
     / "historical_valuation.py"
 )
 

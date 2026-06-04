@@ -5,7 +5,7 @@ the equity-research pipeline's technical-analysis step need the same
 fetch-yearly-financials + fetch-price-history + classify-band glue. Lives
 here so neither layer has to import from the other.
 
-The compute leaf (engine.compute.historical_valuation.compute_historical_band)
+The pure leaf (engine.primitives.historical_valuation.compute_historical_band)
 stays provider-agnostic; this module owns the data-layer translation.
 """
 
@@ -15,7 +15,7 @@ import logging
 from datetime import date, datetime, timezone
 from typing import Any, Literal
 
-from finrobot.engine.compute.historical_valuation import (
+from finrobot.engine.primitives.historical_valuation import (
     HistoricalBand,
     HistoricalMetricName,
     PricePoint,

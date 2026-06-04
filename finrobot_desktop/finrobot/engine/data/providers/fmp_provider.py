@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx
 
-from finrobot.engine.compute.multiples import calculate_ebitda_operating
+from finrobot.engine.primitives.ebitda import calculate_ebitda_operating
 from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
 from finrobot.engine.data.types import DataType
 
@@ -369,7 +369,7 @@ class FMPProvider(DataProvider):
         # EBITDA recomputed on the operating caliber (EBIT + D&A) rather than
         # trusting FMP's `ebitda` field, which inherits the same dropped-D&A
         # contamination for the latest quarter. Fall back to FMP's field only
-        # when the components are missing. See multiples.calculate_ebitda_operating.
+        # when the components are missing. See primitives.ebitda.calculate_ebitda_operating.
         ebitda = calculate_ebitda_operating(operating_income, da)
         if ebitda is None:
             ebitda = total("ebitda")

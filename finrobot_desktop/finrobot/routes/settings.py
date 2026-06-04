@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -16,7 +18,7 @@ from finrobot.config import (
     ProviderConfig,
 )
 from finrobot.secret_store import SecretStorageMode
-from finrobot.data_layer_factory import build_data_layer
+from finrobot.engine.data.factory import build_data_layer
 from finrobot.engine.agents.factory import create_sub_agents
 from finrobot.engine.orchestrator import create_lead_agent
 
@@ -337,7 +339,7 @@ class TestProviderResponse(BaseModel):
     detail: str = ""
 
 
-def _classify_provider_error(exc: Exception) -> tuple[str, str]:
+def _classify_provider_error(exc: BaseException) -> tuple[str, str]:
     """Map a provider call failure to (code, raw English detail)."""
     import httpx
     from pydantic_ai.exceptions import ModelHTTPError
@@ -387,8 +389,153 @@ async def test_provider_route(body: TestProviderRequest, request: Request) -> Te
             [ModelRequest(parts=[UserPromptPart(content="ping")])],
             model_settings={"max_tokens": 8},
         )
-    except Exception as exc:  # noqa: BLE001 — surface any provider failure to the UI
+    except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
+        raise  # never swallow control-flow / shutdown signals (red-line N2)
+    except BaseException as exc:  # noqa: BLE001 — classify any provider failure for the UI
         code, detail = _classify_provider_error(exc)
+        return TestProviderResponse(ok=False, code=code, detail=detail)
+    return TestProviderResponse(ok=True, code="ok")
+
+
+# ── Data-source connectivity test ────────────────────────────────────────────
+# Mirrors test_provider_route, but for a DataProvider API key (FMP / Finnhub /
+# …). Each probe makes ONE minimal authenticated call (a single AAPL lookup) so a
+# wrong / expired data key is caught here at config time, instead of silently
+# surfacing as missing data 60s into an analysis run. Reuses the same stable
+# ``code`` vocabulary the UI already localizes.
+#
+# SECURITY: FMP / Alpha Vantage carry the key in the request URL (``?apikey=…``),
+# and httpx bakes that URL into its exception ``str()``. So unlike the LLM
+# classifier, _classify_data_provider_error NEVER returns a raw exception string —
+# detail is synthesised from the status code / a key-free note only.
+
+_DATA_PROBE_TICKER = "AAPL"  # stable, always-present on every source
+
+
+async def _probe_fmp(key: str) -> None:
+    from finrobot.engine.data.providers.fmp_provider import FMPProvider
+
+    provider = FMPProvider(api_key=key)
+    try:
+        await provider._get(f"/profile/{_DATA_PROBE_TICKER}")
+    finally:
+        await provider.close()
+
+
+async def _probe_finnhub(key: str) -> None:
+    from finrobot.engine.data.providers.finnhub_provider import FinnhubProvider
+
+    provider = FinnhubProvider(api_key=key)
+    try:
+        await provider._get("/stock/profile2", params={"symbol": _DATA_PROBE_TICKER})
+    finally:
+        await provider.close()
+
+
+async def _probe_adanos(key: str) -> None:
+    from finrobot.engine.data.providers.adanos_provider import AdanosProvider
+
+    provider = AdanosProvider(api_key=key)
+    try:
+        await provider._get(
+            "/reddit/stocks/v1/compare", params={"tickers": _DATA_PROBE_TICKER, "days": 1}
+        )
+    finally:
+        await provider.close()
+
+
+async def _probe_alpha_vantage(key: str) -> None:
+    import httpx
+
+    from finrobot.engine.data.interface import ProviderError
+
+    params = {
+        "function": "NEWS_SENTIMENT",
+        "tickers": _DATA_PROBE_TICKER,
+        "apikey": key,
+        "limit": "1",
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get("https://www.alphavantage.co/query", params=params)
+        resp.raise_for_status()
+        data = resp.json()
+    # Alpha Vantage answers HTTP 200 with a note (not an error status) when the key
+    # is invalid or rate-limited. The note text is key-free, so it's safe to surface.
+    if "feed" not in data:
+        note = data.get("Error Message") or data.get("Information") or data.get("Note")
+        raise ProviderError(str(note) if note else "Alpha Vantage returned no feed")
+
+
+# provider id → (settings key attribute, probe). Keyed off the same data-secret
+# fields the rest of this module uses; adding a new keyed source is one entry.
+_DATA_PROBES: dict[str, tuple[str, Callable[[str], Awaitable[None]]]] = {
+    "fmp": ("fmp_api_key", _probe_fmp),
+    "finnhub": ("finnhub_api_key", _probe_finnhub),
+    "adanos": ("adanos_api_key", _probe_adanos),
+    "alpha_vantage": ("alpha_vantage_api_key", _probe_alpha_vantage),
+}
+
+
+def _classify_data_provider_error(exc: BaseException) -> tuple[str, str]:
+    """Map a data-provider probe failure to (code, key-free detail).
+
+    Returns the same ``code`` vocabulary as _classify_provider_error so the UI
+    reuses one set of localized strings. NEVER returns the raw exception text:
+    the request URL (which httpx embeds in the message) carries the live key.
+    """
+    import httpx
+
+    from finrobot.engine.data.interface import ProviderError
+
+    if isinstance(exc, httpx.HTTPStatusError):
+        sc = exc.response.status_code
+        if sc in (401, 403):
+            return "auth", f"HTTP {sc}"
+        if sc == 404:
+            return "not_found", f"HTTP {sc}"
+        return "http", f"HTTP {sc}"
+    if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout, httpx.TimeoutException)):
+        return "connect", type(exc).__name__
+    if isinstance(exc, ProviderError):
+        # Alpha Vantage's 200-with-note path. The note text is key-free.
+        msg = str(exc)[:200]
+        low = msg.lower()
+        if any(s in low for s in ("api key", "apikey", "invalid", "unauthorized")):
+            return "auth", msg
+        return "http", msg
+    return "unknown", type(exc).__name__
+
+
+class TestDataProviderRequest(BaseModel):
+    """Live connectivity check for a data-source API key (FMP / Finnhub / …)."""
+
+    provider: str  # fmp | finnhub | adanos | alpha_vantage
+
+
+@router.post("/test-data-provider", response_model=TestProviderResponse)
+async def test_data_provider_route(
+    body: TestDataProviderRequest, request: Request
+) -> TestProviderResponse:
+    """Make a tiny live call to verify a saved data-source API key actually works.
+
+    The key tested is the one currently in runtime settings (the value the just-
+    completed save persisted), so a wrong / expired data key is caught here with a
+    clear message rather than as missing data inside an analysis run.
+    """
+    probe = _DATA_PROBES.get(body.provider)
+    if probe is None:
+        raise HTTPException(status_code=404, detail=f"Unknown data provider '{body.provider}'.")
+    key_attr, probe_fn = probe
+    settings: FinRobotSettings = request.app.state.deps.settings
+    key = (getattr(settings, key_attr, "") or "").strip()
+    if not key:
+        return TestProviderResponse(ok=False, code="no_key")
+    try:
+        await probe_fn(key)
+    except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
+        raise  # never swallow control-flow / shutdown signals (red-line N2)
+    except BaseException as exc:  # noqa: BLE001 — classify any probe failure for the UI
+        code, detail = _classify_data_provider_error(exc)
         return TestProviderResponse(ok=False, code=code, detail=detail)
     return TestProviderResponse(ok=True, code="ok")
 

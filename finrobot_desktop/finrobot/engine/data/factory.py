@@ -1,7 +1,9 @@
 """Factory for building a DataLayer from runtime settings.
 
-Extracted from server.py so that routes/settings.py can import it without
-creating a circular dependency (server → settings → server).
+Lives in ``engine/data/`` because assembling the provider chain is a data-layer
+concern. It sits ABOVE ``layer`` / ``cache`` (it imports them) and must never be
+imported by them, so moving it here introduces no cycle. ``routes/settings.py``,
+``server.py``, ``sdk.py`` and ``cli.py`` import ``build_data_layer`` from here.
 """
 
 from __future__ import annotations

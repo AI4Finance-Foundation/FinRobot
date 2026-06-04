@@ -2,13 +2,15 @@ import pytest
 from finrobot.engine.models.financial import CompanyFinancials, PeerComps
 from finrobot.engine.compute.multiples import (
     calculate_core_pe,
-    calculate_ebitda_operating,
-    calculate_ebitda_reported,
     calculate_ev,
     calculate_multiples,
     calculate_peer_statistics,
     compute_ttm_fcf,
     fcf_yield,
+)
+from finrobot.engine.primitives.ebitda import (
+    calculate_ebitda_operating,
+    calculate_ebitda_reported,
 )
 
 

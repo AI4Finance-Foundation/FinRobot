@@ -94,7 +94,7 @@ class FinRobot:
 
         from pathlib import Path
 
-        from finrobot.data_layer_factory import build_data_layer
+        from finrobot.engine.data.factory import build_data_layer
         from finrobot.engine.agents.factory import create_sub_agents
         from finrobot.engine.skills.registry import SkillRegistry
 

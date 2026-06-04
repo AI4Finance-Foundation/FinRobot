@@ -3684,3 +3684,96 @@ msgstr "Remove"
 #. js-lingui-explicit-id
 msgid "coverage.inspector.removeNote"
 msgstr "Remove only drops it from the workspace; the ticker's research artifacts stay on its stock page."
+
+#. js-lingui-explicit-id
+msgid "compare.addEntry"
+msgstr "Compare…"
+
+#. js-lingui-explicit-id
+msgid "compare.addEntryTitle"
+msgstr "Compare {ticker} against another ticker"
+
+#. js-lingui-explicit-id
+msgid "compare.pickTitle"
+msgstr "Compare {ticker} with…"
+
+#. js-lingui-explicit-id
+msgid "compare.pickPlaceholder"
+msgstr "Type a ticker (e.g. AMD)"
+
+#. js-lingui-explicit-id
+msgid "compare.pickSearching"
+msgstr "Searching…"
+
+#. js-lingui-explicit-id
+msgid "compare.pickError"
+msgstr "Search failed — type a ticker and press Enter"
+
+#. js-lingui-explicit-id
+msgid "compare.pickUseTyped"
+msgstr "Compare with this ticker"
+
+#. js-lingui-explicit-id
+msgid "compare.pickNoMatch"
+msgstr "No match — type a full ticker to compare"
+
+#. js-lingui-explicit-id
+msgid "compare.pickSameTicker"
+msgstr "That's the current ticker"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.openHistory"
+msgstr "Open {ticker} report history"
+
+#. js-lingui-explicit-id
+msgid "coverage.history.delete"
+msgstr "Delete"
+
+#. js-lingui-explicit-id
+msgid "coverage.history.deleteTitle"
+msgstr "Delete artifact"
+
+#. js-lingui-explicit-id
+msgid "coverage.history.deleteConfirm"
+msgstr "Permanently delete \"{label}\"? This cannot be undone."
+
+#. js-lingui-explicit-id
+msgid "coverage.history.deleteFailed"
+msgstr "Failed to delete artifact"
+
+#. js-lingui-explicit-id
+msgid "hotState.targetWithheld"
+msgstr "Target withheld · valuation methods diverged on cross-validation — open the report for the reconciliation detail →"
+
+#. js-lingui-explicit-id
+msgid "ic.action.backToReport"
+msgstr "Back to report"
+
+#. js-lingui-explicit-id
+msgid "ic.action.backToCoverage"
+msgstr "Back to Coverage"
+
+#. js-lingui-explicit-id
+msgid "report.deleteVersion"
+msgstr "Delete"
+
+#. js-lingui-explicit-id
+msgid "report.deleteVersionTitle"
+msgstr "Delete this report version permanently"
+
+#. js-lingui-explicit-id
+msgid "report.deleteVersionConfirm"
+msgstr "Permanently delete version \"{version}\"? This cannot be undone."
+
+#. js-lingui-explicit-id
+msgid "report.deleteVersionDone"
+msgstr "Deleted a {ticker} report version"
+
+#. js-lingui-explicit-id
+msgid "report.deleteVersionDoneBody"
+msgstr "The version was permanently removed."
+
+#. js-lingui-explicit-id
+msgid "report.deleteVersionFailed"
+msgstr "Couldn't delete this version"
+

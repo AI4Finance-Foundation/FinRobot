@@ -3684,3 +3684,96 @@ msgstr "移出"
 #. js-lingui-explicit-id
 msgid "coverage.inspector.removeNote"
 msgstr "移出只把它从工作台拿掉；该股票的历史研报仍保留在股票页。"
+
+#. js-lingui-explicit-id
+msgid "compare.addEntry"
+msgstr "对比…"
+
+#. js-lingui-explicit-id
+msgid "compare.addEntryTitle"
+msgstr "把 {ticker} 与另一只股票对比"
+
+#. js-lingui-explicit-id
+msgid "compare.pickTitle"
+msgstr "将 {ticker} 与…对比"
+
+#. js-lingui-explicit-id
+msgid "compare.pickPlaceholder"
+msgstr "输入代码（如 AMD）"
+
+#. js-lingui-explicit-id
+msgid "compare.pickSearching"
+msgstr "搜索中…"
+
+#. js-lingui-explicit-id
+msgid "compare.pickError"
+msgstr "搜索失败 — 输入代码后回车"
+
+#. js-lingui-explicit-id
+msgid "compare.pickUseTyped"
+msgstr "与该代码对比"
+
+#. js-lingui-explicit-id
+msgid "compare.pickNoMatch"
+msgstr "无匹配 — 输入完整代码以对比"
+
+#. js-lingui-explicit-id
+msgid "compare.pickSameTicker"
+msgstr "这就是当前股票"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.openHistory"
+msgstr "查看 {ticker} 研报历史"
+
+#. js-lingui-explicit-id
+msgid "coverage.history.delete"
+msgstr "删除"
+
+#. js-lingui-explicit-id
+msgid "coverage.history.deleteTitle"
+msgstr "删除存档"
+
+#. js-lingui-explicit-id
+msgid "coverage.history.deleteConfirm"
+msgstr "永久删除「{label}」？此操作不可撤销。"
+
+#. js-lingui-explicit-id
+msgid "coverage.history.deleteFailed"
+msgstr "删除存档失败"
+
+#. js-lingui-explicit-id
+msgid "hotState.targetWithheld"
+msgstr "目标价暂缓给出 · 估值方法在交叉验证中分歧 — 打开研报查看勾稽核对明细 →"
+
+#. js-lingui-explicit-id
+msgid "ic.action.backToReport"
+msgstr "返回研报"
+
+#. js-lingui-explicit-id
+msgid "ic.action.backToCoverage"
+msgstr "返回覆盖列表"
+
+#. js-lingui-explicit-id
+msgid "report.deleteVersion"
+msgstr "删除"
+
+#. js-lingui-explicit-id
+msgid "report.deleteVersionTitle"
+msgstr "永久删除此版本研报"
+
+#. js-lingui-explicit-id
+msgid "report.deleteVersionConfirm"
+msgstr "永久删除版本「{version}」？此操作不可撤销。"
+
+#. js-lingui-explicit-id
+msgid "report.deleteVersionDone"
+msgstr "已删除 {ticker} 的一个研报版本"
+
+#. js-lingui-explicit-id
+msgid "report.deleteVersionDoneBody"
+msgstr "该版本已被永久删除。"
+
+#. js-lingui-explicit-id
+msgid "report.deleteVersionFailed"
+msgstr "无法删除此版本"
+

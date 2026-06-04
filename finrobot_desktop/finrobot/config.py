@@ -104,6 +104,17 @@ BUILTIN_PROVIDERS: tuple[ProviderConfig, ...] = (
 # model_data / model_analysis / ... fields declared on FinRobotSettings.
 _AGENT_ROLES: tuple[str, ...] = ("data", "analysis", "modeling", "synthesis", "report")
 
+# DataProvider secrets stored as fixed keychain keys + fixed FinRobotSettings
+# fields (these are financial-data API keys, NOT LLM provider keys — those use
+# the dynamic provider_key:<id> scheme). Single source of truth shared by the
+# server's hydrate step and the settings route, so the two can't drift apart.
+DATA_PROVIDER_SECRET_FIELDS: tuple[str, ...] = (
+    "fmp_api_key",
+    "finnhub_api_key",
+    "alpha_vantage_api_key",
+    "adanos_api_key",
+)
+
 
 class FinRobotSettings(BaseSettings):
     """FinRobot configuration.

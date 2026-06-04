@@ -16,7 +16,7 @@ from starlette.responses import JSONResponse, Response
 
 from pydantic_ai.ui.vercel_ai import VercelAIAdapter
 
-from finrobot.config import get_settings
+from finrobot.config import DATA_PROVIDER_SECRET_FIELDS, get_settings
 from finrobot.obs import bind_session, setup_logging
 from finrobot.obs.middleware import RequestTraceMiddleware
 from finrobot.data_layer_factory import build_data_layer
@@ -56,26 +56,32 @@ _MAX_CONCURRENT_RUNS = 4
 
 
 async def hydrate_settings_from_secrets(settings: Any, secret_store: SecretStore) -> Any:
-    """Return settings with API keys loaded from SecretStore."""
+    """Return settings with API keys loaded from the keychain.
+
+    Secrets live in the keychain (never settings.json) and must be hydrated back
+    into FinRobotSettings on every boot so the data layer and LLM providers see
+    them. Two key families:
+
+    - DataProvider keys (FMP / Finnhub / …) → fixed fields, via model_copy.
+    - LLM provider keys → the dynamic ``provider_key:<id>`` scheme (one per
+      registered provider), injected into the private ``_provider_keys`` map so
+      they never enter model_dump() / settings.json. See ADR-0013.
+    """
     update: dict[str, str] = {}
-    # Keep this list in sync with routes.settings._SECRET_FIELDS — secrets
-    # live in the keychain, not in settings.json, and must be hydrated back
-    # into FinRobotSettings on every boot so downstream code (data layer,
-    # LLM providers) sees the same values whether the user originally
-    # configured them via .env or via the UI.
-    for key in (
-        "anthropic_api_key",
-        "deepseek_api_key",
-        "openai_api_key",
-        "fmp_api_key",
-        "finnhub_api_key",
-        "alpha_vantage_api_key",
-        "adanos_api_key",
-    ):
+    for key in DATA_PROVIDER_SECRET_FIELDS:
         value = await secret_store.get(key)
         if value:
             update[key] = value
-    return settings.model_copy(update=update)
+    settings = settings.model_copy(update=update)
+
+    provider_keys: dict[str, str] = {}
+    for provider in settings.providers:
+        value = await secret_store.get(f"provider_key:{provider.id}")
+        if value:
+            provider_keys[provider.id] = value
+    if provider_keys:
+        settings = settings.with_provider_keys(provider_keys)
+    return settings
 
 
 @asynccontextmanager

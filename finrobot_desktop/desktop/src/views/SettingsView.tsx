@@ -275,6 +275,8 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   // ── Editable local state ───────────────────────────────────────────────────
   const [fmpKey, setFmpKey] = useState('')
   const [finnhubKey, setFinnhubKey] = useState('')
+  const [adanosKey, setAdanosKey] = useState('')
+  const [alphaVantageKey, setAlphaVantageKey] = useState('')
   const [secUserAgent, setSecUserAgent] = useState('')
   const [modelName, setModelName] = useState('')
   const [llmApiKey, setLlmApiKey] = useState('')
@@ -296,6 +298,13 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     code?: string
     detail?: string
   }>({ status: 'idle' })
+  // Same, but per data-source ("fmp" | "finnhub") — each key field tests on its own.
+  const [dataTestState, setDataTestState] = useState<
+    Record<
+      string,
+      { status: 'idle' | 'testing' | 'done'; ok?: boolean; code?: string; detail?: string }
+    >
+  >({})
 
   // Pending SECRET field awaiting confirmation before its stored keychain key is
   // deleted via POST /api/settings/clear-secret (BUG-005).
@@ -394,6 +403,8 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       queryClient.setQueryData(['settings'], data)
       setFmpKey('')
       setFinnhubKey('')
+      setAdanosKey('')
+      setAlphaVantageKey('')
       setLlmApiKey('')
       const r = data as { model_name?: string; sec_user_agent?: string }
       if (r?.model_name) setModelName(r.model_name)
@@ -563,11 +574,72 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   }
   const handleFmpKeyChange = (v: string) => {
     setFmpKey(v)
+    setDataTestState((s) => ({ ...s, fmp: { status: 'idle' } }))
     if (v.trim()) scheduleStandardSave({ fmp_api_key: v.trim() })
   }
   const handleFinnhubKeyChange = (v: string) => {
     setFinnhubKey(v)
+    setDataTestState((s) => ({ ...s, finnhub: { status: 'idle' } }))
     if (v.trim()) scheduleStandardSave({ finnhub_api_key: v.trim() })
+  }
+  const handleAdanosKeyChange = (v: string) => {
+    setAdanosKey(v)
+    setDataTestState((s) => ({ ...s, adanos: { status: 'idle' } }))
+    if (v.trim()) scheduleStandardSave({ adanos_api_key: v.trim() })
+  }
+  const handleAlphaVantageKeyChange = (v: string) => {
+    setAlphaVantageKey(v)
+    setDataTestState((s) => ({ ...s, alpha_vantage: { status: 'idle' } }))
+    if (v.trim()) scheduleStandardSave({ alpha_vantage_api_key: v.trim() })
+  }
+  // Live connectivity test for a data-source key. Flushes any unsaved edit first
+  // so the backend tests the key the user is looking at, then probes it.
+  const handleTestDataProvider = async (provider: string, field: string, key: string) => {
+    setDataTestState((s) => ({ ...s, [provider]: { status: 'testing' } }))
+    try {
+      const trimmed = key.trim()
+      if (trimmed) {
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+        const merged = { ...(lastPayloadRef.current ?? {}), [field]: trimmed }
+        lastPayloadRef.current = null
+        await settingsMutationRef.current.mutateAsync(merged as never)
+      }
+      const { data, error } = await api.POST('/api/settings/test-data-provider', {
+        body: { provider },
+      })
+      if (error || !data) throw new Error('test failed')
+      setDataTestState((s) => ({
+        ...s,
+        [provider]: { status: 'done', ok: data.ok, code: data.code, detail: data.detail },
+      }))
+    } catch {
+      setDataTestState((s) => ({
+        ...s,
+        [provider]: { status: 'done', ok: false, code: 'unknown' },
+      }))
+    }
+  }
+  const renderDataTestRow = (provider: string, field: string, key: string): React.ReactElement => {
+    const st = dataTestState[provider] ?? { status: 'idle' as const }
+    return (
+      <div className="settings-test-row">
+        <button
+          type="button"
+          className="settings-btn"
+          onClick={() => handleTestDataProvider(provider, field, key)}
+          disabled={st.status === 'testing'}
+        >
+          {st.status === 'testing' ? t('settings.test.testing') : t('settings.test.button')}
+        </button>
+        {st.status === 'done' && (
+          <span className={`settings-test-result${st.ok ? ' is-ok' : ' is-bad'}`}>
+            {st.ok ? '✓ ' : '✗ '}
+            {t(`settings.dataTest.result.${st.code ?? 'unknown'}`)}
+            {!st.ok && st.detail && st.code === 'http' ? ` (${st.detail})` : ''}
+          </span>
+        )}
+      </div>
+    )
   }
   const handleSecAgentChange = (v: string) => {
     setSecUserAgent(v)
@@ -580,6 +652,8 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   // ── Derived ──────────────────────────────────────────────────────────────
   const fmpConfigured = settingsResp?.fmp_api_key_set ?? false
   const finnhubConfigured = settingsResp?.finnhub_api_key_set ?? false
+  const adanosConfigured = settingsResp?.adanos_api_key_set ?? false
+  const alphaVantageConfigured = settingsResp?.alpha_vantage_api_key_set ?? false
   const llmKeyConfigured = currentProviderInfo?.key_set ?? false
   const startupError = settingsResp?.startup_error ?? null
   const secIdentityLocallyValid = isValidSecIdentity(secUserAgent)
@@ -1002,6 +1076,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                     placeholder={fmpConfigured ? '••••••••' : t('settings.fmp.placeholder')}
                   />
                   <p className="settings-hint">{t('settings.fmp.hint')}</p>
+                  {renderDataTestRow('fmp', 'fmp_api_key', fmpKey)}
                 </div>
 
                 {/* Finnhub */}
@@ -1031,6 +1106,69 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                     placeholder={finnhubConfigured ? '••••••••' : t('settings.finnhub.placeholder')}
                   />
                   <p className="settings-hint">{t('settings.finnhub.hint')}</p>
+                  {renderDataTestRow('finnhub', 'finnhub_api_key', finnhubKey)}
+                </div>
+
+                {/* Adanos — retail sentiment (Reddit / X / Polymarket) */}
+                <div className="settings-field">
+                  <label className="settings-field-label">
+                    <span className="label-text">{t('settings.adanos.label')}</span>
+                    {adanosConfigured ? (
+                      <span className="settings-badge is-ok">{t('settings.badge.configured')}</span>
+                    ) : (
+                      <span className="settings-badge is-optional">
+                        {t('settings.badge.optional')}
+                      </span>
+                    )}
+                    {adanosConfigured && (
+                      <button
+                        type="button"
+                        className="settings-clear-btn"
+                        onClick={() => handleClearSecret('adanos_api_key')}
+                      >
+                        {t('settings.clearKey.button')}
+                      </button>
+                    )}
+                  </label>
+                  <SecretInput
+                    value={adanosKey}
+                    onChange={handleAdanosKeyChange}
+                    placeholder={adanosConfigured ? '••••••••' : t('settings.adanos.placeholder')}
+                  />
+                  <p className="settings-hint">{t('settings.adanos.hint')}</p>
+                  {renderDataTestRow('adanos', 'adanos_api_key', adanosKey)}
+                </div>
+
+                {/* Alpha Vantage — news sentiment enrichment */}
+                <div className="settings-field">
+                  <label className="settings-field-label">
+                    <span className="label-text">{t('settings.alphaVantage.label')}</span>
+                    {alphaVantageConfigured ? (
+                      <span className="settings-badge is-ok">{t('settings.badge.configured')}</span>
+                    ) : (
+                      <span className="settings-badge is-optional">
+                        {t('settings.badge.optional')}
+                      </span>
+                    )}
+                    {alphaVantageConfigured && (
+                      <button
+                        type="button"
+                        className="settings-clear-btn"
+                        onClick={() => handleClearSecret('alpha_vantage_api_key')}
+                      >
+                        {t('settings.clearKey.button')}
+                      </button>
+                    )}
+                  </label>
+                  <SecretInput
+                    value={alphaVantageKey}
+                    onChange={handleAlphaVantageKeyChange}
+                    placeholder={
+                      alphaVantageConfigured ? '••••••••' : t('settings.alphaVantage.placeholder')
+                    }
+                  />
+                  <p className="settings-hint">{t('settings.alphaVantage.hint')}</p>
+                  {renderDataTestRow('alpha_vantage', 'alpha_vantage_api_key', alphaVantageKey)}
                 </div>
 
                 {/* SEC EDGAR identity */}

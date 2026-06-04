@@ -1794,6 +1794,30 @@ msgid "settings.finnhub.hint"
 msgstr "启用：公司新闻、公司概况与基础财务"
 
 #. js-lingui-explicit-id
+msgid "settings.adanos.label"
+msgstr "Adanos API 密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.adanos.placeholder"
+msgstr "输入 Adanos API 密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.adanos.hint"
+msgstr "启用：来自 Reddit、X、Polymarket 的散户情绪"
+
+#. js-lingui-explicit-id
+msgid "settings.alphaVantage.label"
+msgstr "Alpha Vantage API 密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.alphaVantage.placeholder"
+msgstr "输入 Alpha Vantage API 密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.alphaVantage.hint"
+msgstr "启用：新闻情绪增强（用于新闻流）"
+
+#. js-lingui-explicit-id
 msgid "settings.sec.label"
 msgstr "SEC EDGAR 身份 (User-Agent)"
 
@@ -3746,4 +3770,32 @@ msgstr "服务商返回错误"
 
 #. js-lingui-explicit-id
 msgid "settings.test.result.unknown"
+msgstr "连接测试失败"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.ok"
+msgstr "连接正常"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.no_key"
+msgstr "该数据源未配置 API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.auth"
+msgstr "API Key 无效——请检查 Key"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.connect"
+msgstr "无法连接数据源——请检查网络"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.not_found"
+msgstr "数据源拒绝了该请求"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.http"
+msgstr "数据源返回错误"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.unknown"
 msgstr "连接测试失败"

@@ -35,7 +35,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install frontend dependencies
-        working-directory: ui
+        working-directory: desktop
         run: npm ci
 
       - name: Freeze Python sidecar
@@ -43,7 +43,7 @@ jobs:
         # exists for Tauri's externalBin matcher to bundle.
         run: |
           uv sync --extra package
-          bash src-tauri/sidecar/build.sh
+          bash desktop/src-tauri/sidecar/build.sh
 
       - name: Build, bundle, and publish
         uses: tauri-apps/tauri-action@v0
@@ -54,6 +54,7 @@ jobs:
           # headless). Set explicitly to be safe.
           CI: "true"
         with:
+          projectPath: desktop
           tagName: ${{ github.ref_name }}
           releaseName: "FinRobot ${{ github.ref_name }}"
           releaseBody: |

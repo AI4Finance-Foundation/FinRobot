@@ -1,7 +1,7 @@
 """PyInstaller entry point for the FinRobot desktop sidecar.
 
 The Tauri shell spawns this frozen binary with ``--host 127.0.0.1 --port 8321``
-(see src-tauri/src/sidecar.rs). We inject the ``serve`` subcommand and hand off
+(see desktop/src-tauri/src/sidecar.rs). We inject the ``serve`` subcommand and hand off
 to the existing Click CLI, so the bundled server runs the byte-for-byte same
 code path as ``finrobot serve`` does in development — no parallel entrypoint to
 drift out of sync.

@@ -11,7 +11,7 @@ Checks:
   1. No agent/instruction file references the non-existent `finagent/` package
      (the real package is `finrobot/`).
   2. Every fully-qualified path token (finrobot/ specs/ docs/ project-memory/
-     tests/ ui/ src-tauri/) referenced in the harness actually exists on disk.
+     tests/ desktop/) referenced in the harness actually exists on disk.
   3. Every .claude/agents/<name>.md has a .codex/agents/<name>.toml mirror, and
      vice versa.
   4. CLAUDE.md and AGENTS.md are byte-identical.
@@ -35,7 +35,7 @@ HARNESS_FILES = [
 ]
 
 # Roots whose fully-qualified references we verify exist on disk.
-PATH_ROOTS = ("finrobot/", "specs/", "docs/", "project-memory/", "tests/", "ui/", "src-tauri/")
+PATH_ROOTS = ("finrobot/", "specs/", "docs/", "project-memory/", "tests/", "desktop/")
 # A path token = one of the roots followed by path chars (incl. CJK for 中文 filenames),
 # stopping at whitespace, quotes, backticks, parens (half/full width) and template <...>.
 TOKEN_RE = re.compile(
@@ -59,7 +59,7 @@ def candidate_paths(token: str) -> list[str]:
     m = re.search(r"\{([^}]*)\}", token)
     if m:
         alts = [a.strip() for a in m.group(1).split(",") if a.strip()]
-        return [p for a in alts for p in candidate_paths(token[: m.start()] + a + token[m.end():])]
+        return [p for a in alts for p in candidate_paths(token[: m.start()] + a + token[m.end() :])]
     if "*" in token:  # wildcard -> verify the directory that should contain the matches
         head = token[: token.index("*")]
         token = head.rsplit("/", 1)[0] if "/" in head else head
@@ -77,7 +77,9 @@ def main() -> int:
 
         for ln, line in enumerate(text.splitlines(), 1):
             if "finagent/" in line:
-                violations.append(f"{rel}:{ln}: references non-existent `finagent/` (package is `finrobot/`)")
+                violations.append(
+                    f"{rel}:{ln}: references non-existent `finagent/` (package is `finrobot/`)"
+                )
 
         seen: set[str] = set()
         for raw in TOKEN_RE.findall(text):
@@ -86,7 +88,9 @@ def main() -> int:
                     continue
                 seen.add(cand)
                 if not (ROOT / cand).exists():
-                    violations.append(f"{rel}: references missing path `{cand}` (from token `{raw}`)")
+                    violations.append(
+                        f"{rel}: references missing path `{cand}` (from token `{raw}`)"
+                    )
 
     # .md <-> .toml mirror parity
     md = {p.stem for p in (ROOT / ".claude/agents").glob("*.md")}
@@ -106,12 +110,16 @@ def main() -> int:
         print("HARNESS DRIFT — the AI coding harness references reality that no longer exists:\n")
         for v in violations:
             print(f"  ✗ {v}")
-        print(f"\n{len(violations)} issue(s). Fix the reference (or restore the path) before committing.")
+        print(
+            f"\n{len(violations)} issue(s). Fix the reference (or restore the path) before committing."
+        )
         return 1
 
     present = sum(1 for f in HARNESS_FILES if f.exists())
     if present == 0:
-        print("harness drift check: no local harness files present (gitignored / fresh checkout) — nothing to validate")
+        print(
+            "harness drift check: no local harness files present (gitignored / fresh checkout) — nothing to validate"
+        )
         return 0
     print(f"harness drift check: OK ({present} files, all referenced paths exist)")
     return 0

@@ -437,6 +437,30 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/settings/test-data-provider': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Test Data Provider Route
+     * @description Make a tiny live call to verify a saved data-source API key actually works.
+     *
+     *     The key tested is the one currently in runtime settings (the value the just-
+     *     completed save persisted), so a wrong / expired data key is caught here with a
+     *     clear message rather than as missing data inside an analysis run.
+     */
+    post: operations['test_data_provider_route_api_settings_test_data_provider_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/runs': {
     parameters: {
       query?: never
@@ -3515,6 +3539,14 @@ export interface components {
       generated_at: string
     }
     /**
+     * TestDataProviderRequest
+     * @description Live connectivity check for a data-source API key (FMP / Finnhub / …).
+     */
+    TestDataProviderRequest: {
+      /** Provider */
+      provider: string
+    }
+    /**
      * TestProviderRequest
      * @description Live connectivity check for a provider's saved key / base_url / model.
      */
@@ -4297,6 +4329,39 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': components['schemas']['TestProviderRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TestProviderResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  test_data_provider_route_api_settings_test_data_provider_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['TestDataProviderRequest']
       }
     }
     responses: {

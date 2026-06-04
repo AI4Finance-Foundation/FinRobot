@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # Freeze `finrobot serve` into the standalone Tauri sidecar binary.
 #
-# Output: src-tauri/binaries/finrobot-server-<target-triple> — the name Tauri's
+# Output: desktop/src-tauri/binaries/finrobot-server-<target-triple> — the name Tauri's
 # externalBin matcher expects (e.g. finrobot-server-aarch64-apple-darwin).
 #
 # Prereq: the `package` extra is installed (`uv sync --extra package`), which
 # pulls in pyinstaller. Run from anywhere; paths are resolved absolutely.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"      # src-tauri/sidecar
-SRC_TAURI="$(cd "$SCRIPT_DIR/.." && pwd)"                       # src-tauri
-REPO_ROOT="$(cd "$SRC_TAURI/.." && pwd)"                        # repo root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"      # desktop/src-tauri/sidecar
+SRC_TAURI="$(cd "$SCRIPT_DIR/.." && pwd)"                       # desktop/src-tauri
+DESKTOP_DIR="$(cd "$SRC_TAURI/.." && pwd)"                      # desktop
+REPO_ROOT="$(cd "$DESKTOP_DIR/.." && pwd)"                      # repo root
 BINARIES_DIR="$SRC_TAURI/binaries"
 SPEC="$SCRIPT_DIR/finrobot-server.spec"
 

@@ -7,7 +7,7 @@ Tauri renames the output by platform triple (see build.sh) and spawns it as the
 backend; no Python install, no ``uv``, no source tree required on the target
 machine.
 
-Build via ``src-tauri/sidecar/build.sh`` — do not call pyinstaller by hand, the
+Build via ``desktop/src-tauri/sidecar/build.sh`` — do not call pyinstaller by hand, the
 script wires up the repo root and the triple-named copy into binaries/.
 """
 
@@ -20,8 +20,8 @@ from PyInstaller.utils.hooks import (
     copy_metadata,
 )
 
-# SPECPATH is injected by PyInstaller: .../src-tauri/sidecar
-REPO_ROOT = os.path.abspath(os.path.join(SPECPATH, "..", ".."))
+# SPECPATH is injected by PyInstaller: .../desktop/src-tauri/sidecar
+REPO_ROOT = os.path.abspath(os.path.join(SPECPATH, "..", "..", ".."))
 
 # --- bundled read-only resources -------------------------------------------
 # skills/ drives the research pipeline (equity-research, financial-analysis,

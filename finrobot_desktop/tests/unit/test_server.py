@@ -113,7 +113,7 @@ class TestArchitecturalRedLines:
         """Desktop startup must not pay the uvicorn reloader/watchdog cost.
 
         The sidecar is a frozen PyInstaller binary; its entry point
-        (src-tauri/sidecar/entry.py) injects the ``serve`` subcommand and hands
+        (desktop/src-tauri/sidecar/entry.py) injects the ``serve`` subcommand and hands
         off to the Click CLI. It must never inject ``--reload`` — that would
         spin up uvicorn's file-watching reloader inside the shipped desktop app.
         (The previous artifact was a uv shell shim with a FINROBOT_SERVER_RELOAD
@@ -121,7 +121,9 @@ class TestArchitecturalRedLines:
         """
         from pathlib import Path
 
-        entry_path = Path(__file__).resolve().parents[2] / "src-tauri" / "sidecar" / "entry.py"
+        entry_path = (
+            Path(__file__).resolve().parents[2] / "desktop" / "src-tauri" / "sidecar" / "entry.py"
+        )
         source = entry_path.read_text()
         assert '"serve"' in source  # the serve subcommand is injected
         assert "--reload" not in source  # the dev-only reloader is never enabled

@@ -7,7 +7,7 @@
 #
 # 两种姿势（后端始终是 live 源码，区别只在前端壳子）：
 #   ./dev.sh         浏览器姿势 — 前端跑在浏览器 http://localhost:5173
-#   ./dev.sh --app   桌面 App 姿势 — 前端跑在 Tauri 原生窗口（cargo tauri dev）
+#   ./dev.sh --app   桌面 App 姿势 — 前端跑在 Tauri 原生窗口（cd desktop && cargo tauri dev）
 #
 # --app 走的仍是 live 后端：靠 FINROBOT_DEV_LIVE_BACKEND=1 让 Tauri 壳子跳过
 # 冻结的 PyInstaller sidecar，窗口经 vite proxy 直连本脚本拉起的活后端（改 py 立即生效）。
@@ -23,6 +23,7 @@ cd "$ROOT"
 BACKEND_PORT=8321
 FRONTEND_PORT=5173
 BACKEND_LOG=/tmp/finrobot-backend.log
+FRONTEND_DIR="$ROOT/desktop"
 
 # ── 前端壳子：browser（默认）| app（Tauri 原生窗口）─────────────────────────
 FRONTEND_MODE=browser
@@ -51,7 +52,7 @@ kill_port() {
 
 echo "▸ 停掉旧的 live 后端 / vite ..."
 pkill -f "finrobot serve" 2>/dev/null
-pkill -f "ui/node_modules/.bin/vite" 2>/dev/null
+pkill -f "desktop/node_modules/.bin/vite" 2>/dev/null
 kill_port "$BACKEND_PORT"
 kill_port "$FRONTEND_PORT"
 sleep 1
@@ -103,12 +104,12 @@ if [ "$FRONTEND_MODE" = app ]; then
   echo "  (Ctrl+C 同时停 App / vite / 后端)"
   echo
   # FINROBOT_DEV_LIVE_BACKEND=1 → Tauri 壳子跳过冻结 sidecar，窗口直连上面的活后端。
-  # cargo tauri dev 自己经 beforeDevCommand（npm run dev，cwd=ui/）拉 vite 并开窗口。
-  FINROBOT_DEV_LIVE_BACKEND=1 cargo tauri dev
+  # cargo tauri dev 自己经 beforeDevCommand（npm run dev，cwd=desktop/）拉 vite 并开窗口。
+  (cd "$FRONTEND_DIR" && FINROBOT_DEV_LIVE_BACKEND=1 cargo tauri dev)
 else
   echo "▸ 启动 live 前端（vite, :${FRONTEND_PORT}）"
   echo "  浏览器打开 → http://localhost:${FRONTEND_PORT}"
   echo "  (Ctrl+C 同时停前后端)"
   echo
-  cd ui && npm run dev
+  cd "$FRONTEND_DIR" && npm run dev
 fi

@@ -1794,6 +1794,30 @@ msgid "settings.finnhub.hint"
 msgstr "Enables: company news, profile & basic financials"
 
 #. js-lingui-explicit-id
+msgid "settings.adanos.label"
+msgstr "Adanos API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.adanos.placeholder"
+msgstr "Enter Adanos API key"
+
+#. js-lingui-explicit-id
+msgid "settings.adanos.hint"
+msgstr "Enables: retail sentiment from Reddit, X & Polymarket"
+
+#. js-lingui-explicit-id
+msgid "settings.alphaVantage.label"
+msgstr "Alpha Vantage API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.alphaVantage.placeholder"
+msgstr "Enter Alpha Vantage API key"
+
+#. js-lingui-explicit-id
+msgid "settings.alphaVantage.hint"
+msgstr "Enables: news sentiment enrichment for the news feed"
+
+#. js-lingui-explicit-id
 msgid "settings.sec.label"
 msgstr "SEC EDGAR Identity (User-Agent)"
 
@@ -3746,4 +3770,32 @@ msgstr "The provider returned an error"
 
 #. js-lingui-explicit-id
 msgid "settings.test.result.unknown"
+msgstr "Connection test failed"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.ok"
+msgstr "Connection OK"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.no_key"
+msgstr "No API key set for this data source"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.auth"
+msgstr "Invalid API key — check the key"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.connect"
+msgstr "Could not reach the data source — check your network"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.not_found"
+msgstr "The data source rejected the request"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.http"
+msgstr "The data source returned an error"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.unknown"
 msgstr "Connection test failed"

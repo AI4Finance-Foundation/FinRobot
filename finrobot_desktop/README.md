@@ -33,13 +33,15 @@ Prerequisites: [`uv`](https://docs.astral.sh/uv/), Node 20+, Rust toolchain, and
 
 ```bash
 uv sync --extra package            # backend deps + pyinstaller (for the sidecar)
-bash src-tauri/sidecar/build.sh    # freeze finrobot-server into src-tauri/binaries/
+bash desktop/src-tauri/sidecar/build.sh
+                                    # freeze finrobot-server into desktop/src-tauri/binaries/
 
+cd desktop
 cargo tauri dev                    # run the desktop app (debug)
-cargo tauri build                  # produce FinRobot.app + .dmg under src-tauri/target/release/bundle/
+cargo tauri build                  # produce FinRobot.app + .dmg under desktop/src-tauri/target/release/bundle/
 ```
 
-`build.sh` freezes the backend into a PyInstaller sidecar, so a plain `cargo tauri dev` runs against that **frozen** binary — backend edits won't show up until you re-run `build.sh`. For a live edit loop (backend source + frontend HMR, no re-freezing) use `dev.sh`, which starts a source-tree `finrobot serve` on :8321 and points the frontend at it:
+`build.sh` freezes the backend into a PyInstaller sidecar, so a plain `cd desktop && cargo tauri dev` runs against that **frozen** binary — backend edits won't show up until you re-run `build.sh`. For a live edit loop (backend source + frontend HMR, no re-freezing) use `dev.sh`, which starts a source-tree `finrobot serve` on :8321 and points the frontend at it:
 
 ```bash
 ./dev.sh            # browser shell  → http://localhost:5173

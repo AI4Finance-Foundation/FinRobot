@@ -47,6 +47,7 @@ finrobot_cache.db-wal
 node_modules/
 desktop/dist/
 desktop/out/
+desktop/.vite/
 # Internal docs — local only, not published. 给 Claude / Codex 跨会话看，不进 git。
 # 进 git 的只有 README.md + 运行时资产 (finrobot/engine/**/instructions、skills/)。
 ARCHITECTURE.md
@@ -80,9 +81,10 @@ scripts/evolve_raw.jsonl
 scripts/evolve.log
 
 # Desktop sidecar binaries — multi-hundred-MB PyInstaller output, regenerated
-# locally / in CI by src-tauri/sidecar/build.sh. The source (spec + entry +
-# build script under src-tauri/sidecar/) is tracked; the frozen output is not.
-src-tauri/binaries/finrobot-server-*
+# locally / in CI by desktop/src-tauri/sidecar/build.sh. The source (spec +
+# entry + build script under desktop/src-tauri/sidecar/) is tracked; the frozen
+# output is not.
+desktop/src-tauri/binaries/finrobot-server-*
 
 # understand-anything — local codebase-analysis tool cache (graph/batches/tmp).
 # Regenerated on demand; never part of the project source.

@@ -111,7 +111,7 @@ def test_charts_dont_use_raw_dollar_tick_formatter_for_aggregates():
     """Aggregate-value charts (waterfall, capex, etc.) must format with fmtUsd.
 
     The screenshot bug was a Recharts YAxis that rendered $1,194,284,335,403
-    as a clipped run of zeros. Use ui/src/utils/formatters.fmtUsd for
+    as a clipped run of zeros. Use desktop/src/utils/formatters.fmtUsd for
     anything with potential B/T magnitude.
     """
     charts_dir = UI_SRC / "components" / "charts"

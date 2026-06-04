@@ -88,7 +88,7 @@ def fmt_multiple(value: float | None) -> str:
 def fmt_market_cap(value: float | None) -> str:
     """Humanize a USD market cap as the UI does — ``formatCompactNumber`` (en).
 
-    T/B/M use two decimals, K uses one, matching ``ui/src/utils/format.ts`` so a
+    T/B/M use two decimals, K uses one, matching ``desktop/src/utils/format.ts`` so a
     raw 3_411_000_000_000 reads "$3.41T" in both the prose and the peer table.
     """
     if value is None:

@@ -7,7 +7,7 @@
 //!      Skipped when `FINROBOT_DEV_LIVE_BACKEND` is set, so a live source-tree
 //!      backend can serve :8321 instead (see `dev.sh --app`).
 //!   3. WebView — loads the React UI from Vite dev server (http://localhost:5173
-//!      in dev) or the bundled frontendDist (../ui/dist/index.html in build).
+//!      in dev) or the bundled frontendDist (../dist/index.html in build).
 //!      React calls Python at 127.0.0.1:8321 via fetch — Vite proxy in dev,
 //!      absolute URL in build.
 //!

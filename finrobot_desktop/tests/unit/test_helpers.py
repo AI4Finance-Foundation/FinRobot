@@ -55,7 +55,7 @@ def test_fmt_multiple_matches_frontend_caliber(value: float | None, expected: st
     ],
 )
 def test_fmt_market_cap_matches_frontend_caliber(value: float | None, expected: str) -> None:
-    """formatCompactNumber (ui/src/utils/format.ts, en): T/B/M=.2f, K=.1f."""
+    """formatCompactNumber (desktop/src/utils/format.ts, en): T/B/M=.2f, K=.1f."""
     assert fmt_market_cap(value) == expected
 
 

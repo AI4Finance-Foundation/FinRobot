@@ -7,7 +7,7 @@ persisted to the coverage store all agree on ONE definition. Without this,
 junk like ``"苹果"``, ``"AAPL;DROP"`` or an over-long string would slip past
 one entry point, get cached, and then be re-fanned to providers forever.
 
-MIRROR of ``ui/src/utils/ticker.ts`` ``TICKER_RE`` — keep the two in sync.
+MIRROR of ``desktop/src/utils/ticker.ts`` ``TICKER_RE`` — keep the two in sync.
 1–12 chars, upper-case A–Z / digits / ``.`` / ``-`` so exotic-but-real symbols
 (``BRK.B``, ``BRK-B``, ``RDS.A``) validate.
 """

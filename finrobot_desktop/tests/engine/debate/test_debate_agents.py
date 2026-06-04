@@ -43,17 +43,9 @@ def test_agents_carry_correct_deps_type(test_settings: FinRobotSettings) -> None
         )
 
 
-def test_model_override_respected(test_settings: FinRobotSettings) -> None:
-    """get_model_for_role falls back to global model_name for unknown roles (bull/bear/judge).
-
-    This test confirms the factory builds without error using the fallback path
-    — no per-role model_bull/bear/judge fields exist on FinRobotSettings, which
-    is the correct design (unknown role → graceful fallback, not KeyError).
-    """
-    # Provide a global model; unknown roles fall back to it without raising.
+def test_agents_use_the_single_configured_model() -> None:
+    """All three debate agents run on the one configured model — there are no
+    per-role overrides (removed 2026-06-04). The factory builds without error."""
     settings = FinRobotSettings(model_name="test:test")
-    resolved = settings.get_model_for_role("bull")
-    assert resolved == "test:test"
-
     agents = build_debate_agents(settings)
     assert set(agents) == {"bull", "bear", "judge"}

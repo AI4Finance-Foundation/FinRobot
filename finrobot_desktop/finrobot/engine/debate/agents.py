@@ -40,10 +40,8 @@ def build_debate_agents(settings: FinRobotSettings) -> dict[str, Any]:
 
     Each agent:
     - Loads its system instructions from agents/instructions/<role>_agent.md.
-    - Uses a per-role model override when configured; falls back to the global
-      model_name via settings.get_model_for_role.  bull/bear/judge have no
-      dedicated model_<role> field on FinRobotSettings so getattr returns None
-      and the method gracefully falls back to model_name -- no KeyError.
+    - Runs on the single configured model (settings.model_name) — there are no
+      per-role overrides.
     - Carries FinRobotDeps so pipeline code can pass deps at run-time.
     - Is constructed with defer_model_check=True so agent creation never
       triggers a live API call (tests don't need credentials).
@@ -53,21 +51,21 @@ def build_debate_agents(settings: FinRobotSettings) -> dict[str, Any]:
     Judge outputs Verdict which also carries no raw numbers.
     """
     bull: Agent[FinRobotDeps, SideCase] = Agent(
-        settings.create_model(model_name=settings.get_model_for_role("bull")),
+        settings.create_model(),
         output_type=SideCase,
         deps_type=FinRobotDeps,
         instructions=_load_instructions("bull"),
         defer_model_check=True,
     )
     bear: Agent[FinRobotDeps, SideCase] = Agent(
-        settings.create_model(model_name=settings.get_model_for_role("bear")),
+        settings.create_model(),
         output_type=SideCase,
         deps_type=FinRobotDeps,
         instructions=_load_instructions("bear"),
         defer_model_check=True,
     )
     judge: Agent[FinRobotDeps, Verdict] = Agent(
-        settings.create_model(model_name=settings.get_model_for_role("judge")),
+        settings.create_model(),
         output_type=Verdict,
         deps_type=FinRobotDeps,
         instructions=_load_instructions("judge"),

@@ -95,14 +95,14 @@ def test_init_bad_provider_fails_fast():
 
 def test_init_missing_api_key_fails_fast():
     """Missing API key should raise during __init__, not at first call."""
-    with pytest.raises(ValueError, match="No API key configured for provider 'deepseek'"):
-        FinRobot(model="deepseek:deepseek-chat", provider_keys={"deepseek": ""})
+    with pytest.raises(ValueError, match="No API key configured for provider 'anthropic'"):
+        FinRobot(model="anthropic:claude-sonnet-4-6", provider_keys={"anthropic": ""})
 
 
 def test_init_default_model_is_not_empty():
-    # Supply a key for the default (deepseek) provider — config is app-stored
+    # Supply a key for the default (openai) provider — config is app-stored
     # only, so without it __init__ now correctly fails fast on the missing key.
-    agent = FinRobot(provider_keys={"deepseek": "sk-test"})
+    agent = FinRobot(provider_keys={"openai": "sk-test"})
     assert isinstance(agent._settings.model_name, str)
     assert len(agent._settings.model_name) > 0
 

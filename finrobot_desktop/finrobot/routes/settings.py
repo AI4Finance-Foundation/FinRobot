@@ -44,11 +44,6 @@ def _provider_key_name(provider_id: str) -> str:
 # persist what the user actually set in the app.
 _NON_SECRET_FIELDS: tuple[str, ...] = (
     "model_name",
-    "model_data",
-    "model_analysis",
-    "model_modeling",
-    "model_synthesis",
-    "model_report",
     "custom_providers",  # user-added LLM providers (registry); keys live in keychain
     "sec_user_agent",
     "sec_identity_dismissed_at",  # 2026-05 EdgarTools — landing banner dismiss state
@@ -74,11 +69,6 @@ class ProviderInfo(BaseModel):
 
 class SettingsResponse(BaseModel):
     model_name: str
-    model_data: str | None = None
-    model_analysis: str | None = None
-    model_modeling: str | None = None
-    model_synthesis: str | None = None
-    model_report: str | None = None
     # The effective LLM provider registry (built-ins + user customs), each with
     # key_set / is_builtin so the UI can render provider cards, gate the API-key
     # field, and disable delete on built-ins. Replaces the old hardcoded
@@ -117,11 +107,6 @@ class SettingsResponse(BaseModel):
 
 class SettingsUpdate(BaseModel):
     model_name: str | None = None
-    model_data: str | None = None
-    model_analysis: str | None = None
-    model_modeling: str | None = None
-    model_synthesis: str | None = None
-    model_report: str | None = None
     # Full replacement of the user's custom provider list (the UI sends the whole
     # list on every add/edit/delete — no separate CRUD endpoints).
     custom_providers: list[ProviderConfig] | None = None
@@ -382,11 +367,6 @@ async def _build_response(request: Request) -> SettingsResponse:
 
     return SettingsResponse(
         model_name=settings.model_name,
-        model_data=settings.model_data,
-        model_analysis=settings.model_analysis,
-        model_modeling=settings.model_modeling,
-        model_synthesis=settings.model_synthesis,
-        model_report=settings.model_report,
         providers=provider_infos,
         custom_providers=settings.custom_providers,
         fmp_api_key_set=await _has_key("fmp_api_key", "fmp_api_key"),

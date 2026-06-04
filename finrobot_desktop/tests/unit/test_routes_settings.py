@@ -42,9 +42,9 @@ class _FakeSkillRuntime:
 
 
 def _settings(**overrides: Any) -> FinRobotSettings:
-    """Default settings for the app: deepseek model with its provider key set."""
-    provider_keys = overrides.pop("provider_keys", {"deepseek": "dev-key"})
-    overrides.setdefault("model_name", "deepseek:deepseek-chat")
+    """Default settings for the app: openai model with its provider key set."""
+    provider_keys = overrides.pop("provider_keys", {"openai": "dev-key"})
+    overrides.setdefault("model_name", "openai:gpt-4o")
     return get_settings(provider_keys=provider_keys, **overrides)
 
 
@@ -99,9 +99,9 @@ def test_merge_writes_only_changed_fields(tmp_path: Path) -> None:
 
     content = json.loads(path.read_text())
     assert content == {"model_name": "anthropic:claude-sonnet-4-6"}
-    # CRITICAL: sec_user_agent / model_data / ... must NOT be present.
+    # CRITICAL: sec_user_agent / custom_providers / ... must NOT be present.
     assert "sec_user_agent" not in content
-    assert "model_data" not in content
+    assert "custom_providers" not in content
     assert "log_level" not in content
 
 
@@ -152,10 +152,10 @@ async def test_get_settings_exposes_provider_registry(tmp_path: Path) -> None:
     assert resp.status_code == 200, resp.text
     body = resp.json()
     providers = {p["id"]: p for p in body["providers"]}
-    assert {"deepseek", "anthropic", "openai", "moonshot", "qwen", "openrouter"} <= set(providers)
-    assert providers["deepseek"]["is_builtin"] is True
-    # deepseek is the active model and its key is injected → key_set True.
-    assert providers["deepseek"]["key_set"] is True
+    assert set(providers) == {"anthropic", "openai"}
+    assert providers["openai"]["is_builtin"] is True
+    # openai is the active model and its key is injected → key_set True.
+    assert providers["openai"]["key_set"] is True
     assert providers["anthropic"]["key_set"] is False
     assert body["custom_providers"] == []
     # The old hardcoded literal is gone.
@@ -310,12 +310,10 @@ async def test_put_adds_custom_provider(tmp_path: Path, monkeypatch: Any) -> Non
 async def test_put_rejects_custom_provider_shadowing_builtin(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
-    """A custom provider id may not collide with a built-in (deepseek)."""
+    """A custom provider id may not collide with a built-in (openai)."""
     app = _make_app(tmp_path)
     monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
-    bad = [
-        {"id": "deepseek", "label": "x", "kind": "openai-compatible", "base_url": "https://h/v1"}
-    ]
+    bad = [{"id": "openai", "label": "x", "kind": "openai-compatible", "base_url": "https://h/v1"}]
     async with _client(app) as c:
         resp = await c.put("/api/settings", json={"custom_providers": bad})
     assert resp.status_code == 400
@@ -348,9 +346,9 @@ async def test_put_writes_provider_key_to_keychain(tmp_path: Path, monkeypatch: 
     monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
 
     async with _client(app) as c:
-        resp = await c.put("/api/settings", json={"provider_keys": {"deepseek": "sk-new"}})
+        resp = await c.put("/api/settings", json={"provider_keys": {"anthropic": "sk-new"}})
     assert resp.status_code == 200, resp.text
-    secret_store.set.assert_awaited_with("provider_key:deepseek", "sk-new")
+    secret_store.set.assert_awaited_with("provider_key:anthropic", "sk-new")
     secret_store.delete.assert_not_awaited()
 
 
@@ -403,7 +401,7 @@ async def test_load_non_secret_settings_coerces_dismissed_at(
     iso_str = "2026-05-27T15:30:00+00:00"
     (tmp_path / "settings.json").write_text(json.dumps({"sec_identity_dismissed_at": iso_str}))
     raw = load_non_secret_settings(tmp_path / "settings.json")
-    settings = get_settings(model_name="deepseek:deepseek-chat", **raw)
+    settings = get_settings(model_name="openai:gpt-4o", **raw)
     assert settings.sec_identity_dismissed_at is not None
     assert settings.sec_identity_dismissed_at.year == 2026
     assert settings.sec_identity_dismissed_at.month == 5
@@ -547,7 +545,7 @@ async def test_put_empty_provider_key_does_not_delete_keychain(
     monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
 
     async with _client(app) as c:
-        resp = await c.put("/api/settings", json={"provider_keys": {"deepseek": ""}})
+        resp = await c.put("/api/settings", json={"provider_keys": {"anthropic": ""}})
     assert resp.status_code == 200, resp.text
     secret_store.delete.assert_not_awaited()
     secret_store.set.assert_not_awaited()
@@ -566,9 +564,9 @@ async def test_put_nonempty_provider_key_still_writes(tmp_path: Path, monkeypatc
     monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
 
     async with _client(app) as c:
-        resp = await c.put("/api/settings", json={"provider_keys": {"deepseek": "new-key"}})
+        resp = await c.put("/api/settings", json={"provider_keys": {"anthropic": "new-key"}})
     assert resp.status_code == 200, resp.text
-    secret_store.set.assert_awaited_with("provider_key:deepseek", "new-key")
+    secret_store.set.assert_awaited_with("provider_key:anthropic", "new-key")
     secret_store.delete.assert_not_awaited()
 
 
@@ -609,9 +607,9 @@ async def test_clear_secret_deletes_provider_key(tmp_path: Path, monkeypatch: An
     )
 
     async with _client(app) as c:
-        resp = await c.post("/api/settings/clear-secret", json={"field": "provider_key:deepseek"})
+        resp = await c.post("/api/settings/clear-secret", json={"field": "provider_key:anthropic"})
     assert resp.status_code == 200, resp.text
-    secret_store.delete.assert_awaited_with("provider_key:deepseek")
+    secret_store.delete.assert_awaited_with("provider_key:anthropic")
 
 
 @pytest.mark.asyncio
@@ -638,8 +636,8 @@ async def test_replace_runtime_settings_skips_agents_when_config_invalid(
     )
     monkeypatch.setattr("finrobot.routes.settings.build_data_layer", lambda _s: MagicMock())
 
-    # deepseek model with NO provider key → validate_runtime_config raises.
-    settings = get_settings(model_name="deepseek:deepseek-chat", provider_keys={})
+    # anthropic model with NO provider key → validate_runtime_config raises.
+    settings = get_settings(model_name="anthropic:claude-sonnet-4-6", provider_keys={})
     request = MagicMock()
     request.app.state.deps.data_layer.close = AsyncMock()
     request.app.state.deps.skill_runtime = None

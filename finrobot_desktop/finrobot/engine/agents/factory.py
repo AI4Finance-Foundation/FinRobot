@@ -17,20 +17,17 @@ def create_sub_agents(
 ) -> dict[str, Agent]:
     """Create one Agent per role in SUB_AGENT_ROLES.
 
-    Each role loads its instructions from instructions/{role}_agent.md and
-    may override the global model via settings.get_model_for_role(role).
-    Only the 'data' agent gets the query_financial_data tool registered.
+    Each role loads its instructions from instructions/{role}_agent.md. All
+    roles run on the single configured model (settings.model_name) — there are
+    no per-role overrides. Only the 'data' agent gets query_financial_data.
     """
     agents = {}
 
     for role in SUB_AGENT_ROLES:
         instructions = (INSTRUCTIONS_DIR / f"{role}_agent.md").read_text(encoding="utf-8")
 
-        # Resolve per-role model override; falls back to global model_name
-        # when settings.model_<role> is None.
-        model_name = settings.get_model_for_role(role)
         agent = Agent(
-            settings.create_model(model_name=model_name),
+            settings.create_model(),
             deps_type=FinRobotDeps,
             instructions=instructions,
         )

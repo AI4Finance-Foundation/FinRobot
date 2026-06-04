@@ -13,24 +13,22 @@ class TestDefaults:
     # needed any more.
     def test_default_model_name(self):
         s = FinRobotSettings()
-        assert s.model_name == "deepseek:deepseek-chat"
+        assert s.model_name == "openai:gpt-4o"
 
     def test_default_has_no_provider_keys(self):
         s = FinRobotSettings()
         # LLM keys live in the keychain (provider_key:<id>), never in defaults.
-        assert s.provider_key("deepseek") is None
+        assert s.provider_key("openai") is None
         assert s.provider_key("anthropic") is None
         assert s.custom_providers == []
 
     def test_default_providers_are_the_builtins(self):
         s = FinRobotSettings()
         ids = [p.id for p in s.providers]
-        assert ids == [p.id for p in BUILTIN_PROVIDERS]
-        assert {"deepseek", "anthropic", "openai", "moonshot", "qwen", "openrouter"} <= set(ids)
-        # deepseek MUST keep its dedicated kind, not collapse to openai-compatible
-        # (DeepSeekProvider's model profile is load-bearing for deepseek-reasoner).
-        deepseek = s.provider_by_id("deepseek")
-        assert deepseek is not None and deepseek.kind == "deepseek"
+        # Only the two majors are built in; everything else is a custom provider.
+        assert ids == ["anthropic", "openai"]
+        openai = s.provider_by_id("openai")
+        assert openai is not None and openai.kind == "openai-compatible"
 
     def test_custom_providers_extend_the_registry(self):
         s = get_settings(
@@ -54,10 +52,10 @@ class TestDefaults:
         """A FINROBOT_* env var must NOT leak into user config — the whole point
         of the app-stored-only model (packaging safety + no source ambiguity)."""
         monkeypatch.setenv("FINROBOT_OPENAI_API_KEY", "sk-from-env")
-        monkeypatch.setenv("FINROBOT_MODEL_NAME", "openai:gpt-4o")
+        monkeypatch.setenv("FINROBOT_MODEL_NAME", "anthropic:claude-sonnet-4-6")
         s = FinRobotSettings()
         assert s.provider_key("openai") is None
-        assert s.model_name == "deepseek:deepseek-chat"
+        assert s.model_name == "openai:gpt-4o"
 
     def test_default_cache_db_path(self):
         s = get_settings()
@@ -87,20 +85,20 @@ class TestProviderKeyPrivacy:
     model_dump() / settings.json / a debug repr (ADR-0013)."""
 
     def test_keys_absent_from_model_dump(self):
-        s = get_settings(provider_keys={"deepseek": "sk-secret-xyz"})
+        s = get_settings(provider_keys={"openai": "sk-secret-xyz"})
         dump = str(s.model_dump())
         assert "sk-secret-xyz" not in dump
         assert "_provider_keys" not in s.model_dump()
 
     def test_with_provider_keys_returns_copy(self):
         base = FinRobotSettings()
-        keyed = base.with_provider_keys({"deepseek": "sk-x"})
-        assert base.provider_key("deepseek") is None  # original untouched
-        assert keyed.provider_key("deepseek") == "sk-x"
+        keyed = base.with_provider_keys({"openai": "sk-x"})
+        assert base.provider_key("openai") is None  # original untouched
+        assert keyed.provider_key("openai") == "sk-x"
 
     def test_blank_keys_are_dropped(self):
-        s = FinRobotSettings().with_provider_keys({"deepseek": "", "anthropic": "sk-a"})
-        assert s.provider_key("deepseek") is None
+        s = FinRobotSettings().with_provider_keys({"openai": "", "anthropic": "sk-a"})
+        assert s.provider_key("openai") is None
         assert s.provider_key("anthropic") == "sk-a"
 
 
@@ -116,17 +114,6 @@ class TestConstructorOverride:
 
 
 class TestCreateModel:
-    def test_deepseek_uses_deepseek_provider(self):
-        from pydantic_ai.models.openai import OpenAIChatModel
-        from pydantic_ai.providers.deepseek import DeepSeekProvider
-
-        s = get_settings(model_name="deepseek:deepseek-chat", provider_keys={"deepseek": "sk-test"})
-        model = s.create_model()
-        assert isinstance(model, OpenAIChatModel)
-        # deepseek is NOT collapsed into a bare OpenAIProvider — it keeps the
-        # dedicated DeepSeekProvider (reasoning_content profile). ADR-0013.
-        assert isinstance(model._provider, DeepSeekProvider)
-
     def test_anthropic_returns_anthropic_model(self):
         from pydantic_ai.models.anthropic import AnthropicModel
 
@@ -179,12 +166,10 @@ class TestCreateModel:
     def test_does_not_pollute_environ(self, monkeypatch):
         import os
 
-        monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-        s = get_settings(
-            model_name="deepseek:deepseek-chat", provider_keys={"deepseek": "sk-secret"}
-        )
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        s = get_settings(model_name="openai:gpt-4o", provider_keys={"openai": "sk-secret"})
         s.create_model()
-        assert os.environ.get("DEEPSEEK_API_KEY") is None
+        assert os.environ.get("OPENAI_API_KEY") is None
 
 
 class TestValidateRuntimeConfig:
@@ -193,8 +178,8 @@ class TestValidateRuntimeConfig:
 
     def test_valid_config_passes(self):
         s = get_settings(
-            model_name="deepseek:deepseek-chat",
-            provider_keys={"deepseek": "sk-x"},
+            model_name="openai:gpt-4o",
+            provider_keys={"openai": "sk-x"},
             fmp_api_key="fmp-test-key",
         )
         s.validate_runtime_config()  # must not raise
@@ -210,10 +195,10 @@ class TestValidateRuntimeConfig:
 
     def test_missing_llm_api_key_raises_value_error(self):
         s = get_settings(
-            model_name="deepseek:deepseek-chat",
+            model_name="anthropic:claude-sonnet-4-6",
             fmp_api_key="fmp-test-key",
         )
-        with pytest.raises(ValueError, match="No API key configured for provider 'deepseek'"):
+        with pytest.raises(ValueError, match="No API key configured for provider 'anthropic'"):
             s.validate_runtime_config()
 
     def test_custom_provider_validates_against_registry(self):
@@ -240,16 +225,6 @@ class TestValidateRuntimeConfig:
         fmp_warnings = [w for w in caught if "FMP" in str(w.message)]
         assert len(fmp_warnings) == 1
         assert "yfinance" in str(fmp_warnings[0].message)
-
-    def test_bad_per_role_override_also_caught(self):
-        """Per-role overrides must be validated too, not just model_name."""
-        s = get_settings(
-            model_name="test",
-            model_modeling="bogus:x",
-            fmp_api_key="fmp-test-key",
-        )
-        with pytest.raises(ValueError, match="Unknown provider 'bogus'"):
-            s.validate_runtime_config()
 
 
 class TestNoEnvReading:

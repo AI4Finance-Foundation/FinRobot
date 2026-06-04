@@ -13,7 +13,7 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 logger = logging.getLogger(__name__)
 
 
-ProviderKind = Literal["openai-compatible", "anthropic", "deepseek", "test"]
+ProviderKind = Literal["openai-compatible", "anthropic", "test"]
 
 
 class ProviderConfig(BaseModel):
@@ -37,31 +37,24 @@ class ProviderConfig(BaseModel):
     model is in this list).
     """
 
-    id: str  # referenced by model_name's "<id>:<model>" prefix, e.g. "deepseek"
-    label: str  # human-facing name shown in the UI, e.g. "DeepSeek"
+    id: str  # referenced by model_name's "<id>:<model>" prefix, e.g. "openai"
+    label: str  # human-facing name shown in the UI, e.g. "OpenAI"
     kind: ProviderKind
-    # base_url is used by openai-compatible (and optionally anthropic) providers.
-    # deepseek/anthropic built-ins leave it None and let their PydanticAI provider
-    # class supply the canonical endpoint.
+    # base_url is used by openai-compatible providers. The anthropic built-in
+    # leaves it None and lets AnthropicProvider supply the canonical endpoint.
     base_url: str | None = None
     models: list[str] = Field(default_factory=list)
 
 
-# Built-in providers shipped with FinRobot. These are code-owned and evolve with
-# releases (new model ids land here), so they are NOT persisted to settings.json
-# — only the user's own ``custom_providers`` are. ``deepseek`` keeps kind
-# "deepseek" (not "openai-compatible") on purpose: PydanticAI's DeepSeekProvider
-# sets a custom model profile (reasoning_content thinking field, send-back-thinking,
-# and tool_choice=required disabled for deepseek-reasoner) that a bare
-# OpenAIProvider+base_url would silently drop — collapsing it would break
-# deepseek-reasoner under forced-JSON pipelines. See ADR-0013.
+# Built-in providers shipped with FinRobot. Kept deliberately to the two majors
+# (Anthropic + OpenAI); anything else (DeepSeek / Moonshot / Qwen / OpenRouter /
+# a local vLLM) the user wires up as a custom OpenAI-compatible provider. These
+# are code-owned and NOT persisted to settings.json — only ``custom_providers`` are.
+#
+# ``models`` is a short list of *suggestions* only — the model id field in the UI
+# is free text, so the user can run any model the provider exposes (we can't keep
+# a complete, current list of every model id, and don't pretend to).
 BUILTIN_PROVIDERS: tuple[ProviderConfig, ...] = (
-    ProviderConfig(
-        id="deepseek",
-        label="DeepSeek",
-        kind="deepseek",
-        models=["deepseek-chat", "deepseek-reasoner"],
-    ),
     ProviderConfig(
         id="anthropic",
         label="Anthropic",
@@ -75,34 +68,7 @@ BUILTIN_PROVIDERS: tuple[ProviderConfig, ...] = (
         base_url="https://api.openai.com/v1",
         models=["gpt-4o", "gpt-4o-mini"],
     ),
-    ProviderConfig(
-        id="moonshot",
-        label="Moonshot (Kimi)",
-        kind="openai-compatible",
-        base_url="https://api.moonshot.cn/v1",
-        models=["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
-    ),
-    ProviderConfig(
-        id="qwen",
-        label="Qwen (DashScope)",
-        kind="openai-compatible",
-        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-        models=["qwen-plus", "qwen-max", "qwen-turbo"],
-    ),
-    ProviderConfig(
-        id="openrouter",
-        label="OpenRouter",
-        kind="openai-compatible",
-        base_url="https://openrouter.ai/api/v1",
-        # OpenRouter exposes hundreds of namespaced ids; the user types theirs.
-        models=[],
-    ),
 )
-
-# Sub-agent roles with per-role model_<role> overrides on FinRobotSettings.
-# Used by get_model_for_role + validate_runtime_config; keep in sync with the
-# model_data / model_analysis / ... fields declared on FinRobotSettings.
-_AGENT_ROLES: tuple[str, ...] = ("data", "analysis", "modeling", "synthesis", "report")
 
 # DataProvider secrets stored as fixed keychain keys + fixed FinRobotSettings
 # fields (these are financial-data API keys, NOT LLM provider keys — those use
@@ -158,17 +124,9 @@ class FinRobotSettings(BaseSettings):
         """
         return (init_settings,)
 
-    # Model — "<provider_id>:<model_id>", e.g. "deepseek:deepseek-chat".
-    model_name: str = "deepseek:deepseek-chat"
-
-    # Per-role model overrides. None = use global model_name.
-    # Lets users pick a cheap/fast model for data_agent (just transcribes
-    # data) and a stronger model for modeling (needs reliable JSON output).
-    model_data: str | None = None
-    model_analysis: str | None = None
-    model_modeling: str | None = None
-    model_synthesis: str | None = None
-    model_report: str | None = None
+    # Model — "<provider_id>:<model_id>", e.g. "openai:gpt-4o". One model for the
+    # whole pipeline; there are no per-role overrides ("配的是啥就是啥").
+    model_name: str = "openai:gpt-4o"
 
     # User-added LLM providers (OpenAI-compatible endpoints the user wires up in
     # Settings). Persisted to settings.json; merged AFTER BUILTIN_PROVIDERS by the
@@ -256,16 +214,6 @@ class FinRobotSettings(BaseSettings):
             if env_prefixes:
                 object.__setattr__(self, "backtest_strategy_module_prefixes", env_prefixes)
 
-    def get_model_for_role(self, role: str) -> str:
-        """Return the model name for a specific agent role.
-
-        Falls back to the global ``model_name`` if no override is configured
-        for this role or if the role is unknown. Roles currently used by the
-        sub-agent factory: data, analysis, modeling, synthesis, report.
-        """
-        override = getattr(self, f"model_{role}", None)
-        return override or self.model_name
-
     @property
     def providers(self) -> list[ProviderConfig]:
         """Effective provider registry: built-ins first, then user customs.
@@ -324,33 +272,27 @@ class FinRobotSettings(BaseSettings):
                 "(free at https://financialmodelingprep.com/).",
                 stacklevel=2,
             )
-        names_to_check: list[str] = [self.model_name]
-        for role in _AGENT_ROLES:
-            override = getattr(self, f"model_{role}", None)
-            if override:
-                names_to_check.append(override)
-
-        valid_ids = ", ".join(p.id for p in self.providers)
-        for name in names_to_check:
-            provider_id, _, _model_id = name.partition(":")
-            if provider_id == "test":
-                continue  # built-in test harness provider — no key required
-            cfg = self.provider_by_id(provider_id)
-            if cfg is None:
-                raise ValueError(
-                    f"Unknown provider '{provider_id}' in model_name '{name}'. "
-                    f"Configured providers: {valid_ids}. "
-                    f"Format: provider:model_id "
-                    f"(e.g. anthropic:claude-sonnet-4-6)"
-                )
-            if cfg.kind == "test":
-                continue  # a provider explicitly declared as a test stub
-            if not self.provider_key(provider_id):
-                raise ValueError(
-                    f"No API key configured for provider '{provider_id}' "
-                    f"(required by model '{name}'). "
-                    f"Add it in Settings → AI Model."
-                )
+        name = self.model_name
+        provider_id, _, _model_id = name.partition(":")
+        if provider_id == "test":
+            return  # built-in test harness provider — no key required
+        cfg = self.provider_by_id(provider_id)
+        if cfg is None:
+            valid_ids = ", ".join(p.id for p in self.providers)
+            raise ValueError(
+                f"Unknown provider '{provider_id}' in model_name '{name}'. "
+                f"Configured providers: {valid_ids}. "
+                f"Format: provider:model_id "
+                f"(e.g. anthropic:claude-sonnet-4-6)"
+            )
+        if cfg.kind == "test":
+            return  # a provider explicitly declared as a test stub
+        if not self.provider_key(provider_id):
+            raise ValueError(
+                f"No API key configured for provider '{provider_id}' "
+                f"(required by model '{name}'). "
+                f"Add it in Settings → AI Model."
+            )
 
     def create_model(self, model_name: str | None = None) -> Model:
         """Create a PydanticAI Model for ``<provider_id>:<model_id>``.
@@ -364,7 +306,7 @@ class FinRobotSettings(BaseSettings):
             model_name: Optional per-call override. When omitted, uses
                 ``self.model_name`` (the global default).
         """
-        name = model_name or self.model_name  # e.g. "deepseek:deepseek-chat"
+        name = model_name or self.model_name  # e.g. "openai:gpt-4o"
         provider_id, _, model_id = name.partition(":")
 
         if provider_id == "test":
@@ -381,15 +323,7 @@ class FinRobotSettings(BaseSettings):
             )
         api_key = self.provider_key(provider_id)
 
-        if cfg.kind == "deepseek":
-            # DeepSeekProvider supplies a custom model profile (reasoning_content,
-            # send-back-thinking, reasoner tool_choice handling) a bare
-            # OpenAIProvider would drop — keep it. See ADR-0013.
-            from pydantic_ai.models.openai import OpenAIChatModel
-            from pydantic_ai.providers.deepseek import DeepSeekProvider
-
-            return OpenAIChatModel(model_id, provider=DeepSeekProvider(api_key=api_key))
-        elif cfg.kind == "anthropic":
+        if cfg.kind == "anthropic":
             from pydantic_ai.models.anthropic import AnthropicModel
             from pydantic_ai.providers.anthropic import AnthropicProvider
 
@@ -397,8 +331,9 @@ class FinRobotSettings(BaseSettings):
                 model_id, provider=AnthropicProvider(api_key=api_key, base_url=cfg.base_url)
             )
         elif cfg.kind == "openai-compatible":
-            # The universal底座: deepseek-clones, Moonshot, Qwen, OpenRouter, local
-            # vLLM — anything that speaks the OpenAI chat API at a base_url.
+            # The universal base: OpenAI itself, DeepSeek, Moonshot, Qwen,
+            # OpenRouter, a local vLLM — anything speaking the OpenAI chat API
+            # at a base_url. Custom providers always land here.
             from pydantic_ai.models.openai import OpenAIChatModel
             from pydantic_ai.providers.openai import OpenAIProvider
 

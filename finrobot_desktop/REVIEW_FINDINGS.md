@@ -92,7 +92,7 @@
 | UX-006 | 产品 | P1 | 无法删除/归档单份历史研报——后端有 DELETE 端点，前端零入口，跑错/作废的研报永久堆积 | 待修 |
 | UX-007 | 产品 | P1 | 冷启动时已有覆盖的老用户会闪现「还没有 ticker——在上方添加」假空态 | 待修 |
 | BUG-034 | Bug | P2 | SSE run.completed / run.failed can be lost: status flips to terminal in the DB before the terminal event is appended, so the poll loop may break and never emit it | 已修 |
-| BUG-035 | Bug | P2 | SDK 的 provider 链漏注册 NewsAggregatorProvider，与 build_data_layer 漂移 | 待修 |
+| BUG-035 | Bug | P2 | SDK 的 provider 链漏注册 NewsAggregatorProvider，与 build_data_layer 漂移 | 已修 |
 | BUG-036 | Bug | P2 | Football Field 的 DCF 区间永远是装饰性 ±20%:_dcf_band 读错字段,Monte Carlo P10/P90 分支是死代码,source 标签可误导 | 已修 |
 | BUG-037 | Bug | P2 | 外币 SEC 申报人的 XBRL 营收/净利未做 FX 换算即被当作 USD，35% 散度门可能漏掉近平价货币 | 已修 |
 | BUG-038 | Bug | P2 | peer 倍数白名单用未格式化原始 float 注入（median_pe/pe_ratio/market_cap），LLM 在 competitor_analysis 里复述时口径/精度无锚，且与前端表格显示口径不保证一致 | 已修 |
@@ -622,7 +622,7 @@
 - **修复方案**：改 finrobot/sdk.py：删除 _ensure_deps 里手搓 provider 链的整段（105-131 的 providers 构造 + DataCache + DataLayer），改为 `from finrobot.data_layer_factory import build_data_layer; data_layer = build_data_layer(self._settings)`，让 SDK 与 server 共用唯一装配点。注意：build_data_layer 内部已处理 Edgar 条件注册 + Adanos + news，与现有 sdk 逻辑等价但多了 news；需确认 sdk 不依赖 cache 对象的单独引用（close() 走 data_layer.close() 即可）。这是连根拔路径分裂，符合红线，非最小改动。
 - **验证补充**：Fix is correct and is the right root-cause collapse: replace the hand-built providers+cache+DataLayer block (sdk.py:105-131) with `from finrobot.data_layer_factory import build_data_layer; data_layer = build_data_layer(self._settings)`. Verified close() only calls self._deps.data_layer.close(), so dropping the separate `cache` local is safe (DataLayer.close delegates to cache.close). The skills registry (lines 127-128) and create_sub_agents (137) are unrelated to data_layer and must stay.
 - **影响面/回归风险**：影响面：所有 SDK/脚本用户的新闻取数恢复与桌面端一致；消除两处 provider 装配漂移源。回归风险：低——build_data_layer 是 server 每次启动都跑的成熟路径；唯一行为变化是 SDK 多出 news 源（正向）。需跑 SDK 相关测试确认 DataLayer 构造签名一致。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（sdk._ensure_deps 删手搓 provider 链，改调 canonical build_data_layer(self._settings)——SDK 与 server 一致，自动获得此前漏的 NewsAggregatorProvider，且未来新增 provider 自动流入无第二漂移点。新增 2 测试断言复用 build_data_layer + 链含 NewsAggregator。）
 
 #### [BUG-036] Football Field 的 DCF 区间永远是装饰性 ±20%:_dcf_band 读错字段,Monte Carlo P10/P90 分支是死代码,source 标签可误导
 

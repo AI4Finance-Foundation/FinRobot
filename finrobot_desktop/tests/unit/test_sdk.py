@@ -257,6 +257,55 @@ async def test_aanalyze_all_types(monkeypatch):
         assert atype in result
 
 
+def test_ensure_deps_reuses_build_data_layer(monkeypatch):
+    """BUG-035: SDK must assemble providers via the canonical build_data_layer
+    (single source of truth), not a hand-rolled divergent chain. We assert it
+    calls build_data_layer with self._settings and adopts its DataLayer.
+    """
+    import finrobot.sdk as sdk_mod
+
+    sentinel_layer = MagicMock()
+    captured: dict = {}
+
+    def fake_build(settings):
+        captured["settings"] = settings
+        return sentinel_layer
+
+    monkeypatch.setattr(sdk_mod, "build_data_layer", fake_build, raising=False)
+    # build_data_layer is imported inside _ensure_deps; patch the source module
+    # too so the deferred import resolves to our fake.
+    import finrobot.data_layer_factory as dlf
+
+    monkeypatch.setattr(dlf, "build_data_layer", fake_build)
+
+    agent = FinRobot(model="test")
+    deps = agent._ensure_deps()
+
+    assert captured["settings"] is agent._settings
+    assert deps.data_layer is sentinel_layer
+
+
+def test_ensure_deps_provider_chain_includes_news_aggregator():
+    """BUG-035: the real provider chain built by the SDK must contain a
+    NewsAggregatorProvider (Yahoo RSS, free/no-key, always-on) so SDK callers
+    get the same DataType.NEWS coverage as the server — no silent drift.
+    """
+    from finrobot.engine.data.providers.news_aggregator import NewsAggregatorProvider
+
+    agent = FinRobot(model="test")
+    try:
+        deps = agent._ensure_deps()
+        providers = deps.data_layer._providers
+        assert any(isinstance(p, NewsAggregatorProvider) for p in providers), (
+            "SDK provider chain is missing NewsAggregatorProvider — drifted "
+            "from build_data_layer"
+        )
+    finally:
+        import asyncio
+
+        asyncio.run(agent.close())
+
+
 async def test_close_does_not_emit_event_loop_closed_warning():
     """I6: close() must flush pending callbacks before closing the loop.
 

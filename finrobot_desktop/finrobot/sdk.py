@@ -33,8 +33,6 @@ import asyncio
 from typing import TYPE_CHECKING, Any
 
 from finrobot.config import get_settings
-from finrobot.engine.data.cache import DataCache
-from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.compute.compare import ComparisonResult
 from finrobot.engine.pipelines.base import PipelineResult
@@ -94,41 +92,20 @@ class FinRobot:
 
         from pathlib import Path
 
+        from finrobot.data_layer_factory import build_data_layer
         from finrobot.engine.agents.factory import create_sub_agents
-        from finrobot.engine.data.providers.edgar_provider import (
-            EdgarToolsProvider,
-            _is_valid_identity,
-        )
-        from finrobot.engine.data.providers.yfinance_provider import YFinanceProvider
         from finrobot.engine.skills.registry import SkillRegistry
-
-        providers: list[Any] = []
-        if self._settings.fmp_api_key:
-            from finrobot.engine.data.providers.fmp_provider import FMPProvider
-
-            providers.append(FMPProvider(api_key=self._settings.fmp_api_key))
-        if self._settings.finnhub_api_key:
-            from finrobot.engine.data.providers.finnhub_provider import FinnhubProvider
-
-            providers.append(FinnhubProvider(api_key=self._settings.finnhub_api_key))
-        providers.append(YFinanceProvider())
-        # SEC EDGAR — conditional on valid identity (same contract as
-        # build_data_layer). SDK callers without a valid identity get a
-        # DataLayer without SEC; downstream LLM-touching paths must
-        # tolerate that (degrade rather than crash).
-        if _is_valid_identity(getattr(self._settings, "sec_user_agent", "")):
-            providers.append(EdgarToolsProvider(user_agent=self._settings.sec_user_agent))
-
-        if self._settings.adanos_api_key:
-            from finrobot.engine.data.providers.adanos_provider import AdanosProvider
-
-            providers.append(AdanosProvider(api_key=self._settings.adanos_api_key))
 
         skills_path = Path(self._settings.skills_dir)
         registry = SkillRegistry(skills_path) if skills_path.exists() else None
 
-        cache = DataCache(self._settings.cache_db_path)
-        data_layer = DataLayer(providers=providers, cache=cache)
+        # Single source of truth for provider assembly — reuse the canonical
+        # build_data_layer (same as the server) instead of hand-rolling a
+        # divergent chain. This keeps SDK/CLI callers in lock-step with the
+        # server: FMP/Finnhub/yfinance/EDGAR(conditional)/Adanos plus the
+        # always-on NewsAggregator (Yahoo RSS, free, no key). Any future
+        # provider added there flows here automatically — no second drift.
+        data_layer = build_data_layer(self._settings)
         self._deps = FinRobotDeps(
             data_layer=data_layer,
             settings=self._settings,

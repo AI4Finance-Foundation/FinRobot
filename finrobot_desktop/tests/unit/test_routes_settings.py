@@ -615,6 +615,43 @@ async def test_clear_secret_deletes_provider_key(tmp_path: Path, monkeypatch: An
 
 
 @pytest.mark.asyncio
+async def test_replace_runtime_settings_skips_agents_when_config_invalid(
+    monkeypatch: Any,
+) -> None:
+    """Regression: clearing the active provider's last key leaves the runtime
+    config invalid, and the LLM provider constructor raises on a missing key —
+    so rebuilding the lead agent must be SKIPPED, not attempted. Before the fix
+    ``_replace_runtime_settings`` called create_lead_agent unconditionally and
+    500'd the clear-secret request. Mirror the boot path: no agents while invalid,
+    agent=None for the 503 guard, and don't raise.
+    """
+    from finrobot.routes.settings import _replace_runtime_settings
+
+    called = {"lead": 0, "sub": 0}
+    monkeypatch.setattr(
+        "finrobot.routes.settings.create_lead_agent",
+        lambda *a, **k: called.__setitem__("lead", called["lead"] + 1),
+    )
+    monkeypatch.setattr(
+        "finrobot.routes.settings.create_sub_agents",
+        lambda *a, **k: called.__setitem__("sub", called["sub"] + 1),
+    )
+    monkeypatch.setattr("finrobot.routes.settings.build_data_layer", lambda _s: MagicMock())
+
+    # deepseek model with NO provider key → validate_runtime_config raises.
+    settings = get_settings(model_name="deepseek:deepseek-chat", provider_keys={})
+    request = MagicMock()
+    request.app.state.deps.data_layer.close = AsyncMock()
+    request.app.state.deps.skill_runtime = None
+
+    await _replace_runtime_settings(request, settings)  # must NOT raise
+
+    assert called == {"lead": 0, "sub": 0}, "agents must not be built on invalid config"
+    assert request.app.state.agent is None
+    assert request.app.state.sub_agents == {}
+
+
+@pytest.mark.asyncio
 async def test_clear_secret_rejects_non_secret_field(tmp_path: Path) -> None:
     """Only secret fields are clearable — a non-secret field is a 400."""
     app = _make_app(tmp_path)

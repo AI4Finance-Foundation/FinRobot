@@ -412,12 +412,29 @@ async def _replace_runtime_settings(request: Request, settings: FinRobotSettings
     data_layer = build_data_layer(settings)
     request.app.state.deps.settings = settings
     request.app.state.deps.data_layer = data_layer
-    request.app.state.agent = create_lead_agent(
-        settings, skill_registry=request.app.state.deps.skill_runtime
-    )
-    request.app.state.sub_agents = create_sub_agents(
-        settings, skill_registry=request.app.state.deps.skill_runtime
-    )
+    # Build the LLM agents only when the config validates. Clearing the active
+    # provider's key (POST /clear-secret) intentionally leaves the runtime
+    # invalid — and the provider constructor (DeepSeekProvider/OpenAIProvider/…)
+    # raises on a missing key, so rebuilding the lead agent here would 500 the
+    # very request that's allowed to invalidate the config. Mirror the boot
+    # path (server.lifespan): skip agent construction while invalid; the caller
+    # sets startup_error, every LLM route 503s on it, and the next valid PUT
+    # rebuilds both. Without this, "Clear" on the only configured key crashes.
+    try:
+        settings.validate_runtime_config()
+        config_ok = True
+    except ValueError:
+        config_ok = False
+    if config_ok:
+        request.app.state.agent = create_lead_agent(
+            settings, skill_registry=request.app.state.deps.skill_runtime
+        )
+        request.app.state.sub_agents = create_sub_agents(
+            settings, skill_registry=request.app.state.deps.skill_runtime
+        )
+    else:
+        request.app.state.agent = None
+        request.app.state.sub_agents = {}
     await old_data_layer.close()
 
 

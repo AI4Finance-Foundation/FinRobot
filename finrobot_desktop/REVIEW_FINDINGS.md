@@ -85,7 +85,7 @@
 | BUG-073 | Bug | P1 | DCF/DDM 绝对估值对外币 ADR 零 FX 归一化:营收(申报币 TWD/EUR)与市值/股本(USD)混算,implied_price 本币计价却当 USD 印出并比价(TSM ~32x 高估)——comps 路径已修,绝对估值路径漏修 | 已修 |
 | BUG-077 | Bug | P1 | SkillRegistry._load_all 只 catch SkillLoadError 不 catch pydantic ValidationError——一个字段类型写错的 SKILL.md(外部/partner 技能常见)使 server/SDK/CLI 启动整体崩,违背其 fail-soft 设计 | 已修 |
 | UX-001 | 产品 | P1 | 冷启动首份研报动线被拆成两条不相通的入口，且 Starter 终点是空墙而非一份研报 | 已修 |
-| UX-002 | 产品 | P1 | 首份研报跑完后还要手动点一次才能阅读——"第一次惊艳"被一次多余点击拦住 | 待修 |
+| UX-002 | 产品 | P1 | 首份研报跑完后还要手动点一次才能阅读——"第一次惊艳"被一次多余点击拦住 | 已修 |
 | UX-003 | 产品 | P1 | TickerNotFound 的「返回」按钮指向已退役的 /stocks，触发二次重定向 + 错误的合并提示 | 已修 |
 | UX-004 | 产品 | P1 | 投委会辩论跑完是死胡同：无任何 next-step CTA + 用完即焚 | 已修 |
 | UX-005 | 产品 | P1 | "待处理"分诊是首屏，但卡片不说"为什么需要我"——理由被挤进一个截断的小药丸 | 已修 |
@@ -1378,7 +1378,7 @@
 - **验证补充**：Fix is feasible. Caveats: (a) StockWorkspace does NOT currently import useV5ArtifactTimeline — the 'first equity_research version' judgment must add that hook (AIZone already uses it, pattern exists). (b) runState exposes artifactType (used in AIZone L145) and runId/artifactId, so gating on type==='equity_research' + prior version count==0 is doable. (c) useLocation guard already present (StockWorkspace L37) — must check pathname===`/stocks/${symbol}` before navigating so a Coverage-batch run doesn't yank a user viewing another ticker. The finding already calls these out correctly.
 - **影响面/回归风险**：只影响"用户停留在该 ticker workspace 且这是首份研报"的场景，转化关键路径。回归风险：必须严守"仅首份+仅当前页+仅 research"三条件，否则会打断重跑比对、或把批跑用户从覆盖墙弹走。
 - **合并自**：ux-IA-simplify#2, ux-firsttime#6, ux-coreflow#5, opp-wow#4（4 条同源发现）
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（实现落在 AIZone 而非 StockWorkspace——更内聚：AIZone 只在用户当前就在该 ticker 工作台时渲染，天然满足 finding 的「仅当前页」约束，省掉 useLocation 判断。改用「运行态 running→completed 的新鲜跃迁」做判据而非「首份版本」计数：prevStatus 必须曾为 'running'（绝不会拽走只是落在带 stale completed run 工作台的用户），每个 artifact 最多前进一次，仅 equity_research 自动打开（DCF/LBO/comps 保留面板内 CTA），并 dismiss 掉 run 避免返回时重现冗余「打开」按钮。与 finding 的差异：重跑也会自动跳转（finding 原想重跑留在 workspace 比对版本）——但重跑是用户主动点击并盯着的动作，带去新结果同样合理，且 UX-010 的 in-context Compare 已提供版本比对入口。4 个 vitest 用例覆盖跃迁 + 三条 guard。build+lint+format+vitest 绿）
 
 #### [UX-003] TickerNotFound 的「返回」按钮指向已退役的 /stocks，触发二次重定向 + 错误的合并提示
 

@@ -6,23 +6,29 @@ from finrobot.config import FinRobotSettings, get_settings
 
 
 class TestDefaults:
-    def test_default_model_name(self, monkeypatch):
-        monkeypatch.delenv("FINROBOT_MODEL_NAME", raising=False)
-        s = FinRobotSettings(_env_file=None)
+    # Config is app-stored-only: FinRobotSettings reads ONLY constructor kwargs,
+    # never env / .env (settings_customise_sources drops those sources). So a
+    # bare FinRobotSettings() reflects the class defaults regardless of the
+    # developer's shell or repo-root .env — no monkeypatch.delenv scaffolding
+    # needed any more.
+    def test_default_model_name(self):
+        s = FinRobotSettings()
         assert s.model_name == "deepseek:deepseek-chat"
 
-    def test_default_api_keys_empty(self, monkeypatch):
-        # Clear env vars + skip .env file so we test true defaults
-        for key in [
-            "FINROBOT_ANTHROPIC_API_KEY",
-            "FINROBOT_DEEPSEEK_API_KEY",
-            "FINROBOT_OPENAI_API_KEY",
-        ]:
-            monkeypatch.delenv(key, raising=False)
-        s = FinRobotSettings(_env_file=None)
+    def test_default_api_keys_empty(self):
+        s = FinRobotSettings()
         assert s.anthropic_api_key == ""
         assert s.deepseek_api_key == ""
         assert s.openai_api_key == ""
+
+    def test_env_var_is_ignored_for_user_config(self, monkeypatch):
+        """A FINROBOT_* env var must NOT leak into user config — the whole point
+        of the app-stored-only model (packaging safety + no source ambiguity)."""
+        monkeypatch.setenv("FINROBOT_OPENAI_API_KEY", "sk-from-env")
+        monkeypatch.setenv("FINROBOT_MODEL_NAME", "openai:gpt-4o")
+        s = FinRobotSettings()
+        assert s.openai_api_key == ""
+        assert s.model_name == "deepseek:deepseek-chat"
 
     def test_default_cache_db_path(self):
         s = get_settings()
@@ -43,7 +49,7 @@ class TestDefaults:
         assert Path(s.skills_dir).is_absolute()
 
     def test_sec_holdings_refresh_is_opt_in(self):
-        s = FinRobotSettings(_env_file=None)
+        s = FinRobotSettings()
         assert s.sec_holdings_auto_refresh is False
 
 
@@ -115,26 +121,23 @@ class TestValidateRuntimeConfig:
         with pytest.raises(ValueError, match="Unknown provider 'bogus'"):
             s.validate_runtime_config()
 
-    def test_missing_llm_api_key_raises_value_error(self, monkeypatch):
-        monkeypatch.delenv("FINROBOT_DEEPSEEK_API_KEY", raising=False)
+    def test_missing_llm_api_key_raises_value_error(self):
         s = FinRobotSettings(
-            _env_file=None,
             model_name="deepseek:deepseek-chat",
             fmp_api_key="fmp-test-key",
         )
-        with pytest.raises(ValueError, match="FINROBOT_DEEPSEEK_API_KEY is not set"):
+        with pytest.raises(ValueError, match="No API key configured for provider 'deepseek'"):
             s.validate_runtime_config()
 
-    def test_missing_fmp_api_key_emits_warning(self, monkeypatch):
-        """FMP key is optional — emits warning, never raises (散户优先：yfinance fallback)."""
+    def test_missing_fmp_api_key_emits_warning(self):
+        """FMP key is optional — emits warning, never raises (analyst-grade fallback)."""
         import warnings
 
-        monkeypatch.delenv("FINROBOT_FMP_API_KEY", raising=False)
-        s = FinRobotSettings(_env_file=None, model_name="test")
+        s = FinRobotSettings(model_name="test")
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             s.validate_runtime_config()
-        fmp_warnings = [w for w in caught if "FINROBOT_FMP_API_KEY" in str(w.message)]
+        fmp_warnings = [w for w in caught if "FMP" in str(w.message)]
         assert len(fmp_warnings) == 1
         assert "yfinance" in str(fmp_warnings[0].message)
 
@@ -149,132 +152,40 @@ class TestValidateRuntimeConfig:
             s.validate_runtime_config()
 
 
-class TestLegacyEnvMigration:
-    """Users who set up pre-rename have FINAGENT_* keys in .env that
-    pydantic-settings now rejects. _migrate_legacy_env_prefix rewrites the
-    file in place when ``get_settings()`` is called — verify it's idempotent,
-    lossless, fail-safe on OSError, and that ``get_settings()`` actually
-    drives the migration (not a module-import side effect)."""
+class TestNoEnvReading:
+    """Config is app-stored-only — neither a FINROBOT_* env var nor a .env file
+    may feed user config. These guard the settings_customise_sources override
+    that drops the env + dotenv sources (packaging safety + source clarity).
 
-    def test_migrates_finagent_prefix_in_place(self, tmp_path, monkeypatch):
-        from finrobot import config as config_module
+    The three pure-infra knobs (skills_dir / cache_db_path /
+    backtest_strategy_module_prefixes) still read their own env var in
+    model_post_init — covered by test_cli / test_backtrader_adapter."""
 
-        env_file = tmp_path / ".env"
-        env_file.write_text(
-            "FINAGENT_OPENAI_API_KEY=sk-real\n"
-            "FINAGENT_DEEPSEEK_API_KEY=ds-real\n"
-            "# FINAGENT_CACHE_DB_PATH=finagent_cache.db\n",
-            encoding="utf-8",
-        )
-        monkeypatch.setattr(config_module, "_ENV_FILE", env_file)
-        config_module._migrate_legacy_env_prefix()
-        content = env_file.read_text(encoding="utf-8")
-        assert "FINAGENT_" not in content
-        assert "FINROBOT_OPENAI_API_KEY=sk-real" in content
-        assert "FINROBOT_DEEPSEEK_API_KEY=ds-real" in content
-        assert "finrobot_cache.db" in content
-        assert "finagent_cache" not in content
+    def test_user_config_env_vars_ignored(self, monkeypatch):
+        for var, val in {
+            "FINROBOT_ANTHROPIC_API_KEY": "sk-ant",
+            "FINROBOT_DEEPSEEK_API_KEY": "sk-ds",
+            "FINROBOT_OPENAI_API_KEY": "sk-oai",
+            "FINROBOT_FMP_API_KEY": "fmp",
+            "FINROBOT_SEC_USER_AGENT": "Hacker evil@example.com",
+            "FINROBOT_LOG_LEVEL": "DEBUG",
+        }.items():
+            monkeypatch.setenv(var, val)
+        s = get_settings()
+        assert s.anthropic_api_key == ""
+        assert s.deepseek_api_key == ""
+        assert s.openai_api_key == ""
+        assert s.fmp_api_key == ""
+        assert s.sec_user_agent == "FinRobot admin@example.com"  # class default
+        assert s.log_level == "INFO"  # class default
 
-    def test_idempotent_when_already_migrated(self, tmp_path, monkeypatch):
-        from finrobot import config as config_module
-
-        env_file = tmp_path / ".env"
-        original = "FINROBOT_OPENAI_API_KEY=sk-real\n"
-        env_file.write_text(original, encoding="utf-8")
-        env_file_mtime = env_file.stat().st_mtime
-        monkeypatch.setattr(config_module, "_ENV_FILE", env_file)
-        config_module._migrate_legacy_env_prefix()
-        assert env_file.read_text(encoding="utf-8") == original
-        # No-op should not even touch the file (preserves mtime → cheap check).
-        assert env_file.stat().st_mtime == env_file_mtime
-
-    def test_safe_when_no_env_file(self, tmp_path, monkeypatch):
-        from finrobot import config as config_module
-
-        env_file = tmp_path / "nonexistent.env"
-        monkeypatch.setattr(config_module, "_ENV_FILE", env_file)
-        # Must not raise; absence of .env is a valid state (CI, fresh clone).
-        config_module._migrate_legacy_env_prefix()
-        assert not env_file.exists()
-
-    def test_read_oserror_logs_warning_not_silent(self, tmp_path, monkeypatch, caplog):
-        """Disk-full / permission errors during the read step must surface as a
-        warning rather than be swallowed. Pre-fix, OSError was caught and
-        returned None, masking real failures from operators."""
-        from finrobot import config as config_module
-
-        env_file = tmp_path / ".env"
-        env_file.write_text("FINAGENT_OPENAI_API_KEY=sk\n", encoding="utf-8")
-        monkeypatch.setattr(config_module, "_ENV_FILE", env_file)
-
-        def _explode(*_args, **_kwargs):
-            raise OSError("simulated permission denied")
-
-        monkeypatch.setattr(type(env_file), "read_text", _explode)
-        with caplog.at_level("WARNING", logger="finrobot.config"):
-            config_module._migrate_legacy_env_prefix()  # must not raise
-        assert any("Could not read" in rec.message for rec in caplog.records)
-
-    def test_write_oserror_logs_warning_not_silent(self, tmp_path, monkeypatch, caplog):
-        """OSError during the write step must surface as a warning too — and
-        the file must be left in its original state (no partial overwrite)."""
-        from finrobot import config as config_module
-
-        env_file = tmp_path / ".env"
-        original = "FINAGENT_OPENAI_API_KEY=sk\n"
-        env_file.write_text(original, encoding="utf-8")
-        monkeypatch.setattr(config_module, "_ENV_FILE", env_file)
-
-        def _explode(self, *_args, **_kwargs):
-            raise OSError("simulated disk full")
-
-        monkeypatch.setattr(type(env_file), "write_text", _explode)
-        with caplog.at_level("WARNING", logger="finrobot.config"):
-            config_module._migrate_legacy_env_prefix()
-        assert any("Could not write" in rec.message for rec in caplog.records)
-        assert env_file.read_text(encoding="utf-8") == original
-
-    def test_get_settings_drives_migration(self, tmp_path, monkeypatch):
-        """get_settings() must trigger the migration before constructing the
-        pydantic model — module-import alone no longer does it. Guards against
-        anyone deleting the call from get_settings() and quietly regressing."""
-        from finrobot import config as config_module
-
-        env_file = tmp_path / ".env"
-        env_file.write_text("FINAGENT_OPENAI_API_KEY=sk-real\n", encoding="utf-8")
-        monkeypatch.setattr(config_module, "_ENV_FILE", env_file)
-        # Ensure the override is honored by FinRobotSettings too — otherwise
-        # pydantic-settings would re-read the original repo-root .env.
-        config_module.get_settings(_env_file=str(env_file))
-        content = env_file.read_text(encoding="utf-8")
-        assert "FINAGENT_" not in content
-        assert "FINROBOT_OPENAI_API_KEY=sk-real" in content
-
-    def test_module_body_has_no_top_level_migration_call(self):
-        """Importing finrobot.config must NOT trigger I/O. Previously the
-        migration ran at module import (a polluted CI .env would mutate on
-        every test process startup → unreproducible results). Static check
-        of the module AST: no top-level statement may call
-        ``_migrate_legacy_env_prefix``."""
-        import ast
-        from pathlib import Path as _Path
-
-        from finrobot import config as config_module
-
-        source = _Path(config_module.__file__).read_text(encoding="utf-8")
-        tree = ast.parse(source)
-        top_level_calls = [
-            node
-            for node in tree.body
-            if isinstance(node, ast.Expr)
-            and isinstance(node.value, ast.Call)
-            and isinstance(node.value.func, ast.Name)
-            and node.value.func.id == "_migrate_legacy_env_prefix"
-        ]
-        assert top_level_calls == [], (
-            "_migrate_legacy_env_prefix() must not be called at module top level — "
-            "this is a regression of the import-time side-effect removal."
-        )
+    def test_dotenv_file_not_read(self, tmp_path, monkeypatch):
+        """Even a .env sitting in the process cwd must be ignored."""
+        env = tmp_path / ".env"
+        env.write_text("FINROBOT_OPENAI_API_KEY=sk-from-dotenv\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        s = get_settings()
+        assert s.openai_api_key == ""
 
 
 def test_logging_defaults() -> None:

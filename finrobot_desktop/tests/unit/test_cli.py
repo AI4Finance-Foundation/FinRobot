@@ -325,8 +325,9 @@ class TestBuildDeps:
     def test_build_deps_returns_deps_with_settings(self):
         from finrobot.cli import _build_deps
 
-        # This will try to build with real settings — just verify it returns FinRobotDeps
-        deps = _build_deps()
+        # Use the "test" provider — config is app-stored only, so the default
+        # (deepseek) provider would fail-fast on a missing key here.
+        deps = _build_deps(model="test")
         assert hasattr(deps, "settings")
         assert hasattr(deps, "data_layer")
         assert hasattr(deps, "skill_runtime")
@@ -334,7 +335,7 @@ class TestBuildDeps:
     def test_build_runtime_returns_agent_and_deps(self):
         from finrobot.cli import _build_runtime
 
-        agent, deps = _build_runtime()
+        agent, deps = _build_runtime(model="test")
         assert agent is not None
         assert hasattr(deps, "settings")
 

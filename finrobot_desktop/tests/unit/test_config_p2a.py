@@ -1,12 +1,11 @@
 from finrobot.config import FinRobotSettings
 
 
-# Pass _env_file=None on every "default" assertion. Otherwise pydantic-settings
-# reads the developer's real .env (now resolved as an absolute repo-root path,
-# previously masked by cwd drift) and "default empty" turns into "whatever you
-# happen to have in your shell".
+# Config is app-stored-only — FinRobotSettings reads constructor kwargs only,
+# never env / .env — so a bare construction always reflects class defaults
+# regardless of the developer's shell.
 def _defaults_only() -> FinRobotSettings:
-    return FinRobotSettings(model_name="test:test", _env_file=None)
+    return FinRobotSettings(model_name="test:test")
 
 
 def test_fmp_api_key_default_empty():
@@ -26,5 +25,5 @@ def test_sec_user_agent_default():
 
 
 def test_fmp_api_key_from_kwargs():
-    s = FinRobotSettings(model_name="test:test", fmp_api_key="abc123", _env_file=None)
+    s = FinRobotSettings(model_name="test:test", fmp_api_key="abc123")
     assert s.fmp_api_key == "abc123"

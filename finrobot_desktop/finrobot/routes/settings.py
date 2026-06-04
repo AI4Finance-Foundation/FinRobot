@@ -9,10 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from starlette.requests import Request
 
-from finrobot.config import (
-    FinRobotSettings,
-    is_field_from_environ,
-)
+from finrobot.config import FinRobotSettings
 from finrobot.secret_store import SecretStorageMode
 from finrobot.data_layer_factory import build_data_layer
 from finrobot.engine.agents.factory import create_sub_agents
@@ -35,10 +32,9 @@ _SECRET_FIELDS: tuple[str, ...] = (
 )
 
 # Non-secret fields are written into ``~/.finrobot/settings.json`` only when
-# the user explicitly changes them. A field that has never been touched
-# from the UI MUST stay out of settings.json so .env / env-vars keep winning.
-# This is what got users into trouble before: writing every field with its
-# current effective value caused .env to be silently shadowed forever.
+# the user explicitly changes them. A field the user never touched stays out
+# of settings.json so it keeps resolving to the built-in default — we only
+# persist what the user actually set in the app.
 _NON_SECRET_FIELDS: tuple[str, ...] = (
     "model_name",
     "model_data",
@@ -53,10 +49,6 @@ _NON_SECRET_FIELDS: tuple[str, ...] = (
     "log_to_file",
     "log_retention_days",
 )
-
-# Source labels exposed to the UI. Keep this list of literals in sync with
-# the ``SettingsSource`` type on the frontend.
-SettingsSource = Literal["keychain", "settings_json", "env", "default"]
 
 
 class SettingsResponse(BaseModel):
@@ -89,11 +81,6 @@ class SettingsResponse(BaseModel):
     log_retention_days: int
     available_providers: list[str]
     valid_model_providers: list[Literal["anthropic", "deepseek", "openai"]]
-    # Per-field source map. Key = field name (e.g. "model_name",
-    # "anthropic_api_key"); value = where the effective value came from.
-    # The UI uses this to render "[来自 .env]" / "[来自 settings.json]" /
-    # "[来自 keychain]" / "[默认值]" badges next to each input.
-    field_sources: dict[str, SettingsSource]
     # If validate_runtime_config() failed at server boot, the error message
     # is surfaced here so the UI can show a banner. None = config is valid.
     startup_error: str | None = None
@@ -126,20 +113,13 @@ class SettingsUpdate(BaseModel):
     adanos_api_key: str | None = Field(default=None, repr=False)
 
 
-class SettingsResetRequest(BaseModel):
-    """Fields to clear from settings.json so .env / env-vars regain priority."""
-
-    fields: list[str] = Field(default_factory=list)
-
-
 class ClearSecretRequest(BaseModel):
     """A single secret field to delete from the keychain.
 
-    Distinct from ``/reset``: ``/reset`` re-empowers .env (clears settings.json
-    AND keychain), whereas ``clear-secret`` is the explicit "wipe this stored
-    API key" action. It exists so deleting a secret can NEVER happen as a side
-    effect of an empty value in a PUT (BUG-005) — the destructive path is its
-    own endpoint with its own intent.
+    ``clear-secret`` is the explicit "wipe this stored API key" action. It is
+    its own endpoint so deleting a secret can NEVER happen as a side effect of
+    an empty value in a PUT (BUG-005) — the destructive path needs deliberate
+    intent.
     """
 
     field: str
@@ -216,78 +196,6 @@ async def put_settings_route(update: SettingsUpdate, request: Request) -> Settin
     return await _build_response(request)
 
 
-@router.post("/reset", response_model=SettingsResponse)
-async def reset_settings_route(body: SettingsResetRequest, request: Request) -> SettingsResponse:
-    """Remove the listed fields from ``~/.finrobot/settings.json``.
-
-    This re-empowers .env / FINROBOT_* environment variables as the source
-    of truth for those fields. Secret fields are routed to the keychain
-    instead: ``reset`` deletes them from the keychain so .env values can
-    take over on the next request cycle.
-
-    Reset semantics: clear-from-settings.json (and clear-from-keychain for
-    secret fields). It does NOT copy .env values back into settings.json.
-    """
-    if not body.fields:
-        raise HTTPException(status_code=400, detail="No fields to reset.")
-
-    unknown = [f for f in body.fields if f not in _NON_SECRET_FIELDS + _SECRET_FIELDS]
-    if unknown:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown reset fields: {sorted(unknown)}",
-        )
-
-    settings_path: Path = request.app.state.settings_path
-    secret_store = request.app.state.secret_store
-
-    # Strip non-secret fields out of settings.json in place.
-    non_secret_to_clear = [f for f in body.fields if f in _NON_SECRET_FIELDS]
-    if non_secret_to_clear and settings_path.exists():
-        try:
-            current_json: dict[str, Any] = json.loads(settings_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            current_json = {}
-        if isinstance(current_json, dict):
-            mutated = False
-            for field in non_secret_to_clear:
-                if field in current_json:
-                    current_json.pop(field, None)
-                    mutated = True
-            if mutated:
-                settings_path.parent.mkdir(parents=True, exist_ok=True)
-                settings_path.write_text(
-                    json.dumps(current_json, indent=2, sort_keys=True),
-                    encoding="utf-8",
-                )
-
-    # Clear secret fields from the keychain so .env wins on next reload.
-    for field in body.fields:
-        if field in _SECRET_FIELDS:
-            await secret_store.delete(field)
-
-    # Rebuild settings from scratch so the new (lower-priority) sources kick
-    # in. We deliberately rebuild instead of patching the in-memory object
-    # because pydantic-settings only re-reads .env on construction.
-    from finrobot.config import get_settings
-
-    rebuilt = get_settings(**load_non_secret_settings(settings_path))
-    from finrobot.server import hydrate_settings_from_secrets
-
-    rebuilt = await hydrate_settings_from_secrets(rebuilt, secret_store)
-
-    await _replace_runtime_settings(request, rebuilt)
-
-    # Re-run validation; clear the banner if config is now coherent.
-    try:
-        rebuilt.validate_runtime_config()
-        request.app.state.startup_error = None
-    except ValueError as e:
-        request.app.state.startup_error = str(e)
-
-    return await _build_response(request)
-
-
 @router.post("/clear-secret", response_model=SettingsResponse)
 async def clear_secret_route(body: ClearSecretRequest, request: Request) -> SettingsResponse:
     """Explicitly delete one secret field from the keychain.
@@ -343,38 +251,17 @@ async def _build_response(request: Request) -> SettingsResponse:
 
     settings: FinRobotSettings = request.app.state.deps.settings
     secret_store = request.app.state.secret_store
-    settings_path: Path = request.app.state.settings_path
-
-    # Snapshot of settings.json so we can attribute each field's source
-    # without re-parsing on every field check.
-    settings_json: dict[str, Any] = {}
-    if settings_path.exists():
-        try:
-            raw = json.loads(settings_path.read_text(encoding="utf-8"))
-            if isinstance(raw, dict):
-                settings_json = raw
-        except (OSError, ValueError):
-            settings_json = {}
 
     async def _has_key(secret_key: str, settings_field: str) -> bool:
-        """Check keychain first, then fall back to settings (.env)."""
+        """True if the secret is stored in the keychain or present in settings."""
         if await secret_store.has(secret_key):
             return True
         return bool(getattr(settings, settings_field, ""))
 
-    # Cache keychain lookups so we don't query the OS multiple times per
-    # field during source attribution.
+    # Cache keychain lookups so we don't query the OS multiple times per field.
     keychain_presence: dict[str, bool] = {}
     for key in _SECRET_FIELDS:
         keychain_presence[key] = await secret_store.has(key)
-
-    field_sources: dict[str, SettingsSource] = {}
-    for field in _NON_SECRET_FIELDS:
-        field_sources[field] = _detect_non_secret_source(field, settings, settings_json)
-    for field in _SECRET_FIELDS:
-        field_sources[field] = _detect_secret_source(
-            field, settings, in_keychain=keychain_presence[field]
-        )
 
     providers: list[str] = []
     if await _has_key("fmp_api_key", "fmp_api_key"):
@@ -413,63 +300,9 @@ async def _build_response(request: Request) -> SettingsResponse:
         log_retention_days=settings.log_retention_days,
         available_providers=providers,
         valid_model_providers=["deepseek", "anthropic", "openai"],
-        field_sources=field_sources,
         startup_error=getattr(request.app.state, "startup_error", None),
         secret_storage_mode=getattr(request.app.state, "secret_storage_mode", "keychain"),
     )
-
-
-def _detect_non_secret_source(
-    field: str, settings: FinRobotSettings, settings_json: dict[str, Any]
-) -> SettingsSource:
-    """Attribute a non-secret field's effective value to its source.
-
-    Priority mirrors pydantic-settings + our load order in server.lifespan:
-      settings.json (highest, applied as constructor kwarg)
-        > FINROBOT_* env var
-          > .env file
-            > class default
-
-    We can't distinguish .env from a real environment variable after the
-    fact (both end up in the OS environment once pydantic-settings reads
-    them on import), so they collapse into a single ``"env"`` label.
-    That's accurate enough for the UI's purpose: "not coming from
-    settings.json".
-    """
-    if field in settings_json:
-        return "settings_json"
-    if is_field_from_environ(field):
-        return "env"
-    # Compare with the class default — if the value matches the default,
-    # we treat it as "default". This is imperfect (env could legitimately
-    # set the same value as the default), but for retail users it's a
-    # useful disambiguation.
-    default_value = FinRobotSettings.model_fields[field].default
-    current_value = getattr(settings, field, None)
-    if current_value == default_value:
-        return "default"
-    # Value differs from default but isn't in settings.json or env vars —
-    # most likely came from .env via pydantic-settings.
-    return "env"
-
-
-def _detect_secret_source(
-    field: str, settings: FinRobotSettings, *, in_keychain: bool
-) -> SettingsSource:
-    """Attribute a secret field's source.
-
-    Keychain takes precedence (it's loaded last in hydrate_settings_from_secrets),
-    then env / .env. ``"default"`` here means the value is empty.
-    """
-    if in_keychain:
-        return "keychain"
-    if is_field_from_environ(field):
-        return "env"
-    if getattr(settings, field, ""):
-        # Value present but not in keychain and not in the OS environment —
-        # came from .env via pydantic-settings.
-        return "env"
-    return "default"
 
 
 async def _replace_runtime_settings(request: Request, settings: FinRobotSettings) -> None:
@@ -542,20 +375,4 @@ def _merge_non_secret_settings(path: Path, updates: dict[str, Any]) -> None:
     path.write_text(
         json.dumps(existing, indent=2, sort_keys=True, default=str),
         encoding="utf-8",
-    )
-
-
-# Kept as a deprecation-friendly alias because there may be importers in
-# integration tests / scripts. New code should call _merge_non_secret_settings.
-def _write_non_secret_settings(path: Path, settings: FinRobotSettings) -> None:
-    """DEPRECATED — use ``_merge_non_secret_settings`` instead.
-
-    The old contract (write every field unconditionally) is the exact bug
-    we just fixed; this alias intentionally does nothing so accidental
-    callers do not regress the fix. Tests that need to seed settings.json
-    should write the JSON directly.
-    """
-    raise RuntimeError(
-        "_write_non_secret_settings is deprecated. "
-        "Use _merge_non_secret_settings(path, {field: value, ...}) instead."
     )

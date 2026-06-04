@@ -1,16 +1,14 @@
 """Tests for the /api/settings routes.
 
-Covers the bug fixes shipped with the "config-chain transparency + sidecar
-error visibility + startup validate" change:
+Config is app-stored-only (settings.json + keychain) — there is no env / .env
+source. The route surface this covers:
 
 1. ``_merge_non_secret_settings`` writes ONLY the changed fields — fields the
-   user never touched stay out of settings.json so .env keeps winning.
+   user never touched stay out of settings.json and keep resolving to defaults.
 2. ``adanos_api_key`` is treated as a secret (keychain), not silently dropped.
-3. ``POST /api/settings/reset`` clears the listed fields from settings.json
-   (and from keychain for secrets) so .env / env-vars regain priority.
-4. ``GET /api/settings`` reports ``field_sources`` and ``startup_error``.
-5. ``_write_non_secret_settings`` is the deprecated alias that explicitly
-   refuses to run, so a regression to "write every field" cannot happen.
+3. ``GET /api/settings`` surfaces ``startup_error`` + ``secret_storage_mode``.
+4. ``POST /api/settings/clear-secret`` is the only path that deletes a stored
+   key (BUG-005) — an empty value in a PUT never wipes one.
 """
 
 from __future__ import annotations
@@ -27,7 +25,6 @@ from httpx import ASGITransport, AsyncClient
 from finrobot.config import FinRobotSettings
 from finrobot.routes.settings import (
     _merge_non_secret_settings,
-    _write_non_secret_settings,
     router as settings_router,
 )
 
@@ -134,36 +131,9 @@ def test_merge_ignores_unknown_fields(tmp_path: Path) -> None:
     assert content == {"model_name": "openai:gpt-4o"}
 
 
-def test_deprecated_write_non_secret_raises(tmp_path: Path) -> None:
-    """Regression guard: the old "write every field" function refuses to run."""
-    settings = FinRobotSettings(model_name="deepseek:deepseek-chat", deepseek_api_key="x")
-    with pytest.raises(RuntimeError, match="deprecated"):
-        _write_non_secret_settings(tmp_path / "settings.json", settings)
-
-
 # ---------------------------------------------------------------------------
-# GET /api/settings — source attribution + startup_error surfacing
+# GET /api/settings — startup_error surfacing + identity gate
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_get_settings_includes_field_sources(tmp_path: Path) -> None:
-    """field_sources maps every known field to its origin."""
-    settings = FinRobotSettings(
-        model_name="deepseek:deepseek-chat",
-        deepseek_api_key="env-key",
-    )
-    app = _make_app(tmp_path, settings=settings)
-    async with _client(app) as c:
-        resp = await c.get("/api/settings")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert "field_sources" in body
-    # adanos_api_key MUST appear now that we tracked it as a secret.
-    assert "adanos_api_key" in body["field_sources"]
-    # When nothing is in settings.json and keychain returns nothing,
-    # a populated value is attributed to env (e.g. via .env load).
-    assert body["field_sources"]["deepseek_api_key"] == "env"
 
 
 @pytest.mark.asyncio
@@ -202,51 +172,14 @@ async def test_sec_identity_active_false_for_placeholder(tmp_path: Path) -> None
 
 
 @pytest.mark.asyncio
-async def test_get_settings_marks_settings_json_source(tmp_path: Path) -> None:
-    """A field present in settings.json wins source attribution."""
-    settings_path = tmp_path / "settings.json"
-    settings_path.write_text(json.dumps({"model_name": "openai:gpt-4o"}))
-    settings = FinRobotSettings(
-        model_name="openai:gpt-4o",
-        openai_api_key="x",
-    )
-    app = _make_app(tmp_path, settings=settings)
-    async with _client(app) as c:
-        resp = await c.get("/api/settings")
-    body = resp.json()
-    assert body["field_sources"]["model_name"] == "settings_json"
-
-
-@pytest.mark.asyncio
-async def test_get_settings_marks_keychain_source(tmp_path: Path) -> None:
-    """A secret present in the keychain wins attribution over env."""
-    secret_store = AsyncMock()
-
-    async def _has(k: str) -> bool:
-        return k == "anthropic_api_key"
-
-    secret_store.has = AsyncMock(side_effect=_has)
-    secret_store.get = AsyncMock(return_value=None)
-
-    settings = FinRobotSettings(
-        model_name="anthropic:claude-sonnet-4-6",
-        anthropic_api_key="hydrated",
-    )
-    app = _make_app(tmp_path, settings=settings, secret_store=secret_store)
-    async with _client(app) as c:
-        resp = await c.get("/api/settings")
-    body = resp.json()
-    assert body["field_sources"]["anthropic_api_key"] == "keychain"
-
-
-@pytest.mark.asyncio
 async def test_get_settings_surfaces_startup_error(tmp_path: Path) -> None:
     """startup_error from app.state is included in the response."""
-    app = _make_app(tmp_path, startup_error="FINROBOT_OPENAI_API_KEY is not set")
+    msg = "No API key configured for provider 'openai'. Add it in Settings → AI Model."
+    app = _make_app(tmp_path, startup_error=msg)
     async with _client(app) as c:
         resp = await c.get("/api/settings")
     body = resp.json()
-    assert body["startup_error"] == "FINROBOT_OPENAI_API_KEY is not set"
+    assert body["startup_error"] == msg
 
 
 @pytest.mark.asyncio
@@ -263,88 +196,6 @@ async def test_get_settings_reports_adanos_key_set(tmp_path: Path) -> None:
     body = resp.json()
     assert body["adanos_api_key_set"] is True
     assert "alpha_vantage_api_key_set" in body
-
-
-# ---------------------------------------------------------------------------
-# POST /api/settings/reset
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_reset_strips_field_from_settings_json(tmp_path: Path, monkeypatch: Any) -> None:
-    """Reset removes the listed field from settings.json (does NOT copy .env in)."""
-    settings_path = tmp_path / "settings.json"
-    settings_path.write_text(json.dumps({"model_name": "openai:gpt-4o", "sec_user_agent": "X"}))
-
-    settings = FinRobotSettings(
-        model_name="openai:gpt-4o",
-        openai_api_key="x",
-    )
-    app = _make_app(tmp_path, settings=settings)
-
-    # Patch the runtime-replacement helpers so reset doesn't try to spin up
-    # real PydanticAI agents.
-    monkeypatch.setattr(
-        "finrobot.routes.settings._replace_runtime_settings",
-        AsyncMock(),
-    )
-    monkeypatch.setattr(
-        "finrobot.server.hydrate_settings_from_secrets",
-        AsyncMock(side_effect=lambda s, _store: s),
-    )
-
-    async with _client(app) as c:
-        resp = await c.post("/api/settings/reset", json={"fields": ["model_name"]})
-    assert resp.status_code == 200, resp.text
-
-    content = json.loads(settings_path.read_text())
-    assert "model_name" not in content
-    # sec_user_agent untouched
-    assert content["sec_user_agent"] == "X"
-
-
-@pytest.mark.asyncio
-async def test_reset_deletes_keychain_for_secrets(tmp_path: Path, monkeypatch: Any) -> None:
-    """Reset of a secret field clears it from the keychain."""
-    secret_store = AsyncMock()
-    secret_store.has = AsyncMock(return_value=True)
-    secret_store.get = AsyncMock(return_value="keychain-value")
-    secret_store.delete = AsyncMock()
-
-    settings = FinRobotSettings(
-        model_name="anthropic:claude-sonnet-4-6",
-        anthropic_api_key="keychain-value",
-    )
-    app = _make_app(tmp_path, settings=settings, secret_store=secret_store)
-    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
-    monkeypatch.setattr(
-        "finrobot.server.hydrate_settings_from_secrets",
-        AsyncMock(side_effect=lambda s, _store: s),
-    )
-
-    async with _client(app) as c:
-        resp = await c.post(
-            "/api/settings/reset",
-            json={"fields": ["anthropic_api_key"]},
-        )
-    assert resp.status_code == 200, resp.text
-    secret_store.delete.assert_awaited_with("anthropic_api_key")
-
-
-@pytest.mark.asyncio
-async def test_reset_rejects_unknown_field(tmp_path: Path) -> None:
-    app = _make_app(tmp_path)
-    async with _client(app) as c:
-        resp = await c.post("/api/settings/reset", json={"fields": ["definitely_not_a_setting"]})
-    assert resp.status_code == 400
-
-
-@pytest.mark.asyncio
-async def test_reset_with_empty_fields_400(tmp_path: Path) -> None:
-    app = _make_app(tmp_path)
-    async with _client(app) as c:
-        resp = await c.post("/api/settings/reset", json={"fields": []})
-    assert resp.status_code == 400
 
 
 # ---------------------------------------------------------------------------

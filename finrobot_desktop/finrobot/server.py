@@ -131,8 +131,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # twice, creating duplicate model connections every boot.
     from finrobot.engine.agents.factory import create_sub_agents
 
-    sub_agents = create_sub_agents(settings, skill_registry=registry)
-    agent = create_lead_agent(settings, skill_registry=registry, sub_agents=sub_agents)
+    # Build the LLM agents only when the config validates. With no API key the
+    # provider constructor (DeepSeekProvider/OpenAIProvider/...) raises on the
+    # spot, so eagerly building here would crash the very boot we took pains
+    # NOT to crash (lines above) — a brand-new user with no key would never
+    # reach the SettingsView to paste one. Every LLM-touching route already
+    # 503s on startup_error before it would dereference these, and a later
+    # valid PUT rebuilds both via _replace_runtime_settings. So leave them
+    # empty until the config is fixed.
+    agent: Any = None
+    sub_agents: dict[str, Any] = {}
+    if startup_error is None:
+        sub_agents = create_sub_agents(settings, skill_registry=registry)
+        agent = create_lead_agent(settings, skill_registry=registry, sub_agents=sub_agents)
+    else:
+        logger.warning(
+            "Skipping LLM agent construction — runtime config invalid. The "
+            "server stays up so Settings can collect a valid API key.",
+        )
 
     # Cap concurrent pipelines app-wide (Coverage Phase 2/M4c): batch coverage
     # runs spawn one task per ticker, but only this many execute at once — the

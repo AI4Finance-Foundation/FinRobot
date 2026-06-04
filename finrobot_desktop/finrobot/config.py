@@ -1,57 +1,16 @@
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from pydantic import Field
 from pydantic_ai.models import Model
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
 
 logger = logging.getLogger(__name__)
-
-
-# Locate the .env relative to the source tree, not the process cwd. Tauri
-# launches the Python sidecar from a different working directory (somewhere
-# inside the .app bundle), so pydantic-settings' default env_file=".env"
-# relative path silently misses every key in dev mode and leaves the user
-# staring at "OPENAI_API_KEY must be set" while .env sits right there.
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-_ENV_FILE = _REPO_ROOT / ".env"
-
-
-def _migrate_legacy_env_prefix() -> None:
-    """One-time in-place migration of legacy FINAGENT_* keys in .env → FINROBOT_*.
-
-    The project renamed FinAgent → FinRobot; the env prefix moved with it.
-    Users who set up pre-rename have a .env full of FINAGENT_* keys that
-    pydantic-settings now rejects because the matching fields don't exist.
-    Rewrite the file in place — idempotent, lossless, no backup needed since
-    .env is git-ignored.
-
-    Called from ``get_settings()`` before constructing ``FinRobotSettings``;
-    NOT a module-import side effect (a pollutted CI .env would otherwise
-    silently mutate every test process). I/O failures are logged as warnings
-    rather than swallowed — disk-full / permission errors must be visible.
-    """
-    if not _ENV_FILE.exists():
-        return
-    try:
-        original = _ENV_FILE.read_text(encoding="utf-8")
-    except OSError as exc:
-        logger.warning("Could not read %s for legacy-prefix migration: %s", _ENV_FILE, exc)
-        return
-    if "FINAGENT_" not in original and "finagent_cache" not in original:
-        return
-    updated = original.replace("FINAGENT_", "FINROBOT_").replace("finagent_cache", "finrobot_cache")
-    try:
-        _ENV_FILE.write_text(updated, encoding="utf-8")
-    except OSError as exc:
-        logger.warning("Could not write %s during legacy-prefix migration: %s", _ENV_FILE, exc)
-        return
-    logger.info("Migrated legacy FINAGENT_* → FINROBOT_* keys in %s", _ENV_FILE)
 
 
 # Valid providers and the settings field holding their API key. A provider
@@ -72,12 +31,44 @@ _AGENT_ROLES: tuple[str, ...] = ("data", "analysis", "modeling", "synthesis", "r
 class FinRobotSettings(BaseSettings):
     """FinRobot configuration.
 
-    Resolution order (highest priority first):
-    1. Constructor kwargs (code override)
-    2. Environment variables (FINROBOT_* prefix)
-    3. .env file in project root
-    4. Defaults below
+    User configuration — API keys, model selection, SEC identity, output
+    language, logging — comes ONLY from app storage: ``settings.json`` (loaded
+    by the server and passed as constructor kwargs) and the OS keychain. It is
+    NEVER read from process environment variables or a ``.env`` file. A packaged
+    desktop app must not depend on a ``.env`` shipped in (or missing from) the
+    bundle, and the user fills these in via the in-app Settings screen — there
+    is no second, invisible source to disagree with what they typed.
+
+    Resolution order for user config (highest priority first):
+    1. Constructor kwargs (settings.json values, or test/code overrides)
+    2. Defaults below
+
+    The only fields that still consult the environment are pure infrastructure
+    knobs set by the runtime / bundle / ops, never by the user in-app —
+    resolved explicitly in ``model_post_init``: ``skills_dir``
+    (``FINROBOT_SKILLS_DIR``), ``cache_db_path`` (``FINROBOT_CACHE_DB_PATH``),
+    and ``backtest_strategy_module_prefixes``
+    (``FINROBOT_BACKTEST_STRATEGY_MODULE_PREFIXES``).
     """
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Read ONLY from constructor kwargs — drop the env and .env sources.
+
+        This is what makes user config app-stored-only: pydantic-settings would
+        otherwise pull ``FINROBOT_*`` env vars and a ``.env`` file in ahead of
+        the defaults, reintroducing the very ambiguity (and packaging fragility)
+        we removed. Infra knobs that legitimately need the environment read it
+        explicitly in ``model_post_init`` instead.
+        """
+        return (init_settings,)
 
     # Model
     model_name: str = "deepseek:deepseek-chat"
@@ -125,31 +116,47 @@ class FinRobotSettings(BaseSettings):
     # Backtest: dynamic ``module:ClassName`` strategy loading is OFF by default
     # (BUG-063). The built-in registry ("sma_crossover") always resolves without
     # any import. To load a custom Strategy class via "your.module:ClassName",
-    # opt in by whitelisting an import-path prefix here (comma-separated allowed).
-    # The prefix is validated BEFORE importlib.import_module runs, so an empty
-    # default means no user string can trigger an arbitrary module import.
+    # whitelist an import-path prefix here (comma-separated allowed). This is an
+    # ops/security knob, never user-facing — it is NOT in the Settings UI, so it
+    # is resolved from ``FINROBOT_BACKTEST_STRATEGY_MODULE_PREFIXES`` in
+    # ``model_post_init`` rather than from app storage. The prefix is validated
+    # BEFORE importlib.import_module runs, so an empty default means no string
+    # can trigger an arbitrary module import.
     # Example: FINROBOT_BACKTEST_STRATEGY_MODULE_PREFIXES="mystrats,team.alpha"
     backtest_strategy_module_prefixes: str = ""
 
-    model_config = {"env_prefix": "FINROBOT_", "env_file": str(_ENV_FILE)}
-
     def model_post_init(self, __context: Any) -> None:
-        """Resolve path defaults that depend on the runtime (cwd / frozen bundle).
+        """Resolve infrastructure knobs that depend on the runtime, not the user.
 
-        Both ``cache_db_path`` and ``skills_dir`` default to "" so the resolved
-        value reflects *this* process's environment — a frozen desktop sidecar
-        unpacks ``skills/`` under ``sys._MEIPASS`` while a dev checkout uses the
-        repo tree. Resolving here (not as a class-level literal) keeps the env
-        override (``FINROBOT_SKILLS_DIR``) authoritative when the user sets one.
+        ``cache_db_path`` / ``skills_dir`` default to "" so the resolved value
+        reflects *this* process's environment — a frozen desktop sidecar unpacks
+        ``skills/`` under ``sys._MEIPASS`` while a dev checkout uses the repo
+        tree. These three are the only fields that consult the environment: they
+        are pure infra/ops knobs (never shown in the Settings UI, never filled by
+        the user in-app), so reading a specific env var here is the right source
+        — unlike API keys / model selection, which come from app storage only.
+        Precedence stays kwarg > env var > runtime default.
         """
         if not self.cache_db_path:
-            from finrobot.paths import default_data_cache_db_path
+            env_cache = os.environ.get("FINROBOT_CACHE_DB_PATH")
+            if env_cache:
+                object.__setattr__(self, "cache_db_path", env_cache)
+            else:
+                from finrobot.paths import default_data_cache_db_path
 
-            object.__setattr__(self, "cache_db_path", default_data_cache_db_path())
+                object.__setattr__(self, "cache_db_path", default_data_cache_db_path())
         if not self.skills_dir:
-            from finrobot.paths import default_skills_dir
+            env_skills = os.environ.get("FINROBOT_SKILLS_DIR")
+            if env_skills:
+                object.__setattr__(self, "skills_dir", env_skills)
+            else:
+                from finrobot.paths import default_skills_dir
 
-            object.__setattr__(self, "skills_dir", default_skills_dir())
+                object.__setattr__(self, "skills_dir", default_skills_dir())
+        if not self.backtest_strategy_module_prefixes:
+            env_prefixes = os.environ.get("FINROBOT_BACKTEST_STRATEGY_MODULE_PREFIXES")
+            if env_prefixes:
+                object.__setattr__(self, "backtest_strategy_module_prefixes", env_prefixes)
 
     def get_model_for_role(self, role: str) -> str:
         """Return the model name for a specific agent role.
@@ -181,10 +188,11 @@ class FinRobotSettings(BaseSettings):
             import warnings
 
             warnings.warn(
-                "FINROBOT_FMP_API_KEY not set — falling back to yfinance. "
+                "FMP API key not set — falling back to yfinance. "
                 "DCF will use simplified D&A formula (10-20% deviation), and "
                 "earnings surprises + cross-validation are unavailable. "
-                "Register free at https://financialmodelingprep.com/ for better data.",
+                "Add an FMP key in Settings → Data Sources for better data "
+                "(free at https://financialmodelingprep.com/).",
                 stacklevel=2,
             )
         names_to_check: list[str] = [self.model_name]
@@ -206,11 +214,10 @@ class FinRobotSettings(BaseSettings):
             if key_field is None:
                 continue  # "test" provider — no key required
             if not getattr(self, key_field, ""):
-                env_var = f"FINROBOT_{key_field.upper()}"
                 raise ValueError(
-                    f"{env_var} is not set but model_name '{name}' needs it. "
-                    f"Set it in .env or as an environment variable.\n"
-                    f"  export {env_var}=your-key-here"
+                    f"No API key configured for provider '{provider}' "
+                    f"(required by model '{name}'). "
+                    f"Add it in Settings → AI Model."
                 )
 
     def create_model(self, model_name: str | None = None) -> Model:
@@ -259,32 +266,13 @@ class FinRobotSettings(BaseSettings):
 
 
 def get_settings(**overrides: Any) -> FinRobotSettings:
-    """Get settings. Pass overrides for testing.
+    """Get settings. ``overrides`` carry the app-stored config values.
 
-    Triggers the legacy ``FINAGENT_*`` → ``FINROBOT_*`` .env migration before
-    constructing the settings model — pydantic-settings would otherwise read
-    a pre-rename .env and reject every legacy key. Migration is idempotent,
-    so the per-call overhead is a single ``Path.exists()`` (and at most one
-    small file read) once the rewrite has occurred.
+    The server loads ``settings.json`` and passes the non-secret fields here as
+    kwargs; tests pass explicit values. There is no env / ``.env`` source — see
+    ``FinRobotSettings`` for why user config is app-stored-only.
     """
-    _migrate_legacy_env_prefix()
     return FinRobotSettings(**overrides)
-
-
-def is_field_from_environ(field: str) -> bool:
-    """True if FINROBOT_<FIELD> is set in the process environment.
-
-    Lives in config.py so the os.environ peek does not leak into route
-    code (audit red-line: only config.py + secret_store.py may touch
-    os.environ). Note this does NOT distinguish a real env var from a
-    value loaded out of .env — once pydantic-settings reads .env it
-    populates pydantic state but does NOT set os.environ. So this
-    function only fires for true OS-level env vars; .env-only values
-    fall back to the "value present but no os env" inference path.
-    """
-    import os
-
-    return bool(os.environ.get(f"FINROBOT_{field.upper()}"))
 
 
 def console_color_enabled(stream: Any) -> bool:
@@ -295,7 +283,5 @@ def console_color_enabled(stream: Any) -> bool:
     module (besides secret_store) allowed to read os.environ — the obs
     formatters must not peek at the environment themselves (audit red-line).
     """
-    import os
-
     is_tty = bool(getattr(stream, "isatty", lambda: False)())
     return is_tty and os.environ.get("NO_COLOR", "") == ""

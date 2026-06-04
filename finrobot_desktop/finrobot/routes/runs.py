@@ -162,6 +162,16 @@ async def spawn_run(
 
 @router.post("", response_model=CreateRunResponse)
 async def create_run(request_body: CreateRunRequest, request: Request) -> CreateRunResponse:
+    # Inbound rate-limit guard (BUG-043): every run spends real LLM money. This
+    # token bucket is defense-in-depth, orthogonal to the concurrency cap
+    # (run_semaphore, BUG-017) — it bounds runs STARTED per minute so a runaway
+    # loop can't drain credits by keeping the queue full. One run → one token.
+    limiter = getattr(request.app.state, "run_rate_limiter", None)
+    if limiter is not None and not limiter.allow_runs(1):
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded — too many runs started. Retry shortly.",
+        )
     try:
         record = await spawn_run(
             request,

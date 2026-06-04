@@ -100,7 +100,7 @@
 | BUG-040 | Bug | P2 | Cumulative total_return shown beside annualized-intent Sharpe; annualized Returns analyzer added but never read | 已修 |
 | BUG-041 | Bug | P2 | run_strategy_selection tunes 3 iterations on one in-sample window and reports max(total_return) as a 'good' strategy — pure overfitting, no out-of-sample | 已修 |
 | BUG-042 | Bug | P2 | Sniper LONG mode: secondary_buy (20-day support) can sit BELOW stop_loss → incoherent trade row passes invariant guards | 已修 |
-| BUG-043 | Bug | P2 | Unauthenticated POST /chat, /api/runs and /api/coverage/groups/{id}/runs burn metered LLM credits with zero inbound rate limiting | 待修 |
+| BUG-043 | Bug | P2 | Unauthenticated POST /chat, /api/runs and /api/coverage/groups/{id}/runs burn metered LLM credits with zero inbound rate limiting | 已修 |
 | BUG-044 | Bug | P2 | Unauthenticated DELETE /api/artifacts/{id} and DELETE /api/coverage/groups/{id} permanently destroy stored research | 待修 |
 | BUG-045 | Bug | P2 | ProviderHealth 熔断器是完全未接线的死代码，docstring 谎称「DataLayer owns the wiring」——慢/限流 provider 每次仍付满超时 | 已修 |
 | BUG-046 | Bug | P2 | 硬编码中文数据层告警混入英文 CLI 输出(--lang en 不生效于 provider 告警) | 已修 |
@@ -727,7 +727,7 @@
 - **修复方案**：The auth token (finding 1) removes the hostile-caller vector and is the correct primary fix. As defense-in-depth against runaway loops (incl. buggy clients), add a lightweight in-process token-bucket on the cost-bearing endpoints — e.g. a small dependency in runs.py/coverage.py/server.py chat() that limits new runs to N/minute and rejects with 429 beyond that. ~30 LoC, single shared limiter object on app.state. 注意 batch runs legitimately spawn many at once — bucket on 'runs started per minute' not 'per request' so a normal coverage batch of 10 still goes through.
 - **验证补充**：Fix sound. The in-process token-bucket as defense-in-depth (also catches buggy clients/retry storms) is worth doing independent of auth. Bucket on 'runs started per minute' not per-request, as noted, so a legit 10-ticker coverage batch isn't rejected.
 - **影响面/回归风险**：Financial-loss containment. Low regression risk (429 only triggers under abnormal volume); must size the bucket above the largest legitimate coverage batch.
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（新增 finrobot/ratelimit.py:RunRateLimiter（app.state 单实例，两 token bucket——runs 120/min、chat 60/min，按「每分钟启动的 run/chat 数」计费非 per-request 故正常 coverage 批跑 N 个仍放行，可注入 clock 测试）。server.chat() allow_chat()→429；routes/runs.create_run allow_runs(1)→429；routes/coverage.batch_run allow_runs(len(tickers)) 原子计费（整批 admit 或拒，不半开）。与 TrustedHost(BUG-004)/run semaphore(BUG-017) 正交的入站防线。无裸 except。新增 9 测试。全量 2239 通过。）
 
 #### [BUG-044] Unauthenticated DELETE /api/artifacts/{id} and DELETE /api/coverage/groups/{id} permanently destroy stored research
 

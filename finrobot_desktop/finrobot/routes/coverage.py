@@ -349,6 +349,19 @@ async def batch_run(group_id: str, request: Request, body: BatchRunRequest) -> B
     if await store.get_group(group_id) is None:
         raise HTTPException(status_code=404, detail=f"Coverage group not found: {group_id}")
 
+    # Inbound rate-limit guard (BUG-043): a batch spawns one metered pipeline
+    # per ticker. Charge the WHOLE batch atomically — the bucket is sized above
+    # the largest legitimate batch, so a normal coverage fan-out passes, but a
+    # runaway loop firing batch after batch is throttled. Charging the batch as
+    # one unit (not per spawn_run) means we never admit half a batch. Orthogonal
+    # to the concurrency cap (run_semaphore, BUG-017).
+    limiter = getattr(request.app.state, "run_rate_limiter", None)
+    if limiter is not None and not limiter.allow_runs(len(body.tickers)):
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded — too many runs started. Retry shortly.",
+        )
+
     runs: list[BatchRunItem] = []
     skipped: list[dict[str, str]] = []
     for ticker in body.tickers:

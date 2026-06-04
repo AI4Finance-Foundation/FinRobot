@@ -44,6 +44,7 @@ from finrobot.routes.settings import router as settings_router
 from finrobot.routes.sentiment import router as sentiment_router
 from finrobot.routes.valuation import router as valuation_router
 from finrobot.coverage.sqlite_store import CoverageStore
+from finrobot.ratelimit import RunRateLimiter
 from finrobot.run_store import RunStore
 from finrobot.secret_store import SecretStore, create_secret_store
 
@@ -166,6 +167,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # via deps.run_semaphore, so chat / REST / coverage-batch all share this
     # single pool and a run can never double-acquire.
     app.state.run_semaphore = run_semaphore
+    # Inbound token-bucket rate limiter for the cost-bearing endpoints (chat,
+    # POST /api/runs, coverage batch). DEFENSE-IN-DEPTH separate from the
+    # concurrency cap above: run_semaphore bounds how many runs execute AT ONCE,
+    # this bounds how many can be STARTED per minute, so a runaway loop / retry
+    # storm can't drain LLM credits + the EDGAR budget by just keeping the queue
+    # full (BUG-043). 429 only fires under abnormal volume — buckets are sized
+    # well above the largest legitimate coverage batch.
+    app.state.run_rate_limiter = RunRateLimiter()
     # Fail runs abandoned by a previous process (run_tasks is in-memory, so a
     # restart orphans every running row → wedged SSE + phantom in-progress in
     # the Coverage overview). M4b.
@@ -762,6 +771,16 @@ async def chat(request: Request) -> Response:
         return JSONResponse(
             content={"detail": f"Server not ready: {startup_error}"},
             status_code=503,
+        )
+
+    # Inbound rate-limit guard (BUG-043): each chat opens a metered LLM stream.
+    # Defense-in-depth against runaway loops / retry storms hammering /chat — a
+    # 429 here only fires under abnormal volume, never a normal human session.
+    limiter = getattr(request.app.state, "run_rate_limiter", None)
+    if limiter is not None and not limiter.allow_chat():
+        return JSONResponse(
+            content={"detail": "Rate limit exceeded — too many chat requests. Retry shortly."},
+            status_code=429,
         )
 
     body = await request.body()

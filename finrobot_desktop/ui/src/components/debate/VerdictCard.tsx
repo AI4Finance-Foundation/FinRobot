@@ -19,6 +19,10 @@ interface VerdictCardProps {
   status: DebateStatus
   reliable: boolean
   current_price: number | null
+  // UX-004: when the debate is finished the verdict is the analyst's takeaway —
+  // give an immediate way back to the originating report right at the card.
+  // Optional so the card stays self-contained when no exit is wired.
+  onBackToReport?: () => void
 }
 
 // ── Call badge configs ────────────────────────────────────────────────────────
@@ -54,9 +58,16 @@ const CALL_CONFIG: Record<CallKey, { bg: string; glow: string; border: string; t
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function VerdictCard({ verdict, status, reliable, current_price }: VerdictCardProps) {
+export function VerdictCard({
+  verdict,
+  status,
+  reliable,
+  current_price,
+  onBackToReport,
+}: VerdictCardProps) {
   const { t } = useI18n()
   const isRunning = status === 'running'
+  const isCompleted = status === 'completed'
   const hasVerdict = verdict !== null
 
   // Don't render card at all in idle state — caller shows start button instead.
@@ -105,6 +116,31 @@ export function VerdictCard({ verdict, status, reliable, current_price }: Verdic
       )}
 
       <div style={{ padding: '20px 24px' }}>
+        {/* UX-004: a quick exit back to the report, anchored at the verdict the
+            analyst just read. Only once the debate has settled. */}
+        {isCompleted && onBackToReport && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+            <button
+              type="button"
+              onClick={onBackToReport}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                letterSpacing: '0.06em',
+                color: 'var(--primary)',
+                transition: 'opacity 0.18s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.7')}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+            >
+              ← {t('ic.action.backToReport')}
+            </button>
+          </div>
+        )}
         {isRunning && !hasVerdict ? (
           // Streaming skeleton: debate in progress, verdict not yet arrived
           <RunningState />

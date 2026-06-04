@@ -150,6 +150,7 @@ export function IcDebatePage() {
             status={debate.status}
             reliable={debate.reliable}
             current_price={debate.current_price}
+            onBackToReport={() => navigate(reportPath)}
           />
 
           {/* Ephemeral notice (BUG-20260602-015): this debate is not saved — be
@@ -240,6 +241,34 @@ export function IcDebatePage() {
               isRunning={isRunning}
             />
           </div>
+
+          {/* Next-step exits (UX-004): a finished debate is the most valuable
+              conclusion in the app — don't strand the analyst here. Offer the
+              two real ways forward: back to the originating report, or out to
+              the coverage list. (Re-debate already lives above the columns.) */}
+          {isCompleted && (
+            <div
+              style={{
+                marginTop: 28,
+                paddingTop: 20,
+                borderTop: '1px solid var(--border-faint)',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 12,
+              }}
+            >
+              <button type="button" onClick={() => navigate(reportPath)} style={primaryBtnStyle}>
+                ← {t('ic.action.backToReport')}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/coverage')}
+                style={secondaryBtnStyle}
+              >
+                {t('ic.action.backToCoverage')}
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>

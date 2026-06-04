@@ -1,10 +1,20 @@
 # finrobot/engine/data/providers/news_aggregator.py
 """Multi-source news aggregation provider.
 
-Fetches news from Yahoo Finance RSS (free, no key) and Alpha Vantage
-News Sentiment (free tier, requires FINROBOT_ALPHA_VANTAGE_API_KEY).
-Deduplicates by headline prefix similarity and returns a unified
-news list with optional sentiment scores.
+Fetches news from yfinance (free, no key — via ``YFinanceProvider``) and Alpha
+Vantage News Sentiment (free tier, requires FINROBOT_ALPHA_VANTAGE_API_KEY).
+Deduplicates by headline prefix similarity and returns a unified news list
+with optional sentiment scores.
+
+History: this provider used to scrape Yahoo Finance's RSS headline feed
+(``feeds.finance.yahoo.com/rss/2.0/headline``) as its free no-key source.
+Yahoo took that endpoint offline — it now returns 404 — so with no Alpha
+Vantage key the provider used to error 100% of the time (BUG-072). We replaced
+the dead RSS scrape with the existing ``YFinanceProvider`` NEWS capability,
+which serves the same Yahoo headlines and needs no key. The aggregator delegates
+to that provider rather than importing yfinance directly, so all yfinance access
+stays behind the single sanctioned gateway (门一; see
+tests/audit/test_no_direct_yfinance_imports.py).
 
 What this code does that raw LLM cannot:
 - Concurrent fetching from multiple sources via asyncio.gather.
@@ -20,38 +30,47 @@ import asyncio
 import logging
 import time
 from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
 from typing import Any
-from xml.etree import ElementTree
 
 import httpx
 
 from finrobot.engine.compute.sentiment import score_headline
 from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
+from finrobot.engine.data.providers.yfinance_provider import YFinanceProvider
 from finrobot.engine.data.types import DataType
 
 logger = logging.getLogger(__name__)
 
 _TIMEOUT = 12.0
-_YAHOO_RSS_URL = "https://feeds.finance.yahoo.com/rss/2.0/headline"
 _ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
 _AV_MIN_INTERVAL = 12.5  # Alpha Vantage free tier: 5 calls/min -> 1 per 12s; add buffer
 _DEDUP_PREFIX_LEN = 50  # headlines sharing this many leading chars are duplicates
 
 
 class NewsAggregatorProvider(DataProvider):
-    """Aggregates news from Yahoo Finance RSS + Alpha Vantage.
+    """Aggregates news from yfinance + Alpha Vantage.
 
-    Yahoo Finance RSS: always available, no API key required.
-    Alpha Vantage: only used when alpha_vantage_api_key is provided.
+    yfinance: free, no API key required — the always-on source, fetched through
+    a held ``YFinanceProvider`` (no direct yfinance import; see module docstring).
+    Alpha Vantage: only used when ``alpha_vantage_api_key`` is provided, and adds
+    per-ticker sentiment scores on top of the yfinance headlines.
 
     This provider only supports DataType.NEWS.
     """
 
-    def __init__(self, *, alpha_vantage_api_key: str = "") -> None:
+    def __init__(
+        self,
+        *,
+        alpha_vantage_api_key: str = "",
+        yfinance_provider: YFinanceProvider | None = None,
+    ) -> None:
         self._av_key = alpha_vantage_api_key
         self._av_lock = asyncio.Lock()
         self._av_last_call: float = 0.0
+        # Delegate the free no-key Yahoo headlines to the sanctioned yfinance
+        # gateway instead of importing yfinance here (门一红线). Injectable for
+        # tests; defaults to a fresh provider for normal use.
+        self._yfinance = yfinance_provider or YFinanceProvider()
 
     @property
     def name(self) -> str:
@@ -65,7 +84,7 @@ class NewsAggregatorProvider(DataProvider):
             raise ProviderError(f"NewsAggregatorProvider only supports NEWS, got '{data_type}'")
 
         tasks: list[asyncio.Task[list[dict[str, Any]]]] = []
-        tasks.append(asyncio.create_task(self._fetch_yahoo_rss(ticker)))
+        tasks.append(asyncio.create_task(self._fetch_yfinance(ticker)))
         if self._av_key:
             tasks.append(asyncio.create_task(self._fetch_alpha_vantage(ticker)))
 
@@ -75,7 +94,7 @@ class NewsAggregatorProvider(DataProvider):
         warnings: list[str] = []
         failures: list[str] = []
         for i, result in enumerate(results):
-            source_name = "Yahoo RSS" if i == 0 else "Alpha Vantage"
+            source_name = "yfinance" if i == 0 else "Alpha Vantage"
             if isinstance(result, BaseException):
                 warn = f"{source_name} fetch failed: {result}"
                 logger.warning(warn)
@@ -107,41 +126,33 @@ class NewsAggregatorProvider(DataProvider):
             warnings=warnings,
         )
 
-    async def _fetch_yahoo_rss(self, ticker: str) -> list[dict[str, Any]]:
-        """Fetch news from Yahoo Finance RSS feed (no API key required)."""
-        params = {"s": ticker, "region": "US", "lang": "en-US"}
-        try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-                resp = await client.get(_YAHOO_RSS_URL, params=params)
-                resp.raise_for_status()
-        except httpx.TimeoutException as e:
-            raise ProviderError(f"Yahoo RSS timeout for '{ticker}': {e}") from e
-        except httpx.HTTPStatusError as e:
-            raise ProviderError(f"Yahoo RSS HTTP error for '{ticker}': {e}") from e
+    async def _fetch_yfinance(self, ticker: str) -> list[dict[str, Any]]:
+        """Fetch Yahoo headlines via the sanctioned ``YFinanceProvider`` NEWS path.
+
+        Replaces the dead Yahoo RSS scrape (BUG-072): the RSS headline feed at
+        feeds.finance.yahoo.com now returns 404, but YFinanceProvider already
+        exposes the same headlines via ``DataType.NEWS`` (its ``_fetch_news``).
+        We delegate to it rather than importing yfinance here, keeping all
+        yfinance access behind the single门一 gateway.
+        """
+        result = await self._yfinance.fetch(ticker, DataType.NEWS)
+        raw_items = result.data.get("news_items", [])
 
         items: list[dict[str, Any]] = []
-        try:
-            root = ElementTree.fromstring(resp.text)
-            for item_el in root.iter("item"):
-                title_el = item_el.find("title")
-                link_el = item_el.find("link")
-                pub_el = item_el.find("pubDate")
-                if title_el is None or not (title_el.text or "").strip():
-                    continue
-                items.append(
-                    {
-                        "title": (title_el.text or "").strip(),
-                        "source": "Yahoo Finance",
-                        "url": (link_el.text or "").strip() if link_el is not None else "",
-                        "published": self._parse_rss_date(
-                            (pub_el.text or "").strip() if pub_el is not None else ""
-                        ),
-                        "sentiment_score": None,  # filled by keyword scorer later
-                        "category": None,
-                    }
-                )
-        except ElementTree.ParseError as e:
-            raise ProviderError(f"Yahoo RSS XML parse error for '{ticker}': {e}") from e
+        for article in raw_items:
+            title = (article.get("title") or "").strip()
+            if not title:
+                continue
+            items.append(
+                {
+                    "title": title,
+                    "source": article.get("source") or "Yahoo Finance",
+                    "url": article.get("url", ""),
+                    "published": self._normalize_published(article.get("published", "")),
+                    "sentiment_score": None,  # filled by keyword scorer later
+                    "category": None,
+                }
+            )
 
         return items
 
@@ -214,7 +225,7 @@ class NewsAggregatorProvider(DataProvider):
         """Remove duplicates by comparing first N characters of headline.
 
         When duplicates are found, prefer the item with a sentiment_score
-        (Alpha Vantage) over one without (Yahoo RSS).
+        (Alpha Vantage) over one without (yfinance).
         """
         seen: dict[str, dict[str, Any]] = {}
         for item in items:
@@ -232,18 +243,29 @@ class NewsAggregatorProvider(DataProvider):
         return list(seen.values())
 
     @staticmethod
-    def _parse_rss_date(date_str: str) -> str:
-        """Parse RSS pubDate (RFC 2822) to ISO format string."""
-        if not date_str:
+    def _normalize_published(value: Any) -> str:
+        """Normalize a yfinance published timestamp to an ISO 8601 string.
+
+        yfinance returns either an ISO string (``content.pubDate``) or a Unix
+        epoch seconds int (legacy ``providerPublishTime``).
+        """
+        if value is None or value == "":
             return datetime.now(tz=timezone.utc).isoformat()
-        # Example: "Mon, 15 Jan 2024 18:30:00 +0000"
+        if isinstance(value, (int, float)):
+            try:
+                return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
+            except (ValueError, OSError, OverflowError):
+                return datetime.now(tz=timezone.utc).isoformat()
+        text = str(value).strip()
+        if not text:
+            return datetime.now(tz=timezone.utc).isoformat()
         try:
-            dt = parsedate_to_datetime(date_str)
+            dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
             return dt.isoformat()
         except (ValueError, TypeError):
-            return datetime.now(tz=timezone.utc).isoformat()
+            return text
 
     @staticmethod
     def _parse_av_date(date_str: str) -> str:

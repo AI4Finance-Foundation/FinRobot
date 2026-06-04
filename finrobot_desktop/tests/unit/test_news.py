@@ -6,6 +6,7 @@ import pytest
 
 from finrobot.engine.data.interface import DataResult, ProviderError
 from finrobot.engine.data.providers.news_aggregator import NewsAggregatorProvider
+from finrobot.engine.data.types import DataType
 from finrobot.engine.compute.news import (
     NewsItem,
     RawNewsItem,
@@ -279,10 +280,10 @@ class TestNewsAggregatorKeyDoesNotLeak:
         provider = NewsAggregatorProvider(alpha_vantage_api_key="LIVEKEY_SHOULD_NOT_LEAK")
 
         av_err = ProviderError("Alpha Vantage HTTP 429 for 'AAPL'")
-        yahoo_err = ProviderError("Yahoo RSS HTTP error for 'AAPL'")
+        yf_err = ProviderError("yfinance news fetch failed for 'AAPL'")
 
         with (
-            patch.object(provider, "_fetch_yahoo_rss", AsyncMock(side_effect=yahoo_err)),
+            patch.object(provider, "_fetch_yfinance", AsyncMock(side_effect=yf_err)),
             patch.object(provider, "_fetch_alpha_vantage", AsyncMock(side_effect=av_err)),
         ):
             with pytest.raises(ProviderError) as exc_info:
@@ -291,3 +292,102 @@ class TestNewsAggregatorKeyDoesNotLeak:
         msg = str(exc_info.value)
         assert "LIVEKEY_SHOULD_NOT_LEAK" not in msg
         assert "All news sources failed" in msg
+
+
+class TestNewsAggregatorYfinanceSource:
+    """BUG-072: the dead Yahoo RSS headline feed (404'd by Yahoo) was the
+    aggregator's only free no-key source, so with no Alpha Vantage key the
+    provider erroring 100%. It now delegates to the existing ``YFinanceProvider``
+    NEWS capability — a real working free source — instead of importing yfinance
+    directly (门一 red line). These tests pin that delegation, never the dead
+    feeds.finance.yahoo.com RSS endpoint nor a direct yfinance import.
+    """
+
+    @staticmethod
+    def _news_result(ticker: str, items: list[dict]) -> DataResult:
+        return DataResult(
+            data={"news_items": items},
+            provider="yfinance",
+            ticker=ticker,
+            data_type=DataType.NEWS,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+    @staticmethod
+    def _fake_yf_provider(result_or_exc) -> MagicMock:
+        fake = MagicMock()
+        if isinstance(result_or_exc, BaseException):
+            fake.fetch = AsyncMock(side_effect=result_or_exc)
+        else:
+            fake.fetch = AsyncMock(return_value=result_or_exc)
+        return fake
+
+    def test_no_dead_yahoo_rss_code_path(self):
+        """The dead RSS endpoint constant and fetch method must be gone."""
+        import finrobot.engine.data.providers.news_aggregator as mod
+
+        assert not hasattr(mod, "_YAHOO_RSS_URL")
+        assert not hasattr(NewsAggregatorProvider, "_fetch_yahoo_rss")
+        assert not hasattr(NewsAggregatorProvider, "_parse_rss_date")
+
+    def test_no_direct_yfinance_import(self):
+        """门一 red line: news_aggregator must not import yfinance directly — it
+        delegates through YFinanceProvider (tests/audit enforces this too)."""
+        import finrobot.engine.data.providers.news_aggregator as mod
+
+        assert not hasattr(mod, "yf"), "news_aggregator must not import yfinance directly"
+
+    @pytest.mark.asyncio
+    async def test_delegates_to_yfinance_provider_news(self):
+        """The free source calls YFinanceProvider.fetch(ticker, NEWS) and maps
+        its news_items into the aggregator's unified schema."""
+        yf_items = [
+            {
+                "title": "Acme beats earnings",
+                "source": "Reuters",
+                "url": "https://example.com/a",
+                "published": "2024-01-15T18:30:00Z",
+            },
+            {"title": "", "source": "X"},  # skipped: empty title
+        ]
+        fake_yf = self._fake_yf_provider(self._news_result("ACME", yf_items))
+        provider = NewsAggregatorProvider(yfinance_provider=fake_yf)
+
+        items = await provider._fetch_yfinance("ACME")
+
+        fake_yf.fetch.assert_awaited_once_with("ACME", DataType.NEWS)
+        assert len(items) == 1
+        assert items[0]["title"] == "Acme beats earnings"
+        assert items[0]["source"] == "Reuters"
+        assert items[0]["url"] == "https://example.com/a"
+        assert items[0]["published"].startswith("2024-01-15T18:30:00")
+        assert items[0]["sentiment_score"] is None
+        assert items[0]["category"] is None
+
+    @pytest.mark.asyncio
+    async def test_delegated_provider_error_propagates(self):
+        """A ProviderError from the yfinance gateway surfaces unchanged so the
+        aggregator's gather records it as a source failure."""
+        fake_yf = self._fake_yf_provider(ProviderError("Failed to fetch news for 'AAPL'"))
+        provider = NewsAggregatorProvider(yfinance_provider=fake_yf)
+
+        with pytest.raises(ProviderError) as exc_info:
+            await provider._fetch_yfinance("AAPL")
+        assert "Failed to fetch news" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_fetch_no_key_uses_only_yfinance_and_succeeds(self):
+        """The default no-AV-key path must succeed via yfinance — not 100%
+        error like it did when Yahoo RSS was the only source (BUG-072)."""
+        fake_yf = self._fake_yf_provider(
+            self._news_result("AAPL", [{"title": "Big news for AAPL", "source": "Yahoo Finance"}])
+        )
+        provider = NewsAggregatorProvider(yfinance_provider=fake_yf)  # no AV key
+
+        result = await provider.fetch("AAPL", "news")
+
+        items = result.data["news_items"]
+        assert len(items) == 1
+        assert items[0]["title"] == "Big news for AAPL"
+        # keyword scorer filled the missing sentiment
+        assert items[0]["sentiment_score"] is not None

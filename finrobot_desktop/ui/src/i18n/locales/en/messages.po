@@ -2031,7 +2031,7 @@ msgstr "Invalid symbol · use 1-12 letters / digits / .-"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.searchPlaceholder"
-msgstr "Enter a ticker · AAPL / NVDA / TSLA"
+msgstr "Enter a ticker · e.g. AAPL"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.analyze"

@@ -2031,7 +2031,7 @@ msgstr "代码格式不对 · 用 1-12 个字母 / 数字 / .-"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.searchPlaceholder"
-msgstr "输入股票代码 · AAPL / NVDA / TSLA"
+msgstr "输入股票代码 · 如 AAPL"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.analyze"

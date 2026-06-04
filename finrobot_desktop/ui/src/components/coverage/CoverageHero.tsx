@@ -11,7 +11,7 @@
 // The robot is centered (translateX(-50%)) and confined to BAND 2 so it stays
 // the luminous subject and is never hidden behind the right chat panel.
 
-import { useCallback, useState } from 'react'
+import { Fragment, useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SplineHero } from '../SplineHero'
 import { isValidTicker, sanitizeTickerInput } from '../../utils/ticker'
@@ -242,7 +242,7 @@ export function CoverageHero(): React.ReactElement {
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  fontSize: 22,
+                  fontSize: 18,
                   fontFamily: 'var(--font-mono)',
                   fontWeight: 700,
                   background: 'transparent',
@@ -391,65 +391,39 @@ function ProofDeck(props: ProofDeckProps): React.ReactElement {
           gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(0, 1.3fr)',
         }}
       >
-        {/* Cell 1 — function trace (no prices, real compute identifiers) */}
+        {/* Cell 1 — function trace as a clean vertical pipeline log: step + the
+            localized stage label, then the REAL compute function (full, never
+            truncated), aligned in two columns down a cyan pipeline spine. */}
         <div style={{ padding: '14px 18px', minHeight: 124 }}>
           <CellLabel>{props.traceTitle}</CellLabel>
-          <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, marginTop: 12 }}>
-            {TRACE_STEPS.map((item, index) => (
-              <div
-                key={item.code}
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  paddingRight: 10,
-                  borderLeft: index === 0 ? 'none' : '1px solid var(--border-faint)',
-                  paddingLeft: index === 0 ? 0 : 10,
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 11,
-                  }}
-                >
-                  <span style={{ color: 'var(--accent-cyan)' }}>{item.step}</span>
-                  <span style={{ color: 'var(--text-secondary)' }}>{t(item.labelKey)}</span>
-                </div>
-                <div
-                  style={{
-                    marginTop: 7,
-                    color: 'var(--text-muted)',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 10,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
+          <div
+            style={{
+              marginTop: 12,
+              display: 'grid',
+              gridTemplateColumns: 'max-content 1fr',
+              columnGap: 16,
+              rowGap: 8,
+              paddingLeft: 12,
+              borderLeft: '2px solid var(--accent-cyan)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+            }}
+          >
+            {TRACE_STEPS.map((item) => (
+              <Fragment key={item.code}>
+                <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                  <span style={{ color: 'var(--accent-cyan)' }}>{item.step}</span>{' '}
+                  {t(item.labelKey)}
+                </span>
+                <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {item.code}
-                </div>
-                <div
-                  aria-hidden
-                  style={{
-                    marginTop: 9,
-                    height: 2,
-                    borderRadius: 1,
-                    background:
-                      index === TRACE_STEPS.length - 1
-                        ? 'var(--accent-cyan)'
-                        : 'linear-gradient(90deg, var(--accent-cyan), var(--border-soft))',
-                    boxShadow: 'var(--glow-cyan)',
-                  }}
-                />
-              </div>
+                </span>
+              </Fragment>
             ))}
           </div>
           <div
             style={{
-              marginTop: 11,
+              marginTop: 12,
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,

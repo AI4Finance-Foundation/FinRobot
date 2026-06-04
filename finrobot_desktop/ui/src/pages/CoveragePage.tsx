@@ -1,35 +1,23 @@
-// CoveragePage — the desktop's first screen (route `/coverage`). The analyst's
-// research desk: a hero search (drill into one name + auto-enrol on open), a
-// slim wall header (triage lens + sort), a wall of ticker cards, and a right
-// Inspector scoped to the focused ticker. There is ONE list — Studied Tickers
-// (the system coverage group) — surfaced; the multi-group machinery stays in the
-// backend but is not exposed (no switcher / rename / import chrome). Server
-// state via useCoverage; view-state (selection, focus, sort) in coverageStore.
+// CoveragePage — the coverage archive / management route (`/coverage`). The
+// search-first homepage lives at `/research`; this screen is the studied ticker
+// desk: track-record strip, triage/sort controls, and a wall of ticker cards.
+// There is ONE surfaced list — Studied Tickers (the system coverage group);
+// multi-group machinery stays backend-only. Card click opens `/stocks/:ticker`,
+// where research runs and artifact history live.
 //
 // A ticker is the primary object: a live market snapshot AND many research
 // artifacts. The card shows the snapshot + latest verdict + report count; the
-// inspector splits Market from the Latest Research Artifact (at-run price frozen)
-// and lists the full artifact history. Remove drops list membership, never
-// artifacts. Landing view = Needs Action — the triage queue IS the homepage.
+// detail workspace owns running research and reviewing historical runs.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
 import { useI18n } from '../i18n'
 import { useCoverageStore } from '../stores/coverageStore'
-import { useRunStreamStore } from '../stores/runStreamStore'
-import {
-  useBatchRun,
-  useCoverageGroups,
-  useCoverageOverview,
-  useRemoveMember,
-} from '../hooks/useCoverage'
+import { useCoverageGroups, useCoverageOverview } from '../hooks/useCoverage'
 import { CoverageEmptyState } from '../components/coverage/CoverageEmptyState'
-import { CoverageHero } from '../components/coverage/CoverageHero'
 import { CoverageTrustStrip } from '../components/coverage/CoverageTrustStrip'
 import { WallHeader } from '../components/coverage/WallHeader'
 import { CoverageCardGrid } from '../components/coverage/CoverageCardGrid'
-import { CoverageInspector } from '../components/coverage/CoverageInspector'
 import { sortCoverageRows, type CoverageSort } from '../components/coverage/coverageSort'
 import {
   COVERAGE_FILTERS,
@@ -37,8 +25,6 @@ import {
   matchesFilter,
   type CoverageFilter,
 } from '../components/coverage/coverageFilter'
-import { useToastStore } from '../stores/toastStore'
-import { mapErrorToUserMessage } from '../utils/errorMessage'
 
 // Default applied sort when none is stored: most-urgent first, so the names that
 // need the analyst surface at the top.
@@ -47,35 +33,19 @@ const DEFAULT_SORT: CoverageSort = { key: 'needs_action', dir: 'desc' }
 export function CoveragePage(): React.ReactElement {
   const { t } = useI18n()
   const navigate = useNavigate()
-  const toast = useToastStore((s) => s.addToast)
 
   const groupsQuery = useCoverageGroups()
   const groups = groupsQuery.data ?? []
 
-  const selectedTickers = useCoverageStore((s) => s.selectedTickers)
-  const toggleTicker = useCoverageStore((s) => s.toggleTicker)
-  const clearSelection = useCoverageStore((s) => s.clearSelection)
-  const focusedTicker = useCoverageStore((s) => s.focusedTicker)
-  const setFocusedTicker = useCoverageStore((s) => s.setFocusedTicker)
   const sortByGroup = useCoverageStore((s) => s.sortByGroup)
   const setSort = useCoverageStore((s) => s.setSort)
   // One shipped density (comfort). The toggle was cut; the store field stays so
   // the card/grid sizing props keep working, pinned to comfort.
   const density = useCoverageStore((s) => s.density)
 
-  // Landing view = the triage queue. The analyst's first question is "what needs
-  // me", so Needs Action is the homepage, not an unfiltered dump.
-  const [filter, setFilter] = useState<CoverageFilter>('needs_action')
-
-  // A card's "N reports" click (UX-009) asks the inspector to open on its
-  // History tab. Carries the ticker + a monotonic nonce: the nonce makes every
-  // click a distinct request (so re-clicking the same already-focused card
-  // re-opens History even after the user manually switched tabs), while the
-  // ticker scopes the request so it only applies to its own card.
-  const [historyRequest, setHistoryRequest] = useState<{ ticker: string; nonce: number } | null>(
-    null,
-  )
-  const wantsHistory = historyRequest?.ticker === focusedTicker
+  // Archive default: show the whole studied universe first. Needs Action remains
+  // one lens, but it no longer blanks the page when there is nothing urgent.
+  const [filter, setFilter] = useState<CoverageFilter>('all')
 
   // Market-degraded retry bar (BUG-032): the fast skeleton painted the table but
   // the full (market) fetch failed, so price/market-cap/multiples columns keep
@@ -110,23 +80,6 @@ export function CoveragePage(): React.ReactElement {
     return counts
   }, [rows])
 
-  // Focus management: keep the inspector on a real, currently-visible card.
-  // Resets to the first visible card when focus is empty (group switch nulls it)
-  // or when the focused ticker dropped out of view (filtered out / removed).
-  useEffect(() => {
-    if (visibleRows.length === 0) {
-      if (focusedTicker !== null) setFocusedTicker(null)
-      return
-    }
-    const stillVisible = focusedTicker && visibleRows.some((r) => r.ticker === focusedTicker)
-    if (!stillVisible) setFocusedTicker(visibleRows[0].ticker)
-  }, [visibleRows, focusedTicker, setFocusedTicker])
-
-  const focusedRow = useMemo(
-    () => rows.find((r) => r.ticker === focusedTicker) ?? null,
-    [rows, focusedTicker],
-  )
-
   // Re-arm the market-degraded retry bar on each fresh failure: when marketError
   // flips false→true (e.g. a retry failed again, or a new group's full fetch
   // fails), clear a prior dismissal so the user sees it again.
@@ -135,87 +88,6 @@ export function CoveragePage(): React.ReactElement {
     if (overviewQuery.marketError && !prevMarketErrorRef.current) setMarketRetryDismissed(false)
     prevMarketErrorRef.current = overviewQuery.marketError
   }, [overviewQuery.marketError])
-
-  // ── Run completion → refresh the desk ────────────────────────────────────
-  // Runs launched from a card / inspector are async (SSE-tracked in
-  // runStreamStore). Without this, a card fires off a run, shows "running",
-  // and then stays stuck on that snapshot — the overview's staleTime (30s,
-  // no refetch-on-focus) never re-pulls run_status / research_count / latest_at.
-  // Mirror StockWorkspace: when any tracked run transitions to completed /
-  // failed, invalidate the read models it touched. Deduped per runId so a
-  // progress tick doesn't re-invalidate.
-  const queryClient = useQueryClient()
-  const runs = useRunStreamStore((s) => s.runs)
-  const trackBatchRuns = useRunStreamStore((s) => s.trackBatchRuns)
-  const closeBatchStream = useRunStreamStore((s) => s.closeBatchStream)
-  const notifiedRunsRef = useRef<Set<string>>(new Set())
-  useEffect(() => {
-    for (const run of Object.values(runs)) {
-      if (run.status !== 'completed' && run.status !== 'failed') continue
-      const key = `${run.runId}:${run.status}`
-      if (notifiedRunsRef.current.has(key)) continue
-      notifiedRunsRef.current.add(key)
-      // Key-prefix invalidation (TanStack matches by prefix), mirroring the
-      // hooks: overview (run_status / counts / latest_*), the ticker's artifact
-      // timeline (a new artifact appended), and the studied-tickers list.
-      queryClient.invalidateQueries({ queryKey: ['coverage', 'overview'] })
-      queryClient.invalidateQueries({ queryKey: ['v5-artifacts-timeline', run.ticker] })
-      queryClient.invalidateQueries({ queryKey: ['studied-tickers'] })
-    }
-  }, [runs, queryClient])
-
-  // ── Teardown the aggregated batch stream on unmount ───────────────────────
-  // The Coverage batch opens ONE long-lived SSE connection (BUG-031). Unlike
-  // single-run streams — which intentionally survive navigation so a 30-60s run
-  // keeps tracking — the batch connection is owned by THIS page: nothing else
-  // reads it, so leaving it open on navigate-away leaks a connection (and, on
-  // HTTP/1.1, a pool slot). Close it on unmount. The runs themselves keep going
-  // on the backend and their final state is already in the store for the badge;
-  // re-entering Coverage just won't live-stream the in-flight ones (acceptable —
-  // the overview's invalidation on the next completion still refreshes the desk).
-  useEffect(() => {
-    return () => closeBatchStream()
-  }, [closeBatchStream])
-
-  // ── Responsive: side inspector vs bottom dock ─────────────────────────────
-  // A fixed 300px right inspector + the card wall can't coexist once the AI
-  // panel eats the width (BUG: cards clipped at the default window). Below a
-  // workspace-width threshold the inspector stacks BELOW the wall as a capped
-  // dock, so the cards keep a full-width single column instead of being crushed.
-  const [stacked, setStacked] = useState(false)
-  // Callback ref (not useRef + useEffect): the workspace node mounts AFTER the
-  // groups-loading gate below clears, so an effect with [] deps would attach the
-  // observer to a null ref on the placeholder frame and never re-run once the
-  // real layout mounts — leaving `stacked` stuck false (dock never engages). A
-  // callback ref fires on every attach/detach, so the observer always binds.
-  const roRef = useRef<ResizeObserver | null>(null)
-  const workspaceRef = useCallback((el: HTMLDivElement | null) => {
-    roRef.current?.disconnect()
-    if (!el || typeof ResizeObserver === 'undefined') {
-      roRef.current = null
-      return
-    }
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width ?? 0
-      // ~360 min card column + 300 inspector + 16 gap ≈ 676; stack a touch above.
-      setStacked(w > 0 && w < 720)
-    })
-    ro.observe(el)
-    roRef.current = ro
-  }, [])
-
-  // Compare needs ≥2 distinct tickers (focused + multi-select). Drives the
-  // inspector's Compare enabled-state so it never looks actionable then dead-ends.
-  const compareReady = useMemo(
-    () => new Set([focusedTicker, ...selectedTickers].filter(Boolean)).size >= 2,
-    [focusedTicker, selectedTickers],
-  )
-
-  // batchRun / removeMember drive the card + inspector actions. Group
-  // create/add were removed with the cold-start "build a group" form: the empty
-  // state now leads with search and coverage auto-enrolls on /stocks/:ticker.
-  const batchRun = useBatchRun()
-  const removeMember = useRemoveMember()
 
   // ── Groups still loading → full-page placeholder, NOT a false empty state ──
   // Cold start: while groups load, activeGroupId is null → useCoverageOverview
@@ -242,101 +114,13 @@ export function CoveragePage(): React.ReactElement {
     )
   }
 
-  // ── No coverage yet → search-first cold start (UX-001/UX-014) ─────────────
+  // ── No coverage yet → archive-empty state ────────────────────────────────
   // Loading + error are handled above, so reaching here means groups resolved
-  // to empty. The empty state leads with the same search hero as the populated
-  // desk; opening a ticker auto-enrolls it, so coverage builds from research.
+  // to empty. Research starts from `/research`; this route stays the management
+  // surface and points the user back to the search-first entry.
   if (groups.length === 0) {
     return <CoverageEmptyState />
   }
-
-  // ── Handlers ──────────────────────────────────────────────────────────────
-
-  function handleRun(tickers: string[]) {
-    if (!activeGroupId || tickers.length === 0) return
-    batchRun.mutate(
-      { id: activeGroupId, tickers },
-      {
-        onSuccess: (res) => {
-          if (res.runs.length === 0 && res.skipped.length > 0) {
-            toast({
-              type: 'error',
-              title: t('coverage.toast.allSkipped', {
-                skipped: res.skipped.length,
-                reason: res.skipped[0]?.reason ?? '',
-              }),
-            })
-            return
-          }
-          // Register the whole batch over ONE aggregated SSE connection
-          // (/api/runs/events?ids=…). Per-run EventSources saturate the browser's
-          // ~6-conn HTTP/1.1 pool, so a 10-ticker batch starved runs 7-10 AND
-          // blocked all other polling — the app froze (BUG-031). trackBatchRuns
-          // seeds each ticker's 'running' state and multiplexes every run's
-          // events back to its ticker, so the run-completion effect below still
-          // fires per ticker and the desk refreshes on each completion.
-          trackBatchRuns(
-            res.runs.map((r) => ({ runId: r.run_id, ticker: r.ticker })),
-            res.pipeline_type,
-          )
-          toast({
-            type: res.skipped.length ? 'info' : 'success',
-            title: t('coverage.toast.launched', {
-              n: res.runs.length,
-              skipped: res.skipped.length,
-            }),
-          })
-          clearSelection()
-        },
-        onError: (err) =>
-          toast({
-            type: 'error',
-            title: t('coverage.toast.runFailed'),
-            description: mapErrorToUserMessage(err),
-          }),
-      },
-    )
-  }
-
-  function handleCompare(tickers: string[]) {
-    const unique = [...new Set(tickers)]
-    if (unique.length < 2) {
-      toast({ type: 'info', title: t('coverage.toast.compareNeedsTwo') })
-      return
-    }
-    navigate(`/compare?tickers=${encodeURIComponent(unique.join(','))}`)
-  }
-
-  // UX-009: a card's "N reports" click jumps straight to that ticker's history.
-  // Focus the ticker and flag a history request; the inspector is remounted
-  // (key below) so its tab state re-seeds to 'history' even if the ticker was
-  // already focused on another tab.
-  function handleOpenHistory(ticker: string) {
-    setFocusedTicker(ticker)
-    setHistoryRequest((prev) => ({ ticker, nonce: (prev?.nonce ?? 0) + 1 }))
-  }
-
-  function handleRemoveMember(ticker: string) {
-    if (!activeGroupId) return
-    removeMember.mutate(
-      { id: activeGroupId, ticker },
-      {
-        // Drop the removed ticker from the multi-select so a stale id can't be
-        // batch-run. Focus is re-resolved by the effect once the row vanishes.
-        onSuccess: () => {
-          if (selectedTickers.includes(ticker)) toggleTicker(ticker)
-        },
-        onError: (err) =>
-          toast({
-            type: 'error',
-            title: t('coverage.error.removeFailed'),
-            description: mapErrorToUserMessage(err),
-          }),
-      },
-    )
-  }
-
-  const hasSelection = selectedTickers.length > 0
 
   return (
     <div
@@ -344,16 +128,9 @@ export function CoveragePage(): React.ReactElement {
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        // Stacked (narrow) mode scrolls vertically: the tall hero + wrapped
-        // toolbar + docked inspector can't all share a fixed viewport height
-        // without crushing the card wall to nothing, so let the page grow and
-        // scroll (spec: small windows are usable + scrollable, not pixel-tight).
-        overflowY: stacked ? 'auto' : undefined,
         padding: '20px 24px',
       }}
     >
-      <CoverageHero />
-
       {/* Track record — the credibility proof for the analyst/quant, scoped to
           the active group. Renders only with a non-empty scope; suppresses the
           percentage until the sample is large enough (UX-013). */}
@@ -381,151 +158,35 @@ export function CoveragePage(): React.ReactElement {
         />
       )}
 
-      {/* Batch action bar — only when a multi-select exists. Keeps batch ops
-          (Run / Compare) out of the toolbar's single-ticker flow. */}
-      {hasSelection && (
-        <div
-          style={{
-            display: 'flex',
-            flexShrink: 0,
-            alignItems: 'center',
-            gap: 12,
-            marginBottom: 12,
-            padding: '8px 14px',
-            border: '1px solid var(--border-glow)',
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--primary-soft)',
-          }}
-        >
-          <span
-            style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: 12 }}
-          >
-            {t('coverage.batch.selected', { n: selectedTickers.length })}
-          </span>
-          <BarButton
-            label={t('coverage.runSelected', { n: selectedTickers.length })}
-            onClick={() => handleRun(selectedTickers)}
-            disabled={batchRun.isPending}
-            primary
-          />
-          <BarButton
-            label={t('coverage.compareSelected')}
-            onClick={() => handleCompare(selectedTickers)}
-            disabled={selectedTickers.length < 2}
-          />
-          <BarButton label={t('coverage.batch.clear')} onClick={clearSelection} />
-        </div>
-      )}
-
-      {/* Card wall + inspector — side-by-side when wide, inspector docks below
-          when the workspace is too narrow (so cards never get crushed). */}
+      {/* Card wall — every card is a direct link to the ticker workspace. */}
       <div
-        ref={workspaceRef}
         style={{
-          display: 'flex',
-          flexDirection: stacked ? 'column' : 'row',
-          gap: 16,
-          // Side mode fills the remaining viewport; stacked mode sizes to content
-          // (wall + dock) and lets the PAGE scroll to reach the dock.
-          flex: stacked ? '0 0 auto' : 1,
+          flex: 1,
           minHeight: 0,
+          minWidth: 0,
         }}
       >
-        <div
-          style={{
-            flex: stacked ? '0 0 auto' : 1,
-            minWidth: 0,
-            minHeight: 0,
-            // Stacked: the wall is a CONTROLLED-height viewport that scrolls
-            // INTERNALLY — so 100 tickers don't grow it to ~10000px and shove the
-            // inspector dock past the bottom. The dock sits right after this box.
-            // Side mode: flex:1 fills the column and the grid scrolls internally.
-            height: stacked ? 'clamp(280px, 55vh, 600px)' : undefined,
-            flexShrink: 0,
-          }}
-        >
-          {overviewQuery.isLoading ? (
-            <Placeholder text={t('coverage.loading')} />
-          ) : overviewQuery.isError ? (
-            <ErrorState
-              message={t('coverage.error.overviewFailed')}
-              retryLabel={t('coverage.error.retry')}
-              onRetry={() => void overviewQuery.refetch()}
-            />
-          ) : rows.length === 0 ? (
-            <Placeholder text={t('coverage.emptyGroup')} />
-          ) : (
-            <CoverageCardGrid
-              rows={visibleRows}
-              density={density}
-              focusedTicker={focusedTicker}
-              selected={selectedTickers}
-              marketPending={overviewQuery.marketPending}
-              showReasons={filter === 'needs_action'}
-              onFocus={setFocusedTicker}
-              onToggleSelect={toggleTicker}
-              onRun={(ticker) => handleRun([ticker])}
-              onOpen={(ticker) => navigate(`/stocks/${ticker}`)}
-              onOpenHistory={handleOpenHistory}
-            />
-          )}
-        </div>
-        <CoverageInspector
-          // Remount when a fresh history request fires (UX-009) so the inspector
-          // re-seeds its internal tab state to 'history' — even for an
-          // already-focused ticker. The ticker in the key keeps normal focus
-          // changes from needlessly remounting.
-          key={
-            wantsHistory
-              ? `history-${historyRequest?.ticker}-${historyRequest?.nonce}`
-              : (focusedTicker ?? 'none')
-          }
-          row={focusedRow}
-          layout={stacked ? 'dock' : 'side'}
-          compareReady={compareReady}
-          initialTab={wantsHistory ? 'history' : undefined}
-          onRun={(ticker) => handleRun([ticker])}
-          onOpen={(ticker) => navigate(`/stocks/${ticker}`)}
-          onCompare={(ticker) => handleCompare([ticker, ...selectedTickers])}
-          onRemove={handleRemoveMember}
-        />
+        {overviewQuery.isLoading ? (
+          <Placeholder text={t('coverage.loading')} />
+        ) : overviewQuery.isError ? (
+          <ErrorState
+            message={t('coverage.error.overviewFailed')}
+            retryLabel={t('coverage.error.retry')}
+            onRetry={() => void overviewQuery.refetch()}
+          />
+        ) : rows.length === 0 ? (
+          <Placeholder text={t('coverage.emptyGroup')} />
+        ) : (
+          <CoverageCardGrid
+            rows={visibleRows}
+            density={density}
+            marketPending={overviewQuery.marketPending}
+            showReasons={filter === 'needs_action'}
+            onOpen={(ticker) => navigate(`/stocks/${ticker}`)}
+          />
+        )}
       </div>
     </div>
-  )
-}
-
-function BarButton({
-  label,
-  onClick,
-  disabled,
-  primary,
-}: {
-  label: string
-  onClick: () => void
-  disabled?: boolean
-  primary?: boolean
-}): React.ReactElement {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        padding: '6px 14px',
-        borderRadius: 'var(--radius-md)',
-        fontSize: 12,
-        fontWeight: 500,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.45 : 1,
-        border: primary ? 'none' : '1px solid var(--border-soft)',
-        background: primary
-          ? 'linear-gradient(135deg, var(--primary), var(--secondary))'
-          : 'transparent',
-        color: primary ? 'var(--text-on-primary)' : 'var(--text-secondary)',
-      }}
-    >
-      {label}
-    </button>
   )
 }
 

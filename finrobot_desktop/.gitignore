@@ -60,6 +60,9 @@ CLAUDE.md
 # Claude Code config (local, not version-controlled)
 .claude/
 
+# npx skills lock 文件（skills 本体落在 .claude/skills/，已随 .claude/ 忽略；lock 也不进仓库）
+skills-lock.json
+
 # Codex CLI config (local, not version-controlled)
 .codex/
 

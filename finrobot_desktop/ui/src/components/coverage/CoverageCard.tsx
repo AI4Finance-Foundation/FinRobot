@@ -1,10 +1,10 @@
 // CoverageCard — one ticker in the workspace card wall. Uniform height via a
 // minHeight FLOOR (comfort 244 / compact 196), not a hard `height` cap: the
-// content (head · price · 2×2 metrics · quality row · report/actions row) is
+// content (head · price · 2×2 metrics · quality row · report count) is
 // fixed-shape — company names ellipsis, status text ellipsis — so every card
 // renders the same height anyway, but a hard cap shorter than that content
-// silently clipped the bottom actions row (run/open buttons + report count were
-// invisible). The floor keeps the rhythm without ever hiding a control. Every
+// silently clipped the bottom row. The floor keeps the rhythm without ever
+// hiding content. Every
 // number renders through SourcedNumber (provenance popover + inline amber
 // warning), 涨绿跌红, mono digits, all colors via cosmic tokens.
 //
@@ -31,21 +31,13 @@ import type { CoverageDensity } from '../../stores/coverageStore'
 interface Props {
   row: CoverageRow
   density: CoverageDensity
-  focused: boolean
-  selected: boolean
   // Fast-skeleton phase: market cells render as a loading shimmer, not '—'.
   marketPending?: boolean
   // True only in the Needs Action triage view — surfaces the full, un-truncated
   // "why this card needs you" reason row (UX-005). Kept off the All view so it
   // stays compact.
   showReasons?: boolean
-  onFocus: (ticker: string) => void
-  onToggleSelect: (ticker: string) => void
-  onRun: (ticker: string) => void
   onOpen: (ticker: string) => void
-  // Jump straight to this ticker's full artifact history (inspector History tab),
-  // skipping the workspace round-trip (UX-009).
-  onOpenHistory: (ticker: string) => void
 }
 
 const VERDICT: Record<string, { color: string; bg: string }> = {
@@ -76,15 +68,9 @@ function cardStatus(
 export const CoverageCard = memo(function CoverageCard({
   row,
   density,
-  focused,
-  selected,
   marketPending = false,
   showReasons = false,
-  onFocus,
-  onToggleSelect,
-  onRun,
   onOpen,
-  onOpenHistory,
 }: Props): React.ReactElement {
   const { t, locale } = useI18n()
   const compact = density === 'compact'
@@ -113,21 +99,15 @@ export const CoverageCard = memo(function CoverageCard({
     <article
       data-ticker={row.ticker}
       data-testid={`coverage-card-${row.ticker}`}
-      role="button"
+      role="link"
       tabIndex={0}
-      aria-pressed={focused}
-      aria-current={focused || undefined}
-      onClick={() => onFocus(row.ticker)}
+      aria-label={t('coverage.card.open', { ticker: row.ticker })}
+      onClick={() => onOpen(row.ticker)}
       onKeyDown={(e) => {
-        // Only act when the article itself holds focus — Enter/Space on the
-        // inner checkbox / run / open controls bubbles up as a keydown (their
-        // stopPropagation only guards onClick, not onKeyDown), so without this
-        // target guard pressing Space on the checkbox would both toggle it AND
-        // move the inspector focus (double-trigger).
         if (e.target !== e.currentTarget) return
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
-          onFocus(row.ticker)
+          onOpen(row.ticker)
         }
       }}
       style={{
@@ -143,17 +123,9 @@ export const CoverageCard = memo(function CoverageCard({
         boxSizing: 'border-box',
         cursor: 'pointer',
         borderRadius: 'var(--radius-lg)',
-        border: `1px solid ${
-          focused
-            ? 'var(--border-glow)'
-            : needsWarn
-              ? 'var(--border-amber-soft)'
-              : 'var(--border-soft)'
-        }`,
-        background: selected
-          ? 'var(--primary-soft)'
-          : 'linear-gradient(180deg, var(--bg-card-deep), var(--bg-card-overlay))',
-        boxShadow: focused ? '0 8px 32px var(--primary-soft)' : 'none',
+        border: `1px solid ${needsWarn ? 'var(--border-amber-soft)' : 'var(--border-soft)'}`,
+        background: 'linear-gradient(180deg, var(--bg-card-deep), var(--bg-card-overlay))',
+        boxShadow: 'none',
         // NOTE: content-visibility:auto windowing was removed here. It reported
         // contain-intrinsic-size as the card's grid-row height, capping the box
         // shorter than its content and clipping the actions row (run/open) — the
@@ -162,8 +134,9 @@ export const CoverageCard = memo(function CoverageCard({
         // real list virtualization, not a size hint that silently truncates.
       }}
     >
-      {/* Head: ticker / company + batch-select checkbox (selection is separate
-          from focus — ticking it must not move the inspector). */}
+      {/* Head: ticker / company + state badge. The entire card opens the ticker
+          workspace; running research lives inside that workspace, not on the
+          coverage archive card. */}
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <div
@@ -190,13 +163,18 @@ export const CoverageCard = memo(function CoverageCard({
             {row.company ?? row.ticker}
           </div>
         </div>
-        <input
-          type="checkbox"
-          checked={selected}
-          onClick={(e) => e.stopPropagation()}
-          onChange={() => onToggleSelect(row.ticker)}
-          aria-label={t('coverage.row.selectOne', { ticker: row.ticker })}
-          style={{ marginTop: 2, cursor: 'pointer', flexShrink: 0 }}
+        <span
+          style={{
+            flexShrink: 0,
+            marginTop: 2,
+            width: 18,
+            height: 18,
+            borderRadius: 'var(--radius-pill)',
+            border: '1px solid var(--border-soft)',
+            background: needsWarn ? 'var(--warning-soft)' : 'var(--primary-soft)',
+            boxShadow: needsWarn ? 'var(--warning-glow)' : 'var(--glow-blue-soft)',
+          }}
+          aria-hidden
         />
       </div>
 
@@ -435,33 +413,21 @@ export const CoverageCard = memo(function CoverageCard({
         </span>
       </div>
 
-      {/* Actions — report count + latest date, then run / open. */}
+      {/* Report count + latest date. Card click opens the ticker workspace, where
+          the user can run research and inspect prior artifacts. */}
       <div
         style={{
           display: 'flex',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-start',
           alignItems: 'center',
           gap: 8,
           marginTop: compact ? 8 : 10,
         }}
       >
-        {/* Report tally doubles as a one-click jump to the full history list
-            (UX-009): clicking it focuses this ticker AND opens the inspector's
-            History tab — no workspace round-trip. */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            onOpenHistory(row.ticker)
-          }}
-          aria-label={t('coverage.card.openHistory', { ticker: row.ticker })}
+        <span
           style={{
             minWidth: 0,
-            padding: 0,
-            border: 'none',
-            background: 'transparent',
             textAlign: 'left',
-            cursor: 'pointer',
             color: 'var(--text-muted)',
             fontFamily: 'var(--font-mono)',
             fontSize: 10,
@@ -481,26 +447,6 @@ export const CoverageCard = memo(function CoverageCard({
             : row.artifact_count > 0
               ? t('coverage.card.modelOnly', { n: row.artifact_count })
               : t('coverage.card.noReports')}
-        </button>
-        <span style={{ display: 'inline-flex', gap: 4, flexShrink: 0 }}>
-          <IconButton
-            label={t('coverage.runOne')}
-            onClick={(e) => {
-              e.stopPropagation()
-              onRun(row.ticker)
-            }}
-          >
-            ▶
-          </IconButton>
-          <IconButton
-            label={t('coverage.card.open', { ticker: row.ticker })}
-            onClick={(e) => {
-              e.stopPropagation()
-              onOpen(row.ticker)
-            }}
-          >
-            ↗
-          </IconButton>
         </span>
       </div>
     </article>
@@ -550,40 +496,6 @@ function Metric({
         {children}
       </span>
     </div>
-  )
-}
-
-function IconButton({
-  label,
-  onClick,
-  children,
-}: {
-  label: string
-  onClick: (e: React.MouseEvent) => void
-  children: React.ReactNode
-}): React.ReactElement {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      style={{
-        width: 28,
-        height: 28,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        border: '1px solid var(--border-soft)',
-        borderRadius: 'var(--radius-sm)',
-        background: 'var(--bg-elevated)',
-        color: 'var(--text-secondary)',
-        cursor: 'pointer',
-        fontSize: 12,
-      }}
-    >
-      {children}
-    </button>
   )
 }
 

@@ -1,6 +1,6 @@
 // CoverageTrustStrip — the credibility proof for the target user (analyst /
 // quant): "do this product's calls actually work?" Re-homes the orphaned
-// /api/dashboard/hit-rate (UX-013) as a COMPACT strip under the search hero,
+// /api/dashboard/hit-rate (UX-013) as a COMPACT strip above the archive wall,
 // scoped to the active coverage group's tickers (portfolio-level is the only
 // statistically meaningful scope — a single name has too few closed calls).
 //

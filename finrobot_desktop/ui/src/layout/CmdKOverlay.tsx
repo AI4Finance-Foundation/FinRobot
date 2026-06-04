@@ -21,7 +21,6 @@ import { Title as DialogTitle, Description as DialogDescription } from '@radix-u
 import { useQuery } from '@tanstack/react-query'
 import { useDebounce } from 'use-debounce'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useCoverageStore } from '../stores/coverageStore'
 import { useToastStore } from '../stores/toastStore'
 import { useUiStore } from '../stores/uiStore'
 import { useI18n, tSync } from '../i18n'
@@ -522,15 +521,19 @@ export function CmdKOverlay() {
   }, [trimmedQuery, handleClose])
 
   // ---------------------------------------------------------------------------
-  // Static Coverage commands — local actions (not backend search results). Only
-  // the ones that work without in-page group/mutation context: navigate to the
-  // desk, and compare the current selection. "Add X to Coverage" / "Run
-  // selection" need the active group + mutations and belong to an in-page
-  // command surface (follow-up), not this global palette.
+  // Static app commands — local actions (not backend search results). Keep
+  // global navigation reachable even when the remote /api/search call fails.
   // ---------------------------------------------------------------------------
-  const coverageSelection = useCoverageStore((s) => s.selectedTickers)
   const staticCommands = useMemo(() => {
     const cmds: { id: string; title: string; subtitle?: string; run: () => void }[] = [
+      {
+        id: 'research-open',
+        title: t('cmdk.research.open'),
+        run: () => {
+          navigate('/research')
+          handleClose()
+        },
+      },
       {
         id: 'coverage-open',
         title: t('cmdk.coverage.open'),
@@ -540,19 +543,6 @@ export function CmdKOverlay() {
         },
       },
     ]
-    if (coverageSelection.length >= 2) {
-      cmds.push({
-        id: 'coverage-compare',
-        title: t('cmdk.coverage.compare', { n: coverageSelection.length }),
-        subtitle: coverageSelection.join(', '),
-        run: () => {
-          navigate(`/compare?tickers=${encodeURIComponent(coverageSelection.join(','))}`)
-          handleClose()
-        },
-      })
-    }
-    // Settings — a global destination that must stay reachable even when the
-    // remote /api/search call fails (this palette is the app's command surface).
     cmds.push({
       id: 'open-settings',
       title: locale === 'zh' ? '打开设置' : 'Open Settings',
@@ -562,7 +552,7 @@ export function CmdKOverlay() {
       },
     })
     return cmds
-  }, [t, navigate, handleClose, coverageSelection, locale])
+  }, [t, navigate, handleClose, locale])
 
   const filteredStatic = useMemo(() => {
     if (trimmedQuery.length === 0) return staticCommands
@@ -822,9 +812,12 @@ export function CmdKOverlay() {
           </Command.Group>
         )}
 
-        {/* Coverage commands — local actions, shown first */}
+        {/* Navigation commands — local actions, shown first */}
         {filteredStatic.length > 0 && (
-          <Command.Group heading={t('cmdk.section.coverage')} data-testid="coverage-commands-group">
+          <Command.Group
+            heading={t('cmdk.section.navigation')}
+            data-testid="coverage-commands-group"
+          >
             {filteredStatic.map((c) => (
               <Command.Item
                 key={c.id}

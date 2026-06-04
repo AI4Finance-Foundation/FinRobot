@@ -290,8 +290,12 @@ msgid "nav.settings"
 msgstr "设置"
 
 #. js-lingui-explicit-id
+msgid "nav.research"
+msgstr "研究"
+
+#. js-lingui-explicit-id
 msgid "nav.coverage"
-msgstr "覆盖池"
+msgstr "覆盖档案"
 
 #. js-lingui-explicit-id
 msgid "nav.stocks"
@@ -2034,6 +2038,18 @@ msgid "landing.hero.analyze"
 msgstr "分析"
 
 #. js-lingui-explicit-id
+msgid "landing.hero.cockpitLabel"
+msgstr "AI 研究驾驶舱"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.traceRail"
+msgstr "函数轨迹"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.chapterMatrix"
+msgstr "章节矩阵"
+
+#. js-lingui-explicit-id
 msgid "landing.hitRate.window30d"
 msgstr "30 天"
 
@@ -3298,20 +3314,8 @@ msgid "coverage.run"
 msgstr "运行"
 
 #. js-lingui-explicit-id
-msgid "coverage.runOne"
-msgstr "运行该股研究"
-
-#. js-lingui-explicit-id
 msgid "coverage.running"
 msgstr "运行中"
-
-#. js-lingui-explicit-id
-msgid "coverage.runSelected"
-msgstr "运行研究 ({n})"
-
-#. js-lingui-explicit-id
-msgid "coverage.compareSelected"
-msgstr "对比"
 
 #. js-lingui-explicit-id
 msgid "coverage.loading"
@@ -3338,68 +3342,12 @@ msgid "coverage.error.dismiss"
 msgstr "关闭"
 
 #. js-lingui-explicit-id
-msgid "coverage.error.createFailed"
-msgstr "创建覆盖组失败"
-
-#. js-lingui-explicit-id
-msgid "coverage.error.addFailed"
-msgstr "添加 ticker 失败"
-
-#. js-lingui-explicit-id
-msgid "coverage.error.invalidTickers"
-msgstr "已忽略非法代码：{tickers}"
-
-#. js-lingui-explicit-id
-msgid "coverage.error.removeFailed"
-msgstr "移除 ticker 失败"
-
-#. js-lingui-explicit-id
-msgid "coverage.menu.manage"
-msgstr "管理分组"
-
-#. js-lingui-explicit-id
-msgid "coverage.menu.rename"
-msgstr "重命名"
-
-#. js-lingui-explicit-id
-msgid "coverage.menu.delete"
-msgstr "删除分组"
-
-#. js-lingui-explicit-id
-msgid "coverage.confirm.cancel"
-msgstr "取消"
-
-#. js-lingui-explicit-id
-msgid "coverage.confirm.deleteGroupTitle"
-msgstr "删除覆盖分组"
-
-#. js-lingui-explicit-id
-msgid "coverage.confirm.deleteGroup"
-msgstr "删除“{name}”及其全部 ticker？此操作无法撤销。"
-
-#. js-lingui-explicit-id
 msgid "coverage.emptyGroup"
-msgstr "还没有 ticker——在上方添加。"
-
-#. js-lingui-explicit-id
-msgid "coverage.toast.launched"
-msgstr "已启动 {n} 个运行；跳过 {skipped} 个"
-
-#. js-lingui-explicit-id
-msgid "coverage.toast.runFailed"
-msgstr "启动运行失败"
-
-#. js-lingui-explicit-id
-msgid "coverage.toast.allSkipped"
-msgstr "没有启动任何运行——{skipped} 个全部跳过：{reason}"
-
-#. js-lingui-explicit-id
-msgid "coverage.toast.compareNeedsTwo"
-msgstr "对比至少需要选择 2 个 ticker"
+msgstr "还没有覆盖记录 — 打开研究入口搜索第一支股票。"
 
 #. js-lingui-explicit-id
 msgid "compare.back"
-msgstr "覆盖"
+msgstr "覆盖档案"
 
 #. js-lingui-explicit-id
 msgid "compare.title"
@@ -3442,16 +3390,16 @@ msgid "compare.vintageWarn"
 msgstr "这些 DCF 的生成时间相差 {days} 天——并非同一时点算出，因此上行空间各列不可直接横向对比。对比前请重新运行过期的 ticker。"
 
 #. js-lingui-explicit-id
-msgid "cmdk.section.coverage"
-msgstr "覆盖"
+msgid "cmdk.section.navigation"
+msgstr "导航"
+
+#. js-lingui-explicit-id
+msgid "cmdk.research.open"
+msgstr "打开研究入口"
 
 #. js-lingui-explicit-id
 msgid "cmdk.coverage.open"
-msgstr "打开 Coverage Desk"
-
-#. js-lingui-explicit-id
-msgid "cmdk.coverage.compare"
-msgstr "对比选中的 {n} 个 ticker"
+msgstr "打开覆盖档案"
 
 #. js-lingui-explicit-id
 msgid "coverage.filterEmpty"
@@ -3514,150 +3462,6 @@ msgid "coverage.card.open"
 msgstr "打开 {ticker}"
 
 #. js-lingui-explicit-id
-msgid "coverage.row.selectOne"
-msgstr "选择 {ticker}"
-
-#. js-lingui-explicit-id
-msgid "coverage.batch.selected"
-msgstr "已选 {n}"
-
-#. js-lingui-explicit-id
-msgid "coverage.batch.clear"
-msgstr "清空"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.title"
-msgstr "股票详情"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.empty"
-msgstr "点选卡片查看详情"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.tab.live"
-msgstr "市场快照"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.marketState"
-msgstr "行情状态"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.stateClose"
-msgstr "收盘价（非实时）"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.stateDelayed"
-msgstr "延迟行情"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.tab.report"
-msgstr "最新研报"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.tab.history"
-msgstr "历史"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.tab.quality"
-msgstr "数据质量"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.liveTitle"
-msgstr "市场快照"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.reportTitle"
-msgstr "最新研报快照"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.historyTitle"
-msgstr "全部分析记录"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.recordCounts"
-msgstr "研报 {research} · 全部记录 {artifact}"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.provider"
-msgstr "数据源"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.asOf"
-msgstr "更新于"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.reportDate"
-msgstr "研报日期"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.atRunPrice"
-msgstr "研报时价格"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.targetPrice"
-msgstr "目标价"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.liveUpside"
-msgstr "实时空间"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.upsideVsLatest"
-msgstr "{pct}（对最新价）"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.noReport"
-msgstr "尚无研报"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.historyError"
-msgstr "历史加载失败"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.openArtifact"
-msgstr "打开研报"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.currency"
-msgstr "币种"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.revenueBasis"
-msgstr "营收口径"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.warning"
-msgstr "警告"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.noWarning"
-msgstr "无"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.runResearch"
-msgstr "跑研报"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.openStock"
-msgstr "打开股票页"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.compare"
-msgstr "对比"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.compareHint"
-msgstr "选择另一个再对比"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.remove"
-msgstr "移出"
-
-#. js-lingui-explicit-id
-msgid "coverage.inspector.removeNote"
-msgstr "移出只把它从工作台拿掉；该股票的历史研报仍保留在股票页。"
-
-#. js-lingui-explicit-id
 msgid "compare.addEntry"
 msgstr "对比…"
 
@@ -3694,24 +3498,16 @@ msgid "compare.pickSameTicker"
 msgstr "这就是当前股票"
 
 #. js-lingui-explicit-id
-msgid "coverage.card.openHistory"
-msgstr "查看 {ticker} 研报历史"
+msgid "coverage.emptyArchive.title"
+msgstr "还没有覆盖记录"
 
 #. js-lingui-explicit-id
-msgid "coverage.history.delete"
-msgstr "删除"
+msgid "coverage.emptyArchive.body"
+msgstr "先从研究入口搜索一支股票。第一支跑过的股票会自动沉淀到这里，带着历史研报和最新状态。"
 
 #. js-lingui-explicit-id
-msgid "coverage.history.deleteTitle"
-msgstr "删除存档"
-
-#. js-lingui-explicit-id
-msgid "coverage.history.deleteConfirm"
-msgstr "永久删除「{label}」？此操作不可撤销。"
-
-#. js-lingui-explicit-id
-msgid "coverage.history.deleteFailed"
-msgstr "删除存档失败"
+msgid "coverage.emptyArchive.action"
+msgstr "打开研究入口"
 
 #. js-lingui-explicit-id
 msgid "hotState.targetWithheld"
@@ -3782,20 +3578,10 @@ msgstr "90天"
 msgid "coverage.trust.window.all"
 msgstr "全期"
 
-
-#. js-lingui-explicit-id
-msgid "coverage.starter.searchFirstHint"
-msgstr "在上方搜索任意股票代码，生成第一份投行级研报——你研究过的标的会自动沉淀进覆盖台。"
-
 #. js-lingui-explicit-id
 msgid "coverage.starter.quickPick"
 msgstr "快速开始"
 
 #. js-lingui-explicit-id
-msgid "coverage.starter.autoCoverageNote"
-msgstr "无需手动建组。你研究过的每只股票都会自动加入覆盖。"
-
-#. js-lingui-explicit-id
 msgid "coverage.starter.researchTicker"
 msgstr "研究 {ticker}"
-

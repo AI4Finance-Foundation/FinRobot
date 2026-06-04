@@ -1,11 +1,11 @@
 // WallHeader — the card wall's single slim control row, replacing the old
-// CoverageToolbar band. Two things only: a 3-segment triage control (the
-// analyst's landing question "what needs me") on the left, and a compact sort
-// control on the right. Everything the old toolbar carried is gone or demoted:
+// CoverageToolbar band. Two things only: a 3-segment triage control on the left,
+// and a compact sort control on the right. Everything the old toolbar carried
+// is gone or demoted:
 // the workspace switcher (there is one Studied Tickers list, no groups in the
-// UX), batch import (folded into hero search), density (one shipped density),
-// and the has_reports/not_run pills (the card self-reports those). Counts come
-// from the page, computed over the full row set so each segment is honest.
+// UX), add-ticker flow (owned by Research), density (one shipped density), and
+// the has_reports/not_run pills (the card self-reports those). Counts come from
+// the page, computed over the full row set so each segment is honest.
 
 import { useI18n } from '../../i18n'
 import { COVERAGE_FILTERS, type CoverageFilter } from './coverageFilter'
@@ -30,8 +30,8 @@ const FILTER_KEY: Record<CoverageFilter, string> = {
   all: 'coverage.filter.all',
 }
 
-// Triage order: the work first (Needs Action), then in-flight, then everything.
-const TRIAGE_ORDER: CoverageFilter[] = ['needs_action', 'running', 'all']
+// Archive order: everything first, with urgent and running lenses still nearby.
+const TRIAGE_ORDER: CoverageFilter[] = ['all', 'needs_action', 'running']
 
 const SORT_KEY_LABEL: Record<string, string> = {
   needs_action: 'coverage.sort.needsAction',

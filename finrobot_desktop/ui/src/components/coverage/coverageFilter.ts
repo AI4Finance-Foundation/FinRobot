@@ -7,7 +7,7 @@ import { coveragePriority } from './coveragePriority'
 
 // Three triage lenses only. The old has_reports / not_run pills were cut — the
 // card already self-reports those states (research count vs "暂无研报"), so a
-// dedicated filter was redundant chrome. Needs Action is the default landing.
+// dedicated filter was redundant chrome.
 export type CoverageFilter = 'all' | 'needs_action' | 'running'
 
 export const COVERAGE_FILTERS: CoverageFilter[] = ['all', 'needs_action', 'running']

@@ -21,12 +21,6 @@ const hooks = {
 vi.mock('../hooks/useCoverage', () => ({
   useCoverageGroups: () => hooks.groups,
   useCoverageOverview: () => hooks.overview,
-  useCreateGroup: () => ({ mutate: vi.fn(), isPending: false }),
-  useAddMembers: () => ({ mutate: vi.fn() }),
-  useBatchRun: () => ({ mutate: vi.fn(), isPending: false }),
-  useUpdateGroup: () => ({ mutate: vi.fn(), isPending: false }),
-  useDeleteGroup: () => ({ mutate: vi.fn(), isPending: false }),
-  useRemoveMember: () => ({ mutate: vi.fn() }),
 }))
 
 import { CoveragePage } from './CoveragePage'

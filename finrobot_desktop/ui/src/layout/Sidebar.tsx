@@ -5,7 +5,7 @@
 
 import { useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { IconDashboard, IconSettings } from '../lib/icons'
+import { IconDashboard, IconSearch, IconSettings } from '../lib/icons'
 import { useRunStreamStore } from '../stores/runStreamStore'
 import { useI18n } from '../i18n'
 
@@ -13,14 +13,26 @@ interface NavItem {
   /** i18n key resolved at render time via useI18n. */
   labelKey: string
   path: string
+  activePaths?: string[]
   Icon: typeof IconDashboard
 }
 
-// Coverage Desk is the first business menu (research coverage universe). The
-// old /stocks landing folded into it; per-ticker drill-down is reached from the
-// Coverage table, not a top-level menu. The IC debate is likewise report-
-// contextual (ReportToolbar → onOpenIcDebate), not a standalone nav door.
-const TOP_NAV: NavItem[] = [{ labelKey: 'nav.coverage', path: '/coverage', Icon: IconDashboard }]
+// Research is the search-first homepage and owns the per-ticker workspace.
+// Coverage is the archive/management desk for studied tickers.
+const TOP_NAV: NavItem[] = [
+  {
+    labelKey: 'nav.research',
+    path: '/research',
+    activePaths: ['/research', '/stocks'],
+    Icon: IconSearch,
+  },
+  {
+    labelKey: 'nav.coverage',
+    path: '/coverage',
+    activePaths: ['/coverage', '/compare'],
+    Icon: IconDashboard,
+  },
+]
 
 const BOTTOM_NAV: NavItem[] = [{ labelKey: 'nav.settings', path: '/settings', Icon: IconSettings }]
 
@@ -41,8 +53,9 @@ export function Sidebar(): React.ReactElement {
     [activeRuns],
   )
 
-  function isActive(path: string): boolean {
-    return location.pathname.startsWith(path)
+  function isActive(item: NavItem): boolean {
+    const paths = item.activePaths ?? [item.path]
+    return paths.some((path) => location.pathname.startsWith(path))
   }
 
   function handleClick(path: string): void {
@@ -72,9 +85,9 @@ export function Sidebar(): React.ReactElement {
           <SideIcon
             key={item.path}
             item={item}
-            active={isActive(item.path)}
+            active={isActive(item)}
             onClick={() => handleClick(item.path)}
-            badge={item.path === '/coverage' ? runningTickers.length : 0}
+            badge={item.path === '/research' ? runningTickers.length : 0}
           />
         ))}
       </div>
@@ -96,7 +109,7 @@ export function Sidebar(): React.ReactElement {
           <SideIcon
             key={item.path}
             item={item}
-            active={isActive(item.path)}
+            active={isActive(item)}
             onClick={() => handleClick(item.path)}
             badge={0}
           />

@@ -17,30 +17,18 @@ import type { CoverageDensity } from '../../stores/coverageStore'
 interface Props {
   rows: CoverageRow[]
   density: CoverageDensity
-  focusedTicker: string | null
-  selected: string[]
   marketPending?: boolean
   // True in the Needs Action triage view — cards surface their full reason rows.
   showReasons?: boolean
-  onFocus: (ticker: string) => void
-  onToggleSelect: (ticker: string) => void
-  onRun: (ticker: string) => void
   onOpen: (ticker: string) => void
-  onOpenHistory: (ticker: string) => void
 }
 
 export function CoverageCardGrid({
   rows,
   density,
-  focusedTicker,
-  selected,
   marketPending = false,
   showReasons = false,
-  onFocus,
-  onToggleSelect,
-  onRun,
   onOpen,
-  onOpenHistory,
 }: Props): React.ReactElement {
   const { t } = useI18n()
   const compact = density === 'compact'
@@ -88,15 +76,9 @@ export function CoverageCardGrid({
           key={row.ticker}
           row={row}
           density={density}
-          focused={focusedTicker === row.ticker}
-          selected={selected.includes(row.ticker)}
           marketPending={marketPending}
           showReasons={showReasons}
-          onFocus={onFocus}
-          onToggleSelect={onToggleSelect}
-          onRun={onRun}
           onOpen={onOpen}
-          onOpenHistory={onOpenHistory}
         />
       ))}
     </div>

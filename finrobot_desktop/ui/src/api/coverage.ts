@@ -100,18 +100,6 @@ export interface CoverageOverview {
   fast: boolean
 }
 
-export interface BatchRunItem {
-  ticker: string
-  run_id: string
-}
-
-export interface BatchRunResponse {
-  group_id: string
-  pipeline_type: string
-  runs: BatchRunItem[]
-  skipped: { ticker: string; reason: string }[]
-}
-
 export interface CompanyValuation {
   ticker: string
   company_name: string
@@ -163,30 +151,9 @@ const jsonInit = (method: string, body: unknown): RequestInit => ({
 export const coverageApi = {
   listGroups: () => req<CoverageGroupSummary[]>('/api/coverage/groups'),
 
-  createGroup: (name: string, description?: string) =>
-    req<CoverageGroupDetail>('/api/coverage/groups', jsonInit('POST', { name, description })),
-
-  getGroup: (id: string) => req<CoverageGroupDetail>(`/api/coverage/groups/${id}`),
-
-  updateGroup: (id: string, patch: { name?: string; description?: string }) =>
-    req<CoverageGroupDetail>(`/api/coverage/groups/${id}`, jsonInit('PATCH', patch)),
-
-  deleteGroup: (id: string) => req<void>(`/api/coverage/groups/${id}`, { method: 'DELETE' }),
-
-  addMembers: (id: string, tickers: string[], note?: string) =>
-    req<CoverageGroupDetail>(
-      `/api/coverage/groups/${id}/members`,
-      jsonInit('POST', { tickers, note }),
-    ),
-
-  removeMember: (id: string, ticker: string) =>
-    req<CoverageGroupDetail>(`/api/coverage/groups/${id}/members/${encodeURIComponent(ticker)}`, {
-      method: 'DELETE',
-    }),
-
   // Auto-add: enrol an opened ticker into the default Studied Tickers workspace
   // (find-or-create, idempotent). The write side of "opening /stocks/:ticker
-  // enrols it" — distinct from addMembers (which targets a chosen group).
+  // enrols it"; surfaced UI does not expose manual group membership edits.
   addStudiedTicker: (ticker: string) =>
     req<CoverageGroupDetail>('/api/coverage/studied-tickers/members', jsonInit('POST', { ticker })),
 
@@ -197,15 +164,6 @@ export const coverageApi = {
     const suffix = qs.toString() ? `?${qs}` : ''
     return req<CoverageOverview>(`/api/coverage/groups/${id}/overview${suffix}`)
   },
-
-  // pipelineType is a pipeline-registry KEY ('research' | 'dcf' | 'comps' | …),
-  // not an artifact type. 'equity_research' is an artifact type and is NOT a
-  // valid run key — defaulting to it made batch runs silently skip (BUG-049).
-  batchRun: (id: string, tickers: string[], pipelineType = 'research', language?: string) =>
-    req<BatchRunResponse>(
-      `/api/coverage/groups/${id}/runs`,
-      jsonInit('POST', { tickers, pipeline_type: pipelineType, language }),
-    ),
 
   compare: (tickers: string[]) =>
     req<ComparisonResult>(`/api/compare?tickers=${encodeURIComponent(tickers.join(','))}`),

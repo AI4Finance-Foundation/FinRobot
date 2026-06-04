@@ -1036,11 +1036,11 @@ input[type='range']::-moz-range-thumb {
   font-weight: 700;
 }
 
-/* Keyboard focus ring for div/article-based custom buttons (e.g. Coverage Desk
-   cards expose role="button" tabIndex=0). Independent of any focused-state
-   border color so keyboard/screen-reader users always get a visible focus
-   indicator. Only fires for keyboard focus (:focus-visible), never mouse. */
-[role='button']:focus-visible {
+/* Keyboard focus ring for div/article-based custom controls (Coverage cards are
+   role="link" with tabIndex=0; older custom surfaces still use role="button").
+   Only fires for keyboard focus (:focus-visible), never mouse. */
+[role='button']:focus-visible,
+[role='link']:focus-visible {
   outline: 2px solid var(--border-glow);
   outline-offset: 2px;
 }
@@ -5070,11 +5070,8 @@ body.cursor-trail-on * {
 /* ── Coverage Desk hover affordances (UX-011) ────────────────────────────
    The Coverage cards / buttons are inline-styled, so they can't express
    :hover from their own style object. These rules add the missing hover
-   feedback. IMPORTANT: hover is deliberately WEAKER than the focused state
-   (which uses border-glow + a boxShadow, set inline on the card) — hover is
-   border-only with no boxShadow, so a focused card always visually wins and
-   the two states never collide. Tokens only. Transition timing is collapsed
-   by the reduced-motion block below. */
+   feedback. Tokens only. Transition timing is collapsed by the reduced-motion
+   block below. */
 [data-testid^='coverage-card'] {
   transition:
     border-color 0.16s ease,
@@ -5084,18 +5081,14 @@ body.cursor-trail-on * {
   border-color: var(--border-glow);
 }
 
-/* Inspector tab / action buttons + history row icon buttons: subtle
-   border + text lift on hover. No boxShadow — stays below the active /
-   focused emphasis those buttons already carry inline. */
-.coverage-hover-btn,
-.coverage-icon-btn {
+/* Coverage hover buttons: subtle border + text lift on hover. No boxShadow. */
+.coverage-hover-btn {
   transition:
     border-color 0.16s ease,
     color 0.16s ease,
     background 0.16s ease;
 }
-.coverage-hover-btn:hover:not(:disabled),
-.coverage-icon-btn:hover {
+.coverage-hover-btn:hover:not(:disabled) {
   border-color: var(--border-hover);
   color: var(--text-primary);
 }

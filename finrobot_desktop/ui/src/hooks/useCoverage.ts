@@ -1,7 +1,6 @@
-// useCoverage — TanStack Query hooks over the Coverage Desk API. Server state
-// (groups / overview / compare) lives here; UI state (selection) is in
-// coverageStore. Mutations invalidate the queries they affect so the table and
-// group list stay live after an edit / batch run.
+// useCoverage — TanStack Query hooks over the surfaced Coverage API. Server
+// state (system group / overview / compare) lives here; local sort density lives
+// in coverageStore. Opening a ticker auto-enrols it into Studied Tickers.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -95,59 +94,6 @@ export function useCompare(tickers: string[], enabled: boolean) {
   })
 }
 
-export function useCreateGroup() {
-  const qc = useQueryClient()
-  return useMutation<CoverageGroupDetail, Error, { name: string; description?: string }>({
-    mutationFn: ({ name, description }) => coverageApi.createGroup(name, description),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.groups }),
-  })
-}
-
-export function useUpdateGroup() {
-  const qc = useQueryClient()
-  return useMutation<
-    CoverageGroupDetail,
-    Error,
-    { id: string; name?: string; description?: string }
-  >({
-    mutationFn: ({ id, name, description }) => coverageApi.updateGroup(id, { name, description }),
-    onSuccess: (_d, { id }) => {
-      qc.invalidateQueries({ queryKey: KEYS.groups })
-      qc.invalidateQueries({ queryKey: KEYS.overview(id) })
-    },
-  })
-}
-
-export function useDeleteGroup() {
-  const qc = useQueryClient()
-  return useMutation<void, Error, string>({
-    mutationFn: (id) => coverageApi.deleteGroup(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.groups }),
-  })
-}
-
-export function useAddMembers() {
-  const qc = useQueryClient()
-  return useMutation<CoverageGroupDetail, Error, { id: string; tickers: string[]; note?: string }>({
-    mutationFn: ({ id, tickers, note }) => coverageApi.addMembers(id, tickers, note),
-    onSuccess: (_d, { id }) => {
-      qc.invalidateQueries({ queryKey: KEYS.groups })
-      qc.invalidateQueries({ queryKey: KEYS.overview(id) })
-    },
-  })
-}
-
-export function useRemoveMember() {
-  const qc = useQueryClient()
-  return useMutation<CoverageGroupDetail, Error, { id: string; ticker: string }>({
-    mutationFn: ({ id, ticker }) => coverageApi.removeMember(id, ticker),
-    onSuccess: (_d, { id }) => {
-      qc.invalidateQueries({ queryKey: KEYS.groups })
-      qc.invalidateQueries({ queryKey: KEYS.overview(id) })
-    },
-  })
-}
-
 /**
  * Auto-add an opened ticker to the default Studied Tickers workspace.
  * Fired once per successful /stocks/:ticker open (the search → workspace
@@ -164,19 +110,5 @@ export function useAddStudiedTicker() {
       qc.invalidateQueries({ queryKey: KEYS.groups })
       qc.invalidateQueries({ queryKey: ['coverage', 'overview'] })
     },
-  })
-}
-
-export function useBatchRun() {
-  const qc = useQueryClient()
-  return useMutation<
-    Awaited<ReturnType<typeof coverageApi.batchRun>>,
-    Error,
-    { id: string; tickers: string[]; pipelineType?: string; language?: string }
-  >({
-    mutationFn: ({ id, tickers, pipelineType, language }) =>
-      coverageApi.batchRun(id, tickers, pipelineType, language),
-    // Runs are async (SSE-tracked); refresh the overview so run_status shows.
-    onSuccess: (_d, { id }) => qc.invalidateQueries({ queryKey: KEYS.overview(id) }),
   })
 }

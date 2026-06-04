@@ -1,7 +1,7 @@
-// v5 (spec §11.4): 6 menu → 2 menu (个股 + 设置). The 4 removed pages are
-// not deleted from the URL space immediately — each retired path redirects
-// to its v5 equivalent for one release so links shared in chat / docs don't
-// 404 overnight. v5+1 will remove the redirect block.
+// v5 (spec §11.4): retired pages remain in the URL space for one release so
+// links shared in chat / docs don't 404 overnight. The current top-level
+// product doors are Research (search-first single-stock flow), Coverage
+// (studied ticker archive), and Settings. v5+1 will remove the redirect block.
 //
 // `RetiredRouteRedirect` does a silent `replace` navigation, optionally
 // carrying the trailing :ticker segment over to the new path. It shows no
@@ -13,6 +13,7 @@ import { createBrowserRouter, Navigate, useNavigate } from 'react-router-dom'
 import { lazy, Suspense, useEffect } from 'react'
 import { AppShell } from './layout/AppShell'
 import { CoveragePage } from './pages/CoveragePage'
+import { ResearchPage } from './pages/ResearchPage'
 import { ComparePage } from './pages/ComparePage'
 import { StockWorkspace } from './views/StockWorkspace'
 
@@ -85,17 +86,18 @@ export const router = createBrowserRouter([
     path: '/',
     element: <AppShell />,
     children: [
-      { index: true, element: <Navigate to="/coverage" replace /> },
+      { index: true, element: <Navigate to="/research" replace /> },
 
-      // Coverage Desk is the first screen (research coverage universe).
+      // Research is the search-first homepage; Coverage is the archive desk.
+      { path: 'research', element: <ResearchPage /> },
       { path: 'coverage', element: <CoveragePage /> },
       { path: 'compare', element: <ComparePage /> },
 
-      // The old /stocks landing retired into Coverage; the per-ticker
+      // The old /stocks landing retired into Research; the per-ticker
       // drill-down (StockWorkspace) and report detail keep their routes.
       {
         path: 'stocks',
-        element: <RetiredRouteRedirect to="/coverage" />,
+        element: <RetiredRouteRedirect to="/research" />,
       },
       { path: 'stocks/:ticker', element: <StockWorkspace /> },
       {

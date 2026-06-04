@@ -2,10 +2,9 @@
 //
 // Reserves 72px on the left for Tauri's native macOS traffic lights
 // (overlay titleBarStyle). Centre: FINROBOT brandmark with blue brand-dot
-// and gradient logo word. Right: halo-input cmdK trigger + AI sparkle btn.
+// and gradient logo word. Right: explicit AI panel toggle.
 
 import { useUiStore } from '../stores/uiStore'
-import { IconSparkle, IconCommand } from '../lib/icons'
 import { useI18n } from '../i18n'
 import { startWindowDrag } from '../lib/tauri'
 
@@ -57,7 +56,7 @@ export function TitleBar(): React.ReactElement {
         type="button"
         onClick={() => setCmdPaletteOpen(true)}
         aria-label={cmdPaletteLabel}
-        title={`${cmdPaletteLabel} · ⌘K`}
+        title={cmdPaletteLabel}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -95,34 +94,6 @@ export function TitleBar(): React.ReactElement {
 
       <div style={{ flex: 1 }} />
 
-      {/* Command-palette trigger — compact pill, distinct from the Coverage
-          ticker search; opens the existing CmdK overlay (artifacts/commands/nav). */}
-      <button
-        className="tb-btn"
-        type="button"
-        aria-label={cmdPaletteLabel}
-        title={cmdPaletteLabel}
-        onClick={() => setCmdPaletteOpen(true)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          height: 28,
-          padding: '0 8px',
-          border: '1px solid var(--border-soft)',
-          borderRadius: 8,
-          background: 'var(--bg-elevated)',
-          color: 'var(--text-secondary)',
-          cursor: 'pointer',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 11,
-          transition: 'all 0.2s',
-        }}
-      >
-        <IconCommand size={13} />
-        <span style={{ letterSpacing: '0.5px' }}>⌘K</span>
-      </button>
-
       {/* AI panel toggle */}
       <button
         className={`tb-btn${aiPanelOpen ? ' active' : ''}`}
@@ -131,7 +102,7 @@ export function TitleBar(): React.ReactElement {
         title={t('shell.titlebar.aiAssistant')}
         onClick={toggleAiPanel}
         style={{
-          width: 32,
+          width: 40,
           height: 32,
           display: 'grid',
           placeItems: 'center',
@@ -142,9 +113,12 @@ export function TitleBar(): React.ReactElement {
           cursor: 'pointer',
           transition: 'all 0.2s',
           boxShadow: aiPanelOpen ? 'var(--glow-blue)' : 'none',
+          fontFamily: 'var(--font-display)',
+          fontSize: 11,
+          letterSpacing: '1px',
         }}
       >
-        <IconSparkle size={14} />
+        AI
       </button>
     </div>
   )

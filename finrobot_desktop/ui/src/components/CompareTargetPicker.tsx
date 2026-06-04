@@ -1,9 +1,8 @@
 // CompareTargetPicker — in-context entry into the /compare view (UX-010).
 //
-// The batch-compare flow used to be reachable ONLY from CoveragePage's
-// multi-select (batch bar + Inspector), both bound to
-// coverageStore.selectedTickers. A user reading NVDA's workspace or report who
-// wants to pull in AMD had to detour back to /coverage and multi-select. This
+// The compare flow needs to be available from the ticker workspace/report,
+// because Coverage cards now open the ticker directly. A user reading NVDA who
+// wants to pull in AMD should not detour through the coverage archive. This
 // picker lets them name a second ticker right where they are: it reuses the
 // same /api/search endpoint the command palette calls, lets the user pick a
 // matched ticker (or type a raw symbol), validates it with isValidTicker, then

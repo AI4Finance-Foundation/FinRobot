@@ -3,10 +3,10 @@
  *
  * The primary nav used to jump to a "memory path" (running ticker > last
  * stocks path > landing) with a hidden ⌘-click escape hatch, which made the
- * top icon's destination unpredictable. After the Coverage-home refactor the
- * primary item is a single, stable /coverage door. These tests lock in:
+ * top icon's destination unpredictable. Research and Coverage are now two
+ * stable top-level doors. These tests lock in:
  *   - every nav icon is a labelled button with a stable href-like destination
- *   - clicking the primary icon always navigates to /coverage (no modifier
+ *   - clicking the primary icon always navigates to /research (no modifier
  *     branching, no memory path)
  *   - the icon-only rail exposes its name on keyboard focus (a discoverability
  *     path the native `title` attribute never provides)
@@ -40,7 +40,7 @@ function LocationProbe(): React.ReactElement {
   return <div data-testid="loc">{loc.pathname}</div>
 }
 
-function renderSidebar(initialPath = '/coverage'): void {
+function renderSidebar(initialPath = '/research'): void {
   render(
     <MemoryRouter initialEntries={[initialPath]}>
       <Sidebar />
@@ -61,32 +61,39 @@ describe('Sidebar', () => {
 
   it('renders every nav item as a labelled button', () => {
     renderSidebar()
-    // Coverage (primary) + Settings (bottom) — both must be discoverable by name.
+    // Research + Coverage + Settings — all must be discoverable by name.
+    expect(screen.getByRole('button', { name: 'Research' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Coverage' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument()
   })
 
   it('marks the active route with aria-current=page', () => {
-    renderSidebar('/coverage/AAPL')
-    // isActive is a startsWith match, so a drill-down path keeps Coverage active.
-    expect(screen.getByRole('button', { name: 'Coverage' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('button', { name: 'Settings' })).not.toHaveAttribute('aria-current')
+    renderSidebar('/stocks/AAPL')
+    // Per-ticker workspaces belong to Research.
+    expect(screen.getByRole('button', { name: 'Research' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('button', { name: 'Coverage' })).not.toHaveAttribute('aria-current')
   })
 
-  it('primary icon always navigates to the stable /coverage home (no memory path)', () => {
+  it('marks Coverage active on the archive route', () => {
+    renderSidebar('/coverage')
+    expect(screen.getByRole('button', { name: 'Coverage' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('button', { name: 'Research' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('primary icon always navigates to the stable /research home (no memory path)', () => {
     renderSidebar('/settings')
     expect(screen.getByTestId('loc')).toHaveTextContent('/settings')
-    fireEvent.click(screen.getByRole('button', { name: 'Coverage' }))
-    expect(screen.getByTestId('loc')).toHaveTextContent('/coverage')
+    fireEvent.click(screen.getByRole('button', { name: 'Research' }))
+    expect(screen.getByTestId('loc')).toHaveTextContent('/research')
   })
 
   it('reveals the destination name on keyboard focus (title-attr gap)', () => {
     renderSidebar()
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
-    fireEvent.focus(screen.getByRole('button', { name: 'Coverage' }))
+    fireEvent.focus(screen.getByRole('button', { name: 'Research' }))
     const tip = screen.getByRole('tooltip')
-    expect(tip).toHaveTextContent('Coverage')
-    fireEvent.blur(screen.getByRole('button', { name: 'Coverage' }))
+    expect(tip).toHaveTextContent('Research')
+    fireEvent.blur(screen.getByRole('button', { name: 'Research' }))
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
   })
 
@@ -104,7 +111,7 @@ describe('Sidebar', () => {
     // 2 running → badge announces the count via aria-label.
     expect(screen.getByLabelText('2 analysis running')).toBeInTheDocument()
     // Hover surfaces the same info in the flyout for sighted users.
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Coverage' }))
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Research' }))
     expect(screen.getByRole('tooltip')).toHaveTextContent('2 analysis running')
   })
 
@@ -112,8 +119,8 @@ describe('Sidebar', () => {
     act(() => {
       useUiPrefs.getState().setLocale('zh')
     })
-    renderSidebar('/coverage')
-    fireEvent.focus(screen.getByRole('button', { name: '覆盖池' }))
+    renderSidebar('/research')
+    fireEvent.focus(screen.getByRole('button', { name: '研究' }))
     expect(screen.getByRole('tooltip')).toHaveTextContent('当前页')
   })
 })

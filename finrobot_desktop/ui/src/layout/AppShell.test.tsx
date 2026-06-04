@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, act } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppShell } from './AppShell'
@@ -36,14 +36,10 @@ describe('AppShell — simplified shell structure', () => {
     expect(screen.getByTestId('statusbar')).toBeInTheDocument()
   })
 
-  it('clicking the Coverage button navigates to /coverage', () => {
+  it('renders the Research and Coverage nav doors', () => {
     renderWithProviders()
-    // Coverage Desk is the first business menu — the old /stocks landing
-    // folded into it (dashboard / library / playground / journal / stocks
-    // all redirect to /coverage).
+    expect(screen.getByLabelText('Research')).toBeInTheDocument()
     const coverageBtn = screen.getByLabelText('Coverage')
-    fireEvent.click(coverageBtn)
-    // Sidebar uses react-router navigate; button should remain in the doc
     expect(coverageBtn).toBeInTheDocument()
   })
 })

@@ -3651,3 +3651,99 @@ msgstr "隐藏"
 #. js-lingui-explicit-id
 msgid "settings.nav.secHoldings"
 msgstr "SEC 持仓"
+
+#. js-lingui-explicit-id
+msgid "settings.provider.label"
+msgstr "服务商"
+
+#. js-lingui-explicit-id
+msgid "settings.provider.customTag"
+msgstr "自定义"
+
+#. js-lingui-explicit-id
+msgid "settings.model.idPlaceholder"
+msgstr "模型 id（如 deepseek-chat）"
+
+#. js-lingui-explicit-id
+msgid "settings.llm.apiKeyLabelFor"
+msgstr "{provider} API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.title"
+msgstr "自定义服务商（OpenAI 兼容）"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.intro"
+msgstr "接入任意 OpenAI 兼容端点——网关、OpenRouter 或本地服务。接入后上方模型选择即可选用。"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.remove"
+msgstr "删除"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.id"
+msgstr "服务商 id"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.labelField"
+msgstr "显示名称"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.baseUrl"
+msgstr "Base URL"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.models"
+msgstr "模型列表"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.modelsPlaceholder"
+msgstr "逗号分隔，如 model-a, model-b"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.apiKey"
+msgstr "API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.apiKeyPlaceholder"
+msgstr "填入该服务商的 API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.add"
+msgstr "添加服务商"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.incompleteTitle"
+msgstr "服务商 id 和 Base URL 为必填"
+
+#. js-lingui-explicit-id
+msgid "settings.roleModels.title"
+msgstr "高级 · 分角色模型"
+
+#. js-lingui-explicit-id
+msgid "settings.roleModels.intro"
+msgstr "为单个流水线阶段指定模型——数据采集用便宜模型、建模用更强模型。保持「使用全局模型」则沿用上方所选模型。"
+
+#. js-lingui-explicit-id
+msgid "settings.roleModels.useGlobal"
+msgstr "使用全局模型"
+
+#. js-lingui-explicit-id
+msgid "settings.roleModels.data"
+msgstr "数据采集"
+
+#. js-lingui-explicit-id
+msgid "settings.roleModels.analysis"
+msgstr "分析"
+
+#. js-lingui-explicit-id
+msgid "settings.roleModels.modeling"
+msgstr "建模"
+
+#. js-lingui-explicit-id
+msgid "settings.roleModels.synthesis"
+msgstr "综合"
+
+#. js-lingui-explicit-id
+msgid "settings.roleModels.report"
+msgstr "报告撰写"

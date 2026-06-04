@@ -109,21 +109,20 @@ function artifactIdFromPath(pathname: string): string | null {
 // ──────────────────────────────────────────────────────────────
 // Model badge — the chat runs on the SINGLE model configured in Settings
 // (settings.model_name, e.g. "anthropic:claude-sonnet-4-6"). The badge is
-// read-only and MUST reflect that real value: a hardcoded list (or a uiStore
-// default that can drift from the configured model) would lie about which
-// model actually answered. Labels mirror SettingsView.MODEL_OPTIONS;
-// unknown model_names fall back to the bare model id so the badge is still
-// honest rather than blank.
-const MODEL_LABELS: Record<string, string> = {
-  'deepseek:deepseek-chat': 'DeepSeek V3',
-  'deepseek:deepseek-reasoner': 'DeepSeek R1',
-  'anthropic:claude-sonnet-4-6': 'Claude Sonnet 4',
-  'openai:gpt-4o': 'GPT-4o',
-}
-
-function modelLabel(modelName: string | undefined): string {
+// read-only and MUST reflect that real value. The label is derived from the
+// provider registry returned by /api/settings (single source of truth — no
+// hardcoded map that drifts), as "<provider label> · <model id>". An unknown
+// provider falls back to the bare model id so the badge stays honest.
+function modelLabel(
+  modelName: string | undefined,
+  providers: { id: string; label: string }[] | undefined,
+): string {
   if (!modelName) return '…'
-  return MODEL_LABELS[modelName] ?? modelName.split(':').pop() ?? modelName
+  const [providerId, ...rest] = modelName.split(':')
+  const modelId = rest.join(':')
+  const provider = providers?.find((p) => p.id === providerId)
+  if (provider) return modelId ? `${provider.label} · ${modelId}` : provider.label
+  return modelId || modelName
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -437,7 +436,7 @@ export function AiChatTab({
       style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}
     >
       <AiPanelHeader
-        modelLabel={modelLabel(configuredModel)}
+        modelLabel={modelLabel(configuredModel, settings?.providers)}
         onToggle={handleToggle}
         onNewSession={startNewSession}
         onOpenHistory={() => setHistoryOpen(true)}

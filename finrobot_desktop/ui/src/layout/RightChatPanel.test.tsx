@@ -122,7 +122,22 @@ function makeSeededClient(): QueryClient {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   })
-  queryClient.setQueryData(['settings'], { model_name: SEEDED_MODEL_NAME })
+  // Mirror /api/settings: model_name + the provider registry the badge derives
+  // its label from (single source of truth — no hardcoded label map).
+  queryClient.setQueryData(['settings'], {
+    model_name: SEEDED_MODEL_NAME,
+    providers: [
+      {
+        id: 'anthropic',
+        label: 'Anthropic',
+        kind: 'anthropic',
+        base_url: null,
+        models: ['claude-sonnet-4-6'],
+        key_set: true,
+        is_builtin: true,
+      },
+    ],
+  })
   return queryClient
 }
 
@@ -726,9 +741,9 @@ describe('RightChatPanel — model selector', () => {
   it('model badge reflects the configured model_name from settings', () => {
     renderPanel()
     const badge = screen.getByTestId('model-selector')
-    // Badge maps settings.model_name → human label (mirrors SettingsView).
-    // Proves it reads the real configured model, not a hardcoded default.
-    expect(badge.textContent).toBe('Claude Sonnet 4')
+    // Badge derives its label from the provider registry ("<label> · <model>"),
+    // proving it reads the real configured model, not a hardcoded default.
+    expect(badge.textContent).toBe('Anthropic · claude-sonnet-4-6')
   })
 
   it('model badge is read-only (configured via Settings)', () => {

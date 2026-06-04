@@ -397,11 +397,14 @@ export interface paths {
      *     PUT endpoint means an empty value in a settings form can never silently wipe
      *     a key (BUG-005) — a destructive action requires a deliberate call here.
      *
-     *     After deletion we rebuild runtime settings from scratch (settings.json +
-     *     .env, then re-hydrate the remaining keychain secrets) so the in-memory
-     *     FinRobotSettings stops carrying the cleared value. If clearing the key
-     *     leaves the runtime config invalid (e.g. the active LLM provider lost its
-     *     key), the startup_error banner is set so the UI tells the user.
+     *     Clearable fields: a DataProvider secret (``fmp_api_key`` …) or an LLM
+     *     provider key (``provider_key:<id>``).
+     *
+     *     After deletion we rebuild runtime settings from scratch (settings.json, then
+     *     re-hydrate the remaining keychain secrets) so the in-memory FinRobotSettings
+     *     stops carrying the cleared value. If clearing the key leaves the runtime
+     *     config invalid (e.g. the active LLM provider lost its key), the startup_error
+     *     banner is set so the UI tells the user.
      */
     post: operations['clear_secret_route_api_settings_clear_secret_post']
     delete?: never
@@ -2969,6 +2972,63 @@ export interface components {
       /** Artifact Id */
       artifact_id?: string | null
     }
+    /**
+     * ProviderConfig
+     * @description One LLM provider in the model registry.
+     *
+     *     This is the data-driven replacement for the old hardcoded
+     *     ``_VALID_PROVIDERS`` / ``_PROVIDER_KEY_FIELD`` / ``create_model`` if-elif:
+     *     a provider is a row of data, not a code branch, so adding any
+     *     OpenAI-compatible backend (Moonshot / Qwen / OpenRouter / a local vLLM)
+     *     is a config edit, never a code change.
+     *
+     *     NOTE: ``ProviderConfig`` is an **LLM model factory descriptor** — it is NOT
+     *     the ``DataProvider`` ABC in ``engine/data/interface.py`` (which is the
+     *     financial-data fetch contract). Two different axes; don't conflate them.
+     *
+     *     The provider's API key is NEVER stored here — it lives in the OS keychain
+     *     under ``provider_key:<id>`` and is hydrated into ``FinRobotSettings``'s
+     *     private ``_provider_keys`` map at boot. ``models`` is a list of *suggested*
+     *     model ids for the UI dropdown; the user may run any model id the provider
+     *     accepts (validation checks the provider exists + has a key, not that the
+     *     model is in this list).
+     */
+    ProviderConfig: {
+      /** Id */
+      id: string
+      /** Label */
+      label: string
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'openai-compatible' | 'anthropic' | 'deepseek' | 'test'
+      /** Base Url */
+      base_url?: string | null
+      /** Models */
+      models?: string[]
+    }
+    /**
+     * ProviderInfo
+     * @description One provider as seen by the Settings UI: the registry config plus whether
+     *     its API key is stored and whether it's a built-in (non-deletable) provider.
+     */
+    ProviderInfo: {
+      /** Id */
+      id: string
+      /** Label */
+      label: string
+      /** Kind */
+      kind: string
+      /** Base Url */
+      base_url: string | null
+      /** Models */
+      models: string[]
+      /** Key Set */
+      key_set: boolean
+      /** Is Builtin */
+      is_builtin: boolean
+    }
     /** QuotesWarmedStatus */
     QuotesWarmedStatus: {
       /** Warmed */
@@ -3278,12 +3338,10 @@ export interface components {
       model_synthesis?: string | null
       /** Model Report */
       model_report?: string | null
-      /** Anthropic Api Key Set */
-      anthropic_api_key_set: boolean
-      /** Deepseek Api Key Set */
-      deepseek_api_key_set: boolean
-      /** Openai Api Key Set */
-      openai_api_key_set: boolean
+      /** Providers */
+      providers: components['schemas']['ProviderInfo'][]
+      /** Custom Providers */
+      custom_providers: components['schemas']['ProviderConfig'][]
       /** Fmp Api Key Set */
       fmp_api_key_set: boolean
       /** Finnhub Api Key Set */
@@ -3308,8 +3366,6 @@ export interface components {
       log_retention_days: number
       /** Available Providers */
       available_providers: string[]
-      /** Valid Model Providers */
-      valid_model_providers: ('anthropic' | 'deepseek' | 'openai')[]
       /** Startup Error */
       startup_error?: string | null
       /**
@@ -3333,6 +3389,8 @@ export interface components {
       model_synthesis?: string | null
       /** Model Report */
       model_report?: string | null
+      /** Custom Providers */
+      custom_providers?: components['schemas']['ProviderConfig'][] | null
       /** Sec User Agent */
       sec_user_agent?: string | null
       /** Sec Identity Dismissed At */
@@ -3345,12 +3403,10 @@ export interface components {
       log_to_file?: boolean | null
       /** Log Retention Days */
       log_retention_days?: number | null
-      /** Anthropic Api Key */
-      anthropic_api_key?: string | null
-      /** Deepseek Api Key */
-      deepseek_api_key?: string | null
-      /** Openai Api Key */
-      openai_api_key?: string | null
+      /** Provider Keys */
+      provider_keys?: {
+        [key: string]: string
+      } | null
       /** Fmp Api Key */
       fmp_api_key?: string | null
       /** Finnhub Api Key */

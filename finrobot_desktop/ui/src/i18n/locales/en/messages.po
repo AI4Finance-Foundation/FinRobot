@@ -3651,3 +3651,99 @@ msgstr "Hide"
 #. js-lingui-explicit-id
 msgid "settings.nav.secHoldings"
 msgstr "SEC Holdings"
+
+#. js-lingui-explicit-id
+msgid "settings.provider.label"
+msgstr "Provider"
+
+#. js-lingui-explicit-id
+msgid "settings.provider.customTag"
+msgstr "Custom"
+
+#. js-lingui-explicit-id
+msgid "settings.model.idPlaceholder"
+msgstr "Model id (e.g. deepseek-chat)"
+
+#. js-lingui-explicit-id
+msgid "settings.llm.apiKeyLabelFor"
+msgstr "{provider} API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.title"
+msgstr "Custom providers (OpenAI-compatible)"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.intro"
+msgstr "Wire up any OpenAI-compatible endpoint — a gateway, OpenRouter, or a local server. The model picker above will then offer it."
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.remove"
+msgstr "Remove"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.id"
+msgstr "Provider id"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.labelField"
+msgstr "Display name"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.baseUrl"
+msgstr "Base URL"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.models"
+msgstr "Models"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.modelsPlaceholder"
+msgstr "Comma-separated, e.g. model-a, model-b"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.apiKey"
+msgstr "API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.apiKeyPlaceholder"
+msgstr "Enter the provider's API key"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.add"
+msgstr "Add provider"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.incompleteTitle"
+msgstr "Provider id and Base URL are required"
+
+#. js-lingui-explicit-id
+msgid "settings.roleModels.title"
+msgstr "Advanced · per-role models"
+
+#. js-lingui-explicit-id
+msgid "settings.roleModels.intro"
+msgstr "Override the model for a single pipeline stage — a cheap model for data gathering, a stronger one for modeling. Leave it on Use global model to inherit the model above."
+
+#. js-lingui-explicit-id
+msgid "settings.roleModels.useGlobal"
+msgstr "Use global model"
+
+#. js-lingui-explicit-id
+msgid "settings.roleModels.data"
+msgstr "Data gathering"
+
+#. js-lingui-explicit-id
+msgid "settings.roleModels.analysis"
+msgstr "Analysis"
+
+#. js-lingui-explicit-id
+msgid "settings.roleModels.modeling"
+msgstr "Modeling"
+
+#. js-lingui-explicit-id
+msgid "settings.roleModels.synthesis"
+msgstr "Synthesis"
+
+#. js-lingui-explicit-id
+msgid "settings.roleModels.report"
+msgstr "Report writing"

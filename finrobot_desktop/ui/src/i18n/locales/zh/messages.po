@@ -2050,12 +2050,28 @@ msgid "landing.hero.chapterMatrix"
 msgstr "章节矩阵"
 
 #. js-lingui-explicit-id
-msgid "landing.hero.online"
-msgstr "AI 分析师 · 在线"
-
-#. js-lingui-explicit-id
 msgid "landing.hero.tickerAria"
 msgstr "股票代码"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.trace.market"
+msgstr "行情"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.trace.filings"
+msgstr "申报文件"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.trace.ttm"
+msgstr "TTM"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.trace.dcf"
+msgstr "DCF"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.trace.thesis"
+msgstr "论点"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.deckCaption"
@@ -2071,7 +2087,7 @@ msgstr "每个数字可溯源"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.sourcedNote"
-msgstr "每个数字都是 SourcedNumber，可点开看 provider / 口径 / 公式"
+msgstr "每个数字都能点开 · 看数据源 / 口径 / 公式"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.icDebate"

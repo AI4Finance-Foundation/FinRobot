@@ -2050,12 +2050,28 @@ msgid "landing.hero.chapterMatrix"
 msgstr "Chapter matrix"
 
 #. js-lingui-explicit-id
-msgid "landing.hero.online"
-msgstr "AI analyst · online"
-
-#. js-lingui-explicit-id
 msgid "landing.hero.tickerAria"
 msgstr "Ticker symbol"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.trace.market"
+msgstr "Market"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.trace.filings"
+msgstr "Filings"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.trace.ttm"
+msgstr "TTM"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.trace.dcf"
+msgstr "DCF"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.trace.thesis"
+msgstr "Thesis"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.deckCaption"
@@ -2071,7 +2087,7 @@ msgstr "Every number traceable"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.sourcedNote"
-msgstr "Every figure is a SourcedNumber — open it for provider / basis / formula"
+msgstr "Open any number to see its source / basis / formula"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.icDebate"

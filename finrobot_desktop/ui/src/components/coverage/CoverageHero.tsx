@@ -17,24 +17,19 @@ import { SplineHero } from '../SplineHero'
 import { isValidTicker, sanitizeTickerInput } from '../../utils/ticker'
 import { useI18n, tSync } from '../../i18n'
 
-const TAGLINE_KEYS = [
-  'landing.hero.tagline1',
-  'landing.hero.tagline2',
-  'landing.hero.tagline3',
-  'landing.hero.tagline4',
-] as const
-
 const HOT_TICKERS = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMD']
 
-// Deterministic pipeline trace shown in the proof deck. These are REAL function
-// identifiers from the compute layer — the credibility flex is "every number is
-// computed by code you can name", so we show the method path, never a price.
+// Deterministic pipeline trace shown in the proof deck. The `code` strings are
+// REAL function identifiers from the compute layer — the credibility flex is
+// "every number is computed by code you can name", so we show the method path,
+// never a price. Code identifiers stay English (they ARE code); the human-
+// readable stage label is localized so the zh homepage reads as Chinese.
 const TRACE_STEPS = [
-  { step: '01', label: 'MARKET', code: 'provider.fetch_quote' },
-  { step: '02', label: 'FILINGS', code: 'extractor.sec_10k' },
-  { step: '03', label: 'TTM', code: 'normalize.financials' },
-  { step: '04', label: 'DCF', code: 'compute.dcf_price' },
-  { step: '05', label: 'THESIS', code: 'agent.research_lead' },
+  { step: '01', labelKey: 'landing.hero.trace.market', code: 'provider.fetch_quote' },
+  { step: '02', labelKey: 'landing.hero.trace.filings', code: 'extractor.sec_10k' },
+  { step: '03', labelKey: 'landing.hero.trace.ttm', code: 'normalize.financials' },
+  { step: '04', labelKey: 'landing.hero.trace.dcf', code: 'compute.dcf_price' },
+  { step: '05', labelKey: 'landing.hero.trace.thesis', code: 'agent.research_lead' },
 ]
 
 const CONVICTION_FILLED = 4 // illustrative Bull/Bear conviction (4 of 5 segments)
@@ -53,7 +48,7 @@ export function CoverageHero(): React.ReactElement {
   }, [])
 
   const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
+    (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault()
       const sym = inputValue.trim().toUpperCase()
       if (!sym) return
@@ -107,122 +102,66 @@ export function CoverageHero(): React.ReactElement {
         aria-hidden
         style={{
           position: 'absolute',
-          top: 44,
-          bottom: 168,
+          top: 36,
+          bottom: 196,
           left: '50%',
           transform: 'translateX(-50%)',
-          width: 'min(560px, 60%)',
+          width: 'min(540px, 58%)',
           zIndex: 1,
-          opacity: 0.82,
+          opacity: 0.8,
           pointerEvents: 'none',
+          // Spotlight biased to the upper body so the robot PRESIDES over the
+          // search bar (head/torso) and its legs fade out before the pills/deck
+          // rather than bleeding through them.
           maskImage:
-            'radial-gradient(ellipse 58% 64% at 50% 44%, black 0%, black 58%, transparent 88%)',
+            'radial-gradient(ellipse 56% 56% at 50% 39%, black 0%, black 48%, transparent 80%)',
           WebkitMaskImage:
-            'radial-gradient(ellipse 58% 64% at 50% 44%, black 0%, black 58%, transparent 88%)',
+            'radial-gradient(ellipse 56% 56% at 50% 39%, black 0%, black 48%, transparent 80%)',
         }}
       >
         <SplineHero variant="backdrop" />
       </div>
 
-      {/* ── BAND 1 · status rail ─────────────────────────────────────────────── */}
+      {/* ── BAND 1 · status rail — a single clean value-prop line ────────────── */}
+      {/* Brand wordmark stays in the global TitleBar (not repeated here). One
+          static tagline (no morphing stack → no ghost-overlap), with a cyan
+          accent dot. No "AI online" badge: the assistant is on-demand, not a
+          live process, so a liveness claim would be dishonest. */}
       <div
         style={{
           position: 'relative',
           zIndex: 4,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 18,
+          gap: 12,
           padding: '0 36px',
           borderBottom: '1px solid var(--border-faint)',
           background: 'var(--bg-card-overlay)',
           backdropFilter: 'blur(14px)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 0 }}>
-          {/* Brand lives in the TitleBar — the hero leads with the value prop.
-              Morphing tagline (animation: morph), with a live cyan pulse-dot. */}
-          <span
-            className="cosmic-pulse-dot"
-            style={{
-              background: 'var(--accent-cyan)',
-              boxShadow: 'var(--glow-cyan)',
-              flexShrink: 0,
-            }}
-            aria-hidden
-          />
-          <div
-            aria-hidden
-            style={{
-              position: 'relative',
-              height: 20,
-              flex: 1,
-              minWidth: 0,
-              fontFamily: 'var(--font-display)',
-              fontSize: 16,
-              letterSpacing: 2,
-              color: 'var(--text-secondary)',
-              overflow: 'hidden',
-            }}
-          >
-            <span
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                whiteSpace: 'nowrap',
-                opacity: 0.28,
-              }}
-            >
-              {t(TAGLINE_KEYS[3])}
-            </span>
-            {TAGLINE_KEYS.map((key, i) => (
-              <span
-                key={key}
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  whiteSpace: 'nowrap',
-                  animation: 'cosmic-morph 12s ease-in-out infinite',
-                  animationDelay: `${i * 3}s`,
-                  opacity: 0,
-                }}
-              >
-                {t(key)}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Right — AI online telemetry pill (pulse-dot + pulse-ring) */}
-        <div
+        <span
+          className="cosmic-pulse-dot"
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 9,
-            padding: '5px 12px',
-            borderRadius: 'var(--radius-pill)',
-            border: '1px solid var(--border-soft)',
-            background: 'var(--bg-card-overlay)',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            letterSpacing: '0.06em',
-            color: 'var(--success)',
+            background: 'var(--accent-cyan)',
+            boxShadow: 'var(--glow-cyan)',
+            flexShrink: 0,
+          }}
+          aria-hidden
+        />
+        <span
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 16,
+            letterSpacing: 2,
+            color: 'var(--text-secondary)',
             whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
           }}
         >
-          <span style={{ position: 'relative', display: 'inline-flex' }} aria-hidden>
-            <span
-              className="cosmic-pulse-dot"
-              style={{ background: 'var(--success)', boxShadow: '0 0 12px var(--success-glow)' }}
-            />
-            <span className="cosmic-pulse-ring" style={{ borderColor: 'var(--success)' }} />
-          </span>
-          {t('landing.hero.online')}
-        </div>
+          {t('landing.hero.tagline4')}
+        </span>
       </div>
 
       {/* ── BAND 2 · command core ────────────────────────────────────────────── */}
@@ -413,6 +352,7 @@ interface ProofDeckProps {
 }
 
 function ProofDeck(props: ProofDeckProps): React.ReactElement {
+  const { t } = useI18n()
   return (
     <div
       style={{
@@ -476,7 +416,7 @@ function ProofDeck(props: ProofDeckProps): React.ReactElement {
                   }}
                 >
                   <span style={{ color: 'var(--accent-cyan)' }}>{item.step}</span>
-                  <span style={{ color: 'var(--text-secondary)' }}>{item.label}</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{t(item.labelKey)}</span>
                 </div>
                 <div
                   style={{

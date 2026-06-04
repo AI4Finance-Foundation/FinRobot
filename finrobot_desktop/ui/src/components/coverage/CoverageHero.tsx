@@ -6,12 +6,13 @@
 //                           wordmark stays in the global TitleBar, not repeated)
 //   BAND 2  command core  — Spline robot spotlight behind a single glowing
 //                           search bar + hot-ticker pills (the one action)
-//   BAND 3  proof deck    — "what runs when you hit Analyze": function trace
-//                           (no fake prices), every-number-traceable, IC debate
+//   BAND 3  pipeline flow — "what runs when you hit Analyze": the REAL 8-stage
+//                           research pipeline as a left→right metro line, ending
+//                           in the report; one traceability guarantee beneath
 // The robot is centered (translateX(-50%)) and confined to BAND 2 so it stays
 // the luminous subject and is never hidden behind the right chat panel.
 
-import { Fragment, useCallback, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SplineHero } from '../SplineHero'
 import { isValidTicker, sanitizeTickerInput } from '../../utils/ticker'
@@ -19,21 +20,22 @@ import { useI18n, tSync } from '../../i18n'
 
 const HOT_TICKERS = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMD']
 
-// Deterministic pipeline trace shown in the proof deck. The `code` strings are
-// REAL function identifiers from the compute layer — the credibility flex is
-// "every number is computed by code you can name", so we show the method path,
-// never a price. Code identifiers stay English (they ARE code); the human-
-// readable stage label is localized so the zh homepage reads as Chinese.
-const TRACE_STEPS = [
-  { step: '01', labelKey: 'landing.hero.trace.market', code: 'provider.fetch_quote' },
-  { step: '02', labelKey: 'landing.hero.trace.filings', code: 'extractor.sec_10k' },
-  { step: '03', labelKey: 'landing.hero.trace.ttm', code: 'normalize.financials' },
-  { step: '04', labelKey: 'landing.hero.trace.dcf', code: 'compute.dcf_price' },
-  { step: '05', labelKey: 'landing.hero.trace.thesis', code: 'agent.research_lead' },
-]
-
-const CONVICTION_FILLED = 4 // illustrative Bull/Bear conviction (4 of 5 segments)
-const CONVICTION_SCORE = 72
+// The REAL equity-research pipeline stages, in execution order — mirrors
+// finrobot/engine/pipelines/equity_research.py create_*_pipeline().steps
+// (data_collection · catalyst_analysis · peer_analysis · financial_modeling ·
+//  ownership_governance_analysis · technical_analysis · thesis · report).
+// Shown as a left→right flow so "按下分析后会跑什么" is literally true, not a
+// decorative placeholder. The last stage (the report) is the highlighted output.
+const STAGE_KEYS = [
+  'landing.hero.stage.data',
+  'landing.hero.stage.catalyst',
+  'landing.hero.stage.peers',
+  'landing.hero.stage.model',
+  'landing.hero.stage.ownership',
+  'landing.hero.stage.technical',
+  'landing.hero.stage.thesis',
+  'landing.hero.stage.report',
+] as const
 
 export function CoverageHero(): React.ReactElement {
   const navigate = useNavigate()
@@ -325,40 +327,35 @@ export function CoverageHero(): React.ReactElement {
         </div>
       </div>
 
-      {/* ── BAND 3 · proof deck ──────────────────────────────────────────────── */}
-      <ProofDeck
-        deckCaption={t('landing.hero.deckCaption')}
-        traceTitle={t('landing.hero.traceRail')}
-        reportNode={t('landing.hero.reportNode')}
-        traceableLabel={t('landing.hero.traceableLabel')}
+      {/* ── BAND 3 · pipeline flow — the real 8-stage research pipeline ────────── */}
+      <PipelineFlow
+        caption={t('landing.hero.deckCaption')}
+        stages={STAGE_KEYS.map((k) => t(k))}
+        traceable={t('landing.hero.traceableLabel')}
         sourcedNote={t('landing.hero.sourcedNote')}
-        icDebate={t('landing.hero.icDebate')}
-        bull={t('landing.hero.bull')}
-        bear={t('landing.hero.bear')}
       />
     </section>
   )
 }
 
-interface ProofDeckProps {
-  deckCaption: string
-  traceTitle: string
-  reportNode: string
-  traceableLabel: string
+interface PipelineFlowProps {
+  caption: string
+  stages: string[]
+  traceable: string
   sourcedNote: string
-  icDebate: string
-  bull: string
-  bear: string
 }
 
-function ProofDeck(props: ProofDeckProps): React.ReactElement {
-  const { t } = useI18n()
+// A left→right "metro line": the real pipeline stages as connected nodes on a
+// glowing rail, ending in the highlighted report (the deliverable). One quiet
+// guarantee line beneath. No fabricated function names, no fake numbers.
+function PipelineFlow(props: PipelineFlowProps): React.ReactElement {
+  const half = `${100 / props.stages.length / 2}%`
   return (
     <div
       style={{
         position: 'relative',
         zIndex: 3,
-        margin: '0 36px 24px',
+        margin: '0 36px 26px',
         border: '1px solid var(--border-soft)',
         borderRadius: 'var(--radius-lg)',
         background: 'var(--bg-card-overlay)',
@@ -366,13 +363,13 @@ function ProofDeck(props: ProofDeckProps): React.ReactElement {
         overflow: 'hidden',
       }}
     >
-      {/* caption strip — ties the deck to the search above it */}
+      {/* caption — ties the flow to the search above it */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          padding: '10px 18px',
+          padding: '11px 24px',
           borderBottom: '1px solid var(--border-faint)',
           color: 'var(--accent-cyan)',
           fontFamily: 'var(--font-display)',
@@ -382,177 +379,87 @@ function ProofDeck(props: ProofDeckProps): React.ReactElement {
         }}
       >
         <span aria-hidden>▸</span>
-        {props.deckCaption}
+        {props.caption}
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(0, 1.3fr)',
-        }}
-      >
-        {/* Cell 1 — function trace as a clean vertical pipeline log: step + the
-            localized stage label, then the REAL compute function (full, never
-            truncated), aligned in two columns down a cyan pipeline spine. */}
-        <div style={{ padding: '14px 18px', minHeight: 124 }}>
-          <CellLabel>{props.traceTitle}</CellLabel>
-          <div
-            style={{
-              marginTop: 12,
-              display: 'grid',
-              gridTemplateColumns: 'max-content 1fr',
-              columnGap: 16,
-              rowGap: 8,
-              paddingLeft: 12,
-              borderLeft: '2px solid var(--accent-cyan)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-            }}
-          >
-            {TRACE_STEPS.map((item) => (
-              <Fragment key={item.code}>
-                <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                  <span style={{ color: 'var(--accent-cyan)' }}>{item.step}</span>{' '}
-                  {t(item.labelKey)}
-                </span>
-                <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                  {item.code}
-                </span>
-              </Fragment>
-            ))}
-          </div>
-          <div
-            style={{
-              marginTop: 12,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              color: 'var(--text-secondary)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-            }}
-          >
-            <span aria-hidden style={{ color: 'var(--accent-cyan)' }}>
-              →
-            </span>
-            {props.reportNode}
-          </div>
-        </div>
-
-        {/* Cell 2 — every number traceable (SourcedNumber), no fake price */}
+      {/* the rail */}
+      <div style={{ position: 'relative', display: 'flex', padding: '26px 28px 22px' }}>
         <div
+          aria-hidden
           style={{
-            padding: '14px 18px',
-            minHeight: 124,
-            borderLeft: '1px solid var(--border-faint)',
+            position: 'absolute',
+            top: 31,
+            left: `calc(28px + ${half})`,
+            right: `calc(28px + ${half})`,
+            height: 2,
+            background: 'linear-gradient(90deg, var(--accent-cyan), var(--secondary))',
+            boxShadow: 'var(--glow-cyan)',
+            opacity: 0.55,
           }}
-        >
-          <CellLabel>{props.traceableLabel}</CellLabel>
-          <div
-            style={{
-              marginTop: 14,
-              fontFamily: 'var(--font-display)',
-              fontSize: 34,
-              lineHeight: 1,
-              color: 'var(--text-primary)',
-              textShadow: 'var(--glow-cyan)',
-            }}
-          >
-            100%
-          </div>
-          <div
-            style={{
-              marginTop: 10,
-              color: 'var(--text-muted)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              lineHeight: 1.5,
-            }}
-          >
-            {props.sourcedNote}
-          </div>
-        </div>
-
-        {/* Cell 3 — Bull/Bear IC debate + conviction */}
-        <div
-          style={{
-            padding: '14px 18px',
-            minHeight: 124,
-            borderLeft: '1px solid var(--border-faint)',
-          }}
-        >
-          <CellLabel>{props.icDebate}</CellLabel>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 14 }}>
-            <span
+        />
+        {props.stages.map((label, i) => {
+          const isLast = i === props.stages.length - 1
+          return (
+            <div
+              key={label}
               style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 28,
-                lineHeight: 1,
-                color: 'var(--text-primary)',
+                flex: 1,
+                minWidth: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 12,
               }}
             >
-              {CONVICTION_SCORE}
-            </span>
-            <span style={{ display: 'flex', gap: 4 }} aria-hidden>
-              {Array.from({ length: 5 }, (_v, i) => (
-                <span
-                  key={i}
-                  style={{
-                    width: 18,
-                    height: 8,
-                    borderRadius: 2,
-                    background: i < CONVICTION_FILLED ? 'var(--primary)' : 'var(--border-soft)',
-                    boxShadow: i < CONVICTION_FILLED ? 'var(--glow-blue-soft)' : 'none',
-                  }}
-                />
-              ))}
-            </span>
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-            <ConvictionTag color="var(--success)">{props.bull}</ConvictionTag>
-            <ConvictionTag color="var(--danger)">{props.bear}</ConvictionTag>
-          </div>
-        </div>
+              <span
+                aria-hidden
+                style={{
+                  width: 11,
+                  height: 11,
+                  borderRadius: '50%',
+                  background: isLast ? 'var(--accent-cyan)' : 'var(--bg-void)',
+                  border: '2px solid var(--accent-cyan)',
+                  boxShadow: isLast ? 'var(--glow-cyan)' : 'none',
+                  zIndex: 1,
+                }}
+              />
+              <span
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 11,
+                  fontWeight: isLast ? 600 : 400,
+                  letterSpacing: '0.02em',
+                  color: isLast ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  textAlign: 'center',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {label}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* guarantee line */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '11px 28px',
+          borderTop: '1px solid var(--border-faint)',
+          fontFamily: 'var(--font-body)',
+          fontSize: 12,
+          color: 'var(--text-secondary)',
+        }}
+      >
+        <span aria-hidden style={{ color: 'var(--accent-cyan)' }}>
+          ◆
+        </span>
+        <span style={{ color: 'var(--text-primary)' }}>{props.traceable}</span>
+        <span style={{ color: 'var(--text-muted)' }}>· {props.sourcedNote}</span>
       </div>
     </div>
-  )
-}
-
-function CellLabel({ children }: { children: React.ReactNode }): React.ReactElement {
-  return (
-    <span
-      style={{
-        color: 'var(--accent-cyan)',
-        fontFamily: 'var(--font-display)',
-        fontSize: 11,
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase',
-      }}
-    >
-      {children}
-    </span>
-  )
-}
-
-function ConvictionTag({
-  color,
-  children,
-}: {
-  color: string
-  children: React.ReactNode
-}): React.ReactElement {
-  return (
-    <span
-      style={{
-        padding: '3px 10px',
-        borderRadius: 'var(--radius-pill)',
-        border: `1px solid ${color}`,
-        color,
-        fontFamily: 'var(--font-mono)',
-        fontSize: 11,
-      }}
-    >
-      {children}
-    </span>
   )
 }

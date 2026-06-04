@@ -2054,24 +2054,36 @@ msgid "landing.hero.tickerAria"
 msgstr "Ticker symbol"
 
 #. js-lingui-explicit-id
-msgid "landing.hero.trace.market"
-msgstr "Market"
+msgid "landing.hero.stage.data"
+msgstr "Data"
 
 #. js-lingui-explicit-id
-msgid "landing.hero.trace.filings"
-msgstr "Filings"
+msgid "landing.hero.stage.catalyst"
+msgstr "Catalysts"
 
 #. js-lingui-explicit-id
-msgid "landing.hero.trace.ttm"
-msgstr "TTM"
+msgid "landing.hero.stage.peers"
+msgstr "Peers"
 
 #. js-lingui-explicit-id
-msgid "landing.hero.trace.dcf"
-msgstr "DCF"
+msgid "landing.hero.stage.model"
+msgstr "Modeling"
 
 #. js-lingui-explicit-id
-msgid "landing.hero.trace.thesis"
+msgid "landing.hero.stage.ownership"
+msgstr "Ownership"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.stage.technical"
+msgstr "Technical"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.stage.thesis"
 msgstr "Thesis"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.stage.report"
+msgstr "IB report"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.deckCaption"
@@ -2087,7 +2099,7 @@ msgstr "Every number traceable"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.sourcedNote"
-msgstr "Open any number to see its source / basis / formula"
+msgstr "open for source / basis / formula"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.icDebate"

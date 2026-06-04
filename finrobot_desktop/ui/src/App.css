@@ -3173,51 +3173,8 @@ select.input-field {
   align-items: center;
   user-select: none;
   flex-shrink: 0;
-  -webkit-app-region: drag;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-}
-
-.traffic-lights {
-  display: flex;
-  gap: 8px;
-  padding: 0 16px;
-  flex-shrink: 0;
-}
-
-.light {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.light.close {
-  background: #ff5f57;
-}
-.light.min {
-  background: #febc2e;
-}
-.light.max {
-  background: #28c840;
-}
-
-.titlebar-title {
-  flex: 1;
-  text-align: center;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-muted);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  font-weight: 500;
-}
-
-.titlebar-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 12px;
-  flex-shrink: 0;
 }
 
 .tb-btn {
@@ -3232,7 +3189,6 @@ select.input-field {
   cursor: pointer;
   border-radius: var(--r-sm);
   transition: all 0.2s;
-  -webkit-app-region: no-drag;
 }
 .tb-btn:hover {
   background: var(--bg-3);

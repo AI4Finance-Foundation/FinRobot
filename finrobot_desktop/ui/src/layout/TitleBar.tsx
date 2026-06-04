@@ -7,6 +7,7 @@
 import { useUiStore } from '../stores/uiStore'
 import { IconSparkle, IconCommand } from '../lib/icons'
 import { useI18n } from '../i18n'
+import { startWindowDrag } from '../lib/tauri'
 
 export function TitleBar(): React.ReactElement {
   const aiPanelOpen = useUiStore((s) => s.aiPanelOpen)
@@ -19,10 +20,20 @@ export function TitleBar(): React.ReactElement {
   // avoid .po coordination in this fix.
   const cmdPaletteLabel = locale === 'zh' ? '打开命令面板' : 'Open command palette'
 
+  // Whole-bar window drag. Tauri v2's data-tauri-drag-region only works with
+  // decorations:false; we keep native traffic lights (decorations:true +
+  // titleBarStyle Overlay), so drag goes through startDragging() on mousedown.
+  // Interactive controls (buttons) are skipped so clicks still register.
+  const onTitleBarMouseDown = (e: React.MouseEvent<HTMLDivElement>): void => {
+    if (e.button !== 0) return
+    if ((e.target as HTMLElement).closest('button, a, input, [role="button"]')) return
+    startWindowDrag(e.detail === 2)
+  }
+
   return (
     <div
       className="titlebar"
-      data-tauri-drag-region
+      onMouseDown={onTitleBarMouseDown}
       data-testid="titlebar"
       style={{
         position: 'relative',
@@ -82,7 +93,7 @@ export function TitleBar(): React.ReactElement {
         </span>
       </button>
 
-      <div style={{ flex: 1 }} data-tauri-drag-region />
+      <div style={{ flex: 1 }} />
 
       {/* Command-palette trigger — compact pill, distinct from the Coverage
           ticker search; opens the existing CmdK overlay (artifacts/commands/nav). */}

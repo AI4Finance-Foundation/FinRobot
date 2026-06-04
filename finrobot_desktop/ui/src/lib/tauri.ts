@@ -14,6 +14,7 @@ import {
   register as registerGlobalShortcut,
   unregister as unregisterGlobalShortcut,
 } from '@tauri-apps/plugin-global-shortcut'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 
 /** Returns true when running inside a Tauri webview. */
 export function isTauri(): boolean {
@@ -21,6 +22,28 @@ export function isTauri(): boolean {
   // Tauri v2 attaches __TAURI_INTERNALS__; v1 used __TAURI__.
   const w = window as unknown as Record<string, unknown>
   return Boolean(w.__TAURI_INTERNALS__ ?? w.__TAURI__)
+}
+
+// ─── Window dragging ──────────────────────────────────────────────
+
+/**
+ * Start a native window drag from a titlebar mousedown; double-click zooms
+ * (toggleMaximize). No-op in a plain browser (dev) where no native window
+ * exists.
+ *
+ * We keep native macOS traffic lights (decorations:true + titleBarStyle
+ * "Overlay"), and Tauri v2's `data-tauri-drag-region` only works with
+ * decorations:false — so the whole-bar drag must go through the window API
+ * explicitly rather than the HTML attribute.
+ */
+export function startWindowDrag(doubleClick: boolean): void {
+  if (!isTauri()) return
+  const win = getCurrentWindow()
+  if (doubleClick) {
+    void win.toggleMaximize()
+  } else {
+    void win.startDragging()
+  }
 }
 
 // ─── Shell ────────────────────────────────────────────────────────

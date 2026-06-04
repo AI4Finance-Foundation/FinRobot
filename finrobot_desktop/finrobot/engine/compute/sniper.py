@@ -86,6 +86,18 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
     current = req.current_price
     target = req.dcf_target
 
+    # Reject a DCF target within one tick ($0.01) of the current price up front
+    # (BUG-076). At sub-cent separation there is no directional thesis to trade:
+    # every level rounds to current, R/R collapses to 0, and the SHORT branch
+    # would emit a self-contradictory "DCF intrinsic $X < current $X" warning.
+    # Mirror signal.py's "target == entry" rejection so _safe_sniper degrades to
+    # None + warning instead of shipping a degenerate row.
+    if abs(target - current) < 0.01:
+        raise ValueError(
+            f"DCF target ${target:.2f} within one tick of current ${current:.2f}: "
+            "no directional thesis to snipe; refusing degenerate (R/R 0) levels."
+        )
+
     # --- Volatility ----------------------------------------------------------
     if req.volatility_annual is not None and req.volatility_annual > 0:
         annual_vol: float = req.volatility_annual
@@ -143,10 +155,15 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
 
         position_size = 1.0  # minimum sizing — high uncertainty trade
 
+        # Build the diagnostic from the *shipped* (rounded) values so it never
+        # contradicts the rendered levels (BUG-076): the gate below also operates
+        # on the rounded values, so if any pair collapsed under rounding we raise
+        # before this warning could mislead.
         invariant_warnings.append(
-            f"DCF intrinsic ${target:.2f} < current ${current:.2f}: SHORT trade. "
-            f"entry=${ideal_buy:.2f}, cover=${take_profit:.2f}, "
-            f"stop=${stop_loss:.2f}, R/R={risk_reward:.2f}."
+            f"DCF intrinsic ${round(target, 2):.2f} < current ${round(current, 2):.2f}: "
+            f"SHORT trade. entry=${round(ideal_buy, 2):.2f}, "
+            f"cover=${round(take_profit, 2):.2f}, stop=${round(stop_loss, 2):.2f}, "
+            f"R/R={round(risk_reward, 2):.2f}."
         )
 
     else:
@@ -194,49 +211,58 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
         upside_abs = take_profit - current
         risk_reward = upside_abs / downside if downside > 0 else 0.0
 
-    # --- Invariant guards ---------------------------------------------------
+    # --- Invariant guards (gate on the ROUNDED / shipped values) ------------
     # LONG  : stop_loss <  ideal_buy <  take_profit  (stop below, target above)
     # SHORT : take_profit <  ideal_buy <  stop_loss  (target below, stop above)
-    # Anything else is incoherent and we refuse to ship the artifact rather
-    # than let the UI render a phantom "buy at X / stop at Y where Y > X" row.
+    # The SniperPoints we return round every level to 2 decimals. Comparing the
+    # raw floats here but shipping the rounded ones (the pre-BUG-076 bug) let a
+    # sub-cent gap pass the gate yet collapse under rounding — ideal_buy ==
+    # take_profit, R/R 0, and a "$X < $X" warning. Gate on the rounded values so
+    # any rounding-induced collapse (>= / <= now catches equality) raises here,
+    # and _safe_sniper degrades to None + warning instead of shipping it.
+    r_ideal_buy = round(ideal_buy, 2)
+    r_stop_loss = round(stop_loss, 2)
+    r_take_profit = round(take_profit, 2)
+    r_secondary_buy = round(secondary_buy, 2) if secondary_buy is not None else None
+
     if sell_mode:
-        if take_profit > ideal_buy:
+        if r_take_profit >= r_ideal_buy:
             raise ValueError(
-                f"sniper invariant violated (SHORT): take_profit {take_profit:.2f} "
-                f"> ideal_buy {ideal_buy:.2f}"
+                f"sniper invariant violated (SHORT): take_profit {r_take_profit:.2f} "
+                f">= ideal_buy {r_ideal_buy:.2f} (degenerate after rounding)"
             )
-        if stop_loss <= ideal_buy:
+        if r_stop_loss <= r_ideal_buy:
             raise ValueError(
-                f"sniper invariant violated (SHORT): stop_loss {stop_loss:.2f} "
-                f"<= ideal_buy {ideal_buy:.2f}"
+                f"sniper invariant violated (SHORT): stop_loss {r_stop_loss:.2f} "
+                f"<= ideal_buy {r_ideal_buy:.2f}"
             )
     else:
-        if take_profit < ideal_buy:
+        if r_take_profit <= r_ideal_buy:
             raise ValueError(
-                f"sniper invariant violated (LONG): take_profit {take_profit:.2f} "
-                f"< ideal_buy {ideal_buy:.2f}"
+                f"sniper invariant violated (LONG): take_profit {r_take_profit:.2f} "
+                f"<= ideal_buy {r_ideal_buy:.2f} (degenerate after rounding)"
             )
-        if stop_loss >= ideal_buy:
+        if r_stop_loss >= r_ideal_buy:
             raise ValueError(
-                f"sniper invariant violated (LONG): stop_loss {stop_loss:.2f} "
-                f">= ideal_buy {ideal_buy:.2f}"
+                f"sniper invariant violated (LONG): stop_loss {r_stop_loss:.2f} "
+                f">= ideal_buy {r_ideal_buy:.2f}"
             )
         # Secondary entry must sit strictly above the stop and at/below the
         # target, or be absent. Guards against the incoherent "buy below stop"
         # ladder (BUG-042); the LONG branch drops the level to None when the
         # 20-day support breaches the stop floor, so a present value here is
         # always coherent.
-        if secondary_buy is not None and not (stop_loss < secondary_buy <= take_profit):
+        if r_secondary_buy is not None and not (r_stop_loss < r_secondary_buy <= r_take_profit):
             raise ValueError(
-                f"sniper invariant violated (LONG): secondary_buy {secondary_buy:.2f} "
-                f"outside (stop_loss {stop_loss:.2f}, take_profit {take_profit:.2f}]"
+                f"sniper invariant violated (LONG): secondary_buy {r_secondary_buy:.2f} "
+                f"outside (stop_loss {r_stop_loss:.2f}, take_profit {r_take_profit:.2f}]"
             )
 
     return SniperPoints(
-        ideal_buy=round(ideal_buy, 2),
-        secondary_buy=round(secondary_buy, 2) if secondary_buy is not None else None,
-        stop_loss=round(stop_loss, 2),
-        take_profit=round(take_profit, 2),
+        ideal_buy=r_ideal_buy,
+        secondary_buy=r_secondary_buy,
+        stop_loss=r_stop_loss,
+        take_profit=r_take_profit,
         position_size_pct=round(position_size, 1),
         safety_margin=round(safety_margin, 2),
         support_level=round(support, 2),

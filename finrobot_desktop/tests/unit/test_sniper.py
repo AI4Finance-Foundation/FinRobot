@@ -14,6 +14,7 @@ These tests verify the deterministic logic of the function given typed inputs.
 They do NOT use the function itself to compute the expected values — each
 expected value is derived from manual arithmetic shown inline.
 """
+
 from __future__ import annotations
 
 
@@ -26,16 +27,35 @@ from finrobot.engine.compute.sniper import SniperPoints, SniperRequest, calculat
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _req(**kwargs) -> SniperRequest:
     """Build a SniperRequest with sensible defaults."""
     defaults = dict(
         ticker="AAPL",
         current_price=150.0,
         dcf_target=200.0,
-        historical_prices=[140.0, 145.0, 148.0, 152.0, 155.0,
-                            150.0, 147.0, 153.0, 158.0, 144.0,
-                            149.0, 151.0, 146.0, 143.0, 157.0,
-                            154.0, 148.0, 142.0, 160.0, 150.0],
+        historical_prices=[
+            140.0,
+            145.0,
+            148.0,
+            152.0,
+            155.0,
+            150.0,
+            147.0,
+            153.0,
+            158.0,
+            144.0,
+            149.0,
+            151.0,
+            146.0,
+            143.0,
+            157.0,
+            154.0,
+            148.0,
+            142.0,
+            160.0,
+            150.0,
+        ],
     )
     defaults.update(kwargs)
     return SniperRequest(**defaults)
@@ -46,6 +66,7 @@ def _req(**kwargs) -> SniperRequest:
 #    current=150, target=200 → upside_pct = (200-150)/150 = 33.3% > 30%
 #    safety_margin = 0.15  →  ideal_buy = 200 * 0.85 = 170.0
 # ---------------------------------------------------------------------------
+
 
 def test_sniper_ideal_buy_high_upside():
     """ideal_buy = dcf_target * (1 - 0.15) when upside > 30%.
@@ -97,14 +118,13 @@ def test_sniper_secondary_buy_equals_support():
 #    R/R         = (200 - 150) / (220 - 200) = 50 / 20 = 2.50
 # ---------------------------------------------------------------------------
 
+
 def test_sniper_short_mode_when_target_below_current():
     """Reproduces the 2026-05-28 TSLA-class bug post-fix: SELL rating now
     yields a coherent SHORT trade where take_profit sits BELOW current and
     stop_loss sits ABOVE — not the pre-fix arrangement of
     buy=$372.80 / stop=$484.40 / R/R=0.11 that read as a phantom long."""
-    result = calculate_sniper_points(
-        _req(current_price=200.0, dcf_target=150.0)
-    )
+    result = calculate_sniper_points(_req(current_price=200.0, dcf_target=150.0))
     assert result.sell_mode is True
     assert result.direction == "SHORT"
     assert result.ideal_buy == pytest.approx(200.0, abs=0.01)
@@ -119,9 +139,7 @@ def test_sniper_short_mode_when_target_below_current():
 
 def test_sniper_short_mode_position_size_minimum():
     """SHORT mode caps position at 1% — short trades are higher uncertainty."""
-    result = calculate_sniper_points(
-        _req(current_price=200.0, dcf_target=150.0)
-    )
+    result = calculate_sniper_points(_req(current_price=200.0, dcf_target=150.0))
     assert result.sell_mode is True
     assert result.direction == "SHORT"
     assert result.position_size_pct == pytest.approx(1.0, abs=0.1)
@@ -129,9 +147,7 @@ def test_sniper_short_mode_position_size_minimum():
 
 def test_sniper_short_mode_safety_margin_zero():
     """``safety_margin`` is a LONG concept — undefined for a short."""
-    result = calculate_sniper_points(
-        _req(current_price=200.0, dcf_target=150.0)
-    )
+    result = calculate_sniper_points(_req(current_price=200.0, dcf_target=150.0))
     assert result.sell_mode is True
     assert result.direction == "SHORT"
     assert result.safety_margin == 0.0
@@ -156,8 +172,26 @@ def test_sniper_short_mode_tsla_2026_05_28_anchor() -> None:
     must be SHORT-correct."""
     # Synthetic 20-day window centered on $440 with realistic dispersion.
     prices = [
-        420.0, 425.0, 430.0, 435.0, 440.0, 445.0, 450.0, 455.0, 460.0, 465.0,
-        455.0, 450.0, 445.0, 440.0, 435.0, 430.0, 425.0, 420.0, 425.0, 430.0,
+        420.0,
+        425.0,
+        430.0,
+        435.0,
+        440.0,
+        445.0,
+        450.0,
+        455.0,
+        460.0,
+        465.0,
+        455.0,
+        450.0,
+        445.0,
+        440.0,
+        435.0,
+        430.0,
+        425.0,
+        420.0,
+        425.0,
+        430.0,
     ]
     result = calculate_sniper_points(
         _req(current_price=440.36, dcf_target=5.88, historical_prices=prices)
@@ -184,6 +218,7 @@ def test_sniper_short_mode_tsla_2026_05_28_anchor() -> None:
 #    With prices=[200.0]*20 and current=200, support=200, vol=0 → stop=max(200,170)=200
 #    → downside=0 → risk_reward=0.0.
 # ---------------------------------------------------------------------------
+
 
 def test_sniper_risk_reward_zero_when_stop_equals_current():
     """Risk/reward returns 0.0 when downside == 0 (stop_loss == current).
@@ -218,6 +253,7 @@ def test_sniper_risk_reward_zero_when_stop_equals_current():
 # 4. Boundary: single-price history (min_length=1)
 # ---------------------------------------------------------------------------
 
+
 def test_sniper_single_price_history():
     """Function works with exactly 1 price — the minimum allowed by the schema."""
     result = calculate_sniper_points(
@@ -240,6 +276,7 @@ def test_sniper_single_price_history():
 #    stop_loss = max(support - vol_buffer, current * 0.85)
 # ---------------------------------------------------------------------------
 
+
 def test_sniper_explicit_volatility_used():
     """Explicit volatility_annual overrides computed volatility.
 
@@ -258,8 +295,8 @@ def test_sniper_explicit_volatility_used():
             volatility_annual=0.20,
         )
     )
-    expected_daily_vol = 0.20 / (252 ** 0.5)
-    expected_vol_buffer = expected_daily_vol * (10 ** 0.5) * 100.0
+    expected_daily_vol = 0.20 / (252**0.5)
+    expected_vol_buffer = expected_daily_vol * (10**0.5) * 100.0
     expected_support = 90.0
     expected_stop = max(expected_support - expected_vol_buffer, 100.0 * 0.85)
     assert result.stop_loss == pytest.approx(expected_stop, abs=0.01)
@@ -270,6 +307,7 @@ def test_sniper_explicit_volatility_used():
 #    current=100, target=120 → upside=20% > 15% → safety_margin=0.10
 #    ideal_buy = 120 * 0.90 = 108.0
 # ---------------------------------------------------------------------------
+
 
 def test_sniper_moderate_upside_safety_margin():
     """Safety margin is 10% when upside is 15%-30%.
@@ -294,6 +332,7 @@ def test_sniper_moderate_upside_safety_margin():
 # 7. Validation: negative price in history raises ValueError
 # ---------------------------------------------------------------------------
 
+
 def test_sniper_rejects_negative_historical_price():
     """SniperRequest rejects negative prices in historical_prices."""
     with pytest.raises(ValueError):
@@ -308,6 +347,7 @@ def test_sniper_rejects_negative_historical_price():
 # ---------------------------------------------------------------------------
 # 8. Validation: current_price <= 0 rejected
 # ---------------------------------------------------------------------------
+
 
 def test_sniper_rejects_zero_current_price():
     """current_price must be > 0."""
@@ -325,14 +365,13 @@ def test_sniper_rejects_zero_current_price():
 #    upside_pct=3.0 (300%) → 2.0*3.0*100/20 = 30 → clamped to 5.0
 # ---------------------------------------------------------------------------
 
+
 def test_sniper_position_size_capped_at_5_percent():
     """Position size is capped at 5% even for very large upside.
 
     Manual: upside_pct=3.0 → 2*3*100/20=30 → clamp(30,1,5)=5.0.
     """
-    result = calculate_sniper_points(
-        _req(current_price=100.0, dcf_target=400.0)
-    )
+    result = calculate_sniper_points(_req(current_price=100.0, dcf_target=400.0))
     assert result.position_size_pct == pytest.approx(5.0, abs=0.1)
 
 
@@ -341,6 +380,7 @@ def test_sniper_position_size_capped_at_5_percent():
 #     When vol is very low, stop = max(support - tiny, current*0.85)
 #     With prices=[99..101]*10 (very tight), vol near 0 → stop ≈ current*0.85
 # ---------------------------------------------------------------------------
+
 
 def test_sniper_stop_loss_never_below_fifteen_pct():
     """Stop-loss floor: never more than 15% below current_price.
@@ -368,13 +408,14 @@ def test_sniper_stop_loss_never_below_fifteen_pct():
 #     LONG-flavoured support/resistance anchors).
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize(
     "current, target, low, high",
     [
         (300.0, 100.0, 250.0, 320.0),  # strongly overvalued
         (500.0, 200.0, 400.0, 550.0),
-        (150.0, 80.0,  120.0, 160.0),
-        (220.0, 50.0,  180.0, 240.0),
+        (150.0, 80.0, 120.0, 160.0),
+        (220.0, 50.0, 180.0, 240.0),
         (1000.0, 400.0, 850.0, 1050.0),
     ],
 )
@@ -417,6 +458,7 @@ def test_sniper_short_invariant_target_below_entry_below_stop(
 #     → stop_loss (200) >= ideal_buy (170) → ValueError raised
 # ---------------------------------------------------------------------------
 
+
 def test_sniper_invariant_raises_on_violation() -> None:
     """LONG-mode guard fires when stop_loss >= ideal_buy.
 
@@ -453,6 +495,7 @@ def test_sniper_invariant_raises_on_violation() -> None:
 #     stop_loss = max(70 - 0, 100*0.85) = max(70, 85) = 85. Since support (70) <
 #     stop_loss (85), secondary_buy is dropped to None.
 # ---------------------------------------------------------------------------
+
 
 def test_sniper_long_drops_secondary_when_support_below_stop() -> None:
     """LONG: 20-day support below the stop floor → secondary_buy dropped to None.
@@ -521,3 +564,90 @@ def test_sniper_short_cover_is_dcf_target_not_throttled_to_support() -> None:
     assert result.take_profit == pytest.approx(70.0, abs=0.01)  # the DCF thesis
     assert result.take_profit < result.ideal_buy  # not the degenerate cover==entry
     assert result.risk_reward_ratio > 0.0  # was exactly 0.0 pre-fix
+
+
+# ---------------------------------------------------------------------------
+# 16. BUG-076: DCF target within one tick of current → coherence gate on the
+#     ROUNDED (shipped) values rejects the degenerate row instead of shipping
+#     ideal_buy == take_profit / R/R 0 with a "$X < $X" self-contradiction.
+#
+#     Reproduced exactly from the finding's evidence: current=372.80,
+#     dcf_target=372.799 (a SHORT, target sub-cent below current) and
+#     current=50.00, dcf_target=49.997. Pre-fix these RETURNED (did not raise)
+#     ideal_buy==take_profit==372.80, R/R 0.0, warning "$372.80 < $372.80".
+# ---------------------------------------------------------------------------
+def test_sniper_rejects_target_within_one_tick_short_side() -> None:
+    """BUG-076: DCF target a fraction of a cent BELOW current must raise, not
+    ship a rounded-collapse SHORT (entry==cover, R/R 0, '$372.80 < $372.80')."""
+    with pytest.raises(ValueError, match="within one tick"):
+        calculate_sniper_points(
+            _req(
+                current_price=372.80,
+                dcf_target=372.799,
+                historical_prices=[372.80] * 20,
+            )
+        )
+
+
+def test_sniper_rejects_target_within_one_tick_low_price() -> None:
+    """BUG-076 second evidence row: current=50.00, dcf_target=49.997."""
+    with pytest.raises(ValueError, match="within one tick"):
+        calculate_sniper_points(
+            _req(
+                current_price=50.00,
+                dcf_target=49.997,
+                historical_prices=[50.00] * 20,
+            )
+        )
+
+
+def test_sniper_rejects_target_within_one_tick_long_side() -> None:
+    """BUG-076: a target a fraction of a cent ABOVE current is equally degenerate
+    on the LONG side — there is no directional thesis to snipe."""
+    with pytest.raises(ValueError, match="within one tick"):
+        calculate_sniper_points(
+            _req(
+                current_price=100.00,
+                dcf_target=100.004,
+                historical_prices=[100.00] * 20,
+            )
+        )
+
+
+def test_sniper_just_past_one_tick_still_ships() -> None:
+    """A genuine (> $0.01) directional gap is NOT rejected — the upstream guard
+    fires only on the sub-cent degeneracy, not on legitimate theses. A SHORT
+    whose DCF target sits $0.50 below current ships a coherent, non-degenerate
+    row (the rounded gate finds take_profit strictly below ideal_buy)."""
+    result = calculate_sniper_points(
+        _req(
+            current_price=372.80,
+            dcf_target=372.30,  # $0.50 below current → SHORT, well past one tick
+            historical_prices=[372.80] * 20,
+        )
+    )
+    assert result.direction == "SHORT"
+    # Coherent SHORT ladder on the shipped (rounded) values: cover below entry,
+    # stop above entry, R/R strictly positive — none of the BUG-076 collapse.
+    assert result.take_profit < result.ideal_buy
+    assert result.stop_loss > result.ideal_buy
+    assert result.risk_reward_ratio > 0.0
+
+
+def test_sniper_safe_wrapper_catches_degenerate_target() -> None:
+    """BUG-076: because the gate now raises ValueError, _safe_sniper degrades to
+    None + warning instead of letting the degenerate row reach the artifact."""
+    from types import SimpleNamespace
+
+    from finrobot.engine.compute.technical_payload import _safe_sniper
+
+    warnings: list[str] = []
+    sniper = _safe_sniper(
+        ticker="AAPL",
+        current_price=372.80,
+        dcf_target=372.799,
+        prices=[SimpleNamespace(close=372.80) for _ in range(20)],
+        warnings=warnings,
+    )
+    assert sniper is None
+    assert any("sniper" in w.lower() for w in warnings)

@@ -1714,38 +1714,6 @@ msgid "settings.saving"
 msgstr "保存中…"
 
 #. js-lingui-explicit-id
-msgid "settings.reset.doneTitle"
-msgstr "已恢复 .env 默认"
-
-#. js-lingui-explicit-id
-msgid "settings.reset.doneBody"
-msgstr "settings.json 中的覆盖已清除，重启后从环境变量重新加载"
-
-#. js-lingui-explicit-id
-msgid "settings.reset.failTitle"
-msgstr "恢复失败"
-
-#. js-lingui-explicit-id
-msgid "settings.reset.confirmTitle"
-msgstr "确认恢复默认"
-
-#. js-lingui-explicit-id
-msgid "settings.reset.confirmBodyPrefix"
-msgstr "将"
-
-#. js-lingui-explicit-id
-msgid "settings.reset.confirmBodySuffix"
-msgstr "恢复为 .env 默认值，会清除当前覆盖。"
-
-#. js-lingui-explicit-id
-msgid "settings.reset.cancel"
-msgstr "取消"
-
-#. js-lingui-explicit-id
-msgid "settings.reset.confirm"
-msgstr "确认恢复"
-
-#. js-lingui-explicit-id
 msgid "settings.sec.hintEmpty"
 msgstr "填写格式：姓名或机构 + 空格 + 可联系邮箱，例如 {example}"
 
@@ -1755,7 +1723,7 @@ msgstr "格式未通过：不要只填邮箱；必须像 {example} 这样包含�
 
 #. js-lingui-explicit-id
 msgid "settings.sec.hintPending"
-msgstr "格式有效，等待自动保存到 settings.json；保存成功后后台会重新加载 SEC 数据层"
+msgstr "格式有效，正在自动保存；保存后后台会重新加载 SEC 数据层。"
 
 #. js-lingui-explicit-id
 msgid "settings.sec.hintActive"
@@ -1800,22 +1768,6 @@ msgstr "已启用"
 #. js-lingui-explicit-id
 msgid "settings.badge.pending"
 msgstr "待启用"
-
-#. js-lingui-explicit-id
-msgid "settings.resetToEnv"
-msgstr "恢复 .env"
-
-#. js-lingui-explicit-id
-msgid "settings.resetToEnv.titleKeychain"
-msgstr "清除 keychain 中的覆盖，让 .env 重新生效"
-
-#. js-lingui-explicit-id
-msgid "settings.resetToEnv.titleSettingsJson"
-msgstr "清除 settings.json 中的覆盖，让 .env 重新生效"
-
-#. js-lingui-explicit-id
-msgid "settings.resetToEnv.titleModel"
-msgstr "清除 settings.json 中的 model_name 覆盖，让 .env 重新生效"
 
 #. js-lingui-explicit-id
 msgid "settings.fmp.label"
@@ -1923,7 +1875,7 @@ msgstr "无法启动同步——后端不可用或返回错误。"
 
 #. js-lingui-explicit-id
 msgid "settings.appearance.title"
-msgstr "外观与电量"
+msgstr "外观与语言"
 
 #. js-lingui-explicit-id
 msgid "settings.appearance.intro"
@@ -1952,22 +1904,6 @@ msgstr "首页 3D 机器人"
 #. js-lingui-explicit-id
 msgid "settings.appearance.splineDesc"
 msgstr "股票首页背景上漂浮的 3D 模型，纯装饰。打开分析页时不会出现。"
-
-#. js-lingui-explicit-id
-msgid "settings.source.keychain"
-msgstr "来自 keychain"
-
-#. js-lingui-explicit-id
-msgid "settings.source.settingsJson"
-msgstr "来自 settings.json"
-
-#. js-lingui-explicit-id
-msgid "settings.source.env"
-msgstr "来自 .env"
-
-#. js-lingui-explicit-id
-msgid "settings.source.default"
-msgstr "默认值"
 
 #. js-lingui-explicit-id
 msgid "settings.saveFailedTitle"
@@ -3649,3 +3585,69 @@ msgstr "快速开始"
 #. js-lingui-explicit-id
 msgid "coverage.starter.researchTicker"
 msgstr "研究 {ticker}"
+
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.button"
+msgstr "清除"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.confirmTitle"
+msgstr "清除已保存的 API 密钥？"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.confirmBody"
+msgstr "将从安全存储（系统钥匙串）中删除这个 API 密钥。删除后需要重新填写才能使用该服务。"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.cancel"
+msgstr "取消"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.confirm"
+msgstr "清除"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.doneTitle"
+msgstr "已清除"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.doneBody"
+msgstr "API 密钥已从安全存储中删除。"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.failTitle"
+msgstr "清除失败"
+
+
+#. js-lingui-explicit-id
+msgid "settings.subtitle"
+msgstr "API 密钥与数据源在这里配置，全部保存在本机。"
+
+#. js-lingui-explicit-id
+msgid "settings.llm.apiKeyLabel"
+msgstr "API 密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.llm.apiKeyPlaceholder"
+msgstr "填入 {provider} 的 API 密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.onboarding.title"
+msgstr "先配置一个 AI 模型密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.onboarding.body"
+msgstr "FinRobot 用大模型生成研报叙事——选一个服务商、填入它的 API 密钥即可开始。下方数据源密钥（FMP 等）可选，用于更高质量的财务数据。"
+
+#. js-lingui-explicit-id
+msgid "settings.key.show"
+msgstr "显示"
+
+#. js-lingui-explicit-id
+msgid "settings.key.hide"
+msgstr "隐藏"
+
+#. js-lingui-explicit-id
+msgid "settings.nav.secHoldings"
+msgstr "SEC 持仓"

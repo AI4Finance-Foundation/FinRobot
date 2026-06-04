@@ -4,13 +4,13 @@ import { api, BASE_URL } from '../api/client'
 import { useToastStore } from '../stores/toastStore'
 import { useUiStore } from '../stores/uiStore'
 import { mapErrorToUserMessage, FetchHttpError } from '../utils/errorMessage'
-import { useI18n, tSync } from '../i18n'
+import { useI18n, tSync, useUiPrefs, LOCALES, type Locale } from '../i18n'
 
 interface Props {
   onComplete: () => void
 }
 
-// ─── Model Options ─────────────────────────────────────────────────────────
+// ─── Model options ───────────────────────────────────────────────────────────
 
 const MODEL_OPTIONS = [
   { value: 'deepseek:deepseek-chat', label: 'DeepSeek V3' },
@@ -19,95 +19,7 @@ const MODEL_OPTIONS = [
   { value: 'openai:gpt-4o', label: 'GPT-4o' },
 ]
 
-// ─── Styles ────────────────────────────────────────────────────────────────
-
-const sectionStyle: React.CSSProperties = {
-  background: 'var(--bg-2)',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--r-sm)',
-  padding: '20px',
-  marginBottom: '16px',
-}
-
-const sectionTitleStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: '12px',
-  fontWeight: 600,
-  textTransform: 'uppercase',
-  letterSpacing: '0.06em',
-  color: 'var(--text-primary)',
-  marginBottom: '16px',
-}
-
-const fieldGroupStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '12px',
-}
-
-const fieldStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '4px',
-}
-
-const labelStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '6px',
-  fontFamily: 'var(--font-mono)',
-  fontSize: '11px',
-  color: 'var(--text-secondary)',
-}
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  boxSizing: 'border-box',
-  background: 'var(--bg-3)',
-  border: '1px solid var(--border)',
-  borderRadius: '4px',
-  padding: '8px 10px',
-  fontFamily: 'var(--font-mono)',
-  fontSize: '11px',
-  color: 'var(--text-primary)',
-  outline: 'none',
-  transition: 'border-color 0.15s',
-}
-
-const hintStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: '10px',
-  color: 'var(--text-muted)',
-  marginTop: '2px',
-}
-
-const hintInvalidStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: '10px',
-  color: 'var(--danger)',
-  marginTop: '2px',
-  lineHeight: 1.5,
-}
-
-const hintOkStyle: React.CSSProperties = {
-  ...hintStyle,
-  color: 'var(--success)',
-  lineHeight: 1.5,
-}
-
-const hintWarningStyle: React.CSSProperties = {
-  ...hintStyle,
-  color: 'var(--warning)',
-  lineHeight: 1.5,
-}
-
-const secHeaderPreviewStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: '10px',
-  color: 'var(--text-muted)',
-  marginTop: '0',
-  lineHeight: 1.5,
-}
+// ─── SEC identity validation (mirrors edgar_provider._is_valid_identity) ──────
 
 const SEC_IDENTITY_EXAMPLE = 'Acme Research analyst@example.com'
 const SEC_EMAIL_RE = /[\w.!#$%&'*+/=?^`{|}~-]+@[\w.-]+\.[A-Za-z]{2,}/
@@ -116,8 +28,7 @@ function extractSecEmail(s: string): RegExpMatchArray | null {
   return s.match(SEC_EMAIL_RE)
 }
 
-/** Mirrors finrobot.engine.data.providers.edgar_provider._is_valid_identity.
- * SEC requires `Name email@domain` — we also reject the backend's placeholder
+/** SEC requires `Name email@domain` — we also reject the backend's placeholder
  * default `FinRobot admin@example.com` so the user has to set a real one. */
 export function isValidSecIdentity(s: string | null | undefined): boolean {
   if (!s) return false
@@ -145,131 +56,96 @@ export function secHeaderIdentityPreview(s: string | null | undefined): string |
   return `${asciiName || 'FinRobot'} ${email}`
 }
 
-const requiredBadgeStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: '9px',
-  background: 'var(--negative-bg)',
-  color: 'var(--negative)',
-  padding: '1px 5px',
-  borderRadius: '2px',
-}
+// ─── Small inline icons (cosmic spec: simple glyphs as inline SVG) ────────────
 
-const optionalBadgeStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: '9px',
-  background: 'var(--bg-3)',
-  color: 'var(--text-muted)',
-  padding: '1px 5px',
-  borderRadius: '2px',
-}
-
-const configuredBadgeStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: '9px',
-  background: 'var(--positive-bg)',
-  color: 'var(--positive)',
-  padding: '1px 5px',
-  borderRadius: '2px',
-}
-
-const pendingBadgeStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: '9px',
-  background: 'var(--warning-soft)',
-  color: 'var(--warning)',
-  padding: '1px 5px',
-  borderRadius: '2px',
-}
-
-// Source badge (e.g. "来自 .env", "来自 keychain") — neutral colour so it
-// doesn't compete with the configured/required badges next to it.
-const sourceBadgeStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: '9px',
-  background: 'var(--bg-3)',
-  color: 'var(--text-muted)',
-  padding: '1px 5px',
-  borderRadius: '2px',
-  border: '1px solid var(--border)',
-}
-
-const SOURCE_LABEL_KEYS: Record<string, string> = {
-  keychain: 'settings.source.keychain',
-  settings_json: 'settings.source.settingsJson',
-  env: 'settings.source.env',
-  default: 'settings.source.default',
-}
-
-function SourceBadge({ source }: { source?: string | null }) {
-  const { t } = useI18n()
-  if (!source) return null
-  const key = SOURCE_LABEL_KEYS[source]
-  const label = key ? t(key) : source
-  return <span style={sourceBadgeStyle}>{label}</span>
-}
-
-const ghostBtnStyle: React.CSSProperties = {
-  background: 'transparent',
-  border: '1px solid var(--border)',
-  borderRadius: '3px',
-  padding: '3px 8px',
-  fontFamily: 'var(--font-mono)',
-  fontSize: '10px',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  transition: 'border-color 0.15s, color 0.15s',
-  whiteSpace: 'nowrap',
-  flexShrink: 0,
-}
-
-function InputWithFocus({ style: s, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
-  const [focused, setFocused] = useState(false)
+function Icon({ d }: { d: string }) {
   return (
-    <input
-      {...props}
-      style={{
-        ...inputStyle,
-        ...s,
-        borderColor: focused ? 'var(--accent)' : 'var(--border)',
-      }}
-      onFocus={(e) => {
-        setFocused(true)
-        props.onFocus?.(e)
-      }}
-      onBlur={(e) => {
-        setFocused(false)
-        props.onBlur?.(e)
-      }}
-    />
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d={d}
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   )
 }
+const ICON_MODEL = 'M8 1.5 14 5v6l-6 3.5L2 11V5l6-3.5ZM8 8 14 5M8 8v6.5M8 8 2 5'
+const ICON_DATA =
+  'M2.5 4c0-1.1 2.5-2 5.5-2s5.5.9 5.5 2-2.5 2-5.5 2-5.5-.9-5.5-2Zm0 0v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4'
+const ICON_SEC = 'M8 1.5 13.5 4v4c0 3.5-2.4 5.6-5.5 6.5C4.9 13.6 2.5 11.5 2.5 8V4L8 1.5Z'
+const ICON_DISPLAY = 'M2 3.5h12v7H2v-7Zm4 9.5h4M8 10.5V13'
 
-function SelectWithFocus({ style: s, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  const [focused, setFocused] = useState(false)
+// ─── Password input with show/hide toggle ────────────────────────────────────
+
+function SecretInput({
+  value,
+  onChange,
+  placeholder,
+  invalid,
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  invalid?: boolean
+}) {
+  const { t } = useI18n()
+  const [revealed, setRevealed] = useState(false)
   return (
-    <select
-      {...props}
-      style={{
-        ...inputStyle,
-        ...s,
-        borderColor: focused ? 'var(--accent)' : 'var(--border)',
-        cursor: 'pointer',
-      }}
-      onFocus={(e) => {
-        setFocused(true)
-        props.onFocus?.(e)
-      }}
-      onBlur={(e) => {
-        setFocused(false)
-        props.onBlur?.(e)
-      }}
-    />
+    <div className="settings-input-wrap">
+      <input
+        className={`settings-input has-trailing${invalid ? ' is-invalid' : ''}`}
+        type={revealed ? 'text' : 'password'}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete="off"
+        spellCheck={false}
+      />
+      <button
+        type="button"
+        className="settings-eye"
+        aria-label={revealed ? t('settings.key.hide') : t('settings.key.show')}
+        title={revealed ? t('settings.key.hide') : t('settings.key.show')}
+        onClick={() => setRevealed((r) => !r)}
+      >
+        {revealed ? (
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <path
+              d="M2 8s2.4-4 6-4 6 4 6 4-2.4 4-6 4-6-4-6-4Z"
+              stroke="currentColor"
+              strokeWidth="1.3"
+            />
+            <circle cx="8" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.3" />
+          </svg>
+        ) : (
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <path
+              d="M2 8s2.4-4 6-4 6 4 6 4-2.4 4-6 4-6-4-6-4Z"
+              stroke="currentColor"
+              strokeWidth="1.3"
+            />
+            <path d="m3 3 10 10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+        )}
+      </button>
+    </div>
   )
 }
 
 // ─── Auto-save indicator ───────────────────────────────────────────────────
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
+
+// ─── Section nav (left rail) ─────────────────────────────────────────────────
+
+const NAV_ITEMS = [
+  { id: 'aiModel', icon: ICON_MODEL, labelKey: 'settings.section.aiModel' },
+  { id: 'dataSources', icon: ICON_DATA, labelKey: 'settings.section.dataSources' },
+  { id: 'secHoldings', icon: ICON_SEC, labelKey: 'settings.nav.secHoldings' },
+  { id: 'display', icon: ICON_DISPLAY, labelKey: 'settings.appearance.title' },
+] as const
 
 // ─── Main component ────────────────────────────────────────────────────────
 
@@ -294,34 +170,28 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     },
   })
 
-  // ── Section 1: Data Sources ──────────────────────────────────────────────
+  // ── Editable local state ───────────────────────────────────────────────────
   const [fmpKey, setFmpKey] = useState('')
   const [finnhubKey, setFinnhubKey] = useState('')
   const [secUserAgent, setSecUserAgent] = useState('')
-
-  // ── Section 2: LLM Provider ─────────────────────────────────────────────
   const [modelName, setModelName] = useState('')
   const [llmApiKey, setLlmApiKey] = useState('')
 
-  // Pending fields awaiting user confirmation before resetting their
-  // settings.json override back to the .env default. Set by handleResetField,
-  // cleared by the inline confirm modal.
-  const [pendingReset, setPendingReset] = useState<string[] | null>(null)
-  // Pending SECRET field awaiting confirmation before its stored keychain key
-  // is deleted via POST /api/settings/clear-secret (BUG-005). Separate from
-  // pendingReset because clearing a secret is a distinct, explicit action.
+  // Pending SECRET field awaiting confirmation before its stored keychain key is
+  // deleted via POST /api/settings/clear-secret (BUG-005).
   const [pendingClearSecret, setPendingClearSecret] = useState<string | null>(null)
 
   // ── Save indicator ───────────────────────────────────────────────────────
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initializedRef = useRef(false)
-  // Last payload sent to the PUT mutation. On save failure we keep this around
-  // so the "Save failed · retry" indicator can re-fire the exact same write
-  // instead of silently dropping the user's edit (BUG-026).
   const lastPayloadRef = useRef<Record<string, string | number | boolean | null> | null>(null)
 
-  // Populate from server on first load
+  // ── Active nav section (scroll-spy) ──────────────────────────────────────
+  const [activeSection, setActiveSection] = useState<string>('aiModel')
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
+
+  // Populate editable fields from the server on first load.
   useEffect(() => {
     if (!settingsResp || initializedRef.current) return
     initializedRef.current = true
@@ -329,12 +199,37 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     if (settingsResp.sec_user_agent) setSecUserAgent(settingsResp.sec_user_agent)
   }, [settingsResp])
 
-  // ── PUT /api/settings mutation ───────────────────────────────────────────
+  // Highlight the nav item for whichever section is nearest the top.
+  useEffect(() => {
+    if (isLoading || isError) return
+    if (typeof IntersectionObserver === 'undefined') return // jsdom / older runtimes
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+        if (visible[0]?.target instanceof HTMLElement) {
+          const id = visible[0].target.dataset.section
+          if (id) setActiveSection(id)
+        }
+      },
+      { rootMargin: '-10% 0px -70% 0px', threshold: 0 },
+    )
+    for (const el of Object.values(sectionRefs.current)) {
+      if (el) observer.observe(el)
+    }
+    return () => observer.disconnect()
+  }, [isLoading, isError, settingsResp])
+
+  const scrollToSection = (id: string) => {
+    setActiveSection(id)
+    sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  // ── PUT /api/settings mutation (debounced auto-save) ─────────────────────
   const settingsMutation = useMutation({
     mutationFn: async (body: Record<string, string | null>) => {
-      const { data, error } = await api.PUT('/api/settings', {
-        body: body as never,
-      })
+      const { data, error } = await api.PUT('/api/settings', { body: body as never })
       if (error) {
         const detail = (error as { detail?: string }).detail
         throw new Error(detail || 'Settings update failed')
@@ -348,9 +243,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       saveTimerRef.current = setTimeout(() => setSaveState('idle'), 2500)
     },
     onError: (err: Error) => {
-      // Keep the dirty payload in lastPayloadRef and stay in the 'error' state
-      // (no auto-revert to idle) so the indicator stays a tappable "retry"
-      // affordance until the write actually succeeds — never silently drop it.
       setSaveState('error')
       addToast({
         type: 'error',
@@ -360,60 +252,10 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     },
   })
 
-  // ── POST /api/settings/reset mutation ────────────────────────────────────
-  // "恢复 .env 默认" — clears the listed fields out of settings.json (and
-  // keychain for secrets) so .env / env-vars regain priority. Backend does
-  // NOT copy .env values into settings.json — it just removes the override.
-  const resetMutation = useMutation({
-    mutationFn: async (fields: string[]) => {
-      const resp = await fetch(`${BASE_URL}/api/settings/reset`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fields }),
-      })
-      if (!resp.ok) {
-        const j = await resp.json().catch(() => ({}))
-        if (j?.detail) throw new Error(j.detail)
-        throw new FetchHttpError(resp.status, resp.statusText)
-      }
-      return (await resp.json()) as never
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(['settings'], data)
-      // Wipe the local-edit state so the inputs re-bind to the server
-      // values. Without this, our setStates from before the reset would
-      // keep displaying the user-typed value even after the field is
-      // technically reverted to .env.
-      setFmpKey('')
-      setFinnhubKey('')
-      setLlmApiKey('')
-      // Re-initialize from response so model_name / sec_user_agent reflect
-      // whatever .env contains.
-      const r = data as { model_name?: string; sec_user_agent?: string }
-      if (r?.model_name) setModelName(r.model_name)
-      if (r?.sec_user_agent !== undefined) setSecUserAgent(r.sec_user_agent ?? '')
-      addToast({
-        type: 'success',
-        title: t('settings.reset.doneTitle'),
-        description: t('settings.reset.doneBody'),
-      })
-    },
-    onError: (err: Error) => {
-      addToast({
-        type: 'error',
-        title: t('settings.reset.failTitle'),
-        description: mapErrorToUserMessage(err),
-      })
-    },
-  })
-
   // ── POST /api/settings/clear-secret mutation ─────────────────────────────
-  // Explicit "wipe this stored API key" for keychain-sourced secrets. The
-  // backend PUT no longer deletes a secret on an empty value (BUG-005), so
-  // removing a stored key is a deliberate call to this dedicated endpoint —
-  // it deletes from the keychain then rebuilds runtime settings from .env.
-  // Used in place of /reset for SECRET fields (source === 'keychain'); /reset
-  // stays for non-secret settings.json overrides (model_name, sec_user_agent).
+  // Explicit "wipe this stored API key" — the backend PUT never deletes a
+  // secret on an empty value (BUG-005), so removing a stored key is this
+  // deliberate call. Deletes from the keychain, then rebuilds runtime settings.
   const clearSecretMutation = useMutation({
     mutationFn: async (field: string) => {
       const resp = await fetch(`${BASE_URL}/api/settings/clear-secret`, {
@@ -430,7 +272,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     },
     onSuccess: (data) => {
       queryClient.setQueryData(['settings'], data)
-      // Drop local edits so inputs re-bind to server values (key now gone).
       setFmpKey('')
       setFinnhubKey('')
       setLlmApiKey('')
@@ -439,24 +280,21 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       if (r?.sec_user_agent !== undefined) setSecUserAgent(r.sec_user_agent ?? '')
       addToast({
         type: 'success',
-        title: t('settings.reset.doneTitle'),
-        description: t('settings.reset.doneBody'),
+        title: t('settings.clearKey.doneTitle'),
+        description: t('settings.clearKey.doneBody'),
       })
     },
     onError: (err: Error) => {
       addToast({
         type: 'error',
-        title: t('settings.reset.failTitle'),
+        title: t('settings.clearKey.failTitle'),
         description: mapErrorToUserMessage(err),
       })
     },
   })
 
-  // ── Debounced auto-save for standard settings ────────────────────────────
+  // ── Debounced auto-save ────────────────────────────────────────────────────
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // useMutation returns a new `mutate` reference on each render. Stash the
-  // latest mutation in a ref so the debounced callback can stay stable while
-  // still calling the freshest mutate (avoids a closure over a stale instance).
   const settingsMutationRef = useRef(settingsMutation)
   useEffect(() => {
     settingsMutationRef.current = settingsMutation
@@ -466,8 +304,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     (payload: Record<string, string | number | boolean | null>) => {
       if (!initializedRef.current) return
       if (debounceRef.current) clearTimeout(debounceRef.current)
-      // Merge into any payload still pending from a prior failed save so a
-      // retry replays every dirty field, not just the most recent one.
       const merged = { ...(lastPayloadRef.current ?? {}), ...payload }
       lastPayloadRef.current = merged
       setSaveState('saving')
@@ -478,7 +314,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     [],
   )
 
-  // Re-fire the last (failed) save when the user taps the retry indicator.
   const retrySave = useCallback(() => {
     const payload = lastPayloadRef.current
     if (!payload) return
@@ -486,7 +321,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     settingsMutationRef.current.mutate(payload as never)
   }, [])
 
-  // Cleanup timers
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -499,7 +333,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     setModelName(v)
     scheduleStandardSave({ model_name: v })
   }
-
   const handleLlmKeyChange = (v: string) => {
     setLlmApiKey(v)
     if (!v.trim()) return
@@ -510,28 +343,28 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       | 'openai_api_key'
     scheduleStandardSave({ [keyField]: v.trim() })
   }
-
   const handleFmpKeyChange = (v: string) => {
     setFmpKey(v)
     if (v.trim()) scheduleStandardSave({ fmp_api_key: v.trim() })
   }
-
   const handleFinnhubKeyChange = (v: string) => {
     setFinnhubKey(v)
     if (v.trim()) scheduleStandardSave({ finnhub_api_key: v.trim() })
   }
-
   const handleSecAgentChange = (v: string) => {
     setSecUserAgent(v)
     scheduleStandardSave({ sec_user_agent: v })
+  }
+  const handleClearSecret = (field: string) => {
+    if (field) setPendingClearSecret(field)
   }
 
   // ── Derived ──────────────────────────────────────────────────────────────
   const currentProvider = (modelName || settingsResp?.model_name || '').split(':')[0]
   const fmpConfigured = settingsResp?.fmp_api_key_set ?? false
   const finnhubConfigured = settingsResp?.finnhub_api_key_set ?? false
-  const fieldSources = (settingsResp?.field_sources ?? {}) as Record<string, string>
-  const sourceOf = (field: string): string | null => fieldSources[field] ?? null
+  const llmKeyField = `${currentProvider}_api_key_set` as keyof typeof settingsResp
+  const llmKeyConfigured = Boolean(settingsResp?.[llmKeyField])
   const startupError = settingsResp?.startup_error ?? null
   const secIdentityLocallyValid = isValidSecIdentity(secUserAgent)
   const secIdentityActive = settingsResp?.sec_identity_active ?? false
@@ -539,405 +372,338 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     secUserAgent.trim() === (settingsResp?.sec_user_agent ?? '').trim()
   const secIdentityPreview = secHeaderIdentityPreview(secUserAgent)
   const secIdentityHint = (() => {
-    if (!secUserAgent.trim()) {
+    if (!secUserAgent.trim())
+      return { cls: 'is-bad', text: t('settings.sec.hintEmpty', { example: SEC_IDENTITY_EXAMPLE }) }
+    if (!secIdentityLocallyValid)
       return {
-        style: hintInvalidStyle,
-        text: t('settings.sec.hintEmpty', { example: SEC_IDENTITY_EXAMPLE }),
-      }
-    }
-    if (!secIdentityLocallyValid) {
-      return {
-        style: hintInvalidStyle,
+        cls: 'is-bad',
         text: t('settings.sec.hintInvalid', { example: SEC_IDENTITY_EXAMPLE }),
       }
-    }
-    if (!secIdentityMatchesServer) {
-      return {
-        style: hintWarningStyle,
-        text: t('settings.sec.hintPending'),
-      }
-    }
-    if (secIdentityActive) {
-      return {
-        style: hintOkStyle,
-        text: t('settings.sec.hintActive'),
-      }
-    }
-    return {
-      style: hintWarningStyle,
-      text: t('settings.sec.hintUnconfirmed'),
-    }
+    if (!secIdentityMatchesServer) return { cls: 'is-warn', text: t('settings.sec.hintPending') }
+    if (secIdentityActive) return { cls: 'is-ok', text: t('settings.sec.hintActive') }
+    return { cls: 'is-warn', text: t('settings.sec.hintUnconfirmed') }
   })()
 
-  const handleResetField = (fields: string[]) => {
-    if (!fields.length) return
-    setPendingReset(fields)
-  }
-
-  // Clearing a keychain-stored secret: route to the explicit clear-secret
-  // endpoint instead of /reset so the destructive delete is its own intent
-  // (BUG-005). Same confirm-modal UX as a settings.json reset.
-  const handleClearSecret = (field: string) => {
-    if (!field) return
-    setPendingClearSecret(field)
-  }
-
+  // ── Loading / load-error gates ──────────────────────────────────────────
   if (isLoading) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '48px',
-          color: 'var(--text-muted)',
-          fontFamily: 'var(--font-mono)',
-          fontSize: '11px',
-        }}
-      >
-        {t('settings.loading')}
+      <div className="settings-shell">
+        <div
+          className="settings-frame"
+          style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 12 }}
+        >
+          {t('settings.loading')}
+        </div>
       </div>
     )
   }
 
-  // ── Load-error state ───────────────────────────────────────────────────────
-  // When the settings query failed (backend unreachable / error) we must NOT
-  // render the editable key form: auto-save would no-op (initializedRef stays
-  // false) and the user would type secrets that silently never persist
-  // (BUG-026). Show a clear error + retry instead.
+  // BUG-026: a failed load must NOT render the editable key form (auto-save
+  // would no-op and the user would type secrets that silently never persist).
   if (isError || !settingsResp) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-start',
-          gap: '12px',
-          background: 'var(--negative-bg)',
-          border: '1px solid var(--negative)',
-          borderRadius: 'var(--r-sm)',
-          padding: '20px 22px',
-          fontFamily: 'var(--font-mono)',
-        }}
-        role="alert"
-      >
-        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--negative)' }}>
-          {t('settings.loadError.title')}
+      <div className="settings-shell">
+        <div className="settings-frame">
+          <div
+            role="alert"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              gap: 12,
+              background: 'var(--negative-bg)',
+              border: '1px solid var(--negative)',
+              borderRadius: 'var(--r-md)',
+              padding: '20px 22px',
+              fontFamily: 'var(--font-mono)',
+              maxWidth: 520,
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--negative)' }}>
+              {t('settings.loadError.title')}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.6 }}>
+              {t('settings.loadError.body')}
+            </div>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              style={{ opacity: isFetching ? 0.55 : 1 }}
+            >
+              {isFetching ? t('settings.loading') : t('common.retry')}
+            </button>
+          </div>
         </div>
-        <div style={{ fontSize: '11px', color: 'var(--text-primary)', lineHeight: 1.6 }}>
-          {t('settings.loadError.body')}
-        </div>
-        <button
-          type="button"
-          onClick={() => refetch()}
-          disabled={isFetching}
-          style={{
-            background: 'var(--bg-3)',
-            border: '1px solid var(--border)',
-            borderRadius: '4px',
-            padding: '7px 14px',
-            fontFamily: 'var(--font-mono)',
-            fontSize: '11px',
-            color: 'var(--text-secondary)',
-            cursor: isFetching ? 'not-allowed' : 'pointer',
-            opacity: isFetching ? 0.55 : 1,
-          }}
-        >
-          {isFetching ? t('settings.loading') : t('common.retry')}
-        </button>
       </div>
     )
+  }
+
+  const setSectionRef = (id: string) => (el: HTMLElement | null) => {
+    sectionRefs.current[id] = el
   }
 
   return (
-    <div>
-      {/* ── Startup error banner ── */}
-      {/* Surfaces validate_runtime_config() failures captured at server boot
-          so users see "ANTHROPIC_API_KEY missing" instead of a silent
-          server crash or a 60-second pipeline hang. */}
-      {startupError && (
-        <div
-          style={{
-            background: 'var(--negative-bg)',
-            border: '1px solid var(--negative)',
-            borderRadius: 'var(--r-sm)',
-            padding: '12px 14px',
-            marginBottom: '12px',
-            fontFamily: 'var(--font-mono)',
-            fontSize: '11px',
-            color: 'var(--negative)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
-          }}
-        >
-          <div style={{ fontWeight: 600 }}>{t('settings.startupError.title')}</div>
-          <div style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>{startupError}</div>
-          <div style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
-            {t('settings.startupError.hint')}
+    <div className="settings-shell">
+      <div className="settings-frame">
+        {/* Header: title + subtitle + save indicator */}
+        <div className="settings-head">
+          <div>
+            <h1 className="settings-title">{t('settings.title')}</h1>
+            <p className="settings-subtitle">{t('settings.subtitle')}</p>
           </div>
-        </div>
-      )}
-
-      {/* ── Save indicator ── */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          marginBottom: '12px',
-          height: '18px',
-        }}
-      >
-        {saveState === 'saving' && (
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '10px',
-              color: 'var(--text-muted)',
-            }}
+          <div
+            className={`settings-save${
+              saveState === 'saving' ? ' is-saving' : saveState === 'saved' ? ' is-saved' : ''
+            }`}
           >
-            {t('settings.saving')}
-          </span>
-        )}
-        {saveState === 'saved' && (
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '10px',
-              color: 'var(--positive)',
-            }}
-          >
-            {t('settings.savedOk')}
-          </span>
-        )}
-        {saveState === 'error' && (
-          <button
-            type="button"
-            onClick={retrySave}
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '10px',
-              color: 'var(--negative)',
-              background: 'transparent',
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-              textDecoration: 'underline',
-            }}
-          >
-            {t('settings.saveFailedRetry')}
-          </button>
-        )}
-      </div>
-
-      {/* ═════════════════════════════════════════════
-          Section 1: Data Sources
-          ═════════════════════════════════════════════ */}
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>{t('settings.section.dataSources')}</h2>
-        <div style={fieldGroupStyle}>
-          {/* FMP */}
-          <div style={fieldStyle}>
-            <div style={labelStyle}>
-              <span>{t('settings.fmp.label')}</span>
-              {fmpConfigured ? (
-                <span style={configuredBadgeStyle}>{t('settings.badge.configured')}</span>
-              ) : (
-                <span style={requiredBadgeStyle}>{t('settings.badge.required')}</span>
-              )}
-              <SourceBadge source={sourceOf('fmp_api_key')} />
-              {sourceOf('fmp_api_key') === 'keychain' && (
-                <button
-                  style={ghostBtnStyle}
-                  onClick={() => handleClearSecret('fmp_api_key')}
-                  title={t('settings.resetToEnv.titleKeychain')}
-                >
-                  {t('settings.resetToEnv')}
-                </button>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <InputWithFocus
-                type="password"
-                value={fmpKey}
-                onChange={(e) => handleFmpKeyChange(e.target.value)}
-                placeholder={fmpConfigured ? '••••••••' : t('settings.fmp.placeholder')}
-              />
-            </div>
-            <p style={hintStyle}>{t('settings.fmp.hint')}</p>
-          </div>
-
-          {/* Finnhub */}
-          <div style={fieldStyle}>
-            <div style={labelStyle}>
-              <span>{t('settings.finnhub.label')}</span>
-              {finnhubConfigured ? (
-                <span style={configuredBadgeStyle}>{t('settings.badge.configured')}</span>
-              ) : (
-                <span style={optionalBadgeStyle}>{t('settings.badge.optional')}</span>
-              )}
-              <SourceBadge source={sourceOf('finnhub_api_key')} />
-              {sourceOf('finnhub_api_key') === 'keychain' && (
-                <button
-                  style={ghostBtnStyle}
-                  onClick={() => handleClearSecret('finnhub_api_key')}
-                  title={t('settings.resetToEnv.titleKeychain')}
-                >
-                  {t('settings.resetToEnv')}
-                </button>
-              )}
-            </div>
-            <InputWithFocus
-              type="password"
-              value={finnhubKey}
-              onChange={(e) => handleFinnhubKeyChange(e.target.value)}
-              placeholder={finnhubConfigured ? '••••••••' : t('settings.finnhub.placeholder')}
-            />
-            <p style={hintStyle}>{t('settings.finnhub.hint')}</p>
-          </div>
-
-          {/* SEC EDGAR */}
-          <div style={fieldStyle}>
-            <div style={labelStyle}>
-              <span>{t('settings.sec.label')}</span>
-              {secIdentityActive ? (
-                <span style={configuredBadgeStyle}>{t('settings.badge.active')}</span>
-              ) : secIdentityLocallyValid ? (
-                <span style={pendingBadgeStyle}>{t('settings.badge.pending')}</span>
-              ) : (
-                <span style={requiredBadgeStyle}>{t('settings.badge.required')}</span>
-              )}
-              <SourceBadge source={sourceOf('sec_user_agent')} />
-              {sourceOf('sec_user_agent') === 'settings_json' && (
-                <button
-                  style={ghostBtnStyle}
-                  onClick={() => handleResetField(['sec_user_agent'])}
-                  title={t('settings.resetToEnv.titleSettingsJson')}
-                >
-                  {t('settings.resetToEnv')}
-                </button>
-              )}
-            </div>
-            <InputWithFocus
-              type="text"
-              value={secUserAgent}
-              onChange={(e) => handleSecAgentChange(e.target.value)}
-              placeholder={t('settings.sec.placeholder')}
-              autoComplete="off"
-              spellCheck={false}
-              aria-invalid={!secIdentityLocallyValid}
-              data-invalid={!secIdentityLocallyValid || undefined}
-              style={
-                !secIdentityLocallyValid
-                  ? {
-                      borderColor: 'var(--danger)',
-                      boxShadow: '0 0 0 1px var(--danger-glow-soft)',
-                    }
-                  : undefined
-              }
-            />
-            <p style={secIdentityHint.style}>{secIdentityHint.text}</p>
-            {secIdentityPreview && (
-              <p style={secHeaderPreviewStyle}>
-                {t('settings.sec.preview')}
-                {secIdentityPreview}
-              </p>
+            {saveState === 'saving' && <span>{t('settings.saving')}</span>}
+            {saveState === 'saved' && <span>✓ {t('settings.savedOk')}</span>}
+            {saveState === 'error' && (
+              <button type="button" className="settings-save-retry" onClick={retrySave}>
+                {t('settings.saveFailedRetry')}
+              </button>
             )}
           </div>
         </div>
-      </section>
 
-      {/* ═════════════════════════════════════════════
-          Section 1b: SEC 13F Institutional Holdings
-          ═════════════════════════════════════════════ */}
-      <SecHoldingsSection />
-
-      {/* ═════════════════════════════════════════════
-          Section 2: LLM Provider
-          ═════════════════════════════════════════════ */}
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>{t('settings.section.aiModel')}</h2>
-        <div style={fieldGroupStyle}>
-          <div style={fieldStyle}>
-            <div style={labelStyle}>
-              <span>{t('settings.model.label')}</span>
-              <SourceBadge source={sourceOf('model_name')} />
-              {sourceOf('model_name') === 'settings_json' && (
-                <button
-                  style={ghostBtnStyle}
-                  onClick={() => handleResetField(['model_name'])}
-                  title={t('settings.resetToEnv.titleModel')}
-                >
-                  {t('settings.resetToEnv')}
-                </button>
-              )}
+        {/* Startup error banner (validate_runtime_config failure at boot) */}
+        {startupError && (
+          <div
+            style={{
+              background: 'var(--negative-bg)',
+              border: '1px solid var(--negative)',
+              borderRadius: 'var(--r-md)',
+              padding: '12px 16px',
+              marginBottom: 'var(--sp-5)',
+              fontSize: 12,
+              color: 'var(--negative)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+            }}
+          >
+            <div style={{ fontWeight: 600 }}>{t('settings.startupError.title')}</div>
+            <div style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+              {startupError}
             </div>
-            <SelectWithFocus
-              value={modelName || settingsResp?.model_name || ''}
-              onChange={(e) => handleModelChange(e.target.value)}
-            >
-              {MODEL_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </SelectWithFocus>
+            <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+              {t('settings.startupError.hint')}
+            </div>
           </div>
+        )}
 
-          <div style={fieldStyle}>
-            <div style={labelStyle}>
-              <span>API Key</span>
-              {(() => {
-                const keyField = `${currentProvider}_api_key_set` as keyof typeof settingsResp
-                const isSet = settingsResp?.[keyField]
-                return isSet ? (
-                  <span style={configuredBadgeStyle}>{t('settings.badge.configured')}</span>
-                ) : (
-                  <span style={requiredBadgeStyle}>{t('settings.badge.required')}</span>
-                )
-              })()}
-              <SourceBadge source={sourceOf(`${currentProvider}_api_key`)} />
-              {sourceOf(`${currentProvider}_api_key`) === 'keychain' && (
-                <button
-                  style={ghostBtnStyle}
-                  onClick={() => handleClearSecret(`${currentProvider}_api_key`)}
-                  title={t('settings.resetToEnv.titleKeychain')}
-                >
-                  {t('settings.resetToEnv')}
-                </button>
+        <div className="settings-body">
+          {/* Left nav rail */}
+          <nav className="settings-nav" aria-label={t('settings.title')}>
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`settings-nav-item${activeSection === item.id ? ' active' : ''}`}
+                onClick={() => scrollToSection(item.id)}
+              >
+                <Icon d={item.icon} />
+                {t(item.labelKey)}
+              </button>
+            ))}
+          </nav>
+
+          {/* Right content */}
+          <div className="settings-content">
+            {/* ── AI Model ── */}
+            <section
+              className="settings-section"
+              data-section="aiModel"
+              ref={setSectionRef('aiModel')}
+            >
+              <h2 className="settings-section-title">{t('settings.section.aiModel')}</h2>
+
+              {!llmKeyConfigured && (
+                <div className="settings-onboard">
+                  <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden>
+                    <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3" />
+                    <path
+                      d="M8 5v3.5"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                    />
+                    <circle cx="8" cy="11" r="0.6" fill="currentColor" />
+                  </svg>
+                  <div>
+                    <p className="settings-onboard-title">{t('settings.onboarding.title')}</p>
+                    <p className="settings-onboard-body">{t('settings.onboarding.body')}</p>
+                  </div>
+                </div>
               )}
-            </div>
-            <InputWithFocus
-              type="password"
-              value={llmApiKey}
-              onChange={(e) => handleLlmKeyChange(e.target.value)}
-              placeholder={(() => {
-                const keyField = `${currentProvider}_api_key_set` as keyof typeof settingsResp
-                return settingsResp?.[keyField] ? '••••••••' : `Enter ${currentProvider} API key`
-              })()}
-            />
+
+              <div className="settings-fields">
+                <div className="settings-field">
+                  <label className="settings-field-label">
+                    <span className="label-text">{t('settings.model.label')}</span>
+                  </label>
+                  <select
+                    className="settings-input"
+                    value={modelName || settingsResp.model_name || ''}
+                    onChange={(e) => handleModelChange(e.target.value)}
+                  >
+                    {MODEL_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="settings-field">
+                  <label className="settings-field-label">
+                    <span className="label-text">{t('settings.llm.apiKeyLabel')}</span>
+                    {llmKeyConfigured ? (
+                      <span className="settings-badge is-ok">{t('settings.badge.configured')}</span>
+                    ) : (
+                      <span className="settings-badge is-required">
+                        {t('settings.badge.required')}
+                      </span>
+                    )}
+                    {llmKeyConfigured && (
+                      <button
+                        type="button"
+                        className="settings-clear-btn"
+                        onClick={() => handleClearSecret(`${currentProvider}_api_key`)}
+                      >
+                        {t('settings.clearKey.button')}
+                      </button>
+                    )}
+                  </label>
+                  <SecretInput
+                    value={llmApiKey}
+                    onChange={handleLlmKeyChange}
+                    placeholder={
+                      llmKeyConfigured
+                        ? '••••••••'
+                        : t('settings.llm.apiKeyPlaceholder', { provider: currentProvider })
+                    }
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* ── Data Sources ── */}
+            <section
+              className="settings-section"
+              data-section="dataSources"
+              ref={setSectionRef('dataSources')}
+            >
+              <h2 className="settings-section-title">{t('settings.section.dataSources')}</h2>
+              <div className="settings-fields">
+                {/* FMP */}
+                <div className="settings-field">
+                  <label className="settings-field-label">
+                    <span className="label-text">{t('settings.fmp.label')}</span>
+                    {fmpConfigured ? (
+                      <span className="settings-badge is-ok">{t('settings.badge.configured')}</span>
+                    ) : (
+                      <span className="settings-badge is-required">
+                        {t('settings.badge.required')}
+                      </span>
+                    )}
+                    {fmpConfigured && (
+                      <button
+                        type="button"
+                        className="settings-clear-btn"
+                        onClick={() => handleClearSecret('fmp_api_key')}
+                      >
+                        {t('settings.clearKey.button')}
+                      </button>
+                    )}
+                  </label>
+                  <SecretInput
+                    value={fmpKey}
+                    onChange={handleFmpKeyChange}
+                    placeholder={fmpConfigured ? '••••••••' : t('settings.fmp.placeholder')}
+                  />
+                  <p className="settings-hint">{t('settings.fmp.hint')}</p>
+                </div>
+
+                {/* Finnhub */}
+                <div className="settings-field">
+                  <label className="settings-field-label">
+                    <span className="label-text">{t('settings.finnhub.label')}</span>
+                    {finnhubConfigured ? (
+                      <span className="settings-badge is-ok">{t('settings.badge.configured')}</span>
+                    ) : (
+                      <span className="settings-badge is-optional">
+                        {t('settings.badge.optional')}
+                      </span>
+                    )}
+                    {finnhubConfigured && (
+                      <button
+                        type="button"
+                        className="settings-clear-btn"
+                        onClick={() => handleClearSecret('finnhub_api_key')}
+                      >
+                        {t('settings.clearKey.button')}
+                      </button>
+                    )}
+                  </label>
+                  <SecretInput
+                    value={finnhubKey}
+                    onChange={handleFinnhubKeyChange}
+                    placeholder={finnhubConfigured ? '••••••••' : t('settings.finnhub.placeholder')}
+                  />
+                  <p className="settings-hint">{t('settings.finnhub.hint')}</p>
+                </div>
+
+                {/* SEC EDGAR identity */}
+                <div className="settings-field">
+                  <label className="settings-field-label">
+                    <span className="label-text">{t('settings.sec.label')}</span>
+                    {secIdentityActive ? (
+                      <span className="settings-badge is-ok">{t('settings.badge.active')}</span>
+                    ) : secIdentityLocallyValid ? (
+                      <span className="settings-badge is-pending">
+                        {t('settings.badge.pending')}
+                      </span>
+                    ) : (
+                      <span className="settings-badge is-required">
+                        {t('settings.badge.required')}
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    className={`settings-input${secIdentityLocallyValid ? '' : ' is-invalid'}`}
+                    type="text"
+                    value={secUserAgent}
+                    onChange={(e) => handleSecAgentChange(e.target.value)}
+                    placeholder={t('settings.sec.placeholder')}
+                    autoComplete="off"
+                    spellCheck={false}
+                    aria-invalid={!secIdentityLocallyValid}
+                  />
+                  <p className={`settings-hint ${secIdentityHint.cls}`}>{secIdentityHint.text}</p>
+                  {secIdentityPreview && (
+                    <p className="settings-hint">
+                      {t('settings.sec.preview')}
+                      {secIdentityPreview}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* ── SEC 13F holdings ── */}
+            <SecHoldingsSection sectionRef={setSectionRef('secHoldings')} />
+
+            {/* ── Appearance & language ── */}
+            <DisplaySection sectionRef={setSectionRef('display')} />
           </div>
         </div>
-      </section>
-
-      <CosmicAppearanceSection />
-
-      {pendingReset && (
-        <ResetConfirmModal
-          fields={pendingReset}
-          onCancel={() => setPendingReset(null)}
-          onConfirm={() => {
-            const f = pendingReset
-            setPendingReset(null)
-            resetMutation.mutate(f)
-          }}
-        />
-      )}
+      </div>
 
       {pendingClearSecret && (
-        <ResetConfirmModal
-          fields={[pendingClearSecret]}
+        <ClearKeyConfirmModal
           onCancel={() => setPendingClearSecret(null)}
           onConfirm={() => {
             const f = pendingClearSecret
@@ -950,12 +716,12 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   )
 }
 
-function ResetConfirmModal({
-  fields,
+// ─── Clear-key confirm modal ─────────────────────────────────────────────────
+
+function ClearKeyConfirmModal({
   onCancel,
   onConfirm,
 }: {
-  fields: string[]
   onCancel: () => void
   onConfirm: () => void
 }): React.ReactElement {
@@ -968,7 +734,7 @@ function ResetConfirmModal({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'color-mix(in srgb, var(--bg-void) 72%, transparent)',
+        background: 'var(--scrim)',
         backdropFilter: 'blur(6px)',
         WebkitBackdropFilter: 'blur(6px)',
         display: 'grid',
@@ -981,64 +747,38 @@ function ResetConfirmModal({
         style={{
           minWidth: 360,
           maxWidth: 440,
-          padding: '20px 22px',
+          padding: '22px 24px',
           background: 'var(--bg-elevated)',
           border: '1px solid var(--border-soft)',
           borderRadius: 'var(--radius-md)',
-          boxShadow: '0 16px 40px color-mix(in srgb, var(--bg-void) 40%, transparent)',
+          boxShadow: 'var(--shadow-lg)',
           display: 'flex',
           flexDirection: 'column',
           gap: 14,
         }}
       >
-        <div
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            letterSpacing: '0.06em',
-            color: 'var(--warning)',
-          }}
-        >
-          {t('settings.reset.confirmTitle')}
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+          {t('settings.clearKey.confirmTitle')}
         </div>
-        <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.55 }}>
-          {t('settings.reset.confirmBodyPrefix')}{' '}
-          <code style={{ color: 'var(--accent-cyan)' }}>{fields.join(', ')}</code>
-          {t('settings.reset.confirmBodySuffix')}
+        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          {t('settings.clearKey.confirmBody')}
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-          <button
-            type="button"
-            onClick={onCancel}
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              padding: '7px 14px',
-              borderRadius: 6,
-              border: '1px solid var(--border-soft)',
-              background: 'transparent',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-            }}
-          >
-            {t('settings.reset.cancel')}
+          <button type="button" className="btn" onClick={onCancel}>
+            {t('settings.clearKey.cancel')}
           </button>
           <button
             type="button"
             onClick={onConfirm}
+            className="btn"
             style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              padding: '7px 14px',
-              borderRadius: 6,
-              border: 'none',
-              background: 'var(--warning)',
-              color: 'var(--bg-void)',
-              cursor: 'pointer',
+              background: 'var(--danger)',
+              borderColor: 'var(--danger)',
+              color: 'var(--text-on-primary)',
               fontWeight: 600,
             }}
           >
-            {t('settings.reset.confirm')}
+            {t('settings.clearKey.confirm')}
           </button>
         </div>
       </div>
@@ -1046,12 +786,10 @@ function ResetConfirmModal({
   )
 }
 
-// ── SEC 13F institutional-holdings section ─────────────────────────────────
+// ─── SEC 13F institutional-holdings section ─────────────────────────────────
 // The 13F reverse index is OFF by default (building it downloads a whole
-// quarter of market-wide filings — ~1-2h). This section lets the user see
-// cache state, flip auto-sync, and trigger a manual build. Without it the
-// 13F report chapter is permanently cold and the old UI lied that a sync
-// was already running. Polls /status while a refresh is in flight.
+// quarter of market-wide filings — ~1-2h). This section shows cache state,
+// flips auto-sync, and triggers a manual build behind a confirm (BUG-009).
 
 interface RefreshRuntime {
   status: 'idle' | 'running' | 'done' | 'error'
@@ -1071,7 +809,11 @@ interface SecHoldingsStatusShape {
   refresh: RefreshRuntime
 }
 
-function SecHoldingsSection(): React.ReactElement {
+function SecHoldingsSection({
+  sectionRef,
+}: {
+  sectionRef: (el: HTMLElement | null) => void
+}): React.ReactElement {
   const { t } = useI18n()
   const queryClient = useQueryClient()
   const addToast = useToastStore((s) => s.addToast)
@@ -1083,8 +825,6 @@ function SecHoldingsSection(): React.ReactElement {
       if (!resp.ok) throw new FetchHttpError(resp.status, resp.statusText)
       return (await resp.json()) as SecHoldingsStatusShape
     },
-    // Poll only while a build is running so the row count / status update
-    // live; otherwise stay quiet (the cache changes at most quarterly).
     refetchInterval: (query) => (query.state.data?.refresh.status === 'running' ? 2000 : false),
   })
 
@@ -1130,8 +870,6 @@ function SecHoldingsSection(): React.ReactElement {
     },
   })
 
-  // Gate the heavy 13F build behind an explicit confirm (BUG-009): a single
-  // click used to kick off a ~1-2h market-wide download with no warning.
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const running = status?.refresh.status === 'running' || refreshMutation.isPending
@@ -1157,40 +895,22 @@ function SecHoldingsSection(): React.ReactElement {
   })()
 
   return (
-    <section style={sectionStyle}>
-      <h2 style={sectionTitleStyle}>{t('settings.section.secHoldings')}</h2>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 16px', lineHeight: 1.6 }}>
-        {t('settings.secHoldings.intro')}
-      </p>
+    <section className="settings-section" data-section="secHoldings" ref={sectionRef}>
+      <h2 className="settings-section-title">{t('settings.section.secHoldings')}</h2>
+      <p className="settings-section-desc">{t('settings.secHoldings.intro')}</p>
 
-      {/* Cache status + manual trigger */}
-      <div style={fieldStyle}>
-        <div style={labelStyle}>
-          <span>{statusLine}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+      <div className="settings-field">
+        <p className="settings-hint" style={{ fontFamily: 'var(--font-mono)' }}>
+          {statusLine}
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <button
             type="button"
+            className="btn"
             disabled={!identityOk || running}
             onClick={() => setConfirmOpen(true)}
-            style={{
-              background: 'var(--bg-3)',
-              border: '1px solid var(--border)',
-              borderRadius: '4px',
-              padding: '7px 14px',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '11px',
-              color: 'var(--text-secondary)',
-              cursor: !identityOk || running ? 'not-allowed' : 'pointer',
-              opacity: !identityOk || running ? 0.55 : 1,
-              transition: 'all 0.15s',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
           >
-            {/* Refresh icon — inline SVG per style guide */}
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+            <svg width="13" height="13" viewBox="0 0 12 12" fill="none" aria-hidden>
               <path
                 d="M10.5 6a4.5 4.5 0 1 1-1.32-3.18M10.5 1.5V4H8"
                 stroke="currentColor"
@@ -1202,7 +922,7 @@ function SecHoldingsSection(): React.ReactElement {
             {running ? t('settings.secHoldings.syncing') : t('settings.secHoldings.syncNow')}
           </button>
           {!identityOk && (
-            <span style={{ ...hintWarningStyle, marginTop: 0 }}>
+            <span className="settings-hint is-warn">
               {t('settings.secHoldings.identityRequired')}
             </span>
           )}
@@ -1210,15 +930,17 @@ function SecHoldingsSection(): React.ReactElement {
         {running && (
           <>
             {startedAtLabel && (
-              <p style={{ ...hintStyle, marginTop: '6px', lineHeight: 1.5 }}>{startedAtLabel}</p>
+              <p className="settings-hint" style={{ marginTop: 6 }}>
+                {startedAtLabel}
+              </p>
             )}
-            <p style={{ ...hintStyle, marginTop: '6px', lineHeight: 1.5 }}>
+            <p className="settings-hint" style={{ marginTop: 6 }}>
               {t('settings.secHoldings.runningHint')}
             </p>
           </>
         )}
         {refreshMutation.isError && !running && (
-          <p style={{ ...hintInvalidStyle, marginTop: '6px', lineHeight: 1.5 }}>
+          <p className="settings-hint is-bad" style={{ marginTop: 6 }}>
             {t('settings.secHoldings.syncError')}{' '}
             <button
               type="button"
@@ -1229,7 +951,7 @@ function SecHoldingsSection(): React.ReactElement {
                 padding: 0,
                 color: 'var(--danger)',
                 fontFamily: 'var(--font-mono)',
-                fontSize: '10px',
+                fontSize: '0.75rem',
                 cursor: 'pointer',
                 textDecoration: 'underline',
               }}
@@ -1240,7 +962,6 @@ function SecHoldingsSection(): React.ReactElement {
         )}
       </div>
 
-      {/* Auto-sync toggle */}
       <ToggleRow
         label={t('settings.secHoldings.autoRefresh')}
         desc={t('settings.secHoldings.autoRefreshDesc')}
@@ -1261,8 +982,6 @@ function SecHoldingsSection(): React.ReactElement {
   )
 }
 
-// Confirm dialog gating the heavy 13F build (BUG-009). Reuses the cosmic modal
-// chrome from ResetConfirmModal but with a "start sync" affirmative.
 function SecHoldingsConfirmModal({
   onCancel,
   onConfirm,
@@ -1279,7 +998,7 @@ function SecHoldingsConfirmModal({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'color-mix(in srgb, var(--bg-void) 72%, transparent)',
+        background: 'var(--scrim)',
         backdropFilter: 'blur(6px)',
         WebkitBackdropFilter: 'blur(6px)',
         display: 'grid',
@@ -1292,58 +1011,34 @@ function SecHoldingsConfirmModal({
         style={{
           minWidth: 360,
           maxWidth: 460,
-          padding: '20px 22px',
+          padding: '22px 24px',
           background: 'var(--bg-elevated)',
           border: '1px solid var(--border-soft)',
           borderRadius: 'var(--radius-md)',
-          boxShadow: '0 16px 40px color-mix(in srgb, var(--bg-void) 40%, transparent)',
+          boxShadow: 'var(--shadow-lg)',
           display: 'flex',
           flexDirection: 'column',
           gap: 14,
         }}
       >
-        <div
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            letterSpacing: '0.06em',
-            color: 'var(--warning)',
-          }}
-        >
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--warning)' }}>
           {t('settings.secHoldings.confirmTitle')}
         </div>
-        <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.55 }}>
+        <div style={{ fontSize: 12.5, color: 'var(--text-primary)', lineHeight: 1.6 }}>
           {t('settings.secHoldings.confirmBody')}
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-          <button
-            type="button"
-            onClick={onCancel}
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              padding: '7px 14px',
-              borderRadius: 6,
-              border: '1px solid var(--border-soft)',
-              background: 'transparent',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-            }}
-          >
-            {t('settings.reset.cancel')}
+          <button type="button" className="btn" onClick={onCancel}>
+            {t('settings.clearKey.cancel')}
           </button>
           <button
             type="button"
             onClick={onConfirm}
+            className="btn"
             style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              padding: '7px 14px',
-              borderRadius: 6,
-              border: 'none',
               background: 'var(--warning)',
-              color: 'var(--bg-void)',
-              cursor: 'pointer',
+              borderColor: 'var(--warning)',
+              color: 'var(--text-on-warning)',
               fontWeight: 600,
             }}
           >
@@ -1355,15 +1050,22 @@ function SecHoldingsConfirmModal({
   )
 }
 
-// ── Cosmic appearance section (桌面动效 toggles) ───────────────────────────
-function CosmicAppearanceSection(): React.ReactElement {
+// ─── Appearance & language section ──────────────────────────────────────────
+
+function DisplaySection({
+  sectionRef,
+}: {
+  sectionRef: (el: HTMLElement | null) => void
+}): React.ReactElement {
   const { t } = useI18n()
+  const locale = useUiPrefs((s) => s.locale)
+  const setLocale = useUiPrefs((s) => s.setLocale)
   const cursorOn = useUiStore((s) => s.cursorTrailEnabled)
   const splineOn = useUiStore((s) => s.splineEnabled)
   const setCursor = useUiStore((s) => s.setCursorTrailEnabled)
   const setSpline = useUiStore((s) => s.setSplineEnabled)
 
-  // 省电模式 = 所有装饰动效全关。开关 ON 时表示「正在省电」。
+  // Power saver = all decorative animation off. ON means "currently saving power".
   const saverOn = !cursorOn && !splineOn
   function toggleSaver() {
     if (saverOn) {
@@ -1376,11 +1078,27 @@ function CosmicAppearanceSection(): React.ReactElement {
   }
 
   return (
-    <section style={sectionStyle}>
-      <h2 style={sectionTitleStyle}>{t('settings.appearance.title')}</h2>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 16px' }}>
-        {t('settings.appearance.intro')}
-      </p>
+    <section className="settings-section" data-section="display" ref={sectionRef}>
+      <h2 className="settings-section-title">{t('settings.appearance.title')}</h2>
+      <p className="settings-section-desc">{t('settings.appearance.intro')}</p>
+
+      <div className="settings-field" style={{ marginBottom: 'var(--sp-4)' }}>
+        <label className="settings-field-label">
+          <span className="label-text">{t('settings.language')}</span>
+        </label>
+        <select
+          className="settings-input"
+          value={locale}
+          onChange={(e) => setLocale(e.target.value as Locale)}
+          style={{ maxWidth: 220 }}
+        >
+          {LOCALES.map((l) => (
+            <option key={l.code} value={l.code}>
+              {l.native}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <ToggleRow
         label={t('settings.appearance.saver')}
@@ -1421,13 +1139,13 @@ function ToggleRow({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '12px 0',
+        padding: '14px 0',
         borderTop: '1px solid var(--border-soft)',
       }}
     >
       <div style={{ paddingRight: 24 }}>
         <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{label}</div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
           {desc}
         </div>
       </div>

@@ -1309,6 +1309,363 @@ select.input-field {
 }
 
 /* ═══════════════════════════
+   SETTINGS PAGE (two-pane console)
+   Sticky section nav + framed content over a cosmic backdrop, so the page
+   reads as a designed surface instead of a single column floating on black.
+   ═══════════════════════════ */
+.settings-shell {
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  background:
+    radial-gradient(120% 60% at 12% -8%, rgba(59, 130, 246, 0.1), transparent 60%),
+    radial-gradient(120% 60% at 100% 0%, rgba(139, 92, 246, 0.1), transparent 55%);
+}
+.settings-frame {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: var(--sp-8) var(--sp-8) var(--sp-10);
+}
+
+.settings-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-6);
+}
+.settings-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  margin: 0;
+}
+.settings-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-top: var(--sp-1);
+  max-width: 60ch;
+}
+
+/* Two-pane grid: sticky nav rail + scrolling content */
+.settings-body {
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr);
+  gap: var(--sp-6);
+  align-items: start;
+}
+.settings-nav {
+  position: sticky;
+  top: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 9px var(--sp-3);
+  border: none;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+  border-left: 2px solid transparent;
+}
+.settings-nav-item:hover {
+  background: var(--secondary-hover);
+  color: var(--text-secondary);
+}
+.settings-nav-item.active {
+  background: var(--accent-dim);
+  color: var(--text-primary);
+  border-left-color: var(--accent);
+}
+.settings-nav-item svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  min-width: 0;
+}
+
+/* A section card */
+.settings-section {
+  background: var(--bg-card-translucent);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  padding: var(--sp-6);
+  scroll-margin-top: var(--sp-4);
+  box-shadow: var(--shadow-sm);
+}
+.settings-section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 var(--sp-2);
+}
+.settings-section-title::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--accent), var(--secondary));
+}
+.settings-section-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 var(--sp-5);
+}
+
+/* Field block: label, control, hint */
+.settings-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.settings-field-label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.settings-field-label .label-text {
+  margin-right: var(--sp-1);
+}
+.settings-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+  margin: 0;
+}
+.settings-hint.is-ok {
+  color: var(--success);
+}
+.settings-hint.is-warn {
+  color: var(--warning);
+}
+.settings-hint.is-bad {
+  color: var(--danger);
+}
+
+/* The input itself — larger, translucent, glow on focus */
+.settings-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.settings-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  outline: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
+}
+.settings-input::placeholder {
+  color: var(--text-dim);
+}
+.settings-input:hover {
+  border-color: var(--border-glow);
+}
+.settings-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+  background: var(--bg-card);
+}
+.settings-input.is-invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px var(--danger-glow-soft);
+}
+.settings-input.has-trailing {
+  padding-right: 42px;
+}
+select.settings-input {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'><path d='M3 4.5 6 7.5 9 4.5' stroke='%237c7c9c' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+/* Eye toggle for password fields */
+.settings-eye {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--r-sm);
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+.settings-eye:hover {
+  color: var(--text-primary);
+  background: var(--secondary-hover);
+}
+
+/* Status pills next to a label */
+.settings-badge {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.settings-badge.is-ok {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.settings-badge.is-required {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.settings-badge.is-optional {
+  background: var(--bg-3);
+  color: var(--text-muted);
+}
+.settings-badge.is-pending {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+/* Small ghost "clear key" button next to a configured secret */
+.settings-clear-btn {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  padding: 2px 9px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+.settings-clear-btn:hover {
+  color: var(--danger);
+  border-color: var(--danger-glow-soft);
+}
+
+/* Onboarding callout (shown when no LLM key is configured) */
+.settings-onboard {
+  display: flex;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: var(--r-md);
+  background: linear-gradient(135deg, var(--primary-soft), var(--secondary-soft-alt));
+  border: 1px solid var(--border-glow);
+  margin-bottom: var(--sp-5);
+}
+.settings-onboard svg {
+  flex-shrink: 0;
+  color: var(--accent);
+  margin-top: 1px;
+}
+.settings-onboard-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 var(--sp-1);
+}
+.settings-onboard-body {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Save indicator in the header */
+.settings-save {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  height: 20px;
+}
+.settings-save.is-saving {
+  color: var(--text-muted);
+}
+.settings-save.is-saved {
+  color: var(--success);
+}
+.settings-save-retry {
+  color: var(--danger);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+/* Narrow windows: nav collapses to a horizontal strip on top */
+@media (max-width: 720px) {
+  .settings-body {
+    grid-template-columns: 1fr;
+  }
+  .settings-nav {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-bottom: var(--sp-2);
+  }
+  .settings-nav-item {
+    border-left: none;
+  }
+}
+
+/* ═══════════════════════════
    ERROR MESSAGE
    ═══════════════════════════ */
 .error-msg {

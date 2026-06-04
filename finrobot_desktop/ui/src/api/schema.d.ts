@@ -67,6 +67,32 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/compute/artifacts/{artifact_id}/what-if/dcf': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Compute Dcf What If
+     * @description Replay a saved report's frozen DCF, overriding only the slider field(s).
+     *
+     *     Loads the artifact, reads its persisted DCFInputs (frozen at generation
+     *     time), applies the What-if overrides, and runs the pure ``calculate_dcf``.
+     *     No ``data_layer.fetch_canonical`` / ``seed_dcf_inputs`` — so dragging a
+     *     slider on an old report cannot smear in fresh price/financials/Damodaran
+     *     drift. Returns BASE (persisted) and NEW (recomputed) implied prices.
+     */
+    post: operations['compute_dcf_what_if_api_compute_artifacts__artifact_id__what_if_dcf_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/compute/dcf-equivalence-line': {
     parameters: {
       query?: never
@@ -191,30 +217,6 @@ export interface paths {
      *     inputs — no LLM inference.
      */
     post: operations['compute_sniper_api_compute_sniper_post']
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/compute/score': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /**
-     * Compute Score
-     * @description Compute a 0-100 composite score from fundamentals, valuation, catalysts, sentiment.
-     *
-     *     Weights: fundamental 30%, valuation 30%, catalyst 20%, sentiment 20%.
-     *     Signal: STRONG_BUY (>=80) / BUY (>=60) / HOLD (>=40) / SELL (>=20) / STRONG_SELL.
-     *     All thresholds are hardcoded — no LLM reasoning.
-     */
-    post: operations['compute_score_api_compute_score_post']
     delete?: never
     options?: never
     head?: never
@@ -378,7 +380,7 @@ export interface paths {
     patch?: never
     trace?: never
   }
-  '/api/settings/reset': {
+  '/api/settings/clear-secret': {
     parameters: {
       query?: never
       header?: never
@@ -388,18 +390,20 @@ export interface paths {
     get?: never
     put?: never
     /**
-     * Reset Settings Route
-     * @description Remove the listed fields from ``~/.finrobot/settings.json``.
+     * Clear Secret Route
+     * @description Explicitly delete one secret field from the keychain.
      *
-     *     This re-empowers .env / FINROBOT_* environment variables as the source
-     *     of truth for those fields. Secret fields are routed to the keychain
-     *     instead: ``reset`` deletes them from the keychain so .env values can
-     *     take over on the next request cycle.
+     *     This is the ONLY path that deletes a stored API key. Splitting it out of the
+     *     PUT endpoint means an empty value in a settings form can never silently wipe
+     *     a key (BUG-005) — a destructive action requires a deliberate call here.
      *
-     *     Reset semantics: clear-from-settings.json (and clear-from-keychain for
-     *     secret fields). It does NOT copy .env values back into settings.json.
+     *     After deletion we rebuild runtime settings from scratch (settings.json +
+     *     .env, then re-hydrate the remaining keychain secrets) so the in-memory
+     *     FinRobotSettings stops carrying the cleared value. If clearing the key
+     *     leaves the runtime config invalid (e.g. the active LLM provider lost its
+     *     key), the startup_error banner is set so the UI tells the user.
      */
-    post: operations['reset_settings_route_api_settings_reset_post']
+    post: operations['clear_secret_route_api_settings_clear_secret_post']
     delete?: never
     options?: never
     head?: never
@@ -417,6 +421,44 @@ export interface paths {
     put?: never
     /** Create Run */
     post: operations['create_run_api_runs_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/runs/events': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Stream Runs Events
+     * @description Aggregated SSE stream multiplexing the events of several runs.
+     *
+     *     ONE EventSource for a whole Coverage batch instead of one per run. The
+     *     browser caps ~6 concurrent HTTP/1.1 connections per origin, so opening an
+     *     EventSource per run for a 10-ticker batch saturated the pool: runs 7-10
+     *     never streamed AND ordinary polling (price/health/overview) was blocked, so
+     *     the app looked frozen (BUG-031). This route reuses the per-run read API
+     *     (``get_events_after`` / ``get_run``) but interleaves all ids over a single
+     *     connection, tagging each frame with its ``run_id`` + ``ticker`` for
+     *     client-side routing.
+     *
+     *     Registered BEFORE ``/{run_id}`` so the literal ``/events`` path wins over
+     *     the ``{run_id}`` capture (FastAPI matches in declaration order).
+     *
+     *     Resume: mirrors the single-run cursor handling, but per id — see
+     *     ``_parse_multiplex_cursor``. Terminal: the stream closes once EVERY id has
+     *     reached a terminal status (completed/failed) and its trailing events have
+     *     been flushed; an unknown id (treated as already-terminal) can't hold the
+     *     stream open forever.
+     */
+    get: operations['stream_runs_events_api_runs_events_get']
+    put?: never
+    post?: never
     delete?: never
     options?: never
     head?: never
@@ -658,6 +700,228 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/chat/sessions': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Chat Sessions
+     * @description List past chat sessions, newest-first.
+     *
+     *     Reads the on-disk JSONL transcripts. Unreadable/corrupt files are skipped
+     *     by the persistence layer rather than 500-ing the whole list.
+     */
+    get: operations['get_chat_sessions_api_chat_sessions_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/chat/sessions/{session_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Chat Session Transcript
+     * @description Load the full transcript for one session.
+     *
+     *     404 when the session has no transcript on disk (never started, or evicted).
+     */
+    get: operations['get_chat_session_transcript_api_chat_sessions__session_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/coverage/groups': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Groups
+     * @description List coverage groups with member counts.
+     *
+     *     On first visit (no groups yet) seeds a ``Studied Tickers`` group from the
+     *     artifact store so an existing user lands on their real research universe
+     *     rather than an empty desk (State D). The seed is a one-time projection;
+     *     once any group exists this never re-fires.
+     */
+    get: operations['list_groups_api_coverage_groups_get']
+    put?: never
+    /** Create Group */
+    post: operations['create_group_api_coverage_groups_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/coverage/groups/{group_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Group */
+    get: operations['get_group_api_coverage_groups__group_id__get']
+    put?: never
+    post?: never
+    /** Delete Group */
+    delete: operations['delete_group_api_coverage_groups__group_id__delete']
+    options?: never
+    head?: never
+    /** Update Group */
+    patch: operations['update_group_api_coverage_groups__group_id__patch']
+    trace?: never
+  }
+  '/api/coverage/groups/{group_id}/members': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Add Members */
+    post: operations['add_members_api_coverage_groups__group_id__members_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/coverage/groups/{group_id}/members/{ticker}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /** Remove Member */
+    delete: operations['remove_member_api_coverage_groups__group_id__members__ticker__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/coverage/studied-tickers/members': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Add Studied Member
+     * @description Enrol a ticker into the default ``Studied Tickers`` workspace.
+     *
+     *     Idempotent find-or-create: opening ``/stocks/:ticker`` calls this so the
+     *     name joins the default group (Coverage redesign §2). Re-opening is a no-op;
+     *     a name the user removed re-enters on the next open. Never the batch path —
+     *     one ticker, already validated.
+     */
+    post: operations['add_studied_member_api_coverage_studied_tickers_members_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/coverage/groups/{group_id}/overview': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Group Overview
+     * @description Assembled Coverage Table for a group (60s L1 cache; ``refresh=true`` bypasses).
+     *
+     *     Needs the data layer + artifact store; per-ticker fetch failures degrade
+     *     individual rows (``partial=true``) rather than failing the request.
+     *
+     *     ``fast=true`` returns the skeleton (research + run state only, no market
+     *     fan-out) so the client paints the table instantly on cold start, then
+     *     backfills with a full fetch. The two phases are cached separately.
+     */
+    get: operations['group_overview_api_coverage_groups__group_id__overview_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/coverage/groups/{group_id}/runs': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Batch Run
+     * @description Kick off a pipeline run for each selected ticker in the group.
+     *
+     *     Reuses the single-run machinery (``spawn_run`` → same concurrency cap +
+     *     SSE), so the frontend tracks aggregate progress by connecting one SSE
+     *     stream per returned ``run_id``. A bad ticker / pipeline lands in
+     *     ``skipped`` instead of failing the whole batch. The overview's cache is
+     *     invalidated so an in-flight / failed run shows on next render.
+     */
+    post: operations['batch_run_api_coverage_groups__group_id__runs_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/compare': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Compare
+     * @description Compare DCF valuation across 2–10 tickers (comma-separated).
+     */
+    get: operations['compare_api_compare_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/dashboard/hit-rate': {
     parameters: {
       query?: never
@@ -667,9 +931,12 @@ export interface paths {
     }
     /**
      * Hit Rate
-     * @description Cross-ticker hit-rate buckets for the /stocks landing banner.
+     * @description Hit-rate buckets for the track-record panel.
      *
      *     `window`: "30d" | "90d" | "all" (default "all")
+     *     `tickers`: optional comma-separated symbols to scope the stats to a coverage
+     *         group (BUG-055). Omitted → global (all artifacts). An empty value scopes
+     *         to the empty set → null buckets (an empty group has no track record).
      *
      *     The endpoint never returns 500 for sparse data — empty buckets come back
      *     as `hit_rate=null`. UI renders a "样本不足" hint in that case.
@@ -927,6 +1194,13 @@ export interface paths {
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    /** AddMembersRequest */
+    AddMembersRequest: {
+      /** Tickers */
+      tickers: string[]
+      /** Note */
+      note?: string | null
+    }
     /**
      * Artifact
      * @description A single financial analysis snapshot.
@@ -1142,12 +1416,12 @@ export interface components {
       archived: boolean
       /**
        * Entry Price
-       * @description Quote snapshot taken when the pipeline was triggered (USD/share). Mirrors journal.entry_price semantics. None for legacy artifacts or cross-ticker analyses without a single entry price.
+       * @description Quote snapshot taken when the pipeline was triggered (USD/share). None for legacy artifacts or cross-ticker analyses without a single entry price.
        */
       entry_price?: number | null
       /**
        * Target Price
-       * @description AI-given target price from the thesis step (USD/share). Mirrors journal.target_price semantics. None when the artifact type has no thesis (peer_research / ad_hoc) or for legacy data.
+       * @description AI-given target price from the thesis step (USD/share). None when the artifact type has no thesis (peer_research / ad_hoc) or for legacy data.
        */
       target_price?: number | null
       /**
@@ -1246,6 +1520,38 @@ export interface components {
        */
       total_cash: number
     }
+    /** BatchRunItem */
+    BatchRunItem: {
+      /** Ticker */
+      ticker: string
+      /** Run Id */
+      run_id: string
+    }
+    /** BatchRunRequest */
+    BatchRunRequest: {
+      /** Tickers */
+      tickers: string[]
+      /**
+       * Pipeline Type
+       * @default research
+       */
+      pipeline_type: string
+      /** Language */
+      language?: ('en' | 'zh') | null
+    }
+    /** BatchRunResponse */
+    BatchRunResponse: {
+      /** Group Id */
+      group_id: string
+      /** Pipeline Type */
+      pipeline_type: string
+      /** Runs */
+      runs: components['schemas']['BatchRunItem'][]
+      /** Skipped */
+      skipped?: {
+        [key: string]: string
+      }[]
+    }
     /**
      * CatalystEvent
      * @description Single catalyst event extracted by LLM from news.
@@ -1280,6 +1586,61 @@ export interface components {
       /** Url */
       url?: string | null
     }
+    /**
+     * ClearSecretRequest
+     * @description A single secret field to delete from the keychain.
+     *
+     *     ``clear-secret`` is the explicit "wipe this stored API key" action. It is
+     *     its own endpoint so deleting a secret can NEVER happen as a side effect of
+     *     an empty value in a PUT (BUG-005) — the destructive path needs deliberate
+     *     intent.
+     */
+    ClearSecretRequest: {
+      /** Field */
+      field: string
+    }
+    /**
+     * CompanyValuation
+     * @description Summary valuation metrics for one company in a comparison.
+     */
+    CompanyValuation: {
+      /** Ticker */
+      ticker: string
+      /**
+       * Company Name
+       * @default
+       */
+      company_name: string
+      /** Current Price */
+      current_price?: number | null
+      /** Implied Price */
+      implied_price?: number | null
+      /** Upside Pct */
+      upside_pct?: number | null
+      /** Wacc */
+      wacc?: number | null
+      /** Terminal Growth */
+      terminal_growth?: number | null
+      /** Ev Ebitda */
+      ev_ebitda?: number | null
+      /** Pe Ratio */
+      pe_ratio?: number | null
+      dcf_result?: components['schemas']['DCFResult'] | null
+      /**
+       * Dcf As Of
+       * @description ISO-8601 timestamp the underlying DCF artifact was generated (provenance / vintage). implied_price, WACC and the DCF-derived upside are only as fresh as this. None when the DCF was computed live in this call (no stored artifact) or is unavailable.
+       */
+      dcf_as_of?: string | null
+      /**
+       * Dcf Artifact Id
+       * @description Source DCF artifact id, for deep-linking to the run that produced these numbers.
+       */
+      dcf_artifact_id?: string | null
+      /** Warnings */
+      warnings?: string[]
+      /** Error */
+      error?: string | null
+    }
     /** ComparabilityFlag */
     ComparabilityFlag: {
       /**
@@ -1297,24 +1658,217 @@ export interface components {
        */
       blocks_attribution: boolean
     }
-    /** CompositeScore */
-    CompositeScore: {
-      /** Total */
-      total: number
-      /** Fundamental */
-      fundamental: number
-      /** Valuation */
-      valuation: number
-      /** Catalyst */
-      catalyst: number
-      /** Sentiment */
-      sentiment: number
+    /**
+     * ComparisonResult
+     * @description Side-by-side comparison of multiple companies.
+     */
+    ComparisonResult: {
+      /** Companies */
+      companies: components['schemas']['CompanyValuation'][]
+      /** Generated At */
+      generated_at?: string
+    }
+    /**
+     * CoverageGroupDetail
+     * @description A group with its members materialised — returned by single-group reads.
+     */
+    CoverageGroupDetail: {
+      /** Id */
+      id: string
+      /** Name */
+      name: string
+      /** Description */
+      description?: string | null
+      /**
+       * Is System
+       * @default false
+       */
+      is_system: boolean
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string
+      /** Members */
+      members?: components['schemas']['CoverageMember'][]
+    }
+    /**
+     * CoverageGroupSummary
+     * @description A group with just its member count — returned by the list endpoint.
+     */
+    CoverageGroupSummary: {
+      /** Id */
+      id: string
+      /** Name */
+      name: string
+      /** Description */
+      description?: string | null
+      /**
+       * Is System
+       * @default false
+       */
+      is_system: boolean
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string
+      /**
+       * Member Count
+       * @default 0
+       */
+      member_count: number
+    }
+    /**
+     * CoverageMember
+     * @description One ticker inside a coverage group.
+     */
+    CoverageMember: {
+      /** Ticker */
+      ticker: string
+      /**
+       * Added At
+       * Format: date-time
+       */
+      added_at: string
+      /** Note */
+      note?: string | null
+      /**
+       * Priority
+       * @default 0
+       */
+      priority: number
+    }
+    /**
+     * CoverageOverview
+     * @description Assembled Coverage Table for one group.
+     */
+    CoverageOverview: {
+      /** Group Id */
+      group_id: string
+      /** Group Name */
+      group_name: string
+      /** Rows */
+      rows: components['schemas']['CoverageRow'][]
+      /**
+       * Generated At
+       * Format: date-time
+       */
+      generated_at: string
+      /**
+       * Partial
+       * @default false
+       */
+      partial: boolean
+      /**
+       * Fast
+       * @default false
+       */
+      fast: boolean
+    }
+    /**
+     * CoverageRow
+     * @description One ticker row in the Coverage Table.
+     *
+     *     Financial fields are reused verbatim from ``FinancialData`` (the same
+     *     assembly behind ``/api/data/{ticker}/financials``) — the overview does not
+     *     re-derive any caliber. ``None`` everywhere means "not available", never a
+     *     fabricated zero; per-ticker fetch failures surface in :attr:`warnings`
+     *     rather than dropping the row.
+     */
+    CoverageRow: {
+      /** Ticker */
+      ticker: string
+      /** Company */
+      company?: string | null
+      /** Price */
+      price?: number | null
+      /** Change Pct 1D */
+      change_pct_1d?: number | null
+      /** Price As Of */
+      price_as_of?: string | null
+      /** Market Cap */
+      market_cap?: number | null
+      /** Revenue Ttm */
+      revenue_ttm?: number | null
+      /** Ev Ebitda */
+      ev_ebitda?: number | null
+      /** Pe */
+      pe?: number | null
+      /** Currency */
+      currency?: string | null
+      /** Latest Verdict */
+      latest_verdict?: string | null
+      /** Target Price */
+      target_price?: number | null
+      /** Target Date */
+      target_date?: string | null
+      /** Entry Price */
+      entry_price?: number | null
+      /** Upside To Target Live */
+      upside_to_target_live?: number | null
       /** Signal */
-      signal: string
-      /** Breakdown */
-      breakdown: {
-        [key: string]: string
-      }
+      signal?: string | null
+      /**
+       * Artifact Count
+       * @default 0
+       */
+      artifact_count: number
+      /**
+       * Research Count
+       * @default 0
+       */
+      research_count: number
+      /** Latest Artifact Id */
+      latest_artifact_id?: string | null
+      /** Latest Type */
+      latest_type?: string | null
+      /** Latest At */
+      latest_at?: string | null
+      /** Run Status */
+      run_status?: string | null
+      /** Run Error */
+      run_error?: string | null
+      /** Needs Refresh */
+      needs_refresh?: components['schemas']['NeedsRefreshReason'][]
+      /** Warnings */
+      warnings?: string[]
+      sources?: components['schemas']['CoverageRowSources']
+    }
+    /**
+     * CoverageRowSources
+     * @description Per-cell provenance for a :class:`CoverageRow`'s numeric columns.
+     *
+     *     Parallel to the flat numeric fields (kept typed rather than a
+     *     ``dict[str, NumberSource]`` so a column and its source can't drift apart).
+     *     A cell with no provenance (e.g. degraded fetch) just leaves its slot
+     *     ``None`` and ``SourcedNumber`` renders the bare value.
+     */
+    CoverageRowSources: {
+      price?: components['schemas']['NumberSource'] | null
+      change_pct_1d?: components['schemas']['NumberSource'] | null
+      market_cap?: components['schemas']['NumberSource'] | null
+      revenue_ttm?: components['schemas']['NumberSource'] | null
+      ev_ebitda?: components['schemas']['NumberSource'] | null
+      pe?: components['schemas']['NumberSource'] | null
+      upside_to_target_live?: components['schemas']['NumberSource'] | null
+    }
+    /** CreateGroupRequest */
+    CreateGroupRequest: {
+      /** Name */
+      name: string
+      /** Description */
+      description?: string | null
     }
     /** CreateRunRequest */
     CreateRunRequest: {
@@ -1599,6 +2153,11 @@ export interface components {
       price_at_hi: number
       /** Iterations */
       iterations: number
+      /**
+       * Converged
+       * @default true
+       */
+      converged: boolean
       /** Message */
       message?: string | null
     }
@@ -1663,6 +2222,46 @@ export interface components {
       tg_values: number[]
       /** Implied Prices */
       implied_prices: (number | null)[][]
+    }
+    /**
+     * DcfWhatIfRequest
+     * @description What-if recompute on a SAVED report's frozen DCF inputs.
+     *
+     *     Unlike /dcf-seed (which re-fetches live financials/price/history and reseeds
+     *     from scratch), this path replays the artifact's persisted DCFInputs verbatim
+     *     and overrides ONLY the slider field(s). The BASE/NEW delta is therefore
+     *     attributable solely to the slider — no live-data drift leaks in. Omitted
+     *     overrides leave the frozen assumption untouched.
+     */
+    DcfWhatIfRequest: {
+      /** Wacc Override */
+      wacc_override?: number | null
+      /** Tg Override */
+      tg_override?: number | null
+      /**
+       * Growth Scale Override
+       * @description Multiplier applied uniformly to every FROZEN revenue_growth_rate. 0.1 → +10% each year, -0.2 → -20%, None → unchanged.
+       */
+      growth_scale_override?: number | null
+      /**
+       * Mid Year
+       * @default false
+       */
+      mid_year: boolean
+    }
+    /**
+     * DcfWhatIfResponse
+     * @description Replayed DCF output. ``base_implied_price`` is the artifact's persisted
+     *     implied price (the UI's BASE); ``result.implied_price`` is NEW. They differ
+     *     only by the applied overrides — never by data drift.
+     */
+    DcfWhatIfResponse: {
+      /** Artifact Id */
+      artifact_id: string
+      inputs: components['schemas']['DCFInputs']
+      result: components['schemas']['DCFResult']
+      /** Base Implied Price */
+      base_implied_price: number
     }
     /** DebateRequest */
     DebateRequest: {
@@ -1784,6 +2383,16 @@ export interface components {
       market: components['schemas']['MarketData']
       valuation?: components['schemas']['ValuationMetrics']
       /**
+       * Reporting Currency
+       * @default USD
+       */
+      reporting_currency: string
+      /**
+       * Quote Currency
+       * @default USD
+       */
+      quote_currency: string
+      /**
        * Data Source
        * @default yfinance
        */
@@ -1791,6 +2400,10 @@ export interface components {
       provenance?: components['schemas']['DataProvenance'] | null
       /** Warnings */
       warnings?: string[]
+      /** Field Warnings */
+      field_warnings?: {
+        [key: string]: string[]
+      }
     }
     /** HTTPValidationError */
     HTTPValidationError: {
@@ -1932,16 +2545,14 @@ export interface components {
       generated_at: string
       /**
        * Is Sampled
-       * @description True when the store exceeded the sample cap, so buckets cover only the latest sample_size artifacts rather than the full track record.
        * @default false
        */
-      is_sampled?: boolean
+      is_sampled: boolean
       /**
        * Sample Size
-       * @description The cap applied to the underlying summary scan (compute-cost bound).
        * @default 500
        */
-      sample_size?: number
+      sample_size: number
     }
     /**
      * IncomeStatement
@@ -1973,6 +2584,8 @@ export interface components {
        * @description Operating margin as decimal; None when unavailable
        */
       operating_margin?: number | null
+      /** Operating Income */
+      operating_income?: number | null
       /** Depreciation Amortization */
       depreciation_amortization?: number | null
       /** Rd Expense */
@@ -2312,6 +2925,50 @@ export interface components {
        */
       n_valid: number
     }
+    /**
+     * NeedsRefreshReason
+     * @description One actionable reason a covered ticker's research is out of date.
+     *
+     *     Every reason points back at a concrete source so the UI can deep-link
+     *     (Coverage plan: "每条 reason 必须能点到对应来源").
+     */
+    NeedsRefreshReason: {
+      /** Kind */
+      kind: string
+      /** Detail */
+      detail: string
+      /** Artifact Id */
+      artifact_id?: string | null
+    }
+    /**
+     * NumberSource
+     * @description Provenance for one numeric cell — mirrors the UI's ``NumberSource``.
+     *
+     *     Lets the Coverage Table render every amount/multiple/percent through
+     *     ``SourcedNumber``: who served it (:attr:`provider`), as of which reporting
+     *     period/bar (:attr:`as_of`), when we pulled it (:attr:`fetched_at`), by what
+     *     formula (:attr:`formula_id`), with what口径 caveat (:attr:`formula_warning`),
+     *     and which report it traces to (:attr:`artifact_id`). All optional — an
+     *     absent field simply doesn't render in the popover.
+     *
+     *     ``as_of`` ≠ ``fetched_at`` on purpose: ``as_of`` is the data's semantic time
+     *     (fiscal period end / latest bar date), ``fetched_at`` is wall-clock fetch.
+     *     Conflating them is exactly the kind of口径 error that looks right and isn't.
+     */
+    NumberSource: {
+      /** Provider */
+      provider?: string | null
+      /** As Of */
+      as_of?: string | null
+      /** Fetched At */
+      fetched_at?: string | null
+      /** Formula Id */
+      formula_id?: string | null
+      /** Formula Warning */
+      formula_warning?: string | null
+      /** Artifact Id */
+      artifact_id?: string | null
+    }
     /** QuotesWarmedStatus */
     QuotesWarmedStatus: {
       /** Warmed */
@@ -2445,35 +3102,6 @@ export interface components {
         [key: string]: unknown
       } | null
     }
-    /** ScoreRequest */
-    ScoreRequest: {
-      /** Pe Ratio */
-      pe_ratio?: number | null
-      /** Peg Ratio */
-      peg_ratio?: number | null
-      /** Gross Margin */
-      gross_margin?: number | null
-      /** Gross Margin Industry Median */
-      gross_margin_industry_median?: number | null
-      /** Revenue Growth Yoy */
-      revenue_growth_yoy?: number | null
-      /** Earnings Beat Rate */
-      earnings_beat_rate?: number | null
-      /**
-       * Positive Catalysts
-       * @default 0
-       */
-      positive_catalysts: number
-      /**
-       * Negative Catalysts
-       * @default 0
-       */
-      negative_catalysts: number
-      /** News Sentiment */
-      news_sentiment?: number | null
-      /** Dcf Upside Pct */
-      dcf_upside_pct?: number | null
-    }
     /** SearchResponse */
     SearchResponse: {
       /** Query */
@@ -2602,13 +3230,39 @@ export interface components {
       /** Activity Value */
       activity_value?: number | null
     }
+    /** SessionListResponse */
+    SessionListResponse: {
+      /** Sessions */
+      sessions: components['schemas']['SessionSummaryModel'][]
+    }
     /**
-     * SettingsResetRequest
-     * @description Fields to clear from settings.json so .env / env-vars regain priority.
+     * SessionSummaryModel
+     * @description Lightweight summary of a chat session derived from its JSONL file.
      */
-    SettingsResetRequest: {
-      /** Fields */
-      fields?: string[]
+    SessionSummaryModel: {
+      /** Session Id */
+      session_id: string
+      /** Title */
+      title: string
+      /** Created At */
+      created_at: string
+      /** Last Active At */
+      last_active_at: string
+      /** Turn Count */
+      turn_count: number
+      /** Model */
+      model: string
+      /** User Id */
+      user_id: string
+      /** Ticker */
+      ticker?: string | null
+    }
+    /** SessionTranscriptResponse */
+    SessionTranscriptResponse: {
+      /** Session Id */
+      session_id: string
+      /** Events */
+      events: components['schemas']['TranscriptEvent'][]
     }
     /** SettingsResponse */
     SettingsResponse: {
@@ -2656,10 +3310,6 @@ export interface components {
       available_providers: string[]
       /** Valid Model Providers */
       valid_model_providers: ('anthropic' | 'deepseek' | 'openai')[]
-      /** Field Sources */
-      field_sources: {
-        [key: string]: 'keychain' | 'settings_json' | 'env' | 'default'
-      }
       /** Startup Error */
       startup_error?: string | null
       /**
@@ -2715,7 +3365,7 @@ export interface components {
       /** Ideal Buy */
       ideal_buy: number
       /** Secondary Buy */
-      secondary_buy: number
+      secondary_buy: number | null
       /** Stop Loss */
       stop_loss: number
       /** Take Profit */
@@ -2757,6 +3407,17 @@ export interface components {
       volatility_annual?: number | null
     }
     /**
+     * StudiedMemberRequest
+     * @description Auto-add one opened ticker to the default ``Studied Tickers`` workspace.
+     *
+     *     Single ticker (not the batch ``AddMembersRequest``): this is the write side
+     *     of "opening /stocks/:ticker enrols it", fired once per successful open.
+     */
+    StudiedMemberRequest: {
+      /** Ticker */
+      ticker: string
+    }
+    /**
      * StudiedTicker
      * @description One row in /api/artifacts/studied-tickers — a ticker the user has run analysis on.
      */
@@ -2792,6 +3453,29 @@ export interface components {
        * Format: date-time
        */
       generated_at: string
+    }
+    /**
+     * TranscriptEvent
+     * @description One JSONL transcript event. ``data`` is event-specific.
+     */
+    TranscriptEvent: {
+      /** Timestamp */
+      timestamp: string
+      /** Session Id */
+      session_id: string
+      /** Event */
+      event: string
+      /** Data */
+      data: {
+        [key: string]: unknown
+      }
+    }
+    /** UpdateGroupRequest */
+    UpdateGroupRequest: {
+      /** Name */
+      name?: string | null
+      /** Description */
+      description?: string | null
     }
     /** ValidationError */
     ValidationError: {
@@ -2858,7 +3542,7 @@ export interface components {
       confidence: number
       /**
        * Source
-       * @description Human-readable provenance, e.g. 'monte_carlo_p10_p90'
+       * @description Human-readable provenance, e.g. 'implied_price ± 20%'
        */
       source: string
       /**
@@ -3004,6 +3688,41 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['DcfSeedResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  compute_dcf_what_if_api_compute_artifacts__artifact_id__what_if_dcf_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        artifact_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DcfWhatIfRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DcfWhatIfResponse']
         }
       }
       /** @description Validation Error */
@@ -3202,39 +3921,6 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['SniperPoints']
-        }
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
-      }
-    }
-  }
-  compute_score_api_compute_score_post: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ScoreRequest']
-      }
-    }
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['CompositeScore']
         }
       }
       /** @description Validation Error */
@@ -3486,7 +4172,7 @@ export interface operations {
       }
     }
   }
-  reset_settings_route_api_settings_reset_post: {
+  clear_secret_route_api_settings_clear_secret_post: {
     parameters: {
       query?: never
       header?: never
@@ -3495,7 +4181,7 @@ export interface operations {
     }
     requestBody: {
       content: {
-        'application/json': components['schemas']['SettingsResetRequest']
+        'application/json': components['schemas']['ClearSecretRequest']
       }
     }
     responses: {
@@ -3539,6 +4225,37 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['CreateRunResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  stream_runs_events_api_runs_events_get: {
+    parameters: {
+      query: {
+        ids: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
         }
       }
       /** @description Validation Error */
@@ -3854,10 +4571,422 @@ export interface operations {
       }
     }
   }
+  get_chat_sessions_api_chat_sessions_get: {
+    parameters: {
+      query?: {
+        /** @description Filter to sessions focused on this ticker (case-insensitive). */
+        ticker?: string | null
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SessionListResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_chat_session_transcript_api_chat_sessions__session_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        session_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SessionTranscriptResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_groups_api_coverage_groups_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CoverageGroupSummary'][]
+        }
+      }
+    }
+  }
+  create_group_api_coverage_groups_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateGroupRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CoverageGroupDetail']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_group_api_coverage_groups__group_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        group_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CoverageGroupDetail']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  delete_group_api_coverage_groups__group_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        group_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  update_group_api_coverage_groups__group_id__patch: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        group_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateGroupRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CoverageGroupDetail']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  add_members_api_coverage_groups__group_id__members_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        group_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AddMembersRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CoverageGroupDetail']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  remove_member_api_coverage_groups__group_id__members__ticker__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        group_id: string
+        ticker: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CoverageGroupDetail']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  add_studied_member_api_coverage_studied_tickers_members_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['StudiedMemberRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CoverageGroupDetail']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  group_overview_api_coverage_groups__group_id__overview_get: {
+    parameters: {
+      query?: {
+        refresh?: boolean
+        fast?: boolean
+      }
+      header?: never
+      path: {
+        group_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CoverageOverview']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  batch_run_api_coverage_groups__group_id__runs_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        group_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BatchRunRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['BatchRunResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  compare_api_compare_get: {
+    parameters: {
+      query: {
+        tickers: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ComparisonResult']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
   hit_rate_api_dashboard_hit_rate_get: {
     parameters: {
       query?: {
         window?: string
+        tickers?: string | null
       }
       header?: never
       path?: never

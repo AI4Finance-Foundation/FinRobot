@@ -19,7 +19,6 @@ const OK_SETTINGS = {
   log_retention_days: 7,
   available_providers: ['yfinance'],
   valid_model_providers: ['deepseek', 'anthropic', 'openai'],
-  field_sources: {},
 }
 
 // Mock the API client module. Default GET succeeds; individual tests override
@@ -75,14 +74,16 @@ function renderWithQuery(ui: React.ReactElement) {
 }
 
 describe('SettingsView', () => {
+  // The section title and the left-nav item share the same label, so target
+  // the section heading (h2) specifically rather than the ambiguous text.
   it('renders AI 模型 section', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
-    expect(await screen.findByText('AI Model')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'AI Model' })).toBeInTheDocument()
   })
 
   it('renders 数据源 section', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
-    expect(await screen.findByText('Data Sources')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Data Sources' })).toBeInTheDocument()
   })
 
   // 外观 section removed in v5; theme controls are outside this settings surface.

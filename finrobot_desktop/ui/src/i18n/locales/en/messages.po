@@ -1714,38 +1714,6 @@ msgid "settings.saving"
 msgstr "Saving…"
 
 #. js-lingui-explicit-id
-msgid "settings.reset.doneTitle"
-msgstr "Reverted to .env defaults"
-
-#. js-lingui-explicit-id
-msgid "settings.reset.doneBody"
-msgstr "settings.json overrides cleared; reloaded from environment variables after restart"
-
-#. js-lingui-explicit-id
-msgid "settings.reset.failTitle"
-msgstr "Revert failed"
-
-#. js-lingui-explicit-id
-msgid "settings.reset.confirmTitle"
-msgstr "Confirm reset to defaults"
-
-#. js-lingui-explicit-id
-msgid "settings.reset.confirmBodyPrefix"
-msgstr "Reset"
-
-#. js-lingui-explicit-id
-msgid "settings.reset.confirmBodySuffix"
-msgstr " to .env defaults; this clears the current override."
-
-#. js-lingui-explicit-id
-msgid "settings.reset.cancel"
-msgstr "Cancel"
-
-#. js-lingui-explicit-id
-msgid "settings.reset.confirm"
-msgstr "Confirm reset"
-
-#. js-lingui-explicit-id
 msgid "settings.sec.hintEmpty"
 msgstr "Format: name or org + space + contact email, e.g. {example}"
 
@@ -1755,7 +1723,7 @@ msgstr "Invalid: don't enter only an email — include a name and email like {ex
 
 #. js-lingui-explicit-id
 msgid "settings.sec.hintPending"
-msgstr "Valid; auto-saving to settings.json. The backend reloads the SEC data layer once saved."
+msgstr "Format looks valid — saving automatically; the SEC data layer reloads once saved."
 
 #. js-lingui-explicit-id
 msgid "settings.sec.hintActive"
@@ -1800,22 +1768,6 @@ msgstr "Active"
 #. js-lingui-explicit-id
 msgid "settings.badge.pending"
 msgstr "Pending"
-
-#. js-lingui-explicit-id
-msgid "settings.resetToEnv"
-msgstr "Reset to .env"
-
-#. js-lingui-explicit-id
-msgid "settings.resetToEnv.titleKeychain"
-msgstr "Clear the keychain override so .env takes effect again"
-
-#. js-lingui-explicit-id
-msgid "settings.resetToEnv.titleSettingsJson"
-msgstr "Clear the settings.json override so .env takes effect again"
-
-#. js-lingui-explicit-id
-msgid "settings.resetToEnv.titleModel"
-msgstr "Clear the settings.json model_name override so .env takes effect again"
 
 #. js-lingui-explicit-id
 msgid "settings.fmp.label"
@@ -1923,7 +1875,7 @@ msgstr "Couldn't start the sync — the backend is unreachable or returned an er
 
 #. js-lingui-explicit-id
 msgid "settings.appearance.title"
-msgstr "Appearance & Power"
+msgstr "Appearance & Language"
 
 #. js-lingui-explicit-id
 msgid "settings.appearance.intro"
@@ -1952,22 +1904,6 @@ msgstr "Home 3D robot"
 #. js-lingui-explicit-id
 msgid "settings.appearance.splineDesc"
 msgstr "Floating 3D model on the stocks home background; purely decorative. Absent on analysis pages."
-
-#. js-lingui-explicit-id
-msgid "settings.source.keychain"
-msgstr "From keychain"
-
-#. js-lingui-explicit-id
-msgid "settings.source.settingsJson"
-msgstr "From settings.json"
-
-#. js-lingui-explicit-id
-msgid "settings.source.env"
-msgstr "From .env"
-
-#. js-lingui-explicit-id
-msgid "settings.source.default"
-msgstr "Default"
 
 #. js-lingui-explicit-id
 msgid "settings.saveFailedTitle"
@@ -3649,3 +3585,69 @@ msgstr "Quick start"
 #. js-lingui-explicit-id
 msgid "coverage.starter.researchTicker"
 msgstr "Research {ticker}"
+
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.button"
+msgstr "Clear"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.confirmTitle"
+msgstr "Clear saved API key?"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.confirmBody"
+msgstr "This removes the API key from secure storage (the OS keychain). You'll need to re-enter it before that service works again."
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.confirm"
+msgstr "Clear"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.doneTitle"
+msgstr "Cleared"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.doneBody"
+msgstr "The API key was removed from secure storage."
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.failTitle"
+msgstr "Couldn't clear key"
+
+
+#. js-lingui-explicit-id
+msgid "settings.subtitle"
+msgstr "Configure your API keys and data sources here — everything is stored locally on this machine."
+
+#. js-lingui-explicit-id
+msgid "settings.llm.apiKeyLabel"
+msgstr "API key"
+
+#. js-lingui-explicit-id
+msgid "settings.llm.apiKeyPlaceholder"
+msgstr "Enter your {provider} API key"
+
+#. js-lingui-explicit-id
+msgid "settings.onboarding.title"
+msgstr "Add an AI model key to begin"
+
+#. js-lingui-explicit-id
+msgid "settings.onboarding.body"
+msgstr "FinRobot uses a large language model to write the report narrative — pick a provider and paste its API key to begin. The data-source keys below (FMP, etc.) are optional and improve financial-data quality."
+
+#. js-lingui-explicit-id
+msgid "settings.key.show"
+msgstr "Show"
+
+#. js-lingui-explicit-id
+msgid "settings.key.hide"
+msgstr "Hide"
+
+#. js-lingui-explicit-id
+msgid "settings.nav.secHoldings"
+msgstr "SEC Holdings"

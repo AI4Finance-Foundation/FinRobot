@@ -693,6 +693,17 @@ class TestIsRecoverableException:
         """402 billing error must not trigger retry."""
         assert not _is_recoverable_exception(RuntimeError("Insufficient Balance (402)"))
 
+    def test_auth_errors_are_not_recoverable(self):
+        """401 / bad-key / unknown-model are the user's config to fix — retrying
+        just burns quota and delays a clear failure."""
+        from pydantic_ai.exceptions import AgentRunError
+
+        assert not _is_recoverable_exception(AgentRunError("401 Unauthorized"))
+        assert not _is_recoverable_exception(RuntimeError("Invalid API key provided"))
+        assert not _is_recoverable_exception(RuntimeError("Incorrect API key"))
+        assert not _is_recoverable_exception(RuntimeError("authentication_error"))
+        assert not _is_recoverable_exception(RuntimeError("The model `gpt-foo` does not exist"))
+
     def test_insufficient_balance_case_insensitive(self):
         assert not _is_recoverable_exception(RuntimeError("INSUFFICIENT BALANCE"))
 

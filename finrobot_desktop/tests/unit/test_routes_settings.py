@@ -709,3 +709,65 @@ async def test_settings_update_non_logging_field_skips_reapply(
         resp = await c.put("/api/settings", json={"sec_holdings_auto_refresh": True})
     assert resp.status_code == 200, resp.text
     assert calls == []
+
+
+# ---------------------------------------------------------------------------
+# POST /api/settings/test-provider — live connectivity check
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_test_provider_unknown_is_404(tmp_path: Path) -> None:
+    app = _make_app(tmp_path)
+    async with _client(app) as c:
+        resp = await c.post("/api/settings/test-provider", json={"provider_id": "nope"})
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_test_provider_no_key_returns_not_ok(tmp_path: Path) -> None:
+    settings = get_settings(model_name="openai:gpt-4o", provider_keys={})
+    app = _make_app(tmp_path, settings=settings)
+    async with _client(app) as c:
+        resp = await c.post(
+            "/api/settings/test-provider", json={"provider_id": "openai", "model_id": "gpt-4o"}
+        )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["ok"] is False
+    assert "No API key" in body["message"]
+
+
+@pytest.mark.asyncio
+async def test_test_provider_success(tmp_path: Path, monkeypatch: Any) -> None:
+    """A successful tiny model call returns ok=True (model_request mocked)."""
+    monkeypatch.setattr("pydantic_ai.direct.model_request", AsyncMock(return_value=MagicMock()))
+    app = _make_app(tmp_path)  # openai keyed by default
+    async with _client(app) as c:
+        resp = await c.post(
+            "/api/settings/test-provider", json={"provider_id": "openai", "model_id": "gpt-4o"}
+        )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_test_provider_maps_auth_error(tmp_path: Path, monkeypatch: Any) -> None:
+    """A 401 from the provider becomes a friendly 'check the API key' message."""
+    from pydantic_ai.exceptions import ModelHTTPError
+
+    monkeypatch.setattr(
+        "pydantic_ai.direct.model_request",
+        AsyncMock(
+            side_effect=ModelHTTPError(status_code=401, model_name="openai:gpt-4o", body="x")
+        ),
+    )
+    app = _make_app(tmp_path)
+    async with _client(app) as c:
+        resp = await c.post(
+            "/api/settings/test-provider", json={"provider_id": "openai", "model_id": "gpt-4o"}
+        )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["ok"] is False
+    assert "API key" in body["message"]

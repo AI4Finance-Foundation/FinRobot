@@ -44,6 +44,17 @@ _FATAL_SUBSTRINGS = (
     "maximum context length",
     "context_length_exceeded",
     "reduce the length of the messages",
+    # Auth / bad-request errors are NOT transient — retrying just burns quota and
+    # delays a clear failure. A wrong API key, an unknown model id, or a 4xx are
+    # the user's config to fix, not something a retry will heal.
+    "invalid api key",
+    "incorrect api key",
+    "authentication",
+    "unauthorized",
+    "invalid_api_key",
+    "permission",
+    "model not found",
+    "does not exist",
 )
 
 _PROMPT_MAX_STRING_CHARS = 1200

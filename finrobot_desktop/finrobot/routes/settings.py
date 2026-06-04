@@ -317,6 +317,74 @@ async def clear_secret_route(body: ClearSecretRequest, request: Request) -> Sett
     return await _build_response(request)
 
 
+class TestProviderRequest(BaseModel):
+    """Live connectivity check for a provider's saved key / base_url / model."""
+
+    provider_id: str
+    model_id: str | None = None
+
+
+class TestProviderResponse(BaseModel):
+    ok: bool
+    message: str
+
+
+def _friendly_provider_error(exc: Exception) -> str:
+    """Map a provider call failure to a short, actionable message."""
+    import httpx
+    from pydantic_ai.exceptions import ModelHTTPError
+
+    if isinstance(exc, ModelHTTPError):
+        if exc.status_code in (401, 403):
+            return "Authentication failed — check the API key."
+        if exc.status_code == 404:
+            return "Model not found — check the model id."
+        return f"Provider returned HTTP {exc.status_code}."
+    if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout)):
+        return "Could not reach the endpoint — check the Base URL."
+    low = str(exc).lower()
+    if any(s in low for s in ("api key", "api_key", "unauthorized", "authentication")):
+        return "Authentication failed — check the API key."
+    if any(s in low for s in ("not found", "does not exist", "no such model")):
+        return "Model not found — check the model id."
+    return str(exc)[:200] or type(exc).__name__
+
+
+@router.post("/test-provider", response_model=TestProviderResponse)
+async def test_provider_route(body: TestProviderRequest, request: Request) -> TestProviderResponse:
+    """Make a tiny live LLM call to verify a provider's key / base_url / model.
+
+    Uses the currently-saved runtime config (the key the user just stored). This
+    is how a wrong key / bad base_url / unknown model is caught with a clear
+    message at config time, instead of failing 60s later inside an analysis run.
+    """
+    settings: FinRobotSettings = request.app.state.deps.settings
+    cfg = settings.provider_by_id(body.provider_id)
+    if cfg is None:
+        raise HTTPException(status_code=404, detail=f"Unknown provider '{body.provider_id}'.")
+    if cfg.kind != "test" and not settings.provider_key(body.provider_id):
+        return TestProviderResponse(ok=False, message="No API key configured for this provider.")
+    model_id = (body.model_id or "").strip() or (cfg.models[0] if cfg.models else "")
+    if not model_id:
+        return TestProviderResponse(
+            ok=False, message="Enter a model id first, then test the connection."
+        )
+
+    from pydantic_ai.direct import model_request
+    from pydantic_ai.messages import ModelRequest, UserPromptPart
+
+    try:
+        model = settings.create_model(f"{body.provider_id}:{model_id}")
+        await model_request(
+            model,
+            [ModelRequest(parts=[UserPromptPart(content="ping")])],
+            model_settings={"max_tokens": 8},
+        )
+    except Exception as exc:  # noqa: BLE001 — surface any provider failure to the UI
+        return TestProviderResponse(ok=False, message=_friendly_provider_error(exc))
+    return TestProviderResponse(ok=True, message="Connection OK.")
+
+
 async def _build_response(request: Request) -> SettingsResponse:
     # Same identity gate build_data_layer uses to register EdgarToolsProvider —
     # the single source of truth for sec_identity_active (no client-side mirror).

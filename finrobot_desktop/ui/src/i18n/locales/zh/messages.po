@@ -3777,3 +3777,36 @@ msgstr "该版本已被永久删除。"
 msgid "report.deleteVersionFailed"
 msgstr "无法删除此版本"
 
+
+#. js-lingui-explicit-id
+msgid "coverage.trust.label"
+msgstr "战绩"
+
+#. js-lingui-explicit-id
+msgid "coverage.trust.scope"
+msgstr "{group} · {n} 只"
+
+#. js-lingui-explicit-id
+msgid "coverage.trust.none"
+msgstr "暂无已结判断"
+
+#. js-lingui-explicit-id
+msgid "coverage.trust.hitRate"
+msgstr "命中率 {rate} （{hit}/{closed} 已结）"
+
+#. js-lingui-explicit-id
+msgid "coverage.trust.insufficient"
+msgstr "样本不足 · {closed} 笔已结"
+
+#. js-lingui-explicit-id
+msgid "coverage.trust.window.30d"
+msgstr "30天"
+
+#. js-lingui-explicit-id
+msgid "coverage.trust.window.90d"
+msgstr "90天"
+
+#. js-lingui-explicit-id
+msgid "coverage.trust.window.all"
+msgstr "全部"
+

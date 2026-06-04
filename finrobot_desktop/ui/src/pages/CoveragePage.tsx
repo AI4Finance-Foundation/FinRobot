@@ -28,6 +28,7 @@ import {
 } from '../hooks/useCoverage'
 import { CoverageEmptyState } from '../components/coverage/CoverageEmptyState'
 import { CoverageHero } from '../components/coverage/CoverageHero'
+import { CoverageTrustStrip } from '../components/coverage/CoverageTrustStrip'
 import { WallHeader } from '../components/coverage/WallHeader'
 import { CoverageCardGrid } from '../components/coverage/CoverageCardGrid'
 import { CoverageInspector } from '../components/coverage/CoverageInspector'
@@ -88,10 +89,13 @@ export function CoveragePage(): React.ReactElement {
   // The single surfaced list is the system "Studied Tickers" group; there is no
   // group switcher in the UX. Fall back to the first group only if the system
   // flag isn't present (older seed).
-  const activeGroupId = (groups.find((g) => g.is_system) ?? groups[0])?.id ?? null
+  const activeGroup = groups.find((g) => g.is_system) ?? groups[0]
+  const activeGroupId = activeGroup?.id ?? null
 
   const overviewQuery = useCoverageOverview(activeGroupId)
   const rows = useMemo(() => overviewQuery.data?.rows ?? [], [overviewQuery.data])
+  // Scope the track-record strip to the active group's members (UX-013).
+  const groupTickers = useMemo(() => rows.map((r) => r.ticker), [rows])
 
   const activeSort = activeGroupId ? (sortByGroup[activeGroupId] ?? null) : null
   const effectiveSort = activeSort ?? DEFAULT_SORT
@@ -384,6 +388,11 @@ export function CoveragePage(): React.ReactElement {
       }}
     >
       <CoverageHero />
+
+      {/* Track record — the credibility proof for the analyst/quant, scoped to
+          the active group. Renders only with a non-empty scope; suppresses the
+          percentage until the sample is large enough (UX-013). */}
+      <CoverageTrustStrip tickers={groupTickers} groupName={activeGroup?.name ?? ''} />
 
       <WallHeader
         filter={filter}

@@ -133,7 +133,7 @@
 | UX-010 | 产品 | P2 | Compare 必须回 Coverage 多选才能发起——workspace/研报页内无"加入对比"入口 | 已修 |
 | UX-011 | 产品 | P2 | Coverage Desk（新首页）全程零 hover 反馈，质感跌破全 App 基准线 | 已修 |
 | UX-012 | 产品 | P2 | Coverage Inspector 的 Live/Report 面板丢失溯源——同一数字在卡上可溯、点进去不可溯 | 已修 |
-| UX-013 | 产品 | P2 | `/api/dashboard/hit-rate` + useDashboardHitRate are orphaned after the homepage declutter — track-record panel has no live caller | 待修 |
+| UX-013 | 产品 | P2 | `/api/dashboard/hit-rate` + useDashboardHitRate are orphaned after the homepage declutter — track-record panel has no live caller | 已修 |
 | UX-014 | 产品 | P2 | 首屏产品身份分裂：populated 态顶 FINROBOT 大字、empty 态顶 Coverage Desk，同一页两套品牌/心智 | 待修 |
 | BUG-058 | Bug | P3 | Non-critical steps emit a misleading step.completed (green ✓) after exhausting all retries on a real failure | 已修 |
 | BUG-059 | Bug | P3 | Validation-failure retries re-run deterministic executors unchanged, burning the full retry budget on identical failing output | 已修 |
@@ -1522,7 +1522,7 @@
 - **修复方案**：Decide and act (don't leave dead): EITHER (a) re-home the panel — render the scoped hit-rate on the Coverage group detail view and/or per-ticker workspace header (the scoping param exists for exactly this), wiring useDashboardHitRate with the group's tickers; OR (b) if the track-record panel is intentionally retired, delete the hook, the two dashboard routes' hit-rate path is still used? — verify and remove the orphaned hook + is_sampled fields. Recommend (a): the track record is the product's credibility proof for the target user. Note: fixing the two correctness bugs above is prerequisite for (a). Change size: medium (one panel component + placement) for (a); small for (b).
 - **验证补充**：Recommendation (a) re-home on the Coverage group detail / per-ticker workspace header is sound and the tickers scoping param exists for exactly this. Prerequisite chain is correct: [0] and [1] must be fixed before (a) or scoped groups silently show null and an undisclosed sampled stat. If (b) delete is chosen, also remove the aggregation module's now-unused path and the is_sampled fields. /recent-research is a separate live endpoint and must NOT be removed.
 - **影响面/回归风险**：—
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（接回 group-scoped：新建 CoverageTrustStrip，复用 useDashboardHitRate(window, groupTickers) 接 /api/dashboard/hit-rate，置于 CoverageHero 下方的 compact trust strip，scope=当前 group 成员 tickers；n_closed<5 不显百分比只显已结笔数、is_sampled 显『基于最近 N 条样本』、带 scope+30/90/全部 lookback 切换；不接单股 workspace、不删。3 个 e2e（含阈值抑制、抽样披露）+ 截图自验全绿）
 
 #### [UX-014] 首屏产品身份分裂：populated 态顶 FINROBOT 大字、empty 态顶 Coverage Desk，同一页两套品牌/心智
 

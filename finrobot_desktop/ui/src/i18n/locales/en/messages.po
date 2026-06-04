@@ -3777,3 +3777,36 @@ msgstr "The version was permanently removed."
 msgid "report.deleteVersionFailed"
 msgstr "Couldn't delete this version"
 
+
+#. js-lingui-explicit-id
+msgid "coverage.trust.label"
+msgstr "Track record"
+
+#. js-lingui-explicit-id
+msgid "coverage.trust.scope"
+msgstr "{group} · {n} names"
+
+#. js-lingui-explicit-id
+msgid "coverage.trust.none"
+msgstr "No closed calls yet"
+
+#. js-lingui-explicit-id
+msgid "coverage.trust.hitRate"
+msgstr "{rate} hit ({hit}/{closed} closed)"
+
+#. js-lingui-explicit-id
+msgid "coverage.trust.insufficient"
+msgstr "Sample too small · {closed} closed"
+
+#. js-lingui-explicit-id
+msgid "coverage.trust.window.30d"
+msgstr "30D"
+
+#. js-lingui-explicit-id
+msgid "coverage.trust.window.90d"
+msgstr "90D"
+
+#. js-lingui-explicit-id
+msgid "coverage.trust.window.all"
+msgstr "All"
+

@@ -141,9 +141,14 @@ class TestProviderFailure:
         layer2 = DataLayer([failing_provider], cache)
         result = await layer2.fetch("financials", "AAPL")
         assert result is not None
-        # The fallback warning is 中文 (surfaces in the desktop UI); check for
-        # the user-facing "缓存数据" phrase rather than the old English "stale".
-        assert any("缓存数据" in w for w in result.warnings)
+        # BUG-046: the data layer emits neutral English (localization belongs in
+        # the UI/display layer keyed on meta.language). The wording must contain
+        # the "source"/"stale"/"cache" tokens base.py's disclaimer filter matches
+        # on, so the stale warning actually reaches the report's Data Sources
+        # disclaimer (the Chinese string never did → prior silent miss).
+        stale = next(w for w in result.warnings if "cached data" in w)
+        assert "All data sources failed" in stale
+        assert "cache" in stale.lower() or "stale" in stale.lower()
 
     async def test_provider_fails_no_cache_returns_error_result(self, cache):
         """No crash — returns a DataResult the LLM can relay to the user."""
@@ -153,8 +158,11 @@ class TestProviderFailure:
         assert result is not None
         assert result.provider == "none"
         assert len(result.warnings) > 0
-        # Message was 中文-ified for the desktop UI (was: "Data unavailable... all providers failed").
-        assert any("不可用" in w or "失败" in w for w in result.warnings)
+        # BUG-046: neutral English at the data layer (was 中文-ified, which leaked
+        # into English `--lang en` reports).
+        assert any(
+            "Data unavailable" in w and "all data sources failed" in w for w in result.warnings
+        )
 
 
 def _range_result(provider: str, ticker: str = "AAPL") -> DataResult:
@@ -296,8 +304,10 @@ class TestChainFallback:
         layer = DataLayer([p1, p2, p3], cache)
         result = await layer.fetch("financials", "AAPL")
         assert result.provider == "none"
-        # Message was 中文-ified for the desktop UI (was: "Data unavailable... all providers failed").
-        assert any("不可用" in w or "失败" in w for w in result.warnings)
+        # BUG-046: neutral English at the data layer.
+        assert any(
+            "Data unavailable" in w and "all data sources failed" in w for w in result.warnings
+        )
 
     async def test_price_fallback_skips_yfinance_when_rate_limited(self, cache):
         """yfinance 429 → FMP picks up PRICE without falling to stale cache.
@@ -328,9 +338,9 @@ class TestChainFallback:
         result = await layer.fetch("price", "NVDA")
         assert result.provider == "fmp"
         assert result.data["current_price"] == 175.0
-        # No "数据源全部失败" stale-cache fallback should fire here — proves
-        # the chain actually traversed both providers instead of erroring.
-        assert not any("数据源全部失败" in w for w in result.warnings)
+        # No "All data sources failed" stale-cache fallback should fire here —
+        # proves the chain actually traversed both providers instead of erroring.
+        assert not any("All data sources failed" in w for w in result.warnings)
 
 
 class TestCrossValidationIntegration:
@@ -867,7 +877,8 @@ class TestFetchCanonical:
     async def test_all_providers_fail_raises_provider_error(self, cache):
         failing = MockProvider("bad", ["financials"], raises=ProviderError("boom"))
         layer = DataLayer([failing], cache)
-        with pytest.raises(ProviderError, match="所有 provider 失败"):
+        # BUG-046: neutral English error at the data layer.
+        with pytest.raises(ProviderError, match="all providers failed"):
             await layer.fetch_canonical("financials", "AAPL")
 
 

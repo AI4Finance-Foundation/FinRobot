@@ -103,8 +103,8 @@
 | BUG-043 | Bug | P2 | Unauthenticated POST /chat, /api/runs and /api/coverage/groups/{id}/runs burn metered LLM credits with zero inbound rate limiting | 待修 |
 | BUG-044 | Bug | P2 | Unauthenticated DELETE /api/artifacts/{id} and DELETE /api/coverage/groups/{id} permanently destroy stored research | 待修 |
 | BUG-045 | Bug | P2 | ProviderHealth 熔断器是完全未接线的死代码，docstring 谎称「DataLayer owns the wiring」——慢/限流 provider 每次仍付满超时 | 已修 |
-| BUG-046 | Bug | P2 | 硬编码中文数据层告警混入英文 CLI 输出(--lang en 不生效于 provider 告警) | 待修 |
-| BUG-047 | Bug | P2 | comps --peers 校验滞后且不验格式：错峰到管线中段(已耗 ~30s)才裸崩 | 待修 |
+| BUG-046 | Bug | P2 | 硬编码中文数据层告警混入英文 CLI 输出(--lang en 不生效于 provider 告警) | 已修 |
+| BUG-047 | Bug | P2 | comps --peers 校验滞后且不验格式：错峰到管线中段(已耗 ~30s)才裸崩 | 已修 |
 | BUG-048 | Bug | P2 | archive_stale 全表 get()+save() 逐行重写整份 payload，O(N) 次完整 JSON 反序列化+序列化 | 待修 |
 | BUG-049 | Bug | P2 | data_cache.cache 表永不淘汰,只增不减(无 TTL 清理/容量上限) | 待修 |
 | BUG-050 | Bug | P2 | run_events 无限增长 + SSE 0.2s 轮询单连接 → 批跑下打满单库单锁 | 待修 |
@@ -115,7 +115,7 @@
 | BUG-055 | Bug | P2 | 归档（30天自动 stale）的研报混进所有版本列表且零视觉标识——用户分不清『还在跟踪』和『已作废』的版本 | 已修 |
 | BUG-056 | Bug | P2 | 研报版本切换器/时间线/Diff 候选只取 timeline 默认 50 条，与 Inspector History(200) 不一致——重度跟踪的 ticker 老版本在报告页内不可达 | 已修 |
 | BUG-057 | Bug | P2 | Compare 表把不同时间跑出的 DCF 混在同一张表,且不显任何 vintage/as_of——用户无法判断哪行是今天的、哪行是三周前的 | 待修 |
-| BUG-068 | Bug | P2 | 回测对 A股标的零适配(T+1/涨跌停/印花税/停牌全缺)却照常产出净值曲线——A股结果根本不可信,应在入口直接 raise 拒跑而非 warn | 待修 |
+| BUG-068 | Bug | P2 | 回测对 A股标的零适配(T+1/涨跌停/印花税/停牌全缺)却照常产出净值曲线——A股结果根本不可信,应在入口直接 raise 拒跑而非 warn | 已修 |
 | BUG-070 | Bug | P2 | artifact 盖 git_commit 戳的 subprocess except 抓错异常类型(只抓 ImportError/Attr/Type/Value)——git 缺失(FileNotFoundError)/超时(TimeoutExpired)未捕获,无 git 环境(pip 安装用户/Docker slim/CI)研报落地最后一步直接崩 | 已修 |
 | BUG-071 | Bug | P2 | FMP _fetch_price 的 price_history 用未复权原始 close(没走 _adjust_fmp_bar),而 _fetch_price_range/yfinance 都已复权——FMP 当 PRICE 主源时 52周高低/SMA 落在名义价上,近一年有拆股的标的 52周高直接 ×拆股比 | 已修 |
 | BUG-074 | Bug | P2 | DCF 末年 FCF 为负时 Gordon 终值把负现金流资本化成永续负值→产出负的『每股公允价值』,degrade 分支只防 tg≥WACC 接不住,负价无 guard 直接进研报叙事+LLM prompt | 已修 |
@@ -124,7 +124,7 @@
 | BUG-079 | Bug | P2 | semantic_diff.build_semantic_delta 对 data_fetched_at 裸做 datetime 相减,一新(tz-aware)一旧(naive)时抛 TypeError→版本对比端点 500;全 artifact/audit 面仅此处漏 _ensure_tz(同胞模块都防了) | 已修 |
 | BUG-080 | Bug | P2 | /{ticker}/earnings-calls 构造 EarningsCallTranscript 的循环在 try/except 外,FMP 真实 payload 的 quarter 缺失/为 0(年度会/特别会)触发 ValidationError 逃逸→裸 500,而非 per-item 跳过 | 已修 |
 | BUG-081 | Bug | P2 | /{ticker}/price 的 session_state 对所有标的硬编码美东 9:30-16:00 ET 判定→港股/A股/日股盘中被错标『已收盘』,freshness pill 把实时报价显示成上一交易日收盘(与 BUG-030 同源:平台多处默认美国市场) | 已修 |
-| BUG-082 | Bug | P2 | `finrobot dcf <ticker>` 默认路径死锁:_should_use_ddm 的 asyncio.run 把 DataCache 的 aiosqlite 连接绑到随后销毁的 loop,第二个 asyncio.run 复用同连接→worker 线程绑死锁,进程退出时永久 hang(单 loop 测试测不出) | 待修 |
+| BUG-082 | Bug | P2 | `finrobot dcf <ticker>` 默认路径死锁:_should_use_ddm 的 asyncio.run 把 DataCache 的 aiosqlite 连接绑到随后销毁的 loop,第二个 asyncio.run 复用同连接→worker 线程绑死锁,进程退出时永久 hang(单 loop 测试测不出) | 已修 |
 | BUG-086 | Bug | P2 | [休眠·须与 BUG-075 同修] 13F value 双倍 ×1000:edgartools 5.31.5 已把 Value 归一化成整美元,refresh 脚本 line 102 又无条件 ×1000→机构持仓金额 1000 倍高估($250M 显示成 $250B);当前被 BUG-075 列名 bug 挡住未触发,BUG-075 一修即吐错数 | 已修 |
 | BUG-087 | Bug | P2 | Prompt 注入:第三方可控的新闻标题(RSS/FMP &lt;title&gt;)未分隔/转义逐字流入 LLM prompt 两处(equity_research thesis + news_classifier)→可注入伪数字/翻转 importance/sentiment 污染研报叙事与 catalyst 选择 | 待修 |
 | BUG-089 | Bug | P2 | POST /chat 的 session_id 未校验即当文件名 stem→含 ../或绝对路径时 .jsonl 写出 sessions 目录(任意路径写、内容攻击者可控);读写两侧 audit/transcript+persistence 都无清洗 | 待修 |
@@ -766,7 +766,7 @@
 - **修复方案**：layer.py 这两条 warning 改为英文(provider/数据层是面向开发者+全语言报告的底层，应英文中性)，把'陈旧/缓存/不可用'语义用英文表达，例如 'All data sources failed; showing cached data from {n}h ago ({ticker}/{data_type}). Retry later for fresh data.'。中文本地化应在展示层(UI WarningBanner / 报告渲染)按 meta.language 翻译，而非写死在数据层。注意 base.py:790-793 的 source_warnings 过滤靠英文子串 'source'/'stale'/'cache' 匹配——当前中文 warning 根本匹配不上这些子串，所以陈旧告警其实没进 Disclaimer 的 Data Sources 段(二次 bug)，改英文后会被正确匹配收进 disclaimer。改动量小但需扫一遍其它写死中文的 provider 告警一并处理。
 - **验证补充**：Direction correct: data/provider layer should emit neutral English; localization belongs in the display/UI layer keyed on meta.language. Note the comment at layer.py:142 ('retail users') is itself off-target per project positioning (analysts). Sweep for other hardcoded-Chinese provider warnings as the finding says. Minor: changing to English also fixes the disclaimer-filter miss as a free side effect, so call that out as the real correctness win, not just cosmetics.
 - **影响面/回归风险**：影响所有语言下的报告/CLI 输出一致性 + 修复 disclaimer 漏收陈旧告警。回归风险：若有测试断言中文 warning 文案需同步更新；UI 若直接渲染了这些中文串需改为本地化。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（layer.py 三处硬编码中文 provider 告警改中性英文（数据层是全语言开发者层，本地化归 UI 按 meta.language）。附带正确性收益：英文措辞含 source/stale/cache token，base.py disclaimer 过滤现能匹配到 stale 告警进 Data Sources 免责（中文从不匹配=静默漏）。同步 test_data_layer 4 断言。）
 
 #### [BUG-047] comps --peers 校验滞后且不验格式：错峰到管线中段(已耗 ~30s)才裸崩
 
@@ -779,7 +779,7 @@
 - **修复方案**：在 cli.py comps 命令解析 --peers 后立即校验(复用 finding#1 抽出的 normalize_cli_ticker + 数量检查)：`peers_list = [normalize_cli_ticker(p) for p in peers.split(',') if p.strip()]; if not 3 <= len(peers_list) <= 10: raise click.ClickException(f'--peers needs 3-10 tickers, got {len(peers_list)}')`，再传给 extra['peers']。这样非法输入 0 秒拦下、不浪费一次 data_collection。_helpers.py:149 的运行期校验保留作纵深防御(SDK/路由也走它)。注意常量 _PEER_COMP_SET_MIN 当前=3，CLI 侧硬编码 3 时加注释指向该常量避免漂移。改动量~5 行。
 - **验证补充**：Fix correct. Reuse the finding#0 normalize_cli_ticker plus a count check at the comps entry. Keep _helpers.py:149 runtime check as defense-in-depth (SDK/routes still go through it) — the finding already says this. Minor: hardcoding '3' in CLI duplicates _PEER_COMP_SET_MIN; better to import the constant than comment-link it, to avoid the very drift the finding warns about.
 - **影响面/回归风险**：仅影响 comps --peers 误用的反馈时机与质量；合法输入零影响。回归风险低。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（cli.py comps 命令入口校验 --peers：每 token 过共享 validate_ticker（拒苹果/!!!），数量 3-10，0 秒抛 ClickException 而非 ~30s 管线中段裸崩。_helpers.py 加 _PEER_COMP_INPUT_MAX=10 常量被 CLI 与运行期防御共用消除硬编码漂移。）
 
 #### [BUG-048] archive_stale 全表 get()+save() 逐行重写整份 payload，O(N) 次完整 JSON 反序列化+序列化
 
@@ -1054,7 +1054,7 @@
 - **根因**：回测引擎只实现了美股 T+0 零摩擦撮合,从未建模任何 A股市场微观结构;BacktestConfig 也无字段可区分标的所属市场。按"宁可说我需要核对、绝不编一个数字"的信条,第一道闸应在入口拒绝非美股标的,而不是产出一条不可信曲线——能跑出来的图本身就是诱惑。
 - **修复方案**：按 boss 裁决——回测定位为"附带功能,不投入扩 A股撮合规则",故走**拒跑(raise)而非 warn**(警告会被忽略,拒跑=物理上不可能被骗):在 BackTraderAdapter.run 起始处(或 BacktestConfig 入口校验)对非美股标的 `raise ValueError("Backtest models US-equity T+0 zero-friction execution only; A-share/HK tickers (T+1, price limits, stamp duty, halts unmodeled) are rejected to avoid producing untrustworthy curves. ticker=…")`。市场判定复用现有 ticker 正则/约定(A股 6 位纯数字代码、`.SS/.SZ/.HK` 后缀);**不要保留"顶格警告"后路**。美股那条零佣金零滑点 warning(:163)保留——那是程度问题不是真假问题。补测试:tests/unit/test_backtrader_adapter 断言 A股 ticker(如 `600519` / `600519.SS`)→ run raise ValueError。
 - **影响面/回归风险**：仅影响 CLI 回测 / SDK abacktest/aauto_backtest 的 A股调用;美股路径零影响。拒跑是行为收紧:曾经/将要用本回测跑 A股的脚本会从"拿到假数字"变成"明确报错"——这正是目的,回归风险低。关联:策略库扩充(动量/RSI/均值回归等多策略)经 boss 裁决为"附带功能不投入",**不作为 bug**,如后续要做另立 OPP 备案。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（engine/data/ticker.py 加 is_us_equity_ticker()（拒 .SS/.SZ/.SH/.HK 后缀 + 裸 6 位 A 股码，US 默认放行）；backtrader_adapter.run 顶部 _reject_non_us_equity() raise ValueError（覆盖 CLI 手动/--auto/SDK），在任何 I/O 前拦下——A 股零适配(T+1/涨跌停/印花税/停牌)不再照常吐不可信净值曲线。US 零佣金/滑点警告（程度问题非真假）保留。）
 
 #### [BUG-069] 回测渲染图时弹出 matplotlib GUI 窗口(Figure 0)并泄漏 figure——模块级 use("Agg") 时机太晚未生效
 
@@ -1224,7 +1224,7 @@
 - **根因**：用一次性 asyncio.run 打开共享 cache 连接，连接(及 worker 线程)跨 loop 存活到第二个 loop。
 - **修复方案**：别用一次性 asyncio.run 开共享 cache——(a) 把 bank/DDM 探测折进跑 pipeline 的那个 asyncio.run（FINANCIALS fetch + is_bank 检查放进同一 async 入口），或 (b) 全程单 loop：`asyncio.run(_dcf_or_ddm(deps, ticker))`。去掉 _should_use_ddm 的独立 asyncio.run 即根除跨 loop 连接复用。
 - **影响面/回归风险**：影响默认 `finrobot dcf <ticker>`（这是 CLI 一等命令）。修复收敛到单 loop，回归风险低。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（根因：_should_use_ddm 自带 asyncio.run 把共享 DataCache aiosqlite 连接开在随后销毁的 loop 上，dcf 命令第二个 asyncio.run 复用该连接→worker 线程绑死 loop→退出时 join 孤儿线程永久 hang。修：_should_use_ddm 改协程（去内层 asyncio.run），银行检测+管线执行折进单个 async def 在一个 asyncio.run 下跑，所有 cache 操作共享同一活 loop。子进程超时复现：旧形状 TimeoutExpired(hang)、新形状 rc=0 干净退出。）
 
 #### [BUG-083] ~/.finrobot/.secrets 权限偏离 0600 时严格等值校验抛未捕获 PermissionError → server 启动崩,无自愈
 

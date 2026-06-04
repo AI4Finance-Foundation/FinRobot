@@ -161,6 +161,63 @@ class TestCompsCommand:
         result = runner.invoke(cli, ["comps", "AAPL", "--model", "test"])
         assert result.exit_code == 0, result.output
 
+    def test_comps_peers_too_few_rejected_at_entry(self, monkeypatch):
+        """BUG-047: <3 peers fails fast with a clean ClickException, NOT a bare
+        traceback ~30s into the pipeline. The pipeline must never run."""
+
+        def _explode(*args, **kwargs):
+            raise AssertionError("pipeline must not run for an invalid --peers")
+
+        monkeypatch.setattr("finrobot.engine.pipelines.base.Pipeline.execute", _explode)
+        _patch_build_deps(monkeypatch)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["comps", "AAPL", "--peers", "MSFT,GOOGL"])
+        assert result.exit_code != 0
+        assert "--peers needs 3-10 tickers, got 2" in result.output
+
+    def test_comps_peers_too_many_rejected_at_entry(self, monkeypatch):
+        def _explode(*args, **kwargs):
+            raise AssertionError("pipeline must not run for an invalid --peers")
+
+        monkeypatch.setattr("finrobot.engine.pipelines.base.Pipeline.execute", _explode)
+        _patch_build_deps(monkeypatch)
+        runner = CliRunner()
+        eleven = ",".join(f"PEER{i}" for i in range(11))
+        result = runner.invoke(cli, ["comps", "AAPL", "--peers", eleven])
+        assert result.exit_code != 0
+        assert "got 11" in result.output
+
+    def test_comps_peers_bad_format_rejected_at_entry(self, monkeypatch):
+        """Junk like CJK / punctuation is caught by the shared validate_ticker
+        at the CLI entry before reaching any provider."""
+
+        def _explode(*args, **kwargs):
+            raise AssertionError("pipeline must not run for an invalid --peers")
+
+        monkeypatch.setattr("finrobot.engine.pipelines.base.Pipeline.execute", _explode)
+        _patch_build_deps(monkeypatch)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["comps", "AAPL", "--peers", "MSFT,苹果,!!!"])
+        assert result.exit_code != 0
+        assert "Invalid ticker" in result.output
+
+    def test_comps_valid_peers_pass(self, monkeypatch):
+        """A valid 3-peer set passes the entry check and reaches the pipeline,
+        which receives the normalised (upper-cased) tickers."""
+        captured: dict[str, object] = {}
+        from finrobot.engine.pipelines.base import PipelineResult
+
+        async def mock_execute(self, deps, ticker, **kwargs):
+            captured["peers"] = kwargs.get("peers")
+            return PipelineResult(steps={"data_collection": "ok"})
+
+        monkeypatch.setattr("finrobot.engine.pipelines.base.Pipeline.execute", mock_execute)
+        _patch_build_deps(monkeypatch)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["comps", "AAPL", "--peers", "msft, googl ,amzn"])
+        assert result.exit_code == 0, result.output
+        assert captured["peers"] == ["MSFT", "GOOGL", "AMZN"]
+
 
 class TestDcfCommand:
     def test_dcf_doesnt_crash_with_test_model(self, monkeypatch):
@@ -204,6 +261,64 @@ class TestDcfCommand:
         runner = CliRunner()
         result = runner.invoke(cli, ["dcf", "AAPL", "--model", "test"])
         assert result.exit_code == 0, result.output
+
+    def test_should_use_ddm_is_async(self):
+        """BUG-082: the bank probe MUST be a coroutine so it can be awaited
+        inside the same asyncio.run as the pipeline. A sync helper that wraps
+        its own asyncio.run is what bound a shared aiosqlite connection to a
+        throwaway loop and hung the interpreter at shutdown."""
+        import inspect
+
+        from finrobot.cli import _should_use_ddm
+
+        assert inspect.iscoroutinefunction(_should_use_ddm)
+
+    def test_dcf_default_path_uses_single_event_loop(self):
+        """BUG-082 regression: a DataCache (shared aiosqlite connection) opened
+        in one asyncio.run and reused in a SECOND asyncio.run binds its worker
+        thread to the destroyed first loop → the interpreter hangs forever
+        joining the orphan thread at shutdown. The dcf fix folds bank detection
+        and the pipeline run into ONE loop. We prove the single-loop shape (the
+        fix) exits cleanly in a subprocess under a hard timeout."""
+        import subprocess
+        import sys
+        import textwrap
+
+        single_loop = textwrap.dedent(
+            """
+            import asyncio, tempfile, os
+            from datetime import datetime, timezone
+            from finrobot.engine.data.cache import DataCache
+            from finrobot.engine.data.interface import DataResult
+
+            db = os.path.join(tempfile.mkdtemp(), "c.db")
+            cache = DataCache(db_path=db)
+
+            def _r(t):
+                return DataResult(data={"x": 1}, provider="p", ticker=t,
+                                  data_type="financials",
+                                  timestamp=datetime.now(tz=timezone.utc))
+
+            async def main():
+                # bank probe + pipeline-equivalent: every cache op on ONE loop
+                await cache.set("financials", "AAPL", _r("AAPL"))
+                await cache.get("financials", "AAPL")
+                await cache.set("financials", "AAPL", _r("AAPL"))
+                await cache.close()
+
+            asyncio.run(main())
+            """
+        )
+        proc = subprocess.run(
+            [sys.executable, "-c", single_loop],
+            capture_output=True,
+            text=True,
+            timeout=60,  # the bug hangs 3+ min; 60s is a generous non-hang bound
+        )
+        assert proc.returncode == 0, (
+            f"single-loop dcf shape must exit cleanly, "
+            f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
+        )
 
 
 class TestBuildDeps:

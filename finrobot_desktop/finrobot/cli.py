@@ -78,17 +78,24 @@ def _build_runtime(model: str | None = None) -> tuple[Any, "FinRobotDeps"]:
     return agent, deps
 
 
-def _should_use_ddm(deps: "FinRobotDeps", ticker: str) -> bool:
+async def _should_use_ddm(deps: "FinRobotDeps", ticker: str) -> bool:
     """Check if ticker is a bank/financial that should use DDM.
 
     Fetches financials to get industry/sector, then uses the industry
     detection module. Returns False on any error (fail-open to DCF).
+
+    BUG-082: this MUST be ``await``-ed inside the SAME ``asyncio.run`` as the
+    pipeline execution. Wrapping the ``fetch`` in its own ``asyncio.run`` opened
+    the shared DataCache aiosqlite connection on a throwaway loop; the next
+    ``asyncio.run`` reused that connection, leaving its aiosqlite worker thread
+    bound to the destroyed loop → the interpreter hung forever joining the
+    orphan thread at shutdown. Keeping everything on one loop avoids that.
     """
     from finrobot.engine.compute.industry import is_bank
     from finrobot.engine.data.types import DataType
 
     try:
-        result = asyncio.run(deps.data_layer.fetch(DataType.FINANCIALS, ticker))
+        result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
         data = result.data
         industry = data.get("industry")
         sector = data.get("sector")
@@ -253,7 +260,24 @@ def comps(ticker: str, model: str | None, lang: str | None, peers: str | None) -
     # execute()'s typed keyword params (lang / source_artifact_id: str | None).
     extra: dict[str, Any] = {}
     if peers:
-        extra["peers"] = [p.strip().upper() for p in peers.split(",") if p.strip()]
+        # BUG-047: validate format AND count at the CLI entry, before the
+        # ~30s data_collection step, so a bad --peers fails in 0s with a clean
+        # ClickException instead of a bare ValueError traceback from deep in
+        # the pipeline. Reuses the shared validate_ticker (rejects CJK / junk
+        # like '苹果,!!!') and the same bounds the runtime check enforces
+        # (_helpers.py keeps its check as defense-in-depth for SDK/route paths).
+        from finrobot.engine.pipelines._helpers import (
+            _PEER_COMP_INPUT_MAX,
+            _PEER_COMP_SET_MIN,
+        )
+
+        peers_list = [_validate_ticker_arg(p) for p in peers.split(",") if p.strip()]
+        if not _PEER_COMP_SET_MIN <= len(peers_list) <= _PEER_COMP_INPUT_MAX:
+            raise click.ClickException(
+                f"--peers needs {_PEER_COMP_SET_MIN}-{_PEER_COMP_INPUT_MAX} tickers, "
+                f"got {len(peers_list)}."
+            )
+        extra["peers"] = peers_list
 
     result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang, **extra))
     click.echo(result.format_summary())
@@ -287,10 +311,17 @@ def dcf(ticker: str, model: str | None, force_dcf: bool, lang: str | None) -> No
 
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
 
-    if not force_dcf:
-        # Check if ticker is a bank — if so, use DDM instead
-        use_ddm = _should_use_ddm(deps, ticker)
-        if use_ddm:
+    from finrobot.engine.pipelines.base import PipelineResult
+
+    async def _dcf_or_ddm() -> PipelineResult:
+        """BUG-082: bank detection + pipeline run on ONE event loop.
+
+        Folding ``_should_use_ddm``'s FINANCIALS fetch into this single
+        ``asyncio.run`` keeps the shared DataCache aiosqlite connection bound to
+        the live loop, so it is never reused across a destroyed loop (which
+        deadlocked the interpreter at shutdown).
+        """
+        if not force_dcf and await _should_use_ddm(deps, ticker):
             click.echo(
                 f"Detected {ticker.upper()} as a bank/financial institution. "
                 "Using DDM (Dividend Discount Model) instead of FCF-DCF.\n"
@@ -299,17 +330,15 @@ def dcf(ticker: str, model: str | None, force_dcf: bool, lang: str | None) -> No
             )
             from finrobot.engine.pipelines.ddm import create_ddm_pipeline
 
-            pipeline = create_ddm_pipeline(sub_agents)
-            result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
-            click.echo(result.format_summary())
-            click.echo(_HTML_REPORT_NOTE)
-            return
+            ddm_pipeline = create_ddm_pipeline(sub_agents)
+            return await ddm_pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang)
 
-    from finrobot.engine.pipelines.dcf import create_dcf_pipeline
+        from finrobot.engine.pipelines.dcf import create_dcf_pipeline
 
-    pipeline = create_dcf_pipeline(sub_agents)
+        dcf_pipeline = create_dcf_pipeline(sub_agents)
+        return await dcf_pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang)
 
-    result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
+    result = asyncio.run(_dcf_or_ddm())
     click.echo(result.format_summary())
     click.echo(_HTML_REPORT_NOTE)
 

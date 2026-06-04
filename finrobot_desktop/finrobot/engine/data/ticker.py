@@ -34,3 +34,29 @@ def validate_ticker(s: str) -> str:
             f"Invalid ticker '{s}'. Use A-Z/0-9/./- up to 12 chars, e.g. AAPL or BRK.B"
         )
     return normalised
+
+
+# Non-US-equity market suffixes (Shanghai/Shenzhen/Hong Kong + the common
+# Yahoo-style aliases). A bare 6-digit code is a mainland A-share board number
+# (e.g. 600519 Kweichow Moutai, 000001 Ping An). Used by callers — like the
+# backtest engine — that only model US-equity microstructure and must reject
+# anything else rather than emit an untrustworthy result (BUG-068).
+_NON_US_SUFFIXES = (".SS", ".SZ", ".SH", ".HK")
+_A_SHARE_CODE_RE = re.compile(r"^\d{6}$")
+
+
+def is_us_equity_ticker(ticker: str) -> bool:
+    """Best-effort check that a (validated) ticker is a US-listed equity.
+
+    Returns ``False`` for A-share / HK symbols — ``.SS``/``.SZ``/``.SH``/``.HK``
+    suffixes and bare 6-digit mainland board codes. This is intentionally a
+    coarse allow-by-default heuristic: anything that doesn't look like a CN/HK
+    symbol is treated as US. Callers that need a hard gate (backtest) use it to
+    reject, not to silently route.
+    """
+    t = ticker.strip().upper()
+    if t.endswith(_NON_US_SUFFIXES):
+        return False
+    if _A_SHARE_CODE_RE.match(t):
+        return False
+    return True

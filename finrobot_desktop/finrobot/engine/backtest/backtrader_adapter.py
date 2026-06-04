@@ -43,6 +43,27 @@ except ImportError:
     pass
 
 
+def _reject_non_us_equity(ticker: str) -> None:
+    """Reject A-share / HK tickers at the backtest entry (BUG-068).
+
+    This engine only models US-equity T+0 zero-friction execution. For A-share
+    / HK names none of the four core constraints are modeled — T+1 settlement,
+    daily price limits (涨跌停), the 0.05% sell-side stamp duty (印花税), or
+    trading halts (停牌) — so it would still emit a clean-looking but
+    fundamentally untrustworthy equity curve. Per the "宁可说我需要核对、绝不
+    编一个数字" creed we raise rather than warn: a warning gets skimmed past, a
+    raise makes the fabricated curve physically impossible to obtain.
+    """
+    from finrobot.engine.data.ticker import is_us_equity_ticker
+
+    if not is_us_equity_ticker(ticker):
+        raise ValueError(
+            "Backtest models US-equity T+0 zero-friction execution only; "
+            "A-share/HK tickers (T+1, price limits, stamp duty, halts unmodeled) "
+            f"are rejected to avoid producing untrustworthy curves. ticker={ticker!r}"
+        )
+
+
 def _check_backtrader() -> None:
     """Raise ImportError with a helpful message if backtrader is not installed."""
     try:
@@ -98,6 +119,7 @@ class BackTraderAdapter(BacktestEngine):
     async def run(self, config: BacktestConfig) -> BacktestResult:
         """Execute backtest using BackTrader in a thread pool."""
         _check_backtrader()
+        _reject_non_us_equity(config.ticker)
         return await asyncio.to_thread(self._run_sync, config)
 
     def _run_sync(self, config: BacktestConfig) -> BacktestResult:

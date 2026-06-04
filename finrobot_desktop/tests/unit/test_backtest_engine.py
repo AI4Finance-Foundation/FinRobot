@@ -158,3 +158,59 @@ class TestBacktestResult:
         summary = result.format_summary()
         assert "Warning:" in summary
         assert "Insufficient data" in summary
+
+
+class _NullDataLayer:
+    """DataLayer stub — run() must reject A-shares BEFORE any data fetch."""
+
+    async def fetch_price_range(self, *args: object, **kwargs: object) -> object:
+        raise AssertionError("data fetch must not run for a rejected ticker")
+
+    async def close(self) -> None:  # pragma: no cover - never reached here
+        return None
+
+
+class TestBacktestAShareRejection:
+    """BUG-068: A-share / HK tickers are rejected at the backtest entry.
+
+    The engine only models US-equity T+0 zero-friction execution; for CN/HK
+    names (T+1, price limits, stamp duty, halts unmodeled) it must raise rather
+    than emit an untrustworthy equity curve. The reject happens in run() before
+    any provider I/O.
+    """
+
+    @pytest.mark.parametrize(
+        "ticker",
+        ["600519", "000001", "600519.SS", "000001.SZ", "0700.HK", "688981.SH"],
+    )
+    def test_a_share_and_hk_tickers_rejected(self, ticker: str) -> None:
+        import asyncio
+
+        from finrobot.engine.backtest.backtrader_adapter import BackTraderAdapter
+
+        adapter = BackTraderAdapter(_NullDataLayer())  # type: ignore[arg-type]
+        config = BacktestConfig(
+            ticker=ticker,
+            start_date="2023-01-01",
+            end_date="2024-01-01",
+        )
+        with pytest.raises(ValueError, match="US-equity"):
+            asyncio.run(adapter.run(config))
+
+    @pytest.mark.parametrize("ticker", ["AAPL", "BRK.B", "BRK-B", "MSFT"])
+    def test_us_equity_tickers_pass_the_gate(self, ticker: str) -> None:
+        """US symbols clear the gate (proven by hitting the next stage's I/O)."""
+        import asyncio
+
+        from finrobot.engine.backtest.backtrader_adapter import BackTraderAdapter
+
+        adapter = BackTraderAdapter(_NullDataLayer())  # type: ignore[arg-type]
+        config = BacktestConfig(
+            ticker=ticker,
+            start_date="2023-01-01",
+            end_date="2024-01-01",
+        )
+        # Passes the A-share gate, then trips the stub's AssertionError at the
+        # first data fetch — i.e. it was NOT rejected up front.
+        with pytest.raises(AssertionError, match="data fetch must not run"):
+            asyncio.run(adapter.run(config))

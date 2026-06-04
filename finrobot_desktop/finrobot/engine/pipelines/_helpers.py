@@ -55,6 +55,11 @@ logger = logging.getLogger(__name__)
 # floor for a defensible median; MAX caps the published comp set.
 _PEER_COMP_SET_MIN = 3
 _PEER_COMP_SET_MAX = 6
+# Upper bound on a CALLER-SUPPLIED ``--peers`` set (distinct from
+# _PEER_COMP_SET_MAX, which caps the auto-selected published set). The CLI
+# imports this so its entry-point validation can't drift from the runtime
+# defense-in-depth check below (BUG-047).
+_PEER_COMP_INPUT_MAX = 10
 
 
 # ── Whitelist formatting (must mirror the frontend SourcedNumber render) ──────
@@ -197,9 +202,10 @@ async def execute_peer_analysis(
     deterministic, traceable multiples instead of LLM free text."""
     override = _peer_override(kwargs.get("peers"))
     if override is not None:
-        if not _PEER_COMP_SET_MIN <= len(override) <= 10:
+        if not _PEER_COMP_SET_MIN <= len(override) <= _PEER_COMP_INPUT_MAX:
             raise ValueError(
-                f"--peers needs {_PEER_COMP_SET_MIN}-10 tickers, got {len(override)}: {override}"
+                f"--peers needs {_PEER_COMP_SET_MIN}-{_PEER_COMP_INPUT_MAX} tickers, "
+                f"got {len(override)}: {override}"
             )
         logger.info("Peer analysis using caller-supplied peers: %s", override)
         selection = PeerSelection(tickers=override, rationale="Caller-supplied peer set (--peers).")

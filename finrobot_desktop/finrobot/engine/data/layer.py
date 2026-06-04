@@ -192,18 +192,26 @@ class DataLayer:
         if cached is not None:
             stale = cached.data
             age_hours = (datetime.now(tz=timezone.utc) - cached.cached_at).total_seconds() / 3600
-            # 中文 warning surfaces in the UI's WarningBanner — retail users
-            # need to know they're looking at potentially-stale data so they
-            # don't act on a price/financial figure that's hours/days old.
+            # Provider/data layer emits neutral English (BUG-046): this string
+            # flows verbatim into format_summary's "Data Source Notes" and the
+            # report Disclaimer, so a hardcoded Chinese string would leak into an
+            # English `--lang en` report. Localization belongs in the display/UI
+            # layer keyed on meta.language, not in the data layer. The "source"/
+            # "stale"/"cache" tokens here are also what base.py's disclaimer
+            # filter matches on, so English wording fixes the prior miss where
+            # the Chinese warning never reached the Disclaimer's Data Sources.
             stale_warning = (
-                f"⚠️ 数据源全部失败，正在显示 {age_hours:.0f} 小时前的缓存数据 "
-                f"（{ticker} / {data_type}）。请稍后重试以获取最新数据。"
+                f"All data sources failed; showing cached data from {age_hours:.0f}h ago "
+                f"({ticker} / {data_type}). Retry later for fresh data."
             )
             logger.warning(stale_warning)
             return stale.model_copy(update={"warnings": [stale_warning] + stale.warnings})
 
         # 4. No data anywhere
-        msg = f"数据暂不可用（{ticker} / {data_type}）：所有数据源失败且无缓存。"
+        msg = (
+            f"Data unavailable ({ticker} / {data_type}): all data sources failed "
+            f"and no cache is available."
+        )
         logger.error(msg)
         return DataResult(
             data={"error": msg},
@@ -261,7 +269,8 @@ class DataLayer:
             # All providers failed and no cache — never normalize+cache an
             # all-zero fabrication (报错一个数字砸招牌). Surface like fetch_price.
             raise ProviderError(
-                f"无法获取 {ticker} 的 {data_type} canonical 数据：所有 provider 失败且无缓存"
+                f"Cannot fetch canonical {data_type} for {ticker}: "
+                f"all providers failed and no cache is available."
             )
 
         normalized: NormalizedPrice | NormalizedFinancials = (

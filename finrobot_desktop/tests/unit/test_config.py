@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from finrobot.config import FinRobotSettings, get_settings
+from finrobot.config import BUILTIN_PROVIDERS, FinRobotSettings, ProviderConfig, get_settings
 
 
 class TestDefaults:
@@ -15,11 +15,40 @@ class TestDefaults:
         s = FinRobotSettings()
         assert s.model_name == "deepseek:deepseek-chat"
 
-    def test_default_api_keys_empty(self):
+    def test_default_has_no_provider_keys(self):
         s = FinRobotSettings()
-        assert s.anthropic_api_key == ""
-        assert s.deepseek_api_key == ""
-        assert s.openai_api_key == ""
+        # LLM keys live in the keychain (provider_key:<id>), never in defaults.
+        assert s.provider_key("deepseek") is None
+        assert s.provider_key("anthropic") is None
+        assert s.custom_providers == []
+
+    def test_default_providers_are_the_builtins(self):
+        s = FinRobotSettings()
+        ids = [p.id for p in s.providers]
+        assert ids == [p.id for p in BUILTIN_PROVIDERS]
+        assert {"deepseek", "anthropic", "openai", "moonshot", "qwen", "openrouter"} <= set(ids)
+        # deepseek MUST keep its dedicated kind, not collapse to openai-compatible
+        # (DeepSeekProvider's model profile is load-bearing for deepseek-reasoner).
+        deepseek = s.provider_by_id("deepseek")
+        assert deepseek is not None and deepseek.kind == "deepseek"
+
+    def test_custom_providers_extend_the_registry(self):
+        s = get_settings(
+            custom_providers=[
+                {
+                    "id": "myhost",
+                    "label": "My vLLM",
+                    "kind": "openai-compatible",
+                    "base_url": "https://h/v1",
+                    "models": ["local-7b"],
+                }
+            ]
+        )
+        ids = [p.id for p in s.providers]
+        assert ids[: len(BUILTIN_PROVIDERS)] == [p.id for p in BUILTIN_PROVIDERS]
+        assert ids[-1] == "myhost"
+        myhost = s.provider_by_id("myhost")
+        assert myhost is not None and myhost.base_url == "https://h/v1"
 
     def test_env_var_is_ignored_for_user_config(self, monkeypatch):
         """A FINROBOT_* env var must NOT leak into user config — the whole point
@@ -27,7 +56,7 @@ class TestDefaults:
         monkeypatch.setenv("FINROBOT_OPENAI_API_KEY", "sk-from-env")
         monkeypatch.setenv("FINROBOT_MODEL_NAME", "openai:gpt-4o")
         s = FinRobotSettings()
-        assert s.openai_api_key == ""
+        assert s.provider_key("openai") is None
         assert s.model_name == "deepseek:deepseek-chat"
 
     def test_default_cache_db_path(self):
@@ -53,6 +82,28 @@ class TestDefaults:
         assert s.sec_holdings_auto_refresh is False
 
 
+class TestProviderKeyPrivacy:
+    """Provider API keys are a PrivateAttr — they must never leak into
+    model_dump() / settings.json / a debug repr (ADR-0013)."""
+
+    def test_keys_absent_from_model_dump(self):
+        s = get_settings(provider_keys={"deepseek": "sk-secret-xyz"})
+        dump = str(s.model_dump())
+        assert "sk-secret-xyz" not in dump
+        assert "_provider_keys" not in s.model_dump()
+
+    def test_with_provider_keys_returns_copy(self):
+        base = FinRobotSettings()
+        keyed = base.with_provider_keys({"deepseek": "sk-x"})
+        assert base.provider_key("deepseek") is None  # original untouched
+        assert keyed.provider_key("deepseek") == "sk-x"
+
+    def test_blank_keys_are_dropped(self):
+        s = FinRobotSettings().with_provider_keys({"deepseek": "", "anthropic": "sk-a"})
+        assert s.provider_key("deepseek") is None
+        assert s.provider_key("anthropic") == "sk-a"
+
+
 class TestConstructorOverride:
     def test_model_name_override(self):
         s = get_settings(model_name="anthropic:claude-sonnet-4-6")
@@ -65,26 +116,60 @@ class TestConstructorOverride:
 
 
 class TestCreateModel:
-    def test_deepseek_returns_openai_chat_model(self):
+    def test_deepseek_uses_deepseek_provider(self):
         from pydantic_ai.models.openai import OpenAIChatModel
+        from pydantic_ai.providers.deepseek import DeepSeekProvider
 
-        s = get_settings(model_name="deepseek:deepseek-chat", deepseek_api_key="sk-test")
+        s = get_settings(model_name="deepseek:deepseek-chat", provider_keys={"deepseek": "sk-test"})
         model = s.create_model()
         assert isinstance(model, OpenAIChatModel)
+        # deepseek is NOT collapsed into a bare OpenAIProvider — it keeps the
+        # dedicated DeepSeekProvider (reasoning_content profile). ADR-0013.
+        assert isinstance(model._provider, DeepSeekProvider)
 
     def test_anthropic_returns_anthropic_model(self):
         from pydantic_ai.models.anthropic import AnthropicModel
 
-        s = get_settings(model_name="anthropic:claude-sonnet-4-6", anthropic_api_key="sk-test")
+        s = get_settings(
+            model_name="anthropic:claude-sonnet-4-6", provider_keys={"anthropic": "sk-test"}
+        )
         model = s.create_model()
         assert isinstance(model, AnthropicModel)
 
     def test_openai_returns_openai_chat_model(self):
         from pydantic_ai.models.openai import OpenAIChatModel
 
-        s = get_settings(model_name="openai:gpt-4o", openai_api_key="sk-test")
+        s = get_settings(model_name="openai:gpt-4o", provider_keys={"openai": "sk-test"})
         model = s.create_model()
         assert isinstance(model, OpenAIChatModel)
+
+    def test_custom_openai_compatible_uses_base_url(self):
+        from pydantic_ai.models.openai import OpenAIChatModel
+        from pydantic_ai.providers.openai import OpenAIProvider
+
+        s = get_settings(
+            model_name="myhost:local-7b",
+            custom_providers=[
+                ProviderConfig(
+                    id="myhost",
+                    label="My vLLM",
+                    kind="openai-compatible",
+                    base_url="https://my-host/v1",
+                )
+            ],
+            provider_keys={"myhost": "sk-local"},
+        )
+        model = s.create_model()
+        assert isinstance(model, OpenAIChatModel)
+        assert isinstance(model._provider, OpenAIProvider)
+        # base_url is normalised with a trailing slash by the OpenAI client.
+        assert model._provider.base_url.rstrip("/") == "https://my-host/v1"
+
+    def test_test_provider_returns_test_model(self):
+        from pydantic_ai.models.test import TestModel
+
+        s = get_settings(model_name="test:test")
+        assert isinstance(s.create_model(), TestModel)
 
     def test_unknown_provider_raises(self):
         s = get_settings(model_name="unknown:model")
@@ -95,7 +180,9 @@ class TestCreateModel:
         import os
 
         monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-        s = get_settings(model_name="deepseek:deepseek-chat", deepseek_api_key="sk-secret")
+        s = get_settings(
+            model_name="deepseek:deepseek-chat", provider_keys={"deepseek": "sk-secret"}
+        )
         s.create_model()
         assert os.environ.get("DEEPSEEK_API_KEY") is None
 
@@ -107,7 +194,7 @@ class TestValidateRuntimeConfig:
     def test_valid_config_passes(self):
         s = get_settings(
             model_name="deepseek:deepseek-chat",
-            deepseek_api_key="sk-x",
+            provider_keys={"deepseek": "sk-x"},
             fmp_api_key="fmp-test-key",
         )
         s.validate_runtime_config()  # must not raise
@@ -122,18 +209,31 @@ class TestValidateRuntimeConfig:
             s.validate_runtime_config()
 
     def test_missing_llm_api_key_raises_value_error(self):
-        s = FinRobotSettings(
+        s = get_settings(
             model_name="deepseek:deepseek-chat",
             fmp_api_key="fmp-test-key",
         )
         with pytest.raises(ValueError, match="No API key configured for provider 'deepseek'"):
             s.validate_runtime_config()
 
+    def test_custom_provider_validates_against_registry(self):
+        s = get_settings(
+            model_name="myhost:local-7b",
+            custom_providers=[
+                ProviderConfig(
+                    id="myhost", label="My", kind="openai-compatible", base_url="https://h/v1"
+                )
+            ],
+            provider_keys={"myhost": "sk-local"},
+            fmp_api_key="fmp-test-key",
+        )
+        s.validate_runtime_config()  # registered + keyed → passes
+
     def test_missing_fmp_api_key_emits_warning(self):
         """FMP key is optional — emits warning, never raises (analyst-grade fallback)."""
         import warnings
 
-        s = FinRobotSettings(model_name="test")
+        s = get_settings(model_name="test")
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             s.validate_runtime_config()
@@ -163,8 +263,6 @@ class TestNoEnvReading:
 
     def test_user_config_env_vars_ignored(self, monkeypatch):
         for var, val in {
-            "FINROBOT_ANTHROPIC_API_KEY": "sk-ant",
-            "FINROBOT_DEEPSEEK_API_KEY": "sk-ds",
             "FINROBOT_OPENAI_API_KEY": "sk-oai",
             "FINROBOT_FMP_API_KEY": "fmp",
             "FINROBOT_SEC_USER_AGENT": "Hacker evil@example.com",
@@ -172,9 +270,7 @@ class TestNoEnvReading:
         }.items():
             monkeypatch.setenv(var, val)
         s = get_settings()
-        assert s.anthropic_api_key == ""
-        assert s.deepseek_api_key == ""
-        assert s.openai_api_key == ""
+        assert s.provider_key("openai") is None
         assert s.fmp_api_key == ""
         assert s.sec_user_agent == "FinRobot admin@example.com"  # class default
         assert s.log_level == "INFO"  # class default
@@ -185,7 +281,7 @@ class TestNoEnvReading:
         env.write_text("FINROBOT_OPENAI_API_KEY=sk-from-dotenv\n", encoding="utf-8")
         monkeypatch.chdir(tmp_path)
         s = get_settings()
-        assert s.openai_api_key == ""
+        assert s.provider_key("openai") is None
 
 
 def test_logging_defaults() -> None:

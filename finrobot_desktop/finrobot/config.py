@@ -3,9 +3,9 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import BaseModel, Field, PrivateAttr
 from pydantic_ai.models import Model
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
@@ -13,14 +13,91 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 logger = logging.getLogger(__name__)
 
 
-# Valid providers and the settings field holding their API key. A provider
-# listed here but absent from _PROVIDER_KEY_FIELD needs no key (e.g. "test").
-_VALID_PROVIDERS: frozenset[str] = frozenset({"deepseek", "anthropic", "openai", "test"})
-_PROVIDER_KEY_FIELD: dict[str, str] = {
-    "deepseek": "deepseek_api_key",
-    "anthropic": "anthropic_api_key",
-    "openai": "openai_api_key",
-}
+ProviderKind = Literal["openai-compatible", "anthropic", "deepseek", "test"]
+
+
+class ProviderConfig(BaseModel):
+    """One LLM provider in the model registry.
+
+    This is the data-driven replacement for the old hardcoded
+    ``_VALID_PROVIDERS`` / ``_PROVIDER_KEY_FIELD`` / ``create_model`` if-elif:
+    a provider is a row of data, not a code branch, so adding any
+    OpenAI-compatible backend (Moonshot / Qwen / OpenRouter / a local vLLM)
+    is a config edit, never a code change.
+
+    NOTE: ``ProviderConfig`` is an **LLM model factory descriptor** — it is NOT
+    the ``DataProvider`` ABC in ``engine/data/interface.py`` (which is the
+    financial-data fetch contract). Two different axes; don't conflate them.
+
+    The provider's API key is NEVER stored here — it lives in the OS keychain
+    under ``provider_key:<id>`` and is hydrated into ``FinRobotSettings``'s
+    private ``_provider_keys`` map at boot. ``models`` is a list of *suggested*
+    model ids for the UI dropdown; the user may run any model id the provider
+    accepts (validation checks the provider exists + has a key, not that the
+    model is in this list).
+    """
+
+    id: str  # referenced by model_name's "<id>:<model>" prefix, e.g. "deepseek"
+    label: str  # human-facing name shown in the UI, e.g. "DeepSeek"
+    kind: ProviderKind
+    # base_url is used by openai-compatible (and optionally anthropic) providers.
+    # deepseek/anthropic built-ins leave it None and let their PydanticAI provider
+    # class supply the canonical endpoint.
+    base_url: str | None = None
+    models: list[str] = Field(default_factory=list)
+
+
+# Built-in providers shipped with FinRobot. These are code-owned and evolve with
+# releases (new model ids land here), so they are NOT persisted to settings.json
+# — only the user's own ``custom_providers`` are. ``deepseek`` keeps kind
+# "deepseek" (not "openai-compatible") on purpose: PydanticAI's DeepSeekProvider
+# sets a custom model profile (reasoning_content thinking field, send-back-thinking,
+# and tool_choice=required disabled for deepseek-reasoner) that a bare
+# OpenAIProvider+base_url would silently drop — collapsing it would break
+# deepseek-reasoner under forced-JSON pipelines. See ADR-0013.
+BUILTIN_PROVIDERS: tuple[ProviderConfig, ...] = (
+    ProviderConfig(
+        id="deepseek",
+        label="DeepSeek",
+        kind="deepseek",
+        models=["deepseek-chat", "deepseek-reasoner"],
+    ),
+    ProviderConfig(
+        id="anthropic",
+        label="Anthropic",
+        kind="anthropic",
+        models=["claude-sonnet-4-6", "claude-opus-4-8", "claude-haiku-4-5-20251001"],
+    ),
+    ProviderConfig(
+        id="openai",
+        label="OpenAI",
+        kind="openai-compatible",
+        base_url="https://api.openai.com/v1",
+        models=["gpt-4o", "gpt-4o-mini"],
+    ),
+    ProviderConfig(
+        id="moonshot",
+        label="Moonshot (Kimi)",
+        kind="openai-compatible",
+        base_url="https://api.moonshot.cn/v1",
+        models=["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
+    ),
+    ProviderConfig(
+        id="qwen",
+        label="Qwen (DashScope)",
+        kind="openai-compatible",
+        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        models=["qwen-plus", "qwen-max", "qwen-turbo"],
+    ),
+    ProviderConfig(
+        id="openrouter",
+        label="OpenRouter",
+        kind="openai-compatible",
+        base_url="https://openrouter.ai/api/v1",
+        # OpenRouter exposes hundreds of namespaced ids; the user types theirs.
+        models=[],
+    ),
+)
 
 # Sub-agent roles with per-role model_<role> overrides on FinRobotSettings.
 # Used by get_model_for_role + validate_runtime_config; keep in sync with the
@@ -70,7 +147,7 @@ class FinRobotSettings(BaseSettings):
         """
         return (init_settings,)
 
-    # Model
+    # Model — "<provider_id>:<model_id>", e.g. "deepseek:deepseek-chat".
     model_name: str = "deepseek:deepseek-chat"
 
     # Per-role model overrides. None = use global model_name.
@@ -82,12 +159,22 @@ class FinRobotSettings(BaseSettings):
     model_synthesis: str | None = None
     model_report: str | None = None
 
-    # API Keys — only fill the one you use
-    anthropic_api_key: str = ""
-    deepseek_api_key: str = ""
-    openai_api_key: str = ""
+    # User-added LLM providers (OpenAI-compatible endpoints the user wires up in
+    # Settings). Persisted to settings.json; merged AFTER BUILTIN_PROVIDERS by the
+    # ``providers`` property. Built-ins are code-owned and intentionally NOT stored
+    # here so new built-in model ids land via a release, never frozen in a user's
+    # settings.json. A custom provider's API key lives in the keychain under
+    # ``provider_key:<id>``, never in this list.
+    custom_providers: list[ProviderConfig] = Field(default_factory=list)
 
-    # Data provider API keys (P2a)
+    # LLM provider API keys, keyed by provider id. PrivateAttr (not a field) so it
+    # is NEVER serialized by model_dump() / written to settings.json / leaked into
+    # a debug log — keys are hydrated from the keychain (provider_key:<id>) at boot
+    # via ``with_provider_keys``. See ADR-0013.
+    _provider_keys: dict[str, str] = PrivateAttr(default_factory=dict)
+
+    # Data provider API keys (P2a). These are DataProvider secrets, not LLM
+    # provider keys, so they stay as fixed fields hydrated by their own names.
     fmp_api_key: str = ""
     finnhub_api_key: str = ""
     alpha_vantage_api_key: str = ""
@@ -168,6 +255,37 @@ class FinRobotSettings(BaseSettings):
         override = getattr(self, f"model_{role}", None)
         return override or self.model_name
 
+    @property
+    def providers(self) -> list[ProviderConfig]:
+        """Effective provider registry: built-ins first, then user customs.
+
+        ``create_model`` / ``validate_runtime_config`` / the settings route all
+        resolve a provider id against this list.
+        """
+        return [*BUILTIN_PROVIDERS, *self.custom_providers]
+
+    def provider_by_id(self, provider_id: str) -> ProviderConfig | None:
+        for provider in self.providers:
+            if provider.id == provider_id:
+                return provider
+        return None
+
+    def with_provider_keys(self, keys: dict[str, str]) -> FinRobotSettings:
+        """Return a copy with LLM provider API keys injected (runtime-only).
+
+        Keys are merged into the private ``_provider_keys`` map and never touch
+        settings.json or model_dump(). Called by ``hydrate_settings_from_secrets``
+        at boot with the keychain-stored ``provider_key:<id>`` values.
+        """
+        clone = self.model_copy()
+        merged = {**self._provider_keys, **{k: v for k, v in keys.items() if v}}
+        object.__setattr__(clone, "_provider_keys", merged)
+        return clone
+
+    def provider_key(self, provider_id: str) -> str | None:
+        """The configured API key for a provider id, or None."""
+        return self._provider_keys.get(provider_id) or None
+
     def validate_runtime_config(self) -> None:
         """Fail fast if the model configuration is incoherent.
 
@@ -201,78 +319,106 @@ class FinRobotSettings(BaseSettings):
             if override:
                 names_to_check.append(override)
 
+        valid_ids = ", ".join(p.id for p in self.providers)
         for name in names_to_check:
-            provider, _, _model_id = name.partition(":")
-            if provider not in _VALID_PROVIDERS:
+            provider_id, _, _model_id = name.partition(":")
+            if provider_id == "test":
+                continue  # built-in test harness provider — no key required
+            cfg = self.provider_by_id(provider_id)
+            if cfg is None:
                 raise ValueError(
-                    f"Unknown provider '{provider}' in model_name '{name}'. "
-                    f"Valid providers: {', '.join(sorted(_VALID_PROVIDERS))}. "
+                    f"Unknown provider '{provider_id}' in model_name '{name}'. "
+                    f"Configured providers: {valid_ids}. "
                     f"Format: provider:model_id "
                     f"(e.g. anthropic:claude-sonnet-4-6)"
                 )
-            key_field = _PROVIDER_KEY_FIELD.get(provider)
-            if key_field is None:
-                continue  # "test" provider — no key required
-            if not getattr(self, key_field, ""):
+            if cfg.kind == "test":
+                continue  # a provider explicitly declared as a test stub
+            if not self.provider_key(provider_id):
                 raise ValueError(
-                    f"No API key configured for provider '{provider}' "
+                    f"No API key configured for provider '{provider_id}' "
                     f"(required by model '{name}'). "
                     f"Add it in Settings → AI Model."
                 )
 
     def create_model(self, model_name: str | None = None) -> Model:
-        """Create a PydanticAI Model with API key passed directly.
+        """Create a PydanticAI Model for ``<provider_id>:<model_id>``.
+
+        Resolves the provider id against the registry (``providers``) and
+        constructs the matching PydanticAI provider, with the API key (from the
+        private ``_provider_keys`` map) baked into the provider instance — no
+        os.environ pollution.
 
         Args:
             model_name: Optional per-call override. When omitted, uses
                 ``self.model_name`` (the global default).
-
-        No os.environ pollution. The API key is baked into the provider instance.
         """
         name = model_name or self.model_name  # e.g. "deepseek:deepseek-chat"
-        provider, _, model_id = name.partition(":")
+        provider_id, _, model_id = name.partition(":")
 
-        if provider == "deepseek":
+        if provider_id == "test":
+            from pydantic_ai.models.test import TestModel
+
+            return TestModel()
+
+        cfg = self.provider_by_id(provider_id)
+        if cfg is None:
+            raise ValueError(
+                f"Unknown provider '{provider_id}' in model_name '{name}'. "
+                f"Configured providers: {', '.join(p.id for p in self.providers)}. "
+                f"Format: provider:model_id (e.g. anthropic:claude-sonnet-4-6)"
+            )
+        api_key = self.provider_key(provider_id)
+
+        if cfg.kind == "deepseek":
+            # DeepSeekProvider supplies a custom model profile (reasoning_content,
+            # send-back-thinking, reasoner tool_choice handling) a bare
+            # OpenAIProvider would drop — keep it. See ADR-0013.
             from pydantic_ai.models.openai import OpenAIChatModel
             from pydantic_ai.providers.deepseek import DeepSeekProvider
 
-            return OpenAIChatModel(
-                model_id, provider=DeepSeekProvider(api_key=self.deepseek_api_key or None)
-            )
-        elif provider == "anthropic":
+            return OpenAIChatModel(model_id, provider=DeepSeekProvider(api_key=api_key))
+        elif cfg.kind == "anthropic":
             from pydantic_ai.models.anthropic import AnthropicModel
             from pydantic_ai.providers.anthropic import AnthropicProvider
 
             return AnthropicModel(
-                model_id, provider=AnthropicProvider(api_key=self.anthropic_api_key or None)
+                model_id, provider=AnthropicProvider(api_key=api_key, base_url=cfg.base_url)
             )
-        elif provider == "openai":
+        elif cfg.kind == "openai-compatible":
+            # The universal底座: deepseek-clones, Moonshot, Qwen, OpenRouter, local
+            # vLLM — anything that speaks the OpenAI chat API at a base_url.
             from pydantic_ai.models.openai import OpenAIChatModel
             from pydantic_ai.providers.openai import OpenAIProvider
 
             return OpenAIChatModel(
-                model_id, provider=OpenAIProvider(api_key=self.openai_api_key or None)
+                model_id, provider=OpenAIProvider(base_url=cfg.base_url, api_key=api_key)
             )
-        elif provider == "test":
+        elif cfg.kind == "test":
             from pydantic_ai.models.test import TestModel
 
             return TestModel()
-        else:
-            raise ValueError(
-                f"Unknown provider '{provider}' in model_name '{name}'. "
-                f"Valid providers: deepseek, anthropic, openai, test. "
-                f"Format: provider:model_id (e.g. anthropic:claude-sonnet-4-6)"
-            )
+        else:  # pragma: no cover - exhaustive over ProviderKind
+            raise ValueError(f"Unsupported provider kind '{cfg.kind}' for '{name}'.")
 
 
-def get_settings(**overrides: Any) -> FinRobotSettings:
+def get_settings(
+    *, provider_keys: dict[str, str] | None = None, **overrides: Any
+) -> FinRobotSettings:
     """Get settings. ``overrides`` carry the app-stored config values.
 
     The server loads ``settings.json`` and passes the non-secret fields here as
     kwargs; tests pass explicit values. There is no env / ``.env`` source — see
     ``FinRobotSettings`` for why user config is app-stored-only.
+
+    ``provider_keys`` injects LLM provider API keys (``{provider_id: key}``) into
+    the runtime-only ``_provider_keys`` map — used by tests and by callers that
+    already hold the keychain values. They are never persisted.
     """
-    return FinRobotSettings(**overrides)
+    settings = FinRobotSettings(**overrides)
+    if provider_keys:
+        settings = settings.with_provider_keys(provider_keys)
+    return settings
 
 
 def console_color_enabled(stream: Any) -> bool:

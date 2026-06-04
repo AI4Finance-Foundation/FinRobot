@@ -171,6 +171,9 @@ def create_dcf_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[],
                 validator=StructuredValidator(validate_dcf_result, validate_is_non_empty),
                 executor=_execute_dcf_calc,
+                # Deterministic seed_dcf_inputs + calculate_dcf — ignores the
+                # re-prompt, so a validation failure can't change on retry (BUG-059).
+                deterministic=True,
             ),
             PipelineStep(
                 name="output_gen",

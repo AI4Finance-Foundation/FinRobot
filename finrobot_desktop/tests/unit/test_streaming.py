@@ -20,7 +20,12 @@ class FakeProgress:
         self.events.append(("start", step_index, total, step_name))
 
     async def on_step_end(
-        self, step_index: int, total: int, step_name: str, duration_s: float
+        self,
+        step_index: int,
+        total: int,
+        step_name: str,
+        duration_s: float,
+        error: str | None = None,
     ) -> None:
         self.events.append(("end", step_index, total, step_name))
 

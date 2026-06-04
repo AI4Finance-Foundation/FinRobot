@@ -24,8 +24,12 @@ import { useUiPrefs } from '../i18n'
 
 export interface RunStep {
   name: string
-  status: 'pending' | 'running' | 'completed' | 'retrying'
+  status: 'pending' | 'running' | 'completed' | 'retrying' | 'degraded'
   duration_s?: number
+  /** Validation error when the step FINISHED but failed validation after all
+   * retries (a non-critical degrade). status is 'degraded', rendered amber —
+   * not a green ✓ on a step that actually failed (BUG-058). */
+  degradeReason?: string
   /** Wall-clock ms when this step entered running — drives the live elapsed
    * counter so a long step (SEC fetches can take 60-90s) reads as alive, not
    * frozen. */
@@ -282,12 +286,16 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
         const step = data.step as number
         const doneIdx = step - 1
         const prevDone = cur.steps[doneIdx]
+        // A degraded step finished but failed validation after all retries
+        // (non-critical). Render amber, not a green ✓ (BUG-058).
+        const degraded = data.degraded === true
         patch(ticker, {
           steps: setStepAt(cur.steps, doneIdx, {
             ...(prevDone ?? { status: 'pending' }),
             name: data.name as string,
-            status: 'completed',
+            status: degraded ? 'degraded' : 'completed',
             duration_s: data.duration_s as number,
+            degradeReason: degraded ? ((data.error as string | null) ?? undefined) : undefined,
           }),
           progress: step / (data.total as number),
         })

@@ -202,6 +202,8 @@ def create_ddm_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[],
                 validator=StructuredValidator(validate_ddm_inputs, validate_is_non_empty),
                 executor=_execute_ddm_seed,
+                # Deterministic seed_ddm_inputs — ignores the re-prompt (BUG-059).
+                deterministic=True,
             ),
             PipelineStep(
                 name="ddm_calc",
@@ -210,6 +212,8 @@ def create_ddm_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[],
                 validator=StructuredValidator(validate_ddm_result, validate_is_non_empty),
                 executor=_execute_ddm_calc,
+                # Deterministic calculate_ddm — ignores the re-prompt (BUG-059).
+                deterministic=True,
             ),
             PipelineStep(
                 name="ddm_narrative",

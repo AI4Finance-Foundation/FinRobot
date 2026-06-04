@@ -122,12 +122,23 @@ async def test_sync_method_in_async_context_raises():
         agent.research("TEST")
 
 
-async def test_aresearch_returns_pipeline_result(monkeypatch):
-    """SDK plumbing test — monkeypatch the pipeline factory so we exercise
-    dep injection + return type, not equity_research's DCF math."""
-    import finrobot.engine.pipelines.equity_research as er
+def _patch_research_factory(monkeypatch) -> None:
+    """Make the SDK's registry lookup return the trivial pipeline factory.
 
-    monkeypatch.setattr(er, "create_equity_research_pipeline", _trivial_pipeline)
+    BUG-025: the SDK's a*() methods now resolve the factory through
+    ``registry.get_pipeline_factories()`` (the single source of truth) instead
+    of importing ``create_equity_research_pipeline`` directly, so the seam these
+    plumbing tests stub is the registry, not the pipeline module.
+    """
+    import finrobot.engine.pipelines.registry as reg
+
+    monkeypatch.setattr(reg, "get_pipeline_factories", lambda: {"research": _trivial_pipeline})
+
+
+async def test_aresearch_returns_pipeline_result(monkeypatch):
+    """SDK plumbing test — stub the pipeline factory so we exercise
+    dep injection + return type, not equity_research's DCF math."""
+    _patch_research_factory(monkeypatch)
 
     agent = FinRobot(model="test")
     _inject_mock_deps(agent)
@@ -139,9 +150,7 @@ async def test_aresearch_returns_pipeline_result(monkeypatch):
 
 
 async def test_context_manager_closes_data_layer(monkeypatch):
-    import finrobot.engine.pipelines.equity_research as er
-
-    monkeypatch.setattr(er, "create_equity_research_pipeline", _trivial_pipeline)
+    _patch_research_factory(monkeypatch)
 
     async with FinRobot(model="test") as agent:
         mock_layer = _inject_mock_deps(agent)
@@ -158,9 +167,7 @@ async def test_close_safe_without_deps():
 
 
 async def test_close_safe_called_twice(monkeypatch):
-    import finrobot.engine.pipelines.equity_research as er
-
-    monkeypatch.setattr(er, "create_equity_research_pipeline", _trivial_pipeline)
+    _patch_research_factory(monkeypatch)
 
     agent = FinRobot(model="test")
     mock_layer = _inject_mock_deps(agent)
@@ -287,7 +294,7 @@ def test_ensure_deps_reuses_build_data_layer(monkeypatch):
 
 def test_ensure_deps_provider_chain_includes_news_aggregator():
     """BUG-035: the real provider chain built by the SDK must contain a
-    NewsAggregatorProvider (Yahoo RSS, free/no-key, always-on) so SDK callers
+    NewsAggregatorProvider (yfinance news, free/no-key, always-on) so SDK callers
     get the same DataType.NEWS coverage as the server — no silent drift.
     """
     from finrobot.engine.data.providers.news_aggregator import NewsAggregatorProvider
@@ -297,8 +304,7 @@ def test_ensure_deps_provider_chain_includes_news_aggregator():
         deps = agent._ensure_deps()
         providers = deps.data_layer._providers
         assert any(isinstance(p, NewsAggregatorProvider) for p in providers), (
-            "SDK provider chain is missing NewsAggregatorProvider — drifted "
-            "from build_data_layer"
+            "SDK provider chain is missing NewsAggregatorProvider — drifted from build_data_layer"
         )
     finally:
         import asyncio

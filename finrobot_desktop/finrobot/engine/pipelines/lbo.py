@@ -171,6 +171,8 @@ def create_lbo_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[],
                 validator=StructuredValidator(validate_lbo_inputs, validate_is_non_empty),
                 executor=_execute_lbo_params,
+                # Deterministic seed_lbo_inputs — ignores the re-prompt (BUG-059).
+                deterministic=True,
             ),
             PipelineStep(
                 name="lbo_calculation",
@@ -179,6 +181,8 @@ def create_lbo_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[],
                 validator=StructuredValidator(validate_lbo_result, validate_is_non_empty),
                 executor=_execute_lbo_calc,
+                # Deterministic calculate_lbo — ignores the re-prompt (BUG-059).
+                deterministic=True,
             ),
             PipelineStep(
                 name="lbo_narrative",

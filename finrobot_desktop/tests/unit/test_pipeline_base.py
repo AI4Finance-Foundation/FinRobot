@@ -1013,3 +1013,216 @@ class TestRunSemaphoreGating:
         )
         result = await Pipeline(steps=[step]).execute(DepsNoSem(FakeDataLayer(), None), "AAPL")
         assert "s" in result.steps
+
+
+# ---------------------------------------------------------------------------
+# BUG-058: a non-critical step that DEGRADES (fails validation after all
+# retries) must surface that via on_step_end(error=...), not a silent green ✓.
+# ---------------------------------------------------------------------------
+
+
+class _RecordingProgress:
+    """Captures on_step_end(error=...) so a test can assert degrade signalling."""
+
+    def __init__(self) -> None:
+        self.ends: list[tuple[str, str | None]] = []
+        self.retries: list[tuple[str, int]] = []
+
+    async def on_step_start(self, step_index: int, total: int, step_name: str) -> None:
+        pass
+
+    async def on_step_end(
+        self,
+        step_index: int,
+        total: int,
+        step_name: str,
+        duration_s: float,
+        error: str | None = None,
+    ) -> None:
+        self.ends.append((step_name, error))
+
+    async def on_step_retry(
+        self, step_index: int, step_name: str, attempt: int, error: str
+    ) -> None:
+        self.retries.append((step_name, attempt))
+
+
+@pytest.mark.asyncio
+async def test_degraded_noncritical_step_signals_error_to_on_step_end():
+    """A non-critical step that fails validation after all retries passes its
+    error into on_step_end so the UI can render amber, not a green ✓ (BUG-058)."""
+    progress = _RecordingProgress()
+    step = PipelineStep(
+        name="soft_step",
+        agent=_make_agent("out"),
+        validator=TextValidator(_always_fail_validator),
+    )
+    pipeline = Pipeline(steps=[step], max_retries=1)
+    result = await pipeline.execute(FakeDeps(), "AAPL", progress=progress)
+
+    # on_step_end fired exactly once, carrying the validation error (degraded).
+    assert progress.ends == [("soft_step", "boom")]
+    # Failure is still recorded honestly in failed_validations.
+    assert any(f["step"] == "soft_step" for f in result.failed_validations)
+
+
+@pytest.mark.asyncio
+async def test_passing_step_signals_no_error_to_on_step_end():
+    """A clean pass calls on_step_end with error=None — the event is byte-for-byte
+    what it was before BUG-058, so existing green-✓ rendering is unchanged."""
+    progress = _RecordingProgress()
+    step = _make_step("good_step")
+    pipeline = Pipeline(steps=[step], max_retries=1)
+    await pipeline.execute(FakeDeps(), "AAPL", progress=progress)
+
+    assert progress.ends == [("good_step", None)]
+
+
+@pytest.mark.asyncio
+async def test_critical_step_emits_no_on_step_end_on_failure():
+    """A critical step aborts BEFORE on_step_end (BUG-014/015 semantics): no
+    degrade event AND no false green ✓ — the run fails outright instead."""
+    progress = _RecordingProgress()
+    critical = PipelineStep(
+        name="data_collection",
+        agent=_make_agent("data"),
+        validator=TextValidator(_always_fail_validator),
+        critical=True,
+    )
+    pipeline = Pipeline(steps=[critical], max_retries=1)
+
+    with pytest.raises(PipelineStepError):
+        await pipeline.execute(FakeDeps(), "AAPL", progress=progress)
+
+    # No on_step_end was emitted for the aborting critical step.
+    assert progress.ends == []
+
+
+# ---------------------------------------------------------------------------
+# BUG-059: a deterministic executor's output cannot change on a re-prompt, so a
+# VALIDATION failure must short-circuit the retry loop (degrade immediately)
+# instead of burning the whole budget on identical failing output. The
+# EXCEPTION-retry path stays intact (transient errors may recover on back-off).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_deterministic_validation_failure_skips_retries():
+    """deterministic=True + a validation failure → executor runs exactly ONCE,
+    no retries, and the step degrades (BUG-059)."""
+    progress = _RecordingProgress()
+    call_count = 0
+
+    async def deterministic_executor(agent, deps, prompt, structured_context, ticker):
+        nonlocal call_count
+        call_count += 1
+        return "always-bad output"
+
+    step = PipelineStep(
+        name="financial_modeling",
+        agent=MagicMock(),
+        validator=TextValidator(_always_fail_validator),
+        executor=deterministic_executor,
+        deterministic=True,
+    )
+    pipeline = Pipeline(steps=[step], max_retries=3)
+    mock_deps = MagicMock()
+    mock_deps.skill_runtime = None
+
+    result = await pipeline.execute(mock_deps, "AAPL", progress=progress)
+
+    assert call_count == 1  # NOT 1 + 3 retries
+    assert progress.retries == []  # no retry events emitted
+    assert progress.ends == [("financial_modeling", "boom")]  # degraded
+    assert any(f["step"] == "financial_modeling" for f in result.failed_validations)
+
+
+@pytest.mark.asyncio
+async def test_nondeterministic_validation_failure_still_retries():
+    """Control: a step WITHOUT deterministic=True still burns its retry budget on
+    a validation failure (unchanged behaviour for LLM-consuming steps)."""
+    call_count = 0
+
+    async def llm_executor(agent, deps, prompt, structured_context, ticker):
+        nonlocal call_count
+        call_count += 1
+        return "always-bad output"
+
+    step = PipelineStep(
+        name="thesis",
+        agent=MagicMock(),
+        validator=TextValidator(_always_fail_validator),
+        executor=llm_executor,
+        # deterministic defaults to False
+    )
+    pipeline = Pipeline(steps=[step], max_retries=3)
+    mock_deps = MagicMock()
+    mock_deps.skill_runtime = None
+
+    result = await pipeline.execute(mock_deps, "AAPL")
+
+    assert call_count == 4  # 1 initial + 3 retries
+    assert any(f["step"] == "thesis" for f in result.failed_validations)
+
+
+@pytest.mark.asyncio
+async def test_deterministic_exception_still_retries():
+    """The deterministic short-circuit is scoped to VALIDATION failures only: a
+    transient (recoverable) EXCEPTION still retries with back-off, because a
+    provider/FX 429 may genuinely succeed on a later attempt (BUG-059 caveat)."""
+    call_count = 0
+
+    async def flaky_deterministic_executor(agent, deps, prompt, structured_context, ticker):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise ProviderError("rate limit: 429 from FX provider")
+        return "good output with enough content"
+
+    step = PipelineStep(
+        name="dcf_calc",
+        agent=MagicMock(),
+        validator=TextValidator(validate_is_non_empty),
+        executor=flaky_deterministic_executor,
+        deterministic=True,
+    )
+    pipeline = Pipeline(steps=[step], max_retries=3)
+    mock_deps = MagicMock()
+    mock_deps.skill_runtime = None
+
+    import asyncio as _asyncio
+    from unittest.mock import patch as _patch
+
+    with _patch.object(_asyncio, "sleep", new=AsyncMock()):
+        result = await pipeline.execute(mock_deps, "AAPL")
+
+    assert call_count == 2  # exception retried, then succeeded
+    assert result.steps["dcf_calc"] == "good output with enough content"
+    assert result.failed_validations == []
+
+
+@pytest.mark.asyncio
+async def test_deterministic_first_attempt_pass_is_unaffected():
+    """deterministic=True must not penalise the happy path: a first-attempt PASS
+    returns immediately with no degrade and no retries."""
+    progress = _RecordingProgress()
+
+    async def good_executor(agent, deps, prompt, structured_context, ticker):
+        return "good output with enough content"
+
+    step = PipelineStep(
+        name="technical_analysis",
+        agent=MagicMock(),
+        validator=TextValidator(validate_is_non_empty),
+        executor=good_executor,
+        deterministic=True,
+    )
+    pipeline = Pipeline(steps=[step], max_retries=3)
+    mock_deps = MagicMock()
+    mock_deps.skill_runtime = None
+
+    result = await pipeline.execute(mock_deps, "AAPL", progress=progress)
+
+    assert result.failed_validations == []
+    assert progress.ends == [("technical_analysis", None)]
+    assert progress.retries == []

@@ -162,8 +162,18 @@ class ProgressCallback(Protocol):
     async def on_step_start(self, step_index: int, total: int, step_name: str) -> None: ...
 
     async def on_step_end(
-        self, step_index: int, total: int, step_name: str, duration_s: float
-    ) -> None: ...
+        self,
+        step_index: int,
+        total: int,
+        step_name: str,
+        duration_s: float,
+        error: str | None = None,
+    ) -> None:
+        """Signal a step finished. ``error`` is non-None when the step DEGRADED
+        — it ran to completion but failed validation after all retries on a
+        non-critical step (BUG-058). Consumers render that as a warning, not a
+        success ✓."""
+        ...
 
     async def on_step_retry(
         self, step_index: int, step_name: str, attempt: int, error: str
@@ -268,6 +278,18 @@ class PipelineStep:
     executor: StepExecutor = field(default_factory=DefaultAgentExecutor)
     required_data: list[str | DataType] = field(default_factory=list)
     skill_section: str | None = None
+    deterministic: bool = False
+    """When True, the executor is a PURE function of structured_context +
+    data_layer — it ignores the (re-)prompt entirely (e.g. _execute_dcf_calc,
+    _execute_financial_modeling). On a VALIDATION failure, re-running it
+    re-produces byte-identical failing output, so the validation-retry loop is
+    a no-op that burns the whole budget (and, for provider-heavy executors,
+    re-fetches every input each attempt) before degrading (BUG-059). For such
+    steps a validation failure short-circuits straight to degrade. The
+    EXCEPTION-retry path is untouched: a transient provider/FX error (429,
+    timeout) genuinely may succeed on a back-off retry, so those still loop.
+    Do NOT set on steps whose executor consumes the re-prompt (peer_analysis
+    re-selects peers; LLM-narrative steps reword)."""
     critical: bool = False
     """When True, a failure after all retries ABORTS the pipeline (raises
     PipelineStepError) rather than appending to failed_validations and
@@ -420,9 +442,16 @@ class Pipeline:
                     raise PipelineStepError(step.name, validation_error)
 
             if progress is not None:
-                await progress.on_step_end(i, total, step.name, elapsed)
+                # Pass validation_error through so a degraded (non-critical,
+                # failed-after-retries) step emits an amber "degraded" marker
+                # instead of a misleading green \u2713 (BUG-058). None on a clean
+                # pass keeps the event identical to before.
+                await progress.on_step_end(i, total, step.name, elapsed, validation_error)
 
-            logger.info(f"Step {i}/{total}: {step.name} \u2713")
+            if validation_error:
+                logger.info(f"Step {i}/{total}: {step.name} \u26a0 degraded")
+            else:
+                logger.info(f"Step {i}/{total}: {step.name} \u2713")
 
         pipeline_result = PipelineResult(
             steps=results, structured_data=structured_results, failed_validations=failed_validations
@@ -567,6 +596,25 @@ class Pipeline:
         # Fast path: first attempt succeeded with valid output.
         if validation is not None and validation.passed:
             return None
+
+        # ── deterministic short-circuit (BUG-059) ──────────────────────────────
+        # A deterministic executor ignores the re-prompt and recomputes purely
+        # from structured_context + data_layer, so a VALIDATION failure
+        # (exc_err is None) re-produces byte-identical failing output on every
+        # retry — burning the whole budget (and re-fetching every input) for no
+        # chance of a different result. Degrade immediately. The EXCEPTION path
+        # (exc_err set) still loops below: a transient provider/FX error may
+        # recover on back-off even for a deterministic step.
+        if step.deterministic and exc_err is None:
+            assert validation is not None  # one of the two is always set
+            logger.warning(
+                "Pipeline step '%s' (deterministic) failed validation: %s. "
+                "Skipping retries — re-running cannot change the output. "
+                "Continuing with best-effort output.",
+                step.name,
+                validation.error,
+            )
+            return validation.error
 
         # ── unified retry loop ─────────────────────────────────────────────────
         for attempt in range(self.max_retries):

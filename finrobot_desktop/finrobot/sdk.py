@@ -103,7 +103,7 @@ class FinRobot:
         # build_data_layer (same as the server) instead of hand-rolling a
         # divergent chain. This keeps SDK/CLI callers in lock-step with the
         # server: FMP/Finnhub/yfinance/EDGAR(conditional)/Adanos plus the
-        # always-on NewsAggregator (Yahoo RSS, free, no key). Any future
+        # always-on NewsAggregator (yfinance news, free, no key). Any future
         # provider added there flows here automatically — no second drift.
         data_layer = build_data_layer(self._settings)
         self._deps = FinRobotDeps(
@@ -118,6 +118,22 @@ class FinRobot:
         self._ensure_deps()
         assert self._sub_agents is not None  # set by _ensure_deps
         return self._sub_agents
+
+    async def _run_pipeline(
+        self, key: str, ticker: str, progress: "ProgressCallback | None"
+    ) -> PipelineResult:
+        """Build the pipeline registered under ``key`` and execute it.
+
+        Shared body for every ``a*()`` method — looks the factory up in the
+        pipeline registry (the single source of truth) so adding a pipeline no
+        longer means adding a hand-written SDK method with its own inline
+        ``create_*_pipeline`` import.
+        """
+        from finrobot.engine.pipelines.base import Pipeline
+        from finrobot.engine.pipelines.registry import get_pipeline_factories
+
+        pipeline: Pipeline = get_pipeline_factories()[key](self._get_sub_agents())
+        return await pipeline.execute(self._ensure_deps(), ticker, progress=progress)
 
     # ------------------------------------------------------------------ #
     # Sync API                                                           #
@@ -243,50 +259,28 @@ class FinRobot:
     async def aresearch(
         self, ticker: str, progress: "ProgressCallback | None" = None
     ) -> PipelineResult:
-        from finrobot.engine.pipelines.equity_research import (
-            create_equity_research_pipeline,
-        )
-
-        pipeline = create_equity_research_pipeline(self._get_sub_agents())
-        return await pipeline.execute(self._ensure_deps(), ticker, progress=progress)
+        return await self._run_pipeline("research", ticker, progress)
 
     async def adcf(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
-        from finrobot.engine.pipelines.dcf import create_dcf_pipeline
-
-        pipeline = create_dcf_pipeline(self._get_sub_agents())
-        return await pipeline.execute(self._ensure_deps(), ticker, progress=progress)
+        return await self._run_pipeline("dcf", ticker, progress)
 
     async def acomps(
         self, ticker: str, progress: "ProgressCallback | None" = None
     ) -> PipelineResult:
-        from finrobot.engine.pipelines.comps import create_comps_pipeline
-
-        pipeline = create_comps_pipeline(self._get_sub_agents())
-        return await pipeline.execute(self._ensure_deps(), ticker, progress=progress)
+        return await self._run_pipeline("comps", ticker, progress)
 
     async def albo(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
-        from finrobot.engine.pipelines.lbo import create_lbo_pipeline
-
-        pipeline = create_lbo_pipeline(self._get_sub_agents())
-        return await pipeline.execute(self._ensure_deps(), ticker, progress=progress)
+        return await self._run_pipeline("lbo", ticker, progress)
 
     async def aearnings(
         self, ticker: str, progress: "ProgressCallback | None" = None
     ) -> PipelineResult:
-        from finrobot.engine.pipelines.earnings_analysis import (
-            create_earnings_analysis_pipeline,
-        )
-
-        pipeline = create_earnings_analysis_pipeline(self._get_sub_agents())
-        return await pipeline.execute(self._ensure_deps(), ticker, progress=progress)
+        return await self._run_pipeline("earnings", ticker, progress)
 
     async def aic_memo(
         self, ticker: str, progress: "ProgressCallback | None" = None
     ) -> PipelineResult:
-        from finrobot.engine.pipelines.ic_memo import create_ic_memo_pipeline
-
-        pipeline = create_ic_memo_pipeline(self._get_sub_agents())
-        return await pipeline.execute(self._ensure_deps(), ticker, progress=progress)
+        return await self._run_pipeline("ic-memo", ticker, progress)
 
     async def acompare(
         self,
@@ -307,10 +301,11 @@ class FinRobot:
             build_company_valuation,
         )
         from finrobot.engine.models.financial import DCFResult, FinancialData
-        from finrobot.engine.pipelines.dcf import create_dcf_pipeline
+        from finrobot.engine.pipelines.registry import get_pipeline_factories
 
         deps = self._ensure_deps()
         sub_agents = self._get_sub_agents()
+        create_dcf_pipeline = get_pipeline_factories()["dcf"]
 
         async def _run_one(ticker: str) -> CompanyValuation:
             try:

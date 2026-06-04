@@ -447,7 +447,12 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
             )
 
         async def on_step_end(
-            self, step_index: int, total: int, name: str, duration_s: float
+            self,
+            step_index: int,
+            total: int,
+            name: str,
+            duration_s: float,
+            error: str | None = None,
         ) -> None:
             await _append(
                 store,
@@ -458,6 +463,12 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
                     total=total,
                     name=name,
                     duration_s=round(duration_s, 1),
+                    # A non-None error means the step DEGRADED (finished but
+                    # failed validation after all retries on a non-critical
+                    # step). The client renders amber instead of a green ✓
+                    # (BUG-058). Truncate to match the step.retry error cap.
+                    degraded=error is not None,
+                    error=error[:500] if error is not None else None,
                 ),
             )
 

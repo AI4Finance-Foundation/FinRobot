@@ -38,7 +38,12 @@ logger = logging.getLogger(__name__)
 try:
     import matplotlib
 
-    matplotlib.use("Agg")
+    # force=True so we win even if another module already imported
+    # matplotlib.pyplot and locked in an interactive backend (e.g. macosx on
+    # macOS). Without force a plain use("Agg") is a no-op once pyplot is loaded,
+    # letting cerebro.plot() pop up a GUI window (BUG-069). _render_chart also
+    # calls switch_backend("Agg") defensively right before plotting.
+    matplotlib.use("Agg", force=True)
 except ImportError:
     pass
 
@@ -249,27 +254,71 @@ class BackTraderAdapter(BacktestEngine):
 
         return bt.feeds.PandasData(dataname=df)
 
-    def _resolve_strategy(self, strategy_name: str) -> type:
-        """Resolve strategy name to a BackTrader Strategy class.
+    # Allow-list of built-in strategy names → zero-argument factories returning
+    # the Strategy class (BUG-063). Resolving a name from this registry never
+    # touches importlib, so a user-supplied string can only ever reach a vetted,
+    # in-repo class. Add new built-ins here rather than via module:ClassName.
+    _STRATEGY_REGISTRY: dict[str, Any] = {"sma_crossover": _get_sma_crossover}
 
-        Built-in: "sma_crossover"
-        Custom: "module.path:ClassName"
+    def _resolve_strategy(self, strategy_name: str) -> type:
+        """Resolve a strategy name to a BackTrader Strategy class.
+
+        Resolution order (BUG-063 — safety decided BEFORE any import):
+        1. The built-in registry (``sma_crossover``) — always safe, no import.
+        2. ``module.path:ClassName`` dynamic loading, which executes the
+           target module's top-level code. Because that is an arbitrary-import
+           primitive, it is OFF unless the module path matches an operator-
+           configured allow-list prefix (``backtest_strategy_module_prefixes``,
+           default empty). The prefix is validated *before* ``import_module``
+           runs, so an unconfigured deployment can never be coerced into
+           importing an attacker-chosen module from a strategy string.
         """
         import backtrader as bt
 
-        if strategy_name == "sma_crossover":
-            return _get_sma_crossover()
+        factory = self._STRATEGY_REGISTRY.get(strategy_name)
+        if factory is not None:
+            resolved: type = factory()
+            return resolved
 
         if ":" in strategy_name:
             module_path, class_name = strategy_name.rsplit(":", 1)
+            if not self._module_prefix_allowed(module_path):
+                raise ValueError(
+                    f"Dynamic strategy loading of '{strategy_name}' is disabled. "
+                    f"Built-in strategies: {', '.join(sorted(self._STRATEGY_REGISTRY))}. "
+                    f"To load a custom 'module:ClassName' strategy, whitelist its "
+                    f"import-path prefix in FINROBOT_BACKTEST_STRATEGY_MODULE_PREFIXES "
+                    f"(empty by default — arbitrary module import from a strategy "
+                    f"string is not permitted)."
+                )
             module = importlib.import_module(module_path)
-            cls: type = getattr(module, class_name)
-            if not issubclass(cls, bt.Strategy):
+            try:
+                cls: type = getattr(module, class_name)
+            except AttributeError:
+                raise ValueError(
+                    f"Unknown strategy: '{class_name}' is not defined in module '{module_path}'."
+                ) from None
+            if not isinstance(cls, type) or not issubclass(cls, bt.Strategy):
                 raise ValueError(f"{class_name} from {module_path} is not a bt.Strategy subclass")
             return cls
 
         raise ValueError(
             f"Unknown strategy '{strategy_name}'. Use 'sma_crossover' or 'module:ClassName' format."
+        )
+
+    @staticmethod
+    def _module_prefix_allowed(module_path: str) -> bool:
+        """True iff ``module_path`` matches an operator-configured allow-list prefix.
+
+        Validated BEFORE ``import_module`` so no side-effecting import runs for a
+        non-whitelisted module. Default config has no prefixes → always False.
+        """
+        from finrobot.config import get_settings
+
+        raw = get_settings().backtest_strategy_module_prefixes
+        prefixes = [p.strip() for p in raw.split(",") if p.strip()]
+        return any(
+            module_path == prefix or module_path.startswith(f"{prefix}.") for prefix in prefixes
         )
 
     def _extract_sharpe(self, strat: Any, warnings: list[str]) -> float | None:
@@ -321,17 +370,47 @@ class BackTraderAdapter(BacktestEngine):
     def _render_chart(
         self, cerebro: Any, config: BacktestConfig, warnings: list[str]
     ) -> str | None:
-        """Render equity curve to base64 PNG."""
+        """Render equity curve to base64 PNG.
+
+        Always renders on the headless Agg backend: switch_backend("Agg") right
+        before plotting guarantees cerebro.plot() never opens a GUI window even
+        if some earlier import locked in an interactive backend (BUG-069). Every
+        figure cerebro.plot() creates is closed (it may return several across
+        nested lists), so long-running processes don't leak figures.
+        """
         try:
             import matplotlib.pyplot as plt
 
-            fig = cerebro.plot(style="candlestick", iplot=False, start=None, end=None)[0][0]
-            buf = io.BytesIO()
-            fig.savefig(buf, format="png", dpi=100, bbox_inches="tight")
-            plt.close(fig)
-            buf.seek(0)
-            return base64.b64encode(buf.read()).decode("ascii")
+            # Defensive: guarantee no-GUI even if the module-level force=True was
+            # somehow overridden after import.
+            if not plt.get_backend().lower().startswith("agg"):
+                plt.switch_backend("Agg")
+
+            # cerebro.plot returns list[list[Figure]] (one inner list per data
+            # feed / strategy). Capture the structure so we can save the first
+            # figure and then close *all* of them to avoid leaks.
+            figs_nested = cerebro.plot(style="candlestick", iplot=False, start=None, end=None)
+            all_figs = [fig for group in figs_nested for fig in group]
+            if not all_figs:
+                warnings.append("Chart generation produced no figures")
+                return None
+
+            try:
+                buf = io.BytesIO()
+                all_figs[0].savefig(buf, format="png", dpi=100, bbox_inches="tight")
+                buf.seek(0)
+                return base64.b64encode(buf.read()).decode("ascii")
+            finally:
+                for fig in all_figs:
+                    plt.close(fig)
         except (ImportError, RuntimeError, OSError, ValueError, TypeError) as e:
             warnings.append(f"Chart generation failed: {e}")
             logger.warning("Chart render failed", exc_info=True)
+            # Best-effort: close any figures cerebro.plot left open before raising.
+            try:
+                import matplotlib.pyplot as plt
+
+                plt.close("all")
+            except ImportError:
+                pass
             return None

@@ -1084,6 +1084,10 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
                     validate_is_non_empty,
                 ),
                 executor=_execute_catalyst_analysis,
+                # Deterministic: recomputes catalysts from news + structured
+                # context, ignores the re-prompt → no point retrying a
+                # validation failure (BUG-059).
+                deterministic=True,
             ),
             PipelineStep(
                 name="peer_analysis",
@@ -1103,6 +1107,8 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[],
                 validator=StructuredValidator(validate_dcf_result, validate_is_non_empty),
                 executor=_execute_financial_modeling,
+                # Deterministic DCF compute — ignores the re-prompt (BUG-059).
+                deterministic=True,
             ),
             PipelineStep(
                 name="ownership_governance_analysis",
@@ -1114,6 +1120,8 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
                     validate_is_non_empty,
                 ),
                 executor=_execute_ownership_governance_analysis,
+                # Deterministic governance compute — ignores the re-prompt (BUG-059).
+                deterministic=True,
             ),
             PipelineStep(
                 name="technical_analysis",
@@ -1125,6 +1133,8 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
                     validate_is_non_empty,
                 ),
                 executor=_execute_technical_analysis,
+                # Deterministic indicator compute — ignores the re-prompt (BUG-059).
+                deterministic=True,
             ),
             PipelineStep(
                 name="thesis",

@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
@@ -10,13 +11,7 @@ from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.pipelines.base import Pipeline
-from finrobot.engine.pipelines.comps import create_comps_pipeline
-from finrobot.engine.pipelines.dcf import create_dcf_pipeline
-from finrobot.engine.pipelines.ddm import create_ddm_pipeline
-from finrobot.engine.pipelines.earnings_analysis import create_earnings_analysis_pipeline
-from finrobot.engine.pipelines.equity_research import create_equity_research_pipeline
-from finrobot.engine.pipelines.ic_memo import create_ic_memo_pipeline
-from finrobot.engine.pipelines.lbo import create_lbo_pipeline
+from finrobot.engine.pipelines.registry import PipelineSpec, iter_pipeline_specs
 from finrobot.engine.skills.registry import SkillRegistry
 
 logger = logging.getLogger(__name__)
@@ -46,6 +41,25 @@ async def _run_pipeline_tool(
         "artifact_id": result.artifact_id,
         "ticker": norm,
     }
+
+
+def _make_pipeline_tool(
+    pipeline: Pipeline,
+) -> Callable[[RunContext[FinRobotDeps], str], Awaitable[dict[str, Any] | str]]:
+    """Build a Mode B tool closure that dispatches to ``pipeline``.
+
+    One closure per :class:`PipelineSpec`, replacing the seven near-identical
+    hand-written ``@agent.tool`` wrappers — every body was
+    ``return await _run_pipeline_tool(ctx, ticker, X_pipeline)``. The tool name
+    and the LLM-facing description come from the spec (see
+    ``create_lead_agent``), so the only thing that varies per pipeline is the
+    bound ``pipeline`` object captured here.
+    """
+
+    async def run_pipeline(ctx: RunContext[FinRobotDeps], ticker: str) -> dict[str, Any] | str:
+        return await _run_pipeline_tool(ctx, ticker, pipeline)
+
+    return run_pipeline
 
 
 def create_lead_agent(
@@ -112,82 +126,20 @@ def create_lead_agent(
         return skill.full_content
 
     # --- Mode B tools: pipeline dispatch for deep analysis ---
-
-    equity_pipeline = create_equity_research_pipeline(sub_agents)
-
-    @agent.tool
-    async def run_equity_research(
-        ctx: RunContext[FinRobotDeps], ticker: str
-    ) -> dict[str, Any] | str:
-        """Generate a comprehensive equity research report.
-        Uses a multi-step enforced pipeline. Takes 30-120 seconds.
-        Use this when the user asks for: equity research, initiating coverage,
-        stock analysis report, investment thesis, or deep-dive analysis."""
-        return await _run_pipeline_tool(ctx, ticker, equity_pipeline)
-
-    comps_pipeline = create_comps_pipeline(sub_agents)
-
-    @agent.tool
-    async def run_comps_analysis(
-        ctx: RunContext[FinRobotDeps], ticker: str
-    ) -> dict[str, Any] | str:
-        """Build a comparable company analysis.
-        Uses a multi-step enforced pipeline.
-        Use when user asks for: comps, comparable companies, peer analysis,
-        trading multiples comparison."""
-        return await _run_pipeline_tool(ctx, ticker, comps_pipeline)
-
-    dcf_pipeline = create_dcf_pipeline(sub_agents)
-
-    @agent.tool
-    async def run_dcf_valuation(ctx: RunContext[FinRobotDeps], ticker: str) -> dict[str, Any] | str:
-        """Run a DCF valuation model.
-        Uses a multi-step enforced pipeline.
-        Use when user asks for: DCF, discounted cash flow, intrinsic value,
-        valuation model."""
-        return await _run_pipeline_tool(ctx, ticker, dcf_pipeline)
-
-    lbo_pipeline = create_lbo_pipeline(sub_agents)
-
-    @agent.tool
-    async def run_lbo_analysis(ctx: RunContext[FinRobotDeps], ticker: str) -> dict[str, Any] | str:
-        """Run an LBO (leveraged buyout) analysis.
-        Uses a multi-step enforced pipeline with deterministic IRR/MOIC math.
-        Use when user asks for: LBO, leveraged buyout, private equity analysis,
-        buyout returns, IRR analysis, MOIC."""
-        return await _run_pipeline_tool(ctx, ticker, lbo_pipeline)
-
-    ddm_pipeline = create_ddm_pipeline(sub_agents)
-
-    @agent.tool
-    async def run_ddm_valuation(ctx: RunContext[FinRobotDeps], ticker: str) -> dict[str, Any] | str:
-        """Run a DDM (Dividend Discount Model) valuation.
-        Uses a multi-step enforced pipeline with deterministic dividend-based math.
-        Use when user asks for: DDM, dividend discount model, bank valuation,
-        or when the company is a bank/financial institution.
-        Also auto-selected when 'finrobot dcf' detects a bank."""
-        return await _run_pipeline_tool(ctx, ticker, ddm_pipeline)
-
-    earnings_pipeline = create_earnings_analysis_pipeline(sub_agents)
-
-    @agent.tool
-    async def run_earnings_analysis(
-        ctx: RunContext[FinRobotDeps], ticker: str
-    ) -> dict[str, Any] | str:
-        """Run an earnings quality analysis (beat rate, surprise trends, streak).
-        Uses a multi-step enforced pipeline with deterministic beat/miss classification.
-        Use when user asks for: earnings analysis, earnings quality, beat rate,
-        earnings surprise, EPS trend."""
-        return await _run_pipeline_tool(ctx, ticker, earnings_pipeline)
-
-    ic_memo_pipeline = create_ic_memo_pipeline(sub_agents)
-
-    @agent.tool
-    async def run_ic_memo(ctx: RunContext[FinRobotDeps], ticker: str) -> dict[str, Any] | str:
-        """Generate an Investment Committee (IC) memo with DCF + LBO analysis.
-        Uses a multi-step pipeline with IRR hurdle gate (PASS if IRR < 15%).
-        Use when user asks for: IC memo, investment committee memo, PE analysis,
-        buyout memo, invest/pass recommendation."""
-        return await _run_pipeline_tool(ctx, ticker, ic_memo_pipeline)
+    #
+    # Generated from the pipeline registry (the single source of truth) instead
+    # of seven hand-copied @agent.tool wrappers. Adding a pipeline is now a
+    # one-line change to engine/pipelines/registry.py. The tool NAME and the
+    # LLM-facing DESCRIPTION come verbatim from each PipelineSpec — the
+    # description is the LLM's tool-selection signal, so it carries the original
+    # docstrings unchanged. ``ctx.deps`` and behaviour are identical to the old
+    # wrappers (each still dispatches through ``_run_pipeline_tool``).
+    spec: PipelineSpec
+    for spec in iter_pipeline_specs():
+        # Decorator form (keyword-only name/description) — the positional-arg
+        # overload of agent.tool does not accept name/description.
+        agent.tool(name=spec.tool_name, description=spec.tool_description)(
+            _make_pipeline_tool(spec.factory(sub_agents))
+        )
 
     return agent  # type: ignore[return-value]

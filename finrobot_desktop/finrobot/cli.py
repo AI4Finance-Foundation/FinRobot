@@ -13,6 +13,7 @@ from finrobot.engine.data.ticker import validate_ticker
 
 if TYPE_CHECKING:
     from finrobot.engine.deps import FinRobotDeps
+    from finrobot.engine.pipelines.base import Pipeline
 
 
 # Reminder appended to CLI pipeline output. HTML rendering lives in the
@@ -78,6 +79,22 @@ def _build_runtime(model: str | None = None) -> tuple[Any, "FinRobotDeps"]:
     return agent, deps
 
 
+def _build_pipeline(key: str, deps: "FinRobotDeps") -> "Pipeline":
+    """Build the pipeline registered under ``key`` for a CLI subcommand.
+
+    Looks the factory up in the pipeline registry (the single source of truth)
+    instead of each subcommand inlining its own
+    ``create_*_pipeline`` import — adding a pipeline no longer means touching
+    the CLI. Builds the shared sub-agents the factory needs.
+    """
+    from finrobot.engine.agents.factory import create_sub_agents
+    from finrobot.engine.pipelines.registry import get_pipeline_factories
+
+    sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
+    pipeline: Pipeline = get_pipeline_factories()[key](sub_agents)
+    return pipeline
+
+
 async def _should_use_ddm(deps: "FinRobotDeps", ticker: str) -> bool:
     """Check if ticker is a bank/financial that should use DDM.
 
@@ -121,9 +138,20 @@ class CliProgress:
         click.echo(f"  [{step_index}/{total}] {label}...", nl=False)
 
     async def on_step_end(
-        self, step_index: int, total: int, step_name: str, duration_s: float
+        self,
+        step_index: int,
+        total: int,
+        step_name: str,
+        duration_s: float,
+        error: str | None = None,
     ) -> None:
-        click.echo(f" done ({duration_s:.1f}s)")
+        # A non-None error means the step DEGRADED (finished but failed
+        # validation after all retries on a non-critical step, BUG-058) — say so
+        # instead of printing a clean "done" that hides the failure.
+        if error is not None:
+            click.echo(f" degraded ({duration_s:.1f}s): {error[:80]}")
+        else:
+            click.echo(f" done ({duration_s:.1f}s)")
 
     async def on_step_retry(
         self, step_index: int, step_name: str, attempt: int, error: str
@@ -217,11 +245,7 @@ def research(ticker: str, model: str | None, lang: str | None) -> None:
     ticker = _validate_ticker_arg(ticker)
     deps = _build_deps(model)
 
-    from finrobot.engine.agents.factory import create_sub_agents
-    from finrobot.engine.pipelines.equity_research import create_equity_research_pipeline
-
-    sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
-    pipeline = create_equity_research_pipeline(sub_agents)
+    pipeline = _build_pipeline("research", deps)
 
     result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
@@ -248,11 +272,7 @@ def comps(ticker: str, model: str | None, lang: str | None, peers: str | None) -
     ticker = _validate_ticker_arg(ticker)
     deps = _build_deps(model)
 
-    from finrobot.engine.agents.factory import create_sub_agents
-    from finrobot.engine.pipelines.comps import create_comps_pipeline
-
-    sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
-    pipeline = create_comps_pipeline(sub_agents)
+    pipeline = _build_pipeline("comps", deps)
 
     # Only forward `peers` when supplied, so the default path passes no run
     # kwargs and behaves byte-identically to before the override existed.
@@ -308,8 +328,10 @@ def dcf(ticker: str, model: str | None, force_dcf: bool, lang: str | None) -> No
     deps = _build_deps(model)
 
     from finrobot.engine.agents.factory import create_sub_agents
+    from finrobot.engine.pipelines.registry import get_pipeline_factories
 
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
+    factories = get_pipeline_factories()
 
     from finrobot.engine.pipelines.base import PipelineResult
 
@@ -328,14 +350,10 @@ def dcf(ticker: str, model: str | None, force_dcf: bool, lang: str | None) -> No
                 "Use --force-dcf to override.\n",
                 err=True,
             )
-            from finrobot.engine.pipelines.ddm import create_ddm_pipeline
-
-            ddm_pipeline = create_ddm_pipeline(sub_agents)
+            ddm_pipeline: Pipeline = factories["ddm"](sub_agents)
             return await ddm_pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang)
 
-        from finrobot.engine.pipelines.dcf import create_dcf_pipeline
-
-        dcf_pipeline = create_dcf_pipeline(sub_agents)
+        dcf_pipeline: Pipeline = factories["dcf"](sub_agents)
         return await dcf_pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang)
 
     result = asyncio.run(_dcf_or_ddm())
@@ -362,11 +380,7 @@ def ddm(ticker: str, model: str | None, lang: str | None) -> None:
     ticker = _validate_ticker_arg(ticker)
     deps = _build_deps(model)
 
-    from finrobot.engine.agents.factory import create_sub_agents
-    from finrobot.engine.pipelines.ddm import create_ddm_pipeline
-
-    sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
-    pipeline = create_ddm_pipeline(sub_agents)
+    pipeline = _build_pipeline("ddm", deps)
 
     result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
@@ -390,11 +404,7 @@ def lbo(ticker: str, model: str | None, lang: str | None) -> None:
     ticker = _validate_ticker_arg(ticker)
     deps = _build_deps(model)
 
-    from finrobot.engine.agents.factory import create_sub_agents
-    from finrobot.engine.pipelines.lbo import create_lbo_pipeline
-
-    sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
-    pipeline = create_lbo_pipeline(sub_agents)
+    pipeline = _build_pipeline("lbo", deps)
 
     result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
@@ -418,11 +428,7 @@ def earnings(ticker: str, model: str | None, lang: str | None) -> None:
     ticker = _validate_ticker_arg(ticker)
     deps = _build_deps(model)
 
-    from finrobot.engine.agents.factory import create_sub_agents
-    from finrobot.engine.pipelines.earnings_analysis import create_earnings_analysis_pipeline
-
-    sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
-    pipeline = create_earnings_analysis_pipeline(sub_agents)
+    pipeline = _build_pipeline("earnings", deps)
 
     result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
@@ -445,11 +451,7 @@ def ic_memo(ticker: str, model: str | None, lang: str | None) -> None:
     ticker = _validate_ticker_arg(ticker)
     deps = _build_deps(model)
 
-    from finrobot.engine.agents.factory import create_sub_agents
-    from finrobot.engine.pipelines.ic_memo import create_ic_memo_pipeline
-
-    sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
-    pipeline = create_ic_memo_pipeline(sub_agents)
+    pipeline = _build_pipeline("ic-memo", deps)
 
     result = asyncio.run(pipeline.execute(deps, ticker, progress=CliProgress(), lang=lang))
     click.echo(result.format_summary())
@@ -487,9 +489,10 @@ def compare(tickers: tuple[str, ...], model: str | None) -> None:
     )
     from finrobot.engine.models.financial import DCFResult, FinancialData
     from finrobot.engine.agents.factory import create_sub_agents
-    from finrobot.engine.pipelines.dcf import create_dcf_pipeline
+    from finrobot.engine.pipelines.registry import get_pipeline_factories
 
     sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
+    create_dcf_pipeline = get_pipeline_factories()["dcf"]
 
     async def _run_one(ticker: str) -> CompanyValuation:
         try:
@@ -558,7 +561,12 @@ def compare(tickers: tuple[str, ...], model: str | None) -> None:
     "--strategy",
     default="sma_crossover",
     show_default=True,
-    help="Strategy name or module:ClassName",
+    help=(
+        "Built-in strategy name (sma_crossover) or, if you have whitelisted an "
+        "import-path prefix in FINROBOT_BACKTEST_STRATEGY_MODULE_PREFIXES, a "
+        "module:ClassName that loads a custom bt.Strategy. NOTE: module:ClassName "
+        "executes that module's top-level code on import; it is disabled by default."
+    ),
 )
 @click.option("--start", required=True, help="Start date (YYYY-MM-DD)")
 @click.option("--end", required=True, help="End date (YYYY-MM-DD)")

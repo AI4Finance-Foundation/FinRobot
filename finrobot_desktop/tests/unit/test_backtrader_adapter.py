@@ -87,10 +87,69 @@ class TestResolveStrategy:
         with pytest.raises(ValueError, match="Unknown strategy"):
             adapter._resolve_strategy("nonexistent")
 
-    def test_custom_strategy_bad_module(self) -> None:
+    def test_dynamic_loading_disabled_by_default(self) -> None:
+        """BUG-063: with no whitelisted prefix, a ``module:ClassName`` string must
+        be rejected BEFORE any import — no side-effecting import_module runs."""
         adapter = BackTraderAdapter(MagicMock())
-        with pytest.raises((ModuleNotFoundError, ValueError)):
+        with pytest.raises(ValueError, match="Dynamic strategy loading.*disabled"):
             adapter._resolve_strategy("nonexistent_module:MyStrategy")
+
+    def test_import_side_effect_module_never_imported(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """BUG-063 core: the arbitrary-import primitive is closed — for a
+        non-whitelisted path importlib.import_module is never called, so a
+        module's top-level side effects cannot be triggered from a strategy
+        string (e.g. ``os:getcwd``)."""
+        import finrobot.engine.backtest.backtrader_adapter as adapter_mod
+
+        def _spy_import(name: str, *args: object, **kwargs: object) -> object:
+            raise AssertionError(f"import_module must not run for {name!r}")
+
+        monkeypatch.setattr(adapter_mod.importlib, "import_module", _spy_import)
+        adapter = BackTraderAdapter(MagicMock())
+        with pytest.raises(ValueError, match="Dynamic strategy loading.*disabled"):
+            adapter._resolve_strategy("os:getcwd")
+
+    def test_whitelisted_prefix_loads_custom_strategy(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """BUG-063: a custom Strategy IS loadable once its import-path prefix is
+        whitelisted via FINROBOT_BACKTEST_STRATEGY_MODULE_PREFIXES."""
+        if FullyInvestedStrategy is None:  # pragma: no cover - backtrader installed
+            pytest.skip("backtrader not installed")
+        import backtrader as bt
+
+        module_path = FullyInvestedStrategy.__module__  # this test module's path
+        prefix = module_path.split(".", 1)[0]
+        monkeypatch.setenv("FINROBOT_BACKTEST_STRATEGY_MODULE_PREFIXES", prefix)
+
+        adapter = BackTraderAdapter(MagicMock())
+        cls = adapter._resolve_strategy(f"{module_path}:FullyInvestedStrategy")
+        assert issubclass(cls, bt.Strategy)
+
+    def test_whitelisted_prefix_missing_attr_raises_clean_value_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """BUG-063: a whitelisted module but unknown attribute raises a friendly
+        ValueError ('Unknown strategy'), not a bare AttributeError."""
+        module_path = TestResolveStrategy.__module__
+        prefix = module_path.split(".", 1)[0]
+        monkeypatch.setenv("FINROBOT_BACKTEST_STRATEGY_MODULE_PREFIXES", prefix)
+        adapter = BackTraderAdapter(MagicMock())
+        with pytest.raises(ValueError, match="Unknown strategy: 'NoSuchClass'"):
+            adapter._resolve_strategy(f"{module_path}:NoSuchClass")
+
+    def test_whitelisted_prefix_non_strategy_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """BUG-063: the issubclass(bt.Strategy) check still holds — a whitelisted
+        module whose attribute is not a Strategy is rejected."""
+        module_path = TestResolveStrategy.__module__
+        prefix = module_path.split(".", 1)[0]
+        monkeypatch.setenv("FINROBOT_BACKTEST_STRATEGY_MODULE_PREFIXES", prefix)
+        adapter = BackTraderAdapter(MagicMock())
+        # ``MagicMock`` is an attribute of this module (imported) but not a Strategy.
+        with pytest.raises(ValueError, match="not a bt.Strategy subclass"):
+            adapter._resolve_strategy(f"{module_path}:MagicMock")
 
 
 class TestExtractAnalyzers:
@@ -323,11 +382,18 @@ class TestSharpeOnDailyBars:
     registers the analyzer with timeframe=Days, annualize=True, factor=252.
     """
 
-    def test_sharpe_is_finite_on_one_year_daily(self) -> None:
+    def test_sharpe_is_finite_on_one_year_daily(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import math
 
         bars = _one_year_daily_bars(seed=42)
         assert len(bars) > 200  # ~252 trading days
+
+        # BUG-063: dynamic ``module:ClassName`` loading is off by default; this
+        # regression fixture lives in the test module, so whitelist its prefix.
+        monkeypatch.setenv(
+            "FINROBOT_BACKTEST_STRATEGY_MODULE_PREFIXES",
+            __name__.split(".", 1)[0],
+        )
 
         data_layer = MagicMock()
         data_layer.fetch_price_range = AsyncMock(return_value=bars)
@@ -360,3 +426,108 @@ class TestSharpeOnDailyBars:
         # annualized return is surfaced alongside the cumulative total_return.
         assert result.annualized_return is not None
         assert math.isfinite(result.annualized_return)
+
+
+@pytest.mark.skipif(FullyInvestedStrategy is None, reason="backtrader not installed")
+class TestRenderChartHeadless:
+    """BUG-069: cerebro.plot must never pop a GUI window or leak figures.
+
+    The module-level matplotlib.use("Agg") was a no-op when another import had
+    already locked an interactive backend (macosx). _render_chart now forces the
+    Agg backend right before plotting and closes *every* figure cerebro.plot
+    returns (it returns list[list[Figure]]).
+    """
+
+    def test_render_uses_agg_backend(self):
+        import matplotlib
+        import matplotlib.pyplot as plt
+
+        # Simulate the bug's preconditions: someone forced a non-Agg backend.
+        # Use a backend matplotlib can always select headlessly so we can prove
+        # _render_chart switches *away* from it to Agg.
+        plt.switch_backend("template")
+        assert not plt.get_backend().lower().startswith("agg")
+
+        adapter = BackTraderAdapter(MagicMock())
+        warnings: list[str] = []
+
+        captured: dict[str, str] = {}
+
+        def fake_plot(*_args, **_kwargs):
+            captured["backend"] = matplotlib.get_backend()
+            fig = plt.figure()
+            return [[fig]]
+
+        cerebro = MagicMock()
+        cerebro.plot.side_effect = fake_plot
+
+        config = BacktestConfig(ticker="AAPL", start_date="2023-01-02", end_date="2024-01-02")
+
+        before_open = len(plt.get_fignums())
+        result = adapter._render_chart(cerebro, config, warnings)
+
+        # A PNG was produced and no warning was raised.
+        assert result is not None
+        assert isinstance(result, str)
+        assert warnings == []
+        # cerebro.plot ran on a headless Agg backend (no GUI window).
+        assert captured["backend"].lower().startswith("agg")
+        # No leaked figures: the one created during plotting was closed.
+        assert len(plt.get_fignums()) == before_open
+
+    def test_render_closes_all_figures_from_nested_list(self):
+        """cerebro.plot can return several figures across nested lists; all of
+        them must be closed, not just [0][0] (the old leak)."""
+        import matplotlib.pyplot as plt
+
+        plt.switch_backend("Agg")
+        adapter = BackTraderAdapter(MagicMock())
+        warnings: list[str] = []
+
+        def fake_plot(*_args, **_kwargs):
+            # Two data feeds -> two inner groups, three figures total.
+            f1, f2, f3 = plt.figure(), plt.figure(), plt.figure()
+            return [[f1, f2], [f3]]
+
+        cerebro = MagicMock()
+        cerebro.plot.side_effect = fake_plot
+
+        config = BacktestConfig(ticker="AAPL", start_date="2023-01-02", end_date="2024-01-02")
+
+        before = len(plt.get_fignums())
+        result = adapter._render_chart(cerebro, config, warnings)
+
+        assert result is not None
+        # All three figures cerebro.plot created were closed.
+        assert len(plt.get_fignums()) == before
+
+    def test_render_failure_closes_figures_and_degrades(self):
+        """If savefig blows up after plotting, leftover figures are still closed
+        and the method degrades to None + a warning (no leak, no crash)."""
+        import matplotlib.pyplot as plt
+
+        plt.switch_backend("Agg")
+        adapter = BackTraderAdapter(MagicMock())
+        warnings: list[str] = []
+
+        leaked_fig = {}
+
+        def fake_plot(*_args, **_kwargs):
+            fig = plt.figure()
+            leaked_fig["fig"] = fig
+            # Make savefig raise so we exercise the except path.
+            fig.savefig = MagicMock(side_effect=RuntimeError("render boom"))
+            return [[fig]]
+
+        cerebro = MagicMock()
+        cerebro.plot.side_effect = fake_plot
+
+        config = BacktestConfig(ticker="AAPL", start_date="2023-01-02", end_date="2024-01-02")
+
+        before = len(plt.get_fignums())
+        result = adapter._render_chart(cerebro, config, warnings)
+
+        assert result is None
+        assert any("Chart generation failed" in w for w in warnings)
+        # The figure opened during the failed render was closed (plt.close("all")).
+        assert len(plt.get_fignums()) == before

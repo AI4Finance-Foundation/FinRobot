@@ -73,7 +73,7 @@
 | BUG-022 | Bug | P1 | 零 busy_timeout + 多进程写同一 data_cache.db → SQLITE_BUSY 直接抛到调用方 | 已修 |
 | BUG-023 | Bug | P1 | Artifact PRIMARY KEY 用秒级时间戳，同票同类型同秒 run 静默覆盖前一份研报（审计链断档） | 已修 |
 | BUG-024 | Bug | P1 | useAppStore (547 行) ~92% 死状态：仅 4 个 CmdK 字段有运行时消费方，其余全部无人读 | 已修 |
-| BUG-025 | Bug | P1 | Pipeline 集合在 4 处各自硬编码（orchestrator/registry/cli/sdk），registry 抽象只被 runs.py 单独使用 | 待修 |
+| BUG-025 | Bug | P1 | Pipeline 集合在 4 处各自硬编码（orchestrator/registry/cli/sdk），registry 抽象只被 runs.py 单独使用 | 已修 |
 | BUG-026 | Bug | P1 | DCF/DDM seed 用「最近 2 年」中位数，却在 provenance 和 docstring 里全程标注「过去 3 年中位数」——给分析师看的口径说明是假的 | 已修 |
 | BUG-027 | Bug | P1 | POST /api/compute/dcf-sensitivity 的 wacc_range/tg_range 无 max_length 上限 → 巨网格阻塞事件循环 | 已修 |
 | BUG-028 | Bug | P1 | No ErrorBoundary in the live app tree — any render crash blanks the whole desktop app | 已修 |
@@ -135,19 +135,19 @@
 | UX-012 | 产品 | P2 | Coverage Inspector 的 Live/Report 面板丢失溯源——同一数字在卡上可溯、点进去不可溯 | 待修 |
 | UX-013 | 产品 | P2 | `/api/dashboard/hit-rate` + useDashboardHitRate are orphaned after the homepage declutter — track-record panel has no live caller | 待修 |
 | UX-014 | 产品 | P2 | 首屏产品身份分裂：populated 态顶 FINROBOT 大字、empty 态顶 Coverage Desk，同一页两套品牌/心智 | 待修 |
-| BUG-058 | Bug | P3 | Non-critical steps emit a misleading step.completed (green ✓) after exhausting all retries on a real failure | 待修 |
-| BUG-059 | Bug | P3 | Validation-failure retries re-run deterministic executors unchanged, burning the full retry budget on identical failing output | 待修 |
+| BUG-058 | Bug | P3 | Non-critical steps emit a misleading step.completed (green ✓) after exhausting all retries on a real failure | 已修 |
+| BUG-059 | Bug | P3 | Validation-failure retries re-run deterministic executors unchanged, burning the full retry budget on identical failing output | 已修 |
 | BUG-060 | Bug | P3 | DCF/Monte Carlo 把 Gordon 终值在中年法下按 (n-0.5) 折现——终值『定价日』应是年末 n,这里多折了半年,系统性高估 fair value | 待修 |
 | BUG-061 | Bug | P3 | Earnings-call tab selection keyed by array index — duplicate/reordered transcripts collide keys and mis-select | 已修 |
 | BUG-062 | Bug | P3 | `is_sampled` / `sample_size` honesty disclosure is dropped at the API→frontend boundary (field absent from the TS contract) | 已修 |
-| BUG-063 | Bug | P3 | _resolve_strategy does importlib.import_module(user_string) + getattr before the bt.Strategy check — arbitrary module import with side effects | 待修 |
+| BUG-063 | Bug | P3 | _resolve_strategy does importlib.import_module(user_string) + getattr before the bt.Strategy check — arbitrary module import with side effects | 已修 |
 | BUG-064 | Bug | P3 | _extract_drawdown accepts a warnings list but never uses it — silent None drawdown with no warning, inconsistent with siblings | 已修 |
 | BUG-065 | Bug | P3 | 镜像列(verdict/entry/target/tagline)在 extractor 逻辑演进后无回填路径，旧行永久陈旧 | 已修 |
 | BUG-066 | Bug | P3 | 禁用态按钮的『为什么不可用』只靠 title tooltip：disabled 元素不触发 hover、tooltip 鼠标专属，键盘/触屏用户拿不到原因（IC 辩论 & Compare） | 已修 |
 | BUG-067 | Bug | P3 | 退役路由的「已合并」提示 toast 写进 sessionStorage 但全代码无人读取——功能彻底失效且 router 注释撒谎 | 已修 |
-| BUG-069 | Bug | P3 | 回测渲染图时弹出 matplotlib GUI 窗口(Figure 0)并泄漏 figure——模块级 use("Agg") 时机太晚未生效 | 待修 |
-| BUG-072 | Bug | P3 | NewsAggregatorProvider 唯一免 key 源 Yahoo RSS headline feed 已被雅虎下线(404),默认无 AV key 配置下该 provider 100% 抛错(被 FMP NEWS 兜住故非必现),工厂注释『uses Yahoo RSS (free, no key)』撒谎 | 待修 |
-| BUG-076 | Bug | P3 | Sniper coherence gate 比的是原始 float、ship 的是 round(2) 值——target 与现价相差 <$0.005 时 ideal_buy==take_profit、R/R=0、warning 印出『$372.80 < $372.80』自相矛盾的退化交易行,gate 不 raise 故 _safe_sniper 接不住 | 待修 |
+| BUG-069 | Bug | P3 | 回测渲染图时弹出 matplotlib GUI 窗口(Figure 0)并泄漏 figure——模块级 use("Agg") 时机太晚未生效 | 已修 |
+| BUG-072 | Bug | P3 | NewsAggregatorProvider 唯一免 key 源 Yahoo RSS headline feed 已被雅虎下线(404),默认无 AV key 配置下该 provider 100% 抛错(被 FMP NEWS 兜住故非必现),工厂注释『uses Yahoo RSS (free, no key)』撒谎 | 已修 |
+| BUG-076 | Bug | P3 | Sniper coherence gate 比的是原始 float、ship 的是 round(2) 值——target 与现价相差 <$0.005 时 ideal_buy==take_profit、R/R=0、warning 印出『$372.80 < $372.80』自相矛盾的退化交易行,gate 不 raise 故 _safe_sniper 接不住 | 已修 |
 | BUG-083 | Bug | P3 | ~/.finrobot/.secrets 权限偏离 0600(备份还原/编辑器重写/umask 漂移)时,严格等值校验抛未捕获 PermissionError→server 启动崩,无自愈无降级(明文 FileSecretStore 兜底路径:headless/CI/Docker/dev) | 已修 |
 | BUG-084 | Bug | P3 | PriceTrendChart 窗口首日收盘价为 0 时 1Y 涨跌幅药丸渲染成 'Infinity%'、Y 轴 domain 被 0 基准拉歪——后端 contracts/data.py 同一除法都有 prev==0 守卫,唯独前端图无(provider 停牌/稀疏日可能给 close=0) | 已修 |
 | BUG-085 | Bug | P3 | 已完成的 run 永不从 runStreamStore 清除(clear() 无调用方),StockWorkspace 是路由挂载组件、去重 key 是组件级 useRef——切走再回每次重弹『报告已生成』toast + 3 次 query invalidation 强制重拉 | 已修 |
@@ -490,7 +490,7 @@
 - **修复方案**：让 registry 成为唯一真源并携带 tool 元数据：在 registry 里把每个 pipeline 升级为 `PipelineSpec(key, factory, tool_name, tool_description, cli_help)`。①orchestrator.create_lead_agent 改为 `for spec in iter_pipeline_specs(): agent.tool(_make_tool(spec))`，用闭包工厂生成 tool（pydantic-ai 支持以 docstring/description 动态注册，description 取 spec.tool_description）——删掉 89-158 的 7 个手写 wrapper。②cli.py 的 7 个子命令改为查 registry 取 factory，删 inline import。③sdk.py 的 a*() 改为 `await self._run_pipeline(factories[key], ticker)` 薄封装。注意：orchestrator tool 的 docstring 是 LLM 选 tool 的关键，迁移时务必把现有每条 docstring 原样搬进 spec.tool_description，不能丢；ic-memo 的 key 含连字符，确认 tool 名映射（run_ic_memo）单独存字段。改动量级：跨 3 文件的中型重构。
 - **验证补充**：Plan is correct and high-value. One caveat: orchestrator tool docstrings ARE the LLM's tool-selection signal — they must be carried verbatim into PipelineSpec.tool_description (finding already flags this). Also note registry currently maps key→factory only; upgrading to PipelineSpec must keep the lazy-import pattern (registry.py exists specifically to avoid eager imports / circular deps) — generate tool closures lazily, don't import all pipelines at module load. ic-memo key→run_ic_memo tool-name mapping needs an explicit field, confirmed.
 - **影响面/回归风险**：影响面：Mode A tool 注册、CLI、SDK 三条路。回归风险中——需保证迁移后 LLM 仍能按 description 正确路由（建议保留一个 test 断言每个 spec 都注册成 tool 且 description 非空）。收益：以后加 pipeline 改 1 处 registry 即可，根除『改一半』漂移（已知 BUG-049 批量运行发 equity_research 而非 research 的 key 漂移就是这类问题的同源症状）。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（采用批准的 registry 收口（纯整合零行为变更，保 Mode A/B/CLI/SDK）。registry 升级 PipelineSpec(key/import_path/tool_name/tool_description/lazy factory cached_property)，iter_pipeline_specs/get_pipeline_spec，get_pipeline_factories 改派生 view（向后兼容 runs.py）。orchestrator 删 7 个手写 @agent.tool，循环按 spec 注册（tool_description=原 docstring 逐字搬运，已测字节一致）；cli 6 子命令查 registry 取 factory；sdk a*() 改薄封装 _run_pipeline(key)。lazy import 保留（importlib，导入 registry 零 pipeline 模块）；ic-memo→run_ic_memo 显式 tool_name 字段。新增注册测试 + test_pipeline_registry。全量 2187 通过。与 058/059/063/069 同提交（cli/sdk 文件共享）。）
 
 #### [BUG-026] DCF/DDM seed 用「最近 2 年」中位数，却在 provenance 和 docstring 里全程标注「过去 3 年中位数」——给分析师看的口径说明是假的
 
@@ -925,7 +925,7 @@
 - **修复方案**：Either (a) add a `step.degraded` event to finrobot/events.py and have base.py emit it (instead of on_step_end) when validation_error is set on a non-critical step, then render it as a warning state in the UI; or (b) extend StepCompleted with an optional `degraded: bool` / `error: str` field and set it when the step finished with a failed validation. Minimal-blast option (b): in base.py pass the validation_error into on_step_end and include it in the StepCompleted TypedDict; frontend treats non-empty error as amber not green. Touches base.py + events.py + runs.py RunProgress + the UI step renderer (small, ~30 lines).
 - **验证补充**：Both options viable; option (b) (extend StepCompleted with optional degraded:bool/error:str and have the UI render amber) is lower-blast and keeps event count stable. Touches base.py (pass validation_error into on_step_end), events.py (StepCompleted TypedDict), runs.py RunProgress.on_step_end, runStreamStore.ts step renderer. Genuinely P3 — honesty/UX gap, not a correctness or data bug; failure is already truthfully recorded in failed_validations.
 - **影响面/回归风险**：UX honesty only — no data corruption. Affects any run where a non-critical step (catalyst/peer/ownership/technical/thesis-as-non-critical) degrades. Low risk; additive event field.
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（StepCompleted 加可选 degraded/error；ProgressCallback.on_step_end 加 error 参数，_execute_steps 把 step.validation_error 传入（clean pass=None，事件字节不变）；RunProgress 设 degraded=(error非None)。前端 runStreamStore 把 degraded 映射成 "degraded" 状态，PipelineProgressPanel 渲染琥珀色 ! + 「已降级」+ 原因 tooltip（不再假绿勾）；CLI 打印 degraded(...): <error>。critical 步骤(BUG-014/015)仍在 on_step_end 前 raise 故既不绿勾也不发降级事件。新增测试。与 059/063/069/025 同提交（cli/backtrader/sdk 文件共享）。）
 
 #### [BUG-059] Validation-failure retries re-run deterministic executors unchanged, burning the full retry budget on identical failing output
 
@@ -938,7 +938,7 @@
 - **修复方案**：In base.py give StepExecutor (or PipelineStep) a `deterministic: bool` marker (or detect that the executor ignores prompt). When set, on a VALIDATION failure (exc_err is None) skip the retry loop entirely and go straight to degrade — there is no point re-running. Keep retries for the recoverable-EXCEPTION path (transient provider/FX errors genuinely may succeed on retry). Concretely: in _run_step, if step.deterministic and validation is not None and not validation.passed, return validation.error immediately without looping. Mark _execute_financial_modeling/_execute_technical_analysis/_execute_catalyst_analysis/execute_peer_analysis (and dcf/lbo/ddm deterministic steps) as deterministic=True in their PipelineStep definitions. Note: do NOT short-circuit the exception path — peer FX 429s are recoverable and benefit from back-off.
 - **验证补充**：Mark deterministic=True ONLY on financial_modeling/technical_analysis/catalyst_analysis/ownership_governance_analysis (and standalone dcf/lbo/ddm calc steps) and short-circuit their VALIDATION-failure retries (when exc_err is None). Do NOT mark peer_analysis deterministic — its executor consumes the re-prompt and re-selects peers, which is the documented intended retry. Keep the exception-retry path for ALL steps (peer FX 429s recover with backoff). Net effect: P3 efficiency/provider-load fix, not a correctness bug — output is identical so no wrong number ships, only wasted latency/retries.
 - **影响面/回归风险**：Performance/cost only (no wrong numbers): cuts ~3× redundant LLM-free recompute and, for peer_analysis, ~3× redundant multi-peer provider fetches on a failing run. Affects any run that hits a deterministic validation failure. Low regression risk if scoped to the validation path; verify the exception-retry path is untouched.
-- **置信度**：medium　|　**状态**：待修
+- **置信度**：medium　|　**状态**：已修（PipelineStep 加 deterministic 标志。_run_step 首次尝试后若 step.deterministic 且是 VALIDATION 失败（非异常）即立刻返回校验错、跳过整个重试循环（确定性执行器重跑输出不变，省 retry 预算+provider 重取）；异常重试路径不变（429/timeout 仍 backoff）。标 deterministic=True：equity_research 的 catalyst/financial_modeling/ownership/technical + 独立 dcf/lbo/ddm（peer_analysis 不标，它会重选 peer）。与 058 同提交。）
 
 #### [BUG-060] DCF/Monte Carlo 把 Gordon 终值在中年法下按 (n-0.5) 折现——终值『定价日』应是年末 n,这里多折了半年,系统性高估 fair value
 
@@ -990,7 +990,7 @@
 - **修复方案**：Introduce an explicit strategy registry: a dict mapping safe names → Strategy classes (start with {'sma_crossover': _get_sma_crossover()}), and resolve only from it. If dynamic loading must stay for power users, gate it behind an explicit opt-in (e.g. an allowed-module prefix in config, default empty) and validate the prefix BEFORE import_module. At minimum, wrap getattr/issubclass so a non-existent attribute raises a clean ValueError (currently getattr raises AttributeError, not the friendly 'Unknown strategy' error). Document in the CLI --strategy help that module:ClassName executes arbitrary import. Keep the issubclass check but move the safety decision before import.
 - **验证补充**：Registry/allow-list fix is sound and aligns with house 'no band-aid' rule. Note: strategy_agent forces ticker/dates/cash immutable (lines 98-105,152-159) but NOT strategy, so an LLM could in principle emit a 'module:Class' string — a registry would also harden that path. The 'friendly ValueError on missing attr' point is valid: getattr currently raises AttributeError, not the 'Unknown strategy' message; wrap it. Do NOT over-claim this as a security-critical fix in commit messaging — it's hardening of a local-trust boundary.
 - **影响面/回归风险**：Local-only surface; no remote exposure today. Low functional regression (sma_crossover path unchanged). If a registry replaces free-form import, any external caller relying on arbitrary module:Class loading breaks — acceptable given it is undocumented and untested beyond the not-found case. Flag as mild behavior change for SDK power users.
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（_resolve_strategy 不再先 import 后检查：新增 _STRATEGY_REGISTRY 名→工厂白名单（无 importlib）；module:ClassName 仅当 module_path 匹配 config 新字段 backtest_strategy_module_prefixes（默认空=动态加载全关）才 import，import 前先验前缀；保留 issubclass(bt.Strategy) 检查 + getattr 包成友好 ValueError。`backtest --strategy os:getcwd` 不再副作用 import。新增 config 字段 + CLI help 说明。与 069 同 backtrader 文件同提交。）
 
 #### [BUG-064] _extract_drawdown accepts a warnings list but never uses it — silent None drawdown with no warning, inconsistent with siblings
 
@@ -1066,7 +1066,7 @@
 - **根因**：模块级 `matplotlib.use("Agg")` 时机太晚且无 force——backend 在更早的 import 处已被 macosx 占用。第一出错位置是 backtrader_adapter.py:41(use 调用),非 _render_chart。
 - **修复方案**：在 _render_chart 渲染前显式 `plt.switch_backend("Agg")`(或模块级改 `matplotlib.use("Agg", force=True)`),确保 cerebro.plot 永远走无 GUI 后端;并把 cerebro.plot 返回的**所有** figure 都 `plt.close`(遍历返回列表而非只 close `[0][0]`)防泄漏。补测试:断言渲染后 `get_backend()` 为 agg 系且无新增打开的 figure(或 mock cerebro.plot 验证 close 调用覆盖全部 fig)。
 - **影响面/回归风险**：仅影响跑回测时的渲染副作用(弹窗骚扰 + figure 泄漏);chart_base64 内容不变,零数字影响。回归风险低——只收紧 backend 选择与 figure 回收。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（backtrader_adapter 模块级 matplotlib.use("Agg") 改 force=True（无 force 在交互后端锁定后是静默 no-op 故弹 GUI）；_render_chart 绘图前 if 非 agg 则 switch_backend("Agg")；figure 泄漏修复——展平 plot() 的 list[list[Figure]] 全返回、finally 关闭每个 figure、错误路径 plt.close("all")。新增 3 测试。与 063 同提交。）
 
 #### [BUG-070] artifact git_commit 盖戳的 subprocess except 抓错异常类型——无 git 环境(FileNotFoundError)/超时(TimeoutExpired)未捕获,研报落地最后一步崩
 
@@ -1104,7 +1104,7 @@
 - **根因**：外部端点失效（雅虎停服）+ 唯一免 key fallback 失守；纯静态触不到网络。
 - **修复方案**：换 yfinance Ticker.news 或以 FMP/Finnhub 为 NEWS 主源；若无可用免 key 新闻源，删掉 Yahoo 分支并修正工厂的"free, no key"假承诺，别注册一个默认必抛错的 provider。
 - **影响面/回归风险**：当前被 FMP NEWS 掩盖；FMP/yfinance NEWS 都失败时回退它会失败（被 DataLayer 接住降级，非整请求崩）。修复降低误导 + 恢复一条真实 fallback。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（NewsAggregator 唯一免 key 源 Yahoo RSS 被雅虎 404，改为复用既有 YFinanceProvider 的 NEWS 能力（_fetch_yfinance 调 self._yfinance.fetch(ticker, NEWS)，构造注入可测），不直接 import yfinance（守 门一红线 test_no_direct_yfinance_imports 通过）。删死 RSS 码 + 改诚实注释 + 无 AV key 优雅降级（经 yfinance 成功而非 100% 报错）。测试改注入 fake YFinanceProvider 保 suite 内 hermetic。）
 
 #### [BUG-073] DCF/DDM 绝对估值对外币 ADR 零 FX 归一化 → 本币价当 USD 印出并比价
 
@@ -1152,7 +1152,7 @@
 - **根因**：gate 在 round 之前比、return 在 round 之后给，round 把价位塌缩成相等；唯有对近似相等输入执行才显形。
 - **修复方案**：对所有价位先 round(...,2) 再过 gate（或 gate 比 round 后的值），使 round 后塌缩(ideal_buy==take_profit / stop 落在入场 round 内 / R/R==0)被捕获 → raise ValueError(让 _safe_sniper 降级 None+warning) 或跳过 sniper 模块；并像 signal.py 拒绝 target==entry 那样在上游拒 |current−target|<1 tick。
 - **影响面/回归风险**：低频(需 DCF target 落现价半美分内)；修复只收紧退化行，回归风险低。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（sniper 上游 abs(target-current)<0.01 raise（镜像 signal.py 的 target==entry 守卫）杀掉退化近相等行（_safe_sniper 接住降级 None+warning）；不变式门用 round(2) 后的 shipped 值比较、< / > 收紧为 <= / >=，SHORT 诊断 warning 也用 rounded 值故不再印自相矛盾的 $372.80<$372.80。新增测试。）
 
 #### [BUG-077] SkillRegistry._load_all 只 catch SkillLoadError 不 catch pydantic ValidationError → 一个坏 SKILL.md 崩掉 server/SDK/CLI 启动
 

@@ -2170,6 +2170,10 @@ msgid "workspace.pipeline.retrying"
 msgstr "重试中 {attempt}/{max}"
 
 #. js-lingui-explicit-id
+msgid "workspace.pipeline.degraded"
+msgstr "已降级"
+
+#. js-lingui-explicit-id
 msgid "workspace.pipeline.footer"
 msgstr "数字由代码算出，不是 LLM 编 · 任一步骤失败整份研报重新生成"
 

@@ -122,6 +122,15 @@ class FinRobotSettings(BaseSettings):
     # Only affects LLM-generated text — deterministic calculations are unchanged.
     language: str = Field(default="en", pattern=r"^(en|zh)$")
 
+    # Backtest: dynamic ``module:ClassName`` strategy loading is OFF by default
+    # (BUG-063). The built-in registry ("sma_crossover") always resolves without
+    # any import. To load a custom Strategy class via "your.module:ClassName",
+    # opt in by whitelisting an import-path prefix here (comma-separated allowed).
+    # The prefix is validated BEFORE importlib.import_module runs, so an empty
+    # default means no user string can trigger an arbitrary module import.
+    # Example: FINROBOT_BACKTEST_STRATEGY_MODULE_PREFIXES="mystrats,team.alpha"
+    backtest_strategy_module_prefixes: str = ""
+
     model_config = {"env_prefix": "FINROBOT_", "env_file": str(_ENV_FILE)}
 
     def model_post_init(self, __context: Any) -> None:

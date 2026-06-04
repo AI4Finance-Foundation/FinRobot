@@ -77,6 +77,44 @@ class TestCreateLeadAgent:
         assert "run_comps_analysis" in tool_names
         assert "run_dcf_valuation" in tool_names
 
+    def test_every_pipeline_spec_registered_as_tool_with_description(self):
+        """BUG-025: the registry is the single source of truth for Mode B tools.
+
+        Every PipelineSpec must surface as a registered chat tool whose name and
+        LLM-facing description come verbatim from the spec — the description is
+        the model's tool-selection signal, so a missing/empty/drifted one would
+        silently break routing. This is the regression guard the refactor adds.
+        """
+        from finrobot.engine.pipelines.registry import iter_pipeline_specs
+
+        agent = _agent()
+        tools = agent._function_toolset.tools
+        specs = iter_pipeline_specs()
+        assert specs, "registry returned no pipeline specs"
+        for spec in specs:
+            assert spec.tool_name in tools, (
+                f"pipeline spec {spec.key!r} has no registered tool {spec.tool_name!r}"
+            )
+            tool = tools[spec.tool_name]
+            assert tool.description and tool.description.strip(), (
+                f"tool {spec.tool_name!r} has an empty description"
+            )
+            # Carried verbatim from the spec (which holds the original docstring).
+            assert tool.description == spec.tool_description, (
+                f"tool {spec.tool_name!r} description drifted from its spec"
+            )
+
+    def test_ic_memo_spec_maps_to_hyphenless_tool_name(self):
+        """The 'ic-memo' key has a hyphen; its tool name must be run_ic_memo
+        (a hyphen is illegal in a tool identifier), so tool_name is an explicit
+        spec field rather than derived from the key."""
+        from finrobot.engine.pipelines.registry import get_pipeline_spec
+
+        spec = get_pipeline_spec("ic-memo")
+        assert spec.tool_name == "run_ic_memo"
+        agent = _agent()
+        assert "run_ic_memo" in agent._function_toolset.tools
+
     def test_without_skill_registry_instructions_no_available_skills(self):
         agent = _agent(skill_registry=None)
         instructions_text = "\n".join(agent._instructions)

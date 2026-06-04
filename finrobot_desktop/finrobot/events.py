@@ -21,13 +21,21 @@ class StepStarted(TypedDict):
     name: str
 
 
-class StepCompleted(TypedDict):
-    event: Literal["step.completed"]
-    run_id: str
-    step: int
-    total: int
-    name: str
-    duration_s: float
+class StepCompleted(TypedDict, total=False):
+    event: Required[Literal["step.completed"]]
+    run_id: Required[str]
+    step: Required[int]
+    total: Required[int]
+    name: Required[str]
+    duration_s: Required[float]
+    # When the step FINISHED but its output failed validation after all retries
+    # (a non-critical degrade), ``degraded`` is True and ``error`` carries the
+    # validation message. Without this the live UI rendered a green ✓ on a step
+    # that actually failed — the failure only surfaced in the report footer
+    # (BUG-058). A clean pass emits these absent/False so old consumers are
+    # unaffected; the renderer treats a truthy ``degraded`` as an amber warning.
+    degraded: bool
+    error: str | None
 
 
 class StepRetry(TypedDict):

@@ -2170,6 +2170,10 @@ msgid "workspace.pipeline.retrying"
 msgstr "Retrying {attempt}/{max}"
 
 #. js-lingui-explicit-id
+msgid "workspace.pipeline.degraded"
+msgstr "Degraded"
+
+#. js-lingui-explicit-id
 msgid "workspace.pipeline.footer"
 msgstr "Numbers are computed in code, not authored by the LLM · any step failure regenerates the whole report"
 

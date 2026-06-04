@@ -291,7 +291,15 @@ export function PipelineProgressPanel({
                   {meta.help}
                 </span>
               </span>
-              {step.status === 'completed' && typeof step.duration_s === 'number' ? (
+              {step.status === 'degraded' ? (
+                <span
+                  style={{ ...numStyle, color: 'var(--warning)' }}
+                  title={step.degradeReason ?? undefined}
+                >
+                  {t('workspace.pipeline.degraded')}
+                  {typeof step.duration_s === 'number' ? ` · ${step.duration_s.toFixed(1)}s` : ''}
+                </span>
+              ) : step.status === 'completed' && typeof step.duration_s === 'number' ? (
                 <span style={numStyle}>{step.duration_s.toFixed(1)}s</span>
               ) : step.status === 'retrying' ? (
                 <span style={{ ...numStyle, color: 'var(--warning)' }}>
@@ -357,6 +365,24 @@ function StepIndicator({ status }: { status: string }): React.ReactElement {
     return (
       <span style={base}>
         <span className="pipeline-spinner" />
+      </span>
+    )
+  }
+  if (status === 'degraded') {
+    // The step finished but failed validation after all retries (non-critical
+    // degrade). Amber ⚠ — NOT a green ✓ on a step that actually failed (BUG-058).
+    return (
+      <span
+        style={{
+          ...base,
+          borderRadius: '50%',
+          background: 'var(--warning)',
+          color: 'var(--bg-deep)',
+          fontSize: 10,
+          fontWeight: 700,
+        }}
+      >
+        !
       </span>
     )
   }

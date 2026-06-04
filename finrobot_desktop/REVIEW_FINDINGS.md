@@ -148,7 +148,7 @@
 | BUG-069 | Bug | P3 | 回测渲染图时弹出 matplotlib GUI 窗口(Figure 0)并泄漏 figure——模块级 use("Agg") 时机太晚未生效 | 待修 |
 | BUG-072 | Bug | P3 | NewsAggregatorProvider 唯一免 key 源 Yahoo RSS headline feed 已被雅虎下线(404),默认无 AV key 配置下该 provider 100% 抛错(被 FMP NEWS 兜住故非必现),工厂注释『uses Yahoo RSS (free, no key)』撒谎 | 待修 |
 | BUG-076 | Bug | P3 | Sniper coherence gate 比的是原始 float、ship 的是 round(2) 值——target 与现价相差 <$0.005 时 ideal_buy==take_profit、R/R=0、warning 印出『$372.80 < $372.80』自相矛盾的退化交易行,gate 不 raise 故 _safe_sniper 接不住 | 待修 |
-| BUG-083 | Bug | P3 | ~/.finrobot/.secrets 权限偏离 0600(备份还原/编辑器重写/umask 漂移)时,严格等值校验抛未捕获 PermissionError→server 启动崩,无自愈无降级(明文 FileSecretStore 兜底路径:headless/CI/Docker/dev) | 待修 |
+| BUG-083 | Bug | P3 | ~/.finrobot/.secrets 权限偏离 0600(备份还原/编辑器重写/umask 漂移)时,严格等值校验抛未捕获 PermissionError→server 启动崩,无自愈无降级(明文 FileSecretStore 兜底路径:headless/CI/Docker/dev) | 已修 |
 | BUG-084 | Bug | P3 | PriceTrendChart 窗口首日收盘价为 0 时 1Y 涨跌幅药丸渲染成 'Infinity%'、Y 轴 domain 被 0 基准拉歪——后端 contracts/data.py 同一除法都有 prev==0 守卫,唯独前端图无(provider 停牌/稀疏日可能给 close=0) | 已修 |
 | BUG-085 | Bug | P3 | 已完成的 run 永不从 runStreamStore 清除(clear() 无调用方),StockWorkspace 是路由挂载组件、去重 key 是组件级 useRef——切走再回每次重弹『报告已生成』toast + 3 次 query invalidation 强制重拉 | 已修 |
 | BUG-088 | Bug | P3 | coverage 系统组 find-or-create 非原子 + coverage_groups 表 is_system 无唯一约束 → 冷启动并发(双标签页/首屏+开股同时)各建一条『Studied Tickers』,较新组里的 ticker 被永久孤立、用户看到两个同名组 | 待修 |
@@ -1236,7 +1236,7 @@
 - **根因**：严格等值校验失败时崩而非自愈；happy path(O_EXCL 总建 0600)使单进程内永正确，要外部事件改 mode 才触发，无 in-repo 测试设此场景。
 - **修复方案**：读时自愈而非崩——mode≠0600 则 `os.chmod(path, 0o600)` 后继续（文件本就 user-owned 本地，收紧权限永远安全），仅 chmod 本身失败才 raise；或把 server.py 的 hydrate 循环包成降级 no-keys + 大声 warning 而非中止启动。
 - **影响面/回归风险**：影响明文 secret store 兜底 + 权限漂移的机器。自愈方案零安全损失（只会收紧权限），回归风险低。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（secret_store.FileSecretStore._ensure_file：~/.finrobot/.secrets 权限≠0600 时不再裸抛 PermissionError 崩启动，改自愈——logger.warning 后 os.chmod 回 0600 再继续（文件本就 user-owned 本地，收紧权限永远安全），仅 chmod 本身失败才自然传播。未加裸 except（红线 OK）。新增 test_secret_store.py 4 例（roundtrip/新文件 0600/0644 漂移读时自愈/0666 写时自愈）。）
 
 #### [BUG-084] PriceTrendChart 窗口首日收盘价为 0 时 1Y 涨跌幅渲染成 'Infinity%' + Y 轴 domain 拉歪
 

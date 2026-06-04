@@ -166,7 +166,18 @@ class FileSecretStore(SecretStore):
         mode = stat.S_IMODE(self._path.stat().st_mode)
         expected = stat.S_IRUSR | stat.S_IWUSR
         if mode != expected:
-            raise PermissionError(f"Secret file {self._path} must have 0600 permissions")
+            # Self-heal instead of crashing. The file is user-owned and local,
+            # so tightening its mode back to 0600 is always safe — drift to a
+            # looser mode happens via backup/restore (tar/zip drop 0600),
+            # editor rewrites under the default umask, or sync tools. Crashing
+            # server startup over recoverable permission drift is the wrong call
+            # (BUG-083). Only an *un-healable* chmod failure is fatal.
+            logger.warning(
+                "Secret file %s had mode %#o, expected 0600; tightening permissions.",
+                self._path,
+                mode,
+            )
+            os.chmod(self._path, expected)
 
 
 def create_secret_store(

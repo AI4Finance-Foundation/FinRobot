@@ -7,6 +7,7 @@
 // or "Open full report" navigates to /stocks/:ticker/runs/:artifactId
 // which is where the 13-chapter long-scroll lives.
 
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLatestArtifact, useV5ArtifactTimeline } from '../../hooks/useV5Artifacts'
 import { useRunStreamStore, selectRunByTicker } from '../../stores/runStreamStore'
@@ -93,6 +94,7 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
   } = useV5ArtifactTimeline(ticker, 200)
   const startRun = useRunStreamStore((s) => s.startRun)
   const runState = useRunStreamStore(selectRunByTicker(ticker))
+  const dismissRun = useRunStreamStore((s) => s.dismiss)
   const addToast = useToastStore((s) => s.addToast)
   // Preflight signal (BUG-027): the backend's honest health/config snapshot.
   // Used to gate the "run report" CTA — no point letting the user fire a run
@@ -113,6 +115,43 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
   const otherArtifacts = (timeline ?? []).filter((a) => a.type !== 'equity_research')
   const hasOtherArtifacts = otherArtifacts.length > 0
   const isRunning = runState?.status === 'running'
+
+  // ── Auto-advance into the report on a watched completion (UX-002) ─────────
+  // The first wow is "search → read a 13-chapter report"; making the user hunt
+  // for an "open" button after the run finishes blunts it. When a research run
+  // the user is WATCHING here transitions running→completed, drill straight into
+  // its report. Guarded so we never yank a user who merely lands on a workspace
+  // that already has a stale completed run: prevStatus must have been 'running'
+  // (a fresh transition), and each artifact advances at most once. Non-research
+  // results (DCF/LBO/…) keep their in-panel CTA and are not auto-opened.
+  const prevRunStatus = useRef<string | undefined>(undefined)
+  const autoAdvancedId = useRef<string | null>(null)
+  useEffect(() => {
+    const prev = prevRunStatus.current
+    if (
+      prev === 'running' &&
+      runState?.status === 'completed' &&
+      runState.artifactType === 'equity_research' &&
+      runState.artifactId &&
+      !runState.dismissed &&
+      autoAdvancedId.current !== runState.artifactId
+    ) {
+      autoAdvancedId.current = runState.artifactId
+      // Mark the run seen so returning to the workspace doesn't re-show the
+      // completion banner's redundant "open report" button.
+      dismissRun(ticker)
+      navigate(`/stocks/${ticker}/runs/${runState.artifactId}`)
+    }
+    prevRunStatus.current = runState?.status
+  }, [
+    runState?.status,
+    runState?.artifactId,
+    runState?.artifactType,
+    runState?.dismissed,
+    ticker,
+    navigate,
+    dismissRun,
+  ])
 
   // ── Run preflight (BUG-027) ───────────────────────────────────────────────
   // Block the report CTA when a key precondition is known-bad, so the user gets

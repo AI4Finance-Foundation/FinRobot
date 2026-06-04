@@ -87,10 +87,10 @@
 | UX-001 | 产品 | P1 | 冷启动首份研报动线被拆成两条不相通的入口，且 Starter 终点是空墙而非一份研报 | 待修 |
 | UX-002 | 产品 | P1 | 首份研报跑完后还要手动点一次才能阅读——"第一次惊艳"被一次多余点击拦住 | 待修 |
 | UX-003 | 产品 | P1 | TickerNotFound 的「返回」按钮指向已退役的 /stocks，触发二次重定向 + 错误的合并提示 | 已修 |
-| UX-004 | 产品 | P1 | 投委会辩论跑完是死胡同：无任何 next-step CTA + 用完即焚 | 待修 |
-| UX-005 | 产品 | P1 | "待处理"分诊是首屏，但卡片不说"为什么需要我"——理由被挤进一个截断的小药丸 | 待修 |
-| UX-006 | 产品 | P1 | 无法删除/归档单份历史研报——后端有 DELETE 端点，前端零入口，跑错/作废的研报永久堆积 | 待修 |
-| UX-007 | 产品 | P1 | 冷启动时已有覆盖的老用户会闪现「还没有 ticker——在上方添加」假空态 | 待修 |
+| UX-004 | 产品 | P1 | 投委会辩论跑完是死胡同：无任何 next-step CTA + 用完即焚 | 已修 |
+| UX-005 | 产品 | P1 | "待处理"分诊是首屏，但卡片不说"为什么需要我"——理由被挤进一个截断的小药丸 | 已修 |
+| UX-006 | 产品 | P1 | 无法删除/归档单份历史研报——后端有 DELETE 端点，前端零入口，跑错/作废的研报永久堆积 | 已修 |
+| UX-007 | 产品 | P1 | 冷启动时已有覆盖的老用户会闪现「还没有 ticker——在上方添加」假空态 | 已修 |
 | BUG-034 | Bug | P2 | SSE run.completed / run.failed can be lost: status flips to terminal in the DB before the terminal event is appended, so the poll loop may break and never emit it | 已修 |
 | BUG-035 | Bug | P2 | SDK 的 provider 链漏注册 NewsAggregatorProvider，与 build_data_layer 漂移 | 已修 |
 | BUG-036 | Bug | P2 | Football Field 的 DCF 区间永远是装饰性 ±20%:_dcf_band 读错字段,Monte Carlo P10/P90 分支是死代码,source 标签可误导 | 已修 |
@@ -128,11 +128,11 @@
 | BUG-086 | Bug | P2 | [休眠·须与 BUG-075 同修] 13F value 双倍 ×1000:edgartools 5.31.5 已把 Value 归一化成整美元,refresh 脚本 line 102 又无条件 ×1000→机构持仓金额 1000 倍高估($250M 显示成 $250B);当前被 BUG-075 列名 bug 挡住未触发,BUG-075 一修即吐错数 | 已修 |
 | BUG-087 | Bug | P2 | Prompt 注入:第三方可控的新闻标题(RSS/FMP &lt;title&gt;)未分隔/转义逐字流入 LLM prompt 两处(equity_research thesis + news_classifier)→可注入伪数字/翻转 importance/sentiment 污染研报叙事与 catalyst 选择 | 已修 |
 | BUG-089 | Bug | P2 | POST /chat 的 session_id 未校验即当文件名 stem→含 ../或绝对路径时 .jsonl 写出 sessions 目录(任意路径写、内容攻击者可控);读写两侧 audit/transcript+persistence 都无清洗 | 已修 |
-| UX-008 | 产品 | P2 | HotState 裁决为 REVIEW 时目标价静默消失，不解释『为什么扣留』 | 待修 |
-| UX-009 | 产品 | P2 | 一支股票→多份历史研报的下钻要 3+ 步且断裂——卡片『N 份研报』不可点，发现历史得先进 workspace 再滚到底 | 待修 |
-| UX-010 | 产品 | P2 | Compare 必须回 Coverage 多选才能发起——workspace/研报页内无"加入对比"入口 | 待修 |
-| UX-011 | 产品 | P2 | Coverage Desk（新首页）全程零 hover 反馈，质感跌破全 App 基准线 | 待修 |
-| UX-012 | 产品 | P2 | Coverage Inspector 的 Live/Report 面板丢失溯源——同一数字在卡上可溯、点进去不可溯 | 待修 |
+| UX-008 | 产品 | P2 | HotState 裁决为 REVIEW 时目标价静默消失，不解释『为什么扣留』 | 已修 |
+| UX-009 | 产品 | P2 | 一支股票→多份历史研报的下钻要 3+ 步且断裂——卡片『N 份研报』不可点，发现历史得先进 workspace 再滚到底 | 已修 |
+| UX-010 | 产品 | P2 | Compare 必须回 Coverage 多选才能发起——workspace/研报页内无"加入对比"入口 | 已修 |
+| UX-011 | 产品 | P2 | Coverage Desk（新首页）全程零 hover 反馈，质感跌破全 App 基准线 | 已修 |
+| UX-012 | 产品 | P2 | Coverage Inspector 的 Live/Report 面板丢失溯源——同一数字在卡上可溯、点进去不可溯 | 已修 |
 | UX-013 | 产品 | P2 | `/api/dashboard/hit-rate` + useDashboardHitRate are orphaned after the homepage declutter — track-record panel has no live caller | 待修 |
 | UX-014 | 产品 | P2 | 首屏产品身份分裂：populated 态顶 FINROBOT 大字、empty 态顶 Coverage Desk，同一页两套品牌/心智 | 待修 |
 | BUG-058 | Bug | P3 | Non-critical steps emit a misleading step.completed (green ✓) after exhausting all retries on a real failure | 已修 |
@@ -1405,7 +1405,7 @@
 - **修复方案**：在 IcDebatePage.tsx isCompleted 分支底部（MarketImpliedPanel 之后、bull/bear grid 之前或之后）加一个 action 行：①『← 回到研报』(navigate(reportPath)，reportPath 已在 40 行算好) ②『回 Coverage』(navigate('/coverage')) 两个明确出口；VerdictCard 顶部也可加一个回研报链接。中期：把辩论结论持久化为 ic_memo artifact（后端 /api/debate 加 save，前端完成后 invalidate timeline），届时把 EphemeralNotice 换成『已存入 NVDA 历史』+ 打开链接。注意：当前 EphemeralNotice 的诚实文案在持久化落地前不能删。
 - **验证补充**：建议先做轻量出口（两个 navigate 按钮），持久化 ic_memo 列为后续；注意 EphemeralNotice 文案在 save 落地前保留——作者已正确指出
 - **影响面/回归风险**：仅前端加 2 个导航按钮，零回归风险；持久化是中等改动(后端+store)。影响所有走 IC 辩论的用户——目前他们读完最有价值的结论后被晾在原地。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（IcDebatePage completed 分支加双出口『← 返回研报 / 返回覆盖列表』，VerdictCard 顶部加返回研报链接；EphemeralNotice 保留。新 i18n ic.action.backToReport/backToCoverage。build+lint+vitest 绿）
 
 #### [UX-005] "待处理"分诊是首屏，但卡片不说"为什么需要我"——理由被挤进一个截断的小药丸
 
@@ -1418,7 +1418,7 @@
 - **修复方案**：在 CoverageCard 里把"needs action 理由"提升为卡片的一等公民：当 needsWarn（L85）为真时，在 verdict 行下方或 metrics 上方加一条不截断的理由行（最多显 2 条 reasons，amber 图标 + 简短 detail），把现有底部 pill 留给"fresh / running / provider"。理由文案直接用 coveragePriority().reasons（已是 backend detail 文本）。注意：detail 是后端文本，长度不可控——用 2 行 clamp（-webkit-line-clamp:2）而非 nowrap ellipsis，且只在 needs_action 视图强化（all 视图保持紧凑），避免把"全部"墙撑乱。改动量级：中（CoverageCard 加一段条件渲染 + 微调高度 floor，~40 行；需回归卡片等高墙不被理由行打破——L112 minHeight 是 floor 不是 cap，安全）。
 - **验证补充**：Fix is reasonable. Validated safety note: CoverageCard L112 minHeight is a FLOOR not a cap (comment L1-9 + L110-112), and the grid uses gridAutoRows:'max-content' (L108-109 comment), so adding a 2-line reason row won't clip — confirmed. Scope the strengthened reason row to needsWarn (L85) + needs_action view only, as the finding says, to avoid bloating the 'all' wall. Use -webkit-line-clamp:2 not nowrap.
 - **影响面/回归风险**：影响首屏分诊的实际可用性（核心动线）。回归风险：理由行高度可变可能破坏"等高卡墙"的视觉节奏——必须用固定行数 clamp 并验证 needs_action 与 all 两视图下卡片仍对齐。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（CoverageCard 新增 showReasons，仅 needs_action 视图 + needsWarn 时渲染不截断的 2 行 clamp 理由块（最多 2 条 coveragePriority reasons，amber 三角 SVG），all 视图保持紧凑；minHeight 为 floor + gridAutoRows:max-content 不裁切。e2e 截图确认 NVDA/TSLA/GOOGL 理由可见）
 
 #### [UX-006] 无法删除/归档单份历史研报——后端有 DELETE 端点，前端零入口，跑错/作废的研报永久堆积
 
@@ -1431,7 +1431,7 @@
 - **修复方案**：① ui/src/api/client.ts 加 `deleteArtifact(id)` 封装 `api.DELETE('/api/artifacts/{artifact_id}')`；② CoverageInspector.tsx 的 HistoryPanel 每行（L349-407）在 ↗ 旁加一个垃圾桶 IconButton，点了走 ConfirmDialog（项目已有 CoverageGroupMenu 的 confirm 模式可复用）→ deleteArtifact → 成功后 invalidate ['v5-artifacts-timeline', ticker] + ['studied-tickers'] + ['dashboard']；③ ReportToolbar 也加一个『删除此版本』（非 primary，放 Export 左侧），删当前 artifact 后 navigate('/stocks/'+ticker)。注意：删除是永久的（后端 hard delete），confirm 文案要写明『不可恢复』；删的是 current 版本时必须先离开详情页避免 404 闪烁。量级：中（~3 文件，含一个复用 confirm 组件）。
 - **验证补充**：Fix plan is sound. One caution: deleting the CURRENTLY-viewed artifact from ReportToolbar must navigate away BEFORE the cache invalidation (useArtifactDetail has staleTime:Infinity/retry:1 — a refetch on a deleted id yields 404). Suggested order: navigate('/stocks/'+ticker) first, then invalidate timeline/studied/dashboard. Otherwise correct.
 - **影响面/回归风险**：影响所有有多份历史的 ticker；回归面小（纯新增动作，读路径不动）。需注意删掉 parent_artifact_id 被引用的版本后，子版本的 VersionDiffBanner defaultBase 会 fallback 到 candidates[0]（已有保护，L181），不会崩。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（client.deleteArtifact() 封装 DELETE /api/artifacts/{id}；CoverageInspector 历史行加垃圾桶按钮 + 永久删除确认 modal → invalidate timeline/studied/dashboard；ReportToolbar 加非主『删除此版本』，先 navigate 离开再删避免 404。e2e 截图确认历史行 🗑 图标。auth 仍属 BUG-044 另算）
 
 #### [UX-007] 冷启动时已有覆盖的老用户会闪现「还没有 ticker——在上方添加」假空态
 
@@ -1444,7 +1444,7 @@
 - **修复方案**：CoveragePage.tsx：在 line 184 的 Starter 守卫之前（或之上）补一个加载守卫——`if (groupsQuery.isLoading) return <全页 Placeholder/skeleton text={t('coverage.loading')} />`（与 line 362 已有的 coverage.loading 文案一致）。注意 activeGroupId 仍为 null 时不要进 overview 出口；守卫要在 useCoverageOverview 之前判断 groupsQuery.isLoading，避免空态文案先于真实数据出现。改动量：~6 行，单文件。
 - **验证补充**：Fix direction correct (add `if (groupsQuery.isLoading) return <Placeholder text={t('coverage.loading')}/>` before line 185). Note the window is brief (groups resolves fast once cached), so the visible blink is short — still worth fixing for correctness.
 - **影响面/回归风险**：影响每一次冷启动的首帧观感（最高频路径）。回归风险极低——只是把 loading 从 emptyGroup 文案里分流出来；现有 Starter / 错误态 / 正常态分支不变。建议加一条测试：mock groupsQuery.isLoading=true 时断言不出现 coverage.emptyGroup 文案。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（CoveragePage 在 groupsQuery.isLoading 时早返回 coverage.loading 占位，不再落假空态；顺手把 ResizeObserver 从 useRef+useEffect([]) 改为 callback ref——否则 loading gate 晚挂载 workspace 节点导致 observer 绑到 null、stacked 永卡 side 模式（coverage-provenance e2e 15/15 复现并修复））
 
 #### [UX-008] HotState 裁决为 REVIEW 时目标价静默消失，不解释『为什么扣留』
 
@@ -1457,7 +1457,7 @@
 - **修复方案**：AIZone.tsx HotState：当 verdict==='REVIEW' 时，在 target 块的位置渲染一行说明（替代消失的目标价），如『目标价已扣留 · 估值方法交叉校验分歧过大，点开研报看口径明细 →』，i18n 新增 key。复用已有的中性 tone 配色，不用涨绿跌红。注意别和已有 tagline 重复堆叠。
 - **验证补充**：复用现成 chapter.cover/thesis.targetWithheld 文案家族而非全新 key，保持口径一致；说明文案应指向『点开研报看口径明细』，与全文 thesis 章节的扣留解释呼应
 - **影响面/回归风险**：局部展示改动，零数据回归。把一个看起来像 bug 的静默态变成产品的诚实卖点。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（AIZone HotState 在 verdict==='REVIEW' && target===null 时渲染中性 tone 可点说明行（hotState.targetWithheld）替代消失的目标价块，指向打开研报看勾稽明细；不与 tagline 叠加）
 
 #### [UX-009] 一支股票→多份历史研报的下钻要 3+ 步且断裂——卡片『N 份研报』不可点，发现历史得先进 workspace 再滚到底
 
@@ -1470,7 +1470,7 @@
 - **修复方案**：两选一（选 A，成本低收益直接）：A) CoverageCard.tsx 把研报计数文本（L363-371）包成 button，点击 onFocus(ticker) 并让 Inspector 默认切到 history tab（给 CoverageInspector 加 `initialTab` prop，CoveragePage 透传一个 focus+tab 的回调）——一键从『3 份研报』直达全量历史列表。B) AIZone 版本时间线 L1004 的 slice(0,5) 后加一个『查看全部 N 个版本』按钮，点了展开或跳 Inspector。注意 A 里 Inspector 的 tab state 现在是组件内 useState（L64），要支持外部初始值得提升或用 key 重置。量级：中（CoverageCard + CoverageInspector + CoveragePage 三处联动）。
 - **验证补充**：Option A is reasonable but note the stated cost is real: CoverageInspector tab state is component-internal useState (L64) — adding initialTab requires lifting it or a key-based remount, and CoveragePage must thread focus+tab through onFocus. 'Medium, 3 files' is honest. Prefer A.
 - **影响面/回归风险**：缩短最高频动线（看一支股票攒了哪些历史）。回归面：Inspector tab 默认值改动需确认不破坏现有 live 默认 tab 的测试。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（Option A：CoverageCard 研报计数文本改 button→onOpenHistory；CoverageInspector 加 initialTab prop + nonce key 重挂载直开 History tab；CoveragePage/CoverageCardGrid 透传。e2e 绿）
 
 #### [UX-010] Compare 必须回 Coverage 多选才能发起——workspace/研报页内无"加入对比"入口
 
@@ -1483,7 +1483,7 @@
 - **修复方案**：在 StockWorkspace 的 TickerHero 动作区（或 AIZone header）加一个"对比…"入口：点开一个轻量 ticker 输入/最近研究 picker（可复用 CmdK 的 /api/search），选定后 navigate(`/compare?tickers=${current},${picked}`)，无需经过 Coverage 多选。同理在 ReportToolbar 动作区（ReportToolbar.tsx L227-250 之间）加一个"对比"按钮走同逻辑。注意：ComparePage 对无 DCF 的 ticker 已诚实显"先跑 DCF"不编数字，新入口拉进来的对手票若无 DCF 会落到该提示，属预期——不要在入口侧硬拦。改动量级：中（一个小 picker 组件 + 两处入口接线，~60 行）。
 - **验证补充**：Fix sound. The anchor-+-picker entry (reuse /api/search like CmdK) is the right shape since the existing compareReady gating is coverageStore-only. Honest no-DCF fallback in ComparePage (L1-3 header) means picked peers without DCF land on '先跑 DCF' — correctly left unblocked at the entry side.
 - **影响面/回归风险**：影响"读单股时顺手对比"的高频意图。回归风险：低——只新增入口，ComparePage 自身逻辑不动；需确认 picker 的 ticker 校验复用 utils/ticker 的 isValidTicker，避免拼出非法 /compare query。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（新 CompareTargetPicker 锚定 popover，复用 /api/search + isValidTicker 校验，接入 StockWorkspace 与 ReportToolbar→navigate(/compare?tickers=cur,picked)，无需回 Coverage 多选；无 DCF 对手票照常落 ComparePage 诚实兜底。tsc/lint/test 绿）
 
 #### [UX-011] Coverage Desk（新首页）全程零 hover 反馈，质感跌破全 App 基准线
 
@@ -1496,7 +1496,7 @@
 - **修复方案**：两种改法择一（推荐 A）。A（中等改动量，~6 文件）：给 CoverageCard 的 <article> 加 className='cosmic-card'（它已带 ::before 顶部发光线 + :hover border 提亮），inline style 只保留布局/floor，颜色边框交给 class；CoverageInspector 的 ActionButton、WallHeader 的分诊/排序按钮、tab 按钮、空状态 chip 改用已有 .btn/.segmented-btn class 或新增一条 .coverage-pill:hover{border-color:var(--border-glow)}。B（轻量，纯 hover）：在 App.css 加 [data-testid^='coverage-card']:hover{border-color:var(--border-glow);box-shadow:0 8px 32px var(--primary-soft)} + 给 IconButton/ActionButton 一个 className 挂 :hover。注意：CoverageCard 用 focused 复用了 border-glow，hover 态须用更弱的提示（如仅 border 不加 boxShadow）以免 hover 与 focused 视觉撞车。
 - **验证补充**：Fix A is NOT drop-in: .cosmic-card sets border:1px solid var(--border-soft) and padding:24px, but CoverageCard already sets border, background, borderRadius, padding INLINE — inline wins over class, so .cosmic-card:hover's border-color change won't apply while an inline `border` is present (the hover rule only sets border-color, which inline border shorthand overrides). Adding className='cosmic-card' alone yields NO hover effect. Must remove the inline border from the card and let the class own it (keeping the focused/needsWarn variants via a data-attr or extra class). Fix B (a dedicated [data-testid^='coverage-card']:hover rule in App.css) is actually the cleaner path and avoids the padding/border collision; recommend B over A. Keep hover weaker than focused (border only, no boxShadow) as author noted — correct.
 - **影响面/回归风险**：纯视觉/可发现性提升，无逻辑回归；唯一风险是 hover 与 focused/selected 三态颜色叠加要排好优先级（focused>hover>default），测试用例只看快照不看 hover 故不会破测。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（App.css 加 [data-testid^='coverage-card']:hover 仅 border-color（无 boxShadow，弱于 focused）+ .coverage-hover-btn/.coverage-icon-btn 给 inspector tab/action/历史行按钮 hover 反馈，全 var(--*)。WallHeader 在非本 owner 文件、未动）
 
 #### [UX-012] Coverage Inspector 的 Live/Report 面板丢失溯源——同一数字在卡上可溯、点进去不可溯
 
@@ -1509,7 +1509,7 @@
 - **修复方案**：在 LivePanel/ReportPanel 里把 price/market_cap/entry_price/target_price/upside 的值改成 <SourcedNumber value={row.x} source={row.sources?.x ?? undefined} ticker={row.ticker} format={...}>，与 CoverageCard 用法对齐（已 import 路径现成）。Kv 的 children 已是 ReactNode 可直接收 SourcedNumber，无需改 Kv。注意 upside/1D 这类百分比用 formatPercent 作 format 回调；market state 行不需要溯源（它是派生标签不是 provider 数字）。
 - **验证补充**：Fix is correct and low-risk (Kv children is ReactNode, SourcedNumber drops in). Two refinements: (1) market_cap on the card uses source row.sources?.market_cap — reuse the SAME source key in Inspector, don't invent. (2) Author correctly notes market-state row is a derived label (not a provider number) and must NOT be wrapped — keep that exclusion. provider/as_of/currency Kv rows are also metadata, not numbers — leave them bare.
 - **影响面/回归风险**：提升核心卖点一致性，纯展示层、无计算回归；改动局限在 CoverageInspector 两个 Panel，约 6 个 Kv。风险极低。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（CoverageInspector LivePanel price/market_cap、ReportPanel entry/target/upside 包 SourcedNumber，复用 CoverageCard 同 row.sources 键；market-state/provider/as_of/currency 元数据行保持裸值。e2e 截图确认 ⚠ 溯源标记）
 
 #### [UX-013] `/api/dashboard/hit-rate` + useDashboardHitRate are orphaned after the homepage declutter — track-record panel has no live caller
 

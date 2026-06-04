@@ -63,17 +63,17 @@ describe('TickerNotFoundView', () => {
     expect(screen.getByText(/yfinance 暂未收录/)).toBeInTheDocument()
   })
 
-  it('Back-to-search link navigates to /stocks', () => {
+  it('Back-to-search link navigates to /coverage (the retired /stocks landing now lives there)', () => {
     render(
       <MemoryRouter initialEntries={['/stocks/INVALID']}>
         <Routes>
           <Route path="/stocks/:ticker" element={<TickerNotFoundView ticker="INVALID" />} />
-          <Route path="/stocks" element={<div data-testid="landing">landing</div>} />
+          <Route path="/coverage" element={<div data-testid="coverage">coverage</div>} />
         </Routes>
       </MemoryRouter>,
     )
     const back = screen.getByRole('link', { name: /回搜索/ })
     fireEvent.click(back)
-    expect(screen.getByTestId('landing')).toBeInTheDocument()
+    expect(screen.getByTestId('coverage')).toBeInTheDocument()
   })
 })

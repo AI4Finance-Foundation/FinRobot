@@ -121,10 +121,26 @@ async def test_get_system_group_finds_seeded(store: CoverageStore) -> None:
     assert [m.ticker for m in found.members] == ["AAPL"]
 
 
-async def test_get_system_group_returns_oldest(store: CoverageStore) -> None:
-    # Only ever one in practice, but the query must be deterministic (oldest).
+async def test_second_system_group_blocked_by_unique_index(
+    store: CoverageStore,
+) -> None:
+    # BUG-088: the partial unique index makes "only ever one system group" a
+    # DB-level guarantee — a raw second is_system create now raises, so the
+    # old "oldest-wins among duplicates" tie-break can never be exercised.
+    import sqlite3
+
     first = await store.create_group("Studied Tickers", is_system=True)
-    await store.create_group("Studied Tickers 2", is_system=True)
+    with pytest.raises(sqlite3.IntegrityError):
+        await store.create_group("Studied Tickers 2", is_system=True)
     found = await store.get_system_group()
     assert found is not None
     assert found.id == first.id
+
+
+async def test_get_or_create_system_group_idempotent(store: CoverageStore) -> None:
+    # The safe entry point: concurrent/repeat cold-start calls resolve to the
+    # single surviving row instead of raising or duplicating (BUG-088).
+    a = await store.get_or_create_system_group("Studied Tickers", "desc")
+    b = await store.get_or_create_system_group("Studied Tickers", "desc")
+    assert a.id == b.id
+    assert a.is_system is True

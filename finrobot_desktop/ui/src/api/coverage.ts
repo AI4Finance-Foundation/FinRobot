@@ -122,6 +122,12 @@ export interface CompanyValuation {
   terminal_growth: number | null
   ev_ebitda: number | null
   pe_ratio: number | null
+  // Vintage/provenance of the DCF this row's implied_price + WACC came from.
+  // current_price is live, but these numbers are only as fresh as dcf_as_of —
+  // a comparison can mix today's run with a weeks-old stored artifact, so the
+  // table discloses each row's date. null = computed live (no stored artifact).
+  dcf_as_of: string | null
+  dcf_artifact_id: string | null
   warnings: string[]
   error: string | null
 }

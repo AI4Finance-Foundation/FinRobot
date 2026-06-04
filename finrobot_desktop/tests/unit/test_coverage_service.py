@@ -549,3 +549,51 @@ async def test_studied_membership_reuses_existing_system_group(store: CoverageSt
     assert sorted(m.ticker for m in detail.members) == ["MSFT", "NVDA"]
     # No third group spawned.
     assert await store.count_groups() == 2
+
+
+# ── BUG-088: cold-start concurrent find-or-create must not duplicate ──────────
+
+
+async def test_concurrent_cold_start_studied_membership_no_duplicate(
+    store: CoverageStore,
+) -> None:
+    """Two concurrent first-opens (the cold-start race) must end with ONE
+    system group containing BOTH tickers — never two duplicate 'Studied
+    Tickers' groups with a ticker orphaned in the loser (BUG-088)."""
+    import asyncio
+
+    await asyncio.gather(
+        ensure_studied_membership(store, "AAPL"),
+        ensure_studied_membership(store, "MSFT"),
+    )
+    # Exactly one system group, and it holds both tickers (none orphaned).
+    systems = [g for g in await store.list_groups() if g.is_system]
+    assert len(systems) == 1
+    canonical = await store.get_system_group()
+    assert canonical is not None
+    assert sorted(m.ticker for m in canonical.members) == ["AAPL", "MSFT"]
+    assert await store.count_groups() == 1
+
+
+async def test_partial_unique_index_blocks_second_system_group(
+    store: CoverageStore,
+) -> None:
+    """The DB-level guarantee behind the race fix: a second is_system row is a
+    no-op via ON CONFLICT, so get_or_create returns the original."""
+    first = await store.get_or_create_system_group("Studied Tickers", "desc")
+    second = await store.get_or_create_system_group("Studied Tickers", "desc")
+    assert first.id == second.id
+    systems = [g for g in await store.list_groups() if g.is_system]
+    assert len(systems) == 1
+
+
+async def test_get_or_create_system_group_finds_preexisting(
+    store: CoverageStore,
+) -> None:
+    """If a system group already exists (e.g. State-D seed), get_or_create
+    resolves to it rather than spawning a duplicate."""
+    seeded = await store.create_group("Studied Tickers", is_system=True)
+    await store.add_members(seeded.id, ["GOOG"])
+    detail = await store.get_or_create_system_group("Studied Tickers", "desc")
+    assert detail.id == seeded.id
+    assert [m.ticker for m in detail.members] == ["GOOG"]

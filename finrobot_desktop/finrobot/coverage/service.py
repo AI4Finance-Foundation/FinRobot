@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sqlite3
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from finrobot.artifact.models import ArtifactSummary
@@ -463,11 +464,10 @@ async def ensure_system_group(
     tickers = sorted({s.ticker for s in summaries if s.ticker})
     if not tickers:
         return None
-    group = await store.create_group(
-        _SYSTEM_GROUP_NAME,
-        _SYSTEM_GROUP_DESC,
-        is_system=True,
-    )
+    # Atomic find-or-create so a concurrent ensure_studied_membership /
+    # second State-D seed can't race us into two duplicate system groups
+    # (BUG-088).
+    group = await store.get_or_create_system_group(_SYSTEM_GROUP_NAME, _SYSTEM_GROUP_DESC)
     await store.add_members(group.id, tickers)
     logger.info("Seeded system coverage group %s with %d tickers", group.id, len(tickers))
     return group
@@ -489,20 +489,17 @@ async def ensure_studied_membership(
     regardless of how many hand-built groups exist, creating it on first use if
     the State-D seed never fired (e.g. a brand-new user with no prior artifacts).
     """
-    group = await store.get_system_group()
-    if group is None:
-        group = CoverageGroupDetail(
-            **(
-                await store.create_group(_SYSTEM_GROUP_NAME, _SYSTEM_GROUP_DESC, is_system=True)
-            ).model_dump(),
-            members=[],
-        )
+    # Atomic find-or-create (BUG-088): the partial unique index +
+    # ON CONFLICT DO NOTHING guarantees a single is_system row even when this
+    # races a concurrent first-screen seed, so a ticker can no longer be
+    # orphaned in a duplicate "Studied Tickers" group.
+    group = await store.get_or_create_system_group(_SYSTEM_GROUP_NAME, _SYSTEM_GROUP_DESC)
     detail = await store.add_members(group.id, [ticker])
     # add_members only returns None when the group vanished between the two
     # awaits (another session deleted it) — re-seed once so the auto-add is
     # never silently lost.
     if detail is None:
-        fresh = await store.create_group(_SYSTEM_GROUP_NAME, _SYSTEM_GROUP_DESC, is_system=True)
+        fresh = await store.get_or_create_system_group(_SYSTEM_GROUP_NAME, _SYSTEM_GROUP_DESC)
         detail = await store.add_members(fresh.id, [ticker])
         assert detail is not None  # just created
     return detail
@@ -541,9 +538,10 @@ async def _compare_one(
     data_layer: DataLayer,
 ) -> CompanyValuation:
     ticker = ticker.upper()
-    dcf = await _latest_dcf_result(artifact_store, ticker)
-    if dcf is None:
+    found = await _latest_dcf_result(artifact_store, ticker)
+    if found is None:
         return CompanyValuation(ticker=ticker, error="尚未运行 DCF——先对该 ticker 运行 DCF 再对比")
+    dcf = found.dcf
     company_name = ""
     current_price: float | None = None
     ev_ebitda: float | None = None
@@ -562,6 +560,12 @@ async def _compare_one(
         # DCF (implied price, WACC) still compares fine without live market —
         # only current_price-relative upside degrades. Surface, don't drop.
         warnings = [f"{ticker} 实时市场数据获取失败：{exc}"]
+    # Provenance: the DCF this row compares may be stale or archived. current_price
+    # is live but implied_price/WACC are frozen at dcf_as_of — disclose it so the
+    # user can see which rows are today's vs weeks-old, and never compares against
+    # an archived (superseded) valuation unknowingly.
+    if found.archived:
+        warnings.append(f"{ticker} 的 DCF 来自已归档（被新版本取代）的研究——结论可能已过时")
     return build_company_valuation(
         ticker=ticker,
         company_name=company_name,
@@ -570,14 +574,32 @@ async def _compare_one(
         ev_ebitda=ev_ebitda,
         pe_ratio=pe_ratio,
         warnings=warnings,
+        dcf_as_of=found.created_at.isoformat(),
+        dcf_artifact_id=found.artifact_id,
     )
 
 
-async def _latest_dcf_result(artifact_store: ArtifactStore, ticker: str) -> DCFResult | None:
+@dataclass(frozen=True)
+class _LatestDcf:
+    """A reconstructed DCF plus the provenance of the artifact it came from.
+
+    Carries the source artifact's ``created_at`` (vintage) and ``id`` so the
+    Compare assembly can stamp each row — a comparison that mixes a freshly-run
+    DCF with a three-week-old stored one must disclose which is which.
+    """
+
+    dcf: DCFResult
+    created_at: datetime
+    artifact_id: str
+    archived: bool
+
+
+async def _latest_dcf_result(artifact_store: ArtifactStore, ticker: str) -> _LatestDcf | None:
     """Reconstruct the most recent DCFResult for a ticker from its stored
-    artifacts. Walks newest-first across DCF-bearing types; returns the first
-    that parses. (Same reconstruction as routes/valuation._parse_dcf, scoped
-    to the single latest DCF rather than latest-of-each-type.)"""
+    artifacts, together with that artifact's vintage (created_at) and id. Walks
+    newest-first across DCF-bearing types; returns the first that parses. (Same
+    reconstruction as routes/valuation._parse_dcf, scoped to the single latest
+    DCF rather than latest-of-each-type.)"""
     summaries = await artifact_store.list_by_ticker(ticker=ticker, include_archived=True, limit=200)
     for summary in summaries:  # newest first
         if summary.type not in _DCF_BEARING_TYPES:
@@ -590,8 +612,14 @@ async def _latest_dcf_result(artifact_store: ArtifactStore, ticker: str) -> DCFR
             candidate = structured.get(key)
             if isinstance(candidate, dict):
                 try:
-                    return DCFResult.model_validate(candidate)
+                    dcf = DCFResult.model_validate(candidate)
                 except (TypeError, ValueError) as exc:
                     logger.debug("DCFResult parse failed for %s at %s: %s", ticker, key, exc)
                     continue
+                return _LatestDcf(
+                    dcf=dcf,
+                    created_at=summary.created_at,
+                    artifact_id=summary.id,
+                    archived=summary.archived,
+                )
     return None

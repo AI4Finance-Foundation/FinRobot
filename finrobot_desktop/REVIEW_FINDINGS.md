@@ -114,7 +114,7 @@
 | BUG-054 | Bug | P2 | 研报版本切换 <select> 用 opacity:0 覆盖层实现：键盘 Tab 落上去零可见焦点指示，用户看不到焦点在哪 | 已修 |
 | BUG-055 | Bug | P2 | 归档（30天自动 stale）的研报混进所有版本列表且零视觉标识——用户分不清『还在跟踪』和『已作废』的版本 | 已修 |
 | BUG-056 | Bug | P2 | 研报版本切换器/时间线/Diff 候选只取 timeline 默认 50 条，与 Inspector History(200) 不一致——重度跟踪的 ticker 老版本在报告页内不可达 | 已修 |
-| BUG-057 | Bug | P2 | Compare 表把不同时间跑出的 DCF 混在同一张表,且不显任何 vintage/as_of——用户无法判断哪行是今天的、哪行是三周前的 | 待修 |
+| BUG-057 | Bug | P2 | Compare 表把不同时间跑出的 DCF 混在同一张表,且不显任何 vintage/as_of——用户无法判断哪行是今天的、哪行是三周前的 | 已修 |
 | BUG-068 | Bug | P2 | 回测对 A股标的零适配(T+1/涨跌停/印花税/停牌全缺)却照常产出净值曲线——A股结果根本不可信,应在入口直接 raise 拒跑而非 warn | 已修 |
 | BUG-070 | Bug | P2 | artifact 盖 git_commit 戳的 subprocess except 抓错异常类型(只抓 ImportError/Attr/Type/Value)——git 缺失(FileNotFoundError)/超时(TimeoutExpired)未捕获,无 git 环境(pip 安装用户/Docker slim/CI)研报落地最后一步直接崩 | 已修 |
 | BUG-071 | Bug | P2 | FMP _fetch_price 的 price_history 用未复权原始 close(没走 _adjust_fmp_bar),而 _fetch_price_range/yfinance 都已复权——FMP 当 PRICE 主源时 52周高低/SMA 落在名义价上,近一年有拆股的标的 52周高直接 ×拆股比 | 已修 |
@@ -151,7 +151,7 @@
 | BUG-083 | Bug | P3 | ~/.finrobot/.secrets 权限偏离 0600(备份还原/编辑器重写/umask 漂移)时,严格等值校验抛未捕获 PermissionError→server 启动崩,无自愈无降级(明文 FileSecretStore 兜底路径:headless/CI/Docker/dev) | 已修 |
 | BUG-084 | Bug | P3 | PriceTrendChart 窗口首日收盘价为 0 时 1Y 涨跌幅药丸渲染成 'Infinity%'、Y 轴 domain 被 0 基准拉歪——后端 contracts/data.py 同一除法都有 prev==0 守卫,唯独前端图无(provider 停牌/稀疏日可能给 close=0) | 已修 |
 | BUG-085 | Bug | P3 | 已完成的 run 永不从 runStreamStore 清除(clear() 无调用方),StockWorkspace 是路由挂载组件、去重 key 是组件级 useRef——切走再回每次重弹『报告已生成』toast + 3 次 query invalidation 强制重拉 | 已修 |
-| BUG-088 | Bug | P3 | coverage 系统组 find-or-create 非原子 + coverage_groups 表 is_system 无唯一约束 → 冷启动并发(双标签页/首屏+开股同时)各建一条『Studied Tickers』,较新组里的 ticker 被永久孤立、用户看到两个同名组 | 待修 |
+| BUG-088 | Bug | P3 | coverage 系统组 find-or-create 非原子 + coverage_groups 表 is_system 无唯一约束 → 冷启动并发(双标签页/首屏+开股同时)各建一条『Studied Tickers』,较新组里的 ticker 被永久孤立、用户看到两个同名组 | 已修 |
 | BUG-090 | Bug | P3 | 两个表都叫 `artifacts`(runs.db 链表 vs artifacts.db 规范库),撞名;且 runs.db 的 artifacts 表 `data BLOB`+`format` 是死列(唯一调用方只传 file_path 指针、从不传 data)——该表应改名 run_artifacts 并砍死列 | ✅ 已修 |
 | BUG-091 | Bug | P3 | JournalStore + journal.db 是整块死代码:完整实现 create/delete/list 但全仓零实例化、routes/cli/server/sdk 零引用(概念已被 artifacts.entry_price/target_price 吸收)——应删 | ✅ 已修 |
 | BUG-092 | Bug | P3 | [休眠·BUG-075 簇] holdings 主键含可空列 holder_cik,SQLite 把 PK 里的 NULL 当互不相同 → CIK 缺失的 13F filer(refresh 脚本确会喂 None)每次 refresh 累积重复持仓行,ON CONFLICT 去重失效 | ✅ 已修(schema) |
@@ -912,7 +912,7 @@
 - **修复方案**：在 compute/compare.py CompanyValuation 加 dcf_as_of: str | None(取 artifact.created_at)与 dcf_artifact_id: str | None;_compare_one(service.py:544)从 summary 拿 created_at/id 传入 build_company_valuation;ComparePage 表加一列『DCF 日期』并对超过 N 天的行加 amber『已过期』标记(可复用 coverage 的 _needs_refresh 阈值)。注意:_latest_dcf_result 当前为拿 DCFResult 丢弃了 summary 元数据(line 582 只用 summary.type/id 取 artifact),改成把 summary.created_at 一并返回(返回 tuple 或带 id 的小 dataclass)。改动量级:小-中(模型 +2 字段、service 取数、ComparePage 加列,约 50 行)。
 - **验证补充**：Severity correctly P2: this is a provenance/traceability defect that makes the comparison misleading, but the arithmetic of each individual row is correct — it's not a wrong-number bug, so not P1. Fix plan is sound; the load-bearing detail the finding correctly identifies: _latest_dcf_result currently returns only DCFResult and must be changed to also return summary.created_at + summary.id (tuple or small dataclass) so build_company_valuation can stamp vintage. Also worth dropping include_archived=True or at least flagging archived DCFs, since comparing against an archived valuation compounds the staleness problem.
 - **影响面/回归风险**：CompanyValuation schema 变更会反映到 /api/compare 响应与 openapi schema.d.ts(需 regenerate)。回归风险低:纯增字段、老消费者忽略即可;但前端 useCompare 类型要同步。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（Compare 表把不同时跑的 DCF 混排无 vintage。compute/compare.CompanyValuation 加 dcf_as_of/dcf_artifact_id；format_comparison_table 加 DCF Date 列 + vintage_spread_days helper + 跨度>7天告警行（live/未盖戳显 live）。coverage.service._latest_dcf_result 改返回 _LatestDcf(dcf+created_at+artifact_id+archived)，_compare_one 盖 dcf_as_of + archived 时加 superseded 告警。前端 coverage.ts 类型 + ComparePage 加 DCF Date 列 + ⚠stale 徽章(>7天) + 顶部跨度告警条 + i18n。新增后端/前端测试。与 BUG-088 同提交。）
 
 #### [BUG-058] Non-critical steps emit a misleading step.completed (green ✓) after exhausting all retries on a real failure
 
@@ -1298,7 +1298,7 @@
 - **根因**：跨请求幂等竞态——非原子 find-or-create + 表缺唯一约束；单路径走查覆盖不到。
 - **修复方案**：加 partial unique index `CREATE UNIQUE INDEX idx_coverage_one_system ON coverage_groups(is_system) WHERE is_system=1`（SQLite 支持），create_group 在 is_system=True 时 `INSERT ... ON CONFLICT DO NOTHING` 后回读 get_system_group（store 已在 add_members 用 ON CONFLICT）；或 service 层用 asyncio.Lock 串行化系统组 get-or-create。唯一索引更稳（兼防多进程）。
 - **影响面/回归风险**：影响冷启动并发的用户（一个孤立 ticker + 两个同名组，需手改 DB 恢复）。修复零行为变更，回归风险低。
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（coverage 系统组 find-or-create 非原子 + 无唯一约束→冷启动竞态生成两个 Studied Tickers、ticker 孤儿。加 partial unique index idx_coverage_one_system ON coverage_groups(is_system) WHERE is_system=1；新增原子 get_or_create_system_group（INSERT ... ON CONFLICT DO NOTHING 锁内 + 回读 get_system_group）；service.ensure_system_group/ensure_studied_membership 全改调它。新增并发 asyncio.gather 冷启动测试（一组两 ticker 无孤儿）+ 唯一索引拒重测试。与 BUG-057 同提交（coverage/service.py 共享）。）
 
 #### [BUG-089] POST /chat 的 session_id 未校验即当文件名 stem → 任意路径 .jsonl 写出(路径穿越),读写两侧均无清洗
 

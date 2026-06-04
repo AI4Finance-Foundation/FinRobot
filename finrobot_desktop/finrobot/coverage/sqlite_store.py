@@ -59,6 +59,14 @@ CREATE TABLE IF NOT EXISTS coverage_members (
 _CREATE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_coverage_members_group ON coverage_members(group_id)",
     "CREATE INDEX IF NOT EXISTS idx_coverage_groups_created ON coverage_groups(created_at)",
+    # There is only ever ONE machine-seeded "Studied Tickers" group (see
+    # get_system_group). A partial unique index makes that invariant a DB-level
+    # guarantee: two concurrent cold-start find-or-creates can no longer both
+    # INSERT an is_system=1 row and leave a ticker permanently orphaned in the
+    # losing duplicate (BUG-088). SQLite supports partial indexes; this also
+    # protects against multi-process writers, which an asyncio.Lock cannot.
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_coverage_one_system "
+    "ON coverage_groups(is_system) WHERE is_system = 1",
 ]
 
 
@@ -156,6 +164,43 @@ class CoverageStore:
             created_at=now,
             updated_at=now,
         )
+
+    async def get_or_create_system_group(
+        self,
+        name: str,
+        description: str | None = None,
+    ) -> CoverageGroupDetail:
+        """Atomically find-or-create the single ``is_system`` ``Studied Tickers`` group.
+
+        Two concurrent cold-start callers (first-screen ``list_groups`` +
+        opening ``/stocks/:ticker``) used to each ``get → None → create`` and
+        leave two duplicate system groups, orphaning whichever ticker landed in
+        the losing row (BUG-088). The ``idx_coverage_one_system`` partial unique
+        index now makes a second ``is_system=1`` INSERT a no-op via
+        ``ON CONFLICT DO NOTHING``; the subsequent read always resolves to the
+        one surviving row, so the loser simply re-targets it. The whole
+        insert-then-read runs under the connection lock, so even within a single
+        process there is no interleaving window.
+        """
+        conn = await self._conn_ready()
+        async with self._conn_lock:
+            group_id = f"cov_{uuid.uuid4().hex[:12]}"
+            now = _iso(_now())
+            await conn.execute(
+                """
+                INSERT INTO coverage_groups
+                    (id, name, description, is_system, created_at, updated_at)
+                VALUES (?, ?, ?, 1, ?, ?)
+                ON CONFLICT DO NOTHING
+                """,
+                (group_id, name, description, now, now),
+            )
+            await conn.commit()
+        detail = await self.get_system_group()
+        # get_system_group cannot return None here: the INSERT either created
+        # the row or a prior one already existed (ON CONFLICT path).
+        assert detail is not None
+        return detail
 
     async def list_groups(self) -> list[CoverageGroupSummary]:
         conn = await self._conn_ready()

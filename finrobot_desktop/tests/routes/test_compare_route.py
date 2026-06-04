@@ -151,10 +151,15 @@ async def test_compare_assembles_from_stored_dcf(client: AsyncClient) -> None:
     assert aapl["upside_pct"] == pytest.approx((260 - 200) / 200 * 100)
     assert aapl["wacc"] == pytest.approx(0.082)
     assert aapl["pe_ratio"] == pytest.approx(28.5)
+    # Provenance/vintage (BUG-057): the row discloses which dated DCF it came
+    # from, so a stale stored valuation isn't read as today's.
+    assert aapl["dcf_as_of"] == NOW.isoformat()
+    assert aapl["dcf_artifact_id"] == "art_AAPL_dcf"
 
     # MSFT has no DCF artifact → flagged, not fabricated
     assert companies["MSFT"]["error"] is not None
     assert companies["MSFT"]["implied_price"] is None
+    assert companies["MSFT"]["dcf_as_of"] is None
 
 
 async def test_compare_dedupes_and_uppercases(client: AsyncClient) -> None:
@@ -171,3 +176,58 @@ async def test_compare_rejects_too_few_tickers(client: AsyncClient) -> None:
 async def test_compare_rejects_too_many_tickers(client: AsyncClient) -> None:
     many = ",".join(f"T{i}" for i in range(11))
     assert (await client.get("/api/compare", params={"tickers": many})).status_code == 400
+
+
+def _dcf_artifact_at(ticker: str, created_at: datetime, *, implied: float = 260.0) -> Artifact:
+    art = _dcf_artifact(ticker)
+    art.id = f"art_{ticker}_dcf"
+    art.meta = ArtifactMeta(created_at=created_at, source="pipeline:dcf")
+    art.outputs = ArtifactOutputs(
+        structured={"dcf_calc": _dcf_result(implied=implied).model_dump(mode="json")}
+    )
+    return art
+
+
+async def test_compare_surfaces_disparate_vintages(tmp_path: Path) -> None:
+    """Two tickers whose latest DCFs were generated weeks apart come back with
+    distinct dcf_as_of stamps — the disclosure BUG-057 requires."""
+    app = FastAPI()
+    app.include_router(router)
+    store = ArtifactStore(base_dir=tmp_path)
+    fresh = datetime(2026, 5, 1, tzinfo=UTC)
+    old = datetime(2026, 4, 10, tzinfo=UTC)  # 21 days earlier
+    await store.save(_dcf_artifact_at("AAPL", fresh))
+    await store.save(_dcf_artifact_at("MSFT", old, implied=300.0))
+    app.state.artifact_store = store
+    app.state.deps = SimpleNamespace(data_layer=_StubDataLayer())
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            r = await ac.get("/api/compare", params={"tickers": "AAPL,MSFT"})
+        assert r.status_code == 200
+        companies = {c["ticker"]: c for c in r.json()["companies"]}
+        assert companies["AAPL"]["dcf_as_of"] == fresh.isoformat()
+        assert companies["MSFT"]["dcf_as_of"] == old.isoformat()
+        assert companies["AAPL"]["dcf_as_of"] != companies["MSFT"]["dcf_as_of"]
+    finally:
+        await store.close()
+
+
+async def test_compare_flags_archived_dcf(tmp_path: Path) -> None:
+    """An archived (superseded) DCF still compares but warns it may be stale."""
+    app = FastAPI()
+    app.include_router(router)
+    store = ArtifactStore(base_dir=tmp_path)
+    art = _dcf_artifact_at("AAPL", NOW)
+    art.meta.archived = True
+    await store.save(art)
+    app.state.artifact_store = store
+    app.state.deps = SimpleNamespace(data_layer=_StubDataLayer())
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            r = await ac.get("/api/compare", params={"tickers": "AAPL,MSFT"})
+        aapl = {c["ticker"]: c for c in r.json()["companies"]}["AAPL"]
+        assert any("归档" in w for w in aapl["warnings"])
+    finally:
+        await store.close()

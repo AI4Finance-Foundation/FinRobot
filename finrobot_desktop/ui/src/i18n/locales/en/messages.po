@@ -162,6 +162,10 @@ msgid "cmdk.results.askHint"
 msgstr "Press Enter to ask the AI / start a new chat"
 
 #. js-lingui-explicit-id
+msgid "cmdk.results.askSubtitle"
+msgstr "Ask the AI about \"{query}\""
+
+#. js-lingui-explicit-id
 msgid "cmdk.results.networkError"
 msgstr "Search failed — check your network connection."
 
@@ -3444,6 +3448,26 @@ msgstr "Comparison failed."
 #. js-lingui-explicit-id
 msgid "compare.implied"
 msgstr "Implied"
+
+#. js-lingui-explicit-id
+msgid "compare.dcfDate"
+msgstr "DCF Date"
+
+#. js-lingui-explicit-id
+msgid "compare.live"
+msgstr "live"
+
+#. js-lingui-explicit-id
+msgid "compare.stale"
+msgstr "stale"
+
+#. js-lingui-explicit-id
+msgid "compare.staleTitle"
+msgstr "This DCF was generated {days} days ago — its implied price and WACC may be out of date. Re-run the DCF before relying on this row."
+
+#. js-lingui-explicit-id
+msgid "compare.vintageWarn"
+msgstr "These DCFs were run {days} days apart — they were not computed at the same time, so the upside columns are not apples-to-apples. Re-run the stale tickers before comparing."
 
 #. js-lingui-explicit-id
 msgid "cmdk.section.coverage"

@@ -848,6 +848,37 @@ function HotState({
           )}
         </div>
 
+        {/* When the data-health gate withholds the target (valuation methods
+            diverged on cross-validation → verdict REVIEW), target_price is
+            null and the whole target block above disappears. Voice the
+            withholding instead of leaving a silent gap — this honesty is the
+            product's point, not a defect. Neutral slate tone, never 涨绿跌红;
+            distinct from the LLM tagline below. */}
+        {verdict === 'REVIEW' && target === null && (
+          <button
+            type="button"
+            data-testid="ai-zone-target-withheld"
+            onClick={() => onOpen(latest.id)}
+            style={{
+              display: 'block',
+              width: '100%',
+              textAlign: 'left',
+              background: verdictTone.bg,
+              border: '1px solid var(--border-soft)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '10px 12px',
+              marginBottom: 14,
+              cursor: 'pointer',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+              lineHeight: 1.5,
+              color: verdictTone.fg,
+            }}
+          >
+            {t('hotState.targetWithheld')}
+          </button>
+        )}
+
         {/* Prefer the real synthesis_agent tagline (≤60 char LLM-written
             share-card line) over the generic pipeline.format_summary
             preview that's stored in headline. tagline lands on

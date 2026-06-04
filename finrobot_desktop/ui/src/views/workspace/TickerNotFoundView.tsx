@@ -64,7 +64,7 @@ export function TickerNotFoundView({ ticker }: Props): React.ReactElement {
 
         {/* CTA — .btn-shimmer (§6.3 shimmer button), Audiowide 13px + letter-spacing 2px */}
         <Link
-          to="/stocks"
+          to="/coverage"
           className="btn-shimmer"
           style={{
             display: 'inline-block',

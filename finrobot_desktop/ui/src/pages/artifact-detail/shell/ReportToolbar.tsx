@@ -142,8 +142,8 @@ export function ReportToolbar({
       {/* Breadcrumb — 3 segments, last is a hidden-select dropdown that
           mirrors the version label and lets the user jump siblings. */}
       <div style={breadcrumbBoxStyle}>
-        <button type="button" onClick={() => navigate('/stocks')} style={crumbBtnStyle}>
-          STOCKS
+        <button type="button" onClick={() => navigate('/coverage')} style={crumbBtnStyle}>
+          COVERAGE
         </button>
         <Sep />
         <button

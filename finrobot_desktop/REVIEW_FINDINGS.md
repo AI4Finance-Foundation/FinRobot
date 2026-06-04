@@ -86,7 +86,7 @@
 | BUG-077 | Bug | P1 | SkillRegistry._load_all 只 catch SkillLoadError 不 catch pydantic ValidationError——一个字段类型写错的 SKILL.md(外部/partner 技能常见)使 server/SDK/CLI 启动整体崩,违背其 fail-soft 设计 | 已修 |
 | UX-001 | 产品 | P1 | 冷启动首份研报动线被拆成两条不相通的入口，且 Starter 终点是空墙而非一份研报 | 待修 |
 | UX-002 | 产品 | P1 | 首份研报跑完后还要手动点一次才能阅读——"第一次惊艳"被一次多余点击拦住 | 待修 |
-| UX-003 | 产品 | P1 | TickerNotFound 的「返回」按钮指向已退役的 /stocks，触发二次重定向 + 错误的合并提示 | 待修 |
+| UX-003 | 产品 | P1 | TickerNotFound 的「返回」按钮指向已退役的 /stocks，触发二次重定向 + 错误的合并提示 | 已修 |
 | UX-004 | 产品 | P1 | 投委会辩论跑完是死胡同：无任何 next-step CTA + 用完即焚 | 待修 |
 | UX-005 | 产品 | P1 | "待处理"分诊是首屏，但卡片不说"为什么需要我"——理由被挤进一个截断的小药丸 | 待修 |
 | UX-006 | 产品 | P1 | 无法删除/归档单份历史研报——后端有 DELETE 端点，前端零入口，跑错/作废的研报永久堆积 | 待修 |
@@ -1392,7 +1392,7 @@
 - **验证补充**：Fixes correct: TickerNotFoundView→/coverage; retired routes→/coverage directly. Caveat on the preserveTicker ones (library/:ticker, playground/:ticker): their target should become /stocks/:ticker (StockWorkspace) to keep the ticker, NOT /coverage — finding already notes this. Verify StockWorkspace is the intended landing for a preserved ticker.
 - **影响面/回归风险**：影响输错代码的用户（高频误操作）+ 所有走旧链接的用户。回归风险低（只换目的地常量）；建议跑一遍 router 测试确认无路径 404。
 - **合并自**：ux-IA-simplify#3, ux-coreflow#2, ux-firsttime#3（3 条同源发现）
-- **置信度**：high　|　**状态**：待修
+- **置信度**：high　|　**状态**：已修（TickerNotFoundView.tsx `to="/coverage"`；router.tsx 4 个退役页 bare 路由直指 `/coverage`、`:ticker` 变体 `preserveTicker`→`/stocks/:ticker` 保留上下文；ReportToolbar.tsx 面包屑根 `navigate('/stocks')`→`navigate('/coverage')` 消除双跳、标签 STOCKS→COVERAGE。build 绿）
 
 #### [UX-004] 投委会辩论跑完是死胡同：无任何 next-step CTA + 用完即焚
 

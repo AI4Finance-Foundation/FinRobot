@@ -125,14 +125,18 @@ export const router = createBrowserRouter([
         ),
       },
 
-      // v5 deprecation redirects (one release window) — spec §11.4
+      // v5 deprecation redirects (one release window) — spec §11.4.
+      // Bare retired pages land on /coverage directly (the old /stocks landing
+      // also retired into /coverage, so pointing here avoids a double hop).
+      // The :ticker variants preserve their symbol into /stocks/:ticker
+      // (StockWorkspace) — a canonical route, not a redirect — to keep context.
       {
         path: 'dashboard',
-        element: <RetiredRouteRedirect to="/stocks" />,
+        element: <RetiredRouteRedirect to="/coverage" />,
       },
       {
         path: 'library',
-        element: <RetiredRouteRedirect to="/stocks" />,
+        element: <RetiredRouteRedirect to="/coverage" />,
       },
       {
         path: 'library/:ticker',
@@ -140,11 +144,11 @@ export const router = createBrowserRouter([
       },
       {
         path: 'journal',
-        element: <RetiredRouteRedirect to="/stocks" />,
+        element: <RetiredRouteRedirect to="/coverage" />,
       },
       {
         path: 'playground',
-        element: <RetiredRouteRedirect to="/stocks" />,
+        element: <RetiredRouteRedirect to="/coverage" />,
       },
       {
         path: 'playground/:ticker',

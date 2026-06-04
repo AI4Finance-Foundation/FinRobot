@@ -29,7 +29,6 @@ def test_constants_resolve_under_finrobot_home(tmp_path, monkeypatch):
     assert paths.QUOTES_DB == tmp_path / ".finrobot" / "quotes.db"
     assert paths.DATA_CACHE_DB == tmp_path / ".finrobot" / "data_cache.db"
     assert paths.RUNS_DB == tmp_path / ".finrobot" / "runs.db"
-    assert paths.JOURNAL_DB == tmp_path / ".finrobot" / "journal.db"
     assert paths.SESSIONS_DIR == tmp_path / ".finrobot" / "sessions"
     assert paths.SETTINGS_JSON == tmp_path / ".finrobot" / "settings.json"
 

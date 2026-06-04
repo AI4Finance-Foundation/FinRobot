@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS holdings (
     issuer_key      TEXT NOT NULL,
     title_of_class  TEXT NOT NULL DEFAULT 'COM',
     holder_name     TEXT NOT NULL,
-    holder_cik      TEXT,
+    holder_cik      TEXT NOT NULL DEFAULT '',
     shares          INTEGER NOT NULL,
     value_usd       REAL NOT NULL,
     period_end      TEXT NOT NULL,
@@ -272,7 +272,10 @@ async def bulk_upsert_holdings(rows: Iterable[dict[str, Any]]) -> int:
                     _issuer_key(name_of_issuer),
                     r.get("title_of_class", "COM"),
                     r["holder_name"],
-                    r.get("holder_cik"),
+                    # holder_cik is part of the PRIMARY KEY; coalesce a missing
+                    # CIK to '' so SQLite can dedup it (NULLs are distinct in a
+                    # PK, which would let CIK-less filers accumulate dup rows).
+                    r.get("holder_cik") or "",
                     int(r["shares"]),
                     float(r["value_usd"]),
                     period_end,

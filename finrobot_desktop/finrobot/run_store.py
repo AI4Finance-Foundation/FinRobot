@@ -55,13 +55,17 @@ CREATE TABLE IF NOT EXISTS run_events (
 )
 """
 
+# run→artifact link table. Distinct from the canonical artifact store in
+# artifacts.db (artifact/sqlite_store.py); named run_artifacts to avoid the
+# collision. file_path holds the canonical artifact's API path
+# (/api/artifacts/<id>). No data BLOB: artifact bodies live in artifacts.db,
+# this table only records which artifact a run produced.
 _CREATE_ARTIFACTS = """
-CREATE TABLE IF NOT EXISTS artifacts (
+CREATE TABLE IF NOT EXISTS run_artifacts (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id        TEXT NOT NULL REFERENCES runs(run_id),
     artifact_type TEXT NOT NULL,
     format        TEXT NOT NULL,
-    data          BLOB,
     file_path     TEXT,
     created_at    TEXT NOT NULL
 )
@@ -71,7 +75,7 @@ _CREATE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_runs_ticker ON runs(ticker)",
     "CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_events_run ON run_events(run_id, seq)",
-    "CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id)",
+    "CREATE INDEX IF NOT EXISTS idx_run_artifacts_run ON run_artifacts(run_id)",
 ]
 
 # Column order consumed by _row_to_run; keep the SELECT lists below in sync
@@ -358,17 +362,16 @@ class RunStore:
         *,
         artifact_type: str,
         format: str,
-        data: bytes | None = None,
         file_path: str | None = None,
     ) -> None:
         try:
             conn = await self._ensure_connection()
             await conn.execute(
                 """
-                INSERT INTO artifacts (run_id, artifact_type, format, data, file_path, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO run_artifacts (run_id, artifact_type, format, file_path, created_at)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (run_id, artifact_type, format, data, file_path, _now()),
+                (run_id, artifact_type, format, file_path, _now()),
             )
             await conn.commit()
         except aiosqlite.OperationalError:
@@ -380,7 +383,7 @@ class RunStore:
         async with conn.execute(
             """
             SELECT artifact_type, format, file_path, created_at
-            FROM artifacts
+            FROM run_artifacts
             WHERE run_id = ?
             ORDER BY created_at ASC
             """,

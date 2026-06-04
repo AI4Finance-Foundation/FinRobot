@@ -165,16 +165,16 @@ class ArtifactSummary(BaseModel):
         default=None,
         description=(
             "Quote snapshot taken when the pipeline was triggered (USD/share). "
-            "Mirrors journal.entry_price semantics. None for legacy artifacts "
-            "or cross-ticker analyses without a single entry price."
+            "None for legacy artifacts or cross-ticker analyses without a "
+            "single entry price."
         ),
     )
     target_price: float | None = Field(
         default=None,
         description=(
             "AI-given target price from the thesis step (USD/share). "
-            "Mirrors journal.target_price semantics. None when the artifact "
-            "type has no thesis (peer_research / ad_hoc) or for legacy data."
+            "None when the artifact type has no thesis (peer_research / "
+            "ad_hoc) or for legacy data."
         ),
     )
     target_date: datetime | None = Field(

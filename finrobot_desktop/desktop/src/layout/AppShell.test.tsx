@@ -6,7 +6,6 @@ import { AppShell } from './AppShell'
 
 // Stub Tauri modules so tests run in jsdom without Tauri APIs.
 vi.mock('../lib/tauri', () => ({
-  registerShortcut: vi.fn().mockResolvedValue(() => {}),
   pickDirectory: vi.fn().mockResolvedValue(null),
   isTauri: vi.fn().mockReturnValue(false),
   openExternal: vi.fn().mockResolvedValue(undefined),

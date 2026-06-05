@@ -7,13 +7,12 @@ import { useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { TitleBar } from './TitleBar'
 import { RightChatPanel } from './RightChatPanel'
-import { CmdKOverlay } from './CmdKOverlay'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import StatusBar from '../components/StatusBar'
 import ToastContainer from '../components/Toast'
 import { CursorCanvas } from '../components/CursorCanvas'
 import { useUiStore } from '../stores/uiStore'
-import { registerShortcut, pickDirectory, isTauri, DEFAULT_WORKSPACE_PATH } from '../lib/tauri'
+import { pickDirectory, isTauri, DEFAULT_WORKSPACE_PATH } from '../lib/tauri'
 
 const WELCOME_SHOWN_KEY = 'finrobot-welcome-shown'
 
@@ -26,17 +25,6 @@ export function AppShell(): React.ReactElement {
   // the SHELL level (behind the title/status bars too, so they frost into it
   // rather than reading as black frames). Other routes keep the dark base.
   const onHome = location.pathname === '/' || location.pathname.startsWith('/research')
-
-  // Cmd+L / Ctrl+L → toggle AI panel
-  useEffect(() => {
-    let cleanup: (() => void) | null = null
-    registerShortcut({ key: 'l', mod: true }, () => {
-      useUiStore.getState().toggleAiPanel()
-    }).then((c) => {
-      cleanup = c
-    })
-    return () => cleanup?.()
-  }, [])
 
   // First-launch workspace picker (Tauri only).
   useEffect(() => {
@@ -90,7 +78,6 @@ export function AppShell(): React.ReactElement {
         <RightChatPanel />
       </div>
       <StatusBar />
-      <CmdKOverlay />
       {/* v5: toast portal — mounted at shell level so every page / section
           can pop toasts (pipeline launch / completion / errors). */}
       <ToastContainer />

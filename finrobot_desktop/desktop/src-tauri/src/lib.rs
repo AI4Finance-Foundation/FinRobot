@@ -39,11 +39,6 @@ pub fn run() {
                 .build(),
         );
 
-    #[cfg(desktop)]
-    {
-        builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
-    }
-
     builder
         .manage(SidecarHandle::default())
         .setup(|app| {

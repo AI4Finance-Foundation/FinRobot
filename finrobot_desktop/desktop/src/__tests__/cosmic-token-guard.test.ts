@@ -27,14 +27,12 @@ import { describe, it, expect } from 'vitest'
 
 // Raw source of each guarded file. `?raw` gives us the verbatim text without
 // executing the module (and without needing Node's fs types in the web build).
-import cmdkOverlaySrc from '../layout/CmdKOverlay.tsx?raw'
 import titleBarSrc from '../layout/TitleBar.tsx?raw'
 import settingsViewSrc from '../views/SettingsView.tsx?raw'
 import versionDiffBannerSrc from '../components/VersionDiffBanner.tsx?raw'
 import aiChatTabSrc from '../layout/RightChatPanel/AiChatTab.tsx?raw'
 
 const GUARDED: Array<[string, string]> = [
-  ['layout/CmdKOverlay.tsx', cmdkOverlaySrc],
   // TitleBar absorbed the retired Sidebar's nav; keep it token-pure here.
   ['layout/TitleBar.tsx', titleBarSrc],
   ['views/SettingsView.tsx', settingsViewSrc],

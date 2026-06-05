@@ -21,7 +21,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StockWorkspace } from './StockWorkspace'
 
 vi.mock('../lib/tauri', () => ({
-  registerShortcut: vi.fn().mockResolvedValue(() => {}),
   pickDirectory: vi.fn().mockResolvedValue(null),
   isTauri: vi.fn().mockReturnValue(false),
   openExternal: vi.fn().mockResolvedValue(undefined),

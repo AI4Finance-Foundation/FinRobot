@@ -27,9 +27,6 @@
       "identifier": "fs:allow-write-text-file",
       "allow": [{ "path": "$HOME/**" }]
     },
-    "global-shortcut:default",
-    "global-shortcut:allow-register",
-    "global-shortcut:allow-unregister",
     "os:default",
     "os:allow-locale"
   ]

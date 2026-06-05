@@ -10,10 +10,6 @@ import {
   readTextFile as fsReadTextFile,
   writeTextFile as fsWriteTextFile,
 } from '@tauri-apps/plugin-fs'
-import {
-  register as registerGlobalShortcut,
-  unregister as unregisterGlobalShortcut,
-} from '@tauri-apps/plugin-global-shortcut'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
 /** Returns true when running inside a Tauri webview. */
@@ -55,69 +51,6 @@ export async function openExternal(url: string): Promise<void> {
     return
   }
   await openShell(url)
-}
-
-// ─── Global shortcuts ─────────────────────────────────────────────
-
-export type Shortcut = {
-  /** Logical key e.g. "l" | "k" | "p" — case-insensitive, single char. */
-  key: string
-  /** Require ⌘ on macOS / Ctrl on Win/Linux. */
-  mod?: boolean
-  /** Require Shift. */
-  shift?: boolean
-}
-
-/**
- * Register a shortcut via both DOM keydown listener and (in Tauri) a
- * system-wide global shortcut so the handler fires even when the webview
- * does not hold focus.
- *
- * Returns a cleanup function that removes both listeners.
- *
- * NOTE: now async — callers must handle the returned Promise.
- * AppShell pattern:
- *   useEffect(() => {
- *     let cleanup: (() => void) | null = null
- *     registerShortcut(...).then(c => { cleanup = c })
- *     return () => cleanup?.()
- *   }, [])
- */
-export async function registerShortcut(
-  shortcut: Shortcut,
-  handler: () => void,
-): Promise<() => void> {
-  // DOM listener — always registered; fires when webview has focus.
-  const onKey = (e: KeyboardEvent) => {
-    if (shortcut.mod && !(e.metaKey || e.ctrlKey)) return
-    if (shortcut.shift && !e.shiftKey) return
-    if (e.key.toLowerCase() !== shortcut.key.toLowerCase()) return
-    e.preventDefault()
-    handler()
-  }
-  window.addEventListener('keydown', onKey)
-
-  // Global shortcut — Tauri only; fires even without webview focus.
-  let unregGlobal: (() => Promise<void>) | null = null
-  if (isTauri()) {
-    try {
-      const mod = shortcut.mod ? 'CmdOrCtrl+' : ''
-      const shift = shortcut.shift ? 'Shift+' : ''
-      const accel = `${mod}${shift}${shortcut.key.toUpperCase()}`
-      await registerGlobalShortcut(accel, () => handler())
-      unregGlobal = async () => {
-        await unregisterGlobalShortcut(accel)
-      }
-    } catch (err) {
-      // Non-fatal: some platforms/environments reject global shortcuts.
-      console.warn('[tauri] global shortcut register failed:', err)
-    }
-  }
-
-  return () => {
-    window.removeEventListener('keydown', onKey)
-    if (unregGlobal) void unregGlobal()
-  }
 }
 
 // ─── Dialog (workspace picker) ────────────────────────────────────

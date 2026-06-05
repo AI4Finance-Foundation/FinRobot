@@ -118,86 +118,6 @@ msgid "chat.tool.share"
 msgstr "分享到对话"
 
 #. js-lingui-explicit-id
-msgid "cmdk.empty"
-msgstr "输入股票代码（如 AAPL）、问题或 /命令"
-
-#. js-lingui-explicit-id
-msgid "cmdk.error.actionFailed"
-msgstr "操作执行失败"
-
-#. js-lingui-explicit-id
-msgid "cmdk.error.invalidAction"
-msgstr "操作格式无效"
-
-#. js-lingui-explicit-id
-msgid "cmdk.error.unknownAction"
-msgstr "未知操作类型"
-
-#. js-lingui-explicit-id
-msgid "cmdk.foot.close"
-msgstr "关闭"
-
-#. js-lingui-explicit-id
-msgid "cmdk.foot.confirm"
-msgstr "确认"
-
-#. js-lingui-explicit-id
-msgid "cmdk.foot.select"
-msgstr "选择"
-
-#. js-lingui-explicit-id
-msgid "cmdk.overlength"
-msgstr "查询过长，已截断（最多 {max} 字符）"
-
-#. js-lingui-explicit-id
-msgid "cmdk.placeholder"
-msgstr "股票代码、问题或 /命令…"
-
-#. js-lingui-explicit-id
-msgid "cmdk.results.aria"
-msgstr "搜索结果"
-
-#. js-lingui-explicit-id
-msgid "cmdk.results.askHint"
-msgstr "按 Enter 直接问 AI / 开始新对话"
-
-#. js-lingui-explicit-id
-msgid "cmdk.results.askSubtitle"
-msgstr "就 \"{query}\" 问 AI"
-
-#. js-lingui-explicit-id
-msgid "cmdk.results.networkError"
-msgstr "搜索失败 — 请检查网络"
-
-#. js-lingui-explicit-id
-msgid "cmdk.results.nothing"
-msgstr "没找到 \"{query}\""
-
-#. js-lingui-explicit-id
-msgid "cmdk.results.searching"
-msgstr "搜索中…"
-
-#. js-lingui-explicit-id
-msgid "cmdk.results.timeout"
-msgstr "搜索超时，请重试"
-
-#. js-lingui-explicit-id
-msgid "cmdk.search.aria"
-msgstr "搜索"
-
-#. js-lingui-explicit-id
-msgid "cmdk.section.artifacts"
-msgstr "历史分析"
-
-#. js-lingui-explicit-id
-msgid "cmdk.section.recent"
-msgstr "最近搜索"
-
-#. js-lingui-explicit-id
-msgid "cmdk.section.tickers"
-msgstr "股票代码"
-
-#. js-lingui-explicit-id
 msgid "common.cancel"
 msgstr "取消"
 
@@ -3424,18 +3344,6 @@ msgstr "该 DCF 于 {days} 天前生成——隐含价与 WACC 可能已过时�
 #. js-lingui-explicit-id
 msgid "compare.vintageWarn"
 msgstr "这些 DCF 的生成时间相差 {days} 天——并非同一时点算出，因此上行空间各列不可直接横向对比。对比前请重新运行过期的 ticker。"
-
-#. js-lingui-explicit-id
-msgid "cmdk.section.navigation"
-msgstr "导航"
-
-#. js-lingui-explicit-id
-msgid "cmdk.research.open"
-msgstr "打开研究入口"
-
-#. js-lingui-explicit-id
-msgid "cmdk.coverage.open"
-msgstr "打开研究库"
 
 #. js-lingui-explicit-id
 msgid "coverage.filterEmpty"

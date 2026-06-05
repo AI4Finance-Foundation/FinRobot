@@ -118,86 +118,6 @@ msgid "chat.tool.share"
 msgstr "Share to chat"
 
 #. js-lingui-explicit-id
-msgid "cmdk.empty"
-msgstr "Type a ticker (e.g. AAPL), a question, or a /command"
-
-#. js-lingui-explicit-id
-msgid "cmdk.error.actionFailed"
-msgstr "Action failed"
-
-#. js-lingui-explicit-id
-msgid "cmdk.error.invalidAction"
-msgstr "Invalid action"
-
-#. js-lingui-explicit-id
-msgid "cmdk.error.unknownAction"
-msgstr "Unknown action"
-
-#. js-lingui-explicit-id
-msgid "cmdk.foot.close"
-msgstr "Close"
-
-#. js-lingui-explicit-id
-msgid "cmdk.foot.confirm"
-msgstr "Confirm"
-
-#. js-lingui-explicit-id
-msgid "cmdk.foot.select"
-msgstr "Select"
-
-#. js-lingui-explicit-id
-msgid "cmdk.overlength"
-msgstr "Query truncated (max {max} chars)"
-
-#. js-lingui-explicit-id
-msgid "cmdk.placeholder"
-msgstr "Ticker, question or /command…"
-
-#. js-lingui-explicit-id
-msgid "cmdk.results.aria"
-msgstr "Search results"
-
-#. js-lingui-explicit-id
-msgid "cmdk.results.askHint"
-msgstr "Press Enter to ask the AI / start a new chat"
-
-#. js-lingui-explicit-id
-msgid "cmdk.results.askSubtitle"
-msgstr "Ask the AI about \"{query}\""
-
-#. js-lingui-explicit-id
-msgid "cmdk.results.networkError"
-msgstr "Search failed — check your network connection."
-
-#. js-lingui-explicit-id
-msgid "cmdk.results.nothing"
-msgstr "Nothing matched \"{query}\""
-
-#. js-lingui-explicit-id
-msgid "cmdk.results.searching"
-msgstr "Searching…"
-
-#. js-lingui-explicit-id
-msgid "cmdk.results.timeout"
-msgstr "Search timed out. Try again."
-
-#. js-lingui-explicit-id
-msgid "cmdk.search.aria"
-msgstr "Search"
-
-#. js-lingui-explicit-id
-msgid "cmdk.section.artifacts"
-msgstr "Past analyses"
-
-#. js-lingui-explicit-id
-msgid "cmdk.section.recent"
-msgstr "Recent searches"
-
-#. js-lingui-explicit-id
-msgid "cmdk.section.tickers"
-msgstr "Tickers"
-
-#. js-lingui-explicit-id
 msgid "common.cancel"
 msgstr "Cancel"
 
@@ -3424,18 +3344,6 @@ msgstr "This DCF was generated {days} days ago — its implied price and WACC ma
 #. js-lingui-explicit-id
 msgid "compare.vintageWarn"
 msgstr "These DCFs were run {days} days apart — they were not computed at the same time, so the upside columns are not apples-to-apples. Re-run the stale tickers before comparing."
-
-#. js-lingui-explicit-id
-msgid "cmdk.section.navigation"
-msgstr "Navigation"
-
-#. js-lingui-explicit-id
-msgid "cmdk.research.open"
-msgstr "Open Research"
-
-#. js-lingui-explicit-id
-msgid "cmdk.coverage.open"
-msgstr "Open Coverage Desk"
 
 #. js-lingui-explicit-id
 msgid "coverage.filterEmpty"

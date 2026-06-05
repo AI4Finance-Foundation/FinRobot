@@ -90,10 +90,6 @@ interface UiStoreState {
    *  the "桌面 App 灵魂" can opt-in via Settings. */
   cursorTrailEnabled: boolean
 
-  // Command palette (⌘K) — shell chrome, session-scoped
-  cmdPaletteOpen: boolean
-  cmdKQuery: string
-
   // Workspace
   workspacePath: string
 
@@ -114,10 +110,6 @@ interface UiStoreState {
   setAiPanelWidth: (w: number) => void
 
   setCursorTrailEnabled: (on: boolean) => void
-
-  setCmdPaletteOpen: (open: boolean) => void
-  toggleCmdPalette: () => void
-  setCmdKQuery: (q: string) => void
 
   setWorkspacePath: (p: string) => void
 
@@ -170,9 +162,6 @@ export const useUiStore = create<UiStoreState>()(
       // visibility/intersection guards; it has no user toggle.)
       cursorTrailEnabled: false,
 
-      cmdPaletteOpen: false,
-      cmdKQuery: '',
-
       workspacePath: DEFAULT_WORKSPACE_PATH,
 
       openTabs: [DASHBOARD_TAB],
@@ -188,11 +177,6 @@ export const useUiStore = create<UiStoreState>()(
 
       // Cosmic cursor trail
       setCursorTrailEnabled: (cursorTrailEnabled) => set({ cursorTrailEnabled }),
-
-      // command palette (⌘K)
-      setCmdPaletteOpen: (cmdPaletteOpen) => set({ cmdPaletteOpen }),
-      toggleCmdPalette: () => set((s) => ({ cmdPaletteOpen: !s.cmdPaletteOpen })),
-      setCmdKQuery: (cmdKQuery) => set({ cmdKQuery }),
 
       // workspace
       setWorkspacePath: (workspacePath) =>

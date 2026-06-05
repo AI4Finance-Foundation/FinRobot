@@ -48,6 +48,19 @@ DEGRADED_PRICE_FALLBACK_CLOSE = "price_fallback_close"
 # the free-text cross_validate warning. Field-suffixed (``provider_divergence:revenue``)
 # so consumers know which number to distrust; build with ``degraded_provider_divergence(field)``.
 DEGRADED_PROVIDER_DIVERGENCE_PREFIX = "provider_divergence"
+# period_basis was absent or unrecognized; defaulted to "ttm". Prevents silently
+# mislabeling annual/quarterly data as TTM when a provider omits the field or
+# sends a non-standard string (e.g. "fy2024", "ltm").
+DEGRADED_PERIOD_BASIS_UNKNOWN = "period_basis_unknown"
+# A provider was in circuit-breaker cooldown and skipped for this fetch.
+# Provider-suffixed (``circuit_open:fmp``) so the UI can name the absent source.
+DEGRADED_CIRCUIT_OPEN_PREFIX = "circuit_open"
+
+
+def degraded_circuit_open(provider_name: str) -> str:
+    """Structured ``Provenance.degraded`` marker for a circuit-open provider skip,
+    e.g. ``circuit_open:fmp``."""
+    return f"{DEGRADED_CIRCUIT_OPEN_PREFIX}:{provider_name}"
 
 
 def degraded_provider_divergence(field: str) -> str:

@@ -39,3 +39,6 @@ structured data does not support is the worst failure this report can have.
   precise forecast.
 
 When in doubt, prefer "under review / not corroborated" over a confident number.
+
+## Number labeling — no bare figures allowed
+Every absolute monetary figure in the report must carry currency (USD / CNY / etc.) and units (B / M). Every income-statement metric and valuation multiple must carry a period basis (LTM / TTM / NTM / FY1). A number missing any of these labels is incomplete — do not copy it through as-is; add the label or flag it as "period/currency not specified" in a footnote.

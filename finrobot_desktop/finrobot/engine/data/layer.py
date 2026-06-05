@@ -18,7 +18,10 @@ from finrobot.engine.data.normalize import (
     normalize_price,
 )
 from finrobot.engine.data.types import DataType
-from finrobot.engine.data.normalize.contracts import degraded_provider_divergence
+from finrobot.engine.data.normalize.contracts import (
+    degraded_circuit_open,
+    degraded_provider_divergence,
+)
 from finrobot.engine.data.validator import (
     cross_validate,
     cross_validate_price,
@@ -76,10 +79,14 @@ class DataLayer:
         Safe to call multiple times.
         """
         for provider in self._providers:
-            close = getattr(provider, "close", None)
-            if callable(close):
+            close_fn = getattr(provider, "close", None)
+            if callable(close_fn):
+                import inspect
+
                 try:
-                    await close()
+                    result = close_fn()
+                    if inspect.iscoroutine(result):
+                        await result
                 except (OSError, RuntimeError) as exc:
                     # Best-effort cleanup — connection-level errors during
                     # shutdown shouldn't mask the more important cache close
@@ -114,10 +121,12 @@ class DataLayer:
         # 2. Try each provider in order
         primary_result: DataResult | None = None
         secondary_count = 0
+        circuit_open: list[str] = []
         for provider in self._providers:
             if data_type not in provider.capabilities():
                 continue
             if self._health_gated(provider):
+                circuit_open.append(provider.name)
                 continue
             try:
                 result = await provider.fetch(ticker, data_type, **kwargs)
@@ -195,6 +204,10 @@ class DataLayer:
                     break
 
         if primary_result is not None:
+            if circuit_open:
+                primary_result = primary_result.model_copy(
+                    update={"circuit_open_providers": circuit_open}
+                )
             await self._cache.set(data_type, ticker, primary_result)
             return primary_result
 
@@ -298,6 +311,10 @@ class DataLayer:
         # PRICE never populates key_field_divergences.
         for field in raw.key_field_divergences:
             marker = degraded_provider_divergence(field)
+            if marker not in normalized.provenance.degraded:
+                normalized.provenance.degraded.append(marker)
+        for provider_name in raw.circuit_open_providers:
+            marker = degraded_circuit_open(provider_name)
             if marker not in normalized.provenance.degraded:
                 normalized.provenance.degraded.append(marker)
         await self._cache.set_canonical(data_type, ticker, normalized.model_dump_json())

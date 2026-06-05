@@ -9,9 +9,12 @@ from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.provider_health import ProviderHealth
 from finrobot.engine.data.normalize import NormalizedFinancials, NormalizedPrice
 from finrobot.engine.data.normalize.contracts import (
+    DEGRADED_CIRCUIT_OPEN_PREFIX,
     DEGRADED_PROVIDER_DIVERGENCE_PREFIX,
+    degraded_circuit_open,
     degraded_provider_divergence,
 )
+from finrobot.engine.data.types import DataType
 
 
 # ---------------------------------------------------------------------------
@@ -534,6 +537,56 @@ class TestCrossValidationIntegration:
         await layer.fetch("financials", "TEST")
         fetched = [p for p in providers if p.fetch_called > 0]
         assert len(fetched) <= 3, f"Expected max 3 providers, got {len(fetched)}"
+
+
+class TestCircuitOpenProvenance:
+    """Circuit-breaker skips must be visible in DataResult and Provenance.degraded."""
+
+    def _tripped_health(self, provider_name: str) -> ProviderHealth:
+        health = ProviderHealth()
+        for _ in range(health.failure_threshold + 1):
+            health.record_failure(provider_name, rate_limited=True)
+        return health
+
+    async def test_circuit_open_stamped_on_data_result(self, cache):
+        """Skipped provider name appears in DataResult.circuit_open_providers."""
+        health = self._tripped_health("fmp")
+        fmp = MockProvider("fmp", ["financials"])
+        yf = MockProvider("yfinance", ["financials"])
+        layer = DataLayer([fmp, yf], cache, health=health)
+
+        result = await layer.fetch("financials", "AAPL")
+        assert result.provider == "yfinance"
+        assert fmp.fetch_called == 0
+        assert "fmp" in result.circuit_open_providers
+
+    async def test_circuit_open_does_not_appear_when_provider_healthy(self, cache):
+        """No circuit_open marker when all providers are available."""
+        fmp = MockProvider("fmp", ["financials"])
+        layer = DataLayer([fmp], cache)
+        result = await layer.fetch("financials", "AAPL")
+        assert result.circuit_open_providers == []
+
+    async def test_circuit_open_propagates_to_provenance_degraded(self, cache):
+        """fetch_canonical must translate circuit_open_providers → provenance.degraded."""
+        health = self._tripped_health("fmp")
+        fmp = MockProvider("fmp", ["financials"])
+        yf_result = DataResult(
+            data={"revenue": 1_000_000, "period_basis": "ttm"},
+            provider="yfinance",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        yf = MockProvider("yfinance", ["financials"], result=yf_result)
+        layer = DataLayer([fmp, yf], cache, health=health)
+
+        normalized = await layer.fetch_canonical(DataType.FINANCIALS, "AAPL")
+        expected_marker = degraded_circuit_open("fmp")
+        assert expected_marker in normalized.provenance.degraded, (
+            f"Expected '{expected_marker}' in degraded={normalized.provenance.degraded}"
+        )
+        assert expected_marker.startswith(DEGRADED_CIRCUIT_OPEN_PREFIX)
 
 
 class TestClose:

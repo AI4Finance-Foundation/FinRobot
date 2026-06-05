@@ -22,6 +22,10 @@ class DataResult(BaseModel):
     # list lets fetch_canonical stamp Provenance.degraded so dcf_seed / comps can
     # programmatically down-confidence the primary's number instead of parsing prose.
     key_field_divergences: list[str] = []
+    # Providers that were in circuit-breaker cooldown and skipped for this fetch.
+    # fetch_canonical translates these to Provenance.degraded markers so research
+    # reports can surface which source was absent (parallel to key_field_divergences).
+    circuit_open_providers: list[str] = []
 
     def to_context_string(self) -> str:
         """Format data for LLM consumption. Human-readable, includes warnings."""

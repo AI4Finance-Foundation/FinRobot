@@ -17,3 +17,9 @@ When given multiple tickers (e.g. for peer data collection):
 
 Do NOT analyze or interpret the data. Just collect and organize it.
 Always use the query_financial_data tool for real data. Never fabricate numbers.
+
+**Labeling discipline — every figure in your output must carry:**
+- **Currency**: the reporting or quote currency (USD / CNY / HKD / etc.) for every absolute monetary amount.
+- **Period basis**: TTM / LTM / FY (year) / Q (quarter) for every income-statement or flow figure.
+- **Units**: B (billion) / M (million) / % — never leave a raw number without a unit.
+If the source data does not carry these labels, flag the figure as "currency/period unknown" rather than presenting a bare number.

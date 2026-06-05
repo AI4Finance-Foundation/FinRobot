@@ -181,6 +181,28 @@ class TestDegradation:
         assert "FMP" in out.source
         assert out.fiscal_period == "2026-12-31"
 
+    def test_fmp_surfaces_forward_net_income_for_market_cap_pe(self) -> None:
+        # Peer comps compute forward P/E as market_cap / forward_net_income (the
+        # CompanyFinancials peer model carries market_cap, not price/shares). The
+        # leaf must surface FY1 consensus net income so no other module reparses
+        # the FMP row. None on a row that omits it.
+        with_ni = get_forward_financials(
+            ticker="AMD",
+            yf_info=None,
+            fmp_analyst_estimates={
+                "rows": [{"date": "2026-12-31", "estimatedEpsAvg": 7.5, "estimatedNetIncomeAvg": 1.22e10}]
+            },
+            as_of=AS_OF,
+        )
+        assert with_ni.forward_net_income == 1.22e10
+        without_ni = get_forward_financials(
+            ticker="AMD",
+            yf_info=None,
+            fmp_analyst_estimates={"rows": [{"date": "2026-12-31", "estimatedEpsAvg": 7.5}]},
+            as_of=AS_OF,
+        )
+        assert without_ni.forward_net_income is None
+
     def test_fmp_real_shape_no_fcf_is_high_when_ebitda_present(self) -> None:
         # Real FMP /analyst-estimates shape: it never returns FCF, but DOES
         # return EBITDA. confidence must not be gated on the (永远缺席的) FCF,

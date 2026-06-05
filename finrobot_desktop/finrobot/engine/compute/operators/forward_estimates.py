@@ -58,6 +58,15 @@ class ForwardFinancials:
     source: str
     warnings: list[str]
     fiscal_period: str | None = None
+    forward_net_income: float | None = None
+    """FY1 consensus net income (FMP ``estimatedNetIncomeAvg``), reporting currency.
+
+    Lets a market-cap-centric consumer (the peer comps set, whose CompanyFinancials
+    carries ``market_cap`` but no price/shares) compute forward P/E as
+    ``market_cap / forward_net_income`` — algebraically the SAME caliber as the
+    target side's ``price / forward_eps`` (market_cap = price × shares,
+    forward_net_income = forward_eps × shares). None on the yfinance degraded path
+    (consensus net income unavailable there)."""
 
 
 _TTM_VOLATILITY_THRESHOLD = 0.20
@@ -178,6 +187,7 @@ def _from_fmp(
     forward_revenue = _coerce_positive_float(chosen.get("estimatedRevenueAvg"))
     forward_ebitda = _coerce_positive_float(chosen.get("estimatedEbitdaAvg"))
     forward_fcf = _coerce_positive_float(chosen.get("estimatedFreeCashFlowAvg"))
+    forward_net_income = _coerce_positive_float(chosen.get("estimatedNetIncomeAvg"))
 
     if forward_eps is None and forward_revenue is None:
         return _unavailable(ticker, "FMP 行缺关键字段 (eps/revenue)")
@@ -203,6 +213,7 @@ def _from_fmp(
         source="FMP /v3/analyst-estimates consensus",
         warnings=warnings,
         fiscal_period=fiscal_period,
+        forward_net_income=forward_net_income,
     )
 
 

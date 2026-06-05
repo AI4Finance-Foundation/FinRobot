@@ -25,6 +25,9 @@ interface ValuationAggregate {
   current_price: number | null
   methods: ValuationMethodRange[]
   warnings: string[]
+  forward_fiscal_period: string | null
+  forward_confidence: string | null
+  forward_source: string | null
 }
 
 function useValuationAggregate(ticker: string | null | undefined) {
@@ -224,7 +227,26 @@ export function ChapterValuation({
             data={footballRows}
             title={t('chapter.valuation.football.title')}
             currentPrice={aggregate?.current_price ?? undefined}
+            forwardFiscalPeriod={aggregate?.forward_fiscal_period}
           />
+          {aggregate?.forward_source && (
+            <p
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                color: 'var(--text-muted)',
+                marginTop: 8,
+                lineHeight: 1.5,
+              }}
+            >
+              {t('chapter.valuation.forwardEstimates')}: {aggregate.forward_source}
+              {aggregate.forward_confidence && (
+                <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>
+                  · {aggregate.forward_confidence}
+                </span>
+              )}
+            </p>
+          )}
         </SubChapter>
       )}
 

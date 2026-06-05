@@ -830,6 +830,10 @@ msgid "chapter.valuation.football.title"
 msgstr "DCF / 同业 / DDM / LBO 目标价区间"
 
 #. js-lingui-explicit-id
+msgid "chapter.valuation.forwardEstimates"
+msgstr "估算基础"
+
+#. js-lingui-explicit-id
 msgid "chapter.valuation.subheading.bridge"
 msgstr "DCF 价值桥（瀑布图）"
 

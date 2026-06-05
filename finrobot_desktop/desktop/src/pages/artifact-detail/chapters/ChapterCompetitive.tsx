@@ -17,7 +17,7 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
   const { t, locale } = useI18n()
   const narrative = thesis?.competitor_analysis ?? null
   const target = peers?.target
-  const peerList = peers?.peers ?? []
+  const peerList = (peers?.peers ?? []).filter((p) => !target || p.ticker !== target.ticker)
   const all = target ? [target, ...peerList] : peerList
 
   // No fitting i18n key for the NOPAT-core caliber — inline literal per the
@@ -102,7 +102,7 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
               const isTarget = i === 0 && target !== undefined
               return (
                 <tr
-                  key={c.ticker}
+                  key={`${isTarget ? 'target' : 'peer'}:${c.ticker}:${i}`}
                   style={
                     isTarget
                       ? { background: 'color-mix(in srgb, var(--accent-cyan) 6%, transparent)' }

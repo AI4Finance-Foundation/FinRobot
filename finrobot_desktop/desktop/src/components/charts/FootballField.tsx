@@ -5,6 +5,7 @@ interface ChartProps {
   data: Record<string, number | string | boolean | null>[]
   title: string
   currentPrice?: number | null
+  forwardFiscalPeriod?: string | null
 }
 
 const METHOD_LABEL: Record<string, string> = {
@@ -26,6 +27,11 @@ interface Row {
   high: number
 }
 
+function formatFiscalPeriod(period: string): string {
+  const m = period.match(/^(\d{4})/)
+  return m ? `FY${m[1]}E` : period
+}
+
 /**
  * Comps (P/E) is computed on TWO different earnings calibers depending on data
  * availability (see valuation_aggregator.py): the trailing path multiplies the
@@ -35,16 +41,17 @@ interface Row {
  * analyst unable to tell which median produced the target. We read the backend
  * `source` string to label the caliber explicitly.
  */
-function compsPeLabel(source: string | null | undefined): {
-  label: string
-  sublabel: string | null
-} {
+function compsPeLabel(
+  source: string | null | undefined,
+  forwardFiscalPeriod?: string | null,
+): { label: string; sublabel: string | null } {
   const s = (source ?? '').toLowerCase()
+  const fyTag = forwardFiscalPeriod ? ` · ${formatFiscalPeriod(forwardFiscalPeriod)}` : ''
   if (s.includes('core_pe') || s.includes('core_eps') || s.includes('核心')) {
     return { label: 'Comps (core P/E)', sublabel: 'NOPAT core · peer median' }
   }
   if (s.includes('forward')) {
-    return { label: 'Comps (P/E)', sublabel: 'forward EPS · as-reported median' }
+    return { label: 'Comps (P/E)', sublabel: `forward EPS · as-reported median${fyTag}` }
   }
   if (s.includes('trailing') || s.includes('median_pe')) {
     return { label: 'Comps (P/E)', sublabel: 'trailing · as-reported median' }
@@ -52,7 +59,9 @@ function compsPeLabel(source: string | null | undefined): {
   return { label: METHOD_LABEL.comps_pe, sublabel: null }
 }
 
-export default function FootballField({ data, title, currentPrice }: ChartProps) {
+const FORWARD_METHODS = new Set(['ev_ebitda', 'p_fcf'])
+
+export default function FootballField({ data, title, currentPrice, forwardFiscalPeriod }: ChartProps) {
   const { t } = useI18n()
   const rows: Row[] = useMemo(
     () =>
@@ -60,18 +69,22 @@ export default function FootballField({ data, title, currentPrice }: ChartProps)
         .map((d) => {
           const method = String(d.method)
           const source = typeof d.source === 'string' ? d.source : null
-          const comps = method === 'comps_pe' ? compsPeLabel(source) : null
+          const comps = method === 'comps_pe' ? compsPeLabel(source, forwardFiscalPeriod) : null
+          const fyTag =
+            FORWARD_METHODS.has(method) && forwardFiscalPeriod
+              ? `forward · ${formatFiscalPeriod(forwardFiscalPeriod)}`
+              : null
           return {
             method,
             label: comps?.label ?? METHOD_LABEL[method] ?? method.toUpperCase(),
-            sublabel: comps?.sublabel ?? null,
+            sublabel: comps?.sublabel ?? fyTag,
             low: Number(d.low),
             mid: Number(d.mid),
             high: Number(d.high),
           }
         })
         .filter((r) => Number.isFinite(r.low) && Number.isFinite(r.mid) && Number.isFinite(r.high)),
-    [data],
+    [data, forwardFiscalPeriod],
   )
 
   if (rows.length === 0) return null

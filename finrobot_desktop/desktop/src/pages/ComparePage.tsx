@@ -55,10 +55,14 @@ export function ComparePage(): React.ReactElement {
   const { t, locale } = useI18n()
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  const tickers = (params.get('tickers') ?? '')
-    .split(',')
-    .map((s) => s.trim().toUpperCase())
-    .filter(Boolean)
+  const tickers = Array.from(
+    new Set(
+      (params.get('tickers') ?? '')
+        .split(',')
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  )
 
   const { data, isLoading, isError } = useCompare(tickers, tickers.length >= 2)
 
@@ -137,11 +141,11 @@ export function ComparePage(): React.ReactElement {
               </tr>
             </thead>
             <tbody>
-              {companies.map((c) => {
+              {companies.map((c, i) => {
                 const age = dayAge(c.dcf_as_of, now)
                 const stale = age !== null && age > VINTAGE_WARN_DAYS
                 return (
-                  <tr key={c.ticker}>
+                  <tr key={`${c.ticker}:${i}`}>
                     <td style={{ ...TD, textAlign: 'left' }}>
                       <span style={{ fontWeight: 600 }}>{c.ticker}</span>
                       {c.company_name ? (

@@ -2,65 +2,55 @@
 
 /* ═══════════════════════════════════════════════════════════════
    FINROBOT DESIGN SYSTEM · COSMIC DESKTOP
-   Deep space dark + dual-rail neon (blue/purple) + cyan live signal
+   Graphite terminal dark + restrained blue/violet edge light + cyan signal
    See: project-memory/编码模式/UI-风格规范-cosmic桌面版.md (§2/§3)
-   Light theme deferred to v2.1 — dark-only here.
+   Desktop shell uses one dark theme.
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
-  /* ── Cosmic background stack ─────────────────────────────────── */
+  /* ── Graphite terminal background stack ──────────────────────── */
   --bg-void: #05050d; /* outer starfield */
-  --bg-deep: #0a0a18; /* primary surface */
-  --bg-card: #0f0f22;
-  --bg-elevated: #15152e;
-  --bg-overlay: rgba(15, 15, 34, 0.72);
+  --bg-deep: #080a10; /* primary surface */
+  --bg-card: #0d1018;
+  --bg-elevated: #121722;
+  --bg-overlay: rgba(8, 10, 16, 0.84);
 
-  /* ── Cosmic backgrounds — hex/rgba to match the brand blue/violet and
-     render identically across engines (the earlier oklch values read green
-     in some WebViews). The homepage hero is a luminous blue cockpit; every
-     other page sits on a calmer-but-clearly-cosmic shell backdrop. */
-
-  /* Homepage cockpit (strong, FinRobot.html `.app`). */
-  --cockpit-base: #0a0e20; /* blue-tinted void under the hero (lighter than --bg-void) */
-  --cockpit-glow-core: rgba(56, 120, 235, 0.42); /* luminous blue center-top glow */
-  --cockpit-glow-violet: rgba(139, 92, 246, 0.34); /* violet floor glow */
-  --cockpit-glow-corner: rgba(46, 96, 200, 0.42); /* top-left glow */
-  --cockpit-vignette: rgba(5, 6, 16, 0.62); /* edge darkening, keeps corners cosmic */
-  --cockpit-grid-line: rgba(130, 170, 235, 0.07); /* faint HUD grid line */
-  /* Translucent shell bar over the cockpit — title/status bars frost into the
-     glow instead of reading as black frames (homepage only). */
-  --cockpit-bar-bg: linear-gradient(180deg, rgba(28, 38, 72, 0.55), rgba(14, 17, 34, 0.18));
-
-  /* Universal app-shell backdrop (ALL routes). The base is a clearly-blue dark
-     NAVY (#0b1026 — reads as deep blue, NOT black) so every page is visibly
-     cosmic edge-to-edge, lifted further by blue/violet glows at top + corners.
-     It's still dark enough that the translucent content cards (--bg-card-*) keep
-     full text/number/table contrast. The homepage overrides with the cockpit. */
-  --app-shell-bg: radial-gradient(130% 80% at 50% -10%, rgba(59, 130, 246, 0.2), transparent 55%),
-    radial-gradient(85% 65% at 100% 2%, rgba(139, 92, 246, 0.18), transparent 60%),
-    radial-gradient(80% 70% at 0% 100%, rgba(59, 130, 246, 0.12), transparent 62%), #0b1026;
+  /* Universal shell backdrop copied from finrobot-graphite-terminal-demo.html:
+     graphite center for dense data, low blue/violet/cyan glow parked at edges. */
+  --cockpit-base: #06070c;
+  --cockpit-glow-core: rgba(59, 130, 246, 0.18);
+  --cockpit-glow-violet: rgba(139, 92, 246, 0.1);
+  --cockpit-glow-corner: rgba(34, 211, 238, 0.055);
+  --cockpit-vignette: rgba(5, 5, 13, 0.64);
+  --cockpit-grid-line: rgba(148, 163, 184, 0.045);
+  --cockpit-bar-bg: linear-gradient(180deg, rgba(15, 19, 30, 0.92), rgba(8, 10, 16, 0.76));
+  --app-shell-bg:
+    radial-gradient(70% 52% at 7% 4%, var(--cockpit-glow-core), transparent 58%),
+    radial-gradient(64% 48% at 96% 0%, var(--cockpit-glow-violet), transparent 60%),
+    radial-gradient(55% 45% at 50% 104%, var(--cockpit-glow-corner), transparent 68%),
+    linear-gradient(180deg, #0a0d14 0%, var(--cockpit-base) 100%);
 
   /* ── Borders (three glow tiers) ──────────────────────────────── */
-  --border-faint: rgba(139, 92, 246, 0.08);
-  --border-soft: rgba(139, 92, 246, 0.18);
-  --border-glow: rgba(59, 130, 246, 0.45);
+  --border-faint: rgba(148, 163, 184, 0.08);
+  --border-soft: rgba(148, 163, 184, 0.16);
+  --border-glow: rgba(59, 130, 246, 0.34);
 
   /* ── Dual rail brand ─────────────────────────────────────────── */
   --primary: #3b82f6;
-  --primary-soft: rgba(59, 130, 246, 0.14);
+  --primary-soft: rgba(59, 130, 246, 0.12);
   --text-on-primary: #ffffff; /* legible text on the primary/secondary gradient fill */
   --text-on-warning: #1a1207; /* dark text on an amber/warning fill */
-  --bg-input: rgba(10, 10, 24, 0.7); /* translucent input field surface (over --bg-deep) */
-  --scrim: rgba(5, 5, 13, 0.72); /* modal/overlay backdrop scrim */
+  --bg-input: rgba(13, 16, 24, 0.78); /* translucent input field surface */
+  --scrim: rgba(5, 5, 13, 0.78); /* modal/overlay backdrop scrim */
   --sheen: rgba(255, 255, 255, 0.28); /* moving highlight sweep on shimmer surfaces */
   --secondary: #8b5cf6;
-  --secondary-soft: rgba(139, 92, 246, 0.16);
-  --secondary-soft-alt: rgba(139, 92, 246, 0.06); /* gradient endpoint */
-  --secondary-hover: rgba(139, 92, 246, 0.08); /* hover wash on inert surfaces */
-  --secondary-edge: rgba(139, 92, 246, 0.3); /* dividers */
-  --secondary-strong: rgba(139, 92, 246, 0.28); /* card borders */
-  --secondary-glow: rgba(139, 92, 246, 0.4); /* text + box shadow tint */
-  --secondary-glow-soft: rgba(139, 92, 246, 0.35);
+  --secondary-soft: rgba(139, 92, 246, 0.1);
+  --secondary-soft-alt: rgba(139, 92, 246, 0.045); /* gradient endpoint */
+  --secondary-hover: rgba(148, 163, 184, 0.08); /* hover wash on inert surfaces */
+  --secondary-edge: rgba(148, 163, 184, 0.18); /* dividers */
+  --secondary-strong: rgba(139, 92, 246, 0.18); /* card borders */
+  --secondary-glow: rgba(139, 92, 246, 0.26); /* text + box shadow tint */
+  --secondary-glow-soft: rgba(139, 92, 246, 0.2);
 
   /* ── Live / accent ───────────────────────────────────────────── */
   --accent-cyan: #22d3ee;
@@ -85,25 +75,22 @@
   --neutral-soft: rgba(100, 116, 139, 0.18); /* verdict REVIEW badge bg */
   --neutral-edge: rgba(100, 116, 139, 0.55); /* verdict REVIEW badge border */
 
-  /* ── Card translucency stack (inert surfaces over cosmic gradient).
-     Three discrete steps — 0.3 / 0.5 / 0.6 — chosen empirically to land
-     readably on the starfield background without bumping the next layer
-     up. Use the lowest step that still reads as a surface. */
-  --bg-card-faint: rgba(15, 15, 34, 0.3);
-  --bg-card-overlay: rgba(15, 15, 34, 0.4);
-  --bg-card-translucent: rgba(15, 15, 34, 0.5);
-  --bg-card-deep: rgba(15, 15, 34, 0.6);
+  /* ── Card translucency stack (inert surfaces over graphite shell). */
+  --bg-card-faint: rgba(13, 16, 24, 0.48);
+  --bg-card-overlay: rgba(13, 16, 24, 0.64);
+  --bg-card-translucent: rgba(13, 16, 24, 0.76);
+  --bg-card-deep: rgba(13, 16, 24, 0.86);
 
-  /* Reusable cosmic card gradient — wraps the secondary halo over a
+  /* Reusable graphite card gradient — wraps a faint blue rail over the
      translucent card surface. Used by AIZone/HotState cards so all three
      siblings track one source of truth. */
   --gradient-card-cosmic: linear-gradient(
     160deg,
-    var(--secondary-soft-alt),
+    rgba(59, 130, 246, 0.055),
     var(--bg-card-overlay)
   );
   /* Top fade strip behind the ticker hero header — bg-card → transparent. */
-  --gradient-hero-strip: linear-gradient(180deg, rgba(15, 15, 34, 0.4) 0%, transparent 100%);
+  --gradient-hero-strip: linear-gradient(180deg, rgba(13, 16, 24, 0.68) 0%, transparent 100%);
 
   /* ── Amber accent (HOLD verdict + market-data zone headers).
      Distinct from --warning (which is the deeper #D97706 used for actual
@@ -125,26 +112,26 @@
     238,
     0.12
   ); /* cyan 0.12 — live/fresh pill + active-filter fill */
-  --bg-card-50: rgba(15, 15, 34, 0.5); /* bg-card at 50% — list-item / chip overlay */
+  --bg-card-50: rgba(13, 16, 24, 0.5); /* bg-card at 50% — list-item / chip overlay */
 
   /* ── Translucent backgrounds for sticky bars (titlebar / report
      toolbar / status bar / overlays). Same hue as --bg-deep with the
      blur layer behind it, varied by opacity for the surface stack. */
-  --bg-sticky-78: rgba(10, 10, 24, 0.78);
-  --bg-sticky-88: rgba(10, 10, 24, 0.88);
-  --bg-sticky-92: rgba(10, 10, 24, 0.92);
+  --bg-sticky-78: rgba(8, 10, 16, 0.84);
+  --bg-sticky-88: rgba(8, 10, 16, 0.9);
+  --bg-sticky-92: rgba(8, 10, 16, 0.94);
 
   /* ── Text four-step ──────────────────────────────────────────── */
   --text-primary: #f5f5ff;
   --text-secondary: rgba(245, 245, 255, 0.72);
-  --text-muted: rgba(245, 245, 255, 0.42);
-  --text-dim: rgba(245, 245, 255, 0.22);
+  --text-muted: rgba(245, 245, 255, 0.46);
+  --text-dim: rgba(245, 245, 255, 0.24);
 
   /* ── Neon glow halos (only for key data + signal feedback) ──── */
-  --glow-blue: 0 0 24px rgba(59, 130, 246, 0.5), 0 0 60px rgba(59, 130, 246, 0.18);
-  --glow-purple: 0 0 24px rgba(139, 92, 246, 0.5), 0 0 60px rgba(139, 92, 246, 0.18);
-  --glow-cyan: 0 0 20px rgba(34, 211, 238, 0.5);
-  --glow-blue-soft: 0 0 18px rgba(59, 130, 246, 0.3); /* subtle ticker glyph glow */
+  --glow-blue: 0 0 18px rgba(59, 130, 246, 0.35), 0 0 48px rgba(59, 130, 246, 0.1);
+  --glow-purple: 0 0 18px rgba(139, 92, 246, 0.28), 0 0 42px rgba(139, 92, 246, 0.08);
+  --glow-cyan: 0 0 18px rgba(34, 211, 238, 0.35);
+  --glow-blue-soft: 0 0 14px rgba(59, 130, 246, 0.22); /* subtle ticker glyph glow */
 
   /* ── Radius four-step ────────────────────────────────────────── */
   --radius-sm: 8px;
@@ -167,10 +154,10 @@
      Space Grotesk + IBM Plex Sans are Latin faces; the app is zh/en bilingual,
      so every stack ends in a system CJK fallback (PingFang SC / Microsoft
      YaHei) — Latin glyphs render in the brand face, CJK in the OS font. */
-  --font-display: 'Space Grotesk', system-ui, -apple-system, 'PingFang SC',
-    'Microsoft YaHei', sans-serif; /* section title / badge */
-  --font-body: 'IBM Plex Sans', system-ui, -apple-system, 'PingFang SC',
-    'Microsoft YaHei', sans-serif;
+  --font-display:
+    'Space Grotesk', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; /* section title / badge */
+  --font-body:
+    'IBM Plex Sans', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace; /* every number, ever */
   --font-ui: var(--font-body);
   --font-sans: var(--font-body);
@@ -188,7 +175,7 @@
   --statusbar-h: 28px;
   --tabs-h: 38px;
   --breadcrumb-h: 32px;
-  --sidebar-bg: var(--bg-void);
+  --sidebar-bg: var(--bg-sticky-88);
 
   /* ──────────────────────────────────────────────────────────────
      Legacy-token compatibility aliases (the 3500-line of existing
@@ -200,13 +187,13 @@
   --bg-1: var(--bg-deep);
   --bg-2: var(--bg-card);
   --bg-3: var(--bg-elevated);
-  --bg-4: #1c1c3a;
+  --bg-4: #171c2a;
 
   --border: var(--border-soft);
   --border-subtle: var(--border-faint);
   --border-hover: var(--border-glow);
   /* Neutral white hairline for data grids (KvGrid cell dividers) — distinct
-     from the purple --border-* family, which would tint the gridlines. */
+     from the glow border family, which would tint the gridlines. */
   --border-grid: rgba(255, 255, 255, 0.08);
 
   --text-0: var(--text-primary);
@@ -216,8 +203,8 @@
 
   --accent: var(--primary);
   --accent-dim: var(--primary-soft);
-  --accent-glow: rgba(59, 130, 246, 0.06);
-  --accent-hover: #5a9bff;
+  --accent-glow: rgba(59, 130, 246, 0.12);
+  --accent-hover: #66a3ff;
 
   --positive: var(--success);
   --positive-bg: rgba(22, 163, 74, 0.12);
@@ -240,11 +227,11 @@
   --chart-forecast-ebitda: rgba(34, 211, 238, 0.32);
   /* Component surfaces that were inlined as dark literals (cosmic spec bans
      hardcoded hex). Tokenized so @media print flips them light. */
-  --table-surface: rgba(15, 15, 34, 0.4); /* KvGrid / data-table backdrop */
-  --ff-label-bg: rgba(0, 0, 0, 0.4); /* FootballField current-price pill */
+  --table-surface: rgba(13, 16, 24, 0.64); /* KvGrid / data-table backdrop */
+  --ff-label-bg: rgba(5, 5, 13, 0.64); /* FootballField current-price pill */
 
-  --base: var(--bg-void);
-  --surface: var(--bg-deep);
+  --base: var(--bg-deep);
+  --surface: var(--bg-card);
   --elevated: var(--bg-card);
   --line: var(--border-soft);
   --line-bright: var(--border-glow);
@@ -3711,7 +3698,7 @@ select.settings-input {
 }
 
 /* ═══════════════════════════════════════════════
-   REFACTOR v2 — IDE Shell Layout
+   DESKTOP SHELL — IDE Layout
    Phase 1: static 5-zone skeleton matching finrobot.html prototype.
    All colours use --bg-X / --text-X / --accent / --line tokens (set in :root above).
    DO NOT add hex values here.
@@ -3722,11 +3709,43 @@ select.settings-input {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  /* Universal cosmic backdrop on every route (fixed behind the scrolling
-     content). The homepage adds `cockpit-bg` to override with the strong
-     cockpit; other routes keep this calm-but-cosmic base. */
+  position: relative;
+  isolation: isolate;
+  /* Universal graphite backdrop on every route (fixed behind the scrolling
+     content). The homepage adds the lighter HUD grid; content pages keep the
+     center dark for dense tables, cards, and report text. */
   background: var(--app-shell-bg);
   overflow: hidden;
+}
+.app-shell:not(.cockpit-shell)::before {
+  content: '';
+  position: fixed;
+  inset: var(--titlebar-h) 0 var(--statusbar-h) 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.32;
+  background-image:
+    linear-gradient(var(--border-faint) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-faint) 1px, transparent 1px),
+    radial-gradient(circle, var(--text-dim) 1px, transparent 1.3px);
+  background-size:
+    88px 88px,
+    88px 88px,
+    210px 150px;
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    transparent,
+    var(--text-primary) 12%,
+    var(--text-primary) 86%,
+    transparent
+  );
+  mask-image: linear-gradient(
+    180deg,
+    transparent,
+    var(--text-primary) 12%,
+    var(--text-primary) 86%,
+    transparent
+  );
 }
 
 /* App body: fills the vertical space between TitleBar and StatusBar */
@@ -3736,6 +3755,8 @@ select.settings-input {
   overflow: hidden;
   margin-top: 0;
   height: calc(100vh - var(--titlebar-h) - var(--statusbar-h));
+  position: relative;
+  z-index: 1;
 }
 
 .main-content {
@@ -3752,14 +3773,16 @@ select.settings-input {
 /* ── Title bar ── */
 .titlebar {
   height: var(--titlebar-h);
-  background: var(--sidebar-bg);
-  border-bottom: 1px solid var(--border);
+  background: var(--cockpit-bar-bg);
+  border-bottom: 1px solid var(--border-faint);
   display: flex;
   align-items: center;
   user-select: none;
   flex-shrink: 0;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  position: relative;
+  z-index: 80;
 }
 
 .tb-btn {
@@ -3776,7 +3799,7 @@ select.settings-input {
   transition: all 0.2s;
 }
 .tb-btn:hover {
-  background: var(--bg-3);
+  background: var(--secondary-hover);
   color: var(--text-0);
 }
 .tb-btn.active {
@@ -4209,12 +4232,14 @@ select.settings-input {
 
 .statusbar {
   height: var(--statusbar-h);
-  /* Translucent on every route — frosts into the cosmic backdrop like the
-     titlebar, so there's no solid dark bar at the bottom. */
+  /* Translucent on every route: titlebar and statusbar share the graphite
+     terminal glass from the demo. */
   background: var(--cockpit-bar-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid var(--border-faint);
+  position: relative;
+  z-index: 80;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4578,14 +4603,18 @@ select.settings-input {
 }
 
 /* ═══════════════════════════════════════════════
-   AI PANEL — Phase 4 (琥珀风格, 420px)
+   AI PANEL — Graphite terminal glass, 420px
    All classes 1:1 from finrobot.html prototype.
    ═══════════════════════════════════════════════ */
 
 .ai-panel {
   width: 0;
-  background: var(--base);
-  border-left: 1px solid var(--border);
+  background:
+    radial-gradient(86% 54% at 100% 0%, var(--primary-soft), transparent 72%),
+    linear-gradient(180deg, var(--bg-sticky-92), var(--bg-card-deep));
+  border-left: 1px solid var(--border-faint);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -4601,6 +4630,7 @@ select.settings-input {
 .ai-panel.open {
   width: var(--aipanel-w, 420px);
   opacity: 1;
+  border-left-color: var(--border-soft);
 }
 
 /* Floating expand button — visible when panel is collapsed */
@@ -4616,8 +4646,8 @@ select.settings-input {
   align-items: center;
   justify-content: center;
   gap: 3px;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
+  background: var(--bg-card-deep);
+  border: 1px solid var(--border-faint);
   border-right: none;
   border-radius: 6px 0 0 6px;
   cursor: pointer;
@@ -4637,8 +4667,8 @@ select.settings-input {
     border-color 0.15s;
 }
 .ai-panel-expand-btn:hover {
-  background: var(--bg-3);
-  border-color: var(--accent);
+  background: var(--bg-elevated);
+  border-color: var(--border-glow);
 }
 .ai-panel-expand-btn .expand-icon {
   font-size: 12px;
@@ -4679,7 +4709,7 @@ select.settings-input {
   gap: 5px;
   padding: 6px 12px 4px;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border-faint);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -4689,7 +4719,7 @@ select.settings-input {
 .ai-chip {
   font-family: var(--font-mono);
   font-size: 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-faint);
   border-radius: 3px;
   padding: 3px 8px;
   color: var(--text-muted, var(--text-3));
@@ -4710,7 +4740,7 @@ select.settings-input {
 
 .ai-header {
   padding: 12px 14px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border-faint);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -4740,7 +4770,7 @@ select.settings-input {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-secondary);
-  background: var(--elevated);
+  background: var(--bg-card-translucent);
   padding: 4px 8px;
   border-radius: var(--r-sm);
   letter-spacing: 0.03em;
@@ -4937,7 +4967,7 @@ select.settings-input {
   max-width: 92%;
 }
 .msg.agent .msg-body {
-  background: var(--surface);
+  background: var(--bg-card-overlay);
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
   padding: 10px 12px;
@@ -5000,14 +5030,14 @@ select.settings-input {
 
 /* AI 输入区 */
 .ai-input-wrap {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-faint);
   padding: 12px;
   flex-shrink: 0;
-  background: var(--base);
+  background: var(--bg-sticky-92);
 }
 .ai-input-box {
-  background: var(--base);
-  border: 1px solid var(--border);
+  background: var(--bg-card-overlay);
+  border: 1px solid var(--border-faint);
   border-radius: var(--r-md);
   transition: border-color 0.15s;
   box-shadow: var(--shadow-sm);
@@ -5414,6 +5444,7 @@ select.settings-input {
     500px 500px,
     800px 800px,
     700px 700px;
+  opacity: 0.2;
   animation: cosmic-drift-slow 180s linear infinite;
 }
 .cosmic-stars.cosmic-stars-fast {
@@ -5425,6 +5456,7 @@ select.settings-input {
     480px 480px,
     600px 600px,
     520px 520px;
+  opacity: 0.14;
   animation: cosmic-drift-fast 120s linear infinite reverse;
 }
 body.app-bg .cosmic-stars,
@@ -5451,7 +5483,7 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
    `.cosmic-card.cosmic-card-glass`. */
 .cosmic-card {
   position: relative;
-  background: rgba(15, 15, 34, 0.92);
+  background: var(--bg-card-deep);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-lg);
   padding: 24px;
@@ -5460,7 +5492,7 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
     box-shadow 0.2s;
 }
 .cosmic-card.cosmic-card-glass {
-  background: rgba(15, 15, 34, 0.6);
+  background: var(--bg-card-overlay);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -5472,8 +5504,8 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(59, 130, 246, 0.6),
-    rgba(139, 92, 246, 0.6),
+    var(--border-glow),
+    var(--secondary-strong),
     transparent
   );
   opacity: 0.55;
@@ -5482,7 +5514,7 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
 }
 .cosmic-card:hover {
   border-color: var(--border-glow);
-  box-shadow: 0 8px 32px rgba(59, 130, 246, 0.12);
+  box-shadow: 0 8px 32px var(--accent-glow);
 }
 
 /* ── Big BUY/HOLD/SELL verdict badge ──────────────────────────── */
@@ -5740,39 +5772,37 @@ body.cursor-trail-on * {
    a capability dock docked at the bottom. Tokens only.
    ═══════════════════════════════════════════════════════════════ */
 
-/* Cockpit background — the luminous blue cockpit, NOT near-black (design
-   `.app` + `.app::after` + `.ambient .grid`). Applied to the homepage hero
-   section only; other pages keep the darker --bg-void base. */
+/* Cockpit background — same graphite terminal base with extra HUD chrome on the
+   research homepage (grid ::before, vignette ::after, drifting motes). */
 .cockpit-bg {
-  background:
-    radial-gradient(125% 95% at 50% 30%, var(--cockpit-glow-core), transparent 58%),
-    radial-gradient(70% 55% at 50% 116%, var(--cockpit-glow-violet), transparent 70%),
-    radial-gradient(60% 50% at 6% 2%, var(--cockpit-glow-corner), transparent 60%),
-    var(--cockpit-base);
+  background: var(--app-shell-bg);
 }
-/* HUD grid, masked to fade at the edges. Negative z-index so it sits behind
-   the (non-positioned) shell content but above the element's base glow. */
+/* HUD grid, masked to fade at the edges. */
 .cockpit-bg::before {
   content: '';
   position: absolute;
   inset: 0;
-  z-index: -2;
+  z-index: 0;
   pointer-events: none;
   background-image:
     linear-gradient(var(--cockpit-grid-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--cockpit-grid-line) 1px, transparent 1px);
   background-size: 46px 46px;
-  -webkit-mask-image: radial-gradient(120% 90% at 50% 38%, #000 30%, transparent 78%);
-  mask-image: radial-gradient(120% 90% at 50% 38%, #000 30%, transparent 78%);
+  -webkit-mask-image: radial-gradient(
+    120% 90% at 50% 38%,
+    var(--text-primary) 30%,
+    transparent 78%
+  );
+  mask-image: radial-gradient(120% 90% at 50% 38%, var(--text-primary) 30%, transparent 78%);
 }
 /* Edge vignette keeps the corners cosmic-dark. */
 .cockpit-bg::after {
   content: '';
   position: absolute;
   inset: 0;
-  z-index: -1;
+  z-index: 0;
   pointer-events: none;
-  background: radial-gradient(125% 108% at 50% 40%, transparent 56%, var(--cockpit-vignette) 100%);
+  background: radial-gradient(140% 125% at 50% 38%, transparent 80%, var(--cockpit-vignette) 100%);
 }
 
 /* Cockpit applied at the SHELL level (homepage only) so the luminous bg sits
@@ -5941,18 +5971,584 @@ body.cursor-trail-on * {
   opacity: 0.7;
 }
 
-/* ── Coverage Desk hover affordances (UX-011) ────────────────────────────
-   The Coverage cards / buttons are inline-styled, so they can't express
-   :hover from their own style object. These rules add the missing hover
-   feedback. Tokens only. Transition timing is collapsed by the reduced-motion
-   block below. */
-[data-testid^='coverage-card'] {
+/* ── Coverage Desk card surface (研究库) ──────────────────────────────────
+   Border / background / elevation / the spec-mandated top accent glow line and
+   the hover lift live here, NOT inline: a style object can express none of
+   :hover, ::before, or layered shadows, and the card's old inline
+   `boxShadow:'none'` silently overrode any stylesheet shadow — which is why the
+   wall read flat. Tokens only. Motion is collapsed by the reduced-motion block
+   below. */
+.coverage-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 20px;
+  min-height: 304px;
+  padding: 24px;
+  box-sizing: border-box;
+  cursor: pointer;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(120% 82% at 18% 0%, var(--border-faint), transparent 68%),
+    linear-gradient(155deg, var(--bg-card-deep), var(--bg-card-overlay) 58%, var(--bg-card-faint));
+  box-shadow:
+    0 1px 2px var(--scrim),
+    0 18px 42px var(--bg-overlay);
   transition:
-    border-color 0.16s ease,
-    box-shadow 0.16s ease;
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
 }
-[data-testid^='coverage-card']:hover {
+.coverage-card--compact {
+  gap: 16px;
+  min-height: 248px;
+  padding: 16px;
+}
+/* Top 1px gradient glow line (cosmic spec §6.1 「顶部渐变发光线 必加」). Inset
+   from the rounded corners so it never pokes past the radius. */
+.coverage-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 18px auto 18px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-glow), transparent);
+  opacity: 0.55;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+}
+.coverage-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, var(--border-faint), transparent 32%),
+    radial-gradient(70% 54% at 100% 100%, var(--primary-soft), transparent 68%);
+  opacity: 0.52;
+}
+.coverage-card > * {
+  position: relative;
+  z-index: 1;
+}
+.coverage-card:hover,
+.coverage-card:focus-visible {
   border-color: var(--border-glow);
+  box-shadow:
+    0 22px 54px var(--accent-glow),
+    0 2px 10px var(--scrim);
+  transform: translateY(-2px);
+}
+.coverage-card:hover::before,
+.coverage-card:focus-visible::before {
+  opacity: 1;
+}
+/* Attention edge — a name flagged by coveragePriority. Amber rail + amber top
+   line, lifting to a warm glow on hover. */
+.coverage-card[data-warn='true'] {
+  border-color: var(--border-amber-soft);
+}
+.coverage-card[data-warn='true']::before {
+  background: linear-gradient(90deg, transparent, var(--warning), transparent);
+}
+.coverage-card[data-warn='true']:hover,
+.coverage-card[data-warn='true']:focus-visible {
+  border-color: var(--accent-amber);
+  box-shadow:
+    0 12px 34px var(--warning-glow),
+    0 2px 10px var(--scrim);
+}
+
+.coverage-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+}
+.coverage-card__identity {
+  min-width: 0;
+}
+.coverage-card__ticker {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: 0;
+  color: var(--text-primary);
+}
+.coverage-card--compact .coverage-card__ticker {
+  font-size: 26px;
+}
+.coverage-card__company {
+  margin-top: 8px;
+  max-width: 230px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coverage-card__verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+.coverage-card__verdict-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  box-shadow: 0 0 10px currentColor;
+}
+.coverage-card__market {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+  padding: 14px 0 2px;
+  border-top: 1px solid var(--border-faint);
+}
+.coverage-card__price-block {
+  position: relative;
+  min-width: 0;
+  padding-left: 14px;
+}
+.coverage-card__price-block::before {
+  content: '';
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: 0;
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(180deg, var(--accent-amber), var(--warning-soft));
+  box-shadow: 0 0 14px var(--warning-glow);
+}
+.coverage-card__price {
+  color: var(--accent-amber);
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  text-shadow: 0 0 18px var(--warning-glow);
+  font-variant-numeric: tabular-nums;
+}
+.coverage-card--compact .coverage-card__price {
+  font-size: 23px;
+}
+.coverage-card__change {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.coverage-card__provider {
+  flex: none;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+.coverage-card__metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-self: stretch;
+  column-gap: 26px;
+  row-gap: 16px;
+  padding: 18px 0;
+  border-top: 1px solid var(--border-faint);
+  border-bottom: 1px solid var(--border-faint);
+}
+.coverage-card--compact .coverage-card__metrics {
+  column-gap: 16px;
+  row-gap: 10px;
+  padding: 12px 0;
+}
+.coverage-card__metric {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.coverage-card__metric-label {
+  display: block;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 10px;
+  line-height: 1.1;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coverage-card__metric-value {
+  display: block;
+  margin-top: 6px;
+  overflow: hidden;
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.coverage-card__metric-value > .coverage-source-number {
+  text-shadow: 0 0 12px var(--accent-cyan-glow-soft);
+}
+.coverage-card__metric-value > span[style] > .coverage-source-number {
+  text-shadow: 0 0 12px currentColor;
+}
+.coverage-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+.coverage-card__status {
+  flex: none;
+  max-width: 48%;
+  overflow: hidden;
+  padding: 5px 9px;
+  border: 1px solid;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coverage-card__status--ok {
+  color: var(--accent-cyan);
+  background: var(--accent-cyan-soft);
+  border-color: var(--border-cyan-soft);
+}
+.coverage-card__status--warn {
+  color: var(--accent-amber);
+  background: var(--warning-soft);
+  border-color: var(--border-amber-soft);
+}
+.coverage-card__report {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coverage-source-number > span:first-child {
+  border-bottom: 0 !important;
+}
+
+/* Report detail version diff — conclusion-move terminal card. */
+.version-diff-card {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(
+      110% 80% at 0% 0%,
+      color-mix(in srgb, var(--primary) 11%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      80% 80% at 100% 100%,
+      color-mix(in srgb, var(--secondary) 8%, transparent),
+      transparent 62%
+    ),
+    linear-gradient(155deg, var(--bg-card-deep), var(--bg-card-overlay) 62%, var(--bg-card-faint));
+  box-shadow:
+    0 1px 2px var(--scrim),
+    0 20px 52px var(--bg-overlay);
+}
+.version-diff-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 22px auto 22px;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--accent-cyan),
+    var(--accent-amber),
+    transparent
+  );
+  opacity: 0.72;
+}
+.version-diff-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(135deg, var(--border-faint), transparent 34%);
+  opacity: 0.64;
+}
+.version-diff-card > * {
+  position: relative;
+  z-index: 1;
+}
+.version-diff-card__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border-faint);
+  background: linear-gradient(180deg, var(--bg-card-translucent), transparent);
+}
+.version-diff-card__eyebrow {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+.version-diff-card__select {
+  max-width: 320px;
+  padding: 6px 12px;
+  color: var(--text-primary);
+  background: var(--bg-input);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.2;
+}
+.version-diff-card__select:focus-visible {
+  outline: 2px solid var(--border-glow);
+  outline-offset: 2px;
+}
+.version-diff-card__body {
+  padding: 24px;
+}
+.version-diff-card__state {
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+}
+.version-diff-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 28px;
+  row-gap: 24px;
+}
+.version-diff-metric {
+  min-width: 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--border-faint);
+}
+.version-diff-metric--target_price {
+  border-left-color: var(--accent-amber);
+}
+.version-diff-metric--recommendation,
+.version-diff-metric--rating {
+  border-left-color: var(--danger);
+}
+.version-diff-metric--current_price,
+.version-diff-metric--dcf_fair_value,
+.version-diff-metric--implied_price {
+  border-left-color: var(--accent-cyan);
+}
+.version-diff-metric--upside {
+  border-left-color: var(--danger);
+}
+.version-diff-rail--target {
+  border-left-color: var(--accent-amber);
+}
+.version-diff-rail--market,
+.version-diff-rail--fair {
+  border-left-color: var(--accent-cyan);
+}
+.version-diff-rail--positive {
+  border-left-color: var(--success);
+}
+.version-diff-rail--negative {
+  border-left-color: var(--danger);
+}
+.version-diff-rail--muted {
+  border-left-color: var(--border-faint);
+}
+.version-diff-metric__label {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.version-diff-metric__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 17px;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.version-diff-metric__old,
+.version-diff-metric__arrow {
+  color: var(--text-muted);
+}
+.version-diff-metric__new {
+  font-size: 20px;
+  font-weight: 700;
+}
+.version-diff-metric--target_price .version-diff-metric__new {
+  font-size: 24px;
+}
+.version-diff-metric__pct {
+  font-size: 13px;
+  font-weight: 700;
+}
+.version-diff-tone--target {
+  color: var(--accent-amber);
+  text-shadow: 0 0 16px var(--warning-glow);
+}
+.version-diff-tone--market,
+.version-diff-tone--fair {
+  color: var(--accent-cyan);
+  text-shadow: 0 0 14px var(--accent-cyan-glow-soft);
+}
+.version-diff-tone--positive {
+  color: var(--success);
+  text-shadow: 0 0 14px var(--success-glow-soft);
+}
+.version-diff-tone--negative {
+  color: var(--danger);
+  text-shadow: 0 0 14px var(--danger-glow-soft);
+}
+.version-diff-tone--neutral {
+  color: var(--text-secondary);
+}
+.version-diff-tone--muted {
+  color: var(--text-muted);
+}
+.version-diff-card__summary {
+  margin-top: 22px;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.version-diff-card__warning {
+  margin-top: 14px;
+  color: var(--accent-amber);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.version-diff-card__expand {
+  margin-top: 22px;
+  padding: 0;
+  color: var(--primary);
+  background: none;
+  border: 0;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.version-diff-card__expand:hover,
+.version-diff-card__expand:focus-visible {
+  color: var(--accent-cyan);
+}
+.version-diff-detail {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-faint);
+}
+.version-diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 13px;
+}
+.version-diff-table th {
+  padding: 7px 8px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: uppercase;
+}
+.version-diff-table td {
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--border-faint);
+}
+.version-diff-table__num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.version-diff-table__tag {
+  margin-left: 6px;
+  padding: 1px 5px;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.version-diff-table__note {
+  margin-left: 6px;
+  color: var(--accent-amber);
+  font-size: 11px;
+}
+.version-diff-footnote {
+  margin-top: 14px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 /* Coverage hover buttons: subtle border + text lift on hover. No boxShadow. */

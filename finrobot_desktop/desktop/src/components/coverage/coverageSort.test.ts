@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { sortCoverageRows, nextSort, defaultDir } from './coverageSort'
+import { sortCoverageRows } from './coverageSort'
 import type { CoverageRow } from '../../api/coverage'
 
 function row(over: Partial<CoverageRow>): CoverageRow {
@@ -131,27 +131,5 @@ describe('derived sort keys', () => {
     expect(
       sortCoverageRows(rows, { key: 'latest_report', dir: 'desc' }).map((r) => r.ticker),
     ).toEqual(['NEW', 'OLD', 'NONE'])
-  })
-})
-
-describe('nextSort / defaultDir', () => {
-  it('tickers default ascending, numbers default descending', () => {
-    expect(defaultDir('ticker')).toBe('asc')
-    expect(defaultDir('pe')).toBe('desc')
-  })
-
-  it('needs_action and latest_report default descending (most urgent / newest first)', () => {
-    expect(defaultDir('needs_action')).toBe('desc')
-    expect(defaultDir('latest_report')).toBe('desc')
-  })
-
-  it('jumps to a new column at its natural direction', () => {
-    expect(nextSort(null, 'pe')).toEqual({ key: 'pe', dir: 'desc' })
-    expect(nextSort({ key: 'pe', dir: 'desc' }, 'ticker')).toEqual({ key: 'ticker', dir: 'asc' })
-  })
-
-  it('toggles direction when clicking the active column', () => {
-    expect(nextSort({ key: 'pe', dir: 'desc' }, 'pe')).toEqual({ key: 'pe', dir: 'asc' })
-    expect(nextSort({ key: 'pe', dir: 'asc' }, 'pe')).toEqual({ key: 'pe', dir: 'desc' })
   })
 })

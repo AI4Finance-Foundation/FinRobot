@@ -135,16 +135,61 @@ const CHROME = {
   },
 } as const
 
-function sentimentColor(s: Sentiment): string {
-  if (s === 'positive') return 'var(--positive)'
-  if (s === 'negative') return 'var(--negative)'
-  return 'var(--text-secondary)'
-}
-
 function arrow(d: Direction): string {
   if (d === 'up') return '▲'
   if (d === 'down') return '▼'
   return '→'
+}
+
+function sentimentToneClass(s: Sentiment): string {
+  if (s === 'positive') return 'version-diff-tone--positive'
+  if (s === 'negative') return 'version-diff-tone--negative'
+  return 'version-diff-tone--neutral'
+}
+
+function directionToneClass(d: Direction): string {
+  if (d === 'up' || d === 'added') return 'version-diff-tone--positive'
+  if (d === 'down' || d === 'removed') return 'version-diff-tone--negative'
+  return 'version-diff-tone--muted'
+}
+
+function verdictToneClass(value: string): string {
+  const v = value.toUpperCase()
+  if (v.includes('BUY')) return 'version-diff-tone--positive'
+  if (v.includes('SELL')) return 'version-diff-tone--negative'
+  if (v.includes('HOLD')) return 'version-diff-tone--target'
+  return 'version-diff-tone--neutral'
+}
+
+function verdictRailClass(value: string): string {
+  const v = value.toUpperCase()
+  if (v.includes('BUY')) return 'version-diff-rail--positive'
+  if (v.includes('SELL')) return 'version-diff-rail--negative'
+  if (v.includes('HOLD')) return 'version-diff-rail--target'
+  return 'version-diff-rail--muted'
+}
+
+function directionRailClass(d: Direction): string {
+  if (d === 'up' || d === 'added') return 'version-diff-rail--positive'
+  if (d === 'down' || d === 'removed') return 'version-diff-rail--negative'
+  return 'version-diff-rail--muted'
+}
+
+function metricToneClass(it: DeltaItem): string {
+  if (it.key === 'rating' || it.key === 'recommendation') return verdictToneClass(it.formatted_new)
+  if (it.key === 'target_price') return 'version-diff-tone--target'
+  if (it.key === 'current_price') return 'version-diff-tone--market'
+  if (it.key === 'dcf_fair_value' || it.key === 'implied_price') return 'version-diff-tone--fair'
+  return sentimentToneClass(it.sentiment)
+}
+
+function metricRailClass(it: DeltaItem): string {
+  if (it.key === 'rating' || it.key === 'recommendation') return verdictRailClass(it.formatted_new)
+  if (it.key === 'target_price') return 'version-diff-rail--target'
+  if (it.key === 'current_price' || it.key === 'dcf_fair_value' || it.key === 'implied_price') {
+    return 'version-diff-rail--market'
+  }
+  return directionRailClass(it.direction)
 }
 
 export interface VersionDiffBannerProps {
@@ -238,49 +283,14 @@ export function VersionDiffBanner({
     locale === 'zh' ? it.label_zh : it.label_en
 
   return (
-    <div
-      data-testid="version-diff-banner"
-      style={{
-        marginBottom: 20,
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--r-md, 10px)',
-        background: 'var(--surface)',
-        overflow: 'hidden',
-      }}
-    >
+    <div data-testid="version-diff-banner" className="version-diff-card">
       {/* Header: heading + base selector */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          padding: '10px 14px',
-          borderBottom: '1px solid var(--border-subtle, var(--border))',
-        }}
-      >
-        <span
-          style={{
-            fontSize: '0.7rem',
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-            color: 'var(--text-muted)',
-          }}
-        >
-          {c.base}
-        </span>
+      <div className="version-diff-card__header">
+        <span className="version-diff-card__eyebrow">{c.base}</span>
         <select
+          className="version-diff-card__select"
           value={effectiveBaseId ?? ''}
           onChange={(e) => setBaseId(e.target.value)}
-          style={{
-            background: 'var(--elevated, var(--surface))',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--r-sm, 6px)',
-            padding: '3px 8px',
-            fontSize: '0.8rem',
-            maxWidth: 280,
-          }}
         >
           {candidates.map((a) => (
             <option key={a.id} value={a.id}>
@@ -293,16 +303,14 @@ export function VersionDiffBanner({
         </select>
       </div>
 
-      <div style={{ padding: '12px 14px' }}>
-        {isLoading && (
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{c.loading}</div>
-        )}
+      <div className="version-diff-card__body">
+        {isLoading && <div className="version-diff-card__state">{c.loading}</div>}
         {error && (
-          <div style={{ color: 'var(--negative)', fontSize: '0.85rem' }}>{c.loadError}</div>
+          <div className="version-diff-card__state version-diff-tone--negative">{c.loadError}</div>
         )}
 
         {data && data.identical && (
-          <div style={{ color: 'var(--positive)', fontWeight: 600, fontSize: '0.9rem' }}>
+          <div className="version-diff-card__state version-diff-tone--positive">
             ✓ {c.identical}
           </div>
         )}
@@ -310,36 +318,24 @@ export function VersionDiffBanner({
         {data && !data.identical && (
           <>
             {/* A-section: conclusion chips */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-end' }}>
+            <div className="version-diff-metrics">
               {data.conclusion.map((it) => (
-                <div key={it.key} style={{ minWidth: 96 }}>
-                  <div
-                    style={{
-                      fontSize: '0.68rem',
-                      color: 'var(--text-muted)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.04em',
-                      marginBottom: 3,
-                    }}
-                  >
-                    {label_(it)}
-                  </div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: it.key === 'target_price' ? '1.05rem' : '0.92rem',
-                    }}
-                  >
-                    <span style={{ color: 'var(--text-muted)' }}>{it.formatted_old}</span>
-                    <span style={{ color: 'var(--text-muted)' }}>{arrow(it.direction)}</span>
-                    <span style={{ color: sentimentColor(it.sentiment), fontWeight: 600 }}>
+                <div
+                  key={it.key}
+                  className={`version-diff-metric version-diff-metric--${it.key} ${metricRailClass(it)}`}
+                  data-key={it.key}
+                >
+                  <div className="version-diff-metric__label">{label_(it)}</div>
+                  <div className="version-diff-metric__row">
+                    <span className="version-diff-metric__old">{it.formatted_old}</span>
+                    <span className="version-diff-metric__arrow">{arrow(it.direction)}</span>
+                    <span className={`version-diff-metric__new ${metricToneClass(it)}`}>
                       {it.formatted_new}
                     </span>
                     {it.formatted_pct_change !== null && (
-                      <span style={{ color: sentimentColor(it.sentiment), fontSize: '0.78rem' }}>
+                      <span
+                        className={`version-diff-metric__pct ${directionToneClass(it.direction)}`}
+                      >
                         ({it.formatted_pct_change})
                       </span>
                     )}
@@ -350,62 +346,39 @@ export function VersionDiffBanner({
 
             {/* Attribution one-liner */}
             {data.attribution.available && data.attribution.summary_zh && (
-              <div style={{ marginTop: 12, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              <div className="version-diff-card__summary">
                 {locale === 'zh' ? data.attribution.summary_zh : data.attribution.summary_en}
               </div>
             )}
             {!data.attribution.available && data.attribution.disabled_reason && (
-              <div style={{ marginTop: 12, fontSize: '0.82rem', color: 'var(--warning)' }}>
-                ⚠ {data.attribution.disabled_reason}
-              </div>
+              <div className="version-diff-card__warning">⚠ {data.attribution.disabled_reason}</div>
             )}
 
             {/* Comparability flags */}
             {data.comparability.map((f, i) => (
-              <div
-                key={`${f.kind}-${i}`}
-                style={{ marginTop: 8, fontSize: '0.8rem', color: 'var(--warning)' }}
-              >
+              <div key={`${f.kind}-${i}`} className="version-diff-card__warning">
                 ⚠ {locale === 'zh' ? f.message_zh : f.message_en}
               </div>
             ))}
 
             {/* Expand toggle */}
             <button
+              type="button"
+              className="version-diff-card__expand"
               onClick={() => setExpanded((v) => !v)}
-              style={{
-                marginTop: 12,
-                background: 'none',
-                border: 'none',
-                color: 'var(--accent)',
-                cursor: 'pointer',
-                fontSize: '0.82rem',
-                padding: 0,
-              }}
             >
               {expanded ? `▾ ${c.collapse}` : `▸ ${c.expand}`}
             </button>
 
             {expanded && (
-              <div style={{ marginTop: 12 }}>
+              <div className="version-diff-detail">
                 {/* B-section: drivers */}
                 {data.drivers.length > 0 && (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                  <table className="version-diff-table">
                     <thead>
                       <tr>
                         {[c.colDriver, c.colChange, c.colContribution].map((h, i) => (
-                          <th
-                            key={h}
-                            style={{
-                              textAlign: i === 0 ? 'left' : 'right',
-                              padding: '4px 8px',
-                              color: 'var(--text-muted)',
-                              fontWeight: 600,
-                              fontSize: '0.7rem',
-                              textTransform: 'uppercase',
-                              borderBottom: '1px solid var(--border)',
-                            }}
-                          >
+                          <th key={h} className={i === 0 ? undefined : 'version-diff-table__num'}>
                             {h}
                           </th>
                         ))}
@@ -415,65 +388,30 @@ export function VersionDiffBanner({
                       {data.drivers.map((d) => {
                         const attr = data.attribution.items.find((a) => a.driver_key === d.key)
                         return (
-                          <tr
-                            key={d.key}
-                            style={{
-                              borderBottom: '1px solid var(--border-subtle, var(--border))',
-                            }}
-                          >
-                            <td style={{ padding: '5px 8px' }}>
+                          <tr key={d.key}>
+                            <td>
                               {label_(d)}
                               {d.is_user_override && (
-                                <span
-                                  style={{
-                                    marginLeft: 6,
-                                    fontSize: '0.62rem',
-                                    padding: '1px 4px',
-                                    borderRadius: 3,
-                                    background:
-                                      'color-mix(in srgb, var(--accent) 18%, transparent)',
-                                    color: 'var(--accent)',
-                                  }}
-                                >
-                                  {c.override}
-                                </span>
+                                <span className="version-diff-table__tag">{c.override}</span>
                               )}
                               {d.caliber_note && (
-                                <span
-                                  style={{
-                                    marginLeft: 6,
-                                    fontSize: '0.7rem',
-                                    color: 'var(--warning)',
-                                  }}
-                                >
-                                  · {d.caliber_note}
-                                </span>
+                                <span className="version-diff-table__note">· {d.caliber_note}</span>
                               )}
                             </td>
-                            <td
-                              style={{
-                                padding: '5px 8px',
-                                textAlign: 'right',
-                                fontFamily: 'var(--font-mono)',
-                                color: 'var(--text-secondary)',
-                              }}
-                            >
+                            <td className="version-diff-table__num">
                               {d.formatted_old} {arrow(d.direction)}{' '}
-                              <span style={{ color: sentimentColor(d.sentiment) }}>
+                              <span className={sentimentToneClass(d.sentiment)}>
                                 {d.formatted_new}
                               </span>
                             </td>
                             <td
-                              style={{
-                                padding: '5px 8px',
-                                textAlign: 'right',
-                                fontFamily: 'var(--font-mono)',
-                                color: attr
+                              className={`version-diff-table__num ${
+                                attr
                                   ? attr.contribution >= 0
-                                    ? 'var(--positive)'
-                                    : 'var(--negative)'
-                                  : 'var(--text-muted)',
-                              }}
+                                    ? 'version-diff-tone--positive'
+                                    : 'version-diff-tone--negative'
+                                  : 'version-diff-tone--muted'
+                              }`}
                             >
                               {attr ? attr.formatted_contribution : '—'}
                             </td>
@@ -483,18 +421,9 @@ export function VersionDiffBanner({
                       {data.attribution.available &&
                         Math.abs(data.attribution.residual) > 0.005 && (
                           <tr>
-                            <td style={{ padding: '5px 8px', color: 'var(--text-muted)' }}>
-                              {c.residual}
-                            </td>
+                            <td className="version-diff-tone--muted">{c.residual}</td>
                             <td />
-                            <td
-                              style={{
-                                padding: '5px 8px',
-                                textAlign: 'right',
-                                fontFamily: 'var(--font-mono)',
-                                color: 'var(--text-muted)',
-                              }}
-                            >
+                            <td className="version-diff-table__num version-diff-tone--muted">
                               {data.attribution.formatted_residual}
                             </td>
                           </tr>
@@ -504,7 +433,7 @@ export function VersionDiffBanner({
                 )}
 
                 {/* Footnote */}
-                <div style={{ marginTop: 10, fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                <div className="version-diff-footnote">
                   {c.snapshot}: {data.data_footnote.a_source}{' '}
                   {formatDate(data.data_footnote.a_fetched_at, locale, 'short')} →{' '}
                   {data.data_footnote.b_source}{' '}

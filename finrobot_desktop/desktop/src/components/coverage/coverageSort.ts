@@ -1,6 +1,7 @@
-// Coverage card sorting — pure, so it unit-tests without the DOM and the page,
-// toolbar, and store share one definition of "what's sortable" and "how nulls
-// sort".
+// Coverage card sorting — pure, so it unit-tests without the DOM, and the page
+// and store share one definition of "what's sortable" and "how nulls sort". The
+// research-library wall has no sort UI; the page applies one fixed order
+// (needs_action desc) so urgent names surface at the top.
 //
 // Missing values (null/undefined) always sink to the bottom regardless of
 // direction: an analyst scanning a column wants the real numbers grouped at the
@@ -27,29 +28,6 @@ export type SortDir = 'asc' | 'desc'
 export interface CoverageSort {
   key: CoverageSortKey
   dir: SortDir
-}
-
-// The four lenses the redesigned toolbar exposes, in cycle order. Other keys
-// stay sortable programmatically but the toolbar surfaces these.
-export const TOOLBAR_SORT_KEYS: CoverageSortKey[] = [
-  'needs_action',
-  'ticker',
-  'latest_report',
-  'upside_to_target_live',
-]
-
-// Natural first-click direction: tickers read A→Z; urgency, recency, and
-// numbers read high→low.
-export function defaultDir(key: CoverageSortKey): SortDir {
-  return key === 'ticker' ? 'asc' : 'desc'
-}
-
-// Toggle within a column, or jump to a new column at its natural direction.
-export function nextSort(current: CoverageSort | null, key: CoverageSortKey): CoverageSort {
-  if (current && current.key === key) {
-    return { key, dir: current.dir === 'desc' ? 'asc' : 'desc' }
-  }
-  return { key, dir: defaultDir(key) }
 }
 
 // The comparable scalar for a row under a given key. Derived keys

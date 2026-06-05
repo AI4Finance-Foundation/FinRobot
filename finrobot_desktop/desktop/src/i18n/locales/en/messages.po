@@ -830,6 +830,10 @@ msgid "chapter.valuation.football.title"
 msgstr "DCF / Comps / DDM / LBO Target-Price Range"
 
 #. js-lingui-explicit-id
+msgid "chapter.valuation.forwardEstimates"
+msgstr "Forward Estimates"
+
+#. js-lingui-explicit-id
 msgid "chapter.valuation.subheading.bridge"
 msgstr "DCF Value Bridge (Waterfall)"
 

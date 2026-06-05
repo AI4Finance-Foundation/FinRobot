@@ -1,13 +1,6 @@
-// CoverageCardGrid — the workspace's main surface: a responsive wall of fixed
-// height ticker cards. Column count is auto-derived from the container's own
-// width via auto-fill + minmax (comfort floor 260, compact 210) — NOT a fixed
-// repeat(3/4). A fixed column count with a min track wider than the available
-// space forced horizontal clipping the moment the AI panel + inspector ate into
-// the width (BUG: GOOGL sliced off at the default 1200 window). auto-fill lets
-// the wall fall back to 1 column at any width, so it only ever scrolls
-// vertically. The grid lays out + scrolls; cards render in full (no windowing —
-// a coverage desk holds tens to low-hundreds of tickers; a true 1000+ wall would
-// want real list virtualization).
+// CoverageCardGrid — the workspace's main surface: a three-column wall of ticker
+// slabs. Three equal tracks match the coverage desk mental model: compare peers
+// side-by-side first, then scroll vertically through the studied universe.
 
 import { useI18n } from '../../i18n'
 import { CoverageCard } from './CoverageCard'
@@ -18,8 +11,6 @@ interface Props {
   rows: CoverageRow[]
   density: CoverageDensity
   marketPending?: boolean
-  // True in the Needs Action triage view — cards surface their full reason rows.
-  showReasons?: boolean
   onOpen: (ticker: string) => void
 }
 
@@ -27,7 +18,6 @@ export function CoverageCardGrid({
   rows,
   density,
   marketPending = false,
-  showReasons = false,
   onOpen,
 }: Props): React.ReactElement {
   const { t } = useI18n()
@@ -56,15 +46,14 @@ export function CoverageCardGrid({
       data-testid="coverage-card-grid"
       style={{
         display: 'grid',
-        gridTemplateColumns: compact
-          ? 'repeat(auto-fill, minmax(210px, 1fr))'
-          : 'repeat(auto-fill, minmax(260px, 1fr))',
+        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
         // Each row sizes to its tallest card's FULL content. Without this the
         // implicit rows defaulted to `auto`, which sized a minHeight:244 flex
         // card to 244 (not its ~330 content) — the card then overflowed its row
         // track and overlapped the next row, covering the run/open buttons.
         gridAutoRows: 'max-content',
-        gap: 12,
+        gap: compact ? 12 : 16,
+        justifyContent: 'stretch',
         alignContent: 'start',
         height: '100%',
         overflow: 'auto',
@@ -77,7 +66,6 @@ export function CoverageCardGrid({
           row={row}
           density={density}
           marketPending={marketPending}
-          showReasons={showReasons}
           onOpen={onOpen}
         />
       ))}

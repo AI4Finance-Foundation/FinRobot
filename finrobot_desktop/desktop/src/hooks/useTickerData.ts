@@ -4,7 +4,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
-import { fetchWithTimeout } from '../api/fetch'
+import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../api/fetch'
 import { FetchHttpError } from '../utils/errorMessage'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -150,8 +150,12 @@ export interface CatalystEventData {
  *
  * Exported for direct unit testing.
  */
-export async function fetchJsonOrThrowHttp<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const resp = await fetchWithTimeout(url, { signal })
+export async function fetchJsonOrThrowHttp<T>(
+  url: string,
+  signal?: AbortSignal,
+  timeoutMs?: number,
+): Promise<T> {
+  const resp = await fetchWithTimeout(url, { signal }, timeoutMs)
   if (!resp.ok) {
     throw new FetchHttpError(resp.status, resp.statusText)
   }
@@ -180,8 +184,16 @@ export function useTickerPrice(ticker: string) {
 export function useTickerCatalysts(ticker: string) {
   return useQuery<CatalystEventData[], FetchHttpError>({
     queryKey: ['ticker-catalysts', ticker],
+    // Heavy endpoint: fetch_news → LLM classify → extract → rank runs ~11–18s
+    // server-side, so the default 8s timeout would abort every request before
+    // it returns (the calendar then looked permanently empty). Use the 30s
+    // heavy budget like the other provider-round-trip endpoints.
     queryFn: ({ signal }) =>
-      fetchJsonOrThrowHttp<CatalystEventData[]>(`${BASE_URL}/api/data/${ticker}/catalysts`, signal),
+      fetchJsonOrThrowHttp<CatalystEventData[]>(
+        `${BASE_URL}/api/data/${ticker}/catalysts`,
+        signal,
+        HEAVY_API_TIMEOUT_MS,
+      ),
     enabled: !!ticker,
     staleTime: 5 * 60_000,
     refetchOnMount: false,

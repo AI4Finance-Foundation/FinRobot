@@ -1,9 +1,11 @@
 // CoveragePage — the coverage archive / management route (`/coverage`). The
 // search-first homepage lives at `/research`; this screen is the studied ticker
-// desk: track-record strip, triage/sort controls, and a wall of ticker cards.
-// There is ONE surfaced list — Studied Tickers (the system coverage group);
-// multi-group machinery stays backend-only. Card click opens `/stocks/:ticker`,
-// where research runs and artifact history live.
+// desk: a wall of ticker cards, nothing else. The whole studied
+// universe is always shown — there is no triage/sort chrome (the user cut it):
+// the cards self-report verdict, freshness, and an amber edge when one needs
+// attention. There is ONE surfaced list — Studied Tickers (the system coverage
+// group); multi-group machinery stays backend-only. Card click opens
+// `/stocks/:ticker`, where research runs and artifact history live.
 //
 // A ticker is the primary object: a live market snapshot AND many research
 // artifacts. The card shows the snapshot + latest verdict + report count; the
@@ -15,19 +17,11 @@ import { useI18n } from '../i18n'
 import { useCoverageStore } from '../stores/coverageStore'
 import { useCoverageGroups, useCoverageOverview } from '../hooks/useCoverage'
 import { CoverageEmptyState } from '../components/coverage/CoverageEmptyState'
-import { CoverageTrustStrip } from '../components/coverage/CoverageTrustStrip'
-import { WallHeader } from '../components/coverage/WallHeader'
 import { CoverageCardGrid } from '../components/coverage/CoverageCardGrid'
 import { sortCoverageRows, type CoverageSort } from '../components/coverage/coverageSort'
-import {
-  COVERAGE_FILTERS,
-  filterRows,
-  matchesFilter,
-  type CoverageFilter,
-} from '../components/coverage/coverageFilter'
 
-// Default applied sort when none is stored: most-urgent first, so the names that
-// need the analyst surface at the top.
+// Resting order (no UI control): most-urgent first, so the names that need the
+// analyst surface at the top of the wall.
 const DEFAULT_SORT: CoverageSort = { key: 'needs_action', dir: 'desc' }
 
 export function CoveragePage(): React.ReactElement {
@@ -37,15 +31,9 @@ export function CoveragePage(): React.ReactElement {
   const groupsQuery = useCoverageGroups()
   const groups = groupsQuery.data ?? []
 
-  const sortByGroup = useCoverageStore((s) => s.sortByGroup)
-  const setSort = useCoverageStore((s) => s.setSort)
   // One shipped density (comfort). The toggle was cut; the store field stays so
   // the card/grid sizing props keep working, pinned to comfort.
   const density = useCoverageStore((s) => s.density)
-
-  // Archive default: show the whole studied universe first. Needs Action remains
-  // one lens, but it no longer blanks the page when there is nothing urgent.
-  const [filter, setFilter] = useState<CoverageFilter>('all')
 
   // Market-degraded retry bar (BUG-032): the fast skeleton painted the table but
   // the full (market) fetch failed, so price/market-cap/multiples columns keep
@@ -61,24 +49,9 @@ export function CoveragePage(): React.ReactElement {
 
   const overviewQuery = useCoverageOverview(activeGroupId)
   const rows = useMemo(() => overviewQuery.data?.rows ?? [], [overviewQuery.data])
-  // Scope the track-record strip to the active group's members (UX-013).
-  const groupTickers = useMemo(() => rows.map((r) => r.ticker), [rows])
 
-  const activeSort = activeGroupId ? (sortByGroup[activeGroupId] ?? null) : null
-  const effectiveSort = activeSort ?? DEFAULT_SORT
-
-  const visibleRows = useMemo(
-    () => sortCoverageRows(filterRows(rows, filter), effectiveSort),
-    [rows, filter, effectiveSort],
-  )
-
-  // Counts per filter — computed over the full row set so each badge reflects
-  // the real universe, not the currently-filtered view.
-  const filterCounts = useMemo(() => {
-    const counts = {} as Record<CoverageFilter, number>
-    for (const f of COVERAGE_FILTERS) counts[f] = rows.filter((r) => matchesFilter(r, f)).length
-    return counts
-  }, [rows])
+  // The whole universe, always — ordered urgent-first for a stable, useful wall.
+  const visibleRows = useMemo(() => sortCoverageRows(rows, DEFAULT_SORT), [rows])
 
   // Re-arm the market-degraded retry bar on each fresh failure: when marketError
   // flips false→true (e.g. a retry failed again, or a new group's full fetch
@@ -131,19 +104,6 @@ export function CoveragePage(): React.ReactElement {
         padding: '20px 24px',
       }}
     >
-      {/* Track record — the credibility proof for the analyst/quant, scoped to
-          the active group. Renders only with a non-empty scope; suppresses the
-          percentage until the sample is large enough (UX-013). */}
-      <CoverageTrustStrip tickers={groupTickers} groupName={activeGroup?.name ?? ''} />
-
-      <WallHeader
-        filter={filter}
-        filterCounts={filterCounts}
-        onFilter={setFilter}
-        sort={effectiveSort}
-        onSort={(s) => activeGroupId && setSort(activeGroupId, s)}
-      />
-
       {/* Market-degraded retry bar (BUG-032): the table is alive (fast skeleton)
           but the full market fetch failed, so the price/cap/multiples columns
           are shimmering with no data behind them. Offer a retry on the FULL
@@ -181,7 +141,6 @@ export function CoveragePage(): React.ReactElement {
             rows={visibleRows}
             density={density}
             marketPending={overviewQuery.marketPending}
-            showReasons={filter === 'needs_action'}
             onOpen={(ticker) => navigate(`/stocks/${ticker}`)}
           />
         )}

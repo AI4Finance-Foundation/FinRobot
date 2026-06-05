@@ -57,6 +57,7 @@ export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.R
   const containerRef = useRef<HTMLDivElement>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'failed'>('loading')
   const [visible, setVisible] = useState(true)
+  const [hasLayout, setHasLayout] = useState(false)
   const [pageActive, setPageActive] = useState(
     typeof document === 'undefined' ? true : !document.hidden,
   )
@@ -65,7 +66,7 @@ export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.R
   // flips false we render the static FakeRobotRings fallback (or nothing for
   // the backdrop variant) instead of the WebGL viewer — that's the heat saver.
   // There is no user opt-out: the robot is always on by design.
-  const allowed = pageActive && visible
+  const allowed = pageActive && visible && hasLayout
 
   // Unmount the WebGL viewer only when the tab is actually HIDDEN
   // (visibilitychange) — that's the real heat-saver. We deliberately do NOT
@@ -96,6 +97,30 @@ export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.R
     )
     io.observe(el)
     return () => io.disconnect()
+  }, [])
+
+  // Spline's WebGL viewer allocates framebuffers at mount. In WebKit/Tauri a
+  // just-created custom element can see a zero-sized canvas for one frame, which
+  // produces INVALID_FRAMEBUFFER_OPERATION noise. Mount it only after layout
+  // reports positive dimensions.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    const mark = () => {
+      const rect = el.getBoundingClientRect()
+      setHasLayout(rect.width > 0 && rect.height > 0)
+    }
+
+    mark()
+    if (typeof ResizeObserver === 'undefined') {
+      const raf = window.requestAnimationFrame(mark)
+      return () => window.cancelAnimationFrame(raf)
+    }
+
+    const ro = new ResizeObserver(mark)
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [])
 
   useEffect(() => {

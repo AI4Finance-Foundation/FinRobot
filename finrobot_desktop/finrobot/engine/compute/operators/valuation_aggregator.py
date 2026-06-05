@@ -63,6 +63,9 @@ def aggregate_valuation(
     forward_eps: float | None = None,
     forward_ebitda: float | None = None,
     forward_fcf: float | None = None,
+    forward_fiscal_period: str | None = None,
+    forward_confidence: str | None = None,
+    forward_source: str | None = None,
     historical_ev_ebitda_band: tuple[float, float] | None = None,
     historical_p_fcf_band: tuple[float, float] | None = None,
     as_of: datetime | None = None,
@@ -90,6 +93,20 @@ def aggregate_valuation(
             "comps_pe: forward EPS 不可得（无 FMP analyst-estimates 数据 / 未配置 FMP key）— "
             "降级使用 trailing EPS"
         )
+    else:
+        # peer_comps present, method still returned None — diagnose why
+        pe_n = sum(1 for p in peer_comps.peers if p.pe_ratio is not None)
+        core_pe_n = sum(1 for p in peer_comps.peers if p.core_pe_ratio is not None)
+        if pe_n == 0 and core_pe_n == 0:
+            warnings.append(
+                "comps_pe: 同业 P/E 中值为 N/A — 所有 peers TTM net income ≤ 0"
+                "（pre-profitability peer set），P/E 法无法应用。"
+                "建议通过 --peers 手动指定含盈利对标的同业集"
+            )
+        elif peer_comps.target.net_income is None or peer_comps.target.net_income <= 0:
+            warnings.append(
+                "comps_pe: target TTM net income ≤ 0 — 目标公司本身亏损，P/E 法不适用"
+            )
 
     if (m := _ddm_method(ddm)) is not None:
         methods.append(m)
@@ -137,6 +154,9 @@ def aggregate_valuation(
         as_of=as_of if as_of is not None else datetime.now(tz=timezone.utc),
         methods=methods,
         warnings=warnings,
+        forward_fiscal_period=forward_fiscal_period,
+        forward_confidence=forward_confidence,
+        forward_source=forward_source,
     )
 
 

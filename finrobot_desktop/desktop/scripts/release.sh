@@ -13,7 +13,12 @@
 # Usage:
 #   ./scripts/release.sh 1.2.0 "Fixed DCF rounding; added dark theme."
 #   ./scripts/release.sh 1.2.0 --notes-file CHANGELOG_1.2.0.md
-#   ./scripts/release.sh 1.2.0 "notes" --dry-run   # build + latest.json, NO upload
+#   ./scripts/release.sh 1.2.0 "notes" --dry-run     # build + manifests, NO upload
+#   ./scripts/release.sh 1.2.0 "notes" --mandatory   # FORCE: hard-block every older install
+#
+# --mandatory raises the min-version floor to this version: on next check, every
+# app below 1.2.0 shows a full-screen non-dismissible gate until it updates.
+# Normal releases carry the existing floor forward (stay optional).
 #
 # Prereqs (one-time):
 #   • RELEASES_REPO below points at your public releases repo (owner/name).
@@ -50,10 +55,12 @@ shift
 NOTES=""
 DRY_RUN=0
 BUILD_SIDECAR=0
+MANDATORY=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --dry-run) DRY_RUN=1; shift ;;
         --build-sidecar) BUILD_SIDECAR=1; shift ;;
+        --mandatory) MANDATORY=1; shift ;;
         --notes-file) NOTES="$(cat "$2")"; shift 2 ;;
         *) NOTES="$1"; shift ;;
     esac
@@ -134,11 +141,30 @@ node -e '
 ' "$LATEST_JSON" "$VERSION" "$NOTES" "$PUB_DATE" "$PLATFORM_KEY" "$DL_BASE/$TARBALL_NAME" "$SIGNATURE"
 echo "[release] wrote $LATEST_JSON"
 
+# ── 5b. min-version.json (forced-update floor) ────────────────────────────────
+# Every release carries this file so the app can always read it from
+# releases/latest. Normal release → carry the existing floor forward; a
+# --mandatory release → raise the floor to THIS version, so every older install
+# is hard-blocked until it updates. The previous floor is read from the
+# currently-published file (default 0.0.0 on the very first release).
+PREV_MIN="$(curl -fsSL "https://github.com/$RELEASES_REPO/releases/latest/download/min-version.json" 2>/dev/null \
+    | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).min_version||"0.0.0"))}catch{process.stdout.write("0.0.0")}})' \
+    || echo "0.0.0")"
+[[ -z "$PREV_MIN" ]] && PREV_MIN="0.0.0"
+if [[ "$MANDATORY" == 1 ]]; then MIN_VERSION="$VERSION"; else MIN_VERSION="$PREV_MIN"; fi
+MIN_JSON="$BUNDLE_DIR/min-version.json"
+node -e '
+  const fs = require("fs");
+  fs.writeFileSync(process.argv[1], JSON.stringify({ min_version: process.argv[2] }, null, 2) + "\n");
+' "$MIN_JSON" "$MIN_VERSION"
+echo "[release] min-version floor = $MIN_VERSION (prev=$PREV_MIN, mandatory=$MANDATORY)"
+
 if [[ "$DRY_RUN" == 1 ]]; then
     echo "[release] DRY RUN — artifacts ready, NOT uploading. Inspect:"
     echo "          $DMG"
     echo "          $APP_TARBALL"
     echo "          $LATEST_JSON"
+    echo "          $MIN_JSON"
     exit 0
 fi
 
@@ -148,6 +174,6 @@ gh release create "v$VERSION" \
     --repo "$RELEASES_REPO" \
     --title "FinRobot v$VERSION" \
     --notes "${NOTES:-FinRobot v$VERSION}" \
-    "$DMG" "$APP_TARBALL" "$APP_SIG" "$LATEST_JSON"
+    "$DMG" "$APP_TARBALL" "$APP_SIG" "$LATEST_JSON" "$MIN_JSON"
 
 echo "[release] done. Installed apps will see v$VERSION on their next launch check."

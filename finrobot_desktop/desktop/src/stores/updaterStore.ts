@@ -9,7 +9,13 @@
 // retry must be visible); check failures fall back to idle.
 
 import { create } from 'zustand'
-import { checkForUpdate, relaunchApp, type Update } from '../lib/updater'
+import {
+  checkForUpdate,
+  relaunchApp,
+  fetchMinVersion,
+  compareVersions,
+  type Update,
+} from '../lib/updater'
 
 export type UpdatePhase =
   | 'idle' // nothing to show
@@ -27,6 +33,9 @@ interface UpdaterState {
   update: Update | null
   version: string | null
   notes: string | null
+  /** True when the installed version is below the published min-version floor:
+   *  the update is mandatory and the app blocks until it is installed. */
+  mandatory: boolean
   /** Download progress 0..1 (0 when content length is unknown). */
   progress: number
   error: string | null
@@ -42,6 +51,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
   update: null,
   version: null,
   notes: null,
+  mandatory: false,
   progress: 0,
   error: null,
 
@@ -52,15 +62,20 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     try {
       const update = await checkForUpdate()
       if (update) {
+        // Mandatory when the installed version is below the published floor.
+        // fetchMinVersion fails soft (null) → never a false block.
+        const min = await fetchMinVersion()
+        const mandatory = !!min && compareVersions(update.currentVersion, min) < 0
         set({
           phase: 'available',
           update,
           version: update.version,
           notes: update.body?.trim() ? update.body.trim() : null,
+          mandatory,
         })
         return 'available'
       }
-      set({ phase: 'idle', update: null, version: null, notes: null })
+      set({ phase: 'idle', update: null, version: null, notes: null, mandatory: false })
       return 'uptodate'
     } catch (err) {
       // A failed check is silent in the UI — only the manual caller toasts.

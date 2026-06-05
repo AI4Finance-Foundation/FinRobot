@@ -3744,6 +3744,18 @@ msgid "update.toast.checkFailed"
 msgstr "检查更新失败"
 
 #. js-lingui-explicit-id
+msgid "update.gate.title"
+msgstr "需要更新才能继续"
+
+#. js-lingui-explicit-id
+msgid "update.gate.body"
+msgstr "当前版本已停止支持，请更新到 {version} 后继续使用 FinRobot。"
+
+#. js-lingui-explicit-id
+msgid "update.gate.button"
+msgstr "立即更新"
+
+#. js-lingui-explicit-id
 msgid "settings.nav.updates"
 msgstr "更新"
 

@@ -11,6 +11,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary'
 import StatusBar from '../components/StatusBar'
 import ToastContainer from '../components/Toast'
 import { CursorCanvas } from '../components/CursorCanvas'
+import { MandatoryUpdateGate } from '../components/MandatoryUpdateGate'
 import { useUiStore } from '../stores/uiStore'
 import { useUpdaterStore } from '../stores/updaterStore'
 import { pickDirectory, isTauri, DEFAULT_WORKSPACE_PATH } from '../lib/tauri'
@@ -103,6 +104,9 @@ export function AppShell(): React.ReactElement {
       <div className="cosmic-stars" aria-hidden />
       <div className="cosmic-stars cosmic-stars-fast" aria-hidden />
       <CursorCanvas />
+      {/* Mandatory-update gate — full-screen block when the installed version is
+          below the published floor. Renders null unless mandatory. */}
+      <MandatoryUpdateGate />
     </div>
   )
 }

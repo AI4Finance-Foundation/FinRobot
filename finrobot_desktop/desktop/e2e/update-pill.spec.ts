@@ -57,3 +57,13 @@ test('update pill — available then downloading', async ({ page }) => {
   await expect(titlebar.locator('.tb-update-pill.is-error')).toBeVisible()
   await titlebar.screenshot({ path: 'e2e/_update-pill-error.png' })
 })
+
+test('mandatory update gate — full-screen block', async ({ page }) => {
+  await page.route('**/api/settings', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SETTINGS) }),
+  )
+  await page.goto('/settings')
+  await setPhase(page, { phase: 'available', version: '2.0.0', mandatory: true })
+  await expect(page.locator('[role="alertdialog"]')).toBeVisible()
+  await page.screenshot({ path: 'e2e/_update-gate-mandatory.png' })
+})

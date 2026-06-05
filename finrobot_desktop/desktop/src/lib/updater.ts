@@ -36,3 +36,36 @@ export async function relaunchApp(): Promise<void> {
   if (!isTauri()) return
   await relaunch()
 }
+
+// ─── Forced-update floor (min-version.json) ──────────────────────────────────
+// Every release publishes a min-version.json next to latest.json; when the
+// installed version is below it, the app blocks until updated (mandatory
+// update). Keep this base URL in sync with the updater endpoint in
+// src-tauri/tauri.conf.json → plugins.updater.endpoints.
+const RELEASES_LATEST_BASE = 'https://github.com/lrz68/finrobot-releases/releases/latest/download'
+
+/** Minimum supported version published alongside the latest release. Returns
+ *  null in the browser, or when the file is absent / unreadable / blocked — the
+ *  caller then degrades to a normal optional update (never a false block). */
+export async function fetchMinVersion(): Promise<string | null> {
+  if (!isTauri()) return null
+  try {
+    const resp = await fetch(`${RELEASES_LATEST_BASE}/min-version.json`, { cache: 'no-store' })
+    if (!resp.ok) return null
+    const j = (await resp.json()) as { min_version?: unknown }
+    return typeof j.min_version === 'string' ? j.min_version : null
+  } catch {
+    return null
+  }
+}
+
+/** Compare two dotted versions numerically. -1 if a<b, 0 if equal, 1 if a>b. */
+export function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map((n) => parseInt(n, 10) || 0)
+  const pb = b.split('.').map((n) => parseInt(n, 10) || 0)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (d !== 0) return d < 0 ? -1 : 1
+  }
+  return 0
+}

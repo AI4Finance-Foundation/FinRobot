@@ -95,3 +95,6 @@ design-demos/
 
 # rope's local cache, created by scripts/find_refs.py on each run; never source.
 .ropeproject/
+
+# 发布操作手册 — 本地私人备忘（含发布步骤/账号细节），不进版本管理
+/发布须知.md

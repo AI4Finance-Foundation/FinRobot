@@ -300,10 +300,17 @@ async def cache_status() -> dict[str, Any]:
 
     Returns ``{"populated": bool, "row_count": int, "latest_period_end":
     str|None, "distinct_tickers": int}``.
+
+    ``distinct_tickers`` counts distinct CUSIPs, NOT the ``ticker`` column:
+    13F XML identifies securities by CUSIP + issuer name, so ``ticker`` is
+    always NULL (we hold no CUSIP→ticker license). Counting DISTINCT ticker
+    therefore reported 0 even with millions of rows. CUSIP is the real
+    "number of distinct securities held" — that is what the UI's "N 只标的"
+    means.
     """
     c = await _conn()
     async with c.execute(
-        "SELECT COUNT(*), MAX(period_end), COUNT(DISTINCT ticker) FROM holdings"
+        "SELECT COUNT(*), MAX(period_end), COUNT(DISTINCT cusip) FROM holdings"
     ) as cur:
         row = await cur.fetchone()
     if row is None:

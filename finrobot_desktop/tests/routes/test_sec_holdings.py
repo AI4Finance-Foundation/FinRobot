@@ -49,6 +49,13 @@ def app() -> FastAPI:
     app = FastAPI()
     app.include_router(sec_holdings_router)
     app.state.background_tasks = []
+    # Routes read the live runtime settings off app.state.deps.settings (kept
+    # current by PUT /api/settings), mirroring the real server wiring.
+    app.state.deps = SimpleNamespace(
+        settings=SimpleNamespace(
+            sec_user_agent="FinRobot admin@example.com", sec_holdings_auto_refresh=False
+        )
+    )
     return app
 
 
@@ -57,9 +64,12 @@ def client(app: FastAPI) -> TestClient:
     return TestClient(app)
 
 
-def _patch(monkeypatch, *, identity: str, auto_refresh: bool, cache: dict | None = None) -> None:
-    fake = SimpleNamespace(sec_user_agent=identity, sec_holdings_auto_refresh=auto_refresh)
-    monkeypatch.setattr(sec_holdings_route, "get_settings", lambda: fake)
+def _patch(
+    app: FastAPI, monkeypatch, *, identity: str, auto_refresh: bool, cache: dict | None = None
+) -> None:
+    app.state.deps.settings = SimpleNamespace(
+        sec_user_agent=identity, sec_holdings_auto_refresh=auto_refresh
+    )
 
     async def _cache_status() -> dict:
         return cache if cache is not None else _EMPTY_CACHE
@@ -67,8 +77,10 @@ def _patch(monkeypatch, *, identity: str, auto_refresh: bool, cache: dict | None
     monkeypatch.setattr(sec_holdings_route, "cache_status", _cache_status)
 
 
-def test_status_empty_cache_reports_unpopulated(client: TestClient, monkeypatch) -> None:
-    _patch(monkeypatch, identity="Acme Research analyst@example.com", auto_refresh=False)
+def test_status_empty_cache_reports_unpopulated(
+    app: FastAPI, client: TestClient, monkeypatch
+) -> None:
+    _patch(app, monkeypatch, identity="Acme Research analyst@example.com", auto_refresh=False)
     resp = client.get("/api/sec-holdings/status")
     assert resp.status_code == 200
     body = resp.json()
@@ -80,8 +92,9 @@ def test_status_empty_cache_reports_unpopulated(client: TestClient, monkeypatch)
     assert body["refresh"]["status"] == "idle"
 
 
-def test_status_populated_cache(client: TestClient, monkeypatch) -> None:
+def test_status_populated_cache(app: FastAPI, client: TestClient, monkeypatch) -> None:
     _patch(
+        app,
         monkeypatch,
         identity="Acme Research analyst@example.com",
         auto_refresh=True,
@@ -96,21 +109,21 @@ def test_status_populated_cache(client: TestClient, monkeypatch) -> None:
 
 
 def test_status_reports_identity_not_configured_for_placeholder(
-    client: TestClient, monkeypatch
+    app: FastAPI, client: TestClient, monkeypatch
 ) -> None:
     """The config.py placeholder must read as identity_configured=False so the
     UI greys out the 立即同步 button instead of letting a doomed run start."""
-    _patch(monkeypatch, identity="FinRobot admin@example.com", auto_refresh=False)
+    _patch(app, monkeypatch, identity="FinRobot admin@example.com", auto_refresh=False)
     body = client.get("/api/sec-holdings/status").json()
     assert body["identity_configured"] is False
 
 
 def test_refresh_without_identity_returns_identity_missing(
-    client: TestClient, monkeypatch
+    app: FastAPI, client: TestClient, monkeypatch
 ) -> None:
     """No valid SEC identity → refresh records the error code and spawns no
     work (no background task, no EDGAR call)."""
-    _patch(monkeypatch, identity="FinRobot admin@example.com", auto_refresh=False)
+    _patch(app, monkeypatch, identity="FinRobot admin@example.com", auto_refresh=False)
     resp = client.post("/api/sec-holdings/refresh")
     assert resp.status_code == 200
     body = resp.json()
@@ -118,9 +131,9 @@ def test_refresh_without_identity_returns_identity_missing(
     assert body["refresh"]["error"] == "identity_missing"
 
 
-def test_refresh_idempotent_while_running(client: TestClient, monkeypatch) -> None:
+def test_refresh_idempotent_while_running(app: FastAPI, client: TestClient, monkeypatch) -> None:
     """A second refresh while one is in flight must not start a second parse."""
-    _patch(monkeypatch, identity="Acme Research analyst@example.com", auto_refresh=False)
+    _patch(app, monkeypatch, identity="Acme Research analyst@example.com", auto_refresh=False)
     # Simulate an in-flight run without touching the network.
     sec_holdings_sync._STATE.status = "running"
     sec_holdings_sync._STATE.period_end = "2026-03-31"

@@ -17,7 +17,6 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from starlette.requests import Request
 
-from finrobot.config import get_settings
 from finrobot.engine.data.providers.edgar_provider import _is_valid_identity
 from finrobot.engine.data.sec_holdings_cache import cache_status
 from finrobot.engine.data.sec_holdings_sync import get_state, start_refresh
@@ -49,9 +48,15 @@ class SecHoldingsStatus(BaseModel):
 
 
 @router.get("/status", response_model=SecHoldingsStatus)
-async def sec_holdings_status() -> SecHoldingsStatus:
+async def sec_holdings_status(request: Request) -> SecHoldingsStatus:
     """Report 13F cache population + the most-recent/in-flight refresh state."""
-    settings = get_settings()
+    # Read the LIVE runtime settings (kept current by PUT /api/settings via
+    # _replace_runtime_settings), NOT a bare get_settings() — the latter takes
+    # no overrides and returns pure defaults (placeholder SEC identity,
+    # auto_refresh=False), which made identity_configured / auto_refresh report
+    # wrong regardless of what the user actually saved. See the rest of the app:
+    # every settings-aware route reads request.app.state.deps.settings.
+    settings = request.app.state.deps.settings
     cache = await cache_status()
     return SecHoldingsStatus(
         populated=bool(cache["populated"]),
@@ -72,8 +77,10 @@ async def sec_holdings_refresh(request: Request) -> SecHoldingsStatus:
     without starting a second one. If SEC identity is unconfigured, returns
     with ``refresh.error == "identity_missing"`` and does no work.
     """
-    settings = get_settings()
+    # Live runtime settings — see sec_holdings_status for why a bare
+    # get_settings() (placeholder identity) is wrong here.
+    settings = request.app.state.deps.settings
     await start_refresh(request.app, settings, force=True)
     # Re-read full status so the response carries cache + identity + the
     # (possibly just-updated) refresh state in one round trip.
-    return await sec_holdings_status()
+    return await sec_holdings_status(request)

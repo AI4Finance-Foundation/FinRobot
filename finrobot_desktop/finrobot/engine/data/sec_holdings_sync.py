@@ -101,21 +101,32 @@ async def start_refresh(
             logger.info("SEC 13F holdings refresh skipped: SEC identity not configured")
             return asdict(_STATE)
 
+        target = period_end or _latest_completed_quarter_end()
+
         if not force:
             status = await cache_status()
             latest_raw = status.get("latest_period_end")
             if latest_raw:
                 latest = date.fromisoformat(str(latest_raw))
-                if (date.today() - latest).days <= 60:
+                # Skip only when the cache already holds the newest quarter that
+                # EXISTS. 13F-HR for a quarter aren't filed until ~45 days after
+                # it ends, so for ~half of every quarter the latest *available*
+                # quarter is already >60 days old. A naive "cache younger than
+                # 60 days" window therefore re-pulls a quarter we hold in full
+                # on every boot (1-2h of wasted SEC traffic). Compare against the
+                # latest *completed* quarter instead: if we're not behind it,
+                # there is nothing newer to fetch.
+                if latest >= target:
                     _STATE.status = "done"
                     _STATE.summary = status
                     logger.info(
-                        "SEC 13F holdings refresh skipped: cache fresh at %s",
+                        "SEC 13F holdings refresh skipped: cache already at "
+                        "latest available quarter %s",
                         latest.isoformat(),
                     )
                     return asdict(_STATE)
 
-        period = period_end or _latest_completed_quarter_end()
+        period = target
 
         # Transition to running under the lock BEFORE spawning so a racing
         # caller (manual click during startup auto-refresh) sees "running"

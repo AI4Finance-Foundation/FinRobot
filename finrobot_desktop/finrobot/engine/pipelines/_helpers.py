@@ -29,6 +29,7 @@ from finrobot.engine.compute.operators.xbrl_aligned_comps import (
     override_company_with_xbrl,
 )
 from finrobot.engine.data.interface import ProviderError
+from finrobot.engine.compute.operators.forward_estimates import get_forward_financials
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import (
@@ -326,6 +327,15 @@ async def execute_peer_analysis(
         try:
             _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, peer_ticker)
             company = extract_company_financials(_fin)
+            # Forward P/E = market_cap / forward_net_income is only currency-clean
+            # when market_cap (quote ccy) and the FMP consensus net income
+            # (reporting ccy) share a currency — i.e. US issuers. A foreign peer
+            # (TSM: TWD financials / USD cap) would need the same FX leg
+            # normalize_peer_to_usd applies to trailing; rather than fabricate a
+            # mixed-unit forward P/E we leave it None and that peer falls back to
+            # trailing in the comps median. Captured BEFORE normalization mutates
+            # reporting_currency.
+            forward_usd_safe = company.reporting_currency == company.quote_currency
             # Normalize foreign-listed ADRs / local listings to canonical USD
             # BEFORE multiples are computed — otherwise TSM (TWD financials,
             # USD market_cap) collapses EV/EBITDA to 0.158x. A failed FX lookup
@@ -336,7 +346,26 @@ async def execute_peer_analysis(
             )
             company = calculate_multiples(company)
             xbrl_result = await deps.data_layer.fetch(DataType.XBRL_FACTS, peer_ticker)
-            return override_company_with_xbrl(company, xbrl_result.data)
+            company = override_company_with_xbrl(company, xbrl_result.data)
+            if forward_usd_safe:
+                # Forward is an OPTIONAL enrichment: its fetch failing must never
+                # drop a peer (unlike FINANCIALS above), so it gets its own guard
+                # and leaves forward_eps/forward_pe None on any miss.
+                try:
+                    _fwd_raw = await deps.data_layer.fetch(
+                        DataType.FORWARD_ESTIMATES, peer_ticker
+                    )
+                    _fwd = get_forward_financials(
+                        ticker=peer_ticker,
+                        yf_info=None,
+                        fmp_analyst_estimates=_fwd_raw.data,
+                    )
+                    company.forward_eps = _fwd.forward_eps
+                    if _fwd.forward_net_income and company.market_cap > 0:
+                        company.forward_pe = company.market_cap / _fwd.forward_net_income
+                except (ProviderError, ValueError, KeyError, ArithmeticError) as _fwd_err:
+                    logger.debug("forward P/E unavailable for %s: %s", peer_ticker, _fwd_err)
+            return company
         except (ProviderError, ValueError, KeyError, ArithmeticError) as e:
             peer_drops[peer_ticker] = str(e)
             logger.warning(f"Skipping peer {peer_ticker}: {e}")

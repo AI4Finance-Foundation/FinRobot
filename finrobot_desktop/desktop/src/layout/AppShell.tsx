@@ -12,6 +12,7 @@ import StatusBar from '../components/StatusBar'
 import ToastContainer from '../components/Toast'
 import { CursorCanvas } from '../components/CursorCanvas'
 import { useUiStore } from '../stores/uiStore'
+import { useUpdaterStore } from '../stores/updaterStore'
 import { pickDirectory, isTauri, DEFAULT_WORKSPACE_PATH } from '../lib/tauri'
 
 const WELCOME_SHOWN_KEY = 'finrobot-welcome-shown'
@@ -40,6 +41,16 @@ export function AppShell(): React.ReactElement {
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Silent auto-update check once per launch (Tauri only). Delayed a few
+  // seconds so it never competes with first paint or the sidecar boot; a found
+  // update surfaces as the TitleBar pill (UpdatePill), up-to-date / errors stay
+  // silent here (see updaterStore.check).
+  useEffect(() => {
+    if (!isTauri()) return
+    const id = setTimeout(() => void useUpdaterStore.getState().check(), 4000)
+    return () => clearTimeout(id)
   }, [])
 
   // 2026-05-27 perf: pause CSS animations (cosmic-stars × 2 layers,

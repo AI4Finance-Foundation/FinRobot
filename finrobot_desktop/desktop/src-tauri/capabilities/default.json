@@ -28,6 +28,9 @@
       "allow": [{ "path": "$HOME/**" }]
     },
     "os:default",
-    "os:allow-locale"
+    "os:allow-locale",
+    "updater:default",
+    "process:default",
+    "process:allow-restart"
   ]
 }

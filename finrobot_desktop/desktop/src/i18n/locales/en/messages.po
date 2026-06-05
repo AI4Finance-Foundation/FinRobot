@@ -3715,3 +3715,59 @@ msgstr "Quant overlay & IC debate"
 msgid "landing.dock.quant.desc"
 msgstr "Monte Carlo · sniper levels · bull/bear IC debate"
 
+#. js-lingui-explicit-id
+msgid "update.pill.available"
+msgstr "Update to {version}"
+
+#. js-lingui-explicit-id
+msgid "update.pill.downloading"
+msgstr "Updating"
+
+#. js-lingui-explicit-id
+msgid "update.pill.installing"
+msgstr "Installing…"
+
+#. js-lingui-explicit-id
+msgid "update.pill.retry"
+msgstr "Update failed — retry"
+
+#. js-lingui-explicit-id
+msgid "update.toast.available"
+msgstr "Update available — use the button at the top to install"
+
+#. js-lingui-explicit-id
+msgid "update.toast.upToDate"
+msgstr "You're on the latest version"
+
+#. js-lingui-explicit-id
+msgid "update.toast.checkFailed"
+msgstr "Couldn't check for updates"
+
+#. js-lingui-explicit-id
+msgid "settings.nav.updates"
+msgstr "Updates"
+
+#. js-lingui-explicit-id
+msgid "settings.section.updates"
+msgstr "Updates"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.intro"
+msgstr "Check for and install new versions of FinRobot."
+
+#. js-lingui-explicit-id
+msgid "settings.updates.currentVersion"
+msgstr "Current version: {version}"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.checkButton"
+msgstr "Check for updates"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.checking"
+msgstr "Checking…"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.browserOnly"
+msgstr "Update checks are only available in the desktop app."
+

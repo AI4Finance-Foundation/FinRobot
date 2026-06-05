@@ -5,6 +5,9 @@ import { useToastStore } from '../stores/toastStore'
 import { useUiStore } from '../stores/uiStore'
 import { mapErrorToUserMessage, FetchHttpError } from '../utils/errorMessage'
 import { useI18n, tSync } from '../i18n'
+import { useUpdaterStore } from '../stores/updaterStore'
+import { currentAppVersion } from '../lib/updater'
+import { isTauri } from '../lib/tauri'
 
 interface Props {
   onComplete: () => void
@@ -67,6 +70,7 @@ const ICON_DATA =
   'M2.5 4c0-1.1 2.5-2 5.5-2s5.5.9 5.5 2-2.5 2-5.5 2-5.5-.9-5.5-2Zm0 0v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4'
 const ICON_SEC = 'M8 1.5 13.5 4v4c0 3.5-2.4 5.6-5.5 6.5C4.9 13.6 2.5 11.5 2.5 8V4L8 1.5Z'
 const ICON_DISPLAY = 'M2 3.5h12v7H2v-7Zm4 9.5h4M8 10.5V13'
+const ICON_UPDATE = 'M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5V5H11'
 
 // ─── Password input with show/hide toggle ────────────────────────────────────
 
@@ -247,6 +251,7 @@ const NAV_ITEMS = [
   { id: 'dataSources', icon: ICON_DATA, labelKey: 'settings.section.dataSources' },
   { id: 'secHoldings', icon: ICON_SEC, labelKey: 'settings.nav.secHoldings' },
   { id: 'display', icon: ICON_DISPLAY, labelKey: 'settings.appearance.title' },
+  { id: 'updates', icon: ICON_UPDATE, labelKey: 'settings.nav.updates' },
 ] as const
 
 // ─── Main component ────────────────────────────────────────────────────────
@@ -1213,6 +1218,9 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
 
             {/* ── Appearance & language ── */}
             <DisplaySection sectionRef={setSectionRef('display')} />
+
+            {/* ── Updates ── */}
+            <UpdatesSection sectionRef={setSectionRef('updates')} />
           </div>
         </div>
       </div>
@@ -1587,6 +1595,79 @@ function DisplaySection({
         enabled={cursorOn}
         onToggle={() => setCursor(!cursorOn)}
       />
+    </section>
+  )
+}
+
+// ─── Updates section ─────────────────────────────────────────────────────────
+// Current version + a manual "check for updates" button. The button drives the
+// same updaterStore as the silent startup check; a found update surfaces as the
+// TitleBar pill (UpdatePill), and this section toasts the outcome.
+
+function UpdatesSection({
+  sectionRef,
+}: {
+  sectionRef: (el: HTMLElement | null) => void
+}): React.ReactElement {
+  const { t } = useI18n()
+  const phase = useUpdaterStore((s) => s.phase)
+  const check = useUpdaterStore((s) => s.check)
+  const addToast = useToastStore((s) => s.addToast)
+  const [version, setVersion] = useState<string | null>(null)
+  const inApp = isTauri()
+
+  useEffect(() => {
+    let alive = true
+    void currentAppVersion().then((v) => {
+      if (alive) setVersion(v)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const checking = phase === 'checking'
+
+  // Manual check: the title-bar pill handles the "available" case (and the
+  // install), so here we only toast the outcomes the pill can't show on its
+  // own — found / already-latest / check failed.
+  const runCheck = async () => {
+    const result = await check()
+    if (result === 'available') {
+      addToast({ type: 'info', title: t('update.toast.available') })
+    } else if (result === 'uptodate') {
+      addToast({ type: 'success', title: t('update.toast.upToDate') })
+    } else if (result === 'error') {
+      addToast({ type: 'error', title: t('update.toast.checkFailed') })
+    }
+  }
+
+  return (
+    <section className="settings-section" data-section="updates" ref={sectionRef}>
+      <h2 className="settings-section-title">{t('settings.section.updates')}</h2>
+      <p className="settings-section-desc">{t('settings.updates.intro')}</p>
+
+      <div className="settings-field">
+        <p className="settings-hint" style={{ fontFamily: 'var(--font-mono)' }}>
+          {t('settings.updates.currentVersion', { version: version ?? '—' })}
+        </p>
+        {inApp ? (
+          <div style={{ marginTop: 8 }}>
+            <button
+              type="button"
+              className="btn"
+              disabled={checking}
+              onClick={() => void runCheck()}
+            >
+              {checking ? t('settings.updates.checking') : t('settings.updates.checkButton')}
+            </button>
+          </div>
+        ) : (
+          <p className="settings-hint is-warn" style={{ marginTop: 8 }}>
+            {t('settings.updates.browserOnly')}
+          </p>
+        )}
+      </div>
     </section>
   )
 }

@@ -3715,3 +3715,59 @@ msgstr "量化叠加 & IC 辩论"
 msgid "landing.dock.quant.desc"
 msgstr "Monte Carlo · 狙击点位 · 牛熊 IC 辩论"
 
+#. js-lingui-explicit-id
+msgid "update.pill.available"
+msgstr "更新到 {version}"
+
+#. js-lingui-explicit-id
+msgid "update.pill.downloading"
+msgstr "更新中"
+
+#. js-lingui-explicit-id
+msgid "update.pill.installing"
+msgstr "安装中…"
+
+#. js-lingui-explicit-id
+msgid "update.pill.retry"
+msgstr "更新失败，重试"
+
+#. js-lingui-explicit-id
+msgid "update.toast.available"
+msgstr "发现新版本 — 点顶部按钮即可更新"
+
+#. js-lingui-explicit-id
+msgid "update.toast.upToDate"
+msgstr "已是最新版本"
+
+#. js-lingui-explicit-id
+msgid "update.toast.checkFailed"
+msgstr "检查更新失败"
+
+#. js-lingui-explicit-id
+msgid "settings.nav.updates"
+msgstr "更新"
+
+#. js-lingui-explicit-id
+msgid "settings.section.updates"
+msgstr "更新"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.intro"
+msgstr "检查并安装 FinRobot 的新版本。"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.currentVersion"
+msgstr "当前版本：{version}"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.checkButton"
+msgstr "检查更新"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.checking"
+msgstr "检查中…"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.browserOnly"
+msgstr "更新检查仅在桌面 App 中可用。"
+

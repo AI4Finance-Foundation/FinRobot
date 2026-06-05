@@ -658,6 +658,53 @@ body {
   }
 }
 
+/* Title-bar auto-update pill (UpdatePill) — Codex-style "Update to vX" button. */
+.tb-update-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.18s ease;
+}
+.tb-update-pill.is-available {
+  cursor: pointer;
+  color: var(--primary);
+  border: 1px solid var(--border-glow);
+  background: var(--primary-soft);
+  box-shadow: var(--glow-blue);
+}
+.tb-update-pill.is-available:hover {
+  filter: brightness(1.12);
+}
+.tb-update-pill.is-busy {
+  color: var(--text-secondary);
+  border: 1px solid var(--border-soft);
+  background: transparent;
+  font-variant-numeric: tabular-nums;
+}
+.tb-update-pill.is-error {
+  cursor: pointer;
+  color: var(--negative);
+  border: 1px solid var(--negative);
+  background: var(--negative-bg);
+}
+.tb-update-spinner {
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ═══════════════════════════
    PLAYGROUND RANGE INPUTS
    ═══════════════════════════ */

@@ -16,7 +16,8 @@
     "generate:api": "npx openapi-typescript http://127.0.0.1:8321/openapi.json -o src/api/schema.d.ts && prettier --write src/api/schema.d.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test --project=chromium"
+    "e2e": "playwright test --project=chromium",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.182",
@@ -33,7 +34,9 @@
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-fs": "^2.0.0",
     "@tauri-apps/plugin-os": "^2.3.2",
+    "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-shell": "^2.0.0",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "openapi-fetch": "^0.17.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -48,6 +51,7 @@
     "@lingui/format-po": "^6.1.0",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/vite": "^4.2.2",
+    "@tauri-apps/cli": "^2.11.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.0.0",

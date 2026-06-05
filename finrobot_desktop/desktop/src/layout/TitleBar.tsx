@@ -12,6 +12,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useUiStore } from '../stores/uiStore'
 import { useI18n } from '../i18n'
 import { startWindowDrag } from '../lib/tauri'
+import { UpdatePill } from '../components/UpdatePill'
 
 interface NavDoor {
   /** i18n message id resolved at render time. */
@@ -136,6 +137,9 @@ export function TitleBar(): React.ReactElement {
       </nav>
 
       <div style={{ flex: 1 }} />
+
+      {/* Update pill — renders only when an update is available / installing. */}
+      <UpdatePill />
 
       {/* AI panel toggle */}
       <button

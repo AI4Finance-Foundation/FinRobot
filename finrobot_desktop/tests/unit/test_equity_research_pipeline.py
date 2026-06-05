@@ -429,15 +429,6 @@ async def test_peer_analysis_raises_when_target_financials_missing(mock_deps):
     """execute_peer_analysis (shared, in _helpers) raises ValueError when no
     target FinancialData is present in structured_context (any step key)."""
     from finrobot.engine.pipelines._helpers import execute_peer_analysis
-    from finrobot.engine.models.financial import PeerSelection
-
-    mock_peer_result = MagicMock()
-    mock_peer_result.output = PeerSelection(
-        tickers=["MSFT", "GOOGL", "META"],
-        rationale="Large-cap tech peers",
-    )
-    mock_agent_instance = MagicMock()
-    mock_agent_instance.run = AsyncMock(return_value=mock_peer_result)
 
     # fetch_canonical returns NormalizedFinancials so _fetch_one_peer succeeds
     # for all 3 tickers; the test expects that the code then raises "target
@@ -479,9 +470,10 @@ async def test_peer_analysis_raises_when_target_financials_missing(mock_deps):
 
     mock_agent = MagicMock()
 
-    with patch("finrobot.engine.pipelines._helpers.Agent", return_value=mock_agent_instance):
-        with pytest.raises(ValueError, match="target FinancialData"):
-            await execute_peer_analysis(mock_agent, mock_deps, "prompt", {}, "AAPL")
+    with pytest.raises(ValueError, match="target FinancialData"):
+        await execute_peer_analysis(
+            mock_agent, mock_deps, "prompt", {}, "AAPL", peers=["MSFT", "GOOGL", "META"]
+        )
 
 
 def test_build_sensitivity_ranges_returns_valid_ranges():
@@ -1288,55 +1280,78 @@ async def test_thesis_wraps_validation_error_as_value_error(mock_deps):
 
 
 @pytest.mark.asyncio
-async def test_peer_selection_propagates_agent_run_error(mock_deps):
-    """BUG-015: an AgentRunError inside _llm_select_peers propagates as
-    AgentRunError (recoverable), NOT re-wrapped into ValueError."""
-    from pydantic_ai.exceptions import AgentRunError
+async def test_deterministic_peer_selection_uses_candidate_screen(mock_deps):
+    """Default peer selection consumes the provider candidate pool and pure screen.
 
-    from finrobot.engine.pipelines._helpers import _llm_select_peers
-
-    mock_agent_instance = MagicMock()
-    mock_agent_instance.run = AsyncMock(side_effect=AgentRunError("timeout"))
-
-    with patch(
-        "finrobot.engine.pipelines._helpers.Agent",
-        return_value=mock_agent_instance,
-    ):
-        with pytest.raises(AgentRunError):
-            await _llm_select_peers(mock_deps, "select peers prompt")
-
-
-def test_peer_selection_prompt_judges_business_not_industry_equality():
-    """Root-bug guard: peer selection must NOT gate on exact yfinance-industry
-    equality.
-
-    The old prompt forced ``peer.industry == target.industry`` exactly, which
-    benchmarked Micron (memory) against NVDA/AMD (logic) — both happen to sit in
-    yfinance's coarse "Semiconductors" bucket — while excluding the real memory
-    comps (WDC/Seagate live in "Computer Hardware"; Samsung/SK Hynix are foreign).
-    This test fails loudly if anyone re-introduces that hard gate, and asserts the
-    business-comparability principles that replaced it are present.
+    NVDA regression: a same-industry but wrong-value-chain supplier (TSM foundry)
+    must be rejected before it can move comps_pe.
     """
-    import inspect
+    from finrobot.engine.data.interface import DataResult
+    from finrobot.engine.data.types import DataType
+    from finrobot.engine.pipelines._helpers import _deterministic_select_peers
 
-    from finrobot.engine.pipelines._helpers import _llm_select_peers
+    payload = {
+        "profile": {
+            "company_name": "NVIDIA Corporation",
+            "sector": "Technology",
+            "industry": "Semiconductors",
+            "market_cap": 3_000_000_000_000,
+            "description": "Provides GPUs and data center platforms for AI accelerated computing.",
+        },
+        "industry_screen": ["TSM", "ASML", "AVGO", "AMD", "QCOM"],
+        "stock_peers": [],
+        "sector_screen": [],
+        "quotes": {
+            "TSM": {"market_cap": 1_300_000_000_000, "pe": 25.0},
+            "ASML": {"market_cap": 350_000_000_000, "pe": 35.0},
+            "AVGO": {"market_cap": 1_100_000_000_000, "pe": 38.0},
+            "AMD": {"market_cap": 260_000_000_000, "pe": 42.0},
+            "QCOM": {"market_cap": 180_000_000_000, "pe": 16.0},
+        },
+        "profiles": {
+            "TSM": {
+                "industry": "Semiconductors",
+                "description": "Manufactures, packages, tests, and sells integrated circuits; wafer fabrication.",
+            },
+            "ASML": {
+                "industry": "Semiconductors",
+                "description": "Develops semiconductor equipment systems, including lithography.",
+            },
+            "AVGO": {
+                "industry": "Semiconductors",
+                "description": "Designs, develops and supplies semiconductor solutions.",
+            },
+            "AMD": {
+                "industry": "Semiconductors",
+                "description": "Develops microprocessors, chipsets and discrete GPUs.",
+            },
+            "QCOM": {
+                "industry": "Semiconductors",
+                "description": "Develops and supplies integrated circuits and system software.",
+            },
+        },
+    }
+    mock_deps.data_layer.fetch = AsyncMock(
+        return_value=DataResult(
+            data=payload,
+            provider="fmp",
+            ticker="NVDA",
+            data_type=DataType.PEER_CANDIDATES,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+    )
 
-    src = inspect.getsource(_llm_select_peers)
+    selection = await _deterministic_select_peers(mock_deps, "NVDA")
 
-    # The exact-industry gate and its no-cross-industry rule must be gone.
-    assert "完全一致" not in src, "exact yfinance-industry equality gate must not return"
-    assert "不允许跨 industry" not in src, "cross-industry prohibition must not return"
-
-    # Business comparability + the three principles that generalize the fix.
-    assert "可比性的判据是业务" in src
-    assert "价值链位置" in src  # foundry ≠ its fabless customers
-    assert "全球龙头" in src  # foreign leaders (Samsung/Hynix) are eligible
+    assert selection.tickers == ["AVGO", "AMD", "QCOM"]
+    assert "TSM" not in selection.tickers
+    assert "角色剔除 2 家" in selection.rationale
 
 
 @pytest.mark.asyncio
 async def test_peer_analysis_excludes_target_and_names_dropped_peers(mock_deps):
     """execute_peer_analysis (1) never lists the target as its own comp even when
-    the LLM returns it, and (2) NAMES every dropped peer in the warnings so a
+    the caller includes it, and (2) NAMES every dropped peer in the warnings so a
     comp lost to a transient fetch/FX failure is visibly accounted for rather than
     silently swapped."""
     from datetime import datetime, timezone
@@ -1347,19 +1362,9 @@ async def test_peer_analysis_excludes_target_and_names_dropped_peers(mock_deps):
         FinancialData,
         IncomeStatement,
         MarketData,
-        PeerSelection,
         ValuationMetrics,
     )
     from finrobot.engine.pipelines._helpers import execute_peer_analysis
-
-    # LLM returns the target (AAPL) plus peers, one of which will fail to fetch.
-    mock_peer_result = MagicMock()
-    mock_peer_result.output = PeerSelection(
-        tickers=["AAPL", "MSFT", "GOOGL", "META", "FAILME"],
-        rationale="business-comparable large-cap tech",
-    )
-    mock_agent_instance = MagicMock()
-    mock_agent_instance.run = AsyncMock(return_value=mock_peer_result)
 
     def _mk_norm(t: str):
         return normalize_financials(
@@ -1427,8 +1432,14 @@ async def test_peer_analysis_excludes_target_and_names_dropped_peers(mock_deps):
     ctx = {"data_collection": target_fd}
 
     mock_agent = MagicMock()
-    with patch("finrobot.engine.pipelines._helpers.Agent", return_value=mock_agent_instance):
-        out = await execute_peer_analysis(mock_agent, mock_deps, "prompt", ctx, "AAPL")
+    out = await execute_peer_analysis(
+        mock_agent,
+        mock_deps,
+        "prompt",
+        ctx,
+        "AAPL",
+        peers=["AAPL", "MSFT", "GOOGL", "META", "FAILME"],
+    )
 
     peer_comps = out.structured
     peer_tickers = {p.ticker.upper() for p in peer_comps.peers}

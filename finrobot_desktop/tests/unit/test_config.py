@@ -79,6 +79,10 @@ class TestDefaults:
         s = FinRobotSettings()
         assert s.sec_holdings_auto_refresh is False
 
+    def test_peer_sticky_window_defaults_to_one_week(self):
+        s = FinRobotSettings()
+        assert s.peer_sticky_max_age_days == 7
+
 
 class TestProviderKeyPrivacy:
     """Provider API keys are a PrivateAttr — they must never leak into
@@ -111,6 +115,10 @@ class TestConstructorOverride:
         s = get_settings(model_name="openai:gpt-4o", cache_db_path="/tmp/test.db")
         assert s.model_name == "openai:gpt-4o"
         assert s.cache_db_path == "/tmp/test.db"
+
+    def test_peer_sticky_window_override(self):
+        s = get_settings(peer_sticky_max_age_days=0)
+        assert s.peer_sticky_max_age_days == 0
 
 
 class TestCreateModel:

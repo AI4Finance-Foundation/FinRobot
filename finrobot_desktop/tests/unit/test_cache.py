@@ -221,11 +221,12 @@ class TestCanonicalSlot:
 class TestRawSlotVersion:
     """Versioned raw slots auto-invalidate stale-format payloads on upgrade."""
 
-    def test_proxy_slot_is_versioned_others_bare(self):
+    def test_shape_changed_raw_slots_are_versioned_others_bare(self):
         from finrobot.engine.data.cache import raw_slot_key
         from finrobot.engine.data.types import DataType
 
         assert raw_slot_key(DataType.PROXY_STATEMENT) == "proxy_statement:v2"
+        assert raw_slot_key(DataType.PEER_CANDIDATES) == "peer_candidates:v2"
         assert raw_slot_key(DataType.INSIDER_TRADES) == "insider_trades"
         assert raw_slot_key("financials") == "financials"
 

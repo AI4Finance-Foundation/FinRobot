@@ -104,9 +104,7 @@ def aggregate_valuation(
                 "建议通过 --peers 手动指定含盈利对标的同业集"
             )
         elif peer_comps.target.net_income is None or peer_comps.target.net_income <= 0:
-            warnings.append(
-                "comps_pe: target TTM net income ≤ 0 — 目标公司本身亏损，P/E 法不适用"
-            )
+            warnings.append("comps_pe: target TTM net income ≤ 0 — 目标公司本身亏损，P/E 法不适用")
 
     if (m := _ddm_method(ddm)) is not None:
         methods.append(m)

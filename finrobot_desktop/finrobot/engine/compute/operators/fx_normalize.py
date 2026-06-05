@@ -233,8 +233,17 @@ def normalize_financialdata_to_usd(
     )
 
     # ----- balance sheet (reporting currency) -------------------------------
-    converted.balance.total_debt = financials.balance.total_debt * reporting_rate
-    converted.balance.total_cash = financials.balance.total_cash * reporting_rate
+    # None stays None through FX; unknown debt/cash must not become fabricated 0.
+    converted.balance.total_debt = (
+        None
+        if financials.balance.total_debt is None
+        else financials.balance.total_debt * reporting_rate
+    )
+    converted.balance.total_cash = (
+        None
+        if financials.balance.total_cash is None
+        else financials.balance.total_cash * reporting_rate
+    )
 
     # ----- market quote (quote currency) ------------------------------------
     mkt = financials.market

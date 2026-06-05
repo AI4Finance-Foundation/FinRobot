@@ -139,6 +139,15 @@ def test_merge_ignores_unknown_fields(tmp_path: Path) -> None:
     assert content == {"model_name": "openai:gpt-4o"}
 
 
+def test_merge_accepts_peer_sticky_window(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+
+    _merge_non_secret_settings(path, {"peer_sticky_max_age_days": 0})
+
+    content = json.loads(path.read_text())
+    assert content == {"peer_sticky_max_age_days": 0}
+
+
 # ---------------------------------------------------------------------------
 # GET /api/settings — provider registry + startup_error + identity gate
 # ---------------------------------------------------------------------------
@@ -430,6 +439,15 @@ async def test_load_non_secret_settings_coerces_dismissed_at(
     assert settings.sec_identity_dismissed_at.year == 2026
     assert settings.sec_identity_dismissed_at.month == 5
     assert settings.sec_identity_dismissed_at.day == 27
+
+
+def test_load_non_secret_settings_keeps_peer_sticky_window(tmp_path: Path) -> None:
+    from finrobot.routes.settings import load_non_secret_settings
+
+    (tmp_path / "settings.json").write_text(json.dumps({"peer_sticky_max_age_days": 3}))
+    raw = load_non_secret_settings(tmp_path / "settings.json")
+    settings = get_settings(model_name="openai:gpt-4o", **raw)
+    assert settings.peer_sticky_max_age_days == 3
 
 
 @pytest.mark.asyncio
@@ -820,7 +838,9 @@ async def test_test_data_provider_maps_auth_and_hides_key(tmp_path: Path, monkey
     import httpx
 
     secret = "super-secret-fmp-key"
-    request = httpx.Request("GET", f"https://financialmodelingprep.com/api/v3/profile/AAPL?apikey={secret}")
+    request = httpx.Request(
+        "GET", f"https://financialmodelingprep.com/api/v3/profile/AAPL?apikey={secret}"
+    )
     response = httpx.Response(401, request=request)
     monkeypatch.setitem(
         _DATA_PROBES,

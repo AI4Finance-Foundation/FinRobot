@@ -58,3 +58,10 @@ class DataType(StrEnum):
     # one-true forward EPS / EBITDA / FCF leaf (compute/forward_estimates.py) so
     # the Football Field forward-multiple rows stop degrading to trailing.
     FORWARD_ESTIMATES = "forward_estimates"
+    # Raw peer-candidate pool for deterministic comps selection (FMP-only:
+    # /v4/stock_peers + /v3/stock-screener + /v3/quote batch). The provider
+    # ships RAW lists/quotes; tiering / NM-filter / size ranking live in the
+    # pure operator compute/operators/peer_screen.py (ADR-0014). Replaces the
+    # retired LLM peer selection whose run-to-run nondeterminism swung the
+    # published comps_pe target ±30% within a day (MSFT $487 → $636).
+    PEER_CANDIDATES = "peer_candidates"

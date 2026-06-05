@@ -803,6 +803,61 @@ class TestFMPForwardEstimates:
         assert result.data["rows"] == []
 
 
+class TestFMPPeerCandidates:
+    @pytest.mark.asyncio
+    async def test_peer_candidates_include_profiles_for_value_chain_screen(self, provider):
+        responses = [
+            _mock_response(
+                [
+                    {
+                        "symbol": "NVDA",
+                        "companyName": "NVIDIA Corporation",
+                        "industry": "Semiconductors",
+                        "sector": "",
+                        "mktCap": 3_000_000_000_000,
+                        "description": "Provides GPUs and data center platforms.",
+                    }
+                ]
+            ),
+            _mock_response([{"symbol": "NVDA", "peersList": ["AMD"]}]),
+            _mock_response([{"symbol": "TSM"}, {"symbol": "AMD"}]),
+            _mock_response(
+                [
+                    {
+                        "symbol": "AMD",
+                        "companyName": "Advanced Micro Devices, Inc.",
+                        "industry": "Semiconductors",
+                        "sector": "Technology",
+                        "description": "Develops microprocessors and GPUs.",
+                    },
+                    {
+                        "symbol": "TSM",
+                        "companyName": "Taiwan Semiconductor Manufacturing Company Limited",
+                        "industry": "Semiconductors",
+                        "sector": "Technology",
+                        "description": "Manufactures, packages, tests, and sells integrated circuits.",
+                    },
+                ]
+            ),
+            _mock_response(
+                [
+                    {"symbol": "AMD", "marketCap": 260_000_000_000, "pe": 42.0},
+                    {"symbol": "TSM", "marketCap": 1_300_000_000_000, "pe": 25.0},
+                ]
+            ),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("NVDA", "peer_candidates")
+
+        assert result.data["profile"]["description"] == "Provides GPUs and data center platforms."
+        assert result.data["profiles"]["AMD"]["description"] == "Develops microprocessors and GPUs."
+        assert (
+            result.data["profiles"]["TSM"]["description"]
+            == "Manufactures, packages, tests, and sells integrated circuits."
+        )
+        assert result.data["quotes"]["AMD"]["pe"] == 42.0
+
+
 def _fmp_quote_response(ticker: str = "AAPL", price: float = 175.0) -> list[dict]:
     """Mock FMP /quote/{ticker} response."""
     return [

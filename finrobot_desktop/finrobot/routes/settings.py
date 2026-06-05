@@ -53,6 +53,7 @@ _NON_SECRET_FIELDS: tuple[str, ...] = (
     "log_level",
     "log_to_file",
     "log_retention_days",
+    "peer_sticky_max_age_days",
 )
 
 

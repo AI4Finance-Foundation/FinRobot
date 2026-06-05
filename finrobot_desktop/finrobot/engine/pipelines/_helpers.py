@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from pydantic_ai import Agent
-from pydantic_ai.exceptions import AgentRunError
-from pydantic import ValidationError
 
+from finrobot.engine.compute.operators.peer_screen import screen_peers
 from finrobot.engine.compute.operators.data_processor import forecast_financials
 from finrobot.engine.compute.coordinators.extractor import (
     extract_company_financials,
@@ -49,7 +49,7 @@ from finrobot.engine.models.financial import (
 
 logger = logging.getLogger(__name__)
 
-# Peer comp-set sizing. The LLM over-selects (6-8 ranked candidates) so that
+# Peer comp-set sizing. Auto-selection over-selects ranked candidates so
 # transient drops (a rate-limited financials fetch, a missing FX quote for a
 # foreign ADR) thin the set instead of failing the whole report. MIN is the
 # floor for a defensible median; MAX caps the published comp set.
@@ -123,7 +123,7 @@ def _find_target_financial_data(structured_context: dict[str, object]) -> Financ
 
 def _peer_override(raw: object) -> list[str] | None:
     """Validated custom peer tickers from the ``peers`` run kwarg, or None to
-    fall back to LLM selection.
+    fall back to automatic selection.
 
     Accepts a list/tuple of tickers or a comma-separated string; upper-cases,
     strips, dedupes (order-preserving), and drops blanks. Returns None for an
@@ -143,83 +143,134 @@ def _peer_override(raw: object) -> list[str] | None:
     return list(deduped) or None
 
 
-async def _llm_select_peers(deps: FinRobotDeps, prompt: str) -> PeerSelection:
-    """LLM peer selection (ranked, business-comparability judgment). Raises
-    ValueError if the model fails to produce a valid selection.
+def _peer_tickers_from_artifact_payload(payload: object, ticker: str) -> list[str]:
+    if not isinstance(payload, dict):
+        return []
+    peer_block = payload.get("peer_analysis") or payload.get("statistical_bench")
+    if not isinstance(peer_block, dict):
+        return []
+    raw_peers = peer_block.get("peers")
+    if not isinstance(raw_peers, list):
+        return []
+    target = ticker.strip().upper()
+    tickers: list[str] = []
+    for peer in raw_peers:
+        sym: str | None = None
+        if isinstance(peer, dict) and isinstance(peer.get("ticker"), str):
+            sym = peer["ticker"]
+        elif isinstance(peer, str):
+            sym = peer
+        if sym is None:
+            continue
+        normalized = sym.strip().upper()
+        if normalized and normalized != target and normalized not in tickers:
+            tickers.append(normalized)
+    return tickers
 
-    Selection is driven by BUSINESS comparability (same end-market / product /
-    demand drivers / margin structure), NOT by exact equality of a third-party
-    industry label. yfinance's ``industry`` taxonomy is too coarse for cyclical
-    sub-sectors (it lumps memory + logic + analog into one "Semiconductors"
-    bucket) and simultaneously splits true comps across buckets (Western Digital
-    / Seagate sit in "Computer Hardware", not "Semiconductors"; Goldman / Morgan
-    Stanley in "Capital Markets", not "Banks"). A hard same-industry gate
-    therefore forced wrong comps (Micron benchmarked against NVDA/AMD instead of
-    the memory oligopoly). The taxonomy is now a HINT; the LLM judges real
-    comparability and may cross buckets and include foreign global leaders, which
-    are FX-normalized downstream (``normalize_peer_to_usd``) with a named
-    ``[待核]`` warning on FX failure instead of a silent substitution.
-    """
-    peer_agent = Agent(
-        deps.settings.create_model(),
-        output_type=PeerSelection,
-        instructions=(
-            "Select 6-8 comparable publicly traded companies for peer-multiple "
-            "analysis, RANKED most-comparable first. Return valid ticker symbols "
-            "only (e.g. MSFT, WDC, ASML; a foreign primary listing keeps its "
-            "exchange suffix, e.g. 005930.KS).\n\n"
-            "**可比性的判据是业务，不是分类标签**：按『同一终端市场 / 同类产品 / "
-            "相同需求与周期驱动 / 相近成本与毛利结构 / 体量量级可比』选同业。"
-            "yfinance 的 sector/industry 只是线索，不是硬门槛——真正的同业经常落在"
-            "相邻的 industry 桶里，必须照选，不要因为分类标签不同就排除。例：\n"
-            "  • 美光（MU，DRAM/NAND 存储）的同业是存储厂：三星电子（005930.KS）、"
-            "SK海力士（000660.KS）、西部数据（WDC）、希捷（STX）、闪迪（SNDK）——"
-            "不是 NVDA/AMD 这类逻辑芯片（后者只是恰好同在 yfinance 'Semiconductors' "
-            "桶里，业务并不可比）；WDC/STX/SNDK 被 yfinance 归到 'Computer Hardware'，"
-            "但它们正是美光 NAND 的直接对手，必须纳入。\n"
-            "  • 摩根大通（JPM）的同业含高盛（GS）、摩根士丹利（MS），即使 yfinance "
-            "把它们归在 'Capital Markets' 而非 'Banks'。\n"
-            "**区分价值链位置 / 商业模式**：同一 sector 里，一家公司的同业是『和它处在"
-            "价值链同一环、商业模式相同』的公司，不是它的客户或供应商。例：台积电（TSM）"
-            "是纯晶圆代工，同业是其它代工厂——联电（UMC）、格芯（GFS）、中芯国际，"
-            "而不是 NVDA/AMD/苹果（那些是 TSM 的客户）也不是 ASML（那是设备供应商）。\n"
-            "反过来：不要因为市值相近或同处一个宽泛 sector，就把业务无关的大盘股"
-            "塞进来——那是相关性凑数，不是可比性。\n\n"
-            "**覆盖范围是美股，但同业可含真正的全球龙头**：优先选美股本币（USD）上市"
-            "公司（含 USD 计价的 ADR）；当某行业的竞争格局由境外龙头定义时（如存储 = "
-            "三星 / 海力士），也要把它们放进列表，排在美股同业之后当靠后候补。下游会按"
-            "即期汇率把其本币财报归一到 USD；若汇率源临时取不到，该 peer 会被丢弃并在"
-            "研报里点名提示，绝不静默用别的公司顶替。因此务必让美股可比公司排在前面，"
-            "保证即便境外行汇率失败，核心同业集仍然成立。\n\n"
-            "**为什么要 6-8 个（不是 3-5）**：下游只保留前几个能成功取到财报的——"
-            "任一 peer 数据源被限流 / 取不到 FX 汇率时直接丢弃，靠靠后候补补位，"
-            "避免'少一个就整份分析失败'。宁多勿少，但每一个都必须业务真可比，"
-            "不许为凑数硬塞不相干的公司。\n\n"
-            "**P/E 法覆盖（盈利 peer 要求）**：P/E 是最常用的估值方法。若 peer set "
-            "里 TTM net income ≤ 0 的公司占多数，整个 P/E 法将因 n=0 完全失效。"
-            "因此：若目标公司本身已盈利，且行业内主要直接竞争对手全部亏损（典型："
-            "TSLA 的纯 EV 同业 RIVN/LCID/NIO/XPEV 均亏损），须在名单靠后位置"
-            "补充至少 2 家已盈利的同赛道或相邻赛道龙头（如整车厂 TM、GM、STLA、BYD）。"
-            "这不是凑数——这些公司与目标同处整车价值链、争夺同一终端消费者，是"
-            "合理的估值锚，只是业务模式略宽。'有盈利的业务相邻公司'优先于'亏损的"
-            "直接竞品'在 P/E 层面的价值。若整个行业真的无一家盈利可比公司（如早期"
-            "生物科技），则在 rationale 中说明，此条不适用。"
-        ),
-        defer_model_check=True,
-    )
+
+def _artifact_created_at_utc(artifact: object) -> datetime | None:
+    meta = getattr(artifact, "meta", None)
+    created_at = getattr(meta, "created_at", None)
+    if not isinstance(created_at, datetime):
+        return None
+    if created_at.tzinfo is None:
+        return created_at.replace(tzinfo=timezone.utc)
+    return created_at.astimezone(timezone.utc)
+
+
+def _sticky_peer_max_age_days(deps: FinRobotDeps) -> int:
+    raw = getattr(deps.settings, "peer_sticky_max_age_days", 7)
     try:
-        peer_result = await peer_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
-        return peer_result.output  # type: ignore[no-any-return]
-    except AgentRunError:
-        # Recoverable by type (rate-limit / transient LLM error). base.py
-        # retries these 3× with backoff — re-wrapping into ValueError would
-        # mark it non-recoverable and abort the whole run with zero retries.
-        raise
-    except (ValidationError, ValueError) as e:
-        # Structured-output schema failure is deterministically non-recoverable:
-        # the same prompt yields the same invalid shape, so retrying is wasted
-        # budget. Keep it wrapped as a non-recoverable ValueError.
-        raise ValueError(f"Failed to select peer companies: {e}") from e
+        return max(0, int(raw))
+    except (TypeError, ValueError):
+        return 0
+
+
+async def _sticky_peer_selection(
+    deps: FinRobotDeps,
+    source_artifact_id: object,
+    ticker: str,
+) -> PeerSelection | None:
+    if not isinstance(source_artifact_id, str) or not source_artifact_id:
+        return None
+    store = getattr(deps, "artifact_store", None)
+    if store is None:
+        return None
+    get = getattr(store, "get", None)
+    if not callable(get):
+        return None
+    try:
+        artifact = await get(source_artifact_id)
+    except (ValueError, TypeError, KeyError, AttributeError, OSError, RuntimeError):
+        logger.warning("Could not load source artifact %s for sticky peers", source_artifact_id)
+        return None
+    artifact_ticker = getattr(artifact, "ticker", None)
+    if not isinstance(artifact_ticker, str) or artifact_ticker.upper() != ticker.upper():
+        return None
+    max_age_days = _sticky_peer_max_age_days(deps)
+    created_at = _artifact_created_at_utc(artifact)
+    if max_age_days <= 0 or created_at is None:
+        return None
+    if datetime.now(tz=timezone.utc) - created_at > timedelta(days=max_age_days):
+        logger.info(
+            "Parent artifact %s is older than peer sticky window (%s days); reselecting peers",
+            source_artifact_id,
+            max_age_days,
+        )
+        return None
+    tickers = _peer_tickers_from_artifact_payload(artifact.outputs.structured, ticker)
+    if len(tickers) < _PEER_COMP_SET_MIN:
+        return None
+    return PeerSelection(
+        tickers=tickers,
+        rationale=(
+            f"Reused prior-version peer set from {source_artifact_id} for version stability: "
+            f"{', '.join(tickers)}."
+        ),
+    )
+
+
+async def _deterministic_select_peers(deps: FinRobotDeps, ticker: str) -> PeerSelection:
+    """Deterministic peer selection: PEER_CANDIDATES fetch + pure screen (ADR-0014).
+
+    Replaces the retired LLM selection, whose run-to-run nondeterminism swung
+    the published comps_pe target ±30% within one day (MSFT $487 → $636,
+    2026-06-05) — a peer median that moves without the market moving is not a
+    traceable number. Same candidates always yield the same set; the rationale
+    is the algorithm trace (pool → eligibility cuts → tiered picks) instead of
+    LLM prose, so the report's peer list is re-derivable by hand.
+
+    The LLM's cross-bucket business judgment (e.g. MU's real comps are memory
+    makers filed under "Computer Hardware") is mechanically approximated by
+    tier 2 — FMP's stock_peers cross-recommendation list, which crosses
+    classification buckets. Residual misclassification risk is bounded by the
+    pool-vs-selected median tripwire, the per-peer 5x deviation validator, and
+    the full peer table shipping in the report for analyst review. Hand-curated
+    sets remain available via the ``--peers`` override.
+
+    Raises:
+        ValueError (non-recoverable): when PEER_CANDIDATES is unavailable
+            (no FMP key / provider down) or the screen yields no eligible
+            peer. Deterministic selection re-runs to the identical result, so
+            a retry can never "pick a luckier set" — the step must degrade
+            instead of burning retry budget (the BUG-059 class of waste).
+    """
+    try:
+        result = await deps.data_layer.fetch(DataType.PEER_CANDIDATES, ticker)
+    except ProviderError as e:
+        raise ValueError(
+            f"peer candidates unavailable for {ticker} (FMP-only data type; "
+            f"comps degrades without it): {e}"
+        ) from e
+    if result.data.get("error"):
+        raise ValueError(f"peer candidates unavailable for {ticker}: {result.data['error']}")
+    screen = screen_peers(result.data, ticker)
+    if not screen.tickers:
+        raise ValueError(
+            f"peer screen for {ticker} produced no eligible peers "
+            f"(pool empty after market-cap band + NM filter) — comps degrades"
+        )
+    return PeerSelection(tickers=screen.tickers, rationale=screen.rationale)
 
 
 async def execute_peer_analysis(
@@ -232,10 +283,10 @@ async def execute_peer_analysis(
 ) -> StepOutput:
     """Select peer tickers, then fetch + compute multiples deterministically.
 
-    Peers come from the LLM (ranked, business-comparability judgment) UNLESS the
-    caller passes ``peers=[...]`` (e.g. ``finrobot comps --peers AAPL,MSFT``), in which
-    case the LLM selection is skipped and the user's set is used verbatim. Either
-    path runs the identical fetch / FX-normalize / multiples / median math, so a
+    Peers come from the deterministic candidate screen UNLESS the caller passes
+    ``peers=[...]`` (e.g. ``finrobot comps --peers AAPL,MSFT``), in which case
+    auto-selection is skipped and the user's set is used verbatim. Either path
+    runs the identical fetch / FX-normalize / multiples / median math, so a
     custom peer set yields the same traceable multiples — only membership changes.
     Shared by equity_research and the standalone comps pipeline so BOTH emit
     deterministic, traceable multiples instead of LLM free text."""
@@ -249,7 +300,14 @@ async def execute_peer_analysis(
         logger.info("Peer analysis using caller-supplied peers: %s", override)
         selection = PeerSelection(tickers=override, rationale="Caller-supplied peer set (--peers).")
     else:
-        selection = await _llm_select_peers(deps, prompt)
+        sticky_selection = await _sticky_peer_selection(
+            deps, kwargs.get("source_artifact_id"), ticker
+        )
+        selection = (
+            sticky_selection
+            if sticky_selection is not None
+            else await _deterministic_select_peers(deps, ticker)
+        )
 
     # A company is never its own comp. The LLM (and occasionally a caller) sometimes
     # lists the target among its peers; drop it so it neither consumes a candidate
@@ -284,7 +342,7 @@ async def execute_peer_analysis(
             logger.warning(f"Skipping peer {peer_ticker}: {e}")
             return None
 
-    # The LLM over-selects (6-8 ranked candidates); we fetch all concurrently and
+    # Auto-selection over-selects ranked candidates; we fetch all concurrently and
     # keep the survivors in rank order, capped at PEER_COMP_SET_MAX. Extra
     # candidates are drop-insurance: a rate-limited financials fetch or a missing
     # FX quote drops that one peer instead of failing the whole report. gather +

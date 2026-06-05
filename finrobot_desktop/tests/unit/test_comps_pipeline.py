@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -89,8 +90,8 @@ def test_comps_pipeline_has_structured_validator_on_target_data():
 
 
 class TestPeerOverrideParsing:
-    def test_none_falls_back_to_llm(self):
-        # The default path passes no `peers` kwarg → None → LLM selection.
+    def test_none_falls_back_to_auto_selection(self):
+        # The default path passes no `peers` kwarg → None → deterministic selection.
         assert _peer_override(None) is None
 
     def test_empty_and_blank_yield_none(self):
@@ -128,16 +129,16 @@ class TestExecutePeerAnalysisOverride:
             )
 
     def test_override_skips_llm_and_uses_given_tickers(self, monkeypatch):
-        # If the override path leaked into LLM selection this would raise a
+        # If the override path leaked into automatic selection this would raise a
         # different error; instead the candidates in the failure are exactly the
         # supplied set, proving the LLM was bypassed. With every peer dropping
         # (failing layer → 0 survivors) the step raises ProviderError — typed
         # recoverable, NOT a raw ValueError that would crash the run — and its
         # message lists the supplied candidates verbatim.
         async def _boom(*_a, **_k):
-            raise AssertionError("LLM peer selection must not run when --peers is given")
+            raise AssertionError("automatic peer selection must not run when --peers is given")
 
-        monkeypatch.setattr(_helpers, "_llm_select_peers", _boom)
+        monkeypatch.setattr(_helpers, "_deterministic_select_peers", _boom)
         with pytest.raises(ProviderError, match="QCOM"):
             asyncio.run(
                 execute_peer_analysis(
@@ -149,6 +150,79 @@ class TestExecutePeerAnalysisOverride:
                     peers=["NVDA", "AMD", "QCOM"],
                 )
             )
+
+
+class TestStickyPeerSelection:
+    @staticmethod
+    def _artifact(created_at: datetime):
+        return SimpleNamespace(
+            ticker="NVDA",
+            meta=SimpleNamespace(created_at=created_at),
+            outputs=SimpleNamespace(
+                structured={
+                    "peer_analysis": {
+                        "peers": [
+                            {"ticker": "AMD"},
+                            {"ticker": "INTC"},
+                            {"ticker": "QCOM"},
+                            {"ticker": "AVGO"},
+                            {"ticker": "TXN"},
+                            {"ticker": "MRVL"},
+                        ]
+                    }
+                }
+            ),
+        )
+
+    def test_reuses_parent_artifact_peer_set(self):
+        art = self._artifact(datetime.now(tz=timezone.utc))
+
+        class Store:
+            async def get(self, artifact_id):
+                assert artifact_id == "art_prev"
+                return art
+
+        deps = SimpleNamespace(
+            artifact_store=Store(), settings=SimpleNamespace(peer_sticky_max_age_days=7)
+        )
+
+        selection = asyncio.run(_helpers._sticky_peer_selection(deps, "art_prev", "NVDA"))
+
+        assert selection is not None
+        assert selection.tickers == ["AMD", "INTC", "QCOM", "AVGO", "TXN", "MRVL"]
+        assert "Reused prior-version peer set" in selection.rationale
+
+    def test_parent_artifact_peer_set_expires(self):
+        art = self._artifact(datetime.now(tz=timezone.utc) - timedelta(days=8))
+
+        class Store:
+            async def get(self, artifact_id):
+                assert artifact_id == "art_prev"
+                return art
+
+        deps = SimpleNamespace(
+            artifact_store=Store(), settings=SimpleNamespace(peer_sticky_max_age_days=7)
+        )
+
+        selection = asyncio.run(_helpers._sticky_peer_selection(deps, "art_prev", "NVDA"))
+
+        assert selection is None
+
+    def test_zero_sticky_age_disables_reuse(self):
+        art = self._artifact(datetime.now(tz=timezone.utc))
+
+        class Store:
+            async def get(self, artifact_id):
+                assert artifact_id == "art_prev"
+                return art
+
+        deps = SimpleNamespace(
+            artifact_store=Store(), settings=SimpleNamespace(peer_sticky_max_age_days=0)
+        )
+
+        selection = asyncio.run(_helpers._sticky_peer_selection(deps, "art_prev", "NVDA"))
+
+        assert selection is None
 
 
 def _canned_company(ticker: str):
@@ -198,8 +272,8 @@ class TestPeerAnalysisDegradesInsteadOfCrashing:
     """Fix: a thin comp set (1..MIN-1 survivors) must NOT raise — it builds the
     thin PeerComps + a warning and lets the step validator gate it (non-critical
     → degrade). The old code raised ValueError whose graceful handling depended
-    on the literal substring "429" living in its own message — a hack that
-    crashed the run when the wording drifted."""
+    on the literal substring "429" living in its own message — brittle logic
+    that crashed the run when the wording drifted."""
 
     def test_two_survivors_returns_thin_comps_with_warning(self, monkeypatch):
         from datetime import datetime, timezone

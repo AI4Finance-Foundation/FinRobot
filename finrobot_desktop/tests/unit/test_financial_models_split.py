@@ -116,10 +116,11 @@ class TestIncomeStatement:
 
 
 class TestBalanceSheet:
-    def test_defaults_to_zero(self):
+    def test_defaults_to_none_not_zero(self):
+        # None != 0: an unset component is "not reported", not real zero debt/cash.
         bs = BalanceSheet()
-        assert bs.total_debt == 0
-        assert bs.total_cash == 0
+        assert bs.total_debt is None
+        assert bs.total_cash is None
 
     def test_set_values(self):
         bs = BalanceSheet(total_debt=5e8, total_cash=2e8)
@@ -224,7 +225,9 @@ class TestNewStructuredConstructor:
             income=IncomeStatement(**_base_income()),
             market=MarketData(**_base_market()),
         )
-        assert fd.balance.total_debt == 0
+        # None != 0: a missing balance component is "not reported", never a real
+        # zero debt/cash, which would silently fabricate EV = market_cap.
+        assert fd.balance.total_debt is None
         assert fd.valuation.enterprise_value is None
 
 
@@ -262,10 +265,10 @@ class TestSubModelConstruction:
         with pytest.raises(ValidationError):
             _make_fd(market_overrides={"shares_outstanding": 0})
 
-    def test_defaults_debt_cash_to_zero(self):
+    def test_defaults_debt_cash_to_none(self):
         fd = _make_fd()
-        assert fd.balance.total_debt == 0
-        assert fd.balance.total_cash == 0
+        assert fd.balance.total_debt is None
+        assert fd.balance.total_cash is None
 
     def test_da_fields_default_none(self):
         fd = _make_fd()

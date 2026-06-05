@@ -69,7 +69,7 @@ interface Attribution {
 }
 
 interface ComparabilityFlag {
-  kind: 'formula' | 'data_source' | 'period'
+  kind: 'formula' | 'data_source' | 'period' | 'peer_set'
   message_zh: string
   message_en: string
   blocks_attribution: boolean

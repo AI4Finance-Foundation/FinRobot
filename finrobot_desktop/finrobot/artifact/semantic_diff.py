@@ -97,7 +97,7 @@ class Attribution(BaseModel):
 
 
 class ComparabilityFlag(BaseModel):
-    kind: Literal["formula", "data_source", "period"]
+    kind: Literal["formula", "data_source", "period", "peer_set"]
     message_zh: str
     message_en: str
     blocks_attribution: bool = False
@@ -498,6 +498,104 @@ def _version_label(art: Artifact) -> str:
     return f"{art.type} · {created:%Y-%m-%d %H:%M}" if created else art.id[:16]
 
 
+def _peer_tickers(art: Artifact) -> list[str]:
+    s = art.outputs.structured
+    if not isinstance(s, dict):
+        return []
+    peer_block = s.get("peer_analysis") or s.get("statistical_bench")
+    if not isinstance(peer_block, dict):
+        return []
+    peers = peer_block.get("peers")
+    if not isinstance(peers, list):
+        return []
+    out: list[str] = []
+    for peer in peers:
+        if isinstance(peer, dict) and isinstance(peer.get("ticker"), str):
+            out.append(peer["ticker"].upper())
+        elif isinstance(peer, str):
+            out.append(peer.upper())
+    return out
+
+
+def _valuation_method_mid(art: Artifact, method_name: str) -> float | None:
+    s = art.outputs.structured
+    if not isinstance(s, dict):
+        return None
+    synth = s.get("valuation_synthesis")
+    if not isinstance(synth, dict):
+        return None
+    methods = synth.get("methods")
+    if not isinstance(methods, list):
+        return None
+    for method in methods:
+        if not isinstance(method, dict):
+            continue
+        name = method.get("name") or method.get("method")
+        if name == method_name:
+            return _num(method.get("mid"))
+    return None
+
+
+def _peer_set_item(a: Artifact, b: Artifact) -> tuple[DeltaItem | None, ComparabilityFlag | None]:
+    old = _peer_tickers(a)
+    new = _peer_tickers(b)
+    if not old and not new:
+        return None, None
+    if old == new:
+        return None, None
+
+    old_set = set(old)
+    new_set = set(new)
+    removed = [t for t in old if t not in new_set]
+    added = [t for t in new if t not in old_set]
+    note_parts = []
+    if removed and added:
+        note_parts.append(f"{'/'.join(removed)}→{'/'.join(added)}")
+    elif removed:
+        note_parts.append(f"剔除 {'/'.join(removed)}")
+    elif added:
+        note_parts.append(f"新增 {'/'.join(added)}")
+    note = "；".join(note_parts) if note_parts else None
+
+    item = DeltaItem(
+        key="peer_set",
+        label_zh="同业集合",
+        label_en="Peer set",
+        old_value=", ".join(old),
+        new_value=", ".join(new),
+        formatted_old=", ".join(old) or "—",
+        formatted_new=", ".join(new) or "—",
+        direction="flat",
+        sentiment="neutral",
+        comparable=False,
+        caliber_note=note,
+    )
+
+    a_mid = _valuation_method_mid(a, "comps_pe")
+    b_mid = _valuation_method_mid(b, "comps_pe")
+    if a_mid is None or b_mid is None or abs(a_mid) <= _EPS:
+        return item, None
+    pct = (b_mid - a_mid) / abs(a_mid)
+    if abs(pct) <= 0.10:
+        return item, None
+
+    fmt_pct = f"{pct * 100:+.1f}%"
+    msg_zh = (
+        f"同业集合变更：{note or item.formatted_old + ' → ' + item.formatted_new}；"
+        f"comps_pe 中值变化 {fmt_pct}，版本差异含样本变化，不只是模型假设变化。"
+    )
+    msg_en = (
+        f"Peer set changed: {note or item.formatted_old + ' -> ' + item.formatted_new}; "
+        f"comps_pe mid moved {fmt_pct}. This version delta includes sample selection, "
+        "not only model assumptions."
+    )
+    return item, ComparabilityFlag(
+        kind="peer_set",
+        message_zh=msg_zh,
+        message_en=msg_en,
+    )
+
+
 # ── Entry point ──────────────────────────────────────────────────────────────
 
 
@@ -557,6 +655,10 @@ def build_semantic_delta(a: Artifact, b: Artifact) -> SemanticDelta:
                 ),
             )
         )
+
+    peer_item, peer_flag = _peer_set_item(a, b)
+    if peer_flag is not None:
+        flags.append(peer_flag)
 
     a_dcf = _dcf_result(a)
     b_dcf = _dcf_result(b)
@@ -618,6 +720,8 @@ def build_semantic_delta(a: Artifact, b: Artifact) -> SemanticDelta:
                 is_user_override=is_override,
             )
         )
+    if peer_item is not None:
+        drivers.append(peer_item)
 
     _ASSUMPTION_KEYS = {"wacc", "terminal_growth", "tax_rate", "revenue_cagr"}
     assumptions_moved = any(
@@ -625,8 +729,10 @@ def build_semantic_delta(a: Artifact, b: Artifact) -> SemanticDelta:
     )
     attribution = _build_attribution(a, a_dcf, b_dcf, blocked_reason, currency, assumptions_moved)
 
-    identical = all(it.direction == "flat" for it in conclusion) and all(
-        it.direction == "flat" for it in drivers
+    identical = (
+        all(it.direction == "flat" for it in conclusion)
+        and all(it.direction == "flat" for it in drivers)
+        and peer_item is None
     )
 
     return SemanticDelta(

@@ -53,6 +53,8 @@ def _equity_artifact(
     *,
     recommendation: str,
     current_price: float,
+    peer_tickers: list[str] | None = None,
+    comps_pe_mid: float | None = None,
     formula_id: str = "equity_research_dcf_standard_with_da_v2",
     data_source: str = "yfinance",
     fetched_at: datetime | None = None,
@@ -61,6 +63,31 @@ def _equity_artifact(
     dcf = calculate_dcf(inputs)
     dcf_dump: dict[str, Any] = dcf.model_dump(mode="json")
     ts = fetched_at or datetime(2026, 5, 13, 10, 0, tzinfo=UTC)
+    structured: dict[str, Any] = {
+        "financial_modeling": dcf_dump,
+        "thesis": {
+            "price_target": dcf.implied_price,
+            "recommendation": recommendation,
+        },
+    }
+    if peer_tickers is not None:
+        structured["peer_analysis"] = {"peers": [{"ticker": t} for t in peer_tickers]}
+    if comps_pe_mid is not None:
+        structured["valuation_synthesis"] = {
+            "methods": [
+                {
+                    "name": "comps_pe",
+                    "low": comps_pe_mid * 0.9,
+                    "mid": comps_pe_mid,
+                    "high": comps_pe_mid * 1.1,
+                    "confidence": 0.55,
+                    "source": "test comps",
+                }
+            ],
+            "weighted_price": dcf.implied_price,
+            "current_price": current_price,
+            "upside_downside": None,
+        }
     return Artifact(
         id=art_id,
         ticker="AAPL",
@@ -73,14 +100,7 @@ def _equity_artifact(
         assumptions=ArtifactAssumptions(parameters=inputs.model_dump(mode="json")),
         compute_version=ArtifactComputeVersion(version="0.1.0", formula_id=formula_id),
         outputs=ArtifactOutputs(
-            structured={
-                "financial_modeling": dcf_dump,
-                "thesis": {
-                    "price_target": dcf.implied_price,
-                    "recommendation": recommendation,
-                },
-            },
-            llm_narrative={"recommendation": recommendation},
+            structured=structured, llm_narrative={"recommendation": recommendation}
         ),
         meta=ArtifactMeta(created_at=ts, source="pipeline:equity_research"),
     )
@@ -239,6 +259,35 @@ class TestComparabilityGate:
         if ev_items:
             assert ev_items[0].comparable is False
             assert ev_items[0].pct_change is None
+
+    def test_peer_set_change_flagged_when_comps_pe_moves_materially(self) -> None:
+        a = _equity_artifact(
+            "art_v1",
+            _inputs(),
+            recommendation="BUY",
+            current_price=170.0,
+            peer_tickers=["AMD", "INTC", "QCOM", "AVGO", "TXN", "MRVL"],
+            comps_pe_mid=391.95,
+        )
+        b = _equity_artifact(
+            "art_v2",
+            _inputs(),
+            recommendation="HOLD",
+            current_price=170.0,
+            peer_tickers=["AMD", "INTC", "QCOM", "AVGO", "TXN", "TSM"],
+            comps_pe_mid=276.19,
+        )
+
+        delta = build_semantic_delta(a, b)
+
+        flags = [f for f in delta.comparability if f.kind == "peer_set"]
+        assert len(flags) == 1
+        assert "MRVL→TSM" in flags[0].message_zh
+        assert "-29.5%" in flags[0].message_zh
+        peer_driver = next(d for d in delta.drivers if d.key == "peer_set")
+        assert peer_driver.formatted_old.endswith("MRVL")
+        assert peer_driver.formatted_new.endswith("TSM")
+        assert peer_driver.caliber_note == "MRVL→TSM"
 
 
 class TestMixedTzFetchedAt:

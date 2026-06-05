@@ -164,6 +164,14 @@ class FinRobotSettings(BaseSettings):
     log_level: str = "INFO"
     log_to_file: bool = True
     log_retention_days: int = 7
+    peer_sticky_max_age_days: int = Field(
+        default=7,
+        ge=0,
+        description=(
+            "Maximum age of a parent artifact whose peer set may be reused during "
+            "a same-ticker re-run. 0 disables peer-set stickiness."
+        ),
+    )
 
     # Output language for LLM narrative. "en" = English, "zh" = Chinese (简体中文).
     # Only affects LLM-generated text — deterministic calculations are unchanged.

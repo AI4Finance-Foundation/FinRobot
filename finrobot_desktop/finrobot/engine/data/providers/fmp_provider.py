@@ -20,6 +20,7 @@ _BASE_URL = "https://financialmodelingprep.com/api/v3"
 # rows; stable/earnings is the one that exposes epsActual/epsEstimated/revenueActual/
 # revenueEstimated (live-verified).
 _STABLE_BASE = "https://financialmodelingprep.com/stable"
+_V4_BASE_URL = "https://financialmodelingprep.com/api/v4"
 _SUPPORTED = [
     DataType.FINANCIALS,
     DataType.PRICE,
@@ -29,6 +30,7 @@ _SUPPORTED = [
     DataType.EARNINGS,
     DataType.EARNINGS_TRANSCRIPT,
     DataType.FORWARD_ESTIMATES,
+    DataType.PEER_CANDIDATES,
 ]
 _TIMEOUT = 15.0
 _MIN_INTERVAL = 0.15  # 6 req/sec — stays within per-minute burst limits on all FMP tiers
@@ -138,6 +140,8 @@ class FMPProvider(DataProvider):
             )
         if data_type == DataType.FORWARD_ESTIMATES:
             return await self._fetch_forward_estimates(ticker)
+        if data_type == DataType.PEER_CANDIDATES:
+            return await self._fetch_peer_candidates(ticker)
         years: int | None = kwargs.get("years")
         warnings: list[str] = []
         cashflow: list[dict[str, Any]] = []
@@ -675,6 +679,128 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.FORWARD_ESTIMATES,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+    async def _fetch_peer_candidates(self, ticker: str) -> DataResult:
+        """Fetch the RAW peer-candidate pool for deterministic comps selection.
+
+        Four raw parts, all through the shared ``_get`` rate limiter:
+          profile          — target's industry / sector / market cap (the fetch
+                             scope parameters for the two screens)
+          stock_peers      — FMP v4 cross-recommendation list
+          industry_screen  — same-industry symbols (mcap > $1B, top 50)
+          sector_screen    — same-sector symbols (mcap > target/20, top 50 —
+                             a FETCH-SCOPE floor so we don't pull thousands of
+                             rows; the precise band is re-applied by the
+                             operator)
+          quotes           — market cap + trailing P/E per candidate (batched)
+
+        No selection logic here: tiering / NM-filter / size ranking are the
+        pure operator ``compute.operators.peer_screen.screen_peers`` (ADR-0014).
+        """
+        with self._wrap_errors(ticker, "peer-candidates fetch"):
+            profile_raw = (await self._get(f"/profile/{ticker}")).json()
+            profile = profile_raw[0] if isinstance(profile_raw, list) and profile_raw else {}
+            industry = str(profile.get("industry") or "")
+            sector = str(profile.get("sector") or "")
+            company_name = str(profile.get("companyName") or "")
+            description = str(profile.get("description") or "")
+            try:
+                target_mcap = float(profile.get("mktCap") or 0.0)
+            except (TypeError, ValueError):
+                target_mcap = 0.0
+
+            peers_raw = (
+                await self._get("/stock_peers", params={"symbol": ticker}, base=_V4_BASE_URL)
+            ).json()
+            stock_peers: list[str] = []
+            if isinstance(peers_raw, list) and peers_raw:
+                stock_peers = [str(p) for p in peers_raw[0].get("peersList", [])]
+
+            industry_screen: list[str] = []
+            if industry:
+                rows = (
+                    await self._get(
+                        "/stock-screener",
+                        params={
+                            "industry": industry,
+                            "marketCapMoreThan": 1_000_000_000,
+                            "limit": 50,
+                        },
+                    )
+                ).json()
+                industry_screen = [str(r["symbol"]) for r in rows or [] if r.get("symbol")]
+
+            sector_screen: list[str] = []
+            if sector and target_mcap > 0:
+                rows = (
+                    await self._get(
+                        "/stock-screener",
+                        params={
+                            "sector": sector,
+                            "marketCapMoreThan": int(target_mcap / 20),
+                            "limit": 50,
+                        },
+                    )
+                ).json()
+                sector_screen = [str(r["symbol"]) for r in rows or [] if r.get("symbol")]
+
+            symbols = sorted(
+                {s for s in (*stock_peers, *industry_screen, *sector_screen) if s != ticker}
+            )
+            profiles: dict[str, dict[str, str]] = {}
+            for i in range(0, len(symbols), 40):
+                chunk = symbols[i : i + 40]
+                rows = (await self._get(f"/profile/{','.join(chunk)}")).json()
+                for r in rows or []:
+                    sym = r.get("symbol")
+                    if not sym:
+                        continue
+                    profiles[str(sym)] = {
+                        "company_name": str(r.get("companyName") or ""),
+                        "sector": str(r.get("sector") or ""),
+                        "industry": str(r.get("industry") or ""),
+                        "description": str(r.get("description") or ""),
+                    }
+
+            quotes: dict[str, dict[str, float | None]] = {}
+            for i in range(0, len(symbols), 40):
+                chunk = symbols[i : i + 40]
+                rows = (await self._get(f"/quote/{','.join(chunk)}")).json()
+                for r in rows or []:
+                    sym = r.get("symbol")
+                    if not sym:
+                        continue
+                    try:
+                        mcap = float(r.get("marketCap") or 0.0)
+                    except (TypeError, ValueError):
+                        mcap = 0.0
+                    pe_raw = r.get("pe")
+                    try:
+                        pe = float(pe_raw) if pe_raw is not None else None
+                    except (TypeError, ValueError):
+                        pe = None
+                    quotes[str(sym)] = {"market_cap": mcap, "pe": pe}
+
+        return DataResult(
+            data={
+                "profile": {
+                    "company_name": company_name,
+                    "industry": industry,
+                    "sector": sector,
+                    "market_cap": target_mcap,
+                    "description": description,
+                },
+                "stock_peers": stock_peers,
+                "industry_screen": industry_screen,
+                "sector_screen": sector_screen,
+                "profiles": profiles,
+                "quotes": quotes,
+            },
+            provider=self.name,
+            ticker=ticker,
+            data_type=DataType.PEER_CANDIDATES,
             timestamp=datetime.now(tz=timezone.utc),
         )
 

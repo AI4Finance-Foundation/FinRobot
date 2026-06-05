@@ -112,6 +112,31 @@ describe('VersionDiffBanner', () => {
     expect(screen.getByText(/-7\.7%/)).toBeInTheDocument()
   })
 
+  it('renders peer-set comparability flags from the backend', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        ...DELTA,
+        comparability: [
+          {
+            kind: 'peer_set',
+            message_zh: '同业集合变更：MRVL→TSM；comps_pe 中值变化 -29.5%。',
+            message_en: 'Peer set changed: MRVL->TSM; comps_pe mid moved -29.5%.',
+            blocks_attribution: false,
+          },
+        ],
+      }),
+    })
+    renderBanner({
+      timeline: [
+        summary('art_cur', '2026-05-10T00:00:00Z'),
+        summary('art_old', '2026-05-01T00:00:00Z', 'HOLD'),
+      ],
+    })
+
+    await waitFor(() => expect(screen.getByText(/Peer set changed: MRVL->TSM/)).toBeInTheDocument())
+  })
+
   it('defaults the base to parent_artifact_id when it is among candidates', () => {
     renderBanner({
       parentArtifactId: 'art_parent',

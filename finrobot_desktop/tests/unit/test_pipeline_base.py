@@ -121,6 +121,28 @@ class TestPipelineExecution:
         assert result.steps["s1"] == "output_s1"
         assert result.steps["s2"] == "output_s2"
 
+    async def test_source_artifact_id_is_forwarded_to_step_executors(self):
+        captured: dict[str, object] = {}
+
+        async def executor(agent, deps, prompt, structured_context, ticker, **kwargs):
+            captured.update(kwargs)
+            return StepOutput(text="ok")
+
+        pipeline = Pipeline(
+            steps=[
+                PipelineStep(
+                    name="s1",
+                    agent=MagicMock(),
+                    validator=TextValidator(validate_is_non_empty),
+                    executor=executor,
+                )
+            ]
+        )
+
+        await pipeline.execute(FakeDeps(), "AAPL", source_artifact_id="art_prev_AAPL_eq")
+
+        assert captured["source_artifact_id"] == "art_prev_AAPL_eq"
+
 
 class TestValidationRetry:
     async def test_step_retries_when_validation_fails_then_passes(self, caplog):

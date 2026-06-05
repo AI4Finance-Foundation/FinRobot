@@ -395,6 +395,9 @@ class Pipeline:
         _settings = getattr(deps, "settings", None)
         settings_lang = getattr(_settings, "language", None)
         effective_lang: str = lang or (settings_lang if isinstance(settings_lang, str) else "en")
+        step_kwargs = dict(kwargs)
+        if source_artifact_id is not None:
+            step_kwargs["source_artifact_id"] = source_artifact_id
 
         for i, step in enumerate(self.steps, start=1):
             logger.info(f"Step {i}/{total}: {step.name}...")
@@ -433,7 +436,7 @@ class Pipeline:
                 structured_results,
                 step_index=i,
                 progress=progress,
-                step_kwargs=kwargs,
+                step_kwargs=step_kwargs,
             )
             elapsed = time.monotonic() - t0
             if validation_error:

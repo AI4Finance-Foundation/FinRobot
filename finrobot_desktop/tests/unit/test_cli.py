@@ -9,6 +9,7 @@ from pydantic_ai.models.test import TestModel
 
 from finrobot.cli import cli
 from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "skills"
@@ -21,11 +22,65 @@ FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "skills"
 
 class FakeDataLayer:
     async def fetch(self, data_type: str, ticker: str, **kwargs) -> DataResult:
-        if data_type == "price":
+        try:
+            dtype = DataType(data_type)
+        except ValueError:
+            # PydanticAI TestModel can emit placeholder tool args; legacy CLI
+            # smoke tests expect the fake layer to keep returning financials.
+            dtype = DataType.FINANCIALS
+        if dtype == DataType.PRICE:
             data = {
                 "current_price": 150.0,
                 "price_history": [{"close": 150.0}],
             }
+        elif dtype == DataType.PEER_CANDIDATES:
+            data = {
+                "profile": {
+                    "symbol": ticker,
+                    "company_name": f"{ticker} Inc.",
+                    "sector": "Technology",
+                    "industry": "Consumer Electronics",
+                    "market_cap": 2_500_000_000_000,
+                    "description": "Designs and sells consumer technology hardware and services.",
+                },
+                "industry_screen": ["MSFT", "GOOGL", "AMZN"],
+                "stock_peers": ["MSFT", "GOOGL", "AMZN"],
+                "sector_screen": ["MSFT", "GOOGL", "AMZN", "META"],
+                "quotes": {
+                    "MSFT": {"market_cap": 3_000_000_000_000, "pe": 35.0},
+                    "GOOGL": {"market_cap": 2_100_000_000_000, "pe": 28.0},
+                    "AMZN": {"market_cap": 1_900_000_000_000, "pe": 45.0},
+                    "META": {"market_cap": 1_600_000_000_000, "pe": 24.0},
+                },
+                "profiles": {
+                    "MSFT": {
+                        "company_name": "Microsoft Corporation",
+                        "sector": "Technology",
+                        "industry": "Software - Infrastructure",
+                        "description": "Develops software, cloud infrastructure, and productivity platforms.",
+                    },
+                    "GOOGL": {
+                        "company_name": "Alphabet Inc.",
+                        "sector": "Communication Services",
+                        "industry": "Internet Content & Information",
+                        "description": "Provides search, advertising, cloud, and consumer internet services.",
+                    },
+                    "AMZN": {
+                        "company_name": "Amazon.com, Inc.",
+                        "sector": "Consumer Cyclical",
+                        "industry": "Internet Retail",
+                        "description": "Operates online retail, marketplace, cloud, and subscription businesses.",
+                    },
+                    "META": {
+                        "company_name": "Meta Platforms, Inc.",
+                        "sector": "Communication Services",
+                        "industry": "Internet Content & Information",
+                        "description": "Operates social platforms and digital advertising services.",
+                    },
+                },
+            }
+        elif dtype == DataType.XBRL_FACTS:
+            data = {}
         else:
             data = {
                 "revenue": 385_000_000_000,

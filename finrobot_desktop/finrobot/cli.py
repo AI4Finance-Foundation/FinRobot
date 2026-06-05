@@ -265,7 +265,7 @@ def research(ticker: str, model: str | None, lang: str | None) -> None:
     "--peers",
     default=None,
     help="Comma-separated peer tickers (3-10), e.g. AAPL,MSFT,GOOGL. "
-    "Overrides automatic LLM peer selection with your own comparable set.",
+    "Overrides automatic peer selection with your own comparable set.",
 )
 def comps(ticker: str, model: str | None, lang: str | None, peers: str | None) -> None:
     """Run comparable company analysis pipeline."""

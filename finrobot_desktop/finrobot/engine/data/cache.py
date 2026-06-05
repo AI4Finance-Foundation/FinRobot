@@ -66,8 +66,12 @@ def canonical_key(data_type: str | DataType) -> str:
 #   proxy_statement v2 — 2026-06-02: the DEF 14A text slice was re-anchored on
 #   the real Summary Compensation Table; pre-v2 slices miss the SCT + pay-ratio
 #   for large issuers, so the comp parser can't recover from them (7-day TTL).
+#   peer_candidates v2 — 2026-06-05: candidate profiles were added so the
+#   deterministic peer screen can reject value-chain partners (foundry /
+#   equipment) before comps math consumes them.
 _RAW_SLOT_VERSION: dict[str, int] = {
     DataType.PROXY_STATEMENT.value: 2,
+    DataType.PEER_CANDIDATES.value: 2,
 }
 
 
@@ -120,6 +124,9 @@ _TTL_SECONDS: dict[str, int] = {
     # Analyst consensus estimates revise over days/weeks, not intraday — 24h
     # matches FINANCIALS and keeps the forward-multiple fetch cheap.
     DataType.FORWARD_ESTIMATES: 86400,
+    # Candidate quotes move intraday and P/E gates depend on them. Profiles are
+    # slower-moving, but the mixed payload should refresh on the quote cadence.
+    DataType.PEER_CANDIDATES: 3600,
 }
 _DEFAULT_TTL_SECONDS: int = 3600  # 1 hour
 

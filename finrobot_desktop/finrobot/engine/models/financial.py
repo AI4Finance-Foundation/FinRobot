@@ -970,3 +970,6 @@ class ValuationAggregate(BaseModel):
     as_of: datetime
     methods: list[ValuationMethodRange]
     warnings: list[str] = Field(default_factory=list)
+    forward_fiscal_period: str | None = None
+    forward_confidence: str | None = None
+    forward_source: str | None = None

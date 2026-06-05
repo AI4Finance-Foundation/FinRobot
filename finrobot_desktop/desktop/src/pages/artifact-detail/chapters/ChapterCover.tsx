@@ -3,7 +3,7 @@
 // we render it as the entry section so PDF exports get a proper cover.
 
 import type { ThesisShape } from './types'
-import { verdictLabel } from '../../../utils/verdict'
+import { verdictLabel, verdictTone } from '../../../utils/verdict'
 import { formatDate } from '../../../utils/format'
 import { useI18n } from '../../../i18n'
 
@@ -18,32 +18,6 @@ interface ChapterCoverProps {
   totalVersions: number
 }
 
-const VERDICT_TONE: Record<string, { bg: string; fg: string; border: string }> = {
-  BUY: {
-    bg: 'var(--success-soft)',
-    fg: 'var(--success)',
-    border: 'color-mix(in srgb, var(--success) 55%, transparent)',
-  },
-  HOLD: {
-    bg: 'var(--warning-soft)',
-    fg: 'var(--warning)',
-    border: 'color-mix(in srgb, var(--warning) 55%, transparent)',
-  },
-  SELL: {
-    bg: 'var(--danger-soft)',
-    fg: 'var(--danger)',
-    border: 'color-mix(in srgb, var(--danger) 55%, transparent)',
-  },
-  // Data-health-gate verdict — neutral slate, deliberately NOT 涨绿跌红:
-  // REVIEW makes no directional call, so colouring it like a buy/sell would
-  // misrepresent the (withheld) conclusion.
-  REVIEW: {
-    bg: 'var(--neutral-soft)',
-    fg: 'var(--text-secondary)',
-    border: 'var(--neutral-edge)',
-  },
-}
-
 export function ChapterCover({
   ticker,
   thesis,
@@ -56,7 +30,7 @@ export function ChapterCover({
 }: ChapterCoverProps): React.ReactElement {
   const { locale, t } = useI18n()
   const verdict = (thesis?.recommendation ?? '').toUpperCase()
-  const tone = VERDICT_TONE[verdict] ?? VERDICT_TONE.HOLD
+  const tone = verdictTone(verdict)
   const target = thesis?.price_target ?? null
 
   return (

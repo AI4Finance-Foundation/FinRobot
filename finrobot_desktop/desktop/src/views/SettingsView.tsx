@@ -1576,21 +1576,7 @@ function DisplaySection({
   const locale = useUiPrefs((s) => s.locale)
   const setLocale = useUiPrefs((s) => s.setLocale)
   const cursorOn = useUiStore((s) => s.cursorTrailEnabled)
-  const splineOn = useUiStore((s) => s.splineEnabled)
   const setCursor = useUiStore((s) => s.setCursorTrailEnabled)
-  const setSpline = useUiStore((s) => s.setSplineEnabled)
-
-  // Power saver = all decorative animation off. ON means "currently saving power".
-  const saverOn = !cursorOn && !splineOn
-  function toggleSaver() {
-    if (saverOn) {
-      setCursor(true)
-      setSpline(true)
-    } else {
-      setCursor(false)
-      setSpline(false)
-    }
-  }
 
   return (
     <section className="settings-section" data-section="display" ref={sectionRef}>
@@ -1616,22 +1602,10 @@ function DisplaySection({
       </div>
 
       <ToggleRow
-        label={t('settings.appearance.saver')}
-        desc={t('settings.appearance.saverDesc')}
-        enabled={saverOn}
-        onToggle={toggleSaver}
-      />
-      <ToggleRow
         label={t('settings.appearance.cursor')}
         desc={t('settings.appearance.cursorDesc')}
         enabled={cursorOn}
         onToggle={() => setCursor(!cursorOn)}
-      />
-      <ToggleRow
-        label={t('settings.appearance.spline')}
-        desc={t('settings.appearance.splineDesc')}
-        enabled={splineOn}
-        onToggle={() => setSpline(!splineOn)}
       />
     </section>
   )

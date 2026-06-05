@@ -90,12 +90,6 @@ interface UiStoreState {
    *  the "桌面 App 灵魂" can opt-in via Settings. */
   cursorTrailEnabled: boolean
 
-  /** Spline 3D AI Analyst on the /stocks landing backdrop. Default ON —
-   *  mounts only on the landing route, not the ticker workspace (the detail
-   *  page shows numbers, not 3D). When off, the static FakeRobotRings
-   *  fallback renders. */
-  splineEnabled: boolean
-
   // Command palette (⌘K) — shell chrome, session-scoped
   cmdPaletteOpen: boolean
   cmdKQuery: string
@@ -120,7 +114,6 @@ interface UiStoreState {
   setAiPanelWidth: (w: number) => void
 
   setCursorTrailEnabled: (on: boolean) => void
-  setSplineEnabled: (on: boolean) => void
 
   setCmdPaletteOpen: (open: boolean) => void
   toggleCmdPalette: () => void
@@ -172,12 +165,10 @@ export const useUiStore = create<UiStoreState>()(
     (set) => ({
       aiPanelOpen: true,
       aiPanelWidth: DEFAULT_AIPANEL_W,
-      // Heat-conservative defaults — cosmic decorations are opt-in for
-      // anything that pegs a CPU core. Spline (single landing backdrop)
-      // stays on because it only mounts on /stocks and unmounts the
-      // moment the user enters a ticker workspace.
+      // Heat-conservative default — the cursor trail pegs a CPU core, so it
+      // is opt-in. (The Spline robot is always on and self-throttles via
+      // visibility/intersection guards; it has no user toggle.)
       cursorTrailEnabled: false,
-      splineEnabled: true,
 
       cmdPaletteOpen: false,
       cmdKQuery: '',
@@ -197,7 +188,6 @@ export const useUiStore = create<UiStoreState>()(
 
       // Cosmic cursor trail
       setCursorTrailEnabled: (cursorTrailEnabled) => set({ cursorTrailEnabled }),
-      setSplineEnabled: (splineEnabled) => set({ splineEnabled }),
 
       // command palette (⌘K)
       setCmdPaletteOpen: (cmdPaletteOpen) => set({ cmdPaletteOpen }),
@@ -287,7 +277,6 @@ export const useUiStore = create<UiStoreState>()(
         aiPanelWidth: s.aiPanelWidth,
         aiPanelOpen: s.aiPanelOpen,
         cursorTrailEnabled: s.cursorTrailEnabled,
-        splineEnabled: s.splineEnabled,
         workspacePath: s.workspacePath,
       }),
       onRehydrateStorage: () => (state) => {
@@ -308,7 +297,6 @@ export const useUiStore = create<UiStoreState>()(
             // turn on the cosmic decorations we respect that.
             if (!stored || !stored.includes('"cursorTrailEnabled"')) {
               state.cursorTrailEnabled = false
-              state.splineEnabled = false
             }
           }
         }

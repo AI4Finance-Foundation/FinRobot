@@ -298,8 +298,8 @@ msgid "nav.coverage"
 msgstr "研究库"
 
 #. js-lingui-explicit-id
-msgid "nav.stocks"
-msgstr "股票"
+msgid "nav.back"
+msgstr "返回"
 
 #. js-lingui-explicit-id
 msgid "peers.cta"
@@ -688,6 +688,22 @@ msgstr "当前"
 #. js-lingui-explicit-id
 msgid "report.timeline.empty"
 msgstr "尚无历史版本 · 重跑分析后将累积"
+
+#. js-lingui-explicit-id
+msgid "report.timeline.versionCount"
+msgstr "共 {count} 版"
+
+#. js-lingui-explicit-id
+msgid "signal.hit"
+msgstr "已达标"
+
+#. js-lingui-explicit-id
+msgid "signal.watching"
+msgstr "跟踪中"
+
+#. js-lingui-explicit-id
+msgid "signal.failed"
+msgstr "未达标"
 
 #. js-lingui-explicit-id
 msgid "landing.recentResearch.error"
@@ -1578,10 +1594,6 @@ msgid "report.toolbar.back"
 msgstr "返回 {ticker} 工作区"
 
 #. js-lingui-explicit-id
-msgid "report.toolbar.switchVersion"
-msgstr "切换其他版本"
-
-#. js-lingui-explicit-id
 msgid "report.toolbar.rerunStarted"
 msgstr "{ticker} 重跑 {reportType} 已启动"
 
@@ -1906,28 +1918,12 @@ msgid "settings.appearance.intro"
 msgstr "关掉装饰动效可以省电、降低风扇噪音。不影响任何数据和分析结果。"
 
 #. js-lingui-explicit-id
-msgid "settings.appearance.saver"
-msgstr "省电模式"
-
-#. js-lingui-explicit-id
-msgid "settings.appearance.saverDesc"
-msgstr "一键关闭下面所有动效。笔记本用电池时建议开启。"
-
-#. js-lingui-explicit-id
 msgid "settings.appearance.cursor"
 msgstr "鼠标光带"
 
 #. js-lingui-explicit-id
 msgid "settings.appearance.cursorDesc"
 msgstr "鼠标移动时跟随的彩色尾迹，纯装饰。"
-
-#. js-lingui-explicit-id
-msgid "settings.appearance.spline"
-msgstr "首页 3D 机器人"
-
-#. js-lingui-explicit-id
-msgid "settings.appearance.splineDesc"
-msgstr "股票首页背景上漂浮的 3D 模型，纯装饰。打开分析页时不会出现。"
 
 #. js-lingui-explicit-id
 msgid "settings.saveFailedTitle"
@@ -3825,5 +3821,5 @@ msgstr "量化叠加 & IC 辩论"
 
 #. js-lingui-explicit-id
 msgid "landing.dock.quant.desc"
-msgstr "Monte Carlo · 狙击点位 · 多空投委会"
+msgstr "Monte Carlo · 狙击点位 · 牛熊 IC 辩论"
 

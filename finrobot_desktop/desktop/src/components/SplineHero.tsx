@@ -9,8 +9,9 @@
 // hero grid); SplineHero fills it.
 //
 // CPU/heat-saving (2026-05-22):
-//   - uiStore.splineEnabled gates the WebGL viewer entirely; when off we
-//     render the static FakeRobotRings fallback (CSS-only, almost free)
+//   - the robot is always on (no user toggle); heat is bounded purely by the
+//     automatic guards below — when they fail/idle we render the static
+//     FakeRobotRings fallback (CSS-only, almost free)
 //   - unmount the viewer when document.hidden / window blurred so the
 //     WebGL context stops burning GPU in the background
 //   - IntersectionObserver: don't even mount the viewer if the container
@@ -19,7 +20,6 @@
 //     the fold)
 
 import { useEffect, useRef, useState } from 'react'
-import { useUiStore } from '../stores/uiStore'
 
 const SCRIPT_SRC = 'https://unpkg.com/@splinetool/viewer@1.9.54/build/spline-viewer.js'
 const SCENE_SRC = 'https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode'
@@ -61,12 +61,11 @@ export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.R
     typeof document === 'undefined' ? true : !document.hidden,
   )
   const showChip = showStatusChip ?? variant === 'hero'
-  const enabled = useUiStore((s) => s.splineEnabled)
-  // The actual render condition: opt-in + tab visible + scrolled into view.
-  // When any of these flip false we render the static FakeRobotRings
-  // fallback (or nothing for the backdrop variant) instead of the WebGL
-  // viewer — that's the heat saver.
-  const allowed = enabled && pageActive && visible
+  // The actual render condition: tab visible + scrolled into view. When either
+  // flips false we render the static FakeRobotRings fallback (or nothing for
+  // the backdrop variant) instead of the WebGL viewer — that's the heat saver.
+  // There is no user opt-out: the robot is always on by design.
+  const allowed = pageActive && visible
 
   // Unmount the WebGL viewer only when the tab is actually HIDDEN
   // (visibilitychange) — that's the real heat-saver. We deliberately do NOT

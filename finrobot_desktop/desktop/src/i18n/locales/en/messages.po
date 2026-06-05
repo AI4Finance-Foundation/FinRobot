@@ -298,8 +298,8 @@ msgid "nav.coverage"
 msgstr "Coverage"
 
 #. js-lingui-explicit-id
-msgid "nav.stocks"
-msgstr "Stocks"
+msgid "nav.back"
+msgstr "Back"
 
 #. js-lingui-explicit-id
 msgid "peers.cta"
@@ -688,6 +688,22 @@ msgstr "current"
 #. js-lingui-explicit-id
 msgid "report.timeline.empty"
 msgstr "No history yet. Run analysis again to build a timeline."
+
+#. js-lingui-explicit-id
+msgid "report.timeline.versionCount"
+msgstr "{count} versions"
+
+#. js-lingui-explicit-id
+msgid "signal.hit"
+msgstr "HIT"
+
+#. js-lingui-explicit-id
+msgid "signal.watching"
+msgstr "WATCHING"
+
+#. js-lingui-explicit-id
+msgid "signal.failed"
+msgstr "FAILED"
 
 #. js-lingui-explicit-id
 msgid "landing.recentResearch.error"
@@ -1578,10 +1594,6 @@ msgid "report.toolbar.back"
 msgstr "Back to {ticker} workspace"
 
 #. js-lingui-explicit-id
-msgid "report.toolbar.switchVersion"
-msgstr "Switch to another version"
-
-#. js-lingui-explicit-id
 msgid "report.toolbar.rerunStarted"
 msgstr "{ticker} {reportType} re-run started"
 
@@ -1906,28 +1918,12 @@ msgid "settings.appearance.intro"
 msgstr "Turning off decorative animations saves power and reduces fan noise. It does not affect any data or analysis results."
 
 #. js-lingui-explicit-id
-msgid "settings.appearance.saver"
-msgstr "Power saver"
-
-#. js-lingui-explicit-id
-msgid "settings.appearance.saverDesc"
-msgstr "Turn off all animations below in one click. Recommended on battery."
-
-#. js-lingui-explicit-id
 msgid "settings.appearance.cursor"
 msgstr "Cursor trail"
 
 #. js-lingui-explicit-id
 msgid "settings.appearance.cursorDesc"
 msgstr "Colored trail following the cursor; purely decorative."
-
-#. js-lingui-explicit-id
-msgid "settings.appearance.spline"
-msgstr "Home 3D robot"
-
-#. js-lingui-explicit-id
-msgid "settings.appearance.splineDesc"
-msgstr "Floating 3D model on the stocks home background; purely decorative. Absent on analysis pages."
 
 #. js-lingui-explicit-id
 msgid "settings.saveFailedTitle"
@@ -3825,5 +3821,5 @@ msgstr "Quant overlay & IC debate"
 
 #. js-lingui-explicit-id
 msgid "landing.dock.quant.desc"
-msgstr "Monte Carlo · sniper levels · long/short IC"
+msgstr "Monte Carlo · sniper levels · bull/bear IC debate"
 

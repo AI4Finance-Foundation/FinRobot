@@ -104,21 +104,43 @@ class TestValidateHasThesis:
 
 class TestValidateReportFormat:
     def test_proper_report_passes(self):
-        report = "## Executive Summary\n\n" + "word " * 100 + "\n\n"
-        report += "## Valuation\n\n" + "word " * 80 + "\n\n"
-        report += "## Risks\n\n" + "word " * 50
+        report = "## Executive Summary\n\nWe rate AAPL Buy, target $250. " + "word " * 100 + "\n\n"
+        report += "## Valuation\n\nDCF implies $240 at a 9% WACC. " + "word " * 80 + "\n\n"
+        report += "## Risks\n\nFX exposure ~15% of revenue. " + "word " * 50
+        r = validate_report_format(report)
+        assert r.passed is True
+
+    def test_chinese_report_passes(self):
+        # Regression: a real Chinese report has CJK headers and no English
+        # section keywords, and str.split() under-counts CJK ~10x. The old
+        # validator false-failed every such report; the structural validator
+        # must pass it. (See finrobot.log: "found 0 section keywords" loops.)
+        report = (
+            "## 执行摘要\n\n我们给予 AAPL 买入评级,目标价 250 美元。"
+            "DCF、同业可比与 DDM 三种方法交叉验证后给出该结论。"
+            * 8
+            + "\n\n## 估值分析\n\n基于 9% 的 WACC,DCF 隐含价值约 240 美元。" * 8
+            + "\n\n## 风险因素\n\n外汇敞口约占收入 15%,宏观波动构成主要下行风险。" * 8
+        )
         r = validate_report_format(report)
         assert r.passed is True
 
     def test_no_headers_fails(self):
-        r = validate_report_format("word " * 300)
+        r = validate_report_format("The stock is worth $250. " + "word " * 100)
         assert r.passed is False
         assert "header" in r.error.lower()
 
-    def test_too_short_fails(self):
+    def test_empty_or_stub_fails(self):
         r = validate_report_format("## Summary\n## Risk\n## Peer\nshort")
         assert r.passed is False
-        assert "word" in r.error.lower()
+        assert "short" in r.error.lower()
+
+    def test_no_numeric_data_fails(self):
+        report = "## Summary\n\n" + "word " * 100 + "\n\n## Risk\n\n" + "word " * 100
+        report += "\n\n## Outlook\n\n" + "word " * 50
+        r = validate_report_format(report)
+        assert r.passed is False
+        assert "numeric" in r.error.lower()
 
 
 class TestValidateHasCompsTable:

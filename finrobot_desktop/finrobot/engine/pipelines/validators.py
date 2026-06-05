@@ -1,3 +1,4 @@
+import logging
 import math as _math
 import re
 from statistics import median as _median
@@ -23,6 +24,8 @@ from finrobot.engine.models.financial import (
     DCFResult,
     ThesisResult,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ValidationResult(BaseModel):
@@ -192,28 +195,62 @@ def validate_has_thesis(output: str) -> ValidationResult:
     )
 
 
+# Below this the assembled report is structurally broken — empty, errored, or
+# truncated to a stub. A re-prompt may recover it, so this DOES fail/retry.
+_REPORT_MIN_CHARS = 200
+# A healthy assembled report clears this. Falling short is almost always thin
+# UPSTREAM content: the report agent only reformats already-produced numbers and
+# narrative (it is forbidden from adding analysis — see report_agent.md), so
+# re-prompting the formatter cannot manufacture missing content. We warn but
+# PASS — retrying would just burn the pipeline's most expensive call for no
+# chance of a different result, and the step uses its best-effort output anyway.
+_REPORT_SOFT_TARGET_CHARS = 1200
+
+
 def validate_report_format(output: str) -> ValidationResult:
-    """Strict validator for report generation step.
-    Checks that output has proper report structure."""
-    # At least 3 Markdown headers
-    headers = re.findall(r"^#{1,3}\s+.+", output, re.MULTILINE)
-    if len(headers) < 3:
+    """Language-agnostic structural validator for the final report step.
+
+    The report step only assembles already-computed numbers and already-written
+    narrative into Markdown. A failure therefore means the ASSEMBLY is
+    structurally broken (empty / no headers / no data / truncated stub) — the one
+    class of problem a re-prompt might fix. The previous implementation gated on
+    ``str.split()`` word count and an English-only section-keyword list, both of
+    which systematically false-failed Chinese reports (CJK has no spaces, so
+    split() under-counts ~10x; Chinese headers contain no English keywords) —
+    every zh report retried 3x and degraded regardless of quality.
+    """
+    text = output.strip() if output else ""
+
+    # Structural: empty / errored / truncated to a stub.
+    if len(text) < _REPORT_MIN_CHARS:
         return ValidationResult(
-            passed=False, error=f"Expected at least 3 headers, found {len(headers)}"
+            passed=False,
+            error=f"Report too short to be a valid assembly: {len(text)} chars "
+            f"(min {_REPORT_MIN_CHARS})",
         )
 
-    # At least 200 words
-    words = len(output.split())
-    if words < 200:
-        return ValidationResult(passed=False, error=f"Expected at least 200 words, found {words}")
-
-    # At least 2 of these section keywords
-    lower = output.lower()
-    section_kws = ["summary", "valuation", "risk", "thesis", "peer", "financial"]
-    found = sum(1 for kw in section_kws if kw in lower)
-    if found < 2:
+    # Structural: a report must be sectioned. Counts Markdown header SYNTAX, not
+    # words — language-agnostic.
+    headers = re.findall(r"^#{1,3}\s+\S", output, re.MULTILINE)
+    if len(headers) < 3:
         return ValidationResult(
-            passed=False, error=f"Expected at least 2 section keywords, found {found}"
+            passed=False, error=f"Expected at least 3 section headers, found {len(headers)}"
+        )
+
+    # Substance: a financial report must contain numbers (prices, multiples,
+    # dates, growth rates). Catches prose-only boilerplate. Replaces the old
+    # English section-keyword check with a language-agnostic signal.
+    if not re.search(r"\d", output):
+        return ValidationResult(passed=False, error="Report contains no numeric data")
+
+    # Soft signal: structurally sound but thin. Almost always thin upstream
+    # content — re-prompting the formatter won't help, so warn, don't fail.
+    if len(text) < _REPORT_SOFT_TARGET_CHARS:
+        logger.warning(
+            "Report assembled but shorter than expected (%d chars < %d soft target) — "
+            "likely thin upstream content, not a formatting fault; passing without retry.",
+            len(text),
+            _REPORT_SOFT_TARGET_CHARS,
         )
 
     return ValidationResult(passed=True)
@@ -298,10 +335,13 @@ artifacts using mixed case (`Buy`/`Hold`/`Sell`) still validate.
 """
 
 
-# Peer EV/EBITDA sanity range is owned by the compute layer
-# (``finrobot.engine.compute.operators.multiples``); both layers reference the same
-# constants so the silent floor and the loud validator can never drift out
-# of alignment.
+# Peer multiple sanity ranges are owned by the compute layer
+# (``finrobot.engine.compute.operators.multiples``): calculate_multiples NULLS any
+# out-of-band multiple AND records the drop on ``CompanyFinancials.sanity_drops``.
+# validate_peer_comps imports the same constants for a standalone defense-in-depth
+# re-check (it catches peers built WITHOUT that gating — externally/LLM-supplied or
+# hand-constructed rows), and additionally surfaces the recorded floor drops as
+# non-fatal warnings so a silently thinned median is no longer invisible.
 
 
 def validate_financial_data(
@@ -395,9 +435,18 @@ def validate_peer_comps(comps: PeerComps) -> ValidationResult:
             passed=False, error=f"Need at least 3 peers, got {len(comps.peers)}"
         )
     violations: list[str] = []
+    floor_drops: list[str] = []
     for peer in comps.peers:
         if peer.revenue <= 0:
             violations.append(f"{peer.ticker} has non-positive revenue")
+        # Standalone defense-in-depth guard: in the normal pipeline these bounds
+        # are PRE-ENFORCED by calculate_multiples (``_sanity``/``_gate`` null any
+        # out-of-band multiple), so a peer that flowed through it can never trip
+        # these branches. They still earn their keep for peers built WITHOUT that
+        # gating — externally/LLM-supplied multiples, hand-constructed rows — which
+        # only this validator catches. What was actually missing (and what the old
+        # code falsely implied this loop did) is visibility into the SILENT floor
+        # drops; that is now surfaced via ``floor_drops`` below.
         if peer.ev_ebitda is not None and not (
             PEER_EV_EBITDA_SANITY_MIN <= peer.ev_ebitda <= PEER_EV_EBITDA_SANITY_MAX
         ):
@@ -419,6 +468,9 @@ def validate_peer_comps(comps: PeerComps) -> ValidationResult:
                 f"{peer.ticker} P/E {peer.pe_ratio:.2f}x out of range "
                 f"{PEER_PE_SANITY_MIN}-{PEER_PE_SANITY_MAX}x"
             )
+        # The genuinely new signal: multiples that HAD computable inputs but were
+        # nulled by the floor (excluded from medians) — previously invisible.
+        floor_drops.extend(f"{peer.ticker}: {drop}" for drop in peer.sanity_drops)
     if violations:
         return ValidationResult(
             passed=False,
@@ -427,7 +479,11 @@ def validate_peer_comps(comps: PeerComps) -> ValidationResult:
     if comps.median_ev_ebitda is None:
         return ValidationResult(passed=False, error="Median EV/EBITDA statistics not computed")
 
-    # Non-fatal outlier warnings — append to comps.warnings (caller may mutate).
+    # Non-fatal data-quality warnings → comps.warnings (caller may mutate):
+    # floor drops (out-of-band multiples excluded from medians) + cross-sectional
+    # outliers (>5x from peer median).
+    if floor_drops:
+        comps.warnings.extend(floor_drops)
     outlier_warnings = _outlier_warnings(comps)
     if outlier_warnings:
         comps.warnings.extend(outlier_warnings)
@@ -565,13 +621,16 @@ def validate_ddm_inputs(data: DDMInputs) -> ValidationResult:
 
 def validate_ddm_result(result: DDMResult) -> ValidationResult:
     """Validate DDM output values are within plausible bounds."""
-    if result.cost_of_equity <= 0:
+    # Output-side invariant (defense-in-depth vs a ddm.py regression). The lower
+    # bound is NOT independent confirmation: when validate_ddm_inputs ran it
+    # already checked coe = rf + β·ERP > 0 with the identical formula, so a passing
+    # input set guarantees coe > 0 here. Kept only to catch a compute-layer sign
+    # flip; folded into one band check so it does not masquerade as a second,
+    # independent gate. The upper bound (0.25) is the only genuinely new constraint.
+    if not (0 < result.cost_of_equity <= 0.25):
         return ValidationResult(
-            passed=False, error=f"Cost of equity must be positive, got {result.cost_of_equity}"
-        )
-    if result.cost_of_equity > 0.25:
-        return ValidationResult(
-            passed=False, error=f"Cost of equity {result.cost_of_equity:.4f} exceeds maximum 0.25"
+            passed=False,
+            error=f"Cost of equity {result.cost_of_equity:.4f} out of bounds (0, 0.25]",
         )
     if result.equity_value_per_share <= 0:
         return ValidationResult(passed=False, error="Equity value per share must be positive")

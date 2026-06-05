@@ -35,12 +35,12 @@ const DCF: DcfShape = {
   inputs: { terminal_growth_rate: 0.025, tax_rate: 0.21, beta: 1.18 },
 }
 
-function renderChapter() {
+function renderChapter(dcf: DcfShape = DCF) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
       <ChapterValuation
-        dcf={DCF}
+        dcf={dcf}
         thesis={null}
         ticker="AAPL"
         quoteCurrency="USD"
@@ -63,5 +63,55 @@ describe('ChapterValuation TermTip wiring', () => {
     expect(
       screen.getByText(/Weighted Average Cost of Capital|加权平均资本成本/),
     ).toBeInTheDocument()
+  })
+})
+
+// Reverse-DCF reality check: the deterministic market-implied growth must render
+// from the computed field (compute-derived number, never LLM prose). Two states:
+// a reachable implied growth %, and the option-value 'unreachable' state with the
+// quantified ceiling note (the honest TSLA output: even 50% growth → $302.57).
+describe('ChapterValuation market-implied growth', () => {
+  it('renders the implied growth % with its horizon when reachable', () => {
+    renderChapter({
+      ...DCF,
+      market_implied: {
+        horizon_years: 10,
+        implied_growth: 0.226,
+        implied_wacc: 0.072,
+        growth_unreachable: false,
+      },
+    })
+    expect(screen.getByText(/市场隐含增长|Market-Implied Growth/)).toBeInTheDocument()
+    expect(screen.getByText('22.6%')).toBeInTheDocument()
+    // Horizon rides as the cell's secondary line.
+    expect(screen.getByText(/10 年期|over 10y/)).toBeInTheDocument()
+    // No unreachable note in the reachable state.
+    expect(screen.queryByText(/无解|Unreachable/)).not.toBeInTheDocument()
+  })
+
+  it('renders the unreachable state with the quantified ceiling note', () => {
+    renderChapter({
+      ...DCF,
+      market_implied: {
+        horizon_years: 10,
+        implied_growth: null,
+        implied_wacc: null,
+        growth_unreachable: true,
+        growth_ceiling: 0.5,
+        ceiling_price: 302.57,
+      },
+    })
+    // The KV cell shows the unreachable label instead of a %.
+    expect(screen.getByText(/^无解$|^Unreachable$/)).toBeInTheDocument()
+    // The note quantifies the ceiling: 50% growth only reaches $302.57.
+    const note = screen.getByText(/302\.57/)
+    expect(note).toBeInTheDocument()
+    expect(note.textContent).toMatch(/50%/)
+    expect(note.textContent).toMatch(/期权价值|optionality/)
+  })
+
+  it('renders no implied-growth cell when the field is absent (legacy artifacts)', () => {
+    renderChapter(DCF)
+    expect(screen.queryByText(/市场隐含增长|Market-Implied Growth/)).not.toBeInTheDocument()
   })
 })

@@ -802,6 +802,22 @@ msgid "chapter.valuation.kv.equityValue"
 msgstr "Equity Value"
 
 #. js-lingui-explicit-id
+msgid "chapter.valuation.kv.marketImpliedGrowth"
+msgstr "Market-Implied Growth"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.marketImplied.horizon"
+msgstr "over {n}y"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.marketImplied.na"
+msgstr "Unreachable"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.marketImplied.unreachableNote"
+msgstr "Market-implied growth is unreachable: even {ceiling} annual growth only implies {price} — the market is pricing optionality no cash-flow model can capture, so a DCF point value does not apply to this name."
+
+#. js-lingui-explicit-id
 msgid "chapter.valuation.empty"
 msgstr "No DCF output in this report — re-run to generate the full valuation model."
 
@@ -3540,38 +3556,6 @@ msgstr "Back to report"
 #. js-lingui-explicit-id
 msgid "ic.action.backToCoverage"
 msgstr "Back to Coverage"
-
-#. js-lingui-explicit-id
-msgid "coverage.trust.label"
-msgstr "Track record"
-
-#. js-lingui-explicit-id
-msgid "coverage.trust.scope"
-msgstr "{group} · {n} names"
-
-#. js-lingui-explicit-id
-msgid "coverage.trust.none"
-msgstr "No closed calls yet"
-
-#. js-lingui-explicit-id
-msgid "coverage.trust.hitRate"
-msgstr "{rate} hit ({hit}/{closed} closed)"
-
-#. js-lingui-explicit-id
-msgid "coverage.trust.insufficient"
-msgstr "Sample too small · {closed} closed"
-
-#. js-lingui-explicit-id
-msgid "coverage.trust.window.30d"
-msgstr "30D"
-
-#. js-lingui-explicit-id
-msgid "coverage.trust.window.90d"
-msgstr "90D"
-
-#. js-lingui-explicit-id
-msgid "coverage.trust.window.all"
-msgstr "Max"
 
 #. js-lingui-explicit-id
 msgid "coverage.starter.quickPick"

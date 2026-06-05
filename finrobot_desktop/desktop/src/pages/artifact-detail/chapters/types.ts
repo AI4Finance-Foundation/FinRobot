@@ -32,6 +32,17 @@ export interface DcfShape {
   equity_value?: number
   implied_price?: number
   sensitivity_table?: Record<string, unknown> | null
+  // Reverse-DCF reality check: what growth/WACC the CURRENT market price implies.
+  // growth_unreachable=true ⇒ no plausible growth reaches the price (option-value
+  // stock); ceiling_price is the most the DCF can reach at growth_ceiling.
+  market_implied?: {
+    horizon_years: number
+    implied_growth?: number | null
+    implied_wacc?: number | null
+    growth_unreachable: boolean
+    growth_ceiling?: number | null
+    ceiling_price?: number | null
+  } | null
   inputs?: {
     revenue_base?: number
     revenue_growth_rates?: number[]

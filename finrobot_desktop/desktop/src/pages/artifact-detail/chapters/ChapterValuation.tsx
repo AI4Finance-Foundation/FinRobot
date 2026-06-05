@@ -72,6 +72,7 @@ export function ChapterValuation({
   const implied = dcf?.implied_price ?? null
   const ev = dcf?.enterprise_value ?? null
   const eq = dcf?.equity_value ?? null
+  const mi = dcf?.market_implied ?? null
 
   const { data: aggregate } = useValuationAggregate(ticker)
   const footballRows = (aggregate?.methods ?? []).map((m) => ({
@@ -137,6 +138,20 @@ export function ChapterValuation({
           | 'up'
           | undefined,
       } as Cell),
+    // Reverse-DCF reality check: the growth the CURRENT market price implies.
+    // 'Unreachable' (down/red tone) is the option-value signal; otherwise show
+    // the implied annual growth with the horizon it's solved over.
+    mi !== null &&
+      (mi.growth_unreachable || mi.implied_growth != null) &&
+      ({
+        label: t('chapter.valuation.kv.marketImpliedGrowth'),
+        value:
+          !mi.growth_unreachable && mi.implied_growth != null
+            ? `${(mi.implied_growth * 100).toFixed(1)}%`
+            : t('chapter.valuation.marketImplied.na'),
+        delta: t('chapter.valuation.marketImplied.horizon', { n: mi.horizon_years }),
+        tone: (mi.growth_unreachable ? 'down' : undefined) as 'down' | undefined,
+      } as Cell),
     ev !== null &&
       ({
         label: <TermTip term="EV">{t('chapter.valuation.kv.enterpriseValue')}</TermTip>,
@@ -173,6 +188,27 @@ export function ChapterValuation({
           }}
         >
           {t('chapter.valuation.empty')}
+        </p>
+      )}
+
+      {mi?.growth_unreachable && mi.growth_ceiling != null && mi.ceiling_price != null && (
+        <p
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 12,
+            lineHeight: 1.7,
+            color: 'var(--danger)',
+            padding: '12px 16px',
+            background: 'var(--bg-card-50)',
+            border: '1px solid var(--border-soft)',
+            borderRadius: 'var(--radius-sm)',
+            marginTop: 12,
+          }}
+        >
+          {t('chapter.valuation.marketImplied.unreachableNote', {
+            ceiling: `${(mi.growth_ceiling * 100).toFixed(0)}%`,
+            price: formatCurrency(mi.ceiling_price, quoteCurrency, locale, 2),
+          })}
         </p>
       )}
 

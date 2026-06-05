@@ -54,6 +54,11 @@ export interface CompanyFinancials {
   revenue: number
   ebitda: number
   net_income: number
+  // Forward consensus (FY1) — see CompanyFinancials.forward_eps in
+  // finrobot/engine/models/financial.py. forward_pe feeds the forward_comps
+  // valuation method; null when no analyst consensus was available for this peer.
+  forward_eps: number | null
+  forward_pe: number | null
   market_cap: number
   total_debt: number
   total_cash: number

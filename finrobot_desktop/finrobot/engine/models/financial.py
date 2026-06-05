@@ -236,6 +236,16 @@ class CompanyFinancials(BaseModel):
     # core P/E. Downstream multiples withhold the affected ratio when None.
     ebitda: float | None = None
     net_income: float | None = None
+    # Forward consensus (FY1) — populated per-peer from DataType.FORWARD_ESTIMATES
+    # via the red-line leaf compute.operators.forward_estimates.get_forward_financials,
+    # which selects the nearest fiscal-year-end ≥ today (NOT rows[0]). forward_eps
+    # is analyst-consensus EPS (already core/normalized — analysts strip one-offs),
+    # so forward_pe = market_cap / (forward_eps × shares) feeds a forward_comps
+    # method that is intentionally SEPARATE from the trailing NOPAT core_pe (one
+    # forward caliber on both target and peers). None when no consensus is available
+    # → that peer falls back to trailing for the comps median.
+    forward_eps: float | None = None
+    forward_pe: float | None = None
     market_cap: float
     # None ≠ 0: None means the provider did not report the figure, so EV (and
     # the EV-based multiples) MUST be withheld rather than computed against an

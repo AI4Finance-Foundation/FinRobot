@@ -119,7 +119,7 @@ async def run_debate(
     agents: dict[str, Any],
     emit: Callable[[dict[str, Any]], Awaitable[None]],
     deps: Any = None,
-    lang: str = "zh",
+    lang: str = "en",
 ) -> DebateResult:
     """Orchestrate one full IC debate session.
 
@@ -142,7 +142,7 @@ async def run_debate(
     lang:
         Output language ('zh'|'en'). Follows the debated artifact's
         meta.language, NOT the viewer's UI locale, so an English report yields
-        an English debate (see routes/debate.py). Defaults to 'zh'.
+        an English debate (see routes/debate.py). Defaults to 'en'.
 
     Returns
     -------

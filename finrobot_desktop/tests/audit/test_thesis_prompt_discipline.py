@@ -1,7 +1,7 @@
 """Thesis prompt numeric discipline audit.
 
 Red-line guards:
-1. The "严格数字纪律" whitelist block is present in every thesis prompt.
+1. The "STRICT NUMERIC DISCIPLINE" whitelist block is present in every thesis prompt.
 2. The company_overview segment-fabrication guard is present in every thesis prompt.
 3. Specific fake AAPL training-data numbers (e.g. "$3.5T market cap", "P/E 30x",
    "products 80%" fabricated split) are NOT in the prompt when the whitelist
@@ -209,10 +209,10 @@ async def _capture_thesis_prompt(structured_context: dict[str, object]) -> str:
 
 @pytest.mark.asyncio
 async def test_whitelist_block_present_in_prompt() -> None:
-    """'严格数字纪律' discipline block must appear in every thesis prompt."""
+    """'STRICT NUMERIC DISCIPLINE' discipline block must appear in every thesis prompt."""
     ctx = _make_structured_context()
     prompt = await _capture_thesis_prompt(ctx)
-    assert "严格数字纪律" in prompt, (
+    assert "STRICT NUMERIC DISCIPLINE" in prompt, (
         "Whitelist discipline block missing from thesis prompt. "
         "Any narrative number that can't be traced to the whitelist fields is a hallucination."
     )
@@ -223,7 +223,7 @@ async def test_segment_fabrication_guard_present() -> None:
     """Segment fabrication guard must be injected when xbrl has no segment data."""
     ctx = _make_structured_context(xbrl_facts_snapshot={})
     prompt = await _capture_thesis_prompt(ctx)
-    assert "SEC XBRL 当前不提供按分部或地理区域拆分" in prompt, (
+    assert "SEC XBRL does not currently expose structured revenue" in prompt, (
         "Company-overview segment fabrication guard missing from prompt. "
         "Without this guard the LLM invents segment splits like 'products 80%'."
     )
@@ -307,7 +307,7 @@ async def test_peer_whitelist_uses_frontend_caliber_formatting() -> None:
     )
     ctx = _make_structured_context(peer_analysis=comps)
     prompt = await _capture_thesis_prompt(ctx)
-    discipline = prompt[prompt.find("严格数字纪律") :]
+    discipline = prompt[prompt.find("STRICT NUMERIC DISCIPLINE") :]
 
     # Multiples formatted with one decimal + 'x', not raw floats.
     assert "28.7x" in discipline
@@ -325,7 +325,7 @@ async def test_peer_whitelist_uses_frontend_caliber_formatting() -> None:
 
 @pytest.mark.asyncio
 async def test_peer_whitelist_renders_none_as_na_not_literal_none() -> None:
-    """BUG-038: a None multiple must render 'n/a（未取得）' to the LLM, never the
+    """BUG-038: a None multiple must render 'n/a (not available)' to the LLM, never the
     literal 'None' which the LLM could misread as a real value."""
     peer_with_gaps = CompanyFinancials(
         ticker="GOOG",
@@ -344,11 +344,11 @@ async def test_peer_whitelist_renders_none_as_na_not_literal_none() -> None:
     )
     ctx = _make_structured_context(peer_analysis=comps)
     prompt = await _capture_thesis_prompt(ctx)
-    discipline = prompt[prompt.find("严格数字纪律") :]
+    discipline = prompt[prompt.find("STRICT NUMERIC DISCIPLINE") :]
 
     # The peer bullets must contain the n/a sentinel, never a bare "None" token in
     # a field= position (e.g. "pe_ratio=None").
-    assert "n/a（未取得）" in discipline
+    assert "n/a (not available)" in discipline
     assert "pe_ratio=None" not in discipline
     assert "ev_ebitda=None" not in discipline
     assert "median_pe: None" not in discipline
@@ -400,7 +400,7 @@ async def test_data_health_gate_withholds_weighted_price_from_whitelist() -> Non
     ctx = _make_structured_context(valuation_synthesis=gated)
     prompt = await _capture_thesis_prompt(ctx)
 
-    discipline_section = prompt[prompt.find("严格数字纪律") :]
+    discipline_section = prompt[prompt.find("STRICT NUMERIC DISCIPLINE") :]
     # The withheld headline target must NOT be a citable number.
     assert "12.71" not in discipline_section, (
         "Data-health gate tripped but weighted_price 12.71 is still whitelisted — "
@@ -427,8 +427,8 @@ async def test_no_phantom_training_numbers_when_absent_from_context() -> None:
     ctx = _make_structured_context()
     prompt = await _capture_thesis_prompt(ctx)
 
-    # The whitelist section is everything after the "严格数字纪律" marker.
-    discipline_start = prompt.find("严格数字纪律")
+    # The whitelist section is everything after the "STRICT NUMERIC DISCIPLINE" marker.
+    discipline_start = prompt.find("STRICT NUMERIC DISCIPLINE")
     assert discipline_start != -1
     discipline_section = prompt[discipline_start:]
 
@@ -446,8 +446,75 @@ async def test_empty_structured_context_still_produces_discipline_block() -> Non
     """Even with no valuation/peer/dcf data the discipline block is still injected."""
     ctx: dict[str, object] = {}
     prompt = await _capture_thesis_prompt(ctx)
-    assert "严格数字纪律" in prompt
-    assert "SEC XBRL 当前不提供按分部或地理区域拆分" in prompt
+    assert "STRICT NUMERIC DISCIPLINE" in prompt
+    assert "SEC XBRL does not currently expose structured revenue" in prompt
+
+
+@pytest.mark.asyncio
+async def test_thesis_prompt_and_instructions_are_language_neutral() -> None:
+    """No CJK may leak into the synthesis prompt or the agent instructions.
+
+    The app ships English-only and the OUTPUT language is decided solely by the
+    directive base.py:_build_step_prompt appends (driven by effective_lang).
+    Hardcoded Chinese in _execute_thesis's appended blocks or in the synthesis
+    Agent's instructions would override that directive and force Chinese prose
+    regardless of UI language — the exact bug this guards against. Both surfaces
+    must stay language-neutral so prose language has a single source of truth.
+    """
+    from unittest.mock import MagicMock
+
+    import finrobot.engine.pipelines.equity_research as _mod
+    from finrobot.engine.models.financial import ThesisResult
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
+
+    captured: dict[str, str] = {}
+
+    class _CapturingAgent:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            captured["instructions"] = str(kwargs.get("instructions", ""))
+
+        async def run(self, prompt: str, **kwargs: Any) -> Any:
+            captured["prompt"] = prompt
+            result = MagicMock()
+            result.output = ThesisResult(
+                recommendation="BUY",
+                price_target=177.12,
+                price_target_basis="weighted synthesis",
+                narrative="test narrative",
+                catalysts=["catalyst one"],
+                risks=["risk one"],
+                tagline="Test tagline",
+                key_takeaways=["takeaway one"],
+                company_overview="Company overview text.",
+                valuation_overview="Valuation overview text.",
+                competitor_analysis="Competitor analysis text.",
+                news_summary="News summary text.",
+            )
+            return result
+
+    fake_deps = MagicMock()
+    fake_deps.settings.create_model.return_value = MagicMock()
+    fake_deps.skill_runtime = None
+
+    original_agent = _mod.Agent
+    _mod.Agent = _CapturingAgent  # type: ignore[assignment]
+    try:
+        await _execute_thesis(
+            agent=MagicMock(),
+            deps=fake_deps,
+            prompt="Step: thesis\n\nData:\nAAPL analysis.",
+            structured_context=_make_structured_context(),
+            ticker="AAPL",
+        )
+    finally:
+        _mod.Agent = original_agent  # type: ignore[assignment]
+
+    cjk = [ch for ch in captured.get("prompt", "") + captured.get("instructions", "") if "一" <= ch <= "鿿"]
+    assert not cjk, (
+        f"Hardcoded CJK leaked into the synthesis prompt/instructions: {''.join(sorted(set(cjk)))}. "
+        "Instructions and prompt blocks must be language-neutral — output language is set "
+        "by the directive in base.py:_build_step_prompt, never by hardcoded Chinese."
+    )
 
 
 @pytest.mark.asyncio

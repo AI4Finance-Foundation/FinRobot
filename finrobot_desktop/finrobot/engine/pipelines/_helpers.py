@@ -70,8 +70,8 @@ _PEER_COMP_INPUT_MAX = 10
 # we pre-format to the EXACT same caliber the UI uses, then inject that string:
 #   - multiples (P/E, EV/EBITDA, EV/Rev) → "28.7x"   (PeerComparisonChart: v.toFixed(1)+'x')
 #   - market_cap                          → "$3.41T"  (formatCompactNumber en: T/B/M=.2f, K=.1f)
-# None must never reach the LLM as the literal "None"; it renders "n/a（未取得）".
-_WHITELIST_NA = "n/a（未取得）"
+# None must never reach the LLM as the literal "None"; it renders "n/a (not available)".
+_WHITELIST_NA = "n/a (not available)"
 
 
 def fmt_multiple(value: float | None) -> str:

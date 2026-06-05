@@ -396,8 +396,9 @@ async def test_debate_lang_zh_renders_chinese_prompts() -> None:
     async def _noop_emit(ev: dict) -> None:
         pass
 
-    # Default lang is "zh" — call without the arg to also guard the default.
-    await run_debate(es, agents, emit=_noop_emit)
+    # zh is a retained i18n path (the app ships English-only, but the bilingual
+    # debate-string table stays for future re-enablement) — pass it explicitly.
+    await run_debate(es, agents, emit=_noop_emit, lang="zh")
 
     judge_prompt = agents["judge"].prompt or ""
     assert "当前价格" in judge_prompt

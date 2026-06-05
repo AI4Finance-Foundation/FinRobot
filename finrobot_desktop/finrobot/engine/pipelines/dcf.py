@@ -112,9 +112,10 @@ async def _execute_dcf_calc(
         )
         return StepOutput(
             text=(
-                f"DCF 不适用：加权资本成本 WACC {wacc:.1%} 不高于永续增长率 "
-                f"{dcf_inputs.terminal_growth_rate:.1%}，Gordon 永续增长模型在此情形下无定义。"
-                f"本标的跳过 DCF 估值，请以相对估值（可比公司倍数、历史估值区间）为准。"
+                f"DCF not applicable: WACC {wacc:.1%} is not above the terminal growth "
+                f"rate {dcf_inputs.terminal_growth_rate:.1%}, leaving the Gordon perpetual-"
+                f"growth model undefined in this case. This issuer skips the DCF valuation; "
+                f"rely on relative valuation (peer multiples, historical valuation range)."
             ),
             structured=None,
         )

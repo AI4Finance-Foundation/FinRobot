@@ -33,7 +33,7 @@ from finrobot.engine.pipelines._helpers import (
         (19.149, "19.1x"),
         (21.44, "21.4x"),
         (0.0, "0.0x"),
-        (None, "n/a（未取得）"),  # never the literal "None"
+        (None, "n/a (not available)"),  # never the literal "None"
     ],
 )
 def test_fmt_multiple_matches_frontend_caliber(value: float | None, expected: str) -> None:
@@ -51,7 +51,7 @@ def test_fmt_multiple_matches_frontend_caliber(value: float | None, expected: st
         (12_300_000, "$12.30M"),  # M = .2f
         (4_500, "$4.5K"),  # K = .1f
         (920, "$920"),  # below K → plain integer
-        (None, "n/a（未取得）"),
+        (None, "n/a (not available)"),
     ],
 )
 def test_fmt_market_cap_matches_frontend_caliber(value: float | None, expected: str) -> None:

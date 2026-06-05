@@ -110,7 +110,7 @@ async def _fetch_optional_sec(
             timeout=_SEC_FETCH_TIMEOUT_S,
         )
     except asyncio.TimeoutError:
-        msg = f"SEC {data_type.name} 拉取超过 {_SEC_FETCH_TIMEOUT_S:.0f}s — SEC 慢/不可达，已跳过"
+        msg = f"SEC {data_type.name} fetch exceeded {_SEC_FETCH_TIMEOUT_S:.0f}s — SEC slow/unreachable, skipped"
         logger.warning("%s (%s)", msg, ticker)
         return {"available": False, "error": msg, "warnings": [msg]}
     except (
@@ -129,7 +129,7 @@ async def _fetch_optional_sec(
         # ANY future provider path too. Concrete types only: a bare `except
         # Exception` would swallow CancelledError and break client-disconnect
         # cleanup (test_no_bare_except_exception_in_finrobot).
-        msg = f"SEC {data_type.name} 拉取失败：{type(exc).__name__}"
+        msg = f"SEC {data_type.name} fetch failed: {type(exc).__name__}"
         logger.warning("%s for %s: %s", msg, ticker, exc)
         return {"available": False, "error": msg, "warnings": [msg]}
     if result.data.get("error"):
@@ -472,9 +472,11 @@ async def _execute_financial_modeling(
                 structured_context["valuation_synthesis"] = vs
         return StepOutput(
             text=(
-                f"DCF 不适用：以本标的的资本成本、永续增长率与末年自由现金流假设，Gordon 永续"
-                f"增长模型无法给出有意义的正值估值（{e}）。本章跳过 DCF 估值，估值结论以相对估值"
-                f"（可比公司倍数、历史估值区间）为准。"
+                f"DCF not applicable: given this issuer's cost of capital, terminal growth "
+                f"rate, and final-year free-cash-flow assumptions, the Gordon perpetual-"
+                f"growth model cannot produce a meaningful positive valuation ({e}). This "
+                f"chapter skips the DCF valuation; the valuation conclusion relies on "
+                f"relative valuation (peer multiples, historical valuation range)."
             ),
             structured=None,
         )
@@ -571,10 +573,12 @@ async def _execute_technical_analysis(
         # a relative-valuation report.
         return StepOutput(
             text=(
-                "技术面 / 量化叠加（蒙特卡洛、狙击点位、历史估值带）已跳过："
-                "本章的所有指标均以 DCF 输入为种子，而 DCF 估值对本标的不适用"
-                "（资本成本与永续增长率假设使 Gordon 永续增长模型无定义）。"
-                "估值结论以相对估值为准。"
+                "Technical / quant overlays (Monte Carlo, sniper entries, historical "
+                "valuation bands) skipped: every metric in this chapter is seeded from "
+                "DCF inputs, and the DCF valuation is not applicable to this issuer "
+                "(the cost-of-capital and terminal-growth assumptions leave the Gordon "
+                "perpetual-growth model undefined). The valuation conclusion relies on "
+                "relative valuation."
             ),
             structured=TechnicalAnalysis(
                 monte_carlo=None,
@@ -982,7 +986,7 @@ async def _execute_thesis(
             f"is given — this is a feature (refusing to fabricate a number), not a "
             f"failure. Do NOT pick a midpoint.\n"
             f"Your `valuation_overview` narrative MUST NOT state any single fair-value "
-            f"or target number (no weighted average, no midpoint, no '约 $X') — instead "
+            f"or target number (no weighted average, no midpoint, no 'approx $X') — instead "
             f"explain the data-health reason cited above and that a defensible target is "
             f"withheld pending review."
         )
@@ -1016,9 +1020,11 @@ async def _execute_thesis(
             f"are data-quality weights, not prediction probabilities). "
             f"Your narrative is free to discuss why each method points where it does and why "
             f"the verdict is consistent with the upside. "
-            f"任何提到'当前股价 / 市场价 / 现价'的地方,必须用上面这个权威市场价"
-            f"({market_price_str}),绝不能用目标价(${canonical_target:.2f})或你记忆里的价格顶替;"
-            f"目标价相对市场价的差距就是上面的 implied upside({upside_str}),别另算一个百分比。"
+            f"Wherever the narrative mentions 'current share price / market price', it "
+            f"MUST use the authoritative market price above ({market_price_str}); never "
+            f"substitute the price target (${canonical_target:.2f}) or any price from "
+            f"memory. The gap of the target vs the market price IS the implied upside "
+            f"above ({upside_str}) — do not compute a different percentage."
             f"{market_implied_line}"
         )
 
@@ -1032,9 +1038,11 @@ async def _execute_thesis(
 
     # Build whitelist summary from the actual artifact fields the LLM may cite.
     _whitelist_parts: list[str] = [
-        "\n\n**严格数字纪律（违反即任务失败）：**",
-        "你只能引用以下字段的数字。引用任何其他数字（包括你训练数据里'记得的' P/E、市值、"
-        "增长率）都属于违规，必须被 prompt-fidelity 评估标记为 hallucination：",
+        "\n\n**STRICT NUMERIC DISCIPLINE (violation = task failure):**",
+        "You may ONLY cite numbers from the fields listed below. Citing any other number "
+        "(including a P/E, market cap, or growth rate you 'remember' from training data) "
+        "is a violation and MUST be flagged as a hallucination by the prompt-fidelity "
+        "evaluation:",
     ]
     if isinstance(vs_for_prompt, ValuationSynthesis):
         # The current market price is the reference every upside/downside is
@@ -1042,7 +1050,7 @@ async def _execute_thesis(
         # instead of back-filling with the target (the MSFT mislabel bug).
         if vs_for_prompt.current_price > 0:
             _whitelist_parts.append(
-                f"  - valuation_synthesis.current_price (当前市场价): "
+                f"  - valuation_synthesis.current_price (current market price): "
                 f"${vs_for_prompt.current_price:.2f}"
             )
         for m in vs_for_prompt.methods:
@@ -1094,9 +1102,12 @@ async def _execute_thesis(
     if xbrl_snap:
         _whitelist_parts.append("  - xbrl_facts_snapshot.*: (injected above in structured data)")
     _whitelist_parts += [
-        "禁止使用：你'记得'的任何 P/E、PEG、PB、yield、市值、增长率——这些必须来自上方字段。",
-        "违反检查：narrative 和所有 LLM narrative 字段里出现的每个数字必须能从上述字段精确"
-        "提取或派生（如 % change）。若上方字段不含某数字，用定性描述而非编造数值。",
+        "FORBIDDEN: any P/E, PEG, PB, yield, market cap, or growth rate you 'remember' — "
+        "these MUST come from the fields above.",
+        "Violation check: every number appearing in the narrative and all LLM narrative "
+        "fields must be exactly extractable or derivable (e.g. % change) from the fields "
+        "above. If a number is not in the fields above, describe it qualitatively rather "
+        "than fabricating a value.",
     ]
     thesis_prompt = thesis_prompt + "\n".join(_whitelist_parts)
 
@@ -1105,15 +1116,19 @@ async def _execute_thesis(
     # We cannot inject XBRL-sourced segment splits. Prompt discipline is the only
     # guard: prohibit fabrication and require the LLM to label absence explicitly.
     _co_context = (
-        "\n\n**公司分部 / 地理营收（SEC XBRL 核查）：**\n"
-        "SEC XBRL 当前不提供按分部或地理区域拆分的结构化营收数据。\n"
-        "因此：\n"
-        "  1. 不要引用任何具体的分部占比数字（如'产品占80%'）或地区拆分数字"
-        "（如'大中华区占20%'），除非这些数字出现在上方注入的 xbrl_facts_snapshot 里。\n"
-        "  2. 如果 xbrl_facts_snapshot 里没有分部数据，在 company_overview 里明确写：\n"
-        "     '分部营收拆分信息未在 SEC XBRL 结构化数据中获取，具体比例请参阅最新年报。'\n"
-        "  3. 可以定性描述业务线（如'以消费电子设备和服务生态为核心'），但不能给出"
-        "无数据支撑的百分比。\n"
+        "\n\n**SEGMENT / GEOGRAPHIC REVENUE (SEC XBRL verification):**\n"
+        "SEC XBRL does not currently expose structured revenue broken down by segment or "
+        "geographic region.\n"
+        "Therefore:\n"
+        "  1. Do NOT cite any specific segment-share figure (e.g. 'Products are 80%') or "
+        "geographic-split figure (e.g. 'Greater China is 20%') unless that number appears "
+        "in the injected xbrl_facts_snapshot above.\n"
+        "  2. If xbrl_facts_snapshot has no segment data, state explicitly in "
+        "company_overview: 'Segment revenue breakdown was not available in SEC XBRL "
+        "structured data; see the latest annual report for the exact proportions.'\n"
+        "  3. You may describe business lines qualitatively (e.g. 'centered on consumer "
+        "electronics devices and a services ecosystem'), but do NOT give a percentage "
+        "that has no data backing.\n"
     )
     thesis_prompt = thesis_prompt + _co_context
 
@@ -1149,9 +1164,11 @@ async def _execute_thesis(
             "  - valuation_overview: 150-200 word explanation — why DCF vs Comps vs DDM give the "
             "implied prices they do, and how the weighted target was reached. "
             "Only cite numbers present in the whitelist injected in the prompt.\n"
-            "  - competitor_analysis: 3-4 句话讲清楚 vs 同业的市占 / 增速 / 估值倍数差异。"
-            "Only cite peer multiples from peer_analysis fields listed in the whitelist.\n"
-            "  - news_summary:      3-5 句话总结近 30 天关键新闻的整体情绪与对论点的支撑/挑战。"
+            "  - competitor_analysis: 3-4 sentences on the market-share / growth / "
+            "valuation-multiple differences vs peers. Only cite peer multiples from "
+            "peer_analysis fields listed in the whitelist.\n"
+            "  - news_summary:      3-5 sentences summarizing the overall sentiment of the "
+            "last 30 days of key news and how it supports/challenges the thesis."
         ),
         defer_model_check=True,
     )

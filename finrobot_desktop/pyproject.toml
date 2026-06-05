@@ -49,6 +49,7 @@ dev = [
     "httpx>=0.27",
     "ruff>=0.8",
     "mypy>=1.10",
+    "rope>=1.14",  # deterministic static reference scan — see scripts/find_refs.py
 ]
 # Desktop packaging: freezes `finrobot serve` into the standalone sidecar
 # binary that the Tauri shell spawns. See desktop/src-tauri/sidecar/.

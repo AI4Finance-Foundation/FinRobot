@@ -244,7 +244,6 @@ export function ArtifactDetailPage(): React.ReactElement {
               ticker={symbol}
               artifactId={artifactId}
               reportType={data.type}
-              reportVersionLabel={versionLabel}
               targetPrice={null}
               onExportHtml={handleExportHtml}
             />
@@ -286,7 +285,6 @@ export function ArtifactDetailPage(): React.ReactElement {
             ticker={symbol}
             artifactId={artifactId}
             reportType={data.type}
-            reportVersionLabel={versionLabel}
             targetPrice={thesis?.price_target ?? null}
             onExportHtml={handleExportHtml}
             onOpenIcDebate={

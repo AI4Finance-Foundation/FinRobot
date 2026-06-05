@@ -31,7 +31,11 @@ from finrobot.engine.compute.operators.catalyst import (
     compute_expected_impact,
     summarize_catalyst_outlook,
 )
-from finrobot.engine.compute.operators.dcf import calculate_dcf, calculate_sensitivity
+from finrobot.engine.compute.operators.dcf import (
+    calculate_dcf,
+    calculate_sensitivity,
+    market_implied_check,
+)
 from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
 from finrobot.engine.compute.coordinators.extractor import normalize_financials_to_usd
 from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
@@ -475,17 +479,47 @@ async def _execute_financial_modeling(
         dcf_result.wacc, dcf_result.inputs.terminal_growth_rate
     )
     sensitivity = calculate_sensitivity(dcf_inputs, wacc_range=wacc_range, tg_range=tg_range)
-    dcf_result = dcf_result.model_copy(update={"sensitivity_table": sensitivity})
+
+    # Reverse-DCF reality check: what growth / WACC does the market price imply,
+    # over the SAME horizon the forward DCF used? This is the honest companion to
+    # the fair-value point — a DCF mid far from market is meaningless alone, but
+    # "the market prices in X% growth (or: even 50% growth can't reach today's
+    # price — option-value stock)" is checkable and user-understandable. Computed
+    # deterministically; the thesis LLM cites it, never invents it.
+    current_price = financial_data.market.current_price if hasattr(financial_data, "market") else 0
+    market_implied = (
+        market_implied_check(dcf_inputs, current_price, horizon_years=dcf_result.projection_years)
+        if current_price > 0
+        else None
+    )
+    dcf_result = dcf_result.model_copy(
+        update={"sensitivity_table": sensitivity, "market_implied": market_implied}
+    )
 
     valid_prices = [
         p for row in sensitivity["implied_prices"] for p in row if p is not None and p > 0
     ]
     price_range = f"${min(valid_prices):.0f}-${max(valid_prices):.0f}" if valid_prices else "N/A"
+    if market_implied is not None and market_implied.growth_unreachable:
+        implied_str = (
+            f"Market-implied growth: UNREACHABLE — even "
+            f"{market_implied.growth_ceiling:.0%}/yr growth implies only "
+            f"${market_implied.ceiling_price:.2f} vs ${current_price:.2f} market "
+            f"(price is option value the DCF cannot model)."
+        )
+    elif market_implied is not None and market_implied.implied_growth is not None:
+        implied_str = (
+            f"Market-implied growth: {market_implied.implied_growth:.1%}/yr over "
+            f"{market_implied.horizon_years}y (vs seeded "
+            f"{dcf_inputs.revenue_growth_rates[0]:.1%})."
+        )
+    else:
+        implied_str = ""
     narrative = (
         f"DCF base case implies ${dcf_result.implied_price:.2f} per share. "
         f"WACC: {dcf_result.wacc:.1%}, Terminal growth: {dcf_inputs.terminal_growth_rate:.1%}. "
         f"Enterprise value: ${dcf_result.enterprise_value / 1e9:.1f}B. "
-        f"Sensitivity range: {price_range}."
+        f"Sensitivity range: {price_range}. {implied_str}".rstrip()
     )
 
     # Write DCFResult into structured_context BEFORE build_valuation_synthesis:
@@ -494,8 +528,8 @@ async def _execute_financial_modeling(
     # leaves isinstance(dcf, DCFResult) False and silently drops DCF.
     structured_context["financial_modeling"] = dcf_result
 
-    # Build ValuationSynthesis from all available methods for the football field chart.
-    current_price = financial_data.market.current_price if hasattr(financial_data, "market") else 0
+    # Build ValuationSynthesis from all available methods for the football field
+    # chart. current_price was resolved above for the reverse-DCF check.
     if current_price > 0:
         from finrobot.engine.pipelines._helpers import build_valuation_synthesis
 
@@ -842,6 +876,37 @@ async def _execute_thesis(
             len(vs.methods),
         )
 
+    # Reverse-DCF reality check, threaded into the thesis as an AUTHORITATIVE
+    # computed number (the LLM cites it, never invents it). It is the single most
+    # useful figure for judging a divergence: a withheld target stops being a
+    # blank "REVIEW" and becomes "the market prices in X% growth — plausible?",
+    # or for an option-value stock the honest "even +50% growth can't reach
+    # today's price". Always supplied when available; doubly load-bearing on the
+    # gate_failed path where there is no headline target to anchor the narrative.
+    dcf_ctx = structured_context.get("financial_modeling")
+    market_implied_line = ""
+    if isinstance(dcf_ctx, DCFResult) and dcf_ctx.market_implied is not None:
+        mi = dcf_ctx.market_implied
+        if mi.growth_unreachable and mi.ceiling_price is not None:
+            market_implied_line = (
+                f"\nAUTHORITATIVE MARKET-IMPLIED GROWTH (computed, cite verbatim, do "
+                f"not invent): the current price is UNREACHABLE by the DCF — even "
+                f"{mi.growth_ceiling:.0%}/yr revenue growth over {mi.horizon_years}y "
+                f"implies only ${mi.ceiling_price:.2f}. The market is pricing in growth/"
+                f"optionality no cash-flow model can capture (a story/option-value "
+                f"stock). Use this to explain, concretely, WHY a fundamentals target "
+                f"is not meaningful here."
+            )
+        elif mi.implied_growth is not None:
+            market_implied_line = (
+                f"\nAUTHORITATIVE MARKET-IMPLIED GROWTH (computed, cite verbatim, do "
+                f"not invent): the current price implies ~{mi.implied_growth:.1%}/yr "
+                f"revenue growth over {mi.horizon_years}y"
+                + (f" (implied WACC ~{mi.implied_wacc:.1%})" if mi.implied_wacc is not None else "")
+                + ". State whether that growth is plausible for this company as the "
+                "reader's reality check on the gap between price and fair value."
+            )
+
     thesis_prompt = prompt
     if catalyst_section:
         thesis_prompt = f"{prompt}\n\nCatalyst Analysis:\n{catalyst_section}"
@@ -850,6 +915,7 @@ async def _execute_thesis(
             f"{thesis_prompt}\n\n"
             f"DATA-HEALTH GATE TRIPPED — DO NOT STATE A PRICE TARGET OR DIRECTIONAL VERDICT.\n"
             f"{canonical_basis}\n"
+            f"{market_implied_line}\n"
             f"Your `recommendation` field MUST be exactly 'REVIEW'. "
             f"Your `price_target` field MUST be null/omitted. "
             f"Your `price_target_basis` MUST state, citing the specific data-health "
@@ -900,6 +966,7 @@ async def _execute_thesis(
             f"任何提到'当前股价 / 市场价 / 现价'的地方,必须用上面这个权威市场价"
             f"({market_price_str}),绝不能用目标价(${canonical_target:.2f})或你记忆里的价格顶替;"
             f"目标价相对市场价的差距就是上面的 implied upside({upside_str}),别另算一个百分比。"
+            f"{market_implied_line}"
         )
 
     # ── Numeric discipline whitelist ──────────────────────────────────────────

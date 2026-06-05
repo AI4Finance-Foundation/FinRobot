@@ -6,7 +6,6 @@ produce, plus edge cases. The forward formula itself is already covered by
 test_dcf.py and tests/audit/test_financial_sanity.py.
 """
 
-
 from finrobot.engine.compute.operators.dcf import (
     _price_for,
     calculate_dcf,
@@ -196,7 +195,9 @@ def test_reverse_horizon_round_trip():
     horizon at that price (same fixed growth) should return ~8 years."""
     inputs = _make_inputs()
     target = _price_for(inputs, 0.12, 0.10, inputs.terminal_growth_rate, 8, False)
-    out = solve_for_implied_horizon(inputs, target_price=target, growth_rate=0.12, wacc_override=0.10)
+    out = solve_for_implied_horizon(
+        inputs, target_price=target, growth_rate=0.12, wacc_override=0.10
+    )
     assert out["implied_horizon"] is not None
     assert abs(out["implied_horizon"] - 8.0) < 0.05
 
@@ -224,7 +225,9 @@ def test_reverse_horizon_depends_on_assumed_growth():
 def test_reverse_horizon_echoes_assumed_growth():
     """assumed_growth must round-trip so the UI can show 'under g=X%, ~N years'."""
     inputs = _make_inputs()
-    out = solve_for_implied_horizon(inputs, target_price=300.0, growth_rate=0.18, wacc_override=0.10)
+    out = solve_for_implied_horizon(
+        inputs, target_price=300.0, growth_rate=0.18, wacc_override=0.10
+    )
     assert out["assumed_growth"] == 0.18
 
 
@@ -311,6 +314,62 @@ def test_dcf_reverse_result_converged_defaults_true_for_horizon():
     from finrobot.routes.compute import DcfReverseResult
 
     inputs = _make_inputs()
-    out = solve_for_implied_horizon(inputs, target_price=300.0, growth_rate=0.08, wacc_override=0.10)
+    out = solve_for_implied_horizon(
+        inputs, target_price=300.0, growth_rate=0.08, wacc_override=0.10
+    )
     result = DcfReverseResult(solve_for="horizon", **out)
     assert result.converged is True
+
+
+# ───────────────────────────────────────────────────────────────────
+# market_implied_check — the typed reality-check wrapper used by the report
+# ───────────────────────────────────────────────────────────────────
+
+
+def _capm_wacc(inputs):
+    from finrobot.engine.compute.operators.wacc import calculate_wacc
+
+    _, wacc = calculate_wacc(
+        inputs.risk_free_rate,
+        inputs.beta,
+        inputs.equity_risk_premium,
+        inputs.cost_of_debt,
+        inputs.tax_rate,
+        inputs.debt_ratio,
+    )
+    return wacc
+
+
+def test_market_implied_check_reachable_round_trip():
+    """When the market price equals what 8% growth justifies (under CAPM WACC),
+    the reality check reports ~8% implied growth and growth_unreachable=False."""
+    from finrobot.engine.compute.operators.dcf import _price_for, market_implied_check
+
+    inputs = _make_inputs()
+    wacc = _capm_wacc(inputs)
+    price_at_8 = _price_for(inputs, 0.08, wacc, inputs.terminal_growth_rate, 5, False)
+
+    mi = market_implied_check(inputs, price_at_8, horizon_years=5)
+    assert mi.growth_unreachable is False
+    assert mi.implied_growth is not None
+    assert abs(mi.implied_growth - 0.08) < 0.005
+    assert mi.horizon_years == 5
+    assert mi.ceiling_price is None  # only populated on the unreachable path
+
+
+def test_market_implied_check_unreachable_option_value():
+    """A price far above what even +50% growth justifies (the TSLA case) must set
+    growth_unreachable=True, implied_growth=None, and surface the ceiling so the
+    narrative can say 'even 50% growth implies only $X'."""
+    from finrobot.engine.compute.operators.dcf import _price_for, market_implied_check
+
+    inputs = _make_inputs()
+    wacc = _capm_wacc(inputs)
+    ceiling = _price_for(inputs, 0.50, wacc, inputs.terminal_growth_rate, 5, False)
+
+    mi = market_implied_check(inputs, ceiling * 4.0, horizon_years=5)
+    assert mi.growth_unreachable is True
+    assert mi.implied_growth is None
+    assert mi.growth_ceiling == 0.50
+    assert mi.ceiling_price is not None
+    assert abs(mi.ceiling_price - ceiling) / ceiling < 0.01

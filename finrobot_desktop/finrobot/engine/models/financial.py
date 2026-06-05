@@ -375,6 +375,46 @@ class DCFInputs(BaseModel):
     )
 
 
+class MarketImpliedCheck(BaseModel):
+    """Reverse-DCF reality check: what the CURRENT market price implies.
+
+    The forward DCF answers "given my assumptions, what is it worth?". This
+    inverts it: "given the market's price, what constant growth (or discount
+    rate) is the market implicitly pricing in?" — a Damodaran-style sanity
+    check. It is the honest companion to a fair-value point: a DCF mid 60% below
+    market is meaningless on its own, but "the market is pricing in 23%/yr
+    growth — plausible?" is a checkable, user-understandable statement.
+
+    All fields are COMPUTED (deterministic reverse-DCF), never LLM-narrated.
+    Scalars only (no baked prose) so the bilingual UI renders the localized
+    sentence and the thesis LLM cites the numbers in the report's language.
+    """
+
+    horizon_years: int
+    """Explicit high-growth window the implied growth is solved over — matches
+    the forward DCF's own projection_years so the two are directly comparable."""
+    implied_growth: float | None = None
+    """Constant annual revenue growth the market price implies over
+    ``horizon_years``. None when the price is unreachable within the solver's
+    growth bracket — see ``growth_unreachable``."""
+    implied_wacc: float | None = None
+    """Discount rate the market price implies under the seeded growth schedule.
+    None when unreachable within the WACC bracket."""
+    growth_unreachable: bool = False
+    """True when NO growth in the solver bracket reaches the market price — the
+    single most important signal that the price is NOT growth-explainable
+    (option-value stock, e.g. TSLA: even 50% growth implies only ~$65 vs $418).
+    When True the product must NOT present a fundamentals point target as the
+    headline; the honest output is "priced on optionality the DCF cannot model"."""
+    growth_ceiling: float | None = None
+    """The solver's max growth tried (e.g. 0.50), for the unreachable narrative
+    ("even {ceiling:.0%} growth only implies ${ceiling_price})."""
+    ceiling_price: float | None = None
+    """Implied price at ``growth_ceiling`` — the highest the DCF can reach. Lets
+    the UI/narrative quantify how far the market sits beyond any plausible
+    growth (TSLA: $65 ceiling vs $418 market)."""
+
+
 class DCFResult(BaseModel):
     """DCF valuation output. All numbers computed by code, not LLM."""
 
@@ -400,6 +440,10 @@ class DCFResult(BaseModel):
 
     # Sensitivity
     sensitivity_table: dict[str, Any] | None = None
+
+    # Reverse-DCF reality check (what the market price implies). None when the
+    # caller didn't run it (e.g. no current price available).
+    market_implied: MarketImpliedCheck | None = None
 
     # Inputs used (for reproducibility)
     inputs: DCFInputs

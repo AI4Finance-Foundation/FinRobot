@@ -1,6 +1,6 @@
 from typing import Any
 
-from finrobot.engine.models.financial import DCFInputs, DCFResult
+from finrobot.engine.models.financial import DCFInputs, DCFResult, MarketImpliedCheck
 from finrobot.engine.compute.operators.wacc import calculate_wacc
 
 
@@ -212,6 +212,47 @@ def _price_for(
     enterprise_value = pv_fcf + pv_tv
     equity_value = enterprise_value - inputs.net_debt
     return float(equity_value / inputs.shares_outstanding)
+
+
+def market_implied_check(
+    inputs: DCFInputs,
+    current_price: float,
+    horizon_years: int,
+    growth_bracket: tuple[float, float] = (-0.10, 0.50),
+) -> MarketImpliedCheck:
+    """Reverse-DCF reality check: what constant growth / discount rate does the
+    CURRENT market price imply, over the same horizon the forward DCF used?
+
+    Composes ``solve_for_implied_growth`` + ``solve_for_implied_wacc`` into the
+    typed ``MarketImpliedCheck``. The key product signal is ``growth_unreachable``:
+    when no growth in ``growth_bracket`` reaches the market price (e.g. TSLA —
+    even +50%/yr implies only ~$65 vs a $418 price), the market is pricing option
+    value no cash-flow model can capture, and a fundamentals point target must
+    not be presented as the headline. ``horizon_years`` is threaded from the
+    caller (the forward DCF's projection_years) so implied vs seeded growth are
+    compared over the same window.
+    """
+    g = solve_for_implied_growth(
+        inputs, current_price, horizon_years=horizon_years, bracket=growth_bracket
+    )
+    w = solve_for_implied_wacc(inputs, current_price)
+    implied_growth = g.get("implied_growth")
+    # Unreachable on the HIGH side (price above what even max growth justifies)
+    # is the option-value signal we care about; surface the ceiling so the
+    # narrative can quantify the gap ("even {ceiling:.0%} growth → ${ceiling_price}").
+    hi_growth = growth_bracket[1]
+    ceiling_price = g.get("price_at_hi")
+    unreachable = implied_growth is None and (
+        ceiling_price is not None and current_price > ceiling_price
+    )
+    return MarketImpliedCheck(
+        horizon_years=horizon_years,
+        implied_growth=implied_growth,
+        implied_wacc=w.get("implied_wacc"),
+        growth_unreachable=unreachable,
+        growth_ceiling=hi_growth if unreachable else None,
+        ceiling_price=ceiling_price if unreachable else None,
+    )
 
 
 def solve_for_implied_growth(

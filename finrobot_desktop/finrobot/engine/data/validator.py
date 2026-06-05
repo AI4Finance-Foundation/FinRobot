@@ -136,18 +136,22 @@ def cross_validate(primary: DataResult, secondary: DataResult) -> list[str]:
 # rather than hardcoding provider names, and ABSTAIN (return []) when no
 # independent count exists — we never emit a spurious "consistent" signal.
 #
-# When an independent count IS available, the implied-vs-reported RATIO is
-# classified by share-structure band instead of a hardcoded GOOG/META allowlist:
-# multi-class issuers (Alphabet GOOGL/GOOG, Meta A/B) legitimately carry a market
-# cap spanning all classes while a single-class share count is reported. The
-# output is always a WARNING, never an error — the primary value still flows.
+# When an independent count IS available, the implied/reported RATIO is flagged by
+# DIRECTION (not a hardcoded GOOG/META allowlist): >1.1 means market cap spans more
+# shares than are reported (multi-class issuer with one class reported, or an ADR
+# ratio); <0.9 means the reported count exceeds what market cap implies (stale or
+# rounded share data). Calibrated on the S&P500 closure study (2026-06-05, 503
+# names): the ratio does NOT cleanly map to a class count — genuine dual-class
+# spans 1.16 (META) to 3.86 (IBKR) — so we never claim "dual" vs "triple". Always a
+# WARNING, never an error — the primary value still flows.
 
 # shares within this relative distance of mc/price is treated as rederived from
 # them (i.e. NOT an independent source), so it can't validate its own parents.
 _SHARES_DERIVED_EPS = 1e-3
 
-# implied_shares / reported_shares → (low, high_inclusive, english_label).
-# Gaps between bands and the open ends fall through to the anomaly branch.
+# implied/reported ratio inside [LO, HI] = closes (single effective class). Outside
+# → flagged by direction. 0.9/1.1 chosen so normal float-vs-outstanding and
+# timing noise stay silent (S&P500 study: 425/503 names land inside this band).
 _SINGLE_CLASS_LO, _SINGLE_CLASS_HI = 0.9, 1.1
 
 
@@ -261,20 +265,30 @@ def market_cap_consistency(primary: DataResult, secondary: DataResult) -> list[s
 
     ratio = implied / reported
     if _SINGLE_CLASS_LO <= ratio <= _SINGLE_CLASS_HI:
-        return []  # single share class — consistent, nothing to flag
+        return []  # closes — single effective share class
 
-    if 1.8 <= ratio <= 2.5:
-        label = "likely multi-class equity (dual-class, e.g. Alphabet GOOGL/GOOG)"
-    elif 2.5 < ratio <= 4.5:
-        label = "likely triple-class equity"
-    elif _SINGLE_CLASS_HI < ratio < 1.8:
-        label = "minor mismatch — float vs shares-outstanding, partial share class, or stale count"
-    else:
-        label = "anomalous — possible ADR ratio, unit mismatch, or wrong share count; verify"
+    # Direction-based, calibrated on the S&P500 closure study (2026-06-05, 503
+    # names). The ratio does NOT cleanly map to a class count — genuine dual-class
+    # issuers span 1.16 (META) to 3.86 (IBKR) — so we flag DIRECTION + scale and
+    # never assert "dual" vs "triple" (that was a false-precision band).
+    if ratio > _SINGLE_CLASS_HI:
+        # reported < implied: only part of the share base is reported.
+        label = (
+            f"reported shares are {ratio:.2f}× below market-cap-implied — market cap "
+            f"spans all share classes while the reported count likely covers one "
+            f"(multi-class issuer, e.g. Alphabet/Fox) or reflects an ADR ratio"
+        )
+    else:  # ratio < _SINGLE_CLASS_LO
+        # reported > implied: in the study this was always a stale/rounded count
+        # (yfinance .info returns placeholders like 815,000,000), never structure.
+        label = (
+            f"reported shares EXCEED market-cap-implied by {1.0 / ratio:.2f}× — likely a "
+            f"stale or rounded reported share count, or a market cap from a different session"
+        )
 
     return [
         f"Market-cap consistency: implied shares (market_cap/price = {implied:,.0f}) "
-        f"vs reported shares ({source}: {reported:,.0f}) → ratio {ratio:.2f}. {label}."
+        f"vs reported shares ({source}: {reported:,.0f}) → ratio {ratio:.2f}. {label}; verify."
     ]
 
 

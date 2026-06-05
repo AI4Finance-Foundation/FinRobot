@@ -54,25 +54,38 @@ def test_single_class_consistent_no_warning() -> None:
     assert market_cap_consistency(primary, secondary) == []
 
 
-def test_multi_class_flagged_not_errored() -> None:
-    # GOOG: 12.09B implied vs 5.48B reported → ratio≈2.21 → dual/multi-class WARN.
+def test_reported_below_implied_flagged_not_errored() -> None:
+    # GOOG: 12.09B implied vs 5.48B reported → ratio≈2.21 → "below market-cap-implied".
     primary = _fmp("GOOG", 4_466_272_753_096, 369.27)
     secondary = _yf("GOOG", 4_492_672_630_784, 5_481_459_689)
     warns = market_cap_consistency(primary, secondary)
     assert len(warns) == 1
-    assert "multi-class" in warns[0].lower() or "class" in warns[0].lower()
+    assert "below market-cap-implied" in warns[0]
     assert "5,481,459,689" in warns[0]  # reported shares surfaced
     assert "2.2" in warns[0]  # ratio surfaced
 
 
-def test_minor_mismatch_flagged() -> None:
-    # META: 2.538B implied vs 2.196B reported → ratio≈1.16 → minor-mismatch WARN
-    # (genuinely NOT a clean 2x dual-class; honest "investigate" rather than over-label).
+def test_genuine_dual_class_below_2x_still_flagged() -> None:
+    # META (genuinely dual-class) lands at ratio≈1.16 — the S&P500 study proved
+    # ratio does NOT map to class count, so this MUST still flag (the old 1.8–2.5
+    # "dual" band would have mislabeled it "minor"). Direction is what matters.
     primary = _fmp("META", 1_593_038_276_492, 627.57)
     secondary = _yf("META", 1_593_038_340_096, 2_196_045_588)
     warns = market_cap_consistency(primary, secondary)
     assert len(warns) == 1
-    assert "1.1" in warns[0] or "1.2" in warns[0]
+    assert "below market-cap-implied" in warns[0]
+    assert "1.16" in warns[0]
+
+
+def test_reported_exceeds_implied_flags_stale_count() -> None:
+    # DVN-like (S&P500 study): implied 621M vs yfinance reported 1.15B → ratio≈0.54.
+    # reported > implied → stale/rounded share data, a distinct diagnosis.
+    primary = _fmp("DVN", 60_000_000_000, 96.55)  # implied ≈ 621.4M
+    secondary = _yf("DVN", 60_000_000_000, 1_153_403_107)
+    warns = market_cap_consistency(primary, secondary)
+    assert len(warns) == 1
+    assert "EXCEED market-cap-implied" in warns[0]
+    assert "stale or rounded" in warns[0]
 
 
 def test_abstains_when_only_derived_shares_available() -> None:
@@ -84,22 +97,16 @@ def test_abstains_when_only_derived_shares_available() -> None:
     assert market_cap_consistency(primary, secondary) == []
 
 
-def test_anomaly_band_for_unit_or_adr_mismatch() -> None:
-    # implied 10B vs reported 1B → ratio 10 → gross anomaly (ADR ratio / unit error).
+def test_large_below_ratio_flagged_without_class_count_claim() -> None:
+    # implied 10B vs reported 1B → ratio 10 (ADR ratio / extreme). Flagged by
+    # direction; we deliberately do NOT claim a class count.
     primary = _fmp("ADRX", 1_000_000_000_000, 100.0)  # implied 10B
     secondary = _yf("ADRX", 1_000_000_000_000, 1_000_000_000)  # reported 1B
     warns = market_cap_consistency(primary, secondary)
     assert len(warns) == 1
-    assert "anomal" in warns[0].lower()
-
-
-def test_triple_class_band() -> None:
-    # implied 12B vs reported 4B → ratio 3.0 → triple-class band.
-    primary = _fmp("TRPL", 1_200_000_000_000, 100.0)  # implied 12B
-    secondary = _yf("TRPL", 1_200_000_000_000, 4_000_000_000)
-    warns = market_cap_consistency(primary, secondary)
-    assert len(warns) == 1
-    assert "triple" in warns[0].lower()
+    assert "below market-cap-implied" in warns[0]
+    assert "10.00" in warns[0]
+    assert "triple" not in warns[0].lower()  # no false-precision class-count label
 
 
 def test_empty_secondary_does_not_crash() -> None:

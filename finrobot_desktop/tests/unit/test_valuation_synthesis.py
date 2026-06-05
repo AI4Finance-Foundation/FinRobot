@@ -152,6 +152,45 @@ class TestSynthesizeValuations:
         assert result.weighted_price is not None
         assert any("UNRELIABLE" in w for w in result.warnings)
 
+    def test_reliable_false_market_divergence_tsla_2026_06_05(self):
+        """The 2026-06-05 TSLA screenshot: DCF $11.80 (c=0.85) + Comps $25.54
+        (c=0.55) → weighted $17.20, current $418.45.
+
+        The two methods only deviate 36.8% from their $18.67 median — UNDER the
+        50% method-spread gate, so the OLD logic shipped 'SELL $17.20'. But the
+        weighted target is 95.9% below the market price: both methods corroborate
+        each other while sitting ~24x below the market, which prices option value
+        (FSD/robotaxi/energy) a cash-flow DCF cannot capture (the Amazon-1999
+        failure). The model-vs-market gate must trip reliable=False here even
+        though method-vs-method does not."""
+        methods = [
+            ValuationMethod(
+                name="DCF", low=10.0, mid=11.80, high=14.0, confidence=0.85, source="DCF"
+            ),
+            ValuationMethod(
+                name="Comps", low=21.0, mid=25.54, high=30.0, confidence=0.55, source="Comps"
+            ),
+        ]
+        result = synthesize_valuations(methods, current_price=418.45)
+        # Method-vs-method spread alone does NOT trip the 50% gate (36.8% < 50%).
+        # Only the new model-vs-market check makes this unreliable.
+        assert result.weighted_price == pytest.approx(17.20, abs=0.05)
+        assert result.reliable is False
+        assert any("market price" in w and "UNRELIABLE" in w for w in result.warnings)
+
+    def test_reliable_true_when_target_near_market(self):
+        """A weighted target within ±75% of the market price is NOT tripped by
+        the model-vs-market gate. $245.50 vs $230 market = +6.7% — well inside."""
+        methods = [
+            ValuationMethod(name="DCF", low=210, mid=245, high=290, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="EV/EBITDA", low=220, mid=250, high=280, confidence=0.3, source="Comps"
+            ),
+        ]
+        result = synthesize_valuations(methods, current_price=230.0)
+        assert result.reliable is True
+        assert not any("market price" in w for w in result.warnings)
+
     def test_single_method_is_reliable_by_default(self):
         """A lone method has no cross-check to fail — reliable stays True
         (the weighted_price=None path already withholds a target)."""

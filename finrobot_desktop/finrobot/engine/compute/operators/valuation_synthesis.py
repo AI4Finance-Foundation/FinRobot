@@ -26,6 +26,21 @@ _OUTLIER_THRESHOLD = 0.30
 # ship a confident BUY/SELL.
 _RELIABILITY_SPREAD_THRESHOLD = 0.50
 
+# Model-vs-market circuit breaker. The spread threshold above only asks whether
+# the methods agree with EACH OTHER — it is blind to the case where every method
+# agrees while ALL of them sit far from the market price. That is the Amazon-1999
+# / TSLA failure: a fundamentals DCF and auto-peer comps corroborate each other
+# at ~$18 while the market prices ~$418 of option value (FSD / robotaxi / energy)
+# that no cash-flow model captures. A point estimate 24x off the market is NOT a
+# publishable target however internally consistent it is. When the confidence-
+# weighted price deviates from the market price by more than this fraction, the
+# model is outside its calibration range: flag ``reliable=False`` so the same
+# data-health gate withholds the headline target/verdict (a fundamentals point
+# target must never ship a confident "-96% SELL"). 0.75 was chosen so genuine
+# 1-2x over/undervaluation calls still publish, while a >4x downside gap (or
+# >1.75x upside gap) trips review.
+_MARKET_DIVERGENCE_THRESHOLD = 0.75
+
 
 def synthesize_valuations(
     methods: list[ValuationMethod], current_price: float
@@ -112,6 +127,22 @@ def synthesize_valuations(
             f"method deviates >{_RELIABILITY_SPREAD_THRESHOLD:.0%} from the "
             f"${median_mid:.2f} median — methods do not corroborate. Headline "
             "target/verdict must be withheld pending review."
+        )
+
+    # --- Model-vs-market divergence check (orthogonal to the spread check) ---
+    # Trips even when the methods agree with each other but all sit far from the
+    # market — the blind spot the spread check above cannot see.
+    market_divergence = abs(upside_downside)
+    if market_divergence > _MARKET_DIVERGENCE_THRESHOLD:
+        reliable = False
+        synthesis_warnings.append(
+            f"Weighted target ${weighted_price:.2f} is UNRELIABLE: it deviates "
+            f"{market_divergence:.0%} from the ${current_price:.2f} market price "
+            f"(>{_MARKET_DIVERGENCE_THRESHOLD:.0%}). The valuation methods corroborate "
+            "each other but sit far outside the market — the market is pricing option "
+            "value (e.g. new business lines / growth optionality) that cash-flow and "
+            "relative models do not capture. The model is outside its calibration "
+            "range; a fundamentals point target must be withheld pending review."
         )
 
     return ValuationSynthesis(

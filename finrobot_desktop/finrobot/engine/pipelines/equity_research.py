@@ -785,13 +785,16 @@ async def _execute_thesis(
     canonical_basis: str | None = None
     canonical_verdict: str | None = None
     canonical_upside: float | None = None
-    # Data-health gate: when the synthesis flags itself unreliable (methods
-    # deviate > 50% from each other), we publish NO headline target/verdict.
-    # Averaging non-corroborating methods into a confident SELL @ $11.25 —
-    # while the audit trail screams "DCF deviates 54% from median" — is the
-    # exact failure the 2026-05-28 TSLA artifact shipped. REVIEW is the
-    # honest verdict; the narrative LLM is told to explain the data-health
-    # gap instead of inventing conviction.
+    # Data-health gate: when the synthesis flags itself unreliable, we publish
+    # NO headline target/verdict. Two orthogonal triggers (see
+    # ValuationSynthesis.reliable): (a) methods deviate > 50% from each other
+    # (the 2026-05-28 TSLA artifact: "DCF deviates 54% from median"), or (b) the
+    # methods agree with each other but the weighted target sits > 75% off the
+    # market price (the 2026-06-05 TSLA screenshot: DCF $11.80 + Comps $25.54
+    # corroborate at $17.20 yet land 96% below the $418 market — the market
+    # prices option value the cash-flow models can't see). REVIEW is the honest
+    # verdict; the narrative LLM is told to explain the data-health gap instead
+    # of inventing conviction.
     gate_failed = isinstance(vs, ValuationSynthesis) and not vs.reliable
     if gate_failed:
         canonical_verdict = "REVIEW"
@@ -836,15 +839,22 @@ async def _execute_thesis(
             f"{canonical_basis}\n"
             f"Your `recommendation` field MUST be exactly 'REVIEW'. "
             f"Your `price_target` field MUST be null/omitted. "
-            f"Your `price_target_basis` MUST state that the valuation methods do not "
-            f"corroborate (cite the spread) and a defensible target cannot be published "
-            f"until the underlying data is reconciled. The narrative MUST explain to the "
-            f"reader, in plain language, why no target is given — this is a feature "
-            f"(refusing to fabricate a number), not a failure. Do NOT pick a midpoint.\n"
+            f"Your `price_target_basis` MUST state, citing the specific data-health "
+            f"reason(s) above, that a defensible target cannot be published until the "
+            f"issue is resolved. The reason is ONE of: (a) the valuation methods do not "
+            f"corroborate each other (cite the per-method spread), or (b) the methods "
+            f"agree with each other but diverge far from the market price — the market "
+            f"is pricing option value (new business lines / growth optionality) that "
+            f"cash-flow and relative models do not capture, so a fundamentals point "
+            f"target would be outside its calibration range. Use whichever the warning "
+            f"above states; do NOT assert methods disagree when they actually agree. "
+            f"The narrative MUST explain to the reader, in plain language, why no target "
+            f"is given — this is a feature (refusing to fabricate a number), not a "
+            f"failure. Do NOT pick a midpoint.\n"
             f"Your `valuation_overview` narrative MUST NOT state any single fair-value "
             f"or target number (no weighted average, no midpoint, no '约 $X') — instead "
-            f"explain WHY the methods diverge (cite the per-method spread) and that a "
-            f"defensible target is withheld pending data reconciliation."
+            f"explain the data-health reason cited above and that a defensible target is "
+            f"withheld pending review."
         )
     elif canonical_target is not None:
         upside_str = f"{canonical_upside:+.1%}" if canonical_upside is not None else "n/a"

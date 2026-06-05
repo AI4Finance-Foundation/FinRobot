@@ -62,12 +62,15 @@ class TestSynthesizeValuations:
         assert result.warnings == []
 
     def test_outlier_flagged_aapl_spread(self):
-        """DCF $86 vs Comps $221 — AAPL-like 157% spread.
+        """DCF $86 vs Comps $221 — AAPL-like 157% spread (2.57x ratio).
 
         median = ($86 + $221) / 2 = $153.50
-        DCF deviation  = |86  - 153.5| / 153.5 = 43.98% > 30% → outlier
-        Comps deviation = |221 - 153.5| / 153.5 = 43.98% > 30% → outlier
-        Both methods should be flagged.
+        DCF deviation  = |86  - 153.5| / 153.5 = 43.98% > 30% → soft outlier
+        Comps deviation = |221 - 153.5| / 153.5 = 43.98% > 30% → soft outlier
+        Both methods flagged as outliers. The 2.57x mid spread (221/86) ALSO
+        trips the pairwise-ratio reliability gate (> 2.0x), so a third UNRELIABLE
+        banner is appended and reliable=False — a 2.57x disagreement has no
+        honest midpoint to publish.
         """
         methods = [
             ValuationMethod(name="DCF", low=70, mid=86, high=100, confidence=0.5, source="DCF"),
@@ -78,10 +81,13 @@ class TestSynthesizeValuations:
         result = synthesize_valuations(methods, current_price=180.0)
         assert "DCF" in result.outlier_methods
         assert "Comps" in result.outlier_methods
-        assert len(result.warnings) == 2
-        # Both warning strings must mention the method name and dollar figure
+        assert result.reliable is False
+        assert len(result.warnings) == 3
+        # Both soft-outlier warnings must mention the method name and dollar figure
         assert any("DCF" in w and "$86.00" in w for w in result.warnings)
         assert any("Comps" in w and "$221.00" in w for w in result.warnings)
+        # ...plus the pairwise-ratio UNRELIABLE banner.
+        assert any("UNRELIABLE" in w and "2.6x" in w for w in result.warnings)
 
     def test_outlier_flagged_dcf_only(self):
         """When only one method is the outlier, only that one appears in outlier_methods.
@@ -118,19 +124,50 @@ class TestSynthesizeValuations:
         assert result.outlier_methods == []
         assert result.warnings == []
 
-    def test_reliable_true_when_spread_under_50pct(self):
-        """43.98% spread (AAPL-like) is an outlier but still RELIABLE — the
-        soft 30% band flags it, the hard 50% gate does not trip."""
+    def test_reliable_false_msft_2_method_disagreement_2026_06_05(self):
+        """Regression for the 2026-06-05 MSFT bug: DCF $189.65 (c=0.85) vs
+        comps_pe $487.31 (c=0.55) → weighted $306.59. The two methods disagree
+        by 2.57x (487.31/189.65).
+
+        The OLD median gate was structurally blind here: with two methods the
+        median is their midpoint ($338.48), so each deviates only 44% — under the
+        50% gate — and the pipeline shipped a confident 'SELL $306.59' built on
+        the average of two numbers that don't corroborate. The pairwise-ratio
+        gate (max/min = 2.57x > 2.0x) now trips reliable=False so the headline
+        target/verdict is withheld.
+        """
         methods = [
-            ValuationMethod(name="DCF", low=70, mid=86, high=100, confidence=0.5, source="DCF"),
             ValuationMethod(
-                name="Comps", low=190, mid=221, high=260, confidence=0.5, source="Comps"
+                name="dcf", low=151.72, mid=189.65, high=227.58, confidence=0.85, source="DCF"
+            ),
+            ValuationMethod(
+                name="comps_pe", low=438.58, mid=487.31, high=536.04, confidence=0.55, source="PE"
             ),
         ]
-        result = synthesize_valuations(methods, current_price=180.0)
+        result = synthesize_valuations(methods, current_price=425.0)
+        # weighted = (189.65*0.85 + 487.31*0.55)/1.40 = 306.59 — still computed
+        # for the audit trail, but must NOT be published as a headline target.
+        assert result.weighted_price == pytest.approx(306.59, abs=0.05)
+        assert result.reliable is False
+        assert any("UNRELIABLE" in w and "corroboration limit" in w for w in result.warnings)
+
+    def test_reliable_true_when_methods_corroborate_within_2x(self):
+        """Two methods within the 2x corroboration band stay RELIABLE — a soft
+        30% outlier flag does not by itself withhold the target. DCF $200 vs
+        Comps $380 = 1.9x ratio (just under the 2.0x gate): both deviate 31%
+        from the $290 median so both are soft outliers, yet reliable=True, so a
+        target still publishes."""
+        methods = [
+            ValuationMethod(name="DCF", low=180, mid=200, high=220, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="Comps", low=350, mid=380, high=410, confidence=0.5, source="Comps"
+            ),
+        ]
+        result = synthesize_valuations(methods, current_price=300.0)
         assert result.reliable is True
-        # Only the two soft outlier warnings — no unreliable banner.
+        # Two soft outlier warnings (both 31% > 30%), no UNRELIABLE banner.
         assert len(result.warnings) == 2
+        assert not any("UNRELIABLE" in w for w in result.warnings)
 
     def test_reliable_false_tsla_dcf_comps_54pct_spread(self):
         """Reproduces the 2026-05-28 TSLA gate failure: DCF $5.88 vs Comps
@@ -154,13 +191,15 @@ class TestSynthesizeValuations:
         """The 2026-06-05 TSLA screenshot: DCF $11.80 (c=0.85) + Comps $25.54
         (c=0.55) → weighted $17.20, current $418.45.
 
-        The two methods only deviate 36.8% from their $18.67 median — UNDER the
-        50% method-spread gate, so the OLD logic shipped 'SELL $17.20'. But the
-        weighted target is 95.9% below the market price: both methods corroborate
-        each other while sitting ~24x below the market, which prices option value
-        (FSD/robotaxi/energy) a cash-flow DCF cannot capture (the Amazon-1999
-        failure). The model-vs-market gate must trip reliable=False here even
-        though method-vs-method does not."""
+        The two methods deviate only 36.8% from their $18.67 median — UNDER the
+        50% median gate — so the ORIGINAL logic shipped 'SELL $17.20'. This test
+        pins the model-vs-market gate: the weighted target is 95.9% below the
+        market price, both methods corroborate at ~24x below the market, which
+        prices option value (FSD/robotaxi/energy) a cash-flow DCF cannot capture
+        (the Amazon-1999 failure). reliable must be False with a market-price
+        banner. (The $11.80/$25.54 pair is also 2.16x apart, so the pairwise-ratio
+        gate independently fires too — both signals are correct here; the assert
+        below targets the market-price banner specifically.)"""
         methods = [
             ValuationMethod(
                 name="DCF", low=10.0, mid=11.80, high=14.0, confidence=0.85, source="DCF"

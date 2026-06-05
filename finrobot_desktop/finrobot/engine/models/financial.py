@@ -44,8 +44,17 @@ class IncomeStatement(BaseModel):
 class BalanceSheet(BaseModel):
     """Balance sheet metrics."""
 
-    total_debt: float = Field(default=0, description="Total debt in USD")
-    total_cash: float = Field(default=0, description="Total cash in USD")
+    # None ≠ 0: a missing component is "not reported", not "the company has zero
+    # debt/cash". Defaulting to 0 silently fabricated EV = market_cap + 0 − 0 =
+    # market_cap, passing every downstream sanity gate while the net-debt bridge
+    # was actually unknown. Consumers (dcf_seed/lbo_seed/fx_normalize) coerce to 0
+    # only at the point of use and disclose it in provenance.
+    total_debt: float | None = Field(
+        default=None, description="Total debt in USD; None = not reported (≠ 0)"
+    )
+    total_cash: float | None = Field(
+        default=None, description="Total cash in USD; None = not reported (≠ 0)"
+    )
 
 
 class MarketData(BaseModel):
@@ -266,6 +275,12 @@ class CompanyFinancials(BaseModel):
     # and we kept FMP rather than overriding (ADR-0008). None when the two agree
     # or no XBRL was available. Rolled up into PeerComps.warnings for display.
     ttm_divergence_note: str | None = None
+    # Multiples that had computable inputs but fell outside the published sanity
+    # bounds and were nulled by calculate_multiples (so excluded from medians).
+    # Recorded so a thinned peer set is never silent — this is the *real* signal
+    # that replaced the tautological range check in validate_peer_comps, which
+    # could never fire because the floor had already nulled out-of-range values.
+    sanity_drops: list[str] = Field(default_factory=list)
 
 
 class PeerComps(BaseModel):
@@ -621,13 +636,15 @@ class ValuationSynthesis(BaseModel):
     reliable: bool = Field(
         default=True,
         description=(
-            "False when EITHER (a) at least one method deviates > 50% from the "
-            "cross-method median (methods don't corroborate each other), OR (b) the "
+            "False when ANY of (a) the methods' mids span more than 2x (max/min, the "
+            "pairwise-corroboration gate that catches a 2-method disagreement the "
+            "median metric is blind to), (b) at least one method deviates > 50% from "
+            "the cross-method median (a single outlier in a 3+ method set), OR (c) the "
             "confidence-weighted target / market price ratio falls outside [0.25x, 4x] "
             "(methods corroborate each other but sit far outside the market, which is "
             "pricing option value the models can't capture — the Amazon-1999 / TSLA "
             "failure; the ratio band is symmetric in log-space, unlike an upside%%). "
-            "In either case the weighted target MUST NOT be published as a headline "
+            "In any case the weighted target MUST NOT be published as a headline "
             "target/verdict. Drives the equity-research data-health gate."
         ),
     )

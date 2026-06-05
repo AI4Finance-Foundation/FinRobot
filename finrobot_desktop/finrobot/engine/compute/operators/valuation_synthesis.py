@@ -26,6 +26,19 @@ _OUTLIER_THRESHOLD = 0.30
 # ship a confident BUY/SELL.
 _RELIABILITY_SPREAD_THRESHOLD = 0.50
 
+# Pairwise-spread gate (catches what the median gate above is structurally blind
+# to). With EXACTLY two methods the median is always their midpoint, so each
+# method's deviation-from-median is (b−a)/(a+b) — which only crosses 50% once
+# b > 3a. A 2.57x disagreement therefore sails through the median gate: DCF
+# $189.65 vs comps_pe $487.31 averaged into a meaningless $306.59 midpoint and
+# shipped a confident MSFT SELL (the 2026-06-05 bug). max(mid)/min(mid) is
+# invariant to method count, so it trips on any pair that disagrees by > K
+# regardless of how many methods there are. K=2.0: two valuation methods that
+# differ by more than 2x do not corroborate, full stop — no honest midpoint
+# exists, so the headline target/verdict is withheld. (Genuine ≤2x dispersion
+# still publishes, flagged by the soft 30% outlier band.)
+_RELIABILITY_RATIO_K = 2.0
+
 # Model-vs-market circuit breaker. The spread threshold above only asks whether
 # the methods agree with EACH OTHER — it is blind to the case where every method
 # agrees while ALL of them sit far from the market price. That is the Amazon-1999
@@ -65,6 +78,13 @@ def synthesize_valuations(
     Cross-method spread check (≥2 methods): any method whose mid deviates from
     the median of all mids by > 30% is added to ``outlier_methods`` and a
     human-readable entry is appended to ``warnings``.
+
+    Reliability gate (≥2 methods): ``reliable`` is set False when the methods'
+    mids span more than ``_RELIABILITY_RATIO_K``x (max/min — invariant to method
+    count, so a 2-method disagreement can't hide behind its own midpoint median),
+    or any single method deviates > 50% from the median, or the weighted target
+    sits outside the [0.25x, 4x] market-price band. Any trip withholds the
+    headline target/verdict downstream.
 
     Args:
         methods: List of valuation method results, each with a confidence weight.
@@ -129,7 +149,20 @@ def synthesize_valuations(
         # All-zero/negative median: the methods can't be cross-checked at all.
         reliable = False
 
-    if not reliable:
+    # Pairwise-spread gate — invariant to method count, so it catches the
+    # 2-method blind spot the median gate above cannot (see _RELIABILITY_RATIO_K).
+    lo = min(mids)
+    hi = max(mids)
+    ratio_tripped = lo > 0 and hi / lo > _RELIABILITY_RATIO_K
+    if ratio_tripped:
+        reliable = False
+        synthesis_warnings.append(
+            f"Weighted target ${weighted_price:.2f} is UNRELIABLE: the methods span "
+            f"${lo:.2f}–${hi:.2f} ({hi / lo:.2g}x, over the {_RELIABILITY_RATIO_K:.2g}x "
+            "corroboration limit) — they do not agree, so the confidence-weighted "
+            "midpoint is not a defensible target. Headline target/verdict withheld."
+        )
+    elif not reliable:
         synthesis_warnings.append(
             f"Weighted target ${weighted_price:.2f} is UNRELIABLE: at least one "
             f"method deviates >{_RELIABILITY_SPREAD_THRESHOLD:.0%} from the "

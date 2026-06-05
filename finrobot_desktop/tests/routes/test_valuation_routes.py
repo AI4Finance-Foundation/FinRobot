@@ -365,6 +365,35 @@ async def test_aggregate_endpoint_degrades_to_trailing_without_estimates(
 
 
 @pytest.mark.asyncio
+async def test_aggregate_endpoint_exposes_forward_provenance_fields(tmp_path: Path) -> None:
+    """forward_fiscal_period / forward_confidence / forward_source must be present
+    in the response so the frontend can show which FY drives the forward rows
+    and where the estimates came from — the whole fix for BACKLOG issue 3."""
+    forward_rows = [{"date": "2026-09-30", "estimatedEpsAvg": 8.6, "estimatedEbitdaAvg": 45e9}]
+    app = await _app_with_artifacts(tmp_path, _comps_artifact(), forward_rows=forward_rows)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/valuation/aggregate/NVDA")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["forward_fiscal_period"] == "2026-09-30"
+    assert body["forward_confidence"] == "high"  # EPS + EBITDA both present → high
+    assert body["forward_source"] == "FMP /v3/analyst-estimates consensus"
+
+
+@pytest.mark.asyncio
+async def test_aggregate_endpoint_forward_provenance_none_when_unavailable(tmp_path: Path) -> None:
+    """When no forward data is available all three provenance fields stay None."""
+    app = await _app_with_artifacts(tmp_path, _comps_artifact(), forward_rows=[])
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/valuation/aggregate/NVDA")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["forward_fiscal_period"] is None
+    assert body["forward_confidence"] is not None  # "unavailable" string, not None
+    assert body["forward_source"] is not None  # describes why it failed
+
+
+@pytest.mark.asyncio
 async def test_aggregate_endpoint_503_when_artifact_store_missing(tmp_path: Path) -> None:
     app = FastAPI()
     app.include_router(router)

@@ -110,11 +110,25 @@ def calculate_multiples(company: CompanyFinancials) -> CompanyFinancials:
     - P/E: [1.0x, 300x]
 
     Values outside these bounds are returned as None so that
-    ``calculate_peer_statistics`` excludes them from median/mean, and the
-    pipeline validator surfaces the underlying data quality issue rather
-    than silently producing a thinner peer set.
+    ``calculate_peer_statistics`` excludes them from median/mean. Each such drop
+    is recorded on ``result.sanity_drops`` (a multiple that HAD computable inputs
+    but fell out of band) so ``validate_peer_comps`` can surface the thinned set
+    instead of silently producing a smaller median — the old range check there
+    could never fire, because the values it tested had already been nulled here.
     """
     result = company.model_copy(deep=True)
+    # Idempotent: drops are recomputed from this call's gating, not accumulated
+    # across copies.
+    result.sanity_drops = []
+
+    def _gate(label: str, raw: float | None, lo: float, hi: float) -> float | None:
+        gated = _sanity(raw, lo, hi)
+        if raw is not None and gated is None:
+            result.sanity_drops.append(
+                f"{label} {raw:.2f}x outside sanity bounds [{lo:g}, {hi:g}]x — "
+                f"excluded from peer medians (likely unit / FX / caliber artifact)"
+            )
+        return gated
 
     # EV (and the EV-based multiples) only when BOTH net-debt components are
     # reported. A missing total_debt/total_cash leaves EV undefined rather than
@@ -128,13 +142,13 @@ def calculate_multiples(company: CompanyFinancials) -> CompanyFinancials:
         raw_ev_ebitda = (
             ev / result.ebitda if result.ebitda is not None and result.ebitda > 0 else None
         )
-        result.ev_ebitda = _sanity(
-            raw_ev_ebitda, PEER_EV_EBITDA_SANITY_MIN, PEER_EV_EBITDA_SANITY_MAX
+        result.ev_ebitda = _gate(
+            "EV/EBITDA", raw_ev_ebitda, PEER_EV_EBITDA_SANITY_MIN, PEER_EV_EBITDA_SANITY_MAX
         )
 
         raw_ev_revenue = ev / result.revenue if result.revenue > 0 else None
-        result.ev_revenue = _sanity(
-            raw_ev_revenue, PEER_EV_REVENUE_SANITY_MIN, PEER_EV_REVENUE_SANITY_MAX
+        result.ev_revenue = _gate(
+            "EV/Revenue", raw_ev_revenue, PEER_EV_REVENUE_SANITY_MIN, PEER_EV_REVENUE_SANITY_MAX
         )
     else:
         result.enterprise_value = None
@@ -148,7 +162,7 @@ def calculate_multiples(company: CompanyFinancials) -> CompanyFinancials:
         if result.net_income is not None and result.net_income > 0
         else None
     )
-    result.pe_ratio = _sanity(raw_pe, PEER_PE_SANITY_MIN, PEER_PE_SANITY_MAX)
+    result.pe_ratio = _gate("P/E", raw_pe, PEER_PE_SANITY_MIN, PEER_PE_SANITY_MAX)
 
     return result
 

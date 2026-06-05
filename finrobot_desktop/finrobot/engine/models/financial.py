@@ -643,7 +643,16 @@ class ValuationMethod(BaseModel):
     low: float
     mid: float
     high: float
-    confidence: float = Field(ge=0, le=1)
+    confidence: float = Field(
+        ge=0,
+        le=1,
+        description=(
+            "Method weight in the confidence-weighted price synthesis (NOT prediction accuracy). "
+            "A higher value means this method is trusted more in the weighted average; "
+            "it does NOT mean '85% chance the target is right'. Based on data quality / "
+            "methodology robustness (DCF 0.85, forward comps 0.78 …), not back-tested accuracy."
+        ),
+    )
     source: str
     assumptions: str | None = Field(
         default=None,
@@ -944,7 +953,15 @@ class ValuationMethodRange(BaseModel):
     low: float = Field(gt=0)
     mid: float = Field(gt=0)
     high: float = Field(gt=0)
-    confidence: float = Field(ge=0, le=1)
+    confidence: float = Field(
+        ge=0,
+        le=1,
+        description=(
+            "Method weight in the confidence-weighted price synthesis (NOT prediction accuracy). "
+            "Used internally as the weight in weighted_price = Σ(mid×wt)/Σ(wt). "
+            "Does not represent a probability of the target being correct."
+        ),
+    )
     source: str = Field(description="Human-readable provenance, e.g. 'implied_price ± 20%'")
     assumptions: str | None = Field(
         default=None,
@@ -970,6 +987,10 @@ class ValuationAggregate(BaseModel):
     as_of: datetime
     methods: list[ValuationMethodRange]
     warnings: list[str] = Field(default_factory=list)
+    # Forward-estimates provenance — tells the analyst WHICH forecast fiscal year
+    # drives comps_pe / ev_ebitda / p_fcf rows (e.g. "2026-09-30"), where the
+    # numbers came from, and how much to trust them. None when forward data was
+    # unavailable (those rows are absent from `methods` anyway).
     forward_fiscal_period: str | None = None
     forward_confidence: str | None = None
     forward_source: str | None = None

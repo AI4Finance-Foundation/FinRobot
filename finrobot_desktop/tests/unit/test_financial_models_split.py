@@ -117,7 +117,7 @@ class TestIncomeStatement:
 
 class TestBalanceSheet:
     def test_defaults_to_none_not_zero(self):
-        # None != 0: an unset component is "not reported", not real zero debt/cash.
+        # None ≠ 0: an unset component is "not reported", not real zero debt/cash.
         bs = BalanceSheet()
         assert bs.total_debt is None
         assert bs.total_cash is None
@@ -225,8 +225,8 @@ class TestNewStructuredConstructor:
             income=IncomeStatement(**_base_income()),
             market=MarketData(**_base_market()),
         )
-        # None != 0: a missing balance component is "not reported", never a real
-        # zero debt/cash, which would silently fabricate EV = market_cap.
+        # None ≠ 0: a missing balance component is "not reported", never a real
+        # zero debt/cash (which would silently fabricate EV = market_cap).
         assert fd.balance.total_debt is None
         assert fd.valuation.enterprise_value is None
 
@@ -266,6 +266,7 @@ class TestSubModelConstruction:
             _make_fd(market_overrides={"shares_outstanding": 0})
 
     def test_defaults_debt_cash_to_none(self):
+        # None ≠ 0: unset balance components are "not reported", not real zero.
         fd = _make_fd()
         assert fd.balance.total_debt is None
         assert fd.balance.total_cash is None

@@ -80,7 +80,9 @@ class TestAggregatorLeafIsolation:
         # Check for actual import or call sites — not docstring mentions of the rule.
         src = AGG_SRC.read_text()
         forbidden_call_patterns = (
-            re.compile(r"^\s*from\s+finrobot\.engine\.compute\.operators\.lbo\s+import", re.MULTILINE),
+            re.compile(
+                r"^\s*from\s+finrobot\.engine\.compute\.operators\.lbo\s+import", re.MULTILINE
+            ),
             re.compile(r"^\s*import\s+finrobot\.engine\.compute\.operators\.lbo", re.MULTILINE),
             re.compile(r"\bcalculate_lbo\s*\("),
             re.compile(r"\bcalculate_lbo_sensitivity\s*\("),
@@ -310,21 +312,115 @@ class TestAggregatorContract:
         assert any("ev_ebitda" in w for w in agg.warnings)
         assert any("p_fcf" in w for w in agg.warnings)
 
-    def test_ev_ebitda_emitted_when_inputs_supplied(self) -> None:
+    def test_ev_ebitda_bridges_on_current_net_debt(self) -> None:
+        """EV/EBITDA EV→equity bridge must subtract CURRENT net debt — the same
+        total_debt − cash口径 dcf_seed uses — not LBO ending_debt, not 0."""
         agg = aggregate_valuation(
             ticker="NVDA",
             current_price=876.42,
             dcf=_dcf(),
-            lbo=_lbo_with_grid(),
             shares_outstanding=2.4e9,
+            current_net_debt=30e9,
             forward_ebitda=40e9,
             historical_ev_ebitda_band=(20.0, 30.0),
             as_of=AS_OF,
         )
         row = next(m for m in agg.methods if m.method == "ev_ebitda")
         assert row.method_type == "multiple"
-        assert row.low < row.high
         assert row.confidence == 0.72
+        # Exact bridge: (p × forward_ebitda − current_net_debt) / shares.
+        assert row.low == (20.0 * 40e9 - 30e9) / 2.4e9
+        assert row.high == (30.0 * 40e9 - 30e9) / 2.4e9
+        assert "current_net_debt" in row.source
+
+    def test_ev_ebitda_net_debt_lowers_target_by_exactly_net_debt_per_share(self) -> None:
+        """A levered firm's per-share target is lower than the debt-free case by
+        exactly net_debt / shares — the whole point of the bridge."""
+        kwargs = dict(
+            ticker="NVDA",
+            current_price=876.42,
+            shares_outstanding=2.4e9,
+            forward_ebitda=40e9,
+            historical_ev_ebitda_band=(20.0, 30.0),
+            as_of=AS_OF,
+        )
+        levered = aggregate_valuation(current_net_debt=30e9, **kwargs)  # type: ignore[arg-type]
+        debt_free = aggregate_valuation(current_net_debt=0.0, **kwargs)  # type: ignore[arg-type]
+        lev_row = next(m for m in levered.methods if m.method == "ev_ebitda")
+        free_row = next(m for m in debt_free.methods if m.method == "ev_ebitda")
+        per_share = 30e9 / 2.4e9
+        assert free_row.low - lev_row.low == per_share
+        assert free_row.high - lev_row.high == per_share
+
+    def test_ev_ebitda_net_cash_raises_target(self) -> None:
+        """current_net_debt may be negative (net cash); the bridge adds it back,
+        lifting the implied equity value above the zero-debt baseline."""
+        kwargs = dict(
+            ticker="AAPL",
+            current_price=200.0,
+            shares_outstanding=2.4e9,
+            forward_ebitda=40e9,
+            historical_ev_ebitda_band=(20.0, 30.0),
+            as_of=AS_OF,
+        )
+        net_cash = aggregate_valuation(current_net_debt=-10e9, **kwargs)  # type: ignore[arg-type]
+        zero = aggregate_valuation(current_net_debt=0.0, **kwargs)  # type: ignore[arg-type]
+        cash_row = next(m for m in net_cash.methods if m.method == "ev_ebitda")
+        zero_row = next(m for m in zero.methods if m.method == "ev_ebitda")
+        assert cash_row.low > zero_row.low
+        assert cash_row.low == (20.0 * 40e9 - (-10e9)) / 2.4e9
+
+    def test_ev_ebitda_skipped_when_current_net_debt_missing(self) -> None:
+        """Missing current net debt → hide the row (口径-explicit warning), never
+        assume net_debt = 0. This is the BUG-class the 0.0 fallback created."""
+        agg = aggregate_valuation(
+            ticker="NVDA",
+            current_price=876.42,
+            shares_outstanding=2.4e9,
+            forward_ebitda=40e9,
+            historical_ev_ebitda_band=(20.0, 30.0),
+            current_net_debt=None,
+            as_of=AS_OF,
+        )
+        assert not any(m.method == "ev_ebitda" for m in agg.methods)
+        assert any("当前净债务" in w for w in agg.warnings)
+
+    def test_ev_ebitda_never_borrows_lbo_ending_debt(self) -> None:
+        """Even with a full LBO artifact present, EV/EBITDA must NOT reach into
+        lbo.schedule[-1].ending_debt for the bridge — that is a future, post-
+        paydown debt at exit (time-point mismatch). With LBO present but no
+        current_net_debt supplied, the row stays hidden."""
+        agg = aggregate_valuation(
+            ticker="NVDA",
+            current_price=876.42,
+            lbo=_lbo_with_grid(),
+            shares_outstanding=2.4e9,
+            forward_ebitda=40e9,
+            historical_ev_ebitda_band=(20.0, 30.0),
+            current_net_debt=None,
+            as_of=AS_OF,
+        )
+        assert not any(m.method == "ev_ebitda" for m in agg.methods)
+
+    def test_lbo_exit_equity_still_uses_ending_debt(self) -> None:
+        """Regression guard: the net-debt fix must NOT touch LBO's own bridge.
+        LBO exit equity legitimately uses post-paydown ending_debt at exit."""
+        lbo = _lbo_with_grid()
+        agg = aggregate_valuation(
+            ticker="NVDA",
+            current_price=876.42,
+            lbo=lbo,
+            shares_outstanding=2.4e9,
+            current_net_debt=30e9,  # present, but must not leak into the LBO row
+            as_of=AS_OF,
+        )
+        lbo_row = next(m for m in agg.methods if m.method == "lbo")
+        remaining_debt = lbo.schedule[-1].ending_debt
+        expected = sorted(
+            (mult * lbo.exit_ebitda - remaining_debt) / 2.4e9 for mult in [10.0, 11.0, 12.0]
+        )
+        assert lbo_row.low == expected[0]
+        assert lbo_row.high == expected[-1]
 
     def test_p_fcf_emitted_when_inputs_supplied(self) -> None:
         agg = aggregate_valuation(

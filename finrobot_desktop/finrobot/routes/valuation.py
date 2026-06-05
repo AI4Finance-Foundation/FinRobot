@@ -57,6 +57,7 @@ async def aggregate_for_ticker(ticker: str, request: Request) -> ValuationAggreg
 
     dcf, peer_comps, ddm, lbo = await _gather_latest_results(store, ticker)
     shares = _shares_outstanding(dcf, lbo)
+    current_net_debt = _current_net_debt(dcf)
     forward = await _forward_financials(ticker, data_layer, fmp_api_key=_fmp_api_key(request))
     as_of = datetime.now(tz=timezone.utc)
 
@@ -68,6 +69,7 @@ async def aggregate_for_ticker(ticker: str, request: Request) -> ValuationAggreg
         ddm=ddm,
         lbo=lbo,
         shares_outstanding=shares,
+        current_net_debt=current_net_debt,
         forward_eps=forward.forward_eps,
         forward_ebitda=forward.forward_ebitda,
         forward_fcf=forward.forward_fcf,
@@ -317,6 +319,21 @@ def _shares_outstanding(dcf: DCFResult | None, lbo: LBOResult | None) -> float |
     if dcf is not None and dcf.inputs.shares_outstanding > 0:
         return dcf.inputs.shares_outstanding
     _ = lbo  # reserved for future shares-from-LBO fallback when LBOInputs grows the field
+    return None
+
+
+def _current_net_debt(dcf: DCFResult | None) -> float | None:
+    """Current net debt (total_debt − cash) for the EV/EBITDA equity bridge.
+
+    DCFInputs.net_debt is computed by dcf_seed as ``total_debt − total_cash`` —
+    the same current-period口径 the bridge requires (and the same source the DCF
+    own EV→equity bridge subtracts). It is the only net-debt figure this endpoint
+    carries without an extra balance-sheet fetch; when no DCF artifact exists the
+    EV/EBITDA row stays hidden rather than assuming zero debt. EV/EBITDA must
+    never borrow LBO ending_debt (a future, post-paydown figure at exit).
+    """
+    if dcf is not None:
+        return dcf.inputs.net_debt
     return None
 
 

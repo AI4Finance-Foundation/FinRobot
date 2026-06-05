@@ -59,6 +59,7 @@ def aggregate_valuation(
     ddm: DDMResult | None = None,
     lbo: LBOResult | None = None,
     shares_outstanding: float | None = None,
+    current_net_debt: float | None = None,
     forward_eps: float | None = None,
     forward_ebitda: float | None = None,
     forward_fcf: float | None = None,
@@ -99,9 +100,27 @@ def aggregate_valuation(
         warnings.append("lbo: 缺少 shares_outstanding — 目标价反推被跳过")
 
     if (
-        m := _ev_ebitda_method(forward_ebitda, historical_ev_ebitda_band, shares_outstanding, lbo)
+        m := _ev_ebitda_method(
+            forward_ebitda, historical_ev_ebitda_band, shares_outstanding, current_net_debt
+        )
     ) is not None:
         methods.append(m)
+    elif (
+        forward_ebitda is not None
+        and forward_ebitda > 0
+        and historical_ev_ebitda_band is not None
+        and shares_outstanding is not None
+        and shares_outstanding > 0
+        and current_net_debt is None
+    ):
+        # Inputs are all present EXCEPT current net debt — refuse to bridge
+        # EV→equity on a fabricated debt figure. EV/EBITDA is a *current*
+        # relative-multiple method; without current net debt there is no honest
+        # bridge, so the row is hidden with a口径-explicit provenance note.
+        warnings.append(
+            "ev_ebitda: 当前净债务(total_debt − cash)不可得 — 拒绝用 0 或 LBO 未来 ending_debt "
+            "伪造 EV→equity 桥,该行隐藏(EV/EBITDA 为当前倍数法,必须减当前净债)"
+        )
     else:
         warnings.append(
             "ev_ebitda: 历史估值带(PR3 未接) 或 forward EBITDA 不可得 — multiple 行降级隐藏"
@@ -373,7 +392,7 @@ def _ev_ebitda_method(
     forward_ebitda: float | None,
     band: tuple[float, float] | None,
     shares: float | None,
-    lbo: LBOResult | None,
+    current_net_debt: float | None,
 ) -> ValuationMethodRange | None:
     if (
         forward_ebitda is None
@@ -383,14 +402,21 @@ def _ev_ebitda_method(
         or shares <= 0
     ):
         return None
+    # EV/EBITDA is a CURRENT relative-multiple method, so the EV→equity bridge
+    # MUST subtract CURRENT net debt (total_debt − cash, same口径 as dcf_seed).
+    # A missing net-debt figure means there is no honest bridge — hide the row
+    # rather than (a) assume net_debt = 0, which values a levered firm as
+    # debt-free, or (b) borrow LBO's post-paydown ending_debt, a *future*
+    # simulated debt at exit (t+hold) — a time-point mismatch that
+    # systematically overstates the target. ``current_net_debt`` may be negative
+    # (net cash), which correctly lifts the implied equity value.
+    if current_net_debt is None:
+        return None
     p25, p75 = band
     if p25 <= 0 or p75 <= 0:
         return None
-    # Net debt needed to back out equity value from EV. Reuse LBO's view of
-    # remaining debt when available — otherwise the caller must supply.
-    net_debt = lbo.schedule[-1].ending_debt if (lbo is not None and lbo.schedule) else 0.0
-    low = max(0.01, (p25 * forward_ebitda - net_debt) / shares)
-    high = max(low, (p75 * forward_ebitda - net_debt) / shares)
+    low = max(0.01, (p25 * forward_ebitda - current_net_debt) / shares)
+    high = max(low, (p75 * forward_ebitda - current_net_debt) / shares)
     mid = (low + high) / 2
     return ValuationMethodRange(
         method="ev_ebitda",
@@ -399,7 +425,7 @@ def _ev_ebitda_method(
         mid=mid,
         high=high,
         confidence=0.72,
-        source="self_3y_p25_p75 × forward_ebitda",
+        source="self_3y_p25_p75 × forward_ebitda − current_net_debt",
     )
 
 

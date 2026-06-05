@@ -494,6 +494,24 @@ def build_valuation_synthesis(
     if shares is None and isinstance(dcf, DCFResult):
         shares = dcf.inputs.shares_outstanding
 
+    # Current net debt for the EV/EBITDA equity bridge. Gate on
+    # ``valuation.enterprise_value is not None`` — the extractor sets EV non-None
+    # exactly when BOTH total_debt and total_cash were reported, so only then is
+    # balance net debt a real figure rather than a zero-filled artifact. When
+    # absent, fall back to the DCF seed's net_debt (same total_debt − cash口径);
+    # if neither is available it stays None so the aggregator hides the EV/EBITDA
+    # row instead of bridging EV→equity on a fabricated (zero or LBO-future) debt.
+    current_net_debt: float | None = None
+    if (
+        isinstance(financial_data, FinancialData)
+        and financial_data.valuation.enterprise_value is not None
+        and financial_data.balance.total_debt is not None
+        and financial_data.balance.total_cash is not None
+    ):
+        current_net_debt = financial_data.balance.total_debt - financial_data.balance.total_cash
+    elif isinstance(dcf, DCFResult):
+        current_net_debt = dcf.inputs.net_debt
+
     agg = aggregate_valuation(
         ticker=ticker,
         current_price=current_price,
@@ -502,6 +520,7 @@ def build_valuation_synthesis(
         ddm=ddm if isinstance(ddm, DDMResult) else None,
         lbo=lbo if isinstance(lbo, LBOResult) else None,
         shares_outstanding=shares,
+        current_net_debt=current_net_debt,
     )
 
     if not agg.methods:

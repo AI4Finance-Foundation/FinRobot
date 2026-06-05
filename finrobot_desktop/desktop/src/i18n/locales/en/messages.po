@@ -3546,31 +3546,6 @@ msgid "ic.action.backToCoverage"
 msgstr "Back to Coverage"
 
 #. js-lingui-explicit-id
-msgid "report.deleteVersion"
-msgstr "Delete"
-
-#. js-lingui-explicit-id
-msgid "report.deleteVersionTitle"
-msgstr "Delete this report version permanently"
-
-#. js-lingui-explicit-id
-msgid "report.deleteVersionConfirm"
-msgstr "Permanently delete version \"{version}\"? This cannot be undone."
-
-#. js-lingui-explicit-id
-msgid "report.deleteVersionDone"
-msgstr "Deleted a {ticker} report version"
-
-#. js-lingui-explicit-id
-msgid "report.deleteVersionDoneBody"
-msgstr "The version was permanently removed."
-
-#. js-lingui-explicit-id
-msgid "report.deleteVersionFailed"
-msgstr "Couldn't delete this version"
-
-
-#. js-lingui-explicit-id
 msgid "coverage.trust.label"
 msgstr "Track record"
 
@@ -3799,3 +3774,56 @@ msgstr "The data source returned an error"
 #. js-lingui-explicit-id
 msgid "settings.dataTest.result.unknown"
 msgstr "Connection test failed"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.subcopy"
+msgstr "Enter a ticker to open a fully traceable AI research desk"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.subcopyAccent"
+msgstr "Deterministic compute + LLM narrative · every number traces back"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.popular"
+msgstr "Popular"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.research.name"
+msgstr "AI research report"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.research.desc"
+msgstr "13-chapter IB-grade equity research with a BUY / HOLD / SELL call"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.valuation.name"
+msgstr "Deterministic valuation"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.valuation.desc"
+msgstr "DCF · comps · DDM · LBO · sensitivity — numbers from pure functions"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.provenance.name"
+msgstr "Traceable numbers"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.provenance.desc"
+msgstr "Every key number traces to source · basis · formula · function"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.signals.name"
+msgstr "Catalysts & governance"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.signals.desc"
+msgstr "News · 8-K · institutional holdings · insiders · 13D/13G"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.quant.name"
+msgstr "Quant overlay & IC debate"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.quant.desc"
+msgstr "Monte Carlo · sniper levels · long/short IC"
+

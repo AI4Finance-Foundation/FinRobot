@@ -23,10 +23,14 @@ import {
 // in-app inner scroll container that does not exist here.
 // Latin subsets only — the report is Latin/CJK; CJK falls back to system fonts
 // anyway, so bundling cyrillic/greek/vietnamese would just bloat the file.
-import '@fontsource/audiowide/latin-400.css'
-import '@fontsource/inter/latin-400.css'
-import '@fontsource/inter/latin-500.css'
-import '@fontsource/inter/latin-600.css'
+import '@fontsource/space-grotesk/latin-400.css'
+import '@fontsource/space-grotesk/latin-500.css'
+import '@fontsource/space-grotesk/latin-600.css'
+import '@fontsource/space-grotesk/latin-700.css'
+import '@fontsource/ibm-plex-sans/latin-300.css'
+import '@fontsource/ibm-plex-sans/latin-400.css'
+import '@fontsource/ibm-plex-sans/latin-500.css'
+import '@fontsource/ibm-plex-sans/latin-600.css'
 import '@fontsource/jetbrains-mono/latin-400.css'
 import '@fontsource/jetbrains-mono/latin-500.css'
 import '../App.css'

@@ -1,10 +1,11 @@
-// AppShell — simplified shell: Sidebar + main content area + RightChatPanel.
-// Explorer, EditorTabs, Breadcrumb, and tab management removed in Desktop V1 cleanup.
+// AppShell — cosmic cockpit shell: TitleBar (with top nav) + main content area
+// + RightChatPanel. The left 64px icon Sidebar was retired when its nav moved
+// up into the TitleBar (FinRobot.html cockpit shell); Explorer, EditorTabs,
+// Breadcrumb, and tab management were removed earlier in Desktop V1 cleanup.
 
 import { useEffect } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { TitleBar } from './TitleBar'
-import { Sidebar } from './Sidebar'
 import { RightChatPanel } from './RightChatPanel'
 import { CmdKOverlay } from './CmdKOverlay'
 import { ErrorBoundary } from '../components/ErrorBoundary'
@@ -19,6 +20,12 @@ const WELCOME_SHOWN_KEY = 'finrobot-welcome-shown'
 export function AppShell(): React.ReactElement {
   const workspacePath = useUiStore((s) => s.workspacePath)
   const setWorkspacePath = useUiStore((s) => s.setWorkspacePath)
+  const location = useLocation()
+
+  // The Research homepage is the luminous cockpit: paint the cockpit glow at
+  // the SHELL level (behind the title/status bars too, so they frost into it
+  // rather than reading as black frames). Other routes keep the dark base.
+  const onHome = location.pathname === '/' || location.pathname.startsWith('/research')
 
   // Cmd+L / Ctrl+L → toggle AI panel
   useEffect(() => {
@@ -72,10 +79,9 @@ export function AppShell(): React.ReactElement {
   }, [])
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${onHome ? ' cockpit-bg cockpit-shell' : ''}`}>
       <TitleBar />
       <div className="app-body">
-        <Sidebar />
         <main id="main-scroll" className="main-content">
           <ErrorBoundary>
             <Outlet />

@@ -15,6 +15,31 @@
   --bg-elevated: #15152e;
   --bg-overlay: rgba(15, 15, 34, 0.72);
 
+  /* ── Cosmic backgrounds — hex/rgba to match the brand blue/violet and
+     render identically across engines (the earlier oklch values read green
+     in some WebViews). The homepage hero is a luminous blue cockpit; every
+     other page sits on a calmer-but-clearly-cosmic shell backdrop. */
+
+  /* Homepage cockpit (strong, FinRobot.html `.app`). */
+  --cockpit-base: #0a0e20; /* blue-tinted void under the hero (lighter than --bg-void) */
+  --cockpit-glow-core: rgba(56, 120, 235, 0.42); /* luminous blue center-top glow */
+  --cockpit-glow-violet: rgba(139, 92, 246, 0.34); /* violet floor glow */
+  --cockpit-glow-corner: rgba(46, 96, 200, 0.42); /* top-left glow */
+  --cockpit-vignette: rgba(5, 6, 16, 0.62); /* edge darkening, keeps corners cosmic */
+  --cockpit-grid-line: rgba(130, 170, 235, 0.07); /* faint HUD grid line */
+  /* Translucent shell bar over the cockpit — title/status bars frost into the
+     glow instead of reading as black frames (homepage only). */
+  --cockpit-bar-bg: linear-gradient(180deg, rgba(28, 38, 72, 0.55), rgba(14, 17, 34, 0.18));
+
+  /* Universal app-shell backdrop (ALL routes). The base is a clearly-blue dark
+     NAVY (#0b1026 — reads as deep blue, NOT black) so every page is visibly
+     cosmic edge-to-edge, lifted further by blue/violet glows at top + corners.
+     It's still dark enough that the translucent content cards (--bg-card-*) keep
+     full text/number/table contrast. The homepage overrides with the cockpit. */
+  --app-shell-bg: radial-gradient(130% 80% at 50% -10%, rgba(59, 130, 246, 0.2), transparent 55%),
+    radial-gradient(85% 65% at 100% 2%, rgba(139, 92, 246, 0.18), transparent 60%),
+    radial-gradient(80% 70% at 0% 100%, rgba(59, 130, 246, 0.12), transparent 62%), #0b1026;
+
   /* ── Borders (three glow tiers) ──────────────────────────────── */
   --border-faint: rgba(139, 92, 246, 0.08);
   --border-soft: rgba(139, 92, 246, 0.18);
@@ -138,10 +163,15 @@
   --sp-8: 32px;
   --sp-10: 48px;
 
-  /* ── Three-rail font system ──────────────────────────────────── */
-  --font-display: 'Audiowide', sans-serif; /* section title / badge */
-  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', monospace; /* every number, ever */
+  /* ── Three-rail font system (FinRobot.html research-cockpit reference) ──
+     Space Grotesk + IBM Plex Sans are Latin faces; the app is zh/en bilingual,
+     so every stack ends in a system CJK fallback (PingFang SC / Microsoft
+     YaHei) — Latin glyphs render in the brand face, CJK in the OS font. */
+  --font-display: 'Space Grotesk', system-ui, -apple-system, 'PingFang SC',
+    'Microsoft YaHei', sans-serif; /* section title / badge */
+  --font-body: 'IBM Plex Sans', system-ui, -apple-system, 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace; /* every number, ever */
   --font-ui: var(--font-body);
   --font-sans: var(--font-body);
 
@@ -3692,7 +3722,10 @@ select.settings-input {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--bg-0);
+  /* Universal cosmic backdrop on every route (fixed behind the scrolling
+     content). The homepage adds `cockpit-bg` to override with the strong
+     cockpit; other routes keep this calm-but-cosmic base. */
+  background: var(--app-shell-bg);
   overflow: hidden;
 }
 
@@ -3710,7 +3743,10 @@ select.settings-input {
   min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  background: var(--bg-0);
+  /* Transparent on every route so the shell-level cosmic backdrop
+     (--app-shell-bg, or the homepage cockpit) shows through behind the
+     scrolling content and its translucent cards. */
+  background: transparent;
 }
 
 /* ── Title bar ── */
@@ -3747,6 +3783,83 @@ select.settings-input {
   background: var(--accent-dim);
   color: var(--accent);
   box-shadow: 0 0 12px var(--accent-glow);
+}
+
+/* ── TitleBar brandmark (FinRobot.html `.brand .mark`) ────────────────
+   Conic-gradient rounded square with a dark inner square outlined in cyan. */
+.tb-brand-mark {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 6px;
+  background: conic-gradient(
+    from 130deg,
+    var(--primary),
+    var(--accent-cyan),
+    var(--secondary),
+    var(--primary)
+  );
+  box-shadow:
+    0 0 12px var(--border-glow),
+    inset 0 0 0 1px var(--border-soft);
+}
+.tb-brand-mark::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 3px;
+  background: var(--bg-void);
+  box-shadow: inset 0 0 0 1.5px var(--accent-cyan);
+}
+
+/* ── TitleBar top nav (FinRobot.html cockpit shell §5.1) ──────────────
+   Three product doors live inline in the titlebar: Research / Coverage /
+   Settings. Active door gets a cyan signal dot + faint primary wash;
+   tokens only. */
+.tb-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.tb-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    color 0.16s ease,
+    background 0.16s ease;
+}
+.tb-nav-link .tb-nav-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition:
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+.tb-nav-link:hover {
+  color: var(--text-primary);
+  background: var(--secondary-hover);
+}
+.tb-nav-link.active {
+  color: var(--text-primary);
+  background: var(--primary-soft);
+}
+.tb-nav-link.active .tb-nav-dot {
+  background: var(--accent-cyan);
+  box-shadow: var(--glow-cyan);
 }
 
 /* ── Activity bar ── */
@@ -4096,8 +4209,12 @@ select.settings-input {
 
 .statusbar {
   height: var(--statusbar-h);
-  background: var(--sidebar-bg);
-  border-top: 1px solid var(--border);
+  /* Translucent on every route — frosts into the cosmic backdrop like the
+     titlebar, so there's no solid dark bar at the bottom. */
+  background: var(--cockpit-bar-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border-faint);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -5455,6 +5572,12 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   animation: cosmic-halo 4s linear infinite;
   pointer-events: none;
 }
+/* Focused console — the flowing border spins faster + glows (design
+   `.console.focused`). Applied by CoverageHero's cockpit input. */
+.halo-input.focused::before {
+  animation-duration: 2.4s;
+  filter: drop-shadow(0 0 8px var(--border-glow));
+}
 .halo-input input {
   position: relative;
   z-index: 1;
@@ -5493,7 +5616,7 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   pointer-events: none;
 }
 
-/* ── Group / section header (Audiowide + cyan numbering) ─────── */
+/* ── Group / section header (Space Grotesk + cyan numbering) ─── */
 .cosmic-group-header {
   display: flex;
   align-items: center;
@@ -5603,12 +5726,219 @@ body.cursor-trail-on * {
   }
 }
 
-/* Audiowide letter-spacing rescue — sub-16px text becomes illegible
-   without it, so any helper class that scales Audiowide down also
-   needs explicit spacing override at the call site (cosmic spec §3). */
+/* Display letter-spacing helper — Space Grotesk reads cleanly at small
+   sizes, but a touch of tracking keeps section titles / badges feeling
+   like the FinRobot.html cockpit reference (cosmic spec §3). */
 .cosmic-display {
   font-family: var(--font-display);
   letter-spacing: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESEARCH COCKPIT — homepage hero (FinRobot.html reference)
+   Centered SplineHero robot presiding over the ticker command console,
+   a capability dock docked at the bottom. Tokens only.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Cockpit background — the luminous blue cockpit, NOT near-black (design
+   `.app` + `.app::after` + `.ambient .grid`). Applied to the homepage hero
+   section only; other pages keep the darker --bg-void base. */
+.cockpit-bg {
+  background:
+    radial-gradient(125% 95% at 50% 30%, var(--cockpit-glow-core), transparent 58%),
+    radial-gradient(70% 55% at 50% 116%, var(--cockpit-glow-violet), transparent 70%),
+    radial-gradient(60% 50% at 6% 2%, var(--cockpit-glow-corner), transparent 60%),
+    var(--cockpit-base);
+}
+/* HUD grid, masked to fade at the edges. Negative z-index so it sits behind
+   the (non-positioned) shell content but above the element's base glow. */
+.cockpit-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--cockpit-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--cockpit-grid-line) 1px, transparent 1px);
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(120% 90% at 50% 38%, #000 30%, transparent 78%);
+  mask-image: radial-gradient(120% 90% at 50% 38%, #000 30%, transparent 78%);
+}
+/* Edge vignette keeps the corners cosmic-dark. */
+.cockpit-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(125% 108% at 50% 40%, transparent 56%, var(--cockpit-vignette) 100%);
+}
+
+/* Cockpit applied at the SHELL level (homepage only) so the luminous bg sits
+   behind the title bar (top) and status bar (bottom) too — no black frames.
+   AppShell adds `cockpit-bg cockpit-shell` on /research; the bars go
+   translucent and the scroll container drops its opaque fill. */
+.app-shell.cockpit-shell {
+  position: relative;
+}
+.app-shell.cockpit-shell .main-content {
+  background: transparent;
+}
+/* The title/status bars are translucent on every route (see TitleBar inline bg
+   + the base `.statusbar` rule), so they frost into the cockpit here too —
+   no homepage-specific override needed. */
+
+/* Floating cyan motes that drift up across the cockpit (design `.ambient .mote`). */
+.cockpit-mote {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--accent-cyan);
+  opacity: 0.5;
+  pointer-events: none;
+  animation: cockpit-drift linear infinite;
+}
+@keyframes cockpit-drift {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+  }
+  90% {
+    opacity: 0.4;
+  }
+  to {
+    transform: translateY(-120px);
+    opacity: 0;
+  }
+}
+
+/* Eyebrow with cyan side rules (design .eyebrow). */
+.cockpit-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--accent-cyan);
+  opacity: 0.85;
+  white-space: nowrap;
+}
+.cockpit-eyebrow::before,
+.cockpit-eyebrow::after {
+  content: '';
+  width: 34px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-cyan));
+}
+.cockpit-eyebrow::after {
+  transform: scaleX(-1);
+}
+
+/* Bottom capability dock — five flush modules on a 1px seam grid. */
+.capability-dock {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  width: 100%;
+  max-width: 1140px;
+  margin: 0 auto;
+  background: var(--border-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+/* cyan hairline across the dock top (design .dock-inner::before). */
+.capability-dock::before {
+  content: '';
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: 0;
+  height: 1px;
+  z-index: 2;
+  background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
+  opacity: 0.5;
+}
+.capability-module {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px;
+  background: var(--bg-card-deep);
+  transition: background 0.18s ease;
+}
+.capability-module:hover {
+  background: var(--bg-elevated);
+}
+.capability-module .cap-top {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.capability-module .cap-glyph {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  position: relative;
+  border-radius: 6px;
+  border: 1px solid var(--border-glow);
+  background: var(--primary-soft);
+}
+.capability-module .cap-glyph::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 2px;
+}
+.capability-module.cap-g1 .cap-glyph::after {
+  background: var(--accent-cyan);
+  box-shadow: var(--glow-cyan);
+}
+.capability-module.cap-g2 .cap-glyph::after {
+  background: var(--primary);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.capability-module.cap-g3 .cap-glyph::after {
+  background: var(--secondary);
+  border-radius: 50%;
+}
+.capability-module.cap-g4 .cap-glyph::after {
+  background: var(--success);
+}
+.capability-module.cap-g5 .cap-glyph::after {
+  background: linear-gradient(135deg, var(--accent-cyan), var(--primary));
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+.capability-module .cap-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--text-primary);
+}
+.capability-module .cap-desc {
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+.capability-module .cap-meta {
+  margin-top: auto;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-cyan);
+  opacity: 0.7;
 }
 
 /* ── Coverage Desk hover affordances (UX-011) ────────────────────────────

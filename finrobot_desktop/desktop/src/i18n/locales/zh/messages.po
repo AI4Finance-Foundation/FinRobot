@@ -291,11 +291,11 @@ msgstr "设置"
 
 #. js-lingui-explicit-id
 msgid "nav.research"
-msgstr "研究"
+msgstr "研究台"
 
 #. js-lingui-explicit-id
 msgid "nav.coverage"
-msgstr "覆盖档案"
+msgstr "研究库"
 
 #. js-lingui-explicit-id
 msgid "nav.stocks"
@@ -3371,7 +3371,7 @@ msgstr "还没有覆盖记录 — 打开研究入口搜索第一支股票。"
 
 #. js-lingui-explicit-id
 msgid "compare.back"
-msgstr "覆盖档案"
+msgstr "研究库"
 
 #. js-lingui-explicit-id
 msgid "compare.title"
@@ -3423,7 +3423,7 @@ msgstr "打开研究入口"
 
 #. js-lingui-explicit-id
 msgid "cmdk.coverage.open"
-msgstr "打开覆盖档案"
+msgstr "打开研究库"
 
 #. js-lingui-explicit-id
 msgid "coverage.filterEmpty"
@@ -3543,32 +3543,7 @@ msgstr "返回研报"
 
 #. js-lingui-explicit-id
 msgid "ic.action.backToCoverage"
-msgstr "返回覆盖列表"
-
-#. js-lingui-explicit-id
-msgid "report.deleteVersion"
-msgstr "删除"
-
-#. js-lingui-explicit-id
-msgid "report.deleteVersionTitle"
-msgstr "永久删除此版本研报"
-
-#. js-lingui-explicit-id
-msgid "report.deleteVersionConfirm"
-msgstr "永久删除版本「{version}」？此操作不可撤销。"
-
-#. js-lingui-explicit-id
-msgid "report.deleteVersionDone"
-msgstr "已删除 {ticker} 的一个研报版本"
-
-#. js-lingui-explicit-id
-msgid "report.deleteVersionDoneBody"
-msgstr "该版本已被永久删除。"
-
-#. js-lingui-explicit-id
-msgid "report.deleteVersionFailed"
-msgstr "无法删除此版本"
-
+msgstr "返回研究库"
 
 #. js-lingui-explicit-id
 msgid "coverage.trust.label"
@@ -3799,3 +3774,56 @@ msgstr "数据源返回错误"
 #. js-lingui-explicit-id
 msgid "settings.dataTest.result.unknown"
 msgstr "连接测试失败"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.subcopy"
+msgstr "输入一个股票代码，打开可追溯的 AI 投研工作台"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.subcopyAccent"
+msgstr "确定性计算 + LLM 叙事 · 数字皆可回溯"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.popular"
+msgstr "热门"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.research.name"
+msgstr "AI 投研报告"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.research.desc"
+msgstr "13 章投行级 equity research，给出 BUY / HOLD / SELL"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.valuation.name"
+msgstr "确定性估值"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.valuation.desc"
+msgstr "DCF · 同业 · DDM · LBO · 敏感性，数字由纯函数算出"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.provenance.name"
+msgstr "数字可追溯"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.provenance.desc"
+msgstr "每个关键数字回溯到数据源 · 口径 · 公式 · 函数"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.signals.name"
+msgstr "催化剂 & 治理"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.signals.desc"
+msgstr "新闻 · 8-K · 机构持仓 · 内部人 · 13D/13G"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.quant.name"
+msgstr "量化叠加 & IC 辩论"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.quant.desc"
+msgstr "Monte Carlo · 狙击点位 · 多空投委会"
+

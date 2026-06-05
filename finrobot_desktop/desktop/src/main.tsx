@@ -2,15 +2,20 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 // Fonts are bundled (not CDN-loaded) so the desktop app renders its cosmic
-// identity offline — Audiowide (--font-display), Inter (--font-body),
-// JetBrains Mono (--font-mono). These mirror the App.css design tokens; the
-// old DM Sans / Fraunces imports were pre-cosmic leftovers wired to no token.
-import '@fontsource/audiowide/400.css'
-import '@fontsource/inter/300.css'
-import '@fontsource/inter/400.css'
-import '@fontsource/inter/500.css'
-import '@fontsource/inter/600.css'
-import '@fontsource/inter/700.css'
+// identity offline — Space Grotesk (--font-display), IBM Plex Sans
+// (--font-body), JetBrains Mono (--font-mono). These mirror the App.css design
+// tokens and the FinRobot.html research-cockpit reference. All three are Latin
+// faces; CJK glyphs (the app is zh/en bilingual) fall back to the system CJK
+// font (PingFang SC / Microsoft YaHei) declared in the token font stacks.
+import '@fontsource/space-grotesk/400.css'
+import '@fontsource/space-grotesk/500.css'
+import '@fontsource/space-grotesk/600.css'
+import '@fontsource/space-grotesk/700.css'
+import '@fontsource/ibm-plex-sans/300.css'
+import '@fontsource/ibm-plex-sans/400.css'
+import '@fontsource/ibm-plex-sans/500.css'
+import '@fontsource/ibm-plex-sans/600.css'
+import '@fontsource/ibm-plex-sans/700.css'
 import '@fontsource/jetbrains-mono/400.css'
 import '@fontsource/jetbrains-mono/500.css'
 import '@fontsource/jetbrains-mono/600.css'

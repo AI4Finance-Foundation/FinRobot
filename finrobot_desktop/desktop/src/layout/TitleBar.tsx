@@ -1,23 +1,45 @@
-// TitleBar — cosmic redesign (spec §5.1).
+// TitleBar — cosmic cockpit shell (FinRobot.html §5.1).
 //
-// Reserves 72px on the left for Tauri's native macOS traffic lights
-// (overlay titleBarStyle). Centre: FINROBOT brandmark with blue brand-dot
-// and gradient logo word. Right: explicit AI panel toggle.
+// Reserves 72px on the left for Tauri's native macOS traffic lights (overlay
+// titleBarStyle). Layout left→right: traffic lights · FINROBOT brandmark ·
+// the three product doors (Research / Coverage / Settings) as a top nav ·
+// spacer · AI panel toggle. The old left Sidebar moved its nav up here, so
+// there is no 64px icon rail any more. No "Engine Online / Data Feed · LIVE"
+// status pills and no avatar — the assistant is on-demand, not a live process,
+// so a liveness claim would be dishonest (and the design dropped them too).
 
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useUiStore } from '../stores/uiStore'
 import { useI18n } from '../i18n'
 import { startWindowDrag } from '../lib/tauri'
 
+interface NavDoor {
+  /** i18n message id resolved at render time. */
+  labelKey: string
+  path: string
+  /** Path prefixes that should light this door as active. */
+  activePaths: string[]
+}
+
+// The three top-level product doors (router.tsx: "Research, Coverage, and
+// Settings"). Research owns the per-ticker workspace (/stocks/:ticker);
+// Coverage owns the compare view; Settings is standalone.
+const DOORS: NavDoor[] = [
+  { labelKey: 'nav.research', path: '/research', activePaths: ['/research', '/stocks'] },
+  { labelKey: 'nav.coverage', path: '/coverage', activePaths: ['/coverage', '/compare'] },
+  { labelKey: 'nav.settings', path: '/settings', activePaths: ['/settings'] },
+]
+
 export function TitleBar(): React.ReactElement {
   const aiPanelOpen = useUiStore((s) => s.aiPanelOpen)
   const toggleAiPanel = useUiStore((s) => s.toggleAiPanel)
-  const setCmdPaletteOpen = useUiStore((s) => s.setCmdPaletteOpen)
   const { t, locale } = useI18n()
+  const navigate = useNavigate()
+  const location = useLocation()
 
-  // No existing .po key fits "open command palette"; use the inline
-  // locale literal pattern (precedent: VersionDiffBanner / StatusBar) to
-  // avoid .po coordination in this fix.
-  const cmdPaletteLabel = locale === 'zh' ? '打开命令面板' : 'Open command palette'
+  function isActive(door: NavDoor): boolean {
+    return door.activePaths.some((p) => location.pathname.startsWith(p))
+  }
 
   // Whole-bar window drag. Tauri v2's data-tauri-drag-region only works with
   // decorations:false; we keep native traffic lights (decorations:true +
@@ -40,8 +62,11 @@ export function TitleBar(): React.ReactElement {
         padding: '0 16px',
         display: 'flex',
         alignItems: 'center',
-        gap: 16,
-        background: 'var(--bg-sticky-78)',
+        gap: 18,
+        // Translucent on every route — the titlebar frosts into the cosmic
+        // backdrop (homepage cockpit or content-page shell glow) so there's no
+        // solid dark bar / seam at the top.
+        background: 'var(--cockpit-bar-bg)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
         borderBottom: '1px solid var(--border-faint)',
@@ -51,46 +76,64 @@ export function TitleBar(): React.ReactElement {
       {/* macOS traffic lights overlay reservation */}
       <div style={{ width: 72, flexShrink: 0 }} />
 
-      {/* Brandmark */}
-      <button
-        type="button"
-        onClick={() => setCmdPaletteOpen(true)}
-        aria-label={cmdPaletteLabel}
-        title={cmdPaletteLabel}
+      {/* Brandmark (FinRobot.html `.brand`) — conic-gradient mark + FinRobot
+          wordmark (Robot in cyan) + OPEN RESEARCH tag. Purely decorative: no
+          click/interaction (the logo is just the logo). ⌘K still opens the
+          command palette via its own shortcut. */}
+      <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
-          background: 'transparent',
-          border: 'none',
+          gap: 10,
           color: 'var(--text-primary)',
-          cursor: 'pointer',
-          fontFamily: 'var(--font-display)',
-          fontSize: 14,
-          letterSpacing: '4px',
+          flexShrink: 0,
         }}
       >
+        <span className="tb-brand-mark" aria-hidden />
         <span
           style={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            background: 'var(--primary)',
-            boxShadow: 'var(--glow-blue)',
-          }}
-        />
-        <span
-          style={{
-            background: 'linear-gradient(135deg, var(--primary), var(--secondary))',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            color: 'transparent',
+            fontFamily: 'var(--font-display)',
+            fontWeight: 600,
+            fontSize: 15,
+            letterSpacing: '0.04em',
           }}
         >
-          FINROBOT
+          Fin<b style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>Robot</b>
         </span>
-      </button>
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9.5,
+            letterSpacing: '0.16em',
+            textTransform: 'uppercase',
+            color: 'var(--text-muted)',
+            border: '1px solid var(--border-soft)',
+            borderRadius: 4,
+            padding: '2px 6px',
+          }}
+        >
+          OPEN RESEARCH
+        </span>
+      </div>
+
+      {/* Top nav — the three product doors. */}
+      <nav className="tb-nav" aria-label={locale === 'zh' ? '主导航' : 'Primary'}>
+        {DOORS.map((door) => {
+          const active = isActive(door)
+          return (
+            <button
+              key={door.path}
+              type="button"
+              className={`tb-nav-link${active ? ' active' : ''}`}
+              aria-current={active ? 'page' : undefined}
+              onClick={() => navigate(door.path)}
+            >
+              <span className="tb-nav-dot" aria-hidden />
+              {t(door.labelKey)}
+            </button>
+          )
+        })}
+      </nav>
 
       <div style={{ flex: 1 }} />
 
@@ -116,6 +159,7 @@ export function TitleBar(): React.ReactElement {
           fontFamily: 'var(--font-display)',
           fontSize: 11,
           letterSpacing: '1px',
+          flexShrink: 0,
         }}
       >
         AI

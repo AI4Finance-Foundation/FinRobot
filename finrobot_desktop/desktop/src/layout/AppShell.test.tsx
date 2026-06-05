@@ -32,15 +32,16 @@ describe('AppShell — simplified shell structure', () => {
   it('renders core shell regions', () => {
     renderWithProviders()
     expect(screen.getByTestId('titlebar')).toBeInTheDocument()
-    expect(screen.getByTestId('sidebar')).toBeInTheDocument()
     expect(screen.getByTestId('statusbar')).toBeInTheDocument()
   })
 
-  it('renders the Research and Coverage nav doors', () => {
+  it('renders the three product-door nav buttons in the titlebar', () => {
     renderWithProviders()
-    expect(screen.getByLabelText('Research')).toBeInTheDocument()
-    const coverageBtn = screen.getByLabelText('Coverage')
-    expect(coverageBtn).toBeInTheDocument()
+    // Nav moved from the retired left Sidebar into the TitleBar; the doors
+    // expose their accessible name via button text (no aria-label needed).
+    expect(screen.getByRole('button', { name: 'Research' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Coverage' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument()
   })
 })
 

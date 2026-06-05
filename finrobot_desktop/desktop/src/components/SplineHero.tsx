@@ -68,26 +68,19 @@ export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.R
   // viewer — that's the heat saver.
   const allowed = enabled && pageActive && visible
 
-  // Track tab / window visibility so we can unmount the WebGL viewer when
-  // the user switches away. Keeps the GPU idle in the background — the
-  // single biggest factor in the laptop-fan complaint.
+  // Unmount the WebGL viewer only when the tab is actually HIDDEN
+  // (visibilitychange) — that's the real heat-saver. We deliberately do NOT
+  // unmount on mere window blur: every blur→focus cycle reloaded the scene and
+  // replayed its zoom-in intro, so the robot "slowly zoomed" each time the user
+  // clicked away and back. A still-visible-but-unfocused window keeps the
+  // robot mounted (and CSS animations are already paused via body.app-bg).
   useEffect(() => {
     function onVis() {
       setPageActive(!document.hidden)
     }
-    function onBlur() {
-      setPageActive(false)
-    }
-    function onFocus() {
-      setPageActive(!document.hidden)
-    }
     document.addEventListener('visibilitychange', onVis)
-    window.addEventListener('blur', onBlur)
-    window.addEventListener('focus', onFocus)
     return () => {
       document.removeEventListener('visibilitychange', onVis)
-      window.removeEventListener('blur', onBlur)
-      window.removeEventListener('focus', onFocus)
     }
   }, [])
 

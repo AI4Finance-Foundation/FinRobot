@@ -24,6 +24,7 @@ import math
 import statistics
 from typing import Final
 
+from finrobot.engine.compute.operators.wacc import adjust_beta_blume
 from finrobot.engine.data.industry_defaults import (
     IndustryDefault,
     get_industry_default,
@@ -39,10 +40,22 @@ from finrobot.engine.models.financial import (
 # market-wide (not per-company), so they don't violate the "no hardcoded
 # per-company defaults" rule.
 DEFAULT_RISK_FREE_RATE: Final[float] = 0.043  # 10Y Treasury, 2026-01
-DEFAULT_EQUITY_RISK_PREMIUM: Final[float] = 0.055  # Damodaran 2026 implied ERP
-DEFAULT_TERMINAL_GROWTH: Final[float] = 0.025  # Long-run US nominal GDP
+# Damodaran implied ERP, Jan 1 2026 (S&P 6845.5, implied return 8.41%, T-bond
+# 4.18% → ERP 4.23%). The previous 5.5% was ~127bp above the actual implied
+# premium and systematically inflated every WACC ~120bp, pushing fair value to
+# 25–55% of market across the mega-caps. Source: pages.stern.nyu.edu Data 2026.
+DEFAULT_EQUITY_RISK_PREMIUM: Final[float] = 0.0423
+# Perpetuity growth — a defensible long-run rate BELOW the risk-free ceiling
+# (Damodaran caps terminal growth at the risk-free rate). 3.0% ≈ long-run
+# inflation plus a modest real sliver; the sell-side base case for mega-cap
+# compounders (e.g. MSFT) uses 2.5–3.0%. The old 2.5% was labelled "nominal GDP"
+# but is closer to REAL GDP, biasing the Gordon terminal value low.
+DEFAULT_TERMINAL_GROWTH: Final[float] = 0.030
 DEFAULT_TAX_RATE: Final[float] = 0.21  # US corporate statutory
-DEFAULT_PROJECTION_YEARS: Final[int] = 5
+# Two-stage 10y explicit window — the sell-side standard for growth compounders.
+# A 5y window truncated the growth runway and jumped to the terminal rate too
+# early, compounding the lowball for exactly the high-growth names.
+DEFAULT_PROJECTION_YEARS: Final[int] = 10
 DEFAULT_COST_OF_DEBT: Final[float] = 0.05  # Investment-grade corporate yield
 
 # Effective cost-of-debt is clamped into this band: below it the rate is
@@ -149,19 +162,20 @@ def _decay_growth_schedule(
 
 def _cost_of_debt(
     interest_expense: float | None,
-    total_debt: float,
+    total_debt: float | None,
     *,
     floor: float = COST_OF_DEBT_FLOOR,
     cap: float = COST_OF_DEBT_CAP,
 ) -> float | None:
     """Effective cost of debt = interest expense / total debt, clamped to [floor, cap].
 
-    Returns None when interest_expense missing or total_debt too small to
-    yield a meaningful rate (sub-1% of equity ⇒ rounding noise). When the raw
-    rate is clamped, logs a warning so the substitution is never silent — the
-    DCF caller additionally marks it in ``assumption_provenance`` (BUG-023).
+    Returns None when interest_expense or total_debt is missing, or total_debt
+    is too small to yield a meaningful rate (sub-1% of equity ⇒ rounding noise).
+    When the raw rate is clamped, logs a warning so the substitution is never
+    silent — the DCF caller additionally marks it in ``assumption_provenance``
+    (BUG-023).
     """
-    if interest_expense is None or total_debt <= 0:
+    if interest_expense is None or total_debt is None or total_debt <= 0:
         return None
     rate = interest_expense / total_debt
     if rate < floor:
@@ -383,14 +397,21 @@ def seed_dcf_inputs(
         )
 
     # ----- WACC components --------------------------------------------------
-    # Beta: prefer provider-reported beta, fall back to industry levered beta.
-    beta_chosen, beta_source = _pick_with_provenance(
+    # Beta: prefer provider-reported beta, fall back to industry levered beta,
+    # then apply the Blume/Bloomberg adjustment (2/3·β + 1/3·1.0). A raw 5y
+    # regression beta is a noisy estimate of the FORWARD beta and empirically
+    # mean-reverts toward 1.0; using it unadjusted put NVDA's 2.24 into a 16.6%
+    # CAPM cost of equity — a discount rate no analyst applies to a mega-cap.
+    raw_beta, beta_source = _pick_with_provenance(
         ticker_value=financials.market.beta,
-        ticker_label="provider 报告 5y 调整 beta",
+        ticker_label="provider 报告 5y beta",
         industry_value=industry.levered_beta,
         industry_label=f"{industry.industry} 行业 levered beta",
     )
-    prov["beta"] = f"{beta_chosen:.2f}（{beta_source}）"
+    beta_chosen = adjust_beta_blume(raw_beta)
+    prov["beta"] = (
+        f"{beta_chosen:.2f}（{beta_source} {raw_beta:.2f} 经 Blume 调整 2/3·β+1/3·1.0 向 1.0 收敛）"
+    )
 
     # Cost of debt: try interest_expense / total_debt; fall back to 5%.
     total_debt = financials.balance.total_debt
@@ -420,7 +441,7 @@ def seed_dcf_inputs(
 
     # Debt ratio: from current market cap + total debt.
     market_cap = financials.market.market_cap if financials.market else 0
-    if total_debt > 0 and market_cap > 0:
+    if total_debt is not None and total_debt > 0 and market_cap > 0:
         debt_ratio = total_debt / (total_debt + market_cap)
         prov["debt_ratio"] = (
             f"{debt_ratio:.1%}（总债务 ${total_debt / 1e9:.1f}B / "
@@ -438,11 +459,27 @@ def seed_dcf_inputs(
     shares_outstanding = financials.market.shares_outstanding
     prov["shares_outstanding"] = f"当前流通股本 {shares_outstanding / 1e9:.2f}B 股"
 
-    net_debt = total_debt - financials.balance.total_cash
-    prov["net_debt"] = (
-        f"${net_debt / 1e9:+.1f}B "
-        f"（总债务 - 现金 = {total_debt / 1e9:.1f}B - {financials.balance.total_cash / 1e9:.1f}B）"
-    )
+    # None ≠ 0: a missing debt/cash component is "not reported", not zero. The DCF
+    # equity bridge still needs a net-debt scalar, so coerce the missing side to 0
+    # at the point of use — but disclose it in provenance so the substitution is
+    # never silent (net debt may be understated). The resulting number is
+    # identical to the old zero-filled model default; only the disclosure is new.
+    raw_cash = financials.balance.total_cash
+    nd_debt = total_debt if total_debt is not None else 0.0
+    nd_cash = raw_cash if raw_cash is not None else 0.0
+    net_debt = nd_debt - nd_cash
+    if total_debt is None or raw_cash is None:
+        missing = " 和 ".join(
+            label for label, value in (("总债务", total_debt), ("现金", raw_cash)) if value is None
+        )
+        prov["net_debt"] = (
+            f"${net_debt / 1e9:+.1f}B（{missing}未披露，缺失项按 0 处理 — 净债务可能被低估）"
+        )
+    else:
+        prov["net_debt"] = (
+            f"${net_debt / 1e9:+.1f}B "
+            f"（总债务 - 现金 = {nd_debt / 1e9:.1f}B - {nd_cash / 1e9:.1f}B）"
+        )
 
     # ----- Final clamp + construct -----------------------------------------
     # Pydantic Field validators enforce ranges; clamp first to avoid raising

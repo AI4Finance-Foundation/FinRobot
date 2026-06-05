@@ -277,7 +277,8 @@ class TestSeedDcfInputsAapl:
         assert 0.30 <= self.inputs.ebitda_margin <= 0.36
 
     def test_beta_from_provider(self):
-        assert self.inputs.beta == pytest.approx(1.25, abs=0.01)
+        # Provider raw beta 1.25, Blume-adjusted: 2/3·1.25 + 1/3·1.0 = 1.1667.
+        assert self.inputs.beta == pytest.approx(1.1667, abs=0.01)
 
     def test_cost_of_debt_derived_from_interest_expense(self):
         # 3.75B / 106B ≈ 3.54%
@@ -289,7 +290,7 @@ class TestSeedDcfInputsAapl:
 
     def test_growth_schedule_length_matches_projection_years(self):
         sched = self.inputs.revenue_growth_rates
-        assert len(sched) == 5
+        assert len(sched) == 10
         # AAPL fixture has CAGR=2.2% < terminal 2.5% → flat schedule. Real
         # AAPL 5y CAGR is closer to 8% so this is a fixture-specific edge.
         # Either way, schedule must be monotone non-increasing.
@@ -438,7 +439,7 @@ class TestDecliningFirmGrowth:
         hist = _aapl_historical().model_copy(update={"cagr_revenue": 0.30})
         inputs = seed_dcf_inputs(fin, hist)
         assert inputs.revenue_growth_rates[0] == pytest.approx(0.30)
-        assert inputs.revenue_growth_rates[-1] == pytest.approx(0.025)
+        assert inputs.revenue_growth_rates[-1] == pytest.approx(0.030)
         assert "衰减" in inputs.assumption_provenance["revenue_growth_rates"]
 
 

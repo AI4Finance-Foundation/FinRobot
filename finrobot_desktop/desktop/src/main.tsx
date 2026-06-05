@@ -25,22 +25,17 @@ import { queryClient } from './api/queryClient'
 import { router } from './router'
 import { ErrorBoundary } from './components/ErrorBoundary'
 // Importing the i18n module runs its side effects (load catalogs + activate the
-// persisted/default locale) before the first render.
+// default locale) before the first render.
 import { useUiPrefs } from './i18n'
-import { detectInitialLocale, hasStoredLocale } from './i18n/detect'
 import './App.css'
 import './styles/tabs.css'
 
-// First-launch language: if the user has never picked a language, match the OS
-// locale (English OS → English UI, Chinese OS → Chinese UI) before the first
-// paint. Once set, setLocale() persists it, so subsequent launches honor the
-// stored choice and skip detection. Chinese-first remains the fallback when the
-// OS gives no usable hint (or outside Tauri).
+// The app ships English-only (no in-app language switcher). Force 'en' on every
+// launch so any stale persisted 'zh' from an earlier build is coerced back to
+// English. When multi-language returns, replace this with locale detection /
+// the persisted choice — the i18n machinery is otherwise untouched.
 async function bootstrap(): Promise<void> {
-  if (!hasStoredLocale()) {
-    const detected = await detectInitialLocale()
-    useUiPrefs.getState().setLocale(detected)
-  }
+  useUiPrefs.getState().setLocale('en')
 
   const root = document.getElementById('root')
   if (!(root instanceof HTMLElement)) {

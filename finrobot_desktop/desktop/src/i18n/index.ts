@@ -34,10 +34,12 @@ interface UiPrefsState {
 }
 
 function defaultLocale(): Locale {
-  // Sync default — async OS-locale detection happens in initLocale() at app startup.
-  // We pick 'zh' here for the SSR/first-render frame; detectLocale() may override
-  // before the first paint by calling setLocale.
-  return 'zh'
+  // The app currently ships English-only: there is no in-app language switcher
+  // and English is the single active locale. The i18n machinery (catalogs,
+  // LOCALES, useI18n/t/tSync, the persisted store, the backend `lang` param)
+  // is kept intact so re-enabling multi-language is a matter of re-adding the
+  // selector — not rebuilding the plumbing.
+  return 'en'
 }
 
 export const useUiPrefs = create<UiPrefsState>()(

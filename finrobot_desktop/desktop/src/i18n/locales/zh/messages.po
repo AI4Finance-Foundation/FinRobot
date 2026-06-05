@@ -366,10 +366,6 @@ msgid "settings.apikey.set"
 msgstr "✓ 已配置"
 
 #. js-lingui-explicit-id
-msgid "settings.language"
-msgstr "语言"
-
-#. js-lingui-explicit-id
 msgid "settings.model.default"
 msgstr "默认模型"
 
@@ -1931,7 +1927,7 @@ msgstr "无法启动同步——后端不可用或返回错误。"
 
 #. js-lingui-explicit-id
 msgid "settings.appearance.title"
-msgstr "外观与语言"
+msgstr "外观"
 
 #. js-lingui-explicit-id
 msgid "settings.appearance.intro"

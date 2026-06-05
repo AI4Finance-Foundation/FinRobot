@@ -4,7 +4,7 @@ import { api, BASE_URL } from '../api/client'
 import { useToastStore } from '../stores/toastStore'
 import { useUiStore } from '../stores/uiStore'
 import { mapErrorToUserMessage, FetchHttpError } from '../utils/errorMessage'
-import { useI18n, tSync, useUiPrefs, LOCALES, type Locale } from '../i18n'
+import { useI18n, tSync } from '../i18n'
 
 interface Props {
   onComplete: () => void
@@ -1573,8 +1573,6 @@ function DisplaySection({
   sectionRef: (el: HTMLElement | null) => void
 }): React.ReactElement {
   const { t } = useI18n()
-  const locale = useUiPrefs((s) => s.locale)
-  const setLocale = useUiPrefs((s) => s.setLocale)
   const cursorOn = useUiStore((s) => s.cursorTrailEnabled)
   const setCursor = useUiStore((s) => s.setCursorTrailEnabled)
 
@@ -1582,24 +1580,6 @@ function DisplaySection({
     <section className="settings-section" data-section="display" ref={sectionRef}>
       <h2 className="settings-section-title">{t('settings.appearance.title')}</h2>
       <p className="settings-section-desc">{t('settings.appearance.intro')}</p>
-
-      <div className="settings-field" style={{ marginBottom: 'var(--sp-4)' }}>
-        <label className="settings-field-label">
-          <span className="label-text">{t('settings.language')}</span>
-        </label>
-        <select
-          className="settings-input"
-          value={locale}
-          onChange={(e) => setLocale(e.target.value as Locale)}
-          style={{ maxWidth: 220 }}
-        >
-          {LOCALES.map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.native}
-            </option>
-          ))}
-        </select>
-      </div>
 
       <ToggleRow
         label={t('settings.appearance.cursor')}

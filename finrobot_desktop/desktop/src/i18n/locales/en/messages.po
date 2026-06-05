@@ -366,10 +366,6 @@ msgid "settings.apikey.set"
 msgstr "✓ Set"
 
 #. js-lingui-explicit-id
-msgid "settings.language"
-msgstr "Language"
-
-#. js-lingui-explicit-id
 msgid "settings.model.default"
 msgstr "Default model"
 
@@ -1931,7 +1927,7 @@ msgstr "Couldn't start the sync — the backend is unreachable or returned an er
 
 #. js-lingui-explicit-id
 msgid "settings.appearance.title"
-msgstr "Appearance & Language"
+msgstr "Appearance"
 
 #. js-lingui-explicit-id
 msgid "settings.appearance.intro"

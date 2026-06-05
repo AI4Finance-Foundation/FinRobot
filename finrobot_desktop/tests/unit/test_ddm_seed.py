@@ -140,11 +140,17 @@ class TestSeedHappyPath:
         assert inputs.terminal_growth_rate == pytest.approx(DEFAULT_TERMINAL_GROWTH)
 
     def test_end_to_end_value_is_defensible(self) -> None:
-        """The whole point: seeded JPM lands ~$247 (-16.5%), not naive ~$102 (-66%)."""
+        """Seeded JPM lands ~$344 (+16%), not naive ~$158 (-46%).
+
+        Bounds recalibrated after c18fe9a changed ERP 5.5%→4.23%, tg 2.5%→3.0%,
+        and projection_years 5→10 (all three lift the DDM value). The normalization
+        logic is unchanged; its effect (2.2× lift vs naive constant-payout) is
+        still what this test guards.
+        """
         inputs = seed_ddm_inputs(_financials(), _normalized())
         result = calculate_ddm(inputs)
-        assert 220.0 < result.equity_value_per_share < 270.0
-        assert -0.30 < result.upside < -0.05
+        assert 310.0 < result.equity_value_per_share < 380.0
+        assert 0.0 < result.upside < 0.35
 
 
 class TestSeedFallbacks:
@@ -188,8 +194,9 @@ class TestSeedFallbacks:
 
     def test_roe_missing_uses_generic_growth(self) -> None:
         inputs = seed_ddm_inputs(_financials(), _normalized(return_on_equity=None))
-        # Generic start = max(tg*2, 5%) = 5%, decaying to terminal.
-        assert inputs.dividend_growth_rates[0] == pytest.approx(0.05, abs=1e-6)
+        # Generic start = max(tg*2, 5%). With DEFAULT_TERMINAL_GROWTH=3.0%: max(6%,5%)=6%.
+        expected_g = max(DEFAULT_TERMINAL_GROWTH * 2, 0.05)
+        assert inputs.dividend_growth_rates[0] == pytest.approx(expected_g, abs=1e-6)
         assert inputs.terminal_payout_ratio is None
         assert "ROE 不可得" in inputs.assumption_provenance["terminal_payout_ratio"]
 
